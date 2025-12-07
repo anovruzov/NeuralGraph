@@ -8,9 +8,13 @@ from typing import cast
 from dotenv import load_dotenv
 
 from memmachine.common.episode_store import ContentType
+from memmachine.common.configuration.configuration_loader import load_config
+from memmachine.common.resource_manager import CommonResourceManager
+from memmachine.common.session_manager.session_data_manager import SessionDataManager
 from memmachine.episodic_memory.episodic_memory import EpisodicMemory
 from memmachine.episodic_memory.episodic_memory_manager import (
     EpisodicMemoryManager,
+    EpisodicMemoryManagerParams,
 )
 
 
@@ -26,9 +30,19 @@ async def main() -> None:
     with open(data_path, "r") as f:
         locomo_data = json.load(f)
 
-    memory_manager = EpisodicMemoryManager.create_episodic_memory_manager(
-        "locomo_config.yaml",
+    # Load configuration from YAML
+    config = load_config("locomo_config.yaml")
+
+    # Create resource manager and session data manager
+    resource_manager = CommonResourceManager(config)
+    session_data_manager = SessionDataManager(config.get("sessiondb", {}).get("uri", "sqlite:///locomo_sessions.db"))
+
+    # Create memory manager with new API
+    params = EpisodicMemoryManagerParams(
+        resource_manager=resource_manager,
+        session_data_manager=session_data_manager,
     )
+    memory_manager = EpisodicMemoryManager(params)
 
     async def process_conversation(
         idx,

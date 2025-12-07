@@ -34,6 +34,7 @@ from .data_types import (
     Derivative,
     Episode,
     FilterablePropertyValue,
+    TimestampMetadata,
     demangle_filterable_property_key,
     is_mangled_filterable_property_key,
     mangle_filterable_property_key,
@@ -214,6 +215,58 @@ class DeclarativeMemory:
             edges=derivative_episode_edges,
         )
 
+    # Date detection patterns for chunk sizing
+    _DATE_PATTERNS = [
+        r"\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}",
+        r"\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b",
+        r"\b\d{4}-\d{2}-\d{2}\b",
+        r"\b\d{1,2}/\d{1,2}/\d{2,4}\b",
+        r"\b(19|20)\d{2}\b",
+        r"\b(yesterday|today|tomorrow|last\s+week|next\s+week)\b",
+    ]
+
+    @staticmethod
+    def _has_date_reference(text: str) -> bool:
+        """Check if text contains date references."""
+        import re
+        text_lower = text.lower()
+        for pattern in DeclarativeMemory._DATE_PATTERNS:
+            if re.search(pattern, text_lower, re.IGNORECASE):
+                return True
+        return False
+
+    @staticmethod
+    def _chunk_sentences(
+        sentences: list[str],
+        has_dates: bool,
+        min_chunk_size: int = 1,
+        max_chunk_size: int = 5,
+    ) -> list[str]:
+        """
+        Group sentences into chunks.
+
+        For date-containing messages, use larger chunks (3-5 sentences)
+        to preserve temporal context around date mentions.
+        """
+        if not sentences:
+            return []
+
+        # Use larger chunks for date-containing messages
+        if has_dates:
+            chunk_size = min(max_chunk_size, max(3, len(sentences)))
+        else:
+            chunk_size = min_chunk_size
+
+        if chunk_size == 1:
+            return sentences
+
+        chunks = []
+        for i in range(0, len(sentences), chunk_size):
+            chunk = " ".join(sentences[i : i + chunk_size])
+            chunks.append(chunk)
+
+        return chunks
+
     async def _derive_derivatives(
         self,
         episode: Episode,
@@ -228,26 +281,46 @@ class DeclarativeMemory:
         Returns:
             list[Derivative]: A list of derived derivatives.
 
+        For date-containing messages, uses larger chunks (3-5 sentences)
+        to preserve temporal context.
         """
+        # Create structured timestamp metadata
+        timestamp_meta = TimestampMetadata.from_datetime(
+            episode.timestamp,
+            event_id=episode.uid,
+            message_id=episode.uid,
+        )
+
         match episode.content_type:
             case ContentType.MESSAGE:
                 sentences = []
                 for line in episode.content.strip().splitlines():
                     sentences.extend(sent_tokenize(line.strip()))
 
+                # Check if content has date references
+                has_dates = self._has_date_reference(episode.content)
+
+                # Use larger chunks for date-containing messages
+                chunks = self._chunk_sentences(sentences, has_dates)
+
                 message_timestamp = episode.timestamp.strftime(
                     "%A, %B %d, %Y at %I:%M %p",
                 )
+
+                # Add date tokens to content for improved BM25 matching
+                date_tokens = " ".join(timestamp_meta.to_searchable_tokens()[:5])
+
                 return [
                     Derivative(
                         uid=str(uuid4()),
                         timestamp=episode.timestamp,
                         source=episode.source,
                         content_type=ContentType.MESSAGE,
-                        content=f"[{message_timestamp}] {episode.source}: {sentence}",
+                        content=f"[{message_timestamp}] {episode.source}: {chunk} [date:{date_tokens}]",
                         filterable_properties=episode.filterable_properties,
+                        timestamp_metadata=timestamp_meta,
                     )
-                    for sentence in sentences
+                    for chunk in chunks
                 ]
             case ContentType.TEXT:
                 text_content = episode.content
@@ -259,6 +332,7 @@ class DeclarativeMemory:
                         content_type=ContentType.TEXT,
                         content=text_content,
                         filterable_properties=episode.filterable_properties,
+                        timestamp_metadata=timestamp_meta,
                     ),
                 ]
             case _:
