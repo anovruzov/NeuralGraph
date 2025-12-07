@@ -1,0 +1,856 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "FastAPI",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/v2/projects": {
+      "post": {
+        "summary": "Create Project",
+        "description": "Create a new project.",
+        "operationId": "create_project_api_v2_projects_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProjectSpec"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/projects/get": {
+      "post": {
+        "summary": "Get Project",
+        "description": "Get a project.",
+        "operationId": "get_project_api_v2_projects_get_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetProjectSpec"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/projects/list": {
+      "post": {
+        "summary": "List Projects",
+        "description": "List all projects.",
+        "operationId": "list_projects_api_v2_projects_list_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "title": "Response List Projects Api V2 Projects List Post"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/projects/delete": {
+      "post": {
+        "summary": "Delete Project",
+        "description": "Delete a project.",
+        "operationId": "delete_project_api_v2_projects_delete_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteProjectSpec"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/memories": {
+      "post": {
+        "summary": "Add Memories",
+        "description": "Add memories to a project.",
+        "operationId": "add_memories_api_v2_memories_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddMemoriesSpec"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddMemoriesResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/memories/episodic/add": {
+      "post": {
+        "summary": "Add Episodic Memories",
+        "description": "Add episodic memories to a project.",
+        "operationId": "add_episodic_memories_api_v2_memories_episodic_add_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddMemoriesSpec"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddMemoriesResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/memories/semantic/add": {
+      "post": {
+        "summary": "Add Semantic Memories",
+        "description": "Add semantic memories to a project.",
+        "operationId": "add_semantic_memories_api_v2_memories_semantic_add_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddMemoriesSpec"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddMemoriesResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/memories/search": {
+      "post": {
+        "summary": "Search Memories",
+        "description": "Search memories in a project.",
+        "operationId": "search_memories_api_v2_memories_search_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchMemoriesSpec"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/memories/list": {
+      "post": {
+        "summary": "List Memories",
+        "description": "List memories in a project.",
+        "operationId": "list_memories_api_v2_memories_list_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListMemoriesSpec"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/memories/episodic/delete": {
+      "post": {
+        "summary": "Delete Episodic Memory",
+        "description": "Delete episodic memories in a project.",
+        "operationId": "delete_episodic_memory_api_v2_memories_episodic_delete_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteEpisodicMemorySpec"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/memories/semantic/delete": {
+      "post": {
+        "summary": "Delete Semantic Memory",
+        "description": "Delete semantic memories in a project.",
+        "operationId": "delete_semantic_memory_api_v2_memories_semantic_delete_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteSemanticMemorySpec"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/metrics": {
+      "get": {
+        "summary": "Metrics",
+        "description": "Expose Prometheus metrics endpoint.",
+        "operationId": "metrics_api_v2_metrics_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/health": {
+      "get": {
+        "summary": "Health Check",
+        "description": "Health check endpoint for container orchestration.",
+        "operationId": "health_check_api_v2_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Health Check Api V2 Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AddMemoriesResponse": {
+        "properties": {
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/AddMemoryResult"
+            },
+            "type": "array",
+            "title": "Results"
+          }
+        },
+        "type": "object",
+        "required": [
+          "results"
+        ],
+        "title": "AddMemoriesResponse",
+        "description": "Response model for adding memories."
+      },
+      "AddMemoriesSpec": {
+        "properties": {
+          "org_id": {
+            "type": "string",
+            "title": "Org Id",
+            "default": "universal"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id",
+            "default": "universal"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/MemoryMessage"
+            },
+            "type": "array",
+            "title": "Messages"
+          }
+        },
+        "type": "object",
+        "required": [
+          "messages"
+        ],
+        "title": "AddMemoriesSpec",
+        "description": "Specification model for adding memories."
+      },
+      "AddMemoryResult": {
+        "properties": {
+          "uid": {
+            "type": "string",
+            "title": "Uid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "uid"
+        ],
+        "title": "AddMemoryResult",
+        "description": "Response model for adding memories."
+      },
+      "CreateProjectSpec": {
+        "properties": {
+          "org_id": {
+            "type": "string",
+            "title": "Org Id"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "config": {
+            "$ref": "#/components/schemas/ProjectConfig"
+          }
+        },
+        "type": "object",
+        "required": [
+          "org_id",
+          "project_id"
+        ],
+        "title": "CreateProjectSpec",
+        "description": "Specification model for creating a new project."
+      },
+      "DeleteEpisodicMemorySpec": {
+        "properties": {
+          "org_id": {
+            "type": "string",
+            "title": "Org Id",
+            "default": "universal"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id",
+            "default": "universal"
+          },
+          "episodic_id": {
+            "type": "string",
+            "title": "Episodic Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "episodic_id"
+        ],
+        "title": "DeleteEpisodicMemorySpec",
+        "description": "Specification model for deleting episodic memories."
+      },
+      "DeleteProjectSpec": {
+        "properties": {
+          "org_id": {
+            "type": "string",
+            "title": "Org Id"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "org_id",
+          "project_id"
+        ],
+        "title": "DeleteProjectSpec",
+        "description": "Specification model for deleting a project."
+      },
+      "DeleteSemanticMemorySpec": {
+        "properties": {
+          "org_id": {
+            "type": "string",
+            "title": "Org Id",
+            "default": "universal"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id",
+            "default": "universal"
+          },
+          "semantic_id": {
+            "type": "string",
+            "title": "Semantic Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "semantic_id"
+        ],
+        "title": "DeleteSemanticMemorySpec",
+        "description": "Specification model for deleting episodic memories."
+      },
+      "GetProjectSpec": {
+        "properties": {
+          "org_id": {
+            "type": "string",
+            "title": "Org Id"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "org_id",
+          "project_id"
+        ],
+        "title": "GetProjectSpec",
+        "description": "Specification model for getting a project."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "ListMemoriesSpec": {
+        "properties": {
+          "org_id": {
+            "type": "string",
+            "title": "Org Id",
+            "default": "universal"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id",
+            "default": "universal"
+          },
+          "page_size": {
+            "type": "integer",
+            "title": "Page Size",
+            "default": 100
+          },
+          "page_num": {
+            "type": "integer",
+            "title": "Page Num",
+            "default": 0
+          },
+          "filter": {
+            "type": "string",
+            "title": "Filter",
+            "default": ""
+          },
+          "type": {
+            "$ref": "#/components/schemas/MemoryType",
+            "default": "episodic"
+          }
+        },
+        "type": "object",
+        "title": "ListMemoriesSpec",
+        "description": "Specification model for listing memories."
+      },
+      "MemoryMessage": {
+        "properties": {
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "producer": {
+            "type": "string",
+            "title": "Producer",
+            "default": "user"
+          },
+          "produced_for": {
+            "type": "string",
+            "title": "Produced For",
+            "default": ""
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role",
+            "default": ""
+          },
+          "metadata": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Metadata"
+          }
+        },
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "title": "MemoryMessage",
+        "description": "Model representing a memory message."
+      },
+      "MemoryType": {
+        "type": "string",
+        "enum": [
+          "semantic",
+          "episodic"
+        ],
+        "title": "MemoryType",
+        "description": "Memory type."
+      },
+      "ProjectConfig": {
+        "properties": {
+          "reranker": {
+            "type": "string",
+            "title": "Reranker",
+            "default": ""
+          },
+          "embedder": {
+            "type": "string",
+            "title": "Embedder",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "ProjectConfig",
+        "description": "Project configuration model."
+      },
+      "ProjectResponse": {
+        "properties": {
+          "org_id": {
+            "type": "string",
+            "title": "Org Id"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "config": {
+            "$ref": "#/components/schemas/ProjectConfig"
+          }
+        },
+        "type": "object",
+        "required": [
+          "org_id",
+          "project_id"
+        ],
+        "title": "ProjectResponse",
+        "description": "Response model for project operations."
+      },
+      "SearchMemoriesSpec": {
+        "properties": {
+          "org_id": {
+            "type": "string",
+            "title": "Org Id",
+            "default": "universal"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id",
+            "default": "universal"
+          },
+          "top_k": {
+            "type": "integer",
+            "title": "Top K",
+            "default": 10
+          },
+          "query": {
+            "type": "string",
+            "title": "Query"
+          },
+          "filter": {
+            "type": "string",
+            "title": "Filter",
+            "default": ""
+          },
+          "types": {
+            "items": {
+              "$ref": "#/components/schemas/MemoryType"
+            },
+            "type": "array",
+            "title": "Types"
+          }
+        },
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "title": "SearchMemoriesSpec",
+        "description": "Specification model for searching memories."
+      },
+      "SearchResult": {
+        "properties": {
+          "status": {
+            "type": "integer",
+            "title": "Status",
+            "default": 0
+          },
+          "content": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Content"
+          }
+        },
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "title": "SearchResult",
+        "description": "Response model for memory search results."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

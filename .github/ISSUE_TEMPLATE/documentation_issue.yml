@@ -1,0 +1,44 @@
+name: 📝 Documentation Issue
+description: Report a problem with the project documentation, such as a typo, outdated information, or a broken link.
+title: "[Docs]: "
+type: 'Documentation'
+
+body:
+  - type: input
+    id: documentation-url
+    attributes:
+      label: Documentation Page URL
+      description: Please provide the URL of the specific documentation page where you found the issue.
+      placeholder: "e.g., https://docs.yourproject.com/getting-started.md"
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem-description
+    attributes:
+      label: Describe the issue
+      description: A clear and concise description of the problem with the documentation. What is incorrect, unclear, or missing?
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggested-fix
+    attributes:
+      label: Suggested change or fix
+      description: If you have a suggestion for how to fix the issue, please describe it here.
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Add any other context or screenshots about the documentation issue here.
+    validations:
+      required: false
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        Thanks for helping improve our documentation! 🎉

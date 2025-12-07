@@ -1,0 +1,80 @@
+---
+title: "Reranker Models"
+description: "Help your agents understand relationships and retrieve context"
+icon: "medal"
+---
+
+## The Re-Ranker: MemMachine's Precision Tuner
+
+Imagine your MemMachine-powered AI agent has a vast library of past conversations, facts, and user preferences - its memory! When a user asks a question, MemMachine quickly pulls out a stack of potentially relevant "books" from this library. While this initial retrieval is fast and broad, not every book on that stack is equally important or directly relevant to the user's *exact* question. This is where the **re-ranker** steps in!
+
+### What a Re-Ranker Does for MemMachine Output
+
+The re-ranker is a clever, sophisticated part of MemMachine that acts like a **super-efficient librarian** who deeply understands your user's specific query. It takes that initial stack of retrieved memory chunks and carefully re-reads each one in the context of the user's original question. Its job is to **reorder these memory items**, pushing the most relevant and precise pieces of information right to the very top.
+
+Think of it this way:
+- **Initial Retrieval:** Finds *all* the books related to "cats."
+- **Re-ranker:** Finds the specific book about "Siamese cat grooming tips" when the user asked, "How do I brush my Siamese cat?" – putting it first, even if other cat books were also retrieved.
+
+## Supported MemMachine Re-Rankers
+
+MemMachine supports several different re-rankers.  Each has strengths and weaknesses, and can be configured speicific to your use case.
+
+### Cross-encoder
+
+Cross-encoder is a neural network model, typically based on the transformer architecture (like BERT, RoBERTa, etc.), that is specifically designed to assess the similarity or relevance between two pieces of text by encoding them together in a single pass.
+
+Here's how it generally works:
+
+1. It takes the full query and the full document/memory chunk as a single input.
+2. The model then processes these two inputs jointly, allowing for deep, token-level interactions between every word in the query and every word in the document. ***This is where the "cross" in cross-encoder comes from*** - it cross-attends between the query and the document.
+3. Finally, it outputs a single score indicating the relevance or similarity of that specific query-document pair.
+
+Cross-encoders make excellent re-rankers because their architecture is perfectly suited for the task of deeply comparing a query to a document.
+
+### Embedder
+
+An **embedder** (or embedding model) is an AI model that takes input data, typically text (but also images, audio, etc.), and transforms it into a dense numerical vector called an embedding. This vector captures the semantic meaning and context of the input. Texts with similar meanings will have embeddings that are "close" to each other in this multi-dimensional vector space.
+
+For more information, check out our [Embedder](./embedding.mdx) section.
+
+### BM25
+
+BM25 (Best Matching 25) is a classic and highly effective statistical search algorithm used for keyword-based ranking. It's a foundational component in many traditional search engines and is a form of lexical search, meaning it primarily focuses on matching words and their frequencies.
+
+Here's how it generally works:
+ - It scores documents based on how well the terms in a query appear within them.
+ - It considers:
+     - **Term Frequency** (TF): How often a query term appears in a document. More frequent means more relevant.
+     - **Inverse Document Frequency** (IDF): How rare a query term is across all documents. Rarer terms get more weight, as they're more discriminative.
+     - **Document Length**: It penalizes very long documents for having high term frequencies, assuming they might be less focused.
+
+The result is a relevance score that orders documents based on the statistical match of keywords.
+
+**BM25** often acts as the first stage of retrieval in a two-stage (or multi-stage) pipeline:
+ - **Initial Retrieval** (BM25's Role): When an AI agent receives a query, BM25 (or a similar lexical search) is used to quickly and efficiently sift through a large corpus of memory chunks or documents. It identifies a broad set of items that contain the query's keywords, providing a good initial filter. BM25 is generally very fast and computationally inexpensive, making it ideal for this initial "candidate generation" step.
+
+ - **Re-ranking** (Re-ranker's Role): The re-ranker then takes this smaller, more manageable set of documents (e.g., the top 50 or 100) returned by BM25 and uses it to efficiently re-rank results.
+
+### Identity
+
+In computing and mathematics, an "identity" operation simply means that **the output is exactly the same as the input**, with no changes or transformations applied. If you were to have an "Identity reranker," it would take a list of retrieved items and return them in the exact same order, without modifying their scores or sequence.
+
+To MemMachine, if the reranker configuration value is set to Identity, it will work without a reranker.  This can be used on systems with less power or minimal configurations to skip the reranker stage of MemMachine work.
+
+### RRFHybride
+
+At its heart, RRF works by giving a reciprocal score to each item based on its position (rank) in every individual list it appears in. Items ranked higher in any list receive a stronger reciprocal score.
+
+For each item across all the initial ranked lists, RRF sums up these individual reciprocal scores. The final combined list is then ordered by these total scores, with items receiving a high score from multiple lists (or a very high score from just one) rising to the top. This process effectively merges the strengths of different retrieval approaches into one robust ranking.
+
+## How do I Configure which Re-Ranker to use?
+
+To configure which re-ranker you wish to use, add the following to the MemMachine config file:
+
+```bash
+add command for configuration value here
+```
+
+
+

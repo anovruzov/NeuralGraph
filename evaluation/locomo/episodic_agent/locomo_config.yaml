@@ -1,0 +1,28 @@
+long_term_memory:
+  embedder: my_embedder_id
+  reranker: my_reranker_id
+  vector_graph_store: my_storage_id
+
+sessiondb:
+  uri: sqlitetest.db
+
+vector_graph_store:
+  my_storage_id:
+    provider: neo4j
+    config:
+      uri: 'bolt+s://localhost:7687'
+      username: neo4j
+      password: password123
+
+# Using local sentence-transformer embeddings (no API key needed)
+embedder:
+  my_embedder_id:
+    provider: "sentence-transformer"
+    config:
+      model: "all-MiniLM-L6-v2"
+
+# Using BM25 reranker (no API key needed, fully local)
+reranker:
+  my_reranker_id:
+    provider: "bm25"
+    config: {}

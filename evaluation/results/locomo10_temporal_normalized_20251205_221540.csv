@@ -1,0 +1,71 @@
+conversation_id,question_id,category,question,query_domains,gold_answer,generated_answer,correct,reasoning,time_seconds,context_length
+0,0,temporal,When did Caroline go to the LGBTQ support group?,"events, personal",7 May 2023,"Caroline went to an LGBTQ support group on May 07, 2023. This information is mentioned in the first session of their conversation.",True,Rule-based date match,2.81,8024
+0,1,temporal,When did Melanie paint a sunrise?,"hobbies, events",2022,"Melanie painted a sunrise in 2022. Specifically, this information was provided in the first session where Melanie said, ""Yeah, I painted that lake sunrise in 2022! It's special to me.""",True,Rule-based date match,0.88,8024
+0,2,open_domain,What fields would Caroline be likely to pursue in her educaton?,"general, hobbies","Psychology, counseling certification",I don't have that information. The conversation does not provide details about Caroline's educational pursuits or fields she might be interested in pursuing.,False,Answer says info not available,0.75,8024
+0,3,single_hop,What did Caroline research?,"personal, events",Adoption agencies,"Caroline researched adoption agencies. Specifically, she looked into an agency that helps LGBTQ+ folks with adoption because of their inclusivity and support.",True,"The generated answer states that Caroline researched adoption agencies, which matches the gold answer. The additional information about her focus on an inclusive agency for LGBTQ+ folks is not required by the question and does not affect the correctness of the answer.",0.73,8024
+0,4,single_hop,What is Caroline's identity?,personal,Transgender woman,Caroline identifies as transgender. This is evident from her participation in a support group for transgender individuals and her sharing of personal experiences related to her journey.,True,"The generated answer states that Caroline identifies as transgender, which matches the gold answer indicating her identity as a transgender woman.",0.77,8024
+0,5,temporal,When did Melanie run a charity race?,"events, personal",The sunday before 25 May 2023,"Melanie ran a charity race for mental health on May 20, 2023.",False,Rule-based date mismatch,0.69,8024
+0,6,temporal,When is Melanie planning on going camping?,"events, hobbies",June 2023,I don't have that information. There are no mentions of Melanie planning to go camping in the provided conversation context.,False,Answer says info not available,0.71,8024
+0,7,single_hop,What is Caroline's relationship status?,"personal, relationships",Single,"Based on the conversation context:
+
+- Caroline is single. There are no mentions of a romantic relationship with Melanie or anyone else.
+- Caroline is focused on her personal journey and goals related to adoption, mental health support for the trans community, and public speaking about gender identity and inclusion.
+
+I don't have that information regarding Caroline's current relationship status.",False,Answer says info not available,1.05,8024
+0,8,temporal,When did Caroline give a speech at a school?,"events, personal",The week before 9 June 2023,"Caroline gave a speech at a school during the week of May 29, 2023.",False,Rule-based date mismatch,0.69,8024
+0,9,temporal,"When did Caroline meet up with her friends, family, and mentors?","events, personal, relationships",The week before 9 June 2023,"Caroline met up with her friends, family, and mentors during the week of May 29, 2023. This is specifically mentioned in Session 3 at [D3:11].",False,Rule-based date mismatch,1.02,8024
+1,0,temporal,When Jon has lost his job as a banker?,"work, events","19 January, 2023","Jon lost his job as a banker on January 19, 2023.",True,Rule-based date match,2.76,8024
+1,1,temporal,When Gina has lost her job at Door Dash?,"work, events","January, 2023","Gina lost her job at Door Dash in January 2023. Specifically, this information is mentioned in Session 1, where Jon says to Gina: ""Sorry about your job Jon, but starting your own business sounds awesome! Unfortunately, I also lost my job at Door Dash in January 2023.""",True,Rule-based date match,1.02,8024
+1,2,multi_hop,How do Jon and Gina both like to destress?,"relationships, hobbies",by dancing,"Based on the conversation context:
+
+1. Jon and Gina both like to use dance as a way to destress.
+   - Session 6 (23 March, 2023): ""Dance is my stress relief""
+   - Session 9 (9 April, 2023): ""Dancing makes me so happy, and now I get to share that with other people. Seeing my students get better at it brings me such joy.""
+   - Session 11 (11 May, 2023): ""Dance is my stress fix too. As soon as I start, all my worries vanish.""
+
+Both Jon and Gina find that dancing helps them de-stress and provides a positive outlet for their emotions.",True,"The generated answer states that Jon and Gina both like to use dance as a way to destress, which matches the gold answer of 'by dancing'.",1.63,8024
+1,3,single_hop,What do Jon and Gina both have in common?,"relationships, hobbies",They lost their jobs and decided to start their own businesses.,"Jon and Gina both have a passion for dance and fashion. They share an interest in expressing themselves through dance and combining their interests into businesses or activities. Specifically:
+
+1. **Dance**: Both Jon and Gina are passionate about dance, with Jon starting his own dance studio and Gina participating in dance competitions.
+2. **Fashion**: Gina runs a clothing store that blends her love for fashion trends with dance-inspired items.
+
+These shared passions have motivated them to pursue their respective businesses and activities, supporting each other through the challenges they face.",False,"The generated answer discusses Jon and Gina's shared passions for dance and fashion, which are not mentioned in the gold answer. The gold answer states that they lost their jobs and decided to start their own businesses, a detail completely absent from the generated answer.",1.32,8024
+1,4,multi_hop,Why did Jon decide to start his dance studio?,"hobbies, work",He lost his job and decided to start his own business to share his passion.,"Jon decided to start his dance studio because he has been passionate about dancing since he was a kid and wants to share that joy with others. Specifically:
+
+1. **Session 3 (12:48 am on 1 February, 2023)** - Jon mentioned, ""I'm starting a dance studio 'cause I'm passionate about dancing and it'd be great to share it with others.""
+2. **Session 4 (10:43 am on 4 February, 2023)** - Jon stated, ""Now, I'm aiming to turn my dancing passion into a business.""",False,"The generated answer provides specific dialogue quotes that explain Jon's motivation for starting his dance studio. However, it does not match the gold answer which states he lost his job and decided to start a business due to financial necessity rather than passion alone.",1.46,8024
+1,5,single_hop,What Jon thinks the ideal dance studio should look like?,hobbies,"By the water, with natural light and Marley flooring","Based on the conversation context, Jon thinks the ideal dance studio should look like:
+
+1. By the water (mentioned in Session 1).
+2. With Marley flooring that is grippy but allows for movement and is easy to clean (mentioned in Session 2).",True,"The generated answer captures the same key elements as the gold answer: by the water and Marley flooring. It also adds information about the flooring being grippy, allowing movement, and easy to clean, which is consistent with Jon's preferences for an ideal dance studio.",0.92,8024
+1,6,temporal,When is Jon's group performing at a festival?,"events, general","February, 2023","Jon's group is performing at a festival on February 2023. Specifically, they were finishing up choreography to perform at a nearby festival in February 2023 as mentioned in Session 4 (10:43 am on 4 February, 2023).",True,Rule-based date match,1.04,8024
+1,7,temporal,When did Gina launch an ad campaign for her store?,"events, work","29 January, 2023","Gina launched an ad campaign for her store on 29 January, 2023. This is inferred from Session 2 where Gina mentions launching an ad campaign for her clothing store in hopes of growing the business.",True,Rule-based date match,0.87,8024
+1,8,temporal,When was Jon in Paris?,"events, location",28 January 2023,"Jon was in Paris on January 28, 2023.",True,Rule-based date match,0.65,7558
+1,9,single_hop,Which city have both Jean and John visited?,"location, relationships, personal",Rome,Both Jon and Gina have visited Rome.,False,"The generated answer mentions Jon and Gina instead of Jean and John, and it also incorrectly states that both have visited Rome.",0.61,8024
+2,0,temporal,"Who did Maria have dinner with on May 3, 2023?","relationships, events",her mother,"I don't have that information. The conversation context provided does not include any details about Maria having dinner on May 3, 2023.",False,Answer says info not available,2.82,8024
+2,1,temporal,When did Maria donate her car?,"finance, events",21 December 2022,"Maria donated her car on December 21, 2022.",True,Rule-based date match,0.62,8024
+2,2,single_hop,What martial arts has John done?,hobbies,"Kickboxing, Taekwondo",I don't have that information. The conversation does not mention John doing any specific martial arts. It only mentions him doing kickboxing and participating in yoga classes.,False,Answer says info not available,0.77,8024
+2,3,single_hop,What type of volunteering have John and Maria both done?,"hobbies, events",Volunteering at a homeless shelter,"Based on the conversation context, both John and Maria have volunteered at a homeless shelter. Specifically:
+
+1. **Homeless Shelter Volunteering**:
+   - **John**: During Session 3 (8:30 pm on 1 January, 2023), John mentioned volunteering at a homeless shelter to give out food and supplies.
+   - **Maria**: In Session 5 (1:17 pm on 28 January, 2023), Maria volunteered at a shelter during an event for kids.",True,"The generated answer accurately states that both John and Maria have volunteered at a homeless shelter. The specific instances of their volunteering are correctly mentioned, even though the exact dates provided in the generated answer are not explicitly given in the question or gold answer.",1.3,8024
+2,4,temporal,When did John join the online support group?,"events, personal",The week before 1 January 2023,"John joined a service-focused online group during the week of December 19, 2022. This is mentioned in Session 3 (8:30 pm on 1 January, 2023).",True,Rule-based date match,0.85,8024
+2,5,temporal,When did Maria go to the beach?,"events, location",December 2022,"I don't have that information. The conversation does not specify when Maria went to the beach. However, there is a mention of a photo taken by Maria at the beach during the week of December 16, 2022.",False,Answer says info not available,0.86,8024
+2,6,single_hop,Where has Maria made friends?,"relationships, location","homeless shelter, gym, church","Based on the conversation context, Maria has made friends through the following activities and events:
+
+1. Volunteering - She mentioned becoming friends with a fellow volunteer.
+2. Helping others - Her kindness in helping others led to forming connections.
+3. A live music event - During the week of June 19, 2023, she had fun at a live music event where she saw her family dancing and having fun.
+4. At a shelter - She met someone special at a shelter who was uplifted by her presence while playing with kids there.
+
+These are the specific mentions of places or events where Maria has made friends according to the conversation context.",False,"The generated answer includes additional information not present in the gold answer, such as volunteering, helping others, and a live music event. The gold answer specifically mentions homeless shelter, gym, and church.",1.36,5393
+2,7,single_hop,What items des John mention having as a child?,"personal, hobbies","A doll, a film camera","Based on the conversation context, John mentioned having a little doll as a child.",False,The generated answer only mentions a doll and does not include the film camera mentioned in the gold answer.,0.64,8024
+2,8,open_domain,What might John's financial status be?,finance,Middle-class or wealthy,"Based on the conversation context:
+
+1. John experienced money problems when he was younger (Session 6).
+2. He recently had car trouble and it broke down on Friday, which is putting a strain on his wallet (Session 11).
+3. John has been exploring options like joining local organizations or volunteering programs to improve his situation (Session 30).
+
+These points suggest that John's financial status might be precarious at times, with occasional setbacks such as car troubles and past money problems.",False,"The generated answer does not directly match the gold answer. The gold answer suggests that John's financial status might be middle-class or wealthy, while the generated answer indicates a precarious financial situation with occasional setbacks. These two descriptions do not align.",1.02,3363
+2,9,single_hop,Who gave Maria's family money when she was younger and her family was going through tough times?,"personal, finance",Her aunt,I don't have that information. The conversation does not mention anyone giving Maria's family money when they were going through tough times.,False,Answer says info not available,0.71,8024

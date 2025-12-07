@@ -1,0 +1,26 @@
+/* -- Sidebar width & padding -- */
+section[data-testid="stSidebar"]          { width: 230px !important; }
+section[data-testid="stSidebarContent"]   { width: 230px !important;
+                                            padding: 0.75rem; }
+
+/* -- Title size -- */
+h1 { font-size: 2.1rem !important; margin-bottom: 1rem; }
+
+/* -- Ensure long links wrap inside comparison columns -- */
+div.answer { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* Tighten spacing between comparison columns */
+div[data-testid="column"] {
+    padding-left: 0.25rem !important;
+    padding-right: 0.25rem !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    flex-grow: 1;
+  }
+  
+  /* Align vertical divider better */
+  .vertical-divider {
+    height: 100%;
+    border-left: 1px solid #ccc;
+    margin: 0 0.4rem;
+  }

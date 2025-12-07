@@ -1,0 +1,74 @@
+name: 🐛 Bug Report
+description: File a bug report to help us improve the project.
+title: "[Bug]: "
+type: 'Bug'
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before submitting a bug, please make sure the issue hasn't been already addressed by searching through the [existing and past issues](https://github.com/MemMachine/MemMachine/issues).
+  
+  - type: textarea
+    id: bug-description
+    attributes:
+      label: Describe the bug
+      description: A clear and concise description of what the bug is.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction-steps
+    attributes:
+      label: Steps to reproduce
+      description: Provide a minimal, reproducible code snippet or steps to reproduce the behavior.
+      placeholder: |
+        Example using an API endpoint:
+        1. Request: GET https://api.yourproject.com/v1/resource/123
+        2. Actual Response: HTTP 500 Internal Server Error
+
+        Example using a code snippet:
+        ```python
+        # Paste your code snippet here
+        # Add a minimal example that reproduces the issue
+        ```
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected behavior
+      description: A clear and concise description of what you expected to happen.
+      placeholder: |
+        Example using an API endpoint:
+        1. Request: GET https://api.yourproject.com/v1/resource/123
+        2. Expected Response: HTTP 200 OK
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Please provide the following information about your environment.
+      placeholder: |
+        - OS: [e.g., macOS, Windows, Linux]
+        - MemMachine Version: [e.g., 1.2.3]
+        - Development language version: [e.g., Python 3.13.3]
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Add any other context about the problem here. For example, screenshots, error logs, or relevant links.
+    validations:
+      required: false
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        Thanks for helping us find bugs!

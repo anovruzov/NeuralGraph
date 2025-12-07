@@ -1,0 +1,104 @@
+---
+title: "Quickstart Guide"
+description: "Start using MemMachine's personalized memory in minutes"
+icon: "circle-play"
+---
+
+MemMachine uses a client-server architecture. The **Server** manages the storage, retrieval, and processing of memories, while your application uses a **Client** SDK to interact with it.
+
+This guide focuses on getting the **MemMachine Server** up and running.
+
+## Installation
+
+The fastest method to get started with MemMachine is by using Docker and Docker Compose. This approach bundles all necessary components into containers, simplifying the setup process.
+
+### Prerequisites
+
+Before installing MemMachine, ensure you have the following prerequisites:
+
+- **Docker & Docker Compose** - Required to run the server containers.
+- **OpenAI API Key** - For language models and embeddings (configured in the server).
+
+### Download and Start the Server
+
+<Steps>
+  <Step title="Install Docker">
+      Make sure that you have [Docker](https://docs.docker.com/engine/install/) and [Docker Compose](https://docs.docker.com/compose/install/) installed on your machine.
+  </Step>
+  <Step title="Download MemMachine and Run">
+      <Tabs>
+        <Tab title="Linux/MacOS" icon="linux">
+          Open your terminal and run the following commands:
+          ```bash
+          # Download the latest release tarball
+          curl -s https://api.github.com/repos/MemMachine/MemMachine/releases/latest \
+            | grep "tarball_url" \
+            | cut -d '"' -f 4 \
+            | xargs curl -L -o MemMachine-latest.tar.gz
+
+          # Extract the release
+          tar -xzf MemMachine-latest.tar.gz
+
+          # Enter the folder (GitHub adds a hash to the folder name)
+          cd MemMachine-MemMachine-*
+
+          # Run the setup script
+          ./memmachine-compose.sh
+          ```
+        </Tab>
+        <Tab title="Windows" icon="windows">
+          Use PowerShell to download and run the script:
+          ```powershell
+          $latestRelease = Invoke-RestMethod -Uri "https://api.github.com/repos/MemMachine/MemMachine/releases/latest"; `
+          $tarballUrl = $latestRelease.tarball_url; `
+          $destination = "MemMachine"; `
+          if (Test-Path $destination) { Remove-Item $destination -Recurse -Force }; `
+          New-Item -ItemType Directory -Force -Path $destination; `
+          Invoke-WebRequest -Uri $tarballUrl -OutFile "MemMachine-latest.tar.gz"; `
+          tar -xzf "MemMachine-latest.tar.gz" -C $destination --strip-components=1; `
+          Set-Location $destination; `
+          ./memmachine-compose.sh
+          ```
+        </Tab>
+      </Tabs>
+
+      The script will walk you through the setup process, including configuring your OpenAI API key.
+  </Step>
+  <Step title="Verify Installation">
+    Once the script completes, your MemMachine server should be running. You can verify it by checking the health endpoint:
+
+    ```bash
+    curl http://localhost:8080/health
+    ```
+
+    You should receive a response indicating the server status is healthy.
+  </Step>
+</Steps>
+
+## Next Steps: Connect Your App
+
+Now that the server is running, you need to install the Python Client SDK to interact with it from your application.
+
+<CardGroup cols={2}>
+  <Card title="Python Client Guide" icon="python" href="../examples/python">
+    Install the SDK and write your first "Hello World" program.
+  </Card>
+  <Card title="API Reference" icon="code" href="../api_reference/intro">
+    Explore the full REST API documentation.
+  </Card>
+</CardGroup>
+
+## Management Scripts
+
+The `memmachine-compose.sh` script is your main tool for managing the server.
+
+```bash
+./memmachine-compose.sh --help
+```
+
+Common commands:
+- `./memmachine-compose.sh stop` - Stop the services.
+- `./memmachine-compose.sh restart` - Restart the services.
+- `./memmachine-compose.sh logs` - View server logs.
+
+```

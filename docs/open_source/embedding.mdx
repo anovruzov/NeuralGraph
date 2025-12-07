@@ -1,0 +1,25 @@
+---
+title: "Embedding Models"
+description: "Breaking Language into Computer-Understandable Chunks"
+icon: "anchor"
+---
+
+## What is an Embedder?
+
+**How it works**: When you feed a sentence or a memory chunk into an embedder, it outputs a sequence of numbers (e.g., [0.1, -0.5, 0.8, ..., 0.2]). This vector is a rich representation that a computer can easily process and compare.
+
+Embedders are crucial for the first pass of information retrieval, often in systems known as **dense retrievers** or **vector databases**.
+ - **Indexing**: All your memory chunks (documents, past interactions, user preferences) are first passed through an embedder. Their resulting embeddings are stored in a vector database.
+ - **Query Encoding**: When a user issues a query, that query is also passed through the same embedder to get its embedding.
+ - **Semantic Search**: The system then performs a fast vector similarity search in the vector database. It finds the memory chunk embeddings that are numerically "closest" to the query embedding. This identifies a large pool of potentially relevant items quickly. This first pass is typically very efficient but might not be perfectly precise in ordering.
+
+## How MemMachine uses Embedder
+
+MemMachine utilizes embedders early on in it's process to break apart human language responses into chunks, or derivatives, which can then be ranked, sorted, and organized into intelligent memory "banks".  
+
+## Configuration Considerations
+
+MemMachine supports the following embedders:
+X
+XX
+XXXX

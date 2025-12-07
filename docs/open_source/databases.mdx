@@ -1,0 +1,62 @@
+---
+title: "Databases"
+description: "MemMachine utilized databases"
+icon: "database"
+---
+
+## Databases help store our memory
+
+Databases are the unsung heroes behind MemMachine's smart memory! They provide the backbone, allowing MemMachine to **store and retrieve information reliably** across many conversations.
+
+Here's how they help:
+
+- **Persistent Memory:** Databases ensure your AI agents **never forget**. Every interaction, fact, and preference is saved, enabling agents to recall context for multiple conversations and sessions instantly.
+- **Organized Profiles:** They meticulously organize user data, building rich, **evolving user profiles**. This structured storage enables MemMachine to access user-specific details quickly.
+- **Long-Term Storage:** Databases handle vast amounts of historical data, forming the agent's **long-term memory**. This foundation allows agents to learn and grow over time.
+
+By providing this durable, organized, and accessible memory, databases empower MemMachine to deliver the ability for agents to **intelligently interact** with users, making every conversation truly personalized and informed.
+
+MemMachine can be configured to use different supported databases.  In choosing which databases you wish to use, it is important to understand how MemMachine utilizes databases.
+
+By default, it utilizes the following Databases:
+
+## neo4j
+Neo4j is a leading **graph database**, which means it's specially designed to store and manage highly connected data. Instead of rows and columns, Neo4j works with three fundamental building blocks:
+
+1. **Nodes:** These are like entities or "things" (e.g., a `User`, a `Conversation`, a `Fact`, an `Agent`, a `Product Feature`). Each node can have labels (its type) and properties (details about it).
+2. **Relationships:** These are the crucial connections between nodes (e.g., `User` --`DISCUSSED`--> `Conversation`, `Fact` --`RELATED_TO`--> `Product Feature`). Relationships are also directed and can have properties (e.g., `DISCUSSED` with a `timestamp` property).
+3. **Properties:** These are key-value pairs that describe nodes and relationships (e.g., a `User` node might have properties like `name: "Sarah"` and `email: "sarah@example.com"`).
+
+This structure makes relationships a first-class citizen, meaning they're stored directly and efficiently.
+
+
+
+### How MemMachine Uses Neo4j for Long-Term Memory
+
+MemMachine leverages Neo4j's graph capabilities to build a robust and intelligent **long-term memory** for your AI agents, focusing on understanding and managing complex relationships:
+
+- **Building Rich User Profiles:** Neo4j allows MemMachine to create dynamic user profiles where a `User` node can be explicitly linked to `Conversations`, `Preferences`, `Goals`, `Sentiments Expressed`, and even `Specific Products Used`. These relationships make the user profile a living, evolving network of data rather than a static record.
+- **Contextual Recall & Multi-Hop Reasoning:** When an agent needs to recall a specific piece of information, MemMachine can query Neo4j to traverse these explicit connections. For example, to answer "What did the user ask about the new feature last week?", MemMachine can follow the path: `User` -> `DISCUSSED` -> `Conversation` -> `ABOUT` -> `Feature`. This enables complex, multi-hop reasoning, helping agents piece together context that spans many interactions.
+- **Organizing Derivatives & Relationships:** MemMachine can store not just raw facts, but also derived insights and inferences (like a `User` --`EXPRESSED_FRUSTRATION_ABOUT`--> `Bug`) as explicit nodes and relationships in the graph. This makes these "derivatives" queryable and part of the long-term memory structure.
+- **Scalable Relationship Management:** Neo4j is optimized for navigating complex relationships quickly, even across vast datasets. This allows MemMachine to store an ever-growing, interconnected web of memories, interactions, and inferred knowledge, forming a truly intelligent and durable long-term memory for your AI agents.
+
+By using Neo4j, MemMachine ensures that its memory isn't just a collection of facts, but a deeply understood and interconnected knowledge base, empowering agents to interact with profound intelligence and context.
+
+For information on the table structures utilized by MemMachine in neo4j, please check out the Long-Term memory portion of our [Memory Types](./memory_types) section.
+
+## PostgreSQL
+
+PostgreSQL is an advanced, open-source **relational database management system (RDBMS)**. This means it stores data in structured tables, with defined rows and columns, and allows you to create explicit relationships between different pieces of data. It's known for its reliability, feature richness, and strong compliance with SQL standards, making it a trusted choice for applications that need durable and organized data storage.
+
+### How MemMachine Uses PostgreSQL for Semantic Memory 
+
+MemMachine leverages PostgreSQL's strengths to build and maintain rich, dynamic **user profiles** for your AI agents:
+
+- **Structured User Data:** PostgreSQL's table-based structure is ideal for organizing profile information. MemMachine can store core user details, preferences, settings, and other structured attributes in clearly defined tables. This ensures consistency and makes it easy to manage distinct pieces of user data.
+- **Reliable Persistence:** Semantic memory is critical - agents can't forget user preferences! PostgreSQL provides **durable storage**, meaning once a user's preference or detail is saved, it remains safely in the database. This ensures that MemMachine's profile memory is persistent across sessions and even agent reboots.
+- **Efficient Querying:** When an AI agent interacts with a user, MemMachine must quickly retrieve the user's specific profile details. PostgreSQL's powerful SQL querying capabilities allow MemMachine to rapidly retrieve precise information, such as "What is this user's preferred language?" or "Has this user expressed interest in feature X before?".
+- **Scalable Profile Management:** As your AI agents interact with an increasing number of users, MemMachine can rely on PostgreSQL to **scale efficiently**. It handles a growing number of user profiles and the rising complexity of their associated data without compromising performance.
+
+By integrating PostgreSQL, MemMachine ensures that its semantic memory is not only robust and persistent but also meticulously organized and instantly accessible, empowering AI agents to deliver truly personalized and context-aware interactions.
+
+For information on the table structure utilized by MemMachine in PostgreSQL, please check out the Profile Memory portion of our [Memory Types](./memory_types) section.
