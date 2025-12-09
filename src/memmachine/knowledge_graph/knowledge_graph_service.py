@@ -1,7 +1,9 @@
 """High-level knowledge graph service coordinating extraction and reasoning."""
 
+from __future__ import annotations
+
 import logging
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from memmachine.common.episode_store import Episode
 
@@ -20,6 +22,9 @@ from .graph_reasoner import (
     ThinkOnGraphReasoner,
 )
 
+if TYPE_CHECKING:
+    from memmachine.neural_graph import NeuralGraphService
+
 logger = logging.getLogger(__name__)
 
 
@@ -36,6 +41,7 @@ class KnowledgeGraphService:
         storage: InMemoryGraphStorage | None = None,
         mekb_scorer: MeKBScorer | None = None,
         reasoner: ThinkOnGraphReasoner | None = None,
+        neural_graph_service: "NeuralGraphService | None" = None,
         enabled: bool = True,
     ):
         """Initialize knowledge graph service.
@@ -45,6 +51,7 @@ class KnowledgeGraphService:
             storage: Graph storage. Creates in-memory if None.
             mekb_scorer: MeKB scorer. Creates default if None.
             reasoner: Graph reasoner. Creates default if None.
+            neural_graph_service: Neural graph service for creating ENTITY/SEMANTIC edges.
             enabled: Whether the service is enabled.
         """
         self._enabled = enabled
@@ -56,10 +63,14 @@ class KnowledgeGraphService:
             mekb_scorer=self._mekb_scorer,
         )
 
+        # Neural graph integration (Phase 7: neural linking)
+        self._neural_graph_service = neural_graph_service
+
         # Statistics
         self._entities_extracted = 0
         self._relations_extracted = 0
         self._reasoning_queries = 0
+        self._neural_edges_created = 0
 
     @property
     def enabled(self) -> bool:
@@ -72,12 +83,23 @@ class KnowledgeGraphService:
         self._enabled = value
 
     @property
+    def neural_graph_service(self) -> "NeuralGraphService | None":
+        """Get the neural graph service."""
+        return self._neural_graph_service
+
+    @neural_graph_service.setter
+    def neural_graph_service(self, value: "NeuralGraphService | None") -> None:
+        """Set the neural graph service."""
+        self._neural_graph_service = value
+
+    @property
     def statistics(self) -> dict[str, int]:
         """Get service statistics."""
         return {
             "entities_extracted": self._entities_extracted,
             "relations_extracted": self._relations_extracted,
             "reasoning_queries": self._reasoning_queries,
+            "neural_edges_created": self._neural_edges_created,
         }
 
     async def process_episode(
@@ -133,6 +155,19 @@ class KnowledgeGraphService:
         for relation in result.relations:
             await self._storage.add_relation(relation)
             self._relations_extracted += 1
+
+        # Neural graph integration: Create ENTITY and SEMANTIC edges
+        if self._neural_graph_service:
+            try:
+                edges_created = await self._neural_graph_service.process_extraction_result(
+                    extraction=result,
+                    session_key=session_key,
+                    source_node_id=None,  # Will be linked when episode is processed
+                )
+                self._neural_edges_created += edges_created
+                logger.debug(f"Created {edges_created} neural edges from extraction")
+            except Exception as e:
+                logger.warning(f"Neural graph edge creation failed: {e}")
 
         logger.debug(
             f"Processed episode {episode.uid}: "

@@ -775,6 +775,10 @@ class RetrievalResult:
     memories_from_graph: int = 0
     memories_from_direct: int = 0
 
+    # Neural graph integration (Phase 7)
+    neural_graph_time_ms: float = 0.0
+    neural_nodes_retrieved: int = 0
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
@@ -787,4 +791,6 @@ class RetrievalResult:
             "accessed_shards": self.accessed_shards,
             "total_time_ms": self.total_time_ms,
             "total_candidates": self.total_candidates,
+            "neural_graph_time_ms": self.neural_graph_time_ms,
+            "neural_nodes_retrieved": self.neural_nodes_retrieved,
         }

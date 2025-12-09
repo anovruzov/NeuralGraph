@@ -3,7 +3,11 @@
     "allow": [
       "Bash(cmd /c \"mkdir C:\\Users\\anovr\\Desktop\\MemMachine-main\\src\\memmachine\\common\\domain_classifier 2>nul & echo Created directory\")",
       "Bash(cmd /c \"py --version 2>&1 || python3 --version 2>&1 || C:\\Python311\\python.exe --version 2>&1\")",
-      "Bash(ollama list:*)"
+      "Bash(ollama list:*)",
+      "Bash(done)",
+      "Bash(python:*)",
+      "WebSearch",
+      "WebFetch(domain:raw.githubusercontent.com)"
     ],
     "deny": [],
     "ask": []

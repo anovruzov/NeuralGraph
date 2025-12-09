@@ -68,6 +68,7 @@ if TYPE_CHECKING:
     from memmachine.common.granularity_router import GranularityRouter, RoutingDecision
     from memmachine.common.domain_classifier import DomainClassifier, DomainClassification
     from memmachine.knowledge_graph.entity_verifier import VerificationResult
+    from memmachine.neural_graph import NeuralGraphService
 
 logger = logging.getLogger(__name__)
 
@@ -192,6 +193,16 @@ class EpisodicMemoryParams(BaseModel):
         description="Whether temporal normalization is enabled",
     )
 
+    # Neural Graph (Phase 7: Neural-inspired memory linking)
+    neural_graph_service: "NeuralGraphService | None" = Field(
+        default=None,
+        description="Neural graph service for neural-inspired memory linking",
+    )
+    neural_graph_enabled: bool = Field(
+        default=False,
+        description="Whether neural graph processing is enabled",
+    )
+
     model_config = {"arbitrary_types_allowed": True}
 
     @model_validator(mode="after")
@@ -273,6 +284,10 @@ class EpisodicMemory:
         self._temporal_normalizer = params.temporal_normalizer or TemporalNormalizer()
         self._temporal_normalization_enabled = params.temporal_normalization_enabled
 
+        # Neural Graph (Phase 7: Neural-inspired memory linking)
+        self._neural_graph_service = params.neural_graph_service
+        self._neural_graph_enabled = params.neural_graph_enabled
+
         self._enabled = params.enabled
         if not self._enabled:
             return
@@ -347,6 +362,15 @@ class EpisodicMemory:
         self._temporal_normalization_counter = metrics_manager.get_counter(
             "temporal_normalization_count",
             "Count of temporal normalizations performed",
+        )
+        # Neural graph metrics
+        self._neural_graph_node_counter = metrics_manager.get_counter(
+            "neural_graph_node_count",
+            "Count of neural graph nodes created",
+        )
+        self._neural_graph_retrieval_counter = metrics_manager.get_counter(
+            "neural_graph_retrieval_count",
+            "Count of neural graph retrievals performed",
         )
 
     @property
@@ -425,6 +449,10 @@ class EpisodicMemory:
 
         if self._knowledge_graph_enabled and self._knowledge_graph_service:
             await self._process_knowledge_graph(episodes)
+
+        # Neural graph processing (Phase 7: Neural-inspired linking)
+        if self._neural_graph_enabled and self._neural_graph_service:
+            await self._process_neural_graph(episodes)
 
         end_time = time.monotonic_ns()
         delta = (end_time - start_time) / 1000000
@@ -533,6 +561,67 @@ class EpisodicMemory:
                 logger.warning(f"Domain classification failed for episode: {e}")
         return episodes
 
+    async def _process_neural_graph(self, episodes: list[Episode]) -> None:
+        """Process episodes through neural graph for neural-inspired linking.
+
+        Creates Layer 0 message nodes, builds temporal chains, and optionally
+        segments into episode clusters. Implements neural linking principles:
+        - Hierarchical structure (Image 2)
+        - Temporal chains with LTP (Image 4)
+        - Distributed weighted connections (Image 1)
+        """
+        if self._neural_graph_service is None:
+            return
+
+        try:
+            # Extract embeddings if available from episodes
+            embeddings = []
+            wave_amplitudes_list = []
+
+            for episode in episodes:
+                # Try to get embedding from episode metadata
+                embedding = None
+                wave_amps = {}
+
+                if hasattr(episode, 'embedding') and episode.embedding:
+                    embedding = episode.embedding
+                elif episode.filterable_metadata and 'embedding' in episode.filterable_metadata:
+                    embedding = episode.filterable_metadata.get('embedding')
+
+                # Try to get wave amplitudes from metadata
+                if episode.filterable_metadata:
+                    wave_amps = {
+                        k.replace('wave_', ''): v
+                        for k, v in episode.filterable_metadata.items()
+                        if k.startswith('wave_') and isinstance(v, (int, float))
+                    }
+
+                embeddings.append(embedding)
+                wave_amplitudes_list.append(wave_amps)
+
+            # Process through neural graph service
+            result = await self._neural_graph_service.process_episodes(
+                episodes=episodes,
+                session_key=self._session_key,
+                embeddings=embeddings if any(e is not None for e in embeddings) else None,
+                wave_amplitudes_list=wave_amplitudes_list if any(w for w in wave_amplitudes_list) else None,
+            )
+
+            self._neural_graph_node_counter.increment(result.nodes_created)
+
+            logger.debug(
+                f"Neural graph processed {len(episodes)} episodes: "
+                f"{result.nodes_created} nodes, {result.temporal_edges_created} temporal edges "
+                f"in {result.processing_time_ms:.1f}ms"
+            )
+
+            if result.errors:
+                for error in result.errors:
+                    logger.warning(f"Neural graph processing error: {error}")
+
+        except Exception as e:
+            logger.warning(f"Neural graph processing failed: {e}")
+
     async def _apply_granularity_routing(self, query: str) -> "RoutingDecision | None":
         if self._granularity_router is None:
             return None
@@ -556,6 +645,8 @@ class EpisodicMemory:
             tasks.append(self._mid_term_memory.close())
         if self._long_term_memory:
             tasks.append(self._long_term_memory.close())
+        if self._neural_graph_service:
+            tasks.append(self._neural_graph_service.close())
         await asyncio.gather(*tasks)
 
     async def delete_episodes(self, uids: Iterable[str]) -> None:
@@ -596,10 +687,18 @@ class EpisodicMemory:
             relevant_entities: list[str] = []
             reasoning_paths: list[str] = []
             explanation: str = ""
+        class NeuralGraphResponse(BaseModel):
+            """Neural graph retrieval results."""
+            node_ids: list[str] = []
+            node_scores: list[float] = []
+            stages_executed: list[str] = []
+            temporal_context: dict = {}
+            total_time_ms: float = 0.0
         long_term_memory: LongTermMemoryResponse
         short_term_memory: ShortTermMemoryResponse
         entity_verification: EntityVerificationResponse | None = None
         reasoning: ReasoningResponse | None = None
+        neural_graph: NeuralGraphResponse | None = None
 
     async def query_memory(self, query: str, limit: int | None = None, property_filter: FilterExpr | None = None) -> QueryResponse | None:
         if not self._enabled:
@@ -679,6 +778,42 @@ class EpisodicMemory:
             except Exception as e:
                 logger.warning(f"Knowledge graph reasoning/verification failed: {e}")
 
+        # Neural graph retrieval (Phase 7: Multi-stage neural retrieval)
+        neural_graph_response = None
+        if self._neural_graph_enabled and self._neural_graph_service:
+            try:
+                # Get query embedding if available from long-term memory
+                query_embedding = None
+                if self._long_term_memory and hasattr(self._long_term_memory, 'get_embedding'):
+                    query_embedding = await self._long_term_memory.get_embedding(search_query)
+
+                if query_embedding:
+                    neural_result = await self._neural_graph_service.retrieve(
+                        query_text=search_query,
+                        query_embedding=query_embedding,
+                        session_key=self._session_key,
+                        limit=search_limit,
+                    )
+
+                    self._neural_graph_retrieval_counter.increment()
+
+                    neural_graph_response = EpisodicMemory.QueryResponse.NeuralGraphResponse(
+                        node_ids=[node.node_id for node, _ in neural_result.nodes],
+                        node_scores=[score for _, score in neural_result.nodes],
+                        stages_executed=neural_result.stages_executed,
+                        total_time_ms=neural_result.total_time_ms,
+                    )
+
+                    logger.debug(
+                        f"Neural graph retrieval: {len(neural_result.nodes)} nodes, "
+                        f"stages={neural_result.stages_executed}, time={neural_result.total_time_ms:.1f}ms"
+                    )
+                else:
+                    logger.debug("Neural graph retrieval skipped: no query embedding available")
+
+            except Exception as e:
+                logger.warning(f"Neural graph retrieval failed: {e}")
+
         end_time = time.monotonic_ns()
         delta = (end_time - start_time) / 1000000
         self._query_latency_summary.observe(delta)
@@ -694,6 +829,7 @@ class EpisodicMemory:
             ),
             entity_verification=entity_verification_response,
             reasoning=reasoning_response,
+            neural_graph=neural_graph_response,
         )
 
     async def formalize_query_with_context(self, query: str, limit: int | None = None, property_filter: FilterExpr | None = None) -> str:
@@ -725,6 +861,13 @@ class EpisodicMemory:
             finalized_query += "<RelevantEntities>\n"
             finalized_query += f"Key entities: {', '.join(query_result.reasoning.relevant_entities)}\n"
             finalized_query += "</RelevantEntities>\n"
+
+        # Include neural graph retrieval metadata (Phase 7: Multi-stage retrieval)
+        if query_result.neural_graph and query_result.neural_graph.node_ids:
+            finalized_query += "<NeuralGraphContext>\n"
+            finalized_query += f"Neural retrieval: {len(query_result.neural_graph.node_ids)} linked memories\n"
+            finalized_query += f"Stages: {' → '.join(query_result.neural_graph.stages_executed)}\n"
+            finalized_query += "</NeuralGraphContext>\n"
 
         if query_result.short_term_memory.episode_summary and len(query_result.short_term_memory.episode_summary) > 0:
             total_summary = ""

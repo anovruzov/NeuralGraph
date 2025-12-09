@@ -5,6 +5,7 @@ Implements intelligent retrieval that combines:
 1. Hash-based shard lookup for speed
 2. Graph traversal for accuracy
 3. Embedding similarity for relevance
+4. Neural graph multi-stage retrieval (Phase 7)
 
 RETRIEVAL ALGORITHM:
 ====================
@@ -63,13 +64,15 @@ vs Flat Store:
 - No graph: Miss related memories in other domains
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
 import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from typing import Any, Callable
+from typing import Any, Callable, TYPE_CHECKING
 
 from .data_types import (
     Domain,
@@ -85,6 +88,9 @@ from .data_types import (
 )
 from .domain_hierarchy import DOMAIN_HIERARCHY, SUBDOMAIN_TO_DOMAIN
 from .memory_store import ShardedMemoryStore
+
+if TYPE_CHECKING:
+    from memmachine.neural_graph import NeuralGraphService
 
 logger = logging.getLogger(__name__)
 
@@ -119,6 +125,11 @@ class RetrievalConfig:
     # Domain hints
     enable_domain_hints: bool = True       # Extract domains from query
     fallback_to_current_data: bool = True  # Default to CURRENT_DATA if no hints
+
+    # Neural graph integration (Phase 7)
+    neural_graph_enabled: bool = False     # Enable neural graph retrieval
+    neural_graph_weight: float = 0.3       # Weight for neural graph scores in final ranking
+    neural_graph_min_score: float = 0.1    # Minimum neural score to include
 
 
 # =============================================================================
@@ -234,6 +245,7 @@ class GraphRetriever:
     - Fast hash-based shard lookup
     - Knowledge graph traversal for related memories
     - Ranking with multiple signals
+    - Neural graph multi-stage retrieval (Phase 7)
     """
 
     def __init__(
@@ -241,6 +253,7 @@ class GraphRetriever:
         memory_store: ShardedMemoryStore,
         config: RetrievalConfig | None = None,
         embedding_fn: Callable[[str], list[float]] | None = None,
+        neural_graph_service: "NeuralGraphService | None" = None,
     ):
         """
         Initialize the graph retriever.
@@ -249,10 +262,22 @@ class GraphRetriever:
             memory_store: The sharded memory store.
             config: Retrieval configuration.
             embedding_fn: Optional function to compute query embeddings.
+            neural_graph_service: Optional neural graph service for multi-stage retrieval.
         """
         self._store = memory_store
         self._config = config or RetrievalConfig()
         self._embedding_fn = embedding_fn
+        self._neural_graph_service = neural_graph_service
+
+    @property
+    def neural_graph_service(self) -> "NeuralGraphService | None":
+        """Get the neural graph service."""
+        return self._neural_graph_service
+
+    @neural_graph_service.setter
+    def neural_graph_service(self, value: "NeuralGraphService | None") -> None:
+        """Set the neural graph service."""
+        self._neural_graph_service = value
 
     async def retrieve(
         self,
@@ -304,10 +329,18 @@ class GraphRetriever:
         result.memories_from_graph = len(expanded_memories) - len(direct_memories)
         result.traversal_paths = paths
 
+        # Step 4b: Neural Graph Retrieval (Phase 7)
+        neural_scores: dict[str, float] = {}
+        if self._config.neural_graph_enabled and self._neural_graph_service:
+            neural_start = time.perf_counter()
+            neural_scores = await self._neural_graph_retrieval(query)
+            result.neural_graph_time_ms = (time.perf_counter() - neural_start) * 1000
+            result.neural_nodes_retrieved = len(neural_scores)
+
         # Step 5: Ranking
         ranking_start = time.perf_counter()
         ranked_memories = self._rank_memories(
-            query, expanded_memories
+            query, expanded_memories, neural_scores
         )
         result.ranking_time_ms = (time.perf_counter() - ranking_start) * 1000
 
@@ -505,10 +538,72 @@ class GraphRetriever:
 
         return all_memories, traversal_paths
 
+    async def _neural_graph_retrieval(
+        self,
+        query: RetrievalQuery,
+    ) -> dict[str, float]:
+        """
+        Perform neural graph multi-stage retrieval.
+
+        Uses the NeuralRetriever for multi-stage retrieval with:
+        - Fast recall (vector search)
+        - Entity expansion
+        - Temporal chain traversal
+        - Hierarchy traversal
+        - Co-activation boost
+
+        Args:
+            query: The retrieval query.
+
+        Returns:
+            Dictionary mapping memory_id to neural score.
+        """
+        if not self._neural_graph_service:
+            return {}
+
+        neural_scores: dict[str, float] = {}
+
+        try:
+            # Get query embedding
+            query_embedding = query.query_embedding
+            if not query_embedding and self._embedding_fn:
+                query_embedding = self._embedding_fn(query.query_text)
+
+            if not query_embedding:
+                logger.debug("Neural graph retrieval skipped: no query embedding")
+                return {}
+
+            # Perform neural retrieval
+            neural_result = await self._neural_graph_service.retrieve(
+                query_text=query.query_text,
+                query_embedding=query_embedding,
+                session_key=query.user_id,
+                limit=self._config.max_candidates,
+            )
+
+            # Convert neural nodes to scores, keyed by episode_uid if available
+            for node, score in neural_result.nodes:
+                # Try to get associated episode/memory UID
+                memory_id = node.metadata.get('episode_uid') or node.metadata.get('memory_id')
+                if memory_id and score >= self._config.neural_graph_min_score:
+                    neural_scores[memory_id] = score
+
+            logger.debug(
+                f"Neural graph retrieval: {len(neural_result.nodes)} nodes, "
+                f"{len(neural_scores)} matched memories, "
+                f"stages={neural_result.stages_executed}"
+            )
+
+        except Exception as e:
+            logger.warning(f"Neural graph retrieval failed: {e}")
+
+        return neural_scores
+
     def _rank_memories(
         self,
         query: RetrievalQuery,
         memories: list[Memory],
+        neural_scores: dict[str, float] | None = None,
     ) -> list[Memory]:
         """
         Rank memories by relevance.
@@ -519,16 +614,21 @@ class GraphRetriever:
         - Recency
         - Access frequency
         - Graph path decay
+        - Neural graph score (Phase 7)
 
         Args:
             query: The retrieval query.
             memories: Candidate memories.
+            neural_scores: Optional neural graph scores keyed by memory_id.
 
         Returns:
             Ranked list of memories.
         """
+        import math
+
         now = datetime.now(timezone.utc)
         half_life_seconds = self._config.recency_half_life_days * 24 * 3600
+        neural_scores = neural_scores or {}
 
         scored_memories = []
 
@@ -544,7 +644,6 @@ class GraphRetriever:
             score += self._config.recency_weight * recency
 
             # Access frequency (logarithmic)
-            import math
             access_score = math.log(1 + memory.access_count) / 5.0
             access_score = min(1.0, access_score)
             score += self._config.access_weight * access_score
@@ -552,7 +651,7 @@ class GraphRetriever:
             # Graph path decay
             score += self._config.path_weight * memory.decay_factor
 
-            # TODO: Embedding similarity if query embedding available
+            # Embedding similarity if query embedding available
             if query.query_embedding and memory.embedding:
                 # Cosine similarity
                 dot = sum(a * b for a, b in zip(query.query_embedding, memory.embedding))
@@ -561,6 +660,11 @@ class GraphRetriever:
                 if norm_q > 0 and norm_m > 0:
                     similarity = dot / (norm_q * norm_m)
                     score += self._config.embedding_weight * similarity
+
+            # Neural graph score (Phase 7: multi-stage neural retrieval)
+            if neural_scores and memory.memory_id in neural_scores:
+                neural_score = neural_scores[memory.memory_id]
+                score += self._config.neural_graph_weight * neural_score
 
             scored_memories.append((score, memory))
 
