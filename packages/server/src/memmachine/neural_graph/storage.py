@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import heapq
+import logging
 import math
 from abc import ABC, abstractmethod
 from collections import defaultdict
@@ -29,6 +30,9 @@ from .data_types import (
     NodeLayer,
     cosine_similarity,
 )
+from .lsh import RandomProjectionLSH, LSHConfig
+
+logger = logging.getLogger(__name__)
 
 
 class NeuralGraphStorage(ABC):
@@ -60,6 +64,15 @@ class NeuralGraphStorage(ABC):
 
         Returns:
             Node if found, None otherwise
+        """
+        ...
+
+    @abstractmethod
+    async def update_node(self, node: NeuralNode) -> None:
+        """Update an existing node.
+
+        Args:
+            node: Node to update
         """
         ...
 
@@ -310,10 +323,26 @@ class InMemoryNeuralGraphStorage(NeuralGraphStorage):
 
     Suitable for testing and development. For production,
     use a persistent storage implementation.
+
+    LSH Integration:
+    - Uses Locality-Sensitive Hashing for O(log n) vector search
+    - Falls back to brute-force for small sessions or when LSH misses
+    - Separate LSH index per session for isolation
     """
 
-    def __init__(self):
-        """Initialize in-memory storage."""
+    # Minimum nodes before LSH provides benefit (below this, brute-force is faster)
+    LSH_MIN_NODES = 100
+
+    # LSH recall boost: examine top-k * this factor from LSH, then refine
+    LSH_CANDIDATE_MULTIPLIER = 3
+
+    def __init__(self, lsh_config: LSHConfig | None = None):
+        """Initialize in-memory storage.
+
+        Args:
+            lsh_config: Optional LSH configuration. If None, uses defaults
+                        (8 tables, 12 hashes per table for good recall/precision)
+        """
         self._nodes: dict[str, NeuralNode] = {}
         self._edges: dict[str, NeuralEdge] = {}
 
@@ -328,6 +357,15 @@ class InMemoryNeuralGraphStorage(NeuralGraphStorage):
         self._nodes_by_layer: dict[str, dict[NodeLayer, set[str]]] = defaultdict(
             lambda: defaultdict(set)
         )
+
+        # LSH INDICES: One per session for vector search acceleration
+        # Key: session_key, Value: RandomProjectionLSH index
+        self._lsh_config = lsh_config or LSHConfig(num_tables=8, num_hashes=12)
+        self._lsh_indices: dict[str, RandomProjectionLSH] = {}
+
+        # LSH statistics for monitoring
+        self._lsh_queries = 0
+        self._lsh_fallbacks = 0
 
         # Lock for thread safety
         self._lock = asyncio.Lock()
@@ -345,6 +383,9 @@ class InMemoryNeuralGraphStorage(NeuralGraphStorage):
                 for entity_id in old_node.entity_ids:
                     self._nodes_by_entity[entity_id].discard(node.node_id)
                 self._nodes_by_layer[old_node.session_key][old_node.layer].discard(node.node_id)
+                # Remove from LSH if embedding changed
+                if old_node.embedding and node.session_key in self._lsh_indices:
+                    self._lsh_indices[node.session_key].remove(node.node_id)
 
             # Save node
             self._nodes[node.node_id] = node
@@ -357,9 +398,19 @@ class InMemoryNeuralGraphStorage(NeuralGraphStorage):
             # NEW: Maintain layer index for O(1) layer lookup
             self._nodes_by_layer[node.session_key][node.layer].add(node.node_id)
 
+            # LSH: Index embedding for fast vector search
+            if node.embedding:
+                if node.session_key not in self._lsh_indices:
+                    self._lsh_indices[node.session_key] = RandomProjectionLSH(self._lsh_config)
+                self._lsh_indices[node.session_key].index(node.node_id, node.embedding)
+
     async def get_node(self, node_id: str) -> NeuralNode | None:
         """Get a node by ID."""
         return self._nodes.get(node_id)
+
+    async def update_node(self, node: NeuralNode) -> None:
+        """Update an existing node (alias for save_node)."""
+        await self.save_node(node)
 
     async def delete_node(self, node_id: str) -> bool:
         """Delete a node and its edges."""
@@ -388,6 +439,10 @@ class InMemoryNeuralGraphStorage(NeuralGraphStorage):
 
             # Clean up layer index
             self._nodes_by_layer[node.session_key][node.layer].discard(node_id)
+
+            # Clean up LSH index
+            if node.session_key in self._lsh_indices:
+                self._lsh_indices[node.session_key].remove(node_id)
 
             # Delete node
             del self._nodes[node_id]
@@ -430,6 +485,8 @@ class InMemoryNeuralGraphStorage(NeuralGraphStorage):
     async def save_edge(self, edge: NeuralEdge) -> None:
         """Save or update an edge."""
         async with self._lock:
+            is_new_edge = edge.edge_id not in self._edges
+
             # Remove from old indexes if updating
             if edge.edge_id in self._edges:
                 old_edge = self._edges[edge.edge_id]
@@ -451,6 +508,11 @@ class InMemoryNeuralGraphStorage(NeuralGraphStorage):
             source_node = self._nodes.get(edge.source_id)
             if source_node:
                 self._edges_by_session[source_node.session_key].add(edge.edge_id)
+
+            # FAIRNESS: Track edge type distribution on source node (only for new edges)
+            if is_new_edge and source_node and hasattr(source_node, 'update_edge_counts'):
+                edge_type_str = edge.edge_type.value if hasattr(edge.edge_type, 'value') else str(edge.edge_type)
+                source_node.update_edge_counts(edge_type_str)
 
     async def get_edge(self, edge_id: str) -> NeuralEdge | None:
         """Get an edge by ID."""
@@ -542,7 +604,90 @@ class InMemoryNeuralGraphStorage(NeuralGraphStorage):
     ) -> list[tuple[NeuralNode, float]]:
         """Search nodes by vector similarity.
 
-        OPTIMIZED: Uses heapq.nlargest for O(n log k) instead of O(n log n) sort.
+        OPTIMIZED with LSH:
+        - For large sessions (>100 nodes): Uses LSH for O(k·d) instead of O(n·d)
+        - For small sessions: Falls back to brute-force (LSH overhead not worth it)
+        - Uses multi-probe LSH for higher recall
+        - Refines top candidates with exact similarity
+
+        Complexity:
+        - Without LSH: O(n·d) for n nodes, d dimensions
+        - With LSH: O(k·d) where k ≈ limit * 3 (typically k << n)
+        """
+        # Get session node count for LSH decision
+        session_node_ids = self._nodes_by_session.get(session_key, set())
+        node_count = len(session_node_ids)
+
+        # Use LSH for large sessions, brute-force for small
+        use_lsh = (
+            node_count >= self.LSH_MIN_NODES and
+            session_key in self._lsh_indices and
+            not layer_filter  # Layer filter requires post-filtering anyway
+        )
+
+        if use_lsh:
+            return await self._vector_search_lsh(
+                query_embedding, session_key, limit, layer_filter
+            )
+        else:
+            return await self._vector_search_brute_force(
+                query_embedding, session_key, limit, layer_filter
+            )
+
+    async def _vector_search_lsh(
+        self,
+        query_embedding: list[float],
+        session_key: str,
+        limit: int,
+        layer_filter: list[NodeLayer] | None
+    ) -> list[tuple[NeuralNode, float]]:
+        """LSH-accelerated vector search for large sessions.
+
+        Uses multi-probe LSH to get candidates, then refines with exact similarity.
+        """
+        self._lsh_queries += 1
+        lsh_index = self._lsh_indices[session_key]
+
+        # Get more candidates than needed for better recall
+        candidate_limit = limit * self.LSH_CANDIDATE_MULTIPLIER
+
+        # Use multi-probe for better recall (flips nearby hash bits)
+        candidates = lsh_index.query_with_probing(
+            query_embedding,
+            k=candidate_limit,
+            similarity_threshold=0.0,  # Let post-filter handle threshold
+            num_probes=3  # Check 3 nearby buckets per table
+        )
+
+        # If LSH returned few candidates, fall back to brute-force
+        if len(candidates) < limit:
+            self._lsh_fallbacks += 1
+            return await self._vector_search_brute_force(
+                query_embedding, session_key, limit, layer_filter
+            )
+
+        # Convert to (node, similarity) with layer filtering
+        results: list[tuple[NeuralNode, float]] = []
+        for node_id, similarity in candidates:
+            node = self._nodes.get(node_id)
+            if node:
+                if layer_filter and node.layer not in layer_filter:
+                    continue
+                results.append((node, similarity))
+
+        # Already sorted by LSH, just truncate
+        return results[:limit]
+
+    async def _vector_search_brute_force(
+        self,
+        query_embedding: list[float],
+        session_key: str,
+        limit: int,
+        layer_filter: list[NodeLayer] | None
+    ) -> list[tuple[NeuralNode, float]]:
+        """Brute-force vector search for small sessions.
+
+        Uses heapq.nlargest for O(n log k) instead of O(n log n) full sort.
         """
         nodes = await self.get_nodes_by_session(session_key)
 
@@ -569,6 +714,7 @@ class InMemoryNeuralGraphStorage(NeuralGraphStorage):
 
         OPTIMIZED: Single lock acquisition for all nodes instead of N lock
         acquisitions. Reduces lock contention and context switching.
+        Also maintains LSH index for vector search acceleration.
         """
         if not nodes:
             return 0
@@ -581,6 +727,9 @@ class InMemoryNeuralGraphStorage(NeuralGraphStorage):
                     for entity_id in old_node.entity_ids:
                         self._nodes_by_entity[entity_id].discard(node.node_id)
                     self._nodes_by_layer[old_node.session_key][old_node.layer].discard(node.node_id)
+                    # Remove from LSH if embedding changed
+                    if old_node.embedding and node.session_key in self._lsh_indices:
+                        self._lsh_indices[node.session_key].remove(node.node_id)
 
                 # Save node
                 self._nodes[node.node_id] = node
@@ -592,6 +741,12 @@ class InMemoryNeuralGraphStorage(NeuralGraphStorage):
 
                 # Maintain layer index
                 self._nodes_by_layer[node.session_key][node.layer].add(node.node_id)
+
+                # LSH: Index embedding for fast vector search
+                if node.embedding:
+                    if node.session_key not in self._lsh_indices:
+                        self._lsh_indices[node.session_key] = RandomProjectionLSH(self._lsh_config)
+                    self._lsh_indices[node.session_key].index(node.node_id, node.embedding)
 
         return len(nodes)
 
@@ -606,6 +761,8 @@ class InMemoryNeuralGraphStorage(NeuralGraphStorage):
 
         async with self._lock:
             for edge in edges:
+                is_new_edge = edge.edge_id not in self._edges
+
                 # Remove from old indexes if updating
                 if edge.edge_id in self._edges:
                     old_edge = self._edges[edge.edge_id]
@@ -626,6 +783,11 @@ class InMemoryNeuralGraphStorage(NeuralGraphStorage):
                 source_node = self._nodes.get(edge.source_id)
                 if source_node:
                     self._edges_by_session[source_node.session_key].add(edge.edge_id)
+
+                # FAIRNESS: Track edge type distribution on source node (only for new edges)
+                if is_new_edge and source_node and hasattr(source_node, 'update_edge_counts'):
+                    edge_type_str = edge.edge_type.value if hasattr(edge.edge_type, 'value') else str(edge.edge_type)
+                    source_node.update_edge_counts(edge_type_str)
 
         return len(edges)
 
@@ -670,6 +832,11 @@ class InMemoryNeuralGraphStorage(NeuralGraphStorage):
             self._edges_by_session[session_key].clear()
             self._nodes_by_layer[session_key].clear()
 
+            # Clear LSH index for this session
+            if session_key in self._lsh_indices:
+                self._lsh_indices[session_key].clear()
+                del self._lsh_indices[session_key]
+
             return count
 
     async def get_session_statistics(self, session_key: str) -> dict[str, Any]:
@@ -696,6 +863,11 @@ class InMemoryNeuralGraphStorage(NeuralGraphStorage):
         for node in nodes:
             state_counts[node.consolidation_state.value] += 1
 
+        # LSH statistics
+        lsh_stats = {}
+        if session_key in self._lsh_indices:
+            lsh_stats = self._lsh_indices[session_key].get_stats()
+
         return {
             "total_nodes": len(nodes),
             "total_edges": len(edges),
@@ -704,6 +876,9 @@ class InMemoryNeuralGraphStorage(NeuralGraphStorage):
             "average_heat_score": avg_heat,
             "average_importance_score": avg_importance,
             "consolidation_states": dict(state_counts),
+            "lsh_stats": lsh_stats,
+            "lsh_queries_total": self._lsh_queries,
+            "lsh_fallbacks_total": self._lsh_fallbacks,
         }
 
     # =========================================================================

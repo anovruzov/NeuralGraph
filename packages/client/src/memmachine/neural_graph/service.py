@@ -40,6 +40,10 @@ from .hierarchy import HierarchyManager, HierarchyConfig
 from .temporal import TemporalChainManager, TemporalConfig
 from .consolidation import ConsolidationManager, ConsolidationConfig
 from .retriever import NeuralRetriever, RetrieverConfig
+from .flash_retriever import FlashRetriever, HybridFlashRetriever, FlashConfig
+from .electron import ElectronRetriever, ElectronRetrieverConfig
+from .dialogue_linker import DialogueLinker, create_dialogue_links
+from .query_router import QueryRouter, FilteredRetriever, QueryAnalysis
 
 if TYPE_CHECKING:
     from memmachine.common.episode_store import Episode
@@ -79,6 +83,22 @@ class NeuralGraphServiceConfig:
     consolidation_config: ConsolidationConfig | None = None
     retriever_config: RetrieverConfig | None = None
 
+    # FLASH RETRIEVER: Parallel resonance instead of sequential stages
+    use_flash_retriever: bool = True  # Use flash retriever by default
+    flash_config: FlashConfig | None = None
+
+    # ELECTRON RETRIEVER: True electrical simulation with charge propagation
+    use_electron_retriever: bool = False  # Experimental - electrical activation model
+    electron_config: ElectronRetrieverConfig | None = None
+
+    # DIALOGUE LINKER: Universal Message Linking Layer
+    # Creates cross-message bindings for exchanges, coreferences, topic threads
+    dialogue_linking_enabled: bool = False  # DISABLED - needs tuning
+
+    # QUERY ROUTER: Intelligent query analysis and pre-filtering
+    # Filters search space BEFORE embedding search for entity/temporal queries
+    query_routing_enabled: bool = False  # DISABLED - causing regression (30% vs 85%)
+
     # Retrieval settings
     use_neural_retrieval: bool = True
     neural_retrieval_weight: float = 0.5  # Blend with existing retrieval
@@ -93,6 +113,8 @@ class NeuralIngestionResult:
     semantic_edges_created: int = 0
     processing_time_ms: float = 0.0
     errors: list[str] = field(default_factory=list)
+    # Created nodes - for Sun linkage integration
+    nodes: list = field(default_factory=list)
 
 
 class NeuralGraphService:
@@ -151,6 +173,34 @@ class NeuralGraphService:
             config=self._config.retriever_config or RetrieverConfig()
         )
 
+        # FLASH RETRIEVER: Parallel resonance retrieval (lightning fast)
+        if self._config.use_flash_retriever:
+            self._flash_retriever = HybridFlashRetriever(
+                self._storage,
+                config=self._config.flash_config or FlashConfig()
+            )
+        else:
+            self._flash_retriever = None
+
+        # ELECTRON RETRIEVER: True electrical simulation
+        # The Electrical Truth: Both AI and biological brains are electricity
+        if self._config.use_electron_retriever:
+            self._electron_retriever = ElectronRetriever(
+                self._storage,
+                config=self._config.electron_config or ElectronRetrieverConfig()
+            )
+        else:
+            self._electron_retriever = None
+
+        # DIALOGUE LINKER: Universal Message Linking Layer
+        # Creates cross-message bindings for dialogue fabric
+        # Session key -> DialogueLinker
+        self._dialogue_linkers: dict[str, DialogueLinker] = {}
+
+        # QUERY ROUTER: Pre-filters search space based on query analysis
+        # Session key -> FilteredRetriever (initialized on first retrieval)
+        self._filtered_retrievers: dict[str, FilteredRetriever] = {}
+
         # Background consolidation task
         self._consolidation_task: asyncio.Task | None = None
         self._closed = False
@@ -188,6 +238,25 @@ class NeuralGraphService:
     @property
     def retriever(self) -> NeuralRetriever:
         return self._retriever
+
+    # =========================================================================
+    # FAIRNESS HELPER: Save edge AND track edge types for balanced retrieval
+    # =========================================================================
+
+    async def _save_edge_with_fairness(self, edge: NeuralEdge) -> None:
+        """Save an edge and update the source node's edge_type_counts for fairness.
+
+        FAIRNESS PRINCIPLE: Track edge type distribution so queries can
+        prioritize nodes that match their dominant dimension.
+        """
+        await self._storage.save_edge(edge)
+
+        # Update source node's edge type counts
+        source_node = await self._storage.get_node(edge.source_id)
+        if source_node and hasattr(source_node, 'update_edge_counts'):
+            edge_type_str = edge.edge_type.value if hasattr(edge.edge_type, 'value') else str(edge.edge_type)
+            source_node.update_edge_counts(edge_type_str)
+            await self._storage.update_node(source_node)
 
     # =========================================================================
     # EPISODE INGESTION
@@ -252,6 +321,14 @@ class NeuralGraphService:
                         producer_id=getattr(episode, 'producer_id', None),
                         created_at=getattr(episode, 'created_at', None),
                     )
+
+                    # FAIRNESS: Update node's dominant dimension for query-aware routing
+                    # This allows nodes to get fair treatment based on what they're about
+                    if hasattr(node, 'update_dominant_dimension'):
+                        node.update_dominant_dimension()
+                        # Persist the updated fairness metadata
+                        await self._storage.update_node(node)
+
                     nodes.append(node)
                     result.nodes_created += 1
 
@@ -284,7 +361,31 @@ class NeuralGraphService:
             except Exception as e:
                 logger.warning(f"Entity edge creation failed for {node.node_id[:8]}: {e}")
 
+        # NEW: Auto-create SEMANTIC edges between similar nodes (HORIZONTAL LINKING)
+        try:
+            semantic_edges = await self._create_semantic_edges_batch(nodes, session_key)
+            result.semantic_edges_created = semantic_edges
+            logger.info(f"Created {semantic_edges} semantic edges for horizontal linking")
+        except Exception as e:
+            logger.warning(f"Semantic edge creation failed: {e}")
+
+        # NEW: DIALOGUE LINKING - Universal Message Linking Layer
+        # Creates cross-message bindings for exchanges, coreferences, topic threads
+        if self._config.dialogue_linking_enabled and len(nodes) >= 2:
+            try:
+                linker = await create_dialogue_links(nodes, session_key, self._storage)
+                self._dialogue_linkers[session_key] = linker
+                aggregator_count = len(linker._aggregators)
+                binding_count = len(linker._bindings)
+                logger.info(
+                    f"Created dialogue links: {aggregator_count} aggregators, "
+                    f"{binding_count} bindings"
+                )
+            except Exception as e:
+                logger.warning(f"Dialogue linking failed: {e}")
+
         result.processing_time_ms = (time.perf_counter() - start_time) * 1000
+        result.nodes = nodes  # Store created nodes for Sun linkage
         self._total_nodes_created += result.nodes_created
         self._total_edges_created += result.entity_edges_created
 
@@ -326,10 +427,14 @@ class NeuralGraphService:
         node: NeuralNode,
         session_key: str
     ) -> int:
-        """Create edges between nodes sharing entities.
+        """Create edges between nodes sharing entities WITH DISTANCE DECAY.
+
+        TESLA FIX: Entity edges now use CONTINUOUS decay based on message distance,
+        just like temporal edges. This prevents "noisy" entity edges from drowning
+        the signal.
 
         When a new node is created, finds other nodes with overlapping
-        entity_ids and creates ENTITY edges to connect them.
+        entity_ids and creates ENTITY edges with DISTANCE-WEIGHTED strengths.
 
         Args:
             node: Newly created node
@@ -338,10 +443,20 @@ class NeuralGraphService:
         Returns:
             Number of entity edges created
         """
+        import math
+
         if not node.entity_ids:
             return 0
 
         edges_created = 0
+
+        # Get all nodes to compute message indices for distance calculation
+        all_nodes = await self._storage.get_nodes_by_session(session_key)
+        node_index = {n.node_id: i for i, n in enumerate(all_nodes)}
+        current_idx = node_index.get(node.node_id, len(all_nodes) - 1)
+
+        # Entity context window - how far entity binding extends
+        ENTITY_CONTEXT_WINDOW = 15.0  # Messages
 
         for entity_id in node.entity_ids:
             # Find other nodes with this entity
@@ -349,6 +464,18 @@ class NeuralGraphService:
 
             for other in related:
                 if other.node_id == node.node_id:
+                    continue
+
+                # Compute message distance for decay
+                other_idx = node_index.get(other.node_id, 0)
+                message_distance = abs(current_idx - other_idx)
+
+                # CONTINUOUS DECAY - like temporal edges!
+                # Closer messages = stronger entity binding
+                decay_weight = math.exp(-message_distance / ENTITY_CONTEXT_WINDOW)
+
+                # Minimum threshold to avoid noise
+                if decay_weight < 0.1:
                     continue
 
                 # Use canonical ordering to avoid duplicate edges
@@ -361,21 +488,116 @@ class NeuralGraphService:
                 )
 
                 if existing:
-                    # Edge exists, strengthen it via activation
+                    # Edge exists, strengthen it via activation + update weight
                     existing.activate()
-                    await self._storage.save_edge(existing)
+                    # Use max of existing and new decay weight
+                    existing.base_weight = max(existing.base_weight, decay_weight)
+                    await self._save_edge_with_fairness(existing)
                 else:
-                    # Create new entity edge
+                    # Create new entity edge with DECAY WEIGHT
                     edge = NeuralEdge(
                         edge_id=generate_edge_id(),
                         source_id=source_id,
                         target_id=target_id,
                         edge_type=EdgeType.ENTITY,
-                        base_weight=0.5,
-                        metadata={"shared_entity": entity_id}
+                        base_weight=decay_weight,  # CONTINUOUS, not flat 0.5!
+                        confidence=decay_weight,
+                        metadata={
+                            "shared_entity": entity_id,
+                            "message_distance": message_distance,
+                        }
                     )
-                    await self._storage.save_edge(edge)
+                    await self._save_edge_with_fairness(edge)
                     edges_created += 1
+
+        return edges_created
+
+    async def _create_semantic_edges_batch(
+        self,
+        nodes: list[NeuralNode],
+        session_key: str,
+        similarity_threshold: float = 0.7,
+        max_edges_per_node: int = 5
+    ) -> int:
+        """Create SEMANTIC edges between similar nodes based on embedding similarity.
+
+        This enables HORIZONTAL LINKING - connecting memories that are semantically
+        related even if they don't share explicit entities or temporal proximity.
+
+        Args:
+            nodes: Nodes to link semantically
+            session_key: Session identifier
+            similarity_threshold: Minimum cosine similarity for edge creation
+            max_edges_per_node: Maximum semantic edges per node to prevent O(n^2) explosion
+
+        Returns:
+            Number of semantic edges created
+        """
+        from .data_types import cosine_similarity
+
+        edges_created = 0
+
+        # Only process nodes with embeddings
+        nodes_with_emb = [n for n in nodes if n.embedding]
+
+        if len(nodes_with_emb) < 2:
+            return 0
+
+        # Track edges to avoid duplicates
+        seen_pairs: set[tuple[str, str]] = set()
+
+        for i, node1 in enumerate(nodes_with_emb):
+            edges_for_node = 0
+
+            # Find most similar nodes (limit to prevent O(n^2))
+            similarities = []
+            for j, node2 in enumerate(nodes_with_emb):
+                if i >= j:  # Skip self and already-compared pairs
+                    continue
+
+                sim = cosine_similarity(node1.embedding, node2.embedding)
+                if sim >= similarity_threshold:
+                    similarities.append((node2, sim))
+
+            # Sort by similarity and take top-k
+            similarities.sort(key=lambda x: x[1], reverse=True)
+
+            for node2, sim in similarities[:max_edges_per_node]:
+                # Use canonical ordering
+                source_id = min(node1.node_id, node2.node_id)
+                target_id = max(node1.node_id, node2.node_id)
+                pair_key = (source_id, target_id)
+
+                if pair_key in seen_pairs:
+                    continue
+                seen_pairs.add(pair_key)
+
+                # Check if edge already exists
+                existing = await self._storage.get_edge_between(
+                    source_id, target_id, EdgeType.SEMANTIC
+                )
+
+                if existing:
+                    # Strengthen existing edge
+                    existing.activate()
+                    await self._save_edge_with_fairness(existing)
+                else:
+                    # Create new semantic edge
+                    edge = NeuralEdge(
+                        edge_id=generate_edge_id(),
+                        source_id=source_id,
+                        target_id=target_id,
+                        edge_type=EdgeType.SEMANTIC,
+                        base_weight=sim,  # Use similarity as weight
+                        confidence=sim,
+                        metadata={"similarity": sim}
+                    )
+                    await self._save_edge_with_fairness(edge)
+                    edges_created += 1
+                    edges_for_node += 1
+
+                if edges_for_node >= max_edges_per_node:
+                    break
 
         return edges_created
 
@@ -506,7 +728,7 @@ class NeuralGraphService:
                             if existing:
                                 # Strengthen existing edge
                                 existing.activate()
-                                await self._storage.save_edge(existing)
+                                await self._save_edge_with_fairness(existing)
                             else:
                                 # Create new causal edge
                                 causal_edge = NeuralEdge(
@@ -522,7 +744,7 @@ class NeuralGraphService:
                                         'causal_type': 'causes',
                                     }
                                 )
-                                await self._storage.save_edge(causal_edge)
+                                await self._save_edge_with_fairness(causal_edge)
                                 edges_created += 1
                                 logger.debug(
                                     f"Created causal edge: {node.node_id[:8]} -> {effect_node.node_id[:8]} "
@@ -606,7 +828,7 @@ class NeuralGraphService:
                         'kg_relation_uid': relation.uid,
                     }
                 )
-                await self._storage.save_edge(edge)
+                await self._save_edge_with_fairness(edge)
                 edges_created += 1
 
         # Link source node to entities if provided
@@ -621,7 +843,7 @@ class NeuralGraphService:
                         base_weight=0.8,
                         confidence=extraction.confidence,
                     )
-                    await self._storage.save_edge(edge)
+                    await self._save_edge_with_fairness(edge)
                     edges_created += 1
 
         self._total_edges_created += edges_created
@@ -637,7 +859,8 @@ class NeuralGraphService:
         query_embedding: list[float],
         session_key: str,
         limit: int = 20,
-        layer_filter: list[NodeLayer] | None = None
+        layer_filter: list[NodeLayer] | None = None,
+        query_wave_amplitudes: dict[str, float] | None = None
     ) -> RetrievalResult:
         """Execute multi-stage neural retrieval.
 
@@ -650,6 +873,7 @@ class NeuralGraphService:
             session_key: Session identifier
             limit: Maximum results
             layer_filter: Optional layer filter
+            query_wave_amplitudes: Optional wave amplitudes for Wave-Routed Retrieval
 
         Returns:
             RetrievalResult with nodes and metadata
@@ -673,19 +897,191 @@ class NeuralGraphService:
 
             self._total_retrievals += 1
 
-            result = await self._retriever.retrieve(
-                query_text=query_text,
-                query_embedding=query_embedding,
-                session_key=session_key,
-                limit=limit,
-                layer_filter=layer_filter
-            )
+            # QUERY ROUTING: Analyze query and get filtered candidates
+            # This dramatically improves entity-focused queries like "What is X's job?"
+            query_analysis: QueryAnalysis | None = None
+            filtered_node_ids: set[str] | None = None
+
+            if self._config.query_routing_enabled:
+                # Get or create filtered retriever for this session
+                if session_key not in self._filtered_retrievers:
+                    self._filtered_retrievers[session_key] = FilteredRetriever(self._storage)
+                    # Update context with known entities
+                    all_nodes = await self._storage.get_nodes_by_layer(session_key, NodeLayer.MESSAGE)
+                    self._filtered_retrievers[session_key].update_context(all_nodes)
+
+                filtered_retriever = self._filtered_retrievers[session_key]
+                filtered_candidates, query_analysis = await filtered_retriever.get_filtered_candidates(
+                    query_text, session_key
+                )
+
+                # If we filtered to a subset, pass these node IDs for prioritization
+                if query_analysis.strategy != "semantic" and filtered_candidates:
+                    filtered_node_ids = {n.node_id for n in filtered_candidates}
+                    logger.debug(
+                        f"Query routing: {query_analysis.query_type.value}, "
+                        f"strategy={query_analysis.strategy}, "
+                        f"filtered to {len(filtered_node_ids)} candidates"
+                    )
+
+            # ELECTRON RETRIEVER: True electrical simulation (highest priority)
+            # The Electrical Truth: Memory retrieval is electrical activation
+            if self._electron_retriever:
+                result = await self._electron_retriever.retrieve(
+                    query_text=query_text,
+                    query_embedding=query_embedding,
+                    session_key=session_key,
+                    limit=limit,
+                    query_wave_amplitudes=query_wave_amplitudes
+                )
+
+                # DIALOGUE LINK EXPANSION: Expand results through cross-message links
+                # If we found message A, also include the message it responds to and
+                # messages that respond to it - capturing the DIALOGUE FABRIC
+                if self._config.dialogue_linking_enabled:
+                    linker = self._dialogue_linkers.get(session_key)
+                    if linker and result.nodes:
+                        # Extract fired node IDs and charges
+                        fired = [(n.node_id, score) for n, score in result.nodes]
+                        # Expand through dialogue links
+                        expanded = await self._electron_retriever.expand_with_dialogue_links(
+                            fired, linker
+                        )
+                        # Rebuild result with expanded nodes
+                        expanded_nodes = []
+                        for node_id, charge in expanded[:limit]:
+                            node = await self._storage.get_node(node_id)
+                            if node:
+                                expanded_nodes.append((node, charge))
+                        result = RetrievalResult(
+                            query_text=query_text,
+                            nodes=expanded_nodes,
+                            stages_executed=result.stages_executed + ["dialogue_link_expansion"],
+                            total_candidates_seen=len(expanded),
+                            co_activations_recorded=result.co_activations_recorded,
+                            total_time_ms=result.total_time_ms,
+                        )
+            # USE FLASH RETRIEVER if enabled (parallel resonance - lightning fast)
+            elif self._flash_retriever:
+                result = await self._flash_retriever.retrieve(
+                    query_text=query_text,
+                    query_embedding=query_embedding,
+                    session_key=session_key,
+                    limit=limit,
+                    query_wave_amplitudes=query_wave_amplitudes
+                )
+            else:
+                # Fall back to sequential retriever
+                result = await self._retriever.retrieve(
+                    query_text=query_text,
+                    query_embedding=query_embedding,
+                    session_key=session_key,
+                    limit=limit,
+                    layer_filter=layer_filter,
+                    query_wave_amplitudes=query_wave_amplitudes
+                )
+
+            # QUERY ROUTING BOOST: Boost scores for nodes that match the query filter
+            # This ensures entity-focused queries prioritize messages from/about that entity
+            if filtered_node_ids and result.nodes:
+                FILTER_BOOST = 1.5  # 50% boost for nodes matching the query filter
+                boosted_nodes = []
+                for node, score in result.nodes:
+                    if node.node_id in filtered_node_ids:
+                        boosted_nodes.append((node, score * FILTER_BOOST))
+                    else:
+                        boosted_nodes.append((node, score))
+                # Re-sort by boosted scores
+                boosted_nodes.sort(key=lambda x: x[1], reverse=True)
+                result = RetrievalResult(
+                    query_text=query_text,
+                    nodes=boosted_nodes[:limit],
+                    stages_executed=result.stages_executed + ["query_routing_boost"],
+                    total_candidates_seen=result.total_candidates_seen,
+                    co_activations_recorded=result.co_activations_recorded,
+                    total_time_ms=result.total_time_ms,
+                )
+
+            # DIALOGUE LINK EXPANSION for all retrievers (not just electron)
+            # If we found message A, also include the message it responds to and
+            # messages that respond to it - capturing the DIALOGUE FABRIC
+            if self._config.dialogue_linking_enabled and not self._electron_retriever:
+                linker = self._dialogue_linkers.get(session_key)
+                if linker and result.nodes:
+                    # Extract node IDs and scores
+                    fired = [(n.node_id, score) for n, score in result.nodes]
+                    # Expand through dialogue links using helper method
+                    expanded = await self._expand_with_dialogue_links(fired, linker, limit)
+                    if expanded:
+                        result = RetrievalResult(
+                            query_text=query_text,
+                            nodes=expanded,
+                            stages_executed=result.stages_executed + ["dialogue_link_expansion"],
+                            total_candidates_seen=result.total_candidates_seen + len(expanded),
+                            co_activations_recorded=result.co_activations_recorded,
+                            total_time_ms=result.total_time_ms,
+                        )
 
             # NEW: Apply temporal dynamics (STDP and LTP decay) after retrieval
             if self._config.apply_temporal_dynamics and self._temporal and result.nodes:
                 await self._apply_temporal_dynamics(session_key, result.nodes)
 
             return result
+
+    async def _expand_with_dialogue_links(
+        self,
+        fired_nodes: list[tuple[str, float]],
+        linker: "DialogueLinker",
+        limit: int
+    ) -> list[tuple[NeuralNode, float]]:
+        """Expand results using cross-message dialogue links.
+
+        THE UNIVERSAL MESSAGE LINKING LAYER:
+        When we retrieve a message, we should also get its linked messages:
+        - The message it was responding to
+        - Messages that respond to it
+        - Messages about the same topic
+        - Messages where pronouns resolve to this one
+
+        This captures the DIALOGUE FABRIC where meaning flows between speakers.
+
+        Args:
+            fired_nodes: List of (node_id, score) tuples from retrieval
+            linker: DialogueLinker with binding information
+            limit: Maximum results to return
+
+        Returns:
+            Expanded list of (NeuralNode, score) including dialogue-linked messages
+        """
+        LINK_BOOST = 0.7  # Linked messages get 70% of the score
+
+        expanded: dict[str, float] = {}
+
+        # First, add all original fired nodes
+        for node_id, score in fired_nodes:
+            expanded[node_id] = score
+
+        # Then expand each through dialogue links
+        for node_id, score in fired_nodes:
+            linked = linker.get_linked_messages(node_id)
+
+            for linked_id, link_strength, link_type in linked:
+                # Calculate derived score
+                derived_score = score * link_strength * LINK_BOOST
+
+                # Add or update if better
+                if linked_id not in expanded or expanded[linked_id] < derived_score:
+                    expanded[linked_id] = derived_score
+
+        # Convert to sorted list of (NeuralNode, score) tuples
+        result = []
+        sorted_items = sorted(expanded.items(), key=lambda x: x[1], reverse=True)
+        for node_id, score in sorted_items[:limit]:
+            node = await self._storage.get_node(node_id)
+            if node:
+                result.append((node, score))
+
+        return result
 
     async def retrieve_with_context(
         self,
@@ -940,7 +1336,7 @@ class NeuralGraphService:
                     edge_type=edge_type,
                     base_weight=0.5,
                 )
-                await self._storage.save_edge(edge)
+                await self._save_edge_with_fairness(edge)
                 edges_created += 1
 
         return edges_created

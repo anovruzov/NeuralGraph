@@ -32,6 +32,9 @@ from .data_types import (
     cosine_similarity,
 )
 from .gating import EdgeGateRegistry, create_balanced_registry
+from .pattern_completion import CA3PatternCompleter, PatternCompletionConfig
+from .interference import InterferenceScorer, InterferenceType
+from .wavefront import WavefrontPropagator
 
 if TYPE_CHECKING:
     from .storage import NeuralGraphStorage
@@ -52,23 +55,34 @@ class RetrieverConfig:
     record_co_activations: bool = True
     min_score_threshold: float = 0.1
 
-    # Hop decay
-    hop_decay_factor: float = 0.8
+    # Hop decay - TUNED for better multi-hop signal preservation
+    hop_decay_factor: float = 0.88  # UP from 0.8 - preserve signal across hops
 
     # Reranking
     rerank_by_heat: bool = True
     heat_weight: float = 0.2
     importance_weight: float = 0.15
 
-    # NEW: Wave amplitude integration
+    # Wave amplitude integration - AMPLIFIED for aggressive wave routing
     # Wave amplitudes stored on nodes can boost retrieval based on query type
     use_wave_amplitudes: bool = True
-    wave_amplitude_weight: float = 0.1  # Small boost for wave alignment
+    wave_amplitude_weight: float = 0.18  # UP from 0.1 - trust wave signals more
 
     # CRITICAL: Hybrid retrieval (embedding + keyword)
     # Pure embedding search fails for factual QA - need keyword matching
     use_keyword_boost: bool = True
-    keyword_boost_weight: float = 0.5  # Strong boost for keyword matches
+    keyword_boost_weight: float = 0.70  # UP from 0.5 - keywords are fact anchors
+
+    # CA3-STYLE PATTERN COMPLETION (Brain-Inspired)
+    # Uses Hopfield attractor dynamics for pattern completion
+    use_pattern_completion: bool = True
+    pattern_completion_iterations: int = 4  # UP from 3 - one more gamma cycle
+
+    # WAVEFRONT PROPAGATION (Phase 5 - Interference Wavefront)
+    # Systolic-style diagonal propagation through TIME × HIERARCHY
+    use_wavefront_propagation: bool = True
+    wavefront_constructive_boost: float = 0.40  # Boost for constructive interference
+    wavefront_destructive_penalty: float = 0.50  # Penalty for destructive interference
 
     def __post_init__(self):
         if not self.stages:
@@ -83,7 +97,7 @@ class RetrieverConfig:
                 edge_types=[],
                 layer_filter=None,
                 max_hops=0,
-                score_threshold=0.3,
+                score_threshold=0.25,  # DOWN from 0.3 - cast wider net
                 use_vector_search=True,
             ),
             RetrievalStageConfig(
@@ -155,6 +169,26 @@ class NeuralRetriever:
         self._temporal = temporal_manager
         self._config = config or RetrieverConfig()
 
+        # Initialize CA3 pattern completer (brain-inspired)
+        if self._config.use_pattern_completion:
+            pc_config = PatternCompletionConfig(
+                max_iterations=self._config.pattern_completion_iterations
+            )
+            self._pattern_completer = CA3PatternCompleter(storage, pc_config)
+        else:
+            self._pattern_completer = None
+
+        # Initialize wavefront propagator (Phase 5 - Interference Wavefront)
+        if self._config.use_wavefront_propagation:
+            self._wavefront_propagator = WavefrontPropagator(
+                storage=storage,
+                temporal_decay=0.85,
+                hierarchy_decay=0.92,
+                min_activation=0.15
+            )
+        else:
+            self._wavefront_propagator = None
+
     # =========================================================================
     # MAIN RETRIEVAL
     # =========================================================================
@@ -192,14 +226,131 @@ class NeuralRetriever:
         stages_executed: list[str] = []
         total_candidates_seen = 0
 
+        # =====================================================================
+        # PHASE I: ENTITY PRE-POPULATION + EDGE TRAVERSAL (Wave-Routed Retrieval)
+        # =====================================================================
+        # If query has entity wave amplitude, pre-populate candidates
+        # with entity matches BEFORE Stage 1. Then TRAVERSE ENTITY edges
+        # to find related memories (horizontal linking in action).
+        # =====================================================================
+        if query_wave_amplitudes and query_wave_amplitudes.get("entity", 0) > 0.3:
+            query_entities = self._extract_entities(query_text)
+            if query_entities:
+                # Step 1: Find nodes by entity index
+                entity_matches = await self._storage.find_nodes_by_entities(
+                    query_entities, session_key
+                )
+                for node in entity_matches[:50]:
+                    candidates[node.node_id] = (node, 0.68)  # Base score for entity match (UP from 0.6)
+                    total_candidates_seen += 1
+
+                # Step 2: CRITICAL - Follow ENTITY edges to find related memories
+                # This is the horizontal linking traversal
+                # BUG FIX: Must check BOTH directions since entity edges use canonical ordering
+                expanded_via_edges = set()
+                for node in entity_matches[:30]:  # Top 30 seeds
+                    # Get edges in BOTH directions (entity edges use min/max canonical ordering)
+                    edges_from = await self._storage.get_edges_from(
+                        node.node_id, edge_types=[EdgeType.ENTITY]
+                    )
+                    edges_to = await self._storage.get_edges_to(
+                        node.node_id, edge_types=[EdgeType.ENTITY]
+                    )
+                    all_entity_edges = edges_from[:10] + edges_to[:10]
+
+                    for edge in all_entity_edges:
+                        # Determine the "other" node in the edge
+                        other_id = edge.target_id if edge.source_id == node.node_id else edge.source_id
+                        if other_id not in candidates and other_id not in expanded_via_edges:
+                            target = await self._storage.get_node(other_id)
+                            if target:
+                                # Score based on edge weight and parent score
+                                edge_score = 0.5 * edge.effective_weight
+                                candidates[other_id] = (target, edge_score)
+                                expanded_via_edges.add(other_id)
+                                total_candidates_seen += 1
+
+                if entity_matches or expanded_via_edges:
+                    stages_executed.append("entity_prepopulation")
+                    logger.debug(
+                        f"Entity pre-population: {len(entity_matches[:50])} direct + {len(expanded_via_edges)} via edges"
+                    )
+
+                # =====================================================================
+                # CRITICAL FIX: TEMPORAL-ENTITY LINKING
+                # =====================================================================
+                # For queries like "When did Caroline do X?", we have BOTH high entity
+                # AND high temporal. After finding entity matches, traverse TEMPORAL
+                # edges to find time-related memories about that entity.
+                # This bridges entity→time, solving the 17% temporal accuracy.
+                # =====================================================================
+                temporal_amp = query_wave_amplitudes.get("temporal", 0)
+                if temporal_amp > 0.3 and entity_matches:
+                    temporal_from_entity = set()
+                    for node in entity_matches[:20]:  # Top entity matches
+                        # Get temporal edges from entity-matched nodes
+                        temp_edges_from = await self._storage.get_edges_from(
+                            node.node_id, edge_types=[EdgeType.TEMPORAL]
+                        )
+                        temp_edges_to = await self._storage.get_edges_to(
+                            node.node_id, edge_types=[EdgeType.TEMPORAL]
+                        )
+                        all_temp_edges = temp_edges_from[:5] + temp_edges_to[:5]
+
+                        for edge in all_temp_edges:
+                            other_id = edge.target_id if edge.source_id == node.node_id else edge.source_id
+                            if other_id not in candidates and other_id not in temporal_from_entity:
+                                target = await self._storage.get_node(other_id)
+                                if target:
+                                    # High score for temporal-linked entity content
+                                    temp_entity_score = 0.65 * edge.effective_weight
+                                    candidates[other_id] = (target, temp_entity_score)
+                                    temporal_from_entity.add(other_id)
+                                    total_candidates_seen += 1
+
+                    if temporal_from_entity:
+                        stages_executed.append("temporal_entity_bridge")
+                        logger.debug(
+                            f"Temporal-entity bridge: {len(temporal_from_entity)} nodes"
+                        )
+
+        # Store query info for use in stages and reranking
+        self._query_wave_amplitudes = query_wave_amplitudes
+        self._current_query_text = query_text
+
+        # =====================================================================
+        # PHASE III: FACTUAL QUERY EXPANSION (Wave-Routed Retrieval)
+        # =====================================================================
+        # For factual queries (high entity, low complexity), expand the
+        # candidate pool to catch more potential matches.
+        # =====================================================================
+        is_factual = self._is_factual_query(query_wave_amplitudes)
+
         # Execute stages sequentially
         for stage in self._config.stages:
             stage_start = time.perf_counter()
 
+            # Adjust Stage 1 for factual queries
+            effective_max = stage.max_candidates
+            effective_threshold = stage.score_threshold
+            if is_factual and stage.use_vector_search:
+                effective_max = 300  # Up from 200
+                effective_threshold = 0.2  # Down from 0.3
+
             if stage.use_vector_search:
                 # Stage 1: Fast hybrid recall (vector + keyword)
+                # Create modified stage config for factual queries
+                effective_stage = RetrievalStageConfig(
+                    name=stage.name,
+                    max_candidates=effective_max,
+                    edge_types=stage.edge_types,
+                    layer_filter=stage.layer_filter,
+                    max_hops=stage.max_hops,
+                    score_threshold=effective_threshold,
+                    use_vector_search=stage.use_vector_search,
+                )
                 stage_results = await self._fast_recall(
-                    query_embedding, session_key, stage, query_keywords
+                    query_embedding, session_key, effective_stage, query_keywords
                 )
             else:
                 # Graph expansion stages
@@ -221,6 +372,118 @@ class NeuralRetriever:
             stage_time = (time.perf_counter() - stage_start) * 1000
             logger.debug(
                 f"Stage '{stage.name}': {len(stage_results)} results in {stage_time:.1f}ms"
+            )
+
+        # =====================================================================
+        # CA3-STYLE PATTERN COMPLETION (Brain-Inspired Attractor Dynamics)
+        # =====================================================================
+        # Use Hopfield-style spreading activation to complete partial patterns.
+        # Seeds (current candidates) activate related memories through
+        # recurrent connections, converging to stable attractor states.
+        # =====================================================================
+        if self._pattern_completer and candidates:
+            pc_start = time.perf_counter()
+
+            # Use top candidates as seeds for pattern completion
+            seed_nodes = sorted(
+                candidates.values(),
+                key=lambda x: x[1],
+                reverse=True
+            )[:30]  # Top 30 seeds
+
+            # Get all nodes for pattern completion
+            all_nodes = await self._storage.get_nodes_by_session(session_key)
+
+            # Run pattern completion
+            completed = await self._pattern_completer.complete_pattern(
+                seed_nodes, session_key, all_nodes
+            )
+
+            # Merge completed patterns back into candidates
+            for node, activation in completed:
+                if node.node_id in candidates:
+                    _, old_score = candidates[node.node_id]
+                    # Blend original score with activation
+                    new_score = 0.6 * old_score + 0.4 * activation
+                    candidates[node.node_id] = (node, new_score)
+                else:
+                    # Add new nodes found through pattern completion
+                    candidates[node.node_id] = (node, activation * 0.8)
+                    total_candidates_seen += 1
+
+            stages_executed.append("ca3_pattern_completion")
+
+            pc_time = (time.perf_counter() - pc_start) * 1000
+            logger.debug(
+                f"CA3 pattern completion: {len(seed_nodes)} seeds -> {len(completed)} completed in {pc_time:.1f}ms"
+            )
+
+        # =====================================================================
+        # PHASE VII: WAVEFRONT PROPAGATION (Interference Wavefront)
+        # =====================================================================
+        # Systolic-style diagonal propagation through TIME × HIERARCHY.
+        # Uses wave interference to identify constructive/destructive matches.
+        # Constructive interference = high activation = likely match
+        # Destructive interference = low activation = suppress
+        # =====================================================================
+        if self._wavefront_propagator and candidates and query_wave_amplitudes:
+            wf_start = time.perf_counter()
+
+            # Use top candidates as seeds for wavefront propagation
+            seed_nodes = [
+                node for node, score in sorted(
+                    candidates.values(),
+                    key=lambda x: x[1],
+                    reverse=True
+                )[:20]  # Top 20 seeds
+            ]
+
+            # Propagate wavefront through the graph
+            wf_result = await self._wavefront_propagator.propagate(
+                query_wave=query_wave_amplitudes,
+                seed_nodes=seed_nodes,
+                max_time_hops=5,
+                max_hierarchy_hops=2
+            )
+
+            # Merge wavefront results with interference-based scoring
+            for wf_node in wf_result.nodes:
+                node = wf_node.node
+                activation = wf_node.activation
+                itype = wf_node.interference_type
+
+                if node.node_id in candidates:
+                    _, old_score = candidates[node.node_id]
+
+                    # Apply interference-based adjustment
+                    if itype == InterferenceType.CONSTRUCTIVE:
+                        # Boost constructive interference
+                        new_score = old_score + self._config.wavefront_constructive_boost * activation
+                    elif itype == InterferenceType.DESTRUCTIVE:
+                        # Penalize destructive interference
+                        new_score = old_score * self._config.wavefront_destructive_penalty
+                    else:
+                        # Partial - slight boost
+                        new_score = old_score + 0.15 * activation
+
+                    candidates[node.node_id] = (node, new_score)
+                else:
+                    # Add new nodes found through wavefront propagation
+                    base_score = 0.5 * activation
+                    if itype == InterferenceType.CONSTRUCTIVE:
+                        base_score += self._config.wavefront_constructive_boost * 0.5
+                    candidates[node.node_id] = (node, base_score)
+                    total_candidates_seen += 1
+
+            stages_executed.append("wavefront_propagation")
+
+            wf_time = (time.perf_counter() - wf_start) * 1000
+            logger.debug(
+                f"Wavefront propagation: {len(seed_nodes)} seeds -> "
+                f"{len(wf_result.nodes)} activated "
+                f"(constructive={wf_result.constructive_count}, "
+                f"destructive={wf_result.destructive_count}) "
+                f"in {wf_time:.1f}ms"
             )
 
         # Apply final reranking with keyword boost
@@ -322,6 +585,57 @@ class NeuralRetriever:
                         # Use keyword score as base (scaled)
                         base_score = 0.3 + keyword_score * 0.5
                         candidates[node.node_id] = (node, base_score)
+
+        # =====================================================================
+        # PHASE II: TEMPORAL FILTERING + EDGE TRAVERSAL (Wave-Routed Retrieval)
+        # =====================================================================
+        # For temporal queries (high temporal wave amplitude):
+        # 1. Boost nodes with temporal content
+        # 2. TRAVERSE TEMPORAL edges to find related events (horizontal linking)
+        # This helps "When did X do Y?" type questions find relevant memories.
+        # =====================================================================
+        if hasattr(self, '_query_wave_amplitudes') and self._query_wave_amplitudes:
+            temporal_amp = self._query_wave_amplitudes.get("temporal", 0)
+            if temporal_amp > 0.3:  # Lowered from 0.5 for broader activation
+                # Step 1: Boost/penalize based on temporal wave amplitude
+                for node_id, (node, score) in list(candidates.items()):
+                    node_temporal = node.wave_amplitudes.get("temporal", 0) if node.wave_amplitudes else 0
+                    if node_temporal > 0.3:
+                        # Boost nodes with temporal content
+                        new_score = score + 0.25 * node_temporal
+                        candidates[node_id] = (node, new_score)
+                    elif node_temporal < 0.1:
+                        # Penalize nodes without temporal content (but not too harshly)
+                        new_score = score * 0.8
+                        candidates[node_id] = (node, new_score)
+
+                # Step 2: CRITICAL - Follow TEMPORAL edges to find related events
+                # This is horizontal linking in action for temporal queries
+                temporal_expanded = set()
+                top_temporal_nodes = [
+                    (nid, n, s) for nid, (n, s) in candidates.items()
+                    if n.wave_amplitudes and n.wave_amplitudes.get("temporal", 0) > 0.3
+                ][:20]  # Top 20 temporal nodes as seeds
+
+                for node_id, node, score in top_temporal_nodes:
+                    # Get temporal edges (both directions for context)
+                    edges_from = await self._storage.get_edges_from(
+                        node_id, edge_types=[EdgeType.TEMPORAL]
+                    )
+                    edges_to = await self._storage.get_edges_to(
+                        node_id, edge_types=[EdgeType.TEMPORAL]
+                    )
+                    all_temporal_edges = edges_from[:5] + edges_to[:5]
+
+                    for edge in all_temporal_edges:
+                        target_id = edge.target_id if edge.source_id == node_id else edge.source_id
+                        if target_id not in candidates and target_id not in temporal_expanded:
+                            target = await self._storage.get_node(target_id)
+                            if target:
+                                # Score based on edge weight and temporal relevance
+                                edge_score = 0.4 * edge.effective_weight * score
+                                candidates[target_id] = (target, edge_score)
+                                temporal_expanded.add(target_id)
 
         # Sort and return top candidates
         sorted_candidates = sorted(
@@ -490,6 +804,68 @@ class NeuralRetriever:
                 keyword_score = self._compute_keyword_score(node.content, query_keywords)
                 final_score += self._config.keyword_boost_weight * keyword_score
 
+            # =================================================================
+            # PHASE IV: ENTITY OVERLAP BOOSTING (Wave-Routed Retrieval)
+            # =================================================================
+            # Boost nodes that share entities with the query. This ensures
+            # "What did Caroline do?" finds memories about Caroline.
+            # =================================================================
+            query_entities = []
+            if hasattr(self, '_current_query_text') and self._current_query_text:
+                query_entities = self._extract_entities(self._current_query_text)
+                if query_entities and node.entity_ids:
+                    # Match by entity name (case-insensitive)
+                    query_entity_lower = {e.lower() for e in query_entities}
+                    node_entity_lower = {e.lower() for e in node.entity_ids}
+                    overlap = len(query_entity_lower & node_entity_lower)
+                    if overlap > 0:
+                        entity_boost = 0.35 * (overlap / len(query_entities))  # UP from 0.3
+                        final_score += entity_boost
+
+            # =================================================================
+            # PHASE V: WAVE DIMENSION FILTERING (Aggressive Strike)
+            # =================================================================
+            # Penalize candidates that don't have signal in the query's
+            # dominant wave dimensions. If query has high entity+temporal,
+            # memories without those signals are noise.
+            # =================================================================
+            if query_wave_amplitudes:
+                # Identify query's dominant dimensions (amplitude > 0.4)
+                dominant_dims = [
+                    k for k, v in query_wave_amplitudes.items()
+                    if v > 0.4 and k in ('entity', 'temporal', 'action', 'spatial', 'relational')
+                ]
+
+                if dominant_dims and node.wave_amplitudes:
+                    # Check if node has signal in at least one dominant dimension
+                    has_signal = any(
+                        node.wave_amplitudes.get(dim, 0) > 0.2 for dim in dominant_dims
+                    )
+                    if not has_signal:
+                        # Penalize mismatched candidates
+                        final_score *= 0.65  # Stronger penalty for wave mismatch
+
+            # =================================================================
+            # PHASE VI: SPEAKER-ENTITY BINDING (4D Transcendence)
+            # =================================================================
+            # When the query asks about a person (Caroline, Melanie), and
+            # a memory is SPOKEN BY that person (producer_id), it's highly
+            # relevant. This is the 4D binding - speaker IS the entity.
+            # =================================================================
+            if query_entities:
+                query_entities_lower = {e.lower() for e in query_entities}
+                # Check metadata for producer_id (speaker)
+                node_metadata = node.metadata or {}
+                speaker = node_metadata.get("producer_id", "")
+                if not speaker:
+                    # Also check speaker field directly on node if available
+                    speaker = getattr(node, 'speaker', '') or ""
+                speaker_lower = speaker.lower().strip()
+
+                if speaker_lower and speaker_lower in query_entities_lower:
+                    # Speaker IS the queried entity - high confidence boost
+                    final_score += 0.35  # Strong boost for speaker match
+
             # Filter by minimum threshold
             if final_score >= self._config.min_score_threshold:
                 reranked.append((node, final_score))
@@ -498,6 +874,50 @@ class NeuralRetriever:
         reranked.sort(key=lambda x: x[1], reverse=True)
 
         return reranked
+
+    def _extract_entities(self, text: str) -> list[str]:
+        """Extract entity names (proper nouns) from text.
+
+        WAVE-ROUTED RETRIEVAL: Entity extraction for entity-first retrieval.
+        Used to pre-populate candidates when query has high entity wave amplitude.
+
+        Args:
+            text: Input text (query)
+
+        Returns:
+            List of entity names (capitalized words likely to be proper nouns)
+        """
+        import re
+        # Find capitalized words (likely proper nouns/entity names)
+        # Pattern: word boundary, uppercase letter, lowercase letters
+        words = re.findall(r'\b[A-Z][a-z]+\b', text)
+        # Remove duplicates while preserving order
+        seen = set()
+        entities = []
+        for w in words:
+            if w not in seen:
+                seen.add(w)
+                entities.append(w)
+        return entities
+
+    def _is_factual_query(self, query_waves: dict[str, float] | None) -> bool:
+        """Detect factual queries: high entity, low complexity.
+
+        WAVE-ROUTED RETRIEVAL: Factual queries need larger candidate pools.
+
+        Args:
+            query_waves: Query wave amplitudes
+
+        Returns:
+            True if query appears to be factual/entity-centric
+        """
+        if not query_waves:
+            return False
+        return (
+            query_waves.get("entity", 0) > 0.3 and  # Lowered from 0.5
+            query_waves.get("emotional", 0) < 0.4 and  # Relaxed from 0.3
+            query_waves.get("causal", 0) < 0.4  # Relaxed from 0.3
+        )
 
     def _extract_keywords(self, text: str) -> set[str]:
         """Extract important keywords from text for hybrid retrieval.

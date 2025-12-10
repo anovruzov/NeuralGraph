@@ -129,6 +129,15 @@ from .service import (
     NeuralIngestionResult,
 )
 
+# Query Router (intelligent query analysis and pre-filtering)
+from .query_router import (
+    QueryRouter,
+    QueryType,
+    QueryAnalysis,
+    FilteredRetriever,
+    create_query_router,
+)
+
 # Prompts (schema-guided reasoning for SLM answering)
 from .prompts import (
     RETRIEVAL_ANSWER_PROMPT,
@@ -185,6 +194,12 @@ __all__ = [
     "NeuralGraphService",
     "NeuralGraphServiceConfig",
     "NeuralIngestionResult",
+    # Query Router
+    "QueryRouter",
+    "QueryType",
+    "QueryAnalysis",
+    "FilteredRetriever",
+    "create_query_router",
 ]
 
 __version__ = "1.0.0"

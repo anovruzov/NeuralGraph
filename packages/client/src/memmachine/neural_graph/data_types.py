@@ -32,11 +32,13 @@ class NodeLayer(IntEnum):
     Layer 1: Episode segments (session groupings)
     Layer 2: Topic clusters (semantic groupings)
     Layer 3: Persona facets (stable user model)
+    Layer 4: Temporal anchors (date/time nodes) - CRITICAL for "When did X happen?"
     """
     MESSAGE = 0
     EPISODE = 1
     TOPIC = 2
     PERSONA = 3
+    TEMPORAL = 4  # New layer for temporal anchors
 
 
 class EdgeType(str, Enum):
@@ -314,6 +316,83 @@ class NeuralNode:
     # Metadata
     metadata: dict[str, Any] = field(default_factory=dict)
 
+    # FAIRNESS metadata - allows balanced treatment across edge types
+    # Tracks edge type distribution for this node
+    edge_type_counts: dict[str, int] = field(default_factory=dict)
+    # Tracks dominant wave dimension for query-aware prioritization
+    dominant_dimension: str = ""
+    # Fairness score - nodes with diverse edges are more valuable
+    diversity_score: float = 0.5
+
+    def update_edge_counts(self, edge_type: str) -> None:
+        """Update edge type count for fairness tracking.
+
+        Called when edges are created to track the distribution
+        of edge types connected to this node.
+        """
+        if edge_type not in self.edge_type_counts:
+            self.edge_type_counts[edge_type] = 0
+        self.edge_type_counts[edge_type] += 1
+
+        # Update diversity score (more edge types = higher diversity)
+        if self.edge_type_counts:
+            num_types = len(self.edge_type_counts)
+            total_edges = sum(self.edge_type_counts.values())
+            # Shannon diversity normalized: higher when edges are evenly distributed
+            if total_edges > 0 and num_types > 1:
+                import math
+                entropy = 0.0
+                for count in self.edge_type_counts.values():
+                    if count > 0:
+                        p = count / total_edges
+                        entropy -= p * math.log(p)
+                max_entropy = math.log(num_types)
+                self.diversity_score = entropy / max_entropy if max_entropy > 0 else 0.5
+            else:
+                self.diversity_score = 0.5
+
+    def update_dominant_dimension(self) -> None:
+        """Update dominant wave dimension from wave_amplitudes.
+
+        The dominant dimension determines what TYPE of queries
+        this node is best suited to answer.
+        """
+        if self.wave_amplitudes:
+            max_dim = max(self.wave_amplitudes.items(), key=lambda x: x[1])
+            self.dominant_dimension = max_dim[0] if max_dim[1] > 0.2 else ""
+
+    def get_fairness_weight(self, query_wave_amplitudes: dict[str, float]) -> float:
+        """Get fairness weight based on query alignment.
+
+        THE FAIRNESS PRINCIPLE:
+        Each node should get a fair chance based on whether
+        its dominant dimension matches what the query is asking for.
+
+        Args:
+            query_wave_amplitudes: The query's wave signature
+
+        Returns:
+            Fairness multiplier [0.5, 2.0]
+        """
+        if not query_wave_amplitudes or not self.dominant_dimension:
+            return 1.0  # Neutral fairness
+
+        # Get query's dominant dimension
+        query_max = max(query_wave_amplitudes.items(), key=lambda x: x[1])
+        query_dominant = query_max[0] if query_max[1] > 0.2 else ""
+
+        if not query_dominant:
+            return 1.0  # No clear query preference
+
+        # FAIRNESS BOOST: If node's dominant dimension matches query's need
+        if self.dominant_dimension == query_dominant:
+            # Strong match - boost this node's priority
+            return 1.5 + (self.diversity_score * 0.5)  # 1.5 to 2.0
+
+        # FAIRNESS PENALTY: Misaligned dimensions get reduced priority
+        # But not too harsh - allow serendipitous discovery
+        return 0.7 + (self.diversity_score * 0.3)  # 0.7 to 1.0
+
     def is_in_refractory(self) -> bool:
         """Check if node is in refractory period (Image 4).
 
@@ -448,6 +527,10 @@ class NeuralNode:
             "updated_at": self.updated_at.isoformat(),
             "source_memory_ids": self.source_memory_ids,
             "metadata": self.metadata,
+            # FAIRNESS metadata
+            "edge_type_counts": self.edge_type_counts,
+            "dominant_dimension": self.dominant_dimension,
+            "diversity_score": self.diversity_score,
         }
 
     @classmethod
@@ -473,6 +556,10 @@ class NeuralNode:
             updated_at=datetime.fromisoformat(data["updated_at"]) if isinstance(data.get("updated_at"), str) else data.get("updated_at", datetime.now(timezone.utc)),
             source_memory_ids=data.get("source_memory_ids", []),
             metadata=data.get("metadata", {}),
+            # FAIRNESS metadata
+            edge_type_counts=data.get("edge_type_counts", {}),
+            dominant_dimension=data.get("dominant_dimension", ""),
+            diversity_score=data.get("diversity_score", 0.5),
         )
 
     def __repr__(self) -> str:

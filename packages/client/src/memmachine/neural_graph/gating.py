@@ -221,35 +221,50 @@ class EdgeGateRegistry:
         return relu(similarity, threshold=threshold)
 
     def _entity_gate(self, edge: NeuralEdge, context: dict[str, Any]) -> float:
-        """Entity gate: co-occurrence + explicit relation confidence.
+        """Entity gate: SMOOTH CONTINUOUS gating like temporal edges.
+
+        TESLA FIX: Entity gates now use SMOOTH exponential decay instead of
+        sharp sigmoids. This allows entity edges to compete fairly with
+        temporal edges during electron propagation.
 
         Entity links should fire when:
         - Entities appear together often (co-occurrence)
         - There's an explicit relation with high confidence
         - The edge has been used in retrievals (LTP)
+        - The message distance is within context window (NEW!)
 
         Args:
             edge: Entity edge
-            context: May contain 'co_occurrence_threshold'
+            context: May contain 'message_distance', 'entity_recency'
 
         Returns:
             Gate value based on entity relationship strength
         """
-        # Co-occurrence signal from activation count
-        # Saturates at 5 activations
-        co_occurrence_signal = min(1.0, edge.activation_count / 5.0)
+        # SMOOTH CO-OCCURRENCE: Use continuous signal, not discrete steps
+        # Saturates smoothly rather than jumping at thresholds
+        co_occurrence_signal = 1.0 - math.exp(-edge.activation_count / 3.0)
 
-        # LTP signal
+        # LTP signal (already continuous)
         ltp_signal = (edge.ltp_boost - 1.0) / 2.0  # Normalize to ~[0, 1]
 
-        # Combine signals
+        # Entity recency - decay based on how recently the entity was mentioned
+        entity_recency = context.get("entity_recency", 1.0)
+
+        # Message distance decay (from edge metadata if available)
+        message_distance = edge.metadata.get("message_distance", 0) if edge.metadata else 0
+        distance_decay = math.exp(-message_distance / 15.0)  # 15-message context window
+
+        # Combine signals with SMOOTH weighting
         raw = (
-            0.4 * edge.effective_weight +
-            0.3 * co_occurrence_signal +
-            0.3 * edge.confidence * ltp_signal
+            0.35 * edge.effective_weight * distance_decay +  # Distance-weighted base
+            0.25 * co_occurrence_signal +                     # Co-occurrence
+            0.20 * edge.confidence * ltp_signal +             # LTP learning
+            0.20 * entity_recency                             # Temporal recency
         )
 
-        return sigmoid(raw, steepness=self._config.steepness, threshold=0.25)
+        # SMOOTH sigmoid with gentler steepness (2.0 instead of 5.0)
+        # This allows partial activation instead of all-or-nothing
+        return sigmoid(raw, steepness=2.0, threshold=0.15)
 
     def _causal_gate(self, edge: NeuralEdge, context: dict[str, Any]) -> float:
         """Causal gate: strict, only pass explicit causal links.
