@@ -1,0 +1,299 @@
+{
+  "results": [
+    {
+      "question": "When did Caroline go to the LGBTQ support group?",
+      "gold": "7 May 2023",
+      "generated": "Caroline went to the LGBTQ support group on [= 7 May 2023].",
+      "category": "temporal",
+      "correct": true,
+      "charge": 0.6536044880019294,
+      "query_types": {
+        "temporal": 0.6,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "When did Melanie paint a sunrise?",
+      "gold": 2022,
+      "generated": "Melanie painted a sunrise last year [= 2022].",
+      "category": "temporal",
+      "correct": true,
+      "charge": 0.5991593839327495,
+      "query_types": {
+        "temporal": 0.6,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "What fields would Caroline be likely to pursue in her educaton?",
+      "gold": "Psychology, counseling certification",
+      "generated": "Based on the memories provided, Caroline is likely to pursue education and careers in counseling and mental health. Specifically, she has expressed interest in working as a counselor or in related mental health jobs. She believes it's important for people to have someone to talk to and wants to help make that happen. Additionally, she has applied to adoption agencies, indicating an interest in becoming a parent through the adoption process.",
+      "category": "open_domain",
+      "correct": true,
+      "charge": 1.1211636486649514,
+      "query_types": {
+        "temporal": 0.0,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "What did Caroline research?",
+      "gold": "Adoption agencies",
+      "generated": "Caroline researched adoption agencies. She gathered documents like references, financial info, and medical checks, and prepared emotionally for the process, as the wait can be hard but is ultimately worth it.",
+      "category": "single_hop",
+      "correct": true,
+      "charge": 1.1938926846981048,
+      "query_types": {
+        "temporal": 0.0,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "What is Caroline's identity?",
+      "gold": "Transgender woman",
+      "generated": "Caroline identifies as transgender.",
+      "category": "single_hop",
+      "correct": true,
+      "charge": 1.96790978793456,
+      "query_types": {
+        "temporal": 0.0,
+        "entity": 1.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "When did Melanie run a charity race?",
+      "gold": "The sunday before 25 May 2023",
+      "generated": "Melanie ran a charity race last Saturday.",
+      "category": "temporal",
+      "correct": true,
+      "charge": 0.5169717519548205,
+      "query_types": {
+        "temporal": 0.6,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "When is Melanie planning on going camping?",
+      "gold": "June 2023",
+      "generated": "Melanie is planning on going camping next month.",
+      "category": "temporal",
+      "correct": true,
+      "charge": 0.5287921092510224,
+      "query_types": {
+        "temporal": 0.6,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "What is Caroline's relationship status?",
+      "gold": "Single",
+      "generated": "Based on the provided memories, Caroline's relationship status is not explicitly stated. There are no mentions of a current romantic partner or marriage. However, there are references to family and friends supporting her, such as mentioning her mentor for adoption advice and discussing future plans related to becoming a mother.",
+      "category": "single_hop",
+      "correct": true,
+      "charge": 1.7636668959259987,
+      "query_types": {
+        "temporal": 0.0,
+        "entity": 0.5,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "When did Caroline give a speech at a school?",
+      "gold": "The week before 9 June 2023",
+      "generated": "Caroline gave a speech at a school in the week of 29 May 2023.",
+      "category": "temporal",
+      "correct": true,
+      "charge": 0.43178035877148313,
+      "query_types": {
+        "temporal": 0.6,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "When did Caroline meet up with her friends, family, and mentors?",
+      "gold": "The week before 9 June 2023",
+      "generated": "Caroline met up with her friends, family, and mentors in the week of August 14th. This can be inferred from her statement about painting after visiting the beach on that week.",
+      "category": "temporal",
+      "correct": false,
+      "charge": 0.5482106354148301,
+      "query_types": {
+        "temporal": 0.6,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "How long has Caroline had her current group of friends for?",
+      "gold": "4 years",
+      "generated": "Caroline has had her current group of friends for 4 years, since she moved from her home country.",
+      "category": "temporal",
+      "correct": true,
+      "charge": 0.4323029572496811,
+      "query_types": {
+        "temporal": 0.5,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "Where did Caroline move from 4 years ago?",
+      "gold": "Sweden",
+      "generated": "Caroline moved from her home country 4 years ago.",
+      "category": "single_hop",
+      "correct": false,
+      "charge": 1.09644144278488,
+      "query_types": {
+        "temporal": 0.6,
+        "entity": 0.7,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "How long ago was Caroline's 18th birthday?",
+      "gold": "10 years ago",
+      "generated": "Caroline's 18th birthday was ten years ago, as mentioned in her memory where she talked about a hand-painted bowl made for her 18th birthday.",
+      "category": "temporal",
+      "correct": true,
+      "charge": 0.48913896289467806,
+      "query_types": {
+        "temporal": 0.5,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "What career path has Caroline decided to persue?",
+      "gold": "counseling or mental health for Transgender people",
+      "generated": "Caroline has decided to pursue a career in counseling or mental health work. She is passionate about helping people who have gone through similar experiences as her and wants to support them in their journeys.",
+      "category": "single_hop",
+      "correct": true,
+      "charge": 1.594193952396938,
+      "query_types": {
+        "temporal": 0.0,
+        "entity": 0.3,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "Would Caroline still want to pursue counseling as a career if she hadn't received support growing up?",
+      "gold": "Likely no",
+      "generated": "Based on the memories provided, it is clear that Caroline's pursuit of a career in counseling and mental health was significantly influenced by the support she received. She explicitly states, \"Lately, I've been looking into counseling and mental health as a career. I want to help people who have gone through the same things as me.\" Additionally, she mentions, \"My own journey and the support I got made a huge difference. Now I want to help people go through it too.\"\n\nGiven this information, if Caroline hadn't received support growing up, her desire to pursue counseling might not have been as strong or clear. Therefore, we can infer that without the support from those close to her, Caroline would likely still be interested in helping others but may not have had such a specific and passionate drive towards becoming a counselor.\n\nA direct, specific answer based on the provided memories is: No, if Caroline hadn't received support growing up, she might still want to help people, but it's unlikely that counseling",
+      "category": "open_domain",
+      "correct": false,
+      "charge": 1.299419287880262,
+      "query_types": {
+        "temporal": 0.0,
+        "entity": 0.3,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 73
+    },
+    {
+      "question": "What activities does Melanie partake in?",
+      "gold": "pottery, camping, painting, swimming",
+      "generated": "Based on the provided memories, Melanie participates in several activities:\n\n1. She enjoys pottery, which she finds therapeutic and expressive.\n2. She plays clarinet as a musical instrument.\n3. She has been involved with her family's camping trips in the mountains, where they hike and explore nature together.\n4. She runs charity races for mental health awareness.\n5. She is part of an LGBTQ advocacy group called \"Connected LGBTQ Activists,\" where she talks about her transgender journey and encourages students to get involved.\n6. She attends adoption advice/assistance groups to prepare for becoming a mom through adoption.\n7. She engages in painting as a creative outlet.\n8. She has joined mentorship programs for LGBTQ youth, which are rewarding for her.\n\nThese activities reflect Melanie's interests in self-expression, community involvement, and supporting others.",
+      "category": "single_hop",
+      "correct": false,
+      "charge": 0.5711378457546235,
+      "query_types": {
+        "temporal": 0.0,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "When did Melanie sign up for a pottery class?",
+      "gold": "2 July 2023",
+      "generated": "Melanie signed up for a pottery class on 2 July 2023.",
+      "category": "temporal",
+      "correct": true,
+      "charge": 0.5921895105838776,
+      "query_types": {
+        "temporal": 0.6,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "When is Caroline going to the transgender conference?",
+      "gold": "July 2023",
+      "generated": "Caroline is going to the transgender conference this month. Specifically, the conference took place on [= week of 26 June 2023].",
+      "category": "temporal",
+      "correct": true,
+      "charge": 0.5819929670095445,
+      "query_types": {
+        "temporal": 0.6,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    }
+  ],
+  "timestamp": "20251209_203043",
+  "config": {
+    "model": "qwen2.5:7b-instruct",
+    "top_k": 80,
+    "context_limit": 25000,
+    "approach": "TESSERACT_4D"
+  }
+}

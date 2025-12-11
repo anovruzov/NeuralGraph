@@ -1,0 +1,59 @@
+{
+  "results": [
+    {
+      "question": "When did Caroline go to the LGBTQ support group?",
+      "gold": "7 May 2023",
+      "generated": "Caroline went to an LGBTQ counseling workshop last Friday, as mentioned in this line from the conversation: \"Last Friday, I went to an LGBTQ+ counseling workshop and it was really enlightening.\"",
+      "category": "temporal",
+      "correct": false,
+      "charge": 0.7522559310041743,
+      "query_types": {
+        "temporal": 0.6,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 103
+    },
+    {
+      "question": "When did Melanie paint a sunrise?",
+      "gold": 2022,
+      "generated": "Melanie painted a sunrise last year [= 2022].",
+      "category": "temporal",
+      "correct": true,
+      "charge": 0.7888205749771047,
+      "query_types": {
+        "temporal": 0.6,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 87
+    },
+    {
+      "question": "What fields would Caroline be likely to pursue in her educaton?",
+      "gold": "Psychology, counseling certification",
+      "generated": "Based on the conversation, Caroline is likely to pursue education in fields related to mental health counseling or psychology. Specifically, she mentioned being motivated to pursue counseling to help others, indicating an interest in mental health and therapy. Therefore, fields such as clinical psychology, counseling psychology, or a related area of study would be likely for her educational path.",
+      "category": "open_domain",
+      "correct": true,
+      "charge": 0.6057583768469693,
+      "query_types": {
+        "temporal": 0.0,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 104
+    }
+  ],
+  "timestamp": "20251210_133253",
+  "config": {
+    "model": "qwen2.5:7b-instruct",
+    "top_k": 80,
+    "context_limit": 25000,
+    "approach": "TESSERACT_4D"
+  }
+}

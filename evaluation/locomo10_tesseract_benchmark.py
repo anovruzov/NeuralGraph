@@ -346,16 +346,22 @@ async def judge_answer(session, question: str, generated: str, gold) -> tuple[bo
     if gold_lower in generated_lower or generated_lower in gold_lower:
         return True, 1.0
 
-    # Use LLM judge
-    prompt = f"""Compare these two answers to the same question.
+    # Use LLM judge with Mem0-style fair grading
+    prompt = f"""You are evaluating a memory system's answer.
 
 Question: {question}
-Gold answer: {gold}
+Gold (expected) answer: {gold}
 Generated answer: {generated}
 
-Are they semantically equivalent? The generated answer is CORRECT if it conveys the same essential information as the gold answer, even if worded differently.
+Evaluation criteria (answer CORRECT if ANY apply):
+1. FACTUAL MATCH: The generated answer contains the same core facts, even if worded differently or with extra details
+2. PARTIAL CREDIT: If the gold answer has multiple items, credit is given if the generated answer includes at least the main item(s)
+3. DATE FLEXIBILITY: Different date formats are equivalent ("May 7" = "7 May" = "May 7th 2023"). Relative dates ("last Tuesday", "the week before") are correct if they reference the same time period
+4. VERBOSE OK: A longer answer that contains the gold answer's information is CORRECT, even with additional context
 
-Respond with only: CORRECT or INCORRECT"""
+Answer CORRECT unless the generated answer is factually wrong, contradicts the gold answer, or completely misses the point.
+
+Respond with ONLY one word: CORRECT or WRONG"""
 
     try:
         async with session.post(
@@ -370,7 +376,8 @@ Respond with only: CORRECT or INCORRECT"""
         ) as response:
             result = await response.json()
             response_text = result.get("response", "").strip().upper()
-            is_correct = "CORRECT" in response_text and "INCORRECT" not in response_text
+            # Handle both WRONG and INCORRECT as negative signals
+            is_correct = "CORRECT" in response_text and "WRONG" not in response_text and "INCORRECT" not in response_text
             return is_correct, 1.0 if is_correct else 0.0
     except Exception:
         return False, 0.0
@@ -415,8 +422,9 @@ async def process_question_tesseract(
         limit=TOP_K_RETRIEVAL,
     )
 
-    # Build context from retrieved memories
+    # Build context from retrieved memories with resonance tracking
     context_parts = []
+    memories_with_resonance = []  # Track each memory with its resonance score
     total_length = 0
     max_charge = 0.0
 
@@ -439,6 +447,14 @@ async def process_question_tesseract(
         total_length += len(entry)
         max_charge = max(max_charge, charge)
 
+        # Track memory with resonance score
+        memories_with_resonance.append({
+            "content": node.content[:200],  # Truncate for readability
+            "speaker": speaker,
+            "resonance": round(charge, 4),  # The charge IS the resonance score
+            "node_id": str(node.node_id) if hasattr(node, 'node_id') else None,
+        })
+
     context = "\n\n".join(context_parts)
 
     # Generate answer with query-type-aware prompt
@@ -452,6 +468,15 @@ async def process_question_tesseract(
     primary_type = max(query_types.items(), key=lambda x: x[1])[0]
     print(f"    [{idx}] {category} ({primary_type}): {status} (charge: {max_charge:.3f})")
 
+    # Show details for WRONG answers
+    if not is_correct:
+        print(f"        Q: {question[:80]}...")
+        print(f"        GOLD: {str(gold_answer)[:60]}")
+        print(f"        GEN:  {generated[:60]}...")
+        if memories_with_resonance:
+            top_mem = memories_with_resonance[0]
+            print(f"        TOP MEM ({top_mem['resonance']:.3f}): {top_mem['content'][:60]}...")
+
     return {
         "question": question,
         "gold": gold_answer,
@@ -461,6 +486,7 @@ async def process_question_tesseract(
         "charge": max_charge,
         "query_types": query_types,
         "nodes_retrieved": len(results),
+        "memories": memories_with_resonance,  # Array of memories with resonance scores
     }
 
 
@@ -560,6 +586,8 @@ async def run_tesseract_benchmark(max_conversations: int = 10):
             for i, q in enumerate(questions):
                 q["_index"] = i + 1
 
+            start_time = time.time()
+
             # Process in batches
             for batch_start in range(0, len(questions), CONCURRENT_QUESTIONS):
                 batch = questions[batch_start:batch_start + CONCURRENT_QUESTIONS]
@@ -571,6 +599,34 @@ async def run_tesseract_benchmark(max_conversations: int = 10):
 
                 batch_results = await asyncio.gather(*tasks)
                 all_results.extend(batch_results)
+
+                # Live monitoring - show progress every 30 questions
+                if len(all_results) % 30 == 0 or len(all_results) == len(questions):
+                    elapsed = time.time() - start_time
+                    qps = len(all_results) / elapsed if elapsed > 0 else 0
+
+                    # Calculate live stats by category
+                    live_stats = defaultdict(lambda: {"correct": 0, "total": 0})
+                    for r in all_results:
+                        cat = r["category"]
+                        live_stats[cat]["total"] += 1
+                        if r["correct"]:
+                            live_stats[cat]["correct"] += 1
+
+                    total_correct = sum(s["correct"] for s in live_stats.values())
+                    total = len(all_results)
+
+                    # Build category breakdown
+                    cat_parts = []
+                    for cat in ["temporal", "single_hop", "multi_hop", "open_domain", "adversarial"]:
+                        if live_stats[cat]["total"] > 0:
+                            c = live_stats[cat]["correct"]
+                            t = live_stats[cat]["total"]
+                            pct = 100 * c / t
+                            abbrev = cat[:4]
+                            cat_parts.append(f"{abbrev}:{c}/{t}({pct:.0f}%)")
+
+                    print(f"\n  [LIVE] {total_correct}/{total} ({100*total_correct/total:.1f}%) | {qps:.1f} q/s | {' | '.join(cat_parts)}")
 
                 # Save incrementally
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

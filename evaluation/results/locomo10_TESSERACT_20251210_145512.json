@@ -1,0 +1,62 @@
+{
+  "results": [
+    {
+      "question": "What does Melanie do with her family on hikes?",
+      "gold": "Roast marshmallows, tell stories",
+      "generated": "roast marshmallows around the campfire",
+      "category": "single_hop",
+      "correct": false,
+      "charge": 0.7973848774289991,
+      "query_types": {
+        "temporal": 0.0,
+        "entity": 0.4,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3,
+        "direct_fact": 0.5
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "What did Mel and her kids make during the pottery workshop?",
+      "gold": "pots",
+      "generated": "Mel and her kids made their own pots during the pottery workshop last Friday in September 2023.",
+      "category": "multi_hop",
+      "correct": true,
+      "charge": 0.5810037089130322,
+      "query_types": {
+        "temporal": 0.3,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3,
+        "direct_fact": 0.0
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "Would Melanie be considered a member of the LGBTQ community?",
+      "gold": "Likely no, she does not refer to herself as part of it",
+      "generated": "Based on the provided memories, Melanie is not explicitly stated to be a member of the LGBTQ community. The conversations primarily revolve around Caroline's experiences and journey within the LGBTQ+ community, with Melanie providing support and encouragement. There are no mentions or indications that Melanie identifies as part of the LGBTQ+ spectrum.",
+      "category": "open_domain",
+      "correct": true,
+      "charge": 0.962992505949944,
+      "query_types": {
+        "temporal": 0.0,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3,
+        "direct_fact": 0.0
+      },
+      "nodes_retrieved": 78
+    }
+  ],
+  "timestamp": "20251210_145512",
+  "config": {
+    "model": "qwen2.5:7b-instruct",
+    "top_k": 80,
+    "context_limit": 25000,
+    "approach": "TESSERACT_4D"
+  }
+}

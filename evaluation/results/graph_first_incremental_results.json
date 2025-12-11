@@ -1,0 +1,347 @@
+{
+  "status": "in_progress",
+  "total_questions": 12,
+  "correct": 1,
+  "accuracy": 0.08333333333333333,
+  "avg_retrieval_ms": 31.15,
+  "category_accuracy": {
+    "temporal": 0.0,
+    "open_domain": 0.0,
+    "single_hop": 0.25
+  },
+  "results": [
+    {
+      "question_id": 0,
+      "category": "temporal",
+      "question": "When did Caroline go to the LGBTQ support group?",
+      "gold_answer": "7 May 2023",
+      "generated_answer": "Caroline went to the LGBTQ support group on [2023-05-08 13:56].",
+      "llm_score": 0,
+      "correct": false,
+      "time_seconds": 5.68,
+      "retrieval_time_ms": 32.79,
+      "retrieval_method": "graph_first",
+      "decomposition": {
+        "query_type": "ENTITY_TEMPORAL",
+        "entities": [
+          "Caroline"
+        ],
+        "attributes": [
+          "possession"
+        ],
+        "key_terms": [
+          "group",
+          "support",
+          "lgbtq"
+        ]
+      },
+      "num_results": 30,
+      "conversation_id": 0
+    },
+    {
+      "question_id": 1,
+      "category": "temporal",
+      "question": "When did Melanie paint a sunrise?",
+      "gold_answer": "2022",
+      "generated_answer": "[2023-05-08 13:56] Melanie mentioned painting a lake sunrise, but she did not provide a specific date for this painting. Therefore, based on the information given in the memories, the exact date when Melanie painted a sunrise is Not mentioned in memories.",
+      "llm_score": 0,
+      "correct": false,
+      "time_seconds": 6.08,
+      "retrieval_time_ms": 30.45,
+      "retrieval_method": "graph_first",
+      "decomposition": {
+        "query_type": "ENTITY_TEMPORAL",
+        "entities": [
+          "Melanie"
+        ],
+        "attributes": [],
+        "key_terms": [
+          "paint",
+          "sunrise"
+        ]
+      },
+      "num_results": 30,
+      "conversation_id": 0
+    },
+    {
+      "question_id": 2,
+      "category": "open_domain",
+      "question": "What fields would Caroline be likely to pursue in her educaton?",
+      "gold_answer": "Psychology, counseling certification",
+      "generated_answer": "Not mentioned in memories.",
+      "llm_score": 0,
+      "correct": false,
+      "time_seconds": 5.77,
+      "retrieval_time_ms": 32.04,
+      "retrieval_method": "graph_first",
+      "decomposition": {
+        "query_type": "ENTITY_ATTRIBUTE",
+        "entities": [
+          "Caroline"
+        ],
+        "attributes": [
+          "hobby",
+          "possession"
+        ],
+        "key_terms": [
+          "pursue",
+          "fields",
+          "educaton",
+          "likely"
+        ]
+      },
+      "num_results": 30,
+      "conversation_id": 0
+    },
+    {
+      "question_id": 3,
+      "category": "single_hop",
+      "question": "What did Caroline research?",
+      "gold_answer": "Adoption agencies",
+      "generated_answer": "Caroline researched adoption agencies. This is mentioned in the memory from [2023-05-25 13:14], where she states, \"Researching adoption agencies \u2014 it's been a dream to have a family and give a loving home to kids who need it.\"",
+      "llm_score": 1,
+      "correct": true,
+      "time_seconds": 8.68,
+      "retrieval_time_ms": 31.11,
+      "retrieval_method": "graph_first",
+      "decomposition": {
+        "query_type": "ENTITY_ATTRIBUTE",
+        "entities": [
+          "Caroline"
+        ],
+        "attributes": [
+          "education",
+          "possession"
+        ],
+        "key_terms": [
+          "research"
+        ]
+      },
+      "num_results": 30,
+      "conversation_id": 0
+    },
+    {
+      "question_id": 4,
+      "category": "single_hop",
+      "question": "What is Caroline's identity?",
+      "gold_answer": "Transgender woman",
+      "generated_answer": "Caroline identifies as transgender. This can be inferred from her discussions about her journey, struggles, and acceptance of her gender identity, as well as her involvement in LGBTQ+ activism and support groups.",
+      "llm_score": 0,
+      "correct": false,
+      "time_seconds": 8.78,
+      "retrieval_time_ms": 30.64,
+      "retrieval_method": "graph_first",
+      "decomposition": {
+        "query_type": "ENTITY_ATTRIBUTE",
+        "entities": [
+          "Caroline"
+        ],
+        "attributes": [
+          "possession"
+        ],
+        "key_terms": [
+          "identity"
+        ]
+      },
+      "num_results": 30,
+      "conversation_id": 0
+    },
+    {
+      "question_id": 5,
+      "category": "temporal",
+      "question": "When did Melanie run a charity race?",
+      "gold_answer": "The sunday before 25 May 2023",
+      "generated_answer": "Melanie ran a charity race on May 20, 2023. This can be deduced from her statement in the memory dated [2023-05-25 13:14], where she mentions running a charity race for mental health \"last Saturday,\" which refers to May 20, 2023, as calculated from the provided temporal information.",
+      "llm_score": 0,
+      "correct": false,
+      "time_seconds": 8.87,
+      "retrieval_time_ms": 31.81,
+      "retrieval_method": "graph_first",
+      "decomposition": {
+        "query_type": "ENTITY_TEMPORAL",
+        "entities": [
+          "Melanie"
+        ],
+        "attributes": [],
+        "key_terms": [
+          "run",
+          "charity",
+          "race"
+        ]
+      },
+      "num_results": 30,
+      "conversation_id": 0
+    },
+    {
+      "question_id": 6,
+      "category": "temporal",
+      "question": "When is Melanie planning on going camping?",
+      "gold_answer": "June 2023",
+      "generated_answer": "Not mentioned in memories. The closest reference is that Melanie planned to go camping \"next month\" in a conversation dated [2023-05-25 13:14], but the exact date is not provided.",
+      "llm_score": 0,
+      "correct": false,
+      "time_seconds": 5.54,
+      "retrieval_time_ms": 31.4,
+      "retrieval_method": "graph_first",
+      "decomposition": {
+        "query_type": "ENTITY_TEMPORAL",
+        "entities": [
+          "Melanie"
+        ],
+        "attributes": [],
+        "key_terms": [
+          "going",
+          "camping",
+          "planning"
+        ]
+      },
+      "num_results": 30,
+      "conversation_id": 0
+    },
+    {
+      "question_id": 7,
+      "category": "single_hop",
+      "question": "What is Caroline's relationship status?",
+      "gold_answer": "Single",
+      "generated_answer": "Not mentioned in memories.",
+      "llm_score": 0,
+      "correct": false,
+      "time_seconds": 5.63,
+      "retrieval_time_ms": 30.99,
+      "retrieval_method": "graph_first",
+      "decomposition": {
+        "query_type": "ENTITY_ATTRIBUTE",
+        "entities": [
+          "Caroline"
+        ],
+        "attributes": [
+          "possession"
+        ],
+        "key_terms": [
+          "relationship",
+          "status"
+        ]
+      },
+      "num_results": 30,
+      "conversation_id": 0
+    },
+    {
+      "question_id": 8,
+      "category": "temporal",
+      "question": "When did Caroline give a speech at a school?",
+      "gold_answer": "The week before 9 June 2023",
+      "generated_answer": "[2023-06-09 19:55] Caroline mentioned giving a speech about her transgender journey and encouraging students to get involved in the LGBTQ community. However, the exact date of this event is not provided in the memories. The closest temporal reference is \"last week\" relative to [2023-06-09], but without more specific information, we cannot determine the exact date. Therefore, based on the given information:\n\nNot mentioned in memories.",
+      "llm_score": 0,
+      "correct": false,
+      "time_seconds": 5.93,
+      "retrieval_time_ms": 27.22,
+      "retrieval_method": "graph_first",
+      "decomposition": {
+        "query_type": "ENTITY_TEMPORAL",
+        "entities": [
+          "Caroline"
+        ],
+        "attributes": [
+          "education",
+          "possession"
+        ],
+        "key_terms": [
+          "speech",
+          "school",
+          "give"
+        ]
+      },
+      "num_results": 30,
+      "conversation_id": 0
+    },
+    {
+      "question_id": 9,
+      "category": "temporal",
+      "question": "When did Caroline meet up with her friends, family, and mentors?",
+      "gold_answer": "The week before 9 June 2023",
+      "generated_answer": "The memory from [2023-06-09 19:55] mentions that Caroline met up with her friends, family, and mentors \"last week\" when she said, \"My friends, family and mentors are my rocks \u2013 they motivate me and give me the strength to push on. Here's a pic from when we met up last week!\" \n\nTo determine the specific date of this meeting, we need to calculate the Saturday before June 9, 2023. Since June 9, 2023, is a Tuesday, the Saturday before that would be June 3, 2023.\n\nTherefore, Caroline met up with her friends, family, and mentors on [2023-06-03].",
+      "llm_score": 0,
+      "correct": false,
+      "time_seconds": 9.45,
+      "retrieval_time_ms": 31.97,
+      "retrieval_method": "graph_first",
+      "decomposition": {
+        "query_type": "ENTITY_TEMPORAL",
+        "entities": [
+          "Caroline"
+        ],
+        "attributes": [
+          "relationship",
+          "possession"
+        ],
+        "key_terms": [
+          "meet",
+          "friends",
+          "family",
+          "mentors"
+        ]
+      },
+      "num_results": 30,
+      "conversation_id": 0
+    },
+    {
+      "question_id": 10,
+      "category": "temporal",
+      "question": "How long has Caroline had her current group of friends for?",
+      "gold_answer": "4 years",
+      "generated_answer": "Not mentioned in memories.",
+      "llm_score": 0,
+      "correct": false,
+      "time_seconds": 9.55,
+      "retrieval_time_ms": 31.3,
+      "retrieval_method": "graph_first",
+      "decomposition": {
+        "query_type": "ENTITY_ATTRIBUTE",
+        "entities": [
+          "Caroline"
+        ],
+        "attributes": [
+          "relationship",
+          "possession"
+        ],
+        "key_terms": [
+          "friends",
+          "long",
+          "current",
+          "group"
+        ]
+      },
+      "num_results": 30,
+      "conversation_id": 0
+    },
+    {
+      "question_id": 11,
+      "category": "single_hop",
+      "question": "Where did Caroline move from 4 years ago?",
+      "gold_answer": "Sweden",
+      "generated_answer": "Not mentioned in memories.",
+      "llm_score": 0,
+      "correct": false,
+      "time_seconds": 9.64,
+      "retrieval_time_ms": 32.09,
+      "retrieval_method": "graph_first",
+      "decomposition": {
+        "query_type": "ENTITY_ATTRIBUTE",
+        "entities": [
+          "Caroline"
+        ],
+        "attributes": [
+          "location",
+          "possession"
+        ],
+        "key_terms": [
+          "years",
+          "ago",
+          "move"
+        ]
+      },
+      "num_results": 30,
+      "conversation_id": 0
+    }
+  ]
+}

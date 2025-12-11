@@ -1,0 +1,731 @@
+{
+  "results": [
+    {
+      "question": "When did Caroline go to the LGBTQ support group?",
+      "gold": "7 May 2023",
+      "generated": "Caroline went to the LGBTQ support group on [= 7 May 2023].",
+      "category": "temporal",
+      "correct": true,
+      "charge": 0.7522559310041743,
+      "query_types": {
+        "temporal": 0.6,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "When did Melanie paint a sunrise?",
+      "gold": 2022,
+      "generated": "Melanie painted a sunrise last year [= 2022].",
+      "category": "temporal",
+      "correct": true,
+      "charge": 0.7191360685765334,
+      "query_types": {
+        "temporal": 0.6,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "What fields would Caroline be likely to pursue in her educaton?",
+      "gold": "Psychology, counseling certification",
+      "generated": "Based on the memories provided, Caroline is likely to pursue education and careers in counseling and mental health. Specifically, she has expressed interest in working as a counselor or in related mental health jobs. She believes it's important for people to have someone to talk to and wants to help make that happen. Additionally, she is currently looking into these career options and sees them as a way to support those with similar issues, drawing on her own experiences.",
+      "category": "open_domain",
+      "correct": true,
+      "charge": 0.6057583768469693,
+      "query_types": {
+        "temporal": 0.0,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "What did Caroline research?",
+      "gold": "Adoption agencies",
+      "generated": "Caroline researched adoption agencies and the process of adopting a child. She also prepared by gathering documents such as references, financial information, and medical checks. Additionally, she focused on preparing emotionally for the adoption process, acknowledging that the wait could be hard but ultimately worth it.",
+      "category": "single_hop",
+      "correct": true,
+      "charge": 1.1293366387591133,
+      "query_types": {
+        "temporal": 0.0,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "What is Caroline's identity?",
+      "gold": "Transgender woman",
+      "generated": "Caroline identifies as transgender.",
+      "category": "single_hop",
+      "correct": true,
+      "charge": 2.273592249819956,
+      "query_types": {
+        "temporal": 0.0,
+        "entity": 1.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "When did Melanie run a charity race?",
+      "gold": "The sunday before 25 May 2023",
+      "generated": "Melanie ran a charity race for mental health last Saturday. However, the exact date is not provided in the memories. Based on the context, we can infer that this happened after their last chat, but the specific date is not given. If \"last Saturday\" refers to 24 August 2023 (as indicated by the [= 24 August 2023] marker), then Melanie ran the charity race for mental health on 24 August 2023.",
+      "category": "temporal",
+      "correct": true,
+      "charge": 0.6060781344440227,
+      "query_types": {
+        "temporal": 0.6,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "When is Melanie planning on going camping?",
+      "gold": "June 2023",
+      "generated": "Melanie is planning on going camping next month.",
+      "category": "temporal",
+      "correct": true,
+      "charge": 0.621265206032405,
+      "query_types": {
+        "temporal": 0.6,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "What is Caroline's relationship status?",
+      "gold": "Single",
+      "generated": "Based on the provided memories, Caroline's relationship status is not explicitly stated. However, there are no mentions of a romantic partner or marriage, and she refers to her friends and family as supportive networks. Therefore, we can infer that Caroline is single or not in a romantic relationship at the time these interactions took place.",
+      "category": "single_hop",
+      "correct": true,
+      "charge": 2.009084774829372,
+      "query_types": {
+        "temporal": 0.0,
+        "entity": 0.5,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "When did Caroline give a speech at a school?",
+      "gold": "The week before 9 June 2023",
+      "generated": "Caroline gave a speech at a school last week [= week of 29 May 2023].",
+      "category": "temporal",
+      "correct": true,
+      "charge": 0.571178071903848,
+      "query_types": {
+        "temporal": 0.6,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "When did Caroline meet up with her friends, family, and mentors?",
+      "gold": "The week before 9 June 2023",
+      "generated": "Caroline met up with her friends, family, and mentors last week of 29 May 2023.",
+      "category": "temporal",
+      "correct": true,
+      "charge": 0.6493329298541238,
+      "query_types": {
+        "temporal": 0.6,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "How long has Caroline had her current group of friends for?",
+      "gold": "4 years",
+      "generated": "Caroline has had her current group of friends for 4 years, since she moved from her home country.",
+      "category": "temporal",
+      "correct": true,
+      "charge": 0.5133341202939175,
+      "query_types": {
+        "temporal": 0.5,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "Where did Caroline move from 4 years ago?",
+      "gold": "Sweden",
+      "generated": "The memory states that Caroline moved from her home country four years ago but does not specify the exact location of her home country. Therefore, based on the information provided, we cannot give a specific place where Caroline moved from 4 years ago.",
+      "category": "single_hop",
+      "correct": false,
+      "charge": 1.0497902888498738,
+      "query_types": {
+        "temporal": 0.6,
+        "entity": 0.7,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "How long ago was Caroline's 18th birthday?",
+      "gold": "10 years ago",
+      "generated": "Caroline's 18th birthday was ten years ago, based on her mentioning a hand-painted bowl given to her for her 18th birthday ten years ago.",
+      "category": "temporal",
+      "correct": true,
+      "charge": 0.5810435838728252,
+      "query_types": {
+        "temporal": 0.5,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "What career path has Caroline decided to persue?",
+      "gold": "counseling or mental health for Transgender people",
+      "generated": "Caroline has decided to pursue a career in counseling or mental health. She is passionate about helping people who have gone through similar experiences as her and wants to support them in their journeys.",
+      "category": "single_hop",
+      "correct": true,
+      "charge": 1.806460457483118,
+      "query_types": {
+        "temporal": 0.0,
+        "entity": 0.3,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "Would Caroline still want to pursue counseling as a career if she hadn't received support growing up?",
+      "gold": "Likely no",
+      "generated": "Based on the memories provided, Caroline's desire to pursue counseling and mental health work was significantly influenced by the support she received. She explicitly states that the encouragement from her close friends, family, and mentors made her who she is today and motivated her to want to help others go through similar experiences. Therefore, if she hadn't received this support growing up, it's unlikely that Caroline would still have the same strong desire to pursue counseling as a career. The support system played a crucial role in shaping her passion for helping others.",
+      "category": "open_domain",
+      "correct": true,
+      "charge": 1.5138631224024328,
+      "query_types": {
+        "temporal": 0.0,
+        "entity": 0.3,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 77
+    },
+    {
+      "question": "What activities does Melanie partake in?",
+      "gold": "pottery, camping, painting, swimming",
+      "generated": "Based on the provided memories, Melanie partakes in several activities:\n\n1. She enjoys pottery as a creative outlet and therapeutic activity.\n2. She plays clarinet, which she started when young and finds relaxing.\n3. She goes camping with her family in mountain areas, enjoying hiking and exploring forests.\n4. She runs charity races for mental health awareness.\n5. Melanie has been learning to play the piano recently.\n6. She takes her kids to parks where they can explore and play outdoors.\n7. She participates in various events and campaigns as part of \"Connected LGBTQ Activists,\" a group she is involved with that supports positive changes for the LGBTQ community.\n8. Melanie also engages in painting, which helps her express herself artistically.\n\nThese activities reflect her interests in creative expression, physical activity, family time, and social activism.",
+      "category": "single_hop",
+      "correct": false,
+      "charge": 0.9646690620196111,
+      "query_types": {
+        "temporal": 0.0,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "When did Melanie sign up for a pottery class?",
+      "gold": "2 July 2023",
+      "generated": "Melanie signed up for a pottery class on 2 July 2023.",
+      "category": "temporal",
+      "correct": true,
+      "charge": 0.7072793114077535,
+      "query_types": {
+        "temporal": 0.6,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "When is Caroline going to the transgender conference?",
+      "gold": "July 2023",
+      "generated": "Caroline is going to the transgender conference this month. Specifically, based on the context provided, the conference took place in late June 2023, as she mentioned it was \"two days ago\" when they last spoke, and that would align with the week of 26 June 2023.",
+      "category": "temporal",
+      "correct": true,
+      "charge": 0.6874964664571915,
+      "query_types": {
+        "temporal": 0.6,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "Where has Melanie camped?",
+      "gold": "beach, mountains, forest",
+      "generated": "Based on the memories provided, Melanie has camped in the mountains and at the beach. Specifically:\n\n- Melanie mentioned camping with her family in the mountains last week of June 2023.\n- In another memory, Melanie shared a picture of her family camping at the beach, stating it brings them closer together.",
+      "category": "single_hop",
+      "correct": true,
+      "charge": 0.8527680690605095,
+      "query_types": {
+        "temporal": 0.0,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "What do Melanie's kids like?",
+      "gold": "dinosaurs, nature",
+      "generated": "Based on the memories provided, Melanie's kids enjoy several activities:\n\n1. They love going to the beach, as evidenced by Melanie mentioning \"Seeing my kids' faces so happy at the beach was the best!\" and \"Yeah, Caroline, they're some of my fave memories. It brings us together and brings us happiness.\"\n2. They like exploring nature, as seen in Melanie's statement: \"It was so special having these moments together as a family - I'll never forget it!\"\n3. They enjoy outdoor activities such as camping, hiking, and playing at the park, with Melanie mentioning taking them to a park on August 27, 2023.\n4. They are excited about creative projects like pottery workshops, as seen in Melanie's comment: \"Last Fri I finally took my kids to a pottery workshop. We all made our own pots, it was fun and therapeutic!\"\n5. They love music, with songs like \"Summer Sounds\" getting everyone dancing and singing",
+      "category": "single_hop",
+      "correct": false,
+      "charge": 1.005521970813821,
+      "query_types": {
+        "temporal": 0.0,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "When did Melanie go to the museum?",
+      "gold": "5 July 2023",
+      "generated": "Melanie went to the museum on 5 July 2023.",
+      "category": "temporal",
+      "correct": true,
+      "charge": 0.6621973502113034,
+      "query_types": {
+        "temporal": 0.6,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "When did Caroline have a picnic?",
+      "gold": "The week before 6 July 2023",
+      "generated": "Caroline had a picnic last week [= week of 26 June 2023].",
+      "category": "temporal",
+      "correct": true,
+      "charge": 0.5945623423724864,
+      "query_types": {
+        "temporal": 0.6,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "Would Caroline likely have Dr. Seuss books on her bookshelf?",
+      "gold": "Yes, since she collects classic children's books",
+      "generated": "Based on the memories provided, there is no explicit mention of Dr. Seuss books being on Caroline's bookshelf. However, since she has a collection of kids' books including classics and stories from different cultures, it is reasonable to infer that Dr. Seuss books could be among them. But without direct confirmation, we cannot state with certainty that Dr. Seuss books are on her bookshelf.",
+      "category": "open_domain",
+      "correct": false,
+      "charge": 0.8874382717736327,
+      "query_types": {
+        "temporal": 0.0,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "What books has Melanie read?",
+      "gold": "\"Nothing is Impossible\", \"Charlotte's Web\"",
+      "generated": "Based on the provided memories, Melanie mentioned that she read \"Charlotte's Web\" as a kid and recommended a book to Caroline last year (2022) that reminded her to always pursue her dreams. However, the title of that specific book was not stated. Additionally, Melanie mentioned that she loved \"Becoming Nicole\" by Amy Ellis Nutt, which is a true story about a trans girl and her family.",
+      "category": "single_hop",
+      "correct": true,
+      "charge": 0.9697092302021069,
+      "query_types": {
+        "temporal": 0.0,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "What does Melanie do to destress?",
+      "gold": "Running, pottery",
+      "generated": "Based on the memories provided, Melanie runs to destress and clear her mind.",
+      "category": "single_hop",
+      "correct": true,
+      "charge": 1.3265875244686491,
+      "query_types": {
+        "temporal": 0.0,
+        "entity": 0.4,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "When did Caroline go to the LGBTQ conference?",
+      "gold": "10 July 2023",
+      "generated": "Caroline went to an LGBTQ conference two days ago when she spoke about her transgender journey last week [= week of 14 August 2023].",
+      "category": "temporal",
+      "correct": true,
+      "charge": 0.6071888784844357,
+      "query_types": {
+        "temporal": 0.6,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "When did Melanie read the book \"nothing is impossible\"?",
+      "gold": 2022,
+      "generated": "Based on the provided memories, there is no specific mention of Melanie reading the book \"Nothing Is Impossible.\" The only book title mentioned in relation to Melanie is \"Charlotte's Web,\" which she loved as a kid. There is also no explicit date given for when Melanie read any book titled \"Nothing Is Impossible.\" Therefore, I cannot provide a specific date or confirm that Melanie read this particular book.",
+      "category": "temporal",
+      "correct": false,
+      "charge": 0.6019002071072619,
+      "query_types": {
+        "temporal": 0.6,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "Would Caroline pursue writing as a career option?",
+      "gold": "LIkely no; though she likes reading, she wants to be a counselor",
+      "generated": "Based on the provided memories, there is no explicit mention of Caroline considering writing as a potential career option. The information focuses mainly on her interests in counseling and mental health work, art, and supporting the LGBTQ+ community through various activities like painting and organizing events. Therefore, we cannot confirm that she would pursue writing as a career option based solely on the given memories.",
+      "category": "open_domain",
+      "correct": true,
+      "charge": 1.2580527067268459,
+      "query_types": {
+        "temporal": 0.0,
+        "entity": 0.3,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "When did Caroline go to the adoption meeting?",
+      "gold": "The friday before 15 July 2023",
+      "generated": "Caroline went to an adoption council meeting last Friday, which would be [= week of 21 August 2023].",
+      "category": "temporal",
+      "correct": true,
+      "charge": 0.6131482612964116,
+      "query_types": {
+        "temporal": 0.6,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "When did Melanie go to the pottery workshop?",
+      "gold": "The Friday before 15 July 2023",
+      "generated": "Melanie went to the pottery workshop on the last Friday before her conversation with Caroline, which would be [21 August 2023].",
+      "category": "temporal",
+      "correct": true,
+      "charge": 0.6277836461599852,
+      "query_types": {
+        "temporal": 0.6,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "Would Melanie be considered a member of the LGBTQ community?",
+      "gold": "Likely no, she does not refer to herself as part of it",
+      "generated": "Based on the provided memories, Melanie would not be considered a member of the LGBTQ community. The conversations primarily revolve around Caroline's experiences and journey as a transgender individual and her involvement in LGBTQ+ activism. There is no explicit mention or indication that Melanie identifies as part of the LGBTQ community.",
+      "category": "open_domain",
+      "correct": true,
+      "charge": 0.962992505949944,
+      "query_types": {
+        "temporal": 0.0,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 78
+    },
+    {
+      "question": "When did Melanie go camping in June?",
+      "gold": "The week before 27 June 2023",
+      "generated": "Melanie went camping in the mountains last week [= week of 19 June 2023].",
+      "category": "temporal",
+      "correct": true,
+      "charge": 0.8503731056050919,
+      "query_types": {
+        "temporal": 0.6,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 75
+    },
+    {
+      "question": "What LGBTQ+ events has Caroline participated in?",
+      "gold": "Pride parade, school speech, support group",
+      "generated": "Caroline has participated in the following LGBTQ+ events:\n\n1. A transgender poetry reading where she shared her stories through poetry.\n2. An LGBTQ pride parade on 26 June 2023.\n3. An advocacy event that featured LGBTQ artists and aimed to spread understanding and acceptance.\n4. An LGBTQ conference, which took place this month (the exact date is not specified).\n5. A talent show for kids, where she was involved in organizing the event.\n6. A support group meeting on 7 May 2023.\n7. A mentorship program for LGBTQ youth, which she joined last weekend.\n8. An art show featuring her paintings, scheduled for next month.\n9. A charity race for mental health awareness, held on a Saturday (the exact date is not specified).\n10. A wedding celebration, though the specific event is not detailed in the memories provided.\n\nThese events showcase Caroline's active involvement and commitment to the LGBTQ+ community through various activities such",
+      "category": "single_hop",
+      "correct": true,
+      "charge": 0.669613972432972,
+      "query_types": {
+        "temporal": 0.0,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "When did Caroline go to a pride parade during the summer?",
+      "gold": "The week before 3 July 2023",
+      "generated": "Caroline went to a pride parade last month [= June 2023] during the summer.",
+      "category": "temporal",
+      "correct": true,
+      "charge": 0.6111683688167415,
+      "query_types": {
+        "temporal": 0.8999999999999999,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "What events has Caroline participated in to help children?",
+      "gold": "Mentoring program, school speech",
+      "generated": "Caroline has participated in several events to help children:\n\n1. She joined a mentorship program for LGBTQ youth.\n2. Last week of May 2023 (specific date not provided), she talked about her transgender journey at school and encouraged students to get involved in the LGBTQ community.\n3. Since August 21, 2023, she has been applying to adoption agencies to give a loving home to children in need.\n4. She is organizing a talent show for kids next month as part of an event to help them feel proud of their talents.\n5. Caroline volunteered at an LGBTQ+ youth center and made strong connections with young people there.\n6. She participated in a pride event, which was described as awesome and encouraging.\n7. She attended a council meeting for adoption, which was inspiring and emotional.\n8. Since August 21, 2023, she has been researching counseling or mental health work to help children who have gone through similar experiences",
+      "category": "single_hop",
+      "correct": false,
+      "charge": 0.6368977326283384,
+      "query_types": {
+        "temporal": 0.0,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "When did Melanie go camping in July?",
+      "gold": "two weekends before 17 July 2023",
+      "generated": "Melanie went camping with her family last week [= week of 19 June 2023], not in July as asked, but this is the closest date provided related to camping. There are no explicit mentions of Melanie going camping in July based on the given memories.",
+      "category": "temporal",
+      "correct": true,
+      "charge": 0.7705516372685292,
+      "query_types": {
+        "temporal": 0.6,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 75
+    },
+    {
+      "question": "When did Caroline join a mentorship program?",
+      "gold": "The weekend before 17 July 2023",
+      "generated": "Based on the memories provided, Caroline joined a mentorship program last weekend, which would be around [= week of 26 June 2023], as mentioned in one of her recent updates.",
+      "category": "temporal",
+      "correct": true,
+      "charge": 0.6428584228927916,
+      "query_types": {
+        "temporal": 0.6,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "What did Melanie paint recently?",
+      "gold": "sunset",
+      "generated": "Melanie painted a horse recently. Specifically, she shared a photo of her painting from the week of 2 October 2023, which was inspired by sunsets and made her feel calm.",
+      "category": "single_hop",
+      "correct": true,
+      "charge": 1.0420282481617607,
+      "query_types": {
+        "temporal": 0.0,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "What activities has Melanie done with her family?",
+      "gold": "Pottery, painting, camping, museum, swimming, hiking",
+      "generated": "Based on the memories provided, Melanie has engaged in the following activities with her family:\n\n1. They went camping at the beach.\n2. They had a quiet weekend after going camping.\n3. They celebrated their daughter's birthday with a concert surrounded by music and joy.\n4. They took their kids to a park for exploring and playing.\n5. They are planning to go camping next month during summer break.\n\nThese activities show that Melanie enjoys spending quality time with her family in various settings, including nature and special occasions.",
+      "category": "single_hop",
+      "correct": false,
+      "charge": 0.9472193514057005,
+      "query_types": {
+        "temporal": 0.0,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "In what ways is Caroline participating in the LGBTQ community?",
+      "gold": "Joining activist group, going to pride parades, participating in an art show, mentoring program",
+      "generated": "Caroline is actively participating in the LGBTQ community through several activities and events:\n\n1. She joined an LGBTQ activist group last Tuesday (26 June 2023) where she meets passionate people and makes a difference.\n2. On 29 May 2023, she gave a talk about her transgender journey at school to encourage students to get involved in the LGBTQ community.\n3. She attended an LGBTQ pride parade on 26 June 2023, which made her feel like she belonged and showed how much the community has grown.\n4. Caroline is part of a mentorship program for LGBTQ youth, where she helps the community.\n5. She volunteered at an LGBTQ+ youth center, making strong connections with people there and believing in supporting each other's growth.\n6. She attended an LGBTQ conference on 21 August 2023, which was special as it allowed her to meet others who have gone through similar journeys.\n7. Caroline is considering",
+      "category": "single_hop",
+      "correct": true,
+      "charge": 1.2893944122033518,
+      "query_types": {
+        "temporal": 0.0,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 77
+    },
+    {
+      "question": "How many times has Melanie gone to the beach in 2023?",
+      "gold": 2,
+      "generated": "Based on the memories provided, Melanie went to the beach once in 2023. This is mentioned in the memory where she says, \"Actually, I just took my fam camping in the mountains last week [= week of 19 June 2023] - it was a really nice time together!\" and later, \"Yeah, Caroline! My family's been great - their love and support really helped me through tough times. It's awesome! We even went on another camping trip in the forest.\" However, there is no explicit mention of a beach visit after 19 June 2023. Therefore, Melanie has gone to the beach one time in 2023.",
+      "category": "single_hop",
+      "correct": true,
+      "charge": 0.8519338077669628,
+      "query_types": {
+        "temporal": 0.0,
+        "entity": 0.0,
+        "multi_hop": 0.4,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "When did Caroline join a new activist group?",
+      "gold": "The Tuesday before 20 July 2023",
+      "generated": "Caroline joined a new LGBTQ activist group last Tuesday. However, the exact date is not provided in the memories. The closest specific date mentioned related to her joining an activist group is 7 May 2023 for attending a support group, but no explicit mention of joining a new activist group is given with a date.",
+      "category": "temporal",
+      "correct": true,
+      "charge": 0.6505231978334998,
+      "query_types": {
+        "temporal": 0.6,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "Would Melanie be more interested in going to a national park or a theme park?",
+      "gold": "National park; she likes the outdoors",
+      "generated": "Based on the memories provided, Melanie seems to have a strong preference for spending time in nature and exploring outdoors. She has mentioned several times that she enjoys activities like hiking, camping, and visiting parks where they can connect with nature and spend quality family time. For example, she expressed how much she loves camping trips with her family, mentioning the peace and serenity of waking up to the sound of birds and the smell of fresh air.\n\nGiven this information, Melanie would likely be more interested in going to a national park rather than a theme park. National parks offer opportunities for hiking, exploring nature, and enjoying outdoor activities, which align well with her interests and past experiences.",
+      "category": "open_domain",
+      "correct": true,
+      "charge": 0.8879648907425945,
+      "query_types": {
+        "temporal": 0.0,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 67
+    },
+    {
+      "question": "What kind of art does Caroline make?",
+      "gold": "abstract art",
+      "generated": "Caroline makes paintings that often reflect her trans experience and the LGBTQ+ community. She also enjoys drawing flowers and has tried pottery as a new creative outlet. Her artwork serves as a form of self-expression and a way to spread acceptance and understanding.",
+      "category": "single_hop",
+      "correct": false,
+      "charge": 0.9965555677169767,
+      "query_types": {
+        "temporal": 0.0,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    },
+    {
+      "question": "When is Melanie's daughter's birthday?",
+      "gold": "13 August",
+      "generated": "The exact date of Melanie's daughter's birthday is not provided in the memories. However, we know that Melanie celebrated her daughter's birthday with a concert surrounded by music, joy, and the warm summer breeze. Given that it was during a summer celebration, we can infer that her daughter's birthday likely falls between June and August.",
+      "category": "temporal",
+      "correct": false,
+      "charge": 0.5951770056058462,
+      "query_types": {
+        "temporal": 0.6,
+        "entity": 0.0,
+        "multi_hop": 0.0,
+        "adversarial": 0.0,
+        "open": 0.3
+      },
+      "nodes_retrieved": 80
+    }
+  ],
+  "timestamp": "20251210_124426",
+  "config": {
+    "model": "qwen2.5:7b-instruct",
+    "top_k": 80,
+    "context_limit": 25000,
+    "approach": "TESSERACT_4D"
+  }
+}
