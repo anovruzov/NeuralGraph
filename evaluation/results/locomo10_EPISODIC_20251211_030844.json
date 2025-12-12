@@ -1,0 +1,2143 @@
+{
+  "results": [
+    {
+      "question": "When did Caroline go to the LGBTQ support group?",
+      "gold": "7 May 2023",
+      "generated": "Caroline went to the LGBTQ support group on 7 May 2023.",
+      "category": "temporal",
+      "correct": true
+    },
+    {
+      "question": "When did Melanie paint a sunrise?",
+      "gold": 2022,
+      "generated": "Melanie painted a sunrise last year [= 2022].",
+      "category": "temporal",
+      "correct": true
+    },
+    {
+      "question": "What fields would Caroline be likely to pursue in her educaton?",
+      "gold": "Psychology, counseling certification",
+      "generated": "Based on the memories provided, Caroline is likely to pursue education and career paths related to counseling and mental health. She has expressed interest in helping people who have gone through similar experiences as her, and she sees this as an important way to give back and support others. Specifically, she mentioned considering careers in counseling or working in mental health services.",
+      "category": "open_domain",
+      "correct": true
+    },
+    {
+      "question": "What did Caroline research?",
+      "gold": "Adoption agencies",
+      "generated": "Caroline researched adoption agencies as part of her dream to have a family and give a loving home to kids who need it.",
+      "category": "single_hop",
+      "correct": true
+    },
+    {
+      "question": "What is Caroline's identity?",
+      "gold": "Transgender woman",
+      "generated": "Caroline identifies as transgender.",
+      "category": "single_hop",
+      "correct": true
+    },
+    {
+      "question": "When did Melanie run a charity race?",
+      "gold": "The sunday before 25 May 2023",
+      "generated": "Melanie ran a charity race on 20 May 2023.",
+      "category": "temporal",
+      "correct": false
+    },
+    {
+      "question": "When is Melanie planning on going camping?",
+      "gold": "June 2023",
+      "generated": "Melanie mentioned that she took her family camping last week [= week of 19 June 2023], but she did another camping trip with her kids \"a few weeks ago\" and \"yesterday [= 19 October 2023].\" However, the most recent specific date provided for a planned or actual camping trip is \"yesterday [= 19 October 2023],\" which indicates that Melanie went camping on 19 October 2023. There is no explicit mention of a future camping plan in the given memories.\n\nTherefore, based on the information provided:\n\nMelanie went camping on 19 October 2023.",
+      "category": "temporal",
+      "correct": true
+    },
+    {
+      "question": "What is Caroline's relationship status?",
+      "gold": "Single",
+      "generated": "Based on the provided memories, there is no explicit mention of Caroline's current relationship status. However, she does discuss her mentorship and future plans related to adoption, which suggests she might be single or in the process of starting a family through other means. There are also references to supportive friends and community involvement but no direct indication of a romantic partner.",
+      "category": "single_hop",
+      "correct": true
+    },
+    {
+      "question": "When did Caroline give a speech at a school?",
+      "gold": "The week before 9 June 2023",
+      "generated": "Caroline gave a speech at a school last week [= week of 29 May 2023]. Based on the information provided, this would place the event around 29 May 2023. However, since we need to extract the actual date, and the closest specific date given in relation to that week is 11 August 2023 for another event, we can infer that her speech was likely on a date within the week of 29 May 2023. Given the rules, we should provide the most precise date available from the context:\n\n7 May 2023\n\nBut since this is not explicitly stated and we have to choose based on the closest provided date, the actual answer would be that it happened in the week of 29 May 2023. However, following the rule strictly for an exact date:\n\nThe specific date cannot be definitively extracted as per the rules, so the most precise information",
+      "category": "temporal",
+      "correct": false
+    },
+    {
+      "question": "When did Caroline meet up with her friends, family, and mentors?",
+      "gold": "The week before 9 June 2023",
+      "generated": "Caroline met up with her friends, family, and mentors last week [= week of 29 May 2023].",
+      "category": "temporal",
+      "correct": true
+    },
+    {
+      "question": "How long has Caroline had her current group of friends for?",
+      "gold": "4 years",
+      "generated": "Caroline has had her current group of friends for 4 years, since she moved from her home country. The exact start date is not provided in the memories, but we know it was 4 years ago from when these conversations took place. Given that some of the recent conversations are around late May and early June 2023, we can infer that Caroline has had this group of friends since around mid-2019.",
+      "category": "temporal",
+      "correct": true
+    },
+    {
+      "question": "Where did Caroline move from 4 years ago?",
+      "gold": "Sweden",
+      "generated": "Caroline moved from her home country 4 years ago, but the specific country is not mentioned in the provided memories.",
+      "category": "single_hop",
+      "correct": false
+    },
+    {
+      "question": "How long ago was Caroline's 18th birthday?",
+      "gold": "10 years ago",
+      "generated": "Caroline's 18th birthday was ten years ago from when she mentioned her hand-painted bowl, which means her 18th birthday was on [14 August 2013].",
+      "category": "temporal",
+      "correct": true
+    },
+    {
+      "question": "What career path has Caroline decided to persue?",
+      "gold": "counseling or mental health for Transgender people",
+      "generated": "Caroline has decided to pursue a career in counseling or mental health work, specifically focusing on supporting transgender individuals and helping them accept themselves.",
+      "category": "single_hop",
+      "correct": true
+    },
+    {
+      "question": "Would Caroline still want to pursue counseling as a career if she hadn't received support growing up?",
+      "gold": "Likely no",
+      "generated": "Based on the memories provided, it seems highly likely that Caroline would still have pursued counseling as a career even without the support she received. Her passion for helping others and her own experiences with mental health issues are central to her decision. For instance, she mentions, \"I struggled with mental health, and support I got was really helpful... Now I want to help people go through it too,\" and \"Now I'm thinking of working with trans people, helping them accept themselves and supporting their mental health.\" These statements indicate a strong personal drive to work in the field of counseling and mental health. Therefore, even without the specific support she received, her intrinsic motivation and experiences would likely have led her to pursue this career path.",
+      "category": "open_domain",
+      "correct": false
+    },
+    {
+      "question": "What activities does Melanie partake in?",
+      "gold": "pottery, camping, painting, swimming",
+      "generated": "Based on the provided memories, Melanie partakes in several activities including spending time with her family, going camping, running, and attending pottery classes. She also enjoys hiking in the mountains and exploring forests as a way to connect with nature and each other. Additionally, she supports her community through various events and campaigns related to mental health awareness and self-care.",
+      "category": "single_hop",
+      "correct": true
+    },
+    {
+      "question": "When did Melanie sign up for a pottery class?",
+      "gold": "2 July 2023",
+      "generated": "Melanie signed up for a pottery class on 2 July 2023.",
+      "category": "temporal",
+      "correct": true
+    },
+    {
+      "question": "When is Caroline going to the transgender conference?",
+      "gold": "July 2023",
+      "generated": "Caroline is going to the transgender conference this month. However, the exact date is not specified in the memories provided. The closest information we have is that it happened \"this month,\" but without a specific date, we cannot pinpoint an exact date for when Caroline is going to the conference.",
+      "category": "temporal",
+      "correct": true
+    },
+    {
+      "question": "Where has Melanie camped?",
+      "gold": "beach, mountains, forest",
+      "generated": "Based on the memories provided, Melanie mentioned camping in the mountains and at the beach. Specifically, she said, \"We went camping with the kids in the mountains last week [= week of 19 June 2023]\" and later shared, \"Here's one I did last week [= week of 2 October 2023]. It's inspired by the sunsets. The colors make me feel calm. We love painting together lately, especially nature-inspired ones.\" This indicates that Melanie has camped both in the mountains and at a location where she could observe sunsets, likely also near or at a beach.",
+      "category": "single_hop",
+      "correct": true
+    },
+    {
+      "question": "What do Melanie's kids like?",
+      "gold": "dinosaurs, nature",
+      "generated": "Based on the memories provided, Melanie's kids seem to enjoy spending time outdoors and exploring nature. They loved activities such as going to the park, having fun at the beach, and participating in camping trips where they roasted marshmallows around the campfire and went hiking. The kids also appear to be excited about creative projects like pottery workshops and painting.",
+      "category": "single_hop",
+      "correct": false
+    },
+    {
+      "question": "When did Melanie go to the museum?",
+      "gold": "5 July 2023",
+      "generated": "Melanie went to the museum yesterday [= 5 July 2023].",
+      "category": "temporal",
+      "correct": true
+    },
+    {
+      "question": "When did Caroline have a picnic?",
+      "gold": "The week before 6 July 2023",
+      "generated": "Caroline had a picnic last week [= week of 26 June 2023], which means the actual date of the picnic was around 22-28 June 2023. However, since the question asks for the specific date, based on the information provided, we can say the picnic happened around 26 June 2023.",
+      "category": "temporal",
+      "correct": true
+    },
+    {
+      "question": "Would Caroline likely have Dr. Seuss books on her bookshelf?",
+      "gold": "Yes, since she collects classic children's books",
+      "generated": "Based on the provided memories, it's not explicitly mentioned whether Caroline has Dr. Seuss books on her bookshelf. However, given that she has a collection of kids' books including classics and stories from different cultures, it is quite likely that Dr. Seuss books are among them. Dr. Seuss is a well-known author of children's literature, so it fits with the type of books Caroline mentioned having.",
+      "category": "open_domain",
+      "correct": true
+    },
+    {
+      "question": "What books has Melanie read?",
+      "gold": "\"Nothing is Impossible\", \"Charlotte's Web\"",
+      "generated": "Based on the provided memories, Melanie mentioned reading \"Becoming Nicole\" by Amy Ellis Nutt, which is a true story about a trans girl and her family.",
+      "category": "single_hop",
+      "correct": false
+    },
+    {
+      "question": "What does Melanie do to destress?",
+      "gold": "Running, pottery",
+      "generated": "Melanie runs to destress and clear her mind. She also engages in painting as a creative outlet and form of therapy.",
+      "category": "single_hop",
+      "correct": true
+    },
+    {
+      "question": "When did Caroline go to the LGBTQ conference?",
+      "gold": "10 July 2023",
+      "generated": "Caroline went to the LGBTQ conference this month, but the exact date is not specified in the memories provided. However, since it's mentioned that she is planning for \"this month,\" and no other events are scheduled for this month in the given memories, we can infer that the conference happened recently. But based on the information given, we cannot provide a specific date. If you need an actual date, more context or a direct mention of the date would be required.",
+      "category": "temporal",
+      "correct": false
+    },
+    {
+      "question": "When did Melanie read the book \"nothing is impossible\"?",
+      "gold": 2022,
+      "generated": "The memory does not explicitly state when Melanie read the book \"Nothing Is Impossible.\" However, it mentions that she read a book last year [= 2022], which could be \"Nothing Is Impossible,\" but this is not confirmed. Without more specific information, we cannot determine the exact date Melanie read \"Nothing Is Impossible.\"",
+      "category": "temporal",
+      "correct": true
+    },
+    {
+      "question": "Would Caroline pursue writing as a career option?",
+      "gold": "LIkely no; though she likes reading, she wants to be a counselor",
+      "generated": "Based on the provided memories, there is no explicit mention of Caroline considering writing as a potential career option. The primary focus in her memories revolves around counseling and mental health careers, adopting children, and engaging in creative activities like painting and pottery. Therefore, we cannot conclude that writing was considered as one of her career options.",
+      "category": "open_domain",
+      "correct": true
+    },
+    {
+      "question": "When did Caroline go to the adoption meeting?",
+      "gold": "The friday before 15 July 2023",
+      "generated": "Caroline went to the adoption meeting on 14 July 2023.",
+      "category": "temporal",
+      "correct": true
+    },
+    {
+      "question": "When did Melanie go to the pottery workshop?",
+      "gold": "The Friday before 15 July 2023",
+      "generated": "Melanie went to the pottery workshop last Friday, which would be 5 May 2023. However, since \"last Friday\" is relative and we need an actual date, let's consider the context of her other activities. The most recent specific date mentioned before the pottery workshop was yesterday [= 2 July 2023]. Given that she took her kids to a museum on 5 July 2023 (yesterday [= 5 July 2023]), and considering the flow of events, we can infer that the pottery workshop happened around this time. \n\nTherefore, the actual date for when Melanie went to the pottery workshop is 7 May 2023.",
+      "category": "temporal",
+      "correct": false
+    },
+    {
+      "question": "Would Melanie be considered a member of the LGBTQ community?",
+      "gold": "Likely no, she does not refer to herself as part of it",
+      "generated": "Based on the provided memories, Melanie is not explicitly mentioned as being part of the LGBTQ community. The conversations primarily focus on Caroline's experiences and journey within the LGBTQ+ community, with Melanie supporting her and showing appreciation for her work and advocacy. There are no direct statements indicating that Melanie identifies as LGBTQ+.",
+      "category": "open_domain",
+      "correct": true
+    },
+    {
+      "question": "When did Melanie go camping in June?",
+      "gold": "The week before 27 June 2023",
+      "generated": "Melanie went camping in the mountains last week [= week of 19 June 2023]. Therefore, the actual date when she went camping is any day between June 12 and June 18, 2023. However, based on the information provided, we can say she went camping sometime around June 19, 2023.",
+      "category": "temporal",
+      "correct": true
+    },
+    {
+      "question": "What LGBTQ+ events has Caroline participated in?",
+      "gold": "Pride parade, school speech, support group",
+      "generated": "Caroline has participated in several LGBTQ+ events, including:\n\n- An advocacy event where she talked about her transgender journey and encouraged students to get involved.\n- A pride parade on the week of 26 June 2023.\n- A transgender poetry reading where transgender people shared their stories through poetry.\n- An LGBTQ+ support group meeting on 7 May 2023.\n- A mentorship program for LGBTQ youth last weekend.\n- An LGBTQ conference she attended a few days before the conversation.\n- A pride parade on 11 August 2023.\n- A charity race for mental health on 20 May 2023.\n- An art show featuring her paintings.\n- A transgender counseling workshop on 23 June 2023.",
+      "category": "single_hop",
+      "correct": true
+    },
+    {
+      "question": "When did Caroline go to a pride parade during the summer?",
+      "gold": "The week before 3 July 2023",
+      "generated": "Caroline went to a pride parade on 11 August 2023.",
+      "category": "temporal",
+      "correct": false
+    },
+    {
+      "question": "What events has Caroline participated in to help children?",
+      "gold": "Mentoring program, school speech",
+      "generated": "Caroline has participated in an adoption mentorship program for LGBTQ youth and volunteered at an LGBTQ+ youth center. Additionally, she is involved with Connected LGBTQ Activists, where they plan events and campaigns to support the community. Most recently, Caroline attended a counseling workshop focused on working with trans people and their mental health needs.",
+      "category": "single_hop",
+      "correct": false
+    },
+    {
+      "question": "When did Melanie go camping in July?",
+      "gold": "two weekends before 17 July 2023",
+      "generated": "Melanie went camping in the mountains last week [= week of 19 June 2023], but since the question asks about July, there is no explicit mention of her going camping in July based on the provided memories. However, if we are to infer from the closest date given, it would be around early July, as she mentioned camping recently before a specific date in June. But strictly according to the information provided, we cannot pinpoint an exact date for Melanie's camping trip in July.",
+      "category": "temporal",
+      "correct": false
+    },
+    {
+      "question": "When did Caroline join a mentorship program?",
+      "gold": "The weekend before 17 July 2023",
+      "generated": "Caroline joined a mentorship program last weekend, which was around 20-26 August 2023. However, since we need to provide the actual date, based on the memories, it would be:\n\n7 May 2023\n\nBut given the context of the memory, the correct and most specific answer is:\n\nLast weekend [week of 21 August 2023]\n\nIf we have to pick a single date from that week, we can say:\n\n21 August 2023",
+      "category": "temporal",
+      "correct": false
+    },
+    {
+      "question": "What did Melanie paint recently?",
+      "gold": "sunset",
+      "generated": "Melanie painted a sunset landscape recently, as she mentioned painting something that was calming and inspired by sunsets. Additionally, she also created an abstract painting and worked on pottery projects.",
+      "category": "single_hop",
+      "correct": true
+    },
+    {
+      "question": "What activities has Melanie done with her family?",
+      "gold": "Pottery, painting, camping, museum, swimming, hiking",
+      "generated": "Based on the provided memories, Melanie has engaged in several activities with her family, including:\n\n1. Camping trips where they roast marshmallows, tell stories around the campfire, and enjoy each other's company.\n2. Visiting a homeless shelter to volunteer.\n3. Attending events or outings at museums.\n4. Exploring nature by hiking in mountains and forests.\n5. Going on family outings that include playing games and eating good food together.\n6. Celebrating her daughter's birthday with a concert surrounded by music, joy, and the warm summer breeze.\n7. Taking her kids to parks where they explore and play.\n8. Attending an event where Melanie talked about her transgender journey and encouraged students to get involved in the LGBTQ community.\n\nThese activities highlight the importance of spending quality time together as a family and creating meaningful experiences.",
+      "category": "single_hop",
+      "correct": true
+    },
+    {
+      "question": "In what ways is Caroline participating in the LGBTQ community?",
+      "gold": "Joining activist group, going to pride parades, participating in an art show, mentoring program",
+      "generated": "Caroline is participating in the LGBTQ community through various activities such as joining an activist group called 'Connected LGBTQ Activists', where she meets like-minded people and works on events and campaigns to support the community. She also volunteers at an LGBTQ+ youth center, giving talks about her transgender journey and encouraging students to get involved. Additionally, Caroline is preparing for an upcoming LGBTQ art show and has participated in pride parades and other community events, such as a mentorship program for LGBTQ youth and an LGBTQ conference.",
+      "category": "single_hop",
+      "correct": true
+    },
+    {
+      "question": "How many times has Melanie gone to the beach in 2023?",
+      "gold": 2,
+      "generated": "Based on the memories provided, Melanie mentioned going to the beach recently and that it was awesome, but she did not specify how many times they went to the beach in 2023. Therefore, we cannot determine exactly how many times Melanie has gone to the beach in 2023 from the given information.",
+      "category": "single_hop",
+      "correct": true
+    },
+    {
+      "question": "When did Caroline join a new activist group?",
+      "gold": "The Tuesday before 20 July 2023",
+      "generated": "Caroline joined a new LGBTQ activist group last Tuesday. However, the exact date is not provided in the memories. The closest date given is 7 May 2023 when she attended a support group, but we cannot confirm this as the day she joined the activist group based on the information provided.",
+      "category": "temporal",
+      "correct": false
+    },
+    {
+      "question": "Would Melanie be more interested in going to a national park or a theme park?",
+      "gold": "National park; she likes the outdoors",
+      "generated": "Based on the memories provided, Melanie seems to enjoy spending quality time with her family outdoors and exploring nature. She has mentioned camping, hiking, and visiting the beach, which indicates a preference for natural settings over theme parks. Therefore, it is more likely that Melanie would be more interested in going to a national park rather than a theme park.",
+      "category": "open_domain",
+      "correct": true
+    },
+    {
+      "question": "What kind of art does Caroline make?",
+      "gold": "abstract art",
+      "generated": "Caroline makes paintings that often feature vibrant colors and themes related to self-acceptance and the LGBTQ+ community. She also engages in pottery as a form of creative expression.",
+      "category": "single_hop",
+      "correct": true
+    },
+    {
+      "question": "When is Melanie's daughter's birthday?",
+      "gold": "13 August",
+      "generated": "Melanie's daughter's birthday was celebrated last night, which means her daughter's birthday is on 7 May 2023.",
+      "category": "temporal",
+      "correct": false
+    },
+    {
+      "question": "When did Caroline attend a pride parade in August?",
+      "gold": "The Friday before 14 August 2023",
+      "generated": "Caroline attended a pride parade last Friday [= 11 August 2023].",
+      "category": "temporal",
+      "correct": false
+    },
+    {
+      "question": "Would Melanie be considered an ally to the transgender community?",
+      "gold": "Yes, she is supportive",
+      "generated": "Yes, Melanie would be considered an ally to the transgender community based on her supportive interactions with Caroline and her efforts to promote understanding and inclusivity. For example, she actively listens to Caroline's experiences, expresses appreciation for her journey, and encourages her involvement in advocacy work. Additionally, Melanie participates in LGBTQ+ events and supports initiatives that benefit the community, such as volunteering at a homeless shelter and running a charity race for mental health awareness.",
+      "category": "open_domain",
+      "correct": true
+    },
+    {
+      "question": "Who supports Caroline when she has a negative experience?",
+      "gold": "Her mentors, family, and friends",
+      "generated": "Caroline mentions that her friends support her during negative experiences. For instance, in one memory, she shares about a not-so-great experience on a hike where she encountered a group of religious conservatives who said something upsetting to her. She states, \"It really bugged me, so I tried to apologize to them,\" indicating a negative experience. Her friend Melanie supports her by saying, \"Strong support really helps\" in response to Caroline's experience.",
+      "category": "single_hop",
+      "correct": true
+    },
+    {
+      "question": "What types of pottery have Melanie and her kids made?",
+      "gold": "bowls, cup",
+      "generated": "Based on the memories provided, Melanie and her kids made bowls together. Additionally, there is mention of a horse painting that Melanie created, which could be inspired by or related to pottery in terms of creative expression, but it's not explicitly stated as pottery.",
+      "category": "single_hop",
+      "correct": true
+    },
+    {
+      "question": "When did Caroline and Melanie go to a pride fesetival together?",
+      "gold": 2022,
+      "generated": "Based on the memories provided, Caroline and Melanie did not go to a pride festival together. However, Caroline mentioned attending an LGBTQ+ pride parade last Friday [= 11 August 2023]. There is no information suggesting that Melanie was with her at this event. Therefore, there is no specific date given for them going to a pride festival together in the provided memories.",
+      "category": "temporal",
+      "correct": false
+    },
+    {
+      "question": "What would Caroline's political leaning likely be?",
+      "gold": "Liberal",
+      "generated": "Based on the provided memories, Caroline seems to be supportive of LGBTQ rights and involved in activism for positive changes. While there isn't explicit mention of her political leanings, her actions and words suggest she is likely progressive or liberal, given her involvement in LGBTQ advocacy and support for mental health initiatives. However, without more specific information about her broader political views, it's not possible to definitively state her exact political leaning.",
+      "category": "open_domain",
+      "correct": true
+    },
+    {
+      "question": "What has Melanie painted?",
+      "gold": "Horse, sunset, sunrise",
+      "generated": "Based on the provided memories, Melanie has painted several things, including:\n\n- A horse painting (inspired by the grace and strength of horses)\n- A lake sunrise (special to her from 2022)\n- Nature-inspired paintings with her kids\n- An abstract painting\n- Pottery creations, such as a blue vase with vibrant colors\n- Landscape and still life paintings",
+      "category": "single_hop",
+      "correct": true
+    },
+    {
+      "question": "What are Melanie's pets' names?",
+      "gold": "Oliver, Luna, Bailey",
+      "generated": "Melanie's pets include a dog named Oliver and a cat named Bailey.",
+      "category": "single_hop",
+      "correct": false
+    },
+    {
+      "question": "When did Caroline apply to adoption agencies?",
+      "gold": "The week of 23 August 2023",
+      "generated": "Caroline applied to adoption agencies in the week of 21 August 2023. However, the exact date is not provided in the memories. The closest specific date given is 7 May 2023, but that refers to a different event. Therefore, based on the information provided, we can say:\n\nCaroline applied to adoption agencies during the week of 21 August 2023.",
+      "category": "temporal",
+      "correct": false
+    },
+    {
+      "question": "When did Caroline draw a self-portrait?",
+      "gold": "The week before 23 August 2023",
+      "generated": "Caroline drew a self-portrait last week [= week of 14 August 2023]. Based on the information provided, we can infer that the actual date when she drew the self-portrait is around 14 August 2023. However, since we need to provide an actual date and there's no specific day mentioned for that week, we cannot pinpoint an exact date but can say it was during that week. If a precise date is required, we would have to make an assumption based on the context, which in this case, we will take as 14 August 2023 for the sake of answering the question directly.\n\nTherefore, the answer is: 14 August 2023.",
+      "category": "temporal",
+      "correct": true
+    },
+    {
+      "question": "What subject have Caroline and Melanie both painted?",
+      "gold": "Sunsets",
+      "generated": "Based on the provided memories, both Caroline and Melanie have painted nature-inspired subjects, specifically sunsets. Caroline shared that she painted a sunset after visiting the beach, while Melanie mentioned painting a lake sunrise.",
+      "category": "single_hop",
+      "correct": true
+    },
+    {
+      "question": "What symbols are important to Caroline?",
+      "gold": "Rainbow flag, transgender symbol",
+      "generated": "To Caroline, several symbols hold significant importance:\n\n1. **Freedom and Being True to Oneself**: Symbolized by her drawing that stands for freedom and staying true to herself.\n2. **The Rainbow Flag Mural**: Important as it reflects the courage and strength of the trans community.\n3. **The Eagle**: Represents freedom and pride, symbolizing her own resilience and that of others in the trans community.\n4. **The Red and Blue Colors**: Used in her paintings, these colors are significant to her.\n5. **Sunflowers**: Mean warmth and happiness.\n6. **Roses**: Stand for love and beauty.\n7. **The Rainbow Flag**: Represents inclusivity and diversity.\n8. **The Woman in Her Painting**: Symbolizes the journey of acceptance and stands for finding comfort and love in being oneself.\n9. **Pets**: Bring joy and are a source of support.\n\nThese symbols reflect her identity, values, and the themes she explores through her art and activism.",
+      "category": "single_hop",
+      "correct": true
+    },
+    {
+      "question": "When did Caroline encounter people on a hike and have a negative experience?",
+      "gold": "The week before 25 August 2023",
+      "generated": "Caroline encountered people on a hike and had a negative experience last week [= week of 14 August 2023]. Based on the information provided, this would be around 14 August 2023.",
+      "category": "temporal",
+      "correct": true
+    },
+    {
+      "question": "When did Melanie make a plate in pottery class?",
+      "gold": "24 August 2023",
+      "generated": "Melanie made a plate in pottery class on 24 August 2023.",
+      "category": "temporal",
+      "correct": true
+    },
+    {
+      "question": "Would Caroline be considered religious?",
+      "gold": "Somewhat, but not extremely religious",
+      "generated": "No, based on the provided memories, Caroline does not appear to be religious. She had an encounter with a group of religious conservatives that upset her, which suggests she may have different views or experiences regarding religion. Additionally, there is no mention of any religious practices or beliefs associated with Caroline in the given information.",
+      "category": "open_domain",
+      "correct": true
+    },
+    {
+      "question": "What instruments does Melanie play?",
+      "gold": "clarinet and violin",
+      "generated": "Melanie plays the clarinet and violin.",
+      "category": "single_hop",
+      "correct": true
+    },
+    {
+      "question": "What musical artists/bands has Melanie seen?",
+      "gold": "Summer Sounds, Matt Patterson",
+      "generated": "Based on the provided memories, Melanie saw Matt Patterson perform with his band. Specifically, Melanie mentioned, \"That's so cool, Caroline! That's a great way to show off and be proud of everyone's skills. You know I love live music. Can't wait to hear about it!\" and later, \"Yeah Mel, stoked! Gonna be a great night featuring LGBTQ artists and their awesome talents. We want it to spread understanding and acceptance - let's make it happen!\" referring to an event that featured Matt Patterson.",
+      "category": "single_hop",
+      "correct": true
+    },
+    {
+      "question": "When did Melanie go to the park?",
+      "gold": "27 August 2023",
+      "generated": "Melanie went to the park on 27 August 2023.",
+      "category": "temporal",
+      "correct": true
+    },
+    {
+      "question": "When is Caroline's youth center putting on a talent show?",
+      "gold": "September 2023",
+      "generated": "Based on the memories provided, Caroline mentioned they are putting together a talent show for the kids next month. However, an exact date was not specified. The closest information given is that it is happening \"next month,\" but without a specific date, we cannot determine the exact date of the talent show. Therefore, I cannot provide a direct answer with a specific date.",
+      "category": "temporal",
+      "correct": false
+    },
+    {
+      "question": "Would Melanie likely enjoy the song \"The Four Seasons\" by Vivaldi?",
+      "gold": "Yes; it's classical music",
+      "generated": "Based on Melanie's preference for classical music like Bach and Mozart, she would likely enjoy \"The Four Seasons\" by Vivaldi. The piece is a well-known and highly regarded work in the classical genre, so it aligns with her musical tastes.",
+      "category": "open_domain",
+      "correct": true
+    },
+    {
+      "question": "What are some changes Caroline has faced during her transition journey?",
+      "gold": "Changes to her body, losing unsupportive friends",
+      "generated": "During her transition journey, Caroline faced several significant changes:\n\n1. **Public Speaking and Advocacy**: She gave talks at school events to encourage students to get involved in the LGBTQ community and spread awareness about transgender issues.\n2. **Artistic Expression**: Art became an important part of her process, helping her explore her identity and accept imperfections.\n3. **Mentoring Young Transgender Individuals**: Caroline mentors a transgender teen, working on building confidence and finding positive strategies for self-acceptance.\n4. **Pride Parades and Events**: She participated in LGBTQ+ pride parades and events, which were significant milestones in her journey.\n5. **Adoption Journey**: Recently, she took steps towards becoming a mom by applying to adoption agencies, showing her commitment to sharing love and family.\n6. **Mental Health Awareness**: Caroline has become more involved in mental health advocacy, considering careers that could help others navigate their own journeys.\n\nThese changes reflect her growth, resilience, and dedication to",
+      "category": "single_hop",
+      "correct": false
+    },
+    {
+      "question": "What does Melanie do with her family on hikes?",
+      "gold": "Roast marshmallows, tell stories",
+      "generated": "On hikes, Melanie enjoys exploring forests with her family, connecting with nature and each other. They have had experiences like hiking in the mountains, going camping, and even seeing the Perseid meteor shower together. These outdoor activities seem to be a special way for them to bond and create memorable moments.",
+      "category": "single_hop",
+      "correct": false
+    },
+    {
+      "question": "When did Caroline go biking with friends?",
+      "gold": "The weekend before 13 September 2023",
+      "generated": "Caroline went biking with friends last weekend, which was in the week of 26 June 2023. Therefore, the actual date when she went biking is any day within that week, but based on the information provided, we can say:\n\n26 June 2023 - 2 July 2023",
+      "category": "temporal",
+      "correct": false
+    },
+    {
+      "question": "How long has Melanie been practicing art?",
+      "gold": "Since 2016",
+      "generated": "Based on the memories provided, Melanie mentioned that she did an artwork \"last week [= week of 2 October 2023].\" This indicates that as of 2 October 2023, Melanie had been practicing art for at least some time before that date. However, the exact duration of her practice is not specified in the memories. The most specific temporal information we have is that she created an artwork recently, but without a more precise starting point, we cannot determine the exact length of time she has been practicing art.",
+      "category": "temporal",
+      "correct": false
+    },
+    {
+      "question": "What personality traits might Melanie say Caroline has?",
+      "gold": "Thoughtful, authentic, driven",
+      "generated": "Based on the conversations, Melanie might say that Caroline has several positive personality traits, including courage, maturity, determination, and a caring heart. For example, Melanie mentions that Caroline's apology was courageous and mature, and that she is inspiring for her bravery and fight for what's right. Additionally, Melanie notes that Caroline is strong and supportive of others, as seen in their volunteering work and advocacy for the LGBTQ+ community.",
+      "category": "open_domain",
+      "correct": true
+    },
+    {
+      "question": "What transgender-specific events has Caroline attended?",
+      "gold": "Poetry reading, conference",
+      "generated": "Caroline has attended several transgender-specific events, including:\n\n1. A transgender poetry reading where she heard stories through poetry.\n2. An LGBTQ+ pride parade in June 2023.\n3. A transgender conference that took place in the same month as the poetry reading.\n4. An adoption advice/assistance group meeting on May 7, 2023.\n5. An art show where she showcased her paintings related to her trans experience.\n6. A talent show for kids, which she is organizing and looking forward to.\n7. A support group for LGBTQ+ individuals.\n8. A poetry reading last Friday, which was particularly powerful for her.",
+      "category": "single_hop",
+      "correct": true
+    },
+    {
+      "question": "What book did Melanie read from Caroline's suggestion?",
+      "gold": "\"Becoming Nicole\"",
+      "generated": "Melanie read \"Becoming Nicole\" by Amy Ellis Nutt from Caroline's suggestion.",
+      "category": "single_hop",
+      "correct": true
+    },
+    {
+      "question": "When did Melanie's friend adopt a child?",
+      "gold": 2022,
+      "generated": "Melanie's friend adopted a child last year [= 2022], but the exact date is not specified in the memories. However, based on the context, we can infer that it happened sometime in 2022. Since no specific date is given, we cannot provide an exact date for when Melanie's friend adopted a child.",
+      "category": "temporal",
+      "correct": true
+    },
+    {
+      "question": "When did Melanie get hurt?",
+      "gold": "September 2023",
+      "generated": "Melanie got hurt last month [= September 2023], which means she got hurt on September 2023. However, since we need to provide an actual date, based on the context given, it would be reasonable to assume that \"last month\" refers to August 2023. Therefore, the specific date could be any day in September 2023, but without more precise information, the closest resolved date is:\n\nSeptember 2023",
+      "category": "temporal",
+      "correct": true
+    },
+    {
+      "question": "When did Melanie's family go on a roadtrip?",
+      "gold": "The weekend before 20 October 2023",
+      "generated": "Melanie's family went on a road trip this past weekend, but the exact date is not explicitly stated. However, based on the context provided, we can infer that the road trip happened around 7 May 2023, as that was when Melanie mentioned her son got into an accident, which likely occurred during the road trip.",
+      "category": "temporal",
+      "correct": false
+    },
+    {
+      "question": "How many children does Melanie have?",
+      "gold": 3,
+      "generated": "Based on the provided memories, Melanie mentions \"they\" and refers to her kids in plural form, but there is no explicit statement about the exact number of children Melanie has. Therefore, we cannot determine the exact number of children Melanie has from the given information.",
+      "category": "single_hop",
+      "correct": false
+    },
+    {
+      "question": "When did Melanie go on a hike after the roadtrip?",
+      "gold": "19 October 2023",
+      "generated": "Based on the memories provided, Melanie went on a hike on 27 August 2023, which was after the road trip she mentioned with her son's accident.",
+      "category": "single_hop",
+      "correct": false
+    },
+    {
+      "question": "Would Melanie go on another roadtrip soon?",
+      "gold": "Likely no; since this one went badly",
+      "generated": "Based on the provided memories, there is no explicit mention of Melanie planning or considering going on another road trip soon. The last shared memory focused on her family camping in the mountains and enjoying outdoor activities together. Without additional information, we cannot determine if she has plans for a road trip anytime soon.",
+      "category": "open_domain",
+      "correct": true
+    },
+    {
+      "question": "What items has Melanie bought?",
+      "gold": "Figurines, shoes",
+      "generated": "Melanie bought figurines yesterday, on 21 October 2023.",
+      "category": "single_hop",
+      "correct": true
+    },
+    {
+      "question": "When did Caroline pass the adoption interview?",
+      "gold": "The Friday before 22 October 2023",
+      "generated": "Caroline passed the adoption agency interviews on 20 October 2023.",
+      "category": "temporal",
+      "correct": false
+    },
+    {
+      "question": "When did Melanie buy the figurines?",
+      "gold": "21 October 2023",
+      "generated": "Melanie bought the figurines yesterday [= 21 October 2023]. Therefore, the actual date when Melanie bought the figurines is 21 October 2023.",
+      "category": "temporal",
+      "correct": true
+    },
+    {
+      "question": "Would Caroline want to move back to her home country soon?",
+      "gold": "No; she's in the process of adopting children.",
+      "generated": "Based on the provided memories, there is no indication that Caroline wants to move back to her home country soon. The conversations focus more on her journey of self-acceptance, her plans for adoption, and spending time with friends like Melanie. There are no mentions of her wanting to return to her home country.",
+      "category": "open_domain",
+      "correct": true
+    },
+    {
+      "question": "What did the charity race raise awareness for?",
+      "gold": "mental health",
+      "generated": "The charity race raised awareness for mental health.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What did Melanie realize after the charity race?",
+      "gold": "self-care is important",
+      "generated": "After the charity race, Melanie realized that self-care is really important and that when she looks after herself, she's able to better look after her family.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "How does Melanie prioritize self-care?",
+      "gold": "by carving out some me-time each day for activities like running, reading, or playing the violin",
+      "generated": "Based on the provided memories, Melanie prioritizes self-care through various activities and support systems:\n\n1. Running: Melanie mentions running longer since their last chat, which she describes as a great way to destress and clear her mind.\n2. Pottery: She recently took up pottery as a new activity, describing it as therapy for expressing herself creatively.\n3. Music: Playing the clarinet is mentioned as an outlet for expressing emotions and relaxing.\n4. Time with family: Melanie values spending time with her family, which she finds refreshing and helps her stay present.\n5. Support from friends: She has a supportive friend in Caroline who provides encouragement and advice on self-care.\n6. Resilience and perseverance: Despite setbacks like getting hurt and having to take a break from pottery, Melanie continues to find ways to care for herself and move forward.\n\nThese activities and support systems help Melanie manage stress, express her emotions, and maintain a sense of well-being.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What are Caroline's plans for the summer?",
+      "gold": "researching adoption agencies",
+      "generated": "Caroline suggested planning something special with Melanie this summer, but no specific plans were mentioned in the provided memories for the entire summer. However, they did plan to go hiking together during the summer.",
+      "category": "multi_hop",
+      "correct": false
+    },
+    {
+      "question": "What type of individuals does the adoption agency Caroline is considering support?",
+      "gold": "LGBTQ+ individuals",
+      "generated": "The adoption agency Caroline is considering supports LGBTQ+ folks with adoption.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "Why did Caroline choose the adoption agency?",
+      "gold": "because of their inclusivity and support for LGBTQ+ individuals",
+      "generated": "Caroline chose the adoption agency because of its inclusivity and support for LGBTQ+ folks with adoption. She found that the agency's values aligned with her own, making it a good fit for her goals of providing a loving home to children in need while also promoting acceptance and love.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What is Caroline excited about in the adoption process?",
+      "gold": "creating a family for kids who need one",
+      "generated": "Caroline is excited about the opportunity to give kids a loving home through adoption. She sees it as a way of giving back and showing love and acceptance, and she hopes to build her own family this way.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What does Melanie think about Caroline's decision to adopt?",
+      "gold": "she thinks Caroline is doing something amazing and will be an awesome mom",
+      "generated": "Melanie thinks very positively about Caroline's decision to adopt. She expresses enthusiasm and support for Caroline's journey multiple times throughout their conversations, congratulating her on passing adoption agency interviews and adopting kids in need. For example, Melanie says, \"Wow, Caroline! You're so inspiring for wanting to help others with their mental health\" and \"Wow, Caroline! That's huge! How did it feel to be around so much love and acceptance?\" Her responses indicate that she is proud of Caroline and excited for the new chapter in her life.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "How long have Mel and her husband been married?",
+      "gold": "Mel and her husband have been married for 5 years.",
+      "generated": "Based on the memories provided, Melanie and her husband have been married for 5 years. This can be inferred from Caroline's message where she says \"Wow, what an amazing family pic! How long have you been married?\" and Melanie's response \"Wow, Caroline, that looks awesome! I love how it shows the togeterness and power you were talking about. How long have you been creating art?\", followed by Caroline replying with a date reference that suggests around 8 June 2023, indicating their marriage is approximately 5 years old as of that time.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What does Caroline's necklace symbolize?",
+      "gold": "love, faith, and strength",
+      "generated": "Caroline's necklace symbolizes love, faith, and strength, as it was given to her by her grandmother in Sweden when she was young.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What country is Caroline's grandma from?",
+      "gold": "Sweden",
+      "generated": "Caroline's grandma is from Sweden.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What was grandma's gift to Caroline?",
+      "gold": "necklace",
+      "generated": "Grandma gave Caroline a necklace when she was young, which stands for love, faith and strength and is very special to her as a reminder of her roots and family support.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What is Melanie's hand-painted bowl a reminder of?",
+      "gold": "art and self-expression",
+      "generated": "Melanie's hand-painted bowl is a reminder of art and self-expression, as Caroline mentioned that the pattern and colors are awesome and remind her of art and self-expression.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What did Melanie and her family do while camping?",
+      "gold": "explored nature, roasted marshmallows, and went on a hike",
+      "generated": "While camping, Melanie and her family roasted marshmallows around the campfire, told stories, explored nature, went on hikes, and enjoyed each other's company. They had such positive experiences that they remembered seeing the Perseid meteor shower together as a highlight of their trip.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What kind of counseling and mental health services is Caroline interested in pursuing?",
+      "gold": "working with trans people, helping them accept themselves and supporting their mental health",
+      "generated": "Caroline is interested in pursuing counseling or working in mental health, specifically with trans people, to help them accept themselves and support their mental health. She has been looking into counseling and mental health career options after realizing the importance of having someone to talk to during tough times.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What workshop did Caroline attend recently?",
+      "gold": "LGBTQ+ counseling workshop",
+      "generated": "Caroline attended an LGBTQ+ counseling workshop last Friday, June 23, 2023.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What was discussed in the LGBTQ+ counseling workshop?",
+      "gold": "therapeutic methods and how to best work with trans people",
+      "generated": "In the LGBTQ+ counseling workshop that Caroline attended on Friday, June 23rd, they discussed different therapeutic methods and how to best work with trans people. The workshop focused on creating safe spaces for individuals and improving their mental health.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What motivated Caroline to pursue counseling?",
+      "gold": "her own journey and the support she received, and how counseling improved her life",
+      "generated": "Caroline was motivated to pursue counseling because she struggled with mental health issues in the past and found support helpful. She wanted to give back by helping others who might be going through similar experiences. Specifically, she stated, \"I struggled with mental health, and support I got was really helpful. It made me realize how important it is for others to have a support system.\"",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What kind of place does Caroline want to create for people?",
+      "gold": "a safe and inviting place for people to grow",
+      "generated": "Caroline wants to create a safe and inviting place where people can grow and be accepted for who they are, particularly focusing on supporting the LGBTQ+ community, especially trans individuals, in accepting themselves and improving their mental health.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "Did Melanie make the black and white bowl in the photo?",
+      "gold": "Yes",
+      "generated": "No, Melanie did not make the black and white bowl in the photo. Caroline mentioned that she made a hand-painted bowl for her 18th birthday ten years ago, which has a black and white design.",
+      "category": "multi_hop",
+      "correct": false
+    },
+    {
+      "question": "What kind of books does Caroline have in her library?",
+      "gold": "kids' books - classics, stories from different cultures, educational books",
+      "generated": "Caroline has plans to create a library for when she has kids, filled with various types of children's books including classics, stories from different cultures, and educational books.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What was Melanie's favorite book from her childhood?",
+      "gold": "\"Charlotte's Web\"",
+      "generated": "Melanie mentioned that \"Charlotte's Web\" was her favorite book from her childhood.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What book did Caroline recommend to Melanie?",
+      "gold": "\"Becoming Nicole\"",
+      "generated": "Caroline recommended \"Becoming Nicole\" by Amy Ellis Nutt to Melanie.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What did Caroline take away from the book \"Becoming Nicole\"?",
+      "gold": "Lessons on self-acceptance and finding support",
+      "generated": "Caroline took away hope and inspiration from the book \"Becoming Nicole.\" She found it connected to her own path as a trans woman and gave her hope for her own journey.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What are the new shoes that Melanie got used for?",
+      "gold": "Running",
+      "generated": "The memory does not provide specific information about the purpose of the new shoes Melanie got. Based on the given memories, we only know that Luna and Oliver made the house liven up, but there is no mention of what the new shoes are used for.",
+      "category": "multi_hop",
+      "correct": false
+    },
+    {
+      "question": "What is Melanie's reason for getting into running?",
+      "gold": "To de-stress and clear her mind",
+      "generated": "Melanie mentioned that she has been running longer as a way to destress and clear her mind.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What does Melanie say running has been great for?",
+      "gold": "Her mental health",
+      "generated": "Melanie says that running has been great for her mental health and destressing. She mentions running farther as a way to clear her mind and destress.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What did Mel and her kids make during the pottery workshop?",
+      "gold": "pots",
+      "generated": "During the pottery workshop, Melanie and her kids made pots. Specifically, Melanie mentioned, \"Last Fri I finally took my kids to a pottery workshop. We all made our own pots, it was fun and therapeutic!\"",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What kind of pot did Mel and her kids make with clay?",
+      "gold": "a cup with a dog face on it",
+      "generated": "Mel and her kids made pots in a pottery workshop. Specifically, from the memories provided, Melanie mentioned making \"this bowl\" and \"a pot\" during their workshop. So, they made both a bowl and a pot.",
+      "category": "multi_hop",
+      "correct": false
+    },
+    {
+      "question": "What creative project do Mel and her kids do together besides pottery?",
+      "gold": "painting",
+      "generated": "Mel and her kids do painting together, especially nature-inspired paintings.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What did Mel and her kids paint in their latest project in July 2023?",
+      "gold": "a sunset with a palm tree",
+      "generated": "In their latest project in July 2023, Melanie and her kids painted nature-inspired pieces together, specifically focusing on a lake sunrise.",
+      "category": "multi_hop",
+      "correct": false
+    },
+    {
+      "question": "What did Caroline see at the council meeting for adoption?",
+      "gold": "many people wanting to create loving homes for children in need",
+      "generated": "At the council meeting for adoption, Caroline saw many people wanting to create loving homes for children in need, which made her even more determined to adopt.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What do sunflowers represent according to Caroline?",
+      "gold": "warmth and happiness",
+      "generated": "According to Caroline, sunflowers mean warmth and happiness.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "Why are flowers important to Melanie?",
+      "gold": "They remind her to appreciate the small moments and were a part of her wedding decor",
+      "generated": "Flowers are important to Melanie because they remind her of the small moments in life and were an essential part of her wedding decor, which she always remembers fondly.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What inspired Caroline's painting for the art show?",
+      "gold": "visiting an LGBTQ center and wanting to capture unity and strength",
+      "generated": "Caroline's painting for the art show was inspired by her desire to show unity and strength within the LGBTQ+ community. She stated, \"I'm putting together an LGBTQ art show next month and I'm gonna show my paintings. Super stoked!\" and \"Wow! Next month I'm having an LGBTQ art show with my paintings - can't wait!\" Additionally, she mentioned that her painting is about expressing her trans experience and helping people understand the trans community: \"My art is about expressing my trans experience. It's my way of showing my story and helping people understand the trans community.\"",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "How often does Melanie go to the beach with her kids?",
+      "gold": "once or twice a year",
+      "generated": "Melanie goes to the beach with her kids usually only once or twice a year, according to her memories.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What did Melanie and her family see during their camping trip last year?",
+      "gold": "Perseid meteor shower",
+      "generated": "During their camping trip last year, Melanie and her family saw the Perseid meteor shower, which they watched from the forest while lying down and making wishes.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "How did Melanie feel while watching the meteor shower?",
+      "gold": "in awe of the universe",
+      "generated": "Melanie felt awe-inspired and small in comparison to the universe while watching the meteor shower. She described it as one of those moments where she felt tiny and in awe of the universe, reminding her how awesome life is with all its little moments like that.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "Whose birthday did Melanie celebrate recently?",
+      "gold": "Melanie's daughter",
+      "generated": "Melanie celebrated her daughter's birthday recently.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "Who performed at the concert at Melanie's daughter's birthday?",
+      "gold": "Matt Patterson",
+      "generated": "The band Matt Patterson performed at the concert at Melanie's daughter's birthday.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "Why did Melanie choose to use colors and patterns in her pottery project?",
+      "gold": "She wanted to catch the eye and make people smile.",
+      "generated": "Based on the memories provided, Melanie chose to use colors and patterns in her pottery project because it is calming and creative for her. She mentioned that making pottery is like therapy for her, letting her express herself and get creative. The specific quote from Melanie states: \"I love how art lets us get our emotions out.\" This indicates that the colors and patterns are a way for her to express her emotions and be creative through her pottery.",
+      "category": "multi_hop",
+      "correct": false
+    },
+    {
+      "question": "What pet does Caroline have?",
+      "gold": "guinea pig",
+      "generated": "Caroline has a guinea pig named Oscar.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What pets does Melanie have?",
+      "gold": "Two cats and a dog",
+      "generated": "Based on the memories provided, Melanie has a dog named Oliver and a cat named Luna. Additionally, she got another cat named Bailey.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "Where did Oliver hide his bone once?",
+      "gold": "In Melanie's slipper",
+      "generated": "Oliver hid his bone in Melanie's slipper once.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What activity did Caroline used to do with her dad?",
+      "gold": "Horseback riding",
+      "generated": "Caroline used to go horseback riding with her dad through the fields.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What did Caroline make for a local church?",
+      "gold": "a stained glass window",
+      "generated": "Caroline made a bowl for a local church to show time changing our lives and her own journey as a transgender woman, emphasizing the importance of accepting growth and change.",
+      "category": "multi_hop",
+      "correct": false
+    },
+    {
+      "question": "What did Caroline find in her neighborhood during her walk?",
+      "gold": "a rainbow sidewalk",
+      "generated": "Caroline found a cool rainbow sidewalk for Pride Month in her neighborhood during her walk. It was vibrant and welcoming, which reminded her that love and acceptance are everywhere\u2014even where we least expect it.",
+      "category": "multi_hop",
+      "correct": false
+    },
+    {
+      "question": "Which song motivates Caroline to be courageous?",
+      "gold": "Brave by Sara Bareilles",
+      "generated": "The song that motivates Caroline to be courageous is \"Brave\" by Sara Bareilles.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "Which  classical musicians does Melanie enjoy listening to?",
+      "gold": "Bach and Mozart",
+      "generated": "Melanie enjoys listening to both classical musicians like Bach and Mozart, as well as modern artists such as Ed Sheeran. Specifically regarding classical musicians, she mentions enjoying Bach and Mozart.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "Who is Melanie a fan of in terms of modern music?",
+      "gold": "Ed Sheeran",
+      "generated": "Based on the provided memories, Melanie is a fan of Ed Sheeran's \"Perfect\".",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "How long has Melanie been creating art?",
+      "gold": "7 years",
+      "generated": "Based on the memories provided, Melanie has been creating art for at least five years. This can be inferred from her statement \"5 years already! Time flies- feels like just yesterday [8 June 2023] I put this dress on!\" which suggests she has been involved in some form of creative activity, likely including art, for at least that duration.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What precautionary sign did Melanie see at the caf\u00e9?",
+      "gold": "A sign stating that someone is not being able to leave",
+      "generated": "Based on the provided memories, Melanie saw a thoughtful sign at the caf\u00e9, which brought her happiness. However, the exact content of the sign is not specified in the given information.",
+      "category": "multi_hop",
+      "correct": false
+    },
+    {
+      "question": "What advice does Caroline give for getting started with adoption?",
+      "gold": "Do research, find an adoption agency or lawyer, gather necessary documents, and prepare emotionally.",
+      "generated": "Caroline advises to do research and find an adoption agency or lawyer, as they will help with the process and provide all the necessary information. She also suggests gathering documents like references, financial info, and medical checks, and preparing emotionally since the wait can be hard but it's all worth it in the end.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What setback did Melanie face in October 2023?",
+      "gold": "She got hurt and had to take a break from pottery.",
+      "generated": "In October 2023, Melanie had to take a break from pottery, which she uses for self-expression and peace.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What does Melanie do to keep herself busy during her pottery break?",
+      "gold": "Read a book and paint.",
+      "generated": "During her pottery break, Melanie did research and prepared emotionally for when she would resume pottery. She also engaged in painting as a way to keep busy and express herself creatively.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What painting did Melanie show to Caroline on October 13, 2023?",
+      "gold": "A painting inspired by sunsets with a pink sky.",
+      "generated": "Based on the provided memories, there is no explicit mention of Melanie showing any specific painting to Caroline on October 13, 2023. The closest reference is from October 2, 2023, where Melanie mentions she did an abstract painting recently, but no specific painting is described or shown to Caroline. Therefore, the answer cannot be directly provided based on the given information.",
+      "category": "multi_hop",
+      "correct": false
+    },
+    {
+      "question": "What kind of painting did Caroline share with Melanie on October 13, 2023?",
+      "gold": "An abstract painting with blue streaks on a wall.",
+      "generated": "Based on the memories provided, there is no explicit mention of Caroline sharing any specific painting with Melanie on October 13, 2023. However, Caroline did share some paintings and artwork with Melanie over their conversations. For instance, Caroline mentioned creating an \"LGBTQ art show\" and shared a self-portrait she made after visiting the beach in early August 2023. She also talked about painting to represent inclusivity and diversity, including a piece titled \"Embracing Identity.\" Without more specific details from the provided memories, it's not possible to pinpoint exactly which painting Caroline showed Melanie on October 13, 2023.",
+      "category": "multi_hop",
+      "correct": false
+    },
+    {
+      "question": "What was the poetry reading that Caroline attended about?",
+      "gold": "It was a transgender poetry reading where transgender people shared their stories.",
+      "generated": "The poetry reading Caroline attended was for transgender people to share their stories through poetry in a safe place for self-expression, which was very empowering for those participating.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What did the posters at the poetry reading say?",
+      "gold": "\"Trans Lives Matter\"",
+      "generated": "The memories do not provide specific details about what the posters at the poetry reading said. They only mention that the posters were amazing and inspiring, creating a sense of pride and strength. No exact quotes or content from the posters are given.",
+      "category": "multi_hop",
+      "correct": false
+    },
+    {
+      "question": "What does Caroline's drawing symbolize for her?",
+      "gold": "Freedom and being true to herself.",
+      "generated": "Caroline's drawing symbolizes freedom and being true to oneself. It serves as a reminder to stay authentic and embrace her womanhood.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "How do Melanie and Caroline describe their journey through life together?",
+      "gold": "An ongoing adventure of learning and growing.",
+      "generated": "Melanie and Caroline describe their journey through life together as one filled with support, friendship, and mutual growth. They share that they are proud to be part of each other's lives and the positive impact they have on one another. Both emphasize the importance of sharing their experiences, whether it\u2019s through art, music, or personal stories, to help others feel less alone in their struggles. Caroline mentions her journey towards self-acceptance and her passion for mental health advocacy, while Melanie talks about her family and the joy she finds in simple moments together. They both highlight the importance of community, support systems, and using one\u2019s voice to make a difference in the world.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What happened to Melanie's son on their road trip?",
+      "gold": "He got into an accident",
+      "generated": "Melanie's son got into an accident during their road trip, which was a scary experience for everyone involved. Thankfully, he was okay.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "How did Melanie's son handle the accident?",
+      "gold": "He was scared but reassured by his family",
+      "generated": "According to Melanie, her son was okay after the accident, which seems to have been a relief to everyone involved. Specifically, Melanie mentioned, \"Thankfully, my son's ok and that was a reminder that life is precious and to cherish our family.\"",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "How did Melanie feel about her family after the accident?",
+      "gold": "They are important and mean the world to her",
+      "generated": "After the accident, Melanie felt incredibly grateful for her family's support and presence in her life. She realized how much they meant to her and how important it is to cherish them. The experience made her appreciate their love and support even more, as they helped her through tough times.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "How did Melanie's children handle the accident?",
+      "gold": "They were scared but resilient",
+      "generated": "Based on the memories provided, Melanie mentions that her son was okay after the accident, but does not provide detailed information about how the other children handled it. Therefore, we can only confirm that Melanie's son was alright in the accident. There is no specific detail given about how the other children managed the situation.",
+      "category": "multi_hop",
+      "correct": false
+    },
+    {
+      "question": "How did Melanie feel after the accident?",
+      "gold": "Grateful and thankful for her family",
+      "generated": "After the accident, Melanie felt scared and realized how precious life is, which made her cherish her family even more. She expressed that the accident was a reminder to cherish their time together as a family.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What was Melanie's reaction to her children enjoying the Grand Canyon?",
+      "gold": "She was happy and thankful",
+      "generated": "Melanie expressed gratitude for the special moments with her children, saying \"Thankfully, they enjoyed the Grand Canyon a lot!\"",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What do Melanie's family give her?",
+      "gold": "Strength and motivation",
+      "generated": "Melanie's family gives her love, support, and motivation during tough times. They help her through accidents and hard moments, and they enjoy spending quality time together, such as camping trips where they roast marshmallows, tell stories, and explore nature. Her family also provides emotional strength and reminds her of the importance of cherishing life's precious moments.",
+      "category": "multi_hop",
+      "correct": false
+    },
+    {
+      "question": "How did Melanie feel about her family supporting her?",
+      "gold": "She appreciated them a lot",
+      "generated": "Melanie felt that her family's support was great and brought her a lot of joy and love. She mentioned multiple times that she is lucky to have such an awesome family and cherishes the time spent with them. For example, she said, \"Thanks, Caroline! Your backing really means a lot. This journey has been amazing and I'm grateful I get to share it and help others with theirs. It's a real gift.\" And also, \"Yeah for sure. Having my fam around helps a lot. It makes hard times easier.\"",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What did Melanie do after the road trip to relax?",
+      "gold": "Went on a nature walk or hike",
+      "generated": "After the road trip, Melanie took her kids to a park to explore and play. This was a way for her to relax and spend quality time with her children after the stressful experience of the accident during the road trip.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What did Caroline realize after her charity race?",
+      "gold": "",
+      "generated": "Based on the memories provided, Melanie mentioned that after running in the charity race for mental health, Caroline realized the importance of self-care. Specifically, Melanie said, \"The event was really thought-provoking. I'm starting to realize that self-care is really important. It's a journey for me, but when I look after myself, I'm able to better look after my family.\"",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What are Melanie's plans for the summer with respect to adoption?",
+      "gold": "",
+      "generated": "Based on the provided memories, Melanie does not explicitly mention any specific plans for the summer regarding adoption. However, she shows support and interest in Caroline's journey, suggesting that she might be planning to learn more or get involved in some way as Caroline moves forward with her adoption process.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What type of individuals does the adoption agency Melanie is considering support?",
+      "gold": "",
+      "generated": "The adoption agency Caroline is considering supports LGBTQ+ folks with adoption, as Caroline chose it because \"they help LGBTQ+ folks with adoption. Their inclusivity and support really spoke to me.\"",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "Why did Melanie choose the adoption agency?",
+      "gold": "",
+      "generated": "Based on the provided memories, Melanie did not specifically mention choosing an adoption agency. The focus was on Caroline passing interviews and starting the adoption process with support from friends like Melanie. If there is additional information about Melanie's choice of an adoption agency, it is not included in the given memories.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What is Melanie excited about in her adoption process?",
+      "gold": "",
+      "generated": "Melanie seems excited about the inclusivity and support she finds in the adoption process. Caroline mentions, \"Loving the inclusivity and support\" when referring to Melanie's feelings towards the adoption journey. Additionally, Caroline expresses excitement for Caroline's future as an adoptive parent, saying, \"You're doing something amazing! Creating a family for those kids is so lovely. You'll be an awesome mom!\" This indicates that Melanie is looking forward to the positive aspects of the adoption process and the opportunity to provide a loving home for children in need.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What does Melanie's necklace symbolize?",
+      "gold": "",
+      "generated": "Melanie's necklace symbolizes love, faith, and strength, serving as a reminder of the love and support Caroline gets from her family.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What country is Melanie's grandma from?",
+      "gold": "",
+      "generated": "Melanie's grandma is from Sweden.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What was grandma's gift to Melanie?",
+      "gold": "",
+      "generated": "There seems to be a misunderstanding in the question. The memories provided are from Caroline, not Melanie. There is no mention of a grandma's gift to Melanie in the given memories. All the gifts and meaningful items mentioned belong to Caroline or were shared between Caroline and Melanie during their conversations.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What was grandpa's gift to Caroline?",
+      "gold": "",
+      "generated": "There is no mention of a grandpa's gift to Caroline in the provided memories. The only significant gift mentioned is a necklace given by Caroline's grandma in Sweden, which stands for love, faith and strength.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What is Caroline's hand-painted bowl a reminder of?",
+      "gold": "",
+      "generated": "Caroline's hand-painted bowl is a reminder of art and self-expression. It was made for her 18th birthday ten years ago by a friend, and the pattern and colors are significant to her.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What did Caroline and her family do while camping?",
+      "gold": "",
+      "generated": "While camping, Caroline and her family roasted marshmallows around the campfire, told stories, explored nature, went on a hike, and saw the Perseid meteor shower. These activities created special moments together as a family in the great outdoors.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What kind of counseling and mental health services is Melanie interested in pursuing?",
+      "gold": "",
+      "generated": "Based on the provided memories, Melanie does not express interest in pursuing any specific type of counseling or mental health services for herself. The conversations primarily revolve around Caroline's interests and pursuits in the field of counseling and mental health, with Melanie supporting and encouraging her.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What kind of counseling workshop did Melanie attend recently?",
+      "gold": "",
+      "generated": "Based on the provided memories, there is no specific mention of what kind of counseling workshop Melanie attended recently. The closest information is that Caroline went to an LGBTQ+ counseling workshop on 23 June 2023, but this was not related to Melanie's activities.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What motivated Melanie to pursue counseling?",
+      "gold": "",
+      "generated": "Based on the provided memories, Melanie did not explicitly mention being motivated to pursue counseling. The conversations primarily focused on Caroline's motivations and journey towards pursuing counseling and mental health services as a career. If there is any information about Melanie's motivation for pursuing counseling within the given memories, it was not directly stated or clearly linked to her own pursuit of such a career path.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What kind of place does Melanie want to create for people?",
+      "gold": "",
+      "generated": "Melanie wants to create a safe and loving home for kids in need.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "Did Caroline make the black and white bowl in the photo?",
+      "gold": "No",
+      "generated": "No, Caroline did not make the black and white bowl in the photo. According to the memories, Melanie made the bowl in her pottery class and was proud of it.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What are the new shoes that Caroline got used for?",
+      "gold": "",
+      "generated": "The memory does not provide specific information about what the new shoes Caroline got are used for. The last mention of shoes in the provided memories is from Melanie, who mentioned getting new shoes but did not specify their purpose or context related to Caroline.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What is Caroline's reason for getting into running?",
+      "gold": "",
+      "generated": "Based on the provided memories, Caroline did not explicitly state her reason for getting into running. However, Melanie mentioned that she had been running longer since their last chat and described it as \"a great way to destress and clear her mind.\" So, Caroline's reason for getting into running seems to be destressing and clearing her mind.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What does Caroline say running has been great for?",
+      "gold": "",
+      "generated": "Caroline says that running has been great for de-stressing and clearing her mind.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What did Melanie see at the council meeting for adoption?",
+      "gold": "",
+      "generated": "Based on the provided memories, Melanie did not mention seeing anything specific at the council meeting for adoption. The memory only states that Caroline went to a council meeting for adoption and found it inspiring and emotional, but there is no information about what Melanie saw or experienced at this meeting.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What inspired Melanie's painting for the art show?",
+      "gold": "",
+      "generated": "Based on the provided memories, Melanie did not directly mention what specifically inspired her painting for the art show. However, she did share that she painted after visiting a beach and wanted to capture the sunset in her painting. Additionally, she mentioned that blue calms her and wanted the painting to have a serene vibe while still having lots of vibrant colors.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What inspired Caroline's sculpture for the art show?",
+      "gold": "",
+      "generated": "Based on the provided memories, there is no explicit mention of Caroline creating a sculpture for an art show. The conversations primarily focus on her paintings and other forms of artwork, but do not include any details about a specific sculpture she made for an art show. Therefore, I cannot provide a direct answer to what inspired Caroline's sculpture for the art show as it is not supported by the given memories.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "How often does Caroline go to the beach with her kids?",
+      "gold": "",
+      "generated": "Based on the provided memories, there is no specific information about how often Caroline goes to the beach with her kids. The conversations primarily focus on Melanie's beach trips with her family and do not include details about Caroline's beach-going habits with her children.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What did Caroline and her family see during their camping trip last year?",
+      "gold": "",
+      "generated": "During their camping trip last year, Caroline and her family saw amazing nature views, roasted marshmallows around the campfire, and went on a hike. They also enjoyed the view from the top of the hike, which was described as amazing by Caroline.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "How did Caroline feel while watching the meteor shower?",
+      "gold": "",
+      "generated": "Based on the memories provided, Caroline didn't directly express her feelings about watching the meteor shower. However, Melanie described it as an amazing experience where they all made wishes and felt at one with the universe. Since Caroline was present during this camping trip, we can infer that she likely felt similar awe and connection to the universe while watching the Perseid meteor shower with Melanie and others.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "Why did Caroline choose to use colors and patterns in her pottery project?",
+      "gold": "",
+      "generated": "Based on the provided memories, there isn't a direct statement from Caroline about why she chose specific colors and patterns for her pottery project. However, we can infer that Caroline values self-expression through art, as seen in her paintings and other projects where she uses vibrant colors to convey emotions and themes like self-acceptance and freedom. Since the question is based on pottery, which Melanie mentions is \"calming and satisfying,\" it's likely that Caroline chose colors and patterns for similar reasons\u2014to express herself creatively and find a calming outlet.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "Is Oscar Melanie's pet?",
+      "gold": "No",
+      "generated": "No, Oscar is not Melanie's pet. Oscar is Caroline's guinea pig.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "Where did Oscar hide his bone once?",
+      "gold": "",
+      "generated": "Oscar hid his bone in Melanie's slipper once.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What activity did Melanie used to do with her dad?",
+      "gold": "",
+      "generated": "Based on the memories provided, Melanie used to go horseback riding with her dad when she was a kid, feeling the wind through the fields.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What did Melanie make for a local church?",
+      "gold": "",
+      "generated": "Based on the provided memories, there is no specific mention of what Melanie made for a local church. The conversation does not include any details about Melanie creating something for a local church.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What did Melanie find in her neighborhood during her walk?",
+      "gold": "",
+      "generated": "Based on the provided memories, there is no specific mention of what Melanie found in her neighborhood during her walk. The conversation primarily focuses on Caroline's experiences and does not include details about Melanie's recent walks or discoveries.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "Which song motivates Melanie to be courageous?",
+      "gold": "",
+      "generated": "Based on the provided memories, there is no explicit mention of which song motivates Melanie to be courageous. The conversations focus more on Caroline's motivations rather than Melanie's specific songs that inspire her courage.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What type of instrument does Caroline play?",
+      "gold": "",
+      "generated": "Based on the provided memories, Caroline plays an acoustic guitar.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "Which classical musicians does Caroline enjoy listening to?",
+      "gold": "",
+      "generated": "Based on the provided memories, there is no specific mention of which classical musicians Caroline enjoys listening to. The conversation primarily focuses on Melanie's preferences for classical music like Bach and Mozart, as well as modern music by Ed Sheeran. There are no details about Caroline's musical tastes in this regard.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "Who is Caroline a fan of in terms of modern music?",
+      "gold": "",
+      "generated": "Caroline is a fan of Ed Sheeran's \"Perfect\" according to the provided memories.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What precautionary sign did Caroline see at the caf\u00e9?",
+      "gold": "",
+      "generated": "Based on the provided memories, Melanie mentioned a sign at the caf\u00e9 but did not describe its content or nature in detail. The closest relevant memory is:\n\n[Melanie]: Here's to a good time at the caf\u00e9 last weekend - they even had thoughtful signs like this! It brings me so much happiness.\n\nHowever, there is no specific description of what the sign said or was about. Therefore, we cannot provide a direct answer about the content of the precautionary sign Caroline saw at the caf\u00e9.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What setback did Caroline face recently?",
+      "gold": "",
+      "generated": "Caroline faced a setback when she had a not-so-great experience on a hike where she ran into a group of religious conservatives who said something that really upset her. This made her think about the work still needed for LGBTQ rights.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What does Caroline do to keep herself busy during her pottery break?",
+      "gold": "",
+      "generated": "During her pottery break, Caroline has been focusing on other creative activities such as painting and playing the guitar. She also mentioned running as a way to destress and clear her mind.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What was the poetry reading that Melanie attended about?",
+      "gold": "",
+      "generated": "The poetry reading that Melanie attended was not explicitly described in the provided memories. However, Caroline mentioned attending a transgender poetry reading where transgender people shared their stories through poetry, describing it as a safe place for self-expression and very empowering. Since the event seems to be similar and Caroline referenced it positively, it's possible that Melanie might have attended a similar transgender poetry reading, though this is inferred from context rather than directly stated.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What happened to Caroline's son on their road trip?",
+      "gold": "",
+      "generated": "On the road trip, Caroline's son got into an accident. Fortunately, he was okay, which made everyone relieved.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "How did Caroline's son handle the accident?",
+      "gold": "",
+      "generated": "According to the memories provided, Caroline's son was okay after the accident, as mentioned in this exchange:\n\n[Caroline]: Oops, sorry 'bout the accident! Must have been traumatizing for you guys. Thank goodness your son's okay. Life sure can be a roller coaster.\n\n[Melanie]: Yeah, our trip got off to a bad start. I was really scared when we got into the accident. Thankfully, my son's ok and that was a reminder that life is precious and to cherish our family.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "How did Caroline feel about her family after the accident?",
+      "gold": "",
+      "generated": "After the accident, Caroline expressed that she felt grateful for her family's support and love. In one of their conversations, Melanie mentioned, \"They enjoyed the Grand Canyon a lot!\" to which Caroline responded, \"Yeah, our trip got off to a bad start. I was really scared when we got into the accident. Thankfully, my son's ok and that was a reminder that life is precious and to cherish our family.\" This shows that despite the scary experience of the accident, Caroline appreciated her family's safety and their ability to enjoy trips together, highlighting the importance of family in her life.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "How did Caroline's children handle the accident?",
+      "gold": "",
+      "generated": "Caroline's children were scared but reassured and explained that their brother would be okay after the accident. They're described as tough kids.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "How did Caroline feel after the accident?",
+      "gold": "",
+      "generated": "Caroline didn't directly express her feelings about the accident in the provided memories. However, Melanie mentioned that they were all freaked out when Melanie's son got into an accident but thankfully he was okay. Caroline responded with \"Oops, sorry 'bout the accident! Must have been traumatizing for you guys. Thank goodness your son's okay.\" This suggests that while not explicitly stated, Caroline likely felt some concern or empathy towards the situation, acknowledging its potential to be traumatic for Melanie and her family.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What was Caroline's reaction to her children enjoying the Grand Canyon?",
+      "gold": "",
+      "generated": "Caroline expressed gratitude and joy that her children enjoyed the Grand Canyon trip, stating \"Thankfully, they enjoyed the Grand Canyon a lot!\"",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What did Caroline do after the road trip to relax?",
+      "gold": "",
+      "generated": "Based on the provided memories, there is no direct mention of what Caroline did specifically to relax after the road trip mentioned by Melanie. The conversation does not provide enough details to determine exactly what Caroline did for relaxation following the described road trip incident.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What does Caroline love most about camping with her family?",
+      "gold": "",
+      "generated": "Based on the provided memories, Caroline doesn't directly state what she loves most about camping with her family. However, she does express that spending time with loved ones is amazing and brings happiness, which aligns with the spirit of family camping trips. Additionally, Melanie mentions roasting marshmallows around the campfire, telling stories, and enjoying each other's company as highlights of their family camping experiences. While these are specific to Melanie\u2019s family, they give an idea of what might make a family camping trip special for Caroline as well.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "When Jon has lost his job as a banker?",
+      "gold": "19 January, 2023",
+      "generated": "Jon lost his job as a banker on 19 January 2023.",
+      "category": "temporal",
+      "correct": true
+    },
+    {
+      "question": "When Gina has lost her job at Door Dash?",
+      "gold": "January, 2023",
+      "generated": "The memory does not provide an exact date for when Gina lost her job at Door Dash. However, based on the context provided in the memories, we can infer that Gina lost her job \"this month\" when talking to Jon about starting his own business. Since they were discussing this in early February 2023 (as indicated by other dates mentioned), and considering it was \"this month,\" a reasonable assumption would be that Gina lost her job at Door Dash around mid-January to early February 2023. However, without a specific date, we cannot provide an exact date for when Gina lost her job at Door Dash.",
+      "category": "temporal",
+      "correct": false
+    },
+    {
+      "question": "How do Jon and Gina both like to destress?",
+      "gold": "by dancing",
+      "generated": "Both Jon and Gina like to dance to destress. Jon mentions that dancing helps him de-stress and is where he feels most alive. Gina also states that dancing is her stress relief and that she dances to make all her worries vanish.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What do Jon and Gina both have in common?",
+      "gold": "They lost their jobs and decided to start their own businesses.",
+      "generated": "Jon and Gina both have a strong passion for their respective fields\u2014Gina for fashion and Jon for dance\u2014and they both face challenges while pursuing their dreams. They also support each other through these challenges and believe in the importance of perseverance and self-motivation.",
+      "category": "single_hop",
+      "correct": false
+    },
+    {
+      "question": "Why did Jon decide to start his dance studio?",
+      "gold": "He lost his job and decided to start his own business to share his passion.",
+      "generated": "Jon decided to start his dance studio because he is passionate about dancing and wants to share that joy with others. He has been into dancing since he was a kid and sees the dance studio as a way to turn his passion into a business where he can teach and mentor aspiring dancers.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What Jon thinks the ideal dance studio should look like?",
+      "gold": "By the water, with natural light and Marley flooring",
+      "generated": "Based on the memories provided, Jon is looking for an ideal dance studio that includes natural light, good flooring (specifically Marley flooring), and enough space to accommodate different types of dances. He also wants it to be easily accessible downtown and to offer one-on-one mentoring and training to help dancers reach their full potential.",
+      "category": "single_hop",
+      "correct": true
+    },
+    {
+      "question": "When is Jon's group performing at a festival?",
+      "gold": "February, 2023",
+      "generated": "Based on the memories, Jon mentioned that they are rehearsing for a performance at a nearby festival next month. However, there is no specific date provided for when Jon's group will be performing at this festival. Therefore, I cannot give an exact date for their performance at the festival.",
+      "category": "temporal",
+      "correct": false
+    },
+    {
+      "question": "When did Gina launch an ad campaign for her store?",
+      "gold": "29 January, 2023",
+      "generated": "Gina launched an ad campaign for her store yesterday [= 7 May 2023].",
+      "category": "temporal",
+      "correct": false
+    },
+    {
+      "question": "When was Jon in Paris?",
+      "gold": "28 January 2023",
+      "generated": "Jon was in Paris on 28 January 2023.",
+      "category": "temporal",
+      "correct": true
+    },
+    {
+      "question": "Which city have both Jean and John visited?",
+      "gold": "Rome",
+      "generated": "Both Jon and Gina have visited Paris. Jon mentioned visiting Paris on 28 January 2023, and Gina referred to Paris as a great spot without specifying a date.",
+      "category": "single_hop",
+      "correct": false
+    },
+    {
+      "question": "When did Gina team up with a local artist for some cool designs?",
+      "gold": "February, 2023",
+      "generated": "Gina teamed up with a local artist for some cool designs yesterday [= 10 May 2023]. So, the actual date is 10 May 2023.",
+      "category": "temporal",
+      "correct": true
+    },
+    {
+      "question": "When did Gina get her tattoo?",
+      "gold": "A few years ago",
+      "generated": "The memory does not provide an exact date for when Gina got her tattoo, only that it stands for freedom and is a reminder to follow her passions. There are no = DATE markers or explicit dates given for the tattoo in the provided memories. Therefore, I cannot extract an actual date from this information.",
+      "category": "temporal",
+      "correct": false
+    },
+    {
+      "question": "When did Jon start to go to the gym?",
+      "gold": "March, 2023",
+      "generated": "Jon started going to the gym last week [= week of 6 March 2023]. Based on the information provided, we can infer that this means he began his gym routine sometime between March 6 and March 12, 2023. However, since exact dates are not given, the closest resolved date is March 6, 2023.",
+      "category": "temporal",
+      "correct": true
+    },
+    {
+      "question": "When did Gina open her online clothing store?",
+      "gold": "16 March, 2023",
+      "generated": "Gina opened her online clothing store on 1 February 2023.",
+      "category": "temporal",
+      "correct": false
+    },
+    {
+      "question": "When did Jon start expanding his studio's social media presence?",
+      "gold": "April, 2023",
+      "generated": "Based on the memories provided, Jon started expanding his dance studio's social media presence \"yesterday [= 24 April 2023].\" Therefore, the actual date when Jon started expanding his studio's social media presence is 24 April 2023.",
+      "category": "temporal",
+      "correct": true
+    },
+    {
+      "question": "When did Jon host a dance competition?",
+      "gold": "May, 2023",
+      "generated": "Jon hosted a dance competition next month, but the exact date is not specified in the memories. However, based on the context, we can infer that the competition will take place after 21 July 2023. Since the memories do not provide a specific date for when Jon will host the dance competition, we cannot extract an actual date.",
+      "category": "temporal",
+      "correct": false
+    },
+    {
+      "question": "When did Jon go to a fair to get more exposure for his dance studio?",
+      "gold": "24 April, 2023",
+      "generated": "7 May 2023",
+      "category": "temporal",
+      "correct": false
+    },
+    {
+      "question": "Why did Gina decide to start her own clothing store?",
+      "gold": "She always loved fashion trends and finding unique pieces and she lost her job so decided it was time to start her own business.",
+      "generated": "Gina decided to start her own clothing store because she lost her job and wanted to take control of her destiny. She opened an online clothing store and found it to be great as she could be her own boss and do something she loves.",
+      "category": "single_hop",
+      "correct": true
+    },
+    {
+      "question": "Do Jon and Gina start businesses out of what they love?",
+      "gold": "Yes",
+      "generated": "Yes, both Jon and Gina start their businesses out of what they love. Gina started an online clothing store based on her passion for fashion, while Jon is opening a dance studio because of his deep love for dancing.",
+      "category": "single_hop",
+      "correct": true
+    },
+    {
+      "question": "When did Gina interview for a design internship?",
+      "gold": "10 May, 2023",
+      "generated": "7 May 2023",
+      "category": "temporal",
+      "correct": false
+    },
+    {
+      "question": "When did Gina get accepted for the design internship?",
+      "gold": "27 May, 2023",
+      "generated": "Gina got accepted for the design internship yesterday [= 10 May 2023]. So, the actual date is 10 May 2023.",
+      "category": "temporal",
+      "correct": false
+    },
+    {
+      "question": "When did Jon start reading \"The Lean Startup\"?",
+      "gold": "May, 2023",
+      "generated": "The memory does not provide an exact date for when Jon started reading \"The Lean Startup\". However, it mentions that he is currently reading it. Therefore, based on the information given, we cannot determine the specific date Jon started reading \"The Lean Startup\".",
+      "category": "temporal",
+      "correct": false
+    },
+    {
+      "question": "When did Gina develop a video presentation to teach how to style her fashion pieces? ",
+      "gold": "June, 2023",
+      "generated": "Gina developed a video presentation to teach how to style her fashion pieces last week [= week of 12 June 2023]. Based on the rules, the actual date is 12 June 2023.",
+      "category": "temporal",
+      "correct": true
+    },
+    {
+      "question": "How did Gina promote her clothes store?",
+      "gold": "worked with an artist to make unique fashion pieces, made limited-edition sweatshirts, got some new offers and promotions for online store, developed a video presentation showing how to style her pieces",
+      "generated": "Gina promoted her clothes store by working with fashion bloggers and influencers to get more attention, planning an ad campaign to reach more people, and focusing on building her customer base. She also mentioned that she started the online store because of ideas from a fashion magazine and wanted to offer something different to her customers.",
+      "category": "single_hop",
+      "correct": false
+    },
+    {
+      "question": "Which events has Jon participated in to promote his business venture?",
+      "gold": "fair, networking events, dance competition",
+      "generated": "Based on the provided memories, Jon has participated in networking events and a fair to promote his business venture. Specifically:\n\n1. Networking events - These are mentioned multiple times as places where Jon met investors and got advice.\n2. A fair - On 24 April 2023, Jon went to a fair to show off his dance studio and got some possible leads.",
+      "category": "single_hop",
+      "correct": true
+    },
+    {
+      "question": "What does Jon's dance studio offer?",
+      "gold": "one-on-one metoring and training to dancers,  workshops and classes to local schools and centers",
+      "generated": "Jon's dance studio offers dance classes and workshops for various styles including contemporary and hip-hop, one-on-one mentoring to help dancers reach their full potential, and hosting events such as dance competitions. It also plans to provide online content and an online platform to showcase the studio's offerings and attract investors.",
+      "category": "single_hop",
+      "correct": true
+    },
+    {
+      "question": "When did Jon receive mentorship to promote his venture?",
+      "gold": "15 June, 2023",
+      "generated": "Jon received mentorship yesterday [= 15 June 2023], which means the mentorship happened on 15 June 2023.",
+      "category": "temporal",
+      "correct": true
+    },
+    {
+      "question": "Did Jon and Gina both participate in dance competitions?",
+      "gold": "Yes",
+      "generated": "Based on the provided memories, Jon participated in dance competitions, as evidenced by his mention of performing at a festival and winning first place. However, there is no explicit information suggesting that Gina also participated in dance competitions. Therefore, we can conclude that only Jon explicitly participated in dance competitions according to the given memories.",
+      "category": "single_hop",
+      "correct": false
+    },
+    {
+      "question": "When was Jon in Rome?",
+      "gold": "June 2023",
+      "generated": "Jon was in Rome last week [= week of 12 June 2023]. Based on the information provided, we can infer that this trip happened sometime between June 12 and June 18, 2023. However, since the exact date is not specified, the most accurate answer based on the given information is that Jon was in Rome last week of June 12, 2023.",
+      "category": "temporal",
+      "correct": true
+    },
+    {
+      "question": "Which cities has Jon visited?",
+      "gold": "Paris, Rome",
+      "generated": "Jon visited Paris and Rome. He went to Paris on January 28, 2023, and took a short trip to Rome around June 12, 2023.",
+      "category": "single_hop",
+      "correct": true
+    },
+    {
+      "question": "When Jon is planning to open his dance studio?",
+      "gold": "20 June, 2023",
+      "generated": "The memories indicate that Jon's official opening night for his dance studio is tomorrow, as of 15 June 2023. Therefore, the specific date when Jon is planning to open his dance studio is 16 June 2023.",
+      "category": "temporal",
+      "correct": false
+    },
+    {
+      "question": "How long did it take for Jon to open his studio?",
+      "gold": "six months",
+      "generated": "Based on the provided memories, there isn't a specific timeframe mentioned for how long it took Jon to open his dance studio. The memories show that Jon has been working on opening the studio over an extended period, facing various challenges and setbacks, but no exact duration is given for the process from start to opening.",
+      "category": "single_hop",
+      "correct": false
+    },
+    {
+      "question": "When did Gina design a limited collection of hoodies?",
+      "gold": "June 2023",
+      "generated": "Gina designed a limited collection of hoodies last week [= week of 12 June 2023]. Based on the information provided, this means the collection was designed around 12 June 2023. However, since we need to extract the actual date, and the memory does not provide an exact day, the closest we can get is the week itself.\n\nIf a specific date within that week is required, based on the context given in the memories, it would be reasonable to infer that the design process was completed around 12 June 2023. But strictly adhering to the rules provided:\n\nThe answer is: 12 June 2023 (or any day within that week).",
+      "category": "temporal",
+      "correct": true
+    },
+    {
+      "question": "When did Jon visit networking events for his store?",
+      "gold": "20 June, 2023",
+      "generated": "Jon visited networking events yesterday [= 20 June 2023].",
+      "category": "temporal",
+      "correct": true
+    },
+    {
+      "question": "When did Gina start being recognized by fashion editors?",
+      "gold": "July 2023",
+      "generated": "Gina started being recognized by fashion editors last week [= week of 10 July 2023], which means it happened sometime between June 3 to July 9, 2023. However, since we need to provide the actual date as per the rules, and no specific date is given other than it was \"last week,\" we can't pinpoint an exact date. But based on the information provided:\n\nGina started being recognized by fashion editors sometime in the week of 10 July 2023.",
+      "category": "temporal",
+      "correct": true
+    },
+    {
+      "question": "When did Jon start learning marketing and analytics tools?",
+      "gold": "July, 2023",
+      "generated": "Jon started learning marketing and analytics tools today [= 9 July 2023].",
+      "category": "temporal",
+      "correct": true
+    },
+    {
+      "question": "When did Jon and Gina decide to collaborate to create dance content?",
+      "gold": "21 July 2023",
+      "generated": "The memories do not provide an exact date for when Jon and Gina decided to collaborate to create dance content. However, they expressed strong support and encouragement for each other's ventures throughout their conversations. The closest relevant memory is from [Jon]: \"Let's make some awesome memories tomorrow at the grand opening!\" and [Gina]: \"Sounds great. I'd really appreciate your help with making content and managing my social media. Let's get together and make the dance studio look awesome!\", which suggests they planned to collaborate on content for Jon's dance studio, but no specific date is mentioned.",
+      "category": "temporal",
+      "correct": false
+    },
+    {
+      "question": "When did Gina mention Shia Labeouf?",
+      "gold": " 23 July, 2023",
+      "generated": "Gina mentioned Shia Labeouf on an unspecified date, as no specific date was provided in the memories. The relevant memory is:\n\n[Gina]: It's Shia Labeouf!",
+      "category": "temporal",
+      "correct": false
+    },
+    {
+      "question": "When did Gina go to a dance class with a group of friends?",
+      "gold": "21 July 2023",
+      "generated": "Gina went to a dance class with a group of friends last Friday [= 21 July 2023].",
+      "category": "temporal",
+      "correct": true
+    },
+    {
+      "question": "What is Gina's favorite style of dance?",
+      "gold": "Contemporary",
+      "generated": "Based on the memories provided, Gina's favorite style of dance is contemporary dance. She mentioned, \"Yeah, I do remember those dance classes! I used to love spending time in the studio. That photo looks awesome, brings back lots of memories. It's nice to know, dance is still your happy place.\" and \"Yeah, I do remember those dance classes! I used to love spending time in the studio. This is the right attitude! How have you been juggling dance and business goals?\" Additionally, she also expressed a fondness for it by saying, \"We just did a contemporary piece called 'Finding Freedom.' It was really emotional and powerful.\"",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What is Jon's favorite style of dance?",
+      "gold": "Contemporary",
+      "generated": "Jon's favorite style of dance is contemporary. He mentioned that he loves all dances but contemporary is his top pick because it's expressive and powerful.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What was Gina's favorite dancing memory?",
+      "gold": "Winning first place at a regionals dance competition",
+      "generated": "Gina's favorite dancing memory was when her team won first place at a regionals competition when she was fifteen years old.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What kind of dance piece did Gina's team perform to win first place?",
+      "gold": "\"Finding Freedom\"",
+      "generated": "Based on the memories provided, Gina's team won first place at a regionals competition when they were fifteen years old, but the specific type of dance piece they performed is not mentioned. Therefore, we cannot provide a specific answer about what kind of dance piece Gina's team performed to win first place.",
+      "category": "multi_hop",
+      "correct": false
+    },
+    {
+      "question": "What do the dancers in the photo represent?",
+      "gold": "They are performing at the festival",
+      "generated": "The dancers in the photo represent the passion and dedication of the young dancers at Jon's dance studio, showing their commitment and joy in performing.",
+      "category": "multi_hop",
+      "correct": false
+    },
+    {
+      "question": "What does Gina say about the dancers in the photo?",
+      "gold": "They look graceful",
+      "generated": "Gina says that the dancers in the photo look awesome and are so graceful.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What is Jon's attitude towards being part of the dance festival?",
+      "gold": "Glad",
+      "generated": "Jon seems excited and positive about participating in the dance festival. He mentions looking forward to showcasing his dancers' performances and enjoying the creative and fun atmosphere. For example, he says, \"Come join us!\" when inviting Gina to the festival, indicating enthusiasm for the event.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What kind of flooring is Jon looking for in his dance studio?",
+      "gold": "Marley flooring",
+      "generated": "Jon is looking for Marley flooring in his dance studio.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What did Gina find for her clothing store on 1 February, 2023?",
+      "gold": "The perfect spot for her store",
+      "generated": "On 1 February 2023, Gina found a wholesaler who replied and said yes to expanding her clothing store.",
+      "category": "multi_hop",
+      "correct": false
+    },
+    {
+      "question": "What did Gina design for her store?",
+      "gold": "the space, furniture, and decor",
+      "generated": "Gina worked with a local artist to create some cool designs for her online clothing store.",
+      "category": "multi_hop",
+      "correct": false
+    },
+    {
+      "question": "What did Gina want her customers to feel in her store?",
+      "gold": "cozy and comfortable",
+      "generated": "Gina wanted her customers to feel like they're in a cool oasis and to make them feel cozy and welcome, creating an experience that would make them want to come back.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What did Jon say about Gina's progress with her store?",
+      "gold": "hard work's paying off",
+      "generated": "Jon said that Gina's store looks great and all her hard work really paid off, congrating her on the progress of her clothing store.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What made Gina choose the furniture and decor for her store?",
+      "gold": "personal style and customer comfort",
+      "generated": "Gina chose the furniture and decor to make the place look like her own style and create a cozy atmosphere for her customers. She wanted the chandelier to add a nice glam feel while matching the overall style of the store.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What did Jon say about creating a special experience for customers?",
+      "gold": "It's the key to making them feel welcome and coming back",
+      "generated": "Jon said, \"Creating a special experience for customers is the key to making them feel welcome and coming back.\"",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What did Gina say about creating an experience for her customers?",
+      "gold": "making them want to come back",
+      "generated": "Gina said that making her spot comfortable and inviting for her customers is key, as she wants them to feel like they're in a cool oasis and come back. She also mentioned that the idea came from a fashion magazine where there wasn't much similar to what she wanted to create.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "How is Gina's store doing?",
+      "gold": "The store is doing great.",
+      "generated": "Gina's online clothing store is doing well; she has been working on growing her customer base by collaborating with fashion bloggers and influencers, running ad campaigns, and developing unique pieces for her store. She recently acquired new products through a wholesaler and has started an internship with a local artist to get some cool designs. Overall, Gina seems very passionate about her business and is committed to making it successful.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What does Gina's tattoo symbolize?",
+      "gold": "Freedom and expressing herself through dance",
+      "generated": "Gina's tattoo stands for freedom - dancing without worrying what people think. It is a reminder to follow her passions and express herself.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What did Jon and Gina compare their entrepreneurial journeys to?",
+      "gold": "dancing together and supporting each other",
+      "generated": "Based on the memories provided, Jon and Gina did not explicitly compare their entrepreneurial journeys to anything specific. However, they did use similar language and concepts related to perseverance and overcoming challenges in their businesses. For example, both mentioned facing tough times but staying committed to their goals. They also talked about the importance of support systems and learning from experiences.",
+      "category": "multi_hop",
+      "correct": false
+    },
+    {
+      "question": "What advice does Gina give to Jon about running a successful business?",
+      "gold": "build relationships with customers, create a strong brand image, stay positive",
+      "generated": "Gina gives Jon several pieces of advice about running a successful business:\n\n1. **Stay Positive and Resilient:** \"Staying positive is key,\" and \"Don't let it get you down.\"\n2. **Build Relationships and Create a Strong Brand Image:** \"Building relationships and creating a strong brand image for my store is something I'm always working on.\"\n3. **Stay Passionate, Focused, and Resilient:** \"Stay passionate, focused and resilient,\" and \"Challenges will come, but believe in yourself and keep going.\"\n4. **Be Open to Learning and Improving:** \"Stay open to learning and improving.\"\n5. **Don't Be Afraid to Reach Out for Help:** \"Don't be scared to reach out to people in your field for help and contacts. Networking was a lifesaver for me and opened me up to amazing products that I might not have found otherwise.\"\n6. **Take Risks:** \"Taking risks is key for success,\" and",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "Why did Jon shut down his bank account?",
+      "gold": "for his business",
+      "generated": "Jon shut down his bank account because he needed to do it for his business.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "Why did Gina combine her clothing business with dance?",
+      "gold": "she is passionate about dance and fashion",
+      "generated": "Gina combined her clothing business with dance because she wanted to blend her love for fashion trends and finding unique pieces with her passion for dance. She saw an opportunity to create a unique store that offered dance-inspired items, allowing her to show her creativity and share her love of both dance and fashion with others.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What does Jon's dance make him?",
+      "gold": "happy",
+      "generated": "Jon's dance makes him feel passionate, joyful, and gives him an escape from stress.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What did Gina receive from a dance contest?",
+      "gold": "a trophy",
+      "generated": "Gina received a trophy from a dance contest.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "How does Gina stay confident in her business?",
+      "gold": "By reminding herself of her successes and progress, having a support system, and focusing on why she started",
+      "generated": "Gina stays confident in her business by reminding herself of her successes and progress, having a good support system, staying passionate about what she does, and focusing on why she started the business. She also attributes her confidence to staying resilient and focused, as well as being open to learning and improving.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What kind of professional experience did Gina get accepted for on May 23, 2023?",
+      "gold": "fashion internship",
+      "generated": "Gina got accepted for a design internship on May 10, 2023.",
+      "category": "multi_hop",
+      "correct": false
+    },
+    {
+      "question": "Where is Gina's fashion internship?",
+      "gold": "fashion department of an international company",
+      "generated": "Gina's fashion internship is part-time in the fashion department of an international company.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What book is Jon currently reading?",
+      "gold": "The Lean Startup",
+      "generated": "Jon is currently reading \"The Lean Startup.\"",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What is Jon offering to the dancers at his dance studio?",
+      "gold": "One-on-one mentoring and training",
+      "generated": "Jon is offering one-on-one mentoring and training to help dancers reach their full potential at his dance studio.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "How does Jon use the clipboard with a notepad attached to it?",
+      "gold": "To set goals, track achievements, and find areas for improvement",
+      "generated": "The memory provided does not contain information about Jon using a clipboard with a notepad attached to it. The conversation mainly focuses on Jon's use of a whiteboard for visualizing goals and tracking successes, as well as his passion for dance and business ventures. There is no mention of a clipboard or notepad in the given memories.",
+      "category": "multi_hop",
+      "correct": false
+    },
+    {
+      "question": "What does Jon tell Gina he won't do?",
+      "gold": "quit",
+      "generated": "Jon tells Gina he won't quit. He mentions multiple times that he won't give up on his dreams and goals, whether it's related to his dance studio or other ventures.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What did Jon take a trip to Rome for?",
+      "gold": "To clear his mind",
+      "generated": "Jon took a trip to Rome to clear his mind.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What is Jon working on opening?",
+      "gold": "a dance studio",
+      "generated": "Jon is working on opening a dance studio.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "How does Gina describe the studio that Jon has opened?",
+      "gold": "amazing",
+      "generated": "Gina describes Jon's dance studio as a place where dancers can grow and express themselves, saying \"Your studio is gonna make a huge difference\" and \"You're awesome. Let's get to work and make your studio shine!\" She also mentions that it looks amazing and congratulates Jon on the launch of the studio.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "How does Jon feel about the opening night of his dance studio?",
+      "gold": "excited",
+      "generated": "Jon is excited and looking forward to the opening night of his dance studio. He mentioned, \"Tomorrow's gonna be an awesome night and I'm not gonna forget a second of it. I put so much into this and I want to savor all the good vibes.\"",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "How does Gina describe the feeling that dance brings?",
+      "gold": "magical",
+      "generated": "Gina describes the feeling that dance brings as magical, saying \"All those long nights were worth it - so take some time to savor it. Capture the joy and thrill that dance brings - it's magical!\"",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What does Jon plan to do at the grand opening of his dance studio?",
+      "gold": "savor all the good vibes",
+      "generated": "Jon plans to rock the dance floor and teach others to chase their dreams at the grand opening of his dance studio. He is looking forward to it and hopes Gina can be there to celebrate with him.",
+      "category": "multi_hop",
+      "correct": false
+    },
+    {
+      "question": "What does Gina say to Jon about the grand opening?",
+      "gold": "Let's live it up and make some great memories",
+      "generated": "Gina says: \"Can't wait for tomorrow's grand opening!\" and \"Congrats, Jon! The studio looks amazing. You've put a lot of work into this and I'm so pumped for the launch tomorrow. Don't miss a beat!\"",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What is the general sentiment about the upcoming grand opening?",
+      "gold": "excitement",
+      "generated": "The general sentiment about the upcoming grand opening is very positive and excited. Both Jon and Gina are looking forward to it and can't wait for Jon's dance studio to open officially tomorrow.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What did Gina make a limited edition line of?",
+      "gold": "Hoodies",
+      "generated": "Gina made a limited edition line of hoodies from her own collection.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "According to Gina, what makes Jon a perfect mentor and guide?",
+      "gold": "His positivity and determination",
+      "generated": "According to Gina, Jon is a perfect mentor and guide because he brings joy to others through his dance studio, has a positive attitude and determination, and will push dancers to reach their goals with one-on-one mentoring and training.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What temporary job did Jon take to cover expenses?",
+      "gold": "",
+      "generated": "Jon took a temp job while he was looking for investors for his dance studio to help cover expenses.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What plans does Jon have after receiving advice at the networking event?",
+      "gold": "Sprucing up his business plan, tweaking his pitch to investors, and working on an online platform.",
+      "generated": "After receiving good advice and making connections at the networking event, Jon plans to spruce up his business plan and tweak his pitch to investors. He is also working on an online platform to showcase his dance studio's offerings.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What offer does Gina make to Jon regarding social media?",
+      "gold": "Helping with making content and managing his social media accounts.",
+      "generated": "Gina offers to help Jon with making content and managing his social media accounts.",
+      "category": "multi_hop",
+      "correct": true
+    },
+    {
+      "question": "What is Jon's favorite style of painting?",
+      "gold": "",
+      "generated": "I'm sorry, but based on the provided memories, there is no information about Jon's favorite style of painting. The conversations revolve around dance and his passion for starting a dance studio, but do not mention any preferences related to painting.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What was Jon's favorite dancing memory?",
+      "gold": "",
+      "generated": "Based on the provided memories, Jon's favorite dancing memory seems to be performing at a local competition where his dance crew took home first place. This is indicated by his comment: \"Wow, that pic's from when my dance crew took home first in a local comp last year [= 2022]. It was amazing up on that stage!\"",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What kind of dance piece did Jon's team perform to win first place?",
+      "gold": "",
+      "generated": "The memories do not specify the type of dance piece Jon's team performed to win first place at the regional competition. They only mention that Jon's dance crew took home first place in a local comp and that they do various dances including contemporary and hip-hop. There is no detailed information about the specific piece that won them first place regionally.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What is Gina's attitude towards participating in the dance festival?",
+      "gold": "",
+      "generated": "Gina seems to have a positive and supportive attitude towards Jon's participation in the dance festival. She encourages him and mentions that they will \"rock the dance floor and teach others to chase their dreams\" together.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What kind of flooring is Gina looking for in her dance studio?",
+      "gold": "",
+      "generated": "Gina is not specifically looking for a type of flooring in the provided memories. The conversation primarily focuses on Jon's search for a dance studio location and his plans for Marley flooring. There are no details about Gina needing or specifying any particular type of flooring for her own dance studio.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What did Jon find for his clothing store on 1 February, 2023?",
+      "gold": "",
+      "generated": "Gina found a wholesaler who replied and said yes on 1 February 2023, which allowed her to expand her clothing store and get closer to her customers.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What did Jon design for his store?",
+      "gold": "",
+      "generated": "Based on the provided memories, there is no specific mention of what Jon designed for his store. The conversations primarily focus on Gina's online clothing store and her collaborations with artists and influencers. There are no details about Jon designing anything for his potential dance studio or any other store.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What did Jon want his customers to feel in her store?",
+      "gold": "",
+      "generated": "Based on the provided memories, there is no explicit statement from Jon about what she (assuming \"her\" refers to Gina's store) wanted her customers to feel. However, since the question seems to be based on a misunderstanding of who \"she\" might refer to, and considering the context where Jon is discussing her own business, it can be inferred that Jon wants her customers at her dance studio to feel inspired, supported, and motivated to express themselves through dance.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What made Jon choose the furniture and decor for his store?",
+      "gold": "",
+      "generated": "The memories do not contain a direct statement about Jon choosing the furniture and decor for his store. The conversation primarily focuses on Gina's store and her choices regarding furniture, decor, and business strategies. There is no information provided about Jon's choices for his store's interior design.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "How is Jon's store doing?",
+      "gold": "",
+      "generated": "Based on the memories provided, Jon's dance studio business has had its challenges but he remains committed and determined. He's currently searching for a location to open his dance studio and is also working on an online platform to showcase it. Jon mentions that he's been putting in a lot of work even with obstacles and is hopeful about the future. There isn't a specific mention of a store, as Jon focuses more on his dance studio business, but he does show dedication and hard work towards making his vision a reality.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What does Jon's tattoo symbolize?",
+      "gold": "",
+      "generated": "Jon's tattoo stands for freedom - dancing without worrying what people think.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "Why did Gina shut down her bank account?",
+      "gold": "",
+      "generated": "Based on the provided memories, Jon mentioned shutting down his bank account to focus on his business, not Gina. There is no information given about Gina shutting down a bank account in these memories.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "Why did Jon combine his clothing business with dance?",
+      "gold": "",
+      "generated": "Jon combined his clothing business with dance because he is passionate about both fashion trends and finding unique pieces, as well as dancing and sharing that passion with others by creating a space where people can express themselves through dance. He wanted to blend his love for dance and fashion into one venture.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What did Gina receive from a dance contest?",
+      "gold": "",
+      "generated": "Gina received a trophy from a dance contest.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What kind of professional experience did Jon get accepted for on May 23, 2023?",
+      "gold": "",
+      "generated": "Based on the memories provided, Jon didn't get accepted for any specific internship or job on May 23, 2023. However, Gina mentioned she had an interview for a design internship on May 10, 2023, which is close to the date you asked about. There's no mention of Jon getting accepted for a professional position on May 23, 2023.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "Where is Gina's HR internship?",
+      "gold": "",
+      "generated": "The information about where Gina's HR internship is located is not provided in the given memories. The conversation mainly focuses on Gina's fashion internship and her plans for a design internship, as well as her efforts to start a dance studio and an online clothing store. There are no details about an HR internship mentioned.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "Where is Jon's fashion internship?",
+      "gold": "",
+      "generated": "Jon's fashion internship is part-time in the fashion department of an international company.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What book is Gina currently reading?",
+      "gold": "",
+      "generated": "Based on the provided memories, there is no information about what book Gina is currently reading. The memories primarily focus on Jon's activities and conversations with Gina, but do not mention any books that Gina might be reading.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "How does Gina use the clipboard with a notepad attached to it?",
+      "gold": "",
+      "generated": "Based on the provided memories, there is no information about Gina using a clipboard with a notepad attached to it. The conversation focuses on Jon's whiteboard and their discussions about staying motivated, organizing goals, and supporting each other in their respective businesses. Therefore, I cannot provide an answer regarding Gina using a clipboard with a notepad.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What did Jon take a trip to Barcelona for?",
+      "gold": "",
+      "generated": "Based on the provided memories, there is no mention of Jon taking a trip to Barcelona. The trips mentioned are to Rome and Paris. Therefore, I cannot provide an answer about a trip to Barcelona based on the given information.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What did Jon make a limited edition line of?",
+      "gold": "",
+      "generated": "Based on the provided memories, there is no information about Jon making a limited edition line. The limited edition line mentioned in the memories is from Gina's collection.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What temporary job did Gina take to cover expenses?",
+      "gold": "",
+      "generated": "The information provided does not specify the type of temporary job Gina took to cover expenses. The memories focus on Jon's temporary job to help cover expenses while he looks for investors for his business.",
+      "category": "adversarial",
+      "correct": true
+    },
+    {
+      "question": "What plans does Gina have after receiving advice at the networking event?",
+      "gold": "",
+      "generated": "Based on the provided memories, there is no explicit mention of specific plans that Gina has after receiving advice at the networking event. However, Gina does discuss her future plans for her store, which include working with fashion bloggers and influencers, doing more ads to reach a broader audience, and focusing on building her customer base.",
+      "category": "adversarial",
+      "correct": true
+    }
+  ],
+  "summary": {
+    "overall": "237/304",
+    "by_category": {
+      "temporal": "33/63",
+      "open_domain": "12/13",
+      "single_hop": "29/43",
+      "multi_hop": "92/114",
+      "adversarial": "71/71"
+    }
+  },
+  "approach": "EPISODIC_TEMPORAL"
+}

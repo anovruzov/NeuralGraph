@@ -219,6 +219,18 @@ class TemporalStore:
         query_lower = query_text.lower()
         temporal_keywords = self._extract_temporal_keywords(query_lower)
 
+        # Extract topic keywords - CRITICAL for distinguishing similar events
+        topic_keywords = self._extract_topic_keywords(query_lower)
+
+        # Extract entity names from query (capitalized words)
+        query_entities = set(re.findall(r'\b[A-Z][a-z]+\b', query_text))
+        common = {'What', 'When', 'Where', 'Who', 'Why', 'How', 'Did', 'Does', 'The'}
+        query_entities = {e.lower() for e in query_entities if e not in common}
+
+        # CRITICAL: Remove entity names from topic_keywords to avoid double-counting
+        # Topic should match the ACTION (hurt, camping) not the PERSON (melanie)
+        topic_keywords = topic_keywords - query_entities
+
         # Get all nodes
         all_nodes = await self._storage.get_nodes_by_session(session_key)
         if not all_nodes:
@@ -233,6 +245,8 @@ class TemporalStore:
                 query_embedding=query_embedding_np,
                 query_text=query_lower,
                 temporal_keywords=temporal_keywords,
+                topic_keywords=topic_keywords,
+                query_entities=query_entities,
                 reference_time=reference_time,
             )
             if charge >= self._config.min_charge:
@@ -240,6 +254,7 @@ class TemporalStore:
 
         # Sort by charge descending
         results.sort(key=lambda x: x[1], reverse=True)
+
         return results[:limit]
 
     def _extract_temporal_keywords(self, query: str) -> set[str]:
@@ -259,16 +274,95 @@ class TemporalStore:
             keywords.update(matches)
         return keywords
 
+    def _extract_topic_keywords(self, query: str) -> set[str]:
+        """Extract topic/event keywords that must match for temporal questions.
+
+        This is CRITICAL: "When did X go camping?" must find memories with "camping",
+        not just any memory about X.
+        """
+        # Remove question words and common verbs
+        stopwords = {
+            'when', 'did', 'does', 'do', 'is', 'was', 'were', 'are', 'has', 'have', 'had',
+            'go', 'going', 'went', 'get', 'got', 'getting', 'buy', 'bought', 'buying',
+            'the', 'a', 'an', 'to', 'for', 'in', 'on', 'at', 'of', 'with', 'from',
+            'how', 'long', 'what', 'where', 'who', 'why', 'which', 'and', 'or', 'but',
+            'she', 'he', 'her', 'his', 'they', 'their', 'it', 'its', 'this', 'that',
+            'plan', 'planning', 'planned', 'join', 'joined', 'joining',
+            'make', 'made', 'making', 'take', 'took', 'taking', 'give', 'gave', 'giving',
+        }
+        words = re.findall(r'\b[a-z]{3,}\b', query.lower())
+        # Filter and keep meaningful topic words
+        topics = {w for w in words if w not in stopwords}
+        return topics
+
     def _compute_temporal_charge(
         self,
         node: "NeuralNode",
         query_embedding: np.ndarray,
         query_text: str,
         temporal_keywords: set[str],
+        topic_keywords: set[str],
+        query_entities: set[str],
         reference_time: datetime | None,
     ) -> float:
-        """Compute temporal-weighted charge."""
-        # 1. Semantic similarity (lower weight in temporal store)
+        """Compute temporal-weighted charge.
+
+        KEY FIX: Topic keywords must match for temporal questions.
+        "When did X go camping?" must find memories with "camping".
+        "When did X go camping in June?" must find memories from JUNE.
+        """
+        content_lower = node.content.lower()
+
+        # Get message datetime from metadata
+        msg_datetime_str = ""
+        if node.metadata:
+            msg_datetime_str = (node.metadata.get("datetime", "") or "").lower()
+
+        # MONTH NAMES for temporal filtering
+        MONTHS = {
+            'january': 1, 'february': 2, 'march': 3, 'april': 4,
+            'may': 5, 'june': 6, 'july': 7, 'august': 8,
+            'september': 9, 'october': 10, 'november': 11, 'december': 12
+        }
+
+        # 1. TEMPORAL PERIOD FILTERING - CRITICAL
+        # If query mentions a specific month, filter for messages FROM that month
+        temporal_period_charge = 0.0
+        query_months = {m for m in MONTHS.keys() if m in temporal_keywords}
+        if query_months and msg_datetime_str:
+            # Check if message datetime contains the queried month
+            msg_has_query_month = any(m in msg_datetime_str for m in query_months)
+            if msg_has_query_month:
+                temporal_period_charge = 0.5  # Strong boost for correct month
+            else:
+                temporal_period_charge = -0.3  # Penalty for wrong month
+
+        # 2. TOPIC MATCHING - CRITICAL for temporal questions
+        # "When did X get hurt?" MUST find memories with "hurt"
+        topic_charge = 0.0
+        if topic_keywords:
+            # Remove months from topic keywords (they're handled above)
+            topic_words = topic_keywords - set(MONTHS.keys())
+            if topic_words:
+                matches = sum(1 for kw in topic_words if kw in content_lower)
+                if matches == 0:
+                    topic_charge = -0.5  # Strong penalty for missing topic
+                else:
+                    # VERY strong boost for topic match - this is THE KEY signal
+                    topic_charge = min(2.0, matches * 0.8)
+
+        # 3. ENTITY MATCHING - Must mention the right person (in content OR as speaker)
+        entity_charge = 0.0
+        if query_entities:
+            speaker = ""
+            if node.metadata:
+                speaker = (node.metadata.get("speaker", "") or "").lower()
+            # Check both content AND speaker metadata (e.g., "melanie" in "Melanie Turner")
+            entity_matches = sum(1 for e in query_entities if e in content_lower or e in speaker)
+            if entity_matches > 0:
+                entity_charge = min(1.5, entity_matches * 0.6)  # Strong boost for entity match
+
+        # 4. Semantic similarity (lower weight in temporal store)
         semantic_charge = 0.0
         if node.embedding:
             node_emb = np.array(node.embedding, dtype=np.float32)
@@ -276,37 +370,38 @@ class TemporalStore:
             if node_norm > 1e-10:
                 semantic_charge = float(np.dot(query_embedding, node_emb / node_norm))
 
-        # 2. Temporal keyword matching (HIGH weight)
+        # 5. Temporal keyword matching in content
         temporal_charge = 0.0
-        content_lower = node.content.lower()
         for keyword in temporal_keywords:
             if keyword in content_lower:
-                temporal_charge += 0.25
+                temporal_charge += 0.2
         temporal_charge = min(1.0, temporal_charge)
 
-        # 3. Grounded date matching (look for [= markers)
+        # 6. Grounded date matching (look for [= markers)
         grounded_charge = 0.0
         if "[=" in content_lower:
-            # This node has grounded dates - boost it
             grounded_charge = 0.2
-            # Check if query temporal keywords match grounded content
             for keyword in temporal_keywords:
                 if keyword in content_lower:
-                    grounded_charge += 0.15
+                    grounded_charge += 0.1
             grounded_charge = min(1.0, grounded_charge)
 
-        # 4. Recency decay (if reference time provided)
-        recency_charge = 0.5  # Default neutral
+        # 7. Recency decay (if reference time provided)
+        recency_charge = 0.5
         if reference_time and node.created_at:
             time_diff = abs((reference_time - node.created_at).days)
             recency_charge = math.exp(-time_diff / self._config.temporal_decay_days)
 
-        # TOTAL: Weighted combination emphasizing temporal matching
+        # TOTAL: Topic match is KING for temporal questions
+        # "When did X do Y?" - finding Y is more important than semantic similarity
         total = (
-            semantic_charge * self._config.semantic_weight +
-            temporal_charge * 0.4 +
-            grounded_charge * 0.3 +
-            recency_charge * 0.2
+            topic_charge * 0.35 +             # CRITICAL: topic must match
+            temporal_period_charge * 0.20 +   # Right month/period
+            entity_charge * 0.15 +            # Entity must be mentioned
+            semantic_charge * 0.15 +          # Semantic similarity (lower weight)
+            temporal_charge * 0.10 +          # Temporal keywords in content
+            grounded_charge * 0.03 +          # Grounded dates
+            recency_charge * 0.02             # Slight recency bias
         )
 
         return total
@@ -779,6 +874,17 @@ class Tesseract:
         fused.sort(key=lambda x: x[1], reverse=True)
         return fused[:limit]
 
+    def _normalize_charges(
+        self, results: list[tuple["NeuralNode", float]]
+    ) -> list[tuple["NeuralNode", float]]:
+        """Normalize charges to [0, 1] range for fair fusion."""
+        if not results:
+            return results
+        max_charge = max(charge for _, charge in results)
+        if max_charge <= 0:
+            return results
+        return [(node, charge / max_charge) for node, charge in results]
+
     def _fuse_results(
         self,
         temporal_results: list[tuple["NeuralNode", float]],
@@ -787,15 +893,43 @@ class Tesseract:
         adversarial_results: list[tuple["NeuralNode", float]],
         type_weights: dict[str, float],
     ) -> list[tuple["NeuralNode", float]]:
-        """Fuse results from all stores with type-based weighting."""
-        # Normalize type weights
-        total_weight = sum(type_weights.values()) or 1.0
+        """Fuse results from all stores with type-based weighting.
 
-        temporal_weight = type_weights.get(QueryType.TEMPORAL, 0.25) / total_weight
-        entity_weight = type_weights.get(QueryType.ENTITY, 0.25) / total_weight
-        multihop_weight = type_weights.get(QueryType.MULTI_HOP, 0.25) / total_weight
-        adversarial_weight = type_weights.get(QueryType.ADVERSARIAL, 0.1) / total_weight
-        open_weight = type_weights.get(QueryType.OPEN, 0.15) / total_weight
+        KEY FIX:
+        1. Normalize charges within each store to [0,1] for fair comparison
+        2. Use ACTUAL query type scores, not defaults when score is 0
+        3. Strongly favor the dominant query type's store
+        """
+        # Normalize charges within each store FIRST
+        temporal_results = self._normalize_charges(temporal_results)
+        entity_results = self._normalize_charges(entity_results)
+        reasoning_results = self._normalize_charges(reasoning_results)
+        adversarial_results = self._normalize_charges(adversarial_results)
+
+        # Get ACTUAL type weights (use 0 when detection returns 0, not defaults)
+        temporal_score = type_weights.get(QueryType.TEMPORAL, 0.0)
+        entity_score = type_weights.get(QueryType.ENTITY, 0.0)
+        multihop_score = type_weights.get(QueryType.MULTI_HOP, 0.0)
+        adversarial_score = type_weights.get(QueryType.ADVERSARIAL, 0.0)
+        open_score = type_weights.get(QueryType.OPEN, 0.0)
+
+        # Add small base weight so stores aren't completely ignored
+        BASE_WEIGHT = 0.05
+        temporal_weight = temporal_score + BASE_WEIGHT
+        entity_weight = entity_score + BASE_WEIGHT
+        multihop_weight = multihop_score + BASE_WEIGHT
+        adversarial_weight = adversarial_score + BASE_WEIGHT
+
+        # Normalize to sum to 1
+        total = temporal_weight + entity_weight + multihop_weight + adversarial_weight + open_score
+        if total > 0:
+            temporal_weight /= total
+            entity_weight /= total
+            multihop_weight /= total
+            adversarial_weight /= total
+            open_weight = open_score / total
+        else:
+            temporal_weight = entity_weight = multihop_weight = adversarial_weight = open_weight = 0.2
 
         # Combine into single dict by node_id
         combined: dict[str, tuple["NeuralNode", float]] = {}
