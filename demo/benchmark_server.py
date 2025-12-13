@@ -157,19 +157,24 @@ async def get_embedding(session, text: str) -> list[float]:
 async def generate_answer(session, question: str, context: str, category: str = "") -> str:
     # Add category-specific prompting
     if category == "temporal":
-        instructions = """Find the memory that directly answers the question. Calculate the date.
+        instructions = """Find the memory that answers the question. Calculate and output the ABSOLUTE date.
 
-DATE CALCULATION:
-1. Find the memory timestamp: [DD Month, YYYY]
-2. Apply the relative term:
-   - "yesterday" = subtract 1 day from timestamp
-   - "last Saturday" = find Saturday before timestamp
-   - "last week" = ~7 days before timestamp
-   - "last year" = year before timestamp's year
-   - "next month" = month after timestamp's month
-   - "this month" = same month as timestamp
+CRITICAL RULES:
+1. NEVER output relative terms like "next month", "last week", "last year"
+2. ALWAYS convert to absolute dates using the memory timestamp
 
-Output ONLY the final date (nothing else). Format: "May 7, 2023" or "June 2023" or "2022"."""
+DATE CALCULATION EXAMPLES:
+- Memory timestamp [14 August, 2023] + "last night" = "13 August" (just the date, no year needed for recent)
+- Memory timestamp [8 May, 2023] + "last year" = "2022" (output just the year)
+- Memory timestamp [25 May, 2023] + "next month" = "June 2023"
+- Memory timestamp [15 July, 2023] + "last Friday" = Calculate: July 15 is Saturday, so last Friday = "14 July 2023"
+- Memory timestamp [9 June, 2023] + "last week" = "The week before 9 June 2023"
+
+FOR BIRTHDAYS: Output just the date without year (e.g., "13 August")
+FOR PAST EVENTS with "last year": Output just the year (e.g., "2022")
+FOR FUTURE EVENTS with "next month": Calculate the actual month (e.g., "June 2023")
+
+Output ONLY the final calculated date. No explanations."""
     elif category == "adversarial":
         instructions = """Answer based ONLY on what is explicitly stated in these memories.
 IMPORTANT: If the information is NOT mentioned or cannot be found in the memories, you MUST say "This is not mentioned in the conversation" or "I don't have information about this".

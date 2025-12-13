@@ -214,6 +214,8 @@ class HolographicMemoryIndex:
 
         Concepts are the 4D coordinates of memory.
         Any concept can access memories that share it.
+
+        NEO UNIFIED: Morphological + Temporal expansion for cross-domain matching.
         """
         # Lowercase and extract words
         text_lower = text.lower()
@@ -225,12 +227,109 @@ class HolographicMemoryIndex:
             if w not in STOP_CONCEPTS and len(w) > 2
         }
 
+        # =================================================================
+        # NEO: MORPHOLOGICAL EXPANSION
+        # "move" matches "moved", "moving" - essential for action queries
+        # =================================================================
+        expanded = set()
+        for w in list(concepts):
+            expanded.update(self._expand_morphology(w))
+        concepts.update(expanded)
+
+        # =================================================================
+        # NEO: TEMPORAL CONCEPT UNIFICATION
+        # "4 years ago" → temporal_years, "yesterday" → temporal_recent
+        # This links temporal questions to temporal answers
+        # =================================================================
+        temporal_concepts = self._extract_temporal_concepts(text_lower)
+        concepts.update(temporal_concepts)
+
         # Also extract multi-word concepts (bigrams for compound terms)
         # e.g., "support group" should be a single concept
         words_list = [w for w in words if w not in STOP_CONCEPTS and len(w) > 2]
         for i in range(len(words_list) - 1):
             bigram = f"{words_list[i]}_{words_list[i+1]}"
             concepts.add(bigram)
+
+        # =================================================================
+        # NEO: PRESERVE ENTITY NAMES
+        # Proper nouns should be concepts even if short
+        # =================================================================
+        entities = re.findall(r'\b[A-Z][a-z]+\b', text)
+        for entity in entities:
+            if entity.lower() not in STOP_CONCEPTS:
+                concepts.add(entity.lower())
+
+        return concepts
+
+    def _expand_morphology(self, word: str) -> set[str]:
+        """Expand word to morphological variants.
+
+        NEO: Essential for matching "move" in question to "moved" in answer.
+        """
+        variants = {word}
+        w = word.lower()
+
+        # Get base form
+        base = w
+        if w.endswith('ed') and len(w) > 4:
+            base = w[:-2]
+            if base.endswith('i'):
+                base = base[:-1] + 'y'
+            elif len(base) >= 2 and base[-1] == base[-2]:
+                base = base[:-1]
+        elif w.endswith('ing') and len(w) > 5:
+            base = w[:-3]
+            if len(base) >= 2 and base[-1] == base[-2]:
+                base = base[:-1]
+        elif w.endswith('ies') and len(w) > 4:
+            base = w[:-3] + 'y'
+        elif w.endswith('s') and not w.endswith('ss') and len(w) > 3:
+            base = w[:-1]
+
+        variants.add(base)
+
+        # Generate variants from base
+        if len(base) >= 3:
+            variants.add(base + 's')
+            variants.add(base + 'ed')
+            variants.add(base + 'ing')
+            if base.endswith('e'):
+                variants.add(base[:-1] + 'ing')
+                variants.add(base + 'd')
+
+        return {v for v in variants if len(v) >= 3 and v.isalpha()}
+
+    def _extract_temporal_concepts(self, text: str) -> set[str]:
+        """Extract unified temporal concepts.
+
+        NEO: Links "4 years ago" in question to "since I moved" in answer
+        through shared temporal_years concept.
+        """
+        concepts = set()
+
+        # Years-scale temporal
+        if re.search(r'\b\d+\s+years?\s+ago\b', text) or re.search(r'\byears?\s+ago\b', text):
+            concepts.add('temporal_years')
+        if re.search(r'\b(several|few|many)\s+years\b', text):
+            concepts.add('temporal_years')
+
+        # Months-scale temporal
+        if re.search(r'\b\d+\s+months?\s+ago\b', text) or re.search(r'\bmonths?\s+ago\b', text):
+            concepts.add('temporal_months')
+
+        # Recent temporal (days/weeks)
+        if re.search(r'\b(yesterday|today|recently|just|last\s+week)\b', text):
+            concepts.add('temporal_recent')
+        if re.search(r'\b\d+\s+(days?|weeks?)\s+ago\b', text):
+            concepts.add('temporal_recent')
+
+        # Movement/relocation temporal (common in "Where did X move from" questions)
+        if re.search(r'\b(moved?|came|left|relocated|from)\b', text):
+            concepts.add('movement')
+        if re.search(r'\b(home\s+country|originally|back\s+home)\b', text):
+            concepts.add('origin')
+            concepts.add('movement')
 
         return concepts
 
