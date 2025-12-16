@@ -7,7 +7,14 @@
       "Bash(done)",
       "Bash(python:*)",
       "WebSearch",
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(cmd /c \"cd /d C:\\Users\\anovr\\Desktop\\MemMachine-main && git status\")",
+      "Bash(git -C \"C:\\Users\\anovr\\Desktop\\MemMachine-main\" status)",
+      "Bash(cmd /c \"cd /d C:\\Users\\anovr\\Desktop\\MemMachine-main\\evaluation && dir *.py\")",
+      "Bash(git -C \"C:\\Users\\anovr\\Desktop\\MemMachine-main\" show HEAD:src/memmachine/neural_graph/tesseract.py)",
+      "Bash(timeout /t 60 /nobreak)",
+      "Bash(wc:*)",
+      "Bash(cmd /c \"cd /d C:\\Users\\anovr\\Desktop\\MemMachine-main\\demo && python run_benchmark.py\")"
     ],
     "deny": [],
     "ask": []

@@ -93,7 +93,7 @@ class NeuralGraphServiceConfig:
 
     # DIALOGUE LINKER: Universal Message Linking Layer
     # Creates cross-message bindings for exchanges, coreferences, topic threads
-    dialogue_linking_enabled: bool = False  # DISABLED - needs tuning
+    dialogue_linking_enabled: bool = True  # ENABLED - Q+A atomic retrieval units
 
     # QUERY ROUTER: Intelligent query analysis and pre-filtering
     # Filters search space BEFORE embedding search for entity/temporal queries

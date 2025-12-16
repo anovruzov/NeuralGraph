@@ -13,6 +13,7 @@ memmachine-client = { workspace = true }
 name = "memmachine"
 version = "0.1.0"
 dependencies = [
+    "aiohttp>=3.9.0",
     "alembic>=1.17.1",
     "asyncpg>=0.31.0",
     "aiosqlite>=0.20.0",
@@ -65,6 +66,7 @@ memmachine-nltk-setup = "memmachine:setup_nltk"
 memmachine-mcp-stdio = "memmachine.server.mcp_stdio:main"
 memmachine-mcp-http = "memmachine.server.mcp_http:main"
 memmachine-configure = "memmachine.installation.memmachine_configure:main"
+memmachine-mcp = "memmachine.mcp.server:main"
 
 [project.urls]
 Homepage = "https://github.com/MemMachine/MemMachine"

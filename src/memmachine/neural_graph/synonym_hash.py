@@ -135,6 +135,78 @@ DOMAIN_SYNONYMS: dict[str, set[str]] = {
     # Rejection
     'reject': {'rejected', 'declined', 'denied', 'refused'},
     'rejected': {'reject', 'declined', 'denied', 'refused'},
+
+    # =========================================================================
+    # PATCH 5: LoCoMo-specific domain synonyms for better retrieval
+    # =========================================================================
+
+    # Activities/Hobbies (critical for single-hop questions like "What activities does X do?")
+    'activities': {'hobbies', 'interests', 'pastimes', 'things'},
+    'activity': {'hobby', 'interest', 'pastime', 'thing'},
+    'hobbies': {'activities', 'interests', 'pastimes', 'things'},
+    'hobby': {'activity', 'interest', 'pastime', 'thing'},
+    'interests': {'activities', 'hobbies', 'pastimes', 'things'},
+    'interest': {'activity', 'hobby', 'pastime', 'thing'},
+    'pastimes': {'activities', 'hobbies', 'interests'},
+    'pastime': {'activity', 'hobby', 'interest'},
+
+    # Like/Enjoy (for preference questions)
+    'like': {'enjoy', 'love', 'prefer', 'fond'},
+    'likes': {'enjoys', 'loves', 'prefers'},
+    'enjoy': {'like', 'love', 'prefer', 'fond'},
+    'enjoys': {'likes', 'loves', 'prefers'},
+    'love': {'like', 'enjoy', 'adore', 'prefer'},
+    'loves': {'likes', 'enjoys', 'adores', 'prefers'},
+    'prefer': {'like', 'enjoy', 'favor', 'choose'},
+    'prefers': {'likes', 'enjoys', 'favors', 'chooses'},
+    'favorite': {'favourite', 'preferred', 'best', 'top'},
+    'favourite': {'favorite', 'preferred', 'best', 'top'},
+
+    # Do/Does (for action questions)
+    'do': {'does', 'perform', 'engage', 'partake', 'participate'},
+    'does': {'do', 'performs', 'engages', 'partakes', 'participates'},
+    'partake': {'do', 'participate', 'engage', 'join'},
+    'partakes': {'does', 'participates', 'engages', 'joins'},
+
+    # Art/Creative (common in LoCoMo conversations)
+    'paint': {'painted', 'painting', 'draw', 'drew', 'art'},
+    'painted': {'paint', 'painting', 'drew', 'drawn', 'art'},
+    'painting': {'paint', 'painted', 'art', 'artwork', 'picture'},
+    'draw': {'drew', 'drawn', 'drawing', 'sketch', 'paint'},
+    'drew': {'draw', 'drawn', 'drawing', 'sketched', 'painted'},
+    'art': {'painting', 'drawing', 'artwork', 'creative'},
+    'pottery': {'ceramics', 'clay', 'craft', 'art'},
+
+    # Family/Relationships
+    'kids': {'children', 'child', 'son', 'daughter', 'family'},
+    'children': {'kids', 'child', 'sons', 'daughters', 'family'},
+    'family': {'kids', 'children', 'relatives', 'parents'},
+    'husband': {'spouse', 'partner', 'married'},
+    'wife': {'spouse', 'partner', 'married'},
+
+    # Travel/Places
+    'move': {'moved', 'moving', 'relocate', 'relocated'},
+    'moved': {'move', 'moving', 'relocated', 'relocate'},
+    'camp': {'camped', 'camping', 'campsite'},
+    'camped': {'camp', 'camping', 'campsite'},
+    'camping': {'camp', 'camped', 'campsite', 'outdoors'},
+    'visit': {'visited', 'visiting', 'went', 'traveled'},
+    'visited': {'visit', 'visiting', 'went', 'traveled'},
+
+    # Books/Reading
+    'book': {'books', 'novel', 'read', 'reading'},
+    'books': {'book', 'novels', 'read', 'reading'},
+    'read': {'reading', 'book', 'books'},
+    'reading': {'read', 'book', 'books'},
+
+    # Career/Work
+    'job': {'occupation', 'career', 'work', 'profession'},
+    'occupation': {'job', 'career', 'work', 'profession'},
+    'career': {'job', 'occupation', 'work', 'profession'},
+    'work': {'job', 'occupation', 'career', 'profession'},
+    'profession': {'job', 'occupation', 'career', 'work'},
+    'counselor': {'counselling', 'counseling', 'therapist', 'therapy'},
+    'counseling': {'counselor', 'counselling', 'therapy', 'therapist'},
 }
 
 

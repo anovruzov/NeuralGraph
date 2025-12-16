@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "memmachine": {
+      "command": "python",
+      "args": ["-m", "memmachine.mcp.server"],
+      "cwd": "C:\\Users\\anovr\\Desktop\\MemMachine-main",
+      "env": {
+        "MEMMACHINE_DB": "~/.memmachine/memories.db",
+        "OLLAMA_BASE_URL": "http://localhost:11434",
+        "EMBEDDING_MODEL": "nomic-embed-text"
+      }
+    }
+  }
+}

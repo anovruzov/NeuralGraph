@@ -420,6 +420,48 @@
         .result-card.correct .result-status { color: var(--green); }
         .result-card.wrong .result-status { color: var(--red); }
 
+        /* TEMPORAL ZOOM - Make temporal results larger and more prominent */
+        .result-card.temporal {
+            transform: scale(1.05);
+            transform-origin: top left;
+            margin-bottom: 24px;
+            border-width: 2px;
+            box-shadow: 0 4px 20px rgba(253, 126, 20, 0.15);
+        }
+
+        .result-card.temporal .result-num {
+            font-size: 14px;
+            padding: 6px 14px;
+        }
+
+        .result-card.temporal .result-category {
+            background: var(--orange);
+            color: white;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 6px 14px;
+        }
+
+        .result-card.temporal .result-text {
+            font-size: 16px;
+            font-weight: 500;
+        }
+
+        .result-card.temporal .result-answer {
+            font-size: 15px;
+            padding: 16px 20px;
+        }
+
+        .result-card.temporal.correct {
+            border-left-color: var(--green);
+            border-left-width: 6px;
+        }
+
+        .result-card.temporal.wrong {
+            border-left-color: var(--red);
+            border-left-width: 6px;
+        }
+
         .result-section {
             margin-bottom: 12px;
         }
@@ -1307,7 +1349,8 @@
             if (emptyState) emptyState.remove();
 
             const card = document.createElement('div');
-            card.className = `result-card ${data.correct ? 'correct' : 'wrong'}`;
+            // Add category class for special styling (temporal gets zoomed)
+            card.className = `result-card ${data.correct ? 'correct' : 'wrong'} ${data.category}`;
             card.innerHTML = `
                 <div class="result-header">
                     <div class="result-meta">
@@ -1331,10 +1374,8 @@
             `;
             container.insertBefore(card, container.firstChild);
 
-            // Keep only last 20 cards
-            while (container.children.length > 20) {
-                container.removeChild(container.lastChild);
-            }
+            // Keep ALL results on screen (no limit)
+            // Previously limited to 20 cards - now unlimited
         }
 
         // Initialize

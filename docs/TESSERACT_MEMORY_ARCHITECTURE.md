@@ -1,4 +1,4 @@
-**Authors:** Ali Novruzov - Built on MemMachine's existing stack.
+'**Authors:** Ali Novruzov - Built on MemMachine's existing stack.
 
 ---
 

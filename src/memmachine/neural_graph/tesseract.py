@@ -54,6 +54,9 @@ if TYPE_CHECKING:
 # NEO: Complete English thesaurus (117K+ words) + domain-specific additions
 from .synonym_hash import expand_with_synonyms_extended as expand_with_synonyms
 
+# Temporal utilities for query expansion
+from .temporal_utils import expand_temporal_query as _expand_temporal_query
+
 logger = logging.getLogger(__name__)
 
 
@@ -652,9 +655,10 @@ class EntityStore:
     def __init__(self, storage: "NeuralGraphStorage", config: StoreConfig | None = None):
         self._storage = storage
         self._config = config or StoreConfig(
-            semantic_weight=0.4,
+            semantic_weight=0.35,
             entity_boost=0.6,      # HIGH entity weight
-            speaker_boost=0.7,     # HIGH speaker weight
+            speaker_boost=0.8,     # VERY HIGH speaker weight (was 0.7)
+            keyword_boost=0.4,     # Stronger keyword matching
         )
 
     async def retrieve(
@@ -823,10 +827,13 @@ class EntityStore:
             keyword_charge * self._config.keyword_boost
         )
 
-        # CRITICAL: If speaker matches AND semantic > 0.3, give bonus
-        # This ensures ALL Caroline messages have a chance even with low semantic
-        if speaker_charge > 0.5 and semantic_charge > 0.3:
-            total *= 1.3
+        # CRITICAL: If speaker matches AND semantic > 0.2, give bonus
+        # This ensures ALL speaker messages have a chance even with low semantic
+        if speaker_charge > 0.5 and semantic_charge > 0.2:
+            total *= 1.5  # Increased from 1.3
+            # Additional boost if keywords also match
+            if keyword_charge > 0.3:
+                total *= 1.2
 
         return total
 
@@ -1174,22 +1181,41 @@ class Tesseract:
         session_key: str,
         reference_time: datetime | None = None,
         limit: int = 80,
+        auto_expand_temporal: bool = True,
     ) -> list[tuple["NeuralNode", float]]:
         """Execute 4D tesseract retrieval.
 
         1. Detect query type
-        2. Query all stores in parallel
-        3. Fuse results with type-based weighting
-        4. Return top unified results
+        2. Auto-expand temporal queries with date tokens (if enabled)
+        3. Query all stores in parallel
+        4. Fuse results with type-based weighting
+        5. Return top unified results
+
+        Args:
+            query_text: The search query
+            query_embedding: Vector embedding of the query
+            session_key: Session to search within
+            reference_time: Reference time for temporal queries
+            limit: Maximum results to return
+            auto_expand_temporal: If True, automatically expand temporal queries
+                with date tokens for better BM25 matching (default: True)
         """
         # Step 1: Detect query type
         query_types = detect_query_type(query_text)
 
+        # Step 1.5: Auto-expand temporal queries with date tokens
+        # This ensures queries like "May 2023" match "MONTH_MAY YEAR_2023" tokens
+        effective_query = query_text
+        if auto_expand_temporal and query_types.get(QueryType.TEMPORAL, 0) > 0.3:
+            effective_query = _expand_temporal_query(query_text)
+            logger.debug(f"Expanded temporal query: {query_text!r} -> {effective_query!r}")
+
         logger.info(f"Query type detection: {query_types}")
 
         # Step 2: Query all stores (can be parallelized with asyncio.gather)
+        # Note: Use effective_query (with temporal tokens) for temporal store
         temporal_results = await self._temporal_store.retrieve(
-            query_text, query_embedding, session_key, reference_time, limit=40
+            effective_query, query_embedding, session_key, reference_time, limit=40
         )
 
         entity_results = await self._entity_store.retrieve(

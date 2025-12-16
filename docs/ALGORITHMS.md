@@ -1089,7 +1089,7 @@ CATEGORY           | PRIOR ART | MEMMACHINE | IMPROVEMENT
 Single-hop         |    72%    |    92%     |   +20%
 Multi-hop          |    48%    |    78%     |   +30%
 Temporal           |    31%    |    71%     |   +40%
-Open Domain        |    65%    |    85%     |   +20%
+Open Domain        |    65%    |    77%     |   +12%
 Adversarial        |    42%    |    73%     |   +31%
 -------------------|-----------|------------|------------
 OVERALL            |    52%    |    80%     |   +28%

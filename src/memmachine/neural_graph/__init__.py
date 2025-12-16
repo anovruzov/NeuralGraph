@@ -85,6 +85,7 @@ from .storage import (
     NeuralGraphStorage,
     InMemoryNeuralGraphStorage,
 )
+from .sqlite_storage import SQLiteNeuralGraphStorage
 
 # Gating
 from .gating import (
@@ -148,6 +149,23 @@ from .prompts import (
     select_prompt_for_query,
 )
 
+# Temporal utilities (date resolution, temporal tokens, query expansion)
+from .temporal_utils import (
+    # Constants
+    MONTH_NAMES,
+    MONTH_NAMES_REV,
+    DAY_NAMES,
+    DAY_NAMES_REV,
+    # Ingestion-time functions
+    parse_datetime_flexible,
+    resolve_relative_dates,
+    generate_temporal_tokens,
+    preprocess_message_for_indexing,
+    # Query-time functions
+    expand_temporal_query,
+    infer_query_mode,
+)
+
 __all__ = [
     # Enums
     "NodeLayer",
@@ -169,6 +187,7 @@ __all__ = [
     # Storage
     "NeuralGraphStorage",
     "InMemoryNeuralGraphStorage",
+    "SQLiteNeuralGraphStorage",
     # Gating
     "EdgeGateRegistry",
     "GateConfig",
@@ -200,6 +219,17 @@ __all__ = [
     "QueryAnalysis",
     "FilteredRetriever",
     "create_query_router",
+    # Temporal utilities
+    "MONTH_NAMES",
+    "MONTH_NAMES_REV",
+    "DAY_NAMES",
+    "DAY_NAMES_REV",
+    "parse_datetime_flexible",
+    "resolve_relative_dates",
+    "generate_temporal_tokens",
+    "preprocess_message_for_indexing",
+    "expand_temporal_query",
+    "infer_query_mode",
 ]
 
 __version__ = "1.0.0"
