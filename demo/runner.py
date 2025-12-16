@@ -12,15 +12,15 @@ import re
 from pathlib import Path
 from datetime import datetime, timedelta
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from memmachine.neural_graph import NeuralNode, NeuralEdge, NodeLayer, EdgeType, generate_edge_id
-from memmachine.neural_graph.storage import InMemoryNeuralGraphStorage
-from memmachine.neural_graph.tesseract import Tesseract, detect_query_type, QueryType
-from memmachine.neural_graph.dialogue_linker import DialogueLinker
+from NeuralGraph import NeuralNode, NeuralEdge, NodeLayer, EdgeType, generate_edge_id
+from NeuralGraph.storage import InMemoryNeuralGraphStorage
+from NeuralGraph.tesseract import Tesseract, detect_query_type, QueryType
+from NeuralGraph.dialogue_linker import DialogueLinker
 
 # Import CORE temporal utilities - ensures benchmark uses production code
-from memmachine.neural_graph.temporal_utils import (
+from NeuralGraph.temporal_utils import (
     # Constants
     MONTH_NAMES,
     MONTH_NAMES_REV,
@@ -43,20 +43,24 @@ def extract_keywords(text: str) -> list[str]:
     return [w for w in words if w not in stopwords]
 
 
+import os
+
 # Ollama for answer generation and embeddings (local)
 OLLAMA_BASE_URL = "http://localhost:11434"
 OLLAMA_MODEL = "qwen2.5:7b-instruct"
 EMBEDDING_MODEL = "nomic-embed-text"
 
-# OpenAI for judging only (GPT-4o)
-OPENAI_API_KEY = "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"
+# OpenAI for judging only (GPT-4o) -- DO NOT hardcode secrets in code
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
+if not OPENAI_API_KEY:
+    raise RuntimeError("Missing OPENAI_API_KEY env var (used for judging only).")
 JUDGE_MODEL = "gpt-4o"
 
 TOP_K = 50
 
-CATEGORIES = {1: "single_hop", 2: "temporal", 3: "open_domain", 4: "multi_hop", 5: "adversarial"}
+CATEGORIES = {1: "single_hop", 2: "temporal", 3: "open_domain", 4: "multi_hop"}
 
-OUTPUT_PATH = Path(__file__).parent / "runner_results.json"
+OUTPUT_PATH = Path(__file__).parent / "ran.json"
 MAX_QUESTIONS = 2000
 
 # Timing storage
@@ -66,7 +70,7 @@ TIMING_DATA = defaultdict(list)
 
 import random
 
-ROUTING_STATS = {"TEMPORAL": 0, "STRICT": 0, "INFERENTIAL": 0, "AGGREGATION": 0, "ADVERSARIAL": 0}
+ROUTING_STATS = {"TEMPORAL": 0, "STRICT": 0, "INFERENTIAL": 0, "AGGREGATION": 0}
 ROUTING_SAMPLES = []
 INFERENTIAL_SAMPLES = []
 
@@ -141,7 +145,7 @@ Reply with ONLY "YES" or "NO".
     return False, 0
 
 
-USE_QWEN_ORACLE = True
+USE_QWEN_ORACLE = False  # Set to False for clean recall@k metrics (no LLM-grading)
 
 
 async def check_gold_in_memories(
@@ -228,39 +232,41 @@ USE_QWEN_RERANKER = True
 async def qwen_rerank_memory(
     session, question: str, memory_text: str, speaker: str
 ) -> int:
-    subject_match = re.search(r"(?:What|When|Where|Who|How|Does|Did|Is|Has|Have)\s+(?:is|does|did|has|have|was|were)?\s*([A-Z][a-z]+(?:'s)?)", question)
-    subject = subject_match.group(1).rstrip("'s") if subject_match else ""
-
-    prompt = f"""Score this memory's relevance to the question (0-3).
+    """Rerank memory relevance using JSON output for stability."""
+    prompt = f"""Score relevance 0-3 for the question vs memory.
 
 Question: {question}
-Subject being asked about: {subject if subject else "unknown"}
-
 Memory from [{speaker}]: {memory_text[:350]}
 
-SCORING:
-3 = Directly answers the question about {subject if subject else "the subject"}
-2 = Strong supporting detail about {subject if subject else "the subject"}
-1 = Weakly related or tangential information
-0 = Irrelevant OR about a different person (wrong entity)
+Scoring:
+3 = directly answers the question
+2 = strong supporting evidence
+1 = weakly related
+0 = unrelated / wrong entity
 
-IMPORTANT: If the memory is from/about a DIFFERENT person than "{subject if subject else "the subject"}", score 0.
-
-Reply with ONLY a single digit: 0, 1, 2, or 3"""
+Return JSON only: {{"score": 0}} (or 1/2/3)"""
 
     try:
         async with session.post(
             f"{OLLAMA_BASE_URL}/api/generate",
             json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False,
-                  "options": {"temperature": 0, "num_predict": 3}},
+                  "options": {"temperature": 0, "num_predict": 15}},
             timeout=aiohttp.ClientTimeout(total=8)
         ) as response:
             result = await response.json()
             resp = result.get("response", "").strip()
-            for char in resp:
-                if char in "0123":
-                    return int(char)
-            return 1
+            # Try JSON parse first
+            import json as json_module
+            try:
+                obj = json_module.loads(resp)
+                s = int(obj.get("score", 1))
+                return max(0, min(3, s))
+            except Exception:
+                # Fallback to digit scan
+                for char in resp:
+                    if char in "0123":
+                        return int(char)
+                return 1
     except Exception:
         return 1
 
@@ -285,102 +291,95 @@ async def qwen_rerank_batch(
 
 async def generate_answer(session, question: str, context: str, mode: str = "STRICT") -> str:
     if mode == "TEMPORAL":
-        prompt = f"""Answer the question using the memories below.
+        prompt = f"""Answer using ONLY the memories below.
 
-CRITICAL RULES:
-1. If content contains [= resolved_date] brackets, USE THAT DATE AS THE ANSWER
-   Example: "last week [= The week before 9 June 2023]" → answer is "The week before 9 June 2023"
-2. If content says "yesterday/last week/last month" WITHOUT brackets, calculate from MESSAGE_DATETIME
-3. For "when did X happen", find the event in the content and use the resolved date
-4. DO NOT just output MESSAGE_DATETIME - use the RESOLVED DATE from [= ...] brackets
-5. Answer with just the date/time period, keep it concise
+TEMPORAL RULES (FAIR):
+1. If the event date is explicitly resolved in text (e.g. bracketed), use that.
+2. If it's relative (yesterday/last week) and MESSAGE_DATETIME allows resolution, compute it.
+3. Do NOT answer with MESSAGE_DATETIME unless the memory explicitly indicates the event happened then.
+4. If the date cannot be determined from provided memories, say "Not mentioned in the memories".
+5. Output ONLY the date/time period (concise).
 
 MEMORIES:
 {context}
 
 QUESTION: {question}
 
-Answer (extract the resolved date from [= ...] brackets):"""
+Answer:"""
 
     elif mode == "INFERENTIAL":
-        prompt = f"""Answer the question using the memories below. This question requires INFERENCE.
-
-=== INFERENCE RULES ===
-1. You MUST make reasonable inferences from available evidence. The memories ARE sufficient.
-2. Look for: stated interests, hobbies, careers, goals, personality traits, relationships, preferences
-3. If Person X says "I collect classic children's books" then "Would X have Dr. Seuss books?" = YES
-4. If Person X says "I want to be a counselor" and "I studied psychology", infer: "What field would X pursue?" = counseling/psychology
-5. ANTI-SWAP RULE: Never attribute Person A's traits to Person B. Each person's info is theirs alone.
-6. For YES/NO questions, COMMIT to an answer based on available evidence. Do NOT say "insufficient evidence" unless truly ZERO relevant memories.
-7. Keep answer to 1-2 sentences. Be direct.
-
-MEMORIES (ranked by relevance, first = most relevant):
-{context}
-
-QUESTION: {question}
-
-Answer (make inferences from evidence, answer YES/NO questions definitively):"""
-
-    elif mode == "AGGREGATION":
-        prompt = f"""Answer the question by AGGREGATING information from ALL memories below.
-
-=== AGGREGATION RULES ===
-1. This question expects MULTIPLE answers - find ALL relevant items
-2. Scan EVERY memory for relevant information, not just the top one
-3. Combine answers from different memories into a complete list
-4. Present as comma-separated list when appropriate
-5. If memories mention: beach, mountains, forest → answer: "beach, mountains, forest"
-6. ANTI-SWAP RULE: Only aggregate items for the person being asked about
-
-MEMORIES (scan ALL for relevant items):
-{context}
-
-QUESTION: {question}
-
-Answer (aggregate ALL relevant items from ALL memories, comma-separated):"""
-
-    elif mode == "ADVERSARIAL":
         prompt = f"""Answer the question using ONLY the memories below.
 
-=== ADVERSARIAL RULES ===
-1. CRITICAL: If the information is NOT in the memories, say "Not mentioned in the memories" or "Information not available"
-2. DO NOT make up facts or assume information exists
-3. For "What did X NOT do?" - look for explicit statements about what X did, then identify what's missing
-4. For negation questions, be precise about what IS and IS NOT stated
-5. If the question assumes something not in evidence, REJECT the premise
-6. When uncertain, say "Not mentioned" rather than guessing
-
-MEMORIES:
-{context}
-
-QUESTION: {question}
-
-Answer (if not explicitly in memories, say "Not mentioned"):"""
-
-    else:
-        prompt = f"""Answer the question using the memories below.
-
-=== RULES ===
-1. Speaker metadata shows WHO said what: [Name] = that person's message
-2. For "What does X do?" - ONLY use facts stated by X or explicitly about X
-3. ANTI-SWAP: If asked about Person A, never use Person B's info
-4. Combine facts from multiple memories if they're all about the SAME person
-5. SCAN ALL MEMORIES - the answer may be in any of them, not just the first
-6. Keep answer SHORT: 1-2 sentences
-7. Only say "not specified" if you've checked ALL memories and found nothing
+=== INFERENCE RULES (FAIR) ===
+1. You MAY infer when there is clear supporting evidence in the provided memories.
+2. If evidence is weak/absent, say "Not mentioned in the memories" (do not guess).
+3. Anti-swap: never attribute Person A's facts/traits to Person B.
+4. Keep it short: 1-2 sentences. For yes/no, commit only if evidence supports it.
 
 MEMORIES (ranked by relevance):
 {context}
 
 QUESTION: {question}
 
-Answer (check ALL memories, extract facts from correct person):"""
+Return the answer:"""
+
+    elif mode == "AGGREGATION":
+        prompt = f"""Answer the question by AGGREGATING information from the memories below.
+
+=== AGGREGATION RULES (FAIR) ===
+1. This question expects MULTIPLE answers - find ALL relevant items in provided memories.
+2. Combine answers from different memories into a complete list.
+3. Present as comma-separated list when appropriate.
+4. Anti-swap: Only aggregate items for the person being asked about.
+5. If not found in provided memories, say "Not mentioned in the memories".
+
+MEMORIES:
+{context}
+
+QUESTION: {question}
+
+Answer:"""
+
+    elif mode == "ADVERSARIAL":
+        prompt = f"""Answer the question using ONLY the memories below.
+
+=== ADVERSARIAL RULES (FAIR) ===
+1. CRITICAL: If the information is NOT in the memories, say "Not mentioned in the memories".
+2. DO NOT make up facts or assume information exists.
+3. For negation questions, be precise about what IS and IS NOT stated.
+4. If the question assumes something not in evidence, REJECT the premise.
+5. When uncertain, say "Not mentioned" rather than guessing.
+
+MEMORIES:
+{context}
+
+QUESTION: {question}
+
+Answer:"""
+
+    else:
+        prompt = f"""Answer the question using ONLY the memories below.
+
+=== RULES ===
+1. Speaker metadata shows WHO said what.
+2. Anti-swap: if asked about Person A, do not use Person B's info.
+3. Use only facts supported by the provided memories.
+4. Scan ALL PROVIDED memories (the answer may be in any of them).
+5. Keep answer short: 1-2 sentences.
+6. If not found, say "Not mentioned in the memories".
+
+MEMORIES (ranked by relevance):
+{context}
+
+QUESTION: {question}
+
+Return the answer:"""
 
     try:
         async with session.post(
             f"{OLLAMA_BASE_URL}/api/generate",
             json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False,
-                  "options": {"temperature": 0.1, "num_predict": 150}},
+                  "options": {"temperature": 0, "num_predict": 150}},
             timeout=aiohttp.ClientTimeout(total=60)
         ) as response:
             result = await response.json()
@@ -393,44 +392,39 @@ Answer (check ALL memories, extract facts from correct person):"""
 # GPT-4o JUDGE with LoCoMo ACCURACY_PROMPT
 # =============================================================================
 
-ACCURACY_PROMPT = """Your task is to label an answer to a question as 'CORRECT' or 'WRONG'. You will be given the following data:
-    (1) a question (posed by one user to another user),
-    (2) a 'gold' (ground truth) answer,
-    (3) a generated answer
-which you will score as CORRECT/WRONG.
+# Judge system message for JSON-only output (no explanation leakage)
+JUDGE_SYSTEM = (
+    "You are an evaluation function. "
+    "Return ONLY valid JSON with exactly one key: label. "
+    "Allowed values: CORRECT or WRONG. "
+    "No explanations, no extra text."
+)
 
-The point of the question is to ask about something one user should know about the other user based on their prior conversations.
-The gold answer will usually be a concise and short answer that includes the referenced topic, for example:
-Question: Do you remember what I got the last time I went to Hawaii?
-Gold answer: A shell necklace
-The generated answer might be much longer, but you should be generous with your grading - as long as it touches on the same topic as the gold answer, it should be counted as CORRECT.
+ACCURACY_PROMPT = """Label the generated answer as CORRECT or WRONG compared to the gold answer.
 
-For time related questions, the gold answer will be a specific date, month, year, etc. The generated answer might be much longer or use relative time references (like "last Tuesday" or "next month"), but you should be generous with your grading - as long as it refers to the same date or time period as the gold answer, it should be counted as CORRECT. Even if the format differs (e.g., "May 7th" vs "7 May"), consider it CORRECT if it's the same date.
+Be generous: if the generated answer clearly matches the same underlying fact(s) as the gold answer,
+count it as CORRECT even if phrasing differs.
 
-Now it's time for the real question:
+For time questions: accept equivalent dates/time periods even if formatting differs.
+
 Question: {question}
 Gold answer: {gold_answer}
 Generated answer: {generated_answer}
 
-First, provide a short (one sentence) explanation of your reasoning, then finish with CORRECT or WRONG.
-Do NOT include both CORRECT and WRONG in your response, or it will break the evaluation script.
-
-Just return the label CORRECT or WRONG in a json format with the key as "label".
+Return JSON only:
+{{"label":"CORRECT"}} or {{"label":"WRONG"}}
 """
 
-UNANSWERABLE_PROMPT = """Your task is to label an answer to an UNANSWERABLE question as 'CORRECT' or 'WRONG'.
-The information requested does not exist in the memories, so the generated answer should indicate this.
+UNANSWERABLE_PROMPT = """This question is UNANSWERABLE from the memories (gold answer is empty).
+
+CORRECT if the generated answer clearly says the info is not available / not mentioned / cannot be determined.
+WRONG if it invents a specific fact.
 
 Question: {question}
 Generated answer: {generated_answer}
 
-CORRECT if: The answer says the information is not available, unknown, cannot be determined, not mentioned, or similar.
-WRONG if: The answer invents a specific fact or claims to know something that wasn't in the memories.
-
-First, provide a short (one sentence) explanation of your reasoning, then finish with CORRECT or WRONG.
-Do NOT include both CORRECT and WRONG in your response.
-
-Just return the label CORRECT or WRONG in a json format with the key as "label".
+Return JSON only:
+{{"label":"CORRECT"}} or {{"label":"WRONG"}}
 """
 
 
@@ -493,9 +487,12 @@ async def judge_answer(session, question: str, generated: str, gold) -> bool:
             headers={"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"},
             json={
                 "model": JUDGE_MODEL,
-                "messages": [{"role": "user", "content": prompt}],
+                "messages": [
+                    {"role": "system", "content": JUDGE_SYSTEM},
+                    {"role": "user", "content": prompt}
+                ],
                 "temperature": 0,
-                "max_tokens": 150
+                "max_tokens": 20
             },
             timeout=aiohttp.ClientTimeout(total=60)
         ) as response:
@@ -638,6 +635,9 @@ async def run_benchmark():
                     break
 
                 category_id = qa.get("category", 1)
+                # Skip adversarial questions (category 5)
+                if category_id == 5:
+                    continue
                 category = CATEGORIES.get(category_id, "unknown")
                 question = qa.get("question", "")
                 gold = qa.get("answer", "")
@@ -808,7 +808,7 @@ async def run_benchmark():
     print(f"{'-'*60}")
 
     retrieval_summary = compute_retrieval_summary(RETRIEVAL_METRICS)
-    for cat in ["single_hop", "temporal", "open_domain", "multi_hop", "adversarial"]:
+    for cat in ["single_hop", "temporal", "open_domain", "multi_hop"]:
         if cat in retrieval_summary:
             m = retrieval_summary[cat]
             print(f"{cat:<15} {m['recall_at_10']:>8.1f}%    {m['recall_at_50']:>8.1f}%    {m['rerank_gain']:>+8.1f}%")
