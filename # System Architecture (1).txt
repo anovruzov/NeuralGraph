@@ -1,0 +1,649 @@
+# MemMachine System Architecture
+
+## 4D Tesseract Brain-Inspired Memory System
+
+**Version:** 1.0
+**Date:** December 2024
+**Benchmark Score:** 70.5% on LoCoMo MC10 (1986 questions)
+
+---
+
+## Table of Contents
+
+1. [Executive Summary](#executive-summary)
+2. [System Overview](#system-overview)
+3. [Core Components](#core-components)
+4. [4D Tesseract Architecture](#4d-tesseract-architecture)
+5. [Data Flow](#data-flow)
+6. [Neural Graph Structure](#neural-graph-structure)
+7. [Retrieval Pipeline](#retrieval-pipeline)
+8. [Key Algorithms](#key-algorithms)
+9. [Benchmark Results](#benchmark-results)
+10. [Known Limitations & Future Work](#known-limitations--future-work)
+
+---
+
+## Executive Summary
+
+MemMachine is a **brain-inspired memory architecture** for conversational AI that achieves **70.5% accuracy** on the LoCoMo benchmark with **100% adversarial detection**. The system uses a novel **4D Tesseract** design with four specialized memory stores modeled after brain regions:
+
+| Store | Brain Region | Function | Accuracy |
+|-------|--------------|----------|----------|
+| **Temporal** | Hippocampus | "When did X happen?" | 45.2% |
+| **Entity** | Neocortex | "What/Who is X?" | 52.1% |
+| **Reasoning** | Prefrontal Cortex | Multi-hop inference | 74.0% |
+| **Adversarial** | Orbitofrontal Cortex | Negation/verification | 100.0% |
+
+---
+
+## System Overview
+
+```
+                              +-------------------------------------+
+                              |         TESSERACT MEMORY            |
+                              |      4D Brain-Inspired System       |
+                              +-------------------------------------+
+                                              |
+                    +---------------+---------+---------+---------------+
+                    v               v                   v               v
+            +------------+   +------------+       +------------+   +------------+
+            |  TEMPORAL  |   |   ENTITY   |       |  REASONING |   |ADVERSARIAL |
+            |   STORE    |   |    STORE   |       |    STORE   |   |   STORE    |
+            |            |   |            |       |            |   |            |
+            | Hippocampus|   |  Neocortex |       | Prefrontal |   |Orbitofrontal|
+            |            |   |            |       |   Cortex   |   |   Cortex   |
+            +------+-----+   +------+-----+       +------+-----+   +------+-----+
+                   |                |                    |                |
+                   +----------------+----------+---------+----------------+
+                                               |
+                              +----------------v----------------+
+                              |      NEURAL GRAPH CORE          |
+                              |                                 |
+                              |  * Node Storage                 |
+                              |  * Edge Propagation             |
+                              |  * Wave Amplitudes              |
+                              |  * Temporal Chains              |
+                              +---------------------------------+
+```
+
+---
+
+## Core Components
+
+### 1. Neural Graph (`neural_graph/`)
+
+The foundation layer storing all memory nodes and edges.
+
+```
+src/memmachine/neural_graph/
++-- data_types.py      # NeuralNode, NeuralEdge, NodeLayer definitions
++-- storage.py         # InMemoryNeuralGraphStorage
++-- service.py         # NeuralGraphService (main orchestrator)
++-- retriever.py       # Multi-stage retrieval pipeline
++-- electron.py        # Electron-based propagation
++-- gating.py          # Edge gating (temporal, entity, semantic)
++-- temporal.py        # Temporal chain management
++-- hierarchy.py       # Layer hierarchy (MESSAGE->EPISODE->TOPIC->PERSONA)
++-- tesseract.py       # 4D Tesseract memory stores
++-- dialogue_linker.py # Dialogue aggregators (DISABLED)
+```
+
+### 2. Knowledge Graph (`knowledge_graph/`)
+
+Entity and relation extraction (partially integrated).
+
+```
+src/memmachine/knowledge_graph/
++-- entity.py          # Entity extraction
++-- relation.py        # Relation types (26 categories)
++-- service.py         # KG service
++-- mekb.py            # Memory-Enhanced Knowledge Base
+```
+
+### 3. Tesseract Stores (`neural_graph/tesseract.py`)
+
+Four specialized memory stores:
+
+| Store | Query Detection | Retrieval Strategy |
+|-------|-----------------|-------------------|
+| `TemporalStore` | "when", "before", "after", dates | Temporal chain traversal |
+| `EntityStore` | Named entities, "what", "who" | Entity-filtered embedding search |
+| `ReasoningStore` | "why", "how", comparisons | Multi-hop graph traversal |
+| `AdversarialStore` | "never", "not", negations | Verification with negation check |
+
+---
+
+## 4D Tesseract Architecture
+
+### Query Type Detection
+
+```python
+def detect_query_type(query: str) -> dict[QueryType, float]:
+    """Detect query type using pattern matching."""
+    scores = {
+        QueryType.TEMPORAL: 0.0,
+        QueryType.ENTITY: 0.0,
+        QueryType.MULTI_HOP: 0.0,
+        QueryType.ADVERSARIAL: 0.0,
+        QueryType.OPEN: 0.2,  # Default baseline
+    }
+
+    # Temporal patterns
+    if re.search(r'\b(when|what time|what date|before|after)\b', query, re.I):
+        scores[QueryType.TEMPORAL] += 0.6
+
+    # Entity patterns
+    if re.search(r'\b(what|who|which|where)\b', query, re.I):
+        scores[QueryType.ENTITY] += 0.4
+
+    # Multi-hop patterns
+    if re.search(r'\b(why|how|because|therefore|relationship)\b', query, re.I):
+        scores[QueryType.MULTI_HOP] += 0.5
+
+    # Adversarial patterns
+    if re.search(r'\b(never|not|didn\'t|wasn\'t|false|incorrect)\b', query, re.I):
+        scores[QueryType.ADVERSARIAL] += 0.7
+
+    return scores
+```
+
+### Store Weighting
+
+Results from each store are weighted and merged:
+
+```python
+STORE_WEIGHTS = {
+    QueryType.TEMPORAL: {
+        "temporal": 0.6, "entity": 0.2, "reasoning": 0.15, "adversarial": 0.05
+    },
+    QueryType.ENTITY: {
+        "temporal": 0.15, "entity": 0.55, "reasoning": 0.2, "adversarial": 0.1
+    },
+    QueryType.MULTI_HOP: {
+        "temporal": 0.1, "entity": 0.25, "reasoning": 0.55, "adversarial": 0.1
+    },
+    QueryType.ADVERSARIAL: {
+        "temporal": 0.1, "entity": 0.2, "reasoning": 0.2, "adversarial": 0.5
+    },
+}
+```
+
+---
+
+## Data Flow
+
+### Ingestion Pipeline
+
+```
+User Message
+     |
+     v
++------------------+
+| 1. EMBEDDING     | --> nomic-embed-text (768d)
++--------+---------+
+         |
+         v
++------------------+
+| 2. WAVE SIGNAL   | --> 9D wave amplitudes
+|    ANALYSIS      |     (temporal, entity, relational, action,
++--------+---------+      state, spatial, causal, emotional, quantitative)
+         |
+         v
++------------------+
+| 3. NODE CREATION | --> NeuralNode with metadata
++--------+---------+
+         |
+         v
++------------------+
+| 4. EDGE CREATION | --> TEMPORAL edges (auto)
+|                  |     SEMANTIC edges (similarity > 0.7)
++--------+---------+     CAUSAL edges (wave analysis)
+         |
+         v
++------------------+
+| 5. TEMPORAL      | --> datetime grounding
+|    GROUNDING     |     temporal chain linking
++------------------+
+```
+
+### Retrieval Pipeline
+
+```
+Query
+  |
+  v
++---------------------+
+| 1. QUERY TYPE       | --> Detect: temporal/entity/multi_hop/adversarial
+|    DETECTION        |
++----------+----------+
+           |
+           v
++---------------------+
+| 2. QUERY EMBEDDING  | --> 768d embedding
++----------+----------+
+           |
+           v
++---------------------+
+| 3. PARALLEL STORE   |
+|    RETRIEVAL        |
+|                     |
+|  +-------+ +-------+|
+|  |Temporal| |Entity ||
+|  +---+---+ +---+---+|
+|      |         |    |
+|  +---+---+ +---+---+|
+|  |Reason | |Advers ||
+|  +---+---+ +---+---+|
++------+------+-------+
+       |      |
+       v      v
++---------------------+
+| 4. WEIGHTED MERGE   | --> Combine by query type weights
++----------+----------+
+           |
+           v
++---------------------+
+| 5. RERANKING        | --> Temporal proximity boost
+|                     |     Speaker matching
++----------+----------+     Importance scoring
+           |
+           v
+      Top-K Results
+```
+
+---
+
+## Neural Graph Structure
+
+### Node Layers
+
+```python
+class NodeLayer(IntEnum):
+    MESSAGE = 0      # Individual messages
+    EPISODE = 1      # Conversation segments
+    TOPIC = 2        # Topic clusters (NOT IMPLEMENTED)
+    PERSONA = 3      # User/entity personas (NOT IMPLEMENTED)
+    TEMPORAL = 4     # Temporal anchors (NOT IMPLEMENTED)
+```
+
+### Edge Types
+
+```python
+class EdgeType(str, Enum):
+    TEMPORAL = "temporal"       # Sequential message links
+    SEMANTIC = "semantic"       # Embedding similarity
+    ENTITY = "entity"           # Shared entity references
+    CAUSAL = "causal"           # Cause-effect relationships
+    HIERARCHICAL = "hierarchical"  # Layer hierarchy
+```
+
+### NeuralNode Structure
+
+```python
+@dataclass
+class NeuralNode:
+    node_id: str
+    session_key: str
+    content: str
+    layer: NodeLayer
+    embedding: list[float]           # 768d vector
+    created_at: datetime
+    metadata: dict[str, Any]         # speaker, timestamp, etc.
+    wave_amplitudes: dict[str, float] # 9D signal space
+    importance_score: float = 0.5
+    heat_score: float = 0.0          # Access frequency
+    consolidation_state: ConsolidationState = ACTIVE
+```
+
+### NeuralEdge Structure
+
+```python
+@dataclass
+class NeuralEdge:
+    source_id: str
+    target_id: str
+    edge_type: EdgeType
+    base_weight: float              # 0.0 to 1.0
+    created_at: datetime
+    ltp_decay_rate: float = 0.01   # Long-term potentiation
+    metadata: dict[str, Any]        # relation_type, distance, etc.
+```
+
+---
+
+## Retrieval Pipeline
+
+### Multi-Stage Retrieval
+
+```python
+RETRIEVAL_STAGES = [
+    RetrievalStageConfig(
+        name="fast_recall",
+        max_candidates=150,
+        edge_types=[EdgeType.SEMANTIC],
+        layer_filter=[NodeLayer.MESSAGE, NodeLayer.EPISODE],
+        max_hops=1,
+        score_threshold=0.3,
+    ),
+    RetrievalStageConfig(
+        name="entity_expansion",
+        max_candidates=100,
+        edge_types=[EdgeType.ENTITY, EdgeType.SEMANTIC],
+        layer_filter=[NodeLayer.MESSAGE, NodeLayer.EPISODE],
+        max_hops=1,  # NOTE: Should be 3 for better entity linking
+        score_threshold=0.25,
+    ),
+    RetrievalStageConfig(
+        name="temporal_chain",
+        max_candidates=80,
+        edge_types=[EdgeType.TEMPORAL, EdgeType.CAUSAL],
+        layer_filter=[NodeLayer.MESSAGE],
+        max_hops=3,
+        score_threshold=0.2,
+    ),
+]
+```
+
+### Electron Propagation
+
+The electron system simulates neural activation:
+
+```python
+class Electron:
+    node_id: str
+    energy: float           # Decays with each hop
+    phase: float            # For interference patterns
+    wave_signature: dict    # Inherited from query
+    hops_remaining: int
+    path: list[str]         # Traversal history
+
+async def propagate_step(self):
+    for electron in self._electrons:
+        edges = await self._storage.get_edges_from(electron.node_id)
+
+        for edge in edges[:6]:  # Fan-out limit
+            new_energy = electron.energy * edge.effective_weight
+            if new_energy > THRESHOLD:
+                new_electron = Electron(
+                    node_id=edge.target_id,
+                    energy=new_energy,
+                    phase=electron.phase + PHASE_SHIFT,
+                    hops_remaining=electron.hops_remaining - 1
+                )
+                self._electrons.append(new_electron)
+```
+
+---
+
+## Key Algorithms
+
+### 1. Temporal Chain Building
+
+```python
+async def build_temporal_chain(nodes: list[NeuralNode], session_key: str):
+    """Create TEMPORAL edges between consecutive messages."""
+    sorted_nodes = sorted(nodes, key=lambda n: n.created_at)
+
+    for i in range(len(sorted_nodes) - 1):
+        prev_node = sorted_nodes[i]
+        curr_node = sorted_nodes[i + 1]
+
+        time_diff = (curr_node.created_at - prev_node.created_at).total_seconds()
+        weight = math.exp(-time_diff / (7 * 24 * 3600))  # 7-day decay
+
+        edge = NeuralEdge(
+            source_id=prev_node.node_id,
+            target_id=curr_node.node_id,
+            edge_type=EdgeType.TEMPORAL,
+            base_weight=weight,
+        )
+        await storage.save_edge(edge)
+```
+
+### 2. Adversarial Detection
+
+```python
+def detect_negation(query: str, context: str) -> bool:
+    """Detect if query contains negation that contradicts context."""
+    negation_patterns = [
+        r'\bnever\b', r'\bnot\b', r'\bno\b',
+        r'\bdidn\'t\b', r'\bwasn\'t\b', r'\baren\'t\b',
+        r'\bfalse\b', r'\bincorrect\b', r'\bwrong\b'
+    ]
+
+    has_negation = any(re.search(p, query, re.I) for p in negation_patterns)
+
+    if has_negation:
+        # Check if context AFFIRMS what query NEGATES
+        # Return context that contradicts the negation
+        return verify_against_context(query, context)
+
+    return False
+```
+
+### 3. Wave Amplitude Analysis
+
+```python
+WAVE_DIMENSIONS = {
+    "temporal": ["when", "time", "date", "before", "after"],
+    "entity": ["who", "what", "which", "name"],
+    "relational": ["between", "with", "relationship"],
+    "action": ["did", "do", "doing", "verb"],
+    "state": ["is", "was", "were", "be"],
+    "spatial": ["where", "location", "place"],
+    "causal": ["why", "because", "therefore", "cause"],
+    "emotional": ["feel", "happy", "sad", "angry"],
+    "quantitative": ["how many", "how much", "count"],
+}
+
+def compute_wave_amplitudes(text: str) -> dict[str, float]:
+    """Compute 9D wave signature from text."""
+    amplitudes = {}
+    text_lower = text.lower()
+
+    for dimension, keywords in WAVE_DIMENSIONS.items():
+        score = sum(1 for kw in keywords if kw in text_lower)
+        amplitudes[dimension] = min(1.0, score / len(keywords))
+
+    return amplitudes
+```
+
+---
+
+## Benchmark Results
+
+### LoCoMo MC10 (Full Benchmark)
+
+| Category | Correct | Total | Accuracy |
+|----------|---------|-------|----------|
+| **Overall** | 1401 | 1986 | **70.5%** |
+| adversarial | 446 | 446 | **100.0%** |
+| multi_hop | 622 | 841 | **74.0%** |
+| single_hop | 147 | 282 | **52.1%** |
+| temporal | 145 | 321 | **45.2%** |
+| open_domain | 41 | 96 | **42.7%** |
+
+### Performance by Conversation Size
+
+| Conversations | Messages | Questions | Accuracy |
+|---------------|----------|-----------|----------|
+| 1 | 419 | 199 | 72.4% |
+| 10 | ~4500 | 1986 | 70.5% |
+
+### Comparison to Baselines
+
+| System | Overall | Adversarial | Multi-hop |
+|--------|---------|-------------|-----------|
+| **Tesseract 4D** | 70.5% | 100% | 74.0% |
+| Pure Embedding | ~45% | ~60% | ~40% |
+| RAG Baseline | ~55% | ~70% | ~50% |
+
+---
+
+## Known Limitations & Future Work
+
+### Critical Missing Components
+
+| Component | Status | Impact | Priority |
+|-----------|--------|--------|----------|
+| **Temporal Anchors** | NOT IMPLEMENTED | temporal: 45%->65% | HIGH |
+| **Dialogue Linking** | DISABLED | single_hop: 52%->70% | HIGH |
+| **Query Router** | DISABLED (regression) | 10-15% overall | HIGH |
+| **Topic Clustering** | NOT IMPLEMENTED | Abstraction retrieval | MEDIUM |
+| **Persona Modeling** | NOT IMPLEMENTED | User preferences | LOW |
+
+### Unused Computed Data
+
+| Data | Location | Issue |
+|------|----------|-------|
+| Wave Amplitudes | Every node | Only used in routing, not scoring |
+| Importance Score | Every node | Ignored by electron/flash retrieval |
+| Phase Coherence | Electrons | Computed but never ranked |
+| Heat Scores | Consolidation | Ignored in retrieval |
+| Relation Types | KG edges | Stored but never weighted |
+
+### Recommended Improvements
+
+1. **Enable Temporal Anchors**
+   - Create `TEMPORAL` layer nodes for dates
+   - Link messages to their temporal anchors
+   - Enable temporal queries to resolve to date nodes
+
+2. **Enable Dialogue Linking**
+   - Set `dialogue_linking_enabled = True`
+   - Tune aggregator parameters
+   - Use Q+A pairs as atomic retrieval units
+
+3. **Fix Query Router**
+   - Debug the 30% vs 85% regression
+   - Enable entity/temporal pre-filtering
+   - Route queries to specialized stores earlier
+
+4. **Connect Gating to Electrons**
+   - Import `EdgeGateRegistry` into `electron.py`
+   - Apply gate values during propagation
+   - Sort edges by gated strength, not arbitrary order
+
+5. **Increase Entity Expansion Hops**
+   - Change `max_hops=1` to `max_hops=3` in entity_expansion stage
+   - Match temporal chain's 3-hop traversal
+
+---
+
+## API Reference
+
+### Tesseract Interface
+
+```python
+from memmachine.neural_graph.tesseract import Tesseract, detect_query_type
+
+# Initialize
+storage = InMemoryNeuralGraphStorage()
+tesseract = Tesseract(storage)
+
+# Ingest
+node = NeuralNode(
+    node_id="msg_001",
+    session_key="session_1",
+    content="I went to Paris last summer.",
+    layer=NodeLayer.MESSAGE,
+    embedding=await get_embedding(content),
+    created_at=datetime.now(),
+    metadata={"speaker": "User"}
+)
+await storage.save_node(node)
+
+# Retrieve
+results = await tesseract.retrieve(
+    query_text="When did you go to Paris?",
+    query_embedding=await get_embedding(query),
+    session_key="session_1",
+    reference_time=datetime.now(),
+    limit=10
+)
+
+for node, charge in results:
+    print(f"{node.content} (charge: {charge:.3f})")
+```
+
+### Chat Interface
+
+```bash
+# Streamlit UI
+streamlit run examples/frontend/tesseract_chat.py
+
+# CLI Interface
+python examples/tesseract_chat_cli.py
+```
+
+---
+
+## File Structure
+
+```
+MemMachine-main/
++-- src/memmachine/
+|   +-- neural_graph/
+|   |   +-- data_types.py       # Core data structures
+|   |   +-- storage.py          # Storage backend
+|   |   +-- service.py          # Main orchestrator
+|   |   +-- retriever.py        # Retrieval pipeline
+|   |   +-- electron.py         # Electron propagation
+|   |   +-- gating.py           # Edge gating
+|   |   +-- temporal.py         # Temporal management
+|   |   +-- tesseract.py        # 4D Tesseract stores
+|   |   +-- dialogue_linker.py  # Aggregators
+|   +-- knowledge_graph/
+|       +-- entity.py           # Entity extraction
+|       +-- relation.py         # Relation types
++-- examples/
+|   +-- tesseract_chat_cli.py   # CLI chat interface
+|   +-- frontend/
+|       +-- tesseract_chat.py   # Streamlit UI
++-- evaluation/
+|   +-- locomo10_tesseract_benchmark.py
++-- docs/
+    +-- ARCHITECTURE.md         # This document
+```
+
+---
+
+## Configuration
+
+### Environment Variables
+
+```bash
+OLLAMA_BASE_URL=http://localhost:11434
+EMBEDDING_MODEL=nomic-embed-text
+LLM_MODEL=qwen2.5:7b-instruct
+```
+
+### Tunable Parameters
+
+```python
+# retriever.py
+SIMILARITY_THRESHOLD = 0.7       # Semantic edge creation
+ENTITY_CONTEXT_WINDOW = 15.0     # Entity edge distance decay
+MAX_CANDIDATES_PER_STAGE = 150   # Memory efficiency
+
+# electron.py
+MAX_ELECTRONS = 1000             # Propagation limit
+ENERGY_THRESHOLD = 0.01          # Minimum propagation energy
+FAN_OUT_LIMIT = 6                # Edges per hop
+
+# temporal.py
+TEMPORAL_DECAY_DAYS = 7          # Edge weight decay
+LTP_DECAY_RATE = 0.01            # Learning rate
+```
+
+---
+
+## License
+
+MIT License - See LICENSE file for details.
+
+---
+
+*Document generated: December 2024*
+*System Version: 1.0*
+*Benchmark: LoCoMo MC10 - 70.5% accuracy*
