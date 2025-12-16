@@ -1,0 +1,3226 @@
+{
+  "metadata": {
+    "model": "Tesseract 4D Memory",
+    "judge_model": "qwen2.5:14b-instruct",
+    "timestamp": "2025-12-16T03:00:16.443468",
+    "total_questions": 30,
+    "total_correct": 19,
+    "accuracy": 63.33,
+    "category_stats": {
+      "single_hop": {
+        "accuracy": 60.0,
+        "correct": 6,
+        "total": 10
+      },
+      "temporal": {
+        "accuracy": 68.8,
+        "correct": 11,
+        "total": 16
+      },
+      "open_domain": {
+        "accuracy": 50.0,
+        "correct": 2,
+        "total": 4
+      },
+      "multi_hop": {
+        "accuracy": 0,
+        "correct": 0,
+        "total": 0
+      },
+      "adversarial": {
+        "accuracy": 0,
+        "correct": 0,
+        "total": 0
+      }
+    },
+    "retrieval_metrics": {
+      "single_hop": {
+        "count": 10,
+        "recall_at_10": 50.0,
+        "recall_at_50": 80.0,
+        "rerank_gain": 30.0,
+        "avg_oracle_rank": 11.2,
+        "oracle_found_count": 8
+      },
+      "temporal": {
+        "count": 16,
+        "recall_at_10": 81.2,
+        "recall_at_50": 81.2,
+        "rerank_gain": 0.0,
+        "avg_oracle_rank": 1.2,
+        "oracle_found_count": 13
+      },
+      "open_domain": {
+        "count": 4,
+        "recall_at_10": 75.0,
+        "recall_at_50": 100.0,
+        "rerank_gain": 25.0,
+        "avg_oracle_rank": 11.5,
+        "oracle_found_count": 4
+      }
+    },
+    "latency_metrics": {
+      "total_count": 30,
+      "answer_gen": {
+        "mean_ms": 399.1,
+        "p50_ms": 369.9,
+        "p90_ms": 557.6,
+        "p99_ms": 783.1
+      },
+      "retrieval": {
+        "count": 30,
+        "mean_ms": 70.5,
+        "p50_ms": 58.5,
+        "p90_ms": 69.3
+      },
+      "rerank": {
+        "count": 30,
+        "mean_ms": 1215.4,
+        "p50_ms": 1181.3,
+        "p90_ms": 1402.7
+      },
+      "by_category": {
+        "temporal": {
+          "count": 16,
+          "mean_ms": 404.1,
+          "p50_ms": 377.6,
+          "p90_ms": 486.4
+        },
+        "open_domain": {
+          "count": 4,
+          "mean_ms": 476.4,
+          "p50_ms": 530.6,
+          "p90_ms": 557.6
+        },
+        "single_hop": {
+          "count": 10,
+          "mean_ms": 360.2,
+          "p50_ms": 363.0,
+          "p90_ms": 561.4
+        }
+      }
+    }
+  },
+  "results": [
+    {
+      "id": 1,
+      "conversation": 1,
+      "category": "temporal",
+      "question": "When did Caroline go to the LGBTQ support group?",
+      "generated_answer": "7 May 2023",
+      "gold_answer": "7 May 2023",
+      "correct": true,
+      "latency_ms": 364.8,
+      "retrieval_ms": 406.0,
+      "rerank_ms": 1139.3,
+      "retrieved_memories": [
+        {
+          "speaker": "Caroline",
+          "text": "I went to a LGBTQ support group yesterday [= 7 May 2023] and it was so powerful.",
+          "datetime": "1:56 pm on 8 May, 2023",
+          "charge": 0.893
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Thanks, Caroline. They're a real support. Appreciate them a lot.",
+          "datetime": "6:55 pm on 20 October, 2023",
+          "charge": 0.387
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie! It's awesome to have our own platform to be ourselves and support others' rights. Our group, 'Connected LGBTQ Activists', is made of all kinds of people investing in positive changes. We have regular meetings, plan events and campaigns, to get together and support each other.",
+          "datetime": "8:56 pm on 20 July, 2023",
+          "charge": 0.648
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Hey Mel! How're ya doin'? Recently, I had a not-so-great experience on a hike. I ran into a group of religious conservatives who said something that really upset me. It made me think how much work we still have to do for LGBTQ rights. It's been so helpful to have people around me who accept and supp",
+          "datetime": "1:50 pm on 17 August, 2023",
+          "charge": 0.646
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, Caroline, your group sounds awesome! Supporting each other and making good things happen - that's so inspiring! Have you been part of any events or campaigns lately?",
+          "datetime": "8:56 pm on 20 July, 2023",
+          "charge": 0.643
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie. It really mattered. My own journey and the support I got made a huge difference. Now I want to help people go through it too. I saw how counseling and support groups improved my life, so I started caring more about mental health and understanding myself. Now I'm passionate about cre",
+          "datetime": "10:37 am on 27 June, 2023",
+          "charge": 0.593
+        },
+        {
+          "speaker": "Caroline",
+          "text": "I'm definitely carrying on volunteering at the youth center. It's an important part of my life and I've made strong connections with people there. I really believe in community and supporting each other. So I wanna keep making a difference.",
+          "datetime": "3:19 pm on 28 August, 2023",
+          "charge": 0.586
+        },
+        {
+          "speaker": "Caroline",
+          "text": "I'm inspired seeing my work make a difference for the LGBTQ+ community. Knowing I'm helping create a more loving world is amazing. I'm really thankful for my friends, family and mentors' support. It inspires me to keep making art, too.",
+          "datetime": "12:09 am on 13 September, 2023",
+          "charge": 0.583
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, Caroline, sounds like the parade was an awesome experience! It's great to see the love and support for the LGBTQ+ community. Congrats! Has this experience influenced your goals at all?",
+          "datetime": "1:36 pm on 3 July, 2023",
+          "charge": 0.555
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, Caroline, that sounds awesome! So glad you felt accepted and supported. Events like these are great for reminding us of how strong community can be!",
+          "datetime": "4:33 pm on 12 July, 2023",
+          "charge": 0.549
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, Caroline, that's awesome. Giving a home to needy kids is such a loving way to build a family. Those kids will be so supported and happy in their new home.",
+          "datetime": "9:55 am on 22 October, 2023",
+          "charge": 0.546
+        },
+        {
+          "speaker": "Caroline",
+          "text": "The support group has made me feel accepted and given me courage to embrace myself.",
+          "datetime": "1:56 pm on 8 May, 2023",
+          "charge": 0.506
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Yeah, I'm really lucky to have them. They've been there through everything, I've known these friends for 4 years, since I moved from my home country. Their love and help have been so important especially after that tough breakup. I'm super thankful. Who supports you, Mel?",
+          "datetime": "7:55 pm on 9 June, 2023",
+          "charge": 0.502
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Mel! Your backing really means a lot. I felt super powerful giving my talk. I shared my own journey, the struggles I had and how much I've developed since coming out. It was wonderful to see how the audience related to what I said and how it inspired them to be better allies. Conversations a",
+          "datetime": "7:55 pm on 9 June, 2023",
+          "charge": 0.502
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie. It's definitely changed them. Some close friends kept supporting me, but a few weren't able to handle it. It wasn't easy, but I'm much happier being around those who accept and love me. Now my relationships feel more genuine.",
+          "datetime": "12:09 am on 13 September, 2023",
+          "charge": 0.502
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "conversation": 1,
+      "category": "temporal",
+      "question": "When did Melanie paint a sunrise?",
+      "generated_answer": "2022",
+      "gold_answer": 2022,
+      "correct": true,
+      "latency_ms": 320.7,
+      "retrieval_ms": 56.6,
+      "rerank_ms": 1140.9,
+      "retrieved_memories": [
+        {
+          "speaker": "Melanie",
+          "text": "Yeah, I painted that lake sunrise last year [= 2022]! It's special to me.",
+          "datetime": "1:56 pm on 8 May, 2023",
+          "charge": 0.962
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Thanks, Caroline! I painted it because it was calming. I've done an abstract painting too, take a look! I love how art lets us get our emotions out.",
+          "datetime": "10:31 am on 13 October, 2023",
+          "charge": 0.739
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Melanie, those bowls are amazing! They each have such cool designs. I love that you chose pottery for your art. Painting and drawing have helped me express my feelings and explore my gender identity. Creating art was really important to me during my transition - it helped me understand and accept my",
+          "datetime": "12:09 am on 13 September, 2023",
+          "charge": 0.678
+        },
+        {
+          "speaker": "Melanie",
+          "text": "We love painting together lately, especially nature-inspired ones. Here's our latest work from last weekend [= 8-9 July 2023].",
+          "datetime": "1:51 pm on 15 July, 2023",
+          "charge": 0.669
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, Caroline, that painting is awesome! Those colors are so vivid and the whole thing looks really unified. What inspired you?",
+          "datetime": "2:31 pm on 17 July, 2023",
+          "charge": 0.65
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Thanks, Caroline! I'm obsessed with those, so I made something to catch the eye and make people smile. Plus, painting helps me express my feelings and be creative. Each stroke carries a part of me.",
+          "datetime": "1:50 pm on 17 August, 2023",
+          "charge": 0.636
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Your art's amazing, Caroline. I love how you use it to tell your stories and teach people about trans folks. I'd love to see another painting of yours!",
+          "datetime": "2:24 pm on 14 August, 2023",
+          "charge": 0.632
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Yeah, Here's one I did last week [= week of 2 October 2023]. It's inspired by the sunsets. The colors make me feel calm. What have you been up to lately, artistically?",
+          "datetime": "10:31 am on 13 October, 2023",
+          "charge": 0.62
+        },
+        {
+          "speaker": "Caroline",
+          "text": "I'm putting together an LGBTQ art show next month [= September 2023] and I'm gonna show my paintings. Super stoked!",
+          "datetime": "1:33 pm on 25 August, 2023",
+          "charge": 0.604
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Yay! next month [= August 2023] I'm having an LGBTQ art show with my paintings - can't wait!",
+          "datetime": "2:31 pm on 17 July, 2023",
+          "charge": 0.604
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie. Here's one- 'Embracing Identity' is all about finding comfort and love in being yourself. The woman in the painting stands for the journey of acceptance. My aim was to show warmth, love and self-acceptance.",
+          "datetime": "2:24 pm on 14 August, 2023",
+          "charge": 0.602
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Wow, Melanie, that's amazing! Love all the details and how you got the horse's grace and strength. Do you like painting animals?",
+          "datetime": "3:31 pm on 23 August, 2023",
+          "charge": 0.599
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie! I made this painting to show my path as a trans woman. The red and blue are for the binary gender system, and the mix of colors means smashing that rigid thinking. It's a reminder to love my authentic self - it's taken a while to get here but I'm finally proud of who I am.",
+          "datetime": "12:09 am on 13 September, 2023",
+          "charge": 0.598
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Wow, Melanie! The colors really blend nicely. Painting looks like a great outlet for expressing yourself.",
+          "datetime": "1:56 pm on 8 May, 2023",
+          "charge": 0.596
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, Caroline! This painting is awesome. Love the red and blue. What gave you the idea?",
+          "datetime": "12:09 am on 13 September, 2023",
+          "charge": 0.551
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "conversation": 1,
+      "category": "open_domain",
+      "question": "What fields would Caroline be likely to pursue in her educaton?",
+      "generated_answer": "YES. Based on the conversations, Caroline is likely to pursue fields related to counseling and mental health.",
+      "gold_answer": "Psychology, counseling certification",
+      "correct": true,
+      "latency_ms": 360.5,
+      "retrieval_ms": 65.6,
+      "rerank_ms": 1303.8,
+      "retrieved_memories": [
+        {
+          "speaker": "Melanie",
+          "text": "Woah, Caroline, it sounds like you're doing some impressive work. It's inspiring to see your dedication to helping others. What motivated you to pursue counseling?",
+          "datetime": "10:37 am on 27 June, 2023",
+          "charge": 0.473
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Glad you agree, Caroline. Appreciate the support of those close to me. Their encouragement made me who I am.",
+          "datetime": "9:55 am on 22 October, 2023",
+          "charge": 0.75
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Yep, Caroline. Life's about learning and exploring. Glad we can be on this trip together.",
+          "datetime": "10:31 am on 13 October, 2023",
+          "charge": 0.323
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Gonna continue my edu and check out career options, which is pretty exciting!",
+          "datetime": "1:56 pm on 8 May, 2023",
+          "charge": 0.206
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Mell! I'm still looking into counseling and mental health jobs. It's important to me that people have someone to talk to, and I want to help make that happen.",
+          "datetime": "4:33 pm on 12 July, 2023",
+          "charge": 0.199
+        },
+        {
+          "speaker": "Caroline",
+          "text": "I'm keen on counseling or working in mental health - I'd love to support those with similar issues.",
+          "datetime": "1:56 pm on 8 May, 2023",
+          "charge": 0.199
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Yeah, Caroline! I'll start thinking about what we can do.",
+          "datetime": "1:50 pm on 17 August, 2023",
+          "charge": 0.322
+        },
+        {
+          "speaker": "Melanie",
+          "text": "That sounds great, Caroline. Volunteering is a great way to meet people. Creating community and supporting each other, especially for kids, is really important. How did you feel about your time there? Anything that sticks out to you?",
+          "datetime": "3:19 pm on 28 August, 2023",
+          "charge": 0.313
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, Caroline! They must have felt so appreciated. It's awesome to see the difference we can make in each other's lives. Any other exciting LGBTQ advocacy stuff coming up?",
+          "datetime": "2:31 pm on 17 July, 2023",
+          "charge": 0.312
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, Caroline! You're so inspiring for wanting to help others with their mental health. What's pushing you to keep going forward with it?",
+          "datetime": "4:33 pm on 12 July, 2023",
+          "charge": 0.311
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Yes, Caroline! We can do it. Your courage is inspiring. I want to be couragous for my family- they motivate me and give me love. What motivates you?",
+          "datetime": "7:55 pm on 9 June, 2023",
+          "charge": 0.311
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, Caroline, way to go! Your future fam will get a kick out of having you. What do you think of these?",
+          "datetime": "1:51 pm on 15 July, 2023",
+          "charge": 0.31
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Thanks, Caroline! It's awesome seeing the kids get excited learning something new about nature. Those moments make being a parent worth it. We roasted marshmallows and shared stories around the campfire. Those simple moments make the best memories. What inspires you with your volunteering?",
+          "datetime": "12:09 am on 13 September, 2023",
+          "charge": 0.31
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Thanks, Caroline! I'm excited to see where pottery takes me. Anything coming up you're looking forward to?",
+          "datetime": "1:36 pm on 3 July, 2023",
+          "charge": 0.308
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Congrats, Caroline! Adoption sounds awesome. I'm so happy for you. These figurines I bought yesterday [= 21 October 2023] remind me of family love. Tell me, what's your vision for the future?",
+          "datetime": "9:55 am on 22 October, 2023",
+          "charge": 0.305
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "conversation": 1,
+      "category": "single_hop",
+      "question": "What did Caroline research?",
+      "generated_answer": "Caroline researched adoption agencies for finding a family and giving a loving home to kids who need it.",
+      "gold_answer": "Adoption agencies",
+      "correct": true,
+      "latency_ms": 363.0,
+      "retrieval_ms": 53.3,
+      "rerank_ms": 1325.7,
+      "retrieved_memories": [
+        {
+          "speaker": "Caroline",
+          "text": "Researching adoption agencies \u2014 it's been a dream to have a family and give a loving home to kids who need it.",
+          "datetime": "1:14 pm on 25 May, 2023",
+          "charge": 0.453
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Mel! I felt liberated and empowered doing it. Painting helps me explore my identity and be true to myself. It's definitely therapeutic.",
+          "datetime": "3:31 pm on 23 August, 2023",
+          "charge": 0.317
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Right, it was so much fun! We could do a family outting, or wanna plan something special for this summer, just us two? It'd be a great chance to catch up and explore nature! What do you think?",
+          "datetime": "1:50 pm on 17 August, 2023",
+          "charge": 0.31
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Hey Melanie! How's it going? I wanted to tell you about my school event last week [= week of 29 May 2023]. It was awesome! I talked about my transgender journey and encouraged students to get involved in the LGBTQ community. It was great to see their reactions. It made me reflect on how far I've com",
+          "datetime": "7:55 pm on 9 June, 2023",
+          "charge": 0.193
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Glad you agree, Caroline. Appreciate the support of those close to me. Their encouragement made me who I am.",
+          "datetime": "9:55 am on 22 October, 2023",
+          "charge": 0.75
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Thanks for the tip, Caroline. Doing research and readying myself emotionally makes sense. I'll do that. BTW, recently I had a setback. last month [= September 2023] I got hurt and had to take a break from pottery, which I use for self-expression and peace.",
+          "datetime": "10:31 am on 13 October, 2023",
+          "charge": 0.569
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Totally agree, Mel. Relaxing and expressing ourselves is key. Well, I'm off to go do some research.",
+          "datetime": "1:56 pm on 8 May, 2023",
+          "charge": 0.423
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Yep! Do your research and find an adoption agency or lawyer. They'll help with the process and provide all the info. Gather documents like references, financial info and medical checks. Don't forget to prepare emotionally, since the wait can be hard. It's all worth it in the end though.",
+          "datetime": "10:31 am on 13 October, 2023",
+          "charge": 0.413
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Caroline, awesome news that you two are getting along! What was it like for you both? Care to fill me in?",
+          "datetime": "2:31 pm on 17 July, 2023",
+          "charge": 0.317
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Thanks, Caroline! Family time matters to me. What's up with you lately?",
+          "datetime": "10:37 am on 27 June, 2023",
+          "charge": 0.317
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Yes, Caroline! We can do it. Your courage is inspiring. I want to be couragous for my family- they motivate me and give me love. What motivates you?",
+          "datetime": "7:55 pm on 9 June, 2023",
+          "charge": 0.315
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, Caroline! Sorry that happened to you. It's tough when those things happen, but it's great you apologized. Takes a lot of courage and maturity! What do you think of this?",
+          "datetime": "1:33 pm on 25 August, 2023",
+          "charge": 0.315
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Sounds great, Mel. Glad you made some new family mems. How was it? Anything fun?",
+          "datetime": "10:37 am on 27 June, 2023",
+          "charge": 0.193
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Congrats Caroline! Good on you for going after what you really care about.",
+          "datetime": "10:37 am on 27 June, 2023",
+          "charge": 0.328
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Hey Caroline! Good to talk to you again. What's up? Anything new since last time?",
+          "datetime": "8:56 pm on 20 July, 2023",
+          "charge": 0.32
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "conversation": 1,
+      "category": "single_hop",
+      "question": "What is Caroline's identity?",
+      "generated_answer": "Caroline identifies as part of the LGBTQ community and is supportive of transgender rights. She has gone through a journey of self-acceptance and uses art, such as painting and drawing, to explore her gender identity.",
+      "gold_answer": "Transgender woman",
+      "correct": true,
+      "latency_ms": 530.0,
+      "retrieval_ms": 53.0,
+      "rerank_ms": 1402.7,
+      "retrieved_memories": [
+        {
+          "speaker": "Caroline",
+          "text": "Yeah, that's true! It's so freeing to just be yourself and live honestly. We can really accept who we are and be content.",
+          "datetime": "9:55 am on 22 October, 2023",
+          "charge": 0.471
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie. Art gives me a sense of freedom, but so does having supportive people around, promoting LGBTQ rights and being true to myself. I want to live authentically and help others to do the same.",
+          "datetime": "3:31 pm on 23 August, 2023",
+          "charge": 0.47
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Mel. Finding self-acceptance was a long process, but now I'm ready to offer love and support to those who need it. It's empowering to make a positive difference in someone's life.",
+          "datetime": "9:55 am on 22 October, 2023",
+          "charge": 0.467
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Glad you agree, Caroline. Appreciate the support of those close to me. Their encouragement made me who I am.",
+          "datetime": "9:55 am on 22 October, 2023",
+          "charge": 0.911
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Mel! I felt liberated and empowered doing it. Painting helps me explore my identity and be true to myself. It's definitely therapeutic.",
+          "datetime": "3:31 pm on 23 August, 2023",
+          "charge": 0.573
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie. Here's one- 'Embracing Identity' is all about finding comfort and love in being yourself. The woman in the painting stands for the journey of acceptance. My aim was to show warmth, love and self-acceptance.",
+          "datetime": "2:24 pm on 14 August, 2023",
+          "charge": 0.572
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Mel! Your backing really means a lot. I felt super powerful giving my talk. I shared my own journey, the struggles I had and how much I've developed since coming out. It was wonderful to see how the audience related to what I said and how it inspired them to be better allies. Conversations a",
+          "datetime": "7:55 pm on 9 June, 2023",
+          "charge": 0.561
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Melanie, those bowls are amazing! They each have such cool designs. I love that you chose pottery for your art. Painting and drawing have helped me express my feelings and explore my gender identity. Creating art was really important to me during my transition - it helped me understand and accept my",
+          "datetime": "12:09 am on 13 September, 2023",
+          "charge": 0.548
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie. It means a lot to share this with you.",
+          "datetime": "2:24 pm on 14 August, 2023",
+          "charge": 0.477
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Hey Melanie! Just wanted to say hi!",
+          "datetime": "8:56 pm on 20 July, 2023",
+          "charge": 0.471
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Totally agree, Mel. Relaxing and expressing ourselves is key. Well, I'm off to go do some research.",
+          "datetime": "1:56 pm on 8 May, 2023",
+          "charge": 0.471
+        },
+        {
+          "speaker": "Caroline",
+          "text": "I loved \"Becoming Nicole\" by Amy Ellis Nutt. It's a real inspiring true story about a trans girl and her family. It made me feel connected and gave me a lot of hope for my own path. Highly recommend it for sure!",
+          "datetime": "4:33 pm on 12 July, 2023",
+          "charge": 0.468
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie! It's awesome to have our own platform to be ourselves and support others' rights. Our group, 'Connected LGBTQ Activists', is made of all kinds of people investing in positive changes. We have regular meetings, plan events and campaigns, to get together and support each other.",
+          "datetime": "8:56 pm on 20 July, 2023",
+          "charge": 0.467
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Painting's great for expressing myself. I love creating art! Here's a recent self-portrait I made last week [= week of 14 August 2023].",
+          "datetime": "3:31 pm on 23 August, 2023",
+          "charge": 0.467
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Mel! Glad you like it. It's a symbol of togetherness, to celebrate differences and be that much closer. I'd love to make something like this next!",
+          "datetime": "1:33 pm on 25 August, 2023",
+          "charge": 0.467
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "conversation": 1,
+      "category": "temporal",
+      "question": "When did Melanie run a charity race?",
+      "generated_answer": "20 May 2023",
+      "gold_answer": "The sunday before 25 May 2023",
+      "correct": false,
+      "latency_ms": 365.4,
+      "retrieval_ms": 61.9,
+      "rerank_ms": 1119.0,
+      "retrieved_memories": [
+        {
+          "speaker": "Melanie",
+          "text": "Hey Caroline, since we last chatted, I've had a lot of things happening to me. I ran a charity race for mental health last saturday [= 20 May 2023] \u2013 it was really rewarding. Really made me think about taking care of our minds.",
+          "datetime": "1:14 pm on 25 May, 2023",
+          "charge": 0.905
+        },
+        {
+          "speaker": "Melanie",
+          "text": "I've been running farther to de-stress, which has been great for my headspace.",
+          "datetime": "4:33 pm on 12 July, 2023",
+          "charge": 0.408
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Yeah, it's tough. So I'm carving out some me-time each day - running, reading, or playing my violin - which refreshes me and helps me stay present for my fam!",
+          "datetime": "1:14 pm on 25 May, 2023",
+          "charge": 0.638
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie. Transitioning wasn't easy and acceptance wasn't either, but the help I got from friends, family and people I looked up to was invaluable. They boosted me through tough times and helped me find out who I really am. That's why I want to pass that same support to anyone who needs it. B",
+          "datetime": "9:55 am on 22 October, 2023",
+          "charge": 0.612
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie. It really mattered. My own journey and the support I got made a huge difference. Now I want to help people go through it too. I saw how counseling and support groups improved my life, so I started caring more about mental health and understanding myself. Now I'm passionate about cre",
+          "datetime": "10:37 am on 27 June, 2023",
+          "charge": 0.612
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Wow, Melanie, that's amazing! Love all the details and how you got the horse's grace and strength. Do you like painting animals?",
+          "datetime": "3:31 pm on 23 August, 2023",
+          "charge": 0.609
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Cool, Melanie! Running can really boost your mood. Keep it up!",
+          "datetime": "4:33 pm on 12 July, 2023",
+          "charge": 0.607
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Hey Melanie! How's it going? I wanted to tell you about my school event last week [= week of 29 May 2023]. It was awesome! I talked about my transgender journey and encouraged students to get involved in the LGBTQ community. It was great to see their reactions. It made me reflect on how far I've com",
+          "datetime": "7:55 pm on 9 June, 2023",
+          "charge": 0.579
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, Caroline, your group sounds awesome! Supporting each other and making good things happen - that's so inspiring! Have you been part of any events or campaigns lately?",
+          "datetime": "8:56 pm on 20 July, 2023",
+          "charge": 0.559
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Hey Caroline! Since we last spoke, I took my kids to a park yesterday [= 27 August 2023]. They had fun exploring and playing. It was nice seeing them have a good time outdoors. Time flies, huh? What's new with you?",
+          "datetime": "3:19 pm on 28 August, 2023",
+          "charge": 0.552
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Luna and Oliver! They are so sweet and playful - they really liven up the house! Just got some new shoes, too!",
+          "datetime": "4:33 pm on 12 July, 2023",
+          "charge": 0.55
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Oliver's hilarious! He hid his bone in my slipper once! Cute, right? Almost as silly as when I got to feed a horse a carrot. ",
+          "datetime": "3:31 pm on 23 August, 2023",
+          "charge": 0.55
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Hey Mel, great to chat with you again! So much has happened since we last spoke - I went to an LGBTQ conference two days ago [= 10 July 2023] and it was really special. I got the chance to meet and connect with people who've gone through similar journeys. It was such a welcoming environment and I fe",
+          "datetime": "4:33 pm on 12 July, 2023",
+          "charge": 0.495
+        },
+        {
+          "speaker": "Caroline",
+          "text": "I started playing acoustic guitar about five years ago; it's been a great way to express myself and escape into my emotions.",
+          "datetime": "3:19 pm on 28 August, 2023",
+          "charge": 0.491
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Wow! What got you into running?",
+          "datetime": "4:33 pm on 12 July, 2023",
+          "charge": 0.47
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "conversation": 1,
+      "category": "temporal",
+      "question": "When is Melanie planning on going camping?",
+      "generated_answer": "June 2023",
+      "gold_answer": "June 2023",
+      "correct": true,
+      "latency_ms": 364.9,
+      "retrieval_ms": 57.6,
+      "rerank_ms": 1126.1,
+      "retrieved_memories": [
+        {
+          "speaker": "Melanie",
+          "text": "That sounds great, Caroline! It's awesome having stuff around that make us think of good connections and times. Actually, I just took my fam camping in the mountains last week [= week of 19 June 2023] - it was a really nice time together!",
+          "datetime": "10:37 am on 27 June, 2023",
+          "charge": 0.779
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie! It's awesome to have our own platform to be ourselves and support others' rights. Our group, 'Connected LGBTQ Activists', is made of all kinds of people investing in positive changes. We have regular meetings, plan events and campaigns, to get together and support each other.",
+          "datetime": "8:56 pm on 20 July, 2023",
+          "charge": 0.508
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Thanks, Caroline. It's still a work in progress, but I'm doing my best. My kids are so excited about summer break! We're thinking about going camping next month [= June 2023]. Any fun plans for the summer?",
+          "datetime": "1:14 pm on 25 May, 2023",
+          "charge": 0.998
+        },
+        {
+          "speaker": "Melanie",
+          "text": "I'll always remember our camping trip last year [= 2022] when we saw the Perseid meteor shower. It was so amazing lying there and watching the sky light up with streaks of light. We all made wishes and felt so at one with the universe. That's a memory I'll never forget.",
+          "datetime": "8:56 pm on 20 July, 2023",
+          "charge": 0.739
+        },
+        {
+          "speaker": "Melanie",
+          "text": "We always look forward to our family camping trip. We roast marshmallows, tell stories around the campfire and just enjoy each other's company. It's the highlight of our summer!",
+          "datetime": "8:56 pm on 20 July, 2023",
+          "charge": 0.695
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Absolutely! It really helps me reset and recharge. I love camping trips with my fam, 'cause nature brings such peace and serenity.",
+          "datetime": "6:55 pm on 20 October, 2023",
+          "charge": 0.693
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Hey Caroline, hope all's good! I had a quiet weekend after we went camping with my fam two weekends ago. It was great to unplug and hang with the kids. What've you been up to? Anything fun over the weekend?",
+          "datetime": "2:31 pm on 17 July, 2023",
+          "charge": 0.691
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Glad you have support, Caroline! Unconditional love is so important. Here's a pic of my family camping at the beach. We love it, it brings us closer!",
+          "datetime": "8:18 pm on 6 July, 2023",
+          "charge": 0.689
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Yeah, Caroline, my family's been great - their love and support really helped me through tough times. It's awesome! We even went on another camping trip in the forest.",
+          "datetime": "1:51 pm on 15 July, 2023",
+          "charge": 0.689
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Hey Caroline! Since we last spoke, I took my kids to a park yesterday [= 27 August 2023]. They had fun exploring and playing. It was nice seeing them have a good time outdoors. Time flies, huh? What's new with you?",
+          "datetime": "3:19 pm on 28 August, 2023",
+          "charge": 0.534
+        },
+        {
+          "speaker": "Melanie",
+          "text": "It's a chance to be present and together. We bond over stories, campfires and nature. It's so peaceful waking up to the sound of birds and the smell of fresh air - it always refreshes my soul.",
+          "datetime": "6:55 pm on 20 October, 2023",
+          "charge": 0.451
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Thanks, Caroline! It's awesome seeing the kids get excited learning something new about nature. Those moments make being a parent worth it. We roasted marshmallows and shared stories around the campfire. Those simple moments make the best memories. What inspires you with your volunteering?",
+          "datetime": "12:09 am on 13 September, 2023",
+          "charge": 0.449
+        },
+        {
+          "speaker": "Melanie",
+          "text": "It was an awesome time, Caroline! We explored nature, roasted marshmallows around the campfire and even went on a hike. The view from the top was amazing! The 2 younger kids love nature. It was so special having these moments together as a family - I'll never forget it!",
+          "datetime": "10:37 am on 27 June, 2023",
+          "charge": 0.449
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, Caroline, your group sounds awesome! Supporting each other and making good things happen - that's so inspiring! Have you been part of any events or campaigns lately?",
+          "datetime": "8:56 pm on 20 July, 2023",
+          "charge": 0.448
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Wow, your kids had so much fun at the park! Being outdoors can be really enjoyable. A lot happened since our last chat. I've been chasing my ambitions and had the chance to volunteer at an LGBTQ+ youth center. It was so gratifying to talk to similar young people. It made me remember how essential it",
+          "datetime": "3:19 pm on 28 August, 2023",
+          "charge": 0.267
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "conversation": 1,
+      "category": "single_hop",
+      "question": "What is Caroline's relationship status?",
+      "generated_answer": "Not specified. The provided messages do not contain any information about Caroline's relationship status.",
+      "gold_answer": "Single",
+      "correct": false,
+      "latency_ms": 311.0,
+      "retrieval_ms": 54.1,
+      "rerank_ms": 1090.5,
+      "retrieved_memories": [
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie. It means a lot to share this with you.",
+          "datetime": "2:24 pm on 14 August, 2023",
+          "charge": 0.406
+        },
+        {
+          "speaker": "Caroline",
+          "text": "No worries, Mel! Your friendship means so much to me. Enjoy your day!",
+          "datetime": "1:51 pm on 15 July, 2023",
+          "charge": 0.406
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Hey Mel! Long time no talk. Lots has been going on since then!",
+          "datetime": "8:18 pm on 6 July, 2023",
+          "charge": 0.405
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Hey Mel, what's up? Been a busy week since we talked.",
+          "datetime": "1:51 pm on 15 July, 2023",
+          "charge": 0.405
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Hey Melanie! Just wanted to say hi!",
+          "datetime": "8:56 pm on 20 July, 2023",
+          "charge": 0.402
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Hey Melanie! Long time no talk! A lot's been going on in my life! Take a look at this.",
+          "datetime": "10:37 am on 27 June, 2023",
+          "charge": 0.401
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Awesome, Mel! Family support's huge. What else do you guys like doing together?",
+          "datetime": "1:51 pm on 15 July, 2023",
+          "charge": 0.4
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Wow, what a fun moment! What's the band?",
+          "datetime": "3:19 pm on 28 August, 2023",
+          "charge": 0.399
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie. Your support really means a lot. This journey has been amazing and I'm grateful I get to share it and help others with theirs. It's a real gift.",
+          "datetime": "9:55 am on 22 October, 2023",
+          "charge": 0.399
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Hey, Mel! How's it going? There's something I want to tell you. I went hiking last week [= week of 14 August 2023] and got into a bad spot with some people. It really bugged me, so I tried to apologize to them.",
+          "datetime": "1:33 pm on 25 August, 2023",
+          "charge": 0.399
+        },
+        {
+          "speaker": "Caroline",
+          "text": "I 100% agree, Mel. Hanging with loved ones is amazing and brings so much happiness. Those moments really make me thankful. Family is everything.",
+          "datetime": "7:55 pm on 9 June, 2023",
+          "charge": 0.399
+        },
+        {
+          "speaker": "Caroline",
+          "text": "That's so nice! What pet do you have?",
+          "datetime": "4:33 pm on 12 July, 2023",
+          "charge": 0.399
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Glad your son is okay, Melanie. Life's unpredictable, but moments like these remind us how important our loved ones are. Family's everything.",
+          "datetime": "6:55 pm on 20 October, 2023",
+          "charge": 0.399
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Yeah, I'm really lucky to have them. They've been there through everything, I've known these friends for 4 years, since I moved from my home country. Their love and help have been so important especially after that tough breakup. I'm super thankful. Who supports you, Mel?",
+          "datetime": "7:55 pm on 9 June, 2023",
+          "charge": 0.398
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie. Here's one- 'Embracing Identity' is all about finding comfort and love in being yourself. The woman in the painting stands for the journey of acceptance. My aim was to show warmth, love and self-acceptance.",
+          "datetime": "2:24 pm on 14 August, 2023",
+          "charge": 0.398
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "conversation": 1,
+      "category": "temporal",
+      "question": "When did Caroline give a speech at a school?",
+      "generated_answer": "week of 29 May 2023",
+      "gold_answer": "The week before 9 June 2023",
+      "correct": true,
+      "latency_ms": 384.7,
+      "retrieval_ms": 62.0,
+      "rerank_ms": 1111.3,
+      "retrieved_memories": [
+        {
+          "speaker": "Caroline",
+          "text": "Yes, I did. It was amazing! I felt so accepted and happy, just being around people who accepted and celebrated me. It's definitely a top memory.",
+          "datetime": "1:51 pm on 15 July, 2023",
+          "charge": 0.095
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Hey Melanie! How's it going? I wanted to tell you about my school event last week [= week of 29 May 2023]. It was awesome! I talked about my transgender journey and encouraged students to get involved in the LGBTQ community. It was great to see their reactions. It made me reflect on how far I've com",
+          "datetime": "7:55 pm on 9 June, 2023",
+          "charge": 0.739
+        },
+        {
+          "speaker": "Melanie",
+          "text": "That's so cool, Caroline! That's a great way to show off and be proud of everyone's skills. You know I love live music. Can't wait to hear about it!",
+          "datetime": "3:19 pm on 28 August, 2023",
+          "charge": 0.143
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Thanks, Caroline! It was Matt Patterson, he is so talented! His voice and songs were amazing. What's up with you? Anything interesting going on?",
+          "datetime": "2:24 pm on 14 August, 2023",
+          "charge": 0.148
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, Caroline! Sorry that happened to you. It's tough when those things happen, but it's great you apologized. Takes a lot of courage and maturity! What do you think of this?",
+          "datetime": "1:33 pm on 25 August, 2023",
+          "charge": 0.147
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, that's cool, Caroline! What happened that was so awesome? Did you hear any inspiring stories?",
+          "datetime": "1:56 pm on 8 May, 2023",
+          "charge": 0.147
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Thanks, Caroline! The event was really thought-provoking. I'm starting to realize that self-care is really important. It's a journey for me, but when I look after myself, I'm able to better look after my family.",
+          "datetime": "1:14 pm on 25 May, 2023",
+          "charge": 0.147
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Hey Caroline! Great to hear from you. Sounds like your event was amazing! I'm so proud of you for spreading awareness and getting others involved in the LGBTQ community. You've come a long way since your transition - keep on inspiring people with your strength and courage!",
+          "datetime": "7:55 pm on 9 June, 2023",
+          "charge": 0.146
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, Caroline! They must have felt so appreciated. It's awesome to see the difference we can make in each other's lives. Any other exciting LGBTQ advocacy stuff coming up?",
+          "datetime": "2:31 pm on 17 July, 2023",
+          "charge": 0.145
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, Caroline, your group sounds awesome! Supporting each other and making good things happen - that's so inspiring! Have you been part of any events or campaigns lately?",
+          "datetime": "8:56 pm on 20 July, 2023",
+          "charge": 0.145
+        },
+        {
+          "speaker": "Melanie",
+          "text": "That's awesome, Caroline! Glad to hear you found a great group where you can have an impact. Bet it feels great to be able to speak your truth and stand up for what's right. Want to tell me a bit more about it?",
+          "datetime": "8:56 pm on 20 July, 2023",
+          "charge": 0.144
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, Caroline, that sounds awesome! So glad you felt accepted and supported. Events like these are great for reminding us of how strong community can be!",
+          "datetime": "4:33 pm on 12 July, 2023",
+          "charge": 0.144
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Hey Caroline! last night [= 13 August 2023] was amazing! We celebrated my daughter's birthday with a concert surrounded by music, joy and the warm summer breeze. Seeing my kids' smiles was so awesome, and I'm so thankful for our special moments together.",
+          "datetime": "2:24 pm on 14 August, 2023",
+          "charge": 0.143
+        },
+        {
+          "speaker": "Melanie",
+          "text": "It was amazing, Caroline. The day was full of love and joy. Everyone we love was there to celebrate us - it was really special.",
+          "datetime": "1:51 pm on 15 July, 2023",
+          "charge": 0.143
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Thanks, Caroline! Yeah, I made this bowl in my class. It took some work, but I'm pretty proud of it.",
+          "datetime": "1:36 pm on 3 July, 2023",
+          "charge": 0.143
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "conversation": 1,
+      "category": "temporal",
+      "question": "When did Caroline meet up with her friends, family, and mentors?",
+      "generated_answer": "week of 29 May 2023",
+      "gold_answer": "The week before 9 June 2023",
+      "correct": true,
+      "latency_ms": 435.7,
+      "retrieval_ms": 69.3,
+      "rerank_ms": 1331.2,
+      "retrieved_memories": [
+        {
+          "speaker": "Melanie",
+          "text": "I feel the same way! Art is so cool like that - it connects us and helps us understand each other. I was actually just remembering yesterday [= 24 August 2023], spending the day with my fam volunteering at a homeless shelter. It was hard to see how neglected some people are, but it was great to feel",
+          "datetime": "1:33 pm on 25 August, 2023",
+          "charge": 0.607
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Mel! My friends, family and mentors are my rocks \u2013 they motivate me and give me the strength to push on. Here's a pic from when we met up last week [= week of 29 May 2023]!",
+          "datetime": "7:55 pm on 9 June, 2023",
+          "charge": 0.804
+        },
+        {
+          "speaker": "Caroline",
+          "text": "I mentor a transgender teen just like me. We've been working on building up confidence and finding positive strategies, and it's really been paying off! We had a great time at the LGBT pride event last month [= June 2023].",
+          "datetime": "2:31 pm on 17 July, 2023",
+          "charge": 0.71
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Hey, Mel! How's it going? There's something I want to tell you. I went hiking last week [= week of 14 August 2023] and got into a bad spot with some people. It really bugged me, so I tried to apologize to them.",
+          "datetime": "1:33 pm on 25 August, 2023",
+          "charge": 0.646
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Hey Mel, great to chat with you again! So much has happened since we last spoke - I went to an LGBTQ conference two days ago [= 10 July 2023] and it was really special. I got the chance to meet and connect with people who've gone through similar journeys. It was such a welcoming environment and I fe",
+          "datetime": "4:33 pm on 12 July, 2023",
+          "charge": 0.622
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Thanks, Caroline! The event was really thought-provoking. I'm starting to realize that self-care is really important. It's a journey for me, but when I look after myself, I'm able to better look after my family.",
+          "datetime": "1:14 pm on 25 May, 2023",
+          "charge": 0.648
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Yeah, I'm really lucky to have them. They've been there through everything, I've known these friends for 4 years, since I moved from my home country. Their love and help have been so important especially after that tough breakup. I'm super thankful. Who supports you, Mel?",
+          "datetime": "7:55 pm on 9 June, 2023",
+          "charge": 0.594
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Hey Mel! A lot's happened since we last chatted - I just joined a new LGBTQ activist group last Tues. I'm meeting so many cool people who are as passionate as I am about rights and community support. I'm giving my voice and making a real difference, plus it's fulfilling in so many ways. It's just gr",
+          "datetime": "8:56 pm on 20 July, 2023",
+          "charge": 0.593
+        },
+        {
+          "speaker": "Caroline",
+          "text": "I'm inspired seeing my work make a difference for the LGBTQ+ community. Knowing I'm helping create a more loving world is amazing. I'm really thankful for my friends, family and mentors' support. It inspires me to keep making art, too.",
+          "datetime": "12:09 am on 13 September, 2023",
+          "charge": 0.592
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie! It's awesome to have our own platform to be ourselves and support others' rights. Our group, 'Connected LGBTQ Activists', is made of all kinds of people investing in positive changes. We have regular meetings, plan events and campaigns, to get together and support each other.",
+          "datetime": "8:56 pm on 20 July, 2023",
+          "charge": 0.592
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Mel! Your backing really means a lot. I felt super powerful giving my talk. I shared my own journey, the struggles I had and how much I've developed since coming out. It was wonderful to see how the audience related to what I said and how it inspired them to be better allies. Conversations a",
+          "datetime": "7:55 pm on 9 June, 2023",
+          "charge": 0.591
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Wow, your kids had so much fun at the park! Being outdoors can be really enjoyable. A lot happened since our last chat. I've been chasing my ambitions and had the chance to volunteer at an LGBTQ+ youth center. It was so gratifying to talk to similar young people. It made me remember how essential it",
+          "datetime": "3:19 pm on 28 August, 2023",
+          "charge": 0.591
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks so much, Melanie! It's beautiful! It really brings home how much love's in families - both blood and the ones we choose. I hope to build my own family and put a roof over kids who haven't had that before. For me, adoption is a way of giving back and showing love and acceptance.",
+          "datetime": "9:55 am on 22 October, 2023",
+          "charge": 0.591
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie! Your kind words really mean a lot. I'll do my best to make sure these kids have a safe and loving home.",
+          "datetime": "1:14 pm on 25 May, 2023",
+          "charge": 0.589
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Thanks, Caroline. It's still a work in progress, but I'm doing my best. My kids are so excited about summer break! We're thinking about going camping next month [= June 2023]. Any fun plans for the summer?",
+          "datetime": "1:14 pm on 25 May, 2023",
+          "charge": 0.55
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "conversation": 1,
+      "category": "temporal",
+      "question": "How long has Caroline had her current group of friends for?",
+      "generated_answer": "[= 2023-07-15 YEAR_2023 MONTH_07]",
+      "gold_answer": "4 years",
+      "correct": false,
+      "latency_ms": 486.4,
+      "retrieval_ms": 58.0,
+      "rerank_ms": 1233.7,
+      "retrieved_memories": [
+        {
+          "speaker": "Melanie",
+          "text": "Thanks, Caroline! Appreciate your friendship. It's great to have a supporter!",
+          "datetime": "1:51 pm on 15 July, 2023",
+          "charge": 0.774
+        },
+        {
+          "speaker": "Caroline",
+          "text": "I'm always here for you, Mel! We had a blast last year [= 2022] at the Pride fest. Those supportive friends definitely make everything worth it!",
+          "datetime": "1:50 pm on 17 August, 2023",
+          "charge": 0.65
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie! Really glad to have you as a friend to share my journey. You're awesome!",
+          "datetime": "1:51 pm on 15 July, 2023",
+          "charge": 0.602
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Mel! My goal is to give kids a loving home. I'm truly grateful for all the support I've got from friends and mentors. Now the hard work starts to turn my dream into a reality. And here's one of the adoption agencies I'm looking into. It's a lot to take in, but I'm feeling hopeful and optimis",
+          "datetime": "1:14 pm on 25 May, 2023",
+          "charge": 0.597
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Hey Mel! How're ya doin'? Recently, I had a not-so-great experience on a hike. I ran into a group of religious conservatives who said something that really upset me. It made me think how much work we still have to do for LGBTQ rights. It's been so helpful to have people around me who accept and supp",
+          "datetime": "1:50 pm on 17 August, 2023",
+          "charge": 0.596
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, that sounds awesome! Your friends and community really have your back. What's been the best part of it?",
+          "datetime": "1:51 pm on 15 July, 2023",
+          "charge": 0.566
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Hey Caroline, since we last chatted, I've had a lot of things happening to me. I ran a charity race for mental health last saturday [= 20 May 2023] \u2013 it was really rewarding. Really made me think about taking care of our minds.",
+          "datetime": "1:14 pm on 25 May, 2023",
+          "charge": 0.522
+        },
+        {
+          "speaker": "Melanie",
+          "text": "That sounds great, Caroline! It's awesome having stuff around that make us think of good connections and times. Actually, I just took my fam camping in the mountains last week [= week of 19 June 2023] - it was a really nice time together!",
+          "datetime": "10:37 am on 27 June, 2023",
+          "charge": 0.519
+        },
+        {
+          "speaker": "Caroline",
+          "text": "I went to a LGBTQ support group yesterday [= 7 May 2023] and it was so powerful.",
+          "datetime": "1:56 pm on 8 May, 2023",
+          "charge": 0.467
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Hey Mel, great to chat with you again! So much has happened since we last spoke - I went to an LGBTQ conference two days ago [= 10 July 2023] and it was really special. I got the chance to meet and connect with people who've gone through similar journeys. It was such a welcoming environment and I fe",
+          "datetime": "4:33 pm on 12 July, 2023",
+          "charge": 0.432
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Glad you agree, Caroline. Appreciate the support of those close to me. Their encouragement made me who I am.",
+          "datetime": "9:55 am on 22 October, 2023",
+          "charge": 0.393
+        },
+        {
+          "speaker": "Caroline",
+          "text": "That's great news about your friend! It can be tough, but so worth it. It's a great way to add to your family and show your love. If you ever do it, let me know \u2014 I'd love to help in any way I can.",
+          "datetime": "10:31 am on 13 October, 2023",
+          "charge": 0.39
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Hey Mel! A lot's happened since we last chatted - I just joined a new LGBTQ activist group last Tues. I'm meeting so many cool people who are as passionate as I am about rights and community support. I'm giving my voice and making a real difference, plus it's fulfilling in so many ways. It's just gr",
+          "datetime": "8:56 pm on 20 July, 2023",
+          "charge": 0.39
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie. Your support really means a lot. This journey has been amazing and I'm grateful I get to share it and help others with theirs. It's a real gift.",
+          "datetime": "9:55 am on 22 October, 2023",
+          "charge": 0.389
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie! It's awesome to have our own platform to be ourselves and support others' rights. Our group, 'Connected LGBTQ Activists', is made of all kinds of people investing in positive changes. We have regular meetings, plan events and campaigns, to get together and support each other.",
+          "datetime": "8:56 pm on 20 July, 2023",
+          "charge": 0.388
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "conversation": 1,
+      "category": "single_hop",
+      "question": "Where did Caroline move from 4 years ago?",
+      "generated_answer": "Not specified. The provided memories do not contain information about where Caroline moved from 4 years ago.",
+      "gold_answer": "Sweden",
+      "correct": false,
+      "latency_ms": 395.7,
+      "retrieval_ms": 60.5,
+      "rerank_ms": 1262.0,
+      "retrieved_memories": [
+        {
+          "speaker": "Caroline",
+          "text": "Hey Melanie! How's it going? I wanted to tell you about my school event last week [= week of 29 May 2023]. It was awesome! I talked about my transgender journey and encouraged students to get involved in the LGBTQ community. It was great to see their reactions. It made me reflect on how far I've com",
+          "datetime": "7:55 pm on 9 June, 2023",
+          "charge": 0.711
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Wow! What got you into running?",
+          "datetime": "4:33 pm on 12 July, 2023",
+          "charge": 0.653
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Hey, Mel! How's it going? There's something I want to tell you. I went hiking last week [= week of 14 August 2023] and got into a bad spot with some people. It really bugged me, so I tried to apologize to them.",
+          "datetime": "1:33 pm on 25 August, 2023",
+          "charge": 0.634
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Hi Melanie! Hope you're doing good. Guess what I did this week [= week of 21 August 2023]? I took the first step towards becoming a mom - I applied to adoption agencies! It's a big decision, but I think I'm ready to give all my love to a child. I got lots of help from this adoption advice/assistance",
+          "datetime": "3:31 pm on 23 August, 2023",
+          "charge": 0.633
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Hey Mel, long time no chat! I had a wicked day out with the gang last weekend [= 9-10 September 2023] - we went biking and saw some pretty cool stuff. It was so refreshing, and the pic I'm sending is just stunning, eh?",
+          "datetime": "12:09 am on 13 September, 2023",
+          "charge": 0.613
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Glad you agree, Caroline. Appreciate the support of those close to me. Their encouragement made me who I am.",
+          "datetime": "9:55 am on 22 October, 2023",
+          "charge": 0.601
+        },
+        {
+          "speaker": "Caroline",
+          "text": "That's awesome, Melanie! How have your family been supportive during your move?",
+          "datetime": "1:51 pm on 15 July, 2023",
+          "charge": 0.597
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Hey Caroline, hope all's good! I had a quiet weekend after we went camping with my fam two weekends ago. It was great to unplug and hang with the kids. What've you been up to? Anything fun over the weekend?",
+          "datetime": "2:31 pm on 17 July, 2023",
+          "charge": 0.444
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Thanks, Caroline. It was tough, but I'm doing ok. Been reading that book you recommended a while ago and painting to keep busy.",
+          "datetime": "10:31 am on 13 October, 2023",
+          "charge": 0.444
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Hey Caroline! It's so good to hear from you! That pic is so beautiful, the colors really pop. Biking sounds like a great way to get out in nature. We went camping with the kids a few weeks ago [= around 23 August 2023], had a blast exploring the forest and hiking. Nature can be so refreshing for you",
+          "datetime": "12:09 am on 13 September, 2023",
+          "charge": 0.418
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Thanks for the tip, Caroline. Doing research and readying myself emotionally makes sense. I'll do that. BTW, recently I had a setback. last month [= September 2023] I got hurt and had to take a break from pottery, which I use for self-expression and peace.",
+          "datetime": "10:31 am on 13 October, 2023",
+          "charge": 0.416
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Caroline, so glad you got the support! Your experience really brought you to where you need to be. You're gonna make a huge difference! This book I read last year [= 2022] reminds me to always pursue my dreams, just like you are doing!\ud83c\udf1f",
+          "datetime": "4:33 pm on 12 July, 2023",
+          "charge": 0.409
+        },
+        {
+          "speaker": "Melanie",
+          "text": "That sounds great, Caroline! It's awesome having stuff around that make us think of good connections and times. Actually, I just took my fam camping in the mountains last week [= week of 19 June 2023] - it was a really nice time together!",
+          "datetime": "10:37 am on 27 June, 2023",
+          "charge": 0.396
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, Caroline! That's great! I just signed up for a pottery class yesterday [= 2 July 2023]. It's like therapy for me, letting me express myself and get creative. Have you found any activities that make you feel the same way?",
+          "datetime": "1:36 pm on 3 July, 2023",
+          "charge": 0.394
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Hey Caroline! Good to talk to you again. What's up? Anything new since last time?",
+          "datetime": "8:56 pm on 20 July, 2023",
+          "charge": 0.388
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "conversation": 1,
+      "category": "temporal",
+      "question": "How long ago was Caroline's 18th birthday?",
+      "generated_answer": "13 August 2023",
+      "gold_answer": "10 years ago",
+      "correct": false,
+      "latency_ms": 360.0,
+      "retrieval_ms": 55.2,
+      "rerank_ms": 1139.0,
+      "retrieved_memories": [
+        {
+          "speaker": "Melanie",
+          "text": "Hey Caroline! last night [= 13 August 2023] was amazing! We celebrated my daughter's birthday with a concert surrounded by music, joy and the warm summer breeze. Seeing my kids' smiles was so awesome, and I'm so thankful for our special moments together.",
+          "datetime": "2:24 pm on 14 August, 2023",
+          "charge": 0.785
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, Caroline! That sounds awesome. This pic's from last night [= 13 August 2023] - looks like everyone was having a blast! Reminds me it's important to cultivate a loving and accepting environment for our kids. How do you stay inclusive in your work as an artist?",
+          "datetime": "2:24 pm on 14 August, 2023",
+          "charge": 0.215
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Thanks, Caroline! It was Matt Patterson, he is so talented! His voice and songs were amazing. What's up with you? Anything interesting going on?",
+          "datetime": "2:24 pm on 14 August, 2023",
+          "charge": 0.173
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Hey Caroline! Great to hear from you. Sounds like your event was amazing! I'm so proud of you for spreading awareness and getting others involved in the LGBTQ community. You've come a long way since your transition - keep on inspiring people with your strength and courage!",
+          "datetime": "7:55 pm on 9 June, 2023",
+          "charge": 0.171
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Caroline, awesome news that you two are getting along! What was it like for you both? Care to fill me in?",
+          "datetime": "2:31 pm on 17 July, 2023",
+          "charge": 0.169
+        },
+        {
+          "speaker": "Melanie",
+          "text": "It was amazing, Caroline. The day was full of love and joy. Everyone we love was there to celebrate us - it was really special.",
+          "datetime": "1:51 pm on 15 July, 2023",
+          "charge": 0.167
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Thanks, Caroline. It was tough, but I'm doing ok. Been reading that book you recommended a while ago and painting to keep busy.",
+          "datetime": "10:31 am on 13 October, 2023",
+          "charge": 0.167
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, Caroline, that looks awesome! I love how it shows the togetherness and power you were talking about. How long have you been creating art?",
+          "datetime": "12:09 am on 13 September, 2023",
+          "charge": 0.166
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, Caroline! That's huge! How did it feel to be around so much love and acceptance?",
+          "datetime": "1:51 pm on 15 July, 2023",
+          "charge": 0.164
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Hey Caroline, that roadtrip this past weekend was insane! We were all freaked when my son got into an accident. We were so lucky he was okay. It was a real scary experience. Thankfully it's over now. What's been up since we last talked?",
+          "datetime": "6:55 pm on 20 October, 2023",
+          "charge": 0.164
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Thanks, Caroline! Painting's a fun way to express my feelings and get creative. It's a great way to relax after a long day.",
+          "datetime": "1:56 pm on 8 May, 2023",
+          "charge": 0.163
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Hey Caroline, since we last chatted, I've had a lot of things happening to me. I ran a charity race for mental health last saturday [= 20 May 2023] \u2013 it was really rewarding. Really made me think about taking care of our minds.",
+          "datetime": "1:14 pm on 25 May, 2023",
+          "charge": 0.163
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, that's cool, Caroline! What happened that was so awesome? Did you hear any inspiring stories?",
+          "datetime": "1:56 pm on 8 May, 2023",
+          "charge": 0.163
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Yeah, you're right, Caroline. Family's super important to me. Especially after the accident, I've thought a lot about how much I need them. They mean the world to me and I'm so thankful to have them. Thankfully, they enjoyed the Grand Canyon a lot!",
+          "datetime": "6:55 pm on 20 October, 2023",
+          "charge": 0.162
+        },
+        {
+          "speaker": "Melanie",
+          "text": "That's a gorgeous photo, Caroline! Wow, the love around you is awesome. How have your friends and fam been helping you out with your transition?",
+          "datetime": "8:18 pm on 6 July, 2023",
+          "charge": 0.162
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "conversation": 1,
+      "category": "single_hop",
+      "question": "What career path has Caroline decided to persue?",
+      "generated_answer": "YES, Caroline has decided to pursue a career in counseling or mental health work.",
+      "gold_answer": "counseling or mental health for Transgender people",
+      "correct": true,
+      "latency_ms": 369.9,
+      "retrieval_ms": 59.0,
+      "rerank_ms": 1181.3,
+      "retrieved_memories": [
+        {
+          "speaker": "Caroline",
+          "text": "Since our last chat, I've been looking into counseling or mental health work more. I'm passionate about helping people and making a positive impact. It's tough, but really rewarding too. Anything new happening with you?",
+          "datetime": "8:18 pm on 6 July, 2023",
+          "charge": 0.433
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Hey Mel! How're ya doin'? Recently, I had a not-so-great experience on a hike. I ran into a group of religious conservatives who said something that really upset me. It made me think how much work we still have to do for LGBTQ rights. It's been so helpful to have people around me who accept and supp",
+          "datetime": "1:50 pm on 17 August, 2023",
+          "charge": 0.423
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Hey Mel, what's up? Long time no see! I just contacted my mentor for adoption advice. I'm ready to be a mom and share my love and family. It's a great feeling. Anything new with you? Anything exciting going on?",
+          "datetime": "10:31 am on 13 October, 2023",
+          "charge": 0.352
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Hi Melanie! Hope you're doing good. Guess what I did this week [= week of 21 August 2023]? I took the first step towards becoming a mom - I applied to adoption agencies! It's a big decision, but I think I'm ready to give all my love to a child. I got lots of help from this adoption advice/assistance",
+          "datetime": "3:31 pm on 23 August, 2023",
+          "charge": 0.35
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Glad you agree, Caroline. Appreciate the support of those close to me. Their encouragement made me who I am.",
+          "datetime": "9:55 am on 22 October, 2023",
+          "charge": 0.838
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Nice job! You really put in the work and it definitely shows. Your creativity looks great!",
+          "datetime": "1:36 pm on 3 July, 2023",
+          "charge": 0.493
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie! This support network has been amazing. They've been there for me every step of the way giving me love, guidance, and acceptance. I couldn't have done it without them.",
+          "datetime": "8:18 pm on 6 July, 2023",
+          "charge": 0.484
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Art's allowed me to explore my transition and my changing body. It's been a great way to work through stuff I'm going through. I love that it teaches me to accept the beauty of imperfections.",
+          "datetime": "2:24 pm on 14 August, 2023",
+          "charge": 0.478
+        },
+        {
+          "speaker": "Caroline",
+          "text": "I'm still figuring out the details, but I'm thinking of working with trans people, helping them accept themselves and supporting their mental health. last friday [= 23 June 2023], I went to an LGBTQ+ counseling workshop and it was really enlightening. They talked about different therapeutic methods ",
+          "datetime": "10:37 am on 27 June, 2023",
+          "charge": 0.442
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Mell! I'm still looking into counseling and mental health jobs. It's important to me that people have someone to talk to, and I want to help make that happen.",
+          "datetime": "4:33 pm on 12 July, 2023",
+          "charge": 0.438
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Lately, I've been looking into counseling and mental health as a career. I want to help people who have gone through the same things as me.",
+          "datetime": "10:37 am on 27 June, 2023",
+          "charge": 0.436
+        },
+        {
+          "speaker": "Caroline",
+          "text": "I mentor a transgender teen just like me. We've been working on building up confidence and finding positive strategies, and it's really been paying off! We had a great time at the LGBT pride event last month [= June 2023].",
+          "datetime": "2:31 pm on 17 July, 2023",
+          "charge": 0.435
+        },
+        {
+          "speaker": "Caroline",
+          "text": "I'm keen on counseling or working in mental health - I'd love to support those with similar issues.",
+          "datetime": "1:56 pm on 8 May, 2023",
+          "charge": 0.429
+        },
+        {
+          "speaker": "Caroline",
+          "text": "The mentoring is going great! I've met some amazing young folks and supported them along the way. It's inspiring to see how resilient and strong they are.",
+          "datetime": "2:31 pm on 17 July, 2023",
+          "charge": 0.428
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Mel! It really motivated me for sure. Talking to the community made me want to use my story to help others too - I'm still thinking that counseling and mental health is the way to go. I'm super excited to give back. ",
+          "datetime": "1:36 pm on 3 July, 2023",
+          "charge": 0.428
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "conversation": 1,
+      "category": "open_domain",
+      "question": "Would Caroline still want to pursue counseling as a career if she hadn't received support growing up?",
+      "generated_answer": "YES. Despite the struggle with mental health and the fact that support was helpful rather than absent, Caroline's desire to help others through counseling and her passion for mental health work indicate she would still pursue this career path.",
+      "gold_answer": "Likely no",
+      "correct": false,
+      "latency_ms": 557.6,
+      "retrieval_ms": 72.5,
+      "rerank_ms": 1452.7,
+      "retrieved_memories": [
+        {
+          "speaker": "Caroline",
+          "text": "Glad you agree, Caroline. Appreciate the support of those close to me. Their encouragement made me who I am.",
+          "datetime": "9:55 am on 22 October, 2023",
+          "charge": 0.838
+        },
+        {
+          "speaker": "Caroline",
+          "text": "I struggled with mental health, and support I got was really helpful. It made me realize how important it is for others to have a support system. So, I started looking into counseling and mental health career options, so I could help other people on their own journeys like I was helped.",
+          "datetime": "4:33 pm on 12 July, 2023",
+          "charge": 0.828
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie. It really mattered. My own journey and the support I got made a huge difference. Now I want to help people go through it too. I saw how counseling and support groups improved my life, so I started caring more about mental health and understanding myself. Now I'm passionate about cre",
+          "datetime": "10:37 am on 27 June, 2023",
+          "charge": 0.818
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Lately, I've been looking into counseling and mental health as a career. I want to help people who have gone through the same things as me.",
+          "datetime": "10:37 am on 27 June, 2023",
+          "charge": 0.837
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Mell! I'm still looking into counseling and mental health jobs. It's important to me that people have someone to talk to, and I want to help make that happen.",
+          "datetime": "4:33 pm on 12 July, 2023",
+          "charge": 0.833
+        },
+        {
+          "speaker": "Caroline",
+          "text": "I'm still figuring out the details, but I'm thinking of working with trans people, helping them accept themselves and supporting their mental health. last friday [= 23 June 2023], I went to an LGBTQ+ counseling workshop and it was really enlightening. They talked about different therapeutic methods ",
+          "datetime": "10:37 am on 27 June, 2023",
+          "charge": 0.819
+        },
+        {
+          "speaker": "Caroline",
+          "text": "I'm keen on counseling or working in mental health - I'd love to support those with similar issues.",
+          "datetime": "1:56 pm on 8 May, 2023",
+          "charge": 0.817
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie. Transitioning wasn't easy and acceptance wasn't either, but the help I got from friends, family and people I looked up to was invaluable. They boosted me through tough times and helped me find out who I really am. That's why I want to pass that same support to anyone who needs it. B",
+          "datetime": "9:55 am on 22 October, 2023",
+          "charge": 0.809
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Since our last chat, I've been looking into counseling or mental health work more. I'm passionate about helping people and making a positive impact. It's tough, but really rewarding too. Anything new happening with you?",
+          "datetime": "8:18 pm on 6 July, 2023",
+          "charge": 0.786
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie! This support network has been amazing. They've been there for me every step of the way giving me love, guidance, and acceptance. I couldn't have done it without them.",
+          "datetime": "8:18 pm on 6 July, 2023",
+          "charge": 0.781
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks Mel! Your kind words mean a lot. Sharing our experiences isn't always easy, but I feel it's important to help promote understanding and acceptance. I've been blessed with loads of love and support throughout this journey, and I want to pass it on to others. By sharing our stories, we can buil",
+          "datetime": "7:55 pm on 9 June, 2023",
+          "charge": 0.757
+        },
+        {
+          "speaker": "Caroline",
+          "text": "I mentor a transgender teen just like me. We've been working on building up confidence and finding positive strategies, and it's really been paying off! We had a great time at the LGBT pride event last month [= June 2023].",
+          "datetime": "2:31 pm on 17 July, 2023",
+          "charge": 0.676
+        },
+        {
+          "speaker": "Caroline",
+          "text": "It taught me self-acceptance and how to find support. It also showed me that tough times don't last - hope and love exist. Pets bring so much joy too, though.",
+          "datetime": "4:33 pm on 12 July, 2023",
+          "charge": 0.645
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie. Art gives me a sense of freedom, but so does having supportive people around, promoting LGBTQ rights and being true to myself. I want to live authentically and help others to do the same.",
+          "datetime": "3:31 pm on 23 August, 2023",
+          "charge": 0.636
+        },
+        {
+          "speaker": "Caroline",
+          "text": "The mentoring is going great! I've met some amazing young folks and supported them along the way. It's inspiring to see how resilient and strong they are.",
+          "datetime": "2:31 pm on 17 July, 2023",
+          "charge": 0.633
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "conversation": 1,
+      "category": "single_hop",
+      "question": "What activities does Melanie partake in?",
+      "generated_answer": "charity race, pottery class",
+      "gold_answer": "pottery, camping, painting, swimming",
+      "correct": false,
+      "latency_ms": 272.5,
+      "retrieval_ms": 62.9,
+      "rerank_ms": 1326.5,
+      "retrieved_memories": [
+        {
+          "speaker": "Melanie",
+          "text": "Hey Caroline, since we last chatted, I've had a lot of things happening to me. I ran a charity race for mental health last saturday [= 20 May 2023] \u2013 it was really rewarding. Really made me think about taking care of our minds.",
+          "datetime": "1:14 pm on 25 May, 2023",
+          "charge": 0.558
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, Caroline! That's great! I just signed up for a pottery class yesterday [= 2 July 2023]. It's like therapy for me, letting me express myself and get creative. Have you found any activities that make you feel the same way?",
+          "datetime": "1:36 pm on 3 July, 2023",
+          "charge": 0.514
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, Caroline! What kinda jobs are you thinkin' of? Anything that stands out?",
+          "datetime": "1:56 pm on 8 May, 2023",
+          "charge": 0.489
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Hey Melanie! How's it going? I wanted to tell you about my school event last week [= week of 29 May 2023]. It was awesome! I talked about my transgender journey and encouraged students to get involved in the LGBTQ community. It was great to see their reactions. It made me reflect on how far I've com",
+          "datetime": "7:55 pm on 9 June, 2023",
+          "charge": 0.627
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Thanks, Caroline! We both helped with the painting - it was great bonding over it and chatting about nature. We found these lovely flowers. Appreciating the small things in life, too.",
+          "datetime": "1:51 pm on 15 July, 2023",
+          "charge": 0.523
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Agreed, Caroline. Life's tough but it's worth it when we have things that make us happy.",
+          "datetime": "1:50 pm on 17 August, 2023",
+          "charge": 0.522
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, Caroline! It's great that you're helping out. How's it going? Got any cool experiences you can share?",
+          "datetime": "2:31 pm on 17 July, 2023",
+          "charge": 0.49
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Yeah, Caroline, they're some of my fave memories. It brings us together and brings us happiness. Glad you're here to share in it.",
+          "datetime": "1:51 pm on 15 July, 2023",
+          "charge": 0.488
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Thanks, Caroline! Your kind words mean a lot. Pottery is a huge part of my life, not just a hobby - it helps me express my emotions. Clay is incredible, it brings me so much joy!",
+          "datetime": "1:36 pm on 3 July, 2023",
+          "charge": 0.488
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Thanks, Caroline! It's awesome seeing the kids get excited learning something new about nature. Those moments make being a parent worth it. We roasted marshmallows and shared stories around the campfire. Those simple moments make the best memories. What inspires you with your volunteering?",
+          "datetime": "12:09 am on 13 September, 2023",
+          "charge": 0.525
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Thanks, Caroline, for letting me join your journey. I'm so proud to be part of the difference you're making. Let's keep motivating and helping each other out as we journey through life. We can make a real impact together!",
+          "datetime": "7:55 pm on 9 June, 2023",
+          "charge": 0.488
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Melanie, that photo's amazing! I love all the yellow leaves, it looks so cozy. That sounds like fun! Seeing how excited they get for the little things is awesome, it's so contagious.",
+          "datetime": "12:09 am on 13 September, 2023",
+          "charge": 0.451
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie! Appreciate it. You play any instruments?",
+          "datetime": "3:19 pm on 28 August, 2023",
+          "charge": 0.426
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie! It's awesome to have our own platform to be ourselves and support others' rights. Our group, 'Connected LGBTQ Activists', is made of all kinds of people investing in positive changes. We have regular meetings, plan events and campaigns, to get together and support each other.",
+          "datetime": "8:56 pm on 20 July, 2023",
+          "charge": 0.417
+        },
+        {
+          "speaker": "Caroline",
+          "text": "That's awesome, Melanie! Family moments like that are so special. Glad y'all had such a great time.",
+          "datetime": "10:37 am on 27 June, 2023",
+          "charge": 0.414
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "conversation": 1,
+      "category": "temporal",
+      "question": "When did Melanie sign up for a pottery class?",
+      "generated_answer": "2 July 2023",
+      "gold_answer": "2 July 2023",
+      "correct": true,
+      "latency_ms": 349.7,
+      "retrieval_ms": 59.3,
+      "rerank_ms": 1243.3,
+      "retrieved_memories": [
+        {
+          "speaker": "Melanie",
+          "text": "Thanks, Caroline! Yeah, I made this bowl in my class. It took some work, but I'm pretty proud of it.",
+          "datetime": "1:36 pm on 3 July, 2023",
+          "charge": 0.551
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, Caroline! That's great! I just signed up for a pottery class yesterday [= 2 July 2023]. It's like therapy for me, letting me express myself and get creative. Have you found any activities that make you feel the same way?",
+          "datetime": "1:36 pm on 3 July, 2023",
+          "charge": 0.982
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Thanks, Caroline! It has really helped me out. I love how it's both a creative outlet and a form of therapy. Have you ever thought about trying it or another art form?",
+          "datetime": "12:09 am on 13 September, 2023",
+          "charge": 0.634
+        },
+        {
+          "speaker": "Melanie",
+          "text": "I'm a big fan of pottery - the creativity and skill is awesome. Plus, making it is so calming. Look at this!",
+          "datetime": "1:36 pm on 3 July, 2023",
+          "charge": 0.553
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Thanks, Caroline! I'm excited to see where pottery takes me. Anything coming up you're looking forward to?",
+          "datetime": "1:36 pm on 3 July, 2023",
+          "charge": 0.661
+        },
+        {
+          "speaker": "Melanie",
+          "text": "I'm a fan of both classical like Bach and Mozart, as well as modern music like Ed Sheeran's \"Perfect\".",
+          "datetime": "3:19 pm on 28 August, 2023",
+          "charge": 0.629
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Hey Caroline, sorry about the hike. It sucks when people are so closed-minded. Strong support really helps. FYI, I finished another pottery project - want to see a pic?",
+          "datetime": "1:50 pm on 17 August, 2023",
+          "charge": 0.626
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Sure thing, Melanie! Can't wait to see your pottery project.  I'm happy you found something that makes you happy. Show me when you can!",
+          "datetime": "1:50 pm on 17 August, 2023",
+          "charge": 0.618
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Wow, Melanie! I'm getting creative too, just learning the piano. What made you try pottery?",
+          "datetime": "1:36 pm on 3 July, 2023",
+          "charge": 0.614
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Caroline, it's got to be tough dealing with those changes. Glad you've found people who uplift and accept you! Here's to a good time at the caf\u00e9 last weekend [= 9-10 September 2023] - they even had thoughtful signs like this! It brings me so much happiness.",
+          "datetime": "12:09 am on 13 September, 2023",
+          "charge": 0.609
+        },
+        {
+          "speaker": "Caroline",
+          "text": "last weekend [= 15-16 July 2023] our city held a pride parade! So many people marched through the streets waving flags, holding signs and celebrating love and diversity. I missed it but it was a powerful reminder that we are not alone in this fight for equality and inclusivity. Change is possible!",
+          "datetime": "8:56 pm on 20 July, 2023",
+          "charge": 0.575
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Hey Caroline, it's been super busy here. So much since we talked! Last Fri I finally took my kids to a pottery workshop. We all made our own pots, it was fun and therapeutic!",
+          "datetime": "1:51 pm on 15 July, 2023",
+          "charge": 0.553
+        },
+        {
+          "speaker": "Melanie",
+          "text": "The kids loved it! They were so excited to get their hands dirty and make something with clay. It was special to watch their creativity and imagination come to life, they made this!",
+          "datetime": "1:51 pm on 15 July, 2023",
+          "charge": 0.55
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Thanks, Caroline! Appreciate your help. Got any tips for getting started on it?",
+          "datetime": "10:31 am on 13 October, 2023",
+          "charge": 0.548
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Congrats, Caroline! Adoption sounds awesome. I'm so happy for you. These figurines I bought yesterday [= 21 October 2023] remind me of family love. Tell me, what's your vision for the future?",
+          "datetime": "9:55 am on 22 October, 2023",
+          "charge": 0.547
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "conversation": 1,
+      "category": "temporal",
+      "question": "When is Caroline going to the transgender conference?",
+      "generated_answer": "10 July 2023",
+      "gold_answer": "July 2023",
+      "correct": true,
+      "latency_ms": 352.4,
+      "retrieval_ms": 55.1,
+      "rerank_ms": 1112.3,
+      "retrieved_memories": [
+        {
+          "speaker": "Caroline",
+          "text": "Thanks Mel! I'm going to a transgender conference this month. I'm so excited to meet other people in the community and learn more about advocacy. It's gonna be great!",
+          "datetime": "1:36 pm on 3 July, 2023",
+          "charge": 0.913
+        },
+        {
+          "speaker": "Melanie",
+          "text": "That's great, Caroline! Loving the inclusivity and support. Anything you're excited for in the adoption process?",
+          "datetime": "1:14 pm on 25 May, 2023",
+          "charge": 0.146
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Hey Mel, great to chat with you again! So much has happened since we last spoke - I went to an LGBTQ conference two days ago [= 10 July 2023] and it was really special. I got the chance to meet and connect with people who've gone through similar journeys. It was such a welcoming environment and I fe",
+          "datetime": "4:33 pm on 12 July, 2023",
+          "charge": 0.502
+        },
+        {
+          "speaker": "Caroline",
+          "text": "I mentor a transgender teen just like me. We've been working on building up confidence and finding positive strategies, and it's really been paying off! We had a great time at the LGBT pride event last month [= June 2023].",
+          "datetime": "2:31 pm on 17 July, 2023",
+          "charge": 0.494
+        },
+        {
+          "speaker": "Caroline",
+          "text": "It was a transgender poetry reading where transgender people shared their stories through poetry. It was extra special 'cause it was a safe place for self-expression and it was really empowering to hear others share and celebrate their identities.",
+          "datetime": "10:31 am on 13 October, 2023",
+          "charge": 0.443
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks! It was made for a local church and shows time changing our lives. I made it to show my own journey as a transgender woman and how we should accept growth and change.",
+          "datetime": "1:33 pm on 25 August, 2023",
+          "charge": 0.441
+        },
+        {
+          "speaker": "Caroline",
+          "text": "The transgender stories were so inspiring! I was so happy and thankful for all the support.",
+          "datetime": "1:56 pm on 8 May, 2023",
+          "charge": 0.439
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Glad you agree, Caroline. Appreciate the support of those close to me. Their encouragement made me who I am.",
+          "datetime": "9:55 am on 22 October, 2023",
+          "charge": 0.359
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Hey Caroline! Great to hear from you. Sounds like your event was amazing! I'm so proud of you for spreading awareness and getting others involved in the LGBTQ community. You've come a long way since your transition - keep on inspiring people with your strength and courage!",
+          "datetime": "7:55 pm on 9 June, 2023",
+          "charge": 0.154
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Yep, Caroline. Life's about learning and exploring. Glad we can be on this trip together.",
+          "datetime": "10:31 am on 13 October, 2023",
+          "charge": 0.149
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, Caroline! They must have felt so appreciated. It's awesome to see the difference we can make in each other's lives. Any other exciting LGBTQ advocacy stuff coming up?",
+          "datetime": "2:31 pm on 17 July, 2023",
+          "charge": 0.149
+        },
+        {
+          "speaker": "Melanie",
+          "text": "That's a gorgeous photo, Caroline! Wow, the love around you is awesome. How have your friends and fam been helping you out with your transition?",
+          "datetime": "8:18 pm on 6 July, 2023",
+          "charge": 0.148
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Your art's amazing, Caroline. I love how you use it to tell your stories and teach people about trans folks. I'd love to see another painting of yours!",
+          "datetime": "2:24 pm on 14 August, 2023",
+          "charge": 0.148
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Absolutely, Caroline! I cherish time with family. It's when I really feel alive and happy.",
+          "datetime": "7:55 pm on 9 June, 2023",
+          "charge": 0.148
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, Caroline! It's great that you're helping out. How's it going? Got any cool experiences you can share?",
+          "datetime": "2:31 pm on 17 July, 2023",
+          "charge": 0.148
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "conversation": 1,
+      "category": "single_hop",
+      "question": "Where has Melanie camped?",
+      "generated_answer": "beach, mountains, forest",
+      "gold_answer": "beach, mountains, forest",
+      "correct": true,
+      "latency_ms": 276.1,
+      "retrieval_ms": 58.4,
+      "rerank_ms": 1187.4,
+      "retrieved_memories": [
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie. Your support really means a lot. This journey has been amazing and I'm grateful I get to share it and help others with theirs. It's a real gift.",
+          "datetime": "9:55 am on 22 October, 2023",
+          "charge": 0.425
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Thanks, Caroline. It's still a work in progress, but I'm doing my best. My kids are so excited about summer break! We're thinking about going camping next month [= June 2023]. Any fun plans for the summer?",
+          "datetime": "1:14 pm on 25 May, 2023",
+          "charge": 0.564
+        },
+        {
+          "speaker": "Melanie",
+          "text": "That sounds great, Caroline! It's awesome having stuff around that make us think of good connections and times. Actually, I just took my fam camping in the mountains last week [= week of 19 June 2023] - it was a really nice time together!",
+          "datetime": "10:37 am on 27 June, 2023",
+          "charge": 0.557
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Hey Caroline! It's so good to hear from you! That pic is so beautiful, the colors really pop. Biking sounds like a great way to get out in nature. We went camping with the kids a few weeks ago [= around 23 August 2023], had a blast exploring the forest and hiking. Nature can be so refreshing for you",
+          "datetime": "12:09 am on 13 September, 2023",
+          "charge": 0.539
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Glad you have support, Caroline! Unconditional love is so important. Here's a pic of my family camping at the beach. We love it, it brings us closer!",
+          "datetime": "8:18 pm on 6 July, 2023",
+          "charge": 0.521
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, Caroline, your group sounds awesome! Supporting each other and making good things happen - that's so inspiring! Have you been part of any events or campaigns lately?",
+          "datetime": "8:56 pm on 20 July, 2023",
+          "charge": 0.423
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie! This support network has been amazing. They've been there for me every step of the way giving me love, guidance, and acceptance. I couldn't have done it without them.",
+          "datetime": "8:18 pm on 6 July, 2023",
+          "charge": 0.423
+        },
+        {
+          "speaker": "Melanie",
+          "text": "It's a chance to be present and together. We bond over stories, campfires and nature. It's so peaceful waking up to the sound of birds and the smell of fresh air - it always refreshes my soul.",
+          "datetime": "6:55 pm on 20 October, 2023",
+          "charge": 0.422
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie! Been a long road, but I'm proud of how far I've come. How're you doing finding peace?",
+          "datetime": "1:51 pm on 15 July, 2023",
+          "charge": 0.419
+        },
+        {
+          "speaker": "Melanie",
+          "text": "It was an awesome time, Caroline! We explored nature, roasted marshmallows around the campfire and even went on a hike. The view from the top was amazing! The 2 younger kids love nature. It was so special having these moments together as a family - I'll never forget it!",
+          "datetime": "10:37 am on 27 June, 2023",
+          "charge": 0.418
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Thanks, Caroline! It's awesome seeing the kids get excited learning something new about nature. Those moments make being a parent worth it. We roasted marshmallows and shared stories around the campfire. Those simple moments make the best memories. What inspires you with your volunteering?",
+          "datetime": "12:09 am on 13 September, 2023",
+          "charge": 0.417
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Oh man, sorry to hear that, Melanie. I hope you're okay. Pottery's a great way to relax, so it must have been tough taking a break. Need any help?",
+          "datetime": "10:31 am on 13 October, 2023",
+          "charge": 0.415
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie! Appreciate it. You play any instruments?",
+          "datetime": "3:19 pm on 28 August, 2023",
+          "charge": 0.411
+        },
+        {
+          "speaker": "Caroline",
+          "text": "It was awesome, Melanie! Being around people who embrace and back me up is beyond words. It really inspired me.",
+          "datetime": "1:51 pm on 15 July, 2023",
+          "charge": 0.411
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Cool, Melanie! Running can really boost your mood. Keep it up!",
+          "datetime": "4:33 pm on 12 July, 2023",
+          "charge": 0.411
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "conversation": 1,
+      "category": "single_hop",
+      "question": "What do Melanie's kids like?",
+      "generated_answer": "Melanie's kids enjoy spending time at the park, going to museums, playing with clay, painting, and being at the beach. They also get excited about learning new things and simple outdoor activities like camping and roasting marshmallows.",
+      "gold_answer": "dinosaurs, nature",
+      "correct": true,
+      "latency_ms": 561.4,
+      "retrieval_ms": 58.5,
+      "rerank_ms": 1547.5,
+      "retrieved_memories": [
+        {
+          "speaker": "Melanie",
+          "text": "Hey Caroline! Since we last spoke, I took my kids to a park yesterday [= 27 August 2023]. They had fun exploring and playing. It was nice seeing them have a good time outdoors. Time flies, huh? What's new with you?",
+          "datetime": "3:19 pm on 28 August, 2023",
+          "charge": 0.726
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie. My dream is to create a safe and loving home for these kids. Love and acceptance should be everyone's right, and I want them to experience it.",
+          "datetime": "9:55 am on 22 October, 2023",
+          "charge": 0.658
+        },
+        {
+          "speaker": "Caroline",
+          "text": "It's so sweet to see your love for your family, Melanie. They really are your rock.",
+          "datetime": "6:55 pm on 20 October, 2023",
+          "charge": 0.62
+        },
+        {
+          "speaker": "Melanie",
+          "text": "That's awesome, Caroline! Congrats on following your dreams. yesterday [= 5 July 2023] I took the kids to the museum - it was so cool spending time with them and seeing their eyes light up!",
+          "datetime": "8:18 pm on 6 July, 2023",
+          "charge": 0.558
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Thanks, Caroline! Yup, we just did it yesterday [= 19 October 2023]! The kids loved it and it was a nice way to relax after the road trip.",
+          "datetime": "6:55 pm on 20 October, 2023",
+          "charge": 0.556
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, Caroline! That's awesome! Taking in kids in need - you're so kind. Your future family is gonna be so lucky to have you!",
+          "datetime": "1:14 pm on 25 May, 2023",
+          "charge": 0.531
+        },
+        {
+          "speaker": "Melanie",
+          "text": "The kids loved it! They were so excited to get their hands dirty and make something with clay. It was special to watch their creativity and imagination come to life, they made this!",
+          "datetime": "1:51 pm on 15 July, 2023",
+          "charge": 0.53
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, Caroline! It really conveys unity and strength - such a gorgeous piece! My kids and I just finished another painting like our last one.",
+          "datetime": "2:31 pm on 17 July, 2023",
+          "charge": 0.527
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Seeing my kids' faces so happy at the beach was the best! We don't go often, usually only once or twice a year. But those times are always special to spend time together and chill.",
+          "datetime": "8:56 pm on 20 July, 2023",
+          "charge": 0.525
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Thanks, Caroline! It's awesome seeing the kids get excited learning something new about nature. Those moments make being a parent worth it. We roasted marshmallows and shared stories around the campfire. Those simple moments make the best memories. What inspires you with your volunteering?",
+          "datetime": "12:09 am on 13 September, 2023",
+          "charge": 0.524
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Yep, Caroline. Taking care of ourselves is vital. I'm off to go swimming with the kids. Talk to you soon!",
+          "datetime": "1:56 pm on 8 May, 2023",
+          "charge": 0.523
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Yeah, they sure are. It's special moments like these that make me appreciate life and how lucky I am to be with my family and have our love.",
+          "datetime": "8:56 pm on 20 July, 2023",
+          "charge": 0.522
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Hey Caroline, hope all's good! I had a quiet weekend after we went camping with my fam two weekends ago. It was great to unplug and hang with the kids. What've you been up to? Anything fun over the weekend?",
+          "datetime": "2:31 pm on 17 July, 2023",
+          "charge": 0.52
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Melanie, that photo's amazing! I love all the yellow leaves, it looks so cozy. That sounds like fun! Seeing how excited they get for the little things is awesome, it's so contagious.",
+          "datetime": "12:09 am on 13 September, 2023",
+          "charge": 0.403
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, Caroline! That sounds awesome. This pic's from last night [= 13 August 2023] - looks like everyone was having a blast! Reminds me it's important to cultivate a loving and accepting environment for our kids. How do you stay inclusive in your work as an artist?",
+          "datetime": "2:24 pm on 14 August, 2023",
+          "charge": 0.557
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "conversation": 1,
+      "category": "temporal",
+      "question": "When did Melanie go to the museum?",
+      "generated_answer": "5 July 2023",
+      "gold_answer": "5 July 2023",
+      "correct": true,
+      "latency_ms": 321.7,
+      "retrieval_ms": 52.3,
+      "rerank_ms": 1093.7,
+      "retrieved_memories": [
+        {
+          "speaker": "Melanie",
+          "text": "That's awesome, Caroline! Congrats on following your dreams. yesterday [= 5 July 2023] I took the kids to the museum - it was so cool spending time with them and seeing their eyes light up!",
+          "datetime": "8:18 pm on 6 July, 2023",
+          "charge": 0.905
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Hey Melanie! Just wanted to say hi!",
+          "datetime": "8:56 pm on 20 July, 2023",
+          "charge": 0.201
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Hey Melanie! How's it going? I wanted to tell you about my school event last week [= week of 29 May 2023]. It was awesome! I talked about my transgender journey and encouraged students to get involved in the LGBTQ community. It was great to see their reactions. It made me reflect on how far I've com",
+          "datetime": "7:55 pm on 9 June, 2023",
+          "charge": 0.2
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie! I painted this after I visited a LGBTQ center. I wanted to capture everyone's unity and strength.",
+          "datetime": "2:31 pm on 17 July, 2023",
+          "charge": 0.199
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Melanie, that's a great pic! That must have been awesome. What were they so stoked about?",
+          "datetime": "8:18 pm on 6 July, 2023",
+          "charge": 0.199
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Wow, Melanie! I'm getting creative too, just learning the piano. What made you try pottery?",
+          "datetime": "1:36 pm on 3 July, 2023",
+          "charge": 0.197
+        },
+        {
+          "speaker": "Caroline",
+          "text": "That's awesome, Melanie! Family moments like that are so special. Glad y'all had such a great time.",
+          "datetime": "10:37 am on 27 June, 2023",
+          "charge": 0.197
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Glad it helped ya, Melanie!",
+          "datetime": "4:33 pm on 12 July, 2023",
+          "charge": 0.196
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie. It means a lot to share this with you.",
+          "datetime": "2:24 pm on 14 August, 2023",
+          "charge": 0.195
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Hey Melanie, great to hear from you. What's been up since we talked?",
+          "datetime": "3:19 pm on 28 August, 2023",
+          "charge": 0.194
+        },
+        {
+          "speaker": "Caroline",
+          "text": "It was awesome, Melanie! Being around people who embrace and back me up is beyond words. It really inspired me.",
+          "datetime": "1:51 pm on 15 July, 2023",
+          "charge": 0.194
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie! Really glad to have you as a friend to share my journey. You're awesome!",
+          "datetime": "1:51 pm on 15 July, 2023",
+          "charge": 0.193
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Yep, Melanie! Being ourselves is such a great feeling. It's an ongoing adventure of learning and growing.",
+          "datetime": "10:31 am on 13 October, 2023",
+          "charge": 0.193
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Wow, Melanie, that's amazing! Love all the details and how you got the horse's grace and strength. Do you like painting animals?",
+          "datetime": "3:31 pm on 23 August, 2023",
+          "charge": 0.192
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Melanie, those bowls are amazing! They each have such cool designs. I love that you chose pottery for your art. Painting and drawing have helped me express my feelings and explore my gender identity. Creating art was really important to me during my transition - it helped me understand and accept my",
+          "datetime": "12:09 am on 13 September, 2023",
+          "charge": 0.192
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "conversation": 1,
+      "category": "temporal",
+      "question": "When did Caroline have a picnic?",
+      "generated_answer": "week of 26 June 2023",
+      "gold_answer": "The week before 6 July 2023",
+      "correct": true,
+      "latency_ms": 377.6,
+      "retrieval_ms": 56.8,
+      "rerank_ms": 1093.9,
+      "retrieved_memories": [
+        {
+          "speaker": "Melanie",
+          "text": "Bye, Caroline! Can't wait to hear about it. Have fun and stay safe!",
+          "datetime": "1:36 pm on 3 July, 2023",
+          "charge": 0.152
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Wow, that's great! It sure shows how important friendship and compassion are. It's made me appreciate how lucky I am to have my friends and family helping with my transition. They make all the difference. We even had a picnic last week [= week of 26 June 2023]!",
+          "datetime": "8:18 pm on 6 July, 2023",
+          "charge": 0.74
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Absolutely, Caroline! I cherish time with family. It's when I really feel alive and happy.",
+          "datetime": "7:55 pm on 9 June, 2023",
+          "charge": 0.157
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Agreed, Caroline. Life's tough but it's worth it when we have things that make us happy.",
+          "datetime": "1:50 pm on 17 August, 2023",
+          "charge": 0.157
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Hey Caroline, sorry about the hike. It sucks when people are so closed-minded. Strong support really helps. FYI, I finished another pottery project - want to see a pic?",
+          "datetime": "1:50 pm on 17 August, 2023",
+          "charge": 0.156
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Hey Caroline, that roadtrip this past weekend was insane! We were all freaked when my son got into an accident. We were so lucky he was okay. It was a real scary experience. Thankfully it's over now. What's been up since we last talked?",
+          "datetime": "6:55 pm on 20 October, 2023",
+          "charge": 0.156
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Thanks, Caroline! The event was really thought-provoking. I'm starting to realize that self-care is really important. It's a journey for me, but when I look after myself, I'm able to better look after my family.",
+          "datetime": "1:14 pm on 25 May, 2023",
+          "charge": 0.155
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Glad you have support, Caroline! Unconditional love is so important. Here's a pic of my family camping at the beach. We love it, it brings us closer!",
+          "datetime": "8:18 pm on 6 July, 2023",
+          "charge": 0.154
+        },
+        {
+          "speaker": "Melanie",
+          "text": "No doubts, Caroline. You have such a caring heart - they'll get all the love and stability they need! Excited for this new chapter!",
+          "datetime": "1:14 pm on 25 May, 2023",
+          "charge": 0.153
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Yeah, Caroline! It takes courage to talk about our own stories. But it's in these vulnerable moments that we bond and understand each other. We all have our different paths, but if we share them, we show people that they're not alone. Our stories can be so inspiring and encouraging to others who are",
+          "datetime": "7:55 pm on 9 June, 2023",
+          "charge": 0.15
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Wow, what a great day! Glad everyone could make it. What was your favorite part?",
+          "datetime": "1:51 pm on 15 July, 2023",
+          "charge": 0.098
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Yes, I did. It was amazing! I felt so accepted and happy, just being around people who accepted and celebrated me. It's definitely a top memory.",
+          "datetime": "1:51 pm on 15 July, 2023",
+          "charge": 0.097
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Sounds special, those beach trips! Do you have any other summer traditions you all do together? Create those memories!",
+          "datetime": "8:56 pm on 20 July, 2023",
+          "charge": 0.097
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Hey Mel! How're ya doin'? Recently, I had a not-so-great experience on a hike. I ran into a group of religious conservatives who said something that really upset me. It made me think how much work we still have to do for LGBTQ rights. It's been so helpful to have people around me who accept and supp",
+          "datetime": "1:50 pm on 17 August, 2023",
+          "charge": 0.097
+        },
+        {
+          "speaker": "Caroline",
+          "text": "It must have been special at your wedding. I wish I had known you back then!",
+          "datetime": "1:51 pm on 15 July, 2023",
+          "charge": 0.097
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "conversation": 1,
+      "category": "open_domain",
+      "question": "Would Caroline likely have Dr. Seuss books on her bookshelf?",
+      "generated_answer": "YES. Given that Caroline loves reading and has a passion for creating a library for her future children, it's highly likely she would have classic children's books like Dr. Seuss books on her bookshelf.",
+      "gold_answer": "Yes, since she collects classic children's books",
+      "correct": true,
+      "latency_ms": 530.6,
+      "retrieval_ms": 61.1,
+      "rerank_ms": 1156.6,
+      "retrieved_memories": [
+        {
+          "speaker": "Caroline",
+          "text": "Thanks so much, Mel! Seeing this pic just made me appreciate my love of reading even more. Books guide me, motivate me and help me discover who I am. They're a huge part of my journey, and this one's reminding me to keep going and never give up!",
+          "datetime": "4:33 pm on 12 July, 2023",
+          "charge": 0.904
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Being a mom is awesome. I'm creating a library for when I have kids. I'm really looking forward to reading to them and opening up their minds.",
+          "datetime": "8:18 pm on 6 July, 2023",
+          "charge": 0.89
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie! I'm stoked to start this new chapter. It's been a dream to adopt and provide a safe, loving home for kids who need it. Do you have any experience with adoption, or know anyone who's gone through the process?",
+          "datetime": "10:31 am on 13 October, 2023",
+          "charge": 0.732
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Yeah, definitely! Drawing flowers is one of my faves. Appreciating nature and sharing it is great. What about you, Mel? What type of art do you love?",
+          "datetime": "1:33 pm on 25 August, 2023",
+          "charge": 0.73
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Researching adoption agencies \u2014 it's been a dream to have a family and give a loving home to kids who need it.",
+          "datetime": "1:14 pm on 25 May, 2023",
+          "charge": 0.712
+        },
+        {
+          "speaker": "Caroline",
+          "text": "That photo is stunning! So glad you bonded over our love of nature. last friday [= 14 July 2023] I went to a council meeting for adoption. It was inspiring and emotional - so many people wanted to create loving homes for children in need. It made me even more determined to adopt.",
+          "datetime": "1:51 pm on 15 July, 2023",
+          "charge": 0.702
+        },
+        {
+          "speaker": "Caroline",
+          "text": "It was a transgender poetry reading where transgender people shared their stories through poetry. It was extra special 'cause it was a safe place for self-expression and it was really empowering to hear others share and celebrate their identities.",
+          "datetime": "10:31 am on 13 October, 2023",
+          "charge": 0.695
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Yeah, I'm really lucky to have them. They've been there through everything, I've known these friends for 4 years, since I moved from my home country. Their love and help have been so important especially after that tough breakup. I'm super thankful. Who supports you, Mel?",
+          "datetime": "7:55 pm on 9 June, 2023",
+          "charge": 0.659
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Cool that you have creative outlets. Got any paintings to show? I'd love to check them out.",
+          "datetime": "10:31 am on 13 October, 2023",
+          "charge": 0.655
+        },
+        {
+          "speaker": "Caroline",
+          "text": "That's so nice! What pet do you have?",
+          "datetime": "4:33 pm on 12 July, 2023",
+          "charge": 0.655
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Nah, I haven't. I've been busy painting - here's something I just finished.",
+          "datetime": "1:33 pm on 25 August, 2023",
+          "charge": 0.653
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Your words mean a lot to me. I'm grateful for the chance to share my story and give others hope. We all have unique paths, and by working together we can build a more inclusive and understanding world. I'm going to keep using my voice to make a change and lift others up. And you're part of that!",
+          "datetime": "7:55 pm on 9 June, 2023",
+          "charge": 0.646
+        },
+        {
+          "speaker": "Caroline",
+          "text": "I'm putting together an LGBTQ art show next month [= September 2023] and I'm gonna show my paintings. Super stoked!",
+          "datetime": "1:33 pm on 25 August, 2023",
+          "charge": 0.644
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie! Really glad to have you as a friend to share my journey. You're awesome!",
+          "datetime": "1:51 pm on 15 July, 2023",
+          "charge": 0.641
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Yeah Mel, stoked! Gonna be a great night featuring LGBTQ artists and their awesome talents. We want it to spread understanding and acceptance - let's make it happen!",
+          "datetime": "1:33 pm on 25 August, 2023",
+          "charge": 0.6
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "conversation": 1,
+      "category": "single_hop",
+      "question": "What books has Melanie read?",
+      "generated_answer": "book you recommended",
+      "gold_answer": "\"Nothing is Impossible\", \"Charlotte's Web\"",
+      "correct": false,
+      "latency_ms": 218.3,
+      "retrieval_ms": 64.8,
+      "rerank_ms": 1148.1,
+      "retrieved_memories": [
+        {
+          "speaker": "Melanie",
+          "text": "Thanks, Caroline. It was tough, but I'm doing ok. Been reading that book you recommended a while ago and painting to keep busy.",
+          "datetime": "10:31 am on 13 October, 2023",
+          "charge": 0.56
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Sounds great! What kind of books you got in your library?",
+          "datetime": "8:18 pm on 6 July, 2023",
+          "charge": 0.687
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Hey Melanie! Just wanted to say hi!",
+          "datetime": "8:56 pm on 20 July, 2023",
+          "charge": 0.52
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Thanks for the tip, Caroline. Doing research and readying myself emotionally makes sense. I'll do that. BTW, recently I had a setback. last month [= September 2023] I got hurt and had to take a break from pottery, which I use for self-expression and peace.",
+          "datetime": "10:31 am on 13 October, 2023",
+          "charge": 0.521
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Yeah, it's tough. So I'm carving out some me-time each day - running, reading, or playing my violin - which refreshes me and helps me stay present for my fam!",
+          "datetime": "1:14 pm on 25 May, 2023",
+          "charge": 0.501
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Hey Melanie, great to hear from you. What's been up since we talked?",
+          "datetime": "3:19 pm on 28 August, 2023",
+          "charge": 0.435
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Sounds awesome, Caroline! Have a great time and learn a lot. Have fun!",
+          "datetime": "1:36 pm on 3 July, 2023",
+          "charge": 0.421
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Yep, Caroline. Life's about learning and exploring. Glad we can be on this trip together.",
+          "datetime": "10:31 am on 13 October, 2023",
+          "charge": 0.42
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, Caroline, that's great! Art's awesome for showing us who we really are and getting in touch with ourselves. What else helps you out?",
+          "datetime": "3:31 pm on 23 August, 2023",
+          "charge": 0.417
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie. Your support really means a lot. This journey has been amazing and I'm grateful I get to share it and help others with theirs. It's a real gift.",
+          "datetime": "9:55 am on 22 October, 2023",
+          "charge": 0.416
+        },
+        {
+          "speaker": "Melanie",
+          "text": "That's so cool, Caroline! That's a great way to show off and be proud of everyone's skills. You know I love live music. Can't wait to hear about it!",
+          "datetime": "3:19 pm on 28 August, 2023",
+          "charge": 0.414
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie. It means a lot to share this with you.",
+          "datetime": "2:24 pm on 14 August, 2023",
+          "charge": 0.411
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie! Appreciate it. You play any instruments?",
+          "datetime": "3:19 pm on 28 August, 2023",
+          "charge": 0.403
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Hey Melanie! How's it going? I wanted to tell you about my school event last week [= week of 29 May 2023]. It was awesome! I talked about my transgender journey and encouraged students to get involved in the LGBTQ community. It was great to see their reactions. It made me reflect on how far I've com",
+          "datetime": "7:55 pm on 9 June, 2023",
+          "charge": 0.401
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Oh man, sorry to hear that, Melanie. I hope you're okay. Pottery's a great way to relax, so it must have been tough taking a break. Need any help?",
+          "datetime": "10:31 am on 13 October, 2023",
+          "charge": 0.401
+        }
+      ]
+    },
+    {
+      "id": 25,
+      "conversation": 1,
+      "category": "single_hop",
+      "question": "What does Melanie do to destress?",
+      "generated_answer": "Melanie runs to destress and clear her mind.",
+      "gold_answer": "Running, pottery",
+      "correct": true,
+      "latency_ms": 304.1,
+      "retrieval_ms": 54.2,
+      "rerank_ms": 1250.2,
+      "retrieved_memories": [
+        {
+          "speaker": "Melanie",
+          "text": "Thanks, Caroline! These are for running. Been running longer since our last chat - a great way to destress and clear my mind.",
+          "datetime": "4:33 pm on 12 July, 2023",
+          "charge": 0.747
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, Caroline, that's gorgeous! I love the self-acceptance and love theme. How does art help you with your self-discovery and acceptance journey?",
+          "datetime": "2:24 pm on 14 August, 2023",
+          "charge": 0.566
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Yeah for sure. Having my fam around helps a lot. It makes hard times easier.",
+          "datetime": "6:55 pm on 20 October, 2023",
+          "charge": 0.573
+        },
+        {
+          "speaker": "Melanie",
+          "text": "I feel the same way! Art is so cool like that - it connects us and helps us understand each other. I was actually just remembering yesterday [= 24 August 2023], spending the day with my fam volunteering at a homeless shelter. It was hard to see how neglected some people are, but it was great to feel",
+          "datetime": "1:33 pm on 25 August, 2023",
+          "charge": 0.567
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Thanks, Caroline! I painted it because it was calming. I've done an abstract painting too, take a look! I love how art lets us get our emotions out.",
+          "datetime": "10:31 am on 13 October, 2023",
+          "charge": 0.565
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Thanks, Caroline! Painting's a fun way to express my feelings and get creative. It's a great way to relax after a long day.",
+          "datetime": "1:56 pm on 8 May, 2023",
+          "charge": 0.579
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Music's amazing, isn't it? Any songs that have deep meaning for you?",
+          "datetime": "3:19 pm on 28 August, 2023",
+          "charge": 0.579
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, Caroline, that's great! Art's awesome for showing us who we really are and getting in touch with ourselves. What else helps you out?",
+          "datetime": "3:31 pm on 23 August, 2023",
+          "charge": 0.577
+        },
+        {
+          "speaker": "Melanie",
+          "text": "That's a gorgeous song, Caroline. It really fits with your journey and your determination to make a difference. Music can be so inspiring and uplifting.",
+          "datetime": "3:19 pm on 28 August, 2023",
+          "charge": 0.577
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, Caroline! You're so inspiring for wanting to help others with their mental health. What's pushing you to keep going forward with it?",
+          "datetime": "4:33 pm on 12 July, 2023",
+          "charge": 0.577
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Hey Caroline, since we last chatted, I've had a lot of things happening to me. I ran a charity race for mental health last saturday [= 20 May 2023] \u2013 it was really rewarding. Really made me think about taking care of our minds.",
+          "datetime": "1:14 pm on 25 May, 2023",
+          "charge": 0.574
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Thanks, Caroline! Your kind words mean a lot. Pottery is a huge part of my life, not just a hobby - it helps me express my emotions. Clay is incredible, it brings me so much joy!",
+          "datetime": "1:36 pm on 3 July, 2023",
+          "charge": 0.574
+        },
+        {
+          "speaker": "Melanie",
+          "text": "I loved reading \"Charlotte's Web\" as a kid. It was so cool seeing how friendship and compassion can make a difference.",
+          "datetime": "8:18 pm on 6 July, 2023",
+          "charge": 0.569
+        },
+        {
+          "speaker": "Melanie",
+          "text": "That sounds great, Caroline. Volunteering is a great way to meet people. Creating community and supporting each other, especially for kids, is really important. How did you feel about your time there? Anything that sticks out to you?",
+          "datetime": "3:19 pm on 28 August, 2023",
+          "charge": 0.568
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, Caroline, that's so cool! Art can be so healing and a way to really connect with who you are. It's awesome that beauty can be found in the imperfections. We're all individual and wonderfully imperfect. Thanks for sharing it with me!",
+          "datetime": "2:24 pm on 14 August, 2023",
+          "charge": 0.568
+        }
+      ]
+    },
+    {
+      "id": 26,
+      "conversation": 1,
+      "category": "temporal",
+      "question": "When did Caroline go to the LGBTQ conference?",
+      "generated_answer": "week of 10 July 2023",
+      "gold_answer": "10 July 2023",
+      "correct": true,
+      "latency_ms": 389.6,
+      "retrieval_ms": 53.4,
+      "rerank_ms": 1102.0,
+      "retrieved_memories": [
+        {
+          "speaker": "Caroline",
+          "text": "Since we last spoke, some big things have happened. last week [= week of 26 June 2023] I went to an LGBTQ+ pride parade. Everyone was so happy and it made me feel like I belonged. It showed me how much our community has grown, it was amazing!",
+          "datetime": "1:36 pm on 3 July, 2023",
+          "charge": 0.554
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks Mel! I'm going to a transgender conference this month. I'm so excited to meet other people in the community and learn more about advocacy. It's gonna be great!",
+          "datetime": "1:36 pm on 3 July, 2023",
+          "charge": 0.415
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Glad you agree, Caroline. Appreciate the support of those close to me. Their encouragement made me who I am.",
+          "datetime": "9:55 am on 22 October, 2023",
+          "charge": 0.359
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Hey Mel, great to chat with you again! So much has happened since we last spoke - I went to an LGBTQ conference two days ago [= 10 July 2023] and it was really special. I got the chance to meet and connect with people who've gone through similar journeys. It was such a welcoming environment and I fe",
+          "datetime": "4:33 pm on 12 July, 2023",
+          "charge": 0.804
+        },
+        {
+          "speaker": "Caroline",
+          "text": "I went to a LGBTQ support group yesterday [= 7 May 2023] and it was so powerful.",
+          "datetime": "1:56 pm on 8 May, 2023",
+          "charge": 0.552
+        },
+        {
+          "speaker": "Caroline",
+          "text": "I'm still figuring out the details, but I'm thinking of working with trans people, helping them accept themselves and supporting their mental health. last friday [= 23 June 2023], I went to an LGBTQ+ counseling workshop and it was really enlightening. They talked about different therapeutic methods ",
+          "datetime": "10:37 am on 27 June, 2023",
+          "charge": 0.549
+        },
+        {
+          "speaker": "Caroline",
+          "text": "I'm putting together an LGBTQ art show next month [= September 2023] and I'm gonna show my paintings. Super stoked!",
+          "datetime": "1:33 pm on 25 August, 2023",
+          "charge": 0.548
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Yay! next month [= August 2023] I'm having an LGBTQ art show with my paintings - can't wait!",
+          "datetime": "2:31 pm on 17 July, 2023",
+          "charge": 0.547
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Hey Melanie! That sounds great! last weekend [= 15-16 July 2023] I joined a mentorship program for LGBTQ youth - it's really rewarding to help the community.",
+          "datetime": "2:31 pm on 17 July, 2023",
+          "charge": 0.517
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Hey Caroline! Great to hear from you. Sounds like your event was amazing! I'm so proud of you for spreading awareness and getting others involved in the LGBTQ community. You've come a long way since your transition - keep on inspiring people with your strength and courage!",
+          "datetime": "7:55 pm on 9 June, 2023",
+          "charge": 0.442
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, Caroline! They must have felt so appreciated. It's awesome to see the difference we can make in each other's lives. Any other exciting LGBTQ advocacy stuff coming up?",
+          "datetime": "2:31 pm on 17 July, 2023",
+          "charge": 0.441
+        },
+        {
+          "speaker": "Caroline",
+          "text": "It was so inspiring, Mel! Check out the crowd. People of all kinds celebrating love and acceptance - it really pushed me to keep fighting for LGBTQ rights.",
+          "datetime": "2:24 pm on 14 August, 2023",
+          "charge": 0.379
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Yeah Mel, stoked! Gonna be a great night featuring LGBTQ artists and their awesome talents. We want it to spread understanding and acceptance - let's make it happen!",
+          "datetime": "1:33 pm on 25 August, 2023",
+          "charge": 0.378
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Hey Mel! A lot's happened since we last chatted - I just joined a new LGBTQ activist group last Tues. I'm meeting so many cool people who are as passionate as I am about rights and community support. I'm giving my voice and making a real difference, plus it's fulfilling in so many ways. It's just gr",
+          "datetime": "8:56 pm on 20 July, 2023",
+          "charge": 0.378
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie! I painted this after I visited a LGBTQ center. I wanted to capture everyone's unity and strength.",
+          "datetime": "2:31 pm on 17 July, 2023",
+          "charge": 0.377
+        }
+      ]
+    },
+    {
+      "id": 27,
+      "conversation": 1,
+      "category": "temporal",
+      "question": "When did Melanie read the book \"nothing is impossible\"?",
+      "generated_answer": "The question does not contain any information about Melanie reading the book \"nothing is impossible\". Based on the provided memories, there is no mention of this specific event. Therefore, I cannot provide a resolved date from the given content.\n\nHowever, if we need to follow the instructions strictly and there must be an answer, we can say:\n\n[Not mentioned]",
+      "gold_answer": 2022,
+      "correct": false,
+      "latency_ms": 783.1,
+      "retrieval_ms": 61.5,
+      "rerank_ms": 1102.6,
+      "retrieved_memories": [
+        {
+          "speaker": "Caroline",
+          "text": "Hi Melanie! Hope you're doing good. Guess what I did this week [= week of 21 August 2023]? I took the first step towards becoming a mom - I applied to adoption agencies! It's a big decision, but I think I'm ready to give all my love to a child. I got lots of help from this adoption advice/assistance",
+          "datetime": "3:31 pm on 23 August, 2023",
+          "charge": 0.654
+        },
+        {
+          "speaker": "Melanie",
+          "text": "I loved reading \"Charlotte's Web\" as a kid. It was so cool seeing how friendship and compassion can make a difference.",
+          "datetime": "8:18 pm on 6 July, 2023",
+          "charge": 0.65
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, Caroline! Books have such an awesome power! Which one has been your favorite guide?",
+          "datetime": "4:33 pm on 12 July, 2023",
+          "charge": 0.646
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Sounds great! What kind of books you got in your library?",
+          "datetime": "8:18 pm on 6 July, 2023",
+          "charge": 0.645
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Yeah, it's tough. So I'm carving out some me-time each day - running, reading, or playing my violin - which refreshes me and helps me stay present for my fam!",
+          "datetime": "1:14 pm on 25 May, 2023",
+          "charge": 0.641
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Hey Caroline! Great to hear from you. Sounds like your event was amazing! I'm so proud of you for spreading awareness and getting others involved in the LGBTQ community. You've come a long way since your transition - keep on inspiring people with your strength and courage!",
+          "datetime": "7:55 pm on 9 June, 2023",
+          "charge": 0.639
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Thanks for the tip, Caroline. Doing research and readying myself emotionally makes sense. I'll do that. BTW, recently I had a setback. last month [= September 2023] I got hurt and had to take a break from pottery, which I use for self-expression and peace.",
+          "datetime": "10:31 am on 13 October, 2023",
+          "charge": 0.638
+        },
+        {
+          "speaker": "Melanie",
+          "text": "You'd be a great counselor! Your empathy and understanding will really help the people you work with. By the way, take a look at this.",
+          "datetime": "1:56 pm on 8 May, 2023",
+          "charge": 0.494
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Yeah, it's normal to be both excited and nervous with a big decision. And thanks for asking, they're good- we got another cat named Bailey too. Here's a pic of Oliver. Can you show me one of Oscar?",
+          "datetime": "3:31 pm on 23 August, 2023",
+          "charge": 0.493
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie! I made this painting to show my path as a trans woman. The red and blue are for the binary gender system, and the mix of colors means smashing that rigid thinking. It's a reminder to love my authentic self - it's taken a while to get here but I'm finally proud of who I am.",
+          "datetime": "12:09 am on 13 September, 2023",
+          "charge": 0.493
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie. Here's one- 'Embracing Identity' is all about finding comfort and love in being yourself. The woman in the painting stands for the journey of acceptance. My aim was to show warmth, love and self-acceptance.",
+          "datetime": "2:24 pm on 14 August, 2023",
+          "charge": 0.486
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Yep, Melanie! Being ourselves is such a great feeling. It's an ongoing adventure of learning and growing.",
+          "datetime": "10:31 am on 13 October, 2023",
+          "charge": 0.484
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Hey Melanie! Long time no talk! A lot's been going on in my life! Take a look at this.",
+          "datetime": "10:37 am on 27 June, 2023",
+          "charge": 0.483
+        },
+        {
+          "speaker": "Caroline",
+          "text": "It was a transgender poetry reading where transgender people shared their stories through poetry. It was extra special 'cause it was a safe place for self-expression and it was really empowering to hear others share and celebrate their identities.",
+          "datetime": "10:31 am on 13 October, 2023",
+          "charge": 0.459
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Being a mom is awesome. I'm creating a library for when I have kids. I'm really looking forward to reading to them and opening up their minds.",
+          "datetime": "8:18 pm on 6 July, 2023",
+          "charge": 0.456
+        }
+      ]
+    },
+    {
+      "id": 28,
+      "conversation": 1,
+      "category": "open_domain",
+      "question": "Would Caroline pursue writing as a career option?",
+      "generated_answer": "NO\n\nBased on the available memories, Caroline is focused on counseling and mental health jobs. She has not shown any specific interest or mention of pursuing writing as a career option.",
+      "gold_answer": "LIkely no; though she likes reading, she wants to be a counselor",
+      "correct": false,
+      "latency_ms": 456.9,
+      "retrieval_ms": 59.0,
+      "rerank_ms": 1345.9,
+      "retrieved_memories": [
+        {
+          "speaker": "Caroline",
+          "text": "Gonna continue my edu and check out career options, which is pretty exciting!",
+          "datetime": "1:56 pm on 8 May, 2023",
+          "charge": 0.86
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Glad you agree, Caroline. Appreciate the support of those close to me. Their encouragement made me who I am.",
+          "datetime": "9:55 am on 22 October, 2023",
+          "charge": 0.838
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Nice job! You really put in the work and it definitely shows. Your creativity looks great!",
+          "datetime": "1:36 pm on 3 July, 2023",
+          "charge": 0.798
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Mell! I'm still looking into counseling and mental health jobs. It's important to me that people have someone to talk to, and I want to help make that happen.",
+          "datetime": "4:33 pm on 12 July, 2023",
+          "charge": 0.736
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Wow, Melanie! I'm getting creative too, just learning the piano. What made you try pottery?",
+          "datetime": "1:36 pm on 3 July, 2023",
+          "charge": 0.651
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Yeah totally! \"Brave\" by Sara Bareilles has a lot of significance for me. It's about being courageous and fighting for what's right. Whenever I hear this jam, I think about the paths I've taken and the progress I've made.",
+          "datetime": "3:19 pm on 28 August, 2023",
+          "charge": 0.65
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Yeah, Mel! Life's all about creating memories. Can't wait for the trip!",
+          "datetime": "1:50 pm on 17 August, 2023",
+          "charge": 0.639
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Agreed, Mel! Art can be a real mood-booster - I saw someone drawing on the ground the other day and it made me so happy. Creativity sure can lighten someone's day.",
+          "datetime": "1:33 pm on 25 August, 2023",
+          "charge": 0.639
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Totally agree, Mel. Relaxing and expressing ourselves is key. Well, I'm off to go do some research.",
+          "datetime": "1:56 pm on 8 May, 2023",
+          "charge": 0.657
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Yep, Melanie! Being ourselves is such a great feeling. It's an ongoing adventure of learning and growing.",
+          "datetime": "10:31 am on 13 October, 2023",
+          "charge": 0.639
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Mel! I made this stained glass window to remind myself and others that within us all is the key to discovering our true potential and living our best life.",
+          "datetime": "1:33 pm on 25 August, 2023",
+          "charge": 0.553
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Being a mom is awesome. I'm creating a library for when I have kids. I'm really looking forward to reading to them and opening up their minds.",
+          "datetime": "8:18 pm on 6 July, 2023",
+          "charge": 0.552
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Yeah Mel, let's spread love and understanding! Thanks for the support and encouragement. We can tackle life's challenges together! We got this!",
+          "datetime": "7:55 pm on 9 June, 2023",
+          "charge": 0.552
+        },
+        {
+          "speaker": "Caroline",
+          "text": "I haven't done pottery yet, but I'm game for trying new art. I might try it sometime! Check out this piece I made!",
+          "datetime": "12:09 am on 13 September, 2023",
+          "charge": 0.552
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Mel! I felt liberated and empowered doing it. Painting helps me explore my identity and be true to myself. It's definitely therapeutic.",
+          "datetime": "3:31 pm on 23 August, 2023",
+          "charge": 0.552
+        }
+      ]
+    },
+    {
+      "id": 29,
+      "conversation": 1,
+      "category": "temporal",
+      "question": "When did Caroline go to the adoption meeting?",
+      "generated_answer": "last friday [= 14 July 2023]",
+      "gold_answer": "The friday before 15 July 2023",
+      "correct": true,
+      "latency_ms": 404.9,
+      "retrieval_ms": 58.0,
+      "rerank_ms": 1268.4,
+      "retrieved_memories": [
+        {
+          "speaker": "Caroline",
+          "text": "That photo is stunning! So glad you bonded over our love of nature. last friday [= 14 July 2023] I went to a council meeting for adoption. It was inspiring and emotional - so many people wanted to create loving homes for children in need. It made me even more determined to adopt.",
+          "datetime": "1:51 pm on 15 July, 2023",
+          "charge": 0.805
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Woohoo Melanie! I passed the adoption agency interviews last friday [= 20 October 2023]! I'm so excited and thankful. This is a big move towards my goal of having a family.",
+          "datetime": "9:55 am on 22 October, 2023",
+          "charge": 0.481
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Researching adoption agencies \u2014 it's been a dream to have a family and give a loving home to kids who need it.",
+          "datetime": "1:14 pm on 25 May, 2023",
+          "charge": 0.333
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Hi Melanie! Hope you're doing good. Guess what I did this week [= week of 21 August 2023]? I took the first step towards becoming a mom - I applied to adoption agencies! It's a big decision, but I think I'm ready to give all my love to a child. I got lots of help from this adoption advice/assistance",
+          "datetime": "3:31 pm on 23 August, 2023",
+          "charge": 0.48
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Hey Caroline! last night [= 13 August 2023] was amazing! We celebrated my daughter's birthday with a concert surrounded by music, joy and the warm summer breeze. Seeing my kids' smiles was so awesome, and I'm so thankful for our special moments together.",
+          "datetime": "2:24 pm on 14 August, 2023",
+          "charge": 0.459
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Hey Mel, great to chat with you again! So much has happened since we last spoke - I went to an LGBTQ conference two days ago [= 10 July 2023] and it was really special. I got the chance to meet and connect with people who've gone through similar journeys. It was such a welcoming environment and I fe",
+          "datetime": "4:33 pm on 12 July, 2023",
+          "charge": 0.45
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Congrats, Caroline! Adoption sounds awesome. I'm so happy for you. These figurines I bought yesterday [= 21 October 2023] remind me of family love. Tell me, what's your vision for the future?",
+          "datetime": "9:55 am on 22 October, 2023",
+          "charge": 0.439
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, Caroline! That's amazing. You really care about being real and helping others. Wishing you the best on your adoption journey!",
+          "datetime": "3:31 pm on 23 August, 2023",
+          "charge": 0.402
+        },
+        {
+          "speaker": "Melanie",
+          "text": "That's great, Caroline! Loving the inclusivity and support. Anything you're excited for in the adoption process?",
+          "datetime": "1:14 pm on 25 May, 2023",
+          "charge": 0.393
+        },
+        {
+          "speaker": "Melanie",
+          "text": "That sounds great, Caroline. Volunteering is a great way to meet people. Creating community and supporting each other, especially for kids, is really important. How did you feel about your time there? Anything that sticks out to you?",
+          "datetime": "3:19 pm on 28 August, 2023",
+          "charge": 0.386
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, Caroline! That's huge! How did it feel to be around so much love and acceptance?",
+          "datetime": "1:51 pm on 15 July, 2023",
+          "charge": 0.385
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks, Melanie! I painted it after I visited the beach last week [= week of 14 August 2023]. Just seeing the sun dip below the horizon, all the amazing colors - it was amazing and calming. So I just had to try to capture that feeling in my painting.",
+          "datetime": "1:33 pm on 25 August, 2023",
+          "charge": 0.37
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Glad you agree, Caroline. Appreciate the support of those close to me. Their encouragement made me who I am.",
+          "datetime": "9:55 am on 22 October, 2023",
+          "charge": 0.359
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Thanks Mel! I'm going to a transgender conference this month. I'm so excited to meet other people in the community and learn more about advocacy. It's gonna be great!",
+          "datetime": "1:36 pm on 3 July, 2023",
+          "charge": 0.356
+        },
+        {
+          "speaker": "Caroline",
+          "text": "I started playing acoustic guitar about five years ago; it's been a great way to express myself and escape into my emotions.",
+          "datetime": "3:19 pm on 28 August, 2023",
+          "charge": 0.343
+        }
+      ]
+    },
+    {
+      "id": 30,
+      "conversation": 1,
+      "category": "temporal",
+      "question": "When did Melanie go to the pottery workshop?",
+      "generated_answer": "Last Fri [= 15 July 2023]",
+      "gold_answer": "The Friday before 15 July 2023",
+      "correct": false,
+      "latency_ms": 403.3,
+      "retrieval_ms": 54.9,
+      "rerank_ms": 1124.7,
+      "retrieved_memories": [
+        {
+          "speaker": "Caroline",
+          "text": "Yay! next month [= August 2023] I'm having an LGBTQ art show with my paintings - can't wait!",
+          "datetime": "2:31 pm on 17 July, 2023",
+          "charge": 0.424
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Hey Caroline, it's been super busy here. So much since we talked! Last Fri I finally took my kids to a pottery workshop. We all made our own pots, it was fun and therapeutic!",
+          "datetime": "1:51 pm on 15 July, 2023",
+          "charge": 0.958
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Hey Melanie! How's it going? I wanted to tell you about my school event last week [= week of 29 May 2023]. It was awesome! I talked about my transgender journey and encouraged students to get involved in the LGBTQ community. It was great to see their reactions. It made me reflect on how far I've com",
+          "datetime": "7:55 pm on 9 June, 2023",
+          "charge": 0.645
+        },
+        {
+          "speaker": "Caroline",
+          "text": "I'm still figuring out the details, but I'm thinking of working with trans people, helping them accept themselves and supporting their mental health. last friday [= 23 June 2023], I went to an LGBTQ+ counseling workshop and it was really enlightening. They talked about different therapeutic methods ",
+          "datetime": "10:37 am on 27 June, 2023",
+          "charge": 0.641
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Yep, Melanie! I've got some other stuff with sentimental value, like my hand-painted bowl. A friend made it for my 18th birthday ten years ago [= 2013]. The pattern and colors are awesome-- it reminds me of art and self-expression.",
+          "datetime": "10:37 am on 27 June, 2023",
+          "charge": 0.611
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Yeah, I made it in pottery class yesterday [= 24 August 2023]. I love it! Pottery's so relaxing and creative. Have you tried it yet?",
+          "datetime": "1:33 pm on 25 August, 2023",
+          "charge": 0.61
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, Caroline! That's great! I just signed up for a pottery class yesterday [= 2 July 2023]. It's like therapy for me, letting me express myself and get creative. Have you found any activities that make you feel the same way?",
+          "datetime": "1:36 pm on 3 July, 2023",
+          "charge": 0.61
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Yeah, Here's one I did last week [= week of 2 October 2023]. It's inspired by the sunsets. The colors make me feel calm. What have you been up to lately, artistically?",
+          "datetime": "10:31 am on 13 October, 2023",
+          "charge": 0.599
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Wow, Caroline! That sounds awesome. This pic's from last night [= 13 August 2023] - looks like everyone was having a blast! Reminds me it's important to cultivate a loving and accepting environment for our kids. How do you stay inclusive in your work as an artist?",
+          "datetime": "2:24 pm on 14 August, 2023",
+          "charge": 0.597
+        },
+        {
+          "speaker": "Melanie",
+          "text": "Hey Caroline, sorry about the hike. It sucks when people are so closed-minded. Strong support really helps. FYI, I finished another pottery project - want to see a pic?",
+          "datetime": "1:50 pm on 17 August, 2023",
+          "charge": 0.503
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Sure thing, Melanie! Can't wait to see your pottery project.  I'm happy you found something that makes you happy. Show me when you can!",
+          "datetime": "1:50 pm on 17 August, 2023",
+          "charge": 0.501
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Wow, Melanie! I'm getting creative too, just learning the piano. What made you try pottery?",
+          "datetime": "1:36 pm on 3 July, 2023",
+          "charge": 0.492
+        },
+        {
+          "speaker": "Caroline",
+          "text": "I haven't done pottery yet, but I'm game for trying new art. I might try it sometime! Check out this piece I made!",
+          "datetime": "12:09 am on 13 September, 2023",
+          "charge": 0.469
+        },
+        {
+          "speaker": "Caroline",
+          "text": "Aww, that's so sweet! That cup is so cute. It's awesome to see how kids show their personalities through art. What other creative projects do you do with them, besides pottery?",
+          "datetime": "1:51 pm on 15 July, 2023",
+          "charge": 0.467
+        },
+        {
+          "speaker": "Melanie",
+          "text": "I'm a big fan of pottery - the creativity and skill is awesome. Plus, making it is so calming. Look at this!",
+          "datetime": "1:36 pm on 3 July, 2023",
+          "charge": 0.433
+        }
+      ]
+    }
+  ]
+}
