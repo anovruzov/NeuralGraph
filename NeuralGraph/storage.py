@@ -328,6 +328,10 @@ class InMemoryNeuralGraphStorage(NeuralGraphStorage):
     - Uses Locality-Sensitive Hashing for O(log n) vector search
     - Falls back to brute-force for small sessions or when LSH misses
     - Separate LSH index per session for isolation
+
+    THE PLAN Enhancement:
+    - Node deduplication with cosine thresholding during ingestion
+    - Prevents multiple low-scoring candidates that dilute rankings
     """
 
     # Minimum nodes before LSH provides benefit (below this, brute-force is faster)
@@ -336,12 +340,18 @@ class InMemoryNeuralGraphStorage(NeuralGraphStorage):
     # LSH recall boost: examine top-k * this factor from LSH, then refine
     LSH_CANDIDATE_MULTIPLIER = 3
 
-    def __init__(self, lsh_config: LSHConfig | None = None):
+    # THE PLAN: Deduplication settings
+    DEDUP_ENABLED = True
+    DEDUP_SIMILARITY_THRESHOLD = 0.92  # Nodes above this similarity are duplicates
+    DEDUP_MAX_CANDIDATES = 10  # Max candidates to check for duplicates
+
+    def __init__(self, lsh_config: LSHConfig | None = None, enable_dedup: bool = True):
         """Initialize in-memory storage.
 
         Args:
             lsh_config: Optional LSH configuration. If None, uses defaults
                         (8 tables, 12 hashes per table for good recall/precision)
+            enable_dedup: Enable deduplication during ingestion (THE PLAN enhancement)
         """
         self._nodes: dict[str, NeuralNode] = {}
         self._edges: dict[str, NeuralEdge] = {}
@@ -367,6 +377,10 @@ class InMemoryNeuralGraphStorage(NeuralGraphStorage):
         self._lsh_queries = 0
         self._lsh_fallbacks = 0
 
+        # THE PLAN: Deduplication settings
+        self._enable_dedup = enable_dedup and self.DEDUP_ENABLED
+        self._dedup_count = 0  # Track how many duplicates were caught
+
         # Lock for thread safety
         self._lock = asyncio.Lock()
 
@@ -377,32 +391,130 @@ class InMemoryNeuralGraphStorage(NeuralGraphStorage):
     async def save_node(self, node: NeuralNode) -> None:
         """Save or update a node."""
         async with self._lock:
-            # Clean up old entity index if updating
-            old_node = self._nodes.get(node.node_id)
-            if old_node:
-                for entity_id in old_node.entity_ids:
-                    self._nodes_by_entity[entity_id].discard(node.node_id)
-                self._nodes_by_layer[old_node.session_key][old_node.layer].discard(node.node_id)
-                # Remove from LSH if embedding changed
-                if old_node.embedding and node.session_key in self._lsh_indices:
-                    self._lsh_indices[node.session_key].remove(node.node_id)
+            await self._save_node_internal(node)
 
-            # Save node
-            self._nodes[node.node_id] = node
-            self._nodes_by_session[node.session_key].add(node.node_id)
+    async def _save_node_internal(self, node: NeuralNode) -> None:
+        """Internal save without lock (for use by batch operations)."""
+        # Clean up old entity index if updating
+        old_node = self._nodes.get(node.node_id)
+        if old_node:
+            for entity_id in old_node.entity_ids:
+                self._nodes_by_entity[entity_id].discard(node.node_id)
+            self._nodes_by_layer[old_node.session_key][old_node.layer].discard(node.node_id)
+            # Remove from LSH if embedding changed
+            if old_node.embedding and node.session_key in self._lsh_indices:
+                self._lsh_indices[node.session_key].remove(node.node_id)
 
-            # NEW: Maintain entity index for O(1) entity lookup
-            for entity_id in node.entity_ids:
-                self._nodes_by_entity[entity_id].add(node.node_id)
+        # Save node
+        self._nodes[node.node_id] = node
+        self._nodes_by_session[node.session_key].add(node.node_id)
 
-            # NEW: Maintain layer index for O(1) layer lookup
-            self._nodes_by_layer[node.session_key][node.layer].add(node.node_id)
+        # NEW: Maintain entity index for O(1) entity lookup
+        for entity_id in node.entity_ids:
+            self._nodes_by_entity[entity_id].add(node.node_id)
 
-            # LSH: Index embedding for fast vector search
-            if node.embedding:
-                if node.session_key not in self._lsh_indices:
-                    self._lsh_indices[node.session_key] = RandomProjectionLSH(self._lsh_config)
-                self._lsh_indices[node.session_key].index(node.node_id, node.embedding)
+        # NEW: Maintain layer index for O(1) layer lookup
+        self._nodes_by_layer[node.session_key][node.layer].add(node.node_id)
+
+        # LSH: Index embedding for fast vector search
+        if node.embedding:
+            if node.session_key not in self._lsh_indices:
+                self._lsh_indices[node.session_key] = RandomProjectionLSH(self._lsh_config)
+            self._lsh_indices[node.session_key].index(node.node_id, node.embedding)
+
+    async def save_node_with_dedup(
+        self,
+        node: NeuralNode,
+        force: bool = False
+    ) -> tuple[bool, str | None]:
+        """Save a node with deduplication check.
+
+        THE PLAN: "De-duplicate near-identical nodes during ingestion using
+        cosine thresholding to avoid multiple low-scoring candidates"
+
+        Args:
+            node: Node to save
+            force: If True, skip deduplication check
+
+        Returns:
+            Tuple of (saved, duplicate_id):
+            - saved: True if node was saved, False if duplicate found
+            - duplicate_id: ID of existing duplicate if found
+        """
+        if not self._enable_dedup or force or not node.embedding:
+            await self.save_node(node)
+            return True, None
+
+        async with self._lock:
+            # Check for duplicates using LSH + brute force on candidates
+            duplicate_id = await self._find_duplicate_node(node)
+
+            if duplicate_id:
+                self._dedup_count += 1
+                logger.debug(
+                    f"Deduplicated node {node.node_id[:8]} -> {duplicate_id[:8]} "
+                    f"(total dedup: {self._dedup_count})"
+                )
+                return False, duplicate_id
+
+            # No duplicate found, save the node
+            await self._save_node_internal(node)
+            return True, None
+
+    async def _find_duplicate_node(self, node: NeuralNode) -> str | None:
+        """Find an existing node that's a near-duplicate of the given node.
+
+        Uses LSH for fast candidate retrieval, then cosine similarity for verification.
+
+        Args:
+            node: Node to check for duplicates
+
+        Returns:
+            Node ID of duplicate if found, None otherwise
+        """
+        if not node.embedding:
+            return None
+
+        session_key = node.session_key
+
+        # Use LSH to find candidates
+        if session_key in self._lsh_indices:
+            lsh = self._lsh_indices[session_key]
+            candidates = lsh.query(node.embedding, limit=self.DEDUP_MAX_CANDIDATES)
+        else:
+            # No LSH index yet, check all nodes in session
+            session_nodes = self._nodes_by_session.get(session_key, set())
+            candidates = list(session_nodes)[:self.DEDUP_MAX_CANDIDATES]
+
+        # Check candidates for near-duplicates
+        for candidate_id in candidates:
+            if candidate_id == node.node_id:
+                continue
+
+            candidate = self._nodes.get(candidate_id)
+            if not candidate or not candidate.embedding:
+                continue
+
+            # Check similarity
+            sim = cosine_similarity(node.embedding, candidate.embedding)
+            if sim >= self.DEDUP_SIMILARITY_THRESHOLD:
+                # Found a duplicate - also check layer match
+                if candidate.layer == node.layer:
+                    return candidate_id
+
+        return None
+
+    def get_dedup_stats(self) -> dict[str, int]:
+        """Get deduplication statistics.
+
+        Returns:
+            Dictionary with dedup stats
+        """
+        return {
+            "dedup_enabled": self._enable_dedup,
+            "duplicates_caught": self._dedup_count,
+            "threshold": self.DEDUP_SIMILARITY_THRESHOLD,
+        }
 
     async def get_node(self, node_id: str) -> NeuralNode | None:
         """Get a node by ID."""

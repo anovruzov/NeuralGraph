@@ -569,3 +569,222 @@ def create_balanced_registry() -> EdgeGateRegistry:
     Default configuration for general use.
     """
     return EdgeGateRegistry(GateConfig())
+
+
+# =============================================================================
+# THE PLAN: SINGLE-HOP OPTIMIZED GATE PROFILES
+# =============================================================================
+
+@dataclass
+class GateProfile:
+    """Configuration profile for different query types.
+
+    THE PLAN: "Update gating.py weights to slightly favor semantic edges over
+    exploratory edges for single-hop queries; expose a tunable profile for
+    single-hop vs. multi-hop routing."
+    """
+    # Profile name
+    name: str
+
+    # Edge type weights (how much to favor each type)
+    semantic_weight: float = 1.0
+    entity_weight: float = 1.0
+    temporal_weight: float = 1.0
+    causal_weight: float = 1.0
+    hierarchy_weight: float = 1.0
+    co_activation_weight: float = 1.0
+
+    # Gate configuration
+    base_config: GateConfig | None = None
+
+    # Exploration vs exploitation
+    exploration_factor: float = 1.0  # < 1.0 = favor known paths, > 1.0 = explore
+
+
+# Pre-defined profiles for different query types
+SINGLE_HOP_PROFILE = GateProfile(
+    name="single_hop",
+    semantic_weight=1.3,     # Favor semantic for direct fact retrieval
+    entity_weight=1.4,       # Strongly favor entity matches for "What is X's Y?"
+    temporal_weight=0.8,     # Slightly reduce temporal exploration
+    causal_weight=0.7,       # Reduce causal chain following
+    hierarchy_weight=0.9,    # Slight reduction in hierarchy traversal
+    co_activation_weight=0.6,  # Reduce exploratory co-activation
+    exploration_factor=0.7,   # Exploit known paths more
+    base_config=GateConfig(
+        threshold=0.35,        # Slightly stricter for precision
+        steepness=6.0,
+        recency_half_life_days=7.0,
+        ltp_weight=0.25,
+        confidence_weight=0.35,  # Higher confidence weight for precision
+    ),
+)
+
+MULTI_HOP_PROFILE = GateProfile(
+    name="multi_hop",
+    semantic_weight=0.9,     # Slightly reduce semantic (need chains)
+    entity_weight=1.1,       # Entity still important for paths
+    temporal_weight=1.2,     # Boost temporal for sequence reasoning
+    causal_weight=1.4,       # Strongly favor causal chains
+    hierarchy_weight=1.2,    # Allow hierarchy traversal
+    co_activation_weight=1.0,  # Normal co-activation
+    exploration_factor=1.3,   # Explore more paths
+    base_config=GateConfig(
+        threshold=0.25,        # More permissive for recall
+        steepness=4.0,
+        recency_half_life_days=10.0,
+        ltp_weight=0.35,
+        confidence_weight=0.25,
+    ),
+)
+
+TEMPORAL_QUERY_PROFILE = GateProfile(
+    name="temporal",
+    semantic_weight=0.8,
+    entity_weight=1.0,
+    temporal_weight=1.5,     # Strongly favor temporal edges
+    causal_weight=1.2,
+    hierarchy_weight=0.7,
+    co_activation_weight=0.8,
+    exploration_factor=1.1,
+    base_config=GateConfig(
+        threshold=0.3,
+        steepness=5.0,
+        recency_half_life_days=14.0,  # Longer recency for historical
+        ltp_weight=0.2,
+        confidence_weight=0.3,
+    ),
+)
+
+OPEN_DOMAIN_PROFILE = GateProfile(
+    name="open_domain",
+    semantic_weight=1.1,
+    entity_weight=1.0,
+    temporal_weight=1.0,
+    causal_weight=1.0,
+    hierarchy_weight=1.0,
+    co_activation_weight=1.2,  # Boost associative retrieval
+    exploration_factor=1.2,
+    base_config=GateConfig(
+        threshold=0.2,         # Permissive for broad retrieval
+        steepness=4.0,
+        recency_half_life_days=7.0,
+        ltp_weight=0.4,        # LTP more important for general knowledge
+        confidence_weight=0.2,
+    ),
+)
+
+# Profile registry
+GATE_PROFILES: dict[str, GateProfile] = {
+    "single_hop": SINGLE_HOP_PROFILE,
+    "multi_hop": MULTI_HOP_PROFILE,
+    "temporal": TEMPORAL_QUERY_PROFILE,
+    "open_domain": OPEN_DOMAIN_PROFILE,
+    "default": GateProfile(name="default"),  # All weights = 1.0
+}
+
+
+def get_profile(query_type: str) -> GateProfile:
+    """Get the gate profile for a query type.
+
+    Args:
+        query_type: One of "single_hop", "multi_hop", "temporal", "open_domain"
+
+    Returns:
+        GateProfile for the query type
+    """
+    return GATE_PROFILES.get(query_type, GATE_PROFILES["default"])
+
+
+def create_profiled_registry(profile: GateProfile) -> EdgeGateRegistry:
+    """Create a registry configured for a specific profile.
+
+    Args:
+        profile: The gate profile to use
+
+    Returns:
+        EdgeGateRegistry configured for the profile
+    """
+    config = profile.base_config or GateConfig()
+    return EdgeGateRegistry(config)
+
+
+class ProfiledGateRegistry(EdgeGateRegistry):
+    """Gate registry that applies profile-based weighting.
+
+    THE PLAN: "expose a tunable profile for single-hop vs. multi-hop routing"
+    """
+
+    def __init__(self, profile: GateProfile | None = None):
+        """Initialize with a profile.
+
+        Args:
+            profile: Gate profile to use (defaults to single_hop)
+        """
+        self._profile = profile or SINGLE_HOP_PROFILE
+        config = self._profile.base_config or GateConfig()
+        super().__init__(config)
+
+    def compute_gate(
+        self,
+        edge: "NeuralEdge",
+        context: dict[str, Any] | None = None
+    ) -> float:
+        """Compute gate value with profile-based weighting.
+
+        Args:
+            edge: Edge to gate
+            context: Optional context
+
+        Returns:
+            Profile-weighted gate value
+        """
+        # Get base gate value
+        base_value = super().compute_gate(edge, context)
+
+        # Apply profile weight based on edge type
+        edge_type = edge.edge_type
+        weight = 1.0
+
+        if edge_type == EdgeType.SEMANTIC:
+            weight = self._profile.semantic_weight
+        elif edge_type == EdgeType.ENTITY:
+            weight = self._profile.entity_weight
+        elif edge_type == EdgeType.TEMPORAL:
+            weight = self._profile.temporal_weight
+        elif edge_type == EdgeType.CAUSAL:
+            weight = self._profile.causal_weight
+        elif edge_type == EdgeType.HIERARCHY:
+            weight = self._profile.hierarchy_weight
+        elif edge_type == EdgeType.CO_ACTIVATION:
+            weight = self._profile.co_activation_weight
+
+        # Apply exploration factor for non-semantic edges
+        if edge_type not in (EdgeType.SEMANTIC, EdgeType.ENTITY):
+            weight *= self._profile.exploration_factor
+
+        return min(1.0, base_value * weight)
+
+    def set_profile(self, profile_name: str) -> None:
+        """Switch to a different profile.
+
+        Args:
+            profile_name: Name of profile to switch to
+        """
+        if profile_name in GATE_PROFILES:
+            self._profile = GATE_PROFILES[profile_name]
+            if self._profile.base_config:
+                self._config = self._profile.base_config
+
+
+def create_single_hop_registry() -> ProfiledGateRegistry:
+    """Create registry optimized for single-hop queries.
+
+    THE PLAN: "favor semantic edges over exploratory edges for single-hop queries"
+    """
+    return ProfiledGateRegistry(SINGLE_HOP_PROFILE)
+
+
+def create_multi_hop_registry() -> ProfiledGateRegistry:
+    """Create registry optimized for multi-hop queries."""
+    return ProfiledGateRegistry(MULTI_HOP_PROFILE)

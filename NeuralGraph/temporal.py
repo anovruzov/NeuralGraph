@@ -36,7 +36,12 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class TemporalConfig:
-    """Configuration for temporal chain management."""
+    """Configuration for temporal chain management.
+
+    THE PLAN Enhancement:
+    - Temporal consistency boosts for time-overlapping answers
+    - Decay conflicting edges rather than removing them
+    """
 
     # Temporal edge creation
     max_time_gap_hours: float = 24.0  # Max gap for automatic temporal linking
@@ -55,6 +60,18 @@ class TemporalConfig:
     ltp_activation_threshold: int = 2  # Minimum activations for LTP effect
     ltp_max_boost: float = 3.0
     ltp_decay_rate: float = 0.01  # Per day
+
+    # THE PLAN: Temporal consistency boost settings
+    # "add temporal consistency boosts for answers whose timestamps overlap the query time window"
+    temporal_consistency_enabled: bool = True
+    temporal_overlap_boost: float = 1.3  # Boost for timestamps overlapping query window
+    temporal_exact_match_boost: float = 1.5  # Boost for exact date/time match
+    temporal_proximity_window_days: float = 7.0  # Window for "nearby" temporal boost
+    temporal_proximity_boost: float = 1.15  # Boost for nearby (not exact) match
+
+    # Decay conflicting edges instead of removing
+    conflict_decay_rate: float = 0.5  # Decay multiplier for conflicting temporal info
+    conflict_detection_enabled: bool = True
 
 
 class TemporalChainManager:
@@ -857,3 +874,218 @@ class TemporalChainManager:
         node.refractory_until = now + timedelta(milliseconds=duration)
 
         await self._storage.save_node(node)
+
+    # =========================================================================
+    # THE PLAN: TEMPORAL CONSISTENCY BOOSTS
+    # =========================================================================
+
+    def compute_temporal_consistency_boost(
+        self,
+        node: NeuralNode,
+        query_time_start: datetime | None,
+        query_time_end: datetime | None,
+        query_temporal_markers: list[str] | None = None
+    ) -> tuple[float, str]:
+        """Compute temporal consistency boost for a node.
+
+        THE PLAN: "add temporal consistency boosts for answers whose timestamps
+        overlap the query time window"
+
+        Args:
+            node: Node to score
+            query_time_start: Query time window start (None for open-ended)
+            query_time_end: Query time window end (None for open-ended)
+            query_temporal_markers: Temporal markers extracted from query
+
+        Returns:
+            Tuple of (boost_multiplier, reason)
+        """
+        if not self._config.temporal_consistency_enabled:
+            return 1.0, "temporal_boost_disabled"
+
+        boost = 1.0
+        reason = "no_temporal_match"
+
+        # Check node's creation timestamp against query window
+        if node.created_at:
+            node_time = node.created_at
+            if node_time.tzinfo is None:
+                node_time = node_time.replace(tzinfo=timezone.utc)
+
+            # Check for overlap with query time window
+            if query_time_start and query_time_end:
+                if query_time_start.tzinfo is None:
+                    query_time_start = query_time_start.replace(tzinfo=timezone.utc)
+                if query_time_end.tzinfo is None:
+                    query_time_end = query_time_end.replace(tzinfo=timezone.utc)
+
+                # Exact overlap
+                if query_time_start <= node_time <= query_time_end:
+                    boost = self._config.temporal_exact_match_boost
+                    reason = "exact_temporal_overlap"
+                # Near overlap (within proximity window)
+                else:
+                    days_from_start = abs((node_time - query_time_start).days)
+                    days_from_end = abs((node_time - query_time_end).days)
+                    min_days = min(days_from_start, days_from_end)
+
+                    if min_days <= self._config.temporal_proximity_window_days:
+                        boost = self._config.temporal_proximity_boost
+                        reason = f"temporal_proximity ({min_days} days)"
+
+            elif query_time_start:
+                # Open-ended query (e.g., "after May 2023")
+                if query_time_start.tzinfo is None:
+                    query_time_start = query_time_start.replace(tzinfo=timezone.utc)
+
+                if node_time >= query_time_start:
+                    boost = self._config.temporal_overlap_boost
+                    reason = "temporal_after_match"
+
+            elif query_time_end:
+                # Before-ended query (e.g., "before 2022")
+                if query_time_end.tzinfo is None:
+                    query_time_end = query_time_end.replace(tzinfo=timezone.utc)
+
+                if node_time <= query_time_end:
+                    boost = self._config.temporal_overlap_boost
+                    reason = "temporal_before_match"
+
+        # Check for temporal markers in content
+        if query_temporal_markers and boost < self._config.temporal_overlap_boost:
+            content_lower = (node.content or "").lower()
+            matched = [m for m in query_temporal_markers if m.lower() in content_lower]
+            if matched:
+                boost = max(boost, self._config.temporal_overlap_boost)
+                reason = f"temporal_marker_match: {', '.join(matched[:2])}"
+
+        # Check node metadata for timestamp
+        if node.metadata and boost < self._config.temporal_overlap_boost:
+            timestamp_str = node.metadata.get("timestamp")
+            if timestamp_str:
+                # Node has explicit timestamp metadata - slight boost
+                boost = max(boost, self._config.temporal_proximity_boost)
+                if reason == "no_temporal_match":
+                    reason = "has_timestamp_metadata"
+
+        return boost, reason
+
+    async def apply_temporal_consistency_boosts(
+        self,
+        candidates: list[tuple[NeuralNode, float]],
+        query_time_start: datetime | None,
+        query_time_end: datetime | None,
+        query_temporal_markers: list[str] | None = None
+    ) -> list[tuple[NeuralNode, float]]:
+        """Apply temporal consistency boosts to candidate scores.
+
+        THE PLAN: "add temporal consistency boosts for answers whose timestamps
+        overlap the query time window"
+
+        Args:
+            candidates: List of (node, score) tuples
+            query_time_start: Query time window start
+            query_time_end: Query time window end
+            query_temporal_markers: Temporal markers from query
+
+        Returns:
+            Boosted list of (node, adjusted_score) tuples
+        """
+        if not self._config.temporal_consistency_enabled:
+            return candidates
+
+        boosted = []
+        for node, score in candidates:
+            boost, reason = self.compute_temporal_consistency_boost(
+                node, query_time_start, query_time_end, query_temporal_markers
+            )
+            boosted_score = score * boost
+
+            if boost > 1.0:
+                logger.debug(
+                    f"Temporal boost for {node.node_id[:8]}: {boost:.2f}x ({reason})"
+                )
+
+            boosted.append((node, boosted_score))
+
+        # Re-sort by boosted score
+        boosted.sort(key=lambda x: x[1], reverse=True)
+        return boosted
+
+    async def decay_conflicting_edges(
+        self,
+        session_key: str,
+        reference_time: datetime,
+        tolerance_hours: float = 24.0
+    ) -> int:
+        """Decay (not remove) edges with conflicting temporal information.
+
+        THE PLAN: "decay conflicting edges rather than removing them"
+
+        When temporal information conflicts, we reduce edge weight rather than
+        deleting the edge entirely. This preserves the connection while
+        reducing its influence on retrieval.
+
+        Args:
+            session_key: Session identifier
+            reference_time: Reference time for conflict detection
+            tolerance_hours: Time tolerance for conflict detection
+
+        Returns:
+            Number of edges decayed
+        """
+        if not self._config.conflict_detection_enabled:
+            return 0
+
+        if reference_time.tzinfo is None:
+            reference_time = reference_time.replace(tzinfo=timezone.utc)
+
+        edges = await self._storage.get_all_edges(session_key)
+        temporal_edges = [e for e in edges if e.edge_type == EdgeType.TEMPORAL]
+
+        decayed = 0
+        tolerance = timedelta(hours=tolerance_hours)
+
+        for edge in temporal_edges:
+            source = await self._storage.get_node(edge.source_id)
+            target = await self._storage.get_node(edge.target_id)
+
+            if not source or not target:
+                continue
+
+            # Check for temporal conflict
+            if source.created_at and target.created_at:
+                source_time = source.created_at
+                target_time = target.created_at
+
+                if source_time.tzinfo is None:
+                    source_time = source_time.replace(tzinfo=timezone.utc)
+                if target_time.tzinfo is None:
+                    target_time = target_time.replace(tzinfo=timezone.utc)
+
+                # Check if edge direction conflicts with timestamps
+                # (e.g., source claims to be BEFORE target but timestamp says otherwise)
+                time_diff = (target_time - source_time).total_seconds()
+                direction = edge.metadata.get("direction") if edge.metadata else None
+
+                conflict = False
+                if direction == "before" and time_diff < -tolerance.total_seconds():
+                    conflict = True
+                elif direction == "after" and time_diff > tolerance.total_seconds():
+                    conflict = True
+
+                if conflict:
+                    # Decay instead of remove
+                    old_weight = edge.base_weight
+                    edge.base_weight *= self._config.conflict_decay_rate
+                    edge._cached_weight_key = None  # Clear cache
+
+                    await self._storage.save_edge(edge)
+                    decayed += 1
+
+                    logger.debug(
+                        f"Decayed conflicting temporal edge {edge.edge_id[:8]}: "
+                        f"{old_weight:.2f} -> {edge.base_weight:.2f}"
+                    )
+
+        return decayed

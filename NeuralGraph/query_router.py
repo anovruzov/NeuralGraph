@@ -98,23 +98,45 @@ class QueryAnalysis:
     # Filter parameters
     filter_params: dict[str, Any] = field(default_factory=dict)
 
+    # THE PLAN Phase 2a: Rare/specific terms for keyword retrieval
+    rare_terms: list[str] = field(default_factory=list)
+
+    # Open-domain indicators
+    is_open_domain: bool = False
+    open_domain_confidence: float = 0.0
+
 
 @dataclass
 class SoftFilterResult:
     """Result of soft filtering - candidates with score adjustments instead of removal.
 
-    SOFT FILTERING PRINCIPLE:
-    Instead of removing candidates that don't match filters, we apply score penalties.
-    This maintains recall while improving precision for filtered queries.
+    SOFT FILTERING PRINCIPLE (THE PLAN Enhancement):
+    Two modes for score adjustment:
+    1. PENALTY MODE: Non-matching candidates get score penalties (original)
+       - Matches: 1.0, Non-matches: 0.2
+    2. BOOST MODE: Matching candidates get score boosts (new)
+       - Matches: 1.5+, Non-matches: 1.0 (maintains recall)
 
-    Score modifiers:
+    Boost mode is preferred for single-hop queries because it:
+    - Preserves ALL candidates (better recall)
+    - Creates larger score separation for matches
+    - Allows reranker to see full candidate pool
+
+    Score modifiers (penalty mode):
     - 1.0 = full match (speaker/entity matches perfectly)
     - 0.7-0.9 = partial match (fuzzy match, alias match)
     - 0.3-0.5 = weak match (mentioned entity, not speaker)
     - 0.1-0.2 = no match but semantically adjacent
+
+    Score modifiers (boost mode):
+    - 1.8 = exact speaker match (strong boost)
+    - 1.5-1.7 = alias/fuzzy speaker match
+    - 1.3-1.5 = entity ID match
+    - 1.1-1.2 = content mention
+    - 1.0 = no match (no penalty, maintains recall)
     """
     node_id: str
-    score_modifier: float  # Multiplier for final score (0.0 to 1.5)
+    score_modifier: float  # Multiplier for final score (0.0 to 2.0)
     match_reason: str  # Why this score was assigned
 
     # Match quality indicators
@@ -122,6 +144,9 @@ class SoftFilterResult:
     is_content_match: bool = False
     is_entity_id_match: bool = False
     is_fuzzy_match: bool = False
+
+    # Boost mode tracking
+    boost_applied: float = 0.0  # Additional boost applied in boost mode
 
 
 # ============================================================================
@@ -601,7 +626,11 @@ class QueryRouter:
         temporal_markers = self._extract_temporal_markers(query_lower)
         analysis.temporal_markers = temporal_markers
 
-        # 4. Classify query type and extract primary subject
+        # 4. THE PLAN Phase 2a: Extract rare terms for keyword retrieval
+        rare_terms = self._extract_rare_terms(query)
+        analysis.rare_terms = rare_terms
+
+        # 5. Classify query type and extract primary subject
         query_type, subject, confidence = self._classify_query(query, query_lower, entities, temporal_markers)
 
         if confidence > analysis.confidence:
@@ -610,35 +639,324 @@ class QueryRouter:
 
         analysis.primary_subject = subject
 
-        # 5. Determine if we need speaker filter
+        # 6. Determine if we need speaker filter
         if subject and self._is_asking_about_speech(query_lower):
             analysis.speaker_filter = subject
 
-        # 6. Set retrieval strategy based on analysis
+        # 7. THE PLAN Phase 2a: Detect open-domain queries
+        analysis.is_open_domain, analysis.open_domain_confidence = self._detect_open_domain(
+            query, query_lower, entities, temporal_markers, analysis.query_type
+        )
+
+        # If strongly open-domain and no entities found, upgrade query type
+        if analysis.is_open_domain and analysis.open_domain_confidence > 0.7 and not entities:
+            analysis.query_type = QueryType.OPEN_DOMAIN
+            analysis.confidence = analysis.open_domain_confidence
+
+        # 8. Set retrieval strategy based on analysis
         analysis.strategy, analysis.filter_params = self._determine_strategy(analysis)
+
+        # THE PLAN Phase 2a: If rare terms found, add them to filter params
+        if rare_terms:
+            analysis.filter_params["rare_terms"] = rare_terms
+            # If strategy is semantic and rare terms exist, switch to hybrid
+            if analysis.strategy == "semantic" and len(rare_terms) >= 2:
+                analysis.strategy = "hybrid_keyword"
+                logger.debug(f"Switching to hybrid_keyword strategy due to rare terms: {rare_terms}")
 
         return analysis
 
+    def _detect_open_domain(
+        self,
+        query: str,
+        query_lower: str,
+        entities: list[str],
+        temporal_markers: list[str],
+        current_type: QueryType,
+    ) -> tuple[bool, float]:
+        """Detect if a query is open-domain (requires world knowledge).
+
+        THE PLAN Phase 2a Enhancement:
+        Better detection of open-domain queries to trigger external retrieval.
+
+        Returns:
+            Tuple of (is_open_domain, confidence)
+        """
+        confidence = 0.0
+
+        # If query already has strong entity/temporal signals, less likely open-domain
+        if entities and len(entities) <= 2:
+            # Few entities might still be open-domain if asking definitional questions
+            pass
+        elif entities:
+            # Many entities suggests session-specific query
+            confidence -= 0.2
+
+        if temporal_markers:
+            # Temporal queries are usually session-specific
+            confidence -= 0.3
+
+        # Definitional patterns (highly likely open-domain)
+        definitional_patterns = [
+            (r"^what is (?:a |an |the )?", 0.7),
+            (r"^what are ", 0.6),
+            (r"^who is ", 0.4),  # Lower because often asking about people in conversation
+            (r"^who was ", 0.5),
+            (r"^define ", 0.8),
+            (r"^explain (?:what|how|why)", 0.7),
+            (r"^how does .* work", 0.7),
+            (r"^why does ", 0.6),
+            (r"^why do ", 0.6),
+            (r"^what causes ", 0.8),
+            (r"^what makes ", 0.6),
+            (r"^what happens when ", 0.6),
+            (r"^describe (?:what|how)", 0.6),
+        ]
+
+        for pattern, weight in definitional_patterns:
+            if re.search(pattern, query_lower):
+                confidence = max(confidence + weight, 0.0)
+                break
+
+        # Factual patterns (moderately likely open-domain)
+        factual_patterns = [
+            (r"how many .* (?:are there|exist)", 0.6),
+            (r"how much ", 0.4),
+            (r"when was .* (?:invented|discovered|founded|created)", 0.7),
+            (r"where is .* located", 0.6),
+            (r"what country ", 0.6),
+            (r"what year ", 0.5),
+            (r"capital of", 0.7),
+            (r"president of", 0.6),
+            (r"population of", 0.7),
+            (r"(?:largest|smallest|oldest|youngest|tallest|shortest) .* in the world", 0.7),
+        ]
+
+        for pattern, weight in factual_patterns:
+            if re.search(pattern, query_lower):
+                confidence = max(confidence + weight, 0.0)
+                break
+
+        # Scientific/technical terms boost open-domain confidence
+        scientific_terms = {
+            "photosynthesis", "evolution", "gravity", "atom", "molecule",
+            "electron", "proton", "neutron", "cell", "dna", "rna",
+            "gene", "chromosome", "protein", "enzyme", "virus", "bacteria",
+            "planet", "star", "galaxy", "solar system", "orbit", "mass",
+            "energy", "force", "momentum", "velocity", "acceleration",
+            "temperature", "pressure", "volume", "density", "climate",
+            "ecosystem", "species", "habitat", "evolution", "genetics",
+        }
+
+        for term in scientific_terms:
+            if term in query_lower:
+                confidence += 0.3
+                break
+
+        # Absence of conversational markers increases open-domain likelihood
+        conversational_markers = [
+            r"\bshe\b", r"\bhe\b", r"\bthey\b", r"\bwe\b",
+            r"\byesterday\b", r"\blast week\b", r"\btoday\b",
+            r"\bour\b", r"\bmy\b", r"\byour\b",
+            r"\bthe meeting\b", r"\bthe conversation\b",
+            r"\btold me\b", r"\bsaid\b", r"\basked\b",
+        ]
+
+        has_conversational = any(re.search(p, query_lower) for p in conversational_markers)
+        if not has_conversational:
+            confidence += 0.2
+
+        # Cap confidence
+        confidence = max(0.0, min(1.0, confidence))
+
+        is_open = confidence >= 0.5
+        return is_open, confidence
+
     def _extract_entities(self, query: str) -> list[str]:
-        """Extract entity names from query."""
+        """Extract entity names from query.
+
+        THE PLAN Phase 2a Enhancement:
+        Lower reliance on capitalization for entity extraction.
+
+        We now use multiple signals:
+        1. Capitalization (traditional approach)
+        2. Known entities from context (case-insensitive)
+        3. Named entity patterns (titles, proper noun indicators)
+        4. Quotation-marked text (explicit entity reference)
+        5. Possessive patterns ("X's" often indicates entity)
+        """
         entities = []
+        seen_lower = set()  # Track seen entities (lowercase) to avoid duplicates
 
-        # Find capitalized words (potential names)
-        words = query.split()
-        for i, word in enumerate(words):
-            # Skip first word (sentence start) unless it's a known entity
-            clean_word = re.sub(r'[^\w]', '', word)
-            if clean_word and clean_word[0].isupper():
-                if i > 0 or clean_word.lower() in {e.lower() for e in self.known_entities}:
-                    entities.append(clean_word)
-
-        # Also check for known entities in any case
         query_lower = query.lower()
+
+        # 1. Extract known entities first (case-insensitive)
         for entity in self.known_entities:
-            if entity.lower() in query_lower and entity not in entities:
+            if entity.lower() in query_lower and entity.lower() not in seen_lower:
                 entities.append(entity)
+                seen_lower.add(entity.lower())
+
+        # 2. Find capitalized words (potential names)
+        # Enhanced: Also look for consecutive capitalized words (full names)
+        words = query.split()
+        i = 0
+        while i < len(words):
+            word = words[i]
+            clean_word = re.sub(r'[^\w]', '', word)
+
+            if clean_word and clean_word[0].isupper():
+                # Check for multi-word names (e.g., "New York", "John Smith")
+                name_parts = [clean_word]
+                j = i + 1
+                while j < len(words):
+                    next_word = words[j]
+                    next_clean = re.sub(r'[^\w]', '', next_word)
+                    if next_clean and next_clean[0].isupper() and next_clean not in self._COMMON_TITLE_WORDS:
+                        name_parts.append(next_clean)
+                        j += 1
+                    else:
+                        break
+
+                # Add full name if multi-word, or single capitalized word
+                full_name = " ".join(name_parts)
+                if full_name.lower() not in seen_lower:
+                    # Skip if it's the first word and not a known entity
+                    if i > 0 or full_name.lower() in {e.lower() for e in self.known_entities}:
+                        entities.append(full_name)
+                        seen_lower.add(full_name.lower())
+                        # Also add individual parts for matching
+                        for part in name_parts:
+                            if part.lower() not in seen_lower:
+                                entities.append(part)
+                                seen_lower.add(part.lower())
+
+                i = j
+                continue
+
+            i += 1
+
+        # 3. Extract possessive patterns (e.g., "X's job" -> X is an entity)
+        possessive_pattern = r"(\w+)'s\s+"
+        for match in re.finditer(possessive_pattern, query):
+            entity = match.group(1)
+            if entity.lower() not in seen_lower and entity.lower() not in {"what", "who", "it", "that", "this"}:
+                entities.append(entity)
+                seen_lower.add(entity.lower())
+
+        # 4. Extract quoted text as potential entities
+        quoted_pattern = r'"([^"]+)"|\'([^\']+)\''
+        for match in re.finditer(quoted_pattern, query):
+            quoted = match.group(1) or match.group(2)
+            if quoted and quoted.lower() not in seen_lower:
+                entities.append(quoted)
+                seen_lower.add(quoted.lower())
+
+        # 5. Extract terms following entity indicators
+        # Patterns like "named X", "called X", "person X", "user X"
+        indicator_patterns = [
+            r"\b(?:named|called|known as)\s+(\w+)",
+            r"\b(?:person|user|member|friend|colleague|partner)\s+(\w+)",
+            r"\b(?:mr\.|mrs\.|ms\.|dr\.)\s*(\w+)",
+        ]
+        for pattern in indicator_patterns:
+            for match in re.finditer(pattern, query_lower):
+                entity = match.group(1)
+                if entity.lower() not in seen_lower:
+                    # Capitalize the first letter
+                    entities.append(entity.capitalize())
+                    seen_lower.add(entity.lower())
 
         return entities
+
+    # Common title words that shouldn't start multi-word entity names
+    _COMMON_TITLE_WORDS = {"The", "A", "An", "And", "Or", "But", "In", "On", "At", "To", "For", "With", "By"}
+
+    def _extract_rare_terms(self, query: str) -> list[str]:
+        """Extract rare/specific terms that should trigger keyword retrieval.
+
+        THE PLAN Phase 2a Enhancement:
+        Add a rare-term detector that forces keyword/lexical retrieval
+        when embeddings alone are weak.
+
+        Rare terms include:
+        1. Technical/domain-specific words
+        2. Unusual nouns not in common vocabulary
+        3. Specific product/brand names
+        4. Acronyms and abbreviations
+        5. Numbers with units (specific quantities)
+        """
+        rare_terms = []
+        query_lower = query.lower()
+
+        # Common words to exclude (high frequency)
+        COMMON_WORDS = {
+            "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
+            "have", "has", "had", "do", "does", "did", "will", "would", "could",
+            "should", "may", "might", "must", "shall", "can", "need", "dare",
+            "to", "of", "in", "for", "on", "with", "at", "by", "from", "as",
+            "into", "through", "during", "before", "after", "above", "below",
+            "between", "under", "again", "further", "then", "once", "here",
+            "there", "when", "where", "why", "how", "all", "each", "few",
+            "more", "most", "other", "some", "such", "no", "nor", "not",
+            "only", "own", "same", "so", "than", "too", "very", "just",
+            "and", "but", "if", "or", "because", "as", "until", "while",
+            "about", "against", "between", "into", "through", "during",
+            "what", "which", "who", "whom", "this", "that", "these", "those",
+            "am", "is", "are", "was", "were", "be", "been", "being",
+            "i", "me", "my", "myself", "we", "our", "ours", "ourselves",
+            "you", "your", "yours", "yourself", "yourselves", "he", "him",
+            "his", "himself", "she", "her", "hers", "herself", "it", "its",
+            "itself", "they", "them", "their", "theirs", "themselves",
+            "say", "said", "tell", "told", "ask", "asked", "go", "went",
+            "going", "get", "got", "make", "made", "know", "knew", "think",
+            "thought", "take", "took", "see", "saw", "come", "came", "want",
+            "wanted", "use", "used", "find", "found", "give", "gave",
+            "work", "worked", "call", "called", "try", "tried", "feel",
+            "felt", "become", "became", "leave", "left", "put", "mean",
+            "meant", "keep", "kept", "let", "begin", "began", "seem",
+            "seemed", "help", "helped", "show", "showed", "hear", "heard",
+            "play", "played", "run", "ran", "move", "moved", "live", "lived",
+            "did", "does", "doing", "done",
+        }
+
+        # Extract words
+        words = re.findall(r'\b[a-z]{3,}\b', query_lower)
+
+        for word in words:
+            if word not in COMMON_WORDS:
+                # Check if it's rare based on various heuristics
+                is_rare = False
+
+                # Heuristic 1: Technical/domain-specific suffixes
+                technical_suffixes = (
+                    "tion", "sion", "ment", "ness", "ity", "ology",
+                    "graphy", "metry", "scopy", "ism", "ist", "ize",
+                    "ification", "ation"
+                )
+                if any(word.endswith(suffix) for suffix in technical_suffixes):
+                    is_rare = True
+
+                # Heuristic 2: Compound words (unusual character patterns)
+                if "-" in word or "_" in word:
+                    is_rare = True
+
+                # Heuristic 3: Words not commonly used in conversation
+                if len(word) > 8:  # Longer words tend to be more specific
+                    is_rare = True
+
+                if is_rare:
+                    rare_terms.append(word)
+
+        # Extract acronyms (all caps, 2-6 letters)
+        acronyms = re.findall(r'\b[A-Z]{2,6}\b', query)
+        rare_terms.extend(a.lower() for a in acronyms)
+
+        # Extract numbers with units (specific quantities)
+        quantity_pattern = r'\b(\d+(?:\.\d+)?)\s*(mg|kg|lb|oz|ml|L|cm|m|km|mph|kph|%|dollars?|euros?|pounds?)\b'
+        for match in re.finditer(quantity_pattern, query, re.IGNORECASE):
+            rare_terms.append(match.group(0).lower())
+
+        return list(set(rare_terms))  # Deduplicate
 
     def _extract_temporal_markers(self, query_lower: str) -> list[str]:
         """Extract temporal markers from query."""
@@ -768,19 +1086,37 @@ class FilteredRetriever:
     - "What is Caroline's job?" + filter(speaker=Caroline)
     - Now "I work as a teacher" is in the candidate set!
 
-    SOFT VS HARD FILTERING:
+    FILTERING MODES (THE PLAN Enhancement):
     - "hard": Remove non-matching candidates entirely (original behavior, causes regression)
     - "soft": Apply score penalties to non-matching candidates (maintains recall)
+    - "boost": Apply score BOOSTS to matching candidates (NEW - best for single-hop)
+              Non-matches keep original score (1.0), matches get boosted (1.5+)
+
+    Boost mode is recommended for single-hop factual questions because:
+    1. Maintains full recall (no candidates removed)
+    2. Creates larger score separation than penalty mode
+    3. Works better with reranker (full candidate pool preserved)
     """
 
     # Filtering mode constants
     MODE_HARD = "hard"
     MODE_SOFT = "soft"
+    MODE_BOOST = "boost"  # NEW: Boost matches instead of penalizing non-matches
+
+    # Boost multipliers for different match types (THE PLAN: "boosting matches")
+    BOOST_EXACT_SPEAKER = 1.8
+    BOOST_ALIAS_SPEAKER = 1.6
+    BOOST_FUZZY_SPEAKER = 1.5
+    BOOST_ENTITY_ID = 1.4
+    BOOST_CONTENT_EXACT = 1.25
+    BOOST_CONTENT_FUZZY = 1.15
+    BOOST_TEMPORAL_MATCH = 1.3
+    BOOST_NO_MATCH = 1.0  # No penalty in boost mode - maintains recall
 
     def __init__(
         self,
         storage: "NeuralGraphStorage",
-        filter_mode: str = "soft",  # Default to soft filtering to avoid regression
+        filter_mode: str = "boost",  # Default to boost mode for single-hop optimization
         soft_fallback_threshold: float = 0.2,  # Lower threshold for soft filter fallback
     ):
         self.storage = storage
@@ -796,6 +1132,8 @@ class FilteredRetriever:
             "candidates_filtered": 0,
             "candidates_retained": 0,
             "fallback_triggered": 0,
+            "boost_mode_queries": 0,
+            "avg_boost_factor": 0.0,
         }
 
     def update_context(self, nodes: list["NeuralNode"]) -> None:
@@ -850,11 +1188,18 @@ class FilteredRetriever:
 
         soft_results: dict[str, SoftFilterResult] | None = None
 
-        # Apply filters based on strategy
+        # Apply filters based on strategy and mode
+        # THE PLAN: "promote entity and time filters in soft mode by boosting matches"
         if analysis.strategy == "entity_filter":
             self._filter_stats["entity_queries"] += 1
-            if self.filter_mode == self.MODE_SOFT:
-                # SOFT MODE: Return all candidates with score modifiers
+            if self.filter_mode == self.MODE_BOOST:
+                # BOOST MODE: All candidates returned, matches get score boost
+                self._filter_stats["boost_mode_queries"] += 1
+                filtered, soft_results = self._apply_entity_filter_boost(
+                    base_candidates, analysis.filter_params
+                )
+            elif self.filter_mode == self.MODE_SOFT:
+                # SOFT MODE: Return all candidates with score modifiers (penalties)
                 filtered, soft_results = self._apply_entity_filter_soft(
                     base_candidates, analysis.filter_params
                 )
@@ -863,15 +1208,25 @@ class FilteredRetriever:
                 filtered = self._apply_entity_filter_hard(base_candidates, analysis.filter_params)
         elif analysis.strategy == "temporal_filter":
             self._filter_stats["temporal_queries"] += 1
-            if self.filter_mode == self.MODE_SOFT:
+            if self.filter_mode == self.MODE_BOOST:
+                self._filter_stats["boost_mode_queries"] += 1
+                filtered, soft_results = self._apply_temporal_filter_boost(
+                    base_candidates, analysis.filter_params
+                )
+            elif self.filter_mode == self.MODE_SOFT:
                 filtered, soft_results = self._apply_temporal_filter_soft(
                     base_candidates, analysis.filter_params
                 )
             else:
                 filtered = self._apply_temporal_filter_hard(base_candidates, analysis.filter_params)
         elif analysis.strategy == "multi_hop":
-            # For multi-hop, use soft entity filter
-            if self.filter_mode == self.MODE_SOFT:
+            # For multi-hop, use boost mode if enabled, else soft
+            if self.filter_mode == self.MODE_BOOST:
+                self._filter_stats["boost_mode_queries"] += 1
+                filtered, soft_results = self._apply_entity_filter_boost(
+                    base_candidates, analysis.filter_params
+                )
+            elif self.filter_mode == self.MODE_SOFT:
                 filtered, soft_results = self._apply_entity_filter_soft(
                     base_candidates, analysis.filter_params
                 )
@@ -1194,6 +1549,222 @@ class FilteredRetriever:
 
         return filtered if filtered else candidates
 
+    def _apply_entity_filter_boost(
+        self,
+        candidates: list["NeuralNode"],
+        params: dict
+    ) -> tuple[list["NeuralNode"], dict[str, SoftFilterResult]]:
+        """Apply BOOST entity filtering - matches get score boost, non-matches unchanged.
+
+        THE PLAN IMPLEMENTATION:
+        "Promote entity and time filters in soft mode by boosting matches
+        instead of only penalizing non-matches; keep a fallback to avoid hard drops."
+
+        BOOST MODE ADVANTAGE over SOFT MODE:
+        - Non-matches keep score_modifier = 1.0 (not 0.2)
+        - Matches get score_modifier = 1.5-1.8 (strong boost)
+        - Creates larger score separation without losing candidates
+        - Better for reranker since full pool is preserved
+
+        Args:
+            candidates: List of candidate nodes
+            params: Filter parameters with entity_filter, speaker_filter, etc.
+
+        Returns:
+            Tuple of (all_candidates, boost_results_dict)
+        """
+        entity = params.get("entity_filter", "")
+        speaker_filter_param = params.get("speaker_filter", "")
+
+        if not entity:
+            # No entity filter - all candidates get neutral score
+            boost_results = {
+                node.node_id: SoftFilterResult(
+                    node_id=node.node_id,
+                    score_modifier=1.0,
+                    match_reason="no_entity_filter"
+                )
+                for node in candidates
+            }
+            return candidates, boost_results
+
+        boost_results: dict[str, SoftFilterResult] = {}
+        match_counts = {"boosted": 0, "no_boost": 0}
+        total_boost = 0.0
+
+        for node in candidates:
+            speaker = None
+            if node.metadata:
+                speaker = node.metadata.get("speaker")
+
+            # Get match result from the standard matcher
+            result = _match_entity(
+                query_entity=entity,
+                speaker=speaker,
+                content=node.content or "",
+                entity_ids=node.entity_ids,
+                fuzzy_threshold=0.7
+            )
+            result.node_id = node.node_id
+
+            # Convert penalty-mode score to boost-mode score
+            # Original: 1.0 for match, 0.2 for no match
+            # Boost: 1.5-1.8 for match, 1.0 for no match
+            if result.is_speaker_match:
+                if result.is_fuzzy_match:
+                    boost = self.BOOST_FUZZY_SPEAKER if result.score_modifier < 0.9 else self.BOOST_ALIAS_SPEAKER
+                else:
+                    boost = self.BOOST_EXACT_SPEAKER
+                result.score_modifier = boost
+                result.boost_applied = boost - 1.0
+                result.match_reason = f"boost:{result.match_reason}"
+                match_counts["boosted"] += 1
+                total_boost += boost
+
+            elif result.is_entity_id_match:
+                boost = self.BOOST_ENTITY_ID
+                result.score_modifier = boost
+                result.boost_applied = boost - 1.0
+                result.match_reason = f"boost:{result.match_reason}"
+                match_counts["boosted"] += 1
+                total_boost += boost
+
+            elif result.is_content_match:
+                if result.is_fuzzy_match:
+                    boost = self.BOOST_CONTENT_FUZZY
+                else:
+                    boost = self.BOOST_CONTENT_EXACT
+                result.score_modifier = boost
+                result.boost_applied = boost - 1.0
+                result.match_reason = f"boost:{result.match_reason}"
+                match_counts["boosted"] += 1
+                total_boost += boost
+
+            else:
+                # NO MATCH: Keep at 1.0 (no penalty in boost mode)
+                result.score_modifier = self.BOOST_NO_MATCH
+                result.boost_applied = 0.0
+                result.match_reason = "no_boost"
+                match_counts["no_boost"] += 1
+
+            # Additional boost for speaker_filter match
+            if speaker_filter_param and speaker:
+                speaker_match = _match_entity(
+                    query_entity=speaker_filter_param,
+                    speaker=speaker,
+                    content="",
+                    entity_ids=None,
+                    fuzzy_threshold=0.7
+                )
+                if speaker_match.is_speaker_match:
+                    # Stack boost
+                    additional_boost = 0.2
+                    result.score_modifier += additional_boost
+                    result.boost_applied += additional_boost
+                    result.match_reason += " + speaker_filter_stack"
+
+            boost_results[node.node_id] = result
+
+        # Update statistics
+        if match_counts["boosted"] > 0:
+            self._filter_stats["avg_boost_factor"] = total_boost / match_counts["boosted"]
+
+        logger.debug(
+            f"Boost entity filter results for '{entity}': "
+            f"boosted={match_counts['boosted']}, no_boost={match_counts['no_boost']}, "
+            f"avg_boost={self._filter_stats['avg_boost_factor']:.2f}"
+        )
+
+        return candidates, boost_results
+
+    def _apply_temporal_filter_boost(
+        self,
+        candidates: list["NeuralNode"],
+        params: dict
+    ) -> tuple[list["NeuralNode"], dict[str, SoftFilterResult]]:
+        """Apply BOOST temporal filtering - matches get score boost, non-matches unchanged.
+
+        THE PLAN IMPLEMENTATION:
+        "Add temporal consistency boosts for answers whose timestamps overlap
+        the query time window"
+
+        Args:
+            candidates: List of candidate nodes
+            params: Filter parameters with temporal_markers and optional entity_filter
+
+        Returns:
+            Tuple of (all_candidates, boost_results_dict)
+        """
+        temporal_markers = params.get("temporal_markers", [])
+        entity = params.get("entity_filter", "")
+
+        boost_results: dict[str, SoftFilterResult] = {}
+        match_counts = {"temporal_boost": 0, "entity_boost": 0, "no_boost": 0}
+
+        for node in candidates:
+            content_lower = (node.content or "").lower()
+            score_modifier = 1.0  # Base: no boost
+            match_reason = "no_temporal_boost"
+            boost_applied = 0.0
+
+            # Check temporal markers in content
+            matched_markers = [m for m in temporal_markers if m in content_lower]
+            if matched_markers:
+                # Temporal boost based on marker count
+                marker_boost = min(0.4, 0.12 * len(matched_markers))
+                score_modifier = self.BOOST_TEMPORAL_MATCH + marker_boost
+                boost_applied = score_modifier - 1.0
+                match_reason = f"temporal_boost ({', '.join(matched_markers[:3])})"
+                match_counts["temporal_boost"] += 1
+
+            # Check timestamp metadata
+            if node.metadata and node.metadata.get("timestamp"):
+                if score_modifier < self.BOOST_TEMPORAL_MATCH:
+                    score_modifier = self.BOOST_TEMPORAL_MATCH - 0.1  # Slightly lower boost
+                    boost_applied = score_modifier - 1.0
+                    if match_reason == "no_temporal_boost":
+                        match_reason = "timestamp_boost"
+
+            # Check entity if provided (combined temporal+entity query)
+            if entity:
+                speaker = node.metadata.get("speaker") if node.metadata else None
+                entity_result = _match_entity(
+                    query_entity=entity,
+                    speaker=speaker,
+                    content=node.content or "",
+                    entity_ids=node.entity_ids,
+                    fuzzy_threshold=0.7
+                )
+
+                if entity_result.is_speaker_match or entity_result.is_entity_id_match:
+                    # Stack entity boost with temporal boost
+                    entity_boost = self.BOOST_ENTITY_ID if entity_result.is_entity_id_match else self.BOOST_EXACT_SPEAKER
+                    # Combine: take geometric mean for stacking
+                    combined = (score_modifier * entity_boost) ** 0.5
+                    combined = max(combined, score_modifier, entity_boost)  # At least as good as best single
+                    score_modifier = min(2.0, combined)  # Cap at 2.0
+                    boost_applied = score_modifier - 1.0
+                    match_reason += f" + entity_boost ({entity_result.match_reason})"
+                    match_counts["entity_boost"] += 1
+
+            if boost_applied == 0.0:
+                match_counts["no_boost"] += 1
+
+            boost_results[node.node_id] = SoftFilterResult(
+                node_id=node.node_id,
+                score_modifier=score_modifier,
+                match_reason=match_reason,
+                boost_applied=boost_applied
+            )
+
+        logger.debug(
+            f"Boost temporal filter results: "
+            f"temporal={match_counts['temporal_boost']}, entity={match_counts['entity_boost']}, "
+            f"no_boost={match_counts['no_boost']}"
+        )
+
+        return candidates, boost_results
+
 
 # Convenience function
 def create_query_router(known_entities: set[str] | None = None) -> QueryRouter:
@@ -1203,13 +1774,19 @@ def create_query_router(known_entities: set[str] | None = None) -> QueryRouter:
 
 def create_filtered_retriever(
     storage: "NeuralGraphStorage",
-    filter_mode: str = "soft"
+    filter_mode: str = "boost"
 ) -> FilteredRetriever:
     """Create a filtered retriever with specified mode.
 
+    THE PLAN Enhancement: Default to "boost" mode for single-hop optimization.
+
     Args:
         storage: Neural graph storage backend
-        filter_mode: "soft" (default, recommended) or "hard"
+        filter_mode: Filtering mode:
+            - "boost" (default, recommended for single-hop):
+              Matches get score boost (1.5-1.8x), non-matches unchanged (1.0x)
+            - "soft": Matches get 1.0x, non-matches penalized (0.2x)
+            - "hard": Non-matching candidates removed entirely (causes regression)
 
     Returns:
         FilteredRetriever instance

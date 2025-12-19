@@ -50,6 +50,10 @@ class ConsolidationConfig:
     - Spaced repetition (SM-2, FSRS) - 3 reviews for durability
     - Biological LTP - 15% strengthening per activation
     - Memory consolidation - 7-day critical period
+
+    THE PLAN Enhancement:
+    - Recency-aware retention for factual nodes
+    - Defer pruning of single-hop facts until corroborating edges exist
     """
 
     # Edge pruning
@@ -103,6 +107,16 @@ class ConsolidationConfig:
 
     # Scheduling
     min_cycle_interval_seconds: float = 60.0
+
+    # THE PLAN: Recency-aware retention for single-hop facts
+    # "recency-aware retention so factual nodes stay available"
+    recency_aware_retention: bool = True
+    factual_node_protection: bool = True  # Protect single-hop factual nodes
+    min_corroborating_edges: int = 1  # Defer eviction until this many edges exist
+    factual_heat_boost: float = 0.15  # Extra heat for factual nodes
+    recency_window_days: float = 14.0  # Consider "recent" for retention
+    entity_node_protection: bool = True  # Protect nodes with entity mentions
+    speaker_fact_retention: bool = True  # Extra protection for speaker-attributed facts
 
 
 class ConsolidationManager:
@@ -699,6 +713,21 @@ class ConsolidationManager:
                     node.days_since_activation >= self._config.eviction_recency_threshold_days and
                     node.consolidation_state == ConsolidationState.ACTIVE):
 
+                # THE PLAN: Recency-aware retention for factual nodes
+                # "defer pruning of single-hop facts until they have corroborating edges"
+                if self._config.recency_aware_retention:
+                    # Check if this is a factual node that should be protected
+                    should_protect = await self._should_protect_factual_node(node)
+                    if should_protect:
+                        logger.debug(
+                            f"Protected factual node {node.node_id[:8]} from eviction "
+                            f"(entities={node.entity_ids[:2]}, heat={node.heat_score:.2f})"
+                        )
+                        # Apply factual heat boost to keep it alive longer
+                        node.heat_score += self._config.factual_heat_boost
+                        await self._storage.save_node(node)
+                        continue
+
                 # Clean up parent's child_ids reference before eviction
                 if node.parent_id:
                     parent = await self._storage.get_node(node.parent_id)
@@ -918,3 +947,95 @@ class ConsolidationManager:
                 if stats["node_count"] > 0 else 0
             ),
         }
+
+    # =========================================================================
+    # THE PLAN: RECENCY-AWARE RETENTION FOR SINGLE-HOP FACTS
+    # =========================================================================
+
+    async def _should_protect_factual_node(self, node: NeuralNode) -> bool:
+        """Determine if a node should be protected from eviction.
+
+        THE PLAN: "recency-aware retention so factual nodes stay available;
+        defer pruning of single-hop facts until they have corroborating edges."
+
+        Protection criteria (any one triggers protection):
+        1. Node has entity mentions (likely contains facts about someone)
+        2. Node has speaker attribution (first-person facts)
+        3. Node lacks sufficient corroborating edges (single-hop orphan)
+        4. Node is within recency window (recently created)
+
+        Args:
+            node: Node to check for protection
+
+        Returns:
+            True if node should be protected from eviction
+        """
+        # Check if within recency window
+        if node.days_since_creation < self._config.recency_window_days:
+            return True
+
+        # Check for entity mentions (likely factual content)
+        if self._config.entity_node_protection and node.entity_ids:
+            # Nodes about specific entities are valuable for single-hop QA
+            if len(node.entity_ids) >= 1:
+                return True
+
+        # Check for speaker attribution (first-person facts)
+        if self._config.speaker_fact_retention:
+            speaker = node.metadata.get("speaker") if node.metadata else None
+            if speaker and speaker != "unknown":
+                # This is a speaker-attributed fact (e.g., "I am a teacher")
+                return True
+
+        # Check for factual content patterns
+        if self._config.factual_node_protection:
+            content = node.content or ""
+            # Detect factual statement patterns
+            factual_patterns = [
+                " is ", " are ", " was ", " were ",
+                " has ", " have ", " had ",
+                " works ", " works as ", " work ",
+                " lives ", " lived ",
+                " born ", " moved ", " started ",
+            ]
+            if any(pattern in content.lower() for pattern in factual_patterns):
+                return True
+
+        # Check corroborating edges (defer eviction if not enough edges)
+        edges_from = await self._storage.get_edges_from(node.node_id)
+        edges_to = await self._storage.get_edges_to(node.node_id)
+        total_edges = len(edges_from) + len(edges_to)
+
+        if total_edges < self._config.min_corroborating_edges:
+            # Single-hop orphan node - protect until it gains connections
+            # This prevents evicting factual nodes that haven't been linked yet
+            return True
+
+        return False
+
+    async def protect_session_facts(self, session_key: str) -> int:
+        """Proactively boost heat for factual nodes in a session.
+
+        THE PLAN: "factual nodes stay available"
+
+        Call this after ingestion to mark factual nodes for retention.
+
+        Args:
+            session_key: Session identifier
+
+        Returns:
+            Number of nodes protected
+        """
+        nodes = await self._storage.get_all_nodes(session_key)
+        protected = 0
+
+        for node in nodes:
+            if await self._should_protect_factual_node(node):
+                # Apply a small heat boost to keep factual nodes above eviction
+                if node.heat_score < self._config.eviction_heat_threshold + 0.2:
+                    node.heat_score += self._config.factual_heat_boost
+                    await self._storage.save_node(node)
+                    protected += 1
+
+        logger.info(f"Protected {protected} factual nodes in session {session_key}")
+        return protected

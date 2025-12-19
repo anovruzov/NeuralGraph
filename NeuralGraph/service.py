@@ -44,6 +44,17 @@ from .flash_retriever import FlashRetriever, HybridFlashRetriever, FlashConfig
 from .electron import ElectronRetriever, ElectronRetrieverConfig
 from .dialogue_linker import DialogueLinker, DialogueLinkingConfig, create_dialogue_links
 from .query_router import QueryRouter, FilteredRetriever, QueryAnalysis, SoftFilterResult
+from .external_retriever import (
+    ExternalRetriever,
+    ExternalRetrieverRegistry,
+    ExternalResult,
+    WikipediaRetriever,
+    WikipediaConfig,
+    OpenDomainTrace,
+    get_open_domain_tracer,
+    is_open_domain_query,
+    create_default_registry,
+)
 
 if TYPE_CHECKING:
     from memmachine.common.episode_store import Episode
@@ -55,59 +66,241 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class NeuralGraphServiceConfig:
-    """Configuration for NeuralGraphService."""
+    """Configuration for NeuralGraphService.
 
-    # Enable/disable components
+    THE PLAN: "Document knobs in service.py config"
+
+    This configuration controls all aspects of the NeuralGraph system.
+    Key tuning areas for single-hop accuracy improvement:
+
+    1. Query Routing Mode (query_routing_mode):
+       - "boost": Matches get score boost, non-matches unchanged (RECOMMENDED)
+       - "soft": Matches unchanged, non-matches penalized
+       - "hard": Non-matches removed (causes regression, NOT recommended)
+
+    2. Reranking (reranker_enabled):
+       - Enables cross-encoder reranking of top-K results
+       - Significantly improves precision@1 for factual queries
+
+    3. Gate Profiles (gate_profile):
+       - "single_hop": Optimized for single-hop factual queries
+       - "multi_hop": Optimized for reasoning chains
+       - "temporal": Optimized for time-based queries
+       - "default": Balanced configuration
+
+    4. Deduplication (node_dedup_enabled):
+       - Removes near-duplicate nodes during ingestion
+       - Prevents dilution of ranking scores
+
+    5. Recency-aware Retention (recency_retention_enabled):
+       - Protects factual nodes from eviction
+       - Preserves single-hop facts longer
+
+    6. Temporal Consistency (temporal_consistency_enabled):
+       - Boosts scores for time-matching results
+       - Improves temporal query accuracy
+    """
+
+    # =========================================================================
+    # CORE ENABLE/DISABLE FLAGS
+    # =========================================================================
     enabled: bool = True
     hierarchy_enabled: bool = True
     temporal_enabled: bool = True
     consolidation_enabled: bool = True
 
-    # Auto-consolidation
+    # =========================================================================
+    # AUTO-PROCESSING SETTINGS
+    # =========================================================================
     auto_consolidation_interval_seconds: float = 300.0  # 5 minutes
     auto_temporal_linking: bool = True
     auto_episode_segmentation: bool = True
-
-    # NEW: Post-ingestion consolidation check
-    # If True, checks if consolidation should run after each ingestion batch
     auto_consolidation_on_ingestion: bool = True
 
-    # NEW: Temporal dynamics application
-    # If True, applies STDP and LTP decay after retrieval
+    # Temporal dynamics (STDP and LTP decay after retrieval)
     apply_temporal_dynamics: bool = True
-    temporal_dynamics_probability: float = 0.1  # 10% chance per retrieval for LTP decay
+    temporal_dynamics_probability: float = 0.1  # 10% chance per retrieval
 
-    # Component configs
+    # =========================================================================
+    # COMPONENT CONFIGS (Low-level tuning)
+    # =========================================================================
     hierarchy_config: HierarchyConfig | None = None
     temporal_config: TemporalConfig | None = None
     consolidation_config: ConsolidationConfig | None = None
     retriever_config: RetrieverConfig | None = None
 
-    # FLASH RETRIEVER: Parallel resonance instead of sequential stages
-    use_flash_retriever: bool = True  # Use flash retriever by default
+    # =========================================================================
+    # RETRIEVER SELECTION
+    # =========================================================================
+    # FLASH RETRIEVER: Parallel resonance (fast, default)
+    use_flash_retriever: bool = True
     flash_config: FlashConfig | None = None
 
-    # ELECTRON RETRIEVER: True electrical simulation with charge propagation
-    use_electron_retriever: bool = False  # Experimental - electrical activation model
+    # ELECTRON RETRIEVER: Electrical simulation (experimental)
+    use_electron_retriever: bool = False
     electron_config: ElectronRetrieverConfig | None = None
 
-    # DIALOGUE LINKER: Universal Message Linking Layer
-    # Creates cross-message bindings for exchanges, coreferences, topic threads
-    dialogue_linking_enabled: bool = True  # ENABLED - Q+A atomic retrieval units
+    # =========================================================================
+    # DIALOGUE LINKING
+    # =========================================================================
+    dialogue_linking_enabled: bool = True  # Q+A atomic retrieval units
 
-    # QUERY ROUTER: Intelligent query analysis and pre-filtering
-    # Filters search space BEFORE embedding search for entity/temporal queries
-    # Phase 1 Fix: Re-enabled with soft filtering mode to avoid regression
-    query_routing_enabled: bool = True  # RE-ENABLED with soft filtering
+    # =========================================================================
+    # QUERY ROUTING (THE PLAN: Key tuning area)
+    # =========================================================================
+    query_routing_enabled: bool = True
 
-    # Query routing mode: "soft" (score penalties) or "hard" (candidate removal)
-    # SOFT MODE (default): All candidates kept, non-matches get score penalties
-    # HARD MODE: Non-matching candidates removed (original behavior, causes regression)
-    query_routing_mode: str = "soft"
+    # Query routing mode - KEY SETTING for single-hop accuracy:
+    # - "boost": Matches get 1.5-1.8x boost, non-matches unchanged (BEST)
+    # - "soft": Matches 1.0x, non-matches 0.2x penalty
+    # - "hard": Non-matches removed (causes regression)
+    query_routing_mode: str = "boost"  # Changed from "soft" to "boost"
 
-    # Retrieval settings
+    # =========================================================================
+    # THE PLAN: NEW SINGLE-HOP OPTIMIZATION SETTINGS
+    # =========================================================================
+
+    # Reranker: Cross-encoder reranking for precision improvement
+    reranker_enabled: bool = True
+    reranker_type: str = "semantic"  # "semantic", "llm", "hybrid"
+    reranker_top_k: int = 20  # Rerank top-K candidates
+
+    # Gate profile: Single-hop vs multi-hop optimization
+    gate_profile: str = "single_hop"  # "single_hop", "multi_hop", "temporal", "default"
+
+    # Node deduplication: Prevent duplicate candidates
+    node_dedup_enabled: bool = True
+    node_dedup_threshold: float = 0.92  # Cosine similarity for dedup
+
+    # Recency-aware retention: Protect factual nodes
+    recency_retention_enabled: bool = True
+
+    # Temporal consistency: Boost time-matching results
+    temporal_consistency_enabled: bool = True
+
+    # Query rewriting: Generate multiple query phrasings
+    query_rewriting_enabled: bool = False  # Off by default (latency cost)
+    query_rewriting_num_rewrites: int = 2
+
+    # =========================================================================
+    # EXTERNAL RETRIEVAL FOR OPEN-DOMAIN (THE PLAN Phase 1)
+    # =========================================================================
+    # Enable external retrieval for open-domain queries lacking session context
+    # DISABLED: Rely on LLM (Qwen) knowledge instead of Wikipedia
+    external_retrieval_enabled: bool = False
+
+    # Confidence threshold for triggering external retrieval
+    # If open-domain detection confidence >= this, call external retrievers
+    external_retrieval_confidence_threshold: float = 0.5
+
+    # Also trigger external if session retrieval returns few results
+    external_retrieval_min_session_hits: int = 3  # If fewer hits, try external
+
+    # External retrieval timeout (fail fast to avoid latency)
+    external_retrieval_timeout_ms: float = 2000.0
+
+    # Weight for blending external results with session results
+    # Higher = external results ranked higher when relevant
+    external_result_weight: float = 0.7
+
+    # Maximum external results to blend into final results
+    external_max_results: int = 5
+
+    # Wikipedia-specific settings
+    # DISABLED: Rely on LLM knowledge instead
+    wikipedia_enabled: bool = False
+    wikipedia_extract_chars: int = 800  # Characters per article
+
+    # Enable open-domain tracing for debugging
+    open_domain_tracing_enabled: bool = False
+
+    # =========================================================================
+    # ATTRIBUTION & DEBUGGING
+    # =========================================================================
+    attribution_logging_enabled: bool = False  # Enable per-stage attribution
+    attribution_log_path: str | None = None  # Path to save attribution logs
+
+    # =========================================================================
+    # RETRIEVAL SETTINGS
+    # =========================================================================
     use_neural_retrieval: bool = True
     neural_retrieval_weight: float = 0.5  # Blend with existing retrieval
+
+    # =========================================================================
+    # LATENCY CONSTRAINTS (THE PLAN: "keep latency budgets")
+    # =========================================================================
+    max_retrieval_latency_ms: float = 200.0  # Max retrieval time
+    max_rerank_latency_ms: float = 50.0  # Max reranker time per query
+    fallback_on_timeout: bool = True  # Use fast path on timeout
+
+
+def create_single_hop_optimized_config() -> NeuralGraphServiceConfig:
+    """Create config optimized for single-hop factual queries.
+
+    THE PLAN: "toggle single-hop-optimized profile via configuration"
+
+    This configuration prioritizes precision@1 for single-hop questions like:
+    - "What is Caroline's job?"
+    - "Where does John live?"
+    - "What is the capital of France?"
+
+    Returns:
+        NeuralGraphServiceConfig optimized for single-hop
+    """
+    return NeuralGraphServiceConfig(
+        # Use boost mode for query routing
+        query_routing_mode="boost",
+
+        # Enable reranking for precision
+        reranker_enabled=True,
+        reranker_type="semantic",
+
+        # Use single-hop gate profile
+        gate_profile="single_hop",
+
+        # Enable deduplication
+        node_dedup_enabled=True,
+
+        # Protect factual nodes
+        recency_retention_enabled=True,
+
+        # Boost time-matching results
+        temporal_consistency_enabled=True,
+
+        # Disable query rewriting (latency)
+        query_rewriting_enabled=False,
+    )
+
+
+def create_multi_hop_optimized_config() -> NeuralGraphServiceConfig:
+    """Create config optimized for multi-hop reasoning queries.
+
+    For questions requiring reasoning chains like:
+    - "What did the person who went to Paris do next?"
+    - "Who is the friend of the teacher's sister?"
+
+    Returns:
+        NeuralGraphServiceConfig optimized for multi-hop
+    """
+    return NeuralGraphServiceConfig(
+        # Use soft mode (preserve more candidates)
+        query_routing_mode="soft",
+
+        # Light reranking
+        reranker_enabled=True,
+        reranker_type="semantic",
+        reranker_top_k=30,
+
+        # Multi-hop gate profile
+        gate_profile="multi_hop",
+
+        # Less aggressive dedup
+        node_dedup_enabled=True,
+        node_dedup_threshold=0.95,
+
+        # Temporal consistency still helps
+        temporal_consistency_enabled=True,
+    )
 
 
 @dataclass
@@ -206,6 +399,23 @@ class NeuralGraphService:
         # QUERY ROUTER: Pre-filters search space based on query analysis
         # Session key -> FilteredRetriever (initialized on first retrieval)
         self._filtered_retrievers: dict[str, FilteredRetriever] = {}
+
+        # EXTERNAL RETRIEVER: For open-domain queries (THE PLAN Phase 1)
+        # Pluggable external knowledge sources for facts not in session
+        self._external_registry: ExternalRetrieverRegistry | None = None
+        if self._config.external_retrieval_enabled:
+            self._external_registry = ExternalRetrieverRegistry()
+            # Register Wikipedia if enabled
+            if self._config.wikipedia_enabled:
+                wiki_config = WikipediaConfig(
+                    extract_chars=self._config.wikipedia_extract_chars,
+                    timeout_seconds=self._config.external_retrieval_timeout_ms / 1000,
+                )
+                self._external_registry.register(WikipediaRetriever(wiki_config), enabled=True)
+                logger.info("External retrieval enabled with Wikipedia")
+
+        # Open-domain tracer for debugging
+        self._open_domain_tracer = get_open_domain_tracer() if self._config.open_domain_tracing_enabled else None
 
         # Background consolidation task
         self._consolidation_task: asyncio.Task | None = None
@@ -1065,6 +1275,16 @@ class NeuralGraphService:
             if self._config.apply_temporal_dynamics and self._temporal and result.nodes:
                 await self._apply_temporal_dynamics(session_key, result.nodes)
 
+            # EXTERNAL RETRIEVAL: For open-domain queries (THE PLAN Phase 1)
+            # If query is open-domain and session retrieval is weak, fan out to external sources
+            result = await self._maybe_external_retrieval(
+                query_text=query_text,
+                query_embedding=query_embedding,
+                session_result=result,
+                query_analysis=query_analysis,
+                limit=limit,
+            )
+
             return result
 
     async def _expand_with_dialogue_links(
@@ -1134,6 +1354,256 @@ class NeuralGraphService:
                 result.append((node, score))
 
         return result
+
+    async def _maybe_external_retrieval(
+        self,
+        query_text: str,
+        query_embedding: list[float],
+        session_result: RetrievalResult,
+        query_analysis: QueryAnalysis | None,
+        limit: int,
+    ) -> RetrievalResult:
+        """Maybe fan out to external retrievers for open-domain queries.
+
+        THE PLAN Phase 1c:
+        For open-domain queries where session retrieval is weak, call external
+        retrievers in parallel and blend results.
+
+        Decision criteria:
+        1. Open-domain detection confidence >= threshold
+        2. AND/OR session retrieval returned few high-confidence results
+
+        Args:
+            query_text: The search query
+            query_embedding: Query embedding vector
+            session_result: Results from session retrieval
+            query_analysis: Query analysis from router (may be None)
+            limit: Maximum total results
+
+        Returns:
+            Updated RetrievalResult with external results blended in
+        """
+        # Check if external retrieval is enabled
+        if not self._config.external_retrieval_enabled or not self._external_registry:
+            return session_result
+
+        # Initialize trace for debugging
+        trace = OpenDomainTrace(query_text=query_text)
+
+        # Detect if query is open-domain
+        is_open, open_confidence = is_open_domain_query(query_text)
+        trace.is_open_domain = is_open
+        trace.open_domain_confidence = open_confidence
+
+        # Get query type from analysis if available
+        if query_analysis:
+            trace.detected_query_type = query_analysis.query_type.value
+            trace.strategy_used = query_analysis.strategy
+            trace.bypassed_entity_filter = query_analysis.strategy == "semantic"
+            trace.bypassed_temporal_filter = query_analysis.strategy == "semantic"
+
+        # Count session hits above a threshold
+        RELEVANCE_THRESHOLD = 0.3
+        trace.session_candidates_count = len(session_result.nodes)
+        trace.session_hits_at_threshold = sum(
+            1 for _, score in session_result.nodes if score >= RELEVANCE_THRESHOLD
+        )
+
+        # Decide whether to call external retriever
+        should_call_external = False
+
+        # Criterion 1: Open-domain with sufficient confidence
+        if open_confidence >= self._config.external_retrieval_confidence_threshold:
+            should_call_external = True
+            logger.debug(f"External retrieval triggered by open-domain confidence: {open_confidence:.2f}")
+
+        # Criterion 2: Few session hits (even for non-open-domain)
+        if trace.session_hits_at_threshold < self._config.external_retrieval_min_session_hits:
+            should_call_external = True
+            logger.debug(
+                f"External retrieval triggered by low session hits: "
+                f"{trace.session_hits_at_threshold} < {self._config.external_retrieval_min_session_hits}"
+            )
+
+        if not should_call_external:
+            # Record trace and return original result
+            if self._open_domain_tracer:
+                self._open_domain_tracer.record_trace(trace)
+            return session_result
+
+        # Call external retrievers
+        trace.external_retriever_called = True
+        start_time = time.perf_counter()
+
+        try:
+            external_results = await self._external_registry.retrieve_all(
+                query=query_text,
+                query_embedding=query_embedding,
+                limit_per_source=self._config.external_max_results,
+                timeout_ms=self._config.external_retrieval_timeout_ms,
+            )
+
+            elapsed_ms = (time.perf_counter() - start_time) * 1000
+            trace.external_retrieval_latency_ms = elapsed_ms
+
+            # Count total external results
+            all_external: list[ExternalResult] = []
+            for source_name, results in external_results.items():
+                all_external.extend(results)
+
+            trace.external_results_count = len(all_external)
+
+            if not all_external:
+                logger.debug(f"External retrieval returned no results for: {query_text[:30]}...")
+                if self._open_domain_tracer:
+                    self._open_domain_tracer.record_trace(trace)
+                return session_result
+
+            # Blend external results with session results
+            blended_result = self._blend_external_results(
+                session_result=session_result,
+                external_results=all_external,
+                query_embedding=query_embedding,
+                limit=limit,
+            )
+
+            trace.final_results_count = len(blended_result.nodes)
+
+            # Count how many external results made it to top-K
+            external_in_top = sum(
+                1 for node, _ in blended_result.nodes[:limit]
+                if node.metadata and node.metadata.get("source") == "external"
+            )
+            trace.external_in_top_k = external_in_top
+
+            logger.info(
+                f"External retrieval complete: {len(all_external)} external results, "
+                f"{external_in_top} in top-{limit}, latency={elapsed_ms:.1f}ms"
+            )
+
+            if self._open_domain_tracer:
+                self._open_domain_tracer.record_trace(trace)
+
+            return blended_result
+
+        except Exception as e:
+            logger.warning(f"External retrieval failed: {e}")
+            trace.external_retrieval_latency_ms = (time.perf_counter() - start_time) * 1000
+            if self._open_domain_tracer:
+                self._open_domain_tracer.record_trace(trace)
+            return session_result
+
+    def _blend_external_results(
+        self,
+        session_result: RetrievalResult,
+        external_results: list[ExternalResult],
+        query_embedding: list[float],
+        limit: int,
+    ) -> RetrievalResult:
+        """Blend external results with session results.
+
+        THE PLAN Phase 1c:
+        "Implement retrieval blending at the service layer: for open-domain
+        detections, call the external retriever in parallel with the flash/neural
+        graph paths and rerank combined results."
+
+        Strategy:
+        1. Convert external results to pseudo-NeuralNodes
+        2. Compute relevance scores using embedding similarity
+        3. Apply external_result_weight to scale external scores
+        4. Merge with session results and re-sort
+        5. Apply deduplication if similar content exists
+
+        Args:
+            session_result: Original session retrieval results
+            external_results: Results from external retrievers
+            query_embedding: Query embedding for scoring
+            limit: Maximum results to return
+
+        Returns:
+            Blended RetrievalResult
+        """
+        import numpy as np
+
+        # Prepare query embedding
+        query_emb = np.array(query_embedding, dtype=np.float32)
+        query_norm = np.linalg.norm(query_emb)
+        if query_norm > 1e-10:
+            query_emb = query_emb / query_norm
+
+        # Start with session results
+        blended: list[tuple[NeuralNode, float]] = list(session_result.nodes)
+
+        # Convert external results to pseudo-nodes and score them
+        for ext_result in external_results:
+            # Create a pseudo-NeuralNode for the external result
+            pseudo_node = NeuralNode(
+                node_id=f"external_{ext_result.cache_key}",
+                session_key="__external__",
+                layer=NodeLayer.MESSAGE,
+                content=ext_result.content,
+                embedding=ext_result.embedding,
+                metadata={
+                    "source": "external",
+                    "external_source": ext_result.source,
+                    "source_url": ext_result.source_url,
+                    "title": ext_result.title,
+                    "original_relevance": ext_result.relevance_score,
+                },
+            )
+
+            # Compute score based on embedding similarity if available
+            score = ext_result.relevance_score * self._config.external_result_weight
+
+            if ext_result.embedding:
+                ext_emb = np.array(ext_result.embedding, dtype=np.float32)
+                ext_norm = np.linalg.norm(ext_emb)
+                if ext_norm > 1e-10:
+                    similarity = float(np.dot(query_emb, ext_emb / ext_norm))
+                    # Blend original relevance with embedding similarity
+                    score = (ext_result.relevance_score * 0.4 + similarity * 0.6) * self._config.external_result_weight
+
+            # Check for duplicate content in session results
+            is_duplicate = False
+            for session_node, _ in session_result.nodes:
+                if self._is_content_duplicate(pseudo_node.content, session_node.content):
+                    is_duplicate = True
+                    logger.debug(f"Skipping duplicate external result: {ext_result.title}")
+                    break
+
+            if not is_duplicate:
+                blended.append((pseudo_node, score))
+
+        # Sort by score
+        blended.sort(key=lambda x: x[1], reverse=True)
+
+        return RetrievalResult(
+            query_text=session_result.query_text,
+            nodes=blended[:limit],
+            stages_executed=session_result.stages_executed + ["external_retrieval_blend"],
+            total_candidates_seen=session_result.total_candidates_seen + len(external_results),
+            co_activations_recorded=session_result.co_activations_recorded,
+            total_time_ms=session_result.total_time_ms,
+        )
+
+    def _is_content_duplicate(self, content1: str, content2: str, threshold: float = 0.8) -> bool:
+        """Check if two content strings are duplicates.
+
+        Uses simple Jaccard similarity on word sets.
+        """
+        if not content1 or not content2:
+            return False
+
+        words1 = set(content1.lower().split())
+        words2 = set(content2.lower().split())
+
+        if not words1 or not words2:
+            return False
+
+        intersection = len(words1 & words2)
+        union = len(words1 | words2)
+
+        return (intersection / union) >= threshold if union > 0 else False
 
     async def retrieve_with_context(
         self,

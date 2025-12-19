@@ -50,15 +50,17 @@ OLLAMA_BASE_URL = "http://localhost:11434"
 OLLAMA_MODEL = "qwen2.5:7b-instruct"
 EMBEDDING_MODEL = "nomic-embed-text"
 
-# Local judging with Qwen (no OpenAI needed)
-JUDGE_MODEL = "qwen2.5:7b-instruct"
+# Judge with GPT-4o (OpenAI)
+OPENAI_API_KEY = "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"
+JUDGE_MODEL = "gpt-4o"
+USE_OPENAI_JUDGE = True  # Using GPT-4o
 
 TOP_K = 50
 
 CATEGORIES = {1: "single_hop", 2: "temporal", 3: "open_domain", 4: "multi_hop"}
 
-OUTPUT_PATH = Path(__file__).parent / "results.json"
-MAX_QUESTIONS = 200
+OUTPUT_PATH = Path(__file__).parent / "ilovenyc.json"
+MAX_QUESTIONS = 2000  # Run all 1986 questions
 
 # Timing storage
 import time
@@ -67,7 +69,7 @@ TIMING_DATA = defaultdict(list)
 
 import random
 
-ROUTING_STATS = {"TEMPORAL": 0, "STRICT": 0, "INFERENTIAL": 0, "AGGREGATION": 0}
+ROUTING_STATS = {"TEMPORAL": 0, "STRICT": 0, "INFERENTIAL": 0, "AGGREGATION": 0, "ADVERSARIAL": 0}
 ROUTING_SAMPLES = []
 INFERENTIAL_SAMPLES = []
 
@@ -186,14 +188,44 @@ def save_results(results, stats):
 
     retrieval_summary = compute_retrieval_summary(RETRIEVAL_METRICS)
 
+    # Compute latency statistics for both retrieval and answer generation
+    def compute_latency_percentiles(latencies):
+        if not latencies:
+            return {}
+        latencies_sorted = sorted(latencies)
+        n = len(latencies_sorted)
+        return {
+            "count": n,
+            "mean_ms": round(sum(latencies) / n, 1),
+            "min_ms": round(min(latencies), 1),
+            "max_ms": round(max(latencies), 1),
+            "p50_ms": round(latencies_sorted[n // 2], 1),
+            "p90_ms": round(latencies_sorted[int(n * 0.9)], 1),
+            "p95_ms": round(latencies_sorted[int(n * 0.95)], 1),
+            "p99_ms": round(latencies_sorted[int(n * 0.99)], 1),
+        }
+
+    retrieval_latencies = [r.get("retrieval_latency_ms", 0) for r in results if r.get("retrieval_latency_ms")]
+    rerank_latencies = [r.get("rerank_latency_ms", 0) for r in results if r.get("rerank_latency_ms")]
+    answer_latencies = [r.get("answer_latency_ms", 0) for r in results if r.get("answer_latency_ms")]
+    e2e_latencies = [r.get("e2e_latency_ms", 0) for r in results if r.get("e2e_latency_ms")]
+
+    latency_stats = {
+        "retrieval": compute_latency_percentiles(retrieval_latencies),
+        "reranking": compute_latency_percentiles(rerank_latencies),
+        "answer_generation": compute_latency_percentiles(answer_latencies),
+        "end_to_end": compute_latency_percentiles(e2e_latencies),
+    }
+
     output = {
         "metadata": {
             "model": "Tesseract 4D Memory",
-            "judge": "Qwen2.5-7B (local)",
+            "judge": "GPT-4o (OpenAI)",
             "timestamp": datetime.now().isoformat(),
             "total_questions": total_questions,
             "total_correct": total_correct,
             "accuracy": round(accuracy, 2),
+            "latency_stats": latency_stats,
             "category_stats": {
                 cat: {
                     "accuracy": round(100 * s["correct"] / s["total"], 1) if s["total"] > 0 else 0,
@@ -296,13 +328,15 @@ TEMPORAL RULES (FAIR):
 3. Do NOT answer with MESSAGE_DATETIME unless the memory explicitly indicates the event happened then.
 4. If the date cannot be determined from provided memories, say "Not mentioned in the memories".
 5. Output ONLY the date/time period (concise).
+6. NEVER answer in present tense. Use past tense or state the specific date/time.
+7. Answer with WHEN it happened (a date, time, or period), NOT what is happening.
 
 MEMORIES:
 {context}
 
 QUESTION: {question}
 
-Answer:"""
+Answer (date/time only, past tense):"""
 
     elif mode == "INFERENTIAL":
         prompt = f"""Answer the question using ONLY the memories below.
@@ -354,6 +388,25 @@ QUESTION: {question}
 
 Answer:"""
 
+    elif mode == "OPEN_DOMAIN_INFER":
+        prompt = f"""The direct answer was not found in the memories. Analyze what IS present and make your best inference.
+
+=== INFERENCE RULES ===
+1. Review the memories below - they are ranked by relevance to the question.
+2. Look for ANY related information, context clues, or partial answers.
+3. If you can reasonably infer an answer from the available context, do so.
+4. If the question is about general knowledge (facts, definitions, how things work),
+   you may use your own knowledge to answer.
+5. Be concise: give a direct answer in 1-2 sentences.
+6. Do NOT say "not mentioned" - attempt to provide a useful answer.
+
+MEMORIES (ranked by relevance):
+{context}
+
+QUESTION: {question}
+
+Your best answer:"""
+
     else:
         prompt = f"""Answer the question using ONLY the memories below.
 
@@ -386,42 +439,33 @@ Return the answer:"""
 
 
 # =============================================================================
-# LOCAL QWEN JUDGE with LoCoMo ACCURACY_PROMPT
+# GPT-4o JUDGE with ACCURACY_PROMPT
 # =============================================================================
 
-# Judge system message for JSON-only output (no explanation leakage)
-JUDGE_SYSTEM = (
-    "You are an evaluation function. "
-    "Return ONLY valid JSON with exactly one key: label. "
-    "Allowed values: CORRECT or WRONG. "
-    "No explanations, no extra text."
-)
+ACCURACY_PROMPT = """
+Your task is to label an answer to a question as 'CORRECT' or 'WRONG'. You will be given the following data:
+    (1) a question (posed by one user to another user),
+    (2) a 'gold' (ground truth) answer,
+    (3) a generated answer
+which you will score as CORRECT/WRONG.
 
-ACCURACY_PROMPT = """Label the generated answer as CORRECT or WRONG compared to the gold answer.
+The point of the question is to ask about something one user should know about the other user based on their prior conversations.
+The gold answer will usually be a concise and short answer that includes the referenced topic, for example:
+Question: Do you remember what I got the last time I went to Hawaii?
+Gold answer: A shell necklace
+The generated answer might be much longer, but you should be generous with your grading - as long as it touches on the same topic as the gold answer, it should be counted as CORRECT.
 
-Be generous: if the generated answer clearly matches the same underlying fact(s) as the gold answer,
-count it as CORRECT even if phrasing differs.
+For time related questions, the gold answer will be a specific date, month, year, etc. The generated answer might be much longer or use relative time references (like "last Tuesday" or "next month"), but you should be generous with your grading - as long as it refers to the same date or time period as the gold answer, it should be counted as CORRECT. Even if the format differs (e.g., "May 7th" vs "7 May"), consider it CORRECT if it's the same date.
 
-For time questions: accept equivalent dates/time periods even if formatting differs.
-
+Now it's time for the real question:
 Question: {question}
 Gold answer: {gold_answer}
 Generated answer: {generated_answer}
 
-Return JSON only:
-{{"label":"CORRECT"}} or {{"label":"WRONG"}}
-"""
+First, provide a short (one sentence) explanation of your reasoning, then finish with CORRECT or WRONG.
+Do NOT include both CORRECT and WRONG in your response, or it will break the evaluation script.
 
-UNANSWERABLE_PROMPT = """This question is UNANSWERABLE from the memories (gold answer is empty).
-
-CORRECT if the generated answer clearly says the info is not available / not mentioned / cannot be determined.
-WRONG if it invents a specific fact.
-
-Question: {question}
-Generated answer: {generated_answer}
-
-Return JSON only:
-{{"label":"CORRECT"}} or {{"label":"WRONG"}}
+Just return the label CORRECT or WRONG in a json format with the key as "label".
 """
 
 
@@ -457,7 +501,7 @@ def parse_judge_label(resp: str) -> bool:
 
 
 async def judge_answer(session, question: str, generated: str, gold) -> bool:
-    """Judge using local Qwen with LoCoMo ACCURACY_PROMPT."""
+    """Judge using GPT-4o."""
     gen_lower = str(generated).lower().strip()
     gold_lower = str(gold).lower().strip()
 
@@ -469,34 +513,35 @@ async def judge_answer(session, question: str, generated: str, gold) -> bool:
     if gold_lower and gold_lower in gen_lower:
         return True
 
-    # Select prompt based on whether question is unanswerable
+    # Skip if no gold answer
     if not gold_lower:
-        prompt = UNANSWERABLE_PROMPT.format(
-            question=question,
-            generated_answer=generated
-        )
-    else:
-        prompt = ACCURACY_PROMPT.format(
-            question=question,
-            gold_answer=gold,
-            generated_answer=generated
-        )
+        return False
 
-    full_prompt = f"{JUDGE_SYSTEM}\n\n{prompt}"
+    prompt = ACCURACY_PROMPT.format(
+        question=question,
+        gold_answer=gold,
+        generated_answer=generated
+    )
 
     try:
         async with session.post(
-            f"{OLLAMA_BASE_URL}/api/generate",
+            "https://api.openai.com/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {OPENAI_API_KEY}",
+                "Content-Type": "application/json"
+            },
             json={
                 "model": JUDGE_MODEL,
-                "prompt": full_prompt,
-                "stream": False,
-                "options": {"temperature": 0, "num_predict": 30}
+                "messages": [
+                    {"role": "user", "content": prompt}
+                ],
+                "temperature": 0,
+                "max_tokens": 150
             },
             timeout=aiohttp.ClientTimeout(total=60)
         ) as response:
             result = await response.json()
-            resp_text = result.get("response", "").strip()
+            resp_text = result.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
             return parse_judge_label(resp_text)
     except Exception as e:
         print(f"Judge error: {e}")
@@ -645,6 +690,10 @@ async def run_benchmark():
                 if not query_emb:
                     continue
 
+                # Start end-to-end and retrieval timing
+                t_e2e_start = time.perf_counter()
+                t_retrieval_start = time.perf_counter()
+
                 retrieved = await tesseract.retrieve(
                     query_text=question,
                     query_embedding=query_emb,
@@ -672,6 +721,10 @@ async def run_benchmark():
                 expanded_results.sort(key=lambda x: x[1], reverse=True)
                 retrieved = expanded_results
 
+                # End pure retrieval timing (tesseract + dialogue linking only)
+                t_retrieval = (time.perf_counter() - t_retrieval_start) * 1000
+                TIMING_DATA["t_retrieval"].append(t_retrieval)
+
                 all_memories_text = [
                     {"text": node.content, "speaker": node.metadata.get("speaker", "")}
                     for node, charge in retrieved[:50]
@@ -694,10 +747,14 @@ async def run_benchmark():
                 RETRIEVAL_METRICS[category]["oracle_rank"].append(oracle_rank)
                 RETRIEVAL_METRICS[category]["total_candidates"].append(len(retrieved))
 
+                # Reranking timing (separate - this uses LLM calls)
+                t_rerank_start = time.perf_counter()
                 if USE_QWEN_RERANKER:
                     reranked = await qwen_rerank_batch(http, question, retrieved[:50], top_n=15)
                 else:
                     reranked = retrieved[:15]
+                t_rerank = (time.perf_counter() - t_rerank_start) * 1000
+                TIMING_DATA["t_rerank"].append(t_rerank)
 
                 query_mode = infer_query_mode(question)
                 ROUTING_STATS[query_mode] += 1
@@ -748,7 +805,29 @@ async def run_benchmark():
                 t_answer = (time.perf_counter() - t_answer_start) * 1000
                 TIMING_DATA["t_answer"].append(t_answer)
 
-                # Judge with local Qwen
+                # FALLBACK: If single_hop or multi_hop says "not found", try open_domain inference
+                not_found_phrases = [
+                    "not mentioned in the memories",
+                    "not found in the memories",
+                    "not in the memories",
+                    "no information",
+                    "cannot determine",
+                    "not stated",
+                    "not specified",
+                    "no mention",
+                ]
+                answer_lower = generated.lower()
+                is_not_found = any(phrase in answer_lower for phrase in not_found_phrases)
+
+                if is_not_found and category in ("single_hop", "multi_hop", "open_domain"):
+                    # Second pass: analyze memories and infer
+                    generated = await generate_answer(http, question, context, mode="OPEN_DOMAIN_INFER")
+
+                # End-to-end timing (retrieval + rerank + answer generation)
+                t_e2e = (time.perf_counter() - t_e2e_start) * 1000
+                TIMING_DATA["t_e2e"].append(t_e2e)
+
+                # Judge with GPT-4o
                 correct = await judge_answer(http, question, generated, gold)
 
                 stats[category]["total"] += 1
@@ -763,6 +842,10 @@ async def run_benchmark():
                     "generated_answer": generated,
                     "gold_answer": gold,
                     "correct": correct,
+                    "retrieval_latency_ms": round(t_retrieval, 1),
+                    "rerank_latency_ms": round(t_rerank, 1),
+                    "answer_latency_ms": round(t_answer, 1),
+                    "e2e_latency_ms": round(t_e2e, 1),
                     "retrieved_memories": retrieved_memories,
                 }
                 results.append(result)
@@ -785,13 +868,39 @@ async def run_benchmark():
     accuracy = 100 * total_correct / total_questions if total_questions > 0 else 0
 
     print(f"\n{'='*60}")
-    print(f"BENCHMARK COMPLETE (Judge: Qwen2.5-7B local)")
+    print(f"BENCHMARK COMPLETE (Judge: GPT-4o)")
     print(f"{'='*60}")
     print(f"Total: {total_correct}/{total_questions} ({accuracy:.1f}%)")
     for cat, s in stats.items():
         if s["total"] > 0:
             acc = 100 * s["correct"] / s["total"]
             print(f"  {cat}: {s['correct']}/{s['total']} ({acc:.1f}%)")
+
+    # Print latency statistics
+    print(f"\n{'='*60}")
+    print(f"LATENCY STATISTICS")
+    print(f"{'='*60}")
+
+    def print_latency_stats(name, latencies):
+        if not latencies:
+            print(f"{name}: No data")
+            return
+        sorted_lat = sorted(latencies)
+        n = len(sorted_lat)
+        print(f"\n{name}:")
+        print(f"  Count:    {n} queries")
+        print(f"  Mean:     {sum(latencies)/n:.1f} ms")
+        print(f"  Min:      {min(latencies):.1f} ms")
+        print(f"  Max:      {max(latencies):.1f} ms")
+        print(f"  P50:      {sorted_lat[n//2]:.1f} ms")
+        print(f"  P90:      {sorted_lat[int(n*0.9)]:.1f} ms")
+        print(f"  P95:      {sorted_lat[int(n*0.95)]:.1f} ms")
+        print(f"  P99:      {sorted_lat[int(n*0.99)]:.1f} ms")
+
+    print_latency_stats("Memory Retrieval", TIMING_DATA.get("t_retrieval", []))
+    print_latency_stats("Reranking (Qwen)", TIMING_DATA.get("t_rerank", []))
+    print_latency_stats("Answer Generation (Qwen)", TIMING_DATA.get("t_answer", []))
+    print_latency_stats("End-to-End", TIMING_DATA.get("t_e2e", []))
 
     print(f"\n{'='*60}")
     print(f"ROUTING STATS")

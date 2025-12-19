@@ -71,6 +71,7 @@ class DialogueLinkingConfig:
     """Configuration for dialogue linking thresholds.
 
     Phase 3 Fix: Tuned thresholds to improve Q/A pair retrieval.
+    THE PLAN Enhancement: Added high-confidence mode and filtering thresholds.
     """
     # EXCHANGE aggregator settings
     EXCHANGE_COHESION_QUESTION = 0.95  # Was 0.9, increased for Q/A pairs
@@ -83,6 +84,7 @@ class DialogueLinkingConfig:
 
     # COREFERENCE binding settings
     COREF_CONFIDENCE = 0.75            # Was 0.7, slightly increased
+    COREF_HIGH_CONFIDENCE = 0.85       # NEW: High-confidence threshold for single-hop
 
     # RESPONSE binding settings
     RESPONSE_BASE_CONFIDENCE = 0.65    # Was 0.6, increased
@@ -96,6 +98,19 @@ class DialogueLinkingConfig:
     # Retrieval boost settings
     LINK_BOOST = 0.85                  # Was 0.7, increased for stronger Q/A linking
     ATOMIC_PAIR_BOOST = 1.2            # NEW: Extra boost for Q/A atomic pairs
+
+    # THE PLAN: High-confidence filtering settings
+    # "prefer high-confidence coreference edges; drop low-similarity links"
+    HIGH_CONFIDENCE_MODE = True         # Enable strict filtering for single-hop
+    MIN_BINDING_CONFIDENCE = 0.5        # Drop bindings below this threshold
+    MIN_AGGREGATOR_COHESION = 0.4       # Drop aggregators below this threshold
+    SINGLE_HOP_COREF_BOOST = 1.15       # Boost for high-confidence coreferences
+
+    # Noise reduction settings
+    DROP_LOW_SIMILARITY_LINKS = True    # Drop links during ingestion
+    SIMILARITY_DROP_THRESHOLD = 0.3     # Min embedding similarity for topic links
+    MAX_COREF_CHAIN_LENGTH = 5          # Max pronouns to track in chain
+    ENTITY_MENTION_DECAY = 0.95         # Decay factor for distant entity mentions
 
 
 # =============================================================================
@@ -391,9 +406,13 @@ class DialogueLinker:
         even if they're not adjacent.
 
         Phase 3 Fix: Increased entity overlap weight for better topic clustering.
+        THE PLAN Enhancement: Added similarity-based filtering to drop low-similarity links.
         """
         aggregators = []
         config = DialogueLinkingConfig
+
+        # Build message lookup for embedding similarity checks
+        msg_by_id = {msg.node_id: msg for msg in messages}
 
         # Extract entities from each message
         msg_entities: dict[str, set[str]] = {}
@@ -414,13 +433,38 @@ class DialogueLinker:
                 entity_to_messages[entity_lower].append(msg_id)
 
         # Create aggregator for each entity with 2+ messages
+        dropped_count = 0
         for entity, msg_ids in entity_to_messages.items():
             if len(msg_ids) >= config.TOPIC_MIN_MESSAGES:
+                # THE PLAN: Filter low-similarity links during ingestion
+                if config.DROP_LOW_SIMILARITY_LINKS and len(msg_ids) >= 2:
+                    # Check pairwise embedding similarity to filter noise
+                    filtered_ids = self._filter_by_embedding_similarity(
+                        msg_ids, msg_by_id, config.SIMILARITY_DROP_THRESHOLD
+                    )
+                    if len(filtered_ids) < config.TOPIC_MIN_MESSAGES:
+                        dropped_count += 1
+                        logger.debug(
+                            f"Dropped low-similarity TOPIC aggregator: {entity}, "
+                            f"original={len(msg_ids)}, filtered={len(filtered_ids)}"
+                        )
+                        continue
+                    msg_ids = filtered_ids
+
                 # Phase 3 Fix: Better cohesion scoring with increased base
                 cohesion = min(
                     config.TOPIC_COHESION_MAX,
                     len(msg_ids) * config.TOPIC_COHESION_BASE
                 )
+
+                # THE PLAN: Drop aggregators below cohesion threshold
+                if config.HIGH_CONFIDENCE_MODE and cohesion < config.MIN_AGGREGATOR_COHESION:
+                    dropped_count += 1
+                    logger.debug(
+                        f"Dropped low-cohesion TOPIC aggregator: {entity}, "
+                        f"cohesion={cohesion:.2f} < {config.MIN_AGGREGATOR_COHESION}"
+                    )
+                    continue
 
                 agg = DialogueAggregator(
                     aggregator_id=f"topic-{uuid.uuid4().hex[:8]}",
@@ -437,6 +481,9 @@ class DialogueLinker:
                     f"topic={entity}, messages={len(msg_ids)}, cohesion={cohesion:.2f}"
                 )
 
+        if dropped_count > 0:
+            logger.info(f"Dropped {dropped_count} low-quality TOPIC aggregators")
+
         logger.info(f"Created {len(aggregators)} TOPIC aggregators for session {session_key}")
         return aggregators
 
@@ -450,45 +497,92 @@ class DialogueLinker:
         "She said yes" → "Caroline"
 
         Phase 3 Fix: Increased confidence for better single-hop retrieval.
+        THE PLAN Enhancement: Added high-confidence mode and distance-based decay.
         """
         bindings = []
         config = DialogueLinkingConfig
 
         # Build entity history (what nouns have been mentioned)
-        entity_history: list[tuple[str, str, str]] = []  # (entity, msg_id, category)
+        # THE PLAN: Added distance tracking for decay
+        entity_history: list[tuple[str, str, str, int]] = []  # (entity, msg_id, category, distance)
 
-        for msg in messages:
+        for msg_idx, msg in enumerate(messages):
             content = msg.content
 
             # Find pronouns that need resolution
             pronouns_found = self._find_pronouns(content)
 
             for pronoun, category in pronouns_found:
-                # Look back for matching antecedent
-                for entity, entity_msg_id, entity_category in reversed(entity_history):
-                    if self._categories_match(category, entity_category):
-                        binding = CrossMessageBinding(
-                            binding_id=f"coref-{uuid.uuid4().hex[:8]}",
-                            binding_type=BindingType.REFERS_TO,
-                            source_id=msg.node_id,
-                            target_id=entity_msg_id,
-                            source_span=pronoun,
-                            target_span=entity,
-                            confidence=config.COREF_CONFIDENCE,  # Phase 3 Fix
-                        )
-                        bindings.append(binding)
+                # Look back for matching antecedent with distance-based scoring
+                best_match = None
+                best_confidence = 0.0
 
+                for entity, entity_msg_id, entity_category, entity_idx in reversed(entity_history):
+                    if self._categories_match(category, entity_category):
+                        # THE PLAN: Distance-based confidence decay
+                        distance = msg_idx - entity_idx
+                        base_conf = config.COREF_CONFIDENCE
+
+                        # Apply decay for distant references
+                        if config.HIGH_CONFIDENCE_MODE:
+                            # Stricter decay in high-confidence mode
+                            decay = config.ENTITY_MENTION_DECAY ** distance
+                            confidence = base_conf * decay
+
+                            # Use high-confidence threshold for close references
+                            if distance <= 2:
+                                confidence = max(confidence, config.COREF_HIGH_CONFIDENCE)
+                        else:
+                            # Standard decay
+                            confidence = base_conf * (0.98 ** distance)
+
+                        # Track best match
+                        if confidence > best_confidence:
+                            best_confidence = confidence
+                            best_match = (entity, entity_msg_id, confidence)
+
+                        # In non-high-confidence mode, take first match
+                        if not config.HIGH_CONFIDENCE_MODE:
+                            break
+
+                # Create binding if we found a good match
+                if best_match:
+                    entity, entity_msg_id, confidence = best_match
+
+                    # THE PLAN: Drop low-confidence bindings
+                    if config.HIGH_CONFIDENCE_MODE and confidence < config.MIN_BINDING_CONFIDENCE:
                         logger.debug(
-                            f"Created COREF binding: '{pronoun}' -> '{entity}', "
-                            f"confidence={config.COREF_CONFIDENCE:.2f}"
+                            f"Dropped low-confidence COREF: '{pronoun}' -> '{entity}', "
+                            f"confidence={confidence:.2f} < {config.MIN_BINDING_CONFIDENCE}"
                         )
-                        break  # Take most recent match
+                        continue
+
+                    binding = CrossMessageBinding(
+                        binding_id=f"coref-{uuid.uuid4().hex[:8]}",
+                        binding_type=BindingType.REFERS_TO,
+                        source_id=msg.node_id,
+                        target_id=entity_msg_id,
+                        source_span=pronoun,
+                        target_span=entity,
+                        confidence=confidence,
+                    )
+                    bindings.append(binding)
+
+                    logger.debug(
+                        f"Created COREF binding: '{pronoun}' -> '{entity}', "
+                        f"confidence={confidence:.2f}"
+                    )
 
             # Add entities from this message to history
             entities = self._extract_entities(content)
             for entity in entities:
                 category = self._categorize_entity(entity)
-                entity_history.append((entity, msg.node_id, category))
+                entity_history.append((entity, msg.node_id, category, msg_idx))
+
+            # THE PLAN: Limit coreference chain length to reduce noise
+            if len(entity_history) > config.MAX_COREF_CHAIN_LENGTH * 3:
+                # Keep only recent entities
+                entity_history = entity_history[-config.MAX_COREF_CHAIN_LENGTH * 2:]
 
         logger.info(f"Created {len(bindings)} COREFERENCE bindings")
         return bindings
@@ -819,6 +913,76 @@ class DialogueLinker:
         if pronoun_cat.startswith("person"):
             return entity_cat == "person"
         return True  # Default match
+
+    def _filter_by_embedding_similarity(
+        self,
+        msg_ids: list[str],
+        msg_by_id: dict[str, "NeuralNode"],
+        threshold: float
+    ) -> list[str]:
+        """Filter message IDs to keep only those with sufficient embedding similarity.
+
+        THE PLAN: "drop low-similarity links during ingestion to reduce noise"
+
+        This filters topic aggregator messages to ensure they're actually semantically
+        related, not just sharing a common word by coincidence.
+
+        Args:
+            msg_ids: List of message IDs to filter
+            msg_by_id: Dict mapping ID to NeuralNode
+            threshold: Minimum average similarity to keep
+
+        Returns:
+            Filtered list of message IDs
+        """
+        from .data_types import cosine_similarity
+
+        if len(msg_ids) < 2:
+            return msg_ids
+
+        # Get embeddings for all messages
+        embeddings = []
+        valid_ids = []
+        for msg_id in msg_ids:
+            msg = msg_by_id.get(msg_id)
+            if msg and msg.embedding:
+                embeddings.append((msg_id, msg.embedding))
+                valid_ids.append(msg_id)
+
+        if len(embeddings) < 2:
+            return valid_ids
+
+        # Compute average pairwise similarity
+        similarities = []
+        for i, (id_a, emb_a) in enumerate(embeddings):
+            for j, (id_b, emb_b) in enumerate(embeddings):
+                if i < j:
+                    sim = cosine_similarity(emb_a, emb_b)
+                    similarities.append(sim)
+
+        if not similarities:
+            return valid_ids
+
+        avg_similarity = sum(similarities) / len(similarities)
+
+        # If average is below threshold, filter to core cluster
+        if avg_similarity < threshold:
+            # Keep only messages with above-threshold similarity to others
+            filtered = []
+            for msg_id, emb in embeddings:
+                sims_to_others = [
+                    cosine_similarity(emb, other_emb)
+                    for other_id, other_emb in embeddings
+                    if other_id != msg_id
+                ]
+                if sims_to_others:
+                    avg_sim = sum(sims_to_others) / len(sims_to_others)
+                    if avg_sim >= threshold:
+                        filtered.append(msg_id)
+
+            return filtered if filtered else [embeddings[0][0]]  # Keep at least one
+
+        return valid_ids
 
 
 # =============================================================================

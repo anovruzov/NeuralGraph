@@ -76,6 +76,10 @@ class QueryType:
 def detect_query_type(query: str) -> dict[str, float]:
     """Detect query type and return confidence scores for each type.
 
+    THE PLAN Phase 2b Enhancement:
+    Improved open-domain detection to route to external retrieval
+    instead of falling back to generic semantic search.
+
     Returns dict mapping QueryType to confidence [0, 1].
     Multiple types can be active (e.g., temporal + entity).
     """
@@ -86,8 +90,11 @@ def detect_query_type(query: str) -> dict[str, float]:
         QueryType.ENTITY: 0.0,
         QueryType.MULTI_HOP: 0.0,
         QueryType.ADVERSARIAL: 0.0,
-        QueryType.OPEN: 0.3,  # Base score for open-ended
+        QueryType.OPEN: 0.0,  # Start at 0, will be computed dynamically
     }
+
+    # Track if query has session-specific markers
+    has_session_markers = False
 
     # TEMPORAL markers
     temporal_markers = [
@@ -158,6 +165,101 @@ def detect_query_type(query: str) -> dict[str, float]:
     for pattern, weight in adversarial_markers:
         if re.search(pattern, query_lower):
             scores[QueryType.ADVERSARIAL] += weight
+
+    # THE PLAN Phase 2b: OPEN-DOMAIN markers
+    # Detect queries that require world/encyclopedic knowledge
+    # These should trigger external retrieval instead of session-only search
+
+    # Definitional patterns (highly likely open-domain)
+    open_domain_definitional = [
+        (r'^what is (?:a |an |the )?(?!\w+\'s)', 0.7),  # "What is X?" but not "What is X's Y?"
+        (r'^what are (?!the |their |our )', 0.6),  # "What are X?" but not about specific items
+        (r'^define\b', 0.8),
+        (r'^explain (?:what|how|why)\b', 0.7),
+        (r'^how does .+ work\b', 0.7),
+        (r'^why does\b', 0.6),
+        (r'^why do\b', 0.6),
+        (r'^what causes\b', 0.8),
+        (r'^what makes\b', 0.6),
+        (r'^what happens when\b', 0.6),
+        (r'^describe (?:what|how)\b', 0.5),
+    ]
+    for pattern, weight in open_domain_definitional:
+        if re.search(pattern, query_lower):
+            scores[QueryType.OPEN] += weight
+            break  # Only count one definitional pattern
+
+    # Factual/encyclopedic patterns
+    open_domain_factual = [
+        (r'how many .+ (?:are there|exist)\b', 0.6),
+        (r'when was .+ (?:invented|discovered|founded|created|born|built)\b', 0.7),
+        (r'where is .+ located\b', 0.6),
+        (r'what (?:country|city|place)\b', 0.5),
+        (r'what year\b', 0.4),
+        (r'capital of\b', 0.7),
+        (r'(?:president|prime minister|leader) of\b', 0.6),
+        (r'population of\b', 0.7),
+        (r'(?:largest|smallest|oldest|youngest|tallest|shortest|longest|highest|lowest)\b', 0.5),
+        (r'meaning of\b', 0.6),
+        (r'origin of\b', 0.6),
+        (r'history of\b', 0.6),
+    ]
+    for pattern, weight in open_domain_factual:
+        if re.search(pattern, query_lower):
+            scores[QueryType.OPEN] += weight
+            break  # Only count one factual pattern
+
+    # Scientific/technical terms (boost open-domain when present)
+    scientific_terms = [
+        'photosynthesis', 'evolution', 'gravity', 'atom', 'molecule',
+        'electron', 'proton', 'neutron', 'cell', 'dna', 'rna',
+        'gene', 'chromosome', 'protein', 'enzyme', 'virus', 'bacteria',
+        'planet', 'star', 'galaxy', 'solar', 'orbit', 'mass',
+        'energy', 'force', 'momentum', 'velocity', 'acceleration',
+        'temperature', 'pressure', 'volume', 'density', 'climate',
+        'ecosystem', 'species', 'habitat', 'genetics', 'quantum',
+        'algorithm', 'computer', 'internet', 'network', 'database',
+    ]
+    for term in scientific_terms:
+        if term in query_lower:
+            scores[QueryType.OPEN] += 0.4
+            break
+
+    # Session-specific markers that REDUCE open-domain confidence
+    session_markers = [
+        (r'\bshe\b', 0.2),
+        (r'\bhe\b', 0.2),
+        (r'\bthey\b', 0.15),
+        (r'\bwe\b', 0.15),
+        (r'\bour\b', 0.2),
+        (r'\bmy\b', 0.2),
+        (r'\byour\b', 0.2),
+        (r'\btold me\b', 0.3),
+        (r'\bsaid\b', 0.2),
+        (r'\basked\b', 0.2),
+        (r'\bmentioned\b', 0.3),
+        (r'\bthe meeting\b', 0.3),
+        (r'\bthe conversation\b', 0.3),
+        (r'\bearlier\b', 0.2),
+    ]
+    session_penalty = 0.0
+    for pattern, weight in session_markers:
+        if re.search(pattern, query_lower):
+            session_penalty += weight
+            has_session_markers = True
+
+    # Apply session penalty to open-domain score
+    scores[QueryType.OPEN] = max(0.0, scores[QueryType.OPEN] - session_penalty)
+
+    # If no other type is strongly detected and no session markers, boost open-domain
+    max_other_score = max(
+        scores[QueryType.TEMPORAL],
+        scores[QueryType.ENTITY],
+        scores[QueryType.MULTI_HOP],
+        scores[QueryType.ADVERSARIAL]
+    )
+    if max_other_score < 0.3 and not has_session_markers:
+        scores[QueryType.OPEN] += 0.3  # Base boost for likely open-domain
 
     # Normalize and cap scores
     for key in scores:

@@ -142,6 +142,22 @@ from .query_router import (
     create_filtered_retriever,
 )
 
+# External Retriever (open-domain knowledge sources)
+# THE PLAN Phase 1: External retrieval for open-domain queries
+from .external_retriever import (
+    ExternalRetriever,
+    ExternalRetrieverRegistry,
+    ExternalResult,
+    WikipediaRetriever,
+    WikipediaConfig,
+    OpenDomainTrace,
+    OpenDomainTracer,
+    get_open_domain_tracer,
+    is_open_domain_query,
+    create_wikipedia_retriever,
+    create_default_registry,
+)
+
 # Prompts (schema-guided reasoning for SLM answering)
 from .prompts import (
     RETRIEVAL_ANSWER_PROMPT,
@@ -224,6 +240,18 @@ __all__ = [
     "FilteredRetriever",
     "create_query_router",
     "create_filtered_retriever",
+    # External Retriever (open-domain)
+    "ExternalRetriever",
+    "ExternalRetrieverRegistry",
+    "ExternalResult",
+    "WikipediaRetriever",
+    "WikipediaConfig",
+    "OpenDomainTrace",
+    "OpenDomainTracer",
+    "get_open_domain_tracer",
+    "is_open_domain_query",
+    "create_wikipedia_retriever",
+    "create_default_registry",
     # Temporal utilities
     "MONTH_NAMES",
     "MONTH_NAMES_REV",
