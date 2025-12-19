@@ -42,8 +42,8 @@ from .consolidation import ConsolidationManager, ConsolidationConfig
 from .retriever import NeuralRetriever, RetrieverConfig
 from .flash_retriever import FlashRetriever, HybridFlashRetriever, FlashConfig
 from .electron import ElectronRetriever, ElectronRetrieverConfig
-from .dialogue_linker import DialogueLinker, create_dialogue_links
-from .query_router import QueryRouter, FilteredRetriever, QueryAnalysis
+from .dialogue_linker import DialogueLinker, DialogueLinkingConfig, create_dialogue_links
+from .query_router import QueryRouter, FilteredRetriever, QueryAnalysis, SoftFilterResult
 
 if TYPE_CHECKING:
     from memmachine.common.episode_store import Episode
@@ -97,7 +97,13 @@ class NeuralGraphServiceConfig:
 
     # QUERY ROUTER: Intelligent query analysis and pre-filtering
     # Filters search space BEFORE embedding search for entity/temporal queries
-    query_routing_enabled: bool = False  # DISABLED - causing regression (30% vs 85%)
+    # Phase 1 Fix: Re-enabled with soft filtering mode to avoid regression
+    query_routing_enabled: bool = True  # RE-ENABLED with soft filtering
+
+    # Query routing mode: "soft" (score penalties) or "hard" (candidate removal)
+    # SOFT MODE (default): All candidates kept, non-matches get score penalties
+    # HARD MODE: Non-matching candidates removed (original behavior, causes regression)
+    query_routing_mode: str = "soft"
 
     # Retrieval settings
     use_neural_retrieval: bool = True
@@ -899,30 +905,40 @@ class NeuralGraphService:
 
             # QUERY ROUTING: Analyze query and get filtered candidates
             # This dramatically improves entity-focused queries like "What is X's job?"
+            # Phase 1 Fix: Now uses soft filtering to avoid over-filtering regression
             query_analysis: QueryAnalysis | None = None
             filtered_node_ids: set[str] | None = None
+            soft_filter_results: dict[str, SoftFilterResult] | None = None
 
             if self._config.query_routing_enabled:
-                # Get or create filtered retriever for this session
+                # Get or create filtered retriever for this session with correct mode
                 if session_key not in self._filtered_retrievers:
-                    self._filtered_retrievers[session_key] = FilteredRetriever(self._storage)
+                    self._filtered_retrievers[session_key] = FilteredRetriever(
+                        self._storage,
+                        filter_mode=self._config.query_routing_mode
+                    )
                     # Update context with known entities
                     all_nodes = await self._storage.get_nodes_by_layer(session_key, NodeLayer.MESSAGE)
                     self._filtered_retrievers[session_key].update_context(all_nodes)
 
                 filtered_retriever = self._filtered_retrievers[session_key]
-                filtered_candidates, query_analysis = await filtered_retriever.get_filtered_candidates(
+                filtered_candidates, query_analysis, soft_filter_results = await filtered_retriever.get_filtered_candidates(
                     query_text, session_key
                 )
 
-                # If we filtered to a subset, pass these node IDs for prioritization
-                if query_analysis.strategy != "semantic" and filtered_candidates:
-                    filtered_node_ids = {n.node_id for n in filtered_candidates}
+                # Log query analysis for debugging
+                if query_analysis.strategy != "semantic":
                     logger.debug(
-                        f"Query routing: {query_analysis.query_type.value}, "
+                        f"Query routing: type={query_analysis.query_type.value}, "
                         f"strategy={query_analysis.strategy}, "
-                        f"filtered to {len(filtered_node_ids)} candidates"
+                        f"subject={query_analysis.primary_subject}, "
+                        f"mode={self._config.query_routing_mode}"
                     )
+
+                # For hard filtering mode, pass filtered node IDs for prioritization
+                if self._config.query_routing_mode == "hard" and query_analysis.strategy != "semantic" and filtered_candidates:
+                    filtered_node_ids = {n.node_id for n in filtered_candidates}
+                    logger.debug(f"Hard filter: retained {len(filtered_node_ids)} candidates")
 
             # ELECTRON RETRIEVER: True electrical simulation (highest priority)
             # The Electrical Truth: Memory retrieval is electrical activation
@@ -981,22 +997,45 @@ class NeuralGraphService:
                     query_wave_amplitudes=query_wave_amplitudes
                 )
 
-            # QUERY ROUTING BOOST: Boost scores for nodes that match the query filter
-            # This ensures entity-focused queries prioritize messages from/about that entity
-            if filtered_node_ids and result.nodes:
-                FILTER_BOOST = 1.5  # 50% boost for nodes matching the query filter
+            # QUERY ROUTING SCORE ADJUSTMENT
+            # Phase 1 Fix: Use soft filter results to apply graduated score modifiers
+            # This is more nuanced than hard filtering - fuzzy matches get partial boosts
+            if result.nodes and (soft_filter_results or filtered_node_ids):
                 boosted_nodes = []
-                for node, score in result.nodes:
-                    if node.node_id in filtered_node_ids:
-                        boosted_nodes.append((node, score * FILTER_BOOST))
-                    else:
-                        boosted_nodes.append((node, score))
-                # Re-sort by boosted scores
+
+                if soft_filter_results:
+                    # SOFT MODE: Apply graduated score modifiers from fuzzy matching
+                    for node, score in result.nodes:
+                        filter_result = soft_filter_results.get(node.node_id)
+                        if filter_result:
+                            # Apply the score modifier (0.2 for no match, up to 1.5 for strong match)
+                            adjusted_score = score * filter_result.score_modifier
+                            boosted_nodes.append((node, adjusted_score))
+
+                            # Debug logging for strong matches
+                            if filter_result.score_modifier >= 0.8:
+                                logger.debug(
+                                    f"Soft filter boost: {node.node_id[:8]} "
+                                    f"modifier={filter_result.score_modifier:.2f} "
+                                    f"reason={filter_result.match_reason}"
+                                )
+                        else:
+                            boosted_nodes.append((node, score))
+                elif filtered_node_ids:
+                    # HARD MODE fallback: Simple binary boost
+                    FILTER_BOOST = 1.5
+                    for node, score in result.nodes:
+                        if node.node_id in filtered_node_ids:
+                            boosted_nodes.append((node, score * FILTER_BOOST))
+                        else:
+                            boosted_nodes.append((node, score))
+
+                # Re-sort by adjusted scores
                 boosted_nodes.sort(key=lambda x: x[1], reverse=True)
                 result = RetrievalResult(
                     query_text=query_text,
                     nodes=boosted_nodes[:limit],
-                    stages_executed=result.stages_executed + ["query_routing_boost"],
+                    stages_executed=result.stages_executed + ["query_routing_soft_boost"],
                     total_candidates_seen=result.total_candidates_seen,
                     co_activations_recorded=result.co_activations_recorded,
                     total_time_ms=result.total_time_ms,
@@ -1045,6 +1084,8 @@ class NeuralGraphService:
 
         This captures the DIALOGUE FABRIC where meaning flows between speakers.
 
+        Phase 3 Fix: Increased LINK_BOOST and added atomic Q/A pair retrieval.
+
         Args:
             fired_nodes: List of (node_id, score) tuples from retrieval
             linker: DialogueLinker with binding information
@@ -1053,13 +1094,24 @@ class NeuralGraphService:
         Returns:
             Expanded list of (NeuralNode, score) including dialogue-linked messages
         """
-        LINK_BOOST = 0.7  # Linked messages get 70% of the score
+        config = DialogueLinkingConfig
+        LINK_BOOST = config.LINK_BOOST  # Phase 3 Fix: Was 0.7, now 0.85
 
         expanded: dict[str, float] = {}
 
         # First, add all original fired nodes
         for node_id, score in fired_nodes:
             expanded[node_id] = score
+
+            # Phase 3 Fix: ATOMIC PAIR RETRIEVAL
+            # Always include Q/A exchange pair at near-full score
+            pair_id = linker.get_exchange_pair(node_id)
+            if pair_id:
+                # Q/A pairs are atomic units - give partner high score
+                pair_score = score * config.ATOMIC_PAIR_BOOST * 0.95
+                if pair_id not in expanded or expanded[pair_id] < pair_score:
+                    expanded[pair_id] = pair_score
+                    logger.debug(f"Atomic pair inclusion: {node_id[:8]} -> {pair_id[:8]}")
 
         # Then expand each through dialogue links
         for node_id, score in fired_nodes:
@@ -1275,6 +1327,20 @@ class NeuralGraphService:
         if self._hierarchy:
             hierarchy_summary = await self._hierarchy.get_layer_summary(session_key)
             stats['hierarchy'] = hierarchy_summary
+
+        # Query routing statistics
+        if self._config.query_routing_enabled and session_key in self._filtered_retrievers:
+            filter_stats = self._filtered_retrievers[session_key].get_filter_statistics()
+            stats['query_routing'] = {
+                'enabled': True,
+                'mode': self._config.query_routing_mode,
+                **filter_stats
+            }
+        else:
+            stats['query_routing'] = {
+                'enabled': self._config.query_routing_enabled,
+                'mode': self._config.query_routing_mode
+            }
 
         return stats
 

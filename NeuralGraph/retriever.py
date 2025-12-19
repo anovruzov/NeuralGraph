@@ -58,10 +58,10 @@ class RetrieverConfig:
     # Hop decay - TUNED for better multi-hop signal preservation
     hop_decay_factor: float = 0.88  # UP from 0.8 - preserve signal across hops
 
-    # Reranking
+    # Reranking - Phase 4 Fix: Increased weights for computed signals
     rerank_by_heat: bool = True
-    heat_weight: float = 0.2
-    importance_weight: float = 0.15
+    heat_weight: float = 0.30  # UP from 0.2 - hot memories are more relevant
+    importance_weight: float = 0.25  # UP from 0.15 - importance captures intrinsic node value
 
     # Wave amplitude integration - AMPLIFIED for aggressive wave routing
     # Wave amplitudes stored on nodes can boost retrieval based on query type
@@ -102,11 +102,11 @@ class RetrieverConfig:
             ),
             RetrievalStageConfig(
                 name="entity_expansion",
-                max_candidates=100,
+                max_candidates=150,  # Phase 5 Fix: Increased to accommodate 3-hop expansion
                 edge_types=[EdgeType.ENTITY, EdgeType.SEMANTIC],
                 layer_filter=[NodeLayer.MESSAGE, NodeLayer.EPISODE],
-                max_hops=1,
-                score_threshold=0.25,
+                max_hops=3,  # Phase 5 Fix: Increased from 1 to match temporal_chain for distributed facts
+                score_threshold=0.20,  # Phase 5 Fix: Slightly lowered for better recall
             ),
             RetrievalStageConfig(
                 name="temporal_chain",

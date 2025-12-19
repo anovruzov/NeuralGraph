@@ -264,20 +264,138 @@ class TemporalStore:
         return results[:limit]
 
     def _extract_temporal_keywords(self, query: str) -> set[str]:
-        """Extract temporal keywords for matching."""
+        """Extract temporal keywords for matching.
+
+        COMPREHENSIVE patterns - universal and not tied to any specific benchmark.
+        """
         keywords = set()
-        patterns = [
+        query_lower = query.lower()
+
+        # Basic relative time markers
+        basic_patterns = [
             r'yesterday', r'today', r'tomorrow',
-            r'last week', r'this week', r'next week',
-            r'last month', r'this month', r'next month',
-            r'last year', r'this year', r'next year',
-            r'\d{4}',  # Years like 2023
-            r'january|february|march|april|may|june|july|august|september|october|november|december',
-            r'monday|tuesday|wednesday|thursday|friday|saturday|sunday',
+            r'tonight', r'this morning', r'this afternoon', r'this evening',
+            r'last night', r'last evening',
         ]
-        for pattern in patterns:
-            matches = re.findall(pattern, query)
-            keywords.update(matches)
+
+        # Week patterns
+        week_patterns = [
+            r'last week', r'this week', r'next week',
+            r'past week', r'previous week', r'following week',
+            r'a week ago', r'weeks ago', r'couple weeks',
+            r'few weeks', r'several weeks',
+        ]
+
+        # Month patterns
+        month_patterns = [
+            r'last month', r'this month', r'next month',
+            r'past month', r'previous month', r'following month',
+            r'a month ago', r'months ago', r'couple months',
+            r'few months', r'several months',
+        ]
+
+        # Year patterns
+        year_patterns = [
+            r'last year', r'this year', r'next year',
+            r'past year', r'previous year', r'following year',
+            r'a year ago', r'years ago', r'couple years',
+            r'few years', r'several years',
+            r'\d{4}',  # Years like 2023, 1999
+            r'(?:19|20)\d{2}s',  # Decades like 1990s, 2020s
+        ]
+
+        # Month names (full and abbreviated)
+        month_names = [
+            r'january|jan', r'february|feb', r'march|mar', r'april|apr',
+            r'may', r'june|jun', r'july|jul', r'august|aug',
+            r'september|sep|sept', r'october|oct', r'november|nov', r'december|dec',
+        ]
+
+        # Day names (full and abbreviated)
+        day_names = [
+            r'monday|mon', r'tuesday|tue|tues', r'wednesday|wed',
+            r'thursday|thu|thur|thurs', r'friday|fri',
+            r'saturday|sat', r'sunday|sun',
+        ]
+
+        # Relative day references
+        relative_day_patterns = [
+            r'last monday', r'last tuesday', r'last wednesday', r'last thursday',
+            r'last friday', r'last saturday', r'last sunday',
+            r'next monday', r'next tuesday', r'next wednesday', r'next thursday',
+            r'next friday', r'next saturday', r'next sunday',
+            r'this monday', r'this tuesday', r'this wednesday', r'this thursday',
+            r'this friday', r'this saturday', r'this sunday',
+        ]
+
+        # Time of day patterns
+        time_patterns = [
+            r'\d{1,2}:\d{2}', r'\d{1,2}\s*(?:am|pm)',
+            r'morning', r'afternoon', r'evening', r'night', r'midnight', r'noon',
+            r'dawn', r'dusk', r'sunrise', r'sunset',
+        ]
+
+        # Duration patterns
+        duration_patterns = [
+            r'\d+\s*(?:day|days|week|weeks|month|months|year|years)',
+            r'(?:one|two|three|four|five|six|seven|eight|nine|ten)\s*(?:day|days|week|weeks|month|months|year|years)',
+            r'(?:a|an)\s*(?:day|week|month|year)',
+            r'couple of (?:days|weeks|months|years)',
+            r'few (?:days|weeks|months|years)',
+            r'several (?:days|weeks|months|years)',
+        ]
+
+        # Sequence/order patterns
+        sequence_patterns = [
+            r'before', r'after', r'during', r'while', r'since', r'until',
+            r'prior to', r'following', r'preceding', r'subsequent',
+            r'earlier', r'later', r'previously', r'afterwards',
+        ]
+
+        # Season patterns
+        season_patterns = [
+            r'spring', r'summer', r'fall', r'autumn', r'winter',
+            r'last spring', r'last summer', r'last fall', r'last autumn', r'last winter',
+            r'this spring', r'this summer', r'this fall', r'this autumn', r'this winter',
+            r'next spring', r'next summer', r'next fall', r'next autumn', r'next winter',
+        ]
+
+        # Holiday/event patterns
+        holiday_patterns = [
+            r'christmas', r'thanksgiving', r'easter', r'halloween',
+            r'new year', r"new year's", r'valentine', r'independence day',
+            r'birthday', r'anniversary', r'wedding', r'graduation',
+            r'weekend', r'weekday', r'holiday', r'vacation',
+        ]
+
+        # Date format patterns
+        date_patterns = [
+            r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}',  # MM/DD/YYYY or DD/MM/YYYY
+            r'\d{4}[/-]\d{2}[/-]\d{2}',  # YYYY-MM-DD (ISO)
+            r'\d{1,2}(?:st|nd|rd|th)',  # Ordinals like 1st, 2nd, 3rd
+        ]
+
+        # Frequency patterns
+        frequency_patterns = [
+            r'daily', r'weekly', r'monthly', r'yearly', r'annually',
+            r'every day', r'every week', r'every month', r'every year',
+            r'once', r'twice', r'thrice',
+            r'always', r'never', r'sometimes', r'often', r'rarely',
+            r'frequently', r'occasionally', r'regularly', r'seldom',
+        ]
+
+        # Combine all patterns
+        all_patterns = (
+            basic_patterns + week_patterns + month_patterns + year_patterns +
+            month_names + day_names + relative_day_patterns + time_patterns +
+            duration_patterns + sequence_patterns + season_patterns +
+            holiday_patterns + date_patterns + frequency_patterns
+        )
+
+        for pattern in all_patterns:
+            matches = re.findall(pattern, query_lower, re.IGNORECASE)
+            keywords.update(m.lower() if isinstance(m, str) else m for m in matches)
+
         return keywords
 
     def _extract_event_year_from_content(self, content: str, msg_year: int) -> int | None:
@@ -287,31 +405,83 @@ class TemporalStore:
         The KEY insight: Message timestamp ≠ Event time.
         "I painted that sunrise last year" (sent 2023) → event was 2022.
 
+        COMPREHENSIVE patterns - universal and not tied to any specific benchmark.
+
         Returns the year the EVENT happened, not when the message was sent.
         """
         content_lower = content.lower()
 
-        # 1. Explicit year mentioned in content
-        explicit_years = re.findall(r'\b(20\d{2})\b', content_lower)
+        # 1. Explicit year mentioned in content (both 20xx and 19xx)
+        explicit_years = re.findall(r'\b((?:19|20)\d{2})\b', content_lower)
         if explicit_years:
             # Return the earliest year mentioned (usually the event year)
             return min(int(y) for y in explicit_years)
 
         # 2. Relative year references - resolve based on message year
-        if re.search(r'\blast year\b', content_lower):
+        # Single year ago patterns
+        if re.search(r'\b(?:last year|a year ago|one year ago)\b', content_lower):
             return msg_year - 1
-        if re.search(r'\b(two|2) years? ago\b', content_lower):
-            return msg_year - 2
-        if re.search(r'\b(three|3) years? ago\b', content_lower):
-            return msg_year - 3
-        if re.search(r'\b(four|4) years? ago\b', content_lower):
-            return msg_year - 4
-        if re.search(r'\b(five|5|several) years? ago\b', content_lower):
-            return msg_year - 5
-        if re.search(r'\bback in (\d{4})\b', content_lower):
-            match = re.search(r'\bback in (\d{4})\b', content_lower)
-            if match:
-                return int(match.group(1))
+
+        # Multiple years ago - number words
+        year_word_map = {
+            'two': 2, 'three': 3, 'four': 4, 'five': 5,
+            'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
+            'eleven': 11, 'twelve': 12, 'fifteen': 15, 'twenty': 20,
+            'couple': 2, 'few': 3, 'several': 5, 'many': 10,
+        }
+
+        for word, num in year_word_map.items():
+            if re.search(rf'\b{word}\s+years?\s+ago\b', content_lower):
+                return msg_year - num
+
+        # Multiple years ago - digits
+        digit_match = re.search(r'\b(\d+)\s+years?\s+ago\b', content_lower)
+        if digit_match:
+            return msg_year - int(digit_match.group(1))
+
+        # "Back in YEAR" patterns
+        back_in_match = re.search(r'\bback in (?:the year )?(\d{4})\b', content_lower)
+        if back_in_match:
+            return int(back_in_match.group(1))
+
+        # "In YEAR" patterns (when clearly referring to past)
+        in_year_match = re.search(r'\bin (\d{4})(?:\s|,|\.|\b)', content_lower)
+        if in_year_match:
+            year = int(in_year_match.group(1))
+            if year <= msg_year:
+                return year
+
+        # "During YEAR" patterns
+        during_match = re.search(r'\bduring (?:the year )?(\d{4})\b', content_lower)
+        if during_match:
+            return int(during_match.group(1))
+
+        # "Around YEAR" / "circa YEAR" patterns
+        around_match = re.search(r'\b(?:around|circa|about) (\d{4})\b', content_lower)
+        if around_match:
+            return int(around_match.group(1))
+
+        # "Early/mid/late YEARs" patterns (decades)
+        decade_match = re.search(r'\b(?:early|mid|late)\s*((?:19|20)\d{2})s?\b', content_lower)
+        if decade_match:
+            return int(decade_match.group(1))
+
+        # "The YEARs" pattern (decades)
+        the_decade_match = re.search(r'\bthe\s*((?:19|20)\d{2})s\b', content_lower)
+        if the_decade_match:
+            return int(the_decade_match.group(1))
+
+        # "When I was younger/a child/a kid" - approximate
+        if re.search(r'\bwhen i was (?:younger|a child|a kid|little|growing up)\b', content_lower):
+            return msg_year - 20  # Approximate childhood reference
+
+        # "In my youth/childhood" patterns
+        if re.search(r'\bin my (?:youth|childhood|teens|twenties)\b', content_lower):
+            return msg_year - 15  # Approximate
+
+        # "Years back" / "years prior" patterns
+        if re.search(r'\byears?\s+(?:back|prior|earlier)\b', content_lower):
+            return msg_year - 3  # Default to a few years
 
         # No relative time found - event time is same as message time
         return None
@@ -322,34 +492,146 @@ class TemporalStore:
         NEO GROUNDED DATE FIX:
         Detects: yesterday, last night, last week, last Friday, etc.
         Returns a category that can be matched against gold answers.
+
+        COMPREHENSIVE patterns - universal and not tied to any specific benchmark.
         """
         content_lower = content.lower()
 
-        # Day-level references (yesterday, last night → "the day before")
-        if re.search(r'\b(yesterday|last night)\b', content_lower):
+        # === DAY-LEVEL REFERENCES ===
+        # Yesterday patterns
+        if re.search(r'\b(yesterday|last night|the night before|previous day)\b', content_lower):
             return 'day_before'
 
-        # Week-level references (last week → "the week before")
-        if re.search(r'\blast week\b', content_lower):
-            return 'week_before'
+        # Today patterns
+        if re.search(r'\b(today|this morning|this afternoon|this evening|tonight)\b', content_lower):
+            return 'today'
 
-        # Specific day references (last Friday, last Saturday, etc.)
+        # Tomorrow patterns
+        if re.search(r'\b(tomorrow|tomorrow morning|tomorrow night)\b', content_lower):
+            return 'day_after'
+
+        # Day before yesterday
+        if re.search(r'\b(day before yesterday|two days ago|2 days ago)\b', content_lower):
+            return 'two_days_before'
+
+        # === SPECIFIC DAY REFERENCES ===
         days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
         for day in days:
-            if re.search(rf'\blast {day}\b', content_lower):
+            # Last [day]
+            if re.search(rf'\b(?:last|past|previous)\s+{day}\b', content_lower):
                 return f'{day}_before'
+            # This [day]
+            if re.search(rf'\bthis\s+{day}\b', content_lower):
+                return f'{day}_current'
+            # Next [day]
+            if re.search(rf'\bnext\s+{day}\b', content_lower):
+                return f'{day}_after'
 
-        # This week/month references
-        if re.search(r'\bthis week\b', content_lower):
+        # === WEEKEND REFERENCES ===
+        if re.search(r'\b(?:last|past|previous)\s+weekend\b', content_lower):
+            return 'weekend_before'
+        if re.search(r'\bthis\s+weekend\b', content_lower):
+            return 'weekend_current'
+        if re.search(r'\bnext\s+weekend\b', content_lower):
+            return 'weekend_after'
+
+        # === WEEK-LEVEL REFERENCES ===
+        if re.search(r'\b(?:last|past|previous)\s+week\b', content_lower):
+            return 'week_before'
+        if re.search(r'\bthis\s+week\b', content_lower):
             return 'this_week'
-        if re.search(r'\bthis month\b', content_lower):
-            return 'this_month'
-
-        # Next references (future events)
-        if re.search(r'\bnext week\b', content_lower):
+        if re.search(r'\bnext\s+week\b', content_lower):
             return 'next_week'
-        if re.search(r'\bnext month\b', content_lower):
+        if re.search(r'\b(?:a|one)\s+week\s+ago\b', content_lower):
+            return 'week_before'
+        if re.search(r'\b(?:two|2)\s+weeks?\s+ago\b', content_lower):
+            return 'two_weeks_before'
+        if re.search(r'\b(?:few|several|couple(?:\s+of)?)\s+weeks?\s+ago\b', content_lower):
+            return 'few_weeks_before'
+
+        # === MONTH-LEVEL REFERENCES ===
+        if re.search(r'\b(?:last|past|previous)\s+month\b', content_lower):
+            return 'month_before'
+        if re.search(r'\bthis\s+month\b', content_lower):
+            return 'this_month'
+        if re.search(r'\bnext\s+month\b', content_lower):
             return 'next_month'
+        if re.search(r'\b(?:a|one)\s+month\s+ago\b', content_lower):
+            return 'month_before'
+        if re.search(r'\b(?:two|2)\s+months?\s+ago\b', content_lower):
+            return 'two_months_before'
+        if re.search(r'\b(?:few|several|couple(?:\s+of)?)\s+months?\s+ago\b', content_lower):
+            return 'few_months_before'
+
+        # === SPECIFIC MONTH REFERENCES ===
+        months = ['january', 'february', 'march', 'april', 'may', 'june',
+                  'july', 'august', 'september', 'october', 'november', 'december']
+        for month in months:
+            if re.search(rf'\b(?:last|past|previous)\s+{month}\b', content_lower):
+                return f'{month}_before'
+            if re.search(rf'\bthis\s+{month}\b', content_lower):
+                return f'{month}_current'
+            if re.search(rf'\bnext\s+{month}\b', content_lower):
+                return f'{month}_after'
+            # Just the month name (in context)
+            if re.search(rf'\bin\s+{month}\b', content_lower):
+                return f'{month}_reference'
+
+        # === YEAR-LEVEL REFERENCES ===
+        if re.search(r'\b(?:last|past|previous)\s+year\b', content_lower):
+            return 'year_before'
+        if re.search(r'\bthis\s+year\b', content_lower):
+            return 'this_year'
+        if re.search(r'\bnext\s+year\b', content_lower):
+            return 'next_year'
+        if re.search(r'\b(?:a|one)\s+year\s+ago\b', content_lower):
+            return 'year_before'
+        if re.search(r'\b(?:two|2)\s+years?\s+ago\b', content_lower):
+            return 'two_years_before'
+        if re.search(r'\b(?:few|several|couple(?:\s+of)?)\s+years?\s+ago\b', content_lower):
+            return 'few_years_before'
+
+        # === SEASON REFERENCES ===
+        seasons = ['spring', 'summer', 'fall', 'autumn', 'winter']
+        for season in seasons:
+            if re.search(rf'\b(?:last|past|previous)\s+{season}\b', content_lower):
+                return f'{season}_before'
+            if re.search(rf'\bthis\s+{season}\b', content_lower):
+                return f'{season}_current'
+            if re.search(rf'\bnext\s+{season}\b', content_lower):
+                return f'{season}_after'
+
+        # === HOLIDAY/EVENT REFERENCES ===
+        holidays = ['christmas', 'thanksgiving', 'easter', 'halloween', 'new year']
+        for holiday in holidays:
+            if re.search(rf'\b(?:last|past|previous)\s+{holiday}\b', content_lower):
+                return f'{holiday.replace(" ", "_")}_before'
+            if re.search(rf'\bthis\s+{holiday}\b', content_lower):
+                return f'{holiday.replace(" ", "_")}_current'
+            if re.search(rf'\bnext\s+{holiday}\b', content_lower):
+                return f'{holiday.replace(" ", "_")}_after'
+
+        # === GENERAL TIME REFERENCES ===
+        if re.search(r'\b(?:recently|lately|just now|just)\b', content_lower):
+            return 'recent'
+        if re.search(r'\b(?:soon|shortly|in a bit|later)\b', content_lower):
+            return 'soon'
+        if re.search(r'\b(?:long ago|ages ago|a while back|way back)\b', content_lower):
+            return 'long_ago'
+        if re.search(r'\b(?:earlier|before|previously|prior)\b', content_lower):
+            return 'earlier'
+        if re.search(r'\b(?:afterwards|after|subsequently|later on)\b', content_lower):
+            return 'afterwards'
+
+        # === TIME OF DAY REFERENCES ===
+        if re.search(r'\b(?:morning|in the morning)\b', content_lower):
+            return 'morning'
+        if re.search(r'\b(?:afternoon|in the afternoon)\b', content_lower):
+            return 'afternoon'
+        if re.search(r'\b(?:evening|in the evening)\b', content_lower):
+            return 'evening'
+        if re.search(r'\b(?:night|at night|nighttime)\b', content_lower):
+            return 'night'
 
         return None
 
@@ -1059,16 +1341,59 @@ class AdversarialStore:
         return results[:limit]
 
     def _parse_adversarial(self, query: str) -> tuple[set[str], set[str]]:
-        """Parse query into negated terms and positive terms."""
+        """Parse query into negated terms and positive terms.
+
+        COMPREHENSIVE patterns - universal and not tied to any specific benchmark.
+        """
         query_lower = query.lower()
 
-        # Find negation patterns
+        # Find negation patterns - comprehensive list
         negation_patterns = [
+            # Basic negations
             r'not\s+(\w+)',
             r'never\s+(\w+)',
+            r'no\s+(\w+)',
+            r'none\s+(\w+)',
+            # Contractions
             r"didn't\s+(\w+)",
+            r"doesn't\s+(\w+)",
+            r"don't\s+(\w+)",
+            r"wasn't\s+(\w+)",
+            r"weren't\s+(\w+)",
+            r"isn't\s+(\w+)",
+            r"aren't\s+(\w+)",
+            r"hasn't\s+(\w+)",
+            r"haven't\s+(\w+)",
+            r"hadn't\s+(\w+)",
+            r"won't\s+(\w+)",
+            r"wouldn't\s+(\w+)",
+            r"couldn't\s+(\w+)",
+            r"shouldn't\s+(\w+)",
+            r"can't\s+(\w+)",
+            # Exception patterns
             r'except\s+(\w+)',
-            r'other than\s+(\w+)',
+            r'except\s+for\s+(\w+)',
+            r'other\s+than\s+(\w+)',
+            r'apart\s+from\s+(\w+)',
+            r'besides\s+(\w+)',
+            r'excluding\s+(\w+)',
+            r'but\s+not\s+(\w+)',
+            r'save\s+for\s+(\w+)',
+            # Absence patterns
+            r'without\s+(\w+)',
+            r'lacking\s+(\w+)',
+            r'missing\s+(\w+)',
+            r'absent\s+(\w+)',
+            # Alternative patterns
+            r'instead\s+of\s+(\w+)',
+            r'rather\s+than\s+(\w+)',
+            # Denial patterns
+            r'deny\s+(\w+)',
+            r'denied\s+(\w+)',
+            r'refuse\s+(\w+)',
+            r'refused\s+(\w+)',
+            r'reject\s+(\w+)',
+            r'rejected\s+(\w+)',
         ]
 
         negation_terms = set()
@@ -1078,17 +1403,71 @@ class AdversarialStore:
 
         # Positive terms are the rest
         words = re.findall(r'\b[a-z]{3,}\b', query_lower)
-        stopwords = {'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all',
-                     'did', 'does', 'never', 'except', 'other', 'than'}
+        stopwords = {
+            # Articles and determiners
+            'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all',
+            # Question words
+            'what', 'when', 'where', 'who', 'why', 'how', 'which',
+            # Common verbs
+            'did', 'does', 'was', 'were', 'has', 'have', 'had', 'been',
+            'being', 'will', 'would', 'could', 'should', 'may', 'might',
+            # Negation words
+            'never', 'except', 'other', 'than', 'without', 'none',
+            # Prepositions
+            'with', 'from', 'into', 'onto', 'upon', 'about', 'over',
+            'under', 'through', 'between', 'among', 'during', 'before',
+            'after', 'above', 'below',
+            # Conjunctions
+            'that', 'this', 'these', 'those', 'then', 'than',
+            # Pronouns
+            'they', 'them', 'their', 'there', 'here',
+        }
         positive_terms = {w for w in words if w not in stopwords and w not in negation_terms}
 
         return negation_terms, positive_terms
 
     def _extract_entities(self, text: str) -> set[str]:
+        """Extract entity names from text.
+
+        COMPREHENSIVE exclusion list - universal and not tied to any specific benchmark.
+        """
         entities = re.findall(r'\b[A-Z][a-z]+\b', text)
-        common = {'What', 'When', 'Where', 'Who', 'Why', 'How', 'Did', 'Does',
-                  'Is', 'Are', 'Was', 'Were', 'Has', 'Have', 'Had', 'The', 'And',
-                  'Not', 'Never', 'Except'}
+
+        # Common words that are often capitalized but aren't entities
+        common = {
+            # Question words (sentence starters)
+            'What', 'When', 'Where', 'Who', 'Why', 'How', 'Which',
+            # Auxiliary verbs (sentence starters)
+            'Did', 'Does', 'Do', 'Is', 'Are', 'Was', 'Were', 'Has', 'Have', 'Had',
+            'Will', 'Would', 'Could', 'Should', 'May', 'Might', 'Can', 'Must',
+            # Articles and determiners
+            'The', 'This', 'That', 'These', 'Those', 'Some', 'Any', 'All', 'Each',
+            'Every', 'Both', 'Neither', 'Either', 'Such', 'What', 'Which',
+            # Conjunctions
+            'And', 'But', 'Or', 'Nor', 'So', 'Yet', 'For', 'Because', 'Although',
+            'Though', 'While', 'If', 'Unless', 'Until', 'Since', 'After', 'Before',
+            # Negations
+            'Not', 'Never', 'Except', 'Without', 'None', 'Nothing', 'Nobody',
+            # Pronouns (sometimes capitalized at start)
+            'He', 'She', 'It', 'They', 'We', 'You', 'Me', 'Us', 'Them', 'Him', 'Her',
+            # Common nouns (often capitalized incorrectly)
+            'Today', 'Tomorrow', 'Yesterday', 'Morning', 'Evening', 'Night',
+            'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday',
+            'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August',
+            'September', 'October', 'November', 'December',
+            # Common sentence starters
+            'However', 'Therefore', 'Moreover', 'Furthermore', 'Nevertheless',
+            'Meanwhile', 'Otherwise', 'Instead', 'Perhaps', 'Maybe', 'Actually',
+            'Finally', 'Eventually', 'Apparently', 'Obviously', 'Certainly',
+            'Probably', 'Possibly', 'Definitely', 'Absolutely', 'Especially',
+            # Relative pronouns
+            'There', 'Here', 'Then', 'Now', 'Once', 'Always', 'Sometimes',
+            # Other common non-entity capitals
+            'Yes', 'No', 'Please', 'Thank', 'Thanks', 'Hello', 'Goodbye',
+            'Well', 'First', 'Second', 'Third', 'Last', 'Next', 'Many', 'Much',
+            'More', 'Most', 'Few', 'Several', 'Other', 'Another', 'Same',
+        }
+
         return {e for e in entities if e not in common}
 
     def _compute_adversarial_charge(

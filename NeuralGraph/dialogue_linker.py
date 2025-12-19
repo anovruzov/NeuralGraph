@@ -49,6 +49,7 @@ we remember CONVERSATIONS as coherent episodes.
 
 from __future__ import annotations
 
+import logging
 import re
 import uuid
 from dataclasses import dataclass, field
@@ -58,6 +59,43 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .data_types import NeuralNode, NeuralEdge
     from .storage import NeuralGraphStorage
+
+logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# DIALOGUE LINKING CONFIGURATION (Phase 3 Tuning)
+# =============================================================================
+
+class DialogueLinkingConfig:
+    """Configuration for dialogue linking thresholds.
+
+    Phase 3 Fix: Tuned thresholds to improve Q/A pair retrieval.
+    """
+    # EXCHANGE aggregator settings
+    EXCHANGE_COHESION_QUESTION = 0.95  # Was 0.9, increased for Q/A pairs
+    EXCHANGE_COHESION_DEFAULT = 0.8    # Was 0.7, increased for better linking
+
+    # TOPIC aggregator settings
+    TOPIC_MIN_MESSAGES = 2             # Minimum messages for topic cluster
+    TOPIC_COHESION_BASE = 0.25         # Was 0.2, slightly increased
+    TOPIC_COHESION_MAX = 1.0
+
+    # COREFERENCE binding settings
+    COREF_CONFIDENCE = 0.75            # Was 0.7, slightly increased
+
+    # RESPONSE binding settings
+    RESPONSE_BASE_CONFIDENCE = 0.65    # Was 0.6, increased
+    RESPONSE_EXPLICIT_CONFIDENCE = 0.95  # Was 0.9, increased
+    RESPONSE_CONTINUES_CONFIDENCE = 0.85  # Was 0.8, increased
+    RESPONSE_CONTRASTS_CONFIDENCE = 0.9   # Was 0.85, increased
+
+    # TEMPORAL anchor settings
+    TEMPORAL_COHESION = 0.95           # Already high, keep same
+
+    # Retrieval boost settings
+    LINK_BOOST = 0.85                  # Was 0.7, increased for stronger Q/A linking
+    ATOMIC_PAIR_BOOST = 1.2            # NEW: Extra boost for Q/A atomic pairs
 
 
 # =============================================================================
@@ -281,8 +319,11 @@ class DialogueLinker:
 
         When Speaker A says something and Speaker B responds,
         those two messages form an EXCHANGE unit.
+
+        Phase 3 Fix: Increased cohesion scores for better Q/A linking.
         """
         aggregators = []
+        config = DialogueLinkingConfig
 
         for i in range(len(messages) - 1):
             msg_a = messages[i]
@@ -301,6 +342,13 @@ class DialogueLinker:
                 agg_type = AggregatorType.EXCHANGE
                 topic = self._extract_topic(msg_a.content, msg_b.content)
 
+                # Phase 3 Fix: Use tuned cohesion scores
+                cohesion = config.EXCHANGE_COHESION_QUESTION if is_question else config.EXCHANGE_COHESION_DEFAULT
+
+                # Extra boost if it looks like a direct Q/A pair
+                if is_question and is_reaction:
+                    cohesion = min(1.0, cohesion * 1.05)
+
                 agg = DialogueAggregator(
                     aggregator_id=f"exch-{uuid.uuid4().hex[:8]}",
                     aggregator_type=agg_type,
@@ -311,7 +359,7 @@ class DialogueLinker:
                         msg_a.node_id: 1.0,
                         msg_b.node_id: 1.0,
                     },
-                    cohesion_score=0.9 if is_question else 0.7,
+                    cohesion_score=cohesion,
                 )
 
                 # Compute centroid embedding
@@ -323,6 +371,13 @@ class DialogueLinker:
 
                 aggregators.append(agg)
 
+                logger.debug(
+                    f"Created EXCHANGE aggregator: {agg.aggregator_id}, "
+                    f"speakers={speaker_a}->{speaker_b}, is_question={is_question}, "
+                    f"cohesion={cohesion:.2f}, topic={topic}"
+                )
+
+        logger.info(f"Created {len(aggregators)} EXCHANGE aggregators for session {session_key}")
         return aggregators
 
     async def _create_topic_aggregators(
@@ -334,13 +389,19 @@ class DialogueLinker:
 
         Groups messages that mention the same entities/subjects,
         even if they're not adjacent.
+
+        Phase 3 Fix: Increased entity overlap weight for better topic clustering.
         """
         aggregators = []
+        config = DialogueLinkingConfig
 
         # Extract entities from each message
         msg_entities: dict[str, set[str]] = {}
         for msg in messages:
             entities = self._extract_entities(msg.content)
+            # Also include entity_ids from node if available
+            if hasattr(msg, 'entity_ids') and msg.entity_ids:
+                entities.update(msg.entity_ids)
             msg_entities[msg.node_id] = entities
 
         # Find entity clusters (messages sharing entities)
@@ -354,17 +415,29 @@ class DialogueLinker:
 
         # Create aggregator for each entity with 2+ messages
         for entity, msg_ids in entity_to_messages.items():
-            if len(msg_ids) >= 2:
+            if len(msg_ids) >= config.TOPIC_MIN_MESSAGES:
+                # Phase 3 Fix: Better cohesion scoring with increased base
+                cohesion = min(
+                    config.TOPIC_COHESION_MAX,
+                    len(msg_ids) * config.TOPIC_COHESION_BASE
+                )
+
                 agg = DialogueAggregator(
                     aggregator_id=f"topic-{uuid.uuid4().hex[:8]}",
                     aggregator_type=AggregatorType.TOPIC_THREAD,
                     session_key=session_key,
                     message_ids=msg_ids,
                     topic=entity,
-                    cohesion_score=min(1.0, len(msg_ids) * 0.2),
+                    cohesion_score=cohesion,
                 )
                 aggregators.append(agg)
 
+                logger.debug(
+                    f"Created TOPIC aggregator: {agg.aggregator_id}, "
+                    f"topic={entity}, messages={len(msg_ids)}, cohesion={cohesion:.2f}"
+                )
+
+        logger.info(f"Created {len(aggregators)} TOPIC aggregators for session {session_key}")
         return aggregators
 
     async def _create_coreference_bindings(
@@ -375,8 +448,11 @@ class DialogueLinker:
 
         "It was beautiful" → "Eiffel Tower"
         "She said yes" → "Caroline"
+
+        Phase 3 Fix: Increased confidence for better single-hop retrieval.
         """
         bindings = []
+        config = DialogueLinkingConfig
 
         # Build entity history (what nouns have been mentioned)
         entity_history: list[tuple[str, str, str]] = []  # (entity, msg_id, category)
@@ -398,9 +474,14 @@ class DialogueLinker:
                             target_id=entity_msg_id,
                             source_span=pronoun,
                             target_span=entity,
-                            confidence=0.7,
+                            confidence=config.COREF_CONFIDENCE,  # Phase 3 Fix
                         )
                         bindings.append(binding)
+
+                        logger.debug(
+                            f"Created COREF binding: '{pronoun}' -> '{entity}', "
+                            f"confidence={config.COREF_CONFIDENCE:.2f}"
+                        )
                         break  # Take most recent match
 
             # Add entities from this message to history
@@ -409,6 +490,7 @@ class DialogueLinker:
                 category = self._categorize_entity(entity)
                 entity_history.append((entity, msg.node_id, category))
 
+        logger.info(f"Created {len(bindings)} COREFERENCE bindings")
         return bindings
 
     async def _create_response_bindings(
@@ -418,8 +500,11 @@ class DialogueLinker:
         """Create bindings for responses to their triggers.
 
         Every message (except first) responds to something before it.
+
+        Phase 3 Fix: Increased confidence for better single-hop retrieval.
         """
         bindings = []
+        config = DialogueLinkingConfig
 
         for i in range(1, len(messages)):
             current = messages[i]
@@ -427,25 +512,25 @@ class DialogueLinker:
 
             # Check for explicit response markers
             binding_type = BindingType.RESPONDS_TO
-            confidence = 0.6
+            confidence = config.RESPONSE_BASE_CONFIDENCE  # Phase 3 Fix
 
             content_lower = current.content.lower()
 
             # Boost confidence for explicit markers
             if any(marker in content_lower for marker in
                    ["yes", "no", "yeah", "sure", "thanks", "wow", "that's"]):
-                confidence = 0.9
+                confidence = config.RESPONSE_EXPLICIT_CONFIDENCE  # Phase 3 Fix
                 binding_type = BindingType.RESPONDS_TO
 
             if any(marker in content_lower for marker in
                    ["also", "and", "plus", "too"]):
                 binding_type = BindingType.CONTINUES
-                confidence = 0.8
+                confidence = config.RESPONSE_CONTINUES_CONFIDENCE  # Phase 3 Fix
 
             if any(marker in content_lower for marker in
                    ["but", "however", "actually", "no,"]):
                 binding_type = BindingType.CONTRASTS
-                confidence = 0.85
+                confidence = config.RESPONSE_CONTRASTS_CONFIDENCE  # Phase 3 Fix
 
             binding = CrossMessageBinding(
                 binding_id=f"resp-{uuid.uuid4().hex[:8]}",
@@ -456,6 +541,12 @@ class DialogueLinker:
             )
             bindings.append(binding)
 
+            logger.debug(
+                f"Created RESPONSE binding: {binding_type.value}, "
+                f"confidence={confidence:.2f}"
+            )
+
+        logger.info(f"Created {len(bindings)} RESPONSE bindings")
         return bindings
 
     async def _create_temporal_anchors(
@@ -506,10 +597,13 @@ class DialogueLinker:
     def get_linked_messages(self, message_id: str) -> list[tuple[str, float, str]]:
         """Get all messages linked to this one through aggregators/bindings.
 
+        Phase 3 Fix: Increased link strengths and added atomic pair boost.
+
         Returns:
             List of (linked_message_id, link_strength, link_type)
         """
         linked = []
+        config = DialogueLinkingConfig
 
         # Through aggregators
         agg_ids = self._message_to_aggregators.get(message_id, [])
@@ -519,7 +613,13 @@ class DialogueLinker:
                 for other_id in agg.message_ids:
                     if other_id != message_id:
                         weight = agg.binding_weights.get(other_id, 0.5)
-                        linked.append((other_id, weight * agg.cohesion_score, agg.aggregator_type.value))
+                        link_strength = weight * agg.cohesion_score
+
+                        # Phase 3 Fix: Extra boost for Q/A exchange pairs
+                        if agg.aggregator_type == AggregatorType.EXCHANGE and len(agg.message_ids) == 2:
+                            link_strength *= config.ATOMIC_PAIR_BOOST
+
+                        linked.append((other_id, link_strength, agg.aggregator_type.value))
 
         # Through bindings (as source)
         binding_ids = self._message_to_bindings.get(message_id, [])
@@ -534,6 +634,63 @@ class DialogueLinker:
                 linked.append((binding.source_id, binding.confidence, f"reverse_{binding.binding_type.value}"))
 
         return linked
+
+    def get_exchange_pair(self, message_id: str) -> str | None:
+        """Get the paired message in a Q/A exchange.
+
+        Phase 3 Fix: NEW method for atomic Q/A pair retrieval.
+        When retrieving Q, always include A. When retrieving A, always include Q.
+
+        Args:
+            message_id: Message ID to find pair for
+
+        Returns:
+            Paired message ID if in an exchange, None otherwise
+        """
+        agg_ids = self._message_to_aggregators.get(message_id, [])
+
+        for agg_id in agg_ids:
+            agg = self._aggregators.get(agg_id)
+            if agg and agg.aggregator_type == AggregatorType.EXCHANGE:
+                # Exchange pairs have exactly 2 messages
+                if len(agg.message_ids) == 2:
+                    for other_id in agg.message_ids:
+                        if other_id != message_id:
+                            return other_id
+
+        return None
+
+    def get_atomic_retrieval_units(
+        self,
+        message_ids: list[str]
+    ) -> list[tuple[str, float]]:
+        """Expand message IDs to include their atomic pairs.
+
+        Phase 3 Fix: Ensures Q/A pairs are retrieved as atomic units.
+
+        Args:
+            message_ids: List of (message_id, score) tuples
+
+        Returns:
+            Expanded list with paired messages included
+        """
+        config = DialogueLinkingConfig
+        seen = set()
+        result = []
+
+        for msg_id in message_ids:
+            if msg_id in seen:
+                continue
+            seen.add(msg_id)
+            result.append(msg_id)
+
+            # Get exchange pair if exists
+            pair_id = self.get_exchange_pair(msg_id)
+            if pair_id and pair_id not in seen:
+                seen.add(pair_id)
+                result.append(pair_id)
+
+        return result
 
     def get_aggregators_for_message(self, message_id: str) -> list[DialogueAggregator]:
         """Get all aggregators containing this message."""

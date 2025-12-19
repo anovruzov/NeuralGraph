@@ -131,12 +131,15 @@ from .service import (
 )
 
 # Query Router (intelligent query analysis and pre-filtering)
+# Phase 1 Fix: Now includes SoftFilterResult for graduated score modifiers
 from .query_router import (
     QueryRouter,
     QueryType,
     QueryAnalysis,
+    SoftFilterResult,
     FilteredRetriever,
     create_query_router,
+    create_filtered_retriever,
 )
 
 # Prompts (schema-guided reasoning for SLM answering)
@@ -217,8 +220,10 @@ __all__ = [
     "QueryRouter",
     "QueryType",
     "QueryAnalysis",
+    "SoftFilterResult",
     "FilteredRetriever",
     "create_query_router",
+    "create_filtered_retriever",
     # Temporal utilities
     "MONTH_NAMES",
     "MONTH_NAMES_REV",

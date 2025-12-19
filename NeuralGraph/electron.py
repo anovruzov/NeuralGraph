@@ -793,13 +793,26 @@ class ElectronPool:
         acc.last_arrival_ms = electron.arrival_time_ms
 
     async def _check_firing_thresholds(self) -> None:
-        """Check if any nodes should fire based on accumulated charge."""
+        """Check if any nodes should fire based on accumulated charge.
+
+        Phase 4 Fix: Boost coherent signals using phase_coherence.
+        """
         nodes_to_fire = []
 
-        for node_id, charge in self._node_charge.items():
-            if charge.exceeds_threshold(self._firing_threshold):
+        for node_id, acc in self._node_charge.items():
+            if acc.exceeds_threshold(self._firing_threshold):
                 if not self._is_refractory(node_id):
-                    nodes_to_fire.append((node_id, charge.net_charge))
+                    # Phase 4 Fix: Apply phase coherence boost to firing charge
+                    # Coherent signals (electrons in phase) get amplified
+                    # This models constructive interference in neural activation
+                    final_charge = acc.net_charge
+
+                    # Phase coherence is in range [-1, 1], map to boost factor
+                    # coherence = 1.0 → 20% boost, coherence = -1.0 → 20% penalty
+                    coherence_boost = 1.0 + (0.2 * acc.phase_coherence)
+                    final_charge *= coherence_boost
+
+                    nodes_to_fire.append((node_id, final_charge))
 
         # Fire nodes
         for node_id, charge in nodes_to_fire:

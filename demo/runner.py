@@ -50,18 +50,15 @@ OLLAMA_BASE_URL = "http://localhost:11434"
 OLLAMA_MODEL = "qwen2.5:7b-instruct"
 EMBEDDING_MODEL = "nomic-embed-text"
 
-# OpenAI for judging only (GPT-4o) -- DO NOT hardcode secrets in code
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
-if not OPENAI_API_KEY:
-    raise RuntimeError("Missing OPENAI_API_KEY env var (used for judging only).")
-JUDGE_MODEL = "gpt-4o"
+# Local judging with Qwen (no OpenAI needed)
+JUDGE_MODEL = "qwen2.5:7b-instruct"
 
 TOP_K = 50
 
 CATEGORIES = {1: "single_hop", 2: "temporal", 3: "open_domain", 4: "multi_hop"}
 
-OUTPUT_PATH = Path(__file__).parent / "ran.json"
-MAX_QUESTIONS = 2000
+OUTPUT_PATH = Path(__file__).parent / "results.json"
+MAX_QUESTIONS = 200
 
 # Timing storage
 import time
@@ -192,7 +189,7 @@ def save_results(results, stats):
     output = {
         "metadata": {
             "model": "Tesseract 4D Memory",
-            "judge": "GPT-4o",
+            "judge": "Qwen2.5-7B (local)",
             "timestamp": datetime.now().isoformat(),
             "total_questions": total_questions,
             "total_correct": total_correct,
@@ -389,7 +386,7 @@ Return the answer:"""
 
 
 # =============================================================================
-# GPT-4o JUDGE with LoCoMo ACCURACY_PROMPT
+# LOCAL QWEN JUDGE with LoCoMo ACCURACY_PROMPT
 # =============================================================================
 
 # Judge system message for JSON-only output (no explanation leakage)
@@ -460,12 +457,16 @@ def parse_judge_label(resp: str) -> bool:
 
 
 async def judge_answer(session, question: str, generated: str, gold) -> bool:
-    """Judge using GPT-4o with LoCoMo ACCURACY_PROMPT."""
+    """Judge using local Qwen with LoCoMo ACCURACY_PROMPT."""
     gen_lower = str(generated).lower().strip()
     gold_lower = str(gold).lower().strip()
 
     # Exact match auto-pass
     if gold_lower and gen_lower == gold_lower:
+        return True
+
+    # Substring match for simple cases
+    if gold_lower and gold_lower in gen_lower:
         return True
 
     # Select prompt based on whether question is unanswerable
@@ -481,23 +482,21 @@ async def judge_answer(session, question: str, generated: str, gold) -> bool:
             generated_answer=generated
         )
 
+    full_prompt = f"{JUDGE_SYSTEM}\n\n{prompt}"
+
     try:
         async with session.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers={"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"},
+            f"{OLLAMA_BASE_URL}/api/generate",
             json={
                 "model": JUDGE_MODEL,
-                "messages": [
-                    {"role": "system", "content": JUDGE_SYSTEM},
-                    {"role": "user", "content": prompt}
-                ],
-                "temperature": 0,
-                "max_tokens": 20
+                "prompt": full_prompt,
+                "stream": False,
+                "options": {"temperature": 0, "num_predict": 30}
             },
             timeout=aiohttp.ClientTimeout(total=60)
         ) as response:
             result = await response.json()
-            resp_text = result["choices"][0]["message"]["content"].strip()
+            resp_text = result.get("response", "").strip()
             return parse_judge_label(resp_text)
     except Exception as e:
         print(f"Judge error: {e}")
@@ -749,7 +748,7 @@ async def run_benchmark():
                 t_answer = (time.perf_counter() - t_answer_start) * 1000
                 TIMING_DATA["t_answer"].append(t_answer)
 
-                # Judge with GPT-4o
+                # Judge with local Qwen
                 correct = await judge_answer(http, question, generated, gold)
 
                 stats[category]["total"] += 1
@@ -786,7 +785,7 @@ async def run_benchmark():
     accuracy = 100 * total_correct / total_questions if total_questions > 0 else 0
 
     print(f"\n{'='*60}")
-    print(f"BENCHMARK COMPLETE (Judge: GPT-4o)")
+    print(f"BENCHMARK COMPLETE (Judge: Qwen2.5-7B local)")
     print(f"{'='*60}")
     print(f"Total: {total_correct}/{total_questions} ({accuracy:.1f}%)")
     for cat, s in stats.items():

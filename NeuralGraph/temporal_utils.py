@@ -501,6 +501,9 @@ def infer_query_mode(question: str) -> str:
 
     This determines which prompt template and retrieval strategy to use.
 
+    These patterns are UNIVERSAL and work across any domain - not tied to any
+    specific benchmark or dataset.
+
     Args:
         question: The query text
 
@@ -510,16 +513,54 @@ def infer_query_mode(question: str) -> str:
     q = question.lower().strip()
 
     # === TEMPORAL patterns (highest priority) ===
+    # Comprehensive patterns for time-based questions
     temporal_starters = [
-        "when ", "when's ", "what date", "what day", "what year", "what month",
-        "what time", "on what day", "in what year", "in what month",
+        # Basic when questions
+        "when ", "when's ", "when did ", "when does ", "when was ", "when were ",
+        "when will ", "when is ", "when are ", "when has ", "when have ",
+        # Date/time specific questions
+        "what date", "what day", "what year", "what month", "what week",
+        "what time", "what hour", "what season", "what period",
+        # Specific time frame questions
+        "on what day", "in what year", "in what month", "during what",
+        "at what time", "on which day", "in which year", "in which month",
+        # Duration starters
+        "how long ", "for how long", "how much time",
+        # Sequence starters
+        "after what", "before what", "since when", "until when",
+        "how soon", "how recently", "how early", "how late",
     ]
     temporal_contains = [
+        # Duration patterns
         "how long ago", "how long has", "how long have", "how long did",
-        "how long was", "how long were", "how long will",
+        "how long was", "how long were", "how long will", "how long does",
+        # Time unit questions
         "how many days", "how many weeks", "how many months", "how many years",
-        "since when", "until when", "how much time",
+        "how many hours", "how many minutes", "how many seconds",
+        # Elapsed time patterns
+        "since when", "until when", "how much time", "amount of time",
         " passed between", "weeks passed", "days passed", "months passed",
+        "years passed", "time elapsed", "time since", "time until",
+        # Relative time patterns
+        "ago did", "ago was", "ago were", "ago has", "ago have",
+        "years ago", "months ago", "weeks ago", "days ago", "hours ago",
+        # Sequence patterns
+        "happened before", "happened after", "came before", "came after",
+        "prior to", "subsequent to", "following the", "preceding the",
+        "in the wake of", "leading up to", "in advance of",
+        # Specific time references
+        "last week", "this week", "next week", "last month", "this month",
+        "next month", "last year", "this year", "next year",
+        "yesterday", "today", "tomorrow", "last night", "tonight",
+        "this morning", "this afternoon", "this evening",
+        # Date patterns
+        "what date did", "on what date", "which date", "which day",
+        # Frequency in time
+        "how often", "how frequently", "how regularly",
+        # Deadline/schedule
+        "by when", "due when", "deadline", "scheduled for",
+        # Age/duration
+        "how old", "for how many", "lasted how long",
     ]
     for starter in temporal_starters:
         if q.startswith(starter):
@@ -529,40 +570,99 @@ def infer_query_mode(question: str) -> str:
             return "TEMPORAL"
 
     # === AGGREGATION patterns: questions expecting multiple answers ===
+    # Universal patterns for list/collection questions
     aggregation_patterns = [
-        "what activities", "what hobbies", "what things",
-        "where has", "where have",
-        "what books", "what movies", "what shows", "what places",
-        "what events", "what types", "what kinds",
-        "how many times",
-        "list all", "list the",
+        # Activity/hobby questions
+        "what activities", "what hobbies", "what things", "what items",
+        "what tasks", "what chores", "what duties", "what responsibilities",
+        # Experience questions
+        "where has", "where have", "where did", "where does",
+        "what places", "which places", "what locations", "what destinations",
+        # Media/content questions
+        "what books", "what movies", "what shows", "what films",
+        "what songs", "what music", "what albums", "what podcasts",
+        "what games", "what apps", "what programs", "what software",
+        # Event questions
+        "what events", "what occasions", "what ceremonies", "what celebrations",
+        "what meetings", "what appointments", "what gatherings",
+        # Type/category questions
+        "what types", "what kinds", "what sorts", "what categories",
+        "what varieties", "what forms", "what styles",
+        # Collection questions
+        "how many times", "how many different", "how many various",
+        "list all", "list the", "name all", "name the",
+        "what are all", "what were all", "who are all", "who were all",
+        # Multi-item questions
+        "what are the", "what were the", "who are the", "who were the",
+        "all of the", "each of the", "every one of",
+        # Enumeration patterns
+        "what things does", "what things did", "everything that",
+        "all that", "everyone who", "everybody who",
+        # Favorite collections
+        "favorite things", "favorite activities", "favorite places",
+        "preferred", "top choices", "main interests",
     ]
     for pattern in aggregation_patterns:
         if pattern in q:
             return "AGGREGATION"
     # "how many" without time units = aggregation
-    if "how many" in q and not any(t in q for t in ["days", "weeks", "months", "years"]):
+    if "how many" in q and not any(t in q for t in ["days", "weeks", "months", "years", "hours", "minutes", "seconds"]):
         return "AGGREGATION"
 
     # === INFERENTIAL patterns: inference-required questions ===
+    # Universal patterns requiring reasoning/inference
     inferential_starters = [
-        "would ", "could ", "might ", "should ",
-        "why ", "why's ", "how come ",
-        "is it likely", "is it possible",
+        # Modal verbs indicating inference
+        "would ", "could ", "might ", "should ", "may ",
+        # Causation questions
+        "why ", "why's ", "why did ", "why does ", "why is ", "why was ",
+        "how come ", "what caused ", "what made ", "what led to ",
+        # Hypothetical questions
+        "is it likely", "is it possible", "is it probable",
+        "would it be", "could it be", "might it be",
+        # Opinion/judgment questions
+        "do you think", "would you say", "would you agree",
     ]
     inferential_contains = [
+        # Probability/likelihood patterns
         " likely ", " likely?", " probably ", " probably?",
-        " suggest ", " imply ", " predict ",
-        "what kind of person", "what type of person",
-        "what fields", "what career", "what job",
-        "what personality", "what traits",
+        " possibly ", " possibly?", " perhaps ", " maybe ",
+        # Inference indicators
+        " suggest ", " imply ", " indicate ", " predict ",
+        " infer ", " deduce ", " conclude ", " assume ",
+        # Personality/character questions
+        "what kind of person", "what type of person", "what sort of person",
+        "what personality", "what traits", "what characteristics",
+        "what qualities", "what attributes", "what tendencies",
+        # Career/interest inference
+        "what fields", "what career", "what job", "what profession",
+        "what industry", "what sector", "what domain",
+        # Preference inference
         "be considered ", "be open to ", "be interested in ",
-        "would you describe", "how would you describe",
-        " pursue ", " pursuing ",
-        "what might ", " might be", "what underlying",
-        "what console", "what device", "what platform",
-        "what nickname", "what pet", "what pets",
-        " wouldn't ", " couldn't ",
+        "be willing to", "be able to", "be inclined to",
+        # Description/characterization
+        "would you describe", "how would you describe", "how would you characterize",
+        "best describes", "accurately describes",
+        # Future actions/goals
+        " pursue ", " pursuing ", " aspire ", " aspiring ",
+        " strive ", " striving ", " aim ", " aiming ",
+        # Speculation patterns
+        "what might ", " might be", "what underlying", "what hidden",
+        "what unspoken", "what implicit",
+        # Device/platform inference
+        "what console", "what device", "what platform", "what system",
+        "what equipment", "what tool", "what technology",
+        # Relationship/social inference
+        "what nickname", "what pet", "what pets", "how close",
+        "how well do", "relationship with",
+        # Negated possibilities
+        " wouldn't ", " couldn't ", " shouldn't ", " mightn't ",
+        # Reason/motivation inference
+        "motivation for", "reason for", "purpose of", "goal of",
+        "intent behind", "meaning of",
+        # Emotional/mental state inference
+        "how does .* feel", "what does .* think", "what does .* believe",
+        "attitude toward", "opinion on", "view of",
     ]
     for starter in inferential_starters:
         if q.startswith(starter):
@@ -572,9 +672,31 @@ def infer_query_mode(question: str) -> str:
             return "INFERENTIAL"
 
     # === ADVERSARIAL patterns: negation and unanswerable detection ===
+    # Universal patterns for negation-based or tricky questions
     adversarial_patterns = [
-        " not ", "n't ", " never ", " except ", " other than ",
-        " without ", " fail", "didn't", "wasn't", "weren't", "hasn't", "haven't",
+        # Direct negations
+        " not ", "n't ", " never ", " no ", " none ", " nothing ",
+        " nobody ", " nowhere ", " neither ", " nor ",
+        # Exception patterns
+        " except ", " other than ", " apart from ", " besides ",
+        " excluding ", " but not ", " save for ",
+        # Absence patterns
+        " without ", " lacking ", " missing ", " absent ",
+        # Failure patterns
+        " fail", " failed ", " failing ", "didn't ", "doesn't ",
+        "wasn't", "weren't", "hasn't", "haven't", "hadn't",
+        "won't", "wouldn't", "can't", "couldn't", "shouldn't",
+        # Contradiction patterns
+        " instead of ", " rather than ", " as opposed to ",
+        # Denial patterns
+        " deny ", " denied ", " refuse ", " refused ",
+        " reject ", " rejected ",
+        # Non-existence patterns
+        " isn't ", " aren't ", " ain't ",
+        # Counter-factual patterns
+        " if not ", " unless ", " otherwise ",
+        # Skeptical patterns
+        " really ", " actually ", " truly ", " genuinely ",
     ]
     for pattern in adversarial_patterns:
         if pattern in q:
