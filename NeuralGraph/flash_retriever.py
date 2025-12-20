@@ -342,31 +342,12 @@ class FlashRetriever:
             if token not in self._stop_words and len(token) > 2
         }
 
-        # SINGLE-HOP KEYWORD EXPANSION: Abstract question words -> concrete answer words
-        # This helps match "identity" questions to "transgender" memories
-        expansion_map = {
-            # Identity questions
-            "identity": {"transgender", "trans", "woman", "man", "gender", "lgbtq", "gay", "lesbian", "bisexual", "queer"},
-            # Relationship status
-            "relationship": {"single", "married", "dating", "partner", "spouse", "boyfriend", "girlfriend", "engaged"},
-            "status": {"single", "married", "dating", "engaged", "divorced", "widowed"},
-            # Activities
-            "activities": {"hobby", "hobbies", "sport", "sports", "game", "games", "paint", "painting", "swim", "swimming", "camp", "camping", "pottery", "craft"},
-            "hobbies": {"paint", "painting", "swim", "swimming", "camp", "camping", "pottery", "craft", "art", "music", "sport"},
-            # Location
-            "origin": {"from", "moved", "born", "country", "city", "town", "sweden", "usa", "america", "europe"},
-            "hometown": {"from", "moved", "born", "grew", "raised"},
-            # Career
-            "career": {"job", "work", "profession", "counseling", "therapy", "mental", "health", "doctor", "nurse", "teacher"},
-            "job": {"work", "career", "profession", "counseling", "therapy"},
-        }
+        # REMOVED: LoCoMo-specific keyword expansion (cheating)
+        # This hardcoded map included "sweden", "pottery", "camping", "counseling"
+        # which only worked for the LoCoMo benchmark.
+        # For universal retrieval, rely on synonym expansion from WordNet instead.
 
-        expanded = set()
-        for kw in keywords:
-            if kw in expansion_map:
-                expanded.update(expansion_map[kw])
-
-        return keywords | expanded
+        return keywords
 
     def _extract_specifics(self, text: str) -> set[str]:
         """Extract high-specificity terms using UNIVERSAL patterns.

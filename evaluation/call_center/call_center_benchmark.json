@@ -1,0 +1,567 @@
+{
+  "metadata": {
+    "description": "Call Center AI Memory Benchmark - 10 minute conversation",
+    "purpose": "Validate system generalizes beyond LoCoMo to real call center use cases",
+    "duration_minutes": 10,
+    "created": "2024-12-19"
+  },
+  "conversation": [
+    {
+      "speaker": "Agent_Sarah",
+      "timestamp": "00:00:05",
+      "text": "Thank you for calling TechStream Support, my name is Sarah. How can I help you today?"
+    },
+    {
+      "speaker": "Customer_David",
+      "timestamp": "00:00:12",
+      "text": "Hi Sarah, this is David Chen. My account number is 4589-2771. I've been having issues with my internet service for the past week."
+    },
+    {
+      "speaker": "Agent_Sarah",
+      "timestamp": "00:00:22",
+      "text": "I'm sorry to hear that, Mr. Chen. Let me pull up your account. I see you're on our Premium Fiber plan at 500 Mbps, is that correct?"
+    },
+    {
+      "speaker": "Customer_David",
+      "timestamp": "00:00:31",
+      "text": "Yes, that's right. I upgraded to that plan back in March because I work from home as a software engineer and I need reliable internet for video calls."
+    },
+    {
+      "speaker": "Agent_Sarah",
+      "timestamp": "00:00:42",
+      "text": "I understand how important that is. Can you describe the issues you're experiencing?"
+    },
+    {
+      "speaker": "Customer_David",
+      "timestamp": "00:00:48",
+      "text": "The connection keeps dropping randomly, sometimes three or four times a day. It started last Tuesday after that big thunderstorm we had. My wife Jennifer works from home too, and she's been having trouble with her Zoom meetings."
+    },
+    {
+      "speaker": "Agent_Sarah",
+      "timestamp": "00:01:05",
+      "text": "I see. And you mentioned this started after the storm on Tuesday. Have you tried restarting your router?"
+    },
+    {
+      "speaker": "Customer_David",
+      "timestamp": "00:01:14",
+      "text": "Yes, I've restarted it probably ten times. I even unplugged it overnight like your website suggested. The router is the TechStream X500 model you guys provided when I signed up two years ago."
+    },
+    {
+      "speaker": "Agent_Sarah",
+      "timestamp": "00:01:28",
+      "text": "Thank you for trying those steps. I'm running a diagnostic on your line now. While that's processing, I notice you also have our TechStream TV package. Are you experiencing any issues with that service?"
+    },
+    {
+      "speaker": "Customer_David",
+      "timestamp": "00:01:42",
+      "text": "Actually yes, now that you mention it. The TV has been buffering a lot, especially when my daughter Emma watches her Disney+ shows in the evening. She's 8 years old and gets really frustrated when Frozen keeps pausing."
+    },
+    {
+      "speaker": "Agent_Sarah",
+      "timestamp": "00:01:58",
+      "text": "I can imagine that's frustrating for everyone. The diagnostic is showing some signal degradation on your line. This could be storm damage to the outside equipment. I'd like to schedule a technician visit. What days work best for you?"
+    },
+    {
+      "speaker": "Customer_David",
+      "timestamp": "00:02:15",
+      "text": "I'm usually in meetings Monday through Wednesday mornings. Thursday or Friday afternoon would work best. My wife is usually home, but she has her book club on Thursday evenings at 6 PM."
+    },
+    {
+      "speaker": "Agent_Sarah",
+      "timestamp": "00:02:30",
+      "text": "Let me check availability. I have Friday between 1 PM and 4 PM available. Would that work?"
+    },
+    {
+      "speaker": "Customer_David",
+      "timestamp": "00:02:38",
+      "text": "That's perfect. We live at 742 Maple Street, Apartment 3B. The building has a gate code - it's 4421."
+    },
+    {
+      "speaker": "Agent_Sarah",
+      "timestamp": "00:02:50",
+      "text": "Got it. I've scheduled technician Mike Rodriguez for Friday 1-4 PM at 742 Maple Street, Apt 3B, gate code 4421. He'll call you 30 minutes before arrival. Is 555-0147 still the best number?"
+    },
+    {
+      "speaker": "Customer_David",
+      "timestamp": "00:03:05",
+      "text": "Actually, can you update that? My new cell is 555-0832. I got a new phone last month."
+    },
+    {
+      "speaker": "Agent_Sarah",
+      "timestamp": "00:03:14",
+      "text": "Updated. Now, I also want to mention that since you've been experiencing service issues, I'm applying a $25 credit to your account for the inconvenience."
+    },
+    {
+      "speaker": "Customer_David",
+      "timestamp": "00:03:26",
+      "text": "Oh, thank you, I appreciate that. Actually, while I have you on the line, I wanted to ask about something else. I've been thinking about adding the home security package. My neighbor's house got broken into last month and it's made us a bit nervous."
+    },
+    {
+      "speaker": "Agent_Sarah",
+      "timestamp": "00:03:45",
+      "text": "I completely understand. For that, I'll need to transfer you to our Home Solutions department. They can give you all the details and check what promotions are available. Would that be okay?"
+    },
+    {
+      "speaker": "Customer_David",
+      "timestamp": "00:03:56",
+      "text": "Sure, that works."
+    },
+    {
+      "speaker": "Agent_Sarah",
+      "timestamp": "00:04:02",
+      "text": "Great. Just to confirm before I transfer - you have the technician visit Friday 1-4 PM, $25 credit applied, and phone updated to 555-0832. Let me transfer you now. Please hold."
+    },
+    {
+      "speaker": "System",
+      "timestamp": "00:04:18",
+      "text": "[Transfer to Home Solutions Department]"
+    },
+    {
+      "speaker": "Agent_Marcus",
+      "timestamp": "00:04:35",
+      "text": "Home Solutions, this is Marcus. I see you were transferred from Sarah regarding home security. How can I help you, Mr. Chen?"
+    },
+    {
+      "speaker": "Customer_David",
+      "timestamp": "00:04:45",
+      "text": "Hi Marcus. Yes, I'm interested in your home security options. Like I told Sarah, my neighbor had a break-in recently and my wife and I want to feel safer, especially since we have our daughter Emma at home."
+    },
+    {
+      "speaker": "Agent_Marcus",
+      "timestamp": "00:05:00",
+      "text": "Absolutely understandable. We have three security packages. The Basic includes door and window sensors plus a control panel. The Plus adds motion detectors and a doorbell camera. The Premium includes all of that plus indoor cameras and 24/7 professional monitoring."
+    },
+    {
+      "speaker": "Customer_David",
+      "timestamp": "00:05:22",
+      "text": "What's the price difference between Plus and Premium?"
+    },
+    {
+      "speaker": "Agent_Marcus",
+      "timestamp": "00:05:28",
+      "text": "Plus is $29.99 per month, Premium is $49.99. However, since you're already a Premium Fiber customer for over two years, you qualify for a bundle discount. I can do Premium security for $39.99."
+    },
+    {
+      "speaker": "Customer_David",
+      "timestamp": "00:05:45",
+      "text": "That sounds reasonable. Does the doorbell camera work with the video storage? I want to be able to review footage if something happens while we're at work."
+    },
+    {
+      "speaker": "Agent_Marcus",
+      "timestamp": "00:05:58",
+      "text": "Yes, you get 30 days of cloud storage included. You can access it through our TechStream Home app on your phone. It also integrates with Alexa and Google Home if you use those."
+    },
+    {
+      "speaker": "Customer_David",
+      "timestamp": "00:06:12",
+      "text": "We have an Alexa in the living room and kitchen, so that's great. My wife Jennifer uses it a lot for her recipes and timers when she's cooking. She makes amazing Korean food - her mother taught her when she was growing up in Seoul."
+    },
+    {
+      "speaker": "Agent_Marcus",
+      "timestamp": "00:06:30",
+      "text": "That's wonderful! The integration is seamless - you can say things like 'Alexa, show me the front door' and it'll display on an Echo Show if you have one. Now, for installation, we could potentially combine it with your technician visit on Friday. Let me check."
+    },
+    {
+      "speaker": "Customer_David",
+      "timestamp": "00:06:50",
+      "text": "That would be convenient. We're already taking time off for the internet repair."
+    },
+    {
+      "speaker": "Agent_Marcus",
+      "timestamp": "00:06:58",
+      "text": "I see Mike Rodriguez is already scheduled for Friday 1-4 PM. Unfortunately, security installation requires a certified installer, which Mike isn't. But I can schedule our security team for Saturday morning if that works? They typically need about 2 hours."
+    },
+    {
+      "speaker": "Customer_David",
+      "timestamp": "00:07:18",
+      "text": "Saturday morning should work. My daughter has her soccer practice at 10 AM, but we'd be home before that. Maybe 8 AM?"
+    },
+    {
+      "speaker": "Agent_Marcus",
+      "timestamp": "00:07:30",
+      "text": "I have 8 AM to 10 AM available. I'll book that. The installer will be Rachel Thompson. She's one of our best - been with us for 5 years."
+    },
+    {
+      "speaker": "Customer_David",
+      "timestamp": "00:07:42",
+      "text": "Perfect. Oh, I should mention - we have a dog, a golden retriever named Max. He's friendly but barks at strangers. Should I crate him during the installation?"
+    },
+    {
+      "speaker": "Agent_Marcus",
+      "timestamp": "00:07:55",
+      "text": "That's helpful to know, thank you. Our installers are pet-friendly, but it might make things easier if Max is in another room, especially when Rachel is working with the sensors. We don't want him setting off the motion detectors during calibration!"
+    },
+    {
+      "speaker": "Customer_David",
+      "timestamp": "00:08:12",
+      "text": "Ha! Good point. He does love to follow people around. My wife will probably keep him in the backyard - we have a fenced yard, so he can play out there."
+    },
+    {
+      "speaker": "Agent_Marcus",
+      "timestamp": "00:08:25",
+      "text": "That works. Now, for the Premium package, I'll need to verify a few things. The monitoring requires an emergency contact. Who should we list?"
+    },
+    {
+      "speaker": "Customer_David",
+      "timestamp": "00:08:38",
+      "text": "My brother Tom Chen would be the best contact. He lives about 15 minutes away in Riverside. His number is 555-0294. He has a spare key to our place."
+    },
+    {
+      "speaker": "Agent_Marcus",
+      "timestamp": "00:08:55",
+      "text": "Got it - Tom Chen at 555-0294, has spare key. And a safe word for when you need to cancel a false alarm?"
+    },
+    {
+      "speaker": "Customer_David",
+      "timestamp": "00:09:05",
+      "text": "Let's use 'Blueberry' - it's our daughter's favorite fruit and we all remember it."
+    },
+    {
+      "speaker": "Agent_Marcus",
+      "timestamp": "00:09:14",
+      "text": "Safe word set as 'Blueberry'. Perfect. So to summarize: Premium Security at $39.99/month, installation Saturday 8-10 AM with Rachel Thompson. Your first bill with the new service will be prorated."
+    },
+    {
+      "speaker": "Customer_David",
+      "timestamp": "00:09:32",
+      "text": "Sounds good. Actually, one more question - I travel for work sometimes, usually a few times a quarter to our San Francisco office. Can I monitor everything remotely when I'm away?"
+    },
+    {
+      "speaker": "Agent_Marcus",
+      "timestamp": "00:09:48",
+      "text": "Absolutely. The TechStream Home app gives you full control from anywhere. You can arm/disarm the system, view live camera feeds, get instant alerts, and even communicate through the doorbell camera. Very useful for when deliveries arrive."
+    },
+    {
+      "speaker": "Customer_David",
+      "timestamp": "00:10:05",
+      "text": "That's exactly what we need. We order a lot from Amazon, and packages sometimes sit on the porch. I'd love to be able to see when they arrive and tell the delivery person where to leave them safely."
+    },
+    {
+      "speaker": "Agent_Marcus",
+      "timestamp": "00:10:20",
+      "text": "The doorbell camera is perfect for that. You'll get a notification when someone approaches, and you can have a two-way conversation through the app. Many customers use it exactly for that purpose."
+    },
+    {
+      "speaker": "Customer_David",
+      "timestamp": "00:10:35",
+      "text": "Great. I think we're all set then. Is there anything else I need to do?"
+    },
+    {
+      "speaker": "Agent_Marcus",
+      "timestamp": "00:10:42",
+      "text": "I'll send a confirmation email to the address on file - that's dchen.developer@gmail.com, correct?"
+    },
+    {
+      "speaker": "Customer_David",
+      "timestamp": "00:10:52",
+      "text": "Actually, can you send it to david.chen@techcorp.io instead? That's my work email and I check it more frequently during the day."
+    },
+    {
+      "speaker": "Agent_Marcus",
+      "timestamp": "00:11:02",
+      "text": "Updated to david.chen@techcorp.io. You'll receive the confirmation within the hour, along with a link to download the TechStream Home app if you haven't already."
+    },
+    {
+      "speaker": "Customer_David",
+      "timestamp": "00:11:15",
+      "text": "Perfect. Thank you Marcus, and please thank Sarah too for her help earlier."
+    },
+    {
+      "speaker": "Agent_Marcus",
+      "timestamp": "00:11:22",
+      "text": "I'll make a note of that. Just to recap everything from today's call: Internet technician Mike Rodriguez on Friday 1-4 PM for your connection issues, $25 credit applied, phone updated to 555-0832, and security installation with Rachel Thompson on Saturday 8-10 AM. Premium Security at $39.99/month, emergency contact is your brother Tom at 555-0294, safe word is 'Blueberry'. Is there anything else I can help with?"
+    },
+    {
+      "speaker": "Customer_David",
+      "timestamp": "00:11:55",
+      "text": "No, that covers everything. Thanks again!"
+    },
+    {
+      "speaker": "Agent_Marcus",
+      "timestamp": "00:12:00",
+      "text": "You're welcome, Mr. Chen. Have a great day, and we'll see you this weekend!"
+    }
+  ],
+  "questions": [
+    {
+      "id": "CC-01",
+      "question": "What is David's account number?",
+      "answer": "4589-2771",
+      "type": "single_hop",
+      "category": "account_info"
+    },
+    {
+      "id": "CC-02",
+      "question": "What is David's profession?",
+      "answer": "Software engineer",
+      "type": "single_hop",
+      "category": "personal_info"
+    },
+    {
+      "id": "CC-03",
+      "question": "What internet plan does David have?",
+      "answer": "Premium Fiber plan at 500 Mbps",
+      "type": "single_hop",
+      "category": "service_info"
+    },
+    {
+      "id": "CC-04",
+      "question": "When did David upgrade his internet plan?",
+      "answer": "March",
+      "type": "temporal",
+      "category": "service_info"
+    },
+    {
+      "id": "CC-05",
+      "question": "What caused David's internet problems?",
+      "answer": "A thunderstorm that happened last Tuesday caused signal degradation/storm damage",
+      "type": "single_hop",
+      "category": "issue_info"
+    },
+    {
+      "id": "CC-06",
+      "question": "What router model does David have?",
+      "answer": "TechStream X500",
+      "type": "single_hop",
+      "category": "equipment_info"
+    },
+    {
+      "id": "CC-07",
+      "question": "What is David's wife's name?",
+      "answer": "Jennifer",
+      "type": "single_hop",
+      "category": "family_info"
+    },
+    {
+      "id": "CC-08",
+      "question": "What is David's daughter's name and age?",
+      "answer": "Emma, 8 years old",
+      "type": "single_hop",
+      "category": "family_info"
+    },
+    {
+      "id": "CC-09",
+      "question": "What show does David's daughter like to watch?",
+      "answer": "Frozen on Disney+",
+      "type": "single_hop",
+      "category": "family_info"
+    },
+    {
+      "id": "CC-10",
+      "question": "What is David's address?",
+      "answer": "742 Maple Street, Apartment 3B",
+      "type": "single_hop",
+      "category": "account_info"
+    },
+    {
+      "id": "CC-11",
+      "question": "What is the gate code for David's building?",
+      "answer": "4421",
+      "type": "single_hop",
+      "category": "account_info"
+    },
+    {
+      "id": "CC-12",
+      "question": "What is David's new phone number?",
+      "answer": "555-0832",
+      "type": "single_hop",
+      "category": "account_info"
+    },
+    {
+      "id": "CC-13",
+      "question": "When is the internet technician scheduled to visit?",
+      "answer": "Friday between 1 PM and 4 PM",
+      "type": "temporal",
+      "category": "appointment_info"
+    },
+    {
+      "id": "CC-14",
+      "question": "What is the internet technician's name?",
+      "answer": "Mike Rodriguez",
+      "type": "single_hop",
+      "category": "appointment_info"
+    },
+    {
+      "id": "CC-15",
+      "question": "How much credit was applied to David's account?",
+      "answer": "$25",
+      "type": "single_hop",
+      "category": "account_info"
+    },
+    {
+      "id": "CC-16",
+      "question": "Why is David interested in home security?",
+      "answer": "His neighbor's house got broken into last month",
+      "type": "single_hop",
+      "category": "context_info"
+    },
+    {
+      "id": "CC-17",
+      "question": "What security package did David choose?",
+      "answer": "Premium security package",
+      "type": "single_hop",
+      "category": "service_info"
+    },
+    {
+      "id": "CC-18",
+      "question": "How much will David pay for security?",
+      "answer": "$39.99 per month (bundle discount from $49.99)",
+      "type": "single_hop",
+      "category": "billing_info"
+    },
+    {
+      "id": "CC-19",
+      "question": "What smart home devices does David have?",
+      "answer": "Alexa devices in the living room and kitchen",
+      "type": "single_hop",
+      "category": "equipment_info"
+    },
+    {
+      "id": "CC-20",
+      "question": "What kind of food does Jennifer make?",
+      "answer": "Korean food, learned from her mother in Seoul",
+      "type": "single_hop",
+      "category": "family_info"
+    },
+    {
+      "id": "CC-21",
+      "question": "When is the security installation scheduled?",
+      "answer": "Saturday 8 AM to 10 AM",
+      "type": "temporal",
+      "category": "appointment_info"
+    },
+    {
+      "id": "CC-22",
+      "question": "Who is the security installer?",
+      "answer": "Rachel Thompson",
+      "type": "single_hop",
+      "category": "appointment_info"
+    },
+    {
+      "id": "CC-23",
+      "question": "What pet does David have?",
+      "answer": "A golden retriever named Max",
+      "type": "single_hop",
+      "category": "personal_info"
+    },
+    {
+      "id": "CC-24",
+      "question": "Who is David's emergency contact for the security system?",
+      "answer": "His brother Tom Chen",
+      "type": "single_hop",
+      "category": "security_info"
+    },
+    {
+      "id": "CC-25",
+      "question": "What is Tom Chen's phone number?",
+      "answer": "555-0294",
+      "type": "single_hop",
+      "category": "security_info"
+    },
+    {
+      "id": "CC-26",
+      "question": "What is the security system safe word?",
+      "answer": "Blueberry",
+      "type": "single_hop",
+      "category": "security_info"
+    },
+    {
+      "id": "CC-27",
+      "question": "Why did they choose 'Blueberry' as the safe word?",
+      "answer": "It's their daughter's favorite fruit",
+      "type": "reasoning",
+      "category": "context_info"
+    },
+    {
+      "id": "CC-28",
+      "question": "Where does David travel for work?",
+      "answer": "San Francisco office, a few times per quarter",
+      "type": "single_hop",
+      "category": "personal_info"
+    },
+    {
+      "id": "CC-29",
+      "question": "What is David's work email?",
+      "answer": "david.chen@techcorp.io",
+      "type": "single_hop",
+      "category": "account_info"
+    },
+    {
+      "id": "CC-30",
+      "question": "What activity does Emma have on Saturday?",
+      "answer": "Soccer practice at 10 AM",
+      "type": "temporal",
+      "category": "family_info"
+    },
+    {
+      "id": "CC-31",
+      "question": "Where does Tom Chen live?",
+      "answer": "Riverside, about 15 minutes away",
+      "type": "single_hop",
+      "category": "family_info"
+    },
+    {
+      "id": "CC-32",
+      "question": "What activity does Jennifer have on Thursday evenings?",
+      "answer": "Book club at 6 PM",
+      "type": "temporal",
+      "category": "family_info"
+    },
+    {
+      "id": "CC-33",
+      "question": "How long has David been a TechStream customer?",
+      "answer": "Over two years",
+      "type": "temporal",
+      "category": "account_info"
+    },
+    {
+      "id": "CC-34",
+      "question": "What services does David now have with TechStream?",
+      "answer": "Premium Fiber internet (500 Mbps), TechStream TV, and Premium Security",
+      "type": "aggregation",
+      "category": "service_info"
+    },
+    {
+      "id": "CC-35",
+      "question": "Who were the two agents that helped David?",
+      "answer": "Sarah (Support) and Marcus (Home Solutions)",
+      "type": "aggregation",
+      "category": "service_info"
+    },
+    {
+      "id": "CC-36",
+      "question": "What appointments does David have this weekend?",
+      "answer": "Friday 1-4 PM: Internet technician (Mike Rodriguez), Saturday 8-10 AM: Security installation (Rachel Thompson)",
+      "type": "aggregation",
+      "category": "appointment_info"
+    },
+    {
+      "id": "CC-37",
+      "question": "What are all the phone numbers associated with David's account?",
+      "answer": "David: 555-0832 (updated), Brother Tom: 555-0294",
+      "type": "aggregation",
+      "category": "account_info"
+    },
+    {
+      "id": "CC-38",
+      "question": "Why does David need reliable internet?",
+      "answer": "He works from home as a software engineer and needs it for video calls",
+      "type": "reasoning",
+      "category": "context_info"
+    },
+    {
+      "id": "CC-39",
+      "question": "What troubleshooting did David try before calling?",
+      "answer": "Restarted the router about ten times and unplugged it overnight",
+      "type": "single_hop",
+      "category": "issue_info"
+    },
+    {
+      "id": "CC-40",
+      "question": "Does Tom have access to David's home?",
+      "answer": "Yes, he has a spare key",
+      "type": "single_hop",
+      "category": "security_info"
+    }
+  ]
+}
