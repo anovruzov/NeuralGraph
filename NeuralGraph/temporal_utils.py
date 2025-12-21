@@ -83,6 +83,16 @@ NUMBER_WORDS: dict[str, int] = {
 }
 
 
+def _parse_number_token(token: str) -> int | None:
+    """Parse numeric or number-word token into int."""
+    if not token:
+        return None
+    token = token.lower().strip()
+    if token.isdigit():
+        return int(token)
+    return NUMBER_WORDS.get(token)
+
+
 # =============================================================================
 # DATE PARSING
 # =============================================================================
@@ -234,6 +244,18 @@ def resolve_relative_dates(content: str, message_date: datetime | None) -> tuple
         date_str = f"{MONTH_NAMES_REV[last_month].title()} {last_month_year}"
         resolved_dates['last_month'] = date_str
         result = re.sub(r'\blast month\b', f'last month [= {date_str}]', result, flags=re.IGNORECASE)
+
+    # 6b. "this month" -> current month
+    if 'this month' in content_lower:
+        date_str = f"{MONTH_NAMES_REV[message_date.month].title()} {message_date.year}"
+        resolved_dates['this_month'] = date_str
+        result = re.sub(r'\bthis month\b', f'this month [= {date_str}]', result, flags=re.IGNORECASE)
+
+    # 6c. "this year" -> current year
+    if 'this year' in content_lower:
+        date_str = str(message_date.year)
+        resolved_dates['this_year'] = date_str
+        result = re.sub(r'\bthis year\b', f'this year [= {date_str}]', result, flags=re.IGNORECASE)
 
     # 7. "next month" -> specific month
     if 'next month' in content_lower:
@@ -502,10 +524,87 @@ def resolve_relative_dates(content: str, message_date: datetime | None) -> tuple
                 result, flags=re.IGNORECASE
             )
 
-    # Store the message datetime for reference
-    resolved_dates['message_datetime'] = message_date.strftime("%d %B %Y")
-
     return result, resolved_dates
+
+
+def extract_explicit_date(content: str, message_date: datetime | None) -> str | None:
+    """Extract an explicit date from content (e.g., 'August 13', '13 August 2023')."""
+    if not content:
+        return None
+
+    # ISO-like date in content
+    match = re.search(r'\b(20\d{2})[-/](\d{1,2})[-/](\d{1,2})\b', content)
+    if match:
+        year, month, day = match.groups()
+        try:
+            return datetime(int(year), int(month), int(day)).strftime("%Y-%m-%d")
+        except ValueError:
+            pass
+
+    # "13 August 2023"
+    match = re.search(r'\b(\d{1,2})\s+([A-Za-z]+)\s*(\d{4})?\b', content)
+    if match:
+        day, month_name, year = match.groups()
+        month = MONTH_NAMES.get(month_name.lower())
+        if month:
+            year_val = int(year) if year else (message_date.year if message_date else None)
+            if year_val:
+                return datetime(year_val, month, int(day)).strftime("%Y-%m-%d")
+
+    # "August 13, 2023"
+    match = re.search(r'\b([A-Za-z]+)\s+(\d{1,2})(?:,?\s*(\d{4}))?\b', content)
+    if match:
+        month_name, day, year = match.groups()
+        month = MONTH_NAMES.get(month_name.lower())
+        if month:
+            year_val = int(year) if year else (message_date.year if message_date else None)
+            if year_val:
+                return datetime(year_val, month, int(day)).strftime("%Y-%m-%d")
+
+    return None
+
+
+def extract_duration_metadata(content: str, message_date: datetime | None) -> dict[str, Any]:
+    """Extract duration-related metadata (e.g., 'for seven years', 'since 2016')."""
+    if not content:
+        return {}
+
+    content_lower = content.lower()
+    meta: dict[str, Any] = {}
+
+    # "since 2016"
+    match = re.search(r'\bsince\s+(20\d{2})\b', content_lower)
+    if match:
+        meta["since_year"] = int(match.group(1))
+
+    # "since June 2020"
+    match = re.search(r'\bsince\s+([A-Za-z]+)\s+(20\d{2})\b', content_lower)
+    if match:
+        month_name, year = match.groups()
+        month = MONTH_NAMES.get(month_name.lower())
+        if month:
+            meta["since_date"] = f"{int(year):04d}-{month:02d}-01"
+            meta["since_year"] = int(year)
+
+    # "for X years" / "X years now"
+    match = re.search(r'\bfor\s+(\w+|\d+)\s+years?\b', content_lower)
+    if not match:
+        match = re.search(r'\b(\w+|\d+)\s+years?\s+now\b', content_lower)
+    if match:
+        num_years = _parse_number_token(match.group(1))
+        if num_years:
+            meta["duration_years"] = num_years
+            if message_date:
+                meta["since_year"] = message_date.year - num_years
+
+    # "for X months"
+    match = re.search(r'\bfor\s+(\w+|\d+)\s+months?\b', content_lower)
+    if match:
+        num_months = _parse_number_token(match.group(1))
+        if num_months:
+            meta["duration_months"] = num_months
+
+    return meta
 
 
 # =============================================================================
@@ -1520,4 +1619,56 @@ def preprocess_message_for_indexing(
         "date_tokens": date_tokens,
         "temporal_metadata": temporal_metadata,
         "resolved_dates": resolved_dates,
+    }
+
+
+# =============================================================================
+# TEMPORAL FIELD BUILDER (METADATA-ONLY, NO CONTENT MUTATION)
+# =============================================================================
+
+def generate_temporal_fields(
+    content: str,
+    message_date: datetime | None,
+) -> dict[str, Any]:
+    """Generate temporal metadata without mutating the content string.
+
+    Returns:
+        dict with:
+        - resolved_date: ISO date string (YYYY-MM-DD) from message_date if available
+        - temporal_tokens: temporal tokens for indexing/filtering
+        - temporal_metadata: structured components (year, month, dow, etc.)
+        - resolved_dates: resolved relative date annotations
+        - resolved_content: content annotated with resolved dates (optional use)
+    """
+    resolved_content, resolved_dates = resolve_relative_dates(content, message_date)
+    temporal_data = generate_temporal_tokens(message_date, content)
+    explicit_date = extract_explicit_date(content, message_date)
+    duration_meta = extract_duration_metadata(content, message_date)
+
+    resolved_date = None
+    resolved_date_source = None
+
+    if explicit_date:
+        resolved_date = explicit_date
+        resolved_date_source = "explicit"
+    elif resolved_dates:
+        # Prefer a single resolved event date if unambiguous and date-like
+        date_values = [v for v in resolved_dates.values() if isinstance(v, str) and re.search(r'\d', v)]
+        unique_values = list(dict.fromkeys(date_values))
+        if len(unique_values) == 1:
+            resolved_date = unique_values[0]
+            resolved_date_source = "relative"
+    if not resolved_date and message_date:
+        resolved_date = message_date.strftime("%Y-%m-%d")
+        resolved_date_source = "message"
+
+    return {
+        "resolved_date": resolved_date,
+        "temporal_tokens": temporal_data["date_tokens"],
+        "temporal_metadata": temporal_data["temporal_metadata"],
+        "resolved_dates": resolved_dates,
+        "resolved_content": resolved_content,
+        "explicit_date": explicit_date,
+        "resolved_date_source": resolved_date_source,
+        **duration_meta,
     }

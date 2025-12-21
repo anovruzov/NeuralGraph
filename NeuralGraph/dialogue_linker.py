@@ -815,14 +815,13 @@ class DialogueLinker:
     # =========================================================================
 
     def _get_speaker(self, node: "NeuralNode") -> str:
-        """Extract speaker from node."""
-        # Try metadata
-        if hasattr(node, 'metadata') and node.metadata:
-            speaker = node.metadata.get('speaker')
-            if speaker:
-                return speaker
+        """Extract speaker from node using canonical accessor."""
+        # Use canonical speaker_id property (handles speaker/producer_id fallback)
+        speaker = node.speaker_id
+        if speaker:
+            return speaker
 
-        # Try content prefix "Speaker: text"
+        # Fallback: Try content prefix "Speaker: text"
         content = node.content or ""
         if ":" in content[:50]:
             return content.split(":")[0].strip()

@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
+import re
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -44,6 +45,7 @@ from .flash_retriever import FlashRetriever, HybridFlashRetriever, FlashConfig
 from .electron import ElectronRetriever, ElectronRetrieverConfig
 from .dialogue_linker import DialogueLinker, DialogueLinkingConfig, create_dialogue_links
 from .query_router import QueryRouter, FilteredRetriever, QueryAnalysis, SoftFilterResult
+from .answering import AnsweringConfig, get_embedding
 from .external_retriever import (
     ExternalRetriever,
     ExternalRetrieverRegistry,
@@ -55,6 +57,8 @@ from .external_retriever import (
     is_open_domain_query,
     create_default_registry,
 )
+from .temporal_utils import generate_temporal_fields, parse_datetime_flexible, MONTH_NAMES
+from .tesseract import extract_topic_keywords_universal
 
 if TYPE_CHECKING:
     from memmachine.common.episode_store import Episode
@@ -215,10 +219,12 @@ class NeuralGraphServiceConfig:
     open_domain_tracing_enabled: bool = False
 
     # =========================================================================
-    # ATTRIBUTION & DEBUGGING
+    # ATTRIBUTION & DEBUGGING (Enhanced for single-hop analysis)
     # =========================================================================
-    attribution_logging_enabled: bool = False  # Enable per-stage attribution
-    attribution_log_path: str | None = None  # Path to save attribution logs
+    attribution_logging_enabled: bool = False  # Enable per-query attribution logging
+    attribution_log_path: str | None = None  # Path to JSONL attribution log
+    attribution_buffer_size: int = 10  # Flush every N queries
+    attribution_include_breakdowns: bool = True  # Include detailed score breakdowns
 
     # =========================================================================
     # RETRIEVAL SETTINGS
@@ -519,6 +525,17 @@ class NeuralGraphService:
                 embedding = embeddings[i] if embeddings and i < len(embeddings) else None
                 wave_amps = wave_amplitudes_list[i] if wave_amplitudes_list and i < len(wave_amplitudes_list) else {}
 
+                # Parse message datetime for temporal metadata
+                raw_created_at = getattr(episode, 'created_at', None)
+                message_date = raw_created_at if isinstance(raw_created_at, datetime) else None
+                if isinstance(raw_created_at, str):
+                    message_date = parse_datetime_flexible(raw_created_at)
+
+                temporal_fields = generate_temporal_fields(
+                    content=episode.content,
+                    message_date=message_date if isinstance(message_date, datetime) else None,
+                )
+
                 # Extract entity IDs from episode metadata if present
                 entity_ids = []
                 if hasattr(episode, 'filterable_metadata') and episode.filterable_metadata:
@@ -526,6 +543,8 @@ class NeuralGraphService:
 
                 # Create message node
                 if self._hierarchy:
+                    # SPEAKER BINDING: Write both canonical (speaker) and legacy (producer_id) keys
+                    speaker_value = getattr(episode, 'producer_id', None)
                     node = await self._hierarchy.create_message_node(
                         content=episode.content,
                         session_key=session_key,
@@ -534,8 +553,18 @@ class NeuralGraphService:
                         entity_ids=entity_ids,
                         importance_score=getattr(episode, 'importance_score', 0.5),
                         episode_uid=episode.uid,
-                        producer_id=getattr(episode, 'producer_id', None),
-                        created_at=getattr(episode, 'created_at', None),
+                        speaker=speaker_value,  # Canonical key
+                        producer_id=speaker_value,  # Legacy key for backward compat
+                        created_at=message_date,
+                        resolved_date=temporal_fields.get("resolved_date"),
+                        temporal_tokens=temporal_fields.get("temporal_tokens"),
+                        temporal_metadata=temporal_fields.get("temporal_metadata"),
+                        resolved_dates=temporal_fields.get("resolved_dates"),
+                        explicit_date=temporal_fields.get("explicit_date"),
+                        duration_years=temporal_fields.get("duration_years"),
+                        duration_months=temporal_fields.get("duration_months"),
+                        since_year=temporal_fields.get("since_year"),
+                        since_date=temporal_fields.get("since_date"),
                     )
 
                     # FAIRNESS: Update node's dominant dimension for query-aware routing
@@ -1149,6 +1178,38 @@ class NeuralGraphService:
                 if self._config.query_routing_mode == "hard" and query_analysis.strategy != "semantic" and filtered_candidates:
                     filtered_node_ids = {n.node_id for n in filtered_candidates}
                     logger.debug(f"Hard filter: retained {len(filtered_node_ids)} candidates")
+
+            # GATE PROFILE SELECTION based on query type (THE PLAN Task D)
+            # Wire gate_profile selection to detected query type
+            gate_profile_name = self._config.gate_profile  # Default from config
+            if query_analysis:
+                # Override based on query type
+                from .query_router import QueryType
+                from .gating import GATE_PROFILES
+
+                if query_analysis.query_type in {
+                    QueryType.ENTITY_ATTRIBUTE,
+                    QueryType.ENTITY_ACTION,
+                    QueryType.ENTITY_RELATION
+                }:
+                    gate_profile_name = "single_hop"
+                elif query_analysis.query_type == QueryType.MULTI_HOP:
+                    gate_profile_name = "multi_hop"
+                elif query_analysis.query_type in {
+                    QueryType.TEMPORAL_WHEN,
+                    QueryType.TEMPORAL_SEQUENCE,
+                    QueryType.TEMPORAL_DURATION
+                }:
+                    gate_profile_name = "temporal"
+                elif query_analysis.query_type == QueryType.OPEN_DOMAIN:
+                    gate_profile_name = "open_domain"
+
+                logger.debug(f"Gate profile selected: {gate_profile_name} for query type {query_analysis.query_type.value}")
+
+                # Pass suppress_multi_hop flag to retrievers
+                if query_analysis.suppress_multi_hop:
+                    query_wave_amplitudes = query_wave_amplitudes or {}
+                    query_wave_amplitudes["__suppress_multi_hop"] = True
 
             # ELECTRON RETRIEVER: True electrical simulation (highest priority)
             # The Electrical Truth: Memory retrieval is electrical activation
@@ -2081,3 +2142,538 @@ class NeuralGraphService:
             self._retriever._gate_registry = self._gate_registry
 
         logger.info(f"Gate strictness set to: {strictness}")
+
+
+# ============================================================================
+# PARSING HELPERS (Shared with benchmarks)
+# ============================================================================
+
+
+def extract_keywords(text: str) -> list[str]:
+    """Simple keyword extraction for indexing."""
+    words = re.findall(r"\b[a-z]{3,}\b", text.lower())
+    stopwords = {"the", "and", "for", "are", "but", "not", "you", "all", "can", "had", "her", "was", "one", "our"}
+    return [w for w in words if w not in stopwords]
+
+
+def _normalize_item(item: str) -> str:
+    item = re.sub(r'[\s"\']+', " ", item).strip()
+    item = re.sub(r"[^\w\s\-]", "", item).strip()
+    return item
+
+
+def _dedupe_items(items: list[str]) -> list[str]:
+    seen = set()
+    result = []
+    for item in items:
+        norm = item.lower()
+        if norm and norm not in seen:
+            seen.add(norm)
+            result.append(item)
+    return result
+
+
+def _clean_candidate(item: str) -> str:
+    item = re.sub(
+        r"^(?:the|a|an|my|your|our|their|his|her|some|any|each|every|another)\s+",
+        "",
+        item,
+        flags=re.IGNORECASE,
+    ).strip()
+    item = re.sub(r"\b(?:too|as well|recently|lately)\b$", "", item, flags=re.IGNORECASE).strip()
+    return item
+
+
+def _is_bad_candidate(item: str) -> bool:
+    if not item:
+        return True
+    words = item.lower().split()
+    if len(words) > 4:
+        return True
+    # Single-word filters for common conversational garbage
+    if len(words) == 1:
+        single_word = words[0]
+        # Common exclamations and conversational words that are NOT answers
+        conversational_garbage = {
+            "wow", "thanks", "thank", "hey", "hi", "hello", "bye", "goodbye",
+            "oh", "ah", "uh", "um", "hm", "hmm", "yeah", "yep", "yes", "no", "nope",
+            "ok", "okay", "sure", "right", "nice", "great", "good", "cool", "awesome",
+            "amazing", "wonderful", "fantastic", "excellent", "perfect", "lovely",
+            "glad", "happy", "sorry", "please", "well", "anyway", "actually",
+            "definitely", "absolutely", "totally", "exactly", "basically", "honestly",
+            "seriously", "literally", "probably", "maybe", "perhaps", "certainly",
+            "obviously", "clearly", "really", "truly", "quite", "rather", "pretty",
+            "look", "see", "check", "here", "yay", "yup", "nah", "haha", "lol",
+        }
+        if single_word in conversational_garbage:
+            return True
+        # Filter out single letters and very short non-name words
+        if len(single_word) < 3:
+            return True
+        # Filter out words that look like fragments from contractions
+        if single_word.startswith("s ") or single_word == "s" or single_word == "re" or single_word == "ve":
+            return True
+    stopwords = {
+        "the", "a", "an", "my", "your", "our", "their", "his", "her", "some", "any",
+        "this", "that", "these", "those", "just", "really", "very", "pretty", "kind",
+        "sort", "type", "thing", "things", "stuff", "person", "people", "place", "places",
+        "there", "here", "about", "with", "from", "into", "onto", "over", "under", "and",
+        "or", "but", "so", "because", "after", "before", "since", "until", "when", "then",
+        "i", "me", "we", "you", "he", "she", "they", "them", "it", "its",
+    }
+    if all(w in stopwords for w in words):
+        return True
+    bad_verbs = {
+        "have", "has", "had", "got", "get", "getting", "made", "make", "making",
+        "love", "like", "liked", "enjoy", "enjoyed", "want", "wanted", "need", "needed",
+        "say", "said", "talk", "talked", "tell", "told", "think", "thought", "feel",
+        "felt", "going", "went", "seen", "saw", "read", "watched", "visited",
+    }
+    if any(w in bad_verbs for w in words):
+        return True
+    return False
+
+
+def is_temporal_question(question: str) -> bool:
+    q = question.lower().strip()
+
+    if re.search(r"\bwhen\b", q):
+        return True
+    if re.search(r"\bwhat (date|time|year|month|day)\b", q):
+        return True
+    if re.search(r"\bwhich (date|time|year|month|day)\b", q):
+        return True
+    if re.search(r"\bin what (year|month|day)\b", q):
+        return True
+    if re.search(r"\b(on|during)\s+which\s+(day|date|week|month|year|season)\b", q):
+        return True
+    if re.search(r"\bwhat week\b", q):
+        return True
+    if re.search(r"\bwhat season\b", q):
+        return True
+    if re.search(r"\bhow often\b", q):
+        return True
+
+    if re.search(r"\bhow long\b", q):
+        return True
+    if re.search(r"\bhow old\b", q):
+        return True
+    if re.search(r"\bhow many (years|months|weeks|days)\b", q):
+        return True
+    if re.search(r"\b(age|duration)\b", q):
+        return True
+
+    non_temporal_starters = [
+        "where did", "where does", "where is", "where was", "where has", "where have",
+        "who did", "who does", "who is", "who was",
+        "what did", "what does", "what has", "what have", "what was", "what is", "what are",
+        "how did", "how does", "how has", "how was",
+    ]
+    if any(q.startswith(s) for s in non_temporal_starters):
+        return False
+
+    if re.search(r"\b(since|until|before|after|between|prior to|as of|ago)\b", q):
+        return True
+    if re.search(r"\b(last|next|previous|this)\s+(year|month|week|day|summer|winter|spring|fall|autumn)\b", q):
+        return True
+    if re.search(r"\b(yesterday|today|tomorrow|tonight)\b", q):
+        return True
+
+    if re.search(r"\b(19|20)\d{2}\b", q) and re.search(r"\b(in|during|before|after|since)\b", q):
+        return True
+
+    return False
+
+
+def extract_month_year_from_text(text: str) -> tuple[int | None, int | None]:
+    if not text:
+        return None, None
+    lower = text.lower()
+    month_num = None
+    for month_name, month_idx in MONTH_NAMES.items():
+        if month_name in lower:
+            month_num = month_idx
+            break
+    year = None
+    match = re.search(r"\b(19|20)\d{2}\b", text)
+    if match:
+        year = int(match.group(0))
+    return month_num, year
+
+
+def extract_topic_keywords_for_temporal(question: str) -> set[str]:
+    q = question.lower()
+    stopwords = {
+        "when", "what", "which", "who", "where", "why", "how",
+        "did", "does", "do", "is", "are", "was", "were", "will", "would", "could", "should",
+        "the", "a", "an", "to", "for", "in", "on", "at", "of", "with", "from", "by",
+        "if", "before", "after", "since", "until", "ago", "last", "next", "this",
+        "week", "month", "year", "day", "date", "time", "today", "yesterday", "tomorrow",
+    }
+    tokens = re.findall(r"\b[a-z]{3,}\b", q)
+    return {t for t in tokens if t not in stopwords}
+
+
+def extract_count_answer(question: str, memories: list[dict]) -> str | None:
+    q = question.lower()
+    if "how many" not in q:
+        return None
+    number_words = {
+        "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+        "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+    }
+    for mem in memories:
+        text = mem.get("text", "")
+        m = re.search(
+            r"\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(kids|children|sons|daughters)\b",
+            text.lower(),
+        )
+        if m:
+            num = m.group(1)
+            if num.isdigit():
+                return num
+            return str(number_words.get(num))
+    return None
+
+
+def extract_relationship_status(question: str, memories: list[dict]) -> str | None:
+    if "relationship status" not in question.lower():
+        return None
+    status_terms = ["single", "married", "dating", "engaged", "divorced", "partner"]
+    for mem in memories:
+        text = mem.get("text", "").lower()
+        for term in status_terms:
+            if re.search(rf"\b{term}\b", text):
+                return term.capitalize()
+    return None
+
+
+def _extract_candidate_spans(text: str) -> list[str]:
+    candidates: list[str] = []
+    if not text:
+        return candidates
+
+    candidates.extend(re.findall(r'"([^"]+)"', text))
+    candidates.extend(re.findall(r"'([^']+)'", text))
+    candidates.extend(re.findall(r"\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2}\b", text))
+    candidates.extend(re.findall(r"\bnamed\s+([A-Z][a-z]+)\b", text))
+    candidates.extend(re.findall(r"\bcalled\s+([A-Z][a-z]+)\b", text))
+
+    prepositions = r"(?:in|at|from|to|into|on|near|around|over|under|within|across)"
+    for match in re.findall(
+        rf"\b{prepositions}\s+([A-Za-z][\w'\-]*(?:\s+[A-Za-z][\w'\-]*){{0,3}})",
+        text,
+    ):
+        candidates.append(match)
+
+    return candidates
+
+
+def _cosine_similarity(vec_a: list[float], vec_b: list[float]) -> float:
+    if not vec_a or not vec_b:
+        return 0.0
+    length = min(len(vec_a), len(vec_b))
+    if length == 0:
+        return 0.0
+    dot = 0.0
+    norm_a = 0.0
+    norm_b = 0.0
+    for i in range(length):
+        a = vec_a[i]
+        b = vec_b[i]
+        dot += a * b
+        norm_a += a * a
+        norm_b += b * b
+    if norm_a == 0.0 or norm_b == 0.0:
+        return 0.0
+    return dot / ((norm_a ** 0.5) * (norm_b ** 0.5))
+
+
+async def extract_span_answer_semantic(
+    session,
+    question: str,
+    question_embedding: list[float],
+    memories: list[dict],
+    max_candidates: int = 30,
+    config: AnsweringConfig | None = None,
+) -> str | None:
+    question_names = {
+        n.lower()
+        for n in re.findall(r"\b[A-Z][a-z]+\b", question)
+        if n not in {"What", "When", "Where", "Who", "Why", "How", "Which"}
+    }
+    generic_terms = {
+        "home", "home country", "hometown", "my country", "home town", "someone",
+        "someone else", "somewhere", "some place", "place", "places", "city", "country",
+        "town", "village", "region", "area",
+    }
+
+    candidates: list[str] = []
+    for mem in memories:
+        text = mem.get("text", "")
+        if not text:
+            continue
+        candidates.extend(_extract_candidate_spans(text))
+
+    cleaned = []
+    for cand in candidates:
+        normalized = _normalize_item(cand)
+        normalized = _clean_candidate(normalized)
+        if not normalized or _is_bad_candidate(normalized):
+            continue
+        if normalized.lower() in generic_terms:
+            continue
+        if question_names and normalized.lower() in question_names:
+            continue
+        cleaned.append(normalized)
+
+    candidates = _dedupe_items(cleaned)
+    if not candidates:
+        return None
+
+    if not question_embedding:
+        return candidates[0]
+
+    candidates = candidates[:max_candidates]
+    embeddings = await asyncio.gather(
+        *[get_embedding(session, c, config=config) for c in candidates]
+    )
+    scored: list[tuple[str, float]] = []
+    for cand, emb in zip(candidates, embeddings):
+        score = _cosine_similarity(question_embedding, emb)
+        if re.search(r"\b[A-Z][a-z]+\b", cand):
+            score += 0.02
+        scored.append((cand, score))
+
+    scored.sort(key=lambda x: x[1], reverse=True)
+    best = scored[0][0] if scored else None
+    return best
+
+
+def extract_list_items(
+    question: str,
+    memories: list[dict],
+    topic_keywords: set[str] | None = None,
+) -> list[str]:
+    q = question.lower()
+    items: list[str] = []
+    list_intro = [
+        "include", "includes", "including", "such as", "for example", "e.g.",
+        "consist of", "consists of", "consisting of",
+        "comprised of", "composed of",
+        "feature", "features", "contain", "contains",
+        "like", "love", "enjoy", "prefer",
+    ]
+    verb_matches = set(
+        m.group(1)
+        for m in re.finditer(r"\b(?:has|have|had|did|does)\s+\w+(?:'s)?\s+(\w+)\b", q)
+    )
+    for m in re.finditer(r"\bdo\s+.+?\s+(like|love|enjoy|prefer)\b", q):
+        verb_matches.add(m.group(1))
+    triggers = list_intro + sorted(verb_matches)
+    if re.search(r"\b(buy|bought|purchase|purchased)\b", q):
+        triggers.extend(["get", "got", "buy", "bought", "purchase", "purchased"])
+    if re.search(r"\b(visit|visited|attend|attended|go|went)\b", q):
+        triggers.extend(["go to", "went to", "visit", "visited", "attend", "attended"])
+    if re.search(r"\b(read|reading|reads)\b", q):
+        triggers.extend(["read"])
+    if re.search(r"\b(watch|watched|see|seen)\b", q):
+        triggers.extend(["watch", "watched", "see", "seen"])
+    if re.search(r"\b(make|made|create|created|build|built)\b", q):
+        triggers.extend(["make", "made", "create", "created", "build", "built"])
+    if re.search(r"\b(join|joined|participate|participated)\b", q):
+        triggers.extend(["join", "joined", "participate", "participated in"])
+    if re.search(r"\b(support|supports|help|helps|back|backs)\b", q):
+        triggers.extend(["support", "supports", "help", "helps", "back", "backs"])
+
+    seen_triggers: set[str] = set()
+    deduped_triggers = []
+    for trig in triggers:
+        if trig not in seen_triggers:
+            seen_triggers.add(trig)
+            deduped_triggers.append(trig)
+    triggers = deduped_triggers
+
+    for mem in memories:
+        text = mem.get("text", "")
+        if not text:
+            continue
+
+        sentences = re.split(r"[.!?;\n]+", text)
+        for sentence in sentences:
+            sentence = sentence.strip()
+            if not sentence:
+                continue
+            sent_lower = sentence.lower()
+            if topic_keywords and not any(k in sent_lower for k in topic_keywords):
+                continue
+
+            for quoted in re.findall(r'"([^"]+)"', sentence):
+                items.append(_normalize_item(quoted))
+
+            for named in re.findall(r"\bnamed\s+([A-Z][a-z]+)\b", sentence):
+                items.append(named)
+
+            if "symbol" in q or "flag" in q:
+                for match in re.findall(r"\b(?:\w+\s+){0,2}(?:flag|symbol)\b", sent_lower):
+                    items.append(match)
+
+            if "artist" in q or "band" in q:
+                for match in re.findall(r"\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b", sentence):
+                    items.append(match)
+
+            for trig in triggers:
+                after = ""
+                if " " in trig:
+                    idx = sent_lower.find(trig)
+                    if idx != -1:
+                        after = sent_lower[idx + len(trig):]
+                else:
+                    match = re.search(rf"\b{re.escape(trig)}\w*\b", sent_lower)
+                    if match:
+                        after = sent_lower[match.end():]
+
+                if after:
+                    after = re.split(r"[.!?;\n]", after)[0]
+                    parts = re.split(r",| and | & ", after)
+                    for part in parts:
+                        candidate = part.strip(" .;:!\"'()")
+                        if 1 <= len(candidate.split()) <= 4:
+                            items.append(candidate)
+
+            if ":" in sentence:
+                prefix, suffix = sentence.split(":", 1)
+                if not q or any(k in prefix.lower() for k in extract_topic_keywords_universal(question)):
+                    parts = re.split(r",| and | & ", suffix)
+                    for part in parts:
+                        candidate = part.strip(" .;:!\"'()")
+                        if 1 <= len(candidate.split()) <= 4:
+                            items.append(candidate)
+
+            if "art" in q:
+                for match, kind in re.findall(r"\b(\w+(?:\s+\w+)?)\s+(art|painting|paintings)\b", sent_lower):
+                    items.append(f"{match} {kind}".strip())
+
+    cleaned = []
+    for raw in items:
+        normalized = _normalize_item(raw)
+        normalized = _clean_candidate(normalized)
+        if normalized and not _is_bad_candidate(normalized):
+            cleaned.append(normalized)
+    items = [i for i in cleaned if i.lower() not in {"melanie", "caroline"}]
+    return _dedupe_items(items)
+
+
+def _extract_name_candidates(text: str) -> list[str]:
+    candidates: list[str] = []
+    candidates.extend(re.findall(r"\bnamed\s+([A-Z][a-z]+)\b", text))
+    candidates.extend(re.findall(r"\bcalled\s+([A-Z][a-z]+)\b", text))
+    candidates.extend(re.findall(r"\bpic of\s+([A-Z][a-z]+)\b", text, flags=re.IGNORECASE))
+    for a, b in re.findall(r"\b([A-Z][a-z]+)\s+and\s+([A-Z][a-z]+)\b", text):
+        candidates.extend([a, b])
+    for match in re.findall(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})\b", text):
+        if match:
+            candidates.append(match)
+    return candidates
+
+
+async def extract_list_items_semantic(
+    session,
+    question: str,
+    question_embedding: list[float],
+    memories: list[dict],
+    max_items: int = 6,
+    config: AnsweringConfig | None = None,
+) -> list[str]:
+    q = question.lower()
+    prefer_names = "name" in q
+    question_names = {
+        n.lower()
+        for n in re.findall(r"\b[A-Z][a-z]+\b", question)
+        if n not in {"What", "When", "Where", "Who", "Why", "How", "Which"}
+    }
+    topic_keywords = extract_topic_keywords_universal(question)
+
+    candidates: list[str] = []
+    for mem in memories:
+        text = mem.get("text", "")
+        meta = mem.get("metadata", {}) if isinstance(mem, dict) else {}
+        if not text:
+            continue
+        text_lower = text.lower()
+        if topic_keywords and not prefer_names:
+            if not any(k in text_lower for k in topic_keywords):
+                continue
+        if question_names:
+            speaker = str(meta.get("speaker", "") or meta.get("producer_id", "")).lower()
+            if speaker and speaker not in question_names and not any(n in text_lower for n in question_names):
+                continue
+
+        candidates.extend(re.findall(r'"([^"]+)"', text))
+        candidates.extend(re.findall(r"'([^']+)'", text))
+        if prefer_names:
+            candidates.extend(_extract_name_candidates(text))
+        else:
+            candidates.extend(extract_list_items(question, [{"text": text}], topic_keywords=topic_keywords))
+
+            if re.search(r"\b(types|kinds)\b", q):
+                candidates.extend(re.findall(r"\b[a-z]{3,}s\b", text_lower))
+
+    cleaned = []
+    for cand in candidates:
+        normalized = _normalize_item(cand)
+        normalized = _clean_candidate(normalized)
+        if normalized and not _is_bad_candidate(normalized):
+            cleaned.append(normalized)
+    candidates = cleaned
+    if question_names:
+        candidates = [c for c in candidates if c.lower() not in question_names]
+    if prefer_names:
+        candidates = [c for c in candidates if re.search(r"\b[A-Z][a-z]+\b", c)]
+    candidates = _dedupe_items([c for c in candidates if c])
+    if not candidates:
+        return []
+
+    if not question_embedding:
+        return candidates[:max_items]
+
+    candidates = candidates[:40]
+    embeddings = await asyncio.gather(
+        *[get_embedding(session, c, config=config) for c in candidates]
+    )
+    scored: list[tuple[str, float]] = []
+    for cand, emb in zip(candidates, embeddings):
+        score = _cosine_similarity(question_embedding, emb)
+        if prefer_names and re.search(r"\b[A-Z][a-z]+\b", cand):
+            score += 0.05
+        scored.append((cand, score))
+
+    scored.sort(key=lambda x: x[1], reverse=True)
+    filtered = [c for c, s in scored if s >= 0.2]
+    if not filtered:
+        filtered = [c for c, _s in scored[:max_items]]
+    return _dedupe_items(filtered)[:max_items]
+
+
+def extract_duration_answer(question: str, memories: list[dict]) -> str | None:
+    q = question.lower()
+    if "how long" not in q and "how long ago" not in q and "how old" not in q:
+        return None
+    for mem in memories:
+        meta = mem.get("metadata", {})
+        since_year = meta.get("since_year")
+        duration_years = meta.get("duration_years")
+        if "since" in q and since_year:
+            return f"Since {since_year}"
+        if duration_years:
+            if "how long ago" in q:
+                return f"{duration_years} years ago"
+            return f"{duration_years} years"
+    for mem in memories:
+        text = mem.get("text", "").lower()
+        m = re.search(r"\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+years?\b", text)
+        if m:
+            if "how long ago" in q:
+                return f"{m.group(1)} years ago"
+            return f"{m.group(1)} years"
+    return None

@@ -408,6 +408,24 @@ class NeuralNode:
             refractory = self.refractory_until
         return now < refractory
 
+    @property
+    def speaker_id(self) -> str:
+        """Canonical accessor for speaker identity.
+
+        SPEAKER BINDING CONTRACT:
+        - Canonical key: metadata["speaker"]
+        - Legacy fallback: metadata["producer_id"]
+        - All readers MUST use this property instead of direct metadata access.
+        - All writers SHOULD write to "speaker" key (and optionally "producer_id" for compat).
+
+        Returns:
+            Speaker identifier string (empty string if not set)
+        """
+        if not self.metadata:
+            return ""
+        # Canonical key first, then legacy fallback
+        return self.metadata.get("speaker", "") or self.metadata.get("producer_id", "") or ""
+
     def activate(self, signal_strength: float, refractory_ms: float | None = None) -> float:
         """Activate node with adaptive refractory and LTP-based heat boost.
 

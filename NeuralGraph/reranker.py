@@ -225,10 +225,8 @@ class BaseReranker(ABC):
             else:
                 self._cache_misses += 1
 
-                # Get speaker from metadata
-                speaker = ""
-                if node.metadata:
-                    speaker = node.metadata.get("speaker", "")
+                # Get speaker using canonical accessor
+                speaker = node.speaker_id
 
                 try:
                     rerank_score = await asyncio.wait_for(
@@ -579,3 +577,51 @@ async def rerank_candidates(
     finally:
         if hasattr(reranker, 'close'):
             await reranker.close()
+
+
+async def rerank_candidates_parallel(
+    query: str,
+    candidates: list[tuple["NeuralNode", float]],
+    limit: int = 15,
+    llm_model: str = "qwen2.5:7b-instruct",
+    llm_base_url: str = "http://localhost:11434",
+    timeout_seconds: float = 10.0,
+    max_candidates: int = 50,
+    score_boost: float = 0.2,
+) -> list[tuple["NeuralNode", float]]:
+    """Parallel LLM rerank for benchmark usage."""
+    if not candidates:
+        return []
+
+    cfg = RerankerConfig(
+        reranker_type="llm",
+        llm_model=llm_model,
+        llm_base_url=llm_base_url,
+        llm_timeout_seconds=timeout_seconds,
+        llm_max_tokens=5,
+        max_candidates=max_candidates,
+    )
+    reranker = LLMReranker(cfg)
+
+    try:
+        candidates = candidates[:max_candidates]
+        tasks = []
+        for node, _score in candidates:
+            tasks.append(reranker.score_candidate(query, node.content, node.speaker_id))
+        scores = await asyncio.gather(*tasks, return_exceptions=True)
+
+        scored = []
+        for (node, charge), score in zip(candidates, scores):
+            if isinstance(score, Exception):
+                score = 1
+            scored.append((node, charge, float(score)))
+
+        scored.sort(key=lambda x: (x[2], x[1]), reverse=True)
+
+        result: list[tuple["NeuralNode", float]] = []
+        for node, charge, score in scored[:limit]:
+            boosted = charge + (score * score_boost)
+            result.append((node, boosted))
+        return result
+    finally:
+        await reranker.close()

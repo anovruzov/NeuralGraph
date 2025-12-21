@@ -53,11 +53,234 @@ if TYPE_CHECKING:
 
 # NEO: Complete English thesaurus (117K+ words) + domain-specific additions
 from .synonym_hash import expand_with_synonyms_extended as expand_with_synonyms
+from .external_retriever import is_open_domain_query
 
 # Temporal utilities for query expansion
 from .temporal_utils import expand_temporal_query as _expand_temporal_query
+from .data_types import EdgeType
 
 logger = logging.getLogger(__name__)
+
+
+_NOVELTY_STOPWORDS = {
+    "the", "and", "for", "are", "but", "not", "you", "all", "can", "had",
+    "her", "was", "one", "our", "out", "has", "what", "when", "where", "who",
+    "why", "how", "did", "does", "with", "from", "that", "this", "these", "those",
+    "they", "their", "them", "she", "he", "his", "its", "been", "were", "have",
+    "has", "had", "will", "would", "could", "should", "may", "might", "into",
+    "about", "over", "under", "after", "before", "during", "because", "while",
+    "then", "than", "there", "here", "also", "just", "really",
+}
+
+_OPEN_DOMAIN_INFER_MARKERS = [
+    "would ", "might ", "could ", " may ", "should ",
+    "would be", "might be", "could be", "may be",
+    "would likely", "might likely", "could possibly",
+    "would probably", "might probably", "could potentially",
+    "underlying", "based on", "given", "considering",
+    "given that", "based on the", "considering the",
+    "in light of", "taking into account", "judging by",
+    "from the", "according to",
+    "alternative", "instead", "rather than", "as opposed to",
+    "what if", "suppose", "imagine", "hypothetically",
+    "in place of", "other than",
+    "personality", "attributes", "traits", "characteristics",
+    "qualities", "nature", "temperament", "disposition",
+    "character", "tendencies",
+    "be considered", "describe", "characterize",
+    "would you describe", "how would you",
+    "be seen as", "be regarded as", "be viewed as",
+    "likely to", "probably ", "possibly ", "potentially",
+    "expected to", "predicted to", "anticipated to",
+    "destined to",
+    "suited for", "good at", "talented at", "skilled at",
+    "capable of", "able to", "fit for",
+    "prefer", "enjoy", "interested in", "inclined to",
+    "drawn to", "attracted to", "keen on", "fond of",
+    "better than", "worse than", "more than", "less than",
+    "compared to", "in comparison",
+    "think about", "believe about", "feel about",
+    "opinion on", "view of", "stance on",
+    "why ", "reason for", "because of", "caused by",
+    "due to",
+    "how does", "what does", "feel like", "think like",
+    "emotional",
+    "planning to", "hoping to", "aspiring to",
+    "aiming to", "striving to",
+    "similar to", "like ", "resemble", "akin to",
+    "open to", "willing to", "receptive to", "amenable to",
+    "impact of", "effect of", "consequence of",
+]
+
+
+def should_use_open_domain_infer(question: str) -> bool:
+    q = question.lower()
+    return any(marker in q for marker in _OPEN_DOMAIN_INFER_MARKERS)
+
+
+def is_yes_no_question(question: str) -> bool:
+    q = question.lower().strip()
+    return bool(re.match(r"^(is|are|was|were|do|does|did|can|could|should|would|will|has|have|had)\b", q))
+
+
+def detect_list_question_universal(question: str) -> tuple[bool, str | None]:
+    q = question.lower()
+    is_list = False
+    list_type: str | None = None
+
+    list_markers = [
+        "what books", "what movies", "what types", "what kinds", "what things",
+        "which items", "all of", "list", "names of", "what are the", "what are some",
+    ]
+    if any(marker in q for marker in list_markers):
+        is_list = True
+        list_type = "plural"
+
+    plural_patterns = [
+        r"\bwhat\s+\w+s\b",
+        r"\bwhich\s+\w+s\b",
+        r"\blist\s+\w+s\b",
+        r"\bwhat\s+are\s+\w+s\b",
+    ]
+    if any(re.search(pattern, q) for pattern in plural_patterns):
+        is_list = True
+        list_type = "plural"
+
+    if "what kind of" in q or "what kinds of" in q:
+        is_list = True
+        list_type = list_type or "plural"
+
+    if re.search(r"\bin common\b", q) or ("both" in q and not is_yes_no_question(question)):
+        is_list = True
+        list_type = "aggregation"
+
+    if is_list and not list_type:
+        list_type = "plural"
+
+    return is_list, list_type
+
+
+def _expand_morphology_basic(word: str) -> set[str]:
+    variants = {word}
+    w = word.lower()
+    base = w
+    if w.endswith("ed") and len(w) > 4:
+        base = w[:-2]
+        if base.endswith("i"):
+            base = base[:-1] + "y"
+        elif len(base) >= 2 and base[-1] == base[-2]:
+            base = base[:-1]
+    elif w.endswith("ing") and len(w) > 5:
+        base = w[:-3]
+        if len(base) >= 2 and base[-1] == base[-2]:
+            base = base[:-1]
+    elif w.endswith("ies") and len(w) > 4:
+        base = w[:-3] + "y"
+    elif w.endswith("s") and not w.endswith("ss") and len(w) > 3:
+        base = w[:-1]
+    variants.add(base)
+    if len(base) >= 3:
+        variants.add(base + "s")
+        variants.add(base + "ed")
+        variants.add(base + "ing")
+        if base.endswith("e"):
+            variants.add(base[:-1] + "ing")
+            variants.add(base + "d")
+    return {v for v in variants if len(v) >= 3 and v.isalpha()}
+
+
+def extract_topic_keywords_universal(question: str) -> set[str]:
+    q = question.lower()
+    stopwords = {
+        "what", "which", "who", "where", "when", "why", "how", "did", "does", "do",
+        "is", "are", "was", "were", "has", "have", "had", "will", "would", "could",
+        "should", "the", "a", "an", "to", "for", "in", "on", "at", "of", "with", "from",
+        "types", "type", "kinds", "kind", "names", "name", "list", "all", "any",
+    }
+    tokens = re.findall(r"\b[a-z]{3,}\b", q)
+    keywords = {t for t in tokens if t not in stopwords}
+    expanded = set()
+    for w in keywords:
+        expanded.update(_expand_morphology_basic(w))
+    keywords.update(expanded)
+    keywords.update(expand_with_synonyms(keywords))
+    return keywords
+
+
+def is_open_domain_world_query(question: str) -> bool:
+    is_open, confidence = is_open_domain_query(question)
+    if not is_open:
+        return False
+    q = question.lower()
+    if re.search(r"\b(my|our|your|his|her|their|she|he|they|we)\b", q):
+        return False
+    has_name = bool(re.search(r"\b[A-Z][a-z]+\b", question))
+    definitional = bool(re.search(r"^(what|who|where|when|why|how) (is|are|was|were|do|does|did)\b", q))
+    if has_name and not definitional:
+        return False
+    return confidence >= 0.6
+
+
+@dataclass
+class NoveltyContext:
+    """Precomputed novelty weights for surprise-style boosting."""
+    query_tokens: set[str] = field(default_factory=set)
+    token_idf: dict[str, float] = field(default_factory=dict)
+    max_idf: float = 0.0
+
+
+def _tokenize_for_novelty(text: str) -> set[str]:
+    words = re.findall(r'\b[a-z0-9]{3,}\b', text.lower())
+    return {w for w in words if w not in _NOVELTY_STOPWORDS}
+
+
+def _build_novelty_context(
+    query_text: str,
+    nodes: list["NeuralNode"],
+) -> NoveltyContext | None:
+    query_tokens = _tokenize_for_novelty(query_text)
+    if not query_tokens or not nodes:
+        return None
+
+    doc_freq: dict[str, int] = {}
+    for node in nodes:
+        tokens = _tokenize_for_novelty(node.content)
+        for tok in tokens:
+            doc_freq[tok] = doc_freq.get(tok, 0) + 1
+
+    total_docs = len(nodes)
+    token_idf: dict[str, float] = {}
+    for tok in query_tokens:
+        df = doc_freq.get(tok, 0)
+        token_idf[tok] = math.log((1 + total_docs) / (1 + df)) + 1.0
+
+    max_idf = max(token_idf.values(), default=0.0)
+    return NoveltyContext(query_tokens=query_tokens, token_idf=token_idf, max_idf=max_idf)
+
+
+def _compute_novelty_charge(content: str, novelty: NoveltyContext | None) -> float:
+    if not novelty or not novelty.query_tokens or novelty.max_idf <= 0:
+        return 0.0
+    content_tokens = _tokenize_for_novelty(content)
+    if not content_tokens:
+        return 0.0
+
+    score = 0.0
+    for tok in content_tokens:
+        if tok in novelty.query_tokens:
+            score += novelty.token_idf.get(tok, 0.0)
+
+    if score <= 0:
+        return 0.0
+
+    denom = novelty.max_idf * max(1, len(novelty.query_tokens))
+    return min(1.0, score / denom)
+
+
+def _robust_similarity(similarity: float) -> float:
+    """Squash similarity to reduce outlier influence while preserving rank."""
+    similarity = max(0.0, min(1.0, similarity))
+    return math.tanh(similarity * 1.5)
 
 
 # =============================================================================
@@ -280,6 +503,7 @@ class StoreConfig:
     entity_boost: float = 0.4
     speaker_boost: float = 0.5
     keyword_boost: float = 0.3
+    novelty_boost: float = 0.1
     min_charge: float = 0.1
     max_results: int = 30
 
@@ -312,6 +536,8 @@ class TemporalStore:
         session_key: str,
         reference_time: datetime | None = None,
         limit: int = 30,
+        all_nodes: list["NeuralNode"] | None = None,
+        novelty_context: NoveltyContext | None = None,
     ) -> list[tuple["NeuralNode", float]]:
         """Retrieve with temporal weighting.
 
@@ -326,6 +552,7 @@ class TemporalStore:
         # Extract temporal markers from query
         query_lower = query_text.lower()
         temporal_keywords = self._extract_temporal_keywords(query_lower)
+        decay_days = self._adjust_temporal_decay(query_lower, temporal_keywords)
 
         # Extract topic keywords - CRITICAL for distinguishing similar events
         topic_keywords = self._extract_topic_keywords(query_lower)
@@ -340,7 +567,8 @@ class TemporalStore:
         topic_keywords = topic_keywords - query_entities
 
         # Get all nodes
-        all_nodes = await self._storage.get_nodes_by_session(session_key)
+        if all_nodes is None:
+            all_nodes = await self._storage.get_nodes_by_session(session_key)
         if not all_nodes:
             return []
 
@@ -356,6 +584,8 @@ class TemporalStore:
                 topic_keywords=topic_keywords,
                 query_entities=query_entities,
                 reference_time=reference_time,
+                decay_days=decay_days,
+                novelty_context=novelty_context,
             )
             if charge >= self._config.min_charge:
                 results.append((node, charge))
@@ -499,6 +729,32 @@ class TemporalStore:
             keywords.update(m.lower() if isinstance(m, str) else m for m in matches)
 
         return keywords
+
+    def _adjust_temporal_decay(self, query_lower: str, temporal_keywords: set[str]) -> float:
+        """Adjust temporal decay to reduce recency bias for explicit time queries."""
+        decay_days = self._config.temporal_decay_days
+
+        has_explicit_year = bool(re.search(r'\b(?:19|20)\d{2}\b', query_lower))
+        month_names = {
+            "january", "jan", "february", "feb", "march", "mar", "april", "apr",
+            "may", "june", "jun", "july", "jul", "august", "aug",
+            "september", "sep", "sept", "october", "oct", "november", "nov",
+            "december", "dec",
+        }
+        has_explicit_month = any(m in temporal_keywords for m in month_names)
+
+        if has_explicit_year or has_explicit_month or "last year" in query_lower or "years ago" in query_lower:
+            decay_days *= 1.75
+
+        recency_terms = [
+            "today", "yesterday", "this morning", "this afternoon", "this evening",
+            "last night", "recent", "recently", "just now", "earlier today",
+        ]
+        if any(term in query_lower for term in recency_terms):
+            decay_days *= 0.6
+
+        decay_days = max(3.0, min(365.0, decay_days))
+        return decay_days
 
     def _extract_event_year_from_content(self, content: str, msg_year: int) -> int | None:
         """Extract EVENT YEAR from content, resolving relative references.
@@ -790,6 +1046,10 @@ class TemporalStore:
         # Filter and keep meaningful topic words
         topics = {w for w in words if w not in stopwords}
 
+        # Duration queries need time-unit anchors for "seven years now" style memories
+        if re.search(r'\bhow long\b', query.lower()) or re.search(r'\bhow old\b|\bage\b', query.lower()):
+            topics.update({"year", "years", "month", "months", "week", "weeks", "day", "days"})
+
         # NEO: Expand morphologically so "move" matches "moved"
         expanded = set()
         for w in topics:
@@ -856,6 +1116,8 @@ class TemporalStore:
         topic_keywords: set[str],
         query_entities: set[str],
         reference_time: datetime | None,
+        decay_days: float,
+        novelty_context: NoveltyContext | None = None,
     ) -> float:
         """Compute temporal-weighted charge.
 
@@ -918,9 +1180,7 @@ class TemporalStore:
         # 3. ENTITY MATCHING - Must mention the right person (in content OR as speaker)
         entity_charge = 0.0
         if query_entities:
-            speaker = ""
-            if node.metadata:
-                speaker = (node.metadata.get("speaker", "") or "").lower()
+            speaker = node.speaker_id.lower()
             # Check both content AND speaker metadata (e.g., "melanie" in "Melanie Turner")
             entity_matches = sum(1 for e in query_entities if e in content_lower or e in speaker)
             if entity_matches > 0:
@@ -932,7 +1192,7 @@ class TemporalStore:
             node_emb = np.array(node.embedding, dtype=np.float32)
             node_norm = np.linalg.norm(node_emb)
             if node_norm > 1e-10:
-                semantic_charge = float(np.dot(query_embedding, node_emb / node_norm))
+                semantic_charge = _robust_similarity(float(np.dot(query_embedding, node_emb / node_norm)))
 
         # 5. Temporal keyword matching in content
         temporal_charge = 0.0
@@ -959,7 +1219,10 @@ class TemporalStore:
         recency_charge = 0.5
         if reference_time and node.created_at:
             time_diff = abs((reference_time - node.created_at).days)
-            recency_charge = math.exp(-time_diff / self._config.temporal_decay_days)
+            recency_charge = math.exp(-time_diff / decay_days)
+
+        # 7.5 Surprise/novelty boost (rare query tokens present)
+        novelty_charge = _compute_novelty_charge(node.content, novelty_context)
 
         # 8. NEO TEMPORAL FIX: EVENT YEAR MATCHING
         # "When did X paint a sunrise?" (gold: 2022)
@@ -1018,7 +1281,8 @@ class TemporalStore:
             entity_charge * 0.10 +            # Entity must be mentioned
             semantic_charge * 0.06 +          # Semantic similarity (reduced further)
             temporal_charge * 0.05 +          # Temporal keywords in content
-            recency_charge * 0.02             # Slight recency bias
+            recency_charge * 0.02 +           # Slight recency bias
+            novelty_charge * self._config.novelty_boost
         )
 
         return total
@@ -1051,6 +1315,8 @@ class EntityStore:
         query_embedding: list[float],
         session_key: str,
         limit: int = 50,  # Higher limit for entity to ensure coverage
+        all_nodes: list["NeuralNode"] | None = None,
+        novelty_context: NoveltyContext | None = None,
     ) -> list[tuple["NeuralNode", float]]:
         """Retrieve with entity/speaker weighting."""
         query_embedding_np = np.array(query_embedding, dtype=np.float32)
@@ -1063,7 +1329,8 @@ class EntityStore:
         query_keywords = self._extract_keywords(query_text)
 
         # Get all nodes
-        all_nodes = await self._storage.get_nodes_by_session(session_key)
+        if all_nodes is None:
+            all_nodes = await self._storage.get_nodes_by_session(session_key)
         if not all_nodes:
             return []
 
@@ -1075,6 +1342,7 @@ class EntityStore:
                 query_embedding=query_embedding_np,
                 query_entities=query_entities,
                 query_keywords=query_keywords,
+                novelty_context=novelty_context,
             )
             if charge >= self._config.min_charge:
                 results.append((node, charge))
@@ -1171,6 +1439,7 @@ class EntityStore:
         query_embedding: np.ndarray,
         query_entities: set[str],
         query_keywords: set[str],
+        novelty_context: NoveltyContext | None = None,
     ) -> float:
         """Compute entity-weighted charge."""
         content_lower = node.content.lower()
@@ -1181,7 +1450,7 @@ class EntityStore:
             node_emb = np.array(node.embedding, dtype=np.float32)
             node_norm = np.linalg.norm(node_emb)
             if node_norm > 1e-10:
-                semantic_charge = float(np.dot(query_embedding, node_emb / node_norm))
+                semantic_charge = _robust_similarity(float(np.dot(query_embedding, node_emb / node_norm)))
 
         # 2. Entity binding (entities mentioned in content)
         entity_charge = 0.0
@@ -1203,12 +1472,16 @@ class EntityStore:
             matches = sum(1 for k in query_keywords if k in content_lower)
             keyword_charge = min(1.0, matches / max(1, len(query_keywords)))
 
+        # 5. Surprise/novelty boost (rare query tokens present)
+        novelty_charge = _compute_novelty_charge(node.content, novelty_context)
+
         # TOTAL: Entity-weighted combination
         total = (
             semantic_charge * self._config.semantic_weight +
             entity_charge * self._config.entity_boost +
             speaker_charge * self._config.speaker_boost +
-            keyword_charge * self._config.keyword_boost
+            keyword_charge * self._config.keyword_boost +
+            novelty_charge * self._config.novelty_boost
         )
 
         # CRITICAL: If speaker matches AND semantic > 0.2, give bonus
@@ -1252,6 +1525,8 @@ class ReasoningStore:
         query_embedding: list[float],
         session_key: str,
         limit: int = 60,
+        all_nodes: list["NeuralNode"] | None = None,
+        novelty_context: NoveltyContext | None = None,
     ) -> list[tuple["NeuralNode", float]]:
         """Retrieve with breadth-first approach."""
         query_embedding_np = np.array(query_embedding, dtype=np.float32)
@@ -1262,7 +1537,8 @@ class ReasoningStore:
         query_entities = self._extract_entities(query_text)
         query_keywords = self._extract_keywords(query_text)
 
-        all_nodes = await self._storage.get_nodes_by_session(session_key)
+        if all_nodes is None:
+            all_nodes = await self._storage.get_nodes_by_session(session_key)
         if not all_nodes:
             return []
 
@@ -1274,6 +1550,7 @@ class ReasoningStore:
                 query_embedding=query_embedding_np,
                 query_entities=query_entities,
                 query_keywords=query_keywords,
+                novelty_context=novelty_context,
             )
             if charge >= self._config.min_charge:
                 results.append((node, charge))
@@ -1347,6 +1624,7 @@ class ReasoningStore:
         query_embedding: np.ndarray,
         query_entities: set[str],
         query_keywords: set[str],
+        novelty_context: NoveltyContext | None = None,
     ) -> float:
         """Compute reasoning charge emphasizing keyword coverage."""
         content_lower = node.content.lower()
@@ -1356,7 +1634,7 @@ class ReasoningStore:
             node_emb = np.array(node.embedding, dtype=np.float32)
             node_norm = np.linalg.norm(node_emb)
             if node_norm > 1e-10:
-                semantic_charge = float(np.dot(query_embedding, node_emb / node_norm))
+                semantic_charge = _robust_similarity(float(np.dot(query_embedding, node_emb / node_norm)))
 
         entity_charge = 0.0
         if query_entities:
@@ -1375,11 +1653,14 @@ class ReasoningStore:
             matches = sum(1 for k in query_keywords if k in content_lower)
             keyword_charge = min(1.0, matches / max(1, len(query_keywords)))
 
+        novelty_charge = _compute_novelty_charge(node.content, novelty_context)
+
         total = (
             semantic_charge * self._config.semantic_weight +
             entity_charge * self._config.entity_boost +
             speaker_charge * self._config.speaker_boost +
-            keyword_charge * self._config.keyword_boost
+            keyword_charge * self._config.keyword_boost +
+            novelty_charge * self._config.novelty_boost
         )
 
         return total
@@ -1411,6 +1692,8 @@ class AdversarialStore:
         query_embedding: list[float],
         session_key: str,
         limit: int = 40,
+        all_nodes: list["NeuralNode"] | None = None,
+        novelty_context: NoveltyContext | None = None,
     ) -> list[tuple["NeuralNode", float]]:
         """Retrieve with adversarial weighting."""
         query_embedding_np = np.array(query_embedding, dtype=np.float32)
@@ -1422,7 +1705,8 @@ class AdversarialStore:
         negation_terms, positive_terms = self._parse_adversarial(query_text)
         query_entities = self._extract_entities(query_text)
 
-        all_nodes = await self._storage.get_nodes_by_session(session_key)
+        if all_nodes is None:
+            all_nodes = await self._storage.get_nodes_by_session(session_key)
         if not all_nodes:
             return []
 
@@ -1435,6 +1719,7 @@ class AdversarialStore:
                 query_entities=query_entities,
                 negation_terms=negation_terms,
                 positive_terms=positive_terms,
+                novelty_context=novelty_context,
             )
             if charge >= self._config.min_charge:
                 results.append((node, charge))
@@ -1579,6 +1864,7 @@ class AdversarialStore:
         query_entities: set[str],
         negation_terms: set[str],
         positive_terms: set[str],
+        novelty_context: NoveltyContext | None = None,
     ) -> float:
         """Compute charge with adversarial awareness."""
         content_lower = node.content.lower()
@@ -1588,7 +1874,7 @@ class AdversarialStore:
             node_emb = np.array(node.embedding, dtype=np.float32)
             node_norm = np.linalg.norm(node_emb)
             if node_norm > 1e-10:
-                semantic_charge = float(np.dot(query_embedding, node_emb / node_norm))
+                semantic_charge = _robust_similarity(float(np.dot(query_embedding, node_emb / node_norm)))
 
         entity_charge = 0.0
         if query_entities:
@@ -1621,12 +1907,15 @@ class AdversarialStore:
             matches = sum(1 for t in positive_terms if t in content_lower)
             positive_charge = min(1.0, matches / max(1, len(positive_terms)))
 
+        novelty_charge = _compute_novelty_charge(node.content, novelty_context)
+
         total = (
             semantic_charge * self._config.semantic_weight +
             entity_charge * self._config.entity_boost +
             speaker_charge * self._config.speaker_boost +
             negation_charge * 0.3 +
-            positive_charge * 0.3
+            positive_charge * 0.3 +
+            novelty_charge * self._config.novelty_boost
         )
 
         return total
@@ -1693,22 +1982,49 @@ class Tesseract:
 
         logger.info(f"Query type detection: {query_types}")
 
+        # Preload nodes once and compute novelty context (surprise metric)
+        all_nodes = await self._storage.get_nodes_by_session(session_key)
+        if not all_nodes:
+            return []
+        novelty_context = _build_novelty_context(query_text, all_nodes)
+
         # Step 2: Query all stores (can be parallelized with asyncio.gather)
         # Note: Use effective_query (with temporal tokens) for temporal store
         temporal_results = await self._temporal_store.retrieve(
-            effective_query, query_embedding, session_key, reference_time, limit=40
+            effective_query,
+            query_embedding,
+            session_key,
+            reference_time,
+            limit=40,
+            all_nodes=all_nodes,
+            novelty_context=novelty_context,
         )
 
         entity_results = await self._entity_store.retrieve(
-            query_text, query_embedding, session_key, limit=50
+            query_text,
+            query_embedding,
+            session_key,
+            limit=50,
+            all_nodes=all_nodes,
+            novelty_context=novelty_context,
         )
 
         reasoning_results = await self._reasoning_store.retrieve(
-            query_text, query_embedding, session_key, limit=40
+            query_text,
+            query_embedding,
+            session_key,
+            limit=40,
+            all_nodes=all_nodes,
+            novelty_context=novelty_context,
         )
 
         adversarial_results = await self._adversarial_store.retrieve(
-            query_text, query_embedding, session_key, limit=30
+            query_text,
+            query_embedding,
+            session_key,
+            limit=30,
+            all_nodes=all_nodes,
+            novelty_context=novelty_context,
         )
 
         # Step 3: Fuse with type-based weights
@@ -1719,6 +2035,9 @@ class Tesseract:
             adversarial_results=adversarial_results,
             type_weights=query_types,
         )
+
+        # Step 3.5: Apply temporal momentum (neighbor boost)
+        fused = await self._apply_temporal_momentum(fused, type_weights=query_types)
 
         # Step 4: Sort and return top
         fused.sort(key=lambda x: x[1], reverse=True)
@@ -1734,6 +2053,56 @@ class Tesseract:
         if max_charge <= 0:
             return results
         return [(node, charge / max_charge) for node, charge in results]
+
+    async def _apply_temporal_momentum(
+        self,
+        results: list[tuple["NeuralNode", float]],
+        type_weights: dict[str, float],
+        top_k: int = 6,
+        max_neighbors: int = 3,
+    ) -> list[tuple["NeuralNode", float]]:
+        """Boost temporal neighbors of top results to preserve event continuity."""
+        if not results:
+            return results
+
+        temporal_bias = max(
+            type_weights.get(QueryType.TEMPORAL, 0.0),
+            type_weights.get(QueryType.MULTI_HOP, 0.0),
+        )
+        base_boost = 0.04 + (0.06 * temporal_bias)
+
+        combined: dict[str, tuple["NeuralNode", float]] = {
+            node.node_id: (node, charge) for node, charge in results
+        }
+
+        for idx, (node, charge) in enumerate(results[:top_k]):
+            neighbors = await self._storage.get_neighbors(
+                node.node_id,
+                edge_types=[EdgeType.TEMPORAL],
+                direction="both",
+            )
+            if not neighbors:
+                continue
+
+            neighbors = sorted(
+                neighbors,
+                key=lambda pair: pair[1].base_weight * pair[1].ltp_boost * pair[1].confidence,
+                reverse=True,
+            )
+
+            for neighbor, edge in neighbors[:max_neighbors]:
+                edge_strength = edge.base_weight * edge.ltp_boost * edge.confidence
+                distance_factor = 1.0 - (idx / max(1, top_k))
+                boost = min(0.2, base_boost * edge_strength * distance_factor)
+                if boost <= 0:
+                    continue
+                existing = combined.get(neighbor.node_id)
+                if existing:
+                    combined[neighbor.node_id] = (existing[0], existing[1] + boost)
+                else:
+                    combined[neighbor.node_id] = (neighbor, boost)
+
+        return list(combined.values())
 
     def _fuse_results(
         self,

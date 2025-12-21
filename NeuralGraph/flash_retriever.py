@@ -24,6 +24,7 @@ from __future__ import annotations
 import asyncio
 import re
 import time
+from datetime import datetime
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -35,6 +36,7 @@ from .data_types import (
     cosine_similarity,
 )
 from .interference import InterferenceScorer, InterferenceType
+from .temporal_utils import MONTH_NAMES
 
 if TYPE_CHECKING:
     from .storage import NeuralGraphStorage
@@ -121,6 +123,7 @@ class FlashRetriever:
         query_entities_lower = {e.lower() for e in query_entities}
         query_keywords = self._extract_keywords(query_text)
         query_specifics = self._extract_specifics(query_text)  # NEW: Rare term extraction
+        query_temporal_tokens, query_target_date = self._extract_temporal_tokens(query_text)
 
         # Get ALL nodes for this session (one DB call)
         all_nodes = await self._storage.get_nodes_by_session(session_key)
@@ -135,7 +138,9 @@ class FlashRetriever:
                 query_entities_lower=query_entities_lower,
                 query_keywords=query_keywords,
                 query_wave_amplitudes=query_wave_amplitudes,
-                query_specifics=query_specifics  # NEW: Pass specifics
+                query_specifics=query_specifics,  # NEW: Pass specifics
+                query_temporal_tokens=query_temporal_tokens,
+                query_target_date=query_target_date,
             )
 
             if score >= self._config.min_score:
@@ -165,7 +170,9 @@ class FlashRetriever:
         query_entities_lower: set[str],
         query_keywords: set[str],
         query_wave_amplitudes: dict[str, float] | None,
-        query_specifics: set[str] | None = None  # NEW: Rare term specifics
+        query_specifics: set[str] | None = None,  # NEW: Rare term specifics
+        query_temporal_tokens: set[str] | None = None,
+        query_target_date: "datetime | None" = None,
     ) -> float:
         """Compute total resonance score for a node.
 
@@ -275,11 +282,28 @@ class FlashRetriever:
             # Removed destructive penalty - was causing score starvation
             # when wave amplitudes were missing/misaligned
 
+        # 4.5 TEMPORAL METADATA MATCH: Token overlap and date proximity
+        if query_temporal_tokens:
+            node_meta = node.metadata or {}
+            node_tokens = set(node_meta.get("temporal_tokens") or node_meta.get("date_tokens") or [])
+            overlap = len(node_tokens & query_temporal_tokens)
+            if overlap:
+                overlap_ratio = overlap / max(1, len(query_temporal_tokens))
+                score += self._config.temporal_weight * overlap_ratio
+
+            node_date = self._parse_node_date(node)
+            if query_target_date and node_date:
+                delta_days = abs((node_date.date() - query_target_date.date()).days)
+                if delta_days <= 1:
+                    score += 0.12
+                elif delta_days <= 7:
+                    score += 0.08
+                elif delta_days <= 31:
+                    score += 0.04
+
         # 5. SPEAKER-ENTITY BINDING: Speaker IS the queried entity
         if query_entities_lower:
-            speaker = (node.metadata or {}).get("producer_id", "")
-            if not speaker:
-                speaker = getattr(node, 'speaker', '') or ""
+            speaker = node.speaker_id
             speaker_lower = speaker.lower().strip()
 
             if speaker_lower and speaker_lower in query_entities_lower:
@@ -348,6 +372,96 @@ class FlashRetriever:
         # For universal retrieval, rely on synonym expansion from WordNet instead.
 
         return keywords
+
+    def _extract_temporal_tokens(self, text: str) -> tuple[set[str], datetime | None]:
+        """Extract coarse temporal tokens and a target date from query text."""
+        tokens: set[str] = set()
+        target_date: datetime | None = None
+
+        match = re.search(r'\b(20\d{2})[-/](\d{1,2})[-/](\d{1,2})\b', text)
+        if match:
+            y, mo, d = match.groups()
+            try:
+                target_date = datetime(int(y), int(mo), int(d))
+                tokens.add(f"DATE_{int(y):04d}-{int(mo):02d}-{int(d):02d}")
+                tokens.add(f"YEAR_{int(y):04d}")
+                tokens.add(f"MONTH_{int(mo):02d}")
+            except ValueError:
+                pass
+
+        match = re.search(r'\b(20\d{2})[-/](\d{1,2})\b', text)
+        if match:
+            y, mo = match.groups()
+            try:
+                tokens.add(f"YEAR_{int(y):04d}")
+                tokens.add(f"MONTH_{int(mo):02d}")
+                if not target_date:
+                    target_date = datetime(int(y), int(mo), 1)
+            except ValueError:
+                pass
+
+        match = re.search(
+            r'\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(20\d{2})\b',
+            text,
+            re.IGNORECASE,
+        )
+        if match:
+            month_name, y = match.groups()
+            month_idx = MONTH_NAMES.get(month_name.lower())
+            if month_idx:
+                tokens.add(f"YEAR_{int(y):04d}")
+                tokens.add(f"MONTH_{month_idx:02d}")
+                tokens.add(f"MONTH_{month_name.upper()}")
+                if not target_date:
+                    target_date = datetime(int(y), month_idx, 1)
+
+        years = re.findall(r'\b(20\d{2})\b', text)
+        for y in years:
+            tokens.add(f"YEAR_{int(y):04d}")
+            if not target_date:
+                try:
+                    target_date = datetime(int(y), 1, 1)
+                except ValueError:
+                    pass
+
+        return tokens, target_date
+
+    def _parse_node_date(self, node: NeuralNode) -> datetime | None:
+        """Parse a node's resolved_date or created_at into a datetime."""
+        import re
+
+        meta = node.metadata or {}
+        resolved = meta.get("resolved_date")
+        if isinstance(resolved, datetime):
+            return resolved
+        if isinstance(resolved, str):
+            try:
+                return datetime.fromisoformat(resolved)
+            except ValueError:
+                pass
+            # Year-only
+            if re.fullmatch(r"\d{4}", resolved):
+                return datetime(int(resolved), 1, 1)
+            # Month Year (e.g., "June 2023")
+            match = re.fullmatch(r"([A-Za-z]+)\s+(\d{4})", resolved)
+            if match:
+                month_name, year = match.groups()
+                month_idx = MONTH_NAMES.get(month_name.lower())
+                if month_idx:
+                    return datetime(int(year), month_idx, 1)
+            # Day Month Year (e.g., "7 May 2023")
+            match = re.fullmatch(r"(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})", resolved)
+            if match:
+                day, month_name, year = match.groups()
+                month_idx = MONTH_NAMES.get(month_name.lower())
+                if month_idx:
+                    return datetime(int(year), month_idx, int(day))
+
+        created = getattr(node, "created_at", None)
+        if isinstance(created, datetime):
+            return created
+
+        return None
 
     def _extract_specifics(self, text: str) -> set[str]:
         """Extract high-specificity terms using UNIVERSAL patterns.
@@ -551,7 +665,7 @@ class HybridFlashRetriever:
                     # Compute quick resonance for entity match
                     score = 0.5  # Base score for entity match
                     # Check speaker binding
-                    speaker = (node.metadata or {}).get("producer_id", "").lower()
+                    speaker = node.speaker_id.lower()
                     if speaker in query_entities_lower:
                         score += self._config.speaker_match_boost
                     candidates[node.node_id] = (node, score)
@@ -559,7 +673,12 @@ class HybridFlashRetriever:
         # ATTACK 3: MULTI-HOP EXPANSION
         # Follow entity and semantic edges from top candidates to find related memories
         # This enables multi-hop reasoning: "What did X do after Y?" requires linking
-        if len(candidates) > 0:
+        # SINGLE-HOP OPTIMIZATION: Skip if suppress_multi_hop is set via query_wave_amplitudes
+        suppress_multi_hop = False
+        if query_wave_amplitudes and query_wave_amplitudes.get("__suppress_multi_hop"):
+            suppress_multi_hop = True
+
+        if len(candidates) > 0 and not suppress_multi_hop:
             top_items = sorted(candidates.items(), key=lambda x: x[1][1], reverse=True)[:10]
             for nid, (node, base_score) in top_items:
                 # Get entity and semantic edges (both directions)

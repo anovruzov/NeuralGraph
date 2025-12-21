@@ -982,8 +982,8 @@ class ConsolidationManager:
 
         # Check for speaker attribution (first-person facts)
         if self._config.speaker_fact_retention:
-            speaker = node.metadata.get("speaker") if node.metadata else None
-            if speaker and speaker != "unknown":
+            speaker = node.speaker_id
+            if speaker and speaker.lower() != "unknown":
                 # This is a speaker-attributed fact (e.g., "I am a teacher")
                 return True
 

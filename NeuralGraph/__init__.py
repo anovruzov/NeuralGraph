@@ -179,10 +179,12 @@ from .temporal_utils import (
     parse_datetime_flexible,
     resolve_relative_dates,
     generate_temporal_tokens,
+    generate_temporal_fields,
     preprocess_message_for_indexing,
     # Query-time functions
     expand_temporal_query,
     infer_query_mode,
+    generate_temporal_fields,
 )
 
 __all__ = [
@@ -260,6 +262,7 @@ __all__ = [
     "parse_datetime_flexible",
     "resolve_relative_dates",
     "generate_temporal_tokens",
+    "generate_temporal_fields",
     "preprocess_message_for_indexing",
     "expand_temporal_query",
     "infer_query_mode",

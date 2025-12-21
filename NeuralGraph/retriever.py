@@ -35,6 +35,7 @@ from .gating import EdgeGateRegistry, create_balanced_registry
 from .pattern_completion import CA3PatternCompleter, PatternCompletionConfig
 from .interference import InterferenceScorer, InterferenceType
 from .wavefront import WavefrontPropagator
+from .temporal_utils import MONTH_NAMES
 
 if TYPE_CHECKING:
     from .storage import NeuralGraphStorage
@@ -220,6 +221,7 @@ class NeuralRetriever:
 
         # Extract query keywords for hybrid retrieval
         query_keywords = self._extract_keywords(query_text) if self._config.use_keyword_boost else set()
+        query_temporal_tokens, query_target_date = self._extract_temporal_tokens(query_text)
 
         # Track candidates across stages
         candidates: dict[str, tuple[NeuralNode, float]] = {}
@@ -597,6 +599,29 @@ class NeuralRetriever:
         if hasattr(self, '_query_wave_amplitudes') and self._query_wave_amplitudes:
             temporal_amp = self._query_wave_amplitudes.get("temporal", 0)
             if temporal_amp > 0.3:  # Lowered from 0.5 for broader activation
+                # Step 0: Boost nodes whose temporal metadata matches query tokens/targets
+                if query_temporal_tokens:
+                    for node_id, (node, score) in list(candidates.items()):
+                        node_meta = node.metadata or {}
+                        node_tokens = set(node_meta.get("temporal_tokens", []) or node_meta.get("date_tokens", []) or [])
+                        overlap = len(node_tokens & query_temporal_tokens)
+
+                        # Also consider exact/near date proximity using resolved_date/created_at
+                        node_date = self._parse_node_date(node)
+                        proximity_boost = 0.0
+                        if query_target_date and node_date:
+                            delta_days = abs((node_date.date() - query_target_date.date()).days)
+                            if delta_days <= 1:
+                                proximity_boost = 0.25
+                            elif delta_days <= 7:
+                                proximity_boost = 0.15
+                            elif delta_days <= 31:
+                                proximity_boost = 0.08
+
+                        if overlap or proximity_boost:
+                            boost = 0.12 * overlap + proximity_boost
+                            candidates[node_id] = (node, score + boost)
+
                 # Step 1: Boost/penalize based on temporal wave amplitude
                 for node_id, (node, score) in list(candidates.items()):
                     node_temporal = node.wave_amplitudes.get("temporal", 0) if node.wave_amplitudes else 0
@@ -981,6 +1006,102 @@ class NeuralRetriever:
 
         # Normalize by number of query keywords
         return matches / len(query_keywords)
+
+    def _extract_temporal_tokens(self, text: str) -> tuple[set[str], datetime | None]:
+        """Extract coarse temporal tokens and a target date from query text."""
+        import re
+
+        tokens: set[str] = set()
+        target_date: datetime | None = None
+
+        # Exact date YYYY-MM-DD or YYYY/MM/DD
+        match = re.search(r'\b(20\d{2})[-/](\d{1,2})[-/](\d{1,2})\b', text)
+        if match:
+            y, mo, d = match.groups()
+            try:
+                target_date = datetime(int(y), int(mo), int(d))
+                tokens.add(f"DATE_{int(y):04d}-{int(mo):02d}-{int(d):02d}")
+                tokens.add(f"YEAR_{int(y):04d}")
+                tokens.add(f"MONTH_{int(mo):02d}")
+            except ValueError:
+                pass
+
+        # Year-month YYYY-MM or YYYY/MM
+        match = re.search(r'\b(20\d{2})[-/](\d{1,2})\b', text)
+        if match:
+            y, mo = match.groups()
+            try:
+                tokens.add(f"YEAR_{int(y):04d}")
+                tokens.add(f"MONTH_{int(mo):02d}")
+                if not target_date:
+                    target_date = datetime(int(y), int(mo), 1)
+            except ValueError:
+                pass
+
+        # Month name + year
+        match = re.search(
+            r'\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(20\d{2})\b',
+            text,
+            re.IGNORECASE,
+        )
+        if match:
+            month_name, y = match.groups()
+            month_idx = MONTH_NAMES.get(month_name.lower())
+            if month_idx:
+                tokens.add(f"YEAR_{int(y):04d}")
+                tokens.add(f"MONTH_{month_idx:02d}")
+                tokens.add(f"MONTH_{month_name.upper()}")
+                if not target_date:
+                    target_date = datetime(int(y), month_idx, 1)
+
+        # Standalone year
+        years = re.findall(r'\b(20\d{2})\b', text)
+        for y in years:
+            tokens.add(f"YEAR_{int(y):04d}")
+            if not target_date:
+                try:
+                    target_date = datetime(int(y), 1, 1)
+                except ValueError:
+                    pass
+
+        return tokens, target_date
+
+    def _parse_node_date(self, node: NeuralNode) -> datetime | None:
+        """Parse a node's resolved_date or created_at into a datetime."""
+        import re
+
+        meta = node.metadata or {}
+        resolved = meta.get("resolved_date")
+        if isinstance(resolved, datetime):
+            return resolved
+        if isinstance(resolved, str):
+            try:
+                return datetime.fromisoformat(resolved)
+            except ValueError:
+                pass
+            # Year-only
+            if re.fullmatch(r"\d{4}", resolved):
+                return datetime(int(resolved), 1, 1)
+            # Month Year (e.g., "June 2023")
+            match = re.fullmatch(r"([A-Za-z]+)\s+(\d{4})", resolved)
+            if match:
+                month_name, year = match.groups()
+                month_idx = MONTH_NAMES.get(month_name.lower())
+                if month_idx:
+                    return datetime(int(year), month_idx, 1)
+            # Day Month Year (e.g., "7 May 2023")
+            match = re.fullmatch(r"(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})", resolved)
+            if match:
+                day, month_name, year = match.groups()
+                month_idx = MONTH_NAMES.get(month_name.lower())
+                if month_idx:
+                    return datetime(int(year), month_idx, int(day))
+
+        created = getattr(node, "created_at", None)
+        if isinstance(created, datetime):
+            return created
+
+        return None
 
     def _compute_wave_alignment(
         self,

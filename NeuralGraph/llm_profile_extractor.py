@@ -12,12 +12,18 @@ ARCHITECTURE:
 """
 
 import json
+import os
 import aiohttp
 from typing import List, Dict, Any
 
 
 OLLAMA_BASE_URL = "http://localhost:11434"
 OLLAMA_MODEL = "qwen2.5:7b-instruct"  # Fast 7B model for extraction
+
+# OpenAI config (set via environment or override in caller)
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+USE_OPENAI_EXTRACTION = False  # Default to Ollama for fact extraction
+OPENAI_EXTRACTION_MODEL = "gpt-4.1-mini"  # Fast model for extraction (if enabled)
 
 
 async def extract_speaker_facts_llm(
@@ -71,52 +77,75 @@ Return ONLY valid JSON:
 If no notable facts about {speaker_name}, return {{"facts": []}}"""
 
     try:
-        async with session.post(
-            f"{OLLAMA_BASE_URL}/api/generate",
-            json={
-                "model": OLLAMA_MODEL,
-                "prompt": extraction_prompt,
-                "stream": False,
-                "options": {
-                    "temperature": 0.1,  # Low temp for consistent extraction
-                    "num_predict": 500,
-                }
-            },
-            timeout=aiohttp.ClientTimeout(total=30)
-        ) as resp:
-            if resp.status != 200:
-                return []
-
-            data = await resp.json()
-            response_text = data.get("response", "").strip()
-
-            # Parse JSON from response
-            # Sometimes LLM adds markdown code blocks, remove them
-            if response_text.startswith("```"):
-                response_text = response_text.split("```")[1]
-                if response_text.startswith("json"):
-                    response_text = response_text[4:]
-                response_text = response_text.strip()
-
-            try:
-                extracted = json.loads(response_text)
-
-                # Extract facts list
-                facts = extracted.get('facts', [])
-                if not isinstance(facts, list):
+        if USE_OPENAI_EXTRACTION and OPENAI_API_KEY:
+            # Use OpenAI for extraction
+            async with session.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {OPENAI_API_KEY}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": OPENAI_EXTRACTION_MODEL,
+                    "messages": [{"role": "user", "content": extraction_prompt}],
+                    "temperature": 0.1,
+                    "max_tokens": 500
+                },
+                timeout=aiohttp.ClientTimeout(total=30)
+            ) as resp:
+                if resp.status != 200:
                     return []
 
-                # Clean and validate
-                cleaned_facts = [
-                    fact.strip()
-                    for fact in facts
-                    if isinstance(fact, str) and fact.strip()
-                ]
+                data = await resp.json()
+                response_text = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+        else:
+            # Use Ollama for extraction
+            async with session.post(
+                f"{OLLAMA_BASE_URL}/api/generate",
+                json={
+                    "model": OLLAMA_MODEL,
+                    "prompt": extraction_prompt,
+                    "stream": False,
+                    "options": {
+                        "temperature": 0.1,  # Low temp for consistent extraction
+                        "num_predict": 500,
+                    }
+                },
+                timeout=aiohttp.ClientTimeout(total=30)
+            ) as resp:
+                if resp.status != 200:
+                    return []
 
-                return cleaned_facts
+                data = await resp.json()
+                response_text = data.get("response", "").strip()
 
-            except json.JSONDecodeError:
+        # Parse JSON from response
+        # Sometimes LLM adds markdown code blocks, remove them
+        if response_text.startswith("```"):
+            response_text = response_text.split("```")[1]
+            if response_text.startswith("json"):
+                response_text = response_text[4:]
+            response_text = response_text.strip()
+
+        try:
+            extracted = json.loads(response_text)
+
+            # Extract facts list
+            facts = extracted.get('facts', [])
+            if not isinstance(facts, list):
                 return []
+
+            # Clean and validate
+            cleaned_facts = [
+                fact.strip()
+                for fact in facts
+                if isinstance(fact, str) and fact.strip()
+            ]
+
+            return cleaned_facts
+
+        except json.JSONDecodeError:
+            return []
 
     except Exception as e:
         return []

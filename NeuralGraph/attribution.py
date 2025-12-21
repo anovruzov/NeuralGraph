@@ -6,11 +6,20 @@ Tracks per-stage timing, scoring, and candidate flow to enable:
 3. Bottleneck identification
 4. Per-component accuracy attribution
 
+ENHANCED: Now captures detailed score breakdowns per candidate:
+- base_score, semantic_score, entity_score, keyword_score
+- temporal_score, speaker_boost, specificity_bonus
+- rerank_delta (score change from reranking)
+- Evidence snippets used in final answer
+
+Output: JSONL format for easy analysis with pandas/jq.
+
 Usage:
     attr = RetrievalAttribution(session_key, query_text)
     attr.log_stage("vector_search", candidates=50, top_score=0.85, latency_ms=12.3)
     attr.log_stage("entity_filter", candidates=45, top_score=0.85, latency_ms=2.1)
     attr.log_stage("rerank", candidates=10, top_score=0.92, latency_ms=45.0)
+    attr.log_evidence(nodes, answer)  # Track evidence used
     attr.finalize(final_candidates=10, answer_correct=True)
 
     # Get attribution summary
@@ -31,6 +40,66 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
+class ScoreBreakdown:
+    """Detailed score breakdown for a single candidate."""
+    node_id: str
+    content_preview: str  # First 100 chars
+    speaker: str
+    rank: int
+
+    # Score components
+    base_score: float = 0.0
+    semantic_score: float = 0.0
+    entity_score: float = 0.0
+    keyword_score: float = 0.0
+    temporal_score: float = 0.0
+    speaker_boost: float = 0.0
+    specificity_bonus: float = 0.0
+    rerank_delta: float = 0.0
+    final_score: float = 0.0
+
+    def to_dict(self) -> dict:
+        return {
+            "node_id": self.node_id[:12],  # Truncate for readability
+            "content": self.content_preview,
+            "speaker": self.speaker,
+            "rank": self.rank,
+            "scores": {
+                "base": round(self.base_score, 4),
+                "semantic": round(self.semantic_score, 4),
+                "entity": round(self.entity_score, 4),
+                "keyword": round(self.keyword_score, 4),
+                "temporal": round(self.temporal_score, 4),
+                "speaker_boost": round(self.speaker_boost, 4),
+                "specificity": round(self.specificity_bonus, 4),
+                "rerank_delta": round(self.rerank_delta, 4),
+                "final": round(self.final_score, 4),
+            }
+        }
+
+
+@dataclass
+class EvidenceSnippet:
+    """An evidence snippet used in answer generation."""
+    node_id: str
+    speaker: str
+    content: str
+    score: float
+    used_in_answer: bool = False
+    quoted_text: str = ""
+
+    def to_dict(self) -> dict:
+        return {
+            "node_id": self.node_id[:12],
+            "speaker": self.speaker,
+            "content": self.content[:200],
+            "score": round(self.score, 4),
+            "used": self.used_in_answer,
+            "quoted": self.quoted_text[:100] if self.quoted_text else "",
+        }
+
+
+@dataclass
 class StageMetrics:
     """Metrics for a single retrieval stage."""
     stage_name: str
@@ -40,6 +109,8 @@ class StageMetrics:
     latency_ms: float
     metadata: dict[str, Any] = field(default_factory=dict)
     timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    # NEW: Detailed score breakdowns for top 50 candidates
+    top_50_breakdowns: list[ScoreBreakdown] = field(default_factory=list)
 
 
 @dataclass
@@ -79,6 +150,18 @@ class RetrievalAttribution:
     entities_detected: list[str] = field(default_factory=list)
     temporal_markers: list[str] = field(default_factory=list)
 
+    # NEW: Evidence tracking
+    evidence_snippets: list[EvidenceSnippet] = field(default_factory=list)
+    pre_rerank_order: list[str] = field(default_factory=list)  # node_ids
+    post_rerank_order: list[str] = field(default_factory=list)
+    rerank_deltas: dict[str, float] = field(default_factory=dict)
+
+    # NEW: Answer tracking
+    generated_answer: str = ""
+    gold_answer: str = ""
+    gate_profile: str = "default"
+    is_list_question: bool = False
+
     def log_stage(
         self,
         stage_name: str,
@@ -86,6 +169,7 @@ class RetrievalAttribution:
         candidates_out: int = 0,
         top_score: float = 0.0,
         latency_ms: float = 0.0,
+        breakdowns: list[ScoreBreakdown] | None = None,
         **metadata
     ) -> None:
         """Log metrics for a retrieval stage.
@@ -96,6 +180,7 @@ class RetrievalAttribution:
             candidates_out: Number of candidates after stage
             top_score: Highest score in output
             latency_ms: Stage latency in milliseconds
+            breakdowns: Optional detailed score breakdowns for top candidates
             **metadata: Additional stage-specific metadata
         """
         stage = StageMetrics(
@@ -104,7 +189,8 @@ class RetrievalAttribution:
             candidates_out=candidates_out,
             top_score=top_score,
             latency_ms=latency_ms,
-            metadata=metadata
+            metadata=metadata,
+            top_50_breakdowns=breakdowns[:50] if breakdowns else []
         )
         self.stages.append(stage)
 
@@ -112,6 +198,68 @@ class RetrievalAttribution:
             f"[Attribution] {stage_name}: {candidates_in} -> {candidates_out} "
             f"(top={top_score:.3f}, {latency_ms:.1f}ms)"
         )
+
+    def log_evidence(
+        self,
+        nodes: list[tuple],  # List of (NeuralNode, score)
+        answer: str = ""
+    ) -> None:
+        """Log evidence snippets used in answer generation.
+
+        Args:
+            nodes: List of (node, score) tuples used as context
+            answer: Generated answer to check for quote usage
+        """
+        answer_lower = answer.lower() if answer else ""
+
+        for node, score in nodes[:20]:
+            speaker = ""
+            if hasattr(node, 'metadata') and node.metadata:
+                speaker = node.metadata.get("producer_id", node.metadata.get("speaker", ""))
+
+            # Detect if content was quoted in answer
+            content_lower = node.content.lower() if hasattr(node, 'content') else ""
+            # Check for 3+ consecutive word overlap
+            content_words = content_lower.split()[:15]
+            used = False
+            quoted = ""
+            for i in range(len(content_words) - 2):
+                phrase = " ".join(content_words[i:i+3])
+                if phrase in answer_lower:
+                    used = True
+                    quoted = phrase
+                    break
+
+            snippet = EvidenceSnippet(
+                node_id=node.node_id if hasattr(node, 'node_id') else str(id(node)),
+                speaker=speaker,
+                content=node.content[:200] if hasattr(node, 'content') else str(node)[:200],
+                score=score,
+                used_in_answer=used,
+                quoted_text=quoted,
+            )
+            self.evidence_snippets.append(snippet)
+
+    def log_rerank(
+        self,
+        before: list[tuple],  # (node, score)
+        after: list[tuple]    # (node, score)
+    ) -> None:
+        """Log reranking effect on candidate order and scores.
+
+        Args:
+            before: Candidates before reranking
+            after: Candidates after reranking
+        """
+        self.pre_rerank_order = [n.node_id for n, _ in before[:50]]
+        self.post_rerank_order = [n.node_id for n, _ in after[:50]]
+
+        before_scores = {n.node_id: s for n, s in before}
+        for node, after_score in after[:50]:
+            before_score = before_scores.get(node.node_id, 0.0)
+            delta = after_score - before_score
+            if abs(delta) > 0.01:
+                self.rerank_deltas[node.node_id[:12]] = round(delta, 4)
 
     def log_router(
         self,
@@ -209,6 +357,8 @@ class RetrievalAttribution:
             "session_key": self.session_key,
             "query_text": self.query_text[:100],
             "query_type": self.query_type,
+            "gate_profile": self.gate_profile,
+            "is_list_question": self.is_list_question,
 
             # Router attribution
             "router": {
@@ -218,7 +368,7 @@ class RetrievalAttribution:
                 "temporal_markers": self.temporal_markers,
             },
 
-            # Stage metrics
+            # Stage metrics with score breakdowns
             "stages": [
                 {
                     "name": s.stage_name,
@@ -227,9 +377,20 @@ class RetrievalAttribution:
                     "top_score": s.top_score,
                     "latency_ms": s.latency_ms,
                     "metadata": s.metadata,
+                    "top_50": [b.to_dict() for b in s.top_50_breakdowns[:50]],
                 }
                 for s in self.stages
             ],
+
+            # Reranking attribution
+            "rerank": {
+                "pre_order": self.pre_rerank_order[:20],
+                "post_order": self.post_rerank_order[:20],
+                "score_deltas": self.rerank_deltas,
+            },
+
+            # Evidence attribution
+            "evidence": [e.to_dict() for e in self.evidence_snippets],
 
             # Timing
             "total_latency_ms": self.total_latency_ms,
@@ -242,6 +403,8 @@ class RetrievalAttribution:
             "gold_in_top_5": self.gold_in_top_5,
             "gold_in_top_10": self.gold_in_top_10,
             "answer_correct": self.answer_correct,
+            "generated_answer": self.generated_answer[:200],
+            "gold_answer": self.gold_answer,
         }
 
     def to_json(self) -> str:
@@ -257,16 +420,32 @@ class AttributionLogger:
     - Per-stage latency distributions
     - Router strategy effectiveness
     - Reranker gain
+
+    Output: JSONL format - one JSON object per line for easy streaming analysis.
     """
 
-    def __init__(self, log_path: Path | None = None):
+    def __init__(
+        self,
+        log_path: Path | str | None = None,
+        enabled: bool = True,
+        buffer_size: int = 10
+    ):
         """Initialize attribution logger.
 
         Args:
-            log_path: Optional path to save attribution logs
+            log_path: Optional path to save attribution logs (JSONL format)
+            enabled: Whether logging is enabled
+            buffer_size: Number of records to buffer before flushing
         """
         self.attributions: list[RetrievalAttribution] = []
-        self.log_path = log_path
+        self.log_path = Path(log_path) if log_path else None
+        self.enabled = enabled
+        self._buffer_size = buffer_size
+        self._buffer: list[dict] = []
+
+        # Ensure output directory exists
+        if self.log_path:
+            self.log_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Aggregated metrics
         self._by_category: dict[str, list[RetrievalAttribution]] = {}
@@ -278,6 +457,9 @@ class AttributionLogger:
         Args:
             attribution: Completed attribution record
         """
+        if not self.enabled:
+            return
+
         self.attributions.append(attribution)
 
         # Index by category
@@ -292,15 +474,37 @@ class AttributionLogger:
             self._by_strategy[strat] = []
         self._by_strategy[strat].append(attribution)
 
-        # Save to file if configured
+        # Buffer for batch writing
         if self.log_path:
-            self._append_to_log(attribution)
+            self._buffer.append(attribution.get_summary())
+            if len(self._buffer) >= self._buffer_size:
+                self.flush()
+
+    def flush(self) -> None:
+        """Flush buffered attributions to JSONL file."""
+        if not self._buffer or not self.log_path:
+            return
+
+        try:
+            with open(self.log_path, "a", encoding="utf-8") as f:
+                for record in self._buffer:
+                    # Write one compact JSON per line (JSONL format)
+                    f.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
+            logger.debug(f"Flushed {len(self._buffer)} attribution records to {self.log_path}")
+        except Exception as e:
+            logger.warning(f"Failed to write attribution log: {e}")
+        finally:
+            self._buffer.clear()
+
+    def close(self) -> None:
+        """Close logger and flush remaining buffer."""
+        self.flush()
 
     def _append_to_log(self, attribution: RetrievalAttribution) -> None:
-        """Append attribution to log file."""
+        """Append single attribution to log file (deprecated, use flush())."""
         try:
-            with open(self.log_path, "a") as f:
-                f.write(attribution.to_json() + "\n")
+            with open(self.log_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(attribution.get_summary(), ensure_ascii=False, default=str) + "\n")
         except Exception as e:
             logger.warning(f"Failed to write attribution log: {e}")
 

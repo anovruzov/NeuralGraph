@@ -105,6 +105,14 @@ class QueryAnalysis:
     is_open_domain: bool = False
     open_domain_confidence: float = 0.0
 
+    # SINGLE-HOP OPTIMIZATION: List question detection
+    # List questions like "What books has X read?" need multiple distinct answers
+    is_list_question: bool = False
+    list_question_type: str | None = None  # "plural", "aggregation", "all"
+
+    # SINGLE-HOP OPTIMIZATION: Should suppress multi-hop expansion
+    suppress_multi_hop: bool = False
+
 
 @dataclass
 class SoftFilterResult:
@@ -664,6 +672,21 @@ class QueryRouter:
                 analysis.strategy = "hybrid_keyword"
                 logger.debug(f"Switching to hybrid_keyword strategy due to rare terms: {rare_terms}")
 
+        # 9. SINGLE-HOP OPTIMIZATION: Detect list questions
+        is_list, list_type = self._detect_list_question(query, query_lower)
+        analysis.is_list_question = is_list
+        analysis.list_question_type = list_type
+        if is_list:
+            analysis.filter_params["is_list_question"] = True
+            analysis.filter_params["list_type"] = list_type
+            logger.debug(f"List question detected: type={list_type}")
+
+        # 10. SINGLE-HOP OPTIMIZATION: Determine if multi-hop expansion should be suppressed
+        analysis.suppress_multi_hop = self._should_suppress_multi_hop(analysis)
+        if analysis.suppress_multi_hop:
+            analysis.filter_params["suppress_multi_hop"] = True
+            logger.debug("Multi-hop expansion suppressed for single-hop query")
+
         return analysis
 
     def _detect_open_domain(
@@ -1039,6 +1062,124 @@ class QueryRouter:
         ]
         return any(ind in query_lower for ind in speech_indicators)
 
+    def _detect_list_question(self, query: str, query_lower: str) -> tuple[bool, str | None]:
+        """Detect if query is asking for a list/multiple items.
+
+        SINGLE-HOP OPTIMIZATION:
+        List questions like "What books has X read?" need multiple distinct answers.
+        We need to:
+        1. Retrieve multiple distinct nodes (not just top-1)
+        2. Avoid deduplication that removes valid answers
+        3. Bias toward multiple supporting nodes in ranking
+
+        List question patterns:
+        - Plural nouns: "what books", "which movies", "what types"
+        - Aggregation words: "all", "every", "each", "any"
+        - Enumeration: "list", "name all", "what are all"
+        - "What X have/has Y done?" pattern
+
+        Returns:
+            Tuple of (is_list_question, list_type)
+        """
+        # Pattern 1: Plural noun questions
+        plural_patterns = [
+            r"what\s+(?:are\s+)?(?:the\s+)?(\w+s)\b(?!\s+(?:his|her|their|is|was))",
+            r"which\s+(\w+s)\b(?!\s+(?:his|her|their|is|was))",
+            r"what\s+types?\s+of",
+            r"what\s+kinds?\s+of",
+            r"how\s+many\s+(\w+)",
+        ]
+
+        for pattern in plural_patterns:
+            match = re.search(pattern, query_lower)
+            if match:
+                # Check if matched word is actually plural (ends in s, not a name)
+                word = match.group(1) if match.groups() else ""
+                if word and word.endswith("s") and word not in {"is", "was", "has", "does", "his", "hers"}:
+                    return True, "plural"
+
+        # Pattern 2: Aggregation words
+        aggregation_patterns = [
+            r"\ball\s+(?:the\s+)?(?:of\s+)?",
+            r"\bevery\s+",
+            r"\beach\s+",
+            r"\blist\s+(?:all\s+)?",
+            r"\bname\s+(?:all\s+)?",
+            r"\bwhat\s+are\s+all\s+",
+        ]
+
+        for pattern in aggregation_patterns:
+            if re.search(pattern, query_lower):
+                return True, "aggregation"
+
+        # Pattern 3: "have/has done" with plural object
+        have_done_patterns = [
+            r"(?:has|have)\s+\w+\s+(?:read|watched|seen|done|made|created|written|visited|bought|painted)",
+            r"(?:has|have)\s+\w+\s+(?:been\s+to|gone\s+to)",
+            r"what\s+(?:has|have)\s+\w+\s+\w+ed\b",
+        ]
+
+        for pattern in have_done_patterns:
+            if re.search(pattern, query_lower):
+                return True, "plural"
+
+        # Pattern 4: "What do X and Y have in common?"
+        common_pattern = r"(?:have|do|did)\s+(?:\w+\s+)?(?:and\s+\w+\s+)?(?:have\s+)?in\s+common"
+        if re.search(common_pattern, query_lower):
+            return True, "aggregation"
+
+        # Pattern 5: Explicit "both" questions
+        if "both" in query_lower:
+            return True, "aggregation"
+
+        return False, None
+
+    def _should_suppress_multi_hop(self, analysis: "QueryAnalysis") -> bool:
+        """Determine if multi-hop expansion should be suppressed.
+
+        SINGLE-HOP OPTIMIZATION:
+        Multi-hop expansion can swamp rankings with loosely related nodes.
+        Suppress it for clear single-hop queries.
+
+        Suppress when:
+        - Query type is ENTITY_ATTRIBUTE (simple fact lookup)
+        - High confidence in single-hop classification
+        - No multi-hop indicators in query
+
+        Returns:
+            True if multi-hop expansion should be suppressed
+        """
+        # Always suppress for pure entity attribute queries
+        if analysis.query_type == QueryType.ENTITY_ATTRIBUTE:
+            return True
+
+        # Suppress for entity action with high confidence
+        if analysis.query_type == QueryType.ENTITY_ACTION and analysis.confidence >= 0.7:
+            return True
+
+        # Suppress for temporal queries (they use temporal chain, not multi-hop)
+        if analysis.query_type in {QueryType.TEMPORAL_WHEN, QueryType.TEMPORAL_SEQUENCE}:
+            return True
+
+        # Don't suppress for explicit multi-hop
+        if analysis.query_type == QueryType.MULTI_HOP:
+            return False
+
+        # Don't suppress for low confidence
+        if analysis.confidence < 0.6:
+            return False
+
+        # Check for multi-hop indicators in query
+        query_lower = analysis.query_text.lower()
+        multi_hop_indicators = [
+            "the person who", "the one who", "whoever", "someone who",
+            "after", "before", "because", "since", "then"
+        ]
+        if any(ind in query_lower for ind in multi_hop_indicators):
+            return False
+
+        return True
+
     def _determine_strategy(self, analysis: QueryAnalysis) -> tuple[str, dict]:
         """Determine retrieval strategy based on analysis."""
         params = {}
@@ -1142,7 +1283,7 @@ class FilteredRetriever:
         for node in nodes:
             # Extract speaker
             if node.metadata:
-                speaker = node.metadata.get("speaker")
+                speaker = node.speaker_id
                 if speaker:
                     entities.add(speaker)
 
@@ -1298,7 +1439,7 @@ class FilteredRetriever:
             # Get node's speaker from metadata
             speaker = None
             if node.metadata:
-                speaker = node.metadata.get("speaker")
+                speaker = node.speaker_id
 
             # Use the comprehensive entity matching function
             result = _match_entity(
@@ -1377,7 +1518,7 @@ class FilteredRetriever:
         for node in candidates:
             speaker = None
             if node.metadata:
-                speaker = node.metadata.get("speaker")
+                speaker = node.speaker_id
 
             result = _match_entity(
                 query_entity=entity,
@@ -1418,7 +1559,7 @@ class FilteredRetriever:
 
                 speaker = None
                 if node.metadata:
-                    speaker = node.metadata.get("speaker")
+                    speaker = node.speaker_id
 
                 result = _match_entity(
                     query_entity=entity,
@@ -1480,7 +1621,7 @@ class FilteredRetriever:
 
             # Check entity if provided (combined temporal+entity query)
             if entity:
-                speaker = node.metadata.get("speaker") if node.metadata else None
+                speaker = node.speaker_id if node.metadata else None
                 entity_result = _match_entity(
                     query_entity=entity,
                     speaker=speaker,
@@ -1534,7 +1675,7 @@ class FilteredRetriever:
             # Check entity if provided - use improved matching
             has_entity = True
             if entity:
-                speaker = node.metadata.get("speaker") if node.metadata else None
+                speaker = node.speaker_id if node.metadata else None
                 entity_result = _match_entity(
                     query_entity=entity,
                     speaker=speaker,
@@ -1595,7 +1736,7 @@ class FilteredRetriever:
         for node in candidates:
             speaker = None
             if node.metadata:
-                speaker = node.metadata.get("speaker")
+                speaker = node.speaker_id
 
             # Get match result from the standard matcher
             result = _match_entity(
@@ -1727,7 +1868,7 @@ class FilteredRetriever:
 
             # Check entity if provided (combined temporal+entity query)
             if entity:
-                speaker = node.metadata.get("speaker") if node.metadata else None
+                speaker = node.speaker_id if node.metadata else None
                 entity_result = _match_entity(
                     query_entity=entity,
                     speaker=speaker,

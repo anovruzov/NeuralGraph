@@ -30,6 +30,12 @@ REASONING PROCESS (do this mentally, don't write it out):
 4. CONNECT related memories - they may describe the same thing differently.
 5. SYNTHESIZE a complete answer from ALL relevant memories.
 
+CRITICAL EVIDENCE REQUIREMENTS:
+- Every factual claim in your answer MUST be supported by specific text in the memories
+- If a fact is NOT explicitly stated in the memories, do NOT include it
+- If the memories don't contain enough information, say "Based on available memories, I cannot determine..."
+- DO NOT infer or guess information not directly stated
+
 CRITICAL FOR MULTI-HOP QUESTIONS:
 - If asking "how does X do Y", look for ALL instances of X doing Y across memories
 - If asking about preferences/habits, combine multiple examples into one answer
@@ -40,7 +46,7 @@ Memories:
 
 Question: {question}
 
-Answer (be complete - include all relevant details from memories):"""
+Answer (only include facts directly supported by the memories above):"""
 
 
 # =============================================================================
@@ -72,8 +78,13 @@ def format_retrieval_context(
         parts = []
 
         if include_timestamps and node.created_at:
+            resolved_date = ""
+            if node.metadata:
+                resolved_date = node.metadata.get("resolved_date", "") or ""
+            if resolved_date:
+                parts.append(f"[date={resolved_date}]")
             timestamp = node.created_at.strftime("%Y-%m-%d %H:%M")
-            parts.append(f"[{timestamp}]")
+            parts.append(f"[timestamp={timestamp}]")
 
         if include_speaker:
             speaker = node.metadata.get("producer_id", node.metadata.get("speaker", ""))
@@ -96,13 +107,76 @@ def format_retrieval_context(
 # SPECIALIZED PROMPTS FOR DIFFERENT QUERY TYPES
 # =============================================================================
 
+# SINGLE-HOP FACTUAL PROMPT (STRICT EVIDENCE MODE)
+SINGLE_HOP_ANSWER_PROMPT = """You are a memory retrieval system answering a simple factual question.
+
+STRICT EVIDENCE RULES:
+1. Your answer MUST come directly from the memories provided
+2. DO NOT make inferences, assumptions, or fill in missing information
+3. If the specific answer is NOT in the memories, respond: "Not found in memories"
+4. Quote or paraphrase specific text from memories to support your answer
+
+REASONING PROCESS:
+1. Find the entity being asked about
+2. Find the specific attribute/fact being requested
+3. Locate EXACTLY where in the memories this fact is stated
+4. Return ONLY what is explicitly stated
+
+Memories:
+{context}
+
+Question: {question}
+
+Answer (state only what is explicitly in the memories, nothing more):"""
+
+
+# LIST QUESTION PROMPT (MULTIPLE ITEMS)
+LIST_QUESTION_ANSWER_PROMPT = """Extract ALL items from the memories that answer this question.
+
+RULES:
+1. Output ONLY the items - comma-separated, no explanations.
+2. Find ALL distinct items across ALL memories.
+3. Do NOT generalize (if memories say "bowls" and "cups", say "bowls, cups" not "pottery").
+
+EXAMPLES:
+Q: What has Tom painted? → sunset, horse, landscape
+Q: What activities does Jane do? → pottery, camping, swimming
+
+Memories:
+{context}
+
+Question: {question}
+
+Answer:"""
+
+
+# AGGREGATION/COMPARISON PROMPT (e.g., "What do X and Y have in common?")
+AGGREGATION_ANSWER_PROMPT = """Find what is shared between the entities in this question.
+
+RULES:
+1. Output ONLY shared items - comma-separated, no explanations.
+2. Only include facts stated about ALL entities asked about.
+3. If nothing is shared, output: Not found
+
+EXAMPLE:
+Q: What do John and Mary both like? → hiking, coffee
+
+Memories:
+{context}
+
+Question: {question}
+
+Answer:"""
+
+
 TEMPORAL_QUERY_PROMPT = """You are a memory retrieval system specialized in temporal queries.
 
 For questions about WHEN something happened:
-1. Look for explicit dates, months, years in the memories
-2. Convert relative references (e.g., "last year" in a May 2023 memory = 2022)
-3. Pay attention to timestamps on each memory
-4. If multiple time references exist, identify which one answers the specific question
+1. Use metadata fields when available (resolved_date, timestamp) to answer
+2. Look for explicit dates, months, years in the memories
+3. Convert relative references (e.g., "last year" in a May 2023 memory = 2022)
+4. Prefer resolved_date over text if both are present
+5. If multiple time references exist, identify which one answers the specific question
 
 Memories:
 {context}
@@ -132,22 +206,28 @@ Question: {question}
 Answer (synthesize from multiple memories):"""
 
 
-OPEN_DOMAIN_QUERY_PROMPT = """You are a memory retrieval system for open-ended inference questions.
+OPEN_DOMAIN_QUERY_PROMPT = """You are answering an open-ended inference question.
 
-This question asks you to make inferences based on available information.
+First decide the question type:
+- If it is about the people or events in the conversation, infer ONLY from the memories.
+- If it is general knowledge (definitions, how things work, public facts), ignore memories and answer from your own knowledge.
 
 REASONING APPROACH:
-1. Gather all memories that provide clues about the question
-2. Look for patterns, recurring themes, stated preferences
-3. Make reasonable inferences based on the evidence
-4. State your inference with appropriate confidence
+1. For conversation-based questions, gather the best clues in the memories.
+2. Look for patterns, recurring themes, stated preferences.
+3. Make a reasonable inference; do not copy timestamps or metadata.
+4. Match the question type:
+   - Yes/No questions: answer "Yes" or "No" plus a short reason.
+   - A-or-B questions: choose one option and give a short reason.
+   - Otherwise: give a concise phrase or 1 sentence.
+5. Do NOT answer with a date unless the question explicitly asks "when/what date".
 
 Memories:
 {context}
 
 Question: {question}
 
-Answer (make reasonable inferences from the memories):"""
+Answer:"""
 
 
 # =============================================================================
@@ -433,27 +513,53 @@ def fuse_rewrite_results(
 # PROMPT SELECTOR
 # =============================================================================
 
-def select_prompt_for_query(query: str) -> str:
+def select_prompt_for_query(
+    query: str,
+    is_list_question: bool = False,
+    list_type: str | None = None
+) -> str:
     """Select the best prompt template based on query type.
 
-    This performs simple keyword-based classification.
-    For production, use a classifier model.
+    Enhanced for single-hop optimization with strict evidence requirements.
 
     Args:
         query: The question being asked
+        is_list_question: Whether this is a list question (from QueryAnalysis)
+        list_type: Type of list question ("plural", "aggregation")
 
     Returns:
         Appropriate prompt template
     """
     query_lower = query.lower()
 
+    # AGGREGATION / COMPARISON queries (highest priority - these fail often)
+    aggregation_words = ["in common", "both", "share", "do .* and .* have"]
+    if any(word in query_lower for word in aggregation_words):
+        return AGGREGATION_ANSWER_PROMPT
+    if list_type == "aggregation":
+        return AGGREGATION_ANSWER_PROMPT
+
+    # LIST QUESTIONS (multiple items expected)
+    if is_list_question and list_type == "plural":
+        return LIST_QUESTION_ANSWER_PROMPT
+
+    # Explicit list patterns
+    list_patterns = [
+        "what books", "what movies", "what types", "what kinds",
+        "what things", "which items", "how many", "all of",
+        "has .* read", "has .* done", "has .* made", "has .* painted",
+        "have they"
+    ]
+    if any(pattern in query_lower for pattern in list_patterns):
+        return LIST_QUESTION_ANSWER_PROMPT
+
     # Temporal indicators
     temporal_words = ["when", "what time", "what date", "how long ago", "which year", "which month"]
     if any(word in query_lower for word in temporal_words):
         return TEMPORAL_QUERY_PROMPT
 
-    # Multi-hop indicators (comparing, combining)
-    multi_hop_words = ["both", "and", "together", "compared to", "in common", "share"]
+    # Multi-hop indicators (comparing, combining - but not aggregation)
+    multi_hop_words = ["together", "compared to"]
     if any(word in query_lower for word in multi_hop_words):
         return MULTI_HOP_QUERY_PROMPT
 
@@ -463,7 +569,22 @@ def select_prompt_for_query(query: str) -> str:
     if any(word in query_lower for word in inference_words):
         return OPEN_DOMAIN_QUERY_PROMPT
 
-    # Default to general retrieval prompt
+    # SINGLE-HOP factual queries (simple entity-attribute questions)
+    single_hop_patterns = [
+        r"what is \w+'s",
+        r"what does \w+ ",
+        r"where is \w+",
+        r"where does \w+",
+        r"who is \w+'s",
+        r"how does \w+",
+        r"what did \w+ ",
+    ]
+    import re
+    for pattern in single_hop_patterns:
+        if re.search(pattern, query_lower):
+            return SINGLE_HOP_ANSWER_PROMPT
+
+    # Default to general retrieval prompt (also has evidence requirements now)
     return RETRIEVAL_ANSWER_PROMPT
 
 
@@ -472,13 +593,19 @@ def select_prompt_for_query(query: str) -> str:
 # =============================================================================
 
 __all__ = [
+    # Answer prompts
     "RETRIEVAL_ANSWER_PROMPT",
+    "SINGLE_HOP_ANSWER_PROMPT",
+    "LIST_QUESTION_ANSWER_PROMPT",
+    "AGGREGATION_ANSWER_PROMPT",
     "TEMPORAL_QUERY_PROMPT",
     "MULTI_HOP_QUERY_PROMPT",
     "OPEN_DOMAIN_QUERY_PROMPT",
+    # Rewrite prompts
     "QUERY_REWRITE_PROMPT",
     "SINGLE_HOP_REWRITE_PROMPT",
     "TEMPORAL_REWRITE_PROMPT",
+    # Functions
     "format_retrieval_context",
     "select_prompt_for_query",
     "get_rewrite_prompt",

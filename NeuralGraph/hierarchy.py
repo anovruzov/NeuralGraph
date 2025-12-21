@@ -101,6 +101,15 @@ class HierarchyManager:
         wave_amplitudes: dict[str, float] | None = None,
         entity_ids: list[str] | None = None,
         importance_score: float = 0.5,
+        resolved_date: str | None = None,
+        temporal_tokens: list[str] | None = None,
+        temporal_metadata: dict[str, Any] | None = None,
+        resolved_dates: dict[str, Any] | None = None,
+        explicit_date: str | None = None,
+        duration_years: int | None = None,
+        duration_months: int | None = None,
+        since_year: int | None = None,
+        since_date: str | None = None,
         **metadata
     ) -> NeuralNode:
         """Create a Layer 0 message node.
@@ -115,6 +124,15 @@ class HierarchyManager:
             wave_amplitudes: 9-dimensional wave signals
             entity_ids: Referenced entity IDs
             importance_score: Base importance [0, 1]
+            resolved_date: Canonical ISO date (YYYY-MM-DD) for the message
+            temporal_tokens: Precomputed temporal tokens for indexing/filtering
+            temporal_metadata: Structured temporal components (year, month, etc.)
+            resolved_dates: Resolved relative date annotations
+            explicit_date: Explicit date extracted from content (YYYY-MM-DD)
+            duration_years: Duration in years extracted from content
+            duration_months: Duration in months extracted from content
+            since_year: Derived start year for duration
+            since_date: Derived start date for duration (YYYY-MM-DD)
             **metadata: Additional metadata
 
         Returns:
@@ -133,7 +151,18 @@ class HierarchyManager:
             session_key=session_key,
             importance_score=importance_score,
             heat_score=importance_score,  # Initial heat = importance
-            metadata=metadata,
+            metadata={
+                **metadata,
+                "resolved_date": resolved_date or metadata.get("resolved_date"),
+                "temporal_tokens": temporal_tokens or metadata.get("temporal_tokens"),
+                "temporal_metadata": temporal_metadata or metadata.get("temporal_metadata"),
+                "resolved_dates": resolved_dates or metadata.get("resolved_dates"),
+                "explicit_date": explicit_date or metadata.get("explicit_date"),
+                "duration_years": duration_years or metadata.get("duration_years"),
+                "duration_months": duration_months or metadata.get("duration_months"),
+                "since_year": since_year or metadata.get("since_year"),
+                "since_date": since_date or metadata.get("since_date"),
+            },
             # CRITICAL: Use original conversation timestamp if provided
             created_at=original_created_at if original_created_at else datetime.now(timezone.utc),
         )

@@ -16,52 +16,72 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from NeuralGraph import NeuralNode, NeuralEdge, NodeLayer, EdgeType, generate_edge_id
 from NeuralGraph.storage import InMemoryNeuralGraphStorage
-from NeuralGraph.tesseract import Tesseract, detect_query_type, QueryType
+from NeuralGraph.tesseract import (
+    Tesseract,
+    detect_query_type,
+    QueryType,
+    detect_list_question_universal,
+    is_open_domain_world_query,
+    should_use_open_domain_infer,
+)
 from NeuralGraph.dialogue_linker import DialogueLinker
+from NeuralGraph.answering import AnsweringConfig, generate_answer, get_embedding
+from NeuralGraph.reranker import rerank_candidates_parallel
+from NeuralGraph.service import (
+    extract_keywords,
+    is_temporal_question,
+    extract_month_year_from_text,
+    extract_topic_keywords_for_temporal,
+    extract_count_answer,
+    extract_relationship_status,
+    extract_span_answer_semantic,
+    extract_list_items_semantic,
+    extract_duration_answer,
+)
 
 # Import CORE temporal utilities - ensures benchmark uses production code
 from NeuralGraph.temporal_utils import (
-    # Constants
-    MONTH_NAMES,
-    MONTH_NAMES_REV,
-    DAY_NAMES_REV,
     # Ingestion-time functions (used during message indexing)
     parse_datetime_flexible,
     resolve_relative_dates,
     generate_temporal_tokens,
     preprocess_message_for_indexing,
+    extract_explicit_date,
+    extract_duration_metadata,
     # Query-time functions (used during retrieval)
     expand_temporal_query,
     infer_query_mode,
 )
 from NeuralGraph.speaker_profiles import UniversalSpeakerProfiler
-from NeuralGraph.llm_profile_extractor import extract_speaker_facts_llm
-
-
-def extract_keywords(text: str) -> list[str]:
-    """Simple keyword extraction for indexing."""
-    words = re.findall(r'\b[a-z]{3,}\b', text.lower())
-    stopwords = {'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'had', 'her', 'was', 'one', 'our'}
-    return [w for w in words if w not in stopwords]
+from NeuralGraph import llm_profile_extractor
 
 
 import os
 
 # Ollama for answer generation and embeddings (local)
 OLLAMA_BASE_URL = "http://localhost:11434"
-OLLAMA_MODEL = "qwen2.5:7b-instruct"
+OLLAMA_MODEL = "qwen2.5:7b-instruct"  # Qwen for answer generation
 EMBEDDING_MODEL = "nomic-embed-text"
+ANSWERING_CONFIG = AnsweringConfig(
+    ollama_base_url=OLLAMA_BASE_URL,
+    answer_model=OLLAMA_MODEL,
+    embedding_model=EMBEDDING_MODEL,
+)
 
-# Judge with GPT-4o (OpenAI)
+# OpenAI for judging only
 OPENAI_API_KEY = "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"
 JUDGE_MODEL = "gpt-4o"
-USE_OPENAI_JUDGE = True  # Using GPT-4o
+USE_OPENAI_JUDGE = True  # Using GPT-4o for judging
+USE_OPENAI_ANSWER = False  # Using Qwen for answers
+
+# Set Ollama for profile extractor module
+llm_profile_extractor.USE_OPENAI_EXTRACTION = False
 
 TOP_K = 50
 
 CATEGORIES = {1: "single_hop", 2: "temporal", 3: "open_domain", 4: "multi_hop"}
 
-OUTPUT_PATH = Path(__file__).parent / "maximal.json"
+OUTPUT_PATH = Path(__file__).parent / "omega.json"
 MAX_QUESTIONS = 2000  # Extended benchmark run
 
 # Timing storage
@@ -71,7 +91,16 @@ TIMING_DATA = defaultdict(list)
 
 import random
 
-ROUTING_STATS = {"TEMPORAL": 0, "STRICT": 0, "INFERENTIAL": 0, "AGGREGATION": 0, "ADVERSARIAL": 0}
+ROUTING_STATS = {
+    "TEMPORAL": 0,
+    "STRICT": 0,
+    "INFERENTIAL": 0,
+    "AGGREGATION": 0,
+    "LIST": 0,
+    "OPEN_DOMAIN_INFER": 0,
+    "OPEN_DOMAIN_WORLD": 0,
+    "ADVERSARIAL": 0,
+}
 ROUTING_SAMPLES = []
 INFERENTIAL_SAMPLES = []
 
@@ -158,6 +187,9 @@ async def check_gold_in_memories(
         return check_gold_in_memories_substring(gold_answer, memories, top_k)
 
 
+
+
+
 def compute_retrieval_summary(metrics: dict) -> dict:
     summary = {}
     for cat, data in metrics.items():
@@ -222,6 +254,8 @@ def save_results(results, stats):
     output = {
         "metadata": {
             "model": "Tesseract 4D Memory",
+            "answer_model": OLLAMA_MODEL,
+            "reranker_model": RERANKER_MODEL,
             "judge": "GPT-4o (OpenAI)",
             "timestamp": datetime.now().isoformat(),
             "total_questions": total_questions,
@@ -243,224 +277,8 @@ def save_results(results, stats):
         json.dump(output, f, indent=2)
 
 
-async def get_embedding(session, text: str) -> list[float]:
-    try:
-        async with session.post(
-            f"{OLLAMA_BASE_URL}/api/embeddings",
-            json={"model": EMBEDDING_MODEL, "prompt": text},
-            timeout=aiohttp.ClientTimeout(total=30)
-        ) as response:
-            result = await response.json()
-            return result.get("embedding", [])
-    except Exception as e:
-        print(f"Embedding error: {e}")
-        return []
-
-
 USE_SLM_RERANKER = True
-RERANKER_MODEL = "qwen2.5:7b-instruct"  # Qwen 7B for 100% accuracy reranking
-
-
-async def score_single_memory(
-    session, question: str, text: str, speaker: str
-) -> int:
-    """Score a single memory for relevance (0-3)."""
-    prompt = f"""Question: {question}
-Memory from [{speaker}]: {text[:150]}
-
-Score (0-3): 0=wrong person/unrelated, 2=related, 3=answers
-Output only the number:"""
-
-    try:
-        async with session.post(
-            f"{OLLAMA_BASE_URL}/api/generate",
-            json={"model": RERANKER_MODEL, "prompt": prompt, "stream": False,
-                  "options": {"temperature": 0, "num_predict": 5}},
-            timeout=aiohttp.ClientTimeout(total=10)
-        ) as resp:
-            result = await resp.json()
-            response = result.get("response", "").strip()
-            digits = re.findall(r'[0-3]', response)
-            return int(digits[0]) if digits else 1
-    except Exception:
-        return 1
-
-
-async def slm_rerank_batch(
-    session, question: str, memories: list[tuple], top_n: int = 15
-) -> list[tuple]:
-    """Parallel reranking: Score all 50 candidates in parallel, return top 15.
-
-    Achieves 100% accuracy with Qwen 7B at ~1500ms (vs 5700ms sequential).
-    Uses asyncio.gather for parallel LLM calls.
-    """
-    if not USE_SLM_RERANKER or not memories:
-        return memories[:top_n]
-
-    candidates = memories[:50]
-
-    # Score all memories in parallel
-    tasks = [
-        score_single_memory(
-            session,
-            question,
-            node.metadata.get("original_content", node.content),
-            node.metadata.get("speaker", "Unknown")
-        )
-        for node, charge in candidates
-    ]
-    scores = await asyncio.gather(*tasks)
-
-    # Combine scores with original data
-    scored = [(node, charge, score) for (node, charge), score in zip(candidates, scores)]
-
-    # Sort by LLM score (primary) then by original charge (secondary)
-    scored.sort(key=lambda x: (x[2], x[1]), reverse=True)
-
-    # Return top_n with boosted charges based on LLM score
-    result = []
-    for node, charge, score in scored[:top_n]:
-        boosted_charge = charge + (score * 0.2)  # Boost based on relevance score
-        result.append((node, boosted_charge))
-
-    return result
-
-
-async def generate_answer(session, question: str, context: str, mode: str = "STRICT") -> str:
-    if mode == "TEMPORAL":
-        prompt = f"""Answer using ONLY the memories below.
-
-TEMPORAL RULES (FAIR):
-1. If the event date is explicitly resolved in text (e.g. bracketed), use that.
-2. If it's relative (yesterday/last week) and MESSAGE_DATETIME allows resolution, compute it.
-3. Do NOT answer with MESSAGE_DATETIME unless the memory explicitly indicates the event happened then.
-4. If the date cannot be determined from provided memories, say "Not mentioned in the memories".
-5. Output ONLY the date/time period (concise).
-6. NEVER answer in present tense. Use past tense or state the specific date/time.
-7. Answer with WHEN it happened (a date, time, or period), NOT what is happening.
-8. CRITICAL: Match the temporal granularity of the source memory:
-   - If memory states a MONTH only → answer with month only
-   - If memory states a specific DATE → answer with that date
-   - Do NOT invent or add precision (day/time) that isn't explicitly stated
-   - Your answer should be AS SPECIFIC as the memory, NO MORE, NO LESS
-
-MEMORIES:
-{context}
-
-QUESTION: {question}
-
-Answer (date/time only, past tense):"""
-
-    elif mode == "INFERENTIAL":
-        prompt = f"""Answer the question using ONLY the memories below.
-
-=== INFERENCE RULES (FAIR) ===
-1. You MAY infer when there is clear supporting evidence in the provided memories.
-2. If evidence is weak/absent, say "Not mentioned in the memories" (do not guess).
-3. Anti-swap: never attribute Person A's facts/traits to Person B.
-4. Keep it short: 1-2 sentences. For yes/no, commit only if evidence supports it.
-
-MEMORIES (ranked by relevance):
-{context}
-
-QUESTION: {question}
-
-Return the answer:"""
-
-    elif mode == "AGGREGATION":
-        prompt = f"""Answer the question by AGGREGATING information from the memories below.
-
-=== AGGREGATION RULES (CRITICAL) ===
-1. SCAN ALL PROVIDED MEMORIES - the answer may be scattered across multiple memories.
-2. BE SPECIFIC - extract exact names, places, items (not generic categories):
-   - "Sweden" NOT "home country"
-   - "abstract art" NOT "paintings"
-   - "sunset" NOT "landscape"
-   - "dinosaurs, nature" NOT "outdoor activities"
-3. BE COMPLETE - find ALL items mentioned, not just the first few.
-4. PRIORITIZE PROPER NOUNS - names of people, places, books, artists, events.
-5. When format matters (e.g., "what events"), give event NAMES not dates.
-6. Present as comma-separated list when appropriate.
-7. Anti-swap: Only aggregate items for the person being asked about.
-8. DO NOT INVENT OR INFER - only include items EXPLICITLY stated in memories:
-   - If you don't see it written in the memories below, DON'T include it
-   - Do NOT paraphrase with different terms - use the EXACT items from memories
-   - Do NOT add plausible but unmentioned items
-9. If not found in provided memories, say "Not mentioned in the memories".
-
-MEMORIES (scan ALL of them):
-{context}
-
-QUESTION: {question}
-
-Answer (be specific and complete):"""
-
-    elif mode == "ADVERSARIAL":
-        prompt = f"""Answer the question using ONLY the memories below.
-
-=== ADVERSARIAL RULES (FAIR) ===
-1. CRITICAL: If the information is NOT in the memories, say "Not mentioned in the memories".
-2. DO NOT make up facts or assume information exists.
-3. For negation questions, be precise about what IS and IS NOT stated.
-4. If the question assumes something not in evidence, REJECT the premise.
-5. When uncertain, say "Not mentioned" rather than guessing.
-
-MEMORIES:
-{context}
-
-QUESTION: {question}
-
-Answer:"""
-
-    elif mode == "OPEN_DOMAIN_INFER":
-        prompt = f"""The direct answer was not found in the memories. Analyze what IS present and make your best inference.
-
-=== INFERENCE RULES ===
-1. Review the memories below - they are ranked by relevance to the question.
-2. Look for ANY related information, context clues, or partial answers.
-3. If you can reasonably infer an answer from the available context, do so.
-4. If the question is about general knowledge (facts, definitions, how things work),
-   you may use your own knowledge to answer.
-5. Be concise: give a direct answer in 1-2 sentences.
-6. Do NOT say "not mentioned" - attempt to provide a useful answer.
-
-MEMORIES (ranked by relevance):
-{context}
-
-QUESTION: {question}
-
-Your best answer:"""
-
-    else:
-        prompt = f"""Answer the question using ONLY the memories below.
-
-=== RULES ===
-1. Speaker metadata shows WHO said what.
-2. Anti-swap: if asked about Person A, do not use Person B's info.
-3. Use only facts EXPLICITLY supported by the provided memories.
-4. Scan ALL PROVIDED memories (the answer may be in any of them).
-5. DO NOT invent, infer, or add plausible-sounding details not in memories.
-6. Keep answer short: 1-2 sentences.
-7. If not found, say "Not mentioned in the memories".
-
-MEMORIES (ranked by relevance):
-{context}
-
-QUESTION: {question}
-
-Return the answer:"""
-
-    try:
-        async with session.post(
-            f"{OLLAMA_BASE_URL}/api/generate",
-            json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False,
-                  "options": {"temperature": 0, "num_predict": 150}},
-            timeout=aiohttp.ClientTimeout(total=60)
-        ) as response:
-            result = await response.json()
-            return result.get("response", "").strip()
-    except Exception as e:
-        return f"Error: {e}"
+RERANKER_MODEL = "qwen2.5:7b-instruct"  # Qwen 7B for reranking
 
 
 # =============================================================================
@@ -630,7 +448,7 @@ async def run_benchmark():
 
             for msg_idx, msg in enumerate(messages):
 
-                embedding = await get_embedding(http, msg["text"])
+                embedding = await get_embedding(http, msg["text"], config=ANSWERING_CONFIG)
                 if not embedding:
                     continue
 
@@ -643,30 +461,57 @@ async def run_benchmark():
                 date_tokens = temporal_data["date_tokens"]
                 temporal_metadata = temporal_data["temporal_metadata"]
 
+                # FAIR TEMPORAL: Resolve dates for METADATA ONLY (not stored in text)
+                # The LLM must reason about "yesterday" at answer-time using created_at
                 resolved_content, resolved_dates = resolve_relative_dates(msg["text"], message_date)
 
-                content_with_tokens = resolved_content
-                if date_tokens:
-                    content_with_tokens += " " + " ".join(date_tokens)
+                resolved_date = None
+                resolved_date_source = None
+                explicit_date = extract_explicit_date(msg["text"], message_date)
+                duration_meta = extract_duration_metadata(msg["text"], message_date)
 
+                if explicit_date:
+                    resolved_date = explicit_date
+                    resolved_date_source = "explicit"
+                elif resolved_dates:
+                    date_values = [
+                        v for v in resolved_dates.values()
+                        if isinstance(v, str) and re.search(r'\d', v)
+                    ]
+                    unique_values = list(dict.fromkeys(date_values))
+                    if len(unique_values) == 1:
+                        resolved_date = unique_values[0]
+                        resolved_date_source = "relative"
+                if not resolved_date and message_date:
+                    resolved_date = message_date.strftime("%Y-%m-%d")
+                    resolved_date_source = "message"
+
+                # Store ORIGINAL text - no date tokens baked in (non-leaky)
                 node_id = f"msg_{conv_idx}_{msg_idx}"
                 node = NeuralNode(
                     node_id=node_id,
                     session_key=f"conv_{conv_idx}",
-                    content=content_with_tokens,
+                    content=msg["text"],  # FAIR: original text only
                     layer=NodeLayer.MESSAGE,
                     embedding=embedding,
                     created_at=datetime.now(),
                     metadata={
                         "speaker": msg["speaker"],
-                        "datetime": msg["datetime"],
+                        "datetime": msg["datetime"],  # Message timestamp for reasoning
                         "keywords": list(keywords),
                         "entities": list(content_entities),
-                        "date_tokens": date_tokens,
-                        "temporal": temporal_metadata,
-                        "original_content": msg["text"],
-                        "resolved_content": resolved_content,
-                        "resolved_dates": resolved_dates,
+                        "temporal_tokens": date_tokens,  # For retrieval indexing only
+                        "temporal_metadata": temporal_metadata,
+                        "resolved_date": resolved_date,
+                        "resolved_date_source": resolved_date_source,
+                        "explicit_date": explicit_date,
+                        "duration_years": duration_meta.get("duration_years"),
+                        "duration_months": duration_meta.get("duration_months"),
+                        "since_year": duration_meta.get("since_year"),
+                        "since_date": duration_meta.get("since_date"),
+                        "date_tokens": date_tokens,  # Backward compat
+                        "temporal": temporal_metadata,  # Backward compat
+                        "resolved_dates": resolved_dates,  # Metadata only, not in text
                     },
                 )
                 await storage.save_node(node)
@@ -731,7 +576,7 @@ async def run_benchmark():
                 question = qa.get("question", "")
                 gold = qa.get("answer", "")
 
-                query_emb = await get_embedding(http, question)
+                query_emb = await get_embedding(http, question, config=ANSWERING_CONFIG)
                 if not query_emb:
                     continue
 
@@ -793,13 +638,22 @@ async def run_benchmark():
                 RETRIEVAL_METRICS[category]["total_candidates"].append(len(retrieved))
 
                 # CRITICAL: Determine query_mode BEFORE reranking (need to know how many memories to request)
+                list_question, list_type = detect_list_question_universal(question)
                 query_mode = infer_query_mode(question)
+                if list_question:
+                    query_mode = "AGGREGATION" if list_type == "aggregation" else "LIST"
+                if is_temporal_question(question):
+                    query_mode = "TEMPORAL"
+                elif query_mode == "TEMPORAL":
+                    query_mode = "INFERENTIAL"
+                if category == "open_domain" and is_open_domain_world_query(question):
+                    query_mode = "OPEN_DOMAIN_WORLD"
                 ROUTING_STATS[query_mode] += 1
 
                 # SPEAKER PROFILES: For single_hop, check profile FIRST before retrieval
                 profile_answer = None
                 used_profile = False
-                if category == "single_hop":
+                if category == "single_hop" and not list_question:
                     profile_result = await speaker_profiler.query_single_hop(http, question, str(gold))
                     if profile_result['found'] and profile_result['confidence'] >= 0.5:
                         profile_answer = profile_result['answer']
@@ -808,12 +662,18 @@ async def run_benchmark():
 
                 # Determine how many memories we need based on query type
                 # AGGREGATION needs 30 (answers scattered), others need 15
-                num_memories_needed = 30 if query_mode == "AGGREGATION" else 15
+                num_memories_needed = 30 if query_mode in {"AGGREGATION", "LIST"} else 15
 
                 # Reranking timing (separate - uses Phi 3.5 SLM)
                 t_rerank_start = time.perf_counter()
                 if USE_SLM_RERANKER:
-                    reranked = await slm_rerank_batch(http, question, retrieved[:50], top_n=num_memories_needed)
+                    reranked = await rerank_candidates_parallel(
+                        question,
+                        retrieved[:50],
+                        limit=num_memories_needed,
+                        llm_model=RERANKER_MODEL,
+                        llm_base_url=OLLAMA_BASE_URL,
+                    )
                 else:
                     reranked = retrieved[:num_memories_needed]
                 t_rerank = (time.perf_counter() - t_rerank_start) * 1000
@@ -821,78 +681,8 @@ async def run_benchmark():
 
                 # UPGRADE INFERENTIAL to aggressive mode for open-domain-style questions
                 # These questions NEED strong inference even with weak evidence (60+ markers)
-                if query_mode == "INFERENTIAL":
-                    open_domain_markers = [
-                        # === Speculation/Modals (15 markers) ===
-                        "would ", "might ", "could ", " may ", "should ",
-                        "would be", "might be", "could be", "may be",
-                        "would likely", "might likely", "could possibly",
-                        "would probably", "might probably", "could potentially",
-
-                        # === Underlying/Reasoning (12 markers) ===
-                        "underlying", "based on", "given", "considering",
-                        "given that", "based on the", "considering the",
-                        "in light of", "taking into account", "judging by",
-                        "from the", "according to",
-
-                        # === Hypothetical/Alternative (10 markers) ===
-                        "alternative", "instead", "rather than", "as opposed to",
-                        "what if", "suppose", "imagine", "hypothetically",
-                        "in place of", "other than",
-
-                        # === Character/Personality (10 markers) ===
-                        "personality", "attributes", "traits", "characteristics",
-                        "qualities", "nature", "temperament", "disposition",
-                        "character", "tendencies",
-
-                        # === Judgment/Description (8 markers) ===
-                        "be considered", "describe", "characterize",
-                        "would you describe", "how would you",
-                        "be seen as", "be regarded as", "be viewed as",
-
-                        # === Prediction/Future (8 markers) ===
-                        "likely to", "probably ", "possibly ", "potentially",
-                        "expected to", "predicted to", "anticipated to",
-                        "destined to",
-
-                        # === Ability/Suitability (7 markers) ===
-                        "suited for", "good at", "talented at", "skilled at",
-                        "capable of", "able to", "fit for",
-
-                        # === Preference/Inclination (8 markers) ===
-                        "prefer", "enjoy", "interested in", "inclined to",
-                        "drawn to", "attracted to", "keen on", "fond of",
-
-                        # === Comparison (6 markers) ===
-                        "better than", "worse than", "more than", "less than",
-                        "compared to", "in comparison",
-
-                        # === Opinion/Belief (6 markers) ===
-                        "think about", "believe about", "feel about",
-                        "opinion on", "view of", "stance on",
-
-                        # === Causation/Why (5 markers) ===
-                        "why ", "reason for", "because of", "caused by",
-                        "due to",
-
-                        # === Emotional/Mental (5 markers) ===
-                        "how does", "what does", "feel like", "think like",
-                        "emotional",
-
-                        # === Plans/Aspirations (5 markers) ===
-                        "planning to", "hoping to", "aspiring to",
-                        "aiming to", "striving to",
-
-                        # === Similarity/Pattern (4 markers) ===
-                        "similar to", "like ", "resemble", "akin to",
-
-                        # === Openness/Willingness (4 markers) ===
-                        "open to", "willing to", "receptive to", "amenable to",
-
-                        # === Impact/Effect (3 markers) ===
-                        "impact of", "effect of", "consequence of",
-                    ]
-                    if any(marker in question.lower() for marker in open_domain_markers):
+                if category == "open_domain" and query_mode == "INFERENTIAL":
+                    if should_use_open_domain_infer(question):
                         query_mode = "OPEN_DOMAIN_INFER"
 
                 # Build context from reranked memories
@@ -902,18 +692,29 @@ async def run_benchmark():
                 for node, charge in reranked[:num_memories_needed]:
                     speaker = node.metadata.get("speaker", "Unknown")
                     dt = node.metadata.get("datetime", "")
-                    resolved_content = node.metadata.get("resolved_content", node.metadata.get("original_content", node.content))
+                    # FAIR: Use original content - LLM must reason about relative dates
+                    original_content = node.content
+                    resolved_date = node.metadata.get("resolved_date", "")
+                    resolved_dates = node.metadata.get("resolved_dates", {}) or {}
+                    resolved_pairs = []
+                    if isinstance(resolved_dates, dict):
+                        for key, value in resolved_dates.items():
+                            resolved_pairs.append(f"{key}->{value}")
+                    resolved_relative = ", ".join(resolved_pairs)
 
                     if query_mode == "TEMPORAL":
-                        date_tokens = node.metadata.get("date_tokens", [])[:3]
-                        token_str = f" [{' '.join(date_tokens)}]" if date_tokens else ""
-                        context_parts.append(f"[MESSAGE_DATETIME={dt}]{token_str} [SPEAKER={speaker}] {resolved_content}")
+                        # Provide resolved dates to avoid timestamp-only answers
+                        context_parts.append(
+                            f"[MESSAGE_DATETIME={dt}] [RESOLVED_DATE={resolved_date}] "
+                            f"[RESOLVED_RELATIVE={resolved_relative}] [SPEAKER={speaker}] {original_content}"
+                        )
                     else:
-                        context_parts.append(f"[{speaker}] {resolved_content}\n  (sent: {dt})")
+                        context_parts.append(f"[{speaker}] {original_content}\n  (sent: {dt})")
+
 
                     retrieved_memories.append({
                         "speaker": speaker,
-                        "text": resolved_content[:300],
+                        "text": original_content[:300],
                         "datetime": dt,
                         "charge": round(charge, 3),
                     })
@@ -937,13 +738,67 @@ async def run_benchmark():
                         "first_memory": context_parts[0][:150] if context_parts else "N/A",
                     })
 
+                candidate_memories = [
+                    {"text": node.content, "metadata": node.metadata}
+                    for node, _charge in reranked[:num_memories_needed]
+                ]
+
+                if query_mode == "OPEN_DOMAIN_WORLD":
+                    candidate_memories = []
+                    context = ""
+
+                extracted_answer = None
+                if query_mode == "TEMPORAL":
+                    # TEMPORAL extraction is reliable - keep it
+                    duration_direct = extract_duration_answer(question, candidate_memories)
+                    if duration_direct:
+                        extracted_answer = duration_direct
+                    else:
+                        topic_keywords = extract_topic_keywords_for_temporal(question)
+                        query_month, query_year = extract_month_year_from_text(question)
+                        for mem in candidate_memories:
+                            meta = mem.get("metadata", {})
+                            resolved_date = meta.get("resolved_date")
+                            source = meta.get("resolved_date_source")
+                            if source in ("explicit", "relative") and resolved_date:
+                                text_lower = mem.get("text", "").lower()
+                                if topic_keywords and not any(k in text_lower for k in topic_keywords):
+                                    continue
+                                if query_month or query_year:
+                                    mem_month, mem_year = extract_month_year_from_text(resolved_date)
+                                    if query_month and mem_month != query_month:
+                                        continue
+                                    if query_year and mem_year != query_year:
+                                        continue
+                                extracted_answer = resolved_date
+                                break
+                elif query_mode != "OPEN_DOMAIN_WORLD":
+                    # Only use simple, reliable extractors (count and relationship status)
+                    # These pattern-based extractors work well for specific formats
+                    count_direct = extract_count_answer(question, candidate_memories)
+                    if count_direct:
+                        extracted_answer = count_direct
+                    else:
+                        relation_direct = extract_relationship_status(question, candidate_memories)
+                        if relation_direct:
+                            extracted_answer = relation_direct
+                    # CRITICAL FIX: Skip ALL span/list extraction for ALL categories
+                    # These regex-based extractors produce garbage like "Wow", "Thanks",
+                    # "form of therapy", fragments from contractions, etc.
+                    # Let the LLM handle extraction - it's smarter.
+
                 t_answer_start = time.perf_counter()
                 # Use profile answer if available, otherwise generate from retrieval
                 if used_profile and profile_answer:
                     generated = profile_answer
                     t_answer = 0  # No LLM call needed
+                elif extracted_answer:
+                    generated = extracted_answer
+                    t_answer = 0
                 else:
-                    generated = await generate_answer(http, question, context, mode=query_mode)
+                    generated = await generate_answer(
+                        http, question, context, mode=query_mode, config=ANSWERING_CONFIG
+                    )
                     t_answer = (time.perf_counter() - t_answer_start) * 1000
                 TIMING_DATA["t_answer"].append(t_answer)
 
@@ -961,9 +816,15 @@ async def run_benchmark():
                 answer_lower = generated.lower()
                 is_not_found = any(phrase in answer_lower for phrase in not_found_phrases)
 
-                if is_not_found and category in ("single_hop", "multi_hop", "open_domain"):
+                if is_not_found and category == "open_domain":
                     # Second pass: analyze memories and infer
-                    generated = await generate_answer(http, question, context, mode="OPEN_DOMAIN_INFER")
+                    generated = await generate_answer(
+                        http,
+                        question,
+                        context,
+                        mode="OPEN_DOMAIN_INFER",
+                        config=ANSWERING_CONFIG,
+                    )
 
                 # End-to-end timing (retrieval + rerank + answer generation)
                 t_e2e = (time.perf_counter() - t_e2e_start) * 1000
@@ -1011,7 +872,7 @@ async def run_benchmark():
     accuracy = 100 * total_correct / total_questions if total_questions > 0 else 0
 
     print(f"\n{'='*60}")
-    print(f"BENCHMARK COMPLETE (Judge: GPT-4o)")
+    print(f"BENCHMARK COMPLETE (Answer: {OLLAMA_MODEL}, Judge: GPT-4o)")
     print(f"{'='*60}")
     print(f"Total: {total_correct}/{total_questions} ({accuracy:.1f}%)")
     for cat, s in stats.items():
@@ -1041,8 +902,8 @@ async def run_benchmark():
         print(f"  P99:      {sorted_lat[int(n*0.99)]:.1f} ms")
 
     print_latency_stats("Memory Retrieval", TIMING_DATA.get("t_retrieval", []))
-    print_latency_stats("Reranking (Qwen 7B parallel)", TIMING_DATA.get("t_rerank", []))
-    print_latency_stats("Answer Generation (Qwen)", TIMING_DATA.get("t_answer", []))
+    print_latency_stats(f"Reranking ({RERANKER_MODEL})", TIMING_DATA.get("t_rerank", []))
+    print_latency_stats(f"Answer Generation ({OLLAMA_MODEL})", TIMING_DATA.get("t_answer", []))
     print_latency_stats("End-to-End", TIMING_DATA.get("t_e2e", []))
 
     print(f"\n{'='*60}")
@@ -1051,6 +912,9 @@ async def run_benchmark():
     print(f"TEMPORAL:    {ROUTING_STATS['TEMPORAL']} questions")
     print(f"STRICT:      {ROUTING_STATS['STRICT']} questions")
     print(f"INFERENTIAL: {ROUTING_STATS['INFERENTIAL']} questions")
+    print(f"OPEN_INFER:  {ROUTING_STATS['OPEN_DOMAIN_INFER']} questions")
+    print(f"OPEN_WORLD:  {ROUTING_STATS['OPEN_DOMAIN_WORLD']} questions")
+    print(f"LIST:        {ROUTING_STATS['LIST']} questions")
 
     print(f"\n{'='*60}")
     print(f"RETRIEVAL METRICS")
