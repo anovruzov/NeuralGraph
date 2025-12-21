@@ -75,24 +75,26 @@ Answer:"""
 
 STRICT_ANSWER_PROMPT = """Extract the answer from the memories below.
 
-RULES:
-1. Output ONLY the answer - no explanations, no "Based on...", no bullets.
-2. If multiple items, use comma-separated format: item1, item2, item3
-3. Match the person asked about (check speaker metadata).
-4. If not found, output exactly: Not found
+CRITICAL - ANTI-HALLUCINATION RULES:
+1. ONLY output words/phrases that appear VERBATIM in the memories
+2. DO NOT invent, guess, or infer anything not explicitly stated
+3. Read EVERY memory carefully - the answer may be spread across multiple memories
+4. For lists: output ALL items found, comma-separated
+5. Match the EXACT person asked about (check [speaker] name)
+6. If not explicitly stated, output: Not found
 
-EXAMPLES:
-Q: What is John's job? → Nurse
-Q: What are Mary's pets' names? → Luna, Bailey
-Q: What has Tom painted? → Sunset, horse
-Q: Where did Sarah move from? → Sweden
+PROCESS:
+1. Find all memories about the person asked about
+2. Extract ONLY the exact words that answer the question
+3. Combine items from multiple memories if needed
+4. Double-check: is each item in your answer actually in a memory?
 
 MEMORIES:
 {context}
 
 QUESTION: {question}
 
-Answer:"""
+Answer (only words found in memories above):"""
 
 
 async def get_embedding(

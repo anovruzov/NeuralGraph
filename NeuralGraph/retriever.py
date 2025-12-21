@@ -57,7 +57,7 @@ class RetrieverConfig:
     min_score_threshold: float = 0.1
 
     # Hop decay - TUNED for better multi-hop signal preservation
-    hop_decay_factor: float = 0.88  # UP from 0.8 - preserve signal across hops
+    hop_decay_factor: float = 0.95  # INCREASED - preserve signal across hops for multi-hop
 
     # Reranking - Phase 4 Fix: Increased weights for computed signals
     rerank_by_heat: bool = True
@@ -94,28 +94,28 @@ class RetrieverConfig:
         return [
             RetrievalStageConfig(
                 name="fast_recall",
-                max_candidates=200,
+                max_candidates=300,  # INCREASED from 200 for better initial coverage
                 edge_types=[],
                 layer_filter=None,
                 max_hops=0,
-                score_threshold=0.25,  # DOWN from 0.3 - cast wider net
+                score_threshold=0.20,  # LOWERED from 0.25 - cast even wider net
                 use_vector_search=True,
             ),
             RetrievalStageConfig(
                 name="entity_expansion",
-                max_candidates=150,  # Phase 5 Fix: Increased to accommodate 3-hop expansion
+                max_candidates=200,  # INCREASED from 150 for better entity coverage
                 edge_types=[EdgeType.ENTITY, EdgeType.SEMANTIC],
                 layer_filter=[NodeLayer.MESSAGE, NodeLayer.EPISODE],
-                max_hops=3,  # Phase 5 Fix: Increased from 1 to match temporal_chain for distributed facts
-                score_threshold=0.20,  # Phase 5 Fix: Slightly lowered for better recall
+                max_hops=3,
+                score_threshold=0.15,  # LOWERED from 0.20 for better recall
             ),
             RetrievalStageConfig(
                 name="temporal_chain",
-                max_candidates=50,
+                max_candidates=90,  # INCREASED from 50 for better temporal coverage
                 edge_types=[EdgeType.TEMPORAL, EdgeType.CAUSAL],
                 layer_filter=[NodeLayer.MESSAGE],
                 max_hops=3,
-                score_threshold=0.2,
+                score_threshold=0.15,  # LOWERED from 0.2 for better recall
             ),
             RetrievalStageConfig(
                 name="hierarchy_traversal",
@@ -714,13 +714,21 @@ class NeuralRetriever:
             hop_decay = self._config.hop_decay_factor ** (hop + 1)
 
             for node, parent_score in frontier:
-                # Get edges of relevant types
-                edges = await self._storage.get_edges_from(
+                # Get edges of relevant types - CRITICAL FIX: Check BOTH directions
+                # Entity/semantic edges use canonical ordering (min_id, max_id)
+                # so we must query both directions to find all neighbors
+                edges_from = await self._storage.get_edges_from(
                     node.node_id, edge_types=stage.edge_types
                 )
+                edges_to = await self._storage.get_edges_to(
+                    node.node_id, edge_types=stage.edge_types
+                )
+                all_edges = edges_from + edges_to
 
-                for edge in edges:
-                    if edge.target_id in visited:
+                for edge in all_edges:
+                    # Determine the OTHER node (could be source or target depending on direction)
+                    other_id = edge.target_id if edge.source_id == node.node_id else edge.source_id
+                    if other_id in visited:
                         continue
 
                     # Apply gating (Image 3)
@@ -733,8 +741,8 @@ class NeuralRetriever:
                     if gate_value < stage.score_threshold:
                         continue
 
-                    # Get target node
-                    target = await self._storage.get_node(edge.target_id)
+                    # Get the OTHER node (bidirectional traversal)
+                    target = await self._storage.get_node(other_id)
                     if target is None:
                         continue
 
@@ -754,12 +762,14 @@ class NeuralRetriever:
                         edge.activate()
                         await self._storage.save_edge(edge)
 
-            # Prepare next hop
+            # Prepare next hop - LESS AGGRESSIVE pruning to preserve multi-hop paths
+            # Old: max_candidates // (hop + 2) = 50, 25, 16, 12...
+            # New: max(10, max_candidates // (hop + 1)) = 150, 75, 50, 37... with min 10
             frontier = sorted(
                 next_frontier,
                 key=lambda x: x[1],
                 reverse=True
-            )[:stage.max_candidates // (hop + 2)]
+            )[:max(10, stage.max_candidates // (hop + 1))]
 
         return expanded[:stage.max_candidates]
 

@@ -77,11 +77,11 @@ USE_OPENAI_ANSWER = False  # Using Qwen for answers
 # Set Ollama for profile extractor module
 llm_profile_extractor.USE_OPENAI_EXTRACTION = False
 
-TOP_K = 50
+TOP_K = 100  # Increased from 50 to support recall@90 measurement
 
 CATEGORIES = {1: "single_hop", 2: "temporal", 3: "open_domain", 4: "multi_hop"}
 
-OUTPUT_PATH = Path(__file__).parent / "omega.json"
+OUTPUT_PATH = Path(__file__).parent / "nottingham.json"
 MAX_QUESTIONS = 2000  # Extended benchmark run
 
 # Timing storage
@@ -108,6 +108,7 @@ RETRIEVAL_METRICS = {
     cat: {
         "recall_at_10": [],
         "recall_at_50": [],
+        "recall_at_90": [],  # Added for extended recall tracking
         "oracle_rank": [],
         "filter_drop_count": [],
         "total_candidates": [],
@@ -198,17 +199,21 @@ def compute_retrieval_summary(metrics: dict) -> dict:
         n = len(data["recall_at_10"])
         recall_10 = sum(data["recall_at_10"]) / n * 100 if n > 0 else 0
         recall_50 = sum(data["recall_at_50"]) / n * 100 if n > 0 else 0
+        recall_90 = sum(data["recall_at_90"]) / n * 100 if n > 0 else 0
 
         found_ranks = [r for r in data["oracle_rank"] if r > 0]
         avg_oracle_rank = sum(found_ranks) / len(found_ranks) if found_ranks else 0
 
         rerank_gain = recall_50 - recall_10
+        extended_gain = recall_90 - recall_50  # Gain from 50→90
 
         summary[cat] = {
             "count": n,
             "recall_at_10": round(recall_10, 1),
             "recall_at_50": round(recall_50, 1),
+            "recall_at_90": round(recall_90, 1),
             "rerank_gain": round(rerank_gain, 1),
+            "extended_gain": round(extended_gain, 1),
             "avg_oracle_rank": round(avg_oracle_rank, 1),
             "oracle_found_count": len(found_ranks),
         }
@@ -617,7 +622,7 @@ async def run_benchmark():
 
                 all_memories_text = [
                     {"text": node.content, "speaker": node.metadata.get("speaker", "")}
-                    for node, charge in retrieved[:50]
+                    for node, charge in retrieved[:90]  # Extended to 90 for recall@90
                 ]
 
                 recall_10, rank_10 = await check_gold_in_memories(
@@ -633,7 +638,16 @@ async def run_benchmark():
                     )
                 RETRIEVAL_METRICS[category]["recall_at_50"].append(1 if recall_50 else 0)
 
-                oracle_rank = rank_50 if recall_50 else 0
+                # Check recall@90
+                if recall_50:
+                    recall_90, rank_90 = True, rank_50
+                else:
+                    recall_90, rank_90 = await check_gold_in_memories(
+                        http, question, gold, all_memories_text, top_k=90
+                    )
+                RETRIEVAL_METRICS[category]["recall_at_90"].append(1 if recall_90 else 0)
+
+                oracle_rank = rank_90 if recall_90 else 0  # Use rank_90 for oracle
                 RETRIEVAL_METRICS[category]["oracle_rank"].append(oracle_rank)
                 RETRIEVAL_METRICS[category]["total_candidates"].append(len(retrieved))
 
@@ -661,15 +675,16 @@ async def run_benchmark():
                         print(f"  [PROFILE] Using profile answer (confidence: {profile_result['confidence']:.0%})")
 
                 # Determine how many memories we need based on query type
-                # AGGREGATION needs 30 (answers scattered), others need 15
-                num_memories_needed = 30 if query_mode in {"AGGREGATION", "LIST"} else 15
+                # AGGREGATION needs 30 (answers scattered), single_hop needs 25 (H1 fix)
+                num_memories_needed = 30 if query_mode in {"AGGREGATION", "LIST"} else 25
 
                 # Reranking timing (separate - uses Phi 3.5 SLM)
+                # AGENT_SMITH: Rerank top 90 to match recall@90 measurement
                 t_rerank_start = time.perf_counter()
                 if USE_SLM_RERANKER:
                     reranked = await rerank_candidates_parallel(
                         question,
-                        retrieved[:50],
+                        retrieved[:90],  # Was 50, now 90 to capture more candidates
                         limit=num_memories_needed,
                         llm_model=RERANKER_MODEL,
                         llm_base_url=OLLAMA_BASE_URL,
@@ -833,6 +848,21 @@ async def run_benchmark():
                 # Judge with GPT-4o
                 correct = await judge_answer(http, question, generated, gold)
 
+                # AGENT_SMITH INSTRUMENTATION: Detect synthesis vs retrieval failures
+                if category == "single_hop" and not correct:
+                    oracle_in_ctx, oracle_ctx_rank = check_gold_in_memories_substring(
+                        gold,
+                        [{"text": node.content, "speaker": node.metadata.get("speaker", "")}
+                         for node, _ in reranked[:num_memories_needed]],
+                        top_k=num_memories_needed
+                    )
+                    if oracle_in_ctx:
+                        print(f"  [SYNTHESIS_FAIL] Oracle at context rank {oracle_ctx_rank}")
+                        print(f"    Generated: {generated[:80]}")
+                        print(f"    Gold: {gold}")
+                    else:
+                        print(f"  [RETRIEVAL_FAIL] Oracle not in top-{num_memories_needed} context")
+
                 stats[category]["total"] += 1
                 if correct:
                     stats[category]["correct"] += 1
@@ -916,17 +946,17 @@ async def run_benchmark():
     print(f"OPEN_WORLD:  {ROUTING_STATS['OPEN_DOMAIN_WORLD']} questions")
     print(f"LIST:        {ROUTING_STATS['LIST']} questions")
 
-    print(f"\n{'='*60}")
+    print(f"\n{'='*75}")
     print(f"RETRIEVAL METRICS")
-    print(f"{'='*60}")
-    print(f"{'Category':<15} {'Recall@10':<12} {'Recall@50':<12} {'RerankGain':<12}")
-    print(f"{'-'*60}")
+    print(f"{'='*75}")
+    print(f"{'Category':<15} {'Recall@10':<12} {'Recall@50':<12} {'Recall@90':<12} {'Gain50':<10} {'Gain90':<10}")
+    print(f"{'-'*75}")
 
     retrieval_summary = compute_retrieval_summary(RETRIEVAL_METRICS)
     for cat in ["single_hop", "temporal", "open_domain", "multi_hop"]:
         if cat in retrieval_summary:
             m = retrieval_summary[cat]
-            print(f"{cat:<15} {m['recall_at_10']:>8.1f}%    {m['recall_at_50']:>8.1f}%    {m['rerank_gain']:>+8.1f}%")
+            print(f"{cat:<15} {m['recall_at_10']:>8.1f}%    {m['recall_at_50']:>8.1f}%    {m['recall_at_90']:>8.1f}%    {m['rerank_gain']:>+6.1f}%    {m['extended_gain']:>+6.1f}%")
 
     print(f"\nResults saved to: {OUTPUT_PATH}")
 

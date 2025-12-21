@@ -59,6 +59,9 @@ from .external_retriever import is_open_domain_query
 from .temporal_utils import expand_temporal_query as _expand_temporal_query
 from .data_types import EdgeType
 
+# AGENT_SMITH: Universal LLM-based query expansion
+from .query_expander import expand_query_with_llm, _EXPANSION_CACHE
+
 logger = logging.getLogger(__name__)
 
 
@@ -1306,7 +1309,7 @@ class EntityStore:
             semantic_weight=0.35,
             entity_boost=0.6,      # HIGH entity weight
             speaker_boost=0.8,     # VERY HIGH speaker weight (was 0.7)
-            keyword_boost=0.4,     # Stronger keyword matching
+            keyword_boost=0.8,     # AGENT_SMITH: Match speaker_boost to surface answer-containing memories
         )
 
     async def retrieve(
@@ -1347,8 +1350,61 @@ class EntityStore:
             if charge >= self._config.min_charge:
                 results.append((node, charge))
 
+        # CRITICAL FIX: Expand via ENTITY edges to find related nodes
+        # This enables multi-hop entity reasoning that was previously missing
+        results = await self._expand_via_entity_edges(results, query_entities, limit)
+
         results.sort(key=lambda x: x[1], reverse=True)
         return results[:limit]
+
+    async def _expand_via_entity_edges(
+        self,
+        results: list[tuple["NeuralNode", float]],
+        query_entities: set[str],
+        limit: int,
+    ) -> list[tuple["NeuralNode", float]]:
+        """Expand results via ENTITY edges to find related nodes.
+
+        CRITICAL: Uses bidirectional traversal since entity edges use canonical ordering.
+        """
+        if not results:
+            return results
+
+        combined: dict[str, tuple["NeuralNode", float]] = {
+            node.node_id: (node, charge) for node, charge in results
+        }
+
+        # Take top-scoring nodes as seeds for expansion
+        seeds = sorted(results, key=lambda x: x[1], reverse=True)[:20]
+
+        for node, parent_charge in seeds:
+            # BIDIRECTIONAL: Check both directions since entity edges use canonical ordering
+            edges_from = await self._storage.get_edges_from(
+                node.node_id, edge_types=[EdgeType.ENTITY, EdgeType.SEMANTIC]
+            )
+            edges_to = await self._storage.get_edges_to(
+                node.node_id, edge_types=[EdgeType.ENTITY, EdgeType.SEMANTIC]
+            )
+            all_edges = edges_from + edges_to
+
+            for edge in all_edges[:10]:  # Limit edges per node
+                # Determine the OTHER node (bidirectional)
+                other_id = edge.target_id if edge.source_id == node.node_id else edge.source_id
+
+                if other_id in combined:
+                    # Boost existing node
+                    existing_node, existing_charge = combined[other_id]
+                    boost = parent_charge * edge.base_weight * 0.3  # 30% of parent charge
+                    combined[other_id] = (existing_node, existing_charge + boost)
+                else:
+                    # Add new node with inherited charge
+                    neighbor = await self._storage.get_node(other_id)
+                    if neighbor:
+                        inherited_charge = parent_charge * edge.base_weight * 0.5  # 50% inheritance
+                        if inherited_charge >= self._config.min_charge:
+                            combined[other_id] = (neighbor, inherited_charge)
+
+        return list(combined.values())
 
     def _extract_entities(self, text: str) -> set[str]:
         """Extract entity names (capitalized words)."""
@@ -1460,11 +1516,19 @@ class EntityStore:
 
         # 3. Speaker binding (speaker IS the queried entity)
         speaker_charge = 0.0
+        speaker = ""
         if node.metadata and query_entities:
             speaker = (node.metadata.get("producer_id", "") or
                       node.metadata.get("speaker", "")).lower()
             if any(e.lower() == speaker for e in query_entities):
                 speaker_charge = 1.0
+
+        # AGENT_SMITH: Removed broken self-reference detection.
+        # The old logic penalized correct answers containing places (Sweden),
+        # organizations (LGBTQ), months (January), etc. by treating them as person names.
+        # This caused 46% oracle miss rate on single-hop questions.
+        self_reference_boost = 0.0
+        other_person_penalty = 0.0
 
         # 4. Keyword matching
         keyword_charge = 0.0
@@ -1481,16 +1545,25 @@ class EntityStore:
             entity_charge * self._config.entity_boost +
             speaker_charge * self._config.speaker_boost +
             keyword_charge * self._config.keyword_boost +
-            novelty_charge * self._config.novelty_boost
+            novelty_charge * self._config.novelty_boost +
+            self_reference_boost -  # BOOST for self-referential content
+            other_person_penalty    # PENALTY for cross-talk content
         )
 
-        # CRITICAL: If speaker matches AND semantic > 0.2, give bonus
-        # This ensures ALL speaker messages have a chance even with low semantic
-        if speaker_charge > 0.5 and semantic_charge > 0.2:
-            total *= 1.5  # Increased from 1.3
-            # Additional boost if keywords also match
-            if keyword_charge > 0.3:
-                total *= 1.2
+        # AGENT_SMITH FIX: Speaker match should be a FILTER, not an additive boost.
+        # Previously: All speaker messages got +1.5x, drowning out content relevance.
+        # Now: Non-speaker messages get PENALIZED, making speaker match a filter.
+        # Among speaker messages, content relevance (semantic + keyword) determines rank.
+        if speaker_charge > 0.5:
+            # Speaker matches - apply content-based boosts only
+            if keyword_charge > 0.4:
+                total *= 1.3  # Strong keyword match within speaker's messages
+            if self_reference_boost > 0:
+                total *= 1.2  # Self-referential content bonus
+        else:
+            # Speaker does NOT match - heavy penalty (filter effect)
+            # This makes non-speaker messages rank much lower
+            total *= 0.15
 
         return total
 
@@ -1555,8 +1628,84 @@ class ReasoningStore:
             if charge >= self._config.min_charge:
                 results.append((node, charge))
 
+        # CRITICAL FIX: Multi-hop expansion via ENTITY edges
+        # This is essential for multi-hop reasoning queries
+        results = await self._expand_via_entity_edges_multihop(results, query_entities, limit)
+
         results.sort(key=lambda x: x[1], reverse=True)
         return results[:limit]
+
+    async def _expand_via_entity_edges_multihop(
+        self,
+        results: list[tuple["NeuralNode", float]],
+        query_entities: set[str],
+        limit: int,
+    ) -> list[tuple["NeuralNode", float]]:
+        """Expand via entity edges for multi-hop reasoning.
+
+        Uses 2-hop expansion with bidirectional traversal.
+        """
+        if not results:
+            return results
+
+        combined: dict[str, tuple["NeuralNode", float]] = {
+            node.node_id: (node, charge) for node, charge in results
+        }
+
+        # Take top nodes as seeds
+        seeds = sorted(results, key=lambda x: x[1], reverse=True)[:30]
+
+        # First hop
+        hop1_nodes = []
+        for node, parent_charge in seeds:
+            edges_from = await self._storage.get_edges_from(
+                node.node_id, edge_types=[EdgeType.ENTITY, EdgeType.SEMANTIC]
+            )
+            edges_to = await self._storage.get_edges_to(
+                node.node_id, edge_types=[EdgeType.ENTITY, EdgeType.SEMANTIC]
+            )
+            all_edges = edges_from + edges_to
+
+            for edge in all_edges[:8]:
+                other_id = edge.target_id if edge.source_id == node.node_id else edge.source_id
+
+                if other_id in combined:
+                    existing_node, existing_charge = combined[other_id]
+                    boost = parent_charge * edge.base_weight * 0.4
+                    combined[other_id] = (existing_node, existing_charge + boost)
+                else:
+                    neighbor = await self._storage.get_node(other_id)
+                    if neighbor:
+                        inherited = parent_charge * edge.base_weight * 0.6
+                        if inherited >= self._config.min_charge:
+                            combined[other_id] = (neighbor, inherited)
+                            hop1_nodes.append((neighbor, inherited))
+
+        # Second hop (from hop1 nodes) - essential for multi-hop queries
+        for node, parent_charge in hop1_nodes[:15]:
+            edges_from = await self._storage.get_edges_from(
+                node.node_id, edge_types=[EdgeType.ENTITY, EdgeType.SEMANTIC]
+            )
+            edges_to = await self._storage.get_edges_to(
+                node.node_id, edge_types=[EdgeType.ENTITY, EdgeType.SEMANTIC]
+            )
+            all_edges = edges_from + edges_to
+
+            for edge in all_edges[:5]:
+                other_id = edge.target_id if edge.source_id == node.node_id else edge.source_id
+
+                if other_id in combined:
+                    existing_node, existing_charge = combined[other_id]
+                    boost = parent_charge * edge.base_weight * 0.25
+                    combined[other_id] = (existing_node, existing_charge + boost)
+                else:
+                    neighbor = await self._storage.get_node(other_id)
+                    if neighbor:
+                        inherited = parent_charge * edge.base_weight * 0.4
+                        if inherited >= self._config.min_charge:
+                            combined[other_id] = (neighbor, inherited)
+
+        return list(combined.values())
 
     def _extract_entities(self, text: str) -> set[str]:
         entities = re.findall(r'\b[A-Z][a-z]+\b', text)

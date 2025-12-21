@@ -107,47 +107,50 @@ def format_retrieval_context(
 # SPECIALIZED PROMPTS FOR DIFFERENT QUERY TYPES
 # =============================================================================
 
-# SINGLE-HOP FACTUAL PROMPT (STRICT EVIDENCE MODE)
-SINGLE_HOP_ANSWER_PROMPT = """You are a memory retrieval system answering a simple factual question.
+# SINGLE-HOP FACTUAL PROMPT (STRICT EVIDENCE MODE) - ANTI-HALLUCINATION VERSION
+SINGLE_HOP_ANSWER_PROMPT = """Extract the specific fact from the memories below.
 
-STRICT EVIDENCE RULES:
-1. Your answer MUST come directly from the memories provided
-2. DO NOT make inferences, assumptions, or fill in missing information
-3. If the specific answer is NOT in the memories, respond: "Not found in memories"
-4. Quote or paraphrase specific text from memories to support your answer
+ANTI-HALLUCINATION RULES:
+1. ONLY output facts that appear VERBATIM in the memories
+2. DO NOT invent, guess, or assume anything
+3. For lists: scan ALL memories, output ALL matching items
+4. If not explicitly stated, output: Not found
 
-REASONING PROCESS:
-1. Find the entity being asked about
-2. Find the specific attribute/fact being requested
-3. Locate EXACTLY where in the memories this fact is stated
-4. Return ONLY what is explicitly stated
+EXTRACTION PROCESS:
+1. Identify the person asked about (match [speaker] or name mentions)
+2. Find memories where that person discusses the topic
+3. Extract ONLY the exact words/phrases that answer the question
+4. If multiple items exist across memories, list ALL of them
 
 Memories:
 {context}
 
 Question: {question}
 
-Answer (state only what is explicitly in the memories, nothing more):"""
+Answer (exact words from memories only):"""
 
 
-# LIST QUESTION PROMPT (MULTIPLE ITEMS)
+# LIST QUESTION PROMPT (MULTIPLE ITEMS) - ANTI-HALLUCINATION VERSION
 LIST_QUESTION_ANSWER_PROMPT = """Extract ALL items from the memories that answer this question.
 
-RULES:
-1. Output ONLY the items - comma-separated, no explanations.
-2. Find ALL distinct items across ALL memories.
-3. Do NOT generalize (if memories say "bowls" and "cups", say "bowls, cups" not "pottery").
+ANTI-HALLUCINATION RULES:
+1. ONLY output items that appear VERBATIM in the memories
+2. DO NOT invent, infer, or guess any items
+3. Scan EVERY memory - items may be scattered across multiple memories
+4. Output comma-separated, no explanations
+5. If no items found, output: Not found
 
-EXAMPLES:
-Q: What has Tom painted? → sunset, horse, landscape
-Q: What activities does Jane do? → pottery, camping, swimming
+VALIDATION PROCESS:
+1. For each item you want to output, find the EXACT memory that mentions it
+2. If you cannot point to a specific memory for an item, DO NOT include it
+3. Check the speaker - only include items about the person asked about
 
 Memories:
 {context}
 
 Question: {question}
 
-Answer:"""
+Answer (only items found verbatim in memories):"""
 
 
 # AGGREGATION/COMPARISON PROMPT (e.g., "What do X and Y have in common?")

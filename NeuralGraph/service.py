@@ -701,7 +701,8 @@ class NeuralGraphService:
         current_idx = node_index.get(node.node_id, len(all_nodes) - 1)
 
         # Entity context window - how far entity binding extends
-        ENTITY_CONTEXT_WINDOW = 15.0  # Messages
+        # INCREASED from 15 to 50 to allow longer-range entity connections
+        ENTITY_CONTEXT_WINDOW = 50.0  # Messages
 
         for entity_id in node.entity_ids:
             # Find other nodes with this entity
@@ -719,8 +720,9 @@ class NeuralGraphService:
                 # Closer messages = stronger entity binding
                 decay_weight = math.exp(-message_distance / ENTITY_CONTEXT_WINDOW)
 
-                # Minimum threshold to avoid noise
-                if decay_weight < 0.1:
+                # Minimum threshold to avoid noise - LOWERED from 0.1 to 0.05
+                # This allows entities ~150 messages apart to still connect
+                if decay_weight < 0.05:
                     continue
 
                 # Use canonical ordering to avoid duplicate edges
