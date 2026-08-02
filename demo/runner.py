@@ -10,7 +10,7 @@ import aiohttp
 import sys
 import re
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -18,24 +18,27 @@ from NeuralGraph import NeuralNode, NeuralEdge, NodeLayer, EdgeType, generate_ed
 from NeuralGraph.storage import InMemoryNeuralGraphStorage
 from NeuralGraph.tesseract import (
     Tesseract,
-    detect_query_type,
-    QueryType,
     detect_list_question_universal,
     is_open_domain_world_query,
     should_use_open_domain_infer,
 )
 from NeuralGraph.dialogue_linker import DialogueLinker
 from NeuralGraph.answering import AnsweringConfig, generate_answer, get_embedding
+from NeuralGraph.openai_client import openai_api_key, openai_text
 from NeuralGraph.reranker import rerank_candidates_parallel
+from NeuralGraph.benchmarking import (
+    compose_memory_content,
+    extract_target_speakers,
+    fuse_ranked_candidates,
+    is_abstention,
+    measure_evidence_coverage,
+    rank_nodes_lexically,
+)
 from NeuralGraph.service import (
     extract_keywords,
     is_temporal_question,
-    extract_month_year_from_text,
-    extract_topic_keywords_for_temporal,
     extract_count_answer,
     extract_relationship_status,
-    extract_span_answer_semantic,
-    extract_list_items_semantic,
     extract_duration_answer,
 )
 
@@ -45,44 +48,39 @@ from NeuralGraph.temporal_utils import (
     parse_datetime_flexible,
     resolve_relative_dates,
     generate_temporal_tokens,
-    preprocess_message_for_indexing,
     extract_explicit_date,
     extract_duration_metadata,
     # Query-time functions (used during retrieval)
-    expand_temporal_query,
     infer_query_mode,
 )
 from NeuralGraph.speaker_profiles import UniversalSpeakerProfiler
-from NeuralGraph import llm_profile_extractor
-
-
 import os
 
-# Ollama for answer generation and embeddings (local)
-OLLAMA_BASE_URL = "http://localhost:11434"
-OLLAMA_MODEL = "qwen2.5:7b-instruct"  # Qwen for answer generation
-EMBEDDING_MODEL = "nomic-embed-text"
+# GPT for generation; deterministic feature hashing for local embeddings.
+ANSWER_MODEL = os.environ.get("NEURALGRAPH_ANSWER_MODEL", "gpt-5.6-sol")
 ANSWERING_CONFIG = AnsweringConfig(
-    ollama_base_url=OLLAMA_BASE_URL,
-    answer_model=OLLAMA_MODEL,
-    embedding_model=EMBEDDING_MODEL,
+    answer_model=ANSWER_MODEL,
 )
 
-# OpenAI for judging only
-OPENAI_API_KEY = "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"
-JUDGE_MODEL = "gpt-4o"
-USE_OPENAI_JUDGE = True  # Using GPT-4o for judging
-USE_OPENAI_ANSWER = False  # Using Qwen for answers
+# Gold answers are sent only to the evaluator, never retrieval or answering.
+JUDGE_MODEL = os.environ.get("NEURALGRAPH_JUDGE_MODEL", "gpt-5.6-terra")
 
-# Set Ollama for profile extractor module
-llm_profile_extractor.USE_OPENAI_EXTRACTION = False
+TOP_K = int(os.environ.get("NEURALGRAPH_CANDIDATE_K", "80"))
+EXTRACT_PROFILE_FACTS = os.environ.get("NEURALGRAPH_EXTRACT_PROFILE_FACTS", "0") == "1"
+PROFILE_MIN_CONFIDENCE = float(os.environ.get("NEURALGRAPH_PROFILE_MIN_CONFIDENCE", "0.9"))
 
-TOP_K = 50
-
-CATEGORIES = {1: "single_hop", 2: "temporal", 3: "open_domain", 4: "multi_hop"}
+CATEGORIES = {
+    # Official LoCoMo category IDs. These were previously swapped, which made
+    # the per-category report call multi-hop questions single-hop and vice versa.
+    1: "multi_hop",
+    2: "temporal",
+    3: "open_domain",
+    4: "single_hop",
+    5: "adversarial",
+}
 
 OUTPUT_PATH = Path(__file__).parent / "omega.json"
-MAX_QUESTIONS = 2000  # Extended benchmark run
+MAX_QUESTIONS = int(os.environ.get("NEURALGRAPH_MAX_QUESTIONS", "2000"))
 
 # Timing storage
 import time
@@ -106,111 +104,57 @@ INFERENTIAL_SAMPLES = []
 
 RETRIEVAL_METRICS = {
     cat: {
-        "recall_at_10": [],
-        "recall_at_50": [],
-        "oracle_rank": [],
-        "filter_drop_count": [],
+        "any_at_10": [],
+        "complete_at_10": [],
+        "coverage_at_10": [],
+        "any_at_50": [],
+        "complete_at_50": [],
+        "coverage_at_50": [],
+        "context_any": [],
+        "context_complete": [],
+        "context_coverage": [],
+        "first_evidence_rank": [],
+        "complete_evidence_rank": [],
         "total_candidates": [],
     }
     for cat in CATEGORIES.values()
 }
 
 
-def check_gold_in_memories_substring(gold_answer: str, memories: list, top_k: int = 10) -> tuple[bool, int]:
-    if not gold_answer:
-        return False, 0
-
-    gold_lower = str(gold_answer).lower().strip()
-    gold_parts = [p.strip() for p in gold_lower.replace(",", "|").replace(" and ", "|").split("|")]
-    gold_parts = [p for p in gold_parts if len(p) > 2]
-
-    for rank, mem in enumerate(memories[:top_k], 1):
-        mem_text = mem.get("text", "").lower() if isinstance(mem, dict) else str(mem).lower()
-        for part in gold_parts:
-            if part in mem_text:
-                return True, rank
-        if gold_lower in mem_text:
-            return True, rank
-
-    return False, 0
-
-
-async def check_gold_in_memories_oracle(
-    session, question: str, gold_answer: str, memories: list, top_k: int = 10
-) -> tuple[bool, int]:
-    if not gold_answer:
-        return False, 0
-
-    for rank, mem in enumerate(memories[:top_k], 1):
-        mem_text = mem.get("text", "") if isinstance(mem, dict) else str(mem)
-        speaker = mem.get("speaker", "Unknown") if isinstance(mem, dict) else "Unknown"
-
-        prompt = f"""Does this memory contain evidence that could answer the question?
-
-Question: {question}
-Expected answer: {gold_answer}
-
-Memory from [{speaker}]: {mem_text[:400]}
-
-Reply with ONLY "YES" or "NO".
-- YES if the memory contains the answer or strong evidence for it
-- NO if the memory is unrelated or about a different person/topic"""
-
-        try:
-            async with session.post(
-                f"{OLLAMA_BASE_URL}/api/generate",
-                json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False,
-                      "options": {"temperature": 0, "num_predict": 5}},
-                timeout=aiohttp.ClientTimeout(total=10)
-            ) as response:
-                result = await response.json()
-                resp = result.get("response", "").strip().upper()
-                if "YES" in resp:
-                    return True, rank
-        except Exception:
-            gold_lower = str(gold_answer).lower()
-            if gold_lower in mem_text.lower():
-                return True, rank
-
-    return False, 0
-
-
-USE_QWEN_ORACLE = False  # Set to False for clean recall@k metrics (no LLM-grading)
-
-
-async def check_gold_in_memories(
-    session, question: str, gold_answer: str, memories: list, top_k: int = 10
-) -> tuple[bool, int]:
-    if USE_QWEN_ORACLE and session is not None:
-        return await check_gold_in_memories_oracle(session, question, gold_answer, memories, top_k)
-    else:
-        return check_gold_in_memories_substring(gold_answer, memories, top_k)
-
-
-
-
-
 def compute_retrieval_summary(metrics: dict) -> dict:
     summary = {}
     for cat, data in metrics.items():
-        if not data["recall_at_10"]:
+        if not data["any_at_10"]:
             continue
-        n = len(data["recall_at_10"])
-        recall_10 = sum(data["recall_at_10"]) / n * 100 if n > 0 else 0
-        recall_50 = sum(data["recall_at_50"]) / n * 100 if n > 0 else 0
+        n = len(data["any_at_10"])
 
-        found_ranks = [r for r in data["oracle_rank"] if r > 0]
-        avg_oracle_rank = sum(found_ranks) / len(found_ranks) if found_ranks else 0
+        def percentage(field: str) -> float:
+            return sum(data[field]) / n * 100 if n else 0.0
 
-        rerank_gain = recall_50 - recall_10
+        first_ranks = [rank for rank in data["first_evidence_rank"] if rank > 0]
+        complete_ranks = [rank for rank in data["complete_evidence_rank"] if rank > 0]
+
+        any_10 = percentage("any_at_10")
+        any_50 = percentage("any_at_50")
 
         summary[cat] = {
             "count": n,
-            "recall_at_10": round(recall_10, 1),
-            "recall_at_50": round(recall_50, 1),
-            "rerank_gain": round(rerank_gain, 1),
-            "avg_oracle_rank": round(avg_oracle_rank, 1),
-            "oracle_found_count": len(found_ranks),
+            "any_recall_at_10": round(any_10, 1),
+            "complete_recall_at_10": round(percentage("complete_at_10"), 1),
+            "evidence_coverage_at_10": round(percentage("coverage_at_10"), 1),
+            "any_recall_at_50": round(any_50, 1),
+            "complete_recall_at_50": round(percentage("complete_at_50"), 1),
+            "evidence_coverage_at_50": round(percentage("coverage_at_50"), 1),
+            "answer_context_any_recall": round(percentage("context_any"), 1),
+            "answer_context_complete_recall": round(percentage("context_complete"), 1),
+            "answer_context_evidence_coverage": round(percentage("context_coverage"), 1),
+            "depth_gain_any_recall": round(any_50 - any_10, 1),
+            "avg_first_evidence_rank": round(
+                sum(first_ranks) / len(first_ranks), 1
+            ) if first_ranks else 0.0,
+            "avg_complete_evidence_rank": round(
+                sum(complete_ranks) / len(complete_ranks), 1
+            ) if complete_ranks else 0.0,
         }
     return summary
 
@@ -254,9 +198,14 @@ def save_results(results, stats):
     output = {
         "metadata": {
             "model": "Tesseract 4D Memory",
-            "answer_model": OLLAMA_MODEL,
+            "answer_model": ANSWER_MODEL,
             "reranker_model": RERANKER_MODEL,
-            "judge": "GPT-4o (OpenAI)",
+            "judge": JUDGE_MODEL,
+            "embedding_model": "local-feature-hash-1024",
+            "benchmark_scope": "all LoCoMo QA categories",
+            "category_blind_inference": True,
+            "multimodal_captions": True,
+            "retrieval_metric": "evidence-ID any-hit, complete-hit, and coverage",
             "timestamp": datetime.now().isoformat(),
             "total_questions": total_questions,
             "total_correct": total_correct,
@@ -277,38 +226,34 @@ def save_results(results, stats):
         json.dump(output, f, indent=2)
 
 
-USE_SLM_RERANKER = True
-RERANKER_MODEL = "qwen2.5:7b-instruct"  # Qwen 7B for reranking
+USE_SLM_RERANKER = os.environ.get("NEURALGRAPH_USE_RERANKER", "1") != "0"
+RERANKER_MODEL = os.environ.get("NEURALGRAPH_RERANKER_MODEL", "gpt-5.6-terra")
 
 
 # =============================================================================
-# GPT-4o JUDGE with ACCURACY_PROMPT
+# GPT answer-equivalence judge
 # =============================================================================
 
-ACCURACY_PROMPT = """
-Your task is to label an answer to a question as 'CORRECT' or 'WRONG'. You will be given the following data:
-    (1) a question (posed by one user to another user),
-    (2) a 'gold' (ground truth) answer,
-    (3) a generated answer
-which you will score as CORRECT/WRONG.
+JUDGE_SYSTEM = """You are a deterministic answer-equivalence evaluator.
+Return only valid JSON with one key named label and a value of CORRECT or WRONG.
+Do not reward answers that merely mention the same topic. Do not add explanations."""
 
-The point of the question is to ask about something one user should know about the other user based on their prior conversations.
-The gold answer will usually be a concise and short answer that includes the referenced topic, for example:
-Question: Do you remember what I got the last time I went to Hawaii?
-Gold answer: A shell necklace
-The generated answer might be much longer, but you should be generous with your grading - as long as it touches on the same topic as the gold answer, it should be counted as CORRECT.
+ACCURACY_PROMPT = """Decide whether the generated answer is semantically equivalent to the gold answer.
 
-For time related questions, the gold answer will be a specific date, month, year, etc. The generated answer might be much longer or use relative time references (like "last Tuesday" or "next month"), but you should be generous with your grading - as long as it refers to the same date or time period as the gold answer, it should be counted as CORRECT. Even if the format differs (e.g., "May 7th" vs "7 May"), consider it CORRECT if it's the same date.
+Requirements:
+- All material items in a list answer must be present; harmless extra wording is allowed.
+- Treat absolute dates and relative periods as equivalent when they resolve to
+  the same calendar interval (for example, "week of May 29" and "the week
+  before June 9").
+- Accept a concise identity label when it preserves the gold answer's core
+  identity and does not contradict it.
+- A related topic, unsupported hedge, or different named entity is WRONG.
 
-Now it's time for the real question:
 Question: {question}
 Gold answer: {gold_answer}
 Generated answer: {generated_answer}
 
-First, provide a short (one sentence) explanation of your reasoning, then finish with CORRECT or WRONG.
-Do NOT include both CORRECT and WRONG in your response, or it will break the evaluation script.
-
-Just return the label CORRECT or WRONG in a json format with the key as "label".
+Return {{"label":"CORRECT"}} or {{"label":"WRONG"}}.
 """
 
 
@@ -344,21 +289,18 @@ def parse_judge_label(resp: str) -> bool:
 
 
 async def judge_answer(session, question: str, generated: str, gold) -> bool:
-    """Judge using GPT-4o."""
+    """Evaluate only after answer generation has finished."""
     gen_lower = str(generated).lower().strip()
     gold_lower = str(gold).lower().strip()
+
+    # LoCoMo adversarial items use null gold: the correct behavior is to
+    # abstain rather than copy the other speaker's plausible answer.
+    if gold is None or not gold_lower:
+        return is_abstention(generated)
 
     # Exact match auto-pass
     if gold_lower and gen_lower == gold_lower:
         return True
-
-    # Substring match for simple cases
-    if gold_lower and gold_lower in gen_lower:
-        return True
-
-    # Skip if no gold answer
-    if not gold_lower:
-        return False
 
     prompt = ACCURACY_PROMPT.format(
         question=question,
@@ -367,31 +309,27 @@ async def judge_answer(session, question: str, generated: str, gold) -> bool:
     )
 
     try:
-        async with session.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {OPENAI_API_KEY}",
-                "Content-Type": "application/json"
-            },
-            json={
-                "model": JUDGE_MODEL,
-                "messages": [
-                    {"role": "user", "content": prompt}
-                ],
-                "temperature": 0,
-                "max_tokens": 150
-            },
-            timeout=aiohttp.ClientTimeout(total=60)
-        ) as response:
-            result = await response.json()
-            resp_text = result.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
-            return parse_judge_label(resp_text)
+        resp_text = await openai_text(
+            session,
+            prompt,
+            instructions=JUDGE_SYSTEM,
+            model=JUDGE_MODEL,
+            max_output_tokens=256,
+            timeout_seconds=60,
+            reasoning_effort="medium",
+        )
+        return parse_judge_label(resp_text)
     except Exception as e:
         print(f"Judge error: {e}")
         return False
 
 
 async def run_benchmark():
+    if not openai_api_key():
+        raise RuntimeError(
+            "OPENAI_API_KEY is required. Configure it in the environment; "
+            "never paste it into source or benchmark output."
+        )
     # Load LoCoMo data
     locomo_path = Path(__file__).parent.parent / "evaluation" / "locomo" / "locomo10.json"
     with open(locomo_path) as f:
@@ -400,7 +338,7 @@ async def run_benchmark():
     results = []
     stats = {cat: {"correct": 0, "total": 0} for cat in CATEGORIES.values()}
 
-    async with aiohttp.ClientSession() as http:
+    async with aiohttp.ClientSession(trust_env=True) as http:
         for conv_idx, conv in enumerate(data):
             print(f"\n{'='*60}")
             print(f"CONVERSATION {conv_idx + 1}")
@@ -412,9 +350,13 @@ async def run_benchmark():
             while f"session_{session_idx}" in conversation:
                 datetime_str = conversation.get(f"session_{session_idx}_date_time", "")
                 for msg in conversation[f"session_{session_idx}"]:
+                    memory_content = compose_memory_content(msg)
                     messages.append({
                         "speaker": msg.get("speaker", "Unknown"),
                         "text": msg.get("text", ""),
+                        "content": memory_content,
+                        "blip_caption": msg.get("blip_caption", ""),
+                        "dia_id": msg.get("dia_id", ""),
                         "datetime": datetime_str,
                     })
                 session_idx += 1
@@ -427,18 +369,28 @@ async def run_benchmark():
             # SPEAKER PROFILES: Build profiles for ALL speakers in this conversation
             speaker_profiler = UniversalSpeakerProfiler()
 
-            # PARALLEL FACT EXTRACTION: Extract facts from ALL messages in parallel batches
-            print(f"Extracting facts from {len(messages)} messages in parallel...")
-            from NeuralGraph.llm_profile_extractor import extract_facts_parallel
-            extraction_start = time.perf_counter()
-            all_extracted_facts = await extract_facts_parallel(http, messages, batch_size=15)
-            extraction_time = time.perf_counter() - extraction_start
-            print(f"  [OK] Extracted facts in {extraction_time:.1f}s ({len(messages)/extraction_time:.1f} msgs/sec)")
+            if EXTRACT_PROFILE_FACTS:
+                print(f"Extracting facts from {len(messages)} messages in parallel...")
+                from NeuralGraph.llm_profile_extractor import extract_facts_parallel
+                extraction_start = time.perf_counter()
+                extraction_messages = [{**msg, "text": msg["content"]} for msg in messages]
+                all_extracted_facts = await extract_facts_parallel(
+                    http, extraction_messages, batch_size=15
+                )
+                extraction_time = time.perf_counter() - extraction_start
+                print(
+                    f"  [OK] Extracted facts in {extraction_time:.1f}s "
+                    f"({len(messages)/extraction_time:.1f} msgs/sec)"
+                )
+            else:
+                # Raw messages are always retained in profiles. Avoid thousands
+                # of redundant extraction calls unless explicitly requested.
+                all_extracted_facts = [[] for _message in messages]
 
             # Add messages and extracted facts to profiles (fast - no LLM calls)
             for msg_idx, (msg, facts) in enumerate(zip(messages, all_extracted_facts)):
                 # Add without LLM extraction (we already did it in parallel)
-                await speaker_profiler.add_message(msg["speaker"], msg["text"], llm_extractor=None)
+                await speaker_profiler.add_message(msg["speaker"], msg["content"], llm_extractor=None)
                 # Manually add the pre-extracted facts
                 if facts:
                     speaker_profiler.profiles[msg["speaker"]].extracted_facts.extend(facts)
@@ -448,12 +400,12 @@ async def run_benchmark():
 
             for msg_idx, msg in enumerate(messages):
 
-                embedding = await get_embedding(http, msg["text"], config=ANSWERING_CONFIG)
+                embedding = await get_embedding(http, msg["content"], config=ANSWERING_CONFIG)
                 if not embedding:
                     continue
 
-                keywords = extract_keywords(msg["text"])
-                content_entities = set(re.findall(r'\b[A-Z][a-z]+\b', msg["text"]))
+                keywords = extract_keywords(msg["content"])
+                content_entities = set(re.findall(r'\b[A-Z][a-z]+\b', msg["content"]))
                 content_entities.discard("I")
 
                 message_date = parse_datetime_flexible(msg["datetime"])
@@ -491,12 +443,14 @@ async def run_benchmark():
                 node = NeuralNode(
                     node_id=node_id,
                     session_key=f"conv_{conv_idx}",
-                    content=msg["text"],  # FAIR: original text only
+                    content=msg["content"],
                     layer=NodeLayer.MESSAGE,
                     embedding=embedding,
-                    created_at=datetime.now(),
+                    created_at=message_date or datetime.now(),
                     metadata={
                         "speaker": msg["speaker"],
+                        "dia_id": msg["dia_id"],
+                        "image_caption": msg["blip_caption"],
                         "datetime": msg["datetime"],  # Message timestamp for reasoning
                         "keywords": list(keywords),
                         "entities": list(content_entities),
@@ -569,12 +523,37 @@ async def run_benchmark():
                     break
 
                 category_id = qa.get("category", 1)
-                # Skip adversarial questions (category 5)
-                if category_id == 5:
-                    continue
                 category = CATEGORIES.get(category_id, "unknown")
                 question = qa.get("question", "")
                 gold = qa.get("answer", "")
+                evidence_ids = qa.get("evidence", [])
+
+                # Inference mode is derived from the question only. Dataset
+                # category remains available solely for aggregate reporting.
+                list_question, list_type = detect_list_question_universal(question)
+                explicit_targets = extract_target_speakers(
+                    question, speaker_profiler.profiles.keys()
+                )
+                inferred_mode = infer_query_mode(question)
+                query_mode = inferred_mode
+                if is_temporal_question(question):
+                    query_mode = "TEMPORAL"
+                elif inferred_mode == "TEMPORAL":
+                    query_mode = "INFERENTIAL"
+                elif is_open_domain_world_query(question) and not explicit_targets:
+                    query_mode = "OPEN_DOMAIN_WORLD"
+                elif list_question and list_type == "aggregation":
+                    query_mode = "AGGREGATION"
+                elif inferred_mode == "INFERENTIAL" or should_use_open_domain_infer(question):
+                    query_mode = "OPEN_DOMAIN_INFER"
+                elif list_question:
+                    query_mode = "LIST"
+                elif inferred_mode == "AGGREGATION":
+                    # The legacy mode detector calls almost every "What did/does"
+                    # question an aggregation. Without an actual list/shared marker,
+                    # use strict extraction instead of a prompt for shared items.
+                    query_mode = "STRICT"
+                ROUTING_STATS[query_mode] += 1
 
                 query_emb = await get_embedding(http, question, config=ANSWERING_CONFIG)
                 if not query_emb:
@@ -591,6 +570,45 @@ async def run_benchmark():
                     limit=TOP_K,
                     auto_expand_temporal=True,
                 )
+
+                # Fuse the neural graph with an independent high-recall lexical
+                # path. This recovers rare caption terms and exact speaker facts
+                # without consulting the category, evidence IDs, or gold answer.
+                lexical_results = rank_nodes_lexically(
+                    question,
+                    all_nodes,
+                    speakers=speaker_profiler.profiles.keys(),
+                    limit=TOP_K,
+                )
+                retrieved = fuse_ranked_candidates(
+                    retrieved,
+                    lexical_results,
+                    limit=TOP_K,
+                )
+
+                # Dialogue facts often arrive as a question/answer pair or an
+                # image followed by an explanation. Expand only around strong
+                # seeds, with a wider radius for question-derived multi-step
+                # modes. This uses conversation order, not evaluator evidence.
+                sequence_positions = {node.node_id: index for index, node in enumerate(all_nodes)}
+                neighbor_radius = 2 if query_mode in {
+                    "AGGREGATION", "LIST", "INFERENTIAL", "OPEN_DOMAIN_INFER"
+                } else 1
+                with_neighbors = {node.node_id: (node, score) for node, score in retrieved}
+                for seed, seed_score in retrieved[:30]:
+                    position = sequence_positions.get(seed.node_id)
+                    if position is None:
+                        continue
+                    for distance in range(1, neighbor_radius + 1):
+                        for neighbor_index in (position - distance, position + distance):
+                            if not 0 <= neighbor_index < len(all_nodes):
+                                continue
+                            neighbor = all_nodes[neighbor_index]
+                            neighbor_score = seed_score * (0.94 if distance == 1 else 0.86)
+                            existing = with_neighbors.get(neighbor.node_id)
+                            if existing is None or neighbor_score > existing[1]:
+                                with_neighbors[neighbor.node_id] = (neighbor, neighbor_score)
+                retrieved = sorted(with_neighbors.values(), key=lambda item: item[1], reverse=True)[:TOP_K]
 
                 expanded_results = []
                 seen_ids = set()
@@ -615,81 +633,76 @@ async def run_benchmark():
                 t_retrieval = (time.perf_counter() - t_retrieval_start) * 1000
                 TIMING_DATA["t_retrieval"].append(t_retrieval)
 
-                all_memories_text = [
-                    {"text": node.content, "speaker": node.metadata.get("speaker", "")}
+                evaluation_retrieval_memories = [
+                    {
+                        "text": node.content,
+                        "speaker": node.metadata.get("speaker", ""),
+                        "dia_id": node.metadata.get("dia_id", ""),
+                    }
                     for node, charge in retrieved[:50]
                 ]
-
-                recall_10, rank_10 = await check_gold_in_memories(
-                    http, question, gold, all_memories_text, top_k=10
-                )
-                RETRIEVAL_METRICS[category]["recall_at_10"].append(1 if recall_10 else 0)
-
-                if recall_10:
-                    recall_50, rank_50 = True, rank_10
-                else:
-                    recall_50, rank_50 = await check_gold_in_memories(
-                        http, question, gold, all_memories_text, top_k=50
-                    )
-                RETRIEVAL_METRICS[category]["recall_at_50"].append(1 if recall_50 else 0)
-
-                oracle_rank = rank_50 if recall_50 else 0
-                RETRIEVAL_METRICS[category]["oracle_rank"].append(oracle_rank)
-                RETRIEVAL_METRICS[category]["total_candidates"].append(len(retrieved))
-
-                # CRITICAL: Determine query_mode BEFORE reranking (need to know how many memories to request)
-                list_question, list_type = detect_list_question_universal(question)
-                query_mode = infer_query_mode(question)
-                if list_question:
-                    query_mode = "AGGREGATION" if list_type == "aggregation" else "LIST"
-                if is_temporal_question(question):
-                    query_mode = "TEMPORAL"
-                elif query_mode == "TEMPORAL":
-                    query_mode = "INFERENTIAL"
-                if category == "open_domain" and is_open_domain_world_query(question):
-                    query_mode = "OPEN_DOMAIN_WORLD"
-                ROUTING_STATS[query_mode] += 1
 
                 # SPEAKER PROFILES: For single_hop, check profile FIRST before retrieval
                 profile_answer = None
                 used_profile = False
-                if category == "single_hop" and not list_question:
-                    profile_result = await speaker_profiler.query_single_hop(http, question, str(gold))
-                    if profile_result['found'] and profile_result['confidence'] >= 0.5:
+                target_speakers = explicit_targets
+                if query_mode == "STRICT" and not list_question and len(target_speakers) == 1:
+                    profile_result = await speaker_profiler.query_single_hop(http, question)
+                    if (
+                        profile_result['found']
+                        and profile_result['confidence'] >= PROFILE_MIN_CONFIDENCE
+                    ):
                         profile_answer = profile_result['answer']
                         used_profile = True
                         print(f"  [PROFILE] Using profile answer (confidence: {profile_result['confidence']:.0%})")
 
                 # Determine how many memories we need based on query type
-                # AGGREGATION needs 30 (answers scattered), others need 15
-                num_memories_needed = 30 if query_mode in {"AGGREGATION", "LIST"} else 15
+                # Lists and multi-step inferences need broader evidence coverage.
+                if query_mode in {"AGGREGATION", "LIST"}:
+                    num_memories_needed = 48
+                elif query_mode in {"TEMPORAL", "INFERENTIAL", "OPEN_DOMAIN_INFER", "ADVERSARIAL"}:
+                    num_memories_needed = 30
+                else:
+                    num_memories_needed = 24
 
                 # Reranking timing (separate - uses Phi 3.5 SLM)
                 t_rerank_start = time.perf_counter()
                 if USE_SLM_RERANKER:
                     reranked = await rerank_candidates_parallel(
                         question,
-                        retrieved[:50],
+                        retrieved[:TOP_K],
                         limit=num_memories_needed,
                         llm_model=RERANKER_MODEL,
-                        llm_base_url=OLLAMA_BASE_URL,
+                        max_candidates=TOP_K,
                     )
                 else:
                     reranked = retrieved[:num_memories_needed]
+
+                # A learned reranker can confidently discard rare but valid
+                # evidence. Reserve half the context for its best candidates
+                # and half for the original high-recall fused ranking.
+                if USE_SLM_RERANKER:
+                    rerank_quota = max(1, num_memories_needed // 2)
+                    blended = list(reranked[:rerank_quota])
+                    blended_ids = {node.node_id for node, _score in blended}
+                    for node, score in retrieved:
+                        if node.node_id in blended_ids:
+                            continue
+                        blended.append((node, score))
+                        blended_ids.add(node.node_id)
+                        if len(blended) >= num_memories_needed:
+                            break
+                    reranked = blended
                 t_rerank = (time.perf_counter() - t_rerank_start) * 1000
                 TIMING_DATA["t_rerank"].append(t_rerank)
-
-                # UPGRADE INFERENTIAL to aggressive mode for open-domain-style questions
-                # These questions NEED strong inference even with weak evidence (60+ markers)
-                if category == "open_domain" and query_mode == "INFERENTIAL":
-                    if should_use_open_domain_infer(question):
-                        query_mode = "OPEN_DOMAIN_INFER"
 
                 # Build context from reranked memories
                 # (num_memories_needed already determined based on query_mode)
                 context_parts = []
                 retrieved_memories = []
-                for node, charge in reranked[:num_memories_needed]:
+                for memory_rank, (node, charge) in enumerate(
+                    reranked[:num_memories_needed], 1
+                ):
                     speaker = node.metadata.get("speaker", "Unknown")
                     dt = node.metadata.get("datetime", "")
                     # FAIR: Use original content - LLM must reason about relative dates
@@ -705,17 +718,22 @@ async def run_benchmark():
                     if query_mode == "TEMPORAL":
                         # Provide resolved dates to avoid timestamp-only answers
                         context_parts.append(
-                            f"[MESSAGE_DATETIME={dt}] [RESOLVED_DATE={resolved_date}] "
+                            f"[RANK={memory_rank}] [MESSAGE_DATETIME={dt}] "
+                            f"[RESOLVED_DATE={resolved_date}] "
                             f"[RESOLVED_RELATIVE={resolved_relative}] [SPEAKER={speaker}] {original_content}"
                         )
                     else:
-                        context_parts.append(f"[{speaker}] {original_content}\n  (sent: {dt})")
+                        context_parts.append(
+                            f"[RANK={memory_rank}] [SPEAKER={speaker}] "
+                            f"[MESSAGE_DATETIME={dt}] {original_content}"
+                        )
 
 
                     retrieved_memories.append({
                         "speaker": speaker,
                         "text": original_content[:300],
                         "datetime": dt,
+                        "dia_id": node.metadata.get("dia_id", ""),
                         "charge": round(charge, 3),
                     })
 
@@ -749,29 +767,12 @@ async def run_benchmark():
 
                 extracted_answer = None
                 if query_mode == "TEMPORAL":
-                    # TEMPORAL extraction is reliable - keep it
+                    # Duration arithmetic is deterministic. Event-date selection
+                    # is not: choosing the first resolved date caused correct
+                    # evidence to be replaced by a nearby event's timestamp.
                     duration_direct = extract_duration_answer(question, candidate_memories)
                     if duration_direct:
                         extracted_answer = duration_direct
-                    else:
-                        topic_keywords = extract_topic_keywords_for_temporal(question)
-                        query_month, query_year = extract_month_year_from_text(question)
-                        for mem in candidate_memories:
-                            meta = mem.get("metadata", {})
-                            resolved_date = meta.get("resolved_date")
-                            source = meta.get("resolved_date_source")
-                            if source in ("explicit", "relative") and resolved_date:
-                                text_lower = mem.get("text", "").lower()
-                                if topic_keywords and not any(k in text_lower for k in topic_keywords):
-                                    continue
-                                if query_month or query_year:
-                                    mem_month, mem_year = extract_month_year_from_text(resolved_date)
-                                    if query_month and mem_month != query_month:
-                                        continue
-                                    if query_year and mem_year != query_year:
-                                        continue
-                                extracted_answer = resolved_date
-                                break
                 elif query_mode != "OPEN_DOMAIN_WORLD":
                     # Only use simple, reliable extractors (count and relationship status)
                     # These pattern-based extractors work well for specific formats
@@ -802,36 +803,46 @@ async def run_benchmark():
                     t_answer = (time.perf_counter() - t_answer_start) * 1000
                 TIMING_DATA["t_answer"].append(t_answer)
 
-                # FALLBACK: If single_hop or multi_hop says "not found", try open_domain inference
-                not_found_phrases = [
-                    "not mentioned in the memories",
-                    "not found in the memories",
-                    "not in the memories",
-                    "no information",
-                    "cannot determine",
-                    "not stated",
-                    "not specified",
-                    "no mention",
-                ]
-                answer_lower = generated.lower()
-                is_not_found = any(phrase in answer_lower for phrase in not_found_phrases)
-
-                if is_not_found and category == "open_domain":
-                    # Second pass: analyze memories and infer
-                    generated = await generate_answer(
-                        http,
-                        question,
-                        context,
-                        mode="OPEN_DOMAIN_INFER",
-                        config=ANSWERING_CONFIG,
-                    )
-
                 # End-to-end timing (retrieval + rerank + answer generation)
                 t_e2e = (time.perf_counter() - t_e2e_start) * 1000
                 TIMING_DATA["t_e2e"].append(t_e2e)
 
-                # Judge with GPT-4o
+                # Judge only after generation; gold never enters retrieval.
                 correct = await judge_answer(http, question, generated, gold)
+
+                # Evidence IDs are evaluator-only. Measure them after answering
+                # so annotations cannot influence retrieval, reranking, context,
+                # or generation. Report both partial and complete evidence recall.
+                evidence_at_10 = measure_evidence_coverage(
+                    evidence_ids, evaluation_retrieval_memories, top_k=10
+                )
+                evidence_at_50 = measure_evidence_coverage(
+                    evidence_ids, evaluation_retrieval_memories, top_k=50
+                )
+                answer_context_memories = (
+                    [] if query_mode == "OPEN_DOMAIN_WORLD" else retrieved_memories
+                )
+                context_evidence = measure_evidence_coverage(
+                    evidence_ids,
+                    answer_context_memories,
+                    top_k=len(answer_context_memories),
+                )
+
+                category_metrics = RETRIEVAL_METRICS[category]
+                category_metrics["any_at_10"].append(int(evidence_at_10.any_found))
+                category_metrics["complete_at_10"].append(int(evidence_at_10.all_found))
+                category_metrics["coverage_at_10"].append(evidence_at_10.coverage)
+                category_metrics["any_at_50"].append(int(evidence_at_50.any_found))
+                category_metrics["complete_at_50"].append(int(evidence_at_50.all_found))
+                category_metrics["coverage_at_50"].append(evidence_at_50.coverage)
+                category_metrics["context_any"].append(int(context_evidence.any_found))
+                category_metrics["context_complete"].append(int(context_evidence.all_found))
+                category_metrics["context_coverage"].append(context_evidence.coverage)
+                category_metrics["first_evidence_rank"].append(evidence_at_50.first_rank)
+                category_metrics["complete_evidence_rank"].append(
+                    evidence_at_50.last_rank if evidence_at_50.all_found else 0
+                )
+                category_metrics["total_candidates"].append(len(retrieved))
 
                 stats[category]["total"] += 1
                 if correct:
@@ -841,11 +852,31 @@ async def run_benchmark():
                     "id": len(results) + 1,
                     "conversation": conv_idx + 1,
                     "category": category,
+                    "inference_mode": query_mode,
                     "question": question,
                     "generated_answer": generated,
                     "gold_answer": gold,
                     "correct": correct,
                     "used_speaker_profile": used_profile,  # Track if profile was used
+                    # Legacy flags remain as explicitly any-evidence recall.
+                    "evidence_recall_at_10": evidence_at_10.any_found,
+                    "evidence_recall_at_50": evidence_at_50.any_found,
+                    "evidence_any_recall_at_10": evidence_at_10.any_found,
+                    "evidence_complete_recall_at_10": evidence_at_10.all_found,
+                    "evidence_coverage_at_10": round(evidence_at_10.coverage, 3),
+                    "evidence_any_recall_at_50": evidence_at_50.any_found,
+                    "evidence_complete_recall_at_50": evidence_at_50.all_found,
+                    "evidence_coverage_at_50": round(evidence_at_50.coverage, 3),
+                    "answer_context_any_recall": context_evidence.any_found,
+                    "answer_context_complete_recall": context_evidence.all_found,
+                    "answer_context_evidence_coverage": round(context_evidence.coverage, 3),
+                    "evidence_expected_count": evidence_at_50.expected_count,
+                    "evidence_found_count_at_50": evidence_at_50.found_count,
+                    "evidence_first_rank": evidence_at_50.first_rank,
+                    "evidence_complete_rank": (
+                        evidence_at_50.last_rank if evidence_at_50.all_found else 0
+                    ),
+                    "missing_evidence_ids_at_50": list(evidence_at_50.missing_ids),
                     "retrieval_latency_ms": round(t_retrieval, 1),
                     "rerank_latency_ms": round(t_rerank, 1),
                     "answer_latency_ms": round(t_answer, 1),
@@ -872,7 +903,8 @@ async def run_benchmark():
     accuracy = 100 * total_correct / total_questions if total_questions > 0 else 0
 
     print(f"\n{'='*60}")
-    print(f"BENCHMARK COMPLETE (Answer: {OLLAMA_MODEL}, Judge: GPT-4o)")
+    judge_name = JUDGE_MODEL
+    print(f"BENCHMARK COMPLETE (Answer: {ANSWER_MODEL}, Judge: {judge_name})")
     print(f"{'='*60}")
     print(f"Total: {total_correct}/{total_questions} ({accuracy:.1f}%)")
     for cat, s in stats.items():
@@ -903,7 +935,7 @@ async def run_benchmark():
 
     print_latency_stats("Memory Retrieval", TIMING_DATA.get("t_retrieval", []))
     print_latency_stats(f"Reranking ({RERANKER_MODEL})", TIMING_DATA.get("t_rerank", []))
-    print_latency_stats(f"Answer Generation ({OLLAMA_MODEL})", TIMING_DATA.get("t_answer", []))
+    print_latency_stats(f"Answer Generation ({ANSWER_MODEL})", TIMING_DATA.get("t_answer", []))
     print_latency_stats("End-to-End", TIMING_DATA.get("t_e2e", []))
 
     print(f"\n{'='*60}")
@@ -919,14 +951,23 @@ async def run_benchmark():
     print(f"\n{'='*60}")
     print(f"RETRIEVAL METRICS")
     print(f"{'='*60}")
-    print(f"{'Category':<15} {'Recall@10':<12} {'Recall@50':<12} {'RerankGain':<12}")
-    print(f"{'-'*60}")
+    print(
+        f"{'Category':<15} {'Any@50':>8} {'All@50':>8} "
+        f"{'Cov@50':>8} {'CtxAll':>8} {'CtxCov':>8}"
+    )
+    print(f"{'-'*65}")
 
     retrieval_summary = compute_retrieval_summary(RETRIEVAL_METRICS)
-    for cat in ["single_hop", "temporal", "open_domain", "multi_hop"]:
+    for cat in CATEGORIES.values():
         if cat in retrieval_summary:
             m = retrieval_summary[cat]
-            print(f"{cat:<15} {m['recall_at_10']:>8.1f}%    {m['recall_at_50']:>8.1f}%    {m['rerank_gain']:>+8.1f}%")
+            print(
+                f"{cat:<15} {m['any_recall_at_50']:>7.1f}% "
+                f"{m['complete_recall_at_50']:>7.1f}% "
+                f"{m['evidence_coverage_at_50']:>7.1f}% "
+                f"{m['answer_context_complete_recall']:>7.1f}% "
+                f"{m['answer_context_evidence_coverage']:>7.1f}%"
+            )
 
     print(f"\nResults saved to: {OUTPUT_PATH}")
 

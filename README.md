@@ -87,23 +87,26 @@ Conversation / Event Stream
    Grounded Answer + Evidence
 ```
 
-## Local Models
+## Model Configuration
 
-The current answering and embedding pipeline is designed to work with local models through [Ollama](https://ollama.com/).
+The benchmark uses GPT through OpenAI's Responses API. Retrieval
+embeddings remain local and deterministic, so only constrained prompts and
+retrieved context are sent to the hosted model.
 
 Default configuration:
 
-- Answer model: `qwen2.5:7b-instruct`
-- Embedding model: `nomic-embed-text`
-- Ollama endpoint: `http://localhost:11434`
+- Answer model: `gpt-5.6-sol`
+- Reranker/profile/judge model: `gpt-5.6-terra`
+- Embedding model: local 1,024-dimensional signed feature hashing
 
-Example model setup:
+Configure the API key privately in your shell or secret manager:
 
 ```bash
-ollama pull qwen2.5:7b-instruct
-ollama pull nomic-embed-text
-ollama serve
+export OPENAI_API_KEY="..."
 ```
+
+Never put the key in source code, committed environment files, or benchmark
+output.
 
 ## Example Use Cases
 
@@ -127,6 +130,34 @@ ollama serve
 ## Current Status
 
 NeuralGraph is under active development. Current work focuses on improving single-hop extraction, temporal questions, list and aggregation queries, query routing, latency tracking, and benchmark attribution.
+
+## Reproducible LoCoMo Evaluation
+
+The benchmark runner evaluates all five QA categories, ingests LoCoMo's
+provided image captions, and keeps dataset labels out of retrieval and answer
+generation. Retrieval recall is measured against evidence IDs rather than by
+searching for gold-answer text. Reports distinguish any-evidence recall,
+complete-evidence recall, fractional evidence coverage, and the evidence that
+actually survives into the answer context; the old any-hit number alone can
+substantially overstate multi-hop readiness.
+
+```bash
+python -m pip install -r requirements.txt
+export OPENAI_API_KEY="..."
+python demo/runner.py
+```
+
+Useful local-only controls:
+
+```bash
+NEURALGRAPH_MAX_QUESTIONS=100 python demo/runner.py
+NEURALGRAPH_ANSWER_MODEL=gpt-5.6-sol python demo/runner.py
+NEURALGRAPH_RERANKER_MODEL=gpt-5.6-terra python demo/runner.py
+NEURALGRAPH_USE_RERANKER=0 python demo/runner.py
+```
+
+The runner fails closed when `OPENAI_API_KEY` is missing rather than silently
+producing incomplete or incomparable scores.
 
 ## Roadmap
 

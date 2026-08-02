@@ -136,11 +136,13 @@ def detect_list_question_universal(question: str) -> tuple[bool, str | None]:
         is_list = True
         list_type = "plural"
 
+    # Do not use ``what\s+\w+s`` here: auxiliaries such as "is", "was",
+    # "does", and "has" all end in ``s`` and made ordinary singular questions
+    # look like list requests (for example, "What is Caroline's identity?").
     plural_patterns = [
-        r"\bwhat\s+\w+s\b",
-        r"\bwhich\s+\w+s\b",
-        r"\blist\s+\w+s\b",
-        r"\bwhat\s+are\s+\w+s\b",
+        r"\b(?:what|which)\s+(?!is\b|was\b|does\b|has\b|this\b)[a-z][a-z-]*s\b",
+        r"\blist\s+[a-z][a-z-]*s\b",
+        r"\bwhat\s+(?:are|were)\s+(?:[a-z][a-z-]*['’]s\s+)?(?:[a-z][a-z-]*\s+){0,3}[a-z][a-z-]*s\b",
     ]
     if any(re.search(pattern, q) for pattern in plural_patterns):
         is_list = True

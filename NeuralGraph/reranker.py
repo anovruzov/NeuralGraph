@@ -2,7 +2,7 @@
 
 Implements dense reranking on the top-K from retrieval using:
 1. Cross-encoder scoring (query-document pairs)
-2. LLM-based relevance scoring (Ollama/OpenAI)
+2. GPT-based relevance scoring
 3. Cached logits per candidate text for efficiency
 
 THE PLAN: "Add dense reranking on the top-K from HybridFlashRetriever/NeuralRetriever
@@ -14,7 +14,7 @@ Reranking significantly improves precision@1 for single-hop queries by:
 - Filtering out candidates that are topically similar but don't answer the question
 
 Usage:
-    reranker = create_reranker("llm", model="qwen2.5:7b-instruct")
+    reranker = create_reranker("llm", llm_model="gpt-5.6-terra")
     reranked = await reranker.rerank(query, candidates, limit=10)
 """
 
@@ -22,11 +22,14 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import logging
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable
+
+from .openai_client import openai_text
 
 if TYPE_CHECKING:
     from .data_types import NeuralNode
@@ -42,8 +45,8 @@ class RerankerConfig:
     reranker_type: str = "llm"
 
     # LLM settings
-    llm_base_url: str = "http://localhost:11434"
-    llm_model: str = "qwen2.5:7b-instruct"
+    llm_base_url: str = "https://api.anthropic.com/v1"
+    llm_model: str = "gpt-5.6-terra"
     llm_timeout_seconds: float = 8.0
     llm_max_tokens: int = 15
 
@@ -300,7 +303,7 @@ class BaseReranker(ABC):
 
 
 class LLMReranker(BaseReranker):
-    """LLM-based reranker using Ollama or compatible API.
+    """GPT-based relevance reranker.
 
     Scores candidates using an LLM prompt that asks for relevance rating.
     Fast and effective for single-hop factual questions.
@@ -315,7 +318,7 @@ class LLMReranker(BaseReranker):
         """Get or create aiohttp session."""
         if self._session is None:
             import aiohttp
-            self._session = aiohttp.ClientSession()
+            self._session = aiohttp.ClientSession(trust_env=True)
         return self._session
 
     async def score_candidate(
@@ -332,51 +335,46 @@ class LLMReranker(BaseReranker):
         - 1 = weakly related
         - 0 = unrelated / wrong entity
         """
-        import aiohttp
-
-        prompt = f"""Score relevance 0-3 for the question vs memory.
+        prompt = f"""Score whether this memory contains evidence for the exact question.
 
 Question: {query}
-Memory from [{speaker}]: {candidate_text[:350]}
+Memory from [SPEAKER={speaker}]: {candidate_text[:500]}
 
 Scoring:
-3 = directly answers the question
-2 = strong supporting evidence
-1 = weakly related
-0 = unrelated / wrong entity
+3 = directly answers the exact person, event, and requested attribute
+2 = strong supporting evidence needed to derive the answer
+1 = same topic but does not supply the requested answer
+0 = unrelated, wrong person/event, or only asks the question
+
+Rules:
+- Speaker attribution is strict. Do not transfer one person's facts to another.
+- For WHEN questions, score 3 only when this is the same event and contains its time evidence.
+- [IMAGE] captions count as evidence.
+- Topic similarity alone is never a 3.
 
 Return JSON only: {{"score": 0}} (or 1/2/3)"""
 
         try:
             session = await self._get_session()
-            async with session.post(
-                f"{self.config.llm_base_url}/api/generate",
-                json={
-                    "model": self.config.llm_model,
-                    "prompt": prompt,
-                    "stream": False,
-                    "options": {
-                        "temperature": 0,
-                        "num_predict": self.config.llm_max_tokens
-                    }
-                },
-                timeout=aiohttp.ClientTimeout(total=self.config.llm_timeout_seconds)
-            ) as response:
-                result = await response.json()
-                resp = result.get("response", "").strip()
+            resp = await openai_text(
+                session,
+                prompt,
+                instructions="Return only the requested relevance JSON.",
+                model=self.config.llm_model,
+                max_output_tokens=max(64, self.config.llm_max_tokens),
+                timeout_seconds=self.config.llm_timeout_seconds,
+                reasoning_effort="low",
+            )
 
-                # Parse JSON response
-                import json
-                try:
-                    obj = json.loads(resp)
-                    score = int(obj.get("score", 1))
-                    return max(0, min(3, score))
-                except Exception:
-                    # Fallback to digit scan
-                    for char in resp:
-                        if char in "0123":
-                            return int(char)
-                    return 1
+            try:
+                obj = json.loads(resp)
+                score = int(obj.get("score", 1))
+                return max(0, min(3, score))
+            except Exception:
+                for char in resp:
+                    if char in "0123":
+                        return int(char)
+                return 1
 
         except Exception as e:
             logger.debug(f"LLM rerank error: {e}")
@@ -583,45 +581,75 @@ async def rerank_candidates_parallel(
     query: str,
     candidates: list[tuple["NeuralNode", float]],
     limit: int = 15,
-    llm_model: str = "qwen2.5:7b-instruct",
-    llm_base_url: str = "http://localhost:11434",
-    timeout_seconds: float = 10.0,
+    llm_model: str = "gpt-5.6-terra",
+    llm_base_url: str = "https://api.anthropic.com/v1",
+    timeout_seconds: float = 60.0,
     max_candidates: int = 50,
     score_boost: float = 0.2,
 ) -> list[tuple["NeuralNode", float]]:
-    """Parallel LLM rerank for benchmark usage."""
+    """Rerank all candidates in one GPT request.
+
+    The former implementation made one model call per candidate. One batched
+    request per question is dramatically cheaper and avoids rate-limit bursts.
+    """
     if not candidates:
         return []
 
-    cfg = RerankerConfig(
-        reranker_type="llm",
-        llm_model=llm_model,
-        llm_base_url=llm_base_url,
-        llm_timeout_seconds=timeout_seconds,
-        llm_max_tokens=5,
-        max_candidates=max_candidates,
+    import aiohttp
+
+    candidates = candidates[:max_candidates]
+    memories = "\n".join(
+        f"{index}. [SPEAKER={node.speaker_id}] {node.content[:600]}"
+        for index, (node, _score) in enumerate(candidates)
     )
-    reranker = LLMReranker(cfg)
+    prompt = f"""Score each numbered memory for evidence relevant to the exact question.
 
+QUESTION: {query}
+
+MEMORIES:
+{memories}
+
+Use integer scores:
+3 = directly answers the exact person, event, and requested attribute
+2 = strong supporting evidence needed to derive the answer
+1 = same topic but does not supply the answer
+0 = unrelated, wrong person/event, or only asks the question
+
+Speaker attribution is strict. Image captions count as evidence. For WHEN
+questions, the memory must concern the same event. Return only JSON with one
+score for every index: {{"scores":[{{"index":0,"score":3}}]}}"""
+
+    scores_by_index: dict[int, float] = {}
     try:
-        candidates = candidates[:max_candidates]
-        tasks = []
-        for node, _score in candidates:
-            tasks.append(reranker.score_candidate(query, node.content, node.speaker_id))
-        scores = await asyncio.gather(*tasks, return_exceptions=True)
+        async with aiohttp.ClientSession(trust_env=True) as session:
+            response_text = await openai_text(
+                session,
+                prompt,
+                instructions="Rerank memories exactly as specified and return valid JSON only.",
+                model=llm_model,
+                max_output_tokens=max(512, len(candidates) * 18),
+                timeout_seconds=timeout_seconds,
+                reasoning_effort="low",
+            )
+        if response_text.startswith("```"):
+            response_text = response_text.split("```", 2)[1]
+            if response_text.startswith("json"):
+                response_text = response_text[4:]
+        payload = json.loads(response_text.strip())
+        for item in payload.get("scores", []):
+            index = int(item.get("index", -1))
+            score = max(0, min(3, int(item.get("score", 1))))
+            if 0 <= index < len(candidates):
+                scores_by_index[index] = float(score)
+    except Exception as exc:
+        logger.debug("GPT batch rerank error: %s", exc)
 
-        scored = []
-        for (node, charge), score in zip(candidates, scores):
-            if isinstance(score, Exception):
-                score = 1
-            scored.append((node, charge, float(score)))
-
-        scored.sort(key=lambda x: (x[2], x[1]), reverse=True)
-
-        result: list[tuple["NeuralNode", float]] = []
-        for node, charge, score in scored[:limit]:
-            boosted = charge + (score * score_boost)
-            result.append((node, boosted))
-        return result
-    finally:
-        await reranker.close()
+    scored = [
+        (node, charge, scores_by_index.get(index, 1.0))
+        for index, (node, charge) in enumerate(candidates)
+    ]
+    scored.sort(key=lambda item: (item[2], item[1]), reverse=True)
+    return [
+        (node, charge + score * score_boost)
+        for node, charge, score in scored[:limit]
+    ]

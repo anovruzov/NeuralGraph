@@ -16,14 +16,9 @@ import os
 import aiohttp
 from typing import List, Dict, Any
 
+from .openai_client import openai_text
 
-OLLAMA_BASE_URL = "http://localhost:11434"
-OLLAMA_MODEL = "qwen2.5:7b-instruct"  # Fast 7B model for extraction
-
-# OpenAI config (set via environment or override in caller)
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
-USE_OPENAI_EXTRACTION = False  # Default to Ollama for fact extraction
-OPENAI_EXTRACTION_MODEL = "gpt-4.1-mini"  # Fast model for extraction (if enabled)
+EXTRACTION_MODEL = os.environ.get("NEURALGRAPH_EXTRACTION_MODEL", "gpt-5.6-terra")
 
 
 async def extract_speaker_facts_llm(
@@ -74,50 +69,18 @@ Return ONLY valid JSON:
   "facts": ["fact1", "fact2", "fact3"]
 }}
 
-If no notable facts about {speaker_name}, return {{"facts": []}}"""
+    If no notable facts about {speaker_name}, return {{"facts": []}}"""
 
     try:
-        if USE_OPENAI_EXTRACTION and OPENAI_API_KEY:
-            # Use OpenAI for extraction
-            async with session.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {OPENAI_API_KEY}",
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "model": OPENAI_EXTRACTION_MODEL,
-                    "messages": [{"role": "user", "content": extraction_prompt}],
-                    "temperature": 0.1,
-                    "max_tokens": 500
-                },
-                timeout=aiohttp.ClientTimeout(total=30)
-            ) as resp:
-                if resp.status != 200:
-                    return []
-
-                data = await resp.json()
-                response_text = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
-        else:
-            # Use Ollama for extraction
-            async with session.post(
-                f"{OLLAMA_BASE_URL}/api/generate",
-                json={
-                    "model": OLLAMA_MODEL,
-                    "prompt": extraction_prompt,
-                    "stream": False,
-                    "options": {
-                        "temperature": 0.1,  # Low temp for consistent extraction
-                        "num_predict": 500,
-                    }
-                },
-                timeout=aiohttp.ClientTimeout(total=30)
-            ) as resp:
-                if resp.status != 200:
-                    return []
-
-                data = await resp.json()
-                response_text = data.get("response", "").strip()
+        response_text = await openai_text(
+            session,
+            extraction_prompt,
+            instructions="Extract only explicitly supported speaker facts and return valid JSON.",
+            model=EXTRACTION_MODEL,
+            max_output_tokens=500,
+            timeout_seconds=45,
+            reasoning_effort="low",
+        )
 
         # Parse JSON from response
         # Sometimes LLM adds markdown code blocks, remove them
@@ -147,7 +110,7 @@ If no notable facts about {speaker_name}, return {{"facts": []}}"""
         except json.JSONDecodeError:
             return []
 
-    except Exception as e:
+    except Exception:
         return []
 
 

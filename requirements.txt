@@ -1,0 +1,4 @@
+aiohttp>=3.10,<4
+numpy>=1.26,<3
+pytest>=8,<10
+pytest-asyncio>=0.23,<2

@@ -327,8 +327,8 @@ def get_rewrite_prompt(query: str, num_rewrites: int = 2) -> tuple[str, str]:
 async def generate_query_rewrites(
     query: str,
     llm_client,  # aiohttp session or compatible
-    base_url: str = "http://localhost:11434",
-    model: str = "qwen2.5:7b-instruct",
+    base_url: str = "https://api.anthropic.com/v1",
+    model: str = "gpt-5.6-terra",
     num_rewrites: int = 2,
     timeout_seconds: float = 5.0
 ) -> list[str]:
@@ -348,46 +348,37 @@ async def generate_query_rewrites(
         List of query rewrites (including original)
     """
     import json
-    import aiohttp
+    from .openai_client import openai_text
 
-    prompt, prompt_type = get_rewrite_prompt(query, num_rewrites)
+    prompt, _prompt_type = get_rewrite_prompt(query, num_rewrites)
 
     try:
-        async with llm_client.post(
-            f"{base_url}/api/generate",
-            json={
-                "model": model,
-                "prompt": prompt,
-                "stream": False,
-                "options": {
-                    "temperature": 0.3,  # Low temp for focused rewrites
-                    "num_predict": 200
-                }
-            },
-            timeout=aiohttp.ClientTimeout(total=timeout_seconds)
-        ) as response:
-            result = await response.json()
-            resp = result.get("response", "").strip()
+        resp = await openai_text(
+            llm_client,
+            prompt,
+            instructions="Return only the requested query rewrites.",
+            model=model,
+            max_output_tokens=200,
+            timeout_seconds=timeout_seconds,
+            reasoning_effort="low",
+        )
 
-            # Parse JSON array
-            try:
-                # Find JSON array in response
-                start = resp.find("[")
-                end = resp.rfind("]") + 1
-                if start >= 0 and end > start:
-                    rewrites = json.loads(resp[start:end])
-                    if isinstance(rewrites, list):
-                        # Filter to valid strings and limit
-                        valid = [r for r in rewrites if isinstance(r, str) and len(r) > 5]
-                        return valid[:num_rewrites]
-            except json.JSONDecodeError:
-                pass
+        # Parse JSON array
+        try:
+            start = resp.find("[")
+            end = resp.rfind("]") + 1
+            if start >= 0 and end > start:
+                rewrites = json.loads(resp[start:end])
+                if isinstance(rewrites, list):
+                    valid = [r for r in rewrites if isinstance(r, str) and len(r) > 5]
+                    return valid[:num_rewrites]
+        except json.JSONDecodeError:
+            pass
 
-            # Fallback: try to extract line-by-line
-            lines = [line.strip().strip('"').strip("'").strip(",")
-                     for line in resp.split("\n")
-                     if line.strip() and not line.strip().startswith("[")]
-            return lines[:num_rewrites]
+        lines = [line.strip().strip('"').strip("'").strip(",")
+                 for line in resp.split("\n")
+                 if line.strip() and not line.strip().startswith("[")]
+        return lines[:num_rewrites]
 
     except Exception as e:
         import logging

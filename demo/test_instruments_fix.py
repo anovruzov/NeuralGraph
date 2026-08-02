@@ -32,12 +32,11 @@ async def test():
             "Melanie",
             profile,
             "What instruments does Melanie play?",
-            "clarinet and violin"
         )
 
         print(f"Answer: {result['answer']}")
         print(f"Confidence: {result['confidence']}")
-        print(f"Reasoning: {result['reasoning']}")
+        print(f"Evidence: {result.get('evidence', [])}")
         print()
 
         # Expected: "clarinet, violin" or "playing clarinet, playing violin"
@@ -48,4 +47,5 @@ async def test():
         else:
             print(f"[FAIL] Answer too long ({len(result['answer'])} chars) - dumping too much!")
 
-asyncio.run(test())
+if __name__ == "__main__":
+    asyncio.run(test())

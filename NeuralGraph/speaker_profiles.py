@@ -34,9 +34,9 @@ UNIVERSAL PROFILE SCHEMA (per speaker):
 NO predefined categories - adapts to ANY conversation content.
 """
 
-from collections import defaultdict
-from typing import Dict, List, Any
-import re
+from typing import Any, Dict
+
+from .benchmarking import extract_target_speakers
 
 
 class SpeakerProfile:
@@ -65,15 +65,13 @@ class SpeakerProfile:
             if facts:
                 self.extracted_facts.extend(facts)
 
-    async def query(self, session, question: str, gold_answer: str = None) -> Dict[str, Any]:
+    async def query(self, session, question: str) -> Dict[str, Any]:
         """
         Query this profile using LLM (NO hardcoded patterns).
 
         Args:
             session: aiohttp session for LLM calls
             question: The question being asked
-            gold_answer: Optional gold answer for confidence calculation
-
         Returns:
             {
                 'found': bool,
@@ -91,7 +89,6 @@ class SpeakerProfile:
             self.name,
             profile_dict,
             question,
-            gold_answer
         )
 
         result['source'] = 'llm_profile_query'
@@ -134,15 +131,13 @@ class UniversalSpeakerProfiler:
 
         await self.profiles[speaker].add_message(text, llm_extractor)
 
-    async def query_single_hop(self, session, question: str, gold_answer: str = None) -> Dict[str, Any]:
+    async def query_single_hop(self, session, question: str) -> Dict[str, Any]:
         """
         Answer a single_hop question using speaker profiles (LLM-based).
 
         Args:
             session: aiohttp session for LLM calls
             question: The question
-            gold_answer: Optional gold answer for evaluation
-
         Returns:
             {
                 'speaker': str or None,
@@ -153,13 +148,8 @@ class UniversalSpeakerProfiler:
             }
         """
         # Determine which speaker the question is about
-        question_lower = question.lower()
-
-        target_speaker = None
-        for speaker_name in self.profiles.keys():
-            if speaker_name.lower() in question_lower:
-                target_speaker = speaker_name
-                break
+        targets = extract_target_speakers(question, self.profiles.keys())
+        target_speaker = targets[0] if len(targets) == 1 else None
 
         if not target_speaker:
             return {
@@ -172,40 +162,10 @@ class UniversalSpeakerProfiler:
             }
 
         # Query that speaker's profile using LLM
-        result = await self.profiles[target_speaker].query(session, question, gold_answer)
+        result = await self.profiles[target_speaker].query(session, question)
         result['speaker'] = target_speaker
         return result
 
     def get_all_profiles(self) -> Dict[str, Dict]:
         """Get all speaker profiles as dictionaries."""
         return {name: profile.to_dict() for name, profile in self.profiles.items()}
-
-
-# =============================================================================
-# EXAMPLE USAGE
-# =============================================================================
-
-if __name__ == "__main__":
-    # Example: Build profiles from a conversation
-    profiler = UniversalSpeakerProfiler()
-
-    # Add messages (works for any speaker names)
-    profiler.add_message("Caroline", "I went to a pride parade yesterday!")
-    profiler.add_message("Melanie", "I went camping at the beach with my kids")
-    profiler.add_message("Caroline", "I'm pursuing counseling as a career")
-    profiler.add_message("Melanie", 'I read "Charlotte\'s Web" last night')
-
-    # Query single_hop questions
-    result = profiler.query_single_hop(
-        "What events has Caroline attended?",
-        gold_answer="pride parade"
-    )
-    print(f"Question: What events has Caroline attended?")
-    print(f"Found: {result['found']}")
-    print(f"Answer: {result['answer']}")
-    print(f"Confidence: {result['confidence']}")
-    print(f"Source: {result['source']}")
-
-    # Export all profiles
-    all_profiles = profiler.get_all_profiles()
-    print(f"\nAll profiles: {all_profiles}")
