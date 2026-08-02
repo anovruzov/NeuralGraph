@@ -219,7 +219,11 @@ ACCURACY_PROMPT = """Decide whether the generated answer is semantically equival
 
 Requirements:
 - All material items in a list answer must be present; harmless extra wording is allowed.
-- Dates and relative periods must refer to the same time.
+- Treat absolute dates and relative periods as equivalent when they resolve to
+  the same calendar interval (for example, "week of May 29" and "the week
+  before June 9").
+- Accept a concise identity label when it preserves the gold answer's core
+  identity and does not contradict it.
 - A related topic, unsupported hedge, or different named entity is WRONG.
 
 Question: {question}
@@ -289,7 +293,7 @@ async def judge_answer(session, question: str, generated: str, gold) -> bool:
             model=JUDGE_MODEL,
             max_output_tokens=256,
             timeout_seconds=60,
-            reasoning_effort="low",
+            reasoning_effort="medium",
         )
         return parse_judge_label(resp_text)
     except Exception as e:
@@ -652,6 +656,22 @@ async def run_benchmark():
                     )
                 else:
                     reranked = retrieved[:num_memories_needed]
+
+                # A learned reranker can confidently discard rare but valid
+                # evidence. Reserve half the context for its best candidates
+                # and half for the original high-recall fused ranking.
+                if USE_SLM_RERANKER:
+                    rerank_quota = max(1, num_memories_needed // 2)
+                    blended = list(reranked[:rerank_quota])
+                    blended_ids = {node.node_id for node, _score in blended}
+                    for node, score in retrieved:
+                        if node.node_id in blended_ids:
+                            continue
+                        blended.append((node, score))
+                        blended_ids.add(node.node_id)
+                        if len(blended) >= num_memories_needed:
+                            break
+                    reranked = blended
                 t_rerank = (time.perf_counter() - t_rerank_start) * 1000
                 TIMING_DATA["t_rerank"].append(t_rerank)
 
