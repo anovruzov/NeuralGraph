@@ -136,7 +136,10 @@ NeuralGraph is under active development. Current work focuses on improving singl
 The benchmark runner evaluates all five QA categories, ingests LoCoMo's
 provided image captions, and keeps dataset labels out of retrieval and answer
 generation. Retrieval recall is measured against evidence IDs rather than by
-searching for gold-answer text.
+searching for gold-answer text. Reports distinguish any-evidence recall,
+complete-evidence recall, fractional evidence coverage, and the evidence that
+actually survives into the answer context; the old any-hit number alone can
+substantially overstate multi-hop readiness.
 
 ```bash
 python -m pip install -r requirements.txt

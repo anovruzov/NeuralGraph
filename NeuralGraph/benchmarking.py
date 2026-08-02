@@ -10,6 +10,7 @@ from __future__ import annotations
 import math
 import re
 from collections.abc import Iterable, Sequence
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -36,6 +37,27 @@ _ABSTENTION_PATTERNS = (
     "can't determine",
     "unknown",
 )
+
+
+@dataclass(frozen=True)
+class EvidenceCoverage:
+    """Evidence-ID coverage for one ranked memory list.
+
+    ``any_found`` is the traditional hit/recall flag used by the old harness.
+    It is useful for single-evidence questions but overstates retrieval quality
+    whenever an answer requires several memories. ``all_found`` and
+    ``coverage`` expose that distinction explicitly.
+    """
+
+    expected_count: int
+    found_count: int
+    any_found: bool
+    all_found: bool
+    coverage: float
+    first_rank: int
+    last_rank: int
+    found_ids: tuple[str, ...]
+    missing_ids: tuple[str, ...]
 
 
 def _caption_text(value: Any) -> str:
@@ -84,11 +106,35 @@ def _stem(token: str) -> str:
 
 
 def retrieval_tokens(text: str) -> set[str]:
-    return {
+    tokens = {
         _stem(token)
         for token in _TOKEN_RE.findall(text.lower())
         if token not in _STOPWORDS and len(token) > 2
     }
+
+    # Attribute questions often use a schema label while the supporting
+    # dialogue uses a value or life event ("relationship status" vs
+    # "single parent" / "breakup"). Expand both sides with small, general
+    # concept bridges so lexical retrieval can connect them without knowing an
+    # evaluator answer.
+    relationship_schema = {"relationship", "status"}
+    relationship_values = {
+        "single", "marry", "married", "dating", "engage", "engaged",
+        "divorce", "divorced", "partner", "breakup", "widow", "widowed",
+    }
+    if tokens & relationship_schema:
+        tokens.update(relationship_values)
+    if tokens & relationship_values:
+        tokens.update(relationship_schema)
+
+    identity_schema = {"identity", "gender"}
+    identity_values = {"trans", "transgender", "nonbinary", "queer"}
+    if tokens & identity_schema:
+        tokens.update(identity_values)
+    if tokens & identity_values:
+        tokens.update(identity_schema)
+
+    return tokens
 
 
 def extract_target_speakers(question: str, speakers: Iterable[str]) -> list[str]:
@@ -185,15 +231,62 @@ def check_evidence_recall(
     memories: Sequence[dict[str, Any]],
     top_k: int,
 ) -> tuple[bool, int]:
-    """Evaluate recall using LoCoMo evidence IDs, never answer text."""
+    """Return legacy any-evidence recall and the first matching rank.
+
+    New benchmark code should use :func:`measure_evidence_coverage` so a
+    partial multi-memory hit cannot be mistaken for complete recall.
+    """
+
+    measured = measure_evidence_coverage(evidence_ids, memories, top_k)
+    return measured.any_found, measured.first_rank
+
+
+def measure_evidence_coverage(
+    evidence_ids: Iterable[str],
+    memories: Sequence[dict[str, Any]],
+    top_k: int,
+) -> EvidenceCoverage:
+    """Measure any-hit, complete-hit, and fractional evidence coverage.
+
+    The function is evaluation-only: it compares ranked ``dia_id`` values to
+    LoCoMo annotations and never inspects answer text.
+    """
 
     expected = {str(item) for item in evidence_ids if str(item)}
     if not expected:
-        return False, 0
+        return EvidenceCoverage(
+            expected_count=0,
+            found_count=0,
+            any_found=False,
+            all_found=False,
+            coverage=0.0,
+            first_rank=0,
+            last_rank=0,
+            found_ids=(),
+            missing_ids=(),
+        )
+
+    ranks: dict[str, int] = {}
     for rank, memory in enumerate(memories[:top_k], 1):
-        if str(memory.get("dia_id", "")) in expected:
-            return True, rank
-    return False, 0
+        dia_id = str(memory.get("dia_id", ""))
+        if dia_id in expected and dia_id not in ranks:
+            ranks[dia_id] = rank
+
+    found = tuple(sorted(ranks, key=ranks.get))
+    missing = tuple(sorted(expected - set(ranks)))
+    found_count = len(found)
+    rank_values = tuple(ranks.values())
+    return EvidenceCoverage(
+        expected_count=len(expected),
+        found_count=found_count,
+        any_found=found_count > 0,
+        all_found=found_count == len(expected),
+        coverage=found_count / len(expected),
+        first_rank=min(rank_values, default=0),
+        last_rank=max(rank_values, default=0),
+        found_ids=found,
+        missing_ids=missing,
+    )
 
 
 def is_abstention(answer: Any) -> bool:

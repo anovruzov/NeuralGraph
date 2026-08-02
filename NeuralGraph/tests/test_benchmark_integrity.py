@@ -13,12 +13,14 @@ from NeuralGraph.benchmarking import (
     extract_target_speakers,
     fuse_ranked_candidates,
     is_abstention,
+    measure_evidence_coverage,
     rank_nodes_lexically,
 )
 from NeuralGraph.answering import get_embedding
 from NeuralGraph.llm_profile_query import query_profile_with_llm
 from NeuralGraph.openai_client import extract_response_text, openai_text
 from NeuralGraph.speaker_profiles import UniversalSpeakerProfiler
+from NeuralGraph.tesseract import detect_list_question_universal
 
 
 @dataclass
@@ -62,6 +64,20 @@ def test_lexical_ranker_prefers_named_speaker_and_caption_fact() -> None:
     assert ranked[0][0].node_id == "right"
 
 
+def test_lexical_ranker_bridges_attribute_names_to_conversation_values() -> None:
+    nodes = [
+        DummyNode("noise", "I researched a new hiking trail.", "Caroline"),
+        DummyNode("single", "It will be hard as a single parent.", "Caroline"),
+        DummyNode("breakup", "My friends helped after a tough breakup.", "Caroline"),
+    ]
+    ranked = rank_nodes_lexically(
+        "What is Caroline's relationship status?",
+        nodes,
+        speakers=["Caroline", "Melanie"],
+    )
+    assert {ranked[0][0].node_id, ranked[1][0].node_id} == {"single", "breakup"}
+
+
 def test_rank_fusion_keeps_unique_candidates() -> None:
     first = DummyNode("one", "one", "A")
     second = DummyNode("two", "two", "B")
@@ -76,6 +92,48 @@ def test_retrieval_recall_uses_evidence_ids_not_answer_text() -> None:
     ]
     assert check_evidence_recall(["D1:3"], memories, top_k=2) == (True, 2)
     assert check_evidence_recall(["D1:3"], memories, top_k=1) == (False, 0)
+
+
+def test_evidence_coverage_distinguishes_partial_from_complete_recall() -> None:
+    memories = [
+        {"dia_id": "D1:2", "text": "first supporting memory"},
+        {"dia_id": "noise", "text": "irrelevant"},
+        {"dia_id": "D1:3", "text": "second supporting memory"},
+    ]
+
+    partial = measure_evidence_coverage(["D1:2", "D1:3"], memories, top_k=2)
+    assert partial.any_found
+    assert not partial.all_found
+    assert partial.coverage == 0.5
+    assert partial.first_rank == 1
+    assert partial.last_rank == 1
+    assert partial.missing_ids == ("D1:3",)
+
+    complete = measure_evidence_coverage(["D1:2", "D1:3"], memories, top_k=3)
+    assert complete.all_found
+    assert complete.coverage == 1.0
+    assert complete.first_rank == 1
+    assert complete.last_rank == 3
+
+
+def test_singular_what_is_questions_are_not_misclassified_as_lists() -> None:
+    assert detect_list_question_universal("What is Caroline's identity?") == (False, None)
+    assert detect_list_question_universal("What is Caroline's relationship status?") == (
+        False,
+        None,
+    )
+    assert detect_list_question_universal("What fields might Caroline study?") == (
+        True,
+        "plural",
+    )
+    assert detect_list_question_universal("What activities does Caroline enjoy?") == (
+        True,
+        "plural",
+    )
+    assert detect_list_question_universal("What are Caroline's summer plans?") == (
+        True,
+        "plural",
+    )
 
 
 def test_adversarial_null_answers_require_abstention() -> None:
@@ -153,4 +211,6 @@ def test_runner_is_category_blind_and_contains_no_embedded_key() -> None:
     assert "category ==" not in source
     assert "category_id ==" not in source
     assert '5: "adversarial"' in source
-    assert "check_evidence_recall" in source
+    assert "measure_evidence_coverage" in source
+    assert '1: "multi_hop"' in source
+    assert '4: "single_hop"' in source

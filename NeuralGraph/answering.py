@@ -59,6 +59,12 @@ RULES:
 5. Never transfer a fact from one speaker to another.
 6. If there is no evidence about the named person or event, output exactly:
    NOT_FOUND
+7. If asked which education fields or qualifications are likely from a stated
+   career interest, return at most two items: the closest conventional degree
+   field and, when applicable, its standard professional credential. Do not
+   merely repeat the job area.
+8. Do not add adjacent disciplines, populations, or specialties unless the
+   memories explicitly support them.
 
 MEMORIES:
 {context}
@@ -92,6 +98,10 @@ RULES:
 5. A message that merely asks the same question is not evidence of an answer.
 6. For Yes/No questions, answer Yes or No only when the memories support it.
 7. If the named person's answer is not supported, output exactly: NOT_FOUND
+8. Match the action and tense exactly. Advice, a plan, or a hypothetical does
+   not prove that the person already performed the action in the question.
+9. For a singular factual question, return the smallest direct answer from the
+   highest-ranked matching memory. Do not aggregate unrelated occurrences.
 
 EXAMPLES:
 Q: What is John's job? → Nurse

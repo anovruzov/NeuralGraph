@@ -27,11 +27,11 @@ from NeuralGraph.answering import AnsweringConfig, generate_answer, get_embeddin
 from NeuralGraph.openai_client import openai_api_key, openai_text
 from NeuralGraph.reranker import rerank_candidates_parallel
 from NeuralGraph.benchmarking import (
-    check_evidence_recall,
     compose_memory_content,
     extract_target_speakers,
     fuse_ranked_candidates,
     is_abstention,
+    measure_evidence_coverage,
     rank_nodes_lexically,
 )
 from NeuralGraph.service import (
@@ -67,12 +67,15 @@ JUDGE_MODEL = os.environ.get("NEURALGRAPH_JUDGE_MODEL", "gpt-5.6-terra")
 
 TOP_K = int(os.environ.get("NEURALGRAPH_CANDIDATE_K", "80"))
 EXTRACT_PROFILE_FACTS = os.environ.get("NEURALGRAPH_EXTRACT_PROFILE_FACTS", "0") == "1"
+PROFILE_MIN_CONFIDENCE = float(os.environ.get("NEURALGRAPH_PROFILE_MIN_CONFIDENCE", "0.9"))
 
 CATEGORIES = {
-    1: "single_hop",
+    # Official LoCoMo category IDs. These were previously swapped, which made
+    # the per-category report call multi-hop questions single-hop and vice versa.
+    1: "multi_hop",
     2: "temporal",
     3: "open_domain",
-    4: "multi_hop",
+    4: "single_hop",
     5: "adversarial",
 }
 
@@ -101,10 +104,17 @@ INFERENTIAL_SAMPLES = []
 
 RETRIEVAL_METRICS = {
     cat: {
-        "recall_at_10": [],
-        "recall_at_50": [],
-        "oracle_rank": [],
-        "filter_drop_count": [],
+        "any_at_10": [],
+        "complete_at_10": [],
+        "coverage_at_10": [],
+        "any_at_50": [],
+        "complete_at_50": [],
+        "coverage_at_50": [],
+        "context_any": [],
+        "context_complete": [],
+        "context_coverage": [],
+        "first_evidence_rank": [],
+        "complete_evidence_rank": [],
         "total_candidates": [],
     }
     for cat in CATEGORIES.values()
@@ -114,24 +124,37 @@ RETRIEVAL_METRICS = {
 def compute_retrieval_summary(metrics: dict) -> dict:
     summary = {}
     for cat, data in metrics.items():
-        if not data["recall_at_10"]:
+        if not data["any_at_10"]:
             continue
-        n = len(data["recall_at_10"])
-        recall_10 = sum(data["recall_at_10"]) / n * 100 if n > 0 else 0
-        recall_50 = sum(data["recall_at_50"]) / n * 100 if n > 0 else 0
+        n = len(data["any_at_10"])
 
-        found_ranks = [r for r in data["oracle_rank"] if r > 0]
-        avg_oracle_rank = sum(found_ranks) / len(found_ranks) if found_ranks else 0
+        def percentage(field: str) -> float:
+            return sum(data[field]) / n * 100 if n else 0.0
 
-        rerank_gain = recall_50 - recall_10
+        first_ranks = [rank for rank in data["first_evidence_rank"] if rank > 0]
+        complete_ranks = [rank for rank in data["complete_evidence_rank"] if rank > 0]
+
+        any_10 = percentage("any_at_10")
+        any_50 = percentage("any_at_50")
 
         summary[cat] = {
             "count": n,
-            "recall_at_10": round(recall_10, 1),
-            "recall_at_50": round(recall_50, 1),
-            "rerank_gain": round(rerank_gain, 1),
-            "avg_oracle_rank": round(avg_oracle_rank, 1),
-            "oracle_found_count": len(found_ranks),
+            "any_recall_at_10": round(any_10, 1),
+            "complete_recall_at_10": round(percentage("complete_at_10"), 1),
+            "evidence_coverage_at_10": round(percentage("coverage_at_10"), 1),
+            "any_recall_at_50": round(any_50, 1),
+            "complete_recall_at_50": round(percentage("complete_at_50"), 1),
+            "evidence_coverage_at_50": round(percentage("coverage_at_50"), 1),
+            "answer_context_any_recall": round(percentage("context_any"), 1),
+            "answer_context_complete_recall": round(percentage("context_complete"), 1),
+            "answer_context_evidence_coverage": round(percentage("context_coverage"), 1),
+            "depth_gain_any_recall": round(any_50 - any_10, 1),
+            "avg_first_evidence_rank": round(
+                sum(first_ranks) / len(first_ranks), 1
+            ) if first_ranks else 0.0,
+            "avg_complete_evidence_rank": round(
+                sum(complete_ranks) / len(complete_ranks), 1
+            ) if complete_ranks else 0.0,
         }
     return summary
 
@@ -182,7 +205,7 @@ def save_results(results, stats):
             "benchmark_scope": "all LoCoMo QA categories",
             "category_blind_inference": True,
             "multimodal_captions": True,
-            "retrieval_metric": "evidence-id recall",
+            "retrieval_metric": "evidence-ID any-hit, complete-hit, and coverage",
             "timestamp": datetime.now().isoformat(),
             "total_questions": total_questions,
             "total_correct": total_correct,
@@ -511,17 +534,25 @@ async def run_benchmark():
                 explicit_targets = extract_target_speakers(
                     question, speaker_profiler.profiles.keys()
                 )
-                query_mode = infer_query_mode(question)
-                if list_question:
-                    query_mode = "AGGREGATION" if list_type == "aggregation" else "LIST"
+                inferred_mode = infer_query_mode(question)
+                query_mode = inferred_mode
                 if is_temporal_question(question):
                     query_mode = "TEMPORAL"
-                elif query_mode == "TEMPORAL":
+                elif inferred_mode == "TEMPORAL":
                     query_mode = "INFERENTIAL"
-                if is_open_domain_world_query(question) and not explicit_targets:
+                elif is_open_domain_world_query(question) and not explicit_targets:
                     query_mode = "OPEN_DOMAIN_WORLD"
-                elif query_mode == "INFERENTIAL" and should_use_open_domain_infer(question):
+                elif list_question and list_type == "aggregation":
+                    query_mode = "AGGREGATION"
+                elif inferred_mode == "INFERENTIAL" or should_use_open_domain_infer(question):
                     query_mode = "OPEN_DOMAIN_INFER"
+                elif list_question:
+                    query_mode = "LIST"
+                elif inferred_mode == "AGGREGATION":
+                    # The legacy mode detector calls almost every "What did/does"
+                    # question an aggregation. Without an actual list/shared marker,
+                    # use strict extraction instead of a prompt for shared items.
+                    query_mode = "STRICT"
                 ROUTING_STATS[query_mode] += 1
 
                 query_emb = await get_embedding(http, question, config=ANSWERING_CONFIG)
@@ -602,7 +633,7 @@ async def run_benchmark():
                 t_retrieval = (time.perf_counter() - t_retrieval_start) * 1000
                 TIMING_DATA["t_retrieval"].append(t_retrieval)
 
-                all_memories_text = [
+                evaluation_retrieval_memories = [
                     {
                         "text": node.content,
                         "speaker": node.metadata.get("speaker", ""),
@@ -611,26 +642,16 @@ async def run_benchmark():
                     for node, charge in retrieved[:50]
                 ]
 
-                recall_10, rank_10 = check_evidence_recall(evidence_ids, all_memories_text, top_k=10)
-                RETRIEVAL_METRICS[category]["recall_at_10"].append(1 if recall_10 else 0)
-
-                if recall_10:
-                    recall_50, rank_50 = True, rank_10
-                else:
-                    recall_50, rank_50 = check_evidence_recall(evidence_ids, all_memories_text, top_k=50)
-                RETRIEVAL_METRICS[category]["recall_at_50"].append(1 if recall_50 else 0)
-
-                oracle_rank = rank_50 if recall_50 else 0
-                RETRIEVAL_METRICS[category]["oracle_rank"].append(oracle_rank)
-                RETRIEVAL_METRICS[category]["total_candidates"].append(len(retrieved))
-
                 # SPEAKER PROFILES: For single_hop, check profile FIRST before retrieval
                 profile_answer = None
                 used_profile = False
                 target_speakers = explicit_targets
                 if query_mode == "STRICT" and not list_question and len(target_speakers) == 1:
                     profile_result = await speaker_profiler.query_single_hop(http, question)
-                    if profile_result['found'] and profile_result['confidence'] >= 0.8:
+                    if (
+                        profile_result['found']
+                        and profile_result['confidence'] >= PROFILE_MIN_CONFIDENCE
+                    ):
                         profile_answer = profile_result['answer']
                         used_profile = True
                         print(f"  [PROFILE] Using profile answer (confidence: {profile_result['confidence']:.0%})")
@@ -679,7 +700,9 @@ async def run_benchmark():
                 # (num_memories_needed already determined based on query_mode)
                 context_parts = []
                 retrieved_memories = []
-                for node, charge in reranked[:num_memories_needed]:
+                for memory_rank, (node, charge) in enumerate(
+                    reranked[:num_memories_needed], 1
+                ):
                     speaker = node.metadata.get("speaker", "Unknown")
                     dt = node.metadata.get("datetime", "")
                     # FAIR: Use original content - LLM must reason about relative dates
@@ -695,12 +718,14 @@ async def run_benchmark():
                     if query_mode == "TEMPORAL":
                         # Provide resolved dates to avoid timestamp-only answers
                         context_parts.append(
-                            f"[MESSAGE_DATETIME={dt}] [RESOLVED_DATE={resolved_date}] "
+                            f"[RANK={memory_rank}] [MESSAGE_DATETIME={dt}] "
+                            f"[RESOLVED_DATE={resolved_date}] "
                             f"[RESOLVED_RELATIVE={resolved_relative}] [SPEAKER={speaker}] {original_content}"
                         )
                     else:
                         context_parts.append(
-                            f"[SPEAKER={speaker}] [MESSAGE_DATETIME={dt}] {original_content}"
+                            f"[RANK={memory_rank}] [SPEAKER={speaker}] "
+                            f"[MESSAGE_DATETIME={dt}] {original_content}"
                         )
 
 
@@ -785,6 +810,40 @@ async def run_benchmark():
                 # Judge only after generation; gold never enters retrieval.
                 correct = await judge_answer(http, question, generated, gold)
 
+                # Evidence IDs are evaluator-only. Measure them after answering
+                # so annotations cannot influence retrieval, reranking, context,
+                # or generation. Report both partial and complete evidence recall.
+                evidence_at_10 = measure_evidence_coverage(
+                    evidence_ids, evaluation_retrieval_memories, top_k=10
+                )
+                evidence_at_50 = measure_evidence_coverage(
+                    evidence_ids, evaluation_retrieval_memories, top_k=50
+                )
+                answer_context_memories = (
+                    [] if query_mode == "OPEN_DOMAIN_WORLD" else retrieved_memories
+                )
+                context_evidence = measure_evidence_coverage(
+                    evidence_ids,
+                    answer_context_memories,
+                    top_k=len(answer_context_memories),
+                )
+
+                category_metrics = RETRIEVAL_METRICS[category]
+                category_metrics["any_at_10"].append(int(evidence_at_10.any_found))
+                category_metrics["complete_at_10"].append(int(evidence_at_10.all_found))
+                category_metrics["coverage_at_10"].append(evidence_at_10.coverage)
+                category_metrics["any_at_50"].append(int(evidence_at_50.any_found))
+                category_metrics["complete_at_50"].append(int(evidence_at_50.all_found))
+                category_metrics["coverage_at_50"].append(evidence_at_50.coverage)
+                category_metrics["context_any"].append(int(context_evidence.any_found))
+                category_metrics["context_complete"].append(int(context_evidence.all_found))
+                category_metrics["context_coverage"].append(context_evidence.coverage)
+                category_metrics["first_evidence_rank"].append(evidence_at_50.first_rank)
+                category_metrics["complete_evidence_rank"].append(
+                    evidence_at_50.last_rank if evidence_at_50.all_found else 0
+                )
+                category_metrics["total_candidates"].append(len(retrieved))
+
                 stats[category]["total"] += 1
                 if correct:
                     stats[category]["correct"] += 1
@@ -799,9 +858,25 @@ async def run_benchmark():
                     "gold_answer": gold,
                     "correct": correct,
                     "used_speaker_profile": used_profile,  # Track if profile was used
-                    "evidence_recall_at_10": recall_10,
-                    "evidence_recall_at_50": recall_50,
-                    "evidence_rank": oracle_rank,
+                    # Legacy flags remain as explicitly any-evidence recall.
+                    "evidence_recall_at_10": evidence_at_10.any_found,
+                    "evidence_recall_at_50": evidence_at_50.any_found,
+                    "evidence_any_recall_at_10": evidence_at_10.any_found,
+                    "evidence_complete_recall_at_10": evidence_at_10.all_found,
+                    "evidence_coverage_at_10": round(evidence_at_10.coverage, 3),
+                    "evidence_any_recall_at_50": evidence_at_50.any_found,
+                    "evidence_complete_recall_at_50": evidence_at_50.all_found,
+                    "evidence_coverage_at_50": round(evidence_at_50.coverage, 3),
+                    "answer_context_any_recall": context_evidence.any_found,
+                    "answer_context_complete_recall": context_evidence.all_found,
+                    "answer_context_evidence_coverage": round(context_evidence.coverage, 3),
+                    "evidence_expected_count": evidence_at_50.expected_count,
+                    "evidence_found_count_at_50": evidence_at_50.found_count,
+                    "evidence_first_rank": evidence_at_50.first_rank,
+                    "evidence_complete_rank": (
+                        evidence_at_50.last_rank if evidence_at_50.all_found else 0
+                    ),
+                    "missing_evidence_ids_at_50": list(evidence_at_50.missing_ids),
                     "retrieval_latency_ms": round(t_retrieval, 1),
                     "rerank_latency_ms": round(t_rerank, 1),
                     "answer_latency_ms": round(t_answer, 1),
@@ -876,14 +951,23 @@ async def run_benchmark():
     print(f"\n{'='*60}")
     print(f"RETRIEVAL METRICS")
     print(f"{'='*60}")
-    print(f"{'Category':<15} {'Recall@10':<12} {'Recall@50':<12} {'RerankGain':<12}")
-    print(f"{'-'*60}")
+    print(
+        f"{'Category':<15} {'Any@50':>8} {'All@50':>8} "
+        f"{'Cov@50':>8} {'CtxAll':>8} {'CtxCov':>8}"
+    )
+    print(f"{'-'*65}")
 
     retrieval_summary = compute_retrieval_summary(RETRIEVAL_METRICS)
     for cat in CATEGORIES.values():
         if cat in retrieval_summary:
             m = retrieval_summary[cat]
-            print(f"{cat:<15} {m['recall_at_10']:>8.1f}%    {m['recall_at_50']:>8.1f}%    {m['rerank_gain']:>+8.1f}%")
+            print(
+                f"{cat:<15} {m['any_recall_at_50']:>7.1f}% "
+                f"{m['complete_recall_at_50']:>7.1f}% "
+                f"{m['evidence_coverage_at_50']:>7.1f}% "
+                f"{m['answer_context_complete_recall']:>7.1f}% "
+                f"{m['answer_context_evidence_coverage']:>7.1f}%"
+            )
 
     print(f"\nResults saved to: {OUTPUT_PATH}")
 

@@ -4,29 +4,18 @@ from __future__ import annotations
 
 import json
 import os
-import re
 from typing import Any
 
 import aiohttp
 
+from .benchmarking import retrieval_tokens
 from .openai_client import openai_text
 
 PROFILE_MODEL = os.environ.get("NEURALGRAPH_PROFILE_MODEL", "gpt-5.6-terra")
 
-_STOPWORDS = {
-    "a", "an", "and", "are", "as", "at", "be", "did", "do", "does",
-    "for", "from", "has", "have", "how", "in", "is", "of", "on", "the",
-    "to", "was", "were", "what", "when", "where", "which", "who", "why",
-    "with",
-}
-
 
 def _tokens(text: str) -> set[str]:
-    return {
-        token
-        for token in re.findall(r"[a-z0-9]+", text.lower())
-        if len(token) > 2 and token not in _STOPWORDS
-    }
+    return retrieval_tokens(text)
 
 
 def rank_profile_messages(question: str, messages: list[str], limit: int = 40) -> list[str]:
