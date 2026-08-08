@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 
 import aiohttp
@@ -11,13 +12,34 @@ from .prompts import LIST_QUESTION_ANSWER_PROMPT, AGGREGATION_ANSWER_PROMPT
 
 @dataclass
 class AnsweringConfig:
-    """Configuration for LLM answering + embeddings."""
+    """Configuration for LLM answering + embeddings.
+
+    Two providers are supported:
+
+    - "ollama" (default): local models over the Ollama HTTP API. Swapping the
+      answer model is just a model string, e.g. answer_model="llama3.1:8b".
+    - "openai_compatible": any endpoint speaking the OpenAI chat/embeddings
+      API. This covers hosted Llama (Groq, Together, Fireworks) as well as
+      self-hosted vLLM and llama.cpp servers.
+
+    The API key is always read from the environment at call time, never stored
+    on the config and never committed.
+    """
+    provider: str = "ollama"
     ollama_base_url: str = "http://localhost:11434"
     answer_model: str = "qwen2.5:7b-instruct"
     embedding_model: str = "nomic-embed-text"
     answer_timeout_seconds: float = 60.0
     embedding_timeout_seconds: float = 30.0
     num_predict: int = 60  # Keep answers concise - no verbose explanations
+
+    # Used only when provider == "openai_compatible".
+    api_base_url: str = "https://api.groq.com/openai/v1"
+    api_key_env: str = "LLAMA_API_KEY"
+
+    def api_key(self) -> str:
+        """Resolve the API key from the environment. Empty string if unset."""
+        return os.environ.get(self.api_key_env, "")
 
 
 TEMPORAL_ANSWER_PROMPT = """Answer using ONLY the memories below.
@@ -101,11 +123,23 @@ async def get_embedding(
     config: AnsweringConfig | None = None,
 ) -> list[float]:
     cfg = config or AnsweringConfig()
+    timeout = aiohttp.ClientTimeout(total=cfg.embedding_timeout_seconds)
     try:
+        if cfg.provider == "openai_compatible":
+            async with session.post(
+                f"{cfg.api_base_url}/embeddings",
+                headers={"Authorization": f"Bearer {cfg.api_key()}"},
+                json={"model": cfg.embedding_model, "input": text},
+                timeout=timeout,
+            ) as response:
+                result = await response.json()
+                data = result.get("data") or []
+                return data[0].get("embedding", []) if data else []
+
         async with session.post(
             f"{cfg.ollama_base_url}/api/embeddings",
             json={"model": cfg.embedding_model, "prompt": text},
-            timeout=aiohttp.ClientTimeout(total=cfg.embedding_timeout_seconds),
+            timeout=timeout,
         ) as response:
             result = await response.json()
             return result.get("embedding", [])
@@ -135,7 +169,26 @@ async def generate_answer(
     else:
         prompt = STRICT_ANSWER_PROMPT.format(context=context, question=question)
 
+    timeout = aiohttp.ClientTimeout(total=cfg.answer_timeout_seconds)
     try:
+        if cfg.provider == "openai_compatible":
+            async with session.post(
+                f"{cfg.api_base_url}/chat/completions",
+                headers={"Authorization": f"Bearer {cfg.api_key()}"},
+                json={
+                    "model": cfg.answer_model,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0,
+                    "max_tokens": cfg.num_predict,
+                },
+                timeout=timeout,
+            ) as response:
+                result = await response.json()
+                choices = result.get("choices") or []
+                if not choices:
+                    return f"Error: {result.get('error', 'no choices returned')}"
+                return (choices[0].get("message", {}).get("content") or "").strip()
+
         async with session.post(
             f"{cfg.ollama_base_url}/api/generate",
             json={
@@ -144,7 +197,7 @@ async def generate_answer(
                 "stream": False,
                 "options": {"temperature": 0, "num_predict": cfg.num_predict},
             },
-            timeout=aiohttp.ClientTimeout(total=cfg.answer_timeout_seconds),
+            timeout=timeout,
         ) as response:
             result = await response.json()
             return result.get("response", "").strip()
