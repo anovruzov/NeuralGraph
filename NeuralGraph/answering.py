@@ -2,12 +2,71 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
+import re
 from dataclasses import dataclass
 
 import aiohttp
 
 from .prompts import LIST_QUESTION_ANSWER_PROMPT, AGGREGATION_ANSWER_PROMPT
+
+
+def unwrap_api_error(body):
+    """Return the error dict from an API response, or None if it is not an error.
+
+    Some providers (Gemini among them) return errors as a single-element JSON
+    *list* rather than an object. Parsing those with body.get(...) raises
+    "'list' object has no attribute 'get'", which callers then record as if it
+    were a model answer - a rate-limit response silently becomes a wrong answer
+    and the measured accuracy is nonsense. Normalize both shapes here.
+    """
+    if isinstance(body, list):
+        body = body[0] if body else {}
+    if isinstance(body, dict):
+        return body.get("error")
+    return None
+
+
+def _retry_delay_seconds(error: dict, default: float) -> float:
+    """Seconds to wait before retrying, honoring a server-supplied RetryInfo."""
+    for detail in (error.get("details") or []):
+        delay = detail.get("retryDelay")
+        if isinstance(delay, str):
+            m = re.match(r"([\d.]+)s", delay)
+            if m:
+                return min(float(m.group(1)) + 1.0, 90.0)
+    m = re.search(r"retry in ([\d.]+)s", str(error.get("message", "")), re.I)
+    if m:
+        return min(float(m.group(1)) + 1.0, 90.0)
+    return default
+
+
+async def post_json_with_retry(session, url, *, headers, payload, timeout, max_attempts=5):
+    """POST JSON, retrying on rate limits and transient server errors.
+
+    Returns (body, error). Exactly one is non-None.
+    """
+    last_error = None
+    for attempt in range(max_attempts):
+        try:
+            async with session.post(url, headers=headers, json=payload, timeout=timeout) as response:
+                body = await response.json()
+                error = unwrap_api_error(body)
+                if error is None and response.status < 400:
+                    return body, None
+                last_error = error or {"code": response.status, "message": str(body)[:200]}
+                if response.status not in (429, 500, 502, 503, 504):
+                    return None, last_error
+                wait = _retry_delay_seconds(last_error, default=2.0 * (2 ** attempt))
+        except asyncio.TimeoutError:
+            last_error = {"code": "timeout", "message": "request timed out"}
+            wait = 2.0 * (2 ** attempt)
+        except Exception as exc:  # noqa: BLE001 - surfaced to caller below
+            return None, {"code": "exception", "message": str(exc)}
+        if attempt < max_attempts - 1:
+            await asyncio.sleep(wait)
+    return None, last_error
 
 
 @dataclass
@@ -36,6 +95,13 @@ class AnsweringConfig:
     # Used only when provider == "openai_compatible".
     api_base_url: str = "https://api.groq.com/openai/v1"
     api_key_env: str = "LLAMA_API_KEY"
+
+    # Reasoning models (Gemini 3.x, o-series) spend tokens on hidden thinking
+    # before emitting an answer, and that spend counts against max_tokens. With
+    # a short cap like num_predict=60 the thinking consumes the entire budget
+    # and the response comes back empty. Set this to "none" for extraction-style
+    # benchmarks; leave None to omit the field for providers that reject it.
+    reasoning_effort: str | None = None
 
     def api_key(self) -> str:
         """Resolve the API key from the environment. Empty string if unset."""
@@ -126,15 +192,17 @@ async def get_embedding(
     timeout = aiohttp.ClientTimeout(total=cfg.embedding_timeout_seconds)
     try:
         if cfg.provider == "openai_compatible":
-            async with session.post(
+            result, error = await post_json_with_retry(
+                session,
                 f"{cfg.api_base_url}/embeddings",
                 headers={"Authorization": f"Bearer {cfg.api_key()}"},
-                json={"model": cfg.embedding_model, "input": text},
+                payload={"model": cfg.embedding_model, "input": text},
                 timeout=timeout,
-            ) as response:
-                result = await response.json()
-                data = result.get("data") or []
-                return data[0].get("embedding", []) if data else []
+            )
+            if error is not None:
+                return []
+            data = result.get("data") or []
+            return data[0].get("embedding", []) if data else []
 
         async with session.post(
             f"{cfg.ollama_base_url}/api/embeddings",
@@ -172,22 +240,27 @@ async def generate_answer(
     timeout = aiohttp.ClientTimeout(total=cfg.answer_timeout_seconds)
     try:
         if cfg.provider == "openai_compatible":
-            async with session.post(
+            payload = {
+                "model": cfg.answer_model,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0,
+                "max_tokens": cfg.num_predict,
+            }
+            if cfg.reasoning_effort is not None:
+                payload["reasoning_effort"] = cfg.reasoning_effort
+            result, error = await post_json_with_retry(
+                session,
                 f"{cfg.api_base_url}/chat/completions",
                 headers={"Authorization": f"Bearer {cfg.api_key()}"},
-                json={
-                    "model": cfg.answer_model,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "temperature": 0,
-                    "max_tokens": cfg.num_predict,
-                },
+                payload=payload,
                 timeout=timeout,
-            ) as response:
-                result = await response.json()
-                choices = result.get("choices") or []
-                if not choices:
-                    return f"Error: {result.get('error', 'no choices returned')}"
-                return (choices[0].get("message", {}).get("content") or "").strip()
+            )
+            if error is not None:
+                return f"Error: {error.get('code')}: {str(error.get('message'))[:120]}"
+            choices = result.get("choices") or []
+            if not choices:
+                return "Error: no choices returned"
+            return (choices[0].get("message", {}).get("content") or "").strip()
 
         async with session.post(
             f"{cfg.ollama_base_url}/api/generate",

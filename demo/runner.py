@@ -25,7 +25,12 @@ from NeuralGraph.tesseract import (
     should_use_open_domain_infer,
 )
 from NeuralGraph.dialogue_linker import DialogueLinker
-from NeuralGraph.answering import AnsweringConfig, generate_answer, get_embedding
+from NeuralGraph.answering import (
+    AnsweringConfig,
+    generate_answer,
+    get_embedding,
+    post_json_with_retry,
+)
 from NeuralGraph.reranker import rerank_candidates_parallel
 from NeuralGraph.service import (
     extract_keywords,
@@ -58,21 +63,50 @@ from NeuralGraph import llm_profile_extractor
 
 import os
 
-# Ollama for answer generation and embeddings (local)
-OLLAMA_BASE_URL = "http://localhost:11434"
-OLLAMA_MODEL = "qwen2.5:7b-instruct"  # Qwen for answer generation
-EMBEDDING_MODEL = "nomic-embed-text"
-ANSWERING_CONFIG = AnsweringConfig(
-    ollama_base_url=OLLAMA_BASE_URL,
-    answer_model=OLLAMA_MODEL,
-    embedding_model=EMBEDDING_MODEL,
-)
+# ---------------------------------------------------------------------------
+# Answering / embedding backend.
+#
+# Default is local Ollama, which is what the 66.69% baseline in maximal.json was
+# produced with. Set NG_PROVIDER=openai_compatible to run against any endpoint
+# speaking the OpenAI API (Gemini, Groq, Together, vLLM, llama.cpp).
+#
+# Note that the answer model and the judge are both part of the measurement:
+# results produced with a different answerer or a different judge are NOT
+# comparable to a baseline recorded under the previous pair.
+# ---------------------------------------------------------------------------
+PROVIDER = os.environ.get("NG_PROVIDER", "ollama")
 
-# OpenAI for judging only
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
-JUDGE_MODEL = "gpt-4o"
-USE_OPENAI_JUDGE = True  # Using GPT-4o for judging
-USE_OPENAI_ANSWER = False  # Using Qwen for answers
+OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
+OLLAMA_MODEL = os.environ.get("NG_ANSWER_MODEL", "qwen2.5:7b-instruct")
+EMBEDDING_MODEL = os.environ.get("NG_EMBEDDING_MODEL", "nomic-embed-text")
+
+if PROVIDER == "openai_compatible":
+    ANSWERING_CONFIG = AnsweringConfig(
+        provider="openai_compatible",
+        api_base_url=os.environ.get("NG_API_BASE_URL", ""),
+        api_key_env="NG_API_KEY",
+        answer_model=OLLAMA_MODEL,
+        embedding_model=EMBEDDING_MODEL,
+        # Reasoning models spend hidden thinking tokens out of max_tokens; with
+        # num_predict=60 that leaves nothing for the answer and every response
+        # comes back empty. "none" keeps the budget for output.
+        reasoning_effort=os.environ.get("NG_REASONING_EFFORT") or None,
+    )
+else:
+    ANSWERING_CONFIG = AnsweringConfig(
+        ollama_base_url=OLLAMA_BASE_URL,
+        answer_model=OLLAMA_MODEL,
+        embedding_model=EMBEDDING_MODEL,
+    )
+
+# Judge backend (separate from the answerer so it can be held fixed).
+JUDGE_BASE_URL = os.environ.get("NG_JUDGE_BASE_URL", "https://api.openai.com/v1")
+JUDGE_API_KEY = os.environ.get("NG_JUDGE_API_KEY") or os.environ.get("OPENAI_API_KEY", "")
+JUDGE_MODEL = os.environ.get("NG_JUDGE_MODEL", "gpt-4o")
+JUDGE_REASONING_EFFORT = os.environ.get("NG_JUDGE_REASONING_EFFORT") or None
+OPENAI_API_KEY = JUDGE_API_KEY  # backward compat for other references
+USE_OPENAI_JUDGE = True
+USE_OPENAI_ANSWER = False
 
 # Set Ollama for profile extractor module
 llm_profile_extractor.USE_OPENAI_EXTRACTION = False
@@ -81,7 +115,9 @@ TOP_K = 50
 
 CATEGORIES = {1: "single_hop", 2: "temporal", 3: "open_domain", 4: "multi_hop"}
 
-OUTPUT_PATH = Path(__file__).parent / "omega.json"
+OUTPUT_PATH = Path(os.environ.get("NG_OUTPUT") or (Path(__file__).parent / "omega.json"))
+# Limit the number of conversations, for pipeline smoke-tests. 0 = all.
+MAX_CONVERSATIONS = int(os.environ.get("NG_MAX_CONVERSATIONS", "0"))
 MAX_QUESTIONS = 2000  # Extended benchmark run
 
 # Timing storage
@@ -101,6 +137,7 @@ ROUTING_STATS = {
     "OPEN_DOMAIN_WORLD": 0,
     "ADVERSARIAL": 0,
 }
+JUDGE_FAILURES = []
 ROUTING_SAMPLES = []
 INFERENTIAL_SAMPLES = []
 
@@ -261,6 +298,8 @@ def save_results(results, stats):
             "total_questions": total_questions,
             "total_correct": total_correct,
             "accuracy": round(accuracy, 2),
+            "judge_failures": len(JUDGE_FAILURES),
+            "judge_failure_sample": JUDGE_FAILURES[:3],
             "latency_stats": latency_stats,
             "category_stats": {
                 cat: {
@@ -366,29 +405,35 @@ async def judge_answer(session, question: str, generated: str, gold) -> bool:
         generated_answer=generated
     )
 
-    try:
-        async with session.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {OPENAI_API_KEY}",
-                "Content-Type": "application/json"
-            },
-            json={
-                "model": JUDGE_MODEL,
-                "messages": [
-                    {"role": "user", "content": prompt}
-                ],
-                "temperature": 0,
-                "max_tokens": 150
-            },
-            timeout=aiohttp.ClientTimeout(total=60)
-        ) as response:
-            result = await response.json()
-            resp_text = result.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
-            return parse_judge_label(resp_text)
-    except Exception as e:
-        print(f"Judge error: {e}")
-        return False
+    payload = {
+        "model": JUDGE_MODEL,
+        "messages": [
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": 0,
+        "max_tokens": 150
+    }
+    if JUDGE_REASONING_EFFORT is not None:
+        payload["reasoning_effort"] = JUDGE_REASONING_EFFORT
+
+    result, error = await post_json_with_retry(
+        session,
+        f"{JUDGE_BASE_URL}/chat/completions",
+        headers={
+            "Authorization": f"Bearer {JUDGE_API_KEY}",
+            "Content-Type": "application/json"
+        },
+        payload=payload,
+        timeout=aiohttp.ClientTimeout(total=60),
+    )
+    if error is not None:
+        # A failed judge call is NOT a wrong answer. Counting it as one silently
+        # deflates accuracy - a rate-limited run reads as a model regression.
+        JUDGE_FAILURES.append(str(error.get("message"))[:160])
+        return None
+
+    resp_text = (result.get("choices", [{}])[0].get("message", {}).get("content") or "").strip()
+    return parse_judge_label(resp_text)
 
 
 async def run_benchmark():
@@ -396,6 +441,9 @@ async def run_benchmark():
     locomo_path = Path(__file__).parent.parent / "evaluation" / "locomo" / "locomo10.json"
     with open(locomo_path) as f:
         data = json.load(f)
+
+    if MAX_CONVERSATIONS:
+        data = data[:MAX_CONVERSATIONS]
 
     results = []
     stats = {cat: {"correct": 0, "total": 0} for cat in CATEGORIES.values()}
@@ -830,12 +878,16 @@ async def run_benchmark():
                 t_e2e = (time.perf_counter() - t_e2e_start) * 1000
                 TIMING_DATA["t_e2e"].append(t_e2e)
 
-                # Judge with GPT-4o
                 correct = await judge_answer(http, question, generated, gold)
 
-                stats[category]["total"] += 1
-                if correct:
-                    stats[category]["correct"] += 1
+                # correct is None when the judge itself failed. Such questions are
+                # excluded from the denominator rather than scored as wrong, so an
+                # unreachable or rate-limited judge cannot masquerade as a drop in
+                # accuracy.
+                if correct is not None:
+                    stats[category]["total"] += 1
+                    if correct:
+                        stats[category]["correct"] += 1
 
                 result = {
                     "id": len(results) + 1,
