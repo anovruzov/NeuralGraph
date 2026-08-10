@@ -118,7 +118,7 @@ CATEGORIES = {1: "single_hop", 2: "temporal", 3: "open_domain", 4: "multi_hop"}
 OUTPUT_PATH = Path(os.environ.get("NG_OUTPUT") or (Path(__file__).parent / "omega.json"))
 # Limit the number of conversations, for pipeline smoke-tests. 0 = all.
 MAX_CONVERSATIONS = int(os.environ.get("NG_MAX_CONVERSATIONS", "0"))
-MAX_QUESTIONS = 2000  # Extended benchmark run
+MAX_QUESTIONS = int(os.environ.get("NG_MAX_QUESTIONS", "2000"))
 
 # Timing storage
 import time

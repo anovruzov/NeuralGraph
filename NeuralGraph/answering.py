@@ -3,13 +3,79 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import os
 import re
+import sqlite3
+import threading
 from dataclasses import dataclass
 
 import aiohttp
 
 from .prompts import LIST_QUESTION_ANSWER_PROMPT, AGGREGATION_ANSWER_PROMPT
+
+
+# ---------------------------------------------------------------------------
+# Embedding cache
+#
+# Hosted embedding endpoints are often the scarcest resource in a benchmark run
+# (Gemini's free tier allows 1000 embeddings per day, while one LOCOMO pass
+# needs ~7400). Re-embedding an unchanged corpus on every run wastes that budget
+# and makes iteration impossible, so embeddings are cached on disk by
+# (model, text) and re-used across runs.
+#
+# Set NG_EMBED_CACHE to a file path to enable. Unset means no caching.
+# ---------------------------------------------------------------------------
+_cache_lock = threading.Lock()
+_cache_conn = None
+EMBED_CACHE_STATS = {"hit": 0, "miss": 0, "store": 0}
+
+
+def _cache() -> sqlite3.Connection | None:
+    global _cache_conn
+    path = os.environ.get("NG_EMBED_CACHE")
+    if not path:
+        return None
+    if _cache_conn is None:
+        _cache_conn = sqlite3.connect(path, check_same_thread=False)
+        _cache_conn.execute(
+            "CREATE TABLE IF NOT EXISTS embeddings (key TEXT PRIMARY KEY, vec TEXT)"
+        )
+        _cache_conn.commit()
+    return _cache_conn
+
+
+def _cache_key(model: str, text: str) -> str:
+    return hashlib.sha256(f"{model}\x00{text}".encode("utf-8")).hexdigest()
+
+
+def cache_get(model: str, text: str) -> list[float] | None:
+    conn = _cache()
+    if conn is None:
+        return None
+    with _cache_lock:
+        row = conn.execute(
+            "SELECT vec FROM embeddings WHERE key = ?", (_cache_key(model, text),)
+        ).fetchone()
+    if row is None:
+        EMBED_CACHE_STATS["miss"] += 1
+        return None
+    EMBED_CACHE_STATS["hit"] += 1
+    return json.loads(row[0])
+
+
+def cache_put(model: str, text: str, vec: list[float]) -> None:
+    conn = _cache()
+    if conn is None or not vec:
+        return
+    with _cache_lock:
+        conn.execute(
+            "INSERT OR REPLACE INTO embeddings (key, vec) VALUES (?, ?)",
+            (_cache_key(model, text), json.dumps(vec)),
+        )
+        conn.commit()
+    EMBED_CACHE_STATS["store"] += 1
 
 
 def unwrap_api_error(body):
@@ -189,6 +255,11 @@ async def get_embedding(
     config: AnsweringConfig | None = None,
 ) -> list[float]:
     cfg = config or AnsweringConfig()
+
+    cached = cache_get(cfg.embedding_model, text)
+    if cached is not None:
+        return cached
+
     timeout = aiohttp.ClientTimeout(total=cfg.embedding_timeout_seconds)
     try:
         if cfg.provider == "openai_compatible":
@@ -202,7 +273,9 @@ async def get_embedding(
             if error is not None:
                 return []
             data = result.get("data") or []
-            return data[0].get("embedding", []) if data else []
+            vec = data[0].get("embedding", []) if data else []
+            cache_put(cfg.embedding_model, text, vec)
+            return vec
 
         async with session.post(
             f"{cfg.ollama_base_url}/api/embeddings",
@@ -210,7 +283,9 @@ async def get_embedding(
             timeout=timeout,
         ) as response:
             result = await response.json()
-            return result.get("embedding", [])
+            vec = result.get("embedding", [])
+            cache_put(cfg.embedding_model, text, vec)
+            return vec
     except Exception:
         return []
 
