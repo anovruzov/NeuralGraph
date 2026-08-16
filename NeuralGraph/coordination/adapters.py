@@ -269,7 +269,15 @@ class NeuralGraphMemoryAdapter:
     The callback executes inside the owner boundary.  The optional lineage
     resolver may return only facts the local graph actually knows; absent fields
     remain empty and are never synthesized by this adapter.
+
+    Only ``PolicyStatus.ALLOWED`` produces a claim.  Every other status,
+    ``REDACTED`` included, fails closed as a structurally empty denial trace:
+    this adapter owns no redaction projection, so it cannot construct a
+    sanitized payload it can prove is safe.
     """
+
+    #: The only value types a claim may carry across the boundary.
+    _EXPORTABLE_VALUE_TYPES = (str, int, float, bool, type(None))
 
     def __init__(
         self,
@@ -278,31 +286,70 @@ class NeuralGraphMemoryAdapter:
         local_retrieve: Callable[[QueryRequest], Awaitable[list[tuple[Any, float]]]],
         policy_filter: Callable[[Any, AuthorizationContext], PolicyStatus],
         clock: Callable[[], str],
-        lineage_resolver: Callable[[Any], dict[str, tuple[str, ...]]] | None = None,
+        lineage_resolver: Callable[[Any], Awaitable[dict[str, Any]]] | None = None,
+        claim_projection: Callable[[Any], dict[str, Any]] | None = None,
     ) -> None:
         self.node_id = node_id
         self._capability = capability
         self._local_retrieve = local_retrieve
         self._policy_filter = policy_filter
         self._lineage_resolver = lineage_resolver
+        self._claim_projection = claim_projection
         self._clock = clock
 
     async def describe_capabilities(
         self, context: AuthorizationContext
     ) -> tuple[CapabilityDescriptor, ...]:
-        return (self._capability,)
+        """Advertise the capability only to a context holding one of its scopes.
+
+        An owner-declared availability (for example ``DEGRADED``) is preserved
+        for an authorized context; an empty ``policy_scope`` stays unavailable.
+        """
+        from dataclasses import replace
+
+        if any(
+            context.permits(self.node_id, scope)
+            for scope in self._capability.policy_scope
+        ):
+            return (self._capability,)
+        return (replace(self._capability, availability=Availability.UNAVAILABLE),)
 
     async def query(self, request: QueryRequest) -> tuple[EvidenceExport, ...]:
+        if request.requested_capability != self._capability.capability_id:
+            return ()
         results = await self._local_retrieve(request)
         exports = []
-        for index, (node, confidence) in enumerate(results[:request.budget.max_claims]):
+        exported_memory_ids: set[str] = set()
+        for node, confidence in results:
+            # The budget bounds exports, not candidates.  A repeat skipped below
+            # never occupied a slot, so a distinct memory that still fits is not
+            # evicted by how many times the callback offered its neighbours.  A
+            # denial trace is an export and does consume a slot: refusing to
+            # answer is still an answer this query has to pay for.
+            if len(exports) >= request.budget.max_claims:
+                break
             started = self._clock()
             policy = self._policy_filter(node, request.authorization)
+            # Identifier only, read without touching any payload field.  It is
+            # never exported on a non-allowed path; it only binds the opaque
+            # trace digest to one memory so retrieval order cannot alias traces.
+            memory_id = self._memory_id(node)
+            # One memory exports at most once per query.  A benign callback may
+            # union two retrieval paths over the same store, and a repeat is not
+            # an error, but exporting it twice would inflate the apparent
+            # replica count of a single memory.  First occurrence wins, so the
+            # surviving export is whichever path reached the memory first.
+            if memory_id in exported_memory_ids:
+                continue
+            exported_memory_ids.add(memory_id)
+            trace_id = MockMemoryNodeAdapter._opaque_id(
+                "trace", request.query_id, self.node_id, memory_id
+            )
             if policy is not PolicyStatus.ALLOWED:
                 exports.append(EvidenceExport(
                     claims=(),
                     trace=RetrievalTrace(
-                        trace_id=MockMemoryNodeAdapter._opaque_id("trace", request.query_id, self.node_id, str(index)),
+                        trace_id=trace_id,
                         query_id=request.query_id,
                         node_id=self.node_id,
                         memory_ids=(), source_ids=(), parent_memory_ids=(),
@@ -313,14 +360,27 @@ class NeuralGraphMemoryAdapter:
                     ),
                 ))
                 continue
-            known = self._lineage_resolver(node) if self._lineage_resolver else {}
-            memory_id = str(getattr(node, "node_id"))
-            source_ids = tuple(known.get("source_ids", tuple(getattr(node, "source_memory_ids", ()))))
-            parent_ids = tuple(known.get("parent_memory_ids", ()))
-            root_ids = tuple(known.get("lineage_root_ids", ()))
-            failure_domains = tuple(known.get("failure_domains", ()))
-            edge_path = tuple(known.get("edge_path", ()))
-            content = known.get("claim_content", {"text": str(getattr(node, "content"))})
+            known = self._exportable_lineage(
+                await self._lineage_resolver(node) if self._lineage_resolver else {}
+            )
+            # A resolver is owner-supplied code and the node's own stored
+            # lineage is a rehydrated row, so both are untrusted input here.
+            # Every identifier is validated before any envelope is built.
+            source_ids = self._exportable_identifiers(
+                known.get("source_ids", getattr(node, "source_memory_ids", ())), "source_ids"
+            )
+            parent_ids = self._exportable_identifiers(
+                known.get("parent_memory_ids", ()), "parent_memory_ids"
+            )
+            root_ids = self._exportable_identifiers(
+                known.get("lineage_root_ids", ()), "lineage_root_ids"
+            )
+            failure_domains = self._exportable_identifiers(
+                known.get("failure_domains", ()), "failure_domains"
+            )
+            edge_path = self._exportable_identifiers(known.get("edge_path", ()), "edge_path")
+            retrieval_operator = self._exportable_operator(known)
+            content = self._claim_content(node, known)
             claim = ClaimEnvelope(
                 claim_id=MockMemoryNodeAdapter._opaque_id("claim", request.query_id, self.node_id, memory_id),
                 query_id=request.query_id,
@@ -333,22 +393,177 @@ class NeuralGraphMemoryAdapter:
                 lineage_root_ids=root_ids,
                 failure_domains=failure_domains,
                 policy_status=PolicyStatus.ALLOWED,
-                derivation_operator=known.get("retrieval_operator", "neuralgraph_local_retrieval"),
+                derivation_operator=retrieval_operator,
                 created_at=self._clock(),
             )
             trace = RetrievalTrace(
-                trace_id=MockMemoryNodeAdapter._opaque_id("trace", request.query_id, self.node_id, str(index)),
+                trace_id=trace_id,
                 query_id=request.query_id,
                 node_id=self.node_id,
                 memory_ids=(memory_id,), source_ids=source_ids,
                 parent_memory_ids=parent_ids, lineage_root_ids=root_ids,
                 edge_path=edge_path,
-                retrieval_operator=str(known.get("retrieval_operator", "neuralgraph_local_retrieval")),
+                retrieval_operator=retrieval_operator,
                 policy_status=PolicyStatus.ALLOWED,
                 started_at=started, completed_at=self._clock(),
             )
             exports.append(EvidenceExport(claims=(claim,), trace=trace))
         return tuple(exports)
+
+    @staticmethod
+    def _memory_id(node: Any) -> str:
+        """Return the retrieved object's identifier without reading its payload.
+
+        A blank or whitespace-only ``node_id`` is rejected exactly like a
+        missing one.  It is not an identifier: two distinct memories carrying it
+        would derive the same ``claim_id`` and ``trace_id``, making correlated
+        copies indistinguishable from independent roots.  Both messages name
+        only the local type, never the rejected object's payload or identifier.
+
+        A ``str`` identifier is read through ``str.__str__`` for the same
+        reason: a subclass overriding ``__str__`` could otherwise collapse two
+        distinct memories onto one exported identity, and the second one would
+        be dropped as a duplicate.
+        """
+        identifier = getattr(node, "node_id", None)
+        if identifier is None:
+            raise TypeError(
+                f"{type(node).__name__} carries no node_id and cannot be exported"
+            )
+        memory_id = (
+            str.__str__(identifier) if isinstance(identifier, str) else str(identifier)
+        )
+        if not memory_id.strip():
+            raise TypeError(
+                f"{type(node).__name__} carries a blank node_id and cannot be exported"
+            )
+        return memory_id
+
+    @staticmethod
+    def _exportable_lineage(known: Any) -> Any:
+        """Reject a resolver result the adapter cannot read as a mapping.
+
+        The resolver is owner-supplied code; a non-mapping return would
+        otherwise be silently read as "no known lineage", turning a broken
+        resolver into a confident claim of no ancestry.
+        """
+        from collections.abc import Mapping
+
+        if not isinstance(known, Mapping):
+            raise ValueError(
+                f"lineage resolver must return a mapping, got {type(known).__name__}"
+            )
+        return known
+
+    @staticmethod
+    def _exportable_identifiers(value: Any, field: str) -> tuple[str, ...]:
+        """Validate one lineage field, naming the field but never its content.
+
+        ``str``/``bytes`` are rejected instead of iterated: a bare
+        ``"memory-42"`` would otherwise cross the boundary as nine
+        single-character identifiers.  Entries are re-exported through
+        ``str.__str__`` so a ``str`` subclass cannot carry hidden attributes or
+        a payload-bearing ``__repr__`` past this point.  Order and multiplicity
+        are preserved exactly: normalising them is the resolver's job, and
+        silently sorting or de-duplicating here would rewrite the lineage the
+        owner actually reported.
+        """
+        if isinstance(value, (str, bytes, bytearray)) or not isinstance(value, (tuple, list)):
+            raise ValueError(
+                f"{field} must be a tuple or list of identifiers, "
+                f"got {type(value).__name__}"
+            )
+        identifiers = []
+        for entry in value:
+            if not isinstance(entry, str):
+                raise ValueError(
+                    f"{field} entries must be str, got {type(entry).__name__}"
+                )
+            if not entry.strip():
+                raise ValueError(f"{field} entries must not be blank")
+            identifiers.append(str.__str__(entry))
+        return tuple(identifiers)
+
+    @staticmethod
+    def _exportable_operator(known: Any) -> str:
+        """Validate the retrieval operator label the resolver may override."""
+        value = known.get("retrieval_operator", "neuralgraph_local_retrieval")
+        if not isinstance(value, str):
+            raise ValueError(
+                f"retrieval_operator must be a str, got {type(value).__name__}"
+            )
+        if not value.strip():
+            raise ValueError("retrieval_operator must not be blank")
+        return str.__str__(value)
+
+    def _claim_content(self, node: Any, known: dict[str, Any]) -> dict[str, Any]:
+        """Build the exported claim payload.
+
+        An explicit ``claim_projection`` wins over a resolver-supplied
+        ``claim_content``; with neither configured the payload stays exactly the
+        historical single-field text projection.
+        """
+        if self._claim_projection is not None:
+            content = self._claim_projection(node)
+        else:
+            content = known.get("claim_content", {"text": str(getattr(node, "content"))})
+        return self._exportable_content(content)
+
+    @classmethod
+    def _exportable_content(cls, content: Any) -> dict[str, Any]:
+        """Reject content the boundary cannot carry, naming keys but never values.
+
+        The copy is deliberate: it stops an owner-supplied projection from
+        mutating the payload after it was checked.  Keys *and* values are then
+        re-exported as exact builtins: values are the channel that actually
+        carries payload, so any subclass surviving here would keep a live
+        reference to owner-side state and a caller-controlled ``__repr__`` that
+        any log line, dump or traceback would render.  ``str``, ``int`` and
+        ``float`` are all subclassable, so each is rebuilt through its *base*
+        method (``str.__str__``, ``int.__index__``, ``float.__float__``), which
+        reads the real stored value and ignores subclass overrides.  ``bool``
+        and ``None`` are singletons that cannot be subclassed, so they pass
+        through unchanged -- and ``bool`` is tested before ``int`` because it is
+        an ``int`` subclass that must stay ``True``/``False``, not ``1``/``0``.
+
+        Non-finite floats are refused as well.  ``NaN`` and ``Infinity`` are not
+        JSON, so exporting them would emit a serialization a conforming parser
+        rejects, and the exported bytes are derived from that serialization.
+        The refusal stays ahead of the coercion, and both it and the coercion
+        read the stored double, so a subclass advertising a finite ``__float__``
+        cannot smuggle one past either step.
+        """
+        import math
+
+        if not isinstance(content, dict):
+            raise ValueError(
+                f"claim content must be a dict, got {type(content).__name__}"
+            )
+        exportable: dict[str, Any] = {}
+        for key, value in content.items():
+            if not isinstance(key, str):
+                raise ValueError(
+                    f"claim content keys must be str, got {type(key).__name__}"
+                )
+            if not isinstance(value, cls._EXPORTABLE_VALUE_TYPES):
+                raise ValueError(
+                    f"claim content value for key {str.__repr__(key)} is not "
+                    f"exportable: {type(value).__name__}"
+                )
+            if isinstance(value, float) and not math.isfinite(value):
+                raise ValueError(
+                    f"claim content value for key {str.__repr__(key)} must be finite"
+                )
+            if isinstance(value, str):
+                coerced: Any = str.__str__(value)
+            elif value is None or type(value) is bool:
+                coerced = value
+            elif isinstance(value, int):
+                coerced = int.__index__(value)
+            else:
+                coerced = float.__float__(value)
+            exportable[str.__str__(key)] = coerced
+        return exportable
 
     async def verify(self, request: VerificationRequest) -> VerificationResult:
         return VerificationResult(

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import unittest
 from dataclasses import replace
 
@@ -23,6 +24,7 @@ from NeuralGraph.coordination.contracts import (
     TraceEventType,
 )
 from NeuralGraph.coordination.core import (
+    CapabilityRegistry,
     ClaimNormalizer,
     LineageAnalyzer,
     RepairPlanner,
@@ -274,6 +276,750 @@ class EndToEndExperimentTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(one["strategy_summary"], two["strategy_summary"])
         self.assertNotIn(first.left_symbol, first.query.content)
         self.assertNotIn(first.right_symbol, first.query.content)
+
+
+REAL_NODE_ID = "real-node"
+
+
+class LocalNodeStub:
+    """Stand-in for a locally owned NeuralGraph node.
+
+    Mirrors the attribute names `NeuralGraphMemoryAdapter` reads from a real
+    `NeuralNode` (`node_id`, `content`, `source_memory_ids`) plus the two payload
+    fields that must never cross the boundary (`metadata`, `embedding`).
+    """
+
+    def __init__(
+        self,
+        node_id="local-memory-1",
+        content="locally held fact",
+        source_memory_ids=(),
+        metadata=None,
+        embedding=None,
+    ):
+        self.node_id = node_id
+        self.content = content
+        self.source_memory_ids = list(source_memory_ids)
+        self.metadata = {} if metadata is None else metadata
+        self.embedding = [] if embedding is None else embedding
+
+
+class NotAMemoryNode:
+    """Locally retrieved object without the identifier the adapter requires."""
+
+    content = "malformed payload MUST_NOT_LEAK_2F8"
+
+
+def allow_everything(_node, _authorization):
+    return PolicyStatus.ALLOWED
+
+
+def make_real_capability(runtime, node_id=REAL_NODE_ID):
+    return CapabilityDescriptor(
+        capability_id=runtime.fixture.query.requested_capability,
+        node_id=node_id,
+        description="local NeuralGraph retrieval",
+        query_types=("composition",),
+        policy_scope=(REQUIRED_SCOPE,),
+        availability=Availability.AVAILABLE,
+    )
+
+
+def make_real_adapter(runtime, retrieve, policy=allow_everything, **kwargs):
+    return NeuralGraphMemoryAdapter(
+        REAL_NODE_ID,
+        make_real_capability(runtime),
+        retrieve,
+        policy,
+        runtime.clock.now,
+        **kwargs,
+    )
+
+
+def retrieve_all(*nodes, confidence=0.9):
+    async def retrieve(_request):
+        return [(node, confidence) for node in nodes]
+
+    return retrieve
+
+
+class RealAdapterBoundaryTests(unittest.IsolatedAsyncioTestCase):
+    """Boundary behaviour of the adapter that faces real NeuralGraph storage."""
+
+    async def test_query_for_another_capability_retrieves_and_exports_nothing(self):
+        runtime = build_runtime(41, "real-adapter")
+        calls = []
+
+        async def retrieve(request):
+            calls.append(request.query_id)
+            return [(LocalNodeStub(), 0.9)]
+
+        adapter = make_real_adapter(runtime, retrieve)
+        for requested in ("some-other-capability", None):
+            with self.subTest(requested_capability=requested):
+                mismatched = replace(runtime.fixture.query, requested_capability=requested)
+                self.assertEqual(await adapter.query(mismatched), ())
+        self.assertEqual(calls, [])
+        matched = await adapter.query(runtime.fixture.query)
+        self.assertEqual(len(matched), 1)
+        self.assertEqual(calls, [runtime.fixture.query.query_id])
+
+    async def test_capability_is_unavailable_to_an_unauthorized_context(self):
+        runtime = build_runtime(42, "real-adapter")
+        adapter = make_real_adapter(runtime, retrieve_all(LocalNodeStub()))
+        capability = make_real_capability(runtime)
+        authorized = AuthorizationContext(
+            scopes=(REQUIRED_SCOPE,), allowed_node_ids=(REAL_NODE_ID,)
+        )
+        unauthorized = AuthorizationContext(scopes=("some-other-scope",))
+        wrong_node = AuthorizationContext(
+            scopes=(REQUIRED_SCOPE,), allowed_node_ids=("node-a",)
+        )
+
+        self.assertEqual(await adapter.describe_capabilities(authorized), (capability,))
+        for context in (unauthorized, wrong_node):
+            with self.subTest(context=context.scopes + context.allowed_node_ids):
+                descriptors = await adapter.describe_capabilities(context)
+                self.assertEqual(len(descriptors), 1)
+                self.assertIs(descriptors[0].availability, Availability.UNAVAILABLE)
+                self.assertEqual(descriptors[0].capability_id, capability.capability_id)
+                self.assertEqual(descriptors[0].policy_scope, capability.policy_scope)
+
+    async def test_router_excludes_a_node_that_is_unavailable_to_the_requester(self):
+        runtime = build_runtime(43, "real-adapter")
+        registry = CapabilityRegistry()
+        registry.register(make_real_adapter(runtime, retrieve_all(LocalNodeStub())))
+        router = Router(registry, runtime.failure)
+        authorized = replace(
+            runtime.fixture.query,
+            authorization=AuthorizationContext(
+                scopes=(REQUIRED_SCOPE,), allowed_node_ids=(REAL_NODE_ID,)
+            ),
+        )
+        unauthorized = replace(
+            runtime.fixture.query,
+            authorization=AuthorizationContext(scopes=("some-other-scope",)),
+        )
+
+        self.assertEqual(await router.select(authorized), (REAL_NODE_ID,))
+        self.assertEqual(await router.select(unauthorized), ())
+
+    async def test_trace_id_stays_bound_to_its_memory_under_reversed_order(self):
+        runtime = build_runtime(44, "real-adapter")
+        first = LocalNodeStub("local-memory-1", "fact one")
+        second = LocalNodeStub("local-memory-2", "fact two")
+        retrieved = [(first, 0.91), (second, 0.82)]
+
+        async def retrieve(_request):
+            return list(retrieved)
+
+        adapter = make_real_adapter(runtime, retrieve)
+        forward = await adapter.query(runtime.fixture.query)
+        retrieved.reverse()
+        backward = await adapter.query(runtime.fixture.query)
+
+        forward_binding = {
+            export.trace.memory_ids[0]: export.trace.trace_id for export in forward
+        }
+        backward_binding = {
+            export.trace.memory_ids[0]: export.trace.trace_id for export in backward
+        }
+        self.assertEqual(sorted(forward_binding), ["local-memory-1", "local-memory-2"])
+        self.assertEqual(len(set(forward_binding.values())), 2)
+        self.assertEqual(forward_binding, backward_binding)
+
+    async def test_trace_id_is_memory_bound_on_allowed_and_denied_paths(self):
+        runtime = build_runtime(45, "real-adapter")
+        node = LocalNodeStub("local-memory-1", "fact one")
+        expected = MockMemoryNodeAdapter._opaque_id(
+            "trace", runtime.fixture.query.query_id, REAL_NODE_ID, "local-memory-1"
+        )
+
+        allowed = await make_real_adapter(runtime, retrieve_all(node)).query(
+            runtime.fixture.query
+        )
+        denied = await make_real_adapter(
+            runtime,
+            retrieve_all(node),
+            policy=lambda _node, _authorization: PolicyStatus.DENIED,
+        ).query(runtime.fixture.query)
+
+        self.assertEqual(allowed[0].trace.trace_id, expected)
+        self.assertEqual(denied[0].trace.trace_id, expected)
+
+    async def test_denied_export_leaks_neither_content_nor_identifiers(self):
+        runtime = build_runtime(46, "real-adapter")
+        node = LocalNodeStub(
+            node_id="PRIVATE_MEMORY_ID_4KQ",
+            content="PRIVATE_CONTENT_8ZR",
+            source_memory_ids=["PRIVATE_SOURCE_1WB"],
+            metadata={"note": "PRIVATE_METADATA_5XT"},
+            embedding=[0.9876543, 0.1234567],
+        )
+        adapter = make_real_adapter(
+            runtime,
+            retrieve_all(node),
+            policy=lambda _node, _authorization: PolicyStatus.DENIED,
+        )
+
+        exports = await adapter.query(runtime.fixture.query)
+        payload = canonical_json(exports)
+
+        for secret in (
+            "PRIVATE_MEMORY_ID_4KQ", "PRIVATE_CONTENT_8ZR", "PRIVATE_SOURCE_1WB",
+            "PRIVATE_METADATA_5XT", "0.9876543",
+        ):
+            self.assertNotIn(secret, payload)
+        trace = exports[0].trace
+        self.assertEqual(exports[0].claims, ())
+        self.assertIs(trace.policy_status, PolicyStatus.DENIED)
+        self.assertEqual(
+            (trace.memory_ids, trace.source_ids, trace.parent_memory_ids,
+             trace.lineage_root_ids, trace.edge_path),
+            ((), (), (), (), ()),
+        )
+
+    async def test_redacted_policy_fails_closed_without_a_claim(self):
+        """Documents current behaviour: only ALLOWED produces a claim."""
+        runtime = build_runtime(47, "real-adapter")
+        node = LocalNodeStub(content="PRIVATE_CONTENT_8ZR")
+        adapter = make_real_adapter(
+            runtime,
+            retrieve_all(node),
+            policy=lambda _node, _authorization: PolicyStatus.REDACTED,
+        )
+
+        exports = await adapter.query(runtime.fixture.query)
+
+        self.assertEqual(exports[0].claims, ())
+        self.assertIs(exports[0].trace.policy_status, PolicyStatus.REDACTED)
+        self.assertEqual(exports[0].trace.memory_ids, ())
+        self.assertNotIn("PRIVATE_CONTENT_8ZR", canonical_json(exports))
+
+    async def test_claim_projection_may_not_export_raw_node_state(self):
+        runtime = build_runtime(48, "real-adapter")
+        secret = "PROTECTED_VALUE_7KQ"
+        node = LocalNodeStub(
+            metadata={"note": secret}, embedding=[0.9876543, 0.1234567]
+        )
+        projections = {
+            "metadata": lambda n: {"text": str(n.content), "metadata": n.metadata},
+            "embedding": lambda n: {"text": str(n.content), "embedding": n.embedding},
+            "node": lambda n: {"node": n},
+        }
+
+        for key, projection in projections.items():
+            with self.subTest(offending_key=key):
+                adapter = make_real_adapter(
+                    runtime, retrieve_all(node), claim_projection=projection
+                )
+                with self.assertRaises(ValueError) as raised:
+                    await adapter.query(runtime.fixture.query)
+                message = f"{raised.exception}|{raised.exception!r}"
+                self.assertIn(key, message)
+                for leak in (secret, "0.9876543", "locally held fact", "note"):
+                    self.assertNotIn(leak, message)
+
+    async def test_claim_content_must_be_a_flat_mapping_of_exportable_scalars(self):
+        runtime = build_runtime(49, "real-adapter")
+        node = LocalNodeStub(metadata={"note": "PROTECTED_VALUE_7KQ"})
+
+        async def resolver_with_bad_content(local_node):
+            return {"claim_content": {"blob": local_node.metadata}}
+
+        rejected = {
+            "not_a_dict": {"claim_projection": lambda n: str(n.content)},
+            "non_string_key": {"claim_projection": lambda n: {n: "value"}},
+            "nested_mapping": {"claim_projection": lambda n: {"nested": {"a": 1}}},
+            "resolver_supplied": {"lineage_resolver": resolver_with_bad_content},
+        }
+        for case, kwargs in rejected.items():
+            with self.subTest(case=case):
+                adapter = make_real_adapter(runtime, retrieve_all(node), **kwargs)
+                with self.assertRaises(ValueError) as raised:
+                    await adapter.query(runtime.fixture.query)
+                message = f"{raised.exception}|{raised.exception!r}"
+                self.assertNotIn("PROTECTED_VALUE_7KQ", message)
+                self.assertNotIn("locally held fact", message)
+
+        accepted = {"text": "value", "count": 2, "score": 0.5, "flag": True, "absent": None}
+        adapter = make_real_adapter(
+            runtime, retrieve_all(node), claim_projection=lambda _n: dict(accepted)
+        )
+        exports = await adapter.query(runtime.fixture.query)
+        self.assertEqual(exports[0].claims[0].content, accepted)
+
+    async def test_default_claim_content_is_the_unchanged_text_projection(self):
+        runtime = build_runtime(50, "real-adapter")
+        node = LocalNodeStub(content="locally held fact")
+
+        exports = await make_real_adapter(runtime, retrieve_all(node)).query(
+            runtime.fixture.query
+        )
+
+        self.assertEqual(exports[0].claims[0].content, {"text": "locally held fact"})
+
+    async def test_claim_projection_replaces_the_default_content(self):
+        runtime = build_runtime(51, "real-adapter")
+        node = LocalNodeStub(content="locally held fact")
+        adapter = make_real_adapter(
+            runtime,
+            retrieve_all(node),
+            claim_projection=lambda n: {"slot": "left", "value": str(n.content)[:7]},
+        )
+
+        exports = await adapter.query(runtime.fixture.query)
+
+        self.assertEqual(exports[0].claims[0].content, {"slot": "left", "value": "locally"})
+
+    async def test_async_lineage_resolver_is_awaited_and_omissions_stay_empty(self):
+        runtime = build_runtime(52, "real-adapter")
+        node = LocalNodeStub(source_memory_ids=["known-source-memory"])
+        resolved = []
+
+        async def resolver(local_node):
+            resolved.append(local_node.node_id)
+            return {"lineage_root_ids": ("root-1",), "edge_path": ("edge-1",)}
+
+        adapter = make_real_adapter(runtime, retrieve_all(node), lineage_resolver=resolver)
+        exports = await adapter.query(runtime.fixture.query)
+        claim = exports[0].claims[0]
+
+        self.assertEqual(resolved, ["local-memory-1"])
+        self.assertEqual(claim.lineage_root_ids, ("root-1",))
+        self.assertEqual(exports[0].trace.edge_path, ("edge-1",))
+        self.assertEqual(claim.source_ids, ("known-source-memory",))
+        self.assertEqual(claim.parent_memory_ids, ())
+        self.assertEqual(claim.failure_domains, ())
+
+    async def test_object_without_node_id_is_rejected_without_leaking_payload(self):
+        runtime = build_runtime(53, "real-adapter")
+        policies = {
+            "allowed": allow_everything,
+            "denied": lambda _node, _authorization: PolicyStatus.DENIED,
+        }
+
+        for name, policy in policies.items():
+            with self.subTest(policy=name):
+                adapter = make_real_adapter(
+                    runtime, retrieve_all(NotAMemoryNode()), policy=policy
+                )
+                with self.assertRaises(TypeError) as raised:
+                    await adapter.query(runtime.fixture.query)
+                message = f"{raised.exception}|{raised.exception!r}"
+                self.assertIn("NotAMemoryNode", message)
+                self.assertNotIn("MUST_NOT_LEAK_2F8", message)
+
+
+class DivergentViewContent(dict):
+    """Dict subclass whose ``items()`` view disagrees with its stored pairs.
+
+    An owner-supplied projection is caller-controlled code, so it may hand the
+    boundary a mapping that reports one thing and stores another.  Validation
+    and export must therefore read the *same* view.
+    """
+
+    def items(self):
+        return [("text", "sanitized projection")]
+
+
+class HostileReprKey(str):
+    """``str`` subclass smuggling payload through ``repr`` and an attribute."""
+
+    def __new__(cls, value, secret="SECRET_ON_KEY_ATTR_4T"):
+        key = super().__new__(cls, value)
+        key.smuggled = secret
+        return key
+
+    def __repr__(self):
+        return "SECRET_FROM_REPR_9Z"
+
+
+class RealAdapterProjectionIntegrityTests(unittest.IsolatedAsyncioTestCase):
+    """The claim payload that crosses the boundary must be the validated one."""
+
+    async def test_exported_content_is_the_validated_view_not_hidden_storage(self):
+        runtime = build_runtime(54, "real-adapter")
+        smuggling = DivergentViewContent({
+            "embedding": [0.9876543, 0.1234567],
+            "metadata_note": "PROTECTED_VALUE_7KQ",
+        })
+        adapter = make_real_adapter(
+            runtime, retrieve_all(LocalNodeStub()),
+            claim_projection=lambda _node: smuggling,
+        )
+
+        exports = await adapter.query(runtime.fixture.query)
+        content = exports[0].claims[0].content
+        payload = canonical_json(exports)
+
+        self.assertEqual(content, {"text": "sanitized projection"})
+        self.assertIs(type(content), dict)
+        for leak in (
+            "PROTECTED_VALUE_7KQ", "0.9876543", "0.1234567",
+            "embedding", "metadata_note",
+        ):
+            self.assertNotIn(leak, payload)
+
+    async def test_rejection_message_ignores_a_caller_controlled_key_repr(self):
+        runtime = build_runtime(55, "real-adapter")
+        adapter = make_real_adapter(
+            runtime, retrieve_all(LocalNodeStub()),
+            claim_projection=lambda _node: {HostileReprKey("text"): object()},
+        )
+
+        with self.assertRaises(ValueError) as raised:
+            await adapter.query(runtime.fixture.query)
+
+        message = f"{raised.exception}|{raised.exception!r}"
+        self.assertNotIn("SECRET_FROM_REPR_9Z", message)
+        self.assertIn("'text'", message)
+        self.assertIn("object", message)
+
+    async def test_exported_keys_are_plain_strings_carrying_no_hidden_state(self):
+        runtime = build_runtime(55, "real-adapter")
+        adapter = make_real_adapter(
+            runtime, retrieve_all(LocalNodeStub()),
+            claim_projection=lambda _node: {HostileReprKey("text"): "sanitized"},
+        )
+
+        exports = await adapter.query(runtime.fixture.query)
+        content = exports[0].claims[0].content
+        (exported_key,) = content
+
+        self.assertEqual(content, {"text": "sanitized"})
+        self.assertIs(type(exported_key), str)
+        self.assertIsNone(getattr(exported_key, "smuggled", None))
+        self.assertNotIn("SECRET_ON_KEY_ATTR_4T", canonical_json(exports))
+
+    async def test_blank_node_identifier_is_rejected_like_a_missing_one(self):
+        """A blank id would give two distinct memories one claim_id and trace_id."""
+        runtime = build_runtime(56, "real-adapter")
+
+        for label, node_id in (("empty", ""), ("whitespace", "   ")):
+            with self.subTest(node_id=label):
+                adapter = make_real_adapter(
+                    runtime,
+                    retrieve_all(LocalNodeStub(
+                        node_id=node_id, content="BLANK_ID_CONTENT_3JX"
+                    )),
+                )
+                with self.assertRaises(TypeError) as raised:
+                    await adapter.query(runtime.fixture.query)
+                message = f"{raised.exception}|{raised.exception!r}"
+                self.assertIn("LocalNodeStub", message)
+                self.assertNotIn("BLANK_ID_CONTENT_3JX", message)
+
+
+class HostileReprValue(str):
+    """``str`` subclass smuggling payload through ``repr`` and an attribute.
+
+    The value channel is the one that actually carries payload, so a subclass
+    reaching an exported claim keeps a hidden reference to owner-side state and
+    a ``__repr__`` that any log line, test dump or traceback would render.
+    """
+
+    def __new__(cls, value, secret="SECRET_ON_VALUE_ATTR_6R"):
+        exported = super().__new__(cls, value)
+        exported.smuggled = secret
+        return exported
+
+    def __repr__(self):
+        return "SECRET_FROM_VALUE_REPR_1M"
+
+
+class HostileReprInt(int):
+    """``int`` subclass smuggling payload through ``repr`` and an attribute.
+
+    ``str`` is not the only exportable type that can be subclassed: ``int`` and
+    ``float`` can be too, so type-checking a value proves what it *is* while
+    still letting owner-side state ride across the boundary.
+    """
+
+    def __new__(cls, value, secret="SECRET_ON_INT_ATTR_3N"):
+        exported = super().__new__(cls, value)
+        exported.hidden = secret
+        return exported
+
+    def __repr__(self):
+        return "SECRET_FROM_INT_REPR_7K"
+
+
+class HostileReprFloat(float):
+    """``float`` subclass smuggling payload through ``repr`` and an attribute."""
+
+    def __new__(cls, value, secret="SECRET_ON_FLOAT_ATTR_5W"):
+        exported = super().__new__(cls, value)
+        exported.hidden = secret
+        return exported
+
+    def __repr__(self):
+        return "SECRET_FROM_FLOAT_REPR_2H"
+
+
+class LyingFiniteFloat(float):
+    """``float`` subclass whose ``__float__`` hides a non-finite real value."""
+
+    def __float__(self):
+        return 1.5
+
+
+class CollapsingIdentifier(str):
+    """``str`` subclass whose ``__str__`` collapses every value to one token."""
+
+    def __str__(self):
+        return "COLLAPSED_TO_ONE_ID"
+
+
+def reject_json_constant(name):
+    """``json.loads`` calls this only for the non-RFC constants NaN/Infinity."""
+    raise AssertionError(f"non-RFC JSON constant crossed the boundary: {name}")
+
+
+class RealAdapterValueBoundaryTests(unittest.IsolatedAsyncioTestCase):
+    """Claim content values are boundary-crossing payload, so they are coerced.
+
+    Type-checking a value proves what it *is*; it does not stop a ``str``
+    subclass from carrying hidden owner-side state past the boundary.
+    """
+
+    async def test_exported_values_are_plain_strings_carrying_no_hidden_state(self):
+        runtime = build_runtime(57, "real-adapter")
+        adapter = make_real_adapter(
+            runtime, retrieve_all(LocalNodeStub()),
+            claim_projection=lambda _node: {"value": HostileReprValue("sanitized")},
+        )
+
+        exports = await adapter.query(runtime.fixture.query)
+        content = exports[0].claims[0].content
+        exported_value = content["value"]
+
+        self.assertEqual(content, {"value": "sanitized"})
+        self.assertIs(type(exported_value), str)
+        self.assertIsNone(getattr(exported_value, "smuggled", None))
+        for marker in ("SECRET_ON_VALUE_ATTR_6R", "SECRET_FROM_VALUE_REPR_1M"):
+            with self.subTest(marker=marker):
+                self.assertNotIn(marker, canonical_json(exports))
+                self.assertNotIn(marker, repr(exports))
+
+    async def test_hostile_value_repr_cannot_leak_through_a_coordinated_run(self):
+        runtime = build_runtime(57, "real-adapter")
+        request = replace(
+            runtime.fixture.query,
+            authorization=AuthorizationContext(
+                scopes=(REQUIRED_SCOPE,), allowed_node_ids=(REAL_NODE_ID,)
+            ),
+        )
+        registry = CapabilityRegistry()
+        registry.register(make_real_adapter(
+            runtime, retrieve_all(LocalNodeStub()),
+            claim_projection=lambda _node: {
+                "slot": "left", "value": HostileReprValue("sanitized")
+            },
+        ))
+        coordinator = TesseractCoordinator(
+            registry,
+            Router(registry, runtime.failure),
+            ClaimNormalizer(),
+            RuleBasedSynthesizer(REQUIRED_SLOTS),
+            LineageAnalyzer(),
+            runtime.traces,
+        )
+
+        execution = await coordinator.execute(request, "real-adapter")
+        value = execution.claims[0].content["value"]
+
+        self.assertIs(type(value), str)
+        self.assertIsNone(getattr(value, "smuggled", None))
+        for marker in ("SECRET_ON_VALUE_ATTR_6R", "SECRET_FROM_VALUE_REPR_1M"):
+            with self.subTest(marker=marker):
+                self.assertNotIn(marker, repr(execution))
+                self.assertNotIn(marker, canonical_json(execution))
+
+    async def test_non_finite_content_values_are_rejected(self):
+        """NaN and Infinity are not JSON; a conforming parser rejects them."""
+        runtime = build_runtime(58, "real-adapter")
+        for label, value in (
+            ("nan", float("nan")),
+            ("infinity", float("inf")),
+            ("negative_infinity", float("-inf")),
+        ):
+            with self.subTest(value=label):
+                adapter = make_real_adapter(
+                    runtime,
+                    retrieve_all(LocalNodeStub(content="NON_FINITE_CONTENT_5PQ")),
+                    claim_projection=lambda _node, value=value: {"score": value},
+                )
+                with self.assertRaises(ValueError) as raised:
+                    await adapter.query(runtime.fixture.query)
+                message = f"{raised.exception}|{raised.exception!r}"
+                self.assertIn("'score'", message)
+                self.assertIn("finite", message)
+                self.assertNotIn("NON_FINITE_CONTENT_5PQ", message)
+
+    async def test_finite_scalars_and_bools_still_cross_the_boundary(self):
+        """Positive control: coercion rejects hidden state, not ordinary values."""
+        runtime = build_runtime(59, "real-adapter")
+        payload = {
+            "flag": True,
+            "off": False,
+            "count": 3,
+            "score": 0.5,
+            "text": "ok",
+            "missing": None,
+        }
+        adapter = make_real_adapter(
+            runtime, retrieve_all(LocalNodeStub()),
+            claim_projection=lambda _node: dict(payload),
+        )
+
+        exports = await adapter.query(runtime.fixture.query)
+        content = exports[0].claims[0].content
+
+        self.assertEqual(content, payload)
+        self.assertIs(content["flag"], True)
+        self.assertIs(content["off"], False)
+        self.assertIs(type(content["count"]), int)
+        self.assertIs(type(content["score"]), float)
+        self.assertIs(type(content["text"]), str)
+        # A conforming parser accepts the serialization the boundary produces.
+        json.loads(canonical_json(exports), parse_constant=reject_json_constant)
+
+    async def test_exported_int_values_are_plain_ints_carrying_no_hidden_state(self):
+        """``str`` is not the only exportable type a projection can subclass.
+
+        Feeding an *exact* ``int`` and asserting ``type(...) is int`` is a
+        tautology on a builtin; only a subclass shows whether the boundary
+        coerces the value or merely type-checks it.
+        """
+        runtime = build_runtime(60, "real-adapter")
+        adapter = make_real_adapter(
+            runtime, retrieve_all(LocalNodeStub()),
+            claim_projection=lambda _node: {"count": HostileReprInt(7)},
+        )
+
+        exports = await adapter.query(runtime.fixture.query)
+        content = exports[0].claims[0].content
+        exported_value = content["count"]
+
+        self.assertEqual(content, {"count": 7})
+        self.assertIs(type(exported_value), int)
+        self.assertIsNone(getattr(exported_value, "hidden", None))
+        for marker in ("SECRET_ON_INT_ATTR_3N", "SECRET_FROM_INT_REPR_7K"):
+            with self.subTest(marker=marker):
+                self.assertNotIn(marker, canonical_json(exports))
+                self.assertNotIn(marker, repr(exports))
+                self.assertNotIn(marker, str(content))
+
+    async def test_exported_float_values_are_plain_floats_carrying_no_hidden_state(self):
+        """Same coercion obligation for the other subclassable numeric type."""
+        runtime = build_runtime(61, "real-adapter")
+        adapter = make_real_adapter(
+            runtime, retrieve_all(LocalNodeStub()),
+            claim_projection=lambda _node: {"score": HostileReprFloat(1.5)},
+        )
+
+        exports = await adapter.query(runtime.fixture.query)
+        content = exports[0].claims[0].content
+        exported_value = content["score"]
+
+        self.assertEqual(content, {"score": 1.5})
+        self.assertIs(type(exported_value), float)
+        self.assertIsNone(getattr(exported_value, "hidden", None))
+        for marker in ("SECRET_ON_FLOAT_ATTR_5W", "SECRET_FROM_FLOAT_REPR_2H"):
+            with self.subTest(marker=marker):
+                self.assertNotIn(marker, canonical_json(exports))
+                self.assertNotIn(marker, repr(exports))
+                self.assertNotIn(marker, str(content))
+
+    async def test_hostile_numeric_subclasses_cannot_survive_a_coordinated_run(self):
+        """The coercion has to hold through the whole coordinated execution."""
+        runtime = build_runtime(62, "real-adapter")
+        request = replace(
+            runtime.fixture.query,
+            authorization=AuthorizationContext(
+                scopes=(REQUIRED_SCOPE,), allowed_node_ids=(REAL_NODE_ID,)
+            ),
+        )
+        registry = CapabilityRegistry()
+        registry.register(make_real_adapter(
+            runtime, retrieve_all(LocalNodeStub()),
+            claim_projection=lambda _node: {
+                "slot": "left",
+                "value": "sanitized",
+                "count": HostileReprInt(7),
+                "score": HostileReprFloat(1.5),
+            },
+        ))
+        coordinator = TesseractCoordinator(
+            registry,
+            Router(registry, runtime.failure),
+            ClaimNormalizer(),
+            RuleBasedSynthesizer(REQUIRED_SLOTS),
+            LineageAnalyzer(),
+            runtime.traces,
+        )
+
+        execution = await coordinator.execute(request, "real-adapter")
+        content = execution.claims[0].content
+
+        self.assertEqual((content["count"], content["score"]), (7, 1.5))
+        self.assertIs(type(content["count"]), int)
+        self.assertIs(type(content["score"]), float)
+        for key in ("count", "score"):
+            self.assertIsNone(getattr(content[key], "hidden", None))
+        for marker in (
+            "SECRET_ON_INT_ATTR_3N", "SECRET_FROM_INT_REPR_7K",
+            "SECRET_ON_FLOAT_ATTR_5W", "SECRET_FROM_FLOAT_REPR_2H",
+        ):
+            with self.subTest(marker=marker):
+                self.assertNotIn(marker, repr(execution))
+                self.assertNotIn(marker, canonical_json(execution))
+                self.assertNotIn(marker, str(content))
+
+    async def test_float_subclass_hiding_a_non_finite_value_is_still_rejected(self):
+        """Coercion must not run ahead of the finiteness check.
+
+        ``math.isfinite`` and ``float.__float__`` both read the real stored
+        double, so a subclass advertising a finite ``__float__`` cannot talk the
+        boundary into exporting ``NaN`` or ``Infinity``.
+        """
+        runtime = build_runtime(63, "real-adapter")
+        for label, raw in (("nan", "nan"), ("infinity", "inf")):
+            with self.subTest(value=label):
+                adapter = make_real_adapter(
+                    runtime,
+                    retrieve_all(LocalNodeStub(content="LYING_FLOAT_CONTENT_9VD")),
+                    claim_projection=lambda _node, raw=raw: {
+                        "score": LyingFiniteFloat(raw)
+                    },
+                )
+                with self.assertRaises(ValueError) as raised:
+                    await adapter.query(runtime.fixture.query)
+                message = f"{raised.exception}|{raised.exception!r}"
+                self.assertIn("'score'", message)
+                self.assertIn("finite", message)
+                self.assertNotIn("LYING_FLOAT_CONTENT_9VD", message)
+
+    async def test_collapsing_identifier_str_cannot_merge_two_memories(self):
+        """Two memories keep two identities even if ``__str__`` collapses them."""
+        runtime = build_runtime(59, "real-adapter")
+        adapter = make_real_adapter(runtime, retrieve_all(
+            LocalNodeStub(node_id=CollapsingIdentifier("memory-left"), content="LEFT_1"),
+            LocalNodeStub(node_id=CollapsingIdentifier("memory-right"), content="RIGHT_1"),
+        ))
+
+        exports = await adapter.query(runtime.fixture.query)
+        memory_ids = tuple(export.trace.memory_ids[0] for export in exports)
+
+        self.assertEqual(len(exports), 2)
+        self.assertEqual(set(memory_ids), {"memory-left", "memory-right"})
+        self.assertEqual({type(memory_id) for memory_id in memory_ids}, {str})
+        self.assertEqual(len({export.trace.trace_id for export in exports}), 2)
+        self.assertEqual(
+            len({claim.claim_id for export in exports for claim in export.claims}), 2
+        )
+        self.assertNotIn("COLLAPSED_TO_ONE_ID", canonical_json(exports))
 
 
 if __name__ == "__main__":

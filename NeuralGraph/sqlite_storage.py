@@ -50,6 +50,7 @@ def _serialize_node(node: NeuralNode) -> dict[str, Any]:
         "dominant_dimension": node.dominant_dimension,
         "diversity_score": node.diversity_score,
         "created_at": node.created_at.isoformat() if node.created_at else None,
+        "source_memory_ids": node.source_memory_ids,
         "metadata": node.metadata,
     }
 
@@ -76,6 +77,8 @@ def _deserialize_node(data: dict[str, Any]) -> NeuralNode:
         dominant_dimension=data.get("dominant_dimension"),
         diversity_score=data.get("diversity_score", 0.0),
         created_at=datetime.fromisoformat(data["created_at"]) if data.get("created_at") else datetime.now(timezone.utc),
+        # Rows persisted before source_memory_ids was serialized simply lack the key.
+        source_memory_ids=data.get("source_memory_ids", []),
         metadata=data.get("metadata", {}),
     )
 
