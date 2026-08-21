@@ -23,13 +23,17 @@ them correlated is that both derive from the same upstream origin id, which is
 exactly how correlated provenance appears in a real deployment: not as a shared
 row, but as a shared ancestor.
 
-WHAT THIS DOES NOT SHOW, stated plainly: ``StorageLineageResolver`` reports
-``failure_domains=()`` because NeuralGraph records no failure-domain concept.
-Every domain-derived metric in the benchmark -- coalition counts, minimum
-failure-domain cut, and therefore the ``worst_single_domain_failure`` row -- is
-structurally unavailable against real storage and is NOT reproduced here.  Only
-the root-level mechanism is.  Closing that gap is a modeling decision, not a
-code fix; see ``state.md``.
+SCOPE.  This module proves the **root-level** mechanism: correlated provenance,
+apparent replication, and lineage-independent repair.  It deliberately does not
+configure a failure-domain model, so ``failure_domains`` stays empty here and
+``test_failure_domains_are_empty_against_real_storage`` pins that default.
+
+The domain-level half -- reconstruction coalitions and the minimum
+failure-domain cut, including the min-cut-2 result -- is proven separately in
+``test_failure_domains_real_storage.py``, which opts into
+``StorageLineageResolver(domain_key=...)``.  Keeping the two apart is the point:
+domains are only available when a deployment actually records them, and the
+default must keep that absence visible rather than synthesising one.
 """
 
 from __future__ import annotations
