@@ -143,6 +143,16 @@ class Placement:
     repair_policy: str
     max_nodes: int
     coordinates: bool
+    #: The premises this capability requires.  A placement, not the module,
+    #: owns this so a capability of any arity can be benchmarked by the same
+    #: machinery (see ``scale.py``); the eight named strategies all use the
+    #: two-slot default.
+    slots: tuple[str, ...] = REQUIRED_SLOTS
+    #: Verification round trips repair may spend. Two is right for the two-slot
+    #: fixture and wrong at scale: holding it fixed while the candidate set grows
+    #: measures a shrinking relative budget, not the repair mechanism. ``scale.py``
+    #: scales it with capability arity.
+    max_verifications: int = 2
 
     @property
     def node_ids(self) -> tuple[str, ...]:
@@ -159,6 +169,21 @@ class Placement:
             for records in self.records_by_node.values()
             for record in records
         }))
+
+
+def expected_answer_for(placement: "Placement") -> str:
+    """The correct reconstruction for a placement, in its own slot order.
+
+    Derived from the records placed rather than from ``Symbols.expected_answer``,
+    which only describes the two-slot pair. A capability of any arity is correct
+    exactly when the synthesizer returns one value per premise, joined in slot
+    order -- so this stays right as arity varies.
+    """
+    by_slot: dict[str, str] = {}
+    for node_id in sorted(placement.records_by_node):
+        for record in placement.records_by_node[node_id]:
+            by_slot.setdefault(record.slot, record.value)
+    return ":".join(by_slot[slot] for slot in placement.slots if slot in by_slot)
 
 
 def _record(
@@ -359,9 +384,16 @@ class Runtime:
     planner: RepairPlanner
 
 
-def build_runtime(seed: int, strategy: str) -> Runtime:
+def build_runtime(seed: int, strategy: str, placement: Placement | None = None) -> Runtime:
+    """Assemble a runtime for a named strategy, or for a caller-supplied placement.
+
+    ``scale.py`` passes its own generated placement so capabilities of any arity
+    run through exactly this path -- same coordinator, same router, same repair
+    planner -- rather than a parallel harness that could drift from it.
+    """
     symbols = generate_symbols(seed)
-    placement = STRATEGY_BUILDERS[strategy](symbols)
+    if placement is None:
+        placement = STRATEGY_BUILDERS[strategy](symbols)
     run_id = f"bench_{seed}_{strategy}"
     clock = LogicalClock(seed)
     issued_at = LogicalClock(seed).now()
@@ -376,7 +408,13 @@ def build_runtime(seed: int, strategy: str) -> Runtime:
             scopes=placement.all_scopes,
             allowed_node_ids=placement.node_ids,
         ),
-        budget=QueryBudget(max_nodes=placement.max_nodes, max_claims=8, max_verifications=2),
+        budget=QueryBudget(
+            max_nodes=placement.max_nodes,
+            # One claim per contacted node is the floor; the two-slot strategies
+            # keep their original 8 so their pinned artifacts do not move.
+            max_claims=max(8, 2 * len(placement.node_ids)),
+            max_verifications=placement.max_verifications,
+        ),
     )
     traces = TraceLogger(run_id, clock)
     failure = FailureInjector(run_id, seed, clock, traces)
@@ -393,7 +431,7 @@ def build_runtime(seed: int, strategy: str) -> Runtime:
         registry=registry,
         router=Router(registry, failure),
         normalizer=ClaimNormalizer(),
-        synthesizer=RuleBasedSynthesizer(REQUIRED_SLOTS),
+        synthesizer=RuleBasedSynthesizer(placement.slots),
         analyzer=LineageAnalyzer(),
         traces=traces,
     )
@@ -429,7 +467,7 @@ def _supporting_claims(execution: QueryExecution, slot: str) -> tuple[Any, ...]:
     return tuple(claim for claim in execution.claims if claim.content.get("slot") == slot)
 
 
-def _load_bearing_claim(execution: QueryExecution) -> Any | None:
+def _load_bearing_claim(execution: QueryExecution, slots: tuple[str, ...] = REQUIRED_SLOTS) -> Any | None:
     """The claim the synthesizer actually chose for the last required slot.
 
     Interventions target this rather than a hard-coded id so that each strategy
@@ -437,7 +475,7 @@ def _load_bearing_claim(execution: QueryExecution) -> Any | None:
     """
     if not execution.synthesis.selected_claim_ids:
         return None
-    target_slot = REQUIRED_SLOTS[-1]
+    target_slot = slots[-1]
     for claim in execution.claims:
         if (
             claim.claim_id in execution.synthesis.selected_claim_ids
@@ -476,7 +514,7 @@ def _edge_path_for(runtime: Runtime, claim: Any) -> str | None:
 
 def plan_intervention(name: str, runtime: Runtime, baseline: QueryExecution) -> InterventionPlan:
     """Resolve an intervention against what this strategy actually relied on."""
-    claim = _load_bearing_claim(baseline)
+    claim = _load_bearing_claim(baseline, runtime.placement.slots)
     node_id = claim.producer_node_id if claim is not None else runtime.placement.node_ids[0]
     memory_id = _memory_id_for(runtime, claim)
     edge_id = _edge_path_for(runtime, claim)
@@ -602,6 +640,49 @@ def observed_lineage(baseline: QueryExecution) -> dict[str, tuple[frozenset[str]
     }
 
 
+def observed_slots(baseline: QueryExecution) -> dict[str, frozenset[str]]:
+    """Which premises each contacted node was seen to produce.
+
+    Like ``observed_lineage``, this is read only from exported claims. A node the
+    bounded route never contacted simply does not appear, and "not observed" is
+    genuinely different from "observed to hold nothing relevant".
+    """
+    seen: dict[str, set[str]] = {}
+    for claim in baseline.claims:
+        slot = claim.content.get("slot")
+        if slot is not None:
+            seen.setdefault(claim.producer_node_id, set()).add(str(slot))
+    return {node: frozenset(slots) for node, slots in seen.items()}
+
+
+def _slot_relevance(node: str, missing: frozenset[str], slots: dict[str, frozenset[str]]) -> int:
+    """Rank a candidate by whether it could supply a premise that is missing.
+
+    0  observed to hold one of the missing premises
+    1  never contacted, so its contents are unknown and worth a verification
+    2  observed, and observed to hold none of the missing premises
+
+    This is a *tiebreaker*, applied within every policy's own principle rather
+    than ahead of it. Both parts of that matter:
+
+    * Applied to every policy, because a verification spent on a node that
+      demonstrably holds the wrong premise is wasted under any policy, and
+      letting only one policy avoid that waste would hand it an advantage
+      unrelated to lineage.
+    * Never ahead of the principle, because a node observed holding the missing
+      premise may be exactly the one whose lineage just failed. Ranking on
+      relevance first puts the known-compromised holders at the front and
+      exhausts the budget on them -- which is the original failure this
+      ordering exists to avoid.
+
+    It matters more as arity grows: with K premises, most candidates hold a
+    premise that is not the missing one.
+    """
+    if node not in slots:
+        return 1
+    return 0 if slots[node] & missing else 2
+
+
 def order_repair_candidates(
     policy: str,
     candidates: tuple[str, ...],
@@ -609,8 +690,17 @@ def order_repair_candidates(
     excluded_roots: tuple[str, ...],
     excluded_domains: tuple[str, ...],
     seed: int,
+    missing_slots: tuple[str, ...] = (),
+    slots: dict[str, frozenset[str]] | None = None,
 ) -> tuple[str, ...]:
-    """Order candidate nodes for verification. The ordering *is* the repair policy."""
+    """Order candidate nodes for verification. The ordering *is* the repair policy.
+
+    Slot relevance is a shared primary key across policies; the policies differ
+    only in how they break ties within it.
+    """
+    missing = frozenset(missing_slots)
+    known = slots or {}
+    relevance = {node: _slot_relevance(node, missing, known) for node in candidates}
     ordered = tuple(sorted(candidates))
     if policy == "source_count":
         # "More copies means safer": rank by how many other nodes share a root
@@ -622,7 +712,7 @@ def order_repair_candidates(
                 1 for other in ordered
                 if other != node and roots & lineage.get(other, (frozenset(), frozenset()))[0]
             )
-        return tuple(sorted(ordered, key=lambda node: (-replicas(node), node)))
+        return tuple(sorted(ordered, key=lambda node: (-replicas(node), relevance[node], node)))
     if policy == "random":
         shuffled = list(ordered)
         random.Random(seed).shuffle(shuffled)
@@ -635,11 +725,12 @@ def order_repair_candidates(
         # is where lineage awareness has to act.
         bad_roots, bad_domains = frozenset(excluded_roots), frozenset(excluded_domains)
 
-        def independence(node: str) -> tuple[int, int, str]:
+        def independence(node: str) -> tuple[int, int, int, str]:
             roots, domains = lineage.get(node, (frozenset(), frozenset()))
             return (
                 1 if roots & bad_roots else 0,
                 1 if domains & bad_domains else 0,
+                relevance[node],
                 node,
             )
         return tuple(sorted(ordered, key=independence))
@@ -655,7 +746,7 @@ def _privacy_audit(runtime: Runtime, executions: tuple[QueryExecution, ...]) -> 
     """Does any single node hold the whole answer, and did anything leak?"""
     sym = runtime.symbols
     single_node_holds_answer = any(
-        {record.slot for record in records} >= set(REQUIRED_SLOTS)
+        {record.slot for record in records} >= set(runtime.placement.slots)
         for records in runtime.placement.records_by_node.values()
     )
     answer_in_query = any(
@@ -699,7 +790,7 @@ def structural_diversity(placement: Placement) -> dict[str, Any]:
     fixture has two slots and at most four holders each; this is a fixture-scale
     metric, not a general graph algorithm.
     """
-    by_slot: dict[str, list[PrivateMemoryRecord]] = {slot: [] for slot in REQUIRED_SLOTS}
+    by_slot: dict[str, list[PrivateMemoryRecord]] = {slot: [] for slot in placement.slots}
     for records in placement.records_by_node.values():
         for record in records:
             if record.slot in by_slot:
@@ -720,7 +811,7 @@ def structural_diversity(placement: Placement) -> dict[str, Any]:
 
     coalitions: set[tuple[str, ...]] = set()
     for selected in product(*(sorted(by_slot[slot], key=lambda r: r.memory_id)
-                              for slot in REQUIRED_SLOTS)):
+                              for slot in placement.slots)):
         domains = tuple(sorted({d for record in selected for d in record.failure_domains}))
         if domains:
             coalitions.add(domains)
@@ -758,7 +849,7 @@ def _worst_single_domain(placement: Placement) -> tuple[str, ...]:
     tuple when the placement cannot reconstruct at all, in which case there is
     nothing to attack.
     """
-    by_slot: dict[str, list[PrivateMemoryRecord]] = {slot: [] for slot in REQUIRED_SLOTS}
+    by_slot: dict[str, list[PrivateMemoryRecord]] = {slot: [] for slot in placement.slots}
     for records in placement.records_by_node.values():
         for record in records:
             if record.slot in by_slot:
@@ -770,7 +861,7 @@ def _worst_single_domain(placement: Placement) -> tuple[str, ...]:
 
     coalitions: list[set[str]] = []
     for selected in product(*(sorted(by_slot[slot], key=lambda r: r.memory_id)
-                              for slot in REQUIRED_SLOTS)):
+                              for slot in placement.slots)):
         domains = {d for record in selected for d in record.failure_domains}
         if domains:
             coalitions.append(domains)
@@ -812,14 +903,21 @@ def _independent_support(execution: QueryExecution) -> dict[str, Any]:
 # --------------------------------------------------------------------------
 
 
-async def run_cell(seed: int, strategy: str, intervention: str) -> dict[str, Any]:
+async def run_cell(
+    seed: int,
+    strategy: str,
+    intervention: str,
+    placement: Placement | None = None,
+    preferred_node_ids: tuple[str, ...] | None = None,
+) -> dict[str, Any]:
     """Run one (strategy, intervention) pair through before / after / repair."""
-    runtime = build_runtime(seed, strategy)
-    expected = runtime.symbols.expected_answer
+    runtime = build_runtime(seed, strategy, placement)
+    expected = expected_answer_for(runtime.placement)
 
+    route_preference = preferred_node_ids or runtime.placement.node_ids
     before = await runtime.coordinator.execute(
         runtime.query, phase="before_intervention",
-        preferred_node_ids=runtime.placement.node_ids,
+        preferred_node_ids=route_preference,
     )
     before_correct = before.synthesis.success and before.synthesis.answer == expected
 
@@ -834,7 +932,7 @@ async def run_cell(seed: int, strategy: str, intervention: str) -> dict[str, Any
     events_before_repair = len(runtime.traces.events)
     after = await runtime.coordinator.execute(
         runtime.query, phase="after_intervention",
-        preferred_node_ids=runtime.placement.node_ids,
+        preferred_node_ids=route_preference,
     )
     after_correct = after.synthesis.success and after.synthesis.answer == expected
 
@@ -855,8 +953,11 @@ async def run_cell(seed: int, strategy: str, intervention: str) -> dict[str, Any
     recovery_steps = 0
 
     if not after_correct and runtime.placement.repair_policy != "none":
-        missing = tuple(slot for slot in REQUIRED_SLOTS if slot not in after.synthesis.covered_slots)
-        failed_claim = _load_bearing_claim(before)
+        missing = tuple(
+            slot for slot in runtime.placement.slots
+            if slot not in after.synthesis.covered_slots
+        )
+        failed_claim = _load_bearing_claim(before, runtime.placement.slots)
         excluded_roots = tuple(failed_claim.lineage_root_ids) if failed_claim else ()
         excluded_domains = tuple(failed_claim.failure_domains) if failed_claim else ()
         if runtime.placement.repair_policy == "source_count":
@@ -873,6 +974,8 @@ async def run_cell(seed: int, strategy: str, intervention: str) -> dict[str, Any
             excluded_roots,
             excluded_domains,
             seed,
+            missing_slots=missing,
+            slots=observed_slots(before),
         )
         repair = await runtime.planner.plan(
             runtime.query, missing, candidates, excluded_roots, excluded_domains,
@@ -880,7 +983,7 @@ async def run_cell(seed: int, strategy: str, intervention: str) -> dict[str, Any
         recovery_steps = repair.steps
         if repair.selected_node_id:
             preferred = (repair.selected_node_id,) + tuple(
-                node for node in runtime.placement.node_ids if node != repair.selected_node_id
+                node for node in route_preference if node != repair.selected_node_id
             )
             repaired = await runtime.coordinator.execute(
                 runtime.query, phase="after_repair", preferred_node_ids=preferred,

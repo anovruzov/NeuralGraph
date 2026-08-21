@@ -21,6 +21,7 @@ from pathlib import Path
 
 from NeuralGraph.coordination.benchmark import run_benchmark, run_sweep
 from NeuralGraph.coordination.experiment import run_experiment
+from NeuralGraph.coordination.scale import run_scale_sweep
 
 ARTIFACTS = Path(__file__).resolve().parents[1] / "coordination" / "artifacts"
 PINNED_SEED = 20260813
@@ -72,6 +73,14 @@ class ArtifactReproducibilityTests(unittest.TestCase):
         self.assertEqual(
             _sha256(regenerated), _sha256(committed),
             "the benchmark no longer reproduces its pinned artifact",
+        )
+
+    def test_scale_artifact_regenerates_byte_identically(self):
+        regenerated = _serialize(asyncio.run(run_scale_sweep(PINNED_SEED)))
+        committed = (ARTIFACTS / f"scale_seed{PINNED_SEED}.json").read_text(encoding="utf-8")
+        self.assertEqual(
+            _sha256(regenerated), _sha256(committed),
+            "the scale sweep no longer reproduces its pinned artifact",
         )
 
     def test_sweep_artifact_regenerates_byte_identically(self):
