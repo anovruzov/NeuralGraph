@@ -1,0 +1,85 @@
+# CLAUDE.md
+
+Read this before touching anything. It exists so a session does not spend its
+context re-deriving facts that are already established.
+
+## Read in this order
+
+| Need | File |
+|---|---|
+| Design, invariants, why they hold | `docs/ARCHITECTURE.md` |
+| What the numbers say | `docs/RESULTS.md` |
+| How to regenerate every number | `docs/REPRODUCE.md` |
+| Claims mapped to evidence | `docs/PAPER.md` |
+| Current status, gates, open decisions | `state.md` |
+
+Prefer reading a doc over grepping the source. The docs are kept accurate and
+are far cheaper than reconstructing the same facts from 5,000 lines.
+
+## Naming traps — get these wrong and you lose an hour
+
+- `NeuralGraph/coordination/` is the cross-node coordinator.
+- `NeuralGraph/tesseract.py` is intra-node retrieval fusion. **Not** the
+  coordinator. Unrelated. If a task says "Tesseract", ask which one.
+- **"Mycelic" appears in no committed file.** Branch names only.
+- **NATS / JetStream are not implemented.** Design intent. Everything is
+  in-process.
+- Commit `b5b9c3e271` **does not exist**. Do not look for it.
+
+## Canonical commands
+
+```bash
+pip install -r requirements.txt
+pytest                                                        # 185 passed, 1 skipped
+
+python3 -m NeuralGraph.coordination.benchmark --sweep 30 --format markdown
+python3 -m NeuralGraph.coordination.scale --format markdown
+python3 -m NeuralGraph.coordination.experiment --output experiment.json
+```
+
+Run `pytest` from the repo root. There is no venv activation step.
+
+## Rules that are not negotiable
+
+1. **Never refresh a pinned artifact to get a test green.** Diff it, find out
+   why it moved, re-pin deliberately with the reason in the commit message.
+   See `docs/REPRODUCE.md`.
+2. **Never skip, disable, xfail or quarantine a test** to get green.
+3. **Do not touch the retrieval track.** `answering.py`,
+   `llm_profile_extractor.py`, `prompts.py`, `reranker.py`, `service.py`,
+   `tesseract.py`, `demo/runner.py` belong to Nurman. Not one line from the
+   coordination side.
+4. **Never synthesize a failure domain.** Domains are read from recorded root
+   metadata or reported absent. Inferring one from storage identity, node id,
+   file path, or value equality makes every domain metric fiction.
+5. **Coordination stays domain-neutral.** `contracts.py` and `core.py` import no
+   NeuralGraph storage types. Only `storage_adapter.py` bridges.
+6. **Lineage direction is load-bearing.** Derivation parents are the *targets*
+   of outgoing HIERARCHY edges plus `source_memory_ids`. `parent_id` and
+   `get_edges_to` point the wrong way.
+7. **Repair policies see exported contracts only**, never `Placement` internals
+   or node-private records. A policy that reads private state is an oracle.
+
+## Results that must not silently change
+
+If any of these moves, a claim about the world has changed — stop and say so.
+
+- Replica count survives a lineage-root failure: **0.00** (3 replicas, and 8-record
+  full replication)
+- `lineage_aware_repair`: **0.778** · `oracle_min_cut`: **0.889**
+- Only min-cut-2 survives `worst_single_domain_failure`
+- Every scale verdict invariant across K ∈ {2,3,5,8}, H ∈ {2,3}
+- No distributed strategy survives `network_partition` (0.00) — reported against interest
+- `lineage_aware` loses to `source_count` under plain node failure (0.00 vs 1.00) — reported against interest
+
+## Gate status
+
+0–6 all pass. See `state.md` for evidence per gate and what remains open
+(local retrieval accuracy, which is the NeuralGraph track and needs a live
+Ollama).
+
+## Ownership
+
+- **Nurman** — NeuralGraph: memory formation, graph dynamics, retrieval.
+- **Anar** — coordination, lineage semantics, failure experiments, paper.
+- Interface: `NeuralGraph/coordination/contracts.py`. Do not widen it casually.

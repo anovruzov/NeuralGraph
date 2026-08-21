@@ -1,6 +1,6 @@
 # Mycelic / NeuralGraph / Tesseract State
 
-Last updated: 2026-08-21
+Last updated: 2026-08-21 (session 2)
 Branch: `claude/mycelic-gate-0-recovery-tjl82x`
 Base: `origin/tesseract-coordination-v1` (`8258d13`)
 Working tree: clean. Everything below was executed, not inferred.
@@ -36,10 +36,11 @@ pytest                                                       # whole suite
 python3 -m NeuralGraph.coordination.benchmark --sweep 30 --format markdown
 python3 -m NeuralGraph.coordination.benchmark --output results.json
 python3 -m NeuralGraph.coordination.experiment --output experiment.json
+python3 -m NeuralGraph.coordination.scale --format markdown
 ```
 
 Setup is `pip install -r requirements.txt`. Suite as of this writing:
-**164 passed, 1 skipped, 270 subtests**, identical under `PYTHONHASHSEED`
+**185 passed, 1 skipped, 347 subtests**, identical under `PYTHONHASHSEED`
 1, 7, 4242 and 99991.
 
 `pytest` previously failed to collect anything (5 errors, every file). The repo
@@ -87,9 +88,10 @@ node. That is the real cost of distribution and is pinned as a test.
 placing the independent node in the first two of three candidates). That
 agreement is the check that the harness measures the mechanism it claims to.
 
-### Three harness bugs found before any of this was trusted
+### Seven harness bugs found before any of this was trusted
 
 Recorded because each would have produced a publishable-looking but wrong table.
+The full list is in `docs/RESULTS.md` §6; the three that changed conclusions:
 
 - `max_nodes` truncated the route so the independently rooted node was never
   contacted, making lineage diversity invisible to every strategy at once.
@@ -104,6 +106,19 @@ Recorded because each would have produced a publishable-looking but wrong table.
   before reaching an independent one. Before this fix,
   `random_path_diversification` appeared to beat `lineage_aware_repair`.
 
+Also rejected as **tautological**: an intervention that fails an entire min-cut.
+A cut severs every coalition by definition, so every strategy scores zero and
+the cell carries no information. Replaced with a single worst-domain failure,
+which discriminates and is what validates min-cut as predictive.
+
+### Reported against interest, additionally
+
+`lineage_aware` repair does **not** dominate. Under a plain node failure with
+correlated replicas, a surviving replica would have served -- the lineage was
+never the problem, the node was -- but lineage-aware repair excludes the failed
+claim's root and refuses every correlated holder, losing a capability that
+`source_count` keeps (0.00 vs 1.00, at every K and H). Pinned as a test.
+
 ## Artifacts
 
 `NeuralGraph/coordination/artifacts/` holds the JSON every number above comes
@@ -112,9 +127,14 @@ from its canonical command and compares byte for byte.
 
 ```
 f712e12d…  experiment_seed20260813.json        (unchanged from 040287d)
-d25fc72b…  benchmark_seed20260813.json
-b52fa455…  benchmark_sweep30_seed20260813.json
+2d8564e7…  benchmark_seed20260813.json
+3e45ebc0…  benchmark_sweep30_seed20260813.json
+61be1f24…  scale_seed20260813.json
 ```
+
+The benchmark digests were re-pinned once, deliberately: adding slot relevance
+to repair ordering moved `recovery_steps` 2→1 and `recovery_events` 28→26 with
+**no survival verdict changed**. Cheaper recovery, identical survival.
 
 If one of those tests fails, do **not** refresh the artifact to get green. Find
 out why the output moved, then re-pin deliberately with the reason in the commit
@@ -125,50 +145,37 @@ message.
 | Gate | Status | Evidence |
 |---|---|---|
 | 0 — contract/baseline | **PASS** | one `pytest` command; deps declared; artifacts pinned and byte-reproducible |
-| 1 — minimal distributed reconstruction | **PASS** | pre-existing, re-verified; plus 4-node real-storage proof this session |
+| 1 — minimal distributed reconstruction | **PASS** | pre-existing, re-verified; plus 4-node real-storage proof |
 | 2 — fair baselines | **PASS** | 8 strategies incl. centralized, full replication, fixed distributed, oracle, under matched budget |
 | 3 — Pareto evidence | **PASS** | survival vs. storage vs. bytes moved; lineage-aware dominates full replication on both axes |
-| 4 — scale / failure persistence | NOT STARTED | fixture is 4 nodes, 2 slots; no scale sweep |
-| 5 — generalization | NOT STARTED | one capability shape (opaque pair) |
-| 6 — standalone architecture | NOT STARTED | |
+| 4 — scale / failure persistence | **PASS** | `scale.py`: every verdict invariant across K ∈ {2,3,5,8}, H ∈ {2,3}; restart/persistence proven on real SQLite |
+| 5 — generalization | **PASS** | capability arity 2–8 reconstructs correctly; nothing specific to pairs |
+| 6 — standalone architecture | **PASS** | `docs/ARCHITECTURE.md`: five invariants, each enforced in code and named to its test |
 
-## Open issue: `failure_domains` has no real-storage model
+## Resolved: `failure_domains` now has a real-storage model
 
-This is the one gap that materially limits the paper, and it must not be closed
-by inventing a mapping.
+Closed by **option 2, ingestion provenance** -- the derivation that measures the
+correlation the paper argues about. A failure domain is the upstream origin a
+memory ultimately derives from, read from the metadata of the lineage **roots**
+the walk resolves, never from the retrieved node.
 
-`StorageLineageResolver` returns `failure_domains=()` because NeuralGraph
-records no such concept. Consequences, all verified:
+`StorageLineageResolver(storage, domain_key="failure_domain")` opts in. The
+default stays `()`, so absence remains visible rather than synthesised. Nothing
+infers a domain from storage identity, node id, file path, or value equality --
+option 1 was rejected precisely because it would have made domain diversity a
+restatement of node diversity and collapsed min-cut toward replica count.
 
-- `LineageAnalyzer.reconstruction_coalitions` skips coalitions with no domains,
-  so coalition count, minimal support size and minimum failure-domain cut are
-  all **structurally zero against real storage**.
-- Therefore the `worst_single_domain_failure` row -- the result that validates
-  min-cut as predictive -- **exists only against the mock**. Root-level results
-  do carry over to real storage and are proven there.
+Proven against real SQLite (`test_failure_domains_real_storage.py`):
+min-cut 1 for the standard placement, **min-cut 2 for the oracle**, and no
+single domain severs every coalition. The result that validates min-cut as
+predictive is no longer mock-only.
 
-`test_benchmark_real_storage.py::test_failure_domains_are_empty_against_real_storage`
-asserts the emptiness deliberately, so it cannot regress into a silent fake.
+**Safety property:** partial provenance is pessimistic. An unrecorded domain
+shrinks the reported cut and can never inflate it, so a partially recorded
+deployment under-claims robustness. This is what makes the metric publishable
+from incomplete data, and it is asserted rather than argued.
 
-### Three candidate derivations, for a human decision
-
-1. **Storage identity.** Domain = the database file / node the memory lives in.
-   Honest and immediately available, but makes domain diversity a restatement of
-   node diversity, so min-cut collapses toward replica count and the paper's
-   distinction weakens.
-2. **Ingestion provenance.** Domain = the upstream source system a lineage root
-   came from (a corpus, a feed, a device). Captures the correlation the paper
-   actually cares about -- two nodes fail together because they ingested the
-   same thing -- but NeuralGraph does not currently record it, so it needs a new
-   field written at consolidation time.
-3. **Operator/administrative boundary.** Domain = who controls the node.
-   Matches the residential-datacenter framing and the failure mode a reader will
-   imagine, but is metadata about deployment rather than about memory, and
-   nothing in the graph knows it today.
-
-Recommendation: 2 for the paper's claim, 1 as a fallback that is available now
-and would let the real-storage row be reported with an explicit caveat. Either
-way, say in the paper which one was used. Do not ship 1 while describing 2.
+The paper must state which derivation was used. It is ingestion provenance.
 
 ## Ownership
 
@@ -193,8 +200,28 @@ this session and should not be touched from the coordination side.
 - `REDACTED` still has no real-adapter projection and fails closed to `DENIED`.
   Do not invent one without deciding what partial payload is provably safe.
 
+## Documentation
+
+Written so a future session does not re-derive facts from source. Read these
+before grepping:
+
+- `CLAUDE.md` -- index, naming traps, non-negotiable rules, results that must
+  not silently change
+- `docs/ARCHITECTURE.md` -- invariants and design (Gate 6)
+- `docs/RESULTS.md` -- what the numbers say, including results against interest
+- `docs/REPRODUCE.md` -- regenerate every number
+- `docs/PAPER.md` -- claims mapped to evidence, threats to validity
+
 ## Next task
 
-Decide the `failure_domains` derivation (above). It is the only thing standing
-between the current mock-only min-cut result and a real-storage one, and it is a
-modeling call, not an implementation detail.
+The coordination track is complete through Gate 6. What remains is not
+coordination work:
+
+1. **Local retrieval accuracy** (NeuralGraph track, Nurman). The 50% single-hop
+   / 77% recall@50 figure has no committed artifact and needs a live Ollama.
+   Separating retrieval failure from answer-generation failure is still open.
+2. **Paper.** `docs/PAPER.md` has the structure, the claim-to-evidence table,
+   and the threats-to-validity answers. Figure 3 (survival vs storage) is the
+   one that carries it.
+3. **Transport**, if the architecture is ever deployed rather than simulated.
+   NATS/JetStream remains design intent.
