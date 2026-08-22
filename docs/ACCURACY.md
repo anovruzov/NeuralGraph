@@ -94,24 +94,88 @@ extraction as the whole fix.
 
 ## What follows
 
-Ordered by expected return, given that ~70% of failures are generation-side:
+~70% of failures are generation-side, so that is where the return is. The
+ranked plan with sizes is in **Path to 85%** below; in short, corpus-wide the
+buckets are selection (147), completeness (120) and abstention (60).
 
-1. **List-completeness in answer extraction.** 66% of single-hop questions are
-   list-valued and 85 of 86 failures drop an item. This is the single largest
-   identified bucket.
-2. **Selection, not coverage, for the 44%** that answer unrelated content.
-   That is a prompting or evidence-ordering problem, distinct from (1), and
-   will not be fixed by asking for more complete lists.
-3. **Suppress invented items.** Over-inclusion of plausible-but-absent items is
-   common; zero failures were complete-and-over-inclusive, so precision is not
-   being traded for recall — both are being lost at once.
-4. **Retrieval recall is the smaller half** (24% of single-hop failures). Worth
-   improving, but not first.
+One caution about scope. Within single-hop, list handling dominates — 66% of
+its questions are list-valued and 85 of 86 failures drop an item. Corpus-wide
+it does not: list-valued and single-item questions differ by only 1.5pp
+(65.8% vs 67.3%). Single-hop is 18% of the corpus, so a list-completeness fix
+is necessary and nowhere near sufficient. An earlier draft of this document
+called it "the single largest identified bucket", which was true only within
+single-hop and is corrected above.
 
 None of this is implemented. This document is the diagnosis; the fixes belong
 to whoever owns the retrieval track.
 
 ---
+
+## Path to 85%
+
+Current: **66.7%** (1027/1540). Target 85% = 1309 correct, so **+282 answers**.
+
+The ceiling with perfect generation is **90.7%**, so 85% is reachable — but only
+just, and not by generation fixes alone.
+
+### Every failure, bucketed
+
+| bucket | n | pp of corpus | what it is |
+|---|---|---|---|
+| selection error | 147 | 9.5pp | had the evidence, answered something else |
+| incomplete list | 120 | 7.8pp | named some gold items, omitted others |
+| abstention | 60 | 3.9pp | said "not mentioned" when it *was* mentioned |
+| no evidence retrieved | 186 | 12.1pp | genuine retrieval miss |
+| **total wrong** | **513** | **33.3pp** | |
+
+### The three generation fixes, ranked by expected yield
+
+**1. Selection — answer the question actually asked. 147 questions, 9.5pp.**
+The largest bucket. Failures return adjacent-but-wrong content: *"What workshop
+did Caroline attend?"* → `28 August 2023` (a date, for a "what" question).
+49 failures are this exact answer-type mismatch. Fix: constrain the answer to
+the question's expected type, and require it to answer the asked question rather
+than summarise nearby material.
+
+**2. Completeness — enumerate every supported item. 120 questions, 7.8pp.**
+Answers are wrong *sets*: gold `"Nothing is Impossible", "Charlotte's Web"` →
+produced `"Charlotte's Web"`. Note this is **not** mainly a list-question
+problem corpus-wide — list-valued and single-item questions differ by only
+1.5pp overall (65.8% vs 67.3%). It concentrates in single-hop, which is 18% of
+the corpus.
+
+**3. Abstention — stop refusing when the evidence is present. 60 questions, 3.9pp.**
+Smallest bucket but the cheapest and highest-confidence fix. 146 answers abstain
+("not mentioned in the memories"); **79% of those are wrong**, and 32 of the 60
+recoverable ones are temporal. Fix: abstain only when the evidence genuinely
+lacks the answer, and never hedge with "there is no mention… however".
+
+### Arithmetic, at realistic conversion rates
+
+| step | available | conversion | gain | running |
+|---|---|---|---|---|
+| baseline | | | | 66.7% |
+| 1 selection | 147 | 50% | +73 | 71.4% |
+| 2 completeness | 120 | 60% | +72 | 76.1% |
+| 3 abstention | 60 | 80% | +48 | 79.2% |
+| 4 retrieval recall | 186 | 40% | +74 | **84.0%** |
+
+**The three generation fixes reach ~79%.** 85% needs retrieval recall too, and
+even then lands near 84% at these rates. Put differently: **85% requires
+converting 55% of every current failure.** Treat any plan that claims 85% from
+prompt work alone as optimistic.
+
+### Why this is one change, not three
+
+All three generation fixes are requirements on the *same* answer-generation
+contract, and together they address **327 of 513 failures (64%)**. They do not
+need three separate projects — one prompt plus a structured output schema that
+forces an explicit item list covers all three. That prompt is already written in
+`evaluation/replay_generation.py`; it needs an API key and a measured run, not
+more design.
+
+Retrieval work should come **after** that run, because its remaining share is
+only correctly sized once generation stops masking it.
 
 ## Method, and why the raw numbers are not quotable
 

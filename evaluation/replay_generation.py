@@ -51,23 +51,50 @@ from evaluation.diagnose_accuracy import answer_items, content_tokens, retrieved
 DEFAULT_MODEL = "claude-opus-5"
 DEFAULT_EFFORT = "medium"
 
+# Groq speaks the OpenAI chat-completions dialect. It is offered because it is
+# cheap and fast enough to replay all 1540 questions repeatedly while iterating
+# on the prompt, which is the actual bottleneck in fixing a generation problem.
+#
+# NOTE: the Groq path is UNVERIFIED against the live API. The environment this
+# was written in blocks api.groq.com at the egress proxy (403 on CONNECT), so
+# only its request construction and response parsing are tested, not a real
+# round trip. Run it once with --limit 5 before trusting a full sweep.
+GROQ_BASE_URL = "https://api.groq.com/openai/v1"
+
+# Ollama serves the same OpenAI chat-completions dialect on /v1, so local models
+# and Groq share one backend and differ only in base URL and auth. Local Ollama
+# needs no key; the auth header is sent only when one is configured.
+OLLAMA_BASE_URL = "http://localhost:11434/v1"
+
+PROVIDERS = {
+    "anthropic": {"openai_dialect": False, "base_url": None, "key_env": (
+        "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")},
+    "groq": {"openai_dialect": True, "base_url": GROQ_BASE_URL,
+             "key_env": ("GROQ_API_KEY",)},
+    "ollama": {"openai_dialect": True, "base_url": OLLAMA_BASE_URL, "key_env": ()},
+}
+
 # The prompt is the intervention under test. Every instruction in it targets a
 # failure mode measured in docs/ACCURACY.md, and nothing else is in here:
-#   - 85/86 failures omitted a gold item      -> enumerate exhaustively
+#   - 120 failures omitted a gold item        -> enumerate exhaustively
 #   - a third invented plausible items        -> only what the evidence states
-#   - 38/86 answered unrelated content        -> answer THIS question
+#   - 147 answered unrelated content          -> answer THIS question, right type
+#   -  60 abstained with the evidence present -> abstain only as a last resort
 SYSTEM_PROMPT = """\
 You answer questions about a conversation, using only the supplied excerpts.
 
 Rules:
-1. Answer only from the excerpts. If the excerpts do not contain the answer, \
-say exactly: NOT IN EVIDENCE.
+1. Answer from the excerpts. Answer if the excerpts support an answer at all, \
+even a partial one - only set not_in_evidence when nothing in them bears on \
+the question. Do not hedge: never write "there is no mention ... however".
 2. Never add an item the excerpts do not state. Do not infer plausible extras.
 3. If the question asks what things, which things, or otherwise admits more \
 than one answer, list EVERY distinct item the excerpts support - scan all of \
 them before answering, not just the first relevant one.
-4. Answer the question actually asked. Related information that does not \
-answer it must be left out.
+4. Answer the question actually asked, and match its type: a "when" question \
+takes a time, a "who" a person, a "what" a thing. Never answer a "what" \
+question with a date. Related material that does not answer the question must \
+be left out.
 5. Give the answer only. No preamble, no explanation, no restating the question.
 """
 
@@ -205,6 +232,78 @@ def estimate_cost(records: list[dict[str, Any]], model: str) -> dict[str, Any]:
     }
 
 
+async def openai_dialect_answer(session, record: dict[str, Any], model: str,
+                                base_url: str, api_key: str | None,
+                                semaphore: asyncio.Semaphore) -> dict[str, Any]:
+    """One question through an OpenAI-compatible endpoint (Groq or Ollama)."""
+    body = {
+        "model": model,
+        "temperature": 0,
+        "max_tokens": 1024,
+        # OpenAI-dialect JSON mode. Unlike Anthropic structured outputs this
+        # guarantees only that the reply parses as JSON, not that it matches the
+        # schema -- so the schema is restated in the prompt and the parse below
+        # falls back to splitting prose if a key is missing.
+        "response_format": {"type": "json_object"},
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT + JSON_INSTRUCTION},
+            {"role": "user", "content": build_prompt(record)},
+        ],
+    }
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+    async with semaphore:
+        try:
+            async with session.post(
+                f"{base_url}/chat/completions", json=body, headers=headers,
+            ) as response:
+                if response.status != 200:
+                    detail = (await response.text())[:200]
+                    return {"id": record.get("id"),
+                            "error": f"HTTP {response.status}: {detail}"}
+                payload = await response.json()
+        except Exception as exc:
+            return {"id": record.get("id"), "error": f"{type(exc).__name__}: {exc}"}
+
+    text = payload["choices"][0]["message"]["content"]
+    items, not_in_evidence = parse_items(text)
+    usage = payload.get("usage") or {}
+    return build_row(record, items, not_in_evidence,
+                     usage.get("prompt_tokens", 0), usage.get("completion_tokens", 0))
+
+
+JSON_INSTRUCTION = (
+    '\nReply with JSON only, exactly: {"items": ["..."], "not_in_evidence": false}\n'
+)
+
+
+def parse_items(text: str) -> tuple[list[str], bool]:
+    """Read the item list out of a model reply, tolerating a non-JSON answer."""
+    try:
+        parsed = json.loads(text)
+        return [str(i) for i in parsed.get("items", [])], bool(parsed.get("not_in_evidence"))
+    except (json.JSONDecodeError, AttributeError, TypeError):
+        return answer_items(text), False
+
+
+def build_row(record: dict[str, Any], items: list[str], not_in_evidence: bool,
+              input_tokens: int, output_tokens: int) -> dict[str, Any]:
+    """Score one replayed answer against gold, alongside the recorded baseline."""
+    gold = str(record.get("gold_answer", ""))
+    return {
+        "id": record.get("id"),
+        "category": record.get("category"),
+        "question": record.get("question"),
+        "gold_answer": record.get("gold_answer"),
+        "baseline_answer": record.get("generated_answer"),
+        "baseline_judged_correct": bool(record.get("correct")),
+        "claude_items": items,
+        "claude_not_in_evidence": not_in_evidence,
+        "claude": grade(gold, items).__dict__,
+        "baseline": grade(gold, str(record.get("generated_answer", ""))).__dict__,
+        "usage": {"input_tokens": input_tokens, "output_tokens": output_tokens},
+    }
+
+
 async def answer_one(client, record: dict[str, Any], model: str, effort: str,
                      semaphore: asyncio.Semaphore) -> dict[str, Any]:
     async with semaphore:
@@ -220,32 +319,9 @@ async def answer_one(client, record: dict[str, Any], model: str, effort: str,
             return {"id": record.get("id"), "error": f"{type(exc).__name__}: {exc}"}
 
     text = "".join(block.text for block in response.content if block.type == "text")
-    try:
-        parsed = json.loads(text)
-        items = [str(i) for i in parsed.get("items", [])]
-        not_in_evidence = bool(parsed.get("not_in_evidence"))
-    except (json.JSONDecodeError, AttributeError):
-        items, not_in_evidence = answer_items(text), False
-
-    scored = grade(str(record.get("gold_answer", "")), items)
-    baseline = grade(str(record.get("gold_answer", "")),
-                     str(record.get("generated_answer", "")))
-    return {
-        "id": record.get("id"),
-        "category": record.get("category"),
-        "question": record.get("question"),
-        "gold_answer": record.get("gold_answer"),
-        "baseline_answer": record.get("generated_answer"),
-        "baseline_judged_correct": bool(record.get("correct")),
-        "claude_items": items,
-        "claude_not_in_evidence": not_in_evidence,
-        "claude": scored.__dict__,
-        "baseline": baseline.__dict__,
-        "usage": {
-            "input_tokens": response.usage.input_tokens,
-            "output_tokens": response.usage.output_tokens,
-        },
-    }
+    items, not_in_evidence = parse_items(text)
+    return build_row(record, items, not_in_evidence,
+                     response.usage.input_tokens, response.usage.output_tokens)
 
 
 def summarise(rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -288,13 +364,40 @@ def summarise(rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-async def run(records, model, effort, concurrency):
+async def run(records, provider, model, effort, concurrency, base_url=None):
+    semaphore = asyncio.Semaphore(concurrency)
+    spec = PROVIDERS[provider]
+    if spec["openai_dialect"]:
+        import aiohttp
+
+        url = base_url or spec["base_url"]
+        key = next((os.environ[n] for n in spec["key_env"] if os.environ.get(n)), None)
+        # trust_env is required for aiohttp to honour HTTPS_PROXY at all.
+        async with aiohttp.ClientSession(trust_env=True) as session:
+            return await asyncio.gather(
+                *(openai_dialect_answer(session, r, model, url, key, semaphore)
+                  for r in records)
+            )
+
     import anthropic
 
     client = anthropic.AsyncAnthropic()
-    semaphore = asyncio.Semaphore(concurrency)
-    tasks = [answer_one(client, r, model, effort, semaphore) for r in records]
-    return await asyncio.gather(*tasks)
+    return await asyncio.gather(
+        *(answer_one(client, r, model, effort, semaphore) for r in records)
+    )
+
+
+async def list_models(base_url: str, api_key: str | None) -> list[str]:
+    import aiohttp
+
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+    async with aiohttp.ClientSession(trust_env=True) as session:
+        async with session.get(f"{base_url}/models", headers=headers) as response:
+            payload = await response.json()
+    return sorted(m["id"] for m in payload.get("data", []))
+
+
+
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -302,7 +405,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("artifact", type=Path)
     parser.add_argument("--category", help="restrict to one category")
     parser.add_argument("--limit", type=int, help="first N questions (use for a pilot)")
-    parser.add_argument("--model", default=DEFAULT_MODEL)
+    parser.add_argument("--provider", choices=tuple(PROVIDERS), default="anthropic")
+    parser.add_argument("--base-url", help="override the provider's endpoint")
+    parser.add_argument("--model", default=None,
+                        help="defaults to claude-opus-5 on anthropic; required on groq "
+                             "(use --list-models to see what your key can reach)")
+    parser.add_argument("--list-models", action="store_true",
+                        help="groq/ollama: print available model ids and exit")
     parser.add_argument("--effort", default=DEFAULT_EFFORT,
                         choices=("low", "medium", "high", "xhigh", "max"))
     parser.add_argument("--concurrency", type=int, default=4)
@@ -310,6 +419,30 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dry-run", action="store_true",
                         help="print a sample prompt and cost estimate; call nothing")
     args = parser.parse_args(argv)
+
+    if args.list_models:
+        spec = PROVIDERS[args.provider]
+        if not spec["openai_dialect"]:
+            print("--list-models supports groq and ollama", file=sys.stderr)
+            return 2
+        key = next((os.environ[n] for n in spec["key_env"] if os.environ.get(n)), None)
+        for model_id in asyncio.run(
+            list_models(args.base_url or spec["base_url"], key)
+        ):
+            print(model_id)
+        return 0
+
+    model = args.model or (DEFAULT_MODEL if args.provider == "anthropic" else None)
+    if model is None:
+        print(
+            f"--model is required for --provider {args.provider}. Model ids change "
+            "often and vary by install, so nothing is guessed here.\n"
+            f"  ollama:  ollama list\n"
+            f"  groq:    python3 -m evaluation.replay_generation --list-models "
+            "--provider groq demo/maximal.json",
+            file=sys.stderr,
+        )
+        return 2
 
     payload = json.loads(args.artifact.read_text(encoding="utf-8"))
     records = payload["results"] if isinstance(payload, dict) else payload
@@ -319,25 +452,29 @@ def main(argv: list[str] | None = None) -> int:
         records = records[:args.limit]
 
     if args.dry_run:
-        print(json.dumps(estimate_cost(records, args.model), indent=2))
+        print(json.dumps(estimate_cost(records, model), indent=2))
         if records:
             print("\n--- system prompt ---\n" + SYSTEM_PROMPT)
             print("--- sample user prompt ---\n" + build_prompt(records[0])[:1200])
         return 0
 
-    if not (os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN")):
+    key_env = PROVIDERS[args.provider]["key_env"]
+    if key_env and not any(os.environ.get(name) for name in key_env):
+        wanted = " or ".join(key_env)
         print(
-            "No credentials found.\n"
-            "  Create a key at https://console.anthropic.com -> Settings -> API keys\n"
-            "  then:  export ANTHROPIC_API_KEY=sk-ant-...\n"
+            f"No credentials found for --provider {args.provider}. Set {wanted}.\n"
+            "  anthropic: https://console.anthropic.com -> Settings -> API keys\n"
+            "  groq:      https://console.groq.com -> API Keys\n"
             "Run with --dry-run to preview prompts and cost without a key.",
             file=sys.stderr,
         )
         return 2
 
-    rows = asyncio.run(run(records, args.model, args.effort, args.concurrency))
+    rows = asyncio.run(run(records, args.provider, model, args.effort,
+                           args.concurrency, args.base_url))
     report = {
-        "model": args.model,
+        "provider": args.provider,
+        "model": model,
         "effort": args.effort,
         "category": args.category or "all",
         "summary": summarise(rows),
