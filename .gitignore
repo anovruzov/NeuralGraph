@@ -28,3 +28,6 @@ htmlcov/
 .DS_Store
 .idea/
 .vscode/
+
+# Replay outputs (contain API responses; regenerate with a key)
+evaluation/artifacts/replay_*.json
