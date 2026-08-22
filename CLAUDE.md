@@ -11,6 +11,7 @@ context re-deriving facts that are already established.
 | What the numbers say | `docs/RESULTS.md` |
 | How to regenerate every number | `docs/REPRODUCE.md` |
 | Claims mapped to evidence | `docs/PAPER.md` |
+| Why retrieval accuracy is low | `docs/ACCURACY.md` |
 | Current status, gates, open decisions | `state.md` |
 
 Prefer reading a doc over grepping the source. The docs are kept accurate and
@@ -45,10 +46,11 @@ Run `pytest` from the repo root. There is no venv activation step.
    why it moved, re-pin deliberately with the reason in the commit message.
    See `docs/REPRODUCE.md`.
 2. **Never skip, disable, xfail or quarantine a test** to get green.
-3. **Do not touch the retrieval track.** `answering.py`,
-   `llm_profile_extractor.py`, `prompts.py`, `reranker.py`, `service.py`,
-   `tesseract.py`, `demo/runner.py` belong to Nurman. Not one line from the
-   coordination side.
+3. **Do not touch the retrieval track** without Anar's explicit say-so.
+   `answering.py`, `llm_profile_extractor.py`, `prompts.py`, `reranker.py`,
+   `service.py`, `tesseract.py`, `demo/runner.py` belong to Nurman. The
+   accuracy *diagnosis* (`evaluation/diagnose_accuracy.py`) is additive and
+   touches none of them; the fixes it points to would.
 4. **Never synthesize a failure domain.** Domains are read from recorded root
    metadata or reported absent. Inferring one from storage identity, node id,
    file path, or value equality makes every domain metric fiction.
@@ -71,6 +73,14 @@ If any of these moves, a claim about the world has changed — stop and say so.
 - Every scale verdict invariant across K ∈ {2,3,5,8}, H ∈ {2,3}
 - No distributed strategy survives `network_partition` (0.00) — reported against interest
 - `lineage_aware` loses to `source_count` under plain node failure (0.00 vs 1.00) — reported against interest
+
+## Retrieval accuracy — diagnosed, not fixed
+
+Single-hop is 52.1% and **worse than multi-hop** (74.1%). About **76% of
+single-hop failures had the evidence retrieved**: it is a generation problem,
+not a retrieval one. 66% of single-hop questions are list-valued and 85 of 86
+generation failures omit a gold item. Full diagnosis and the ranked next steps
+are in `docs/ACCURACY.md`. Nothing has been fixed.
 
 ## Gate status
 

@@ -217,9 +217,15 @@ before grepping:
 The coordination track is complete through Gate 6. What remains is not
 coordination work:
 
-1. **Local retrieval accuracy** (NeuralGraph track, Nurman). The 50% single-hop
-   / 77% recall@50 figure has no committed artifact and needs a live Ollama.
-   Separating retrieval failure from answer-generation failure is still open.
+1. **Local retrieval accuracy — now diagnosed** (`docs/ACCURACY.md`). The 50%
+   single-hop figure is real (52.1%) and single-hop is *worse* than multi-hop.
+   About 76% of single-hop failures had the evidence retrieved, so it is a
+   generation problem, not a retrieval one -- which corroborates the old
+   "77% recall@50" note from an independent direction. The failure has a
+   specific shape: 66% of single-hop questions are list-valued, and 85 of 86
+   generation failures omit at least one gold item; 38 of 86 answer unrelated
+   content despite having the evidence. Diagnosis only -- **nothing fixed**,
+   and the fixes land in Nurman's files.
 2. **Paper.** `docs/PAPER.md` has the structure, the claim-to-evidence table,
    and the threats-to-validity answers. Figure 3 (survival vs storage) is the
    one that carries it.

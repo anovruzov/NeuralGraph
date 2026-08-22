@@ -1,0 +1,58 @@
+evidence measure: strict
+
+category           n     acc    evid  healthy  gen fail  retr fail  no-eviok  gen%err
+-------------------------------------------------------------------------------------
+multi_hop        841   74.1%   46.8%      338        56        162       285    25.7%
+open_domain       96   52.1%   10.4%        8         2         44        42     4.3%
+single_hop       282   52.1%   17.4%       29        20        115       118    14.8%
+temporal         321   64.5%   35.2%       83        30         84       124    26.3%
+TOTAL           1540   66.7%   36.8%      458       108        405       569    21.1%
+
+gen fail   = evidence was retrieved, answer still wrong
+retr fail  = evidence not found in retrieved memories
+no-eviok   = correct without visible evidence (derived, or judge leniency)
+gen%err    = generation's share of everything that went wrong
+
+evidence measure: lenient
+
+category           n     acc    evid  healthy  gen fail  retr fail  no-eviok  gen%err
+-------------------------------------------------------------------------------------
+multi_hop        841   74.1%   70.0%      500        89        129       123    40.8%
+open_domain       96   52.1%   12.5%       10         2         44        40     4.3%
+single_hop       282   52.1%   35.8%       70        31        104        77    23.0%
+temporal         321   64.5%   71.7%      174        56         58        33    49.1%
+TOTAL           1540   66.7%   60.5%      754       178        335       273    34.7%
+
+gen fail   = evidence was retrieved, answer still wrong
+retr fail  = evidence not found in retrieved memories
+no-eviok   = correct without visible evidence (derived, or judge leniency)
+gen%err    = generation's share of everything that went wrong
+
+evidence measure: partial
+
+category           n     acc    evid  healthy  gen fail  retr fail  no-eviok  gen%err
+-------------------------------------------------------------------------------------
+multi_hop        841   74.1%   88.0%      597       143         75        26    65.6%
+open_domain       96   52.1%   31.2%       19        11         35        31    23.9%
+single_hop       282   52.1%   74.1%      123        86         49        24    63.7%
+temporal         321   64.5%   89.7%      201        87         27         6    76.3%
+TOTAL           1540   66.7%   82.3%      940       327        186        87    63.7%
+
+gen fail   = evidence was retrieved, answer still wrong
+retr fail  = evidence not found in retrieved memories
+no-eviok   = correct without visible evidence (derived, or judge leniency)
+gen%err    = generation's share of everything that went wrong
+
+bias-corrected split (measure: partial)
+
+category        wrong  detect%   obs     est    GEN%   RETR%
+------------------------------------------------------------
+TOTAL             513    91.5%   327   357.3   69.6%   30.4%
+multi_hop         218    95.8%   143   149.2   68.5%   31.5%
+open_domain        46    38.0%    11    28.9   62.9%   37.1%
+single_hop        135    83.7%    86   102.8   76.1%   23.9%
+temporal          114    97.1%    87    89.6   78.6%   21.4%
+
+detect% = proxy detection rate on CORRECT answers (its true-positive rate)
+obs/est = evidence on wrong answers, observed then bias-corrected
+GEN%    = share of failures where evidence WAS retrieved (generation's fault)

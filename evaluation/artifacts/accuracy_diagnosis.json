@@ -1,0 +1,342 @@
+{
+  "calibration": {
+    "lenient": {
+      "TOTAL": {
+        "correct": 1027,
+        "detection_rate_on_correct": 73.4,
+        "estimated_evidence_on_wrong": 242.4,
+        "estimated_generation_share_of_failures": 47.3,
+        "estimated_retrieval_share_of_failures": 52.7,
+        "observed_evidence_on_wrong": 178,
+        "wrong": 513
+      },
+      "multi_hop": {
+        "correct": 623,
+        "detection_rate_on_correct": 80.3,
+        "estimated_evidence_on_wrong": 110.9,
+        "estimated_generation_share_of_failures": 50.9,
+        "estimated_retrieval_share_of_failures": 49.1,
+        "observed_evidence_on_wrong": 89,
+        "wrong": 218
+      },
+      "open_domain": {
+        "correct": 50,
+        "detection_rate_on_correct": 20.0,
+        "estimated_evidence_on_wrong": 10.0,
+        "estimated_generation_share_of_failures": 21.7,
+        "estimated_retrieval_share_of_failures": 78.3,
+        "observed_evidence_on_wrong": 2,
+        "wrong": 46
+      },
+      "single_hop": {
+        "correct": 147,
+        "detection_rate_on_correct": 47.6,
+        "estimated_evidence_on_wrong": 65.1,
+        "estimated_generation_share_of_failures": 48.2,
+        "estimated_retrieval_share_of_failures": 51.8,
+        "observed_evidence_on_wrong": 31,
+        "wrong": 135
+      },
+      "temporal": {
+        "correct": 207,
+        "detection_rate_on_correct": 84.1,
+        "estimated_evidence_on_wrong": 66.6,
+        "estimated_generation_share_of_failures": 58.4,
+        "estimated_retrieval_share_of_failures": 41.6,
+        "observed_evidence_on_wrong": 56,
+        "wrong": 114
+      }
+    },
+    "partial": {
+      "TOTAL": {
+        "correct": 1027,
+        "detection_rate_on_correct": 91.5,
+        "estimated_evidence_on_wrong": 357.3,
+        "estimated_generation_share_of_failures": 69.6,
+        "estimated_retrieval_share_of_failures": 30.4,
+        "observed_evidence_on_wrong": 327,
+        "wrong": 513
+      },
+      "multi_hop": {
+        "correct": 623,
+        "detection_rate_on_correct": 95.8,
+        "estimated_evidence_on_wrong": 149.2,
+        "estimated_generation_share_of_failures": 68.5,
+        "estimated_retrieval_share_of_failures": 31.5,
+        "observed_evidence_on_wrong": 143,
+        "wrong": 218
+      },
+      "open_domain": {
+        "correct": 50,
+        "detection_rate_on_correct": 38.0,
+        "estimated_evidence_on_wrong": 28.9,
+        "estimated_generation_share_of_failures": 62.9,
+        "estimated_retrieval_share_of_failures": 37.1,
+        "observed_evidence_on_wrong": 11,
+        "wrong": 46
+      },
+      "single_hop": {
+        "correct": 147,
+        "detection_rate_on_correct": 83.7,
+        "estimated_evidence_on_wrong": 102.8,
+        "estimated_generation_share_of_failures": 76.1,
+        "estimated_retrieval_share_of_failures": 23.9,
+        "observed_evidence_on_wrong": 86,
+        "wrong": 135
+      },
+      "temporal": {
+        "correct": 207,
+        "detection_rate_on_correct": 97.1,
+        "estimated_evidence_on_wrong": 89.6,
+        "estimated_generation_share_of_failures": 78.6,
+        "estimated_retrieval_share_of_failures": 21.4,
+        "observed_evidence_on_wrong": 87,
+        "wrong": 114
+      }
+    },
+    "strict": {
+      "TOTAL": {
+        "correct": 1027,
+        "detection_rate_on_correct": 44.6,
+        "estimated_evidence_on_wrong": 242.2,
+        "estimated_generation_share_of_failures": 47.2,
+        "estimated_retrieval_share_of_failures": 52.8,
+        "observed_evidence_on_wrong": 108,
+        "wrong": 513
+      },
+      "multi_hop": {
+        "correct": 623,
+        "detection_rate_on_correct": 54.3,
+        "estimated_evidence_on_wrong": 103.2,
+        "estimated_generation_share_of_failures": 47.3,
+        "estimated_retrieval_share_of_failures": 52.7,
+        "observed_evidence_on_wrong": 56,
+        "wrong": 218
+      },
+      "open_domain": {
+        "correct": 50,
+        "detection_rate_on_correct": 16.0,
+        "estimated_evidence_on_wrong": 12.5,
+        "estimated_generation_share_of_failures": 27.2,
+        "estimated_retrieval_share_of_failures": 72.8,
+        "observed_evidence_on_wrong": 2,
+        "wrong": 46
+      },
+      "single_hop": {
+        "correct": 147,
+        "detection_rate_on_correct": 19.7,
+        "estimated_evidence_on_wrong": 101.4,
+        "estimated_generation_share_of_failures": 75.1,
+        "estimated_retrieval_share_of_failures": 24.9,
+        "observed_evidence_on_wrong": 20,
+        "wrong": 135
+      },
+      "temporal": {
+        "correct": 207,
+        "detection_rate_on_correct": 40.1,
+        "estimated_evidence_on_wrong": 74.8,
+        "estimated_generation_share_of_failures": 65.6,
+        "estimated_retrieval_share_of_failures": 34.4,
+        "observed_evidence_on_wrong": 30,
+        "wrong": 114
+      }
+    }
+  },
+  "reports": {
+    "lenient": {
+      "by_category": {
+        "multi_hop": {
+          "accuracy": 74.1,
+          "counts": {
+            "answered_without_visible_evidence": 123,
+            "generation_failure": 89,
+            "healthy": 500,
+            "retrieval_failure": 129
+          },
+          "evidence_present_rate": 70.0,
+          "generation_share_of_failures": 40.8,
+          "n": 841
+        },
+        "open_domain": {
+          "accuracy": 52.1,
+          "counts": {
+            "answered_without_visible_evidence": 40,
+            "generation_failure": 2,
+            "healthy": 10,
+            "retrieval_failure": 44
+          },
+          "evidence_present_rate": 12.5,
+          "generation_share_of_failures": 4.3,
+          "n": 96
+        },
+        "single_hop": {
+          "accuracy": 52.1,
+          "counts": {
+            "answered_without_visible_evidence": 77,
+            "generation_failure": 31,
+            "healthy": 70,
+            "retrieval_failure": 104
+          },
+          "evidence_present_rate": 35.8,
+          "generation_share_of_failures": 23.0,
+          "n": 282
+        },
+        "temporal": {
+          "accuracy": 64.5,
+          "counts": {
+            "answered_without_visible_evidence": 33,
+            "generation_failure": 56,
+            "healthy": 174,
+            "retrieval_failure": 58
+          },
+          "evidence_present_rate": 71.7,
+          "generation_share_of_failures": 49.1,
+          "n": 321
+        }
+      },
+      "measure": "lenient",
+      "overall": {
+        "accuracy": 66.7,
+        "counts": {
+          "answered_without_visible_evidence": 273,
+          "generation_failure": 178,
+          "healthy": 754,
+          "retrieval_failure": 335
+        },
+        "evidence_present_rate": 60.5,
+        "generation_share_of_failures": 34.7,
+        "n": 1540
+      }
+    },
+    "partial": {
+      "by_category": {
+        "multi_hop": {
+          "accuracy": 74.1,
+          "counts": {
+            "answered_without_visible_evidence": 26,
+            "generation_failure": 143,
+            "healthy": 597,
+            "retrieval_failure": 75
+          },
+          "evidence_present_rate": 88.0,
+          "generation_share_of_failures": 65.6,
+          "n": 841
+        },
+        "open_domain": {
+          "accuracy": 52.1,
+          "counts": {
+            "answered_without_visible_evidence": 31,
+            "generation_failure": 11,
+            "healthy": 19,
+            "retrieval_failure": 35
+          },
+          "evidence_present_rate": 31.2,
+          "generation_share_of_failures": 23.9,
+          "n": 96
+        },
+        "single_hop": {
+          "accuracy": 52.1,
+          "counts": {
+            "answered_without_visible_evidence": 24,
+            "generation_failure": 86,
+            "healthy": 123,
+            "retrieval_failure": 49
+          },
+          "evidence_present_rate": 74.1,
+          "generation_share_of_failures": 63.7,
+          "n": 282
+        },
+        "temporal": {
+          "accuracy": 64.5,
+          "counts": {
+            "answered_without_visible_evidence": 6,
+            "generation_failure": 87,
+            "healthy": 201,
+            "retrieval_failure": 27
+          },
+          "evidence_present_rate": 89.7,
+          "generation_share_of_failures": 76.3,
+          "n": 321
+        }
+      },
+      "measure": "partial",
+      "overall": {
+        "accuracy": 66.7,
+        "counts": {
+          "answered_without_visible_evidence": 87,
+          "generation_failure": 327,
+          "healthy": 940,
+          "retrieval_failure": 186
+        },
+        "evidence_present_rate": 82.3,
+        "generation_share_of_failures": 63.7,
+        "n": 1540
+      }
+    },
+    "strict": {
+      "by_category": {
+        "multi_hop": {
+          "accuracy": 74.1,
+          "counts": {
+            "answered_without_visible_evidence": 285,
+            "generation_failure": 56,
+            "healthy": 338,
+            "retrieval_failure": 162
+          },
+          "evidence_present_rate": 46.8,
+          "generation_share_of_failures": 25.7,
+          "n": 841
+        },
+        "open_domain": {
+          "accuracy": 52.1,
+          "counts": {
+            "answered_without_visible_evidence": 42,
+            "generation_failure": 2,
+            "healthy": 8,
+            "retrieval_failure": 44
+          },
+          "evidence_present_rate": 10.4,
+          "generation_share_of_failures": 4.3,
+          "n": 96
+        },
+        "single_hop": {
+          "accuracy": 52.1,
+          "counts": {
+            "answered_without_visible_evidence": 118,
+            "generation_failure": 20,
+            "healthy": 29,
+            "retrieval_failure": 115
+          },
+          "evidence_present_rate": 17.4,
+          "generation_share_of_failures": 14.8,
+          "n": 282
+        },
+        "temporal": {
+          "accuracy": 64.5,
+          "counts": {
+            "answered_without_visible_evidence": 124,
+            "generation_failure": 30,
+            "healthy": 83,
+            "retrieval_failure": 84
+          },
+          "evidence_present_rate": 35.2,
+          "generation_share_of_failures": 26.3,
+          "n": 321
+        }
+      },
+      "measure": "strict",
+      "overall": {
+        "accuracy": 66.7,
+        "counts": {
+          "answered_without_visible_evidence": 569,
+          "generation_failure": 108,
+          "healthy": 458,
+          "retrieval_failure": 405
+        },
+        "evidence_present_rate": 36.8,
+        "generation_share_of_failures": 21.1,
+        "n": 1540
+      }
+    }
+  }
+}

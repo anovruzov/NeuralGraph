@@ -1,0 +1,50 @@
+{
+  "multi_hop": {
+    "accuracy_on_list_questions": 74.4,
+    "accuracy_on_single_item_questions": 73.9,
+    "category": "multi_hop",
+    "complete_but_judged_wrong": 2,
+    "generation_failures": 143,
+    "list_valued_gold": 266,
+    "list_valued_share": 31.6,
+    "n": 841,
+    "no_overlap_with_gold": 103,
+    "omits_a_gold_item": 141
+  },
+  "open_domain": {
+    "accuracy_on_list_questions": 50.0,
+    "accuracy_on_single_item_questions": 53.2,
+    "category": "open_domain",
+    "complete_but_judged_wrong": 0,
+    "generation_failures": 11,
+    "list_valued_gold": 34,
+    "list_valued_share": 35.4,
+    "n": 96,
+    "no_overlap_with_gold": 6,
+    "omits_a_gold_item": 11
+  },
+  "single_hop": {
+    "accuracy_on_list_questions": 50.0,
+    "accuracy_on_single_item_questions": 56.2,
+    "category": "single_hop",
+    "complete_but_judged_wrong": 0,
+    "generation_failures": 86,
+    "list_valued_gold": 186,
+    "list_valued_share": 66.0,
+    "n": 282,
+    "no_overlap_with_gold": 38,
+    "omits_a_gold_item": 85
+  },
+  "temporal": {
+    "accuracy_on_list_questions": 74.6,
+    "accuracy_on_single_item_questions": 57.2,
+    "category": "temporal",
+    "complete_but_judged_wrong": 4,
+    "generation_failures": 87,
+    "list_valued_gold": 134,
+    "list_valued_share": 41.7,
+    "n": 321,
+    "no_overlap_with_gold": 44,
+    "omits_a_gold_item": 83
+  }
+}
