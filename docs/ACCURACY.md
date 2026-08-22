@@ -125,8 +125,24 @@ just, and not by generation fixes alone.
 | selection error | 147 | 9.5pp | had the evidence, answered something else |
 | incomplete list | 120 | 7.8pp | named some gold items, omitted others |
 | abstention | 60 | 3.9pp | said "not mentioned" when it *was* mentioned |
-| no evidence retrieved | 186 | 12.1pp | genuine retrieval miss |
+| retrieval miss | 139 | 9.0pp | answer is in the conversation, retrieval missed it |
+| **unanswerable** | **47** | **3.1pp** | answer is nowhere in the conversation |
 | **total wrong** | **513** | **33.3pp** | |
+
+The last row is a hard ceiling. Verified against the full source conversations
+in `evaluation/locomo/locomo10.json`:
+
+```bash
+python3 -m evaluation.retrieval_ceiling
+```
+
+47 gold answers appear nowhere in the conversation they belong to — 18 of them
+`open_domain`, which is expected, since those questions are not about the
+conversation. **No retrieval or generation fix can ever recover them.** Maximum
+attainable accuracy on this benchmark is therefore **96.9%**, not 100%.
+
+This corrects an earlier version of this document, which treated all 186
+no-evidence failures as recoverable. Only 139 are.
 
 ### The three generation fixes, ranked by expected yield
 
@@ -158,12 +174,17 @@ lacks the answer, and never hedge with "there is no mention… however".
 | 1 selection | 147 | 50% | +73 | 71.4% |
 | 2 completeness | 120 | 60% | +72 | 76.1% |
 | 3 abstention | 60 | 80% | +48 | 79.2% |
-| 4 retrieval recall | 186 | 40% | +74 | **84.0%** |
+| 4 retrieval recall | 139 | 40% | +55 | **82.8%** |
+| unanswerable | 47 | — | never | |
 
-**The three generation fixes reach ~79%.** 85% needs retrieval recall too, and
-even then lands near 84% at these rates. Put differently: **85% requires
-converting 55% of every current failure.** Treat any plan that claims 85% from
-prompt work alone as optimistic.
+**The three generation fixes reach ~79%.** Adding retrieval lands at **82.8%**,
+which is short of the target. Put differently: **85% requires converting 60% of
+every *recoverable* failure** — 282 of the 466 that are recoverable at all.
+
+That is a harder bar than the 84.0% this table previously showed, and the
+difference is entirely the 47 unanswerable questions that earlier arithmetic
+counted as winnable. Treat any plan claiming 85% from prompt work alone as
+optimistic; treat one claiming it without touching retrieval as impossible.
 
 ### Why this is one change, not three
 

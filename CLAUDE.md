@@ -78,9 +78,16 @@ If any of these moves, a claim about the world has changed — stop and say so.
 
 Single-hop is 52.1% and **worse than multi-hop** (74.1%). About **76% of
 single-hop failures had the evidence retrieved**: it is a generation problem,
-not a retrieval one. 66% of single-hop questions are list-valued and 85 of 86
-generation failures omit a gold item. Full diagnosis and the ranked next steps
-are in `docs/ACCURACY.md`. Nothing has been fixed.
+not a retrieval one.
+
+Of 513 wrong answers: 327 had the evidence (generation's fault), 139 are
+genuine retrieval misses, and **47 are unanswerable — the gold answer appears
+nowhere in the source conversation**, so the hard ceiling on this benchmark is
+**96.9%**, not 100%. Reaching 85% means converting 60% of every recoverable
+failure, and is impossible without retrieval work.
+
+Full diagnosis, the bucketed plan and the arithmetic are in `docs/ACCURACY.md`.
+Nothing has been fixed.
 
 ## Gate status
 

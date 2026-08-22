@@ -1,0 +1,63 @@
+{
+  "accuracy": 66.7,
+  "all_questions": {
+    "missed": 196,
+    "retrieved": 1267,
+    "unanswerable": 77
+  },
+  "answered_correctly_without_corpus_support": 37,
+  "by_category": {
+    "multi_hop": {
+      "missed": 87,
+      "retrieved": 740,
+      "unanswerable": 14
+    },
+    "open_domain": {
+      "missed": 34,
+      "retrieved": 30,
+      "unanswerable": 32
+    },
+    "single_hop": {
+      "missed": 60,
+      "retrieved": 209,
+      "unanswerable": 13
+    },
+    "temporal": {
+      "missed": 15,
+      "retrieved": 288,
+      "unanswerable": 18
+    }
+  },
+  "correct": 1027,
+  "failures": {
+    "missed": 139,
+    "retrieved": 327,
+    "unanswerable": 47
+  },
+  "failures_by_category": {
+    "multi_hop": {
+      "missed": 66,
+      "retrieved": 143,
+      "unanswerable": 9
+    },
+    "open_domain": {
+      "missed": 17,
+      "retrieved": 11,
+      "unanswerable": 18
+    },
+    "single_hop": {
+      "missed": 42,
+      "retrieved": 86,
+      "unanswerable": 7
+    },
+    "temporal": {
+      "missed": 14,
+      "retrieved": 87,
+      "unanswerable": 13
+    }
+  },
+  "hard_ceiling_accuracy": 96.9,
+  "recoverable_by_retrieval": 139,
+  "total_questions": 1540,
+  "unanswerable_from_corpus": 47
+}

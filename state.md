@@ -224,8 +224,11 @@ coordination work:
    "77% recall@50" note from an independent direction. The failure has a
    specific shape: 66% of single-hop questions are list-valued, and 85 of 86
    generation failures omit at least one gold item; 38 of 86 answer unrelated
-   content despite having the evidence. Diagnosis only -- **nothing fixed**,
-   and the fixes land in Nurman's files.
+   content despite having the evidence. Of 513 wrong answers corpus-wide: 327
+   generation, 139 recoverable retrieval misses, and 47 **unanswerable** (the
+   gold answer is in no part of the source conversation), so the hard ceiling
+   is 96.9%. Diagnosis only -- **nothing fixed**, and the fixes land in
+   Nurman's files.
 2. **Paper.** `docs/PAPER.md` has the structure, the claim-to-evidence table,
    and the threats-to-validity answers. Figure 3 (survival vs storage) is the
    one that carries it.
