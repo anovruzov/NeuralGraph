@@ -23,6 +23,7 @@ from evaluation.replay_generation import (
     build_prompt,
     estimate_cost,
     grade,
+    parse_items,
 )
 
 ARTIFACT = Path(__file__).resolve().parents[2] / "demo" / "maximal.json"
@@ -121,6 +122,60 @@ class GraderValidityTests(unittest.TestCase):
                     if r["category"] == "single_hop" and not r["correct"]]
         self.assertLess(statistics.mean(g.recall for g in failures), 0.4)
         self.assertLess(statistics.mean(g.precision for g in failures), 0.4)
+
+
+class ReplyParsingTests(unittest.TestCase):
+    """A parse failure would be scored as a wrong answer, not as a parse failure.
+
+    That is the dangerous case: it blames the prompt for a formatting problem
+    and makes a good model look bad. Reasoning models make it likely — qwen3 and
+    deepseek-r1 emit <think> blocks ahead of the answer even under JSON mode.
+    """
+
+    def test_plain_json(self):
+        self.assertEqual(
+            parse_items('{"items": ["a", "b"], "not_in_evidence": false}'),
+            (["a", "b"], False),
+        )
+
+    def test_reasoning_model_think_block_is_stripped(self):
+        raw = '<think>Let me scan the excerpts.</think>{"items": ["a"], "not_in_evidence": false}'
+        self.assertEqual(parse_items(raw), (["a"], False))
+
+    def test_fenced_code_block(self):
+        raw = '```json\n{"items": ["a"], "not_in_evidence": false}\n```'
+        self.assertEqual(parse_items(raw), (["a"], False))
+
+    def test_json_with_a_preamble_sentence(self):
+        raw = 'Here is the answer: {"items": ["a", "b"], "not_in_evidence": true}'
+        self.assertEqual(parse_items(raw), (["a", "b"], True))
+
+    def test_prose_falls_back_to_item_splitting(self):
+        self.assertEqual(parse_items("bowls, cup"), (["bowls", "cup"], False))
+
+    def test_think_block_then_prose(self):
+        self.assertEqual(parse_items("<think>hm</think>bowls, cup"), (["bowls", "cup"], False))
+
+    def test_empty_and_malformed_do_not_raise(self):
+        for raw in ("", "   ", "{not json", '{"wrong_key": 1}', "null"):
+            with self.subTest(raw=raw):
+                items, flag = parse_items(raw)
+                self.assertIsInstance(items, list)
+                self.assertIsInstance(flag, bool)
+
+    def test_items_returned_as_a_string_is_split_not_shredded(self):
+        """A model that ignores the array type returns "bowls, cup" as one string.
+
+        It must be split into items. The failure mode guarded against is falling
+        through to prose parsing on the *raw JSON*, which shreds
+        `{"items": ...}` into nonsense fragments.
+
+        Test values must carry content tokens — "a, b" would not work here,
+        since "a" is a stopword and is legitimately dropped.
+        """
+        items, _flag = parse_items('{"items": "bowls, cup", "not_in_evidence": false}')
+        self.assertEqual(items, ["bowls", "cup"])
+        self.assertNotIn("not_in_evidence", " ".join(items))
 
 
 class PromptTests(unittest.TestCase):

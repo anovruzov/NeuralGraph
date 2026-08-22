@@ -276,13 +276,49 @@ JSON_INSTRUCTION = (
 )
 
 
+THINK_BLOCK = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
+JSON_OBJECT = re.compile(r"\{.*\}", re.DOTALL)
+
+
 def parse_items(text: str) -> tuple[list[str], bool]:
-    """Read the item list out of a model reply, tolerating a non-JSON answer."""
-    try:
-        parsed = json.loads(text)
-        return [str(i) for i in parsed.get("items", [])], bool(parsed.get("not_in_evidence"))
-    except (json.JSONDecodeError, AttributeError, TypeError):
-        return answer_items(text), False
+    """Read the item list out of a model reply, tolerating messy wrappers.
+
+    Three layers, because a silent fallback here would be scored as a bad answer
+    rather than as a parse failure, and would blame the prompt for a formatting
+    problem:
+
+    1. Strip ``<think>`` blocks. Reasoning models (qwen3, deepseek-r1) emit them
+       ahead of the answer even under JSON mode, which makes ``json.loads`` fail
+       on otherwise perfect output.
+    2. Parse the whole reply as JSON.
+    3. Failing that, take the outermost ``{...}`` — covers fenced code blocks and
+       models that add a sentence before the object.
+
+    Only if all three fail does it fall back to splitting prose.
+    """
+    cleaned = THINK_BLOCK.sub("", text or "").strip()
+    embedded = JSON_OBJECT.search(cleaned)
+    candidates = [cleaned]
+    if embedded:
+        candidates.append(embedded.group(0))
+
+    for candidate in candidates:
+        try:
+            parsed = json.loads(candidate)
+        except (json.JSONDecodeError, TypeError):
+            continue
+        if not isinstance(parsed, dict) or "items" not in parsed:
+            continue
+        items = parsed.get("items")
+        flag = bool(parsed.get("not_in_evidence"))
+        if isinstance(items, list):
+            return [str(i) for i in items], flag
+        if isinstance(items, str):
+            # A model that ignored the array type and returned "a, b" as one
+            # string. Split it rather than falling through to prose parsing,
+            # which would otherwise shred the raw JSON into nonsense items.
+            return answer_items(items), flag
+    return answer_items(cleaned), False
 
 
 def build_row(record: dict[str, Any], items: list[str], not_in_evidence: bool,
