@@ -24,6 +24,7 @@ from evaluation.replay_generation import (
     estimate_cost,
     grade,
     parse_items,
+    stratified_sample,
 )
 
 ARTIFACT = Path(__file__).resolve().parents[2] / "demo" / "maximal.json"
@@ -176,6 +177,61 @@ class ReplyParsingTests(unittest.TestCase):
         items, _flag = parse_items('{"items": "bowls, cup", "not_in_evidence": false}')
         self.assertEqual(items, ["bowls", "cup"])
         self.assertNotIn("not_in_evidence", " ".join(items))
+
+
+class StratifiedSampleTests(unittest.TestCase):
+    """A sample must represent the corpus, or the number measured on it is local.
+
+    Taking the first N records is the trap: demo/maximal.json is ordered by
+    conversation, so the first 300 cover only conversations 1-3 of 10.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.records = _records()
+
+    def test_returns_exactly_the_requested_size(self):
+        for size in (10, 50, 300, 999):
+            with self.subTest(size=size):
+                self.assertEqual(len(stratified_sample(self.records, size)), size)
+
+    def test_category_mix_matches_the_corpus(self):
+        import collections
+        sample = stratified_sample(self.records, 300)
+        got = collections.Counter(r["category"] for r in sample)
+        full = collections.Counter(r["category"] for r in self.records)
+        for category, total in full.items():
+            with self.subTest(category=category):
+                expected = total * 300 / len(self.records)
+                self.assertLessEqual(abs(got[category] - expected), 1.0)
+
+    def test_sample_spans_every_conversation(self):
+        """The specific failure of --limit: three conversations out of ten."""
+        sample = stratified_sample(self.records, 300)
+        self.assertEqual(
+            {r["conversation"] for r in sample},
+            {r["conversation"] for r in self.records},
+        )
+        first_n = {r["conversation"] for r in self.records[:300]}
+        self.assertLess(len(first_n), 5, "if --limit stopped being biased, revisit this")
+
+    def test_is_deterministic_so_two_models_see_identical_questions(self):
+        a = [r["id"] for r in stratified_sample(self.records, 300)]
+        b = [r["id"] for r in stratified_sample(self.records, 300)]
+        self.assertEqual(a, b)
+
+    def test_a_different_seed_gives_a_different_sample(self):
+        a = [r["id"] for r in stratified_sample(self.records, 300, seed=1)]
+        b = [r["id"] for r in stratified_sample(self.records, 300, seed=2)]
+        self.assertNotEqual(a, b)
+
+    def test_no_duplicates(self):
+        sample = stratified_sample(self.records, 300)
+        self.assertEqual(len({r["id"] for r in sample}), len(sample))
+
+    def test_oversized_request_is_clamped_to_the_corpus(self):
+        sample = stratified_sample(self.records, 99999)
+        self.assertEqual(len(sample), len(self.records))
 
 
 class PromptTests(unittest.TestCase):

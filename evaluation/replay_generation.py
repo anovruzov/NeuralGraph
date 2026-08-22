@@ -436,11 +436,55 @@ async def list_models(base_url: str, api_key: str | None) -> list[str]:
 
 
 
+def stratified_sample(records: list[dict[str, Any]], size: int,
+                      seed: int = 20260813) -> list[dict[str, Any]]:
+    """Pick ``size`` questions that mirror the corpus, deterministically.
+
+    Taking the first N is not a sample. ``demo/maximal.json`` is ordered by
+    conversation, so the first 300 records cover conversations 1-3 of 10 --
+    three speakers' worth of content, with a category mix that does not match
+    the corpus. A number measured on that says little about the benchmark.
+
+    This allocates per category in proportion to the corpus (largest remainder,
+    so the parts sum to exactly ``size``) and samples within each category with
+    a fixed seed, which spreads the draw across all ten conversations. The same
+    seed always yields the same question set, so two model runs are compared on
+    identical questions rather than on two different samples.
+    """
+    import random as _random
+
+    by_category: dict[str, list[dict[str, Any]]] = {}
+    for record in records:
+        by_category.setdefault(str(record.get("category", "unknown")), []).append(record)
+
+    total = len(records)
+    size = min(size, total)
+    exact = {c: len(rows) * size / total for c, rows in by_category.items()}
+    quota = {c: int(v) for c, v in exact.items()}
+    # Largest remainder, so rounding never loses or invents a question.
+    shortfall = size - sum(quota.values())
+    for category in sorted(exact, key=lambda c: (-(exact[c] - quota[c]), c))[:shortfall]:
+        quota[category] += 1
+
+    picked: list[dict[str, Any]] = []
+    for category in sorted(by_category):
+        rows = sorted(by_category[category], key=lambda r: r.get("id", 0))
+        picked.extend(
+            _random.Random(f"{seed}:{category}").sample(rows, min(quota[category], len(rows)))
+        )
+    return sorted(picked, key=lambda r: r.get("id", 0))
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("artifact", type=Path)
     parser.add_argument("--category", help="restrict to one category")
-    parser.add_argument("--limit", type=int, help="first N questions (use for a pilot)")
+    parser.add_argument("--limit", type=int,
+                        help="first N questions in file order (pilots only; NOT a sample)")
+    parser.add_argument("--sample", type=int, metavar="N",
+                        help="N questions stratified by category across all "
+                             "conversations, deterministic (prefer this over --limit)")
+    parser.add_argument("--sample-seed", type=int, default=20260813)
     parser.add_argument("--provider", choices=tuple(PROVIDERS), default="anthropic")
     parser.add_argument("--base-url", help="override the provider's endpoint")
     parser.add_argument("--model", default=None,
@@ -484,7 +528,9 @@ def main(argv: list[str] | None = None) -> int:
     records = payload["results"] if isinstance(payload, dict) else payload
     if args.category:
         records = [r for r in records if r.get("category") == args.category]
-    if args.limit:
+    if args.sample:
+        records = stratified_sample(records, args.sample, args.sample_seed)
+    elif args.limit:
         records = records[:args.limit]
 
     if args.dry_run:
@@ -513,6 +559,9 @@ def main(argv: list[str] | None = None) -> int:
         "model": model,
         "effort": args.effort,
         "category": args.category or "all",
+        "selection": (f"stratified sample of {args.sample} (seed {args.sample_seed})"
+                      if args.sample else
+                      f"first {args.limit} in file order" if args.limit else "all"),
         "summary": summarise(rows),
         "rows": rows,
     }
