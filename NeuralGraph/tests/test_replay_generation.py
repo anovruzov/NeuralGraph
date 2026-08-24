@@ -23,6 +23,7 @@ from evaluation.replay_generation import (
     build_prompt,
     estimate_cost,
     grade,
+    is_daily_quota_error,
     parse_items,
     stratified_sample,
 )
@@ -177,6 +178,36 @@ class ReplyParsingTests(unittest.TestCase):
         items, _flag = parse_items('{"items": "bowls, cup", "not_in_evidence": false}')
         self.assertEqual(items, ["bowls", "cup"])
         self.assertNotIn("not_in_evidence", " ".join(items))
+
+
+class QuotaDetectionTests(unittest.TestCase):
+    """A per-day quota must be told apart from ordinary throttling.
+
+    Both arrive as HTTP 429 with a body saying "check your plan and billing
+    details". Retrying a per-day exhaustion burns the remaining allowance and
+    converts every later question into a scored wrong answer, so a sweep would
+    report a quota wall as model accuracy.
+    """
+
+    def test_daily_quota_markers_are_recognised(self):
+        for body in (
+            "GenerateRequestsPerDayPerProjectPerModel-FreeTier",
+            "quotaId: GenerateRequestsPerDayPerProjectPerModel",
+            "You exceeded 20 requests per day",
+        ):
+            with self.subTest(body=body[:40]):
+                self.assertTrue(is_daily_quota_error(body))
+
+    def test_rate_limits_are_not_mistaken_for_daily_quota(self):
+        """Per-minute throttling IS retryable; treating it as fatal aborts good runs."""
+        for body in (
+            "GenerateRequestsPerMinutePerProject",
+            "This model is currently experiencing high demand",
+            "429 Too Many Requests",
+            "",
+        ):
+            with self.subTest(body=body[:40]):
+                self.assertFalse(is_daily_quota_error(body))
 
 
 class StratifiedSampleTests(unittest.TestCase):

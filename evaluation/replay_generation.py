@@ -40,6 +40,7 @@ import argparse
 import asyncio
 import json
 import os
+import random
 import re
 import sys
 from dataclasses import dataclass, field
@@ -66,12 +67,74 @@ GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 # needs no key; the auth header is sent only when one is configured.
 OLLAMA_BASE_URL = "http://localhost:11434/v1"
 
+# Gemini exposes an OpenAI-compatible surface, so it reuses the same backend
+# rather than needing a native REST client. Verified working against
+# gemini-3.7-flash, which honours response_format json_object.
+GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
+
+#: Transient-failure retry. Hosted endpoints throttle under sustained load, and
+#: an unretried 429/503 is indistinguishable from a wrong answer in the score.
+MAX_ATTEMPTS = 5
+BACKOFF_BASE = 2.0
+
+
+class QuotaExhausted(RuntimeError):
+    """A per-day quota is gone. Not retryable, and not survivable within a run.
+
+    Distinct from ordinary throttling. A free Gemini tier allows 20 requests
+    per day per model, and its 429 body reads "check your plan and billing
+    details" -- indistinguishable at a glance from a rate limit. Retrying it
+    burns the remainder of the allowance and turns every remaining question
+    into a scored wrong answer, so a long sweep quietly reports throttling as
+    model accuracy. The run must stop instead.
+    """
+
+
+#: Substrings identifying a per-day quota rather than a per-minute rate limit.
+DAILY_QUOTA_MARKERS = ("PerDay", "requests per day", "RequestsPerDay")
+
+
+def is_daily_quota_error(body: str) -> bool:
+    return any(marker.lower() in (body or "").lower() for marker in DAILY_QUOTA_MARKERS)
+
+
+class RateLimiter:
+    """Pace requests to a requests-per-minute ceiling.
+
+    Free hosted tiers throttle per minute, and their 429 body says "check your
+    plan and billing details" even when the limit is purely rate-based -- which
+    reads as a hard quota and is not. Bursting into that wastes the run: a
+    throttled request that exhausts its retries is scored as a wrong answer, so
+    the measured accuracy silently reflects throttling rather than the model.
+
+    Pacing is enforced ahead of the request instead of discovered through
+    failures. ``rpm <= 0`` disables it.
+    """
+
+    def __init__(self, rpm: float) -> None:
+        self._interval = 60.0 / rpm if rpm and rpm > 0 else 0.0
+        self._lock = asyncio.Lock()
+        self._next = 0.0
+
+    async def acquire(self) -> None:
+        if not self._interval:
+            return
+        loop = asyncio.get_running_loop()
+        async with self._lock:
+            now = loop.time()
+            wait = max(0.0, self._next - now)
+            self._next = max(now, self._next) + self._interval
+        if wait:
+            await asyncio.sleep(wait)
+
 PROVIDERS = {
     "anthropic": {"openai_dialect": False, "base_url": None, "key_env": (
         "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")},
     "groq": {"openai_dialect": True, "base_url": GROQ_BASE_URL,
              "key_env": ("GROQ_API_KEY",)},
     "ollama": {"openai_dialect": True, "base_url": OLLAMA_BASE_URL, "key_env": ()},
+    "gemini": {"openai_dialect": True, "base_url": GEMINI_BASE_URL,
+               "key_env": ("GEMINI_API_KEY", "GOOGLE_API_KEY")},
 }
 
 # The prompt is the intervention under test. Every instruction in it targets a
@@ -234,7 +297,8 @@ def estimate_cost(records: list[dict[str, Any]], model: str) -> dict[str, Any]:
 
 async def openai_dialect_answer(session, record: dict[str, Any], model: str,
                                 base_url: str, api_key: str | None,
-                                semaphore: asyncio.Semaphore) -> dict[str, Any]:
+                                semaphore: asyncio.Semaphore,
+                                limiter: "RateLimiter | None" = None) -> dict[str, Any]:
     """One question through an OpenAI-compatible endpoint (Groq or Ollama)."""
     body = {
         "model": model,
@@ -251,18 +315,41 @@ async def openai_dialect_answer(session, record: dict[str, Any], model: str,
         ],
     }
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
-    async with semaphore:
-        try:
-            async with session.post(
-                f"{base_url}/chat/completions", json=body, headers=headers,
-            ) as response:
-                if response.status != 200:
-                    detail = (await response.text())[:200]
-                    return {"id": record.get("id"),
-                            "error": f"HTTP {response.status}: {detail}"}
-                payload = await response.json()
-        except Exception as exc:
-            return {"id": record.get("id"), "error": f"{type(exc).__name__}: {exc}"}
+    # Hosted endpoints return 429/503 under load. A long sweep hits them
+    # routinely, and an unretried transient is scored as a wrong answer, which
+    # would depress the measured result for a reason that has nothing to do
+    # with the model or the prompt.
+    payload = None
+    last_error = ""
+    for attempt in range(MAX_ATTEMPTS):
+        if limiter is not None:
+            await limiter.acquire()
+        async with semaphore:
+            try:
+                async with session.post(
+                    f"{base_url}/chat/completions", json=body, headers=headers,
+                ) as response:
+                    if response.status == 200:
+                        payload = await response.json()
+                        break
+                    last_error = f"HTTP {response.status}: {(await response.text())[:200]}"
+                    if response.status == 429 and is_daily_quota_error(last_error):
+                        raise QuotaExhausted(last_error)
+                    retryable = response.status in (408, 409, 429, 500, 502, 503, 504)
+                    # Honour the server's own backoff when it supplies one.
+                    hinted = response.headers.get("Retry-After")
+                    retry_after = float(hinted) if (hinted or "").strip().isdigit() else None
+            except QuotaExhausted:
+                raise
+            except Exception as exc:
+                last_error = f"{type(exc).__name__}: {exc}"
+                retryable, retry_after = True, None
+        if not retryable or attempt == MAX_ATTEMPTS - 1:
+            break
+        # Backoff outside the semaphore so a sleeping retry does not hold a slot.
+        await asyncio.sleep(retry_after or BACKOFF_BASE * (2 ** attempt) + random.random())
+    if payload is None:
+        return {"id": record.get("id"), "error": last_error}
 
     text = payload["choices"][0]["message"]["content"]
     items, not_in_evidence = parse_items(text)
@@ -400,7 +487,7 @@ def summarise(rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-async def run(records, provider, model, effort, concurrency, base_url=None):
+async def run(records, provider, model, effort, concurrency, base_url=None, rpm=0.0):
     semaphore = asyncio.Semaphore(concurrency)
     spec = PROVIDERS[provider]
     if spec["openai_dialect"]:
@@ -410,10 +497,30 @@ async def run(records, provider, model, effort, concurrency, base_url=None):
         key = next((os.environ[n] for n in spec["key_env"] if os.environ.get(n)), None)
         # trust_env is required for aiohttp to honour HTTPS_PROXY at all.
         async with aiohttp.ClientSession(trust_env=True) as session:
-            return await asyncio.gather(
-                *(openai_dialect_answer(session, r, model, url, key, semaphore)
-                  for r in records)
-            )
+            limiter = RateLimiter(rpm)
+            tasks = [
+                asyncio.ensure_future(
+                    openai_dialect_answer(session, r, model, url, key, semaphore, limiter)
+                )
+                for r in records
+            ]
+            try:
+                return await asyncio.gather(*tasks)
+            except QuotaExhausted as exc:
+                # Stop immediately. Letting the remaining questions run would
+                # burn nothing useful and would report a quota wall as accuracy.
+                for task in tasks:
+                    task.cancel()
+                done = await asyncio.gather(*tasks, return_exceptions=True)
+                rows = [r for r in done if isinstance(r, dict)]
+                print(
+                    f"\nABORTED: daily quota exhausted after {len(rows)} scored "
+                    f"question(s).\n{exc}\n"
+                    "This is a per-day limit, not throttling -- waiting will not help "
+                    "today. Raise the limit (enable billing) or use another provider.",
+                    file=sys.stderr,
+                )
+                return rows
 
     import anthropic
 
@@ -495,6 +602,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--effort", default=DEFAULT_EFFORT,
                         choices=("low", "medium", "high", "xhigh", "max"))
     parser.add_argument("--concurrency", type=int, default=4)
+    parser.add_argument("--rpm", type=float, default=0.0,
+                        help="requests-per-minute ceiling (hosted free tiers "
+                             "throttle per minute; 0 disables pacing)")
     parser.add_argument("--output", type=Path)
     parser.add_argument("--dry-run", action="store_true",
                         help="print a sample prompt and cost estimate; call nothing")
@@ -553,7 +663,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     rows = asyncio.run(run(records, args.provider, model, args.effort,
-                           args.concurrency, args.base_url))
+                           args.concurrency, args.base_url, args.rpm))
     report = {
         "provider": args.provider,
         "model": model,
