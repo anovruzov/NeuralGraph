@@ -1,0 +1,20 @@
+{
+  "scope": "VALIDATION",
+  "status": "best verified configuration is the unmodified v1 baseline",
+  "branch": "locomo-six-fix-loop",
+  "commit": "cea7605",
+  "answerer_model": "qwen2.5:7b-instruct",
+  "answerer_billing": "local ollama, unpaid",
+  "judge_model": "gpt-4o",
+  "temperature": 0.0,
+  "top_k": "recorded (replay holds retrieval fixed)",
+  "prompt_version": "v1-baseline",
+  "prompt_hash": "5e923dc613887b80",
+  "config_hash": "cd9098dfbdd0ad06",
+  "evidence_order": "relevance-ranked (retrieval order) - global chronological sorting reverted",
+  "corpus_digest": "916ca308d5e41cba8437a463b97f9c688b51638f8644ed39b59c7878d8e0eb8e",
+  "eval_set_digest": "8077c40ba2e7cff2",
+  "split_seed": 20260825,
+  "accepted_changes": [],
+  "rejected_changes": ["v2-abstention-gate (reverted at cea7605)"]
+}

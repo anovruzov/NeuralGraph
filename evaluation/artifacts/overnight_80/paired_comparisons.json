@@ -1,0 +1,152 @@
+{
+  "comparisons": [
+    {
+      "accepted": false,
+      "by_category": {
+        "multi_hop": {
+          "delta": 0.2667,
+          "improved": [
+            753,
+            1018,
+            1315,
+            1466
+          ],
+          "n": 15,
+          "regressed": [],
+          "v1": 6,
+          "v2": 10
+        },
+        "open_domain": {
+          "delta": 0.1333,
+          "improved": [
+            898,
+            1265
+          ],
+          "n": 15,
+          "regressed": [],
+          "v1": 3,
+          "v2": 5
+        },
+        "single_hop": {
+          "delta": -0.1333,
+          "improved": [
+            409
+          ],
+          "n": 15,
+          "regressed": [
+            178,
+            270,
+            1398
+          ],
+          "v1": 5,
+          "v2": 3
+        },
+        "temporal": {
+          "delta": 0.0667,
+          "improved": [
+            928,
+            1067
+          ],
+          "n": 15,
+          "regressed": [
+            440
+          ],
+          "v1": 10,
+          "v2": 11
+        }
+      },
+      "class_counts": {
+        "REAL_GENERATION_CHANGE": 29,
+        "SAME_OUTPUT_JUDGE_FLIP": 3,
+        "SAME_OUTPUT_SAME_VERDICT": 27,
+        "SEMANTICALLY_EQUIVALENT_OUTPUT_JUDGE_FLIP": 1
+      },
+      "decision": "REVERTED at cea7605 - stated mechanism never fired; gain not significant",
+      "item_metrics": {
+        "item_f1": {
+          "delta": -0.0137,
+          "v1": 0.5544,
+          "v2": 0.5407
+        },
+        "item_precision": {
+          "delta": -0.0044,
+          "v1": 0.6306,
+          "v2": 0.6261
+        },
+        "item_recall": {
+          "delta": -0.0292,
+          "v1": 0.5317,
+          "v2": 0.5025
+        }
+      },
+      "name": "v1_baseline_vs_v2_abstention_gate",
+      "noise_corrected": {
+        "delta": 0.0833,
+        "judge_flip_rows": [
+          178,
+          898,
+          1018,
+          1398
+        ],
+        "real_improved": [
+          409,
+          753,
+          928,
+          1067,
+          1265,
+          1315,
+          1466
+        ],
+        "real_regressed": [
+          270,
+          440
+        ],
+        "v2_accuracy": 0.4833,
+        "v2_correct": 29
+      },
+      "raw": {
+        "delta": 0.0833,
+        "improved": [
+          409,
+          753,
+          898,
+          928,
+          1018,
+          1067,
+          1265,
+          1315,
+          1466
+        ],
+        "regressed": [
+          178,
+          270,
+          440,
+          1398
+        ],
+        "v1_accuracy": 0.4,
+        "v1_correct": 24,
+        "v2_accuracy": 0.4833,
+        "v2_correct": 29
+      },
+      "statistics": {
+        "bootstrap_ci_95": [
+          -0.0333,
+          0.2
+        ],
+        "mcnemar_exact_p_corrected": 0.1797,
+        "mcnemar_exact_p_raw": 0.2668,
+        "significant": false
+      },
+      "temporal_mechanism": {
+        "abstention_to_wrong_answer": 0,
+        "correct_abstentions_broken": 0,
+        "false_abstentions_recovered": 0,
+        "n": 15,
+        "new_abstentions_introduced": 0,
+        "unsupported_delta": 1,
+        "v1_abstentions": 0,
+        "v2_abstentions": 0
+      }
+    }
+  ]
+}

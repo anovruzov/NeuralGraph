@@ -1,0 +1,2350 @@
+{
+  "abstentions": {
+    "v1": 1,
+    "v2": 4
+  },
+  "by_category": {
+    "multi_hop": {
+      "delta": 0.2667,
+      "improved": [
+        753,
+        1018,
+        1315,
+        1466
+      ],
+      "n": 15,
+      "regressed": [],
+      "v1": 6,
+      "v2": 10
+    },
+    "open_domain": {
+      "delta": 0.1333,
+      "improved": [
+        898,
+        1265
+      ],
+      "n": 15,
+      "regressed": [],
+      "v1": 3,
+      "v2": 5
+    },
+    "single_hop": {
+      "delta": -0.1333,
+      "improved": [
+        409
+      ],
+      "n": 15,
+      "regressed": [
+        178,
+        270,
+        1398
+      ],
+      "v1": 5,
+      "v2": 3
+    },
+    "temporal": {
+      "delta": 0.0667,
+      "improved": [
+        928,
+        1067
+      ],
+      "n": 15,
+      "regressed": [
+        440
+      ],
+      "v1": 10,
+      "v2": 11
+    }
+  },
+  "class_counts": {
+    "REAL_GENERATION_CHANGE": 29,
+    "SAME_OUTPUT_JUDGE_FLIP": 3,
+    "SAME_OUTPUT_SAME_VERDICT": 27,
+    "SEMANTICALLY_EQUIVALENT_OUTPUT_JUDGE_FLIP": 1
+  },
+  "evidence_reordering": {
+    "changed_order": 60,
+    "changed_set": 0,
+    "rank1_median_new_position": 9.5
+  },
+  "item_metrics": {
+    "item_f1": {
+      "delta": -0.0137,
+      "v1": 0.5544,
+      "v2": 0.5407
+    },
+    "item_precision": {
+      "delta": -0.0044,
+      "v1": 0.6306,
+      "v2": 0.6261
+    },
+    "item_recall": {
+      "delta": -0.0292,
+      "v1": 0.5317,
+      "v2": 0.5025
+    }
+  },
+  "noise_corrected": {
+    "delta": 0.0833,
+    "judge_flip_rows": [
+      178,
+      898,
+      1018,
+      1398
+    ],
+    "real_improved": [
+      409,
+      753,
+      928,
+      1067,
+      1265,
+      1315,
+      1466
+    ],
+    "real_regressed": [
+      270,
+      440
+    ],
+    "v2_accuracy": 0.4833,
+    "v2_correct": 29
+  },
+  "paired_rows": 60,
+  "raw": {
+    "delta": 0.0833,
+    "improved": [
+      409,
+      753,
+      898,
+      928,
+      1018,
+      1067,
+      1265,
+      1315,
+      1466
+    ],
+    "regressed": [
+      178,
+      270,
+      440,
+      1398
+    ],
+    "v1_accuracy": 0.4,
+    "v1_correct": 24,
+    "v2_accuracy": 0.4833,
+    "v2_correct": 29
+  },
+  "rows": [
+    {
+      "category": "temporal",
+      "class": "SAME_OUTPUT_SAME_VERDICT",
+      "evidence_lenient": true,
+      "evidence_strict": true,
+      "gold_answer": "4 years",
+      "gold_item_count": 1,
+      "id": 11,
+      "question": "How long has Caroline had her current group of friends for?",
+      "root_cause": "no_change",
+      "v1_abstained": false,
+      "v1_correct": true,
+      "v1_item_f1": 1.0,
+      "v1_items": [
+        "4 years"
+      ],
+      "v1_unsupported": 0,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E1"
+      ],
+      "v2_correct": true,
+      "v2_item_f1": 1.0,
+      "v2_item_support": [
+        {
+          "item": "4 years",
+          "support": "supported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "4 years"
+      ],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "temporal",
+      "class": "REAL_GENERATION_CHANGE",
+      "evidence_lenient": true,
+      "evidence_strict": true,
+      "gold_answer": "2 July 2023",
+      "gold_item_count": 1,
+      "id": 17,
+      "question": "When did Melanie sign up for a pottery class?",
+      "root_cause": "changed_but_verdict_unmoved",
+      "v1_abstained": false,
+      "v1_correct": true,
+      "v1_item_f1": 1.0,
+      "v1_items": [
+        "2 July 2023"
+      ],
+      "v1_unsupported": 0,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E2"
+      ],
+      "v2_correct": true,
+      "v2_item_f1": 1.0,
+      "v2_item_support": [
+        {
+          "item": "2023-07-02",
+          "support": "supported_by_retrieved_evidence_tokenwise"
+        }
+      ],
+      "v2_items": [
+        "2023-07-02"
+      ],
+      "v2_unsupported": 1
+    },
+    {
+      "category": "single_hop",
+      "class": "REAL_GENERATION_CHANGE",
+      "evidence_lenient": false,
+      "evidence_strict": false,
+      "gold_answer": "\"Nothing is Impossible\", \"Charlotte's Web\"",
+      "gold_item_count": 2,
+      "id": 24,
+      "question": "What books has Melanie read?",
+      "root_cause": "under_listing_lost_a_gold_item",
+      "v1_abstained": false,
+      "v1_correct": false,
+      "v1_item_f1": 0.6667,
+      "v1_items": [
+        "Charlotte's Web"
+      ],
+      "v1_unsupported": 0,
+      "v2_abstained": false,
+      "v2_cited_evidence": [],
+      "v2_correct": false,
+      "v2_item_f1": 0.0,
+      "v2_item_support": [],
+      "v2_items": [],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "single_hop",
+      "class": "SAME_OUTPUT_SAME_VERDICT",
+      "evidence_lenient": true,
+      "evidence_strict": false,
+      "gold_answer": "Her mentors, family, and friends",
+      "gold_item_count": 3,
+      "id": 48,
+      "question": "Who supports Caroline when she has a negative experience?",
+      "root_cause": "no_change",
+      "v1_abstained": false,
+      "v1_correct": false,
+      "v1_item_f1": 0.0,
+      "v1_items": [
+        "Melanie"
+      ],
+      "v1_unsupported": 0,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E17",
+        "E26",
+        "E27",
+        "E28",
+        "E29",
+        "E30"
+      ],
+      "v2_correct": false,
+      "v2_item_f1": 0.0,
+      "v2_item_support": [
+        {
+          "item": "Melanie",
+          "support": "supported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "Melanie"
+      ],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "open_domain",
+      "class": "SAME_OUTPUT_SAME_VERDICT",
+      "evidence_lenient": false,
+      "evidence_strict": false,
+      "gold_answer": "Liberal",
+      "gold_item_count": 1,
+      "id": 51,
+      "question": "What would Caroline's political leaning likely be?",
+      "root_cause": "no_change",
+      "v1_abstained": false,
+      "v1_correct": false,
+      "v1_item_f1": 0.0,
+      "v1_items": [
+        "LGBTQ rights"
+      ],
+      "v1_unsupported": 0,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E8"
+      ],
+      "v2_correct": false,
+      "v2_item_f1": 0.0,
+      "v2_item_support": [
+        {
+          "item": "LGBTQ rights",
+          "support": "supported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "LGBTQ rights"
+      ],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "open_domain",
+      "class": "SAME_OUTPUT_SAME_VERDICT",
+      "evidence_lenient": false,
+      "evidence_strict": false,
+      "gold_answer": "No; she's in the process of adopting children.",
+      "gold_item_count": 1,
+      "id": 82,
+      "question": "Would Caroline want to move back to her home country soon?",
+      "root_cause": "no_change",
+      "v1_abstained": false,
+      "v1_correct": false,
+      "v1_item_f1": 0.0,
+      "v1_items": [],
+      "v1_unsupported": 0,
+      "v2_abstained": true,
+      "v2_cited_evidence": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6",
+        "E7",
+        "E8",
+        "E9",
+        "E10",
+        "E11",
+        "E12",
+        "E13",
+        "E14",
+        "E15"
+      ],
+      "v2_correct": false,
+      "v2_item_f1": 0.0,
+      "v2_item_support": [],
+      "v2_items": [],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "multi_hop",
+      "class": "REAL_GENERATION_CHANGE",
+      "evidence_lenient": false,
+      "evidence_strict": false,
+      "gold_answer": "many people wanting to create loving homes for children in need",
+      "gold_item_count": 1,
+      "id": 114,
+      "question": "What did Caroline see at the council meeting for adoption?",
+      "root_cause": "changed_but_verdict_unmoved",
+      "v1_abstained": false,
+      "v1_correct": true,
+      "v1_item_f1": 1.0,
+      "v1_items": [
+        "so many people wanted to create loving homes for children in need"
+      ],
+      "v1_unsupported": 0,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E10"
+      ],
+      "v2_correct": true,
+      "v2_item_f1": 1.0,
+      "v2_item_support": [
+        {
+          "item": "people wanted to create loving homes for children in need",
+          "support": "supported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "people wanted to create loving homes for children in need"
+      ],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "single_hop",
+      "class": "SAME_OUTPUT_JUDGE_FLIP",
+      "evidence_lenient": false,
+      "evidence_strict": false,
+      "gold_answer": "one-on-one metoring and training to dancers,  workshops and classes to local schools and centers",
+      "gold_item_count": 5,
+      "id": 178,
+      "question": "What does Jon's dance studio offer?",
+      "root_cause": "judge_nondeterminism",
+      "v1_abstained": false,
+      "v1_correct": true,
+      "v1_item_f1": 0.5714,
+      "v1_items": [
+        "dance classes and workshops",
+        "one-on-one mentoring and training"
+      ],
+      "v1_unsupported": 0,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E12",
+        "E21"
+      ],
+      "v2_correct": false,
+      "v2_item_f1": 0.5714,
+      "v2_item_support": [
+        {
+          "item": "dance classes and workshops",
+          "support": "supported_by_retrieved_evidence"
+        },
+        {
+          "item": "one-on-one mentoring and training",
+          "support": "supported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "dance classes and workshops",
+        "one-on-one mentoring and training"
+      ],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "open_domain",
+      "class": "SAME_OUTPUT_SAME_VERDICT",
+      "evidence_lenient": false,
+      "evidence_strict": false,
+      "gold_answer": "Middle-class or wealthy",
+      "gold_item_count": 1,
+      "id": 242,
+      "question": "What might John's financial status be?",
+      "root_cause": "no_change",
+      "v1_abstained": false,
+      "v1_correct": false,
+      "v1_item_f1": 0.0,
+      "v1_items": [
+        "had some money problems and had to rely on outside help from out auntie"
+      ],
+      "v1_unsupported": 0,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E5"
+      ],
+      "v2_correct": false,
+      "v2_item_f1": 0.0,
+      "v2_item_support": [
+        {
+          "item": "had some money problems and had to rely on outside help from out auntie",
+          "support": "supported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "had some money problems and had to rely on outside help from out auntie"
+      ],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "open_domain",
+      "class": "SAME_OUTPUT_SAME_VERDICT",
+      "evidence_lenient": false,
+      "evidence_strict": false,
+      "gold_answer": "Yes",
+      "gold_item_count": 1,
+      "id": 248,
+      "question": "Would John be considered a patriotic person?",
+      "root_cause": "no_change",
+      "v1_abstained": false,
+      "v1_correct": true,
+      "v1_item_f1": 1.0,
+      "v1_items": [
+        "yes"
+      ],
+      "v1_unsupported": 1,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E6",
+        "E8",
+        "E9",
+        "E14"
+      ],
+      "v2_correct": true,
+      "v2_item_f1": 1.0,
+      "v2_item_support": [
+        {
+          "item": "Yes",
+          "support": "unsupported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "Yes"
+      ],
+      "v2_unsupported": 1
+    },
+    {
+      "category": "single_hop",
+      "class": "REAL_GENERATION_CHANGE",
+      "evidence_lenient": true,
+      "evidence_strict": false,
+      "gold_answer": "Live music event, violin concert",
+      "gold_item_count": 2,
+      "id": 270,
+      "question": "What music events has John attended?",
+      "root_cause": "under_listing_lost_a_gold_item",
+      "v1_abstained": false,
+      "v1_correct": true,
+      "v1_item_f1": 1.0,
+      "v1_items": [
+        "a live music event",
+        "a violin concert"
+      ],
+      "v1_unsupported": 0,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E10"
+      ],
+      "v2_correct": false,
+      "v2_item_f1": 0.6667,
+      "v2_item_support": [
+        {
+          "item": "a live music event",
+          "support": "supported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "a live music event"
+      ],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "single_hop",
+      "class": "REAL_GENERATION_CHANGE",
+      "evidence_lenient": false,
+      "evidence_strict": false,
+      "gold_answer": "Coco, Shadow",
+      "gold_item_count": 2,
+      "id": 294,
+      "question": "What are Maria's dogs' names?",
+      "root_cause": "under_listing_lost_a_gold_item",
+      "v1_abstained": false,
+      "v1_correct": false,
+      "v1_item_f1": 0.5,
+      "v1_items": [
+        "Coco",
+        "Kyle"
+      ],
+      "v1_unsupported": 0,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E25"
+      ],
+      "v2_correct": false,
+      "v2_item_f1": 0.6667,
+      "v2_item_support": [
+        {
+          "item": "Coco",
+          "support": "supported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "Coco"
+      ],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "multi_hop",
+      "class": "REAL_GENERATION_CHANGE",
+      "evidence_lenient": false,
+      "evidence_strict": false,
+      "gold_answer": "Teaching them to respect and appreciate those who served",
+      "gold_item_count": 2,
+      "id": 370,
+      "question": "What does John believe is important for children regarding veterans?",
+      "root_cause": "under_listing_lost_a_gold_item",
+      "v1_abstained": false,
+      "v1_correct": false,
+      "v1_item_f1": 0.0,
+      "v1_items": [
+        "investing in our future generations is key",
+        "giving them the right tools for success"
+      ],
+      "v1_unsupported": 0,
+      "v2_abstained": false,
+      "v2_cited_evidence": [],
+      "v2_correct": false,
+      "v2_item_f1": 0.0,
+      "v2_item_support": [],
+      "v2_items": [],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "multi_hop",
+      "class": "SAME_OUTPUT_SAME_VERDICT",
+      "evidence_lenient": true,
+      "evidence_strict": true,
+      "gold_answer": "Camping",
+      "gold_item_count": 1,
+      "id": 378,
+      "question": "What activity did John and Max enjoy together last summer?",
+      "root_cause": "no_change",
+      "v1_abstained": false,
+      "v1_correct": true,
+      "v1_item_f1": 1.0,
+      "v1_items": [
+        "camping"
+      ],
+      "v1_unsupported": 0,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E13"
+      ],
+      "v2_correct": true,
+      "v2_item_f1": 1.0,
+      "v2_item_support": [
+        {
+          "item": "camping",
+          "support": "supported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "camping"
+      ],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "temporal",
+      "class": "REAL_GENERATION_CHANGE",
+      "evidence_lenient": false,
+      "evidence_strict": false,
+      "gold_answer": "2019",
+      "gold_item_count": 1,
+      "id": 394,
+      "question": "When did Nate get his first two turtles?",
+      "root_cause": "changed_but_verdict_unmoved",
+      "v1_abstained": false,
+      "v1_correct": false,
+      "v1_item_f1": 0.0,
+      "v1_items": [
+        "10 November 2022"
+      ],
+      "v1_unsupported": 0,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E1"
+      ],
+      "v2_correct": false,
+      "v2_item_f1": 0.0,
+      "v2_item_support": [
+        {
+          "item": "2:01 pm on 23 January, 2022",
+          "support": "supported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "2:01 pm on 23 January, 2022"
+      ],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "single_hop",
+      "class": "REAL_GENERATION_CHANGE",
+      "evidence_lenient": false,
+      "evidence_strict": false,
+      "gold_answer": "first screenplay on drama and romance, third screenplay on loss identity and connection",
+      "gold_item_count": 4,
+      "id": 409,
+      "question": "Which of Joanna's screenplay were rejected from production companies?",
+      "root_cause": "genuine_improvement",
+      "v1_abstained": false,
+      "v1_correct": false,
+      "v1_item_f1": 0.0,
+      "v1_items": [
+        "a major company",
+        "some"
+      ],
+      "v1_unsupported": 0,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E6",
+        "E11"
+      ],
+      "v2_correct": true,
+      "v2_item_f1": 0.6667,
+      "v2_item_support": [
+        {
+          "item": "the screenplay Joanna submitted in May 2022",
+          "support": "supported_by_retrieved_evidence_tokenwise"
+        },
+        {
+          "item": "the screenplay Joanna submitted in October 2022",
+          "support": "supported_by_retrieved_evidence_tokenwise"
+        }
+      ],
+      "v2_items": [
+        "the screenplay Joanna submitted in May 2022",
+        "the screenplay Joanna submitted in October 2022"
+      ],
+      "v2_unsupported": 2
+    },
+    {
+      "category": "temporal",
+      "class": "REAL_GENERATION_CHANGE",
+      "evidence_lenient": false,
+      "evidence_strict": false,
+      "gold_answer": "The week before 14September, 2022",
+      "gold_item_count": 2,
+      "id": 426,
+      "question": "When did Joanna's laptop crash?",
+      "root_cause": "changed_but_verdict_unmoved",
+      "v1_abstained": false,
+      "v1_correct": true,
+      "v1_item_f1": 0.6667,
+      "v1_items": [
+        "5 September 2022"
+      ],
+      "v1_unsupported": 0,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E11"
+      ],
+      "v2_correct": true,
+      "v2_item_f1": 0.6667,
+      "v2_item_support": [
+        {
+          "item": "week of 5 September 2022",
+          "support": "supported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "week of 5 September 2022"
+      ],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "single_hop",
+      "class": "REAL_GENERATION_CHANGE",
+      "evidence_lenient": false,
+      "evidence_strict": false,
+      "gold_answer": "\"Little Women\", \"Lord of the Rings\"",
+      "gold_item_count": 2,
+      "id": 428,
+      "question": "What movies have both Joanna and Nate seen?",
+      "root_cause": "under_listing_lost_a_gold_item",
+      "v1_abstained": false,
+      "v1_correct": false,
+      "v1_item_f1": 0.6667,
+      "v1_items": [
+        "The Lord of the Rings Trilogy"
+      ],
+      "v1_unsupported": 1,
+      "v2_abstained": false,
+      "v2_cited_evidence": [],
+      "v2_correct": false,
+      "v2_item_f1": 0.0,
+      "v2_item_support": [],
+      "v2_items": [],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "temporal",
+      "class": "REAL_GENERATION_CHANGE",
+      "evidence_lenient": false,
+      "evidence_strict": false,
+      "gold_answer": "The Sunday before 25October, 2022.",
+      "gold_item_count": 2,
+      "id": 440,
+      "question": "When was Joanna's second movie script shown on the big screens?",
+      "root_cause": "genuine_regression_answer_changed",
+      "v1_abstained": false,
+      "v1_correct": true,
+      "v1_item_f1": 0.6667,
+      "v1_items": [
+        "23 October 2022"
+      ],
+      "v1_unsupported": 0,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E7",
+        "E10"
+      ],
+      "v2_correct": false,
+      "v2_item_f1": 0.5,
+      "v2_item_support": [
+        {
+          "item": "4 June 2022",
+          "support": "supported_by_retrieved_evidence"
+        },
+        {
+          "item": "23 October 2022",
+          "support": "supported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "4 June 2022",
+        "23 October 2022"
+      ],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "open_domain",
+      "class": "SAME_OUTPUT_SAME_VERDICT",
+      "evidence_lenient": false,
+      "evidence_strict": false,
+      "gold_answer": "No; because both of them faced setbacks in their career",
+      "gold_item_count": 1,
+      "id": 470,
+      "question": "Was the first half of September 2022 a good month career-wise for Nate and Joanna? Answer yes or no.",
+      "root_cause": "no_change",
+      "v1_abstained": false,
+      "v1_correct": false,
+      "v1_item_f1": 0.0,
+      "v1_items": [
+        "no"
+      ],
+      "v1_unsupported": 0,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E19",
+        "E27"
+      ],
+      "v2_correct": false,
+      "v2_item_f1": 0.0,
+      "v2_item_support": [
+        {
+          "item": "no",
+          "support": "supported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "no"
+      ],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "multi_hop",
+      "class": "REAL_GENERATION_CHANGE",
+      "evidence_lenient": true,
+      "evidence_strict": false,
+      "gold_answer": "stuffed animal dog named Tilly",
+      "gold_item_count": 1,
+      "id": 554,
+      "question": "What helps Joanna stay focused and brings her joy?",
+      "root_cause": "changed_but_verdict_unmoved",
+      "v1_abstained": false,
+      "v1_correct": false,
+      "v1_item_f1": 0.6667,
+      "v1_items": [
+        "Tilly",
+        "writing"
+      ],
+      "v1_unsupported": 0,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E11",
+        "E12"
+      ],
+      "v2_correct": false,
+      "v2_item_f1": 0.6667,
+      "v2_item_support": [
+        {
+          "item": "Tilly",
+          "support": "supported_by_retrieved_evidence"
+        },
+        {
+          "item": "stuffed animals",
+          "support": "supported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "Tilly",
+        "stuffed animals"
+      ],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "temporal",
+      "class": "SAME_OUTPUT_SAME_VERDICT",
+      "evidence_lenient": true,
+      "evidence_strict": true,
+      "gold_answer": "September, 2023",
+      "gold_item_count": 2,
+      "id": 616,
+      "question": "What month did Tim plan on going to Universal Studios?",
+      "root_cause": "no_change",
+      "v1_abstained": false,
+      "v1_correct": true,
+      "v1_item_f1": 0.6667,
+      "v1_items": [
+        "September 2023"
+      ],
+      "v1_unsupported": 0,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E5",
+        "E6"
+      ],
+      "v2_correct": true,
+      "v2_item_f1": 0.6667,
+      "v2_item_support": [
+        {
+          "item": "September 2023",
+          "support": "supported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "September 2023"
+      ],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "open_domain",
+      "class": "SAME_OUTPUT_SAME_VERDICT",
+      "evidence_lenient": false,
+      "evidence_strict": false,
+      "gold_answer": "California or Florida",
+      "gold_item_count": 1,
+      "id": 617,
+      "question": "Which US states might Tim be in during September 2023 based on his plans of visiting Universal Studios?",
+      "root_cause": "no_change",
+      "v1_abstained": false,
+      "v1_correct": false,
+      "v1_item_f1": 1.0,
+      "v1_items": [
+        "California"
+      ],
+      "v1_unsupported": 1,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E3",
+        "E4"
+      ],
+      "v2_correct": false,
+      "v2_item_f1": 1.0,
+      "v2_item_support": [
+        {
+          "item": "California",
+          "support": "unsupported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "California"
+      ],
+      "v2_unsupported": 1
+    },
+    {
+      "category": "single_hop",
+      "class": "SAME_OUTPUT_SAME_VERDICT",
+      "evidence_lenient": false,
+      "evidence_strict": false,
+      "gold_answer": "LeBron James",
+      "gold_item_count": 1,
+      "id": 621,
+      "question": "Who is Tim and John's favorite basketball player?",
+      "root_cause": "no_change",
+      "v1_abstained": true,
+      "v1_correct": false,
+      "v1_item_f1": 0.0,
+      "v1_items": [],
+      "v1_unsupported": 0,
+      "v2_abstained": true,
+      "v2_cited_evidence": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6",
+        "E7",
+        "E8",
+        "E9",
+        "E10",
+        "E11",
+        "E12",
+        "E13",
+        "E14",
+        "E15"
+      ],
+      "v2_correct": false,
+      "v2_item_f1": 0.0,
+      "v2_item_support": [],
+      "v2_items": [],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "open_domain",
+      "class": "SAME_OUTPUT_SAME_VERDICT",
+      "evidence_lenient": false,
+      "evidence_strict": false,
+      "gold_answer": "Sprinting, long-distance running, and boxing.",
+      "gold_item_count": 3,
+      "id": 638,
+      "question": "What other exercises can help John with his basketball performance?",
+      "root_cause": "no_change",
+      "v1_abstained": false,
+      "v1_correct": false,
+      "v1_item_f1": 0.0,
+      "v1_items": [
+        "strength training",
+        "yoga"
+      ],
+      "v1_unsupported": 0,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E2",
+        "E10"
+      ],
+      "v2_correct": false,
+      "v2_item_f1": 0.0,
+      "v2_item_support": [
+        {
+          "item": "strength training",
+          "support": "supported_by_retrieved_evidence"
+        },
+        {
+          "item": "yoga",
+          "support": "supported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "strength training",
+        "yoga"
+      ],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "multi_hop",
+      "class": "REAL_GENERATION_CHANGE",
+      "evidence_lenient": true,
+      "evidence_strict": true,
+      "gold_answer": "brave, selfless, down-to-earth attitude",
+      "gold_item_count": 3,
+      "id": 753,
+      "question": "Why does John like Aragorn from Lord of the Rings?",
+      "root_cause": "under_listing_lost_a_gold_item",
+      "v1_abstained": false,
+      "v1_correct": false,
+      "v1_item_f1": 0.3333,
+      "v1_items": [
+        "he grows so much throughout the story",
+        "he's brave, selfless, down-to-earth",
+        "he never gives up and always stands up for justice"
+      ],
+      "v1_unsupported": 1,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E14",
+        "E13"
+      ],
+      "v2_correct": true,
+      "v2_item_f1": 0.4,
+      "v2_item_support": [
+        {
+          "item": "He never gives up and always stands up for justice.",
+          "support": "supported_by_retrieved_evidence"
+        },
+        {
+          "item": "He is brave, selfless, and down-to-earth.",
+          "support": "supported_by_retrieved_evidence_tokenwise"
+        }
+      ],
+      "v2_items": [
+        "He never gives up and always stands up for justice.",
+        "He is brave, selfless, and down-to-earth."
+      ],
+      "v2_unsupported": 1
+    },
+    {
+      "category": "temporal",
+      "class": "SAME_OUTPUT_SAME_VERDICT",
+      "evidence_lenient": true,
+      "evidence_strict": true,
+      "gold_answer": "June 2023",
+      "gold_item_count": 1,
+      "id": 776,
+      "question": "When did Audrey move to a new place?",
+      "root_cause": "no_change",
+      "v1_abstained": false,
+      "v1_correct": true,
+      "v1_item_f1": 1.0,
+      "v1_items": [
+        "26 June, 2023"
+      ],
+      "v1_unsupported": 0,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E4"
+      ],
+      "v2_correct": true,
+      "v2_item_f1": 1.0,
+      "v2_item_support": [
+        {
+          "item": "26 June 2023",
+          "support": "supported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "26 June 2023"
+      ],
+      "v2_unsupported": 1
+    },
+    {
+      "category": "single_hop",
+      "class": "REAL_GENERATION_CHANGE",
+      "evidence_lenient": true,
+      "evidence_strict": true,
+      "gold_answer": "Hats",
+      "gold_item_count": 1,
+      "id": 791,
+      "question": "What is something that Audrey often dresses up her dogs with?",
+      "root_cause": "changed_but_verdict_unmoved",
+      "v1_abstained": false,
+      "v1_correct": false,
+      "v1_item_f1": 0.0,
+      "v1_items": [
+        "collars",
+        "tags",
+        "toys"
+      ],
+      "v1_unsupported": 0,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E1"
+      ],
+      "v2_correct": false,
+      "v2_item_f1": 0.0,
+      "v2_item_support": [
+        {
+          "item": "collars and tags",
+          "support": "supported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "collars and tags"
+      ],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "open_domain",
+      "class": "REAL_GENERATION_CHANGE",
+      "evidence_lenient": false,
+      "evidence_strict": false,
+      "gold_answer": "Install a bird feeder outside where he can see the birds without going outdoors.",
+      "gold_item_count": 1,
+      "id": 815,
+      "question": "What is something that Andrew could do to make birdwatching hobby to fit in his city schedule?",
+      "root_cause": "unsupported_item_introduced",
+      "v1_abstained": false,
+      "v1_correct": false,
+      "v1_item_f1": 0.0,
+      "v1_items": [
+        "read some books about our ecological systems",
+        "find a new open space to hike nearby"
+      ],
+      "v1_unsupported": 1,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E4"
+      ],
+      "v2_correct": false,
+      "v2_item_f1": 0.0,
+      "v2_item_support": [
+        {
+          "item": "find a new open space to hike nearby",
+          "support": "unsupported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "find a new open space to hike nearby"
+      ],
+      "v2_unsupported": 1
+    },
+    {
+      "category": "temporal",
+      "class": "SAME_OUTPUT_SAME_VERDICT",
+      "evidence_lenient": true,
+      "evidence_strict": true,
+      "gold_answer": "sushi",
+      "gold_item_count": 1,
+      "id": 821,
+      "question": "What did Audrey eat for dinner on October 24, 2023?",
+      "root_cause": "no_change",
+      "v1_abstained": false,
+      "v1_correct": true,
+      "v1_item_f1": 1.0,
+      "v1_items": [
+        "sushi"
+      ],
+      "v1_unsupported": 0,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E21",
+        "E22"
+      ],
+      "v2_correct": true,
+      "v2_item_f1": 1.0,
+      "v2_item_support": [
+        {
+          "item": "sushi",
+          "support": "supported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "sushi"
+      ],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "open_domain",
+      "class": "REAL_GENERATION_CHANGE",
+      "evidence_lenient": false,
+      "evidence_strict": false,
+      "gold_answer": "Connecticut.",
+      "gold_item_count": 1,
+      "id": 893,
+      "question": "In which state is the shelter from which James adopted the puppy?",
+      "root_cause": "gate_introduced_abstention",
+      "v1_abstained": false,
+      "v1_correct": false,
+      "v1_item_f1": 0.0,
+      "v1_items": [
+        "Stamford"
+      ],
+      "v1_unsupported": 0,
+      "v2_abstained": true,
+      "v2_cited_evidence": [
+        "E8"
+      ],
+      "v2_correct": false,
+      "v2_item_f1": 0.0,
+      "v2_item_support": [],
+      "v2_items": [],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "open_domain",
+      "class": "SAME_OUTPUT_JUDGE_FLIP",
+      "evidence_lenient": false,
+      "evidence_strict": false,
+      "gold_answer": "Presumably not",
+      "gold_item_count": 1,
+      "id": 898,
+      "question": "Did James have a girlfriend during April 2022?",
+      "root_cause": "judge_nondeterminism",
+      "v1_abstained": false,
+      "v1_correct": false,
+      "v1_item_f1": 0.0,
+      "v1_items": [],
+      "v1_unsupported": 0,
+      "v2_abstained": true,
+      "v2_cited_evidence": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6",
+        "E7",
+        "E8",
+        "E9",
+        "E10",
+        "E11",
+        "E12",
+        "E13",
+        "E14",
+        "E15"
+      ],
+      "v2_correct": true,
+      "v2_item_f1": 0.0,
+      "v2_item_support": [],
+      "v2_items": [],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "single_hop",
+      "class": "REAL_GENERATION_CHANGE",
+      "evidence_lenient": false,
+      "evidence_strict": false,
+      "gold_answer": "quit his IT Job, secured his dream job, aspires to become an eSports competition organizer",
+      "gold_item_count": 3,
+      "id": 924,
+      "question": "What happened to John's job situation in 2022?",
+      "root_cause": "changed_but_verdict_unmoved",
+      "v1_abstained": false,
+      "v1_correct": false,
+      "v1_item_f1": 0.6667,
+      "v1_items": [
+        "left his IT job after 3 years",
+        "got the offer and was ecstatic. Can't wait to start his journey!",
+        "finally got my dream job!"
+      ],
+      "v1_unsupported": 2,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E7",
+        "E9",
+        "E12"
+      ],
+      "v2_correct": false,
+      "v2_item_f1": 0.6667,
+      "v2_item_support": [
+        {
+          "item": "got his dream job",
+          "support": "supported_by_retrieved_evidence_tokenwise"
+        },
+        {
+          "item": "left his IT job after 3 years",
+          "support": "supported_by_retrieved_evidence_tokenwise"
+        },
+        {
+          "item": "started a new startup",
+          "support": "supported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "got his dream job",
+        "left his IT job after 3 years",
+        "started a new startup"
+      ],
+      "v2_unsupported": 2
+    },
+    {
+      "category": "temporal",
+      "class": "REAL_GENERATION_CHANGE",
+      "evidence_lenient": true,
+      "evidence_strict": false,
+      "gold_answer": "August 9, 2022",
+      "gold_item_count": 2,
+      "id": 928,
+      "question": "When did James take his 3 dogs to the beach?",
+      "root_cause": "genuine_improvement",
+      "v1_abstained": false,
+      "v1_correct": false,
+      "v1_item_f1": 0.6667,
+      "v1_items": [
+        "10 August 2022"
+      ],
+      "v1_unsupported": 1,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E7"
+      ],
+      "v2_correct": true,
+      "v2_item_f1": 0.6667,
+      "v2_item_support": [
+        {
+          "item": "9 August 2022",
+          "support": "supported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "9 August 2022"
+      ],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "temporal",
+      "class": "REAL_GENERATION_CHANGE",
+      "evidence_lenient": true,
+      "evidence_strict": false,
+      "gold_answer": "November 5-6, 2022",
+      "gold_item_count": 2,
+      "id": 952,
+      "question": "When did John work with a game developer on a project?",
+      "root_cause": "under_listing_lost_a_gold_item",
+      "v1_abstained": false,
+      "v1_correct": false,
+      "v1_item_f1": 1.0,
+      "v1_items": [
+        "8:57 pm on 7 November, 2022",
+        "9:20 am on 3 October, 2022"
+      ],
+      "v1_unsupported": 0,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E14"
+      ],
+      "v2_correct": false,
+      "v2_item_f1": 0.6667,
+      "v2_item_support": [
+        {
+          "item": "8:57 pm on 7 November, 2022",
+          "support": "supported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "8:57 pm on 7 November, 2022"
+      ],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "multi_hop",
+      "class": "SEMANTICALLY_EQUIVALENT_OUTPUT_JUDGE_FLIP",
+      "evidence_lenient": true,
+      "evidence_strict": false,
+      "gold_answer": "making his first mobile game",
+      "gold_item_count": 1,
+      "id": 1018,
+      "question": "What career milestone did John achieve recently in September 2022?",
+      "root_cause": "judge_nondeterminism",
+      "v1_abstained": false,
+      "v1_correct": false,
+      "v1_item_f1": 1.0,
+      "v1_items": [
+        "making my first mobile game"
+      ],
+      "v1_unsupported": 0,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E9"
+      ],
+      "v2_correct": true,
+      "v2_item_f1": 1.0,
+      "v2_item_support": [
+        {
+          "item": "making my first mobile game!",
+          "support": "supported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "making my first mobile game!"
+      ],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "temporal",
+      "class": "SAME_OUTPUT_SAME_VERDICT",
+      "evidence_lenient": true,
+      "evidence_strict": false,
+      "gold_answer": "Wednesday before 9 February, 2023",
+      "gold_item_count": 2,
+      "id": 1065,
+      "question": "When did Jolene have a mini-retreat to reflect on her career?",
+      "root_cause": "no_change",
+      "v1_abstained": false,
+      "v1_correct": true,
+      "v1_item_f1": 0.6667,
+      "v1_items": [
+        "8 February 2023"
+      ],
+      "v1_unsupported": 0,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E1"
+      ],
+      "v2_correct": true,
+      "v2_item_f1": 0.6667,
+      "v2_item_support": [
+        {
+          "item": "8 February 2023",
+          "support": "supported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "8 February 2023"
+      ],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "temporal",
+      "class": "REAL_GENERATION_CHANGE",
+      "evidence_lenient": false,
+      "evidence_strict": false,
+      "gold_answer": "in summer 2022",
+      "gold_item_count": 1,
+      "id": 1067,
+      "question": "When was the last photo of Deborah and Karlie taken?",
+      "root_cause": "genuine_improvement",
+      "v1_abstained": false,
+      "v1_correct": false,
+      "v1_item_f1": 1.0,
+      "v1_items": [
+        "last summer"
+      ],
+      "v1_unsupported": 0,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E4"
+      ],
+      "v2_correct": true,
+      "v2_item_f1": 1.0,
+      "v2_item_support": [
+        {
+          "item": "last summer when we hiked",
+          "support": "supported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "last summer when we hiked"
+      ],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "temporal",
+      "class": "REAL_GENERATION_CHANGE",
+      "evidence_lenient": true,
+      "evidence_strict": true,
+      "gold_answer": "May 2023",
+      "gold_item_count": 1,
+      "id": 1081,
+      "question": "When did Jolene finish her robotics project?",
+      "root_cause": "changed_but_verdict_unmoved",
+      "v1_abstained": false,
+      "v1_correct": false,
+      "v1_item_f1": 1.0,
+      "v1_items": [
+        "1 February, 2023"
+      ],
+      "v1_unsupported": 0,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E7"
+      ],
+      "v2_correct": false,
+      "v2_item_f1": 1.0,
+      "v2_item_support": [
+        {
+          "item": "9 February, 2023",
+          "support": "supported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "9 February, 2023"
+      ],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "temporal",
+      "class": "SAME_OUTPUT_SAME_VERDICT",
+      "evidence_lenient": true,
+      "evidence_strict": false,
+      "gold_answer": "on 5 June, 2023",
+      "gold_item_count": 2,
+      "id": 1083,
+      "question": "When did Jolene do yoga at Talkeetna?",
+      "root_cause": "no_change",
+      "v1_abstained": false,
+      "v1_correct": true,
+      "v1_item_f1": 0.6667,
+      "v1_items": [
+        "5 June 2023"
+      ],
+      "v1_unsupported": 0,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E9"
+      ],
+      "v2_correct": true,
+      "v2_item_f1": 0.6667,
+      "v2_item_support": [
+        {
+          "item": "5 June 2023",
+          "support": "supported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "5 June 2023"
+      ],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "open_domain",
+      "class": "REAL_GENERATION_CHANGE",
+      "evidence_lenient": false,
+      "evidence_strict": false,
+      "gold_answer": "Exploding Kittens",
+      "gold_item_count": 1,
+      "id": 1111,
+      "question": "What card game is Deborah talking about?",
+      "root_cause": "changed_but_verdict_unmoved",
+      "v1_abstained": false,
+      "v1_correct": false,
+      "v1_item_f1": 0.0,
+      "v1_items": [
+        "a card game about cats"
+      ],
+      "v1_unsupported": 0,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E15"
+      ],
+      "v2_correct": false,
+      "v2_item_f1": 0.0,
+      "v2_item_support": [
+        {
+          "item": "This is a card game about cats, where you take cards one by one from a deck, and then you can attack your opponent with them.",
+          "support": "supported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "This is a card game about cats, where you take cards one by one from a deck, and then you can attack your opponent with them."
+      ],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "multi_hop",
+      "class": "SAME_OUTPUT_SAME_VERDICT",
+      "evidence_lenient": false,
+      "evidence_strict": false,
+      "gold_answer": "To nurture herself and embrace fresh starts",
+      "gold_item_count": 2,
+      "id": 1203,
+      "question": "What was the new plant Jolene got used as a reminder for on 30 August, 2023?",
+      "root_cause": "no_change",
+      "v1_abstained": false,
+      "v1_correct": true,
+      "v1_item_f1": 0.6667,
+      "v1_items": [
+        "nurture herself and embrace fresh starts"
+      ],
+      "v1_unsupported": 1,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E24"
+      ],
+      "v2_correct": true,
+      "v2_item_f1": 0.6667,
+      "v2_item_support": [
+        {
+          "item": "nurture herself and embrace fresh starts",
+          "support": "unsupported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "nurture herself and embrace fresh starts"
+      ],
+      "v2_unsupported": 1
+    },
+    {
+      "category": "multi_hop",
+      "class": "SAME_OUTPUT_SAME_VERDICT",
+      "evidence_lenient": false,
+      "evidence_strict": false,
+      "gold_answer": "a card game about cats",
+      "gold_item_count": 1,
+      "id": 1215,
+      "question": "What did Jolene recently play that she described to Deb?",
+      "root_cause": "no_change",
+      "v1_abstained": false,
+      "v1_correct": false,
+      "v1_item_f1": 1.0,
+      "v1_items": [
+        "video games"
+      ],
+      "v1_unsupported": 0,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E5"
+      ],
+      "v2_correct": false,
+      "v2_item_f1": 1.0,
+      "v2_item_support": [
+        {
+          "item": "video games",
+          "support": "supported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "video games"
+      ],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "multi_hop",
+      "class": "SAME_OUTPUT_SAME_VERDICT",
+      "evidence_lenient": true,
+      "evidence_strict": false,
+      "gold_answer": "Pineapple cakes",
+      "gold_item_count": 1,
+      "id": 1222,
+      "question": "What food did Deborah's mom make for her on birthdays?",
+      "root_cause": "no_change",
+      "v1_abstained": false,
+      "v1_correct": true,
+      "v1_item_f1": 1.0,
+      "v1_items": [
+        "pineapple birthday cakes"
+      ],
+      "v1_unsupported": 0,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E12",
+        "E13"
+      ],
+      "v2_correct": true,
+      "v2_item_f1": 1.0,
+      "v2_item_support": [
+        {
+          "item": "pineapple birthday cakes",
+          "support": "supported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "pineapple birthday cakes"
+      ],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "open_domain",
+      "class": "REAL_GENERATION_CHANGE",
+      "evidence_lenient": false,
+      "evidence_strict": false,
+      "gold_answer": "Nature and outdoor activities seem to be significant stress relievers and sources of joy for both Evan and Sam. These activities likely contribute positively to their mental well-being.",
+      "gold_item_count": 4,
+      "id": 1265,
+      "question": "What role does nature and the outdoors play in Evan and Sam's mental well-being?",
+      "root_cause": "genuine_improvement",
+      "v1_abstained": false,
+      "v1_correct": false,
+      "v1_item_f1": 0.5714,
+      "v1_items": [
+        "provides a peaceful environment",
+        "offers a way to bond with nature",
+        "serves as a source of inspiration for art"
+      ],
+      "v1_unsupported": 3,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E12",
+        "E11",
+        "E24",
+        "E27",
+        "E29"
+      ],
+      "v2_correct": true,
+      "v2_item_f1": 0.4444,
+      "v2_item_support": [
+        {
+          "item": "a calming and fun way to bond with nature",
+          "support": "supported_by_retrieved_evidence_tokenwise"
+        },
+        {
+          "item": "a great way to relieve stress and be creative",
+          "support": "supported_by_retrieved_evidence"
+        },
+        {
+          "item": "a way to clear their heads",
+          "support": "unsupported_by_retrieved_evidence"
+        },
+        {
+          "item": "a way to appreciate something each day",
+          "support": "supported_by_retrieved_evidence_tokenwise"
+        },
+        {
+          "item": "a way to find peace",
+          "support": "supported_by_retrieved_evidence_tokenwise"
+        }
+      ],
+      "v2_items": [
+        "a calming and fun way to bond with nature",
+        "a great way to relieve stress and be creative",
+        "a way to clear their heads",
+        "a way to appreciate something each day",
+        "a way to find peace"
+      ],
+      "v2_unsupported": 4
+    },
+    {
+      "category": "open_domain",
+      "class": "SAME_OUTPUT_SAME_VERDICT",
+      "evidence_lenient": false,
+      "evidence_strict": false,
+      "gold_answer": "Evan and Sam use creative activities, like painting and writing, as therapeutic tools to express themselves and cope with stress.",
+      "gold_item_count": 6,
+      "id": 1273,
+      "question": "How do Evan and Sam use creative outlets to cope with life's challenges?",
+      "root_cause": "no_change",
+      "v1_abstained": false,
+      "v1_correct": false,
+      "v1_item_f1": 0.6667,
+      "v1_items": [
+        "painting",
+        "writing in journal",
+        "creative writing"
+      ],
+      "v1_unsupported": 1,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E3",
+        "E12",
+        "E13",
+        "E16"
+      ],
+      "v2_correct": false,
+      "v2_item_f1": 0.6667,
+      "v2_item_support": [
+        {
+          "item": "painting",
+          "support": "supported_by_retrieved_evidence"
+        },
+        {
+          "item": "writing in a journal",
+          "support": "supported_by_retrieved_evidence_tokenwise"
+        },
+        {
+          "item": "creative writing",
+          "support": "supported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "painting",
+        "writing in a journal",
+        "creative writing"
+      ],
+      "v2_unsupported": 1
+    },
+    {
+      "category": "temporal",
+      "class": "SAME_OUTPUT_SAME_VERDICT",
+      "evidence_lenient": true,
+      "evidence_strict": false,
+      "gold_answer": "Saturday after 11 September, 2023.",
+      "gold_item_count": 2,
+      "id": 1280,
+      "question": "When did Evan and Sam decide to paint together?",
+      "root_cause": "no_change",
+      "v1_abstained": false,
+      "v1_correct": true,
+      "v1_item_f1": 0.6667,
+      "v1_items": [
+        "23 September 2023"
+      ],
+      "v1_unsupported": 0,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E5",
+        "E6"
+      ],
+      "v2_correct": true,
+      "v2_item_f1": 0.6667,
+      "v2_item_support": [
+        {
+          "item": "23 September 2023",
+          "support": "supported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "23 September 2023"
+      ],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "single_hop",
+      "class": "SAME_OUTPUT_SAME_VERDICT",
+      "evidence_lenient": false,
+      "evidence_strict": false,
+      "gold_answer": "Helping lost tourists and experiencing unexpected adventures in the city.",
+      "gold_item_count": 2,
+      "id": 1282,
+      "question": "What recurring adventure does Evan have with strangers?",
+      "root_cause": "no_change",
+      "v1_abstained": false,
+      "v1_correct": false,
+      "v1_item_f1": 0.6667,
+      "v1_items": [
+        "helping lost tourists"
+      ],
+      "v1_unsupported": 1,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E6",
+        "E12"
+      ],
+      "v2_correct": false,
+      "v2_item_f1": 0.6667,
+      "v2_item_support": [
+        {
+          "item": "helping lost tourists",
+          "support": "supported_by_retrieved_evidence_tokenwise"
+        }
+      ],
+      "v2_items": [
+        "helping lost tourists"
+      ],
+      "v2_unsupported": 1
+    },
+    {
+      "category": "single_hop",
+      "class": "SAME_OUTPUT_SAME_VERDICT",
+      "evidence_lenient": true,
+      "evidence_strict": true,
+      "gold_answer": "gastritis",
+      "gold_item_count": 1,
+      "id": 1291,
+      "question": "Which ailment does Sam have to face due to his weight?",
+      "root_cause": "no_change",
+      "v1_abstained": false,
+      "v1_correct": true,
+      "v1_item_f1": 1.0,
+      "v1_items": [
+        "gastritis"
+      ],
+      "v1_unsupported": 0,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E19"
+      ],
+      "v2_correct": true,
+      "v2_item_f1": 1.0,
+      "v2_item_support": [
+        {
+          "item": "gastritis",
+          "support": "supported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "gastritis"
+      ],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "open_domain",
+      "class": "SAME_OUTPUT_SAME_VERDICT",
+      "evidence_lenient": false,
+      "evidence_strict": false,
+      "gold_answer": "Christmas",
+      "gold_item_count": 1,
+      "id": 1298,
+      "question": "Which major holiday season conincides with Evan's wedding?",
+      "root_cause": "no_change",
+      "v1_abstained": false,
+      "v1_correct": true,
+      "v1_item_f1": 1.0,
+      "v1_items": [
+        "Christmas"
+      ],
+      "v1_unsupported": 1,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E8",
+        "E9"
+      ],
+      "v2_correct": true,
+      "v2_item_f1": 1.0,
+      "v2_item_support": [
+        {
+          "item": "Christmas",
+          "support": "unsupported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "Christmas"
+      ],
+      "v2_unsupported": 1
+    },
+    {
+      "category": "single_hop",
+      "class": "REAL_GENERATION_CHANGE",
+      "evidence_lenient": false,
+      "evidence_strict": false,
+      "gold_answer": "Unhealthy snacks, sweets, yoga, places with beautiful views",
+      "gold_item_count": 4,
+      "id": 1309,
+      "question": "What is a stress reliever for Sam?",
+      "root_cause": "under_listing_lost_a_gold_item",
+      "v1_abstained": false,
+      "v1_correct": false,
+      "v1_item_f1": 0.25,
+      "v1_items": [
+        "running in the mornings",
+        "car rides",
+        "yoga",
+        "painting"
+      ],
+      "v1_unsupported": 0,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E5",
+        "E13",
+        "E15"
+      ],
+      "v2_correct": false,
+      "v2_item_f1": 0.0,
+      "v2_item_support": [
+        {
+          "item": "painting",
+          "support": "supported_by_retrieved_evidence"
+        },
+        {
+          "item": "running",
+          "support": "supported_by_retrieved_evidence"
+        },
+        {
+          "item": "car rides",
+          "support": "supported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "painting",
+        "running",
+        "car rides"
+      ],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "multi_hop",
+      "class": "REAL_GENERATION_CHANGE",
+      "evidence_lenient": false,
+      "evidence_strict": false,
+      "gold_answer": "keep trying new things until something sparks excitement",
+      "gold_item_count": 1,
+      "id": 1313,
+      "question": "What advice did Evan give Sam about finding a passion?",
+      "root_cause": "changed_but_verdict_unmoved",
+      "v1_abstained": false,
+      "v1_correct": false,
+      "v1_item_f1": 0.0,
+      "v1_items": [
+        "set some goals",
+        "find an exercise that you enjoy",
+        "get a buddy for extra fun and accountability"
+      ],
+      "v1_unsupported": 0,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E2",
+        "E3",
+        "E6",
+        "E7",
+        "E12"
+      ],
+      "v2_correct": false,
+      "v2_item_f1": 0.0,
+      "v2_item_support": [
+        {
+          "item": "painting",
+          "support": "supported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "painting"
+      ],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "multi_hop",
+      "class": "REAL_GENERATION_CHANGE",
+      "evidence_lenient": true,
+      "evidence_strict": false,
+      "gold_answer": "fresh air, peacefulness, cozy cabin surrounded by mountains and forests",
+      "gold_item_count": 4,
+      "id": 1315,
+      "question": "What did Evan find relaxing about his road trip to Jasper?",
+      "root_cause": "under_listing_lost_a_gold_item",
+      "v1_abstained": false,
+      "v1_correct": false,
+      "v1_item_f1": 0.75,
+      "v1_items": [
+        "the fresh air",
+        "the peacefulness",
+        "the scenery",
+        "a cozy cabin surrounded by mountains and forests"
+      ],
+      "v1_unsupported": 2,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E2",
+        "E3"
+      ],
+      "v2_correct": true,
+      "v2_item_f1": 0.8571,
+      "v2_item_support": [
+        {
+          "item": "fresh air",
+          "support": "supported_by_retrieved_evidence"
+        },
+        {
+          "item": "peacefulness",
+          "support": "supported_by_retrieved_evidence"
+        },
+        {
+          "item": "cozy cabin surrounded by mountains and forests",
+          "support": "supported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "fresh air",
+        "peacefulness",
+        "cozy cabin surrounded by mountains and forests"
+      ],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "multi_hop",
+      "class": "SAME_OUTPUT_SAME_VERDICT",
+      "evidence_lenient": true,
+      "evidence_strict": true,
+      "gold_answer": "'Bring it on Home'",
+      "gold_item_count": 1,
+      "id": 1362,
+      "question": "What is the motto of Evan's family?",
+      "root_cause": "no_change",
+      "v1_abstained": false,
+      "v1_correct": true,
+      "v1_item_f1": 1.0,
+      "v1_items": [
+        "Bring it on Home"
+      ],
+      "v1_unsupported": 0,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E9"
+      ],
+      "v2_correct": true,
+      "v2_item_f1": 1.0,
+      "v2_item_support": [
+        {
+          "item": "Bring it on Home",
+          "support": "supported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "Bring it on Home"
+      ],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "single_hop",
+      "class": "SAME_OUTPUT_JUDGE_FLIP",
+      "evidence_lenient": false,
+      "evidence_strict": false,
+      "gold_answer": "because it relaxes and calms him",
+      "gold_item_count": 2,
+      "id": 1398,
+      "question": "Why does Dave regularly visit parks?",
+      "root_cause": "judge_nondeterminism",
+      "v1_abstained": false,
+      "v1_correct": true,
+      "v1_item_f1": 0.0,
+      "v1_items": [
+        "to relax"
+      ],
+      "v1_unsupported": 0,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E6"
+      ],
+      "v2_correct": false,
+      "v2_item_f1": 0.0,
+      "v2_item_support": [
+        {
+          "item": "to relax",
+          "support": "supported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "to relax"
+      ],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "single_hop",
+      "class": "SAME_OUTPUT_SAME_VERDICT",
+      "evidence_lenient": false,
+      "evidence_strict": false,
+      "gold_answer": "two times",
+      "gold_item_count": 1,
+      "id": 1401,
+      "question": "How many times has Calvin had to deal with insurance paperwork?",
+      "root_cause": "no_change",
+      "v1_abstained": false,
+      "v1_correct": true,
+      "v1_item_f1": 1.0,
+      "v1_items": [
+        "two"
+      ],
+      "v1_unsupported": 1,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E4",
+        "E8",
+        "E9"
+      ],
+      "v2_correct": true,
+      "v2_item_f1": 1.0,
+      "v2_item_support": [
+        {
+          "item": "two",
+          "support": "unsupported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "two"
+      ],
+      "v2_unsupported": 1
+    },
+    {
+      "category": "open_domain",
+      "class": "REAL_GENERATION_CHANGE",
+      "evidence_lenient": true,
+      "evidence_strict": false,
+      "gold_answer": "Yes; he want's to grow his fanbase",
+      "gold_item_count": 2,
+      "id": 1404,
+      "question": "Does Calvin wish to become more popular?",
+      "root_cause": "changed_but_verdict_unmoved",
+      "v1_abstained": false,
+      "v1_correct": true,
+      "v1_item_f1": 0.6667,
+      "v1_items": [
+        "expand my brand worldwide and grow my fanbase"
+      ],
+      "v1_unsupported": 0,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E3",
+        "E6"
+      ],
+      "v2_correct": true,
+      "v2_item_f1": 0.6667,
+      "v2_item_support": [
+        {
+          "item": "yes",
+          "support": "supported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "yes"
+      ],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "multi_hop",
+      "class": "REAL_GENERATION_CHANGE",
+      "evidence_lenient": true,
+      "evidence_strict": true,
+      "gold_answer": "Fixing up things",
+      "gold_item_count": 1,
+      "id": 1466,
+      "question": "What gives Dave a sense of achievement and purpose?",
+      "root_cause": "genuine_improvement",
+      "v1_abstained": false,
+      "v1_correct": false,
+      "v1_item_f1": 0.2857,
+      "v1_items": [
+        "fixing up things",
+        "transforming something that's not working into something that runs smoothly",
+        "seeing the hard work pay off",
+        "seeing something you create become a reality",
+        "helping people keep their cars in good condition",
+        "opening this shop"
+      ],
+      "v1_unsupported": 2,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E7",
+        "E10",
+        "E12",
+        "E14"
+      ],
+      "v2_correct": true,
+      "v2_item_f1": 1.0,
+      "v2_item_support": [
+        {
+          "item": "fixing stuff up",
+          "support": "supported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "fixing stuff up"
+      ],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "multi_hop",
+      "class": "SAME_OUTPUT_SAME_VERDICT",
+      "evidence_lenient": true,
+      "evidence_strict": true,
+      "gold_answer": "Boston",
+      "gold_item_count": 1,
+      "id": 1491,
+      "question": "What did Calvin book a flight ticket for on 1st September 2023?",
+      "root_cause": "no_change",
+      "v1_abstained": false,
+      "v1_correct": true,
+      "v1_item_f1": 1.0,
+      "v1_items": [
+        "Boston"
+      ],
+      "v1_unsupported": 0,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E1"
+      ],
+      "v2_correct": true,
+      "v2_item_f1": 1.0,
+      "v2_item_support": [
+        {
+          "item": "Boston",
+          "support": "supported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "Boston"
+      ],
+      "v2_unsupported": 0
+    },
+    {
+      "category": "multi_hop",
+      "class": "REAL_GENERATION_CHANGE",
+      "evidence_lenient": false,
+      "evidence_strict": false,
+      "gold_answer": "Takes it one day at a time",
+      "gold_item_count": 1,
+      "id": 1513,
+      "question": "How does Calvin balance his job and personal life?",
+      "root_cause": "unsupported_item_introduced",
+      "v1_abstained": false,
+      "v1_correct": false,
+      "v1_item_f1": 0.0,
+      "v1_items": [
+        "working in the studio",
+        "having a room for relaxation with a TV"
+      ],
+      "v1_unsupported": 2,
+      "v2_abstained": false,
+      "v2_cited_evidence": [
+        "E25",
+        "E26"
+      ],
+      "v2_correct": false,
+      "v2_item_f1": 0.0,
+      "v2_item_support": [
+        {
+          "item": "Calvin only works in the studio and has a separate room for relaxation with a TV.",
+          "support": "unsupported_by_retrieved_evidence"
+        }
+      ],
+      "v2_items": [
+        "Calvin only works in the studio and has a separate room for relaxation with a TV."
+      ],
+      "v2_unsupported": 1
+    }
+  ],
+  "statistics": {
+    "bootstrap_ci_95": [
+      -0.0333,
+      0.2
+    ],
+    "mcnemar_exact_p_corrected": 0.1797,
+    "mcnemar_exact_p_raw": 0.2668,
+    "significant": false
+  },
+  "temporal_mechanism": {
+    "abstention_to_wrong_answer": 0,
+    "correct_abstentions_broken": 0,
+    "false_abstentions_recovered": 0,
+    "n": 15,
+    "new_abstentions_introduced": 0,
+    "unsupported_delta": 1,
+    "v1_abstentions": 0,
+    "v2_abstentions": 0
+  },
+  "unsupported_items": {
+    "v1": 22,
+    "v2": 20
+  }
+}

@@ -1,0 +1,92 @@
+{
+  "corpus_weighted_accuracy": 0.4309,
+  "judged_accuracy": 0.4,
+  "judged_correct": 24,
+  "n": 60,
+  "operational_error_rate": 0.0,
+  "scope": "VALIDATION",
+  "summary": {
+    "abstention_rate": 0.0167,
+    "answer_type_mismatch_rate": 0.0167,
+    "branch": "locomo-six-fix-loop",
+    "by_category": {
+      "multi_hop": {
+        "evidence_partial": 14,
+        "headroom": 8,
+        "item_f1": 0.6468,
+        "item_recall": 0.7056,
+        "judged_accuracy": 0.4,
+        "n": 15,
+        "unsupported_item_rate": 0.2111
+      },
+      "open_domain": {
+        "evidence_partial": 4,
+        "headroom": 1,
+        "item_f1": 0.327,
+        "item_recall": 0.3,
+        "judged_accuracy": 0.2,
+        "n": 15,
+        "unsupported_item_rate": 0.3222
+      },
+      "single_hop": {
+        "evidence_partial": 9,
+        "headroom": 4,
+        "item_f1": 0.4659,
+        "item_recall": 0.4211,
+        "judged_accuracy": 0.3333,
+        "n": 15,
+        "unsupported_item_rate": 0.2444
+      },
+      "temporal": {
+        "evidence_partial": 14,
+        "headroom": 4,
+        "item_f1": 0.7778,
+        "item_recall": 0.7,
+        "judged_accuracy": 0.6667,
+        "n": 15,
+        "unsupported_item_rate": 0.0667
+      }
+    },
+    "commit": "673d4235caada4ab1a4e3df85d10d1a90534ddf1",
+    "config": {
+      "answerer_model": "qwen2.5:7b-instruct",
+      "concurrency": 4,
+      "config_hash": "cd9098dfbdd0ad06",
+      "judge_model": "gpt-4o",
+      "max_usd": 5.0,
+      "prompt_hash": "5e923dc613887b80",
+      "prompt_version": "v1-baseline",
+      "temperature": 0.0,
+      "top_k": "recorded"
+    },
+    "corpus_digest": "916ca308d5e41cba8437a463b97f9c688b51638f8644ed39b59c7878d8e0eb8e",
+    "eval_set": "validation",
+    "eval_set_digest": "8077c40ba2e7cff2",
+    "evidence_availability": {
+      "lenient": {
+        "n": 25,
+        "rate": 0.4167
+      },
+      "partial": {
+        "n": 41,
+        "rate": 0.6833
+      },
+      "strict": {
+        "n": 13,
+        "rate": 0.2167
+      }
+    },
+    "exact_set_match": 0.3333,
+    "hard_ceiling_partial": 0.6833,
+    "incomplete_list_rate": 0.4167,
+    "item_f1": 0.5544,
+    "item_precision": 0.6306,
+    "item_recall": 0.5317,
+    "judged_accuracy": 0.4,
+    "n": 60,
+    "operational_error_rate": 0.0,
+    "questions_needed_for_80": 48,
+    "questions_short_of_80_at_ceiling": 7,
+    "unsupported_item_rate": 0.2111
+  }
+}
