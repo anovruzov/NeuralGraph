@@ -1,0 +1,7 @@
+{
+  "changed_rows": [],
+  "n_changed": 0,
+  "reason": "Retrieval gate not passed: Candidate E recovered +2 net against a >=5 requirement (replacement variant was -22). Per the standing rule, answer generation runs only after retrieval passes, so no row was regenerated and no answer or verdict was recomputed.",
+  "paid_calls": 0,
+  "local_generation_calls": 0
+}

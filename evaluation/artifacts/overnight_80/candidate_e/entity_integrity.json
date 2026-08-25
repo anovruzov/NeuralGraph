@@ -1,0 +1,31 @@
+{
+  "conversations": 10,
+  "cross_conversation_entity_links": 0,
+  "cross_conversation_leakage": false,
+  "distinct_entities_per_conversation": {
+    "1": 228,
+    "10": 267,
+    "2": 192,
+    "3": 221,
+    "4": 266,
+    "5": 306,
+    "6": 238,
+    "7": 305,
+    "8": 275,
+    "9": 255
+  },
+  "entities_per_turn": {
+    "max": 11,
+    "mean": 2.41,
+    "median": 2.0
+  },
+  "first_person_scope": "resolved to the turn's own speaker, within its conversation only",
+  "index_digest": "993cf7e3749b8f00",
+  "notes": "ENTITY means the string is mentioned in the turn. Entity tables are built per conversation, so an entity can never link turns across conversations. Verified: 0 crossing links.",
+  "profile_facts_used": false,
+  "resonance_wave_enabled": false,
+  "same_speaker_proximity_used_as_entity": false,
+  "turns_indexed": 5882,
+  "turns_with_image_captions": 1226,
+  "turns_with_original_timestamp": 5882
+}

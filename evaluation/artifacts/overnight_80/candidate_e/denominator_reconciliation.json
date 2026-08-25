@@ -1,0 +1,36 @@
+{
+  "scope": "frozen validation eval set",
+  "n": 60,
+  "eval_set_digest": "8077c40ba2e7cff2",
+  "measure": "partial",
+  "evidence_present": 41,
+  "evidence_present_correct": 20,
+  "evidence_present_wrong": 21,
+  "evidence_absent": 19,
+  "evidence_absent_correct": 4,
+  "evidence_absent_wrong": 15,
+  "retrieval_miss_ids": [
+    51,
+    242,
+    394,
+    409,
+    470,
+    617,
+    621,
+    638,
+    815,
+    893,
+    898,
+    924,
+    1111,
+    1215,
+    1309
+  ],
+  "answered_without_visible_evidence_ids": [
+    248,
+    1298,
+    1398,
+    1401
+  ],
+  "note": "'15/36' is FAILURE-scoped (evidence-absent AND wrong). '41/60=68.3%' is QUESTION-scoped (evidence-present, any verdict). They reconcile as 19 evidence-absent = 4 correct + 15 wrong. 68.3% is therefore a heuristic floor, not a hard ceiling: 4 questions were answered correctly with no lexically detectable evidence."
+}

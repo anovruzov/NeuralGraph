@@ -1,0 +1,8 @@
+{
+  "run": false,
+  "reason": "Not run. The 120-row paired evaluation is gated behind retrieval acceptance, which Candidate E did not achieve. Running it would have spent local generation and paid judging on a retrieval configuration already measured as worse than the baseline.",
+  "validation_rows_available": 60,
+  "locked_rows_available": 60,
+  "locked_test_inspected": false,
+  "paid_calls": 0
+}
