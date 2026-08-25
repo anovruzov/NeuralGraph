@@ -140,6 +140,121 @@ def _load(name: str) -> dict[str, Any]:
 
 
 # --------------------------------------------------------------------------
+# Figure 1 — the fixture
+# --------------------------------------------------------------------------
+
+def fixture_shape(seed: int = 20260813) -> list[dict[str, Any]]:
+    """The fixture's structure, read from the fixture itself.
+
+    Only structural fields are taken -- node, slot, lineage root, failure
+    domain, confidence -- never the opaque symbols, which are seeded random and
+    would make the figure seed-dependent (and would print the answer the
+    experiment is built to keep unprinted). `test_figures.py` asserts this
+    shape is identical across seeds, so the schematic cannot quietly become a
+    picture of one run.
+    """
+    from .fixture import generate_fixture
+
+    fixture = generate_fixture(seed, "schematic")
+    shape = []
+    for node_id in sorted(fixture.records_by_node):
+        for record in fixture.records_by_node[node_id]:
+            shape.append({
+                "node": node_id,
+                "slot": record.slot,
+                "root": record.lineage_root_ids[0],
+                "domain": record.failure_domains[0],
+                "confidence": record.confidence,
+            })
+    return shape
+
+
+def figure_fixture(shape: list[dict[str, Any]]) -> str:
+    """Why a third copy of a premise is not a third chance of answering it.
+
+    Drawn from the fixture rather than by hand, because the point it has to
+    make is a structural one -- B and C share a lineage root, D does not -- and
+    a hand-drawn figure can drift from the code while still looking right.
+    """
+    width, height = 760.0, 400.0
+    box_w, box_h = 132.0, 96.0
+    gap = 26.0
+    left = 40.0
+    top = 156.0
+
+    body = [
+        _text(28, 34, "Three holders of the same premise, two ways to lose it",
+              size=15, weight="600"),
+        _text(28, 54, "the four-node fixture: a capability needs one 'left' and one 'right', "
+                      "and no node holds both", size=10.5, fill=MUTED),
+    ]
+
+    # The capability bar: what the collective must reconstruct, drawn above the
+    # nodes so the arrows read upward into it.
+    bar_y = 92.0
+    body.append(
+        f'<rect x="{_num(left, 1)}" y="{_num(bar_y, 1)}" '
+        f'width="{_num(width - 2 * left, 1)}" height="34" rx="4" fill="#f3f6f9" '
+        f'stroke="{GRID}"/>'
+    )
+    body.append(_text(width / 2, bar_y + 22, "capability  =  left  ⊕  right      "
+                      "(answer held by no single node)", size=11.5, anchor="middle"))
+
+    for index, entry in enumerate(shape):
+        x = left + (box_w + gap) * index
+        independent = entry["root"] not in {
+            other["root"] for other in shape[:index]
+        } and entry["slot"] in {other["slot"] for other in shape[:index]}
+        shared = any(
+            other["root"] == entry["root"] and other["node"] != entry["node"]
+            for other in shape
+        )
+        colour = WARN if shared else ACCENT
+        body.append(
+            f'<rect x="{_num(x, 1)}" y="{_num(top, 1)}" width="{_num(box_w, 1)}" '
+            f'height="{_num(box_h, 1)}" rx="5" fill="#ffffff" stroke="{colour}" '
+            f'stroke-width="1.4"/>'
+        )
+        body.append(_text(x + 12, top + 22, entry["node"], size=11.5, weight="600"))
+        body.append(_text(x + 12, top + 42, f"slot: {entry['slot']}", size=10.5, fill=INK))
+        body.append(_text(x + 12, top + 60, f"lineage root: {entry['root']}", size=10,
+                          fill=colour))
+        body.append(_text(x + 12, top + 76, f"failure domain: {entry['domain']}", size=10,
+                          fill=colour))
+        body.append(_text(x + box_w - 12, top + 22, _num(entry["confidence"]), size=10.5,
+                          anchor="end", fill=MUTED))
+        body.append(
+            f'<line x1="{_num(x + box_w / 2, 1)}" y1="{_num(top, 1)}" '
+            f'x2="{_num(x + box_w / 2, 1)}" y2="{_num(bar_y + 34, 1)}" stroke="{colour}" '
+            f'stroke-width="1.2" opacity="0.6"/>'
+        )
+        if independent:
+            body.append(_text(x + box_w / 2, top + box_h + 20,
+                              "independent path", size=10, anchor="middle", fill=ACCENT,
+                              weight="600"))
+
+    shared_nodes = [
+        entry["node"] for entry in shape
+        if sum(1 for other in shape if other["root"] == entry["root"]) > 1
+    ]
+    brace_y = top + box_h + 40
+    body.append(_text(28, brace_y + 14,
+                      f"{' and '.join(shared_nodes)} hold the same premise under the same lineage "
+                      "root and the same failure domain.", size=10.5, fill=WARN))
+    body.append(_text(28, brace_y + 30,
+                      "They look like two chances of answering. They are one: whatever invalidates "
+                      "that root takes both, and no local signal reports it.",
+                      size=10.5, fill=WARN))
+    body.append(_text(28, brace_y + 52,
+                      "Only the node on an independent root adds a second failure domain — which "
+                      "is what raises the minimum cut from 1 to 2,", size=10.5, fill=ACCENT))
+    body.append(_text(28, brace_y + 68,
+                      "and the min cut, not the replica count, is what predicts survival "
+                      "(figure 2, C5).", size=10.5, fill=ACCENT))
+    return _document(width, height, "Figure 1: the four-node fixture", body)
+
+
+# --------------------------------------------------------------------------
 # Figure 2 — survival matrix
 # --------------------------------------------------------------------------
 
@@ -502,6 +617,7 @@ def render_all() -> dict[str, str]:
     benchmark = _load("benchmark_seed20260813.json")
     scale = _load("scale_seed20260813.json")
     return {
+        "fig1_fixture.svg": figure_fixture(fixture_shape()),
         "fig2_survival_matrix.svg": figure_survival_matrix(sweep),
         "fig3_pareto_survival_vs_storage.svg": figure_pareto(sweep),
         "fig4_scale_invariance.svg": figure_scale(scale),

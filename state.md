@@ -41,7 +41,7 @@ python3 -m NeuralGraph.coordination.figures --check
 ```
 
 Setup is `pip install -r requirements.txt`. Suite as of this writing:
-**273 passed, 1 skipped, 2946 subtests**, identical under `PYTHONHASHSEED`
+**277 passed, 1 skipped, 2960 subtests**, identical under `PYTHONHASHSEED`
 1, 7, 4242 and 99991.
 
 `pytest` previously failed to collect anything (5 errors, every file). The repo
@@ -234,8 +234,10 @@ coordination work:
    and the threats-to-validity answers. Figures 2-5 are now **rendered and
    pinned** (`python3 -m NeuralGraph.coordination.figures`, SVG, byte-stable,
    regenerated and compared by `test_figures.py`). Figure 3 (survival vs
-   storage) is the one that carries it. Figure 1, the A/B/C/D fixture
-   schematic, is still to be drawn by hand and is the only figure left.
+   storage) is the one that carries it. Figure 1 is generated from
+   `fixture.py` too, rather than hand-drawn, so the schematic cannot drift
+   from the fixture it describes; it prints no premise value, which is pinned
+   as a test. All five figures are done.
 
    Figure 5 was respecified: confidence vs coverage collapses onto three
    coverage values, so it is now a strip plot of confidence split by outcome.

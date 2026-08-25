@@ -31,7 +31,7 @@ are far cheaper than reconstructing the same facts from 5,000 lines.
 
 ```bash
 pip install -r requirements.txt
-pytest                                                        # 273 passed, 1 skipped
+pytest                                                        # 277 passed, 1 skipped
 
 python3 -m NeuralGraph.coordination.benchmark --sweep 30 --format markdown
 python3 -m NeuralGraph.coordination.scale --format markdown

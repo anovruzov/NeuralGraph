@@ -62,6 +62,40 @@ class DeclaredOrderTests(unittest.TestCase):
         self.assertEqual(rates, sorted(rates))
 
 
+class FixtureSchematicTests(unittest.TestCase):
+    """Figure 1 is drawn from the fixture, so it must not drift from it."""
+
+    def test_shape_is_identical_across_seeds(self):
+        """Only structure is drawn; the seeded symbols must not reach it."""
+        baseline = figures.fixture_shape(20260813)
+        for seed in (1, 7, 4242, 99991):
+            with self.subTest(seed=seed):
+                self.assertEqual(figures.fixture_shape(seed), baseline)
+
+    def test_shape_records_every_node(self):
+        shape = figures.fixture_shape()
+        self.assertEqual([entry["node"] for entry in shape],
+                         ["node-a", "node-b", "node-c", "node-d"])
+
+    def test_the_apparent_replica_shares_its_root_and_domain(self):
+        """The whole point of the figure: C is not a third chance."""
+        by_node = {entry["node"]: entry for entry in figures.fixture_shape()}
+        self.assertEqual(by_node["node-c"]["root"], by_node["node-b"]["root"])
+        self.assertEqual(by_node["node-c"]["domain"], by_node["node-b"]["domain"])
+        self.assertNotEqual(by_node["node-d"]["root"], by_node["node-b"]["root"])
+        self.assertNotEqual(by_node["node-d"]["domain"], by_node["node-b"]["domain"])
+
+    def test_no_opaque_symbol_reaches_the_figure(self):
+        """Printing a premise value in a figure would leak the held-out answer."""
+        from NeuralGraph.coordination.fixture import generate_fixture
+
+        svg = figures.figure_fixture(figures.fixture_shape())
+        fixture = generate_fixture(20260813, "schematic")
+        for symbol in (fixture.left_symbol, fixture.right_symbol, fixture.expected_answer):
+            with self.subTest(symbol=symbol):
+                self.assertNotIn(symbol, svg)
+
+
 class DeterminismTests(unittest.TestCase):
     def test_rendering_twice_is_byte_identical(self):
         self.assertEqual(figures.render_all(), figures.render_all())
