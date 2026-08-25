@@ -1,6 +1,6 @@
 # Mycelic / NeuralGraph / Tesseract State
 
-Last updated: 2026-08-21 (session 2)
+Last updated: 2026-08-25 (session 3)
 Branch: `claude/mycelic-gate-0-recovery-tjl82x`
 Base: `origin/tesseract-coordination-v1` (`8258d13`)
 Working tree: clean. Everything below was executed, not inferred.
@@ -37,10 +37,11 @@ python3 -m NeuralGraph.coordination.benchmark --sweep 30 --format markdown
 python3 -m NeuralGraph.coordination.benchmark --output results.json
 python3 -m NeuralGraph.coordination.experiment --output experiment.json
 python3 -m NeuralGraph.coordination.scale --format markdown
+python3 -m NeuralGraph.coordination.figures --check
 ```
 
 Setup is `pip install -r requirements.txt`. Suite as of this writing:
-**185 passed, 1 skipped, 347 subtests**, identical under `PYTHONHASHSEED`
+**273 passed, 1 skipped, 2946 subtests**, identical under `PYTHONHASHSEED`
 1, 7, 4242 and 99991.
 
 `pytest` previously failed to collect anything (5 errors, every file). The repo
@@ -230,7 +231,15 @@ coordination work:
    is 96.9%. Diagnosis only -- **nothing fixed**, and the fixes land in
    Nurman's files.
 2. **Paper.** `docs/PAPER.md` has the structure, the claim-to-evidence table,
-   and the threats-to-validity answers. Figure 3 (survival vs storage) is the
-   one that carries it.
+   and the threats-to-validity answers. Figures 2-5 are now **rendered and
+   pinned** (`python3 -m NeuralGraph.coordination.figures`, SVG, byte-stable,
+   regenerated and compared by `test_figures.py`). Figure 3 (survival vs
+   storage) is the one that carries it. Figure 1, the A/B/C/D fixture
+   schematic, is still to be drawn by hand and is the only figure left.
+
+   Figure 5 was respecified: confidence vs coverage collapses onto three
+   coverage values, so it is now a strip plot of confidence split by outcome.
+   Same numbers, and the claim reads directly off it -- the highest confidence
+   in the figure is reported by cells that lost the capability.
 3. **Transport**, if the architecture is ever deployed rather than simulated.
    NATS/JetStream remains design intent.

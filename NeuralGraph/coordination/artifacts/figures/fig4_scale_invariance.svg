@@ -1,0 +1,159 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="658.0" height="584.0" viewBox="0 0 658.0 584.0" font-family="'Source Sans Pro','Helvetica Neue',Helvetica,Arial,sans-serif">
+<title>Figure 4: scale invariance</title>
+<rect width="658.0" height="584.0" fill="#ffffff"/>
+<text x="28.0" y="34.0" font-size="15.0" text-anchor="start" fill="#1b1b1f" font-weight="600">Every verdict is invariant in scale</text>
+<text x="28.0" y="54.0" font-size="10.5" text-anchor="start" fill="#6b7280" font-weight="normal">one mark per run: filled = capability survived the intervention, hollow = lost</text>
+<text x="283.0" y="106.0" font-size="10.0" text-anchor="middle" fill="#6b7280" font-weight="normal">K=2</text>
+<text x="283.0" y="120.0" font-size="9.5" text-anchor="middle" fill="#6b7280" font-weight="normal">H=2</text>
+<text x="313.0" y="106.0" font-size="10.0" text-anchor="middle" fill="#6b7280" font-weight="normal">K=2</text>
+<text x="313.0" y="120.0" font-size="9.5" text-anchor="middle" fill="#6b7280" font-weight="normal">H=3</text>
+<text x="343.0" y="106.0" font-size="10.0" text-anchor="middle" fill="#6b7280" font-weight="normal">K=3</text>
+<text x="343.0" y="120.0" font-size="9.5" text-anchor="middle" fill="#6b7280" font-weight="normal">H=2</text>
+<text x="373.0" y="106.0" font-size="10.0" text-anchor="middle" fill="#6b7280" font-weight="normal">K=3</text>
+<text x="373.0" y="120.0" font-size="9.5" text-anchor="middle" fill="#6b7280" font-weight="normal">H=3</text>
+<text x="403.0" y="106.0" font-size="10.0" text-anchor="middle" fill="#6b7280" font-weight="normal">K=5</text>
+<text x="403.0" y="120.0" font-size="9.5" text-anchor="middle" fill="#6b7280" font-weight="normal">H=2</text>
+<text x="433.0" y="106.0" font-size="10.0" text-anchor="middle" fill="#6b7280" font-weight="normal">K=5</text>
+<text x="433.0" y="120.0" font-size="9.5" text-anchor="middle" fill="#6b7280" font-weight="normal">H=3</text>
+<text x="463.0" y="106.0" font-size="10.0" text-anchor="middle" fill="#6b7280" font-weight="normal">K=8</text>
+<text x="463.0" y="120.0" font-size="9.5" text-anchor="middle" fill="#6b7280" font-weight="normal">H=2</text>
+<text x="493.0" y="106.0" font-size="10.0" text-anchor="middle" fill="#6b7280" font-weight="normal">K=8</text>
+<text x="493.0" y="120.0" font-size="9.5" text-anchor="middle" fill="#6b7280" font-weight="normal">H=3</text>
+<text x="222.0" y="151.0" font-size="10.0" text-anchor="end" fill="#1b1b1f" font-weight="normal">lineage-aware · authorization revocation</text>
+<text x="256.0" y="151.0" font-size="10.0" text-anchor="end" fill="#b3441c" font-weight="600">I1</text>
+<circle cx="283.0" cy="147.0" r="7" fill="#ffffff" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="313.0" cy="147.0" r="7" fill="#ffffff" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="343.0" cy="147.0" r="7" fill="#ffffff" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="373.0" cy="147.0" r="7" fill="#ffffff" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="403.0" cy="147.0" r="7" fill="#ffffff" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="433.0" cy="147.0" r="7" fill="#ffffff" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="463.0" cy="147.0" r="7" fill="#ffffff" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="493.0" cy="147.0" r="7" fill="#ffffff" stroke="#b3441c" stroke-width="1.3"/>
+<text x="522.0" y="151.0" font-size="10.5" text-anchor="start" fill="#1b1b1f" font-weight="600">0.00</text>
+<text x="222.0" y="181.0" font-size="10.0" text-anchor="end" fill="#1b1b1f" font-weight="normal">lineage-aware · lineage root failure</text>
+<text x="256.0" y="181.0" font-size="10.0" text-anchor="end" fill="#b3441c" font-weight="600">I1</text>
+<circle cx="283.0" cy="177.0" r="7" fill="#ffffff" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="313.0" cy="177.0" r="7" fill="#ffffff" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="343.0" cy="177.0" r="7" fill="#ffffff" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="373.0" cy="177.0" r="7" fill="#ffffff" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="403.0" cy="177.0" r="7" fill="#ffffff" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="433.0" cy="177.0" r="7" fill="#ffffff" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="463.0" cy="177.0" r="7" fill="#ffffff" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="493.0" cy="177.0" r="7" fill="#ffffff" stroke="#b3441c" stroke-width="1.3"/>
+<text x="522.0" y="181.0" font-size="10.5" text-anchor="start" fill="#1b1b1f" font-weight="600">0.00</text>
+<text x="222.0" y="211.0" font-size="10.0" text-anchor="end" fill="#1b1b1f" font-weight="normal">lineage-aware · node failure</text>
+<text x="256.0" y="211.0" font-size="10.0" text-anchor="end" fill="#b3441c" font-weight="600">I1</text>
+<circle cx="283.0" cy="207.0" r="7" fill="#ffffff" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="313.0" cy="207.0" r="7" fill="#ffffff" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="343.0" cy="207.0" r="7" fill="#ffffff" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="373.0" cy="207.0" r="7" fill="#ffffff" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="403.0" cy="207.0" r="7" fill="#ffffff" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="433.0" cy="207.0" r="7" fill="#ffffff" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="463.0" cy="207.0" r="7" fill="#ffffff" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="493.0" cy="207.0" r="7" fill="#ffffff" stroke="#b3441c" stroke-width="1.3"/>
+<text x="522.0" y="211.0" font-size="10.5" text-anchor="start" fill="#1b1b1f" font-weight="600">0.00</text>
+<text x="222.0" y="241.0" font-size="10.0" text-anchor="end" fill="#1b1b1f" font-weight="normal">lineage-aware · authorization revocation</text>
+<text x="256.0" y="241.0" font-size="10.0" text-anchor="end" fill="#1f5fa8" font-weight="600">I2</text>
+<circle cx="283.0" cy="237.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="313.0" cy="237.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="343.0" cy="237.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="373.0" cy="237.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="403.0" cy="237.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="433.0" cy="237.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="463.0" cy="237.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="493.0" cy="237.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<text x="522.0" y="241.0" font-size="10.5" text-anchor="start" fill="#1b1b1f" font-weight="600">1.00</text>
+<text x="222.0" y="271.0" font-size="10.0" text-anchor="end" fill="#1b1b1f" font-weight="normal">lineage-aware · lineage root failure</text>
+<text x="256.0" y="271.0" font-size="10.0" text-anchor="end" fill="#1f5fa8" font-weight="600">I2</text>
+<circle cx="283.0" cy="267.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="313.0" cy="267.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="343.0" cy="267.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="373.0" cy="267.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="403.0" cy="267.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="433.0" cy="267.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="463.0" cy="267.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="493.0" cy="267.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<text x="522.0" y="271.0" font-size="10.5" text-anchor="start" fill="#1b1b1f" font-weight="600">1.00</text>
+<text x="222.0" y="301.0" font-size="10.0" text-anchor="end" fill="#1b1b1f" font-weight="normal">lineage-aware · node failure</text>
+<text x="256.0" y="301.0" font-size="10.0" text-anchor="end" fill="#1f5fa8" font-weight="600">I2</text>
+<circle cx="283.0" cy="297.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="313.0" cy="297.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="343.0" cy="297.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="373.0" cy="297.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="403.0" cy="297.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="433.0" cy="297.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="463.0" cy="297.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="493.0" cy="297.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<text x="522.0" y="301.0" font-size="10.5" text-anchor="start" fill="#1b1b1f" font-weight="600">1.00</text>
+<text x="222.0" y="331.0" font-size="10.0" text-anchor="end" fill="#1b1b1f" font-weight="normal">source-count · authorization revocation</text>
+<text x="256.0" y="331.0" font-size="10.0" text-anchor="end" fill="#b3441c" font-weight="600">I1</text>
+<circle cx="283.0" cy="327.0" r="7" fill="#ffffff" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="313.0" cy="327.0" r="7" fill="#ffffff" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="343.0" cy="327.0" r="7" fill="#ffffff" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="373.0" cy="327.0" r="7" fill="#ffffff" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="403.0" cy="327.0" r="7" fill="#ffffff" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="433.0" cy="327.0" r="7" fill="#ffffff" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="463.0" cy="327.0" r="7" fill="#ffffff" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="493.0" cy="327.0" r="7" fill="#ffffff" stroke="#b3441c" stroke-width="1.3"/>
+<text x="522.0" y="331.0" font-size="10.5" text-anchor="start" fill="#1b1b1f" font-weight="600">0.00</text>
+<text x="222.0" y="361.0" font-size="10.0" text-anchor="end" fill="#1b1b1f" font-weight="normal">source-count · lineage root failure</text>
+<text x="256.0" y="361.0" font-size="10.0" text-anchor="end" fill="#b3441c" font-weight="600">I1</text>
+<circle cx="283.0" cy="357.0" r="7" fill="#ffffff" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="313.0" cy="357.0" r="7" fill="#ffffff" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="343.0" cy="357.0" r="7" fill="#ffffff" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="373.0" cy="357.0" r="7" fill="#ffffff" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="403.0" cy="357.0" r="7" fill="#ffffff" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="433.0" cy="357.0" r="7" fill="#ffffff" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="463.0" cy="357.0" r="7" fill="#ffffff" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="493.0" cy="357.0" r="7" fill="#ffffff" stroke="#b3441c" stroke-width="1.3"/>
+<text x="522.0" y="361.0" font-size="10.5" text-anchor="start" fill="#1b1b1f" font-weight="600">0.00</text>
+<text x="222.0" y="391.0" font-size="10.0" text-anchor="end" fill="#1b1b1f" font-weight="normal">source-count · node failure</text>
+<text x="256.0" y="391.0" font-size="10.0" text-anchor="end" fill="#b3441c" font-weight="600">I1</text>
+<circle cx="283.0" cy="387.0" r="7" fill="#b3441c" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="313.0" cy="387.0" r="7" fill="#b3441c" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="343.0" cy="387.0" r="7" fill="#b3441c" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="373.0" cy="387.0" r="7" fill="#b3441c" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="403.0" cy="387.0" r="7" fill="#b3441c" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="433.0" cy="387.0" r="7" fill="#b3441c" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="463.0" cy="387.0" r="7" fill="#b3441c" stroke="#b3441c" stroke-width="1.3"/>
+<circle cx="493.0" cy="387.0" r="7" fill="#b3441c" stroke="#b3441c" stroke-width="1.3"/>
+<text x="522.0" y="391.0" font-size="10.5" text-anchor="start" fill="#1b1b1f" font-weight="600">1.00</text>
+<text x="222.0" y="421.0" font-size="10.0" text-anchor="end" fill="#1b1b1f" font-weight="normal">source-count · authorization revocation</text>
+<text x="256.0" y="421.0" font-size="10.0" text-anchor="end" fill="#1f5fa8" font-weight="600">I2</text>
+<circle cx="283.0" cy="417.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="313.0" cy="417.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="343.0" cy="417.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="373.0" cy="417.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="403.0" cy="417.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="433.0" cy="417.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="463.0" cy="417.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="493.0" cy="417.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<text x="522.0" y="421.0" font-size="10.5" text-anchor="start" fill="#1b1b1f" font-weight="600">1.00</text>
+<text x="222.0" y="451.0" font-size="10.0" text-anchor="end" fill="#1b1b1f" font-weight="normal">source-count · lineage root failure</text>
+<text x="256.0" y="451.0" font-size="10.0" text-anchor="end" fill="#1f5fa8" font-weight="600">I2</text>
+<circle cx="283.0" cy="447.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="313.0" cy="447.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="343.0" cy="447.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="373.0" cy="447.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="403.0" cy="447.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="433.0" cy="447.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="463.0" cy="447.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="493.0" cy="447.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<text x="522.0" y="451.0" font-size="10.5" text-anchor="start" fill="#1b1b1f" font-weight="600">1.00</text>
+<text x="222.0" y="481.0" font-size="10.0" text-anchor="end" fill="#1b1b1f" font-weight="normal">source-count · node failure</text>
+<text x="256.0" y="481.0" font-size="10.0" text-anchor="end" fill="#1f5fa8" font-weight="600">I2</text>
+<circle cx="283.0" cy="477.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="313.0" cy="477.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="343.0" cy="477.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="373.0" cy="477.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="403.0" cy="477.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="433.0" cy="477.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="463.0" cy="477.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<circle cx="493.0" cy="477.0" r="7" fill="#1f5fa8" stroke="#1f5fa8" stroke-width="1.3"/>
+<text x="522.0" y="481.0" font-size="10.5" text-anchor="start" fill="#1b1b1f" font-weight="600">1.00</text>
+<text x="522.0" y="120.0" font-size="9.5" text-anchor="start" fill="#6b7280" font-weight="normal">survival</text>
+<text x="28.0" y="522.0" font-size="10.0" text-anchor="start" fill="#6b7280" font-weight="normal">Rows are policy x intervention x lineage independence; columns are premises per capability (K) and holders per premise (H).</text>
+<text x="28.0" y="538.0" font-size="10.0" text-anchor="start" fill="#6b7280" font-weight="normal">Every row is uniform: the verdict is set by lineage independence, never by K or H. One exception would show as a single odd mark.</text>
+<text x="28.0" y="554.0" font-size="10.0" text-anchor="start" fill="#b3441c" font-weight="normal">The one I1 row that survives is source-count repair under node failure: a correlated replica serves when the node, not the lineage, is what failed.</text>
+<text x="28.0" y="570.0" font-size="10.0" text-anchor="start" fill="#6b7280" font-weight="normal">96 runs, seed 20260813, from scale_seed20260813.json.</text>
+</svg>

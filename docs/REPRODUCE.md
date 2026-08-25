@@ -21,10 +21,26 @@ Four dependencies: `numpy`, `aiohttp` (both pulled in transitively by
 pytest
 ```
 
-Expected: **185 passed, 1 skipped, 347 subtests**.
+Expected: **273 passed, 1 skipped, 2946 subtests**.
 
 The one skip is a NeuralGraph retrieval integration test that needs live data;
 it is unrelated to coordination.
+
+---
+
+## The paper's figures
+
+```bash
+python3 -m NeuralGraph.coordination.figures          # rewrite artifacts/figures/*.svg
+python3 -m NeuralGraph.coordination.figures --check  # verify, write nothing; exit 1 if stale
+```
+
+Figures 2–5 are plotted from the pinned JSON, so they are byte-reproducible and
+are pinned in the same `SHA256SUMS`. `--check` is the fast way to find out
+whether a benchmark change has silently invalidated a figure in the paper.
+Figure 1 is a hand-drawn schematic and is not generated.
+
+For LaTeX, convert once: `rsvg-convert -f pdf -o fig3.pdf fig3_pareto_survival_vs_storage.svg`.
 
 ---
 
