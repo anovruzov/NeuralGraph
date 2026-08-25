@@ -1,0 +1,289 @@
+{
+  "dominant_cause_flips_by_measure": {
+    "multi_hop": {
+      "lenient": "retrieval_miss",
+      "partial": "wrong_selection"
+    },
+    "temporal": {
+      "lenient": "retrieval_miss",
+      "partial": "wrong_selection"
+    }
+  },
+  "measures": {
+    "lenient": {
+      "accuracy": 0.6669,
+      "by_domain": {
+        "multi_hop": {
+          "accuracy": 0.7408,
+          "counts": {
+            "answer_type_mismatch": 1,
+            "false_abstention": 2,
+            "incomplete_list": 2,
+            "retrieval_miss": 129,
+            "wrong_selection": 84
+          },
+          "dominant": "retrieval_miss",
+          "dominant_n": 129,
+          "dominant_share": 0.5917,
+          "evidence_present_rate": 0.7004,
+          "failures": 218,
+          "list_failure_share_of_failures": 0.3119,
+          "list_question_share": 0.3163,
+          "n": 841,
+          "rca": "The gold answer is absent from the retrieved excerpts. No prompt or generation change can recover it; this is retrieval or an unanswerable question.",
+          "recoverable_failures": 89,
+          "recoverable_share_of_failures": 0.4083,
+          "shares": {
+            "answer_type_mismatch": 0.0046,
+            "false_abstention": 0.0092,
+            "incomplete_list": 0.0092,
+            "retrieval_miss": 0.5917,
+            "wrong_selection": 0.3853
+          }
+        },
+        "open_domain": {
+          "accuracy": 0.5208,
+          "counts": {
+            "retrieval_miss": 44,
+            "wrong_selection": 2
+          },
+          "dominant": "retrieval_miss",
+          "dominant_n": 44,
+          "dominant_share": 0.9565,
+          "evidence_present_rate": 0.125,
+          "failures": 46,
+          "list_failure_share_of_failures": 0.3696,
+          "list_question_share": 0.3542,
+          "n": 96,
+          "rca": "The gold answer is absent from the retrieved excerpts. No prompt or generation change can recover it; this is retrieval or an unanswerable question.",
+          "recoverable_failures": 2,
+          "recoverable_share_of_failures": 0.0435,
+          "shares": {
+            "retrieval_miss": 0.9565,
+            "wrong_selection": 0.0435
+          }
+        },
+        "single_hop": {
+          "accuracy": 0.5213,
+          "counts": {
+            "answer_type_mismatch": 4,
+            "false_abstention": 2,
+            "incomplete_list": 6,
+            "retrieval_miss": 104,
+            "wrong_selection": 19
+          },
+          "dominant": "retrieval_miss",
+          "dominant_n": 104,
+          "dominant_share": 0.7704,
+          "evidence_present_rate": 0.3582,
+          "failures": 135,
+          "list_failure_share_of_failures": 0.6889,
+          "list_question_share": 0.6596,
+          "n": 282,
+          "rca": "The gold answer is absent from the retrieved excerpts. No prompt or generation change can recover it; this is retrieval or an unanswerable question.",
+          "recoverable_failures": 31,
+          "recoverable_share_of_failures": 0.2296,
+          "shares": {
+            "answer_type_mismatch": 0.0296,
+            "false_abstention": 0.0148,
+            "incomplete_list": 0.0444,
+            "retrieval_miss": 0.7704,
+            "wrong_selection": 0.1407
+          }
+        },
+        "temporal": {
+          "accuracy": 0.6449,
+          "counts": {
+            "answer_type_mismatch": 1,
+            "false_abstention": 15,
+            "incomplete_list": 10,
+            "retrieval_miss": 58,
+            "wrong_selection": 30
+          },
+          "dominant": "retrieval_miss",
+          "dominant_n": 58,
+          "dominant_share": 0.5088,
+          "evidence_present_rate": 0.7165,
+          "failures": 114,
+          "list_failure_share_of_failures": 0.2982,
+          "list_question_share": 0.4174,
+          "n": 321,
+          "rca": "The gold answer is absent from the retrieved excerpts. No prompt or generation change can recover it; this is retrieval or an unanswerable question.",
+          "recoverable_failures": 56,
+          "recoverable_share_of_failures": 0.4912,
+          "shares": {
+            "answer_type_mismatch": 0.0088,
+            "false_abstention": 0.1316,
+            "incomplete_list": 0.0877,
+            "retrieval_miss": 0.5088,
+            "wrong_selection": 0.2632
+          }
+        }
+      },
+      "corpus": "demo/maximal.json",
+      "label_definitions": {
+        "answer_type_mismatch": "Answered a different type than the question asks -- typically a date where a thing was wanted, or vice versa. Routing/prompt defect.",
+        "false_abstention": "The evidence was retrieved and the model declined to answer. Pure generation defect, and the cheapest class to fix.",
+        "incomplete_list": "Covered some but not all gold items it had evidence for. The single largest generation defect on list-valued questions.",
+        "retrieval_miss": "The gold answer is absent from the retrieved excerpts. No prompt or generation change can recover it; this is retrieval or an unanswerable question.",
+        "unsupported_items": "Asserted items the retrieved evidence does not contain -- invention rather than omission. Precision defect.",
+        "wrong_selection": "Had the evidence and answered unrelated content. Evidence-selection or attention defect inside generation."
+      },
+      "measure": "lenient",
+      "n": 1540,
+      "overall_counts": {
+        "answer_type_mismatch": 6,
+        "false_abstention": 19,
+        "incomplete_list": 18,
+        "retrieval_miss": 335,
+        "wrong_selection": 135
+      },
+      "overall_shares": {
+        "answer_type_mismatch": 0.0117,
+        "false_abstention": 0.037,
+        "incomplete_list": 0.0351,
+        "retrieval_miss": 0.653,
+        "wrong_selection": 0.2632
+      },
+      "total_failures": 513
+    },
+    "partial": {
+      "accuracy": 0.6669,
+      "by_domain": {
+        "multi_hop": {
+          "accuracy": 0.7408,
+          "counts": {
+            "answer_type_mismatch": 1,
+            "false_abstention": 4,
+            "incomplete_list": 3,
+            "retrieval_miss": 75,
+            "wrong_selection": 135
+          },
+          "dominant": "wrong_selection",
+          "dominant_n": 135,
+          "dominant_share": 0.6193,
+          "evidence_present_rate": 0.8799,
+          "failures": 218,
+          "list_failure_share_of_failures": 0.3119,
+          "list_question_share": 0.3163,
+          "n": 841,
+          "rca": "Had the evidence and answered unrelated content. Evidence-selection or attention defect inside generation.",
+          "recoverable_failures": 143,
+          "recoverable_share_of_failures": 0.656,
+          "shares": {
+            "answer_type_mismatch": 0.0046,
+            "false_abstention": 0.0183,
+            "incomplete_list": 0.0138,
+            "retrieval_miss": 0.344,
+            "wrong_selection": 0.6193
+          }
+        },
+        "open_domain": {
+          "accuracy": 0.5208,
+          "counts": {
+            "retrieval_miss": 35,
+            "wrong_selection": 11
+          },
+          "dominant": "retrieval_miss",
+          "dominant_n": 35,
+          "dominant_share": 0.7609,
+          "evidence_present_rate": 0.3125,
+          "failures": 46,
+          "list_failure_share_of_failures": 0.3696,
+          "list_question_share": 0.3542,
+          "n": 96,
+          "rca": "The gold answer is absent from the retrieved excerpts. No prompt or generation change can recover it; this is retrieval or an unanswerable question.",
+          "recoverable_failures": 11,
+          "recoverable_share_of_failures": 0.2391,
+          "shares": {
+            "retrieval_miss": 0.7609,
+            "wrong_selection": 0.2391
+          }
+        },
+        "single_hop": {
+          "accuracy": 0.5213,
+          "counts": {
+            "answer_type_mismatch": 4,
+            "false_abstention": 4,
+            "incomplete_list": 31,
+            "retrieval_miss": 49,
+            "wrong_selection": 47
+          },
+          "dominant": "retrieval_miss",
+          "dominant_n": 49,
+          "dominant_share": 0.363,
+          "evidence_present_rate": 0.7411,
+          "failures": 135,
+          "list_failure_share_of_failures": 0.6889,
+          "list_question_share": 0.6596,
+          "n": 282,
+          "rca": "The gold answer is absent from the retrieved excerpts. No prompt or generation change can recover it; this is retrieval or an unanswerable question.",
+          "recoverable_failures": 86,
+          "recoverable_share_of_failures": 0.637,
+          "shares": {
+            "answer_type_mismatch": 0.0296,
+            "false_abstention": 0.0296,
+            "incomplete_list": 0.2296,
+            "retrieval_miss": 0.363,
+            "wrong_selection": 0.3481
+          }
+        },
+        "temporal": {
+          "accuracy": 0.6449,
+          "counts": {
+            "answer_type_mismatch": 1,
+            "false_abstention": 31,
+            "incomplete_list": 13,
+            "retrieval_miss": 27,
+            "wrong_selection": 42
+          },
+          "dominant": "wrong_selection",
+          "dominant_n": 42,
+          "dominant_share": 0.3684,
+          "evidence_present_rate": 0.8972,
+          "failures": 114,
+          "list_failure_share_of_failures": 0.2982,
+          "list_question_share": 0.4174,
+          "n": 321,
+          "rca": "Had the evidence and answered unrelated content. Evidence-selection or attention defect inside generation.",
+          "recoverable_failures": 87,
+          "recoverable_share_of_failures": 0.7632,
+          "shares": {
+            "answer_type_mismatch": 0.0088,
+            "false_abstention": 0.2719,
+            "incomplete_list": 0.114,
+            "retrieval_miss": 0.2368,
+            "wrong_selection": 0.3684
+          }
+        }
+      },
+      "corpus": "demo/maximal.json",
+      "label_definitions": {
+        "answer_type_mismatch": "Answered a different type than the question asks -- typically a date where a thing was wanted, or vice versa. Routing/prompt defect.",
+        "false_abstention": "The evidence was retrieved and the model declined to answer. Pure generation defect, and the cheapest class to fix.",
+        "incomplete_list": "Covered some but not all gold items it had evidence for. The single largest generation defect on list-valued questions.",
+        "retrieval_miss": "The gold answer is absent from the retrieved excerpts. No prompt or generation change can recover it; this is retrieval or an unanswerable question.",
+        "unsupported_items": "Asserted items the retrieved evidence does not contain -- invention rather than omission. Precision defect.",
+        "wrong_selection": "Had the evidence and answered unrelated content. Evidence-selection or attention defect inside generation."
+      },
+      "measure": "partial",
+      "n": 1540,
+      "overall_counts": {
+        "answer_type_mismatch": 6,
+        "false_abstention": 39,
+        "incomplete_list": 47,
+        "retrieval_miss": 186,
+        "wrong_selection": 235
+      },
+      "overall_shares": {
+        "answer_type_mismatch": 0.0117,
+        "false_abstention": 0.076,
+        "incomplete_list": 0.0916,
+        "retrieval_miss": 0.3626,
+        "wrong_selection": 0.4581
+      },
+      "total_failures": 513
+    }
+  },
+  "note": "Two evidence measures are reported because the dominant root cause is sensitive to the definition of 'the evidence was retrieved'. lenient requires every gold content token in the retrieved text; partial requires at least half. docs/ACCURACY.md headlines the partial measure. Any fix plan must state which measure it is aimed at."
+}

@@ -446,8 +446,11 @@ async def run_eval(records_by_id: dict[int, dict[str, Any]], question_ids: tuple
     tasks = [asyncio.ensure_future(one(q)) for q in question_ids]
     for coro in asyncio.as_completed(tasks):
         rows.append(await coro)
-        if len(rows) % 10 == 0:
-            cache.flush()
+        # Checkpoint after every question, not every N. An interrupted batch
+        # must never lose paid or slow work: `flush` writes to a temp file and
+        # renames, so a kill mid-write leaves the previous cache intact rather
+        # than a truncated one.
+        cache.flush()
     cache.flush()
     rows.sort(key=lambda r: r["id"])
     return rows
