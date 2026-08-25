@@ -1,0 +1,52 @@
+{
+  "n": 30,
+  "errors": 0,
+  "changed": [
+    108,
+    115,
+    124,
+    14,
+    158,
+    16,
+    196,
+    227,
+    236,
+    245,
+    35,
+    40,
+    52,
+    90,
+    92,
+    95
+  ],
+  "unchanged": 14,
+  "unsupported_v1": 17,
+  "unsupported_b": 24,
+  "precision_v1": 0.5254,
+  "precision_b": 0.5472,
+  "recall_v1": 0.5361,
+  "recall_b": 0.6056,
+  "gates": [
+    {
+      "name": "unsupported items must not increase",
+      "pass": false,
+      "detail": "v1=17 -> B=24"
+    },
+    {
+      "name": "item precision must not decrease",
+      "pass": true,
+      "detail": "v1=0.5254 -> B=0.5472"
+    },
+    {
+      "name": "evidence order unchanged",
+      "pass": true,
+      "detail": "prompts byte-identical"
+    },
+    {
+      "name": "no untriggered row changed",
+      "pass": true,
+      "detail": "0 untriggered in set"
+    }
+  ],
+  "all_pass": false
+}

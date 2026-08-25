@@ -1,0 +1,367 @@
+{
+  "n": 26,
+  "counts": {
+    "wrong_selection": 10,
+    "incomplete_list": 4,
+    "unsupported_item": 4,
+    "judge_disagreement": 7,
+    "temporal_error": 1
+  },
+  "by_category": {
+    "single_hop": {
+      "wrong_selection": 4,
+      "incomplete_list": 3,
+      "unsupported_item": 2
+    },
+    "open_domain": {
+      "wrong_selection": 5,
+      "judge_disagreement": 1,
+      "unsupported_item": 1
+    },
+    "multi_hop": {
+      "wrong_selection": 1,
+      "judge_disagreement": 3,
+      "incomplete_list": 1,
+      "unsupported_item": 1
+    },
+    "temporal": {
+      "temporal_error": 1,
+      "judge_disagreement": 3
+    }
+  },
+  "rows": [
+    {
+      "id": 24,
+      "category": "single_hop",
+      "label": "wrong_selection",
+      "n_gold_items": 2,
+      "items": [
+        "Charlotte's Web"
+      ],
+      "gold": "\"Nothing is Impossible\", \"Charlotte's Web\"",
+      "item_recall": 0.5,
+      "unsupported": 0
+    },
+    {
+      "id": 48,
+      "category": "single_hop",
+      "label": "wrong_selection",
+      "n_gold_items": 3,
+      "items": [
+        "Melanie"
+      ],
+      "gold": "Her mentors, family, and friends",
+      "item_recall": 0.0,
+      "unsupported": 0
+    },
+    {
+      "id": 51,
+      "category": "open_domain",
+      "label": "wrong_selection",
+      "n_gold_items": 1,
+      "items": [
+        "LGBTQ rights"
+      ],
+      "gold": "Liberal",
+      "item_recall": 0.0,
+      "unsupported": 0
+    },
+    {
+      "id": 82,
+      "category": "open_domain",
+      "label": "wrong_selection",
+      "n_gold_items": 1,
+      "items": [],
+      "gold": "No; she's in the process of adopting children.",
+      "item_recall": 0.0,
+      "unsupported": 0
+    },
+    {
+      "id": 242,
+      "category": "open_domain",
+      "label": "wrong_selection",
+      "n_gold_items": 1,
+      "items": [
+        "had some money problems and had to rely on outside help from out auntie"
+      ],
+      "gold": "Middle-class or wealthy",
+      "item_recall": 0.0,
+      "unsupported": 0
+    },
+    {
+      "id": 294,
+      "category": "single_hop",
+      "label": "incomplete_list",
+      "n_gold_items": 2,
+      "items": [
+        "Coco",
+        "Kyle"
+      ],
+      "gold": "Coco, Shadow",
+      "item_recall": 0.5,
+      "unsupported": 0
+    },
+    {
+      "id": 370,
+      "category": "multi_hop",
+      "label": "wrong_selection",
+      "n_gold_items": 2,
+      "items": [
+        "investing in our future generations is key",
+        "giving them the right tools for success"
+      ],
+      "gold": "Teaching them to respect and appreciate those who served",
+      "item_recall": 0.0,
+      "unsupported": 0
+    },
+    {
+      "id": 409,
+      "category": "single_hop",
+      "label": "wrong_selection",
+      "n_gold_items": 4,
+      "items": [
+        "a major company",
+        "some"
+      ],
+      "gold": "first screenplay on drama and romance, third screenplay on loss identity and connection",
+      "item_recall": 0.0,
+      "unsupported": 0
+    },
+    {
+      "id": 428,
+      "category": "single_hop",
+      "label": "unsupported_item",
+      "n_gold_items": 2,
+      "items": [
+        "The Lord of the Rings Trilogy"
+      ],
+      "gold": "\"Little Women\", \"Lord of the Rings\"",
+      "item_recall": 0.5,
+      "unsupported": 1
+    },
+    {
+      "id": 470,
+      "category": "open_domain",
+      "label": "wrong_selection",
+      "n_gold_items": 1,
+      "items": [
+        "no"
+      ],
+      "gold": "No; because both of them faced setbacks in their career",
+      "item_recall": 0.0,
+      "unsupported": 0
+    },
+    {
+      "id": 554,
+      "category": "multi_hop",
+      "label": "judge_disagreement",
+      "n_gold_items": 1,
+      "items": [
+        "Tilly",
+        "writing"
+      ],
+      "gold": "stuffed animal dog named Tilly",
+      "item_recall": 1.0,
+      "unsupported": 0
+    },
+    {
+      "id": 617,
+      "category": "open_domain",
+      "label": "judge_disagreement",
+      "n_gold_items": 1,
+      "items": [
+        "California"
+      ],
+      "gold": "California or Florida",
+      "item_recall": 1.0,
+      "unsupported": 1
+    },
+    {
+      "id": 753,
+      "category": "multi_hop",
+      "label": "incomplete_list",
+      "n_gold_items": 3,
+      "items": [
+        "he grows so much throughout the story",
+        "he's brave, selfless, down-to-earth",
+        "he never gives up and always stands up for justice"
+      ],
+      "gold": "brave, selfless, down-to-earth attitude",
+      "item_recall": 0.3333,
+      "unsupported": 1
+    },
+    {
+      "id": 791,
+      "category": "single_hop",
+      "label": "wrong_selection",
+      "n_gold_items": 1,
+      "items": [
+        "collars",
+        "tags",
+        "toys"
+      ],
+      "gold": "Hats",
+      "item_recall": 0.0,
+      "unsupported": 0
+    },
+    {
+      "id": 815,
+      "category": "open_domain",
+      "label": "unsupported_item",
+      "n_gold_items": 1,
+      "items": [
+        "read some books about our ecological systems",
+        "find a new open space to hike nearby"
+      ],
+      "gold": "Install a bird feeder outside where he can see the birds without going outdoors.",
+      "item_recall": 0.0,
+      "unsupported": 1
+    },
+    {
+      "id": 893,
+      "category": "open_domain",
+      "label": "wrong_selection",
+      "n_gold_items": 1,
+      "items": [
+        "Stamford"
+      ],
+      "gold": "Connecticut.",
+      "item_recall": 0.0,
+      "unsupported": 0
+    },
+    {
+      "id": 924,
+      "category": "single_hop",
+      "label": "unsupported_item",
+      "n_gold_items": 3,
+      "items": [
+        "left his IT job after 3 years",
+        "got the offer and was ecstatic. Can't wait to start his journey!",
+        "finally got my dream job!"
+      ],
+      "gold": "quit his IT Job, secured his dream job, aspires to become an eSports competition organizer",
+      "item_recall": 0.6667,
+      "unsupported": 2
+    },
+    {
+      "id": 928,
+      "category": "temporal",
+      "label": "temporal_error",
+      "n_gold_items": 2,
+      "items": [
+        "10 August 2022"
+      ],
+      "gold": "August 9, 2022",
+      "item_recall": 0.5,
+      "unsupported": 1
+    },
+    {
+      "id": 952,
+      "category": "temporal",
+      "label": "judge_disagreement",
+      "n_gold_items": 2,
+      "items": [
+        "8:57 pm on 7 November, 2022",
+        "9:20 am on 3 October, 2022"
+      ],
+      "gold": "November 5-6, 2022",
+      "item_recall": 1.0,
+      "unsupported": 2
+    },
+    {
+      "id": 1018,
+      "category": "multi_hop",
+      "label": "judge_disagreement",
+      "n_gold_items": 1,
+      "items": [
+        "making my first mobile game"
+      ],
+      "gold": "making his first mobile game",
+      "item_recall": 1.0,
+      "unsupported": 0
+    },
+    {
+      "id": 1067,
+      "category": "temporal",
+      "label": "judge_disagreement",
+      "n_gold_items": 1,
+      "items": [
+        "last summer"
+      ],
+      "gold": "in summer 2022",
+      "item_recall": 1.0,
+      "unsupported": 0
+    },
+    {
+      "id": 1081,
+      "category": "temporal",
+      "label": "judge_disagreement",
+      "n_gold_items": 1,
+      "items": [
+        "1 February, 2023"
+      ],
+      "gold": "May 2023",
+      "item_recall": 1.0,
+      "unsupported": 1
+    },
+    {
+      "id": 1282,
+      "category": "single_hop",
+      "label": "incomplete_list",
+      "n_gold_items": 2,
+      "items": [
+        "helping lost tourists"
+      ],
+      "gold": "Helping lost tourists and experiencing unexpected adventures in the city.",
+      "item_recall": 0.5,
+      "unsupported": 1
+    },
+    {
+      "id": 1309,
+      "category": "single_hop",
+      "label": "incomplete_list",
+      "n_gold_items": 4,
+      "items": [
+        "running in the mornings",
+        "car rides",
+        "yoga",
+        "painting"
+      ],
+      "gold": "Unhealthy snacks, sweets, yoga, places with beautiful views",
+      "item_recall": 0.25,
+      "unsupported": 0
+    },
+    {
+      "id": 1315,
+      "category": "multi_hop",
+      "label": "unsupported_item",
+      "n_gold_items": 4,
+      "items": [
+        "the fresh air",
+        "the peacefulness",
+        "the scenery",
+        "a cozy cabin surrounded by mountains and forests"
+      ],
+      "gold": "fresh air, peacefulness, cozy cabin surrounded by mountains and forests",
+      "item_recall": 0.75,
+      "unsupported": 2
+    },
+    {
+      "id": 1466,
+      "category": "multi_hop",
+      "label": "judge_disagreement",
+      "n_gold_items": 1,
+      "items": [
+        "fixing up things",
+        "transforming something that's not working into something that runs smoothly",
+        "seeing the hard work pay off",
+        "seeing something you create become a reality",
+        "helping people keep their cars in good condition",
+        "opening this shop"
+      ],
+      "gold": "Fixing up things",
+      "item_recall": 1.0,
+      "unsupported": 2
+    }
+  ]
+}

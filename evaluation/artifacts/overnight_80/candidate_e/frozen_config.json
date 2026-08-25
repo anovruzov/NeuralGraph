@@ -1,0 +1,17 @@
+{
+  "variant": "additive",
+  "rejected_variant": "replacement",
+  "retrieval": "recorded pipeline excerpts UNION entity/BM25 top-5, relevance-first, dedup by uid",
+  "index_digest": "993cf7e3749b8f00",
+  "evidence_present": 48,
+  "n": 60,
+  "correct": 24,
+  "evidence_present_correct": 22,
+  "evidence_present_wrong": 26,
+  "correct_without_evidence": [
+    248,
+    440
+  ],
+  "empirical_ceiling": 0.8333,
+  "conversion_on_evidence_present": 0.4583
+}
