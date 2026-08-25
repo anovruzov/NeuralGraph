@@ -42,7 +42,7 @@ domain cut**.
 | # | Claim | Evidence |
 |---|---|---|
 | N1 | Distribution loses to centralization under partition | 0.00 across all five distributed strategies |
-| N2 | Lineage-aware repair is over-conservative | loses to replica count 0.00 vs 1.00 under plain node failure |
+| N2 | Lineage-aware repair is over-conservative | loses to replica count 0.00 vs 1.00 under plain node failure, in exactly 1 of 6 cells (`node_failure` at I=1); ties at 1.00 when I=2 |
 | N3 | Domain metrics require recorded provenance | zero by default, never synthesized |
 
 N1 and N2 are pinned as tests. Reviewers will find them; better that we state

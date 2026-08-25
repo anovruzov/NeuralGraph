@@ -31,11 +31,11 @@ are far cheaper than reconstructing the same facts from 5,000 lines.
 
 ```bash
 pip install -r requirements.txt
-pytest                                                        # 185 passed, 1 skipped
+python3.11 -m pytest                                          # 266 passed, 1 skipped, 3382 subtests
 
-python3 -m NeuralGraph.coordination.benchmark --sweep 30 --format markdown
-python3 -m NeuralGraph.coordination.scale --format markdown
-python3 -m NeuralGraph.coordination.experiment --output experiment.json
+python3.11 -m NeuralGraph.coordination.benchmark --sweep 30 --format markdown
+python3.11 -m NeuralGraph.coordination.scale --format markdown
+python3.11 -m NeuralGraph.coordination.experiment --output experiment.json
 ```
 
 Run `pytest` from the repo root. There is no venv activation step.
@@ -72,7 +72,9 @@ If any of these moves, a claim about the world has changed — stop and say so.
 - Only min-cut-2 survives `worst_single_domain_failure`
 - Every scale verdict invariant across K ∈ {2,3,5,8}, H ∈ {2,3}
 - No distributed strategy survives `network_partition` (0.00) — reported against interest
-- `lineage_aware` loses to `source_count` under plain node failure (0.00 vs 1.00) — reported against interest
+- `lineage_aware` loses to `source_count` in exactly **one** of six cells:
+  `node_failure` at **I=1** (0.00 vs 1.00). At I=2 they tie at 1.00. The
+  controlling variable is independent roots, not K or H — reported against interest
 
 ## Retrieval accuracy — diagnosed, not fixed
 

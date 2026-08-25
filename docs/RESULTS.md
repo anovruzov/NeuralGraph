@@ -122,6 +122,13 @@ Treating correlation as disqualifying regardless of what actually failed has a
 real cost. Where independent support exists, the cost vanishes and
 lineage-awareness is also cheaper (5.2 vs 6.2 verifications).
 
+**Scope of this result.** It occurs in exactly **one of six** policy x
+intervention cells: `lineage_aware::node_failure::I1`. Within that cell it
+holds at every K and H. At **I=2** the two policies tie at 1.00, and on
+`lineage_root_failure` and `authorization_revocation` they are identical at
+both independence levels. The controlling variable is the number of
+**independent roots**, not K or H. See `AUDIT.md` section 2.
+
 ### Centralization fails silently
 
 `centralized` has the worst unrecovered silent forgetting of any strategy

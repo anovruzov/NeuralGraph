@@ -15,13 +15,25 @@ Four dependencies: `numpy`, `aiohttp` (both pulled in transitively by
 `NeuralGraph/__init__.py`, which eagerly imports the retrieval stack), plus
 `pytest` and `pytest-asyncio`.
 
+## Interpreter
+
+**Use Python 3.11 explicitly.** On macOS, bare `python3` may resolve to
+`/usr/bin/python3` (3.9), which **cannot collect this suite at all** — it fails
+with `TypeError: unsupported operand type(s)` on `X | Y` annotations in every
+test file. A bare `pytest` may also not be on `PATH`. Every command in this
+document therefore spells out `python3.11 -m ...`.
+
+```bash
+python3.11 --version    # expect 3.11.x
+```
+
 ## Run everything
 
 ```bash
-pytest
+python3.11 -m pytest
 ```
 
-Expected: **185 passed, 1 skipped, 347 subtests**.
+Expected: **266 passed, 1 skipped, 3382 subtests**.
 
 The one skip is a NeuralGraph retrieval integration test that needs live data;
 it is unrelated to coordination.
@@ -32,15 +44,15 @@ it is unrelated to coordination.
 
 ```bash
 # Reconstruction experiment: 3 strategies, before / after failure / after repair
-python3 -m NeuralGraph.coordination.experiment --output experiment.json
+python3.11 -m NeuralGraph.coordination.experiment --output experiment.json
 
 # Capability survival: 8 strategies x 9 interventions
-python3 -m NeuralGraph.coordination.benchmark --sweep 30 --format markdown
-python3 -m NeuralGraph.coordination.benchmark --output benchmark.json
+python3.11 -m NeuralGraph.coordination.benchmark --sweep 30 --format markdown
+python3.11 -m NeuralGraph.coordination.benchmark --output benchmark.json
 
 # Scale and generalization: K x H x I
-python3 -m NeuralGraph.coordination.scale --format markdown
-python3 -m NeuralGraph.coordination.scale --output scale.json
+python3.11 -m NeuralGraph.coordination.scale --format markdown
+python3.11 -m NeuralGraph.coordination.scale --output scale.json
 ```
 
 Add `--seed N` to any of them. `--format markdown` prints tables; the JSON is
@@ -53,9 +65,10 @@ the source of truth.
 Output is byte-identical across runs and across hash seeds:
 
 ```bash
-python3 -m NeuralGraph.coordination.benchmark --output /tmp/a.json
-PYTHONHASHSEED=99991 python3 -m NeuralGraph.coordination.benchmark --output /tmp/b.json
+python3.11 -m NeuralGraph.coordination.benchmark --output /tmp/a.json
+PYTHONHASHSEED=99991 python3.11 -m NeuralGraph.coordination.benchmark --output /tmp/b.json
 sha256sum /tmp/a.json /tmp/b.json   # identical
+# macOS has no sha256sum; use:  shasum -a 256 /tmp/a.json /tmp/b.json
 ```
 
 And against the committed artifacts:
@@ -99,7 +112,7 @@ commit says so.
 ## Real-storage validation
 
 ```bash
-pytest NeuralGraph/tests/test_benchmark_real_storage.py \
+python3.11 -m pytest NeuralGraph/tests/test_benchmark_real_storage.py \
        NeuralGraph/tests/test_failure_domains_real_storage.py -v
 ```
 
@@ -152,3 +165,19 @@ docs/
   REPRODUCE.md                          this file
   PAPER.md                              claims mapped to evidence
 ```
+
+---
+
+## Regenerating the manuscript tables
+
+Every table in `docs/paper/tables.md` is generated from the pinned artifacts.
+The generator verifies all four digests against `SHA256SUMS` before emitting
+anything, so a table can never be built from an artifact that drifted.
+
+```bash
+python3.11 -m tools.build_paper_tables --check     # digests only
+python3.11 -m tools.build_paper_tables --output docs/paper/tables.md
+```
+
+If a number in the manuscript disagrees with this generator's output, the
+manuscript is wrong.

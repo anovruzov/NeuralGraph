@@ -32,15 +32,15 @@ not in this repository. It lived on a local machine. Likewise
 There is now exactly one of each.
 
 ```
-pytest                                                       # whole suite
-python3 -m NeuralGraph.coordination.benchmark --sweep 30 --format markdown
-python3 -m NeuralGraph.coordination.benchmark --output results.json
-python3 -m NeuralGraph.coordination.experiment --output experiment.json
-python3 -m NeuralGraph.coordination.scale --format markdown
+python3.11 -m pytest                                                       # whole suite
+python3.11 -m NeuralGraph.coordination.benchmark --sweep 30 --format markdown
+python3.11 -m NeuralGraph.coordination.benchmark --output results.json
+python3.11 -m NeuralGraph.coordination.experiment --output experiment.json
+python3.11 -m NeuralGraph.coordination.scale --format markdown
 ```
 
 Setup is `pip install -r requirements.txt`. Suite as of this writing:
-**185 passed, 1 skipped, 347 subtests**, identical under `PYTHONHASHSEED`
+**266 passed, 1 skipped, 3382 subtests**, identical under `PYTHONHASHSEED`
 1, 7, 4242 and 99991.
 
 `pytest` previously failed to collect anything (5 errors, every file). The repo
@@ -117,7 +117,11 @@ which discriminates and is what validates min-cut as predictive.
 correlated replicas, a surviving replica would have served -- the lineage was
 never the problem, the node was -- but lineage-aware repair excludes the failed
 claim's root and refuses every correlated holder, losing a capability that
-`source_count` keeps (0.00 vs 1.00, at every K and H). Pinned as a test.
+`source_count` keeps (0.00 vs 1.00). This happens in exactly **one of six**
+policy x intervention cells -- `lineage_aware::node_failure::I1` -- and holds
+at every K and H *within that cell*. At **I=2** the two policies tie at 1.00.
+The controlling variable is the number of independent roots, not K or H.
+Pinned as a test. See `AUDIT.md` section 2.
 
 ## Artifacts
 
