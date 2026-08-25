@@ -12,20 +12,26 @@ reported could be believed.
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import statistics
 import unittest
 from pathlib import Path
 
+from evaluation.diagnose_accuracy import evidence_present, retrieved_text
 from evaluation.replay_generation import (
     RESPONSE_FORMAT,
     SYSTEM_PROMPT,
+    ProgressReporter,
     build_prompt,
+    build_row,
     estimate_cost,
     grade,
     is_daily_quota_error,
     parse_items,
     stratified_sample,
+    summarise,
 )
 
 ARTIFACT = Path(__file__).resolve().parents[2] / "demo" / "maximal.json"
@@ -318,6 +324,179 @@ class PromptTests(unittest.TestCase):
         large = estimate_cost(self.records[:100], "claude-opus-5")
         self.assertGreater(large["estimated_usd"], small["estimated_usd"])
         self.assertEqual(small["questions"], 10)
+
+
+class EvidenceAttributionTests(unittest.TestCase):
+    """The per-row evidence fields must mean exactly what they mean in
+    ``diagnose_accuracy.py``.
+
+    The whole point of carrying ``evidence_lenient`` on a replay row is to
+    split a wrong answer into "this model dropped evidence it was handed"
+    (generation, this replay's problem) versus "the excerpts never contained
+    the answer" (retrieval, the NeuralGraph track's problem). That split is
+    only meaningful if it is the *same* measurement docs/ACCURACY.md made. A
+    reimplementation that drifted -- a different normaliser, a token-set check
+    instead of substring -- would silently reassign failures between two teams'
+    backlogs, so these tests pin the row fields to the source functions rather
+    than to hand-written expectations.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.records = _records()
+
+    def _rows(self, records):
+        # Items are irrelevant to the evidence fields; grading is covered
+        # elsewhere. Pass the gold answer so rows are well-formed.
+        return [
+            build_row(r, [str(r.get("gold_answer", ""))], False, 0, 0)
+            for r in records
+        ]
+
+    def test_row_evidence_matches_the_diagnosis_source_of_truth(self):
+        for record in self.records[:400]:
+            row = build_row(record, [], False, 0, 0)
+            strict, lenient = evidence_present(record)
+            with self.subTest(id=record.get("id")):
+                self.assertEqual(row["evidence_strict"], strict)
+                self.assertEqual(row["evidence_lenient"], lenient)
+                self.assertEqual(row["retrieved_text"], retrieved_text(record))
+
+    def test_lenient_is_a_superset_of_strict_on_the_real_corpus(self):
+        """Same implication test_diagnose_accuracy.py asserts, re-asserted on
+        the replay row so the two cannot drift apart."""
+        for row in self._rows(self.records[:400]):
+            if row["evidence_strict"]:
+                with self.subTest(id=row["id"]):
+                    self.assertTrue(row["evidence_lenient"])
+
+    def test_gold_absent_from_excerpts_is_not_scored_as_retrieved(self):
+        record = dict(self.records[0])
+        record["gold_answer"] = "ZZQX_SENTINEL_NOT_IN_ANY_MEMORY"
+        row = build_row(record, [], False, 0, 0)
+        self.assertFalse(row["evidence_strict"])
+        self.assertFalse(row["evidence_lenient"])
+
+    def test_no_retrieved_memories_is_never_evidence(self):
+        record = dict(self.records[0])
+        record["retrieved_memories"] = []
+        row = build_row(record, [], False, 0, 0)
+        self.assertEqual(row["retrieved_text"], "")
+        self.assertFalse(row["evidence_strict"])
+        self.assertFalse(row["evidence_lenient"])
+
+
+class DiagnosisSummaryTests(unittest.TestCase):
+    """``summarise``'s diagnosis block must partition the wrong answers."""
+
+    def _row(self, *, correct: bool, lenient: bool, ident: int = 0):
+        gold = "alpha"
+        items = ["alpha"] if correct else ["beta"]
+        row = build_row({"id": ident, "category": "single_hop",
+                         "gold_answer": gold, "generated_answer": gold},
+                        items, False, 0, 0)
+        row["evidence_lenient"] = lenient
+        row["evidence_strict"] = lenient
+        return row
+
+    def test_wrong_splits_exhaustively_into_with_and_without_evidence(self):
+        rows = [
+            self._row(correct=True, lenient=True, ident=1),
+            self._row(correct=False, lenient=True, ident=2),
+            self._row(correct=False, lenient=True, ident=3),
+            self._row(correct=False, lenient=False, ident=4),
+        ]
+        diagnosis = summarise(rows)["diagnosis"]
+        self.assertEqual(diagnosis["wrong"], 3)
+        self.assertEqual(diagnosis["wrong_with_evidence"], 2)
+        self.assertEqual(diagnosis["wrong_without_evidence"], 1)
+        self.assertEqual(
+            diagnosis["wrong_with_evidence"] + diagnosis["wrong_without_evidence"],
+            diagnosis["wrong"],
+        )
+
+    def test_wrong_count_agrees_with_the_reported_exact_set_match(self):
+        rows = [self._row(correct=i % 3 == 0, lenient=True, ident=i)
+                for i in range(9)]
+        summary = summarise(rows)
+        expected_wrong = len(rows) - round(
+            summary["claude"]["exact_set_match"] * len(rows)
+        )
+        self.assertEqual(summary["diagnosis"]["wrong"], expected_wrong)
+
+    def test_error_rows_are_excluded_from_the_diagnosis(self):
+        """Error rows carry no evidence fields; counting them would crash or,
+        worse, silently score a transport failure as a retrieval miss."""
+        rows = [
+            self._row(correct=False, lenient=False, ident=1),
+            {"id": 2, "error": "boom"},
+        ]
+        summary = summarise(rows)
+        self.assertEqual(summary["errors"], 1)
+        self.assertEqual(summary["diagnosis"]["wrong"], 1)
+
+    def test_all_errors_reports_no_diagnosis_rather_than_a_false_zero(self):
+        summary = summarise([{"id": 1, "error": "boom"}])
+        self.assertEqual(summary["scored"], 0)
+        self.assertNotIn("diagnosis", summary)
+
+
+class ProgressReporterTests(unittest.TestCase):
+    """Progress output is operator-facing only; it must never alter results,
+    and must not crash a long run on an edge case."""
+
+    def _capture(self, fn):
+        buffer = io.StringIO()
+        with contextlib.redirect_stderr(buffer):
+            fn()
+        return buffer.getvalue()
+
+    def test_counts_completions_and_errors_separately(self):
+        reporter = ProgressReporter(total=4, every=100)
+        self._capture(lambda: [
+            reporter.tick("single_hop", True),
+            reporter.tick("single_hop", False),
+            reporter.tick(),
+            reporter.tick("multi_hop", True),
+        ])
+        self.assertEqual(reporter.done, 4)
+        self.assertEqual(reporter.errors, 1)
+        self.assertEqual(reporter.category_n, {"single_hop": 2, "multi_hop": 1})
+        self.assertEqual(reporter.category_correct,
+                         {"single_hop": 1, "multi_hop": 1})
+
+    def test_reports_running_accuracy_per_category(self):
+        reporter = ProgressReporter(total=2, every=2)
+        output = self._capture(lambda: [
+            reporter.tick("single_hop", True),
+            reporter.tick("single_hop", False),
+        ])
+        self.assertIn("2/2", output)
+        self.assertIn("single_hop=1/2", output)
+        self.assertIn("50.0%", output)
+
+    def test_prints_on_the_interval_and_on_the_final_tick(self):
+        reporter = ProgressReporter(total=3, every=2)
+        lines = []
+        for _ in range(3):
+            lines.append(self._capture(lambda: reporter.tick("single_hop", True)))
+        self.assertEqual(lines[0], "")            # 1 of 3: no interval, not final
+        self.assertIn("2/3", lines[1])            # interval
+        self.assertIn("3/3", lines[2])            # final tick, off-interval
+
+    def test_an_all_error_run_still_reports_without_dividing_by_zero(self):
+        reporter = ProgressReporter(total=1, every=1)
+        output = self._capture(reporter.tick)
+        self.assertIn("errors=1", output)
+
+    def test_progress_goes_to_stderr_not_stdout(self):
+        """Results are written to stdout; progress chatter must not corrupt
+        a redirected JSON payload."""
+        reporter = ProgressReporter(total=1, every=1)
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self._capture(lambda: reporter.tick("single_hop", True))
+        self.assertEqual(out.getvalue(), "")
 
 
 if __name__ == "__main__":

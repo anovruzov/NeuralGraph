@@ -47,7 +47,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from evaluation.diagnose_accuracy import answer_items, content_tokens, retrieved_text
+from evaluation.diagnose_accuracy import (
+    answer_items,
+    content_tokens,
+    evidence_present,
+    retrieved_text,
+)
 
 DEFAULT_MODEL = "claude-opus-5"
 DEFAULT_EFFORT = "medium"
@@ -295,10 +300,46 @@ def estimate_cost(records: list[dict[str, Any]], model: str) -> dict[str, Any]:
     }
 
 
+class ProgressReporter:
+    """Prints a line every N completed requests, with running exact-set-match
+    accuracy by category. Single-threaded asyncio, so plain counters need no
+    lock."""
+
+    def __init__(self, total: int, every: int = 10) -> None:
+        self.total = total
+        self.every = every
+        self.done = 0
+        self.errors = 0
+        self.category_n: dict[str, int] = {}
+        self.category_correct: dict[str, int] = {}
+
+    def tick(self, category: str | None = None, correct: bool | None = None) -> None:
+        self.done += 1
+        if category is None or correct is None:
+            self.errors += 1
+        else:
+            self.category_n[category] = self.category_n.get(category, 0) + 1
+            self.category_correct[category] = (
+                self.category_correct.get(category, 0) + (1 if correct else 0)
+            )
+        if self.done % self.every == 0 or self.done == self.total:
+            parts = [
+                f"{cat}={self.category_correct[cat]}/{n}"
+                f" ({self.category_correct[cat] / n:.1%})"
+                for cat, n in sorted(self.category_n.items())
+            ]
+            errs = f", errors={self.errors}" if self.errors else ""
+            print(
+                f"progress: {self.done}/{self.total} -- " + ", ".join(parts) + errs,
+                file=sys.stderr, flush=True,
+            )
+
+
 async def openai_dialect_answer(session, record: dict[str, Any], model: str,
                                 base_url: str, api_key: str | None,
                                 semaphore: asyncio.Semaphore,
-                                limiter: "RateLimiter | None" = None) -> dict[str, Any]:
+                                limiter: "RateLimiter | None" = None,
+                                progress: "ProgressReporter | None" = None) -> dict[str, Any]:
     """One question through an OpenAI-compatible endpoint (Groq or Ollama)."""
     body = {
         "model": model,
@@ -349,13 +390,18 @@ async def openai_dialect_answer(session, record: dict[str, Any], model: str,
         # Backoff outside the semaphore so a sleeping retry does not hold a slot.
         await asyncio.sleep(retry_after or BACKOFF_BASE * (2 ** attempt) + random.random())
     if payload is None:
+        if progress is not None:
+            progress.tick()
         return {"id": record.get("id"), "error": last_error}
 
     text = payload["choices"][0]["message"]["content"]
     items, not_in_evidence = parse_items(text)
     usage = payload.get("usage") or {}
-    return build_row(record, items, not_in_evidence,
+    row = build_row(record, items, not_in_evidence,
                      usage.get("prompt_tokens", 0), usage.get("completion_tokens", 0))
+    if progress is not None:
+        progress.tick(row["category"], row["claude"]["exact_set_match"])
+    return row
 
 
 JSON_INSTRUCTION = (
@@ -410,13 +456,28 @@ def parse_items(text: str) -> tuple[list[str], bool]:
 
 def build_row(record: dict[str, Any], items: list[str], not_in_evidence: bool,
               input_tokens: int, output_tokens: int) -> dict[str, Any]:
-    """Score one replayed answer against gold, alongside the recorded baseline."""
+    """Score one replayed answer against gold, alongside the recorded baseline.
+
+    Retrieval is held fixed by construction (`docs/ACCURACY.md`), so a wrong
+    answer here needs one more bit to be actionable for NeuralGraph: whether
+    the retrieved excerpts recorded in the artifact actually contained the
+    gold answer. `evidence_present` reuses the exact strict/lenient substring
+    check `diagnose_accuracy.py` used for the original diagnosis, so this
+    field means the same thing here as it does there -- a row failing with
+    `evidence_lenient: true` is a generation defect regardless of which model
+    produced `claude_items`; `evidence_lenient: false` is a retrieval miss and
+    belongs to the NeuralGraph retrieval track, not to this replay.
+    """
     gold = str(record.get("gold_answer", ""))
+    strict, lenient = evidence_present(record)
     return {
         "id": record.get("id"),
         "category": record.get("category"),
         "question": record.get("question"),
         "gold_answer": record.get("gold_answer"),
+        "retrieved_text": retrieved_text(record),
+        "evidence_strict": strict,
+        "evidence_lenient": lenient,
         "baseline_answer": record.get("generated_answer"),
         "baseline_judged_correct": bool(record.get("correct")),
         "claude_items": items,
@@ -484,6 +545,17 @@ def summarise(rows: list[dict[str, Any]]) -> dict[str, Any]:
             "input": sum(r["usage"]["input_tokens"] for r in scored),
             "output": sum(r["usage"]["output_tokens"] for r in scored),
         },
+        # Same split docs/ACCURACY.md used to attribute failure between
+        # generation and retrieval. Wrong here + evidence_lenient=True means
+        # this model's generation dropped evidence it was handed; wrong +
+        # evidence_lenient=False is a retrieval miss inherited from the
+        # recorded artifact, not something this replay's model could have
+        # fixed.
+        "diagnosis": {
+            "wrong": len(wrong := [r for r in scored if not r["claude"]["exact_set_match"]]),
+            "wrong_with_evidence": sum(1 for r in wrong if r["evidence_lenient"]),
+            "wrong_without_evidence": sum(1 for r in wrong if not r["evidence_lenient"]),
+        },
     }
 
 
@@ -498,9 +570,11 @@ async def run(records, provider, model, effort, concurrency, base_url=None, rpm=
         # trust_env is required for aiohttp to honour HTTPS_PROXY at all.
         async with aiohttp.ClientSession(trust_env=True) as session:
             limiter = RateLimiter(rpm)
+            progress = ProgressReporter(len(records))
             tasks = [
                 asyncio.ensure_future(
-                    openai_dialect_answer(session, r, model, url, key, semaphore, limiter)
+                    openai_dialect_answer(session, r, model, url, key, semaphore, limiter,
+                                          progress)
                 )
                 for r in records
             ]
