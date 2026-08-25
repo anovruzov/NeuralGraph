@@ -36,3 +36,7 @@ htmlcov/
 
 # Replay outputs (contain API responses; regenerate with a key)
 evaluation/artifacts/replay_*.json
+
+# Improvement-loop response cache (may hold paid judge results; regenerate or
+# copy deliberately, never commit)
+evaluation/artifacts/locomo_loop/cache/
