@@ -3,6 +3,11 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Local secrets and environment files
+.env
+.env.*
+!.env.example
+
 # Virtual environments
 .venv/
 venv/
