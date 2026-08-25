@@ -1,0 +1,530 @@
+{
+  "n": 17,
+  "errors": [],
+  "gate": {
+    "item_f1_improves": true,
+    "esm_improves": false,
+    "unsupported_not_materially_worse": false,
+    "zero_operational_errors": true
+  },
+  "overall_pass": false,
+  "qwen25": {
+    "item_f1": 0.4944,
+    "item_precision": 0.5588,
+    "item_recall": 0.4647,
+    "exact_set_match": 0.3529,
+    "unsupported_items": 1
+  },
+  "qwen3": {
+    "item_f1": 0.4961,
+    "item_precision": 0.5451,
+    "item_recall": 0.4961,
+    "exact_set_match": 0.2941,
+    "unsupported_items": 15,
+    "latency_p50_ms": 34401
+  },
+  "changed": 12,
+  "improved_esm": [],
+  "regressed_esm": [
+    378
+  ],
+  "evidence_present_conversion": {
+    "qwen25": 0.3333,
+    "qwen3": 0.2667
+  },
+  "incomplete_lists": {
+    "qwen25": 7,
+    "qwen3": 7
+  },
+  "paid_calls": 0,
+  "rows": [
+    {
+      "id": 11,
+      "category": "temporal",
+      "ev": true,
+      "q25_items": [
+        "4 years"
+      ],
+      "q3_items": [
+        "4 years"
+      ],
+      "changed": false,
+      "q25": {
+        "f1": 1.0,
+        "p": 1.0,
+        "r": 1.0,
+        "esm": true,
+        "unsup": 0
+      },
+      "q3": {
+        "f1": 1.0,
+        "p": 1.0,
+        "r": 1.0,
+        "esm": true,
+        "unsup": 0
+      },
+      "ms": 24067,
+      "gold_items": 1
+    },
+    {
+      "id": 17,
+      "category": "temporal",
+      "ev": true,
+      "q25_items": [
+        "2 July 2023"
+      ],
+      "q3_items": [
+        "2 July 2023"
+      ],
+      "changed": false,
+      "q25": {
+        "f1": 1.0,
+        "p": 1.0,
+        "r": 1.0,
+        "esm": true,
+        "unsup": 0
+      },
+      "q3": {
+        "f1": 1.0,
+        "p": 1.0,
+        "r": 1.0,
+        "esm": true,
+        "unsup": 0
+      },
+      "ms": 20063,
+      "gold_items": 1
+    },
+    {
+      "id": 24,
+      "category": "single_hop",
+      "ev": true,
+      "q25_items": [
+        "Charlotte's Web"
+      ],
+      "q3_items": [
+        "Charlotte's Web"
+      ],
+      "changed": false,
+      "q25": {
+        "f1": 0.6667,
+        "p": 1.0,
+        "r": 0.5,
+        "esm": false,
+        "unsup": 0
+      },
+      "q3": {
+        "f1": 0.6667,
+        "p": 1.0,
+        "r": 0.5,
+        "esm": false,
+        "unsup": 0
+      },
+      "ms": 41982,
+      "gold_items": 2
+    },
+    {
+      "id": 48,
+      "category": "single_hop",
+      "ev": true,
+      "q25_items": [
+        "Melanie"
+      ],
+      "q3_items": [
+        "close friends",
+        "Melanie",
+        "people in her LGBTQ+ community group 'Connected LGBTQ Activists'"
+      ],
+      "changed": true,
+      "q25": {
+        "f1": 0.0,
+        "p": 0.0,
+        "r": 0.0,
+        "esm": false,
+        "unsup": 0
+      },
+      "q3": {
+        "f1": 0.3333,
+        "p": 0.3333,
+        "r": 0.3333,
+        "esm": false,
+        "unsup": 1
+      },
+      "ms": 41678,
+      "gold_items": 3
+    },
+    {
+      "id": 51,
+      "category": "open_domain",
+      "ev": true,
+      "q25_items": [
+        "LGBTQ rights"
+      ],
+      "q3_items": [
+        "progressive"
+      ],
+      "changed": true,
+      "q25": {
+        "f1": 0.0,
+        "p": 0.0,
+        "r": 0.0,
+        "esm": false,
+        "unsup": 0
+      },
+      "q3": {
+        "f1": 0.0,
+        "p": 0.0,
+        "r": 0.0,
+        "esm": false,
+        "unsup": 1
+      },
+      "ms": 29462,
+      "gold_items": 1
+    },
+    {
+      "id": 82,
+      "category": "open_domain",
+      "ev": true,
+      "q25_items": [],
+      "q3_items": [],
+      "changed": false,
+      "q25": {
+        "f1": 0.0,
+        "p": 0.0,
+        "r": 0.0,
+        "esm": false,
+        "unsup": 0
+      },
+      "q3": {
+        "f1": 0.0,
+        "p": 0.0,
+        "r": 0.0,
+        "esm": false,
+        "unsup": 0
+      },
+      "ms": 19304,
+      "gold_items": 1
+    },
+    {
+      "id": 114,
+      "category": "multi_hop",
+      "ev": true,
+      "q25_items": [
+        "so many people wanted to create loving homes for children in need"
+      ],
+      "q3_items": [
+        "many people wanting to create loving homes for children in need"
+      ],
+      "changed": true,
+      "q25": {
+        "f1": 1.0,
+        "p": 1.0,
+        "r": 1.0,
+        "esm": true,
+        "unsup": 0
+      },
+      "q3": {
+        "f1": 1.0,
+        "p": 1.0,
+        "r": 1.0,
+        "esm": true,
+        "unsup": 1
+      },
+      "ms": 34401,
+      "gold_items": 1
+    },
+    {
+      "id": 178,
+      "category": "single_hop",
+      "ev": true,
+      "q25_items": [
+        "dance classes and workshops",
+        "one-on-one mentoring and training"
+      ],
+      "q3_items": [
+        "one-on-one mentoring and training",
+        "dance classes",
+        "workshops",
+        "dance competitions",
+        "online platform"
+      ],
+      "changed": true,
+      "q25": {
+        "f1": 0.5714,
+        "p": 1.0,
+        "r": 0.4,
+        "esm": false,
+        "unsup": 0
+      },
+      "q3": {
+        "f1": 0.6,
+        "p": 0.6,
+        "r": 0.6,
+        "esm": false,
+        "unsup": 1
+      },
+      "ms": 75607,
+      "gold_items": 5
+    },
+    {
+      "id": 242,
+      "category": "open_domain",
+      "ev": true,
+      "q25_items": [
+        "had some money problems and had to rely on outside help from out auntie"
+      ],
+      "q3_items": [
+        "John's financial status is not explicitly mentioned in the excerpts."
+      ],
+      "changed": true,
+      "q25": {
+        "f1": 0.0,
+        "p": 0.0,
+        "r": 0.0,
+        "esm": false,
+        "unsup": 0
+      },
+      "q3": {
+        "f1": 0.0,
+        "p": 0.0,
+        "r": 0.0,
+        "esm": false,
+        "unsup": 1
+      },
+      "ms": 30111,
+      "gold_items": 1
+    },
+    {
+      "id": 248,
+      "category": "open_domain",
+      "ev": false,
+      "q25_items": [
+        "yes"
+      ],
+      "q3_items": [
+        "Yes"
+      ],
+      "changed": true,
+      "q25": {
+        "f1": 1.0,
+        "p": 1.0,
+        "r": 1.0,
+        "esm": true,
+        "unsup": 1
+      },
+      "q3": {
+        "f1": 1.0,
+        "p": 1.0,
+        "r": 1.0,
+        "esm": true,
+        "unsup": 1
+      },
+      "ms": 30881,
+      "gold_items": 1
+    },
+    {
+      "id": 270,
+      "category": "single_hop",
+      "ev": true,
+      "q25_items": [
+        "a live music event",
+        "a violin concert"
+      ],
+      "q3_items": [
+        "live music event (week of 19 June 2023)",
+        "violin concert (week of 27 February 2023)"
+      ],
+      "changed": true,
+      "q25": {
+        "f1": 1.0,
+        "p": 1.0,
+        "r": 1.0,
+        "esm": true,
+        "unsup": 0
+      },
+      "q3": {
+        "f1": 1.0,
+        "p": 1.0,
+        "r": 1.0,
+        "esm": true,
+        "unsup": 2
+      },
+      "ms": 49573,
+      "gold_items": 2
+    },
+    {
+      "id": 294,
+      "category": "single_hop",
+      "ev": true,
+      "q25_items": [
+        "Coco",
+        "Kyle"
+      ],
+      "q3_items": [
+        "Coco"
+      ],
+      "changed": true,
+      "q25": {
+        "f1": 0.5,
+        "p": 0.5,
+        "r": 0.5,
+        "esm": false,
+        "unsup": 0
+      },
+      "q3": {
+        "f1": 0.6667,
+        "p": 1.0,
+        "r": 0.5,
+        "esm": false,
+        "unsup": 0
+      },
+      "ms": 26575,
+      "gold_items": 2
+    },
+    {
+      "id": 370,
+      "category": "multi_hop",
+      "ev": true,
+      "q25_items": [
+        "investing in our future generations is key",
+        "giving them the right tools for success"
+      ],
+      "q3_items": [
+        "Investing in our future generations is key, giving them the right tools for success."
+      ],
+      "changed": true,
+      "q25": {
+        "f1": 0.0,
+        "p": 0.0,
+        "r": 0.0,
+        "esm": false,
+        "unsup": 0
+      },
+      "q3": {
+        "f1": 0.0,
+        "p": 0.0,
+        "r": 0.0,
+        "esm": false,
+        "unsup": 0
+      },
+      "ms": 65876,
+      "gold_items": 2
+    },
+    {
+      "id": 378,
+      "category": "multi_hop",
+      "ev": true,
+      "q25_items": [
+        "camping"
+      ],
+      "q3_items": [
+        "camping trip",
+        "hiking",
+        "swimming"
+      ],
+      "changed": true,
+      "q25": {
+        "f1": 1.0,
+        "p": 1.0,
+        "r": 1.0,
+        "esm": true,
+        "unsup": 0
+      },
+      "q3": {
+        "f1": 0.5,
+        "p": 0.3333,
+        "r": 1.0,
+        "esm": false,
+        "unsup": 2
+      },
+      "ms": 25519,
+      "gold_items": 1
+    },
+    {
+      "id": 394,
+      "category": "temporal",
+      "ev": false,
+      "q25_items": [
+        "10 November 2022"
+      ],
+      "q3_items": [
+        "The provided excerpts do not explicitly state the exact date when Nate got his first two turtles. However",
+        "the earliest mention of him having turtles is in a message from **Nate on 21 October 2022**",
+        "where he references his turtles cheering him up during a stressful period. This implies he had them by that date. \n\nWhile the exact date of acquisition is not directly stated",
+        "the earliest date he mentions having them is **21 October 2022**. \n\n**Answer:**  \nThe earliest date mentioned in the excerpts where Nate talks about having turtles is **21 October 2022**. However",
+        "the exact date he got his first two turtles is not explicitly stated."
+      ],
+      "changed": true,
+      "q25": {
+        "f1": 0.0,
+        "p": 0.0,
+        "r": 0.0,
+        "esm": false,
+        "unsup": 0
+      },
+      "q3": {
+        "f1": 0.0,
+        "p": 0.0,
+        "r": 0.0,
+        "esm": false,
+        "unsup": 5
+      },
+      "ms": 229004,
+      "gold_items": 1
+    },
+    {
+      "id": 409,
+      "category": "single_hop",
+      "ev": true,
+      "q25_items": [
+        "a major company",
+        "some"
+      ],
+      "q3_items": [],
+      "changed": true,
+      "q25": {
+        "f1": 0.0,
+        "p": 0.0,
+        "r": 0.0,
+        "esm": false,
+        "unsup": 0
+      },
+      "q3": {
+        "f1": 0.0,
+        "p": 0.0,
+        "r": 0.0,
+        "esm": false,
+        "unsup": 0
+      },
+      "ms": 68317,
+      "gold_items": 4
+    },
+    {
+      "id": 426,
+      "category": "temporal",
+      "ev": true,
+      "q25_items": [
+        "5 September 2022"
+      ],
+      "q3_items": [
+        "5 September 2022"
+      ],
+      "changed": false,
+      "q25": {
+        "f1": 0.6667,
+        "p": 1.0,
+        "r": 0.5,
+        "esm": false,
+        "unsup": 0
+      },
+      "q3": {
+        "f1": 0.6667,
+        "p": 1.0,
+        "r": 0.5,
+        "esm": false,
+        "unsup": 0
+      },
+      "ms": 93857,
+      "gold_items": 2
+    }
+  ]
+}
