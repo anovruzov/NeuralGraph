@@ -140,7 +140,26 @@ exactly **one** domain and discriminates.
 
 ## 4. Results
 
-See [`tables.md`](tables.md) for all five generated tables.
+See [`tables.md`](tables.md) for all five generated tables and
+[`figures/`](figures/) for the two figures. Every figure is emitted by
+`tools/build_paper_figures.py` from the pinned artifacts and the fixture source,
+byte-identically on re-run; none of its values is typed by hand.
+
+![Figure 1](figures/figure1_fixture.svg)
+
+**Figure 1 — why node C is not redundancy.** Drawn from the record table in
+`NeuralGraph/coordination/fixture.py`, so it cannot drift from the code it
+illustrates. B, C and D all hold the right premise, but C copies B's lineage root
+(R2) and failure domain (FD2). Replica count reports redundancy 3; failing R2
+removes B and C together, leaving only the independently rooted D, so the minimum
+failure-domain cut is 2.
+
+![Figure 3](figures/figure3_pareto.svg)
+
+**Figure 3 — survival against storage cost.** Mean capability survival over 30
+seeds. `lineage_aware_repair` dominates `full_replication` on both axes: 0.778 at
+5,448 mean bytes against 0.667 at 9,877. `oracle_min_cut` is drawn dashed because
+it is an upper bound, not a deployable competitor.
 
 ### 4.1 Headline
 

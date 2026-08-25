@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="430" viewBox="0 0 760 430" font-family="Helvetica,Arial,sans-serif">
+<title>Figure 1 - why node C is not redundancy</title>
+<rect width="760" height="430" fill="#ffffff"/>
+<text x="30.0" y="34.0" font-size="16" fill="#1a1a1a" text-anchor="start" font-weight="bold">Figure 1  Why node C is not redundancy</text>
+<text x="30.0" y="56.0" font-size="11.5" fill="#767676" text-anchor="start" font-weight="normal">The capability needs one left premise and one right premise. B, C and D all hold the right premise.</text>
+<text x="30.0" y="73.0" font-size="11.5" fill="#767676" text-anchor="start" font-weight="normal">C copies B's lineage root (R2) and failure domain (FD2). Only D is independently rooted.</text>
+<rect x="98" y="110" width="104" height="34" rx="5" fill="none" stroke="#767676" stroke-width="1.6"/>
+<text x="150.0" y="132.0" font-size="12" fill="#767676" text-anchor="middle" font-weight="bold">root R1</text>
+<rect x="338" y="110" width="104" height="34" rx="5" fill="none" stroke="#b3541e" stroke-width="1.6"/>
+<text x="390.0" y="132.0" font-size="12" fill="#b3541e" text-anchor="middle" font-weight="bold">root R2</text>
+<rect x="578" y="110" width="104" height="34" rx="5" fill="none" stroke="#767676" stroke-width="1.6"/>
+<text x="630.0" y="132.0" font-size="12" fill="#767676" text-anchor="middle" font-weight="bold">root R3</text>
+<text x="30.0" y="132.0" font-size="11" fill="#767676" text-anchor="start" font-weight="normal">lineage roots</text>
+<rect x="58" y="230" width="144" height="92" rx="7" fill="none" stroke="#0b6fa4" stroke-width="1.8"/>
+<text x="130.0" y="252.0" font-size="12.5" fill="#0b6fa4" text-anchor="middle" font-weight="bold">node-a</text>
+<text x="130.0" y="270.0" font-size="10.5" fill="#1a1a1a" text-anchor="middle" font-weight="normal">slot: left</text>
+<text x="130.0" y="286.0" font-size="10" fill="#767676" text-anchor="middle" font-weight="normal">source-1</text>
+<text x="130.0" y="302.0" font-size="10" fill="#0b6fa4" text-anchor="middle" font-weight="normal">R1 · FD1</text>
+<text x="130.0" y="316.0" font-size="9.5" fill="#767676" text-anchor="middle" font-weight="normal">conf 0.96</text>
+<line x1="150" y1="146" x2="130" y2="228" stroke="#0b6fa4" stroke-width="1.5"/>
+<rect x="248" y="230" width="144" height="92" rx="7" fill="none" stroke="#1a1a1a" stroke-width="1.8"/>
+<text x="320.0" y="252.0" font-size="12.5" fill="#1a1a1a" text-anchor="middle" font-weight="bold">node-b</text>
+<text x="320.0" y="270.0" font-size="10.5" fill="#1a1a1a" text-anchor="middle" font-weight="normal">slot: right</text>
+<text x="320.0" y="286.0" font-size="10" fill="#767676" text-anchor="middle" font-weight="normal">source-2</text>
+<text x="320.0" y="302.0" font-size="10" fill="#1a1a1a" text-anchor="middle" font-weight="normal">R2 · FD2</text>
+<text x="320.0" y="316.0" font-size="9.5" fill="#767676" text-anchor="middle" font-weight="normal">conf 0.93</text>
+<line x1="390" y1="146" x2="320" y2="228" stroke="#1a1a1a" stroke-width="1.5"/>
+<rect x="398" y="230" width="144" height="92" rx="7" fill="none" stroke="#b3541e" stroke-width="1.8"/>
+<text x="470.0" y="252.0" font-size="12.5" fill="#b3541e" text-anchor="middle" font-weight="bold">node-c</text>
+<text x="470.0" y="270.0" font-size="10.5" fill="#1a1a1a" text-anchor="middle" font-weight="normal">slot: right</text>
+<text x="470.0" y="286.0" font-size="10" fill="#767676" text-anchor="middle" font-weight="normal">source-2-copy</text>
+<text x="470.0" y="302.0" font-size="10" fill="#b3541e" text-anchor="middle" font-weight="normal">R2 · FD2</text>
+<text x="470.0" y="316.0" font-size="9.5" fill="#767676" text-anchor="middle" font-weight="normal">conf 0.91</text>
+<line x1="390" y1="146" x2="470" y2="228" stroke="#b3541e" stroke-width="1.5" stroke-dasharray="5,3"/>
+<rect x="578" y="230" width="144" height="92" rx="7" fill="none" stroke="#0b6fa4" stroke-width="1.8"/>
+<text x="650.0" y="252.0" font-size="12.5" fill="#0b6fa4" text-anchor="middle" font-weight="bold">node-d</text>
+<text x="650.0" y="270.0" font-size="10.5" fill="#1a1a1a" text-anchor="middle" font-weight="normal">slot: right</text>
+<text x="650.0" y="286.0" font-size="10" fill="#767676" text-anchor="middle" font-weight="normal">source-3</text>
+<text x="650.0" y="302.0" font-size="10" fill="#0b6fa4" text-anchor="middle" font-weight="normal">R3 · FD3</text>
+<text x="650.0" y="316.0" font-size="9.5" fill="#767676" text-anchor="middle" font-weight="normal">conf 0.94</text>
+<line x1="630" y1="146" x2="650" y2="228" stroke="#0b6fa4" stroke-width="1.5"/>
+<text x="30.0" y="252.0" font-size="11" fill="#767676" text-anchor="start" font-weight="normal">holders</text>
+<line x1="338" y1="98" x2="442" y2="156" stroke="#b3541e" stroke-width="2.4"/>
+<line x1="442" y1="98" x2="338" y2="156" stroke="#b3541e" stroke-width="2.4"/>
+<text x="390.0" y="92.0" font-size="11.5" fill="#b3541e" text-anchor="middle" font-weight="bold">R2 fails</text>
+<line x1="30" y1="352" x2="730" y2="352" stroke="#d8d8d8" stroke-width="1"/>
+<text x="30.0" y="376.0" font-size="11.5" fill="#1a1a1a" text-anchor="start" font-weight="normal">Replica count sees three holders of the right premise and reports redundancy 3.</text>
+<text x="30.0" y="394.0" font-size="11.5" fill="#1a1a1a" text-anchor="start" font-weight="normal">Failing R2 removes B and C together. Only D survives, so the minimum failure-domain cut is 2, not 3.</text>
+<text x="30.0" y="412.0" font-size="10" fill="#767676" text-anchor="start" font-weight="normal">Source: NeuralGraph/coordination/fixture.py — record table read directly, not redrawn.</text>
+</svg>

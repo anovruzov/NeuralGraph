@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="500" viewBox="0 0 760 500" font-family="Helvetica,Arial,sans-serif">
+<title>Figure 3 - survival against storage cost</title>
+<rect width="760" height="500" fill="#ffffff"/>
+<text x="30.0" y="34.0" font-size="16" fill="#1a1a1a" text-anchor="start" font-weight="bold">Figure 3  Survival against storage cost</text>
+<text x="30.0" y="56.0" font-size="11.5" fill="#767676" text-anchor="start" font-weight="normal">Mean capability survival over 30 seeds, 8 strategies x 9 interventions. Up and to the left is better.</text>
+<text x="30.0" y="73.0" font-size="11.5" fill="#767676" text-anchor="start" font-weight="normal">Lineage-aware repair dominates full replication on both axes: higher survival at roughly half the bytes.</text>
+<line x1="96" y1="416.0" x2="720" y2="416.0" stroke="#d8d8d8" stroke-width="1"/>
+<text x="86.0" y="420.0" font-size="11" fill="#767676" text-anchor="end" font-weight="normal">0.00</text>
+<line x1="96" y1="335.0" x2="720" y2="335.0" stroke="#d8d8d8" stroke-width="1"/>
+<text x="86.0" y="339.0" font-size="11" fill="#767676" text-anchor="end" font-weight="normal">0.25</text>
+<line x1="96" y1="254.0" x2="720" y2="254.0" stroke="#d8d8d8" stroke-width="1"/>
+<text x="86.0" y="258.0" font-size="11" fill="#767676" text-anchor="end" font-weight="normal">0.50</text>
+<line x1="96" y1="173.0" x2="720" y2="173.0" stroke="#d8d8d8" stroke-width="1"/>
+<text x="86.0" y="177.0" font-size="11" fill="#767676" text-anchor="end" font-weight="normal">0.75</text>
+<line x1="96" y1="92.0" x2="720" y2="92.0" stroke="#d8d8d8" stroke-width="1"/>
+<text x="86.0" y="96.0" font-size="11" fill="#767676" text-anchor="end" font-weight="normal">1.00</text>
+<line x1="96.0" y1="416" x2="96.0" y2="421" stroke="#767676" stroke-width="1"/>
+<text x="96.0" y="436.0" font-size="10.5" fill="#767676" text-anchor="middle" font-weight="normal">0k</text>
+<line x1="213.0" y1="416" x2="213.0" y2="421" stroke="#767676" stroke-width="1"/>
+<text x="213.0" y="436.0" font-size="10.5" fill="#767676" text-anchor="middle" font-weight="normal">2k</text>
+<line x1="330.0" y1="416" x2="330.0" y2="421" stroke="#767676" stroke-width="1"/>
+<text x="330.0" y="436.0" font-size="10.5" fill="#767676" text-anchor="middle" font-weight="normal">4k</text>
+<line x1="447.0" y1="416" x2="447.0" y2="421" stroke="#767676" stroke-width="1"/>
+<text x="447.0" y="436.0" font-size="10.5" fill="#767676" text-anchor="middle" font-weight="normal">6k</text>
+<line x1="564.0" y1="416" x2="564.0" y2="421" stroke="#767676" stroke-width="1"/>
+<text x="564.0" y="436.0" font-size="10.5" fill="#767676" text-anchor="middle" font-weight="normal">8k</text>
+<line x1="681.0" y1="416" x2="681.0" y2="421" stroke="#767676" stroke-width="1"/>
+<text x="681.0" y="436.0" font-size="10.5" fill="#767676" text-anchor="middle" font-weight="normal">10k</text>
+<line x1="96" y1="416" x2="720" y2="416" stroke="#1a1a1a" stroke-width="1.3"/>
+<line x1="96" y1="92" x2="96" y2="416" stroke="#1a1a1a" stroke-width="1.3"/>
+<text x="408.0" y="460.0" font-size="12" fill="#1a1a1a" text-anchor="middle" font-weight="normal">mean bytes moved</text>
+<text x="26" y="254.0" font-size="12" fill="#1a1a1a" text-anchor="middle" transform="rotate(-90 26 254.0)">capability survival</text>
+<path d="M176.2,416.0 L272.7,380.0 L385.0,236.0 L407.6,188.0 L414.7,164.0" fill="none" stroke="#d8d8d8" stroke-width="1.6" stroke-dasharray="6,4"/>
+<circle cx="176.2" cy="416.0" r="4.5" fill="#767676"/>
+<text x="176.2" y="402.0" font-size="10.5" fill="#767676" text-anchor="middle" font-weight="normal">isolated_local  0.000</text>
+<circle cx="272.7" cy="380.0" r="4.5" fill="#767676"/>
+<text x="272.7" y="366.0" font-size="10.5" fill="#767676" text-anchor="middle" font-weight="normal">centralized  0.111</text>
+<circle cx="385.0" cy="236.0" r="4.5" fill="#767676"/>
+<text x="385.0" y="256.0" font-size="10.5" fill="#767676" text-anchor="middle" font-weight="normal">source_count_repair  0.556</text>
+<circle cx="385.1" cy="236.0" r="4.5" fill="#767676"/>
+<text x="385.1" y="222.0" font-size="10.5" fill="#767676" text-anchor="middle" font-weight="normal">fixed_distributed_replication  0.556</text>
+<circle cx="407.6" cy="188.0" r="4.5" fill="#767676"/>
+<text x="407.6" y="174.0" font-size="10.5" fill="#767676" text-anchor="middle" font-weight="normal">random_path_diversification  0.704</text>
+<circle cx="414.7" cy="164.0" r="7" fill="#0b6fa4"/>
+<text x="414.7" y="150.0" font-size="10.5" fill="#0b6fa4" text-anchor="middle" font-weight="bold">lineage_aware_repair  0.778</text>
+<circle cx="473.9" cy="128.0" r="7" fill="none" stroke="#4a4a4a" stroke-width="2" stroke-dasharray="3,2"/>
+<text x="473.9" y="114.0" font-size="10.5" fill="#4a4a4a" text-anchor="middle" font-weight="bold">oracle_min_cut  0.889</text>
+<circle cx="673.8" cy="200.0" r="7" fill="#b3541e"/>
+<text x="673.8" y="186.0" font-size="10.5" fill="#b3541e" text-anchor="middle" font-weight="bold">full_replication  0.667</text>
+<text x="96.0" y="482.0" font-size="10" fill="#767676" text-anchor="start" font-weight="normal">oracle_min_cut is an upper bound, not a deployable competitor. Source: benchmark_sweep30_seed20260813.json</text>
+</svg>
