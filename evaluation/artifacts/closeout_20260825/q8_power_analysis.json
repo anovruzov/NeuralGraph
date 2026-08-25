@@ -1,0 +1,223 @@
+{
+  "alpha": 0.05,
+  "baseline": "24/60",
+  "iterations": 4000,
+  "judge_flip_measured": 0.045,
+  "judge_noise_cost": {
+    "10q": {
+      "measured_judge": 0.6917,
+      "perfect_judge": 1.0,
+      "power_lost": 0.3083
+    },
+    "1q": {
+      "measured_judge": 0.012,
+      "perfect_judge": 0.0,
+      "power_lost": -0.012
+    },
+    "2q": {
+      "measured_judge": 0.0272,
+      "perfect_judge": 0.0,
+      "power_lost": -0.0272
+    },
+    "3q": {
+      "measured_judge": 0.0585,
+      "perfect_judge": 0.0,
+      "power_lost": -0.0585
+    },
+    "4q": {
+      "measured_judge": 0.1032,
+      "perfect_judge": 0.0,
+      "power_lost": -0.1032
+    },
+    "5q": {
+      "measured_judge": 0.1752,
+      "perfect_judge": 0.0,
+      "power_lost": -0.1752
+    },
+    "6q": {
+      "measured_judge": 0.2607,
+      "perfect_judge": 1.0,
+      "power_lost": 0.7393
+    },
+    "7q": {
+      "measured_judge": 0.3638,
+      "perfect_judge": 1.0,
+      "power_lost": 0.6362
+    },
+    "8q": {
+      "measured_judge": 0.4705,
+      "perfect_judge": 1.0,
+      "power_lost": 0.5295
+    },
+    "9q": {
+      "measured_judge": 0.5847,
+      "perfect_judge": 1.0,
+      "power_lost": 0.4153
+    }
+  },
+  "minimum_detectable_gain_points": 20.0,
+  "minimum_detectable_gain_questions": 12,
+  "power_at_effect_points": {
+    "1.7pt (1q)": 0.012,
+    "10.0pt (6q)": 0.2607,
+    "11.7pt (7q)": 0.3638,
+    "13.3pt (8q)": 0.4705,
+    "15.0pt (9q)": 0.5847,
+    "16.7pt (10q)": 0.6917,
+    "3.3pt (2q)": 0.0272,
+    "5.0pt (3q)": 0.0585,
+    "6.7pt (4q)": 0.1032,
+    "8.3pt (5q)": 0.1752
+  },
+  "power_curve": [
+    {
+      "iterations": 4000,
+      "judge_flip": 0.045,
+      "mean_observed_delta": 0.0152,
+      "n": 60,
+      "observed_delta_ci95": [
+        -0.05,
+        0.0833
+      ],
+      "power": 0.012,
+      "true_gain_points": 1.67,
+      "true_gain_questions": 1
+    },
+    {
+      "iterations": 4000,
+      "judge_flip": 0.045,
+      "mean_observed_delta": 0.0302,
+      "n": 60,
+      "observed_delta_ci95": [
+        -0.05,
+        0.1
+      ],
+      "power": 0.0272,
+      "true_gain_points": 3.33,
+      "true_gain_questions": 2
+    },
+    {
+      "iterations": 4000,
+      "judge_flip": 0.045,
+      "mean_observed_delta": 0.0455,
+      "n": 60,
+      "observed_delta_ci95": [
+        -0.0333,
+        0.1167
+      ],
+      "power": 0.0585,
+      "true_gain_points": 5.0,
+      "true_gain_questions": 3
+    },
+    {
+      "iterations": 4000,
+      "judge_flip": 0.045,
+      "mean_observed_delta": 0.0608,
+      "n": 60,
+      "observed_delta_ci95": [
+        -0.0167,
+        0.1333
+      ],
+      "power": 0.1032,
+      "true_gain_points": 6.67,
+      "true_gain_questions": 4
+    },
+    {
+      "iterations": 4000,
+      "judge_flip": 0.045,
+      "mean_observed_delta": 0.0761,
+      "n": 60,
+      "observed_delta_ci95": [
+        0.0,
+        0.15
+      ],
+      "power": 0.1752,
+      "true_gain_points": 8.33,
+      "true_gain_questions": 5
+    },
+    {
+      "iterations": 4000,
+      "judge_flip": 0.045,
+      "mean_observed_delta": 0.0912,
+      "n": 60,
+      "observed_delta_ci95": [
+        0.0167,
+        0.1667
+      ],
+      "power": 0.2607,
+      "true_gain_points": 10.0,
+      "true_gain_questions": 6
+    },
+    {
+      "iterations": 4000,
+      "judge_flip": 0.045,
+      "mean_observed_delta": 0.1065,
+      "n": 60,
+      "observed_delta_ci95": [
+        0.0333,
+        0.1833
+      ],
+      "power": 0.3638,
+      "true_gain_points": 11.67,
+      "true_gain_questions": 7
+    },
+    {
+      "iterations": 4000,
+      "judge_flip": 0.045,
+      "mean_observed_delta": 0.1216,
+      "n": 60,
+      "observed_delta_ci95": [
+        0.05,
+        0.2
+      ],
+      "power": 0.4705,
+      "true_gain_points": 13.33,
+      "true_gain_questions": 8
+    },
+    {
+      "iterations": 4000,
+      "judge_flip": 0.045,
+      "mean_observed_delta": 0.1367,
+      "n": 60,
+      "observed_delta_ci95": [
+        0.0667,
+        0.2167
+      ],
+      "power": 0.5847,
+      "true_gain_points": 15.0,
+      "true_gain_questions": 9
+    },
+    {
+      "iterations": 4000,
+      "judge_flip": 0.045,
+      "mean_observed_delta": 0.152,
+      "n": 60,
+      "observed_delta_ci95": [
+        0.0833,
+        0.2333
+      ],
+      "power": 0.6917,
+      "true_gain_points": 16.67,
+      "true_gain_questions": 10
+    }
+  ],
+  "required_n_for_80pct_power": {
+    "10.0pt": {
+      "perfect_judge": 71,
+      "with_judge_noise": 161
+    },
+    "3.0pt": {
+      "perfect_judge": 242,
+      "with_judge_noise": 1232
+    },
+    "5.0pt": {
+      "perfect_judge": 161,
+      "with_judge_noise": 547
+    },
+    "8.0pt": {
+      "perfect_judge": 71,
+      "with_judge_noise": 242
+    }
+  },
+  "seed": 20260825
+}

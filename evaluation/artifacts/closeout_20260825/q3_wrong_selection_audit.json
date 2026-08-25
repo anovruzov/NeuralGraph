@@ -1,0 +1,230 @@
+{
+  "n": 10,
+  "counts": {
+    "incomplete evidence coverage": 1,
+    "retrieval-limited": 1,
+    "requires inference beyond extraction": 2,
+    "false abstention": 1,
+    "genuinely wrong selection": 2,
+    "wrong answer type": 2,
+    "judge error": 1
+  },
+  "fixable_by_generation": 4,
+  "not_fixable_by_generation": 6,
+  "conclusion": "residual bucket, not a coherent mechanism",
+  "distinct_mechanisms": 7,
+  "rows": [
+    {
+      "id": 24,
+      "category": "single_hop",
+      "classification": "incomplete evidence coverage",
+      "question": "What books has Melanie read?",
+      "gold": "\"Nothing is Impossible\", \"Charlotte's Web\"",
+      "prediction": [
+        "Charlotte's Web"
+      ],
+      "gold_turns": [
+        "1:D7:8",
+        "1:D6:10"
+      ],
+      "gold_turns_present": [
+        true,
+        true
+      ],
+      "justification": "Both gold turns retrieved; model emitted 1 of 2 gold items. This is an incomplete list, not a selection error - the prior label is a TAXONOMY ERROR caused by quote characters defeating the item matcher.",
+      "fixable_by_generation": true,
+      "proposed_mechanism": "list completeness with per-item support filtering (Q4)"
+    },
+    {
+      "id": 48,
+      "category": "single_hop",
+      "classification": "retrieval-limited",
+      "question": "Who supports Caroline when she has a negative experience?",
+      "gold": "Her mentors, family, and friends",
+      "prediction": [
+        "Melanie"
+      ],
+      "gold_turns": [
+        "1:D12:1",
+        "1:D3:11"
+      ],
+      "gold_turns_present": [
+        true,
+        false
+      ],
+      "justification": "The answer-bearing turn 1:D3:11 ('My friends, family and mentors are my rocks') was NOT retrieved. The retrieved turn describes the negative experience only, so the model answered with the interlocutor.",
+      "fixable_by_generation": false,
+      "proposed_mechanism": "retrieval - out of scope for a generation fix"
+    },
+    {
+      "id": 51,
+      "category": "open_domain",
+      "classification": "requires inference beyond extraction",
+      "question": "What would Caroline's political leaning likely be?",
+      "gold": "Liberal",
+      "prediction": [
+        "LGBTQ rights"
+      ],
+      "gold_turns": [
+        "1:D12:1"
+      ],
+      "gold_turns_present": [
+        true
+      ],
+      "justification": "The gold answer appears nowhere in the evidence. 'Liberal' must be inferred from activism plus a negative encounter with religious conservatives. The model returned the topic instead of the inferred label.",
+      "fixable_by_generation": false,
+      "proposed_mechanism": "none - the label is not extractable"
+    },
+    {
+      "id": 82,
+      "category": "open_domain",
+      "classification": "false abstention",
+      "question": "Would Caroline want to move back to her home country soon?",
+      "gold": "No; she's in the process of adopting children.",
+      "prediction": [],
+      "gold_turns": [
+        "1:D19:1",
+        "1:D19:3"
+      ],
+      "gold_turns_present": [
+        true,
+        true
+      ],
+      "justification": "Both gold turns retrieved and both describe the adoption process. The model returned an empty item list rather than reasoning to 'No'. Requires a one-step inference the evidence supports.",
+      "fixable_by_generation": true,
+      "proposed_mechanism": "yes/no questions need an explicit answer-type route; NOT a general abstention instruction (that was v2, rejected)"
+    },
+    {
+      "id": 242,
+      "category": "open_domain",
+      "classification": "requires inference beyond extraction",
+      "question": "What might John's financial status be?",
+      "gold": "Middle-class or wealthy",
+      "prediction": [
+        "had some money problems and had to rely on outside help from out auntie"
+      ],
+      "gold_turns": [
+        "3:D5:5"
+      ],
+      "gold_turns_present": [
+        true
+      ],
+      "justification": "Gold turn says 'My kids have so much and others don't', from which wealth is inferred. The model quoted a different, contradicting passage verbatim. Gold is also disjunctive ('Middle-class or wealthy').",
+      "fixable_by_generation": false,
+      "proposed_mechanism": "none - inference plus disjunctive gold"
+    },
+    {
+      "id": 370,
+      "category": "multi_hop",
+      "classification": "genuinely wrong selection",
+      "question": "What does John believe is important for children regarding veterans?",
+      "gold": "Teaching them to respect and appreciate those who served",
+      "prediction": [
+        "investing in our future generations is key",
+        "giving them the right tools for success"
+      ],
+      "gold_turns": [
+        "3:D27:13"
+      ],
+      "gold_turns_present": [
+        true
+      ],
+      "justification": "The gold turn states the answer almost verbatim ('Showing them how to respect and appreciate those who served our country is important'). The model selected adjacent unrelated sentences. This is a true selection failure.",
+      "fixable_by_generation": true,
+      "proposed_mechanism": "evidence-selection/attention - no bounded mechanism proposed"
+    },
+    {
+      "id": 409,
+      "category": "single_hop",
+      "classification": "wrong answer type",
+      "question": "Which of Joanna's screenplay were rejected from production companies?",
+      "gold": "first screenplay on drama and romance, third screenplay on loss identity and connection",
+      "prediction": [
+        "a major company",
+        "some"
+      ],
+      "gold_turns": [
+        "4:D14:1",
+        "4:D3:1",
+        "4:D2:7",
+        "4:D24:12",
+        "4:D24:13"
+      ],
+      "gold_turns_present": [
+        true,
+        false,
+        false,
+        true,
+        false
+      ],
+      "justification": "Question asks WHICH SCREENPLAY; the model answered with the REJECTOR ('a major company'). Compounded by only 2 of 5 gold turns retrieved, so the full list was unavailable anyway.",
+      "fixable_by_generation": false,
+      "proposed_mechanism": "answer-type routing would help, but 3 of 5 gold turns are missing"
+    },
+    {
+      "id": 470,
+      "category": "open_domain",
+      "classification": "judge error",
+      "question": "Was the first half of September 2022 a good month career-wise for Nate and Joanna? Answer yes or no.",
+      "gold": "No; because both of them faced setbacks in their career",
+      "prediction": [
+        "no"
+      ],
+      "gold_turns": [
+        "4:D20:1",
+        "4:D21:1"
+      ],
+      "gold_turns_present": [
+        true,
+        true
+      ],
+      "justification": "The question explicitly says 'Answer yes or no'. The model answered 'no'. The gold begins 'No;' and then adds a justification the question did not request. The judge marked it INCORRECT. The model is right.",
+      "fixable_by_generation": false,
+      "proposed_mechanism": "grading contract - preregistered rule for yes/no questions with justified gold (Q1)"
+    },
+    {
+      "id": 791,
+      "category": "single_hop",
+      "classification": "genuinely wrong selection",
+      "question": "What is something that Audrey often dresses up her dogs with?",
+      "gold": "Hats",
+      "prediction": [
+        "collars",
+        "tags",
+        "toys"
+      ],
+      "gold_turns": [
+        "6:D4:23",
+        "6:D4:25",
+        "6:D19:6"
+      ],
+      "gold_turns_present": [
+        false,
+        true,
+        false
+      ],
+      "justification": "Gold turn 6:D4:25 was retrieved and says 'The hats don't bother them'. The model emitted three plausible but unsupported accessories instead. True selection failure with an invention component.",
+      "fixable_by_generation": true,
+      "proposed_mechanism": "per-item support filtering would have rejected all three (Q4)"
+    },
+    {
+      "id": 893,
+      "category": "open_domain",
+      "classification": "wrong answer type",
+      "question": "In which state is the shelter from which James adopted the puppy?",
+      "gold": "Connecticut.",
+      "prediction": [
+        "Stamford"
+      ],
+      "gold_turns": [
+        "7:D5:1"
+      ],
+      "gold_turns_present": [
+        true
+      ],
+      "justification": "Evidence says 'a shelter in Stamford' - a CITY. The question asks for a STATE. Mapping Stamford to Connecticut requires world knowledge absent from the conversation. Granularity mismatch, not selection.",
+      "fixable_by_generation": false,
+      "proposed_mechanism": "none - requires external geographic knowledge"
+    }
+  ]
+}

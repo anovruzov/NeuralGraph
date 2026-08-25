@@ -1,0 +1,17 @@
+{
+  "raw_total": 1986,
+  "recorded_subset": 1540,
+  "excluded": 445,
+  "raw_categories": {
+    "1": 282,
+    "2": 321,
+    "3": 96,
+    "4": 841,
+    "5": 446
+  },
+  "excluded_by_category": {
+    "5": 445
+  },
+  "category5_total": 446,
+  "category5_has_adversarial_field": 446
+}

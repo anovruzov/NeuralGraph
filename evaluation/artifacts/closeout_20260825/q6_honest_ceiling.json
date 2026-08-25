@@ -1,0 +1,17 @@
+{
+  "n": 60,
+  "total_correct": 24,
+  "evidence_present": 48,
+  "complete_evidence": 36,
+  "evidence_present_correct": 22,
+  "evidence_present_wrong": 26,
+  "correct_without_evidence": [
+    248,
+    440
+  ],
+  "conversion": 0.4583,
+  "evidence_supported_ceiling": 0.8,
+  "empirical_ceiling": 0.8333,
+  "conversion_required_for_80pct": 0.9583,
+  "not_fixable_by_generation_identified": 6
+}

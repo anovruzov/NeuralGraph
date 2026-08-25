@@ -1,0 +1,884 @@
+{
+  "n": 120,
+  "counts": {
+    "atomic": 57,
+    "list": 47,
+    "yes_no": 4,
+    "disjunctive": 2,
+    "date_relative": 8,
+    "date_range": 1,
+    "approximate": 1
+  },
+  "by_format_validation": {
+    "approximate": {
+      "n": 1,
+      "correct": 0
+    },
+    "atomic": {
+      "n": 27,
+      "correct": 12
+    },
+    "date_range": {
+      "n": 1,
+      "correct": 0
+    },
+    "date_relative": {
+      "n": 4,
+      "correct": 4
+    },
+    "disjunctive": {
+      "n": 2,
+      "correct": 0
+    },
+    "list": {
+      "n": 22,
+      "correct": 7
+    },
+    "yes_no": {
+      "n": 3,
+      "correct": 1
+    }
+  },
+  "rows": [
+    {
+      "id": 11,
+      "format": "atomic",
+      "gold": "4 years",
+      "in_validation": true,
+      "correct": true
+    },
+    {
+      "id": 17,
+      "format": "atomic",
+      "gold": "2 July 2023",
+      "in_validation": true,
+      "correct": true
+    },
+    {
+      "id": 24,
+      "format": "list",
+      "gold": "\"Nothing is Impossible\", \"Charlotte's Web\"",
+      "in_validation": true,
+      "correct": false
+    },
+    {
+      "id": 48,
+      "format": "list",
+      "gold": "Her mentors, family, and friends",
+      "in_validation": true,
+      "correct": false
+    },
+    {
+      "id": 51,
+      "format": "atomic",
+      "gold": "Liberal",
+      "in_validation": true,
+      "correct": false
+    },
+    {
+      "id": 82,
+      "format": "yes_no",
+      "gold": "No; she's in the process of adopting children.",
+      "in_validation": true,
+      "correct": false
+    },
+    {
+      "id": 114,
+      "format": "atomic",
+      "gold": "many people wanting to create loving homes for children in need",
+      "in_validation": true,
+      "correct": true
+    },
+    {
+      "id": 178,
+      "format": "list",
+      "gold": "one-on-one metoring and training to dancers,  workshops and classes to local schools and centers",
+      "in_validation": true,
+      "correct": true
+    },
+    {
+      "id": 242,
+      "format": "disjunctive",
+      "gold": "Middle-class or wealthy",
+      "in_validation": true,
+      "correct": false
+    },
+    {
+      "id": 248,
+      "format": "yes_no",
+      "gold": "Yes",
+      "in_validation": true,
+      "correct": true
+    },
+    {
+      "id": 270,
+      "format": "list",
+      "gold": "Live music event, violin concert",
+      "in_validation": true,
+      "correct": true
+    },
+    {
+      "id": 294,
+      "format": "list",
+      "gold": "Coco, Shadow",
+      "in_validation": true,
+      "correct": false
+    },
+    {
+      "id": 370,
+      "format": "list",
+      "gold": "Teaching them to respect and appreciate those who served",
+      "in_validation": true,
+      "correct": false
+    },
+    {
+      "id": 378,
+      "format": "atomic",
+      "gold": "Camping",
+      "in_validation": true,
+      "correct": true
+    },
+    {
+      "id": 394,
+      "format": "atomic",
+      "gold": "2019",
+      "in_validation": true,
+      "correct": false
+    },
+    {
+      "id": 409,
+      "format": "list",
+      "gold": "first screenplay on drama and romance, third screenplay on loss identity and connection",
+      "in_validation": true,
+      "correct": false
+    },
+    {
+      "id": 426,
+      "format": "date_relative",
+      "gold": "The week before 14September, 2022",
+      "in_validation": true,
+      "correct": true
+    },
+    {
+      "id": 428,
+      "format": "list",
+      "gold": "\"Little Women\", \"Lord of the Rings\"",
+      "in_validation": true,
+      "correct": false
+    },
+    {
+      "id": 440,
+      "format": "date_relative",
+      "gold": "The Sunday before 25October, 2022.",
+      "in_validation": true,
+      "correct": true
+    },
+    {
+      "id": 470,
+      "format": "yes_no",
+      "gold": "No; because both of them faced setbacks in their career",
+      "in_validation": true,
+      "correct": false
+    },
+    {
+      "id": 554,
+      "format": "atomic",
+      "gold": "stuffed animal dog named Tilly",
+      "in_validation": true,
+      "correct": false
+    },
+    {
+      "id": 616,
+      "format": "list",
+      "gold": "September, 2023",
+      "in_validation": true,
+      "correct": true
+    },
+    {
+      "id": 617,
+      "format": "disjunctive",
+      "gold": "California or Florida",
+      "in_validation": true,
+      "correct": false
+    },
+    {
+      "id": 621,
+      "format": "atomic",
+      "gold": "LeBron James",
+      "in_validation": true,
+      "correct": false
+    },
+    {
+      "id": 638,
+      "format": "list",
+      "gold": "Sprinting, long-distance running, and boxing.",
+      "in_validation": true,
+      "correct": false
+    },
+    {
+      "id": 753,
+      "format": "list",
+      "gold": "brave, selfless, down-to-earth attitude",
+      "in_validation": true,
+      "correct": false
+    },
+    {
+      "id": 776,
+      "format": "atomic",
+      "gold": "June 2023",
+      "in_validation": true,
+      "correct": true
+    },
+    {
+      "id": 791,
+      "format": "atomic",
+      "gold": "Hats",
+      "in_validation": true,
+      "correct": false
+    },
+    {
+      "id": 815,
+      "format": "atomic",
+      "gold": "Install a bird feeder outside where he can see the birds without going outdoors.",
+      "in_validation": true,
+      "correct": false
+    },
+    {
+      "id": 821,
+      "format": "atomic",
+      "gold": "sushi",
+      "in_validation": true,
+      "correct": true
+    },
+    {
+      "id": 893,
+      "format": "atomic",
+      "gold": "Connecticut.",
+      "in_validation": true,
+      "correct": false
+    },
+    {
+      "id": 898,
+      "format": "atomic",
+      "gold": "Presumably not",
+      "in_validation": true,
+      "correct": false
+    },
+    {
+      "id": 924,
+      "format": "list",
+      "gold": "quit his IT Job, secured his dream job, aspires to become an eSports competition organizer",
+      "in_validation": true,
+      "correct": false
+    },
+    {
+      "id": 928,
+      "format": "list",
+      "gold": "August 9, 2022",
+      "in_validation": true,
+      "correct": false
+    },
+    {
+      "id": 952,
+      "format": "date_range",
+      "gold": "November 5-6, 2022",
+      "in_validation": true,
+      "correct": false
+    },
+    {
+      "id": 1018,
+      "format": "atomic",
+      "gold": "making his first mobile game",
+      "in_validation": true,
+      "correct": false
+    },
+    {
+      "id": 1065,
+      "format": "date_relative",
+      "gold": "Wednesday before 9 February, 2023",
+      "in_validation": true,
+      "correct": true
+    },
+    {
+      "id": 1067,
+      "format": "atomic",
+      "gold": "in summer 2022",
+      "in_validation": true,
+      "correct": false
+    },
+    {
+      "id": 1081,
+      "format": "atomic",
+      "gold": "May 2023",
+      "in_validation": true,
+      "correct": false
+    },
+    {
+      "id": 1083,
+      "format": "list",
+      "gold": "on 5 June, 2023",
+      "in_validation": true,
+      "correct": true
+    },
+    {
+      "id": 1111,
+      "format": "atomic",
+      "gold": "Exploding Kittens",
+      "in_validation": true,
+      "correct": false
+    },
+    {
+      "id": 1203,
+      "format": "list",
+      "gold": "To nurture herself and embrace fresh starts",
+      "in_validation": true,
+      "correct": true
+    },
+    {
+      "id": 1215,
+      "format": "approximate",
+      "gold": "a card game about cats",
+      "in_validation": true,
+      "correct": false
+    },
+    {
+      "id": 1222,
+      "format": "atomic",
+      "gold": "Pineapple cakes",
+      "in_validation": true,
+      "correct": true
+    },
+    {
+      "id": 1265,
+      "format": "list",
+      "gold": "Nature and outdoor activities seem to be significant stress relievers and sources of joy for both Evan and Sam. These activities likely contribute positively to their mental well-being.",
+      "in_validation": true,
+      "correct": false
+    },
+    {
+      "id": 1273,
+      "format": "list",
+      "gold": "Evan and Sam use creative activities, like painting and writing, as therapeutic tools to express themselves and cope with stress.",
+      "in_validation": true,
+      "correct": false
+    },
+    {
+      "id": 1280,
+      "format": "date_relative",
+      "gold": "Saturday after 11 September, 2023.",
+      "in_validation": true,
+      "correct": true
+    },
+    {
+      "id": 1282,
+      "format": "list",
+      "gold": "Helping lost tourists and experiencing unexpected adventures in the city.",
+      "in_validation": true,
+      "correct": false
+    },
+    {
+      "id": 1291,
+      "format": "atomic",
+      "gold": "gastritis",
+      "in_validation": true,
+      "correct": true
+    },
+    {
+      "id": 1298,
+      "format": "atomic",
+      "gold": "Christmas",
+      "in_validation": true,
+      "correct": true
+    },
+    {
+      "id": 1309,
+      "format": "list",
+      "gold": "Unhealthy snacks, sweets, yoga, places with beautiful views",
+      "in_validation": true,
+      "correct": false
+    },
+    {
+      "id": 1313,
+      "format": "atomic",
+      "gold": "keep trying new things until something sparks excitement",
+      "in_validation": true,
+      "correct": false
+    },
+    {
+      "id": 1315,
+      "format": "list",
+      "gold": "fresh air, peacefulness, cozy cabin surrounded by mountains and forests",
+      "in_validation": true,
+      "correct": false
+    },
+    {
+      "id": 1362,
+      "format": "atomic",
+      "gold": "'Bring it on Home'",
+      "in_validation": true,
+      "correct": true
+    },
+    {
+      "id": 1398,
+      "format": "list",
+      "gold": "because it relaxes and calms him",
+      "in_validation": true,
+      "correct": true
+    },
+    {
+      "id": 1401,
+      "format": "atomic",
+      "gold": "two times",
+      "in_validation": true,
+      "correct": true
+    },
+    {
+      "id": 1404,
+      "format": "list",
+      "gold": "Yes; he want's to grow his fanbase",
+      "in_validation": true,
+      "correct": true
+    },
+    {
+      "id": 1466,
+      "format": "atomic",
+      "gold": "Fixing up things",
+      "in_validation": true,
+      "correct": false
+    },
+    {
+      "id": 1491,
+      "format": "atomic",
+      "gold": "Boston",
+      "in_validation": true,
+      "correct": true
+    },
+    {
+      "id": 1513,
+      "format": "atomic",
+      "gold": "Takes it one day at a time",
+      "in_validation": true,
+      "correct": false
+    },
+    {
+      "id": 9,
+      "format": "date_relative",
+      "gold": "The week before 9 June 2023",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 20,
+      "format": "list",
+      "gold": "dinosaurs, nature",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 27,
+      "format": "atomic",
+      "gold": "2022",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 42,
+      "format": "date_relative",
+      "gold": "The Tuesday before 20 July 2023",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 54,
+      "format": "atomic",
+      "gold": "The week of 23 August 2023",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 102,
+      "format": "yes_no",
+      "gold": "Yes",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 122,
+      "format": "atomic",
+      "gold": "Matt Patterson",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 153,
+      "format": "list",
+      "gold": "19 January, 2023",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 156,
+      "format": "list",
+      "gold": "They lost their jobs and decided to start their own businesses.",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 192,
+      "format": "atomic",
+      "gold": "Contemporary",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 204,
+      "format": "list",
+      "gold": "personal style and customer comfort",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 241,
+      "format": "list",
+      "gold": "A doll, a film camera",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 254,
+      "format": "atomic",
+      "gold": "2022",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 281,
+      "format": "list",
+      "gold": "Weight training, Circuit training, Kickboxing, yoga",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 284,
+      "format": "list",
+      "gold": "Selfless, family-oriented, passionate, rational",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 286,
+      "format": "list",
+      "gold": "Cindy, Laura",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 298,
+      "format": "list",
+      "gold": "Shelter coordinator, Counselor",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 302,
+      "format": "atomic",
+      "gold": "aerial yoga",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 307,
+      "format": "atomic",
+      "gold": "Her aunt",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 330,
+      "format": "atomic",
+      "gold": "joined a nearby church",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 389,
+      "format": "date_relative",
+      "gold": "the week before 21Janury, 2022",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 398,
+      "format": "atomic",
+      "gold": "asthma",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 403,
+      "format": "atomic",
+      "gold": "Lord of the Rings",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 407,
+      "format": "atomic",
+      "gold": "Max",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 416,
+      "format": "list",
+      "gold": "Screenplays,books, online blog posts, journal",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 421,
+      "format": "list",
+      "gold": "The weekend of 22August, 2022.",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 429,
+      "format": "atomic",
+      "gold": "four months",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 436,
+      "format": "atomic",
+      "gold": "stuffed toy pup",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 453,
+      "format": "list",
+      "gold": "A dog and threeturtles.",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 459,
+      "format": "atomic",
+      "gold": "Indiana",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 468,
+      "format": "list",
+      "gold": "coconut milk icecream, chocolate and vanilla swirl",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 471,
+      "format": "atomic",
+      "gold": "filmmaker.",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 607,
+      "format": "list",
+      "gold": "August 15, 2023",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 612,
+      "format": "atomic",
+      "gold": "Pomodoro technique",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 613,
+      "format": "atomic",
+      "gold": "John Williams",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 633,
+      "format": "list",
+      "gold": "around November 16, 2023",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 637,
+      "format": "list",
+      "gold": "Yoga, strength training",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 789,
+      "format": "atomic",
+      "gold": "work",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 814,
+      "format": "list",
+      "gold": "dog tags, toys, dog beds, collars",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 884,
+      "format": "atomic",
+      "gold": "Take them to a nearby park",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 902,
+      "format": "atomic",
+      "gold": "UNO",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 903,
+      "format": "atomic",
+      "gold": "Mafia",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 1017,
+      "format": "atomic",
+      "gold": "drums",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 1058,
+      "format": "list",
+      "gold": "31 January, 2023",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 1069,
+      "format": "atomic",
+      "gold": "for three years",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 1072,
+      "format": "list",
+      "gold": "likely no more than 30; since she's in school",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 1084,
+      "format": "atomic",
+      "gold": "Alaska",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 1092,
+      "format": "date_relative",
+      "gold": "week before 16 August, 2023",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 1121,
+      "format": "list",
+      "gold": "yoga, running",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 1143,
+      "format": "atomic",
+      "gold": "amulet",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 1232,
+      "format": "atomic",
+      "gold": "Canada",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 1237,
+      "format": "atomic",
+      "gold": "camping trip in the outdoors",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 1258,
+      "format": "list",
+      "gold": "Their experiences likely lead them to view challenges as opportunities for growth and change. They both have embraced healthier lifestyles, indicating a proactive approach to managing stress and challenges.",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 1297,
+      "format": "atomic",
+      "gold": "four months",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 1334,
+      "format": "list",
+      "gold": "observing nature and painting what is seen",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 1359,
+      "format": "list",
+      "gold": "Support and tips",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 1384,
+      "format": "list",
+      "gold": "mansion in Japan, luxury car Ferrari 488 GTB",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 1396,
+      "format": "list",
+      "gold": "Yes; because he enjoys the rush of performing onstage to large crowds",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 1474,
+      "format": "atomic",
+      "gold": "Ferrari",
+      "in_validation": false,
+      "correct": null
+    },
+    {
+      "id": 1476,
+      "format": "atomic",
+      "gold": "to never forget his dreams",
+      "in_validation": false,
+      "correct": null
+    }
+  ]
+}

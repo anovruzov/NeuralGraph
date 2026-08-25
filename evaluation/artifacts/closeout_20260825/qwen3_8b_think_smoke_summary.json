@@ -1,0 +1,107 @@
+{
+  "error_ids": [],
+  "exact_set_match": 0.6,
+  "item_f1": 0.8667,
+  "item_precision": 0.8,
+  "item_recall": 1.0,
+  "latency_p50_ms": 30561,
+  "latency_p95_ms": 40905,
+  "mean_out_tokens": 557.2,
+  "mode": "think",
+  "model": "qwen3:8b",
+  "n_errors": 0,
+  "n_requested": 5,
+  "n_scored": 5,
+  "operational_error_rate": 0.0,
+  "paid_calls": 0,
+  "parse_success": 1.0,
+  "prompt_hash": "5e923dc613887b80",
+  "rows": [
+    {
+      "category": "single_hop",
+      "exact_set_match": true,
+      "id": 4,
+      "item_f1": 1.0,
+      "item_precision": 1.0,
+      "item_recall": 1.0,
+      "items": [
+        "adoption agencies"
+      ],
+      "ms": 30561,
+      "n_items": 1,
+      "out_tokens": 281,
+      "parsed": true,
+      "unsupported": 0
+    },
+    {
+      "category": "temporal",
+      "exact_set_match": true,
+      "id": 6,
+      "item_f1": 1.0,
+      "item_precision": 1.0,
+      "item_recall": 1.0,
+      "items": [
+        "20 May 2023"
+      ],
+      "ms": 16851,
+      "n_items": 1,
+      "out_tokens": 311,
+      "parsed": true,
+      "unsupported": 0
+    },
+    {
+      "category": "single_hop",
+      "exact_set_match": true,
+      "id": 8,
+      "item_f1": 1.0,
+      "item_precision": 1.0,
+      "item_recall": 1.0,
+      "items": [
+        "single"
+      ],
+      "ms": 72148,
+      "n_items": 1,
+      "out_tokens": 1231,
+      "parsed": true,
+      "unsupported": 1
+    },
+    {
+      "category": "temporal",
+      "exact_set_match": false,
+      "id": 10,
+      "item_f1": 0.6667,
+      "item_precision": 0.5,
+      "item_recall": 1.0,
+      "items": [
+        "week of 29 May 2023",
+        "week of 26 June 2023"
+      ],
+      "ms": 40905,
+      "n_items": 2,
+      "out_tokens": 589,
+      "parsed": true,
+      "unsupported": 0
+    },
+    {
+      "category": "single_hop",
+      "exact_set_match": false,
+      "id": 14,
+      "item_f1": 0.6667,
+      "item_precision": 0.5,
+      "item_recall": 1.0,
+      "items": [
+        "counseling",
+        "mental health"
+      ],
+      "ms": 26993,
+      "n_items": 2,
+      "out_tokens": 374,
+      "parsed": true,
+      "unsupported": 0
+    }
+  ],
+  "set": "smoke",
+  "temperature": 0,
+  "unsupported_item_rate": 0.1429,
+  "unsupported_items": 1
+}

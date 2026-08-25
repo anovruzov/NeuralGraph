@@ -1,0 +1,438 @@
+{
+  "n_validation": 60,
+  "temporal_n": 15,
+  "with_annotations": 15,
+  "without_annotations": 0,
+  "acc_with": 0.6667,
+  "acc_without": 0.0,
+  "prompts_with_any_annotation": 54,
+  "present_but_ignored_ids": [
+    394,
+    928,
+    952,
+    1067,
+    1081
+  ],
+  "rows": [
+    {
+      "id": 11,
+      "category": "temporal",
+      "annotations_in_prompt": 4,
+      "relative_expr_present": true,
+      "correct": true
+    },
+    {
+      "id": 17,
+      "category": "temporal",
+      "annotations_in_prompt": 10,
+      "relative_expr_present": true,
+      "correct": true
+    },
+    {
+      "id": 24,
+      "category": "single_hop",
+      "annotations_in_prompt": 4,
+      "relative_expr_present": true,
+      "correct": false
+    },
+    {
+      "id": 48,
+      "category": "single_hop",
+      "annotations_in_prompt": 5,
+      "relative_expr_present": true,
+      "correct": false
+    },
+    {
+      "id": 51,
+      "category": "open_domain",
+      "annotations_in_prompt": 3,
+      "relative_expr_present": true,
+      "correct": false
+    },
+    {
+      "id": 82,
+      "category": "open_domain",
+      "annotations_in_prompt": 3,
+      "relative_expr_present": true,
+      "correct": false
+    },
+    {
+      "id": 114,
+      "category": "multi_hop",
+      "annotations_in_prompt": 10,
+      "relative_expr_present": true,
+      "correct": true
+    },
+    {
+      "id": 178,
+      "category": "single_hop",
+      "annotations_in_prompt": 2,
+      "relative_expr_present": true,
+      "correct": true
+    },
+    {
+      "id": 242,
+      "category": "open_domain",
+      "annotations_in_prompt": 0,
+      "relative_expr_present": false,
+      "correct": false
+    },
+    {
+      "id": 248,
+      "category": "open_domain",
+      "annotations_in_prompt": 1,
+      "relative_expr_present": true,
+      "correct": true
+    },
+    {
+      "id": 270,
+      "category": "single_hop",
+      "annotations_in_prompt": 6,
+      "relative_expr_present": true,
+      "correct": true
+    },
+    {
+      "id": 294,
+      "category": "single_hop",
+      "annotations_in_prompt": 2,
+      "relative_expr_present": true,
+      "correct": false
+    },
+    {
+      "id": 370,
+      "category": "multi_hop",
+      "annotations_in_prompt": 2,
+      "relative_expr_present": true,
+      "correct": false
+    },
+    {
+      "id": 378,
+      "category": "multi_hop",
+      "annotations_in_prompt": 7,
+      "relative_expr_present": true,
+      "correct": true
+    },
+    {
+      "id": 394,
+      "category": "temporal",
+      "annotations_in_prompt": 3,
+      "relative_expr_present": false,
+      "correct": false
+    },
+    {
+      "id": 409,
+      "category": "single_hop",
+      "annotations_in_prompt": 6,
+      "relative_expr_present": true,
+      "correct": false
+    },
+    {
+      "id": 426,
+      "category": "temporal",
+      "annotations_in_prompt": 1,
+      "relative_expr_present": true,
+      "correct": true
+    },
+    {
+      "id": 428,
+      "category": "single_hop",
+      "annotations_in_prompt": 4,
+      "relative_expr_present": true,
+      "correct": false
+    },
+    {
+      "id": 440,
+      "category": "temporal",
+      "annotations_in_prompt": 7,
+      "relative_expr_present": true,
+      "correct": true
+    },
+    {
+      "id": 470,
+      "category": "open_domain",
+      "annotations_in_prompt": 7,
+      "relative_expr_present": true,
+      "correct": false
+    },
+    {
+      "id": 554,
+      "category": "multi_hop",
+      "annotations_in_prompt": 1,
+      "relative_expr_present": false,
+      "correct": false
+    },
+    {
+      "id": 616,
+      "category": "temporal",
+      "annotations_in_prompt": 5,
+      "relative_expr_present": true,
+      "correct": true
+    },
+    {
+      "id": 617,
+      "category": "open_domain",
+      "annotations_in_prompt": 3,
+      "relative_expr_present": true,
+      "correct": false
+    },
+    {
+      "id": 621,
+      "category": "single_hop",
+      "annotations_in_prompt": 6,
+      "relative_expr_present": true,
+      "correct": false
+    },
+    {
+      "id": 638,
+      "category": "open_domain",
+      "annotations_in_prompt": 1,
+      "relative_expr_present": true,
+      "correct": false
+    },
+    {
+      "id": 753,
+      "category": "multi_hop",
+      "annotations_in_prompt": 0,
+      "relative_expr_present": false,
+      "correct": false
+    },
+    {
+      "id": 776,
+      "category": "temporal",
+      "annotations_in_prompt": 5,
+      "relative_expr_present": true,
+      "correct": true
+    },
+    {
+      "id": 791,
+      "category": "single_hop",
+      "annotations_in_prompt": 3,
+      "relative_expr_present": true,
+      "correct": false
+    },
+    {
+      "id": 815,
+      "category": "open_domain",
+      "annotations_in_prompt": 0,
+      "relative_expr_present": false,
+      "correct": false
+    },
+    {
+      "id": 821,
+      "category": "temporal",
+      "annotations_in_prompt": 8,
+      "relative_expr_present": true,
+      "correct": true
+    },
+    {
+      "id": 893,
+      "category": "open_domain",
+      "annotations_in_prompt": 9,
+      "relative_expr_present": true,
+      "correct": false
+    },
+    {
+      "id": 898,
+      "category": "open_domain",
+      "annotations_in_prompt": 9,
+      "relative_expr_present": true,
+      "correct": false
+    },
+    {
+      "id": 924,
+      "category": "single_hop",
+      "annotations_in_prompt": 1,
+      "relative_expr_present": false,
+      "correct": false
+    },
+    {
+      "id": 928,
+      "category": "temporal",
+      "annotations_in_prompt": 7,
+      "relative_expr_present": true,
+      "correct": false
+    },
+    {
+      "id": 952,
+      "category": "temporal",
+      "annotations_in_prompt": 6,
+      "relative_expr_present": true,
+      "correct": false
+    },
+    {
+      "id": 1018,
+      "category": "multi_hop",
+      "annotations_in_prompt": 6,
+      "relative_expr_present": true,
+      "correct": false
+    },
+    {
+      "id": 1065,
+      "category": "temporal",
+      "annotations_in_prompt": 3,
+      "relative_expr_present": true,
+      "correct": true
+    },
+    {
+      "id": 1067,
+      "category": "temporal",
+      "annotations_in_prompt": 10,
+      "relative_expr_present": true,
+      "correct": false
+    },
+    {
+      "id": 1081,
+      "category": "temporal",
+      "annotations_in_prompt": 7,
+      "relative_expr_present": true,
+      "correct": false
+    },
+    {
+      "id": 1083,
+      "category": "temporal",
+      "annotations_in_prompt": 10,
+      "relative_expr_present": true,
+      "correct": true
+    },
+    {
+      "id": 1111,
+      "category": "open_domain",
+      "annotations_in_prompt": 1,
+      "relative_expr_present": false,
+      "correct": false
+    },
+    {
+      "id": 1203,
+      "category": "multi_hop",
+      "annotations_in_prompt": 4,
+      "relative_expr_present": true,
+      "correct": true
+    },
+    {
+      "id": 1215,
+      "category": "multi_hop",
+      "annotations_in_prompt": 4,
+      "relative_expr_present": true,
+      "correct": false
+    },
+    {
+      "id": 1222,
+      "category": "multi_hop",
+      "annotations_in_prompt": 4,
+      "relative_expr_present": true,
+      "correct": true
+    },
+    {
+      "id": 1265,
+      "category": "open_domain",
+      "annotations_in_prompt": 5,
+      "relative_expr_present": true,
+      "correct": false
+    },
+    {
+      "id": 1273,
+      "category": "open_domain",
+      "annotations_in_prompt": 1,
+      "relative_expr_present": false,
+      "correct": false
+    },
+    {
+      "id": 1280,
+      "category": "temporal",
+      "annotations_in_prompt": 4,
+      "relative_expr_present": true,
+      "correct": true
+    },
+    {
+      "id": 1282,
+      "category": "single_hop",
+      "annotations_in_prompt": 1,
+      "relative_expr_present": false,
+      "correct": false
+    },
+    {
+      "id": 1291,
+      "category": "single_hop",
+      "annotations_in_prompt": 3,
+      "relative_expr_present": true,
+      "correct": true
+    },
+    {
+      "id": 1298,
+      "category": "open_domain",
+      "annotations_in_prompt": 5,
+      "relative_expr_present": true,
+      "correct": true
+    },
+    {
+      "id": 1309,
+      "category": "single_hop",
+      "annotations_in_prompt": 1,
+      "relative_expr_present": true,
+      "correct": false
+    },
+    {
+      "id": 1313,
+      "category": "multi_hop",
+      "annotations_in_prompt": 0,
+      "relative_expr_present": false,
+      "correct": false
+    },
+    {
+      "id": 1315,
+      "category": "multi_hop",
+      "annotations_in_prompt": 7,
+      "relative_expr_present": true,
+      "correct": false
+    },
+    {
+      "id": 1362,
+      "category": "multi_hop",
+      "annotations_in_prompt": 5,
+      "relative_expr_present": true,
+      "correct": true
+    },
+    {
+      "id": 1398,
+      "category": "single_hop",
+      "annotations_in_prompt": 4,
+      "relative_expr_present": true,
+      "correct": true
+    },
+    {
+      "id": 1401,
+      "category": "single_hop",
+      "annotations_in_prompt": 3,
+      "relative_expr_present": true,
+      "correct": true
+    },
+    {
+      "id": 1404,
+      "category": "open_domain",
+      "annotations_in_prompt": 1,
+      "relative_expr_present": true,
+      "correct": true
+    },
+    {
+      "id": 1466,
+      "category": "multi_hop",
+      "annotations_in_prompt": 0,
+      "relative_expr_present": false,
+      "correct": false
+    },
+    {
+      "id": 1491,
+      "category": "multi_hop",
+      "annotations_in_prompt": 3,
+      "relative_expr_present": true,
+      "correct": true
+    },
+    {
+      "id": 1513,
+      "category": "multi_hop",
+      "annotations_in_prompt": 0,
+      "relative_expr_present": false,
+      "correct": false
+    }
+  ]
+}
