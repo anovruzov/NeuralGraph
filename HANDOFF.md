@@ -1,129 +1,108 @@
-# Handoff — NeuralGraph / coordination track
+# Handoff — NeuralGraph / coordination + LoCoMo
 
-Self-contained cold-start bundle. Written 2026-08-25. Assumes you have the
+Self-contained cold-start bundle. Updated 2026-08-25. Assumes you have the
 repository and nothing else — no prior conversation.
 
 Repo: `/Users/novruz/NeuralGraph`
-Branch: `claude/mycelic-gate-0-recovery-tjl82x`
-HEAD: `37103e5` · 5 commits ahead of origin · **nothing pushed**
+Branch: `locomo-six-fix-loop` · HEAD `bdf255f4a048b85efdbbdff8022ba516bf440b91`
+**8 commits ahead of origin · nothing pushed · working tree clean** (only the
+gitignored `demo/.cache/` is untracked)
 
 ---
 
-## 1. Read these first, in this order
-
-Do not grep the source to reconstruct facts these already state. They are kept
-accurate and are far cheaper than re-deriving from ~5,000 lines.
+## 1. Read in this order
 
 | Need | File |
 |---|---|
-| **What every claim rests on, and what it does not** | `AUDIT.md` |
+| **What every claim rests on** | `AUDIT.md` |
 | Executed tests, digests, regeneration | `VERIFICATION.md` |
 | KEEP / REWRITE / ARCHIVE / DELETE decisions | `CLEANUP_PLAN.md` |
 | The paper | `docs/paper/capability_survival.md` |
 | Tables (generated, never hand-typed) | `docs/paper/tables.md` |
-| Design, invariants, why they hold | `docs/ARCHITECTURE.md` |
-| What the numbers say | `docs/RESULTS.md` |
-| How to regenerate every number | `docs/REPRODUCE.md` |
+| Design, invariants | `docs/ARCHITECTURE.md` |
+| Coordination numbers | `docs/RESULTS.md` |
+| Regenerate every number | `docs/REPRODUCE.md` |
 | Claims → evidence → test | `docs/PAPER.md` |
-| Why retrieval accuracy is low | `docs/ACCURACY.md` |
-| Status, gates, open decisions | `state.md` |
+| Retrieval accuracy diagnosis | `docs/ACCURACY.md` |
+| **LoCoMo loop: current state** | `evaluation/artifacts/overnight_80/FINAL_REPORT.md` |
 | Rules, naming traps, pinned results | `CLAUDE.md` |
+| Status, gates, open decisions | `state.md` |
 
 ---
 
 ## 2. Environment — this bites everyone
 
-**Use Python 3.11 explicitly.** On this machine `python3` is `/usr/bin/python3`
-(3.9.6) and **cannot collect the test suite at all** — it dies with
-`TypeError: unsupported operand type(s)` on `X | Y` annotations in all 13 test
-files. Bare `pytest` is **not on PATH**.
+**Use Python 3.11 explicitly.** `python3` here is `/usr/bin/python3` (3.9.6) and
+**cannot collect the test suite at all** — `TypeError: unsupported operand
+type(s)` on `X | Y` annotations in every test file. Bare `pytest` is **not on
+PATH**.
 
 ```bash
 /opt/homebrew/bin/python3.11 --version          # 3.11.14
-/opt/homebrew/bin/python3.11 -m pytest -q       # 266 passed, 1 skipped, 3382 subtests
+/opt/homebrew/bin/python3.11 -m pytest -q       # 303 passed, 1 skipped, 3382 subtests
 ```
 
-Canonical commands (all from repo root, no venv activation step):
+Canonical commands, all from repo root, no venv step:
 
 ```bash
 pip install -r requirements.txt
 python3.11 -m pytest
 python3.11 -m NeuralGraph.coordination.benchmark --sweep 30 --format markdown
-python3.11 -m NeuralGraph.coordination.benchmark --output benchmark.json
 python3.11 -m NeuralGraph.coordination.experiment --output experiment.json
 python3.11 -m NeuralGraph.coordination.scale --format markdown
 python3.11 -m tools.build_paper_tables --check
-python3.11 -m tools.build_paper_tables --output docs/paper/tables.md
-
 cd NeuralGraph/coordination/artifacts && shasum -a 256 -c SHA256SUMS
 # macOS has no sha256sum; use shasum -a 256
 ```
 
+LoCoMo evaluation (local answerer, unpaid; judge is paid and currently blocked):
+
+```bash
+python3.11 -m evaluation.improvement_loop.batch validation --size 5 --concurrency 2
+ollama serve            # answerer + embeddings; must be running
+```
+
 ---
 
-## 3. Naming traps — get these wrong and you lose an hour
+## 3. Naming traps
 
 - `NeuralGraph/coordination/` is the cross-node coordinator.
 - `NeuralGraph/tesseract.py` (2,212 lines) is **intra-node retrieval fusion**.
-  **Not** the coordinator, **not** a distributed router. Unrelated. If a task
-  says "Tesseract", establish which one is meant.
+  Not the coordinator, not a distributed router.
 - **"Mycelic" appears in no committed file.** Branch names only.
-- **NATS / JetStream are not implemented.** Design intent. Everything is
-  in-process. There is no transport layer and no wall-clock latency anywhere.
-- Commit `b5b9c3e271` **does not exist**. Do not look for it.
-- **The two "eights" are different axes.** The repo has 8 *placement/repair
-  strategies*. An older architecture writeup has 8 *architecture families*
-  (C-RAW, C-GRAPH, R-CENTRAL, FED, FLAT, HIER, MYC-FIXED, MYC-LEARNED) of
-  which **zero are implemented**. Never present the strategy table as an
-  architecture comparison.
+- **NATS / JetStream are not implemented.** Everything is in-process. No
+  transport, no wall-clock latency anywhere.
+- Commit `b5b9c3e271` **does not exist**.
+- **Two different "eights".** The repo has 8 *placement/repair strategies*. An
+  older writeup has 8 *architecture families* of which **zero** are implemented.
+  Never present the strategy table as an architecture comparison.
 
 ---
 
-## 4. Rules that are not negotiable
+## 4. Non-negotiable rules
 
-1. **Never refresh a pinned artifact to get a test green.** Diff it, find out
-   why it moved, re-pin deliberately with the reason in the commit message.
-2. **Never skip, disable, xfail or quarantine a test** to get green.
-3. **Do not touch the retrieval track** without Anar's say-so: `answering.py`,
+1. Never refresh a pinned artifact to make a test green.
+2. Never skip, xfail or quarantine a test.
+3. Retrieval-track files belong to Nurman: `answering.py`,
    `llm_profile_extractor.py`, `prompts.py`, `reranker.py`, `service.py`,
-   `tesseract.py`, `demo/runner.py` belong to Nurman.
-4. **Never synthesize a failure domain.** Domains are read from recorded root
-   metadata or reported absent. Inferring one from storage identity, node id,
-   file path, or value equality makes every domain metric fiction.
-5. **Coordination stays domain-neutral.** `contracts.py` and `core.py` import
-   no NeuralGraph storage types. Only `storage_adapter.py` bridges.
-6. **Lineage direction is load-bearing.** Derivation parents are the *targets*
-   of outgoing HIERARCHY edges plus `source_memory_ids`. `parent_id` and
-   `get_edges_to` point the wrong way.
-7. **Repair policies see exported contracts only**, never `Placement`
-   internals. A policy that reads private state is an oracle, not a policy.
-
-### Git safety
-- Preserve unrelated dirty work. **Do not touch `stash@{0}`** ("pre-replay
-  2026-08-21", 8 files, retrieval-track work).
-- No `git reset --hard`, `git clean -fd`, blanket restore/checkout, history
-  rewriting, force-push, or destructive worktree deletion.
-- **Do not push.**
+   `tesseract.py`, `demo/runner.py`.
+4. Never synthesize a failure domain.
+5. Coordination stays domain-neutral; only `storage_adapter.py` bridges.
+6. Lineage direction is load-bearing: parents are *targets* of outgoing
+   HIERARCHY edges plus `source_memory_ids`.
+7. Repair policies see exported contracts only, never `Placement` internals.
+8. Never alter gold answers, labels, split membership, or the denominator.
+9. Never drop provider/parse/timeout errors from the denominator.
+10. **Do not touch `stash@{0}`** ("pre-replay 2026-08-21", retrieval-track work).
+11. Do not push, force-push, rewrite history, or delete branches.
 
 ---
 
-## 5. Results that must not silently change
+## 5. Coordination track — DONE, results pinned
 
-If any of these moves, a claim about the world has changed — stop and say so.
+If any of these moves, a claim about the world changed. Stop and say so.
 
-- Replica count survives a lineage-root failure: **0.00** (3 replicas, and
-  8-record full replication)
-- `lineage_aware_repair`: **0.778** · `oracle_min_cut`: **0.889**
-- Only min-cut-2 survives `worst_single_domain_failure`
-- Every scale verdict invariant across K ∈ {2,3,5,8}, H ∈ {2,3}
-- No distributed strategy survives `network_partition` (0.00) — against interest
-- `lineage_aware` loses to `source_count` in **exactly one of six cells**:
-  `node_failure` at **I=1** (0.00 vs 1.00). At I=2 they tie at 1.00. The
-  controlling variable is independent roots, not K or H — against interest
-
-Full headline (30 seeds, 8 strategies × 9 interventions = 72 cells):
-
-| strategy | survival | silent forgetting | mean bytes |
+| strategy | survival | silent forgetting | bytes |
 |---|---|---|---|
 | `isolated_local` | 0.000 | 0.000 | 1,371 |
 | `centralized` | 0.111 | 0.667 | 3,020 |
@@ -134,93 +113,107 @@ Full headline (30 seeds, 8 strategies × 9 interventions = 72 cells):
 | `lineage_aware_repair` | **0.778** | 0.222 | 5,448 |
 | `oracle_min_cut` | **0.889** | 0.111 | 6,461 |
 
+30 seeds × 8 strategies × 9 interventions = 72 cells. All 4 artifacts regenerate
+byte-identically.
+
+Reported against interest: no distributed strategy survives `network_partition`
+(0.00); `lineage_aware` loses to `source_count` in exactly **one of six** cells —
+`node_failure` at **I=1** — and ties at I=2. The controlling variable is
+independent roots, not K or H.
+
 ---
 
-## 6. What was done in this session
+## 6. LoCoMo track — current state
 
-Five commits, `7dab416..37103e5`, 18 files, +1,522/−31. **Nothing pushed.**
+### Frozen evaluation setup
 
-| Commit | What |
+| | |
 |---|---|
-| `7dab416` | Replay harness: split wrong answers into generation vs retrieval failure via `evidence_lenient`; 13 tests added, mutation-verified |
-| `d981878` | **Security.** `.gitignore` had `env/` (a virtualenv dir) which does not match `.env`. `.env` holds `OPENAI_API_KEY`. Verified `git log --all -- .env` is empty — **never committed, no rotation needed** |
-| `d05f10c` | `AUDIT.md`, `CLEANUP_PLAN.md`, `VERIFICATION.md` — claim-to-evidence audit |
-| `4656aed` | Manuscript + `tools/build_paper_tables.py` |
-| `37103e5` | Doc corrections; archived one contradicted file |
+| corpus | `demo/maximal.json`, digest `916ca308d5e41cba…` (1540 q, 4 categories) |
+| raw corpus | `evaluation/locomo/locomo10.json` (1986 q, 5 categories, **gold `dia_id` evidence**) |
+| splits | 40/20/40, seed 20260825 → dev 624 / val 305 / locked 611 |
+| validation eval set | 60 q, 15/category, digest `8077c40ba2e7cff2` |
+| locked eval set | 60 q, digest `c04acf27b0e939d7` — **never inspected** |
+| answerer | `qwen2.5:7b-instruct` (local Ollama, unpaid) |
+| judge | `gpt-4o`, prompt hash `5e923dc613887b80`, config `cd9098dfbdd0ad06` |
+| retrieval | recorded excerpts ∪ entity/BM25 top-5, relevance-first (frozen additive) |
 
-### Three defects found and fixed
-1. **Test count** documented as 185; actually **266**. Tests were added since —
-   nothing regressed.
-2. **Every canonical command was unrunnable** (bare `python3` = 3.9). Fixed to
-   `python3.11 -m …` throughout.
-3. **N2 overstated.** Narrowed from "under plain node failure at every K and H"
-   to the one cell it actually holds in. See `AUDIT.md` §2.
+**Baseline: 24/60 = 40.0%**, 0 operational errors.
 
-### Archived, not deleted
-`QUERY_ROUTING_IMPROVEMENTS.md` → `archive/`. Four accuracy baselines are
-contradicted by `evaluation/artifacts/accuracy_diagnosis.json` (single-hop 50%
-vs **52.1%** at n=**282** not 78; temporal 78.4% vs **64.5%**; multi-hop 81.5%
-vs **74.1%**; open-domain 72% vs **52.1%**), "Expected: 70-80%" is a projection
-formatted as a result, and pattern counts contradict themselves. Header on the
-file says so.
+### The four findings that matter most
 
-**Nothing was deleted.** No history rewrite. No credential rotation.
+**1. The substring evidence heuristic is unreliable.** The raw corpus carries
+gold evidence turn ids and all 120 frozen questions join to it on
+(conversation, question). Against that ground truth the heuristic disagrees on
+**30 of 60** questions — 22 called "recoverable" with no gold evidence present.
+Prefer `dia_id` ground truth over `diagnose_accuracy` measures for anything
+load-bearing.
 
----
+**2. Retrieval is not the bottleneck; generation is.** Corrected, recorded
+retrieval already holds gold evidence for **46/60 (76.7%)**, complete evidence
+for 36/60. Only 22 of the 48 evidence-present questions are answered correctly —
+**26 generation-recoverable failures**.
 
-## 7. Verified state as of `37103e5`
+**3. The judge is nondeterministic at ~4.5%.** Measured on a byte-identical
+candidate: 1 CORRECT in 22 identical calls at `temperature: 0`. That is ~2.7
+expected spurious flips per 60 questions. **Never adjudicate a round on the raw
+delta alone** — classify identical/equivalent outputs and hold their verdict
+fixed.
 
-```
-Python 3.11.14 · 266 passed, 1 skipped, 3382 subtests
-7/7 pinned artifacts verify against SHA256SUMS
-4/4 coordination artifacts regenerate byte-identically
-docs/paper/tables.md regenerates identically
-```
+**4. Current failure mix** (26 evidence-present wrong answers):
+wrong_selection **10**, judge_disagreement **7**, incomplete_list **4**,
+unsupported_item **4**, temporal_error **1**.
 
-| Artifact | sha256 (first 16) |
-|---|---|
-| `experiment_seed20260813.json` | `f712e12d85f8b63a` |
-| `benchmark_seed20260813.json` | `2d8564e7cd717a23` |
-| `benchmark_sweep30_seed20260813.json` | `3e45ebc05d653507` |
-| `scale_seed20260813.json` | `61be1f24d6ef4808` |
+### Ceiling
 
-Working tree clean except untracked `demo/.cache/` (generated embeddings).
+48/60 = 80.0% evidence-present, +2 answered correctly without retrieved evidence
+→ **83.3% empirical ceiling**. Conversion is 22/48 = 45.8%. 80% judged accuracy
+would require converting essentially every evidence-present question.
 
----
+### Rejected experiments — preserved, not deleted
 
-## 8. VERIFIED vs PROPOSED — the line not to cross
+| experiment | where | why rejected |
+|---|---|---|
+| **v2 abstention gate** | `evaluation/improvement_loop/rejected_v2/` | Stated mechanism never fired (0 temporal false abstentions recovered; Qwen abstains on 0/15 temporal). Gained +0.083 judged but from an *unintended* global chronological re-ordering; McNemar p=0.18, CI spans zero, item recall −0.029. Full adjudication in `evaluation/artifacts/locomo_loop/V2_ROOT_CAUSE.md`. |
+| **Candidate E (replacement)** | `evaluation/improvement_loop/candidate_e/` | recall@20 0.331 vs baseline 0.668; net **−22** questions. |
+| **Candidate E (additive)** | same | Recovers **+2**, below the +5 gate. Kept as the frozen retrieval config because it is harmless and lifts evidence availability to 48/60. |
+| **Candidate B (completeness)** | `evaluation/improvement_loop/candidate_b/` | Failed the unpaid gate: unsupported items 17→24 (token-wise 7→11, item length unchanged). Recall +0.069 and precision +0.022, so the mechanism works but buys completeness with invention. |
 
-**VERIFIED** (code + test + pinned artifact): lineage-aware reconstruction;
-failure-domain min-cut; 8×9 strategy/intervention matrix; 30-seed survival;
-real-SQLite reproduction with lineage *derived* not declared; scale and arity
-generalization; the negative results.
+### Budget — currently blocked
 
-**PROPOSED — zero files, zero tests, zero artifacts.** Do not describe any of
-these as built: Mycelic Fabric · NATS/JetStream · KnowledgeArtifact · four-way
-learned router · hyperedges / cross-cutting scopes · hyperbolic embeddings ·
-active lineage diversification · all 8 architecture families.
+`evaluation/improvement_loop/budget.py` reserves **before** each request, counts
+retries as requests, persists atomically, and carries prior spend forward.
 
----
-
-## 9. Open items
-
-1. **Figures 1 and 3.** Not drawn. `docs/PAPER.md` calls Figure 3 (survival vs
-   storage Pareto) "the one that carries the paper"; Figure 1 (the A/B/C/D
-   fixture — why C is not redundancy) is what makes the rest legible. Data for
-   both is in `docs/paper/tables.md` and the pinned artifacts.
-2. **Authorship / ownership** unresolved — on the `docs/PAPER.md`
-   pre-submission checklist, flagged open in `state.md`.
-3. **Retrieval accuracy: diagnosed, not fixed.** Single-hop 52.1%, *worse* than
-   multi-hop 74.1%. Of 513 wrong answers: 327 generation, 139 recoverable
-   retrieval misses, 47 **unanswerable** (gold appears nowhere in the source),
-   so the hard ceiling is **96.9%**, not 100%. Fixes land in Nurman's files —
-   see rule 3. Full analysis in `docs/ACCURACY.md`.
-4. **Deadline.** `docs/PAPER.md` targets NeurIPS Agentic Web: lock **Aug 26**,
-   submit **Aug 29 AoE**.
+**48 paid judge requests already consumed** against a 40-request default ceiling
+(75% stop point = 30). `BUDGET_LEDGER.json` has `paid_calls_permitted: false`.
+**Any new judged evaluation is blocked until a human raises the ceiling.**
 
 ---
 
-## 10. Ownership
+## 7. What to do next
+
+Ranked by expected value:
+
+1. **Judge calibration.** `judge_disagreement` is 7 of 26 addressable failures
+   (27%) — e.g. `q753` gold `"brave, selfless, down-to-earth attitude"`,
+   answered `"he's brave, selfless, down-to-earth"`, judged wrong. This is a
+   grading question, not a model change, and is the cheapest real gain.
+2. **Repaired Candidate B**: filter each emitted item against evidence support
+   *before output*, rather than asking the model to self-police. Tests the same
+   mechanism without the invention cost. Propose as a new mechanism, do not tune
+   the rejected one.
+3. **wrong_selection (10)** is the largest bucket and has no proposed mechanism.
+4. Do **not** re-attempt global re-ordering or abstention instructions.
+
+### Paper (separate track, near-done)
+
+`docs/PAPER.md` targets NeurIPS Agentic Web: lock **Aug 26**, submit **Aug 29
+AoE**. Open: Figures 1 and 3 (data is in `docs/paper/tables.md`), and the
+authorship/ownership decision flagged in `state.md`.
+
+---
+
+## 8. Ownership
 
 - **Nurman** — NeuralGraph: memory formation, graph dynamics, retrieval.
 - **Anar** — coordination, lineage semantics, failure experiments, paper.
