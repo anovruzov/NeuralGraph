@@ -3,6 +3,11 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Secrets (.env holds provider API keys; `env/` above is a virtualenv, not this)
+.env
+.env.*
+!.env.example
+
 # Virtual environments
 .venv/
 venv/
