@@ -73,8 +73,6 @@ def rebuild_rows(cache: ResponseCache, ids: list[int], by_id: dict[int, dict[str
     """Reconstruct scored rows for already-cached questions, no API calls."""
     import hashlib
 
-    from evaluation.replay_generation import parse_items
-
     rows = []
     for qid in ids:
         record = by_id[qid]
@@ -82,9 +80,9 @@ def rebuild_rows(cache: ResponseCache, ids: list[int], by_id: dict[int, dict[str
         if answer is None:
             continue
         if "error" in answer:
-            rows.append(score_row(record, answer, {}))
+            rows.append(score_row(record, answer, {}, cfg))
             continue
-        items, _ = parse_items(answer["text"])
+        items, _, _ = cfg.parse(answer["text"])
         candidate = ", ".join(items) if items else answer["text"][:300]
         jkey = ResponseCache.key(
             "judge", qid, cfg,
@@ -93,7 +91,7 @@ def rebuild_rows(cache: ResponseCache, ids: list[int], by_id: dict[int, dict[str
         verdict = cache._data.get(jkey)
         if verdict is None:
             continue
-        rows.append(score_row(record, answer, verdict))
+        rows.append(score_row(record, answer, verdict, cfg))
     return rows
 
 
@@ -103,6 +101,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--size", type=int, default=5)
     ap.add_argument("--concurrency", type=int, default=2)
     ap.add_argument("--log-dir", type=Path, default=OUT / "logs")
+    ap.add_argument("--tag", default="", help="cache/label suffix, e.g. round1")
     args = ap.parse_args(argv)
 
     records = load_corpus()
@@ -110,14 +109,15 @@ def main(argv: list[str] | None = None) -> int:
     sets = load_eval_sets(OUT / "eval_sets.json")
     es = sets[args.split]
     cfg = RunConfig(concurrency=args.concurrency)
-    cache = ResponseCache(OUT / "cache" / f"{args.split}.json")
+    suffix = f"_{args.tag}" if args.tag else ""
+    cache = ResponseCache(OUT / "cache" / f"{args.split}{suffix}.json")
 
     done, todo = completed_ids(cache, es.question_ids, by_id, cfg)
     total = len(es.question_ids)
     batch_index = len(done) // args.size
 
     args.log_dir.mkdir(parents=True, exist_ok=True)
-    log_path = args.log_dir / f"{args.split}_batch{batch_index:03d}.log"
+    log_path = args.log_dir / f"{args.split}{suffix}_batch{batch_index:03d}.log"
 
     if not todo:
         print(f"{args.split}: ALL {total} COMPLETE", file=sys.stderr)

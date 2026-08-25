@@ -1,0 +1,10 @@
+split=validation batch=11 attempting=[1401, 1404, 1466, 1491, 1513] cached=55/60 config=817fb67451aa7da3
+  ids attempted : [1401, 1404, 1466, 1491, 1513]
+  completed     : 5
+  cached (skip) : 55
+  errors        : 0
+  cumulative    : 60/60
+  accuracy      : 0.483 (29/60 scored)
+  elapsed       : 230s (46.0s/q)
+  est remaining : 0 q, ~0 min
+  error rate    : 0.00% (limit 1%)

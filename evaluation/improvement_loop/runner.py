@@ -77,6 +77,11 @@ class RunConfig:
     json_instruction: str = JSON_INSTRUCTION
     max_usd: float = 5.0
 
+    def parse(self, text: str) -> tuple[list[str], bool, list[str]]:
+        """v1 parse. The third slot stays empty: no citation is requested."""
+        items, nie = parse_items(text)
+        return items, nie, []
+
     @property
     def prompt_hash(self) -> str:
         return hashlib.sha256(
@@ -90,6 +95,9 @@ class RunConfig:
             "judge_model": self.judge_model,
             "temperature": self.temperature,
             "top_k": self.top_k,
+            # prompt_version is deliberately NOT in the key: prompt_hash already
+            # separates the versions, and adding a redundant field would have
+            # invalidated every previously cached v1 answer for no gain.
             "prompt_hash": self.prompt_hash,
         }
         return hashlib.sha256(
@@ -211,6 +219,9 @@ async def answer_one(record: dict[str, Any], cfg: RunConfig, cache: ResponseCach
         "temperature": cfg.temperature,
         "messages": [
             {"role": "system", "content": cfg.system_prompt + "\n" + cfg.json_instruction},
+            # v1 builder: evidence stays in retrieval-relevance order. Global
+            # chronological re-ordering was reverted -- it moved the rank-1
+            # excerpt to median position 11 of 15 on 60/60 questions.
             {"role": "user", "content": build_prompt(record)},
         ],
     }
@@ -286,7 +297,7 @@ def _answer_type(text: str) -> str:
 
 
 def score_row(record: dict[str, Any], answer: dict[str, Any],
-              verdict: dict[str, Any]) -> dict[str, Any]:
+              verdict: dict[str, Any], cfg: "RunConfig | None" = None) -> dict[str, Any]:
     """Score one question. Errors are marked, never dropped."""
     qid = int(record["id"])
     base = {"id": qid, "category": str(record.get("category")),
@@ -297,7 +308,11 @@ def score_row(record: dict[str, Any], answer: dict[str, Any],
     if "error" in verdict:
         return {**base, "error": verdict["error"], "stage": "judge"}
 
-    items, not_in_evidence = parse_items(answer["text"])
+    if cfg is not None:
+        items, not_in_evidence, cited = cfg.parse(answer["text"])
+    else:
+        items, not_in_evidence = parse_items(answer["text"])
+        cited = []
     gold = str(record.get("gold_answer", ""))
     g = grade(gold, items).__dict__
     strict, lenient = evidence_present(record)
@@ -432,13 +447,13 @@ async def run_eval(records_by_id: dict[int, dict[str, Any]], question_ids: tuple
         record = records_by_id[qid]
         answer = await answer_one(record, cfg, cache, answer_sem)
         if "error" in answer:
-            row = score_row(record, answer, {})
+            row = score_row(record, answer, {}, cfg)
             progress.tick()
             return row
-        items, _ = parse_items(answer["text"])
+        items, _, _ = cfg.parse(answer["text"])
         candidate = ", ".join(items) if items else answer["text"][:300]
         verdict = await judge_one(record, candidate, cfg, cache, judge_sem)
-        row = score_row(record, answer, verdict)
+        row = score_row(record, answer, verdict, cfg)
         progress.tick(row.get("category"), row.get("judged_correct")) if "error" not in row \
             else progress.tick()
         return row

@@ -1,0 +1,18 @@
+{
+  "answerer": "local ollama qwen2.5:7b-instruct (unpaid)",
+  "balance_queryable": false,
+  "consumed_cost_est_usd": 0.031,
+  "consumed_requests": 48,
+  "consumed_tokens_est": 10300,
+  "hard_dollar_ceiling": 3.0,
+  "hard_request_ceiling": 40,
+  "hard_token_ceiling": 120000,
+  "initial_balance": "not exposed without credentials",
+  "note": "48 judge calls already spent this session on the A/A stability test (23x5 + 20x1 + baseline). Judge calls for the frozen baseline and v2 round are cached and will not be repeated. Under the 40-request default ceiling the A/A spend already exceeds it, so NO further paid calls will be made without explicit user authorization.",
+  "paid_calls_permitted": false,
+  "projected_next_batch_usd": 0.0,
+  "provider": "openai",
+  "reserve_requirement": "25% of ceiling; stop paid calls at 75% of cap",
+  "resolved_model": "gpt-4o (judge only)",
+  "stop_at_requests": 30
+}

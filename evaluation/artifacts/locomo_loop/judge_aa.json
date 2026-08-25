@@ -1,0 +1,307 @@
+{
+  "reps": 5,
+  "tested": 23,
+  "unstable": 0,
+  "instability_rate": 0.0,
+  "rows": [
+    {
+      "id": 11,
+      "category": "temporal",
+      "candidate": "4 years",
+      "verdicts": [
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "stable": true
+    },
+    {
+      "id": 17,
+      "category": "temporal",
+      "candidate": "2 July 2023",
+      "verdicts": [
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "stable": true
+    },
+    {
+      "id": 24,
+      "category": "single_hop",
+      "candidate": "Charlotte's Web",
+      "verdicts": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "stable": true
+    },
+    {
+      "id": 48,
+      "category": "single_hop",
+      "candidate": "Melanie",
+      "verdicts": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "stable": true
+    },
+    {
+      "id": 51,
+      "category": "open_domain",
+      "candidate": "LGBTQ rights",
+      "verdicts": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "stable": true
+    },
+    {
+      "id": 82,
+      "category": "open_domain",
+      "candidate": "",
+      "verdicts": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "stable": true
+    },
+    {
+      "id": 114,
+      "category": "multi_hop",
+      "candidate": "so many people wanted to create loving homes for children in",
+      "verdicts": [
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "stable": true
+    },
+    {
+      "id": 178,
+      "category": "single_hop",
+      "candidate": "dance classes and workshops, one-on-one mentoring and traini",
+      "verdicts": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "stable": true
+    },
+    {
+      "id": 242,
+      "category": "open_domain",
+      "candidate": "had some money problems and had to rely on outside help from",
+      "verdicts": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "stable": true
+    },
+    {
+      "id": 248,
+      "category": "open_domain",
+      "candidate": "yes",
+      "verdicts": [
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "stable": true
+    },
+    {
+      "id": 270,
+      "category": "single_hop",
+      "candidate": "a live music event, a violin concert",
+      "verdicts": [
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "stable": true
+    },
+    {
+      "id": 294,
+      "category": "single_hop",
+      "candidate": "Coco, Kyle",
+      "verdicts": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "stable": true
+    },
+    {
+      "id": 370,
+      "category": "multi_hop",
+      "candidate": "investing in our future generations is key, giving them the ",
+      "verdicts": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "stable": true
+    },
+    {
+      "id": 378,
+      "category": "multi_hop",
+      "candidate": "camping",
+      "verdicts": [
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "stable": true
+    },
+    {
+      "id": 394,
+      "category": "temporal",
+      "candidate": "10 November 2022",
+      "verdicts": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "stable": true
+    },
+    {
+      "id": 409,
+      "category": "single_hop",
+      "candidate": "a major company, some",
+      "verdicts": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "stable": true
+    },
+    {
+      "id": 426,
+      "category": "temporal",
+      "candidate": "5 September 2022",
+      "verdicts": [
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "stable": true
+    },
+    {
+      "id": 428,
+      "category": "single_hop",
+      "candidate": "The Lord of the Rings Trilogy",
+      "verdicts": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "stable": true
+    },
+    {
+      "id": 440,
+      "category": "temporal",
+      "candidate": "23 October 2022",
+      "verdicts": [
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "stable": true
+    },
+    {
+      "id": 470,
+      "category": "open_domain",
+      "candidate": "no",
+      "verdicts": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "stable": true
+    },
+    {
+      "id": 554,
+      "category": "multi_hop",
+      "candidate": "Tilly, writing",
+      "verdicts": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "stable": true
+    },
+    {
+      "id": 616,
+      "category": "temporal",
+      "candidate": "September 2023",
+      "verdicts": [
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "stable": true
+    },
+    {
+      "id": 617,
+      "category": "open_domain",
+      "candidate": "California",
+      "verdicts": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "stable": true
+    }
+  ]
+}
