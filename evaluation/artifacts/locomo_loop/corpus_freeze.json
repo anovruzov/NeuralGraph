@@ -1,0 +1,41 @@
+{
+  "corpus_digest": "916ca308d5e41cba8437a463b97f9c688b51638f8644ed39b59c7878d8e0eb8e",
+  "corpus_path": "demo/maximal.json",
+  "corpus_size": 1540,
+  "development": {
+    "by_category": {
+      "multi_hop": 338,
+      "open_domain": 39,
+      "single_hop": 116,
+      "temporal": 131
+    },
+    "conversations": 10,
+    "fraction": 0.4052,
+    "n": 624
+  },
+  "frozen_at_commit": "37103e50102c539318a1d6f3ec2a4ea14735818a",
+  "locked_test": {
+    "by_category": {
+      "multi_hop": 335,
+      "open_domain": 37,
+      "single_hop": 112,
+      "temporal": 127
+    },
+    "conversations": 10,
+    "fraction": 0.3968,
+    "n": 611
+  },
+  "note": "Frozen before any code change. corpus_digest covers question identity only (id, category, conversation, question) and is invariant to answers and judge verdicts.",
+  "seed": 20260825,
+  "validation": {
+    "by_category": {
+      "multi_hop": 168,
+      "open_domain": 20,
+      "single_hop": 54,
+      "temporal": 63
+    },
+    "conversations": 10,
+    "fraction": 0.1981,
+    "n": 305
+  }
+}
