@@ -7,7 +7,7 @@
     "pytest": "9.1.1",
     "note": "prior cloud audit used Python 3.12.13/Linux; its workspace did not survive"
   },
-  "head": "49c0a4df76c7397bfd3b5d174a543db7725bb3ed",
+  "head": "756a1e424ac97e9cc2aea08b3caf08a559eda0f5",
   "branch": "audit/repository-readiness-2026-09-06",
   "audited_main": "8785d691a95352eed618abca5b515aafaeab06dd",
   "report_generation_state": {
@@ -371,5 +371,6 @@
       "priority": "P2",
       "action": "commit the dirty closeout addendum; recover PR #3 ablation outputs; resolve stash@{0} ownership"
     }
-  ]
+  ],
+  "head_note": "SHA of the deliverables commit containing REPO_AUDIT.md/CLEANUP_LOG.md/REPRODUCIBILITY.md; this file is committed one commit later (a file cannot contain its own commit's SHA)"
 }
