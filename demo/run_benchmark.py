@@ -33,6 +33,7 @@ FAIRNESS & STABILITY GUARANTEES
 
 ================================================================================
 """
+import os
 import json
 import asyncio
 import aiohttp
@@ -115,7 +116,7 @@ OLLAMA_MODEL = "qwen2.5:7b-instruct"          # For answer generation
 EMBEDDING_MODEL = "nomic-embed-text"
 
 # OpenAI for judging only (GPT-4o)
-OPENAI_API_KEY = "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"
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")  # set in your shell; never hardcode
 JUDGE_MODEL = "gpt-4o"
 TOP_K = 50  # MAXIMUS v2: Increased for better recall (was 30)
 
