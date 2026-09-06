@@ -205,3 +205,5 @@
 {"ts": "2026-09-06T19:03:53", "level": "INFO", "logger": "harness.orchestrator", "message": "campaign starting", "run_id": "run_20260906_190353_1ba896", "mode": "apply", "max_applications": 10, "min_score": 65}
 {"ts": "2026-09-06T19:03:53", "level": "INFO", "logger": "harness.discovery.engine", "message": "discovery complete", "discovered": 0, "duplicates": 6, "errors": 0}
 {"ts": "2026-09-06T19:03:53", "level": "INFO", "logger": "harness.orchestrator", "message": "campaign finished", "run_id": "run_20260906_190353_1ba896", "verified": 0, "ready_to_submit": 0, "blocked": 0, "failed": 0, "qwen_requests": 0, "qwen_cost_usd": 0.0}
+{"ts": "2026-09-06T19:24:39", "level": "WARNING", "logger": "harness.qwen", "message": "qwen request failed, retrying", "attempt": 1, "backoff_s": 1.49, "error": "[Errno 111] Connection refused"}
+{"ts": "2026-09-06T19:24:41", "level": "WARNING", "logger": "harness.qwen", "message": "qwen request failed, retrying", "attempt": 2, "backoff_s": 2.3, "error": "[Errno 111] Connection refused"}

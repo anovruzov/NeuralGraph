@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -11,6 +12,8 @@ from job_harness.application.field_resolver import (
 )
 from job_harness.browser.dom import FormField
 from job_harness.profile.applicant import Applicant, ProfileError
+
+PROFILE_FIXTURE = Path(__file__).resolve().parent / "fixtures" / "applicant.test.json"
 
 JOB_CONTEXT = {"company": "Acme AI", "title": "AI Engineer"}
 
@@ -246,3 +249,32 @@ def test_fact_corpus_includes_resume_text(applicant):
     corpus = applicant.fact_corpus()
     assert "pytorch" in corpus
     assert "university of texas at austin" in corpus
+
+
+def test_a_broken_pdf_extractor_does_not_stop_the_run(tmp_path, monkeypatch):
+    """A missing or broken optional extractor must degrade, never crash.
+
+    pypdf's native backend can fail outside the Exception hierarchy, which would
+    otherwise take the whole campaign down at startup.
+    """
+    import builtins
+
+    from job_harness.profile import applicant as applicant_module
+
+    pdf = tmp_path / "resume.pdf"
+    pdf.write_bytes(b"%PDF-1.4\ntrailer<</Root 1 0 R>>\n")
+
+    real_import = builtins.__import__
+
+    def exploding_import(name, *args, **kwargs):
+        if name == "pypdf":
+            raise BaseException("native extension exploded")   # noqa: TRY002
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", exploding_import)
+    monkeypatch.setattr(applicant_module.subprocess, "run",
+                        lambda *a, **k: (_ for _ in ()).throw(FileNotFoundError()))
+
+    loaded = Applicant.load(PROFILE_FIXTURE, pdf, strict=False)
+    assert loaded.resume_text == ""
+    assert loaded.full_name                                    # profile still usable

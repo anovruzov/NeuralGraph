@@ -1,0 +1,9 @@
+logs/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+.env
+# The real profile and resume are personal data: never committed.
+profile/applicant.json
+resumes/*
+!resumes/.gitkeep

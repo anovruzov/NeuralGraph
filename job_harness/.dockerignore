@@ -1,0 +1,8 @@
+logs/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+profile/applicant.json
+resumes/*
+!resumes/.gitkeep
+.env

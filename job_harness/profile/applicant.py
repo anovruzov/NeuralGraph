@@ -244,10 +244,13 @@ def extract_resume_text(path: Path) -> str:
             from pypdf import PdfReader  # optional dependency
             reader = PdfReader(str(path))
             return "\n".join((page.extract_text() or "") for page in reader.pages)
-        except Exception as exc:
+        except BaseException as exc:
+            # BaseException, not Exception: a broken native extension (pypdf's
+            # cryptography backend, for one) can raise outside the Exception
+            # hierarchy, and a missing résumé extractor must never end the run.
             log.warning("pdf text extraction unavailable",
-                        extra={"error": str(exc)[:200],
-                               "hint": "install poppler-utils or pypdf"})
+                        extra={"error": f"{type(exc).__name__}: {exc}"[:200],
+                               "hint": "install poppler-utils, or fix/remove pypdf"})
             return ""
     if suffix == ".docx":
         try:
@@ -258,8 +261,9 @@ def extract_resume_text(path: Path) -> str:
             root = ET.fromstring(xml)
             ns = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
             return " ".join(t.text or "" for t in root.iter(f"{ns}t"))
-        except Exception as exc:
-            log.warning("docx extraction failed", extra={"error": str(exc)[:200]})
+        except BaseException as exc:
+            log.warning("docx extraction failed",
+                        extra={"error": f"{type(exc).__name__}: {exc}"[:200]})
             return ""
     try:
         return path.read_text(errors="ignore")

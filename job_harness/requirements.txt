@@ -1,0 +1,11 @@
+# Core runtime
+playwright==1.62.0        # browser automation
+httpx==0.28.1             # Qwen endpoint + discovery HTTP client
+pydantic==2.13.5          # structured-output validation
+
+# Optional: PDF resume text extraction when poppler-utils is unavailable.
+# The harness works without it, but Qwen then sees only applicant.json.
+pypdf>=4.0
+
+# Development / test
+pytest>=8.0

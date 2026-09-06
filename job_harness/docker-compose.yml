@@ -1,0 +1,27 @@
+services:
+  job-harness:
+    build: .
+    image: job-harness:latest
+    container_name: job-harness
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DASHBOARD_HOST: 0.0.0.0
+      HARNESS_DB: /data/harness.db
+      HARNESS_LOG_DIR: /data/logs
+      BROWSER_PROFILE_DIR: /data/browser_profile
+    ports:
+      # Bind to loopback only; reach it from a phone over Tailscale or an SSH
+      # tunnel. Change to "8765:8765" only behind TLS with DASHBOARD_TOKEN set.
+      - "127.0.0.1:8765:8765"
+    volumes:
+      - harness-data:/data
+      - ./profile:/app/job_harness/profile:ro
+      - ./resumes:/app/job_harness/resumes:ro
+      - ./config:/app/job_harness/config:ro
+    # Chromium needs more than the default 64MB of shared memory.
+    shm_size: "1gb"
+    command: ["python", "run.py", "--dry-run", "--loop"]
+
+volumes:
+  harness-data:
