@@ -73,6 +73,9 @@ def build_parser() -> argparse.ArgumentParser:
                    help="skip discovery and work the existing queue")
     p.add_argument("--loop", action="store_true",
                    help="keep running after the queue empties (unattended mode)")
+    p.add_argument("--retry-blocked", action="store_true",
+                   help="requeue jobs blocked for fixable reasons (a missing "
+                        "profile value, a failed navigation) before running")
 
     p.add_argument("--dashboard", dest="dashboard", action="store_true", default=None,
                    help="serve the control dashboard (default on)")
@@ -104,7 +107,10 @@ def apply_overrides(config: Config, args: argparse.Namespace) -> None:
         if value is not None:
             setattr(target, name, value)
     if args.min_score is not None:
-        config.scoring.apply_threshold = args.min_score
+        # --min-score is the floor; keep the rubric threshold at least as high so
+        # the two cannot contradict each other.
+        config.scoring.apply_threshold = max(config.scoring.apply_threshold,
+                                             args.min_score)
     if args.remote_only:
         config.discovery.remote_only = True
     if args.allow_senior:
@@ -163,7 +169,8 @@ def cmd_status(config: Config, args: argparse.Namespace) -> int:
           f"{run['current_company'] or ''} {run['current_role'] or ''}".rstrip())
     print("-" * 62)
     for key in ("discovered", "scored", "queued", "skipped", "ready_to_submit",
-                "submitted", "verified", "blocked", "failed", "duplicates"):
+                "submitted", "verified", "needs_review", "blocked", "failed",
+                "duplicates"):
         print(f"{key:<18}{pipeline[key]}")
     print("-" * 62)
     print(f"{'apps/hour':<18}{rates['applications_per_hour']}")
@@ -176,6 +183,13 @@ def cmd_status(config: Config, args: argparse.Namespace) -> int:
         print("-" * 62)
         for b in data["blockers"]:
             print(f"blocker {b['blocker_type']:<24}{b['n']}")
+    if data.get("needs_review"):
+        print("-" * 62)
+        print(f"{len(data['needs_review'])} submission(s) need review "
+              f"(clicked Submit, no confirmation found):")
+        for row in data["needs_review"][:10]:
+            print(f"  {row['company']} — {row['title']}")
+            print(f"    {row['canonical_apply_url']}")
     db.close()
     return 0
 
@@ -267,6 +281,10 @@ def cmd_run(config: Config, args: argparse.Namespace) -> int:
                     extra={"max_applications": config.run.max_applications})
     else:
         log.info("DRY RUN: forms will be filled and validated but never submitted")
+
+    if args.retry_blocked:
+        requeued = orchestrator.retry_blocked()
+        print(f"requeued {requeued} previously blocked job(s)")
 
     try:
         if args.discover_only:

@@ -178,6 +178,42 @@ class Database:
         )
         return [Job.from_row(r) for r in rows]
 
+    def requeue_blocked(self, kinds: Iterable[str], min_score: int = 0) -> list[str]:
+        """Put blocked jobs back in the queue, for the given blocker kinds.
+
+        Never requeues a job that already has a submitted application, and never
+        a blocker that needs the applicant personally -- the caller decides which
+        kinds those are.
+        """
+        kinds = list(kinds)
+        if not kinds:
+            return []
+        marks = ",".join("?" * len(kinds))
+        rows = self.query(
+            f"SELECT DISTINCT j.job_id FROM jobs j "
+            f"JOIN applications a ON a.job_id = j.job_id "
+            f"WHERE j.status = ? AND a.blocker_type IN ({marks}) "
+            f"AND COALESCE(j.score, 0) >= ? "
+            f"AND NOT EXISTS (SELECT 1 FROM applications s WHERE s.job_id = j.job_id "
+            f"                AND s.status IN ('SUBMITTED','VERIFIED'))",
+            [JobStatus.BLOCKED, *kinds, min_score],
+        )
+        job_ids = [row["job_id"] for row in rows]
+        for job_id in job_ids:
+            self.set_job_status(job_id, JobStatus.QUEUED)
+        return job_ids
+
+    def unverified_submissions(self, limit: int = 50) -> list[sqlite3.Row]:
+        """Applications where Submit was clicked but nothing confirmed it."""
+        return self.query(
+            "SELECT a.application_id, a.job_id, a.submitted_at, a.error, "
+            "j.company, j.title, j.canonical_apply_url "
+            "FROM applications a JOIN jobs j ON j.job_id = a.job_id "
+            "WHERE a.status = 'SUBMITTED' AND a.verified_at IS NULL "
+            "ORDER BY a.submitted_at DESC LIMIT ?",
+            (limit,),
+        )
+
     def has_successful_application(self, job_id: str) -> bool:
         row = self.query_one(
             "SELECT 1 FROM applications WHERE job_id=? AND status IN ('SUBMITTED','VERIFIED')",

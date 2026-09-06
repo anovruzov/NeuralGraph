@@ -250,3 +250,83 @@ def test_stats_snapshot_shape(db):
     for key in ("discovered", "scored", "queued", "submitted", "verified",
                 "blocked", "failed", "duplicates"):
         assert key in data["pipeline"]
+
+
+# ------------------------------------------------------------ retry blocked
+
+def _blocked_job(db, index: int, blocker: str) -> Job:
+    job = make_job(index)
+    db.upsert_job(job)
+    db.save_score(job.job_id, 80, {}, "test", JobStatus.BLOCKED)
+    application_id = db.create_application(job.job_id, "test-run", dry_run=False)
+    db.update_application(application_id, status=JobStatus.BLOCKED, blocker_type=blocker)
+    return job
+
+
+def test_recoverable_blocks_are_requeued(orchestrator, db):
+    fixable = _blocked_job(db, 1, "missing_answer")
+    assert orchestrator.retry_blocked() == 1
+    assert db.get_job(fixable.job_id).status == JobStatus.QUEUED
+
+
+@pytest.mark.parametrize("blocker", ["captcha", "assessment", "login_required",
+                                     "video_interview", "identity_verification",
+                                     "security_challenge", "bot_detection"])
+def test_blocks_needing_a_person_are_never_requeued(orchestrator, db, blocker):
+    job = _blocked_job(db, 1, blocker)
+    assert orchestrator.retry_blocked() == 0
+    assert db.get_job(job.job_id).status == JobStatus.BLOCKED
+
+
+def test_a_submitted_job_is_never_requeued(orchestrator, db):
+    job = _blocked_job(db, 1, "missing_answer")
+    application_id = db.create_application(job.job_id, "test-run", dry_run=False)
+    db.mark_submitted(application_id, "ATS-1")
+    assert orchestrator.retry_blocked() == 0
+    assert db.get_job(job.job_id).status == JobStatus.BLOCKED
+
+
+def test_recoverable_and_human_blockers_are_disjoint():
+    from job_harness.application import blockers as blocker_module
+    assert not (blocker_module.RECOVERABLE & blocker_module.NEEDS_HUMAN)
+
+
+# --------------------------------------------------- unverified submissions
+
+def test_unverified_submissions_are_surfaced_for_review(db):
+    job = make_job(1)
+    db.upsert_job(job)
+    application_id = db.create_application(job.job_id, "test-run", dry_run=False)
+    db.mark_submitted(application_id, None)
+
+    pending = db.unverified_submissions()
+    assert len(pending) == 1
+    assert pending[0]["company"] == job.company
+
+    data = collect(db)
+    assert data["pipeline"]["needs_review"] == 1
+    assert data["needs_review"][0]["canonical_apply_url"] == job.canonical_apply_url
+
+
+def test_verified_submissions_do_not_need_review(db):
+    job = make_job(1)
+    db.upsert_job(job)
+    application_id = db.create_application(job.job_id, "test-run", dry_run=False)
+    db.mark_submitted(application_id, "ATS-1")
+    db.mark_verified(application_id, {"signal": "confirmation_message"}, "ATS-1")
+    assert db.unverified_submissions() == []
+    assert collect(db)["pipeline"]["needs_review"] == 0
+
+
+# ------------------------------------------------------- score floor config
+
+def test_min_score_floor_defaults_below_the_apply_threshold(config):
+    """Otherwise the documented 50-64 borderline band could never apply."""
+    assert config.run.min_score <= config.scoring.apply_threshold
+    assert config.run.min_score <= config.scoring.borderline_threshold
+
+
+def test_a_floor_above_the_threshold_is_refused(config):
+    config.run.min_score = config.scoring.apply_threshold + 10
+    with pytest.raises(ValueError, match="min_score"):
+        config.validate()

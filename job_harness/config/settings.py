@@ -141,7 +141,10 @@ class RunConfig:
     max_applications: int = 25
     max_applications_per_hour: int = 12
     max_applications_per_company: int = 2
-    min_score: int = 65
+    # Hard floor applied after scoring. It defaults to the borderline threshold
+    # so the documented 50-64 band (apply when the experience requirement is
+    # still plausible) actually takes effect; raise it to be stricter.
+    min_score: int = 50
     job_timeout_seconds: int = 300
     poll_interval_seconds: int = 30
     loop_forever: bool = False
@@ -248,6 +251,12 @@ class Config:
             raise ValueError("apply_threshold must be 0-100")
         if self.scoring.borderline_threshold > self.scoring.apply_threshold:
             raise ValueError("borderline_threshold must be <= apply_threshold")
+        if self.run.min_score > self.scoring.apply_threshold:
+            raise ValueError(
+                f"run.min_score ({self.run.min_score}) is above "
+                f"scoring.apply_threshold ({self.scoring.apply_threshold}), which "
+                f"would discard every job the scorer accepts"
+            )
         total = sum(self.scoring.weights.values())
         if total != 100:
             raise ValueError(f"scoring weights must sum to 100, got {total}")

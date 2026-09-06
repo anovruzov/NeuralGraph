@@ -21,7 +21,8 @@
   "run": {
     "max_applications": 25,
     "max_applications_per_hour": 12,
-    "max_applications_per_company": 2
+    "max_applications_per_company": 2,
+    "min_score": 50
   },
   "dashboard": {
     "enabled": true,

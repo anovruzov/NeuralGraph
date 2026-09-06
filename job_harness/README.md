@@ -229,9 +229,10 @@ Every flag:
 | `--discover-only` | discover and score, no browser |
 | `--no-discovery` | work the existing queue only |
 | `--loop` | keep running after the queue empties |
+| `--retry-blocked` | requeue jobs blocked for fixable reasons before running |
 | `--max-applications N` | stop after N applications |
 | `--max-per-hour N` | rate limit |
-| `--min-score N` | minimum fit score (0–100) |
+| `--min-score N` | hard floor on the fit score (0–100); also raises the rubric threshold if needed |
 | `--freshness-days N` | only postings newer than N days |
 | `--remote-only` | remote positions only |
 | `--allow-senior` | do not reject staff/principal/manager titles |
@@ -397,8 +398,15 @@ then a 0–100 rubric score:
 - **< 50** → skip
 
 Missing *preferred* qualifications never cause a skip; only unmet *required*
-ones do. Adjust with `scoring.apply_threshold` / `--min-score`, or from the
-dashboard while running.
+ones do.
+
+Two settings interact here. `scoring.apply_threshold` (default 65) is where the
+rubric says "apply"; `run.min_score` (default 50) is a hard floor applied after
+scoring. Leaving the floor at 50 is what lets the borderline band work at all —
+raise it to 65 to apply only to clear matches, or to 75 to be strict. The
+harness refuses to start with a floor above the threshold, since that would
+discard every job the scorer accepts. Both are adjustable from the dashboard
+while the campaign runs.
 
 ## 10. Application statuses
 
@@ -407,8 +415,13 @@ SUBMITTED → VERIFIED`, with `SKIPPED`, `BLOCKED`, `FAILED` and `DUPLICATE` as
 exits.
 
 **Only `VERIFIED` counts as a successful application.** `SUBMITTED` means the
-button was clicked but no confirmation could be established — that shows up as
-a discrepancy on the dashboard rather than a success.
+button was clicked but no confirmation could be established. Those appear under
+**Needs review** on the dashboard and in `--status`, with a link to each
+posting, so you can check them yourself. The harness never retries them: the
+click may have landed, and a retry could submit twice.
+
+A submit the form *rejected* is different — nothing was submitted, so it is
+recorded `BLOCKED` and stays retryable.
 
 Verification accepts: a confirmation page, a confirmation message, an
 application ID, or a successful application POST. It rejects validation errors,
@@ -435,7 +448,7 @@ estimated cost. `--status` reports cost per verified application.
 ## 12. Testing
 
 ```bash
-python -m pytest                       # 242 tests
+python -m pytest                       # 256 tests
 python -m pytest -m "not browser"      # skip the Chromium end-to-end tests
 python -m pytest tests/test_grounding.py -v
 ```
@@ -477,7 +490,7 @@ job_harness/
 ├── verification/           submission evidence
 ├── dashboard/              control server, stats, UI
 ├── fixtures/forms/         ATS-shaped HTML used by the tests
-├── tests/                  242 tests
+├── tests/                  256 tests
 └── logs/                   database, JSONL logs, screenshots, browser profile
 ```
 
@@ -489,7 +502,7 @@ job_harness/
 | `qwen FAIL` from `--check` | check `QWEN_BASE_URL` reachability and `QWEN_MODEL` |
 | Model output rejected repeatedly | set `QWEN_JSON_MODE=false`, or use a larger model |
 | `resume WARN no text extracted` | install `poppler-utils`, or `pip install pypdf`, or supply a `.txt` résumé |
-| Everything `BLOCKED: missing_answer` | a required profile field is blank — check `blocker_detail` in the database |
+| Everything `BLOCKED: missing_answer` | a required profile field is blank — check `blocker_detail` in the database, fill it in, then `python run.py --apply --retry-blocked` |
 | `BLOCKED: captcha` | expected and correct; that job needs you personally |
 | Dashboard refuses to start | non-loopback bind requires `DASHBOARD_TOKEN` |
 | Chromium crashes in Docker | raise `shm_size` |
@@ -504,3 +517,8 @@ job_harness/
 - The browser profile persists, so a site you log into once stays logged in.
 - Review the `form_answers` table periodically: it is the audit trail of every
   value submitted on your behalf and where each came from.
+- When the harness blocks on a missing profile value, fill it in and run with
+  `--retry-blocked`; blockers that need you personally (CAPTCHA, assessments,
+  login walls) are never retried.
+- Check **Needs review** regularly. Those are applications where Submit was
+  clicked but no confirmation appeared: open each link and confirm by hand.

@@ -109,6 +109,13 @@ input[type=number],input[type=text]{width:100%;padding:9px;border-radius:8px;bor
   </section>
 
   <section>
+    <h2>Needs review <span class="muted">(Submit clicked, no confirmation)</span></h2>
+    <div class="wrap"><table><thead><tr>
+      <th>Company</th><th>Role</th><th>When</th><th>Link</th>
+    </tr></thead><tbody id="review"></tbody></table></div>
+  </section>
+
+  <section>
     <h2>Blockers</h2>
     <div class="wrap"><table><thead><tr><th>Type</th><th>Count</th></tr></thead>
       <tbody id="blockers"></tbody></table></div>
@@ -190,6 +197,7 @@ async function refresh(){
       card(p.discovered,'Discovered') + card(p.scored,'Scored') + card(p.queued,'Queued')
     + card(p.opened,'Opened') + card(p.ready_to_submit,'Ready','ok')
     + card(p.submitted,'Submitted') + card(p.verified,'Verified','ok')
+    + card(p.needs_review,'Needs review', p.needs_review ? 'warn' : '')
     + card(p.blocked,'Blocked','warn') + card(p.failed,'Failed','bad')
     + card(p.duplicates,'Duplicates') + card(p.skipped,'Skipped');
 
@@ -215,6 +223,12 @@ async function refresh(){
       <td class="muted">${esc(r.ats_application_id || r.blocker_type || '')}</td>
       <td class="muted">${esc((r.updated_at||'').slice(11,19))}</td></tr>`).join('')
       || '<tr><td colspan="6" class="muted">nothing yet</td></tr>';
+
+  document.getElementById('review').innerHTML = (d.needs_review||[]).map(r => `<tr>
+      <td>${esc(r.company)}</td><td>${esc(r.title)}</td>
+      <td class="muted">${esc((r.submitted_at||'').replace('T',' ').slice(0,16))}</td>
+      <td><a href="${esc(r.canonical_apply_url)}" target="_blank" rel="noreferrer noopener">open</a></td>
+      </tr>`).join('') || '<tr><td colspan="4" class="muted">none</td></tr>';
 
   document.getElementById('blockers').innerHTML = (d.blockers||[]).map(b =>
       `<tr><td>${esc(b.blocker_type)}</td><td>${b.n}</td></tr>`).join('')

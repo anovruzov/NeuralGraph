@@ -52,6 +52,16 @@ DOM_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
 ]
 
 
+# Blockers a later run can reasonably retry: the cause is a missing profile
+# value, a transient network failure, or a form the harness mis-handled.
+RECOVERABLE = {MISSING_ANSWER, VALIDATION_FAILED, NAVIGATION_FAILED, UNSUPPORTED_FORM}
+
+# Blockers that need the applicant personally. Retrying these is pointless and
+# would amount to hammering a site's protections.
+NEEDS_HUMAN = {CAPTCHA, LOGIN_REQUIRED, IDENTITY_VERIFICATION, ASSESSMENT,
+               VIDEO_INTERVIEW, SECURITY_CHALLENGE, BOT_DETECTION}
+
+
 @dataclass
 class Blocker:
     kind: str

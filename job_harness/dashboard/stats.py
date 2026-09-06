@@ -45,6 +45,8 @@ def collect(db: Database, run_id: Optional[str] = None) -> dict[str, Any]:
     elapsed = max(0.0, (ended or time.time()) - started) if started else 0.0
 
     verified = int(counts.get(JobStatus.VERIFIED, 0))
+    # Submit was clicked but nothing confirmed it: a person should check these.
+    needs_review = [dict(r) for r in db.unverified_submissions(limit=25)]
     ready = int(app_counts.get(JobStatus.READY_TO_SUBMIT, 0))
     completed = verified or ready
     per_hour = round(completed / (elapsed / 3600), 2) if elapsed > 60 else 0.0
@@ -91,6 +93,7 @@ def collect(db: Database, run_id: Optional[str] = None) -> dict[str, Any]:
             "ready_to_submit": ready,
             "submitted": int(counts.get(JobStatus.SUBMITTED, 0)) + verified,
             "verified": verified,
+            "needs_review": len(needs_review),
             "blocked": int(counts.get(JobStatus.BLOCKED, 0)),
             "failed": int(counts.get(JobStatus.FAILED, 0)),
             "duplicates": int(counts.get(JobStatus.DUPLICATE, 0)),
@@ -108,6 +111,7 @@ def collect(db: Database, run_id: Optional[str] = None) -> dict[str, Any]:
             "failures": int(qwen_data.get("failures") or 0),
         },
         "recent": recent,
+        "needs_review": needs_review,
         "blockers": blockers,
         "errors": errors,
         "top_scored": top,

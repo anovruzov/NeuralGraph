@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Optional
 
+from .application import blockers
 from .application.field_resolver import FieldResolver
 from .application.pipeline import ApplicationPipeline, JobResult
 from .browser.engine import BrowserEngine
@@ -136,6 +137,18 @@ class Orchestrator:
                 pass       # not the main thread
 
     # ------------------------------------------------------------ lifecycle
+
+    def retry_blocked(self) -> int:
+        """Requeue jobs blocked for reasons a later run can fix.
+
+        Typically used after filling in a missing profile field. Blockers that
+        need the applicant personally (CAPTCHA, assessments, login walls) are
+        never retried.
+        """
+        job_ids = self.db.requeue_blocked(sorted(blockers.RECOVERABLE))
+        if job_ids:
+            log.info("requeued blocked jobs", extra={"count": len(job_ids)})
+        return len(job_ids)
 
     def run(self, discover: bool = True) -> CampaignSummary:
         self.db.start_run(self.run_id, self.config.run.mode, self.config.to_dict())
