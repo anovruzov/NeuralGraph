@@ -69,7 +69,7 @@ ANSWERING_CONFIG = AnsweringConfig(
 )
 
 # OpenAI for judging only
-OPENAI_API_KEY = "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"
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")  # set in your shell; never hardcode
 JUDGE_MODEL = "gpt-4o"
 USE_OPENAI_JUDGE = True  # Using GPT-4o for judging
 USE_OPENAI_ANSWER = False  # Using Qwen for answers
