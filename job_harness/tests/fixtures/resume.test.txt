@@ -1,0 +1,19 @@
+JORDAN ALEX RIVERA
+Austin, TX | jordan.rivera@example.com | +1 415 555 0142
+github.com/example-jrivera | linkedin.com/in/example-jordan-rivera
+
+EDUCATION
+University of Texas at Austin - Bachelor of Science, Computer Science, May 2025. GPA 3.7
+
+EXPERIENCE
+Example Labs - Machine Learning Engineer (Jun 2025 - Present, Remote)
+- Built retrieval-augmented generation pipelines over a 4M-document corpus in Python.
+- Designed an LLM evaluation harness measuring answer grounding and retrieval precision.
+- Shipped a multi-agent orchestration service with Playwright-driven browser tools.
+
+Example University Research Group - Research Assistant (Jan 2024 - May 2025, Austin TX)
+- Fine-tuned transformer models for domain-specific retrieval; ran ablation studies.
+- Maintained distributed training jobs on 8xA100 with PyTorch and Docker.
+
+SKILLS
+Python, PyTorch, SQL, Docker, Playwright, LLM evaluation, RAG, distributed training

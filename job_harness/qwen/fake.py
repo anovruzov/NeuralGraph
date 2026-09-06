@@ -15,6 +15,16 @@ from typing import Any, Optional
 import httpx
 
 
+def _body(prompt: str) -> str:
+    """Prompt text minus the trailing JSON-shape instructions.
+
+    The shape block names schema fields (e.g. security_clearance_required) that
+    would otherwise trip this backend's keyword heuristics.
+    """
+    cut = prompt.find("Return ONE JSON object")
+    return prompt[:cut] if cut > 0 else prompt
+
+
 def _extract_block(prompt: str, header: str) -> str:
     """Pull the text following a section header up to the next blank-line header."""
     idx = prompt.find(header)
@@ -134,7 +144,7 @@ class FakeQwenTransport(httpx.BaseTransport):
     def _classify_job(self, prompt: str) -> dict[str, Any]:
         title = re.search(r"^Title: (.*)$", prompt, re.M)
         title_text = (title.group(1) if title else "").lower()
-        low = prompt.lower()
+        low = _body(prompt).lower()
         relevant = any(t in title_text for t in
                        ("engineer", "scientist", "researcher", "research"))
         seniority = "unknown"
@@ -161,7 +171,7 @@ class FakeQwenTransport(httpx.BaseTransport):
     def _score_job(self, prompt: str) -> dict[str, Any]:
         # Only look at the job block: the instruction text itself mentions
         # words like "assessments" that would otherwise skew the heuristics.
-        low = _extract_block(prompt, "\nJOB\n").lower() or prompt.lower()
+        low = _extract_block(prompt, "\nJOB\n").lower() or _body(prompt).lower()
         title = re.search(r"^Title: (.*)$", prompt, re.M)
         title_text = (title.group(1) if title else "").lower()
         ai_hits = sum(1 for t in AI_TERMS if t in low)
@@ -194,9 +204,10 @@ class FakeQwenTransport(httpx.BaseTransport):
         }
 
     def _requirements(self, prompt: str) -> dict[str, Any]:
-        low = prompt.lower()
+        body = _body(prompt)
+        low = body.lower()
         req, pref = [], []
-        for line in prompt.splitlines():
+        for line in body.splitlines():
             l = line.strip("-• \t")
             if not l or len(l) > 200:
                 continue

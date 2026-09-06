@@ -1,0 +1,59 @@
+{
+  "_README": "SYNTHETIC TEST FIXTURE. Not a real person. Used only by the test suite.",
+  "legal_name": "Jordan Alex Rivera",
+  "preferred_name": "Jordan",
+  "first_name": "Jordan",
+  "last_name": "Rivera",
+  "email": "jordan.rivera@example.com",
+  "phone": "+1 415 555 0142",
+  "city": "Austin",
+  "state": "Texas",
+  "country": "United States",
+  "linkedin": "https://linkedin.com/in/example-jordan-rivera",
+  "github": "https://github.com/example-jrivera",
+  "portfolio": "https://example.com/jrivera",
+  "university": "University of Texas at Austin",
+  "degree": "Bachelor of Science",
+  "major": "Computer Science",
+  "graduation_date": "2025-05",
+  "gpa": "3.7",
+  "work_authorization": "Authorized to work in the United States for any employer",
+  "sponsorship_requirement": "No, I do not now or in the future require sponsorship",
+  "security_clearance": "",
+  "relocation_preferences": "Open to relocation within the United States",
+  "remote_preferences": "Prefer remote, open to hybrid in Austin",
+  "salary_preferences": "150000",
+  "earliest_start_date": "2026-10-01",
+  "years_experience": "2",
+  "how_did_you_hear": "Company website",
+  "employment_history": [
+    {
+      "company": "Example Labs",
+      "title": "Machine Learning Engineer",
+      "location": "Remote",
+      "start_date": "2025-06",
+      "end_date": "",
+      "current": true,
+      "summary": "Built retrieval-augmented generation pipelines and evaluation harnesses in Python and PyTorch."
+    },
+    {
+      "company": "Example University Research Group",
+      "title": "Research Assistant",
+      "location": "Austin, TX",
+      "start_date": "2024-01",
+      "end_date": "2025-05",
+      "current": false,
+      "summary": "Worked on transformer fine-tuning and model evaluation tooling."
+    }
+  ],
+  "skills": ["Python", "PyTorch", "LLM evaluation", "RAG", "SQL", "Playwright", "Docker", "Distributed training"],
+  "demographic_response_policy": {
+    "gender": "decline",
+    "race_ethnicity": "decline",
+    "hispanic_latino": "decline",
+    "veteran_status": "decline",
+    "disability_status": "decline",
+    "pronouns": "decline"
+  },
+  "cover_letter_policy": {"mode": "generate", "cover_letter_path": ""}
+}

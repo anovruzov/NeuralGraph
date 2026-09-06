@@ -1,0 +1,64 @@
+{
+  "_README": [
+    "Copy this file to profile/applicant.json and fill in real values.",
+    "This file is the source of truth for every personal fact the harness submits.",
+    "The harness never infers or invents a value that is missing here.",
+    "Leave a field as an empty string if it does not apply; the harness will treat",
+    "the corresponding form question as unanswerable and block the application",
+    "rather than guess."
+  ],
+  "legal_name": "",
+  "preferred_name": "",
+  "first_name": "",
+  "last_name": "",
+  "email": "",
+  "phone": "",
+  "city": "",
+  "state": "",
+  "country": "United States",
+  "address_line1": "",
+  "postal_code": "",
+  "linkedin": "",
+  "github": "",
+  "portfolio": "",
+  "university": "",
+  "degree": "",
+  "major": "",
+  "graduation_date": "",
+  "gpa": "",
+  "work_authorization": "",
+  "sponsorship_requirement": "",
+  "security_clearance": "",
+  "relocation_preferences": "",
+  "remote_preferences": "",
+  "salary_preferences": "",
+  "earliest_start_date": "",
+  "years_experience": "",
+  "how_did_you_hear": "Company website",
+  "employment_history": [
+    {
+      "company": "",
+      "title": "",
+      "location": "",
+      "start_date": "",
+      "end_date": "",
+      "current": false,
+      "summary": ""
+    }
+  ],
+  "skills": [],
+  "demographic_response_policy": {
+    "_note": "Set each to 'decline' to select a prefer-not-to-say option, or to the exact self-disclosed value you want submitted. The harness never guesses these.",
+    "gender": "decline",
+    "race_ethnicity": "decline",
+    "hispanic_latino": "decline",
+    "veteran_status": "decline",
+    "disability_status": "decline",
+    "pronouns": "decline"
+  },
+  "cover_letter_policy": {
+    "mode": "generate",
+    "_note": "generate = compose from profile facts only; skip = leave optional cover letters blank; file = upload cover_letter_path",
+    "cover_letter_path": ""
+  }
+}
