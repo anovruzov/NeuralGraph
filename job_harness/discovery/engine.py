@@ -16,6 +16,8 @@ from .dedupe import Deduplicator
 from .generic_url import GenericUrlAdapter
 from .greenhouse import GreenhouseAdapter
 from .lever import LeverAdapter
+from .smartrecruiters import SmartRecruitersAdapter
+from .workable import WorkableAdapter
 from .workday import WorkdayAdapter
 
 log = get_logger("discovery.engine")
@@ -25,6 +27,8 @@ ADAPTERS: dict[str, type[DiscoveryAdapter]] = {
     "lever": LeverAdapter,
     "ashby": AshbyAdapter,
     "workday": WorkdayAdapter,
+    "smartrecruiters": SmartRecruitersAdapter,
+    "workable": WorkableAdapter,
     "generic_url": GenericUrlAdapter,
 }
 

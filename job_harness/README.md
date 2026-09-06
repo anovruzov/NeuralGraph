@@ -137,7 +137,9 @@ Discovery targets go in `config/default_config.json` or on the command line.
       "greenhouse": ["anthropic", "openai"],
       "lever": ["some-startup"],
       "ashby": ["another-startup"],
-      "workday": ["tenant/CareerSite"]
+      "workday": ["tenant/CareerSite"],
+      "smartrecruiters": ["CompanyName"],
+      "workable": ["account-slug"]
     },
     "seed_urls": ["https://example.com/careers"],
     "freshness_days": 7,
@@ -158,6 +160,9 @@ python run.py --dry-run \
 A board token is the slug in the board URL —
 `https://boards.greenhouse.io/**acme**/jobs/1` → `acme`. Full URLs work too.
 Workday targets are `tenant/SiteName`, or paste any career-site URL.
+SmartRecruiters uses the company identifier from
+`careers.smartrecruiters.com/**CompanyName**`; Workable uses the account slug
+from `apply.workable.com/**account-slug**`.
 
 Adding another ATS is a subclass of `DiscoveryAdapter` plus one
 `register_adapter()` call; see `discovery/greenhouse.py` for the shape.
@@ -428,7 +433,7 @@ estimated cost. `--status` reports cost per verified application.
 ## 12. Testing
 
 ```bash
-python -m pytest                       # 216 tests
+python -m pytest                       # 230 tests
 python -m pytest -m "not browser"      # skip the Chromium end-to-end tests
 python -m pytest tests/test_grounding.py -v
 ```
@@ -462,14 +467,15 @@ job_harness/
 ├── qwen/                   client, schemas, prompts, JSON repair, fake backend
 ├── profile/                applicant.json loading and grounding
 ├── scoring/                deterministic prefilter + rubric scoring
-├── discovery/              Greenhouse, Lever, Ashby, Workday, seed URLs, dedupe
+├── discovery/              Greenhouse, Lever, Ashby, Workday, SmartRecruiters,
+│                           Workable, seed URLs, dedupe
 ├── ats/                    ATS detection and apply-URL derivation
 ├── browser/                Playwright engine, DOM form extraction, actions
 ├── application/            semantics, field resolver, blockers, filler, pipeline
 ├── verification/           submission evidence
 ├── dashboard/              control server, stats, UI
 ├── fixtures/forms/         ATS-shaped HTML used by the tests
-├── tests/                  216 tests
+├── tests/                  230 tests
 └── logs/                   database, JSONL logs, screenshots, browser profile
 ```
 

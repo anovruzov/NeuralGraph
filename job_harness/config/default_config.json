@@ -6,7 +6,10 @@
     "boards": {
       "greenhouse": [],
       "lever": [],
-      "ashby": []
+      "ashby": [],
+      "workday": [],
+      "smartrecruiters": [],
+      "workable": []
     },
     "seed_urls": []
   },

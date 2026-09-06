@@ -241,3 +241,128 @@ def test_discovery_engine_ingests_and_deduplicates(config, db, qwen):
 
 def test_all_adapters_are_registered():
     assert {"greenhouse", "lever", "ashby", "workday", "generic_url"} <= set(ADAPTERS)
+
+
+# --------------------------------------------------- additional ATS adapters
+
+SMARTRECRUITERS_LIST = {"totalFound": 1, "content": [{
+    "id": "744000",
+    "name": "AI Engineer",
+    "releasedDate": "2026-09-04T09:00:00.000Z",
+    "location": {"city": "Austin", "region": "TX", "country": "us", "remote": True},
+    "company": {"name": "Acme AI"},
+    "department": {"label": "Engineering"},
+    "typeOfEmployment": {"label": "Full-time"},
+    "applyUrl": "https://jobs.smartrecruiters.com/AcmeAI/744000",
+}]}
+SMARTRECRUITERS_DETAIL = {"jobAd": {"sections": {
+    "jobDescription": {"text": "<p>Build <b>LLM</b> systems.</p>"},
+    "qualifications": {"text": "<ul><li>2+ years</li></ul><p>$150,000 - $200,000</p>"},
+}}}
+WORKABLE = {"jobs": [{
+    "title": "Machine Learning Engineer", "shortcode": "ABC123",
+    "published_on": "2026-09-05", "company_name": "Nova",
+    "location": {"city": "Remote", "country": "United States", "workplace": "remote"},
+    "employment_type": "Full-time",
+    "description": "<p>Retrieval systems.</p>", "requirements": "<p>2+ years</p>",
+    "application_url": "https://apply.workable.com/nova/j/ABC123/",
+}]}
+
+
+def ats_client() -> httpx.Client:
+    def handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        if "smartrecruiters" in url and url.rstrip("/").endswith("744000"):
+            return httpx.Response(200, json=SMARTRECRUITERS_DETAIL)
+        if "smartrecruiters" in url:
+            return httpx.Response(200, json=SMARTRECRUITERS_LIST)
+        if "workable" in url:
+            return httpx.Response(200, json=WORKABLE)
+        return httpx.Response(404)
+    return httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True)
+
+
+def test_smartrecruiters_normalization(config):
+    from job_harness.discovery.smartrecruiters import SmartRecruitersAdapter
+    job = list(SmartRecruitersAdapter(config.discovery, ats_client()).discover("AcmeAI"))[0]
+    assert job.company == "Acme AI" and job.title == "AI Engineer"
+    assert job.location == "Austin, TX, us"
+    assert job.remote_status == "remote"
+    assert job.employment_type == "Full-time"
+    assert job.ats_job_key == "smartrecruiters:AcmeAI:744000"
+    assert "LLM systems" in job.description        # detail endpoint was fetched
+    assert job.salary_min == 150000
+
+
+def test_smartrecruiters_skips_detail_for_irrelevant_titles(config):
+    from job_harness.discovery.smartrecruiters import SmartRecruitersAdapter
+    payload = {"totalFound": 1, "content": [
+        {**SMARTRECRUITERS_LIST["content"][0], "name": "Office Manager"}]}
+
+    calls = {"detail": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        if url.rstrip("/").endswith("744000"):
+            calls["detail"] += 1
+            return httpx.Response(200, json=SMARTRECRUITERS_DETAIL)
+        return httpx.Response(200, json=payload)
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    job = list(SmartRecruitersAdapter(config.discovery, client).discover("AcmeAI"))[0]
+    assert job.description == ""
+    assert calls["detail"] == 0                    # no request wasted
+
+
+def test_workable_normalization(config):
+    from job_harness.discovery.workable import WorkableAdapter
+    job = list(WorkableAdapter(config.discovery, ats_client()).discover("nova"))[0]
+    assert job.company == "Nova" and job.title == "Machine Learning Engineer"
+    assert job.remote_status == "remote"
+    assert job.ats_job_key == "workable:nova:ABC123"
+    assert "Retrieval systems" in job.description and "2+ years" in job.description
+
+
+@pytest.mark.parametrize("target,expected", [
+    ("AcmeAI", "AcmeAI"),
+    ("https://careers.smartrecruiters.com/AcmeAI", "AcmeAI"),
+    ("https://jobs.smartrecruiters.com/AcmeAI/744000", "AcmeAI"),
+])
+def test_smartrecruiters_board_tokens(target, expected):
+    from job_harness.discovery.smartrecruiters import SmartRecruitersAdapter
+    assert SmartRecruitersAdapter._board_token(target) == expected
+
+
+@pytest.mark.parametrize("target,expected", [
+    ("nova", "nova"),
+    ("https://apply.workable.com/nova/", "nova"),
+    ("https://apply.workable.com/nova/j/ABC123/", "nova"),
+])
+def test_workable_board_tokens(target, expected):
+    from job_harness.discovery.workable import WorkableAdapter
+    assert WorkableAdapter._board_token(target) == expected
+
+
+def test_new_adapters_are_registered():
+    assert {"smartrecruiters", "workable"} <= set(ADAPTERS)
+
+
+def test_a_custom_adapter_can_be_registered(config):
+    """The extension point advertised in the README."""
+    from job_harness.discovery.base import DiscoveryAdapter as Base
+    from job_harness.discovery.engine import register_adapter
+
+    class CustomAdapter(Base):
+        name = "custom_ats"
+        ats_type = "custom_ats"
+
+        def discover(self, target):
+            yield Job(company="Custom Co", title="AI Engineer",
+                      canonical_apply_url=f"https://custom.example/jobs/{target}",
+                      ats_type=self.ats_type, ats_job_key=f"custom:{target}")
+
+    register_adapter("custom_ats", CustomAdapter)
+    assert ADAPTERS["custom_ats"] is CustomAdapter
+    jobs = list(CustomAdapter(config.discovery, ats_client()).discover("42"))
+    assert jobs[0].ats_type == "custom_ats"
+    del ADAPTERS["custom_ats"]
