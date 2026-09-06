@@ -314,7 +314,7 @@ def save_results(results, stats):
         json.dump(output, f, indent=2)
 
 
-USE_SLM_RERANKER = True
+USE_SLM_RERANKER = os.environ.get("RERANK", "llm") != "none"   # RERANK=none -> take the retriever's native top-N, no LLM reranking
 RERANKER_MODEL = llm_backend.LLM_MODEL
 
 

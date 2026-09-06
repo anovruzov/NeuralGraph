@@ -57,6 +57,20 @@ Same 111 single_hop ids from conversations 1 to 4, flat vs shipped, per judge:
 
 Where the flat system loses: when the gold text reached the final 15-memory context, accuracy was 77.8%; when it did not (124 of 282 questions), 48.4%.
 
+### 1.4 Full benchmark without the LLM reranker (all 1,540 questions, Ali's ablation)
+
+Same retrieval (`local_pairs`) and flags, `RERANK=none`: the answer prompt takes the retriever's native top 15 with no LLM reranking.
+
+| Category | n | No reranker, Gemma lenient | Reranked stack, same question ids (1,112 available) |
+|---|---|---|---|
+| single_hop | 282 | 65.6% | |
+| multi_hop | 841 | 65.0% | |
+| temporal | 321 | 53.3% | |
+| open_domain | 96 | 52.1% | |
+| **overall** | **1,540** | **61.9%** | **68.6% vs 62.2% on the same 1,112** |
+
+Latency: 0.44 s per question end to end (retrieve 0.09 s, answer 0.34 s) versus 8.2 s with the 80-call reranker. So the trade is about 6.5 accuracy points for an 18x speedup. Temporal questions lose the most, which means the reranker's contribution is ordering, and ordering matters most when several dated memories compete. Note the 30 pair back-fill candidates never reach the prompt without a reranker (they sit at positions 51 to 80), so a cheap non-LLM fusion of Tesseract rank and pair-node cosine rank is the obvious next step before shipping the fast path.
+
 ---
 
 ## 2. Retrieval experiments (recall, no LLM calls)
@@ -316,6 +330,7 @@ Measured on the same Mac and LM Studio server (gemma-4-e4b) unless marked old. R
 | mega search (LLM graph), 100 single_hop | 100 | 0.09 | 7.28 | 0.48 | 7.86 | 8.20 |
 | mega search (regex graph), 100 multi_hop | 100 | 0.08 | 7.39 | 0.46 | 7.93 | 8.31 |
 | 30-memory context, 100 single_hop (H2_treatment30.json) | 100 | 0.07 | 7.36 | 0.51 | 7.95 | 8.25 |
+| shipped, NO reranker, all 1,540 | 1540 | 0.09 | 0.00 | 0.34 | 0.44 | 0.9 |
 | old Dec-2025 run (Ollama, qwen2.5-7b, leaky) | 1540 | 0.33 | 1.49 | 0.39 | 2.41 | 3.15 |
 
 Reading: retrieval is 80 to 140 ms and gets faster with per-agent stores; the shipped stack costs about 2 s more per question than flat because it reranks 80 candidates instead of 50, which is the price of the +9 accuracy. The listwise reranker halves rerank time at a 4-point accuracy cost. Old-run rerank latency reflects a different server (Ollama) and model, not the architecture.
