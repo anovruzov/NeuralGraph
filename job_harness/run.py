@@ -47,6 +47,9 @@ def build_parser() -> argparse.ArgumentParser:
                       help="validate config, profile, browser and Qwen, then exit")
     mode.add_argument("--init-profile", action="store_true",
                       help="write a blank applicant profile and exit")
+    mode.add_argument("--demo", action="store_true",
+                      help="offline self-test: dry run against the bundled ATS "
+                           "form fixtures, using the built-in rule-based backend")
 
     p.add_argument("--config", help="path to a JSON config file")
     p.add_argument("--env-file", help="path to a .env file")
@@ -258,6 +261,32 @@ def cmd_check(config: Config, args: argparse.Namespace) -> int:
     return 0 if ok else 1
 
 
+def cmd_demo(config: Config, args: argparse.Namespace) -> int:
+    """Prove the whole pipeline works on this machine, with no model server,
+    no network and no real applications."""
+    from job_harness.fixtures.server import FixtureServer
+
+    fixtures = Path(__file__).resolve().parent / "tests" / "fixtures"
+    config.run.mode = "dry-run"
+    config.run.profile_path = args.profile or str(fixtures / "applicant.test.json")
+    config.run.resume_path = args.resume or str(fixtures / "resume.test.txt")
+    config.dashboard.enabled = False
+    config.run.loop_forever = False
+    config.discovery.boards = {}
+    config.scoring.require_us_work_location = False
+    config.discovery.freshness_days = 0            # fixtures carry a fixed date
+    args.fake_qwen = True
+
+    print("demo: dry run against the bundled ATS form fixtures")
+    print(f"      profile {config.run.profile_path}")
+    print(f"      database {config.run.database_path}\n")
+
+    with FixtureServer() as server:
+        config.discovery.seed_urls = [f"{server.base_url}/board"]
+        print(f"      fixture board at {server.base_url}/board\n")
+        return cmd_run(config, args)
+
+
 def cmd_run(config: Config, args: argparse.Namespace) -> int:
     try:
         applicant = Applicant.load(config.run.profile_path, config.run.resume_path,
@@ -336,6 +365,8 @@ def main(argv: Optional[list[str]] = None) -> int:
         return cmd_status(config, args)
     if args.check:
         return cmd_check(config, args)
+    if args.demo:
+        return cmd_demo(config, args)
     return cmd_run(config, args)
 
 

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field as dc_field
+from pathlib import Path
 from typing import Any, Optional
 
 from ..browser.actions import best_option
@@ -239,6 +240,11 @@ class FieldResolver:
             answer.reason = f"read directly from {source}"
             return answer
 
+        if semantic_key in ("cover_letter", "cover_letter_upload"):
+            settled = self._cover_letter_policy_outcome(field, answer)
+            if settled is not None:
+                return settled
+
         # Sensitive questions are answered only from an explicit profile value.
         if semantics.is_sensitive(semantic_key):
             answer.blocked_reason = (
@@ -351,12 +357,46 @@ class FieldResolver:
             # construction: everything submitted came from the profile.
             return "yes", "policy.acknowledgement"
 
-        if key == "cover_letter":
-            policy = a.get("cover_letter_policy") or {}
-            path = policy.get("cover_letter_path")
-            if field.type == "file" and path:
-                return path, "profile.cover_letter_policy.cover_letter_path"
+        if key in ("cover_letter", "cover_letter_upload"):
+            return self._cover_letter_value(field)
+
+        return None
+
+    def _cover_letter_value(self, field: FormField) -> Optional[tuple[Any, str]]:
+        """Apply cover_letter_policy.mode: file | generate | skip.
+
+        Returns a value when the policy settles it, or None to fall through
+        (which means "let the model compose one", only under mode=generate).
+        """
+        policy = self.applicant.get("cover_letter_policy") or {}
+        mode = str(policy.get("mode") or "generate").strip().lower()
+        path = str(policy.get("cover_letter_path") or "").strip()
+        source = "profile.cover_letter_policy"
+
+        if mode == "skip":
+            return None                       # never generated; handled by resolve()
+
+        if path:
+            file_path = Path(path)
+            if field.type == "file":
+                if file_path.exists():
+                    return path, f"{source}.cover_letter_path"
+                log.warning("cover letter file is missing", extra={"path": path})
+                return None
+            # A text field can take the file's contents, if it is readable text.
+            if file_path.exists() and file_path.suffix.lower() in (".txt", ".md"):
+                try:
+                    text = file_path.read_text(errors="ignore").strip()
+                except OSError:
+                    text = ""
+                if text:
+                    return text, f"{source}.cover_letter_path"
+
+        if mode == "file":
+            # The policy says upload a file and there is none: do not invent one.
             return None
+
+        return None
 
         return None
 
@@ -383,6 +423,29 @@ class FieldResolver:
         if field.options and _decline_option(field.options):
             return True
         return semantic_key in ("open_question", "why_this_company", "other")
+
+    def _cover_letter_policy_outcome(self, field: FormField,
+                                     answer: ResolvedAnswer) -> Optional[ResolvedAnswer]:
+        """Settle a cover-letter field that the policy says not to compose."""
+        policy = self.applicant.get("cover_letter_policy") or {}
+        mode = str(policy.get("mode") or "generate").strip().lower()
+        if mode == "generate" and field.type != "file":
+            return None                       # compose it with the model
+
+        reason = {
+            "skip": "cover_letter_policy.mode is 'skip'",
+            "file": "cover_letter_policy.mode is 'file' but no readable file is set",
+        }.get(mode, "no cover letter file is set and a file field cannot be composed")
+
+        answer.resolver = "policy"
+        answer.source = "profile.cover_letter_policy"
+        if not field.required:
+            answer.skip = True
+            answer.reason = f"{reason}; optional field left blank"
+            return answer
+        answer.blocked_reason = f"{reason}, but this cover letter is required"
+        answer.reason = answer.blocked_reason
+        return answer
 
     # ------------------------------------------------------- demographics
 

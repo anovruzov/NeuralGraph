@@ -259,3 +259,31 @@ def test_unattended_loop_with_live_controls(tmp_path, chromium_path, fixture_ser
     database.close()
     assert ready >= 1, stdout[-1500:]
     assert submitted == 0, "dry run must never submit"
+
+
+def test_demo_self_test_runs_offline(tmp_path, chromium_path):
+    """`--demo` must prove an install works with no model server and no network."""
+    import os
+
+    result = subprocess.run(
+        [sys.executable, "run.py", "--demo", "--db", str(tmp_path / "demo.db")],
+        cwd=str(ROOT), capture_output=True, text=True, timeout=300,
+        env={**os.environ, "BROWSER_EXECUTABLE": chromium_path,
+             "BROWSER_PROFILE_DIR": str(tmp_path / "browser"),
+             "HARNESS_LOG_DIR": str(tmp_path / "logs")},
+    )
+    assert result.returncode == 0, result.stderr[-2000:]
+    assert "Traceback" not in result.stderr, result.stderr[-2000:]
+
+    database = Database(str(tmp_path / "demo.db"))
+    ready = database.query_one(
+        "SELECT COUNT(*) AS n FROM applications WHERE status='READY_TO_SUBMIT'")["n"]
+    blocked = database.query_one(
+        "SELECT COUNT(*) AS n FROM applications WHERE status='BLOCKED'")["n"]
+    submitted = database.query_one(
+        "SELECT COUNT(*) AS n FROM applications WHERE submitted_at IS NOT NULL")["n"]
+    database.close()
+
+    assert ready >= 4, result.stdout[-1500:]
+    assert blocked >= 2, "the CAPTCHA and assessment fixtures should block"
+    assert submitted == 0, "a demo must never submit anything"

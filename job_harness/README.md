@@ -118,6 +118,7 @@ Key fields:
 | `sponsorship_requirement` | the opposite question; state it explicitly |
 | `security_clearance`, `criminal_history`, `visa_status` | left blank means "refuse to answer" |
 | `demographic_response_policy` | `decline` selects a prefer-not-to-say option; or give the exact value to disclose |
+| `cover_letter_policy.mode` | `generate` composes prose from profile facts only, `file` uploads/pastes `cover_letter_path`, `skip` leaves optional cover letters blank |
 | `employment_history`, `skills` | grounds open-ended answers |
 
 Confirm it loaded:
@@ -184,6 +185,7 @@ python run.py --dry-run --max-applications 5           # small first pass
 python run.py --dry-run --headful                      # watch the browser
 python run.py --discover-only                          # score only, no browser
 python run.py --dry-run --fake-qwen                    # no model server needed
+python run.py --demo                                   # offline self-test
 python run.py --status                                 # statistics
 python run.py --status --json                          # machine readable
 ```
@@ -225,6 +227,7 @@ Every flag:
 |---|---|
 | `--dry-run` / `--apply` | fill only, or actually submit |
 | `--status` / `--check` | statistics; configuration and connectivity check |
+| `--demo` | offline self-test against the bundled fixtures |
 | `--init-profile` | write a blank applicant profile |
 | `--discover-only` | discover and score, no browser |
 | `--no-discovery` | work the existing queue only |
@@ -448,7 +451,7 @@ estimated cost. `--status` reports cost per verified application.
 ## 12. Testing
 
 ```bash
-python -m pytest                       # 257 tests
+python -m pytest                       # 268 tests
 python -m pytest -m "not browser"      # skip the Chromium end-to-end tests
 python -m pytest tests/test_grounding.py -v
 ```
@@ -457,19 +460,18 @@ The suite needs no model server and no network: a rule-based backend answers
 the same prompts a real model would, and the ATS-shaped HTML fixtures in
 `fixtures/forms/` are served over a local HTTP server.
 
-To exercise the whole pipeline offline:
+To exercise the whole pipeline offline in one command:
 
 ```bash
-python - <<'PY'
-import sys; sys.path.insert(0, '..')
-from job_harness.fixtures.server import FixtureServer
-with FixtureServer() as s:
-    print("board:", s.base_url + "/board")
-    input("running; press enter to stop")
-PY
-
-python run.py --dry-run --fake-qwen --url http://127.0.0.1:<port>/board
+python run.py --demo
 ```
+
+`--demo` serves the bundled ATS form fixtures over a local HTTP server, runs a
+full dry run against them with the rule-based backend, and prints the result.
+It needs no model server, no network and no profile of your own -- use it to
+confirm an install or a deployment works before pointing the harness at real
+boards. Expect 7 discovered, 5 reaching `READY_TO_SUBMIT`, and 2 blocked (the
+CAPTCHA and assessment fixtures).
 
 ## 13. Layout
 
@@ -490,7 +492,7 @@ job_harness/
 ├── verification/           submission evidence
 ├── dashboard/              control server, stats, UI
 ├── fixtures/forms/         ATS-shaped HTML used by the tests
-├── tests/                  257 tests
+├── tests/                  268 tests
 └── logs/                   database, JSONL logs, screenshots, browser profile
 ```
 
@@ -520,5 +522,10 @@ job_harness/
 - When the harness blocks on a missing profile value, fill it in and run with
   `--retry-blocked`; blockers that need you personally (CAPTCHA, assessments,
   login walls) are never retried.
+- `logs/harness.jsonl` can contain profile values inside blocker reasons (for
+  example, "Bachelor of Science does not match any allowed option"). It is your
+  own data, but treat the log directory as personal if you ship logs off the
+  machine. Credentials are never logged: the API key and dashboard token are
+  redacted everywhere they are stored or served.
 - Check **Needs review** regularly. Those are applications where Submit was
   clicked but no confirmation appeared: open each link and confirm by hand.

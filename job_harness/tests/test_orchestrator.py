@@ -330,3 +330,34 @@ def test_a_floor_above_the_threshold_is_refused(config):
     config.run.min_score = config.scoring.apply_threshold + 10
     with pytest.raises(ValueError, match="min_score"):
         config.validate()
+
+
+# --------------------------------------------------------- secret handling
+
+def test_credentials_are_redacted_in_the_config_snapshot(config):
+    """The snapshot is written to run_statistics and served by the dashboard."""
+    config.qwen.api_key = "sk-super-secret"
+    config.dashboard.auth_token = "token-super-secret"
+    blob = json.dumps(config.to_dict())
+    assert "sk-super-secret" not in blob
+    assert "token-super-secret" not in blob
+    assert config.to_dict()["qwen"]["api_key"] == "***"
+
+
+def test_the_dashboard_never_serves_credentials(dashboard, config):
+    config.qwen.api_key = "sk-super-secret"
+    _, payload = request("/api/status", "test-token")
+    assert "sk-super-secret" not in json.dumps(payload)
+    assert "test-token" not in json.dumps(payload)
+
+
+def test_the_response_cache_stores_no_prompt_text(db, qwen):
+    """Prompts carry the applicant's personal data; only responses are cached."""
+    qwen.classify_job({"title": "AI Engineer", "company": "Acme",
+                       "location": "Remote", "description": "LLM agents"},
+                      ["AI Engineer"])
+    rows = db.query("SELECT cache_key, response FROM qwen_cache")
+    assert rows
+    for row in rows:
+        assert "Acme" not in row["cache_key"]
+        assert "applicant" not in (row["response"] or "").lower()

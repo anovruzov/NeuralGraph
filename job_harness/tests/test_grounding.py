@@ -14,6 +14,7 @@ from job_harness.browser.dom import FormField
 from job_harness.profile.applicant import Applicant, ProfileError
 
 PROFILE_FIXTURE = Path(__file__).resolve().parent / "fixtures" / "applicant.test.json"
+RESUME_FIXTURE = Path(__file__).resolve().parent / "fixtures" / "resume.test.txt"
 
 JOB_CONTEXT = {"company": "Acme AI", "title": "AI Engineer"}
 
@@ -278,3 +279,70 @@ def test_a_broken_pdf_extractor_does_not_stop_the_run(tmp_path, monkeypatch):
     loaded = Applicant.load(PROFILE_FIXTURE, pdf, strict=False)
     assert loaded.resume_text == ""
     assert loaded.full_name                                    # profile still usable
+
+
+# ------------------------------------------------------- cover letter policy
+
+@pytest.fixture
+def cover_letter_resolver(qwen, config):
+    def build(mode: str, path: str = "") -> FieldResolver:
+        applicant = Applicant.load(PROFILE_FIXTURE, RESUME_FIXTURE)
+        applicant.data["cover_letter_policy"] = {"mode": mode, "cover_letter_path": path}
+        return FieldResolver(applicant, qwen, config.run.min_field_confidence,
+                             config.run.resume_path)
+    return build
+
+
+def cover_field(field_type: str, required: bool) -> FormField:
+    return FormField(selector="#c", tag=field_type, type=field_type,
+                     label="Cover Letter", required=required)
+
+
+def test_skip_policy_leaves_an_optional_cover_letter_blank(cover_letter_resolver, qwen):
+    before = qwen.stats["requests"]
+    answer = cover_letter_resolver("skip").resolve(cover_field("textarea", False), JOB_CONTEXT)
+    assert answer.skip and not answer.answerable
+    assert qwen.stats["requests"] == before        # no tokens spent
+
+
+def test_skip_policy_blocks_a_required_cover_letter(cover_letter_resolver):
+    answer = cover_letter_resolver("skip").resolve(cover_field("textarea", True), JOB_CONTEXT)
+    assert not answer.answerable
+    assert "skip" in answer.blocked_reason
+
+
+def test_file_policy_uploads_the_configured_file(cover_letter_resolver, tmp_path):
+    letter = tmp_path / "cover.txt"
+    letter.write_text("Dear team,\nI build AI systems.\n")
+    answer = cover_letter_resolver("file", str(letter)).resolve(
+        cover_field("file", True), JOB_CONTEXT)
+    assert answer.answerable and answer.value == str(letter)
+
+
+def test_file_policy_pastes_the_text_into_a_textarea(cover_letter_resolver, tmp_path):
+    letter = tmp_path / "cover.txt"
+    letter.write_text("Dear team,\nI build AI systems.\n")
+    answer = cover_letter_resolver("file", str(letter)).resolve(
+        cover_field("textarea", True), JOB_CONTEXT)
+    assert answer.answerable and "I build AI systems." in answer.value
+
+
+def test_file_policy_without_a_file_never_invents_one(cover_letter_resolver):
+    answer = cover_letter_resolver("file").resolve(cover_field("file", True), JOB_CONTEXT)
+    assert not answer.answerable
+    assert not answer.value
+
+
+def test_generate_policy_composes_from_the_profile(cover_letter_resolver):
+    answer = cover_letter_resolver("generate").resolve(
+        cover_field("textarea", True), JOB_CONTEXT)
+    assert answer.answerable
+    assert answer.source.startswith("profile.")
+
+
+def test_a_file_upload_is_never_composed(cover_letter_resolver):
+    """There is nothing to upload, and prose cannot become a file."""
+    answer = cover_letter_resolver("generate").resolve(
+        cover_field("file", False), JOB_CONTEXT)
+    assert not answer.answerable
+    assert answer.skip
