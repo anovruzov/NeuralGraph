@@ -723,7 +723,12 @@ async def run_benchmark():
                 print(f"  Per-agent memory: {len(pair_nodes)} pair nodes, {len(local_tesseracts)} agent stores")
                 if RETRIEVAL_MODE == "mega":
                     from NeuralGraph.mega_search import MegaIndex
-                    mega_index = MegaIndex(all_nodes, pair_nodes)
+                    kg = None
+                    if os.environ.get("KG", "0") == "1":   # LLM-built entity graph from NeuralGraph.kg_extractor
+                        kg_path = Path(__file__).parent / "results" / "kg_cache" / f"conv{conv_idx}.json"
+                        kg = json.load(open(kg_path)) if kg_path.exists() else None
+                        print(f"  KG: {'loaded ' + str(len(kg['registry'])) + ' entities' if kg else 'MISSING'}")
+                    mega_index = MegaIndex(all_nodes, pair_nodes, kg=kg)
             node_by_id = {n.node_id: n for n in all_nodes}
             aggregators, bindings = await dialogue_linker.process_dialogue_sequence(
                 all_nodes, f"conv_{conv_idx}"

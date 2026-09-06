@@ -29,3 +29,4 @@
 ## Post-report: M1 "mega search" (vector + BM25 + entity-graph PageRank hop + Tesseract, RRF fusion, pair back-fill; NeuralGraph/mega_search.py, RETRIEVAL_MODE=mega)
 - Retrieval-only (1219 q): recall@10 53.7 vs 46.8 (+6.9), @50 62.8 vs 59.7, @all 64.9 vs 65.1. Graph hop is the useful channel (multi_hop @10 +8.8); BM25 adds nothing over vector+pairs.
 - End-to-end (same 100 ids, same judge): single_hop 68 vs 78 (3W/13L), multi_hop 76 vs 75. DOES NOT WORK end-to-end on single_hop. Gold-in-context 67 vs 70; accuracy-given-gold 79.1 vs 88.6: the entity-hop fills the candidate window with topically related non-answer messages that the pointwise reranker and answerer prefer. Substring recall@10 does not predict e2e here.
+- M2 LLM-built KG in mega search: retrieval @10 51.8 (regex 53.7, shipped 46.8); e2e single_hop 70 vs 78 (4W/12L), multi_hop 77 vs 75 (8W/6L). DOES NOT WORK on single_hop, noise on multi_hop.

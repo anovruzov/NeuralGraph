@@ -76,6 +76,9 @@ class MegaIndex:
         if kg:
             per_msg = {m["idx"]: m for m in kg["messages"]}
             self.msg_ents = {n.node_id: set(per_msg.get(i, {}).get("entities", [])) for i, n in enumerate(self.nodes)}
+            if kg.get("_union_regex"):   # experiment: LLM entities + regex entities
+                for i, n in enumerate(self.nodes):
+                    self.msg_ents[n.node_id] |= entities_of(n.content)
             for m in kg["messages"]:
                 for s_, r_, o_ in m.get("triples", []):
                     self.ent_ent[s_].add(o_)

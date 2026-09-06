@@ -347,6 +347,7 @@ async def combined_main():
             mega = MegaIndex(nodes, pairs)   # one index per conversation; speaker routing = pool filter
             kg_path = Path(__file__).parent / "results" / "kg_cache" / f"conv{conv_idx}.json"
             mega_kg = MegaIndex(nodes, pairs, kg=json.load(open(kg_path))) if kg_path.exists() else None
+            mega_kgu = MegaIndex(nodes, pairs, kg=json.load(open(kg_path)) | {"_union_regex": True}) if kg_path.exists() else None
 
             qas = [qa for qa in conv.get("qa", []) if CATEGORIES.get(qa.get("category")) in JUDGE_CATS]
             qvecs = await cached_embeddings(http, f"conv{conv_idx}_questions_all",
@@ -390,7 +391,14 @@ async def combined_main():
                                                        seen={n.node_id for n, _ in kg_VG_pairs})[:PAIR_EXTRA]
                 else:
                     kg_VGT_pairs = kg_G_only = kg_VG_pairs = []
+                if mega_kgu is not None:
+                    kgu50 = mega_kgu.retrieve(q, qvec, pool_ids, k=TOP_K, channels="VG", extra_rankings=[tess_ids])
+                    kgu_pairs = kgu50 + unpair(cosine_topk(pool_pairs, qvec, 2 * PAIR_EXTRA), node_by_id,
+                                               seen={n.node_id for n, _ in kgu50})[:PAIR_EXTRA]
+                else:
+                    kgu_pairs = []
                 variants = {
+                    "KG+regex union: VG+tess50 + pairs": kgu_pairs,
                     "KG: graph channel only": kg_G_only,
                     "KG: mega_VG50 + pairs": kg_VG_pairs,
                     "KG: mega_VG+tess50 + pairs": kg_VGT_pairs,
@@ -417,7 +425,7 @@ async def combined_main():
                 rows.append(row)
             print(f"conv {conv_idx}: {len(qas)} questions ({time.time() - t0:.0f}s)")
 
-    variants = ["KG: graph channel only", "KG: mega_VG50 + pairs", "KG: mega_VG+tess50 + pairs", "mega_VG50 + pair backfill", "mega_VG+tess50 + pair backfill", "mega_VK (vec+bm25 rrf)", "mega_VG (vec+graph rrf)", "mega_VKG (vec+bm25+graph)", "mega_VKG graph x2", "mega_VKG + tess channel",
+    variants = ["KG+regex union: VG+tess50 + pairs", "KG: graph channel only", "KG: mega_VG50 + pairs", "KG: mega_VG+tess50 + pairs", "mega_VG50 + pair backfill", "mega_VG+tess50 + pair backfill", "mega_VK (vec+bm25 rrf)", "mega_VG (vec+graph rrf)", "mega_VKG (vec+bm25+graph)", "mega_VKG graph x2", "mega_VKG + tess channel",
                 "embed_local", "embed_local+pairs", "tess_local", "tess_local+pairs",
                 "stack_embedpairs_then_tess", "stack_tess_then_embedpairs",
                 "tess_local+embed_union", "embed_local_top80"]
