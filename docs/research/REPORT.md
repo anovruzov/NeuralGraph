@@ -84,3 +84,16 @@ Built after the report at the user's request (NeuralGraph/mega_search.py, RETRIE
 
 ## Addendum 2 (Sept 6, 01:30): LLM-built entity graph (kg_extractor.py) inside mega search
 Per-message Gemma extraction with a running entity registry for alias resolution (138-354 entities and 430-712 triples per conversation, vs ~2,000 regex "entities"). Retrieval-only: recall@10 51.8 vs 53.7 for the regex graph vs 46.8 shipped; union of both sources 53.5. End to end on the same 100 ids: single_hop 70 vs 78 shipped (4 wins / 12 losses; regex graph 68), multi_hop 77 vs 75 shipped (8 wins / 6 losses; regex graph 76). Verdict: cleaner entities recover 2 points of the precision loss but do not fix it; the graph hop still fills the candidate window with related non-answers on single-fact questions, and its multi_hop edge is within noise. Keep local_pairs as the shipped retriever. The extracted graphs are cached in demo/results/kg_cache/ for future work (e.g. a graph channel gated to multi-entity questions only, or a stronger reranker).
+
+## Final tally (Sept 6, 01:50; run stopped at the user's request)
+Shipped config (RETRIEVAL_MODE=local_pairs + open-domain flags), lenient Gemma judge, no leakage, conversations 1-5 = 744 of 1,540 questions:
+
+| Category | n | New | Old leaky system, same questions (GPT-4o lenient) |
+|---|---|---|---|
+| single_hop | 142 | 73.9 | |
+| multi_hop | 400 | 72.8 | |
+| temporal | 156 | 73.7 | |
+| open_domain | 46 | 56.5 | |
+| **overall** | 744 | **72.2** | 66.9 |
+
+Judges differ between the two columns, so the +5.3 is indicative; the single_hop +9 vs the honest flat baseline (section 1) is the defensible claim. Conversations 6-10 remain unrun (`demo/results/capstone_rest.json` holds conversation 5; rerun with ONLY_CONV=5,6,7,8,9 to finish). Strict-judge rescoring of the 744 rows: `python docs/research/n5_rescore.py` with FILES pointed at the two capstone JSONs.
