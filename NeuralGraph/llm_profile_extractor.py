@@ -17,8 +17,10 @@ import aiohttp
 from typing import List, Dict, Any
 
 
-OLLAMA_BASE_URL = "http://localhost:11434"
-OLLAMA_MODEL = "qwen2.5:7b-instruct"  # Fast 7B model for extraction
+from . import llm_backend
+
+OLLAMA_BASE_URL = llm_backend.LLM_BASE_URL
+OLLAMA_MODEL = llm_backend.LLM_MODEL
 
 # OpenAI config (set via environment or override in caller)
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
@@ -100,24 +102,14 @@ If no notable facts about {speaker_name}, return {{"facts": []}}"""
                 response_text = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
         else:
             # Use Ollama for extraction
-            async with session.post(
-                f"{OLLAMA_BASE_URL}/api/generate",
-                json={
-                    "model": OLLAMA_MODEL,
-                    "prompt": extraction_prompt,
-                    "stream": False,
-                    "options": {
-                        "temperature": 0.1,  # Low temp for consistent extraction
-                        "num_predict": 500,
-                    }
-                },
-                timeout=aiohttp.ClientTimeout(total=30)
-            ) as resp:
-                if resp.status != 200:
-                    return []
-
-                data = await resp.json()
-                response_text = data.get("response", "").strip()
+            try:
+                response_text = await llm_backend.llm_generate(
+                    session, extraction_prompt,
+                    model=OLLAMA_MODEL, base_url=OLLAMA_BASE_URL,
+                    temperature=0.1, max_tokens=500, timeout_seconds=60,
+                )
+            except Exception:
+                return []
 
         # Parse JSON from response
         # Sometimes LLM adds markdown code blocks, remove them

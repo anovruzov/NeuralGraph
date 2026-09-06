@@ -19,6 +19,7 @@ Usage:
 """
 
 from __future__ import annotations
+from . import llm_backend
 
 import asyncio
 import hashlib
@@ -42,8 +43,8 @@ class RerankerConfig:
     reranker_type: str = "llm"
 
     # LLM settings
-    llm_base_url: str = "http://localhost:11434"
-    llm_model: str = "qwen2.5:7b-instruct"
+    llm_base_url: str = llm_backend.LLM_BASE_URL
+    llm_model: str = llm_backend.LLM_MODEL
     llm_timeout_seconds: float = 8.0
     llm_max_tokens: int = 15
 
@@ -349,34 +350,24 @@ Return JSON only: {{"score": 0}} (or 1/2/3)"""
 
         try:
             session = await self._get_session()
-            async with session.post(
-                f"{self.config.llm_base_url}/api/generate",
-                json={
-                    "model": self.config.llm_model,
-                    "prompt": prompt,
-                    "stream": False,
-                    "options": {
-                        "temperature": 0,
-                        "num_predict": self.config.llm_max_tokens
-                    }
-                },
-                timeout=aiohttp.ClientTimeout(total=self.config.llm_timeout_seconds)
-            ) as response:
-                result = await response.json()
-                resp = result.get("response", "").strip()
-
-                # Parse JSON response
-                import json
-                try:
-                    obj = json.loads(resp)
-                    score = int(obj.get("score", 1))
-                    return max(0, min(3, score))
-                except Exception:
-                    # Fallback to digit scan
-                    for char in resp:
-                        if char in "0123":
-                            return int(char)
-                    return 1
+            resp = await llm_backend.llm_generate(
+                session, prompt,
+                model=self.config.llm_model, base_url=self.config.llm_base_url,
+                temperature=0, max_tokens=self.config.llm_max_tokens,
+                timeout_seconds=self.config.llm_timeout_seconds,
+            )
+            # Parse JSON response
+            import json
+            try:
+                obj = json.loads(resp)
+                score = int(obj.get("score", 1))
+                return max(0, min(3, score))
+            except Exception:
+                # Fallback to digit scan
+                for char in resp:
+                    if char in "0123":
+                        return int(char)
+                return 1
 
         except Exception as e:
             logger.debug(f"LLM rerank error: {e}")
@@ -583,8 +574,8 @@ async def rerank_candidates_parallel(
     query: str,
     candidates: list[tuple["NeuralNode", float]],
     limit: int = 15,
-    llm_model: str = "qwen2.5:7b-instruct",
-    llm_base_url: str = "http://localhost:11434",
+    llm_model: str = llm_backend.LLM_MODEL,
+    llm_base_url: str = llm_backend.LLM_BASE_URL,
     timeout_seconds: float = 10.0,
     max_candidates: int = 50,
     score_boost: float = 0.2,
@@ -598,7 +589,7 @@ async def rerank_candidates_parallel(
         llm_model=llm_model,
         llm_base_url=llm_base_url,
         llm_timeout_seconds=timeout_seconds,
-        llm_max_tokens=5,
+        llm_max_tokens=20,
         max_candidates=max_candidates,
     )
     reranker = LLMReranker(cfg)

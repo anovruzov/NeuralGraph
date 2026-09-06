@@ -16,8 +16,10 @@ import aiohttp
 from typing import Dict, Any
 
 
-OLLAMA_BASE_URL = "http://localhost:11434"
-OLLAMA_MODEL = "qwen2.5:7b-instruct"
+from . import llm_backend
+
+OLLAMA_BASE_URL = llm_backend.LLM_BASE_URL
+OLLAMA_MODEL = llm_backend.LLM_MODEL
 
 
 async def query_profile_with_llm(
@@ -93,24 +95,15 @@ Return ONLY valid JSON:
 }}"""
 
     try:
-        async with session.post(
-            f"{OLLAMA_BASE_URL}/api/generate",
-            json={
-                "model": OLLAMA_MODEL,
-                "prompt": query_prompt,
-                "stream": False,
-                "options": {
-                    "temperature": 0.1,
-                    "num_predict": 300,
-                }
-            },
-            timeout=aiohttp.ClientTimeout(total=20)
-        ) as resp:
-            if resp.status != 200:
+        if True:
+            try:
+                response_text = await llm_backend.llm_generate(
+                    session, query_prompt,
+                    model=OLLAMA_MODEL, base_url=OLLAMA_BASE_URL,
+                    temperature=0.1, max_tokens=300, timeout_seconds=40,
+                )
+            except Exception:
                 return {'found': False, 'answer': None, 'confidence': 0.0, 'reasoning': 'API error'}
-
-            data = await resp.json()
-            response_text = data.get("response", "").strip()
 
             # Parse JSON
             if response_text.startswith("```"):

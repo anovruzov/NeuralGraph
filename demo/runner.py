@@ -23,6 +23,7 @@ from NeuralGraph.tesseract import (
     detect_list_question_universal,
     is_open_domain_world_query,
     should_use_open_domain_infer,
+    looks_open_domain_question,
 )
 from NeuralGraph.dialogue_linker import DialogueLinker
 from NeuralGraph.answering import AnsweringConfig, generate_answer, get_embedding
@@ -59,9 +60,10 @@ from NeuralGraph import llm_profile_extractor
 import os
 
 # Ollama for answer generation and embeddings (local)
-OLLAMA_BASE_URL = "http://localhost:11434"
-OLLAMA_MODEL = "qwen2.5:7b-instruct"  # Qwen for answer generation
-EMBEDDING_MODEL = "nomic-embed-text"
+from NeuralGraph import llm_backend
+OLLAMA_BASE_URL = llm_backend.LLM_BASE_URL   # LM Studio (OpenAI-compatible) or Ollama
+OLLAMA_MODEL = llm_backend.LLM_MODEL
+EMBEDDING_MODEL = llm_backend.EMBED_MODEL
 ANSWERING_CONFIG = AnsweringConfig(
     ollama_base_url=OLLAMA_BASE_URL,
     answer_model=OLLAMA_MODEL,
@@ -69,9 +71,9 @@ ANSWERING_CONFIG = AnsweringConfig(
 )
 
 # OpenAI for judging only
-OPENAI_API_KEY = "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"
-JUDGE_MODEL = "gpt-4o"
-USE_OPENAI_JUDGE = True  # Using GPT-4o for judging
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")  # never hardcode; export it in your shell
+JUDGE_MODEL = os.environ.get("JUDGE_MODEL", "gpt-4o")
+USE_OPENAI_JUDGE = bool(OPENAI_API_KEY)  # falls back to the local model as judge when no key is set
 USE_OPENAI_ANSWER = False  # Using Qwen for answers
 
 # Set Ollama for profile extractor module
@@ -81,8 +83,45 @@ TOP_K = 50
 
 CATEGORIES = {1: "single_hop", 2: "temporal", 3: "open_domain", 4: "multi_hop"}
 
-OUTPUT_PATH = Path(__file__).parent / "omega.json"
-MAX_QUESTIONS = 2000  # Extended benchmark run
+# ---- Run controls (env vars) -------------------------------------------------
+#   RUN_NAME=flat_single_hop      -> writes demo/results/<RUN_NAME>.json
+#   ONLY_CAT=single_hop,temporal  -> restrict categories
+#   ONLY_CONV=0,1                 -> restrict conversation indices (0-9)
+#   MAX_QUESTIONS=50              -> cap total questions
+#   GRAPH_EXPANSION=1             -> graph arm (dialogue links + TEMPORAL/ENTITY edges); 0 = flat arm
+RUN_NAME = os.environ.get("RUN_NAME", "omega")
+OUTPUT_PATH = Path(__file__).parent / "results" / f"{RUN_NAME}.json"
+OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+MAX_QUESTIONS = int(os.environ.get("MAX_QUESTIONS", "2000"))
+ONLY_CAT = {c.strip() for c in os.environ.get("ONLY_CAT", "").split(",") if c.strip()}
+ONLY_CONV = {int(c) for c in os.environ.get("ONLY_CONV", "").split(",") if c.strip()}
+GRAPH_EXPANSION = os.environ.get("GRAPH_EXPANSION", "0") == "1"
+GRAPH_SEED_K = int(os.environ.get("GRAPH_SEED_K", "10"))
+GRAPH_EDGE_DECAY = float(os.environ.get("GRAPH_EDGE_DECAY", "0.8"))
+USE_SPEAKER_PROFILES = os.environ.get("USE_SPEAKER_PROFILES", "0") == "1"
+#   RETRIEVAL_MODE=flat | graph | hybrid
+#     flat   = Tesseract top-50 (original system)
+#     graph  = flat + dialogue links + TEMPORAL/ENTITY neighbours of the top seeds, appended after the flat list
+#     hybrid = flat + speaker boost + pure-embedding back-fill of messages Tesseract's filters dropped
+#     local_pairs = per-agent memory: route the question to the named speaker's own store (Tesseract top-50),
+#              then back-fill 30 hits from that speaker's question+reply PAIR nodes (best retrieval stack, H9)
+RETRIEVAL_MODE = os.environ.get("RETRIEVAL_MODE", "graph" if GRAPH_EXPANSION else "flat")
+EXTRA_CANDIDATES = int(os.environ.get("EXTRA_CANDIDATES", "30"))   # appended after the flat top-50
+#     mega = per-agent pool + RRF fusion of {vector(+pairs), entity-graph PageRank hop, Tesseract} top-50,
+#            then 30 pair back-fill (NeuralGraph/mega_search.py)
+RERANK_WINDOW = TOP_K + (EXTRA_CANDIDATES if RETRIEVAL_MODE in ("graph", "hybrid", "local_pairs", "mega") else 0)
+SPEAKER_BOOST = float(os.environ.get("SPEAKER_BOOST", "1.5"))
+# H5 open-domain routing flags (all off by default = original behaviour)
+#   OPEN_DOMAIN_KEEP_CONTEXT=1 -> OPEN_DOMAIN_WORLD keeps the reranked memories and uses
+#                                 OPEN_DOMAIN_WORLD_WITH_MEMORIES_PROMPT (mode OPEN_DOMAIN_WORLD_MEM)
+#   OPEN_DOMAIN_FORCE_INFER=1  -> hedged questions (likely/might/would...) routed STRICT/INFERENTIAL/
+#                                 OPEN_DOMAIN_WORLD are forced to OPEN_DOMAIN_INFER
+#   OPEN_DOMAIN_FORCE_INFER=2  -> same, but overrides every mode (TEMPORAL/LIST/AGGREGATION too)
+#   OPEN_DOMAIN_INFER_WORLD=1  -> OPEN_DOMAIN_INFER (and the not-found retry) uses the
+#                                 memories+world-knowledge prompt instead of OPEN_DOMAIN_INFER_PROMPT
+OPEN_DOMAIN_KEEP_CONTEXT = os.environ.get("OPEN_DOMAIN_KEEP_CONTEXT", "0") == "1"
+OPEN_DOMAIN_FORCE_INFER = int(os.environ.get("OPEN_DOMAIN_FORCE_INFER", "0"))
+OPEN_DOMAIN_INFER_WORLD = os.environ.get("OPEN_DOMAIN_INFER_WORLD", "0") == "1"
 
 # Timing storage
 import time
@@ -103,6 +142,8 @@ ROUTING_STATS = {
 }
 ROUTING_SAMPLES = []
 INFERENTIAL_SAMPLES = []
+# H5: mode actually used at answer time (after the OPEN_DOMAIN_INFER upgrade / H5 flags)
+FINAL_MODE_STATS = defaultdict(int)
 
 RETRIEVAL_METRICS = {
     cat: {
@@ -157,16 +198,12 @@ Reply with ONLY "YES" or "NO".
 - NO if the memory is unrelated or about a different person/topic"""
 
         try:
-            async with session.post(
-                f"{OLLAMA_BASE_URL}/api/generate",
-                json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False,
-                      "options": {"temperature": 0, "num_predict": 5}},
-                timeout=aiohttp.ClientTimeout(total=10)
-            ) as response:
-                result = await response.json()
-                resp = result.get("response", "").strip().upper()
-                if "YES" in resp:
-                    return True, rank
+            resp = (await llm_backend.llm_generate(
+                session, prompt, model=OLLAMA_MODEL, base_url=OLLAMA_BASE_URL,
+                temperature=0, max_tokens=5, timeout_seconds=10,
+            )).upper()
+            if "YES" in resp:
+                return True, rank
         except Exception:
             gold_lower = str(gold_answer).lower()
             if gold_lower in mem_text.lower():
@@ -278,7 +315,7 @@ def save_results(results, stats):
 
 
 USE_SLM_RERANKER = True
-RERANKER_MODEL = "qwen2.5:7b-instruct"  # Qwen 7B for reranking
+RERANKER_MODEL = llm_backend.LLM_MODEL
 
 
 # =============================================================================
@@ -367,28 +404,140 @@ async def judge_answer(session, question: str, generated: str, gold) -> bool:
     )
 
     try:
-        async with session.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {OPENAI_API_KEY}",
-                "Content-Type": "application/json"
-            },
-            json={
-                "model": JUDGE_MODEL,
-                "messages": [
-                    {"role": "user", "content": prompt}
-                ],
-                "temperature": 0,
-                "max_tokens": 150
-            },
-            timeout=aiohttp.ClientTimeout(total=60)
-        ) as response:
-            result = await response.json()
-            resp_text = result.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
-            return parse_judge_label(resp_text)
+        if USE_OPENAI_JUDGE:
+            async with session.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {OPENAI_API_KEY}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": JUDGE_MODEL,
+                    "messages": [
+                        {"role": "user", "content": prompt}
+                    ],
+                    "temperature": 0,
+                    "max_tokens": 150
+                },
+                timeout=aiohttp.ClientTimeout(total=60)
+            ) as response:
+                result = await response.json()
+                resp_text = result.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+        else:
+            # Local judge (same prompt) when no OpenAI key is available.
+            resp_text = await llm_backend.llm_generate(
+                session, prompt, temperature=0, max_tokens=150, timeout_seconds=60,
+            )
+        return parse_judge_label(resp_text)
     except Exception as e:
         print(f"Judge error: {e}")
         return False
+
+
+async def embed_batch(http, texts):
+    """Batch embeddings on OpenAI-style servers (LM Studio); one-by-one fallback for Ollama."""
+    if llm_backend.backend_for(llm_backend.LLM_BASE_URL) == "openai":
+        out = []
+        for i in range(0, len(texts), 64):
+            async with http.post(
+                f"{llm_backend.LLM_BASE_URL}/v1/embeddings",
+                json={"model": llm_backend.EMBED_MODEL, "input": texts[i:i + 64]},
+                timeout=aiohttp.ClientTimeout(total=300),
+            ) as resp:
+                resp.raise_for_status()
+                out.extend(d["embedding"] for d in (await resp.json())["data"])
+        return out
+    return [await get_embedding(http, t, config=ANSWERING_CONFIG) for t in texts]
+
+
+async def build_pair_nodes(http, conv_idx, messages, nodes):
+    """PAIR nodes: "[prev speaker] prev\n[speaker] this", embedded as one text, so a short reply is indexed
+    together with the question it answers. Kept OUT of storage; metadata pair_members maps back to the
+    two message node ids (reply first). Speaker = the replier."""
+    texts, members = [], []
+    for i in range(1, len(messages)):
+        texts.append(f"[{messages[i-1]['speaker']}] {messages[i-1]['text']}\n[{messages[i]['speaker']}] {messages[i]['text']}")
+        members.append([nodes[i].node_id, nodes[i - 1].node_id])
+    embs = await embed_batch(http, texts)
+    out = []
+    for k, (text, emb, mem) in enumerate(zip(texts, embs, members)):
+        anchor = nodes[k + 1]
+        out.append(NeuralNode(
+            node_id=f"pair_{conv_idx}_{k}", session_key=f"conv_{conv_idx}", content=text,
+            layer=NodeLayer.MESSAGE, embedding=emb, created_at=datetime.now(),
+            metadata={"speaker": anchor.speaker_id, "datetime": anchor.metadata.get("datetime"), "pair_members": mem},
+        ))
+    return out
+
+
+def unpair(ranked, node_by_id, seen):
+    """Expand pair hits into member message nodes (reply first), skipping ids already seen."""
+    out = []
+    for n, c in ranked:
+        for mid in n.metadata.get("pair_members") or [n.node_id]:
+            if mid not in seen:
+                seen.add(mid)
+                out.append((node_by_id[mid], c))
+    return out
+
+
+def cosine_topk(nodes, query_vec, k, _cache={}):
+    """Pure-embedding top-k over a conversation (matrix cached per node list)."""
+    import numpy as np
+    key = id(nodes)
+    if key not in _cache:
+        _cache.clear()
+        M = np.array([n.embedding for n in nodes], dtype=np.float32)
+        M /= np.linalg.norm(M, axis=1, keepdims=True) + 1e-9
+        _cache[key] = M
+    M = _cache[key]
+    q = np.array(query_vec, dtype=np.float32)
+    q /= np.linalg.norm(q) + 1e-9
+    sims = M @ q
+    order = np.argsort(-sims)[:k]
+    return [(nodes[i], float(sims[i])) for i in order]
+
+
+async def expand_via_graph(storage, dialogue_linker, retrieved):
+    """Graph arm of the A/B: grow the flat top-K with graph neighbours.
+
+    Sources, applied to the top GRAPH_SEED_K hits only:
+      - dialogue links (coreference / response bindings) at 0.85x the seed charge
+      - TEMPORAL edges (previous/next message) at GRAPH_EDGE_DECAY x
+      - ENTITY edges (same speaker, next 3 messages) at GRAPH_EDGE_DECAY x
+    Returns the merged list sorted by charge. Flat arm (GRAPH_EXPANSION=0) skips this entirely.
+    """
+    expanded = []
+    seen = set()
+    for node, charge in retrieved:
+        if node.node_id not in seen:
+            expanded.append((node, charge))
+            seen.add(node.node_id)
+
+    for node, charge in retrieved[:GRAPH_SEED_K]:
+        # Dialogue links return (linked_id, strength, link_type) tuples.
+        for link in dialogue_linker.get_linked_messages(node.node_id):
+            linked_id = link[0] if isinstance(link, tuple) else link
+            if linked_id in seen:
+                continue
+            linked_node = await storage.get_node(linked_id)
+            if linked_node:
+                expanded.append((linked_node, charge * 0.85))
+                seen.add(linked_id)
+
+        neighbours = await storage.get_neighbors(
+            node.node_id,
+            edge_types=[EdgeType.TEMPORAL, EdgeType.ENTITY],
+            direction="both",
+        )
+        for nb_node, edge in neighbours:
+            if nb_node.node_id in seen:
+                continue
+            expanded.append((nb_node, charge * GRAPH_EDGE_DECAY * edge.base_weight))
+            seen.add(nb_node.node_id)
+
+    expanded.sort(key=lambda x: x[1], reverse=True)
+    return expanded
 
 
 async def run_benchmark():
@@ -402,6 +551,8 @@ async def run_benchmark():
 
     async with aiohttp.ClientSession() as http:
         for conv_idx, conv in enumerate(data):
+            if ONLY_CONV and conv_idx not in ONLY_CONV:
+                continue
             print(f"\n{'='*60}")
             print(f"CONVERSATION {conv_idx + 1}")
             print(f"{'='*60}")
@@ -431,8 +582,11 @@ async def run_benchmark():
             print(f"Extracting facts from {len(messages)} messages in parallel...")
             from NeuralGraph.llm_profile_extractor import extract_facts_parallel
             extraction_start = time.perf_counter()
-            all_extracted_facts = await extract_facts_parallel(http, messages, batch_size=15)
-            extraction_time = time.perf_counter() - extraction_start
+            if USE_SPEAKER_PROFILES:
+                all_extracted_facts = await extract_facts_parallel(http, messages, batch_size=15)
+            else:
+                all_extracted_facts = [[] for _ in messages]  # profiles off: skip one LLM call per message
+            extraction_time = max(time.perf_counter() - extraction_start, 1e-6)
             print(f"  [OK] Extracted facts in {extraction_time:.1f}s ({len(messages)/extraction_time:.1f} msgs/sec)")
 
             # Add messages and extracted facts to profiles (fast - no LLM calls)
@@ -556,6 +710,21 @@ async def run_benchmark():
             dialogue_linker = DialogueLinker(storage)
             all_nodes = [await storage.get_node(nid) for nid in all_node_ids]
             all_nodes = [n for n in all_nodes if n is not None]
+            embedding_matrix = None  # lazily built by cosine_topk
+
+            pair_nodes, local_tesseracts, mega_index = [], {}, None
+            if RETRIEVAL_MODE in ("local_pairs", "mega"):
+                pair_nodes = await build_pair_nodes(http, conv_idx, messages, all_nodes)
+                for sp, ids in speaker_nodes.items():
+                    local_storage = InMemoryNeuralGraphStorage()
+                    for nid in ids:
+                        await local_storage.save_node(await storage.get_node(nid))
+                    local_tesseracts[sp] = Tesseract(local_storage)
+                print(f"  Per-agent memory: {len(pair_nodes)} pair nodes, {len(local_tesseracts)} agent stores")
+                if RETRIEVAL_MODE == "mega":
+                    from NeuralGraph.mega_search import MegaIndex
+                    mega_index = MegaIndex(all_nodes, pair_nodes)
+            node_by_id = {n.node_id: n for n in all_nodes}
             aggregators, bindings = await dialogue_linker.process_dialogue_sequence(
                 all_nodes, f"conv_{conv_idx}"
             )
@@ -573,6 +742,10 @@ async def run_benchmark():
                 if category_id == 5:
                     continue
                 category = CATEGORIES.get(category_id, "unknown")
+                if category not in RETRIEVAL_METRICS:
+                    continue
+                if ONLY_CAT and category not in ONLY_CAT:
+                    continue
                 question = qa.get("question", "")
                 gold = qa.get("answer", "")
 
@@ -584,32 +757,47 @@ async def run_benchmark():
                 t_e2e_start = time.perf_counter()
                 t_retrieval_start = time.perf_counter()
 
-                retrieved = await tesseract.retrieve(
+                named_agents = [sp for sp in speaker_nodes.keys() if sp in question.lower()]
+                active_tesseract = tesseract
+                if RETRIEVAL_MODE in ("local_pairs", "mega") and len(named_agents) == 1:
+                    active_tesseract = local_tesseracts[named_agents[0]]   # per-agent memory routing
+                retrieved = await active_tesseract.retrieve(
                     query_text=question,
                     query_embedding=query_emb,
                     session_key=f"conv_{conv_idx}",
                     limit=TOP_K,
                     auto_expand_temporal=True,
                 )
+                if RETRIEVAL_MODE in ("local_pairs", "mega"):
+                    pool = ([p for p in pair_nodes if p.speaker_id.lower() == named_agents[0]]
+                            if len(named_agents) == 1 else pair_nodes)
+                    retrieved = retrieved[:TOP_K]
+                    if RETRIEVAL_MODE == "mega":
+                        pool_ids = ({n.node_id for n in all_nodes if n.speaker_id.lower() == named_agents[0]}
+                                    if len(named_agents) == 1 else {n.node_id for n in all_nodes})
+                        tess_ids = [n.node_id for n, _ in retrieved]
+                        retrieved = mega_index.retrieve(question, query_emb, pool_ids, k=TOP_K,
+                                                        channels="VG", extra_rankings=[tess_ids])
+                    seen = {n.node_id for n, _ in retrieved}
+                    if pool:
+                        extra = unpair(cosine_topk(pool, query_emb, 2 * TOP_K), node_by_id, seen)
+                        retrieved = retrieved + extra[:EXTRA_CANDIDATES]
 
-                expanded_results = []
-                seen_ids = set()
-                for node, charge in retrieved:
-                    if node.node_id not in seen_ids:
-                        expanded_results.append((node, charge))
-                        seen_ids.add(node.node_id)
-
-                    linked_ids = dialogue_linker.get_linked_messages(node.node_id)
-                    for linked_id in linked_ids:
-                        if linked_id not in seen_ids:
-                            linked_node = await storage.get_node(linked_id)
-                            if linked_node:
-                                linked_charge = charge * 0.85
-                                expanded_results.append((linked_node, linked_charge))
-                                seen_ids.add(linked_id)
-
-                expanded_results.sort(key=lambda x: x[1], reverse=True)
-                retrieved = expanded_results
+                if RETRIEVAL_MODE == "graph":
+                    flat_ids = {n.node_id for n, _ in retrieved}
+                    expanded = await expand_via_graph(storage, dialogue_linker, retrieved)
+                    extra = [(n, c) for n, c in expanded if n.node_id not in flat_ids]
+                    retrieved = retrieved[:TOP_K] + extra[:EXTRA_CANDIDATES]
+                elif RETRIEVAL_MODE == "hybrid":
+                    named = [sp for sp in speaker_nodes.keys() if sp in question.lower()]
+                    if len(named) == 1:
+                        retrieved = [(n, c * (SPEAKER_BOOST if n.speaker_id.lower() == named[0] else 1.0))
+                                     for n, c in retrieved]
+                        retrieved.sort(key=lambda x: x[1], reverse=True)
+                    retrieved = retrieved[:TOP_K]
+                    have = {n.node_id for n, _ in retrieved}
+                    extra = [(n, c) for n, c in cosine_topk(all_nodes, query_emb, TOP_K) if n.node_id not in have]
+                    retrieved = retrieved + extra[:EXTRA_CANDIDATES]
 
                 # End pure retrieval timing (tesseract + dialogue linking only)
                 t_retrieval = (time.perf_counter() - t_retrieval_start) * 1000
@@ -617,7 +805,7 @@ async def run_benchmark():
 
                 all_memories_text = [
                     {"text": node.content, "speaker": node.metadata.get("speaker", "")}
-                    for node, charge in retrieved[:50]
+                    for node, charge in retrieved[:RERANK_WINDOW]
                 ]
 
                 recall_10, rank_10 = await check_gold_in_memories(
@@ -646,15 +834,24 @@ async def run_benchmark():
                     query_mode = "TEMPORAL"
                 elif query_mode == "TEMPORAL":
                     query_mode = "INFERENTIAL"
-                if category == "open_domain" and is_open_domain_world_query(question):
+                # FAIR: routing may only look at the question text, never the gold category label
+                # A question that names a conversation participant is about the memories, not the world.
+                names_in_q = any(sp in question.lower() for sp in speaker_nodes.keys())
+                if is_open_domain_world_query(question) and not names_in_q:
                     query_mode = "OPEN_DOMAIN_WORLD"
+                # H5: hedged questions are inference questions regardless of INFERENTIAL detection
+                if OPEN_DOMAIN_FORCE_INFER and looks_open_domain_question(question):
+                    if OPEN_DOMAIN_FORCE_INFER >= 2 or query_mode in ("STRICT", "INFERENTIAL", "OPEN_DOMAIN_WORLD"):
+                        query_mode = "OPEN_DOMAIN_INFER"
                 ROUTING_STATS[query_mode] += 1
 
                 # SPEAKER PROFILES: For single_hop, check profile FIRST before retrieval
                 profile_answer = None
                 used_profile = False
-                if category == "single_hop" and not list_question:
-                    profile_result = await speaker_profiler.query_single_hop(http, question, str(gold))
+                # FAIR: the gold answer is never passed in; profile answer is used whenever found.
+                # Off by default (USE_SPEAKER_PROFILES=1) because it bypasses retrieval entirely.
+                if USE_SPEAKER_PROFILES and category == "single_hop" and not list_question:
+                    profile_result = await speaker_profiler.query_single_hop(http, question, None)
                     if profile_result['found'] and profile_result['confidence'] >= 0.5:
                         profile_answer = profile_result['answer']
                         used_profile = True
@@ -669,7 +866,8 @@ async def run_benchmark():
                 if USE_SLM_RERANKER:
                     reranked = await rerank_candidates_parallel(
                         question,
-                        retrieved[:50],
+                        retrieved[:RERANK_WINDOW],
+                        max_candidates=RERANK_WINDOW,
                         limit=num_memories_needed,
                         llm_model=RERANKER_MODEL,
                         llm_base_url=OLLAMA_BASE_URL,
@@ -681,9 +879,8 @@ async def run_benchmark():
 
                 # UPGRADE INFERENTIAL to aggressive mode for open-domain-style questions
                 # These questions NEED strong inference even with weak evidence (60+ markers)
-                if category == "open_domain" and query_mode == "INFERENTIAL":
-                    if should_use_open_domain_infer(question):
-                        query_mode = "OPEN_DOMAIN_INFER"
+                if query_mode == "INFERENTIAL" and should_use_open_domain_infer(question):
+                    query_mode = "OPEN_DOMAIN_INFER"
 
                 # Build context from reranked memories
                 # (num_memories_needed already determined based on query_mode)
@@ -743,9 +940,18 @@ async def run_benchmark():
                     for node, _charge in reranked[:num_memories_needed]
                 ]
 
-                if query_mode == "OPEN_DOMAIN_WORLD":
+                if query_mode == "OPEN_DOMAIN_WORLD" and not OPEN_DOMAIN_KEEP_CONTEXT:
                     candidate_memories = []
                     context = ""
+
+                # H5: prompt variant actually sent to the answer model
+                answer_mode = query_mode
+                if query_mode == "OPEN_DOMAIN_WORLD" and OPEN_DOMAIN_KEEP_CONTEXT:
+                    answer_mode = "OPEN_DOMAIN_WORLD_MEM"
+                elif query_mode == "OPEN_DOMAIN_INFER" and OPEN_DOMAIN_INFER_WORLD:
+                    answer_mode = "OPEN_DOMAIN_INFER_WORLD"
+                retry_mode = "OPEN_DOMAIN_INFER_WORLD" if OPEN_DOMAIN_INFER_WORLD else "OPEN_DOMAIN_INFER"
+                FINAL_MODE_STATS[answer_mode] += 1
 
                 extracted_answer = None
                 if query_mode == "TEMPORAL":
@@ -797,7 +1003,7 @@ async def run_benchmark():
                     t_answer = 0
                 else:
                     generated = await generate_answer(
-                        http, question, context, mode=query_mode, config=ANSWERING_CONFIG
+                        http, question, context, mode=answer_mode, config=ANSWERING_CONFIG
                     )
                     t_answer = (time.perf_counter() - t_answer_start) * 1000
                 TIMING_DATA["t_answer"].append(t_answer)
@@ -816,13 +1022,13 @@ async def run_benchmark():
                 answer_lower = generated.lower()
                 is_not_found = any(phrase in answer_lower for phrase in not_found_phrases)
 
-                if is_not_found and category == "open_domain":
+                if is_not_found and query_mode != "OPEN_DOMAIN_WORLD":
                     # Second pass: analyze memories and infer
                     generated = await generate_answer(
                         http,
                         question,
                         context,
-                        mode="OPEN_DOMAIN_INFER",
+                        mode=retry_mode,
                         config=ANSWERING_CONFIG,
                     )
 
@@ -845,6 +1051,7 @@ async def run_benchmark():
                     "generated_answer": generated,
                     "gold_answer": gold,
                     "correct": correct,
+                    "mode": answer_mode,  # H5: prompt variant used at answer time
                     "used_speaker_profile": used_profile,  # Track if profile was used
                     "retrieval_latency_ms": round(t_retrieval, 1),
                     "rerank_latency_ms": round(t_rerank, 1),
@@ -915,6 +1122,10 @@ async def run_benchmark():
     print(f"OPEN_INFER:  {ROUTING_STATS['OPEN_DOMAIN_INFER']} questions")
     print(f"OPEN_WORLD:  {ROUTING_STATS['OPEN_DOMAIN_WORLD']} questions")
     print(f"LIST:        {ROUTING_STATS['LIST']} questions")
+    print(f"AGGREGATION: {ROUTING_STATS['AGGREGATION']} questions")
+    print(f"FINAL ANSWER MODES (after OPEN_DOMAIN_INFER upgrade / H5 flags):")
+    for _m, _n in sorted(FINAL_MODE_STATS.items(), key=lambda kv: -kv[1]):
+        print(f"  {_m:<24} {_n} questions")
 
     print(f"\n{'='*60}")
     print(f"RETRIEVAL METRICS")

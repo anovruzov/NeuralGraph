@@ -118,6 +118,19 @@ def should_use_open_domain_infer(question: str) -> bool:
     return any(marker in q for marker in _OPEN_DOMAIN_INFER_MARKERS)
 
 
+# H5: hedged questions ("would X likely...", "what might Y enjoy") ask for an
+# inference over the memories plus world knowledge. Question text only (fair).
+# LoCoMo offline coverage: fires on 46/96 open_domain vs 2/282 single_hop,
+# 17/841 multi_hop, 5/321 temporal.
+_OPEN_DOMAIN_HEDGE_RE = re.compile(
+    r"\b(likely|might|would|could|probably|potentially|presumably|suspected|possibly|may|should)\b"
+)
+
+
+def looks_open_domain_question(question: str) -> bool:
+    return bool(_OPEN_DOMAIN_HEDGE_RE.search(question.lower()))
+
+
 def is_yes_no_question(question: str) -> bool:
     q = question.lower().strip()
     return bool(re.match(r"^(is|are|was|were|do|does|did|can|could|should|would|will|has|have|had)\b", q))
@@ -137,8 +150,9 @@ def detect_list_question_universal(question: str) -> tuple[bool, str | None]:
         list_type = "plural"
 
     plural_patterns = [
-        r"\bwhat\s+\w+s\b",
-        r"\bwhich\s+\w+s\b",
+        # "what <plural-noun>" but NOT "what is/does/was/has/..." (those are single-fact questions)
+        r"\bwhat\s+(?!is\b|does\b|was\b|has\b|did\b|do\b|are\b|were\b|makes\b|happens\b)\w+s\b",
+        r"\bwhich\s+(?!is\b|does\b|was\b|has\b)\w+s\b",
         r"\blist\s+\w+s\b",
         r"\bwhat\s+are\s+\w+s\b",
     ]

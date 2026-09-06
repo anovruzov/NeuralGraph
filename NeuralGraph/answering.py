@@ -6,18 +6,19 @@ from dataclasses import dataclass
 
 import aiohttp
 
+from . import llm_backend
 from .prompts import LIST_QUESTION_ANSWER_PROMPT, AGGREGATION_ANSWER_PROMPT
 
 
 @dataclass
 class AnsweringConfig:
     """Configuration for LLM answering + embeddings."""
-    ollama_base_url: str = "http://localhost:11434"
-    answer_model: str = "qwen2.5:7b-instruct"
-    embedding_model: str = "nomic-embed-text"
+    ollama_base_url: str = llm_backend.LLM_BASE_URL  # any OpenAI-compatible or Ollama URL
+    answer_model: str = llm_backend.LLM_MODEL
+    embedding_model: str = llm_backend.EMBED_MODEL
     answer_timeout_seconds: float = 60.0
     embedding_timeout_seconds: float = 30.0
-    num_predict: int = 60  # Keep answers concise - no verbose explanations
+    num_predict: int = 120  # 60 truncated LIST/AGGREGATION answers mid-list
 
 
 TEMPORAL_ANSWER_PROMPT = """Answer using ONLY the memories below.
@@ -73,6 +74,26 @@ QUESTION: {question}
 Answer:"""
 
 
+# H5: open-domain questions need the memories PLUS world knowledge. Used for
+# OPEN_DOMAIN_WORLD when OPEN_DOMAIN_KEEP_CONTEXT=1 (mode OPEN_DOMAIN_WORLD_MEM)
+# and for OPEN_DOMAIN_INFER when OPEN_DOMAIN_INFER_WORLD=1 (mode OPEN_DOMAIN_INFER_WORLD).
+OPEN_DOMAIN_WORLD_WITH_MEMORIES_PROMPT = """Answer the question about the people in these conversation memories.
+
+RULES:
+1. The memories are your PRIMARY evidence: base the answer on what they say about the person.
+2. You MAY combine them with general world knowledge (e.g. what a hobby, book, place, or brand implies).
+3. Give a short, direct answer: a few words, or Yes/No, optionally followed by one brief reason.
+4. Never say you are unsure, never say the answer is not in the memories: always commit to the most likely answer.
+5. No preamble, no bullets, no "Based on the memories".
+
+MEMORIES:
+{context}
+
+QUESTION: {question}
+
+Answer:"""
+
+
 STRICT_ANSWER_PROMPT = """Extract the answer from the memories below.
 
 RULES:
@@ -102,13 +123,11 @@ async def get_embedding(
 ) -> list[float]:
     cfg = config or AnsweringConfig()
     try:
-        async with session.post(
-            f"{cfg.ollama_base_url}/api/embeddings",
-            json={"model": cfg.embedding_model, "prompt": text},
-            timeout=aiohttp.ClientTimeout(total=cfg.embedding_timeout_seconds),
-        ) as response:
-            result = await response.json()
-            return result.get("embedding", [])
+        return await llm_backend.llm_embed(
+            session, text,
+            model=cfg.embedding_model, base_url=cfg.ollama_base_url,
+            timeout_seconds=cfg.embedding_timeout_seconds,
+        )
     except Exception:
         return []
 
@@ -132,21 +151,17 @@ async def generate_answer(
         prompt = OPEN_DOMAIN_INFER_PROMPT.format(context=context, question=question)
     elif mode == "OPEN_DOMAIN_WORLD":
         prompt = OPEN_DOMAIN_WORLD_PROMPT.format(question=question)
+    elif mode in ("OPEN_DOMAIN_WORLD_MEM", "OPEN_DOMAIN_INFER_WORLD"):
+        prompt = OPEN_DOMAIN_WORLD_WITH_MEMORIES_PROMPT.format(context=context, question=question)
     else:
         prompt = STRICT_ANSWER_PROMPT.format(context=context, question=question)
 
     try:
-        async with session.post(
-            f"{cfg.ollama_base_url}/api/generate",
-            json={
-                "model": cfg.answer_model,
-                "prompt": prompt,
-                "stream": False,
-                "options": {"temperature": 0, "num_predict": cfg.num_predict},
-            },
-            timeout=aiohttp.ClientTimeout(total=cfg.answer_timeout_seconds),
-        ) as response:
-            result = await response.json()
-            return result.get("response", "").strip()
+        return await llm_backend.llm_generate(
+            session, prompt,
+            model=cfg.answer_model, base_url=cfg.ollama_base_url,
+            temperature=0, max_tokens=cfg.num_predict,
+            timeout_seconds=cfg.answer_timeout_seconds,
+        )
     except Exception as e:
         return f"Error: {e}"
