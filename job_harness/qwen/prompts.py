@@ -5,8 +5,9 @@ import json
 from typing import Any
 
 from .schemas import (
-    AnswerValidation, DuplicateVerdict, FieldAnswer, FieldClassification,
-    JobClassification, JobScore, Requirements, SubmissionEvaluation, json_skeleton,
+    AnswerValidation, BatchJobClassification, DuplicateVerdict, FieldAnswer,
+    FieldClassification, JobClassification, JobScore, Requirements,
+    SubmissionEvaluation, TitleExpansion, json_skeleton,
 )
 
 GROUNDING_RULES = (
@@ -47,6 +48,37 @@ def classify_job(job: dict[str, Any], target_roles: list[str]) -> str:
         f"Location: {job.get('location')}\n"
         f"Excerpt: {(job.get('description') or '')[:1200]}\n\n"
         f"{_fmt(json_skeleton(JobClassification))}"
+    )
+
+
+def classify_jobs_batch(jobs: list[dict[str, Any]], target_roles: list[str]) -> str:
+    listing = "\n".join(
+        f"{i}. {j.get('title')} | {j.get('company')} | {j.get('location')} | "
+        f"{(j.get('description') or '')[:280]}"
+        for i, j in enumerate(jobs)
+    )
+    return (
+        f"Classify each job posting against the candidate's target roles.\n"
+        f"Target roles: {', '.join(target_roles)}\n"
+        f"Semantically equivalent titles also count as relevant.\n\n"
+        f"POSTINGS ({len(jobs)}), one per line, numbered:\n{listing}\n\n"
+        f"Return one result per posting, in the same order, {len(jobs)} in total.\n"
+        f"{JSON_RULES}\nShape:\n"
+        '{\n  "results": [\n' + json_skeleton(JobClassification) + "\n  ]\n}"
+    )
+
+
+def expand_titles(target_roles: list[str], seen_titles: list[str]) -> str:
+    return (
+        "List job titles that are semantically equivalent to these target roles, "
+        "as used by real employers. Include common abbreviations and variants "
+        "(for example 'MLE' for Machine Learning Engineer). Do not include "
+        "management, staff or principal variants, and do not include titles from "
+        "other professions.\n\n"
+        f"Target roles: {', '.join(target_roles)}\n"
+        + (f"Titles already seen on job boards, for style: "
+           f"{', '.join(seen_titles[:40])}\n" if seen_titles else "")
+        + f"\n{_fmt(json_skeleton(TitleExpansion))}"
     )
 
 

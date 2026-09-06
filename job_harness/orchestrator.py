@@ -24,7 +24,7 @@ from .database.models import Job, JobStatus, utcnow
 from .discovery.engine import DiscoveryEngine
 from .profile.applicant import Applicant
 from .qwen.qwen_client import QwenClient
-from .scoring.scorer import Scorer
+from .scoring.scorer import ScoreDecision, Scorer
 
 log = get_logger("orchestrator")
 
@@ -225,12 +225,28 @@ class Orchestrator:
     def score_pending(self) -> int:
         self.db.set_run_context(self.run_id, current_state="SCORING")
         pending = self.db.unscored_jobs(limit=200)
+        if not pending:
+            return 0
+
+        # One batched relevance pass settles the obvious rejects cheaply; only
+        # the survivors cost a full rubric call.
+        prescreened: dict[str, Any] = {}
+        try:
+            prescreened = self.scorer.prescreen(pending)
+        except Exception as exc:
+            log.warning("batch prescreen failed; falling back to per-job scoring",
+                        extra={"error": str(exc)[:200]})
+
         count = 0
         for job in pending:
             if self._stop.is_set() or self._paused_wait():
                 break
+            settled = prescreened.get(job.job_id)
             try:
-                decision = self.scorer.score(job)
+                if isinstance(settled, ScoreDecision):
+                    decision = settled
+                else:
+                    decision = self.scorer.score(job, classification=settled)
             except Exception as exc:
                 log.error("scoring failed", extra={"job_id": job.job_id,
                                                    "error": str(exc)[:200]})

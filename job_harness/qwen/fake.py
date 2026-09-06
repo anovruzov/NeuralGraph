@@ -123,6 +123,10 @@ class FakeQwenTransport(httpx.BaseTransport):
     def answer(self, prompt: str) -> dict[str, Any]:
         if prompt.startswith("Classify this job posting"):
             return self._classify_job(prompt)
+        if prompt.startswith("Classify each job posting"):
+            return self._classify_batch(prompt)
+        if prompt.startswith("List job titles"):
+            return self._expand_titles(prompt)
         if prompt.startswith("Score how well"):
             return self._score_job(prompt)
         if prompt.startswith("Extract structured requirements"):
@@ -167,6 +171,38 @@ class FakeQwenTransport(httpx.BaseTransport):
             "equivalent_title": title.group(1) if title else "",
             "reason": "keyword heuristics (fake backend)",
         }
+
+    def _classify_batch(self, prompt: str) -> dict[str, Any]:
+        body = _body(prompt)
+        start = body.find("POSTINGS")
+        block = body[start:] if start >= 0 else body
+        results = []
+        for line in block.splitlines():
+            match = re.match(r"^\s*(\d+)\.\s*(.+)$", line)
+            if not match:
+                continue
+            parts = [p.strip() for p in match.group(2).split("|")]
+            title = parts[0] if parts else ""
+            single = (f"Classify this job posting\nTitle: {title}\n"
+                      f"Company: {parts[1] if len(parts) > 1 else ''}\n"
+                      f"Excerpt: {' '.join(parts[2:])}\n")
+            results.append(self._classify_job(single))
+        return {"results": results}
+
+    def _expand_titles(self, prompt: str) -> dict[str, Any]:
+        body = _body(prompt)
+        match = re.search(r"^Target roles: (.*)$", body, re.M)
+        roles = [r.strip() for r in (match.group(1) if match else "").split(",") if r.strip()]
+        variants = []
+        for role in roles:
+            variants.append(role)
+            if role.endswith(" Engineer"):
+                stem = role[: -len(" Engineer")]
+                variants += [f"{stem} Developer", f"{stem} Engineer II",
+                             f"Software Engineer, {stem}"]
+        if any("Machine Learning" in r for r in roles):
+            variants.append("MLE")
+        return {"titles": variants}
 
     def _score_job(self, prompt: str) -> dict[str, Any]:
         # Only look at the job block: the instruction text itself mentions

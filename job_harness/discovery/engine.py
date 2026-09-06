@@ -1,6 +1,7 @@
 """Discovery orchestration: run adapters, normalize, dedupe, persist."""
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from typing import Any, Iterable, Optional
 
@@ -9,7 +10,7 @@ import httpx
 from ..config.logging_setup import get_logger
 from ..config.settings import Config
 from ..database.db import Database
-from ..database.models import Job, JobStatus
+from ..database.models import Job, JobStatus, sha256
 from .ashby import AshbyAdapter
 from .base import DiscoveryAdapter
 from .dedupe import Deduplicator
@@ -55,6 +56,7 @@ class DiscoveryEngine:
         self.qwen = qwen
         self.run_id = run_id
         self.dedupe = Deduplicator(db, qwen)
+        self._title_gate: Optional[list[str]] = None
         self._client = httpx.Client(
             timeout=config.discovery.request_timeout_seconds,
             headers={"User-Agent": config.discovery.user_agent,
@@ -64,6 +66,43 @@ class DiscoveryEngine:
 
     def close(self) -> None:
         self._client.close()
+
+    def title_gate(self) -> list[str]:
+        """Target roles plus semantically equivalent titles.
+
+        The expansion costs one model call, is cached in SQLite against the
+        configured roles, and only widens the cheap title gate -- relevance is
+        still decided by classification and scoring.
+        """
+        if self._title_gate is not None:
+            return self._title_gate
+
+        roles = list(self.config.discovery.target_roles)
+        key = "title_expansion:" + sha256("|".join(sorted(roles)))[:16]
+        cached = self.db.get_control(key)
+        if cached:
+            try:
+                extra = json.loads(cached)
+            except ValueError:
+                extra = []
+        elif self.qwen is not None:
+            seen = [r["title"] for r in self.db.query(
+                "SELECT DISTINCT title FROM jobs ORDER BY discovered_at DESC LIMIT 40")]
+            extra = self.qwen.expand_titles(roles, seen)
+            self.db.set_control(key, json.dumps(extra))
+            log.info("expanded target titles",
+                     extra={"roles": len(roles), "expanded": len(extra)})
+        else:
+            extra = []
+
+        merged, seen_keys = [], set()
+        for title in roles + list(extra):
+            token = " ".join(str(title).lower().split())
+            if token and token not in seen_keys:
+                seen_keys.add(token)
+                merged.append(str(title))
+        self._title_gate = merged
+        return merged
 
     def targets(self) -> list[tuple[str, str]]:
         pairs: list[tuple[str, str]] = []
@@ -100,7 +139,7 @@ class DiscoveryEngine:
     def _ingest(self, job: Job, source: str, report: DiscoveryReport) -> None:
         if not job.canonical_apply_url or not job.title or not job.company:
             return
-        if not DiscoveryAdapter.matches_targets(job.title, self.config.discovery.target_roles):
+        if not DiscoveryAdapter.matches_targets(job.title, self.title_gate()):
             return
         verdict = self.dedupe.check(job)
         if verdict.is_duplicate:

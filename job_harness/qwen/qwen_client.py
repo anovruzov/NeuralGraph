@@ -25,8 +25,9 @@ from ..config.settings import QwenConfig
 from . import prompts as P
 from .json_repair import repair_json
 from .schemas import (
-    AnswerValidation, DuplicateVerdict, FieldAnswer, FieldClassification,
-    JobClassification, JobScore, Requirements, ScoreBreakdown, SubmissionEvaluation,
+    AnswerValidation, BatchJobClassification, DuplicateVerdict, FieldAnswer,
+    FieldClassification, JobClassification, JobScore, Requirements, ScoreBreakdown,
+    SubmissionEvaluation, TitleExpansion,
 )
 
 log = get_logger("qwen")
@@ -49,6 +50,8 @@ class CallResult:
 
 
 SAFE_DEFAULTS: dict[str, Callable[[], BaseModel]] = {
+    "classify_jobs_batch": lambda: BatchJobClassification(results=[]),
+    "expand_titles": lambda: TitleExpansion(titles=[]),
     "classify_job": lambda: JobClassification(
         is_relevant=False, reason="model output unusable; defaulting to not relevant"),
     "score_job": lambda: JobScore(
@@ -272,6 +275,32 @@ class QwenClient:
     def classify_job(self, job: dict[str, Any], target_roles: list[str]) -> JobClassification:
         return self._call("classify_job", P.classify_job(job, target_roles),
                           JobClassification).data  # type: ignore[return-value]
+
+    def classify_jobs_batch(self, jobs: list[dict[str, Any]],
+                            target_roles: list[str]) -> list[JobClassification]:
+        """Classify several postings in one call.
+
+        Falls back to per-job calls if the model returns the wrong number of
+        results, so a short reply never silently drops or misaligns postings.
+        """
+        if not jobs:
+            return []
+        result: BatchJobClassification = self._call(
+            "classify_jobs_batch", P.classify_jobs_batch(jobs, target_roles),
+            BatchJobClassification).data  # type: ignore[assignment]
+        if len(result.results) == len(jobs):
+            return result.results
+        log.warning("batch classification returned a mismatched count; "
+                    "falling back to individual calls",
+                    extra={"expected": len(jobs), "got": len(result.results)})
+        return [self.classify_job(job, target_roles) for job in jobs]
+
+    def expand_titles(self, target_roles: list[str],
+                      seen_titles: Optional[list[str]] = None) -> list[str]:
+        result: TitleExpansion = self._call(
+            "expand_titles", P.expand_titles(target_roles, seen_titles or []),
+            TitleExpansion).data  # type: ignore[assignment]
+        return result.titles
 
     def score_job(self, job: dict[str, Any], profile_summary: str, resume_text: str,
                   weights: dict[str, int],

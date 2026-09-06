@@ -43,6 +43,27 @@ class JobScore(StrictModel):
         return max(0, min(100, int(v)))
 
 
+class BatchJobClassification(StrictModel):
+    """Relevance verdicts for several postings in one call."""
+    results: list[JobClassification] = Field(default_factory=list)
+
+
+class TitleExpansion(StrictModel):
+    """Semantically equivalent titles for the configured target roles."""
+    titles: list[str] = Field(default_factory=list)
+
+    @field_validator("titles")
+    @classmethod
+    def trim(cls, v: list[str]) -> list[str]:
+        seen, out = set(), []
+        for title in v:
+            key = " ".join(str(title).lower().split())
+            if key and key not in seen and len(key) <= 80:
+                seen.add(key)
+                out.append(str(title).strip())
+        return out[:120]
+
+
 class Requirements(StrictModel):
     required: list[str] = Field(default_factory=list)
     preferred: list[str] = Field(default_factory=list)
@@ -123,6 +144,8 @@ class AnswerValidation(StrictModel):
 
 SCHEMA_BY_FUNCTION: dict[str, type[StrictModel]] = {
     "classify_job": JobClassification,
+    "classify_jobs_batch": BatchJobClassification,
+    "expand_titles": TitleExpansion,
     "score_job": JobScore,
     "extract_requirements": Requirements,
     "classify_form_field": FieldClassification,

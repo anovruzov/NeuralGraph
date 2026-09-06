@@ -77,18 +77,16 @@ def test_run_min_score_overrides_a_queued_decision(config, db, qwen, applicant):
 
 
 def test_scoring_failure_does_not_stop_the_campaign(orchestrator, db, monkeypatch):
-    def explode(*args, **kwargs):
-        raise RuntimeError("scorer exploded")
     db.upsert_job(make_job(1))
     db.upsert_job(make_job(2))
     calls = {"n": 0}
     original = orchestrator.scorer.score
 
-    def flaky(job, today=None):
+    def flaky(job, today=None, classification=None):
         calls["n"] += 1
         if calls["n"] == 1:
             raise RuntimeError("scorer exploded")
-        return original(job, today)
+        return original(job, today, classification)
 
     monkeypatch.setattr(orchestrator.scorer, "score", flaky)
     orchestrator.score_pending()

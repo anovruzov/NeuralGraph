@@ -183,3 +183,82 @@ def test_scorer_queues_a_good_job(config, qwen, applicant):
         "retrieval, evaluation and post-training." * 3)), TODAY)
     assert decision.status == JobStatus.QUEUED
     assert decision.score >= config.scoring.apply_threshold
+
+
+# ------------------------------------------------------- batched prescreening
+
+def test_prescreen_settles_prefiltered_and_irrelevant_jobs(config, qwen, applicant):
+    from job_harness.qwen.schemas import JobClassification
+    from job_harness.scoring.scorer import ScoreDecision
+
+    scorer = Scorer(config, qwen, applicant)
+    jobs = [
+        job(company="A", title="AI Engineer",
+            canonical_apply_url="https://x/1", description="LLM agents in Python. " * 20),
+        job(company="B", title="Director of Engineering", canonical_apply_url="https://x/2"),
+        job(company="C", title="Office Manager", canonical_apply_url="https://x/3",
+            description="Manage the office. No engineering."),
+    ]
+    outcome = scorer.prescreen(jobs, today=TODAY)
+
+    assert isinstance(outcome[jobs[0].job_id], JobClassification)   # needs a full score
+    assert isinstance(outcome[jobs[1].job_id], ScoreDecision)       # prefiltered
+    assert outcome[jobs[1].job_id].prefiltered
+    assert isinstance(outcome[jobs[2].job_id], ScoreDecision)       # classified irrelevant
+
+
+def test_prescreen_uses_one_call_per_batch(config, qwen, applicant):
+    scorer = Scorer(config, qwen, applicant)
+    jobs = [job(company=f"C{i}", title="AI Engineer",
+                canonical_apply_url=f"https://x/{i}",
+                description="Build LLM agents in Python. " * 20) for i in range(8)]
+    before = qwen.stats["requests"]
+    scorer.prescreen(jobs, batch_size=8, today=TODAY)
+    assert qwen.stats["requests"] - before == 1
+
+
+def test_prescreen_falls_back_when_the_batch_is_short(config, qwen, applicant, monkeypatch):
+    """A model that returns too few results must not misalign the postings."""
+    from job_harness.qwen.schemas import JobClassification
+
+    scorer = Scorer(config, qwen, applicant)
+    jobs = [job(company=f"C{i}", title="AI Engineer",
+                canonical_apply_url=f"https://x/{i}",
+                description="Build LLM agents in Python. " * 20) for i in range(3)]
+
+    real_batch = qwen.classify_jobs_batch
+    monkeypatch.setattr(
+        qwen, "_call",
+        lambda function, prompt, schema, use_cache=True: _short_batch(function, prompt,
+                                                                     schema, qwen))
+    results = real_batch([{"title": j.title, "company": j.company,
+                           "location": j.location, "description": j.description}
+                          for j in jobs], config.discovery.target_roles)
+    assert len(results) == len(jobs)
+    assert all(isinstance(r, JobClassification) for r in results)
+
+
+def _short_batch(function, prompt, schema, client):
+    """Return one result for a three-posting batch, then behave normally."""
+    from job_harness.qwen.qwen_client import CallResult
+    from job_harness.qwen.schemas import BatchJobClassification, JobClassification
+    if function == "classify_jobs_batch":
+        return CallResult(data=BatchJobClassification(
+            results=[JobClassification(is_relevant=True)]))
+    return CallResult(data=JobClassification(is_relevant=True, reason="fallback"))
+
+
+def test_scoring_a_job_with_a_precomputed_classification_skips_the_call(
+        config, qwen, applicant):
+    from job_harness.qwen.schemas import JobClassification
+
+    scorer = Scorer(config, qwen, applicant)
+    target = job(description="Build LLM agents in Python and PyTorch. "
+                             "Required: 2+ years. Preferred: Kubernetes. " * 4)
+    before = qwen.stats["requests"]
+    scorer.score(target, TODAY,
+                 classification=JobClassification(is_relevant=True, seniority="junior"))
+    functions = [row["function"] for row in
+                 qwen.db.query("SELECT function FROM qwen_calls ORDER BY id DESC LIMIT 4")]
+    assert "classify_job" not in functions
+    assert qwen.stats["requests"] > before          # the rubric score still ran

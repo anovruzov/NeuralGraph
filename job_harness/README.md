@@ -418,6 +418,8 @@ a bare URL change, and a failed POST.
 
 Qwen does the semantic work; everything mechanical is deterministic:
 
+- job relevance is classified in batches, turning N calls into ceil(N/10)
+- semantically equivalent target titles are expanded once and cached in SQLite
 - deterministic label patterns classify most form fields with no model call
 - profile lookups answer most fields with no model call
 - prefilters reject unsuitable jobs before any model call
@@ -433,7 +435,7 @@ estimated cost. `--status` reports cost per verified application.
 ## 12. Testing
 
 ```bash
-python -m pytest                       # 230 tests
+python -m pytest                       # 237 tests
 python -m pytest -m "not browser"      # skip the Chromium end-to-end tests
 python -m pytest tests/test_grounding.py -v
 ```
@@ -475,7 +477,7 @@ job_harness/
 ├── verification/           submission evidence
 ├── dashboard/              control server, stats, UI
 ├── fixtures/forms/         ATS-shaped HTML used by the tests
-├── tests/                  230 tests
+├── tests/                  237 tests
 └── logs/                   database, JSONL logs, screenshots, browser profile
 ```
 

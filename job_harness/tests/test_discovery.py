@@ -366,3 +366,31 @@ def test_a_custom_adapter_can_be_registered(config):
     jobs = list(CustomAdapter(config.discovery, ats_client()).discover("42"))
     assert jobs[0].ats_type == "custom_ats"
     del ADAPTERS["custom_ats"]
+
+
+# ---------------------------------------------------- semantic title expansion
+
+def test_title_gate_expands_target_roles(config, db, qwen):
+    engine = DiscoveryEngine(config, db, qwen, "test-run")
+    gate = engine.title_gate()
+    assert set(config.discovery.target_roles) <= set(gate)
+    assert len(gate) > len(config.discovery.target_roles)
+    engine.close()
+
+
+def test_title_expansion_is_cached_across_engines(config, db, qwen):
+    first = DiscoveryEngine(config, db, qwen, "test-run")
+    first.title_gate()
+    calls = qwen.stats["requests"]
+    first.close()
+
+    second = DiscoveryEngine(config, db, qwen, "test-run")
+    second.title_gate()
+    assert qwen.stats["requests"] == calls          # served from SQLite
+    second.close()
+
+
+def test_title_gate_works_without_a_model(config, db):
+    engine = DiscoveryEngine(config, db, qwen=None, run_id="test-run")
+    assert engine.title_gate() == config.discovery.target_roles
+    engine.close()

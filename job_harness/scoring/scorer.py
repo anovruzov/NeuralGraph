@@ -10,7 +10,7 @@ from ..config.settings import Config
 from ..database.models import Job, JobStatus
 from ..profile.applicant import Applicant
 from ..qwen.qwen_client import QwenClient
-from ..qwen.schemas import JobScore
+from ..qwen.schemas import JobClassification, JobScore
 from .prefilter import PrefilterResult, prefilter
 
 log = get_logger("scoring")
@@ -34,36 +34,53 @@ class Scorer:
         self.qwen = qwen
         self.applicant = applicant
 
-    def score(self, job: Job, today: Optional[date] = None) -> ScoreDecision:
+    def prescreen(self, jobs: list[Job], batch_size: int = 10,
+                  today: Optional[date] = None) -> dict[str, Any]:
+        """Prefilter, then classify the survivors in batches.
+
+        Returns {job_id: ScoreDecision | JobClassification}: a decision for jobs
+        already settled (prefiltered or classified irrelevant), a classification
+        for those that still need a full rubric score. Batching turns N calls
+        into ceil(N / batch_size).
+        """
+        outcome: dict[str, Any] = {}
+        pending: list[Job] = []
+        for job in jobs:
+            pre = prefilter(job, self.config.scoring, self.config.discovery, today)
+            if not pre.passed:
+                outcome[job.job_id] = self._prefilter_decision(job, pre)
+            else:
+                pending.append(job)
+
+        for start in range(0, len(pending), max(1, batch_size)):
+            chunk = pending[start:start + max(1, batch_size)]
+            classifications = self.qwen.classify_jobs_batch(
+                [{"title": j.title, "company": j.company, "location": j.location,
+                  "description": (j.description or "")[:400]} for j in chunk],
+                self.config.discovery.target_roles,
+            )
+            for job, classification in zip(chunk, classifications):
+                settled = self._classification_decision(job, classification)
+                outcome[job.job_id] = settled if settled is not None else classification
+        return outcome
+
+    def score(self, job: Job, today: Optional[date] = None,
+              classification: Optional[JobClassification] = None) -> ScoreDecision:
         pre: PrefilterResult = prefilter(job, self.config.scoring, self.config.discovery, today)
         if not pre.passed:
-            return ScoreDecision(
-                job_id=job.job_id, score=0, decision="SKIP", status=JobStatus.SKIPPED,
-                reason=f"prefilter[{pre.rule}]: {pre.reason}", prefiltered=True,
-                breakdown={"prefilter_rule": pre.rule},
-            )
+            return self._prefilter_decision(job, pre)
 
-        # A relevance classification is far cheaper than a full rubric score, so it
-        # gates the expensive call.
-        classification = self.qwen.classify_job(
-            {"title": job.title, "company": job.company, "location": job.location,
-             "description": (job.description or "")[:1500]},
-            self.config.discovery.target_roles,
-        )
-        if not classification.is_relevant:
-            return ScoreDecision(
-                job_id=job.job_id, score=0, decision="SKIP", status=JobStatus.SKIPPED,
-                reason=f"not relevant to target roles: {classification.reason}"[:400],
-                breakdown={"role_family": classification.role_family,
-                           "seniority": classification.seniority},
+        # A relevance classification is far cheaper than a full rubric score, so
+        # it gates the expensive call. It may already have been done in a batch.
+        if classification is None:
+            classification = self.qwen.classify_job(
+                {"title": job.title, "company": job.company, "location": job.location,
+                 "description": (job.description or "")[:1500]},
+                self.config.discovery.target_roles,
             )
-        if (not self.config.scoring.allow_senior_roles
-                and classification.seniority in ("staff_plus", "management")):
-            return ScoreDecision(
-                job_id=job.job_id, score=0, decision="SKIP", status=JobStatus.SKIPPED,
-                reason=f"classified seniority '{classification.seniority}' is blocked",
-                breakdown={"seniority": classification.seniority},
-            )
+        settled = self._classification_decision(job, classification)
+        if settled is not None:
+            return settled
 
         requirements = None
         if job.description and len(job.description) > 400:
@@ -100,6 +117,34 @@ class Scorer:
             job_id=job.job_id, score=result.score, decision=decision, status=status,
             reason=reason, breakdown=breakdown, requirements=requirements,
         )
+
+    @staticmethod
+    def _prefilter_decision(job: Job, pre: PrefilterResult) -> ScoreDecision:
+        return ScoreDecision(
+            job_id=job.job_id, score=0, decision="SKIP", status=JobStatus.SKIPPED,
+            reason=f"prefilter[{pre.rule}]: {pre.reason}", prefiltered=True,
+            breakdown={"prefilter_rule": pre.rule},
+        )
+
+    def _classification_decision(self, job: Job,
+                                 classification: JobClassification
+                                 ) -> Optional[ScoreDecision]:
+        """A SKIP decision if the classification settles it, else None."""
+        if not classification.is_relevant:
+            return ScoreDecision(
+                job_id=job.job_id, score=0, decision="SKIP", status=JobStatus.SKIPPED,
+                reason=f"not relevant to target roles: {classification.reason}"[:400],
+                breakdown={"role_family": classification.role_family,
+                           "seniority": classification.seniority},
+            )
+        if (not self.config.scoring.allow_senior_roles
+                and classification.seniority in ("staff_plus", "management")):
+            return ScoreDecision(
+                job_id=job.job_id, score=0, decision="SKIP", status=JobStatus.SKIPPED,
+                reason=f"classified seniority '{classification.seniority}' is blocked",
+                breakdown={"seniority": classification.seniority},
+            )
+        return None
 
     def _decide(self, result: JobScore) -> tuple[str, str, str]:
         cfg = self.config.scoring
