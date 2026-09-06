@@ -101,6 +101,9 @@ agents). Both are **synthetic simulation**.
   not a workload.
 
 Read `results/sensitivity_summary.md` before quoting any of these numbers.
+The narrative write-up, with the negative results and the claim boundary, is
+`docs/research/CONTINUAL_DISCOVERY.md` at the repository root (rendered to PDF
+alongside it).
 
 ## Recommended paper language
 

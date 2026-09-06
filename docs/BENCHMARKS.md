@@ -165,7 +165,8 @@ exist to be compared against, not cited.
 
 ## Track D — Continual discovery: strategic questioning (synthetic)
 
-Source: `experiments/continual_discovery/` on this branch. **Evidence class:
+Source: `experiments/continual_discovery/` on this branch; full write-up in
+`docs/research/CONTINUAL_DISCOVERY.md` (and `.pdf`). **Evidence class:
 synthetic simulation / mechanism probe.** Not a deployment result, and not
 comparable with Track A's measured survival numbers — the two share a
 mechanism, not an experiment.
