@@ -177,3 +177,85 @@ def test_orchestrator_survives_a_pipeline_exception(config, db, qwen, applicant,
     assert calls["n"] == 2                       # it kept going after the exception
     assert processed == 2
     assert db.query_one("SELECT COUNT(*) AS n FROM errors")["n"] >= 1
+
+
+def test_unattended_loop_with_live_controls(tmp_path, chromium_path, fixture_server):
+    """The whole system, unattended: loop mode, dashboard auth, PAUSE, live
+    config change, RESUME, STOP, clean exit."""
+    import json
+    import os
+    import time
+    import urllib.request
+
+    token = "soak-token"
+    port = 8802
+    database_path = tmp_path / "harness.db"
+    fixtures = Path(__file__).resolve().parent / "fixtures"
+
+    def api(path: str, method: str = "GET", body: dict | None = None) -> dict:
+        request = urllib.request.Request(
+            f"http://127.0.0.1:{port}{path}", method=method,
+            data=json.dumps(body).encode() if body else None,
+            headers={"X-Auth-Token": token, "Content-Type": "application/json"})
+        with urllib.request.urlopen(request, timeout=5) as response:
+            return json.loads(response.read() or b"{}")
+
+    process = subprocess.Popen(
+        [sys.executable, "run.py", "--dry-run", "--loop",
+         "--db", str(database_path),
+         "--profile", str(fixtures / "applicant.test.json"),
+         "--resume", str(fixtures / "resume.test.txt"),
+         "--fake-qwen", "--dashboard-host", "127.0.0.1",
+         "--dashboard-port", str(port), "--max-applications", "50",
+         "--url", fixture_server.base_url + "/board"],
+        cwd=str(ROOT), text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        env={**os.environ, "BROWSER_EXECUTABLE": chromium_path,
+             "BROWSER_PROFILE_DIR": str(tmp_path / "browser"),
+             "HARNESS_LOG_DIR": str(tmp_path / "logs"),
+             "DASHBOARD_TOKEN": token})
+    try:
+        for _ in range(60):
+            try:
+                api("/api/status")
+                break
+            except Exception:
+                time.sleep(0.5)
+        else:
+            pytest.fail("dashboard never became reachable")
+
+        # Unauthenticated access is refused even while the campaign runs.
+        with pytest.raises(urllib.error.HTTPError) as unauthorized:
+            urllib.request.urlopen(f"http://127.0.0.1:{port}/api/status", timeout=5)
+        assert unauthorized.value.code == 401
+
+        time.sleep(8)
+        assert api("/api/control", "POST", {"action": "pause"})["state"] == "PAUSED"
+        time.sleep(4)
+        paused = api("/api/status")
+        assert paused["run"]["state"] == "PAUSED"
+        time.sleep(3)
+        assert api("/api/status")["pipeline"]["ready_to_submit"] == \
+            paused["pipeline"]["ready_to_submit"], "work continued while paused"
+
+        assert api("/api/config", "POST", {"min_score": 60})["applied"]["min_score"] == 60
+        assert api("/api/control", "POST", {"action": "resume"})["state"] == "RUNNING"
+        time.sleep(4)
+        api("/api/control", "POST", {"action": "stop"})
+
+        stdout, stderr = process.communicate(timeout=90)
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.communicate()
+
+    assert process.returncode == 0, stderr[-2000:]
+    assert "Traceback" not in stderr, stderr[-2000:]
+
+    database = Database(str(database_path))
+    ready = database.query_one(
+        "SELECT COUNT(*) AS n FROM applications WHERE status='READY_TO_SUBMIT'")["n"]
+    submitted = database.query_one(
+        "SELECT COUNT(*) AS n FROM applications WHERE submitted_at IS NOT NULL")["n"]
+    database.close()
+    assert ready >= 1, stdout[-1500:]
+    assert submitted == 0, "dry run must never submit"
