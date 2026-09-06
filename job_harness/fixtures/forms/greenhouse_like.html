@@ -1,0 +1,89 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Apply — AI Engineer at Acme AI</title></head>
+<body>
+<div id="grnhse_app">
+<h1>AI Engineer</h1>
+<p>Acme AI &middot; Remote - US</p>
+<form id="application_form" onsubmit="return submitApp(event)">
+  <div class="field"><label for="first_name">First Name <span class="required">*</span></label>
+    <input id="first_name" name="job_application[first_name]" type="text" required></div>
+  <div class="field"><label for="last_name">Last Name *</label>
+    <input id="last_name" name="job_application[last_name]" type="text" required></div>
+  <div class="field"><label for="email">Email *</label>
+    <input id="email" name="job_application[email]" type="email" required></div>
+  <div class="field"><label for="phone">Phone</label>
+    <input id="phone" name="job_application[phone]" type="tel"></div>
+  <div class="field"><label for="resume">Resume/CV *</label>
+    <input id="resume" name="job_application[resume]" type="file" accept=".pdf,.doc,.docx" required></div>
+  <div class="field"><label for="cover_letter">Cover Letter</label>
+    <textarea id="cover_letter" name="job_application[cover_letter]" rows="6" maxlength="5000"></textarea></div>
+  <div class="field"><label for="linkedin">LinkedIn Profile</label>
+    <input id="linkedin" name="job_application[answers][linkedin]" type="url"></div>
+  <div class="field"><label for="github">GitHub Profile</label>
+    <input id="github" name="job_application[answers][github]" type="url"></div>
+  <div class="field"><label for="school">School *</label>
+    <input id="school" name="job_application[education][school]" type="text" required></div>
+  <div class="field"><label for="degree">Degree *</label>
+    <select id="degree" name="job_application[education][degree]" required>
+      <option value="">Select...</option>
+      <option value="1">High School</option>
+      <option value="2">Bachelor's Degree</option>
+      <option value="3">Master's Degree</option>
+      <option value="4">Doctorate</option>
+    </select></div>
+  <div class="field"><label for="discipline">Discipline</label>
+    <select id="discipline" name="job_application[education][discipline]">
+      <option value="">Select...</option>
+      <option value="cs">Computer Science</option>
+      <option value="ee">Electrical Engineering</option>
+      <option value="math">Mathematics</option>
+    </select></div>
+  <div class="field"><label for="authorized">Are you legally authorized to work in the United States? *</label>
+    <select id="authorized" name="job_application[answers][work_auth]" required>
+      <option value="">Select...</option><option value="yes">Yes</option><option value="no">No</option>
+    </select></div>
+  <div class="field"><label for="sponsorship">Will you now or in the future require sponsorship for employment visa status? *</label>
+    <select id="sponsorship" name="job_application[answers][sponsorship]" required>
+      <option value="">Select...</option><option value="yes">Yes</option><option value="no">No</option>
+    </select></div>
+  <div class="field"><label for="why">Why do you want to work at Acme AI?</label>
+    <textarea id="why" name="job_application[answers][why]" rows="5" maxlength="2000"></textarea></div>
+  <div class="field"><label for="clearance_level">What is your current Top Secret clearance level?</label>
+    <input id="clearance_level" name="job_application[answers][clearance]" type="text"></div>
+  <fieldset><legend>Gender</legend>
+    <label><input type="radio" name="gender" value="m"> Male</label>
+    <label><input type="radio" name="gender" value="f"> Female</label>
+    <label><input type="radio" name="gender" value="d"> Decline To Self Identify</label>
+  </fieldset>
+  <div class="field"><label for="veteran">Veteran Status</label>
+    <select id="veteran" name="veteran_status">
+      <option value="">Select...</option>
+      <option value="1">I identify as one or more of the classifications of a protected veteran</option>
+      <option value="2">I am not a protected veteran</option>
+      <option value="3">I don't wish to answer</option>
+    </select></div>
+  <button type="submit" id="submit_app">Submit Application</button>
+</form>
+</div>
+<script>
+function submitApp(e){
+  e.preventDefault();
+  const form = document.getElementById('application_form');
+  const missing = [];
+  for (const el of form.querySelectorAll('[required]')) {
+    if (el.type === 'file') { if (!el.files.length) missing.push(el.id); }
+    else if (!el.value) missing.push(el.id);
+  }
+  if (missing.length) {
+    document.getElementById('errors')?.remove();
+    const d = document.createElement('div');
+    d.id='errors'; d.className='error'; d.setAttribute('role','alert');
+    d.innerText = 'This field is required: ' + missing.join(', ');
+    form.prepend(d); return false;
+  }
+  document.body.innerHTML = '<h1>Thank you for applying to Acme AI</h1>' +
+    '<p>Your application has been received. Confirmation ID: GH-' + Math.floor(Math.random()*900000+100000) + '</p>';
+  history.pushState({}, '', '?confirmation=1');
+  return false;
+}
+</script>
+</body></html>
