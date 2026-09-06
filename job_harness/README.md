@@ -435,7 +435,7 @@ estimated cost. `--status` reports cost per verified application.
 ## 12. Testing
 
 ```bash
-python -m pytest                       # 237 tests
+python -m pytest                       # 242 tests
 python -m pytest -m "not browser"      # skip the Chromium end-to-end tests
 python -m pytest tests/test_grounding.py -v
 ```
@@ -477,7 +477,7 @@ job_harness/
 ├── verification/           submission evidence
 ├── dashboard/              control server, stats, UI
 ├── fixtures/forms/         ATS-shaped HTML used by the tests
-├── tests/                  237 tests
+├── tests/                  242 tests
 └── logs/                   database, JSONL logs, screenshots, browser profile
 ```
 

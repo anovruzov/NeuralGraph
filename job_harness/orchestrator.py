@@ -317,9 +317,29 @@ class Orchestrator:
     # --------------------------------------------------------------- helpers
 
     def _process_with_timeout(self, pipeline: ApplicationPipeline, job: Job) -> JobResult:
-        """Run one job. The pipeline has its own error boundary; this adds a wall clock."""
+        """Run one job inside the outer error boundary.
+
+        The pipeline has its own boundary, but a failure in the pipeline itself
+        (a dead browser, a bug) must still not end the campaign.
+        """
         started = time.time()
-        result = pipeline.process(job, self.dry_run)
+        try:
+            result = pipeline.process(job, self.dry_run)
+        except Exception as exc:
+            log.error("job failed outside the pipeline boundary",
+                      extra={"job_id": job.job_id, "error": str(exc)[:300]}, exc_info=True)
+            self.db.record_error(self.run_id, job.job_id, "orchestrator.job", exc)
+            try:
+                self.db.set_job_status(job.job_id, JobStatus.FAILED)
+            except Exception:
+                pass
+            try:
+                if self.browser is not None and not self.browser.healthy():
+                    self.browser.recover()
+            except Exception:
+                log.error("browser recovery failed after a job error")
+            return JobResult(job.job_id, JobStatus.FAILED, str(exc)[:300],
+                             duration_s=time.time() - started)
         elapsed = time.time() - started
         if elapsed > self.config.run.job_timeout_seconds:
             log.warning("job exceeded its time budget",

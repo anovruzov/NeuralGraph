@@ -70,6 +70,7 @@ class BrowserEngine:
         self._context: Optional[BrowserContext] = None
         self._browser: Optional[Browser] = None
         self._session_id: Optional[int] = None
+        self._closed = True
         self.pages_opened = 0
         self.crashes = 0
         self.executable_path: Optional[str] = None
@@ -116,6 +117,13 @@ class BrowserEngine:
         self._context.set_default_timeout(self.config.action_timeout_ms)
         self._context.set_default_navigation_timeout(self.config.navigation_timeout_ms)
 
+        # A closed context still answers `pages` with an empty list, so track
+        # closure by event instead of inferring it from a property.
+        self._closed = False
+        self._context.on("close", lambda *_: setattr(self, "_closed", True))
+        if self._browser is not None:
+            self._browser.on("disconnected", lambda *_: setattr(self, "_closed", True))
+
         if self.db is not None:
             try:
                 cur = self.db.execute(
@@ -153,6 +161,7 @@ class BrowserEngine:
         except Exception:
             pass
         self._context, self._browser, self._pw = None, None, None
+        self._closed = True
         log.info("browser stopped")
 
     def __enter__(self) -> "BrowserEngine":
@@ -170,8 +179,10 @@ class BrowserEngine:
         return self._context
 
     def healthy(self) -> bool:
+        if self._context is None or self._closed:
+            return False
         try:
-            _ = self.context.pages
+            self._context.pages
             return True
         except Exception:
             return False
