@@ -122,6 +122,19 @@ def verify_submission(page: Page, before_url: str, watcher: Optional[ResponseWat
         evidence.failure_text = text[max(0, failure.start() - 80): failure.end() + 120]
     if snapshot.errors:
         evidence.details["dom_errors"] = snapshot.errors[:8]
+    if snapshot.invalid:
+        # Native constraint validation rejected the form: the submit never left
+        # the browser, whatever the page looks like.
+        evidence.details["invalid_fields"] = [
+            {"label": f.get("label", "")[:80], "message": f.get("message", "")[:120],
+             "hidden": f.get("hidden", False)}
+            for f in snapshot.invalid[:8]
+        ]
+        if not evidence.failure_text:
+            first = snapshot.invalid[0]
+            evidence.failure_text = (
+                f"browser validation rejected '{first.get('label', '')[:60]}': "
+                f"{first.get('message', '')[:100]}")
 
     if watcher is not None:
         ok = watcher.successful()
@@ -155,7 +168,7 @@ def verify_submission(page: Page, before_url: str, watcher: Optional[ResponseWat
     if not snapshot.fields and url != before_url and not evidence.failure_text:
         signals.append(("form_gone", 0.45))
 
-    if evidence.failure_text or (evidence.network_status or 0) >= 400:
+    if evidence.failure_text or snapshot.invalid or (evidence.network_status or 0) >= 400:
         evidence.verified = False
         evidence.signal = "failed"
         evidence.confidence = 0.9

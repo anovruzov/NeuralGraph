@@ -1,0 +1,57 @@
+<!doctype html><html><head><meta charset="utf-8">
+<title>Apply — AI Systems Engineer at Lateco</title>
+<script type="application/ld+json">{"@context":"https://schema.org/","@type":"JobPosting",
+"title":"AI Systems Engineer","description":"Build LLM serving infrastructure in Python. Required: 2+ years of experience, Bachelor's degree. Preferred: Kubernetes.","datePosted":"2026-09-04",
+"hiringOrganization":{"@type":"Organization","name":"Lateco"},"jobLocationType":"TELECOMMUTE",
+"url":"late_validation_form.html"}</script>
+</head><body>
+<h1>AI Systems Engineer</h1>
+<form id="app" novalidate onsubmit="return submitApp(event)">
+  <div class="fld"><label for="name">Full Name *</label><input id="name" name="name" required></div>
+  <div class="fld"><label for="email">Email *</label><input id="email" name="email" type="email" required></div>
+  <div class="fld"><label for="resume">Resume *</label><input id="resume" name="resume" type="file" required></div>
+  <div class="fld"><label for="start">Earliest start date</label><input id="start" name="start" type="date"></div>
+  <div class="fld"><label for="auth">Are you authorized to work in the US? *</label>
+    <select id="auth" name="auth" required><option value="">Select</option>
+      <option>Yes</option><option>No</option></select></div>
+  <!-- Revealed only after the first submit attempt, the way some ATS forms
+       surface a conditional question. -->
+  <div class="fld" id="extra" style="display:none">
+    <label for="notice">Notice period (weeks) *</label>
+    <input id="notice" name="notice" required>
+  </div>
+  <div class="fld"><label><input type="checkbox" id="terms" name="terms" required>
+    I certify that the information provided is accurate and complete.</label></div>
+  <button type="submit" id="go">Submit Application</button>
+</form>
+<script>
+let attempted = false;
+function submitApp(e){
+  e.preventDefault();
+  const form = e.target;
+  if (!attempted) {
+    attempted = true;
+    document.getElementById('extra').style.display = 'block';
+  }
+  const missing = [];
+  for (const el of form.querySelectorAll('[required]')) {
+    if (el.offsetParent === null && el.type !== 'file') continue;
+    if (el.type === 'file') { if (!el.files.length) missing.push(el.id); }
+    else if (el.type === 'checkbox') { if (!el.checked) missing.push(el.id); }
+    else if (!el.value) missing.push(el.id);
+  }
+  document.getElementById('err')?.remove();
+  if (missing.length) {
+    const d = document.createElement('div');
+    d.id = 'err'; d.className = 'error'; d.setAttribute('role', 'alert');
+    d.innerText = 'This field is required: ' + missing.join(', ');
+    form.prepend(d);
+    return false;
+  }
+  document.body.innerHTML =
+    '<h1>Thank you for applying to Lateco</h1>' +
+    '<p>Your application has been received. Application ID: LATE-55210</p>';
+  history.pushState({}, '', '?confirmation=1');
+  return false;
+}
+</script></body></html>

@@ -286,6 +286,7 @@ class FieldResolver:
             "years_experience": ("years_experience", a.get("years_experience")),
             "salary_expectation": ("salary_preferences", a.get("salary_preferences")),
             "start_date": ("earliest_start_date", a.get("earliest_start_date")),
+            "notice_period": ("notice_period", a.get("notice_period")),
             "how_did_you_hear": ("how_did_you_hear", a.get("how_did_you_hear")),
             "current_employer": ("employment_history[0].company",
                                  a.get("employment_history[0].company")),

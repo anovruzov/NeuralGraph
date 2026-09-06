@@ -208,3 +208,49 @@ def test_missing_required_answer_blocks_instead_of_guessing(
     result = pipeline.process(job, dry_run=True)
     assert result.status == JobStatus.BLOCKED
     assert db.get_application(result.application_id)["blocker_type"] == "missing_answer"
+
+
+# ------------------------------------------------- rejected submit / repair
+
+def test_rejected_submit_is_repaired_and_resubmitted(pipeline, db, fixture_server):
+    """A form that reveals a required question only after the first Submit."""
+    job = job_for(fixture_server, "late_validation_form.html", "Lateco")
+    db.upsert_job(job)
+    result = pipeline.process(job, dry_run=False)
+    assert result.status == JobStatus.VERIFIED, result.detail
+    application = db.get_application(result.application_id)
+    assert application["ats_application_id"] == "LATE-55210"
+
+
+def test_a_rejected_submit_is_never_recorded_as_submitted(
+        config, db, browser, qwen, applicant, fixture_server):
+    """If the repair cannot be grounded, the job must stay retryable.
+
+    Recording an unsubmitted application as SUBMITTED would both inflate the
+    count and permanently block a later attempt.
+    """
+    applicant.data["notice_period"] = ""          # cannot answer the revealed question
+    resolver = FieldResolver(applicant, qwen, config.run.min_field_confidence,
+                             config.run.resume_path)
+    pipeline = ApplicationPipeline(config, db, browser, qwen, resolver, "test-run")
+    job = job_for(fixture_server, "late_validation_form.html", "Lateco")
+    db.upsert_job(job)
+    result = pipeline.process(job, dry_run=False)
+
+    assert result.status == JobStatus.BLOCKED
+    application = db.get_application(result.application_id)
+    assert application["submitted_at"] is None
+    assert application["blocker_type"] == "validation_failed"
+    # Still retryable: no successful application exists for this job.
+    assert not db.has_successful_application(job.job_id)
+
+
+def test_native_validation_failure_is_detected(page, fixture_server):
+    """Browser constraint validation blocks a submit with no visible message."""
+    from job_harness.browser.dom import extract_form
+
+    page.goto(fixture_server.url_for("greenhouse_like.html"))
+    page.click("#submit_app")
+    snapshot = extract_form(page)
+    assert snapshot.invalid, "expected invalid controls to be reported"
+    assert any("First Name" in f["label"] for f in snapshot.invalid)

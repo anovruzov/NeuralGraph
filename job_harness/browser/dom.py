@@ -265,12 +265,24 @@ EXTRACT_JS = r"""
 
   const bodyText = clean(document.body ? document.body.innerText : "").slice(0, 4000);
 
+  // Native HTML5 constraint validation can block a submit click without any
+  // visible message, so report it explicitly rather than seeing "nothing happened".
+  const invalid = Array.from(document.querySelectorAll("input, select, textarea"))
+    .filter(el => el.willValidate && !el.checkValidity())
+    .map(el => ({
+      selector: cssPath(el),
+      label: labelFor(el),
+      message: clean(el.validationMessage || ""),
+      hidden: !isVisible(el),
+    })).slice(0, 20);
+
   return {
     url: location.href,
     title: document.title,
     fields,
     buttons,
     errors,
+    invalid,
     body_text: bodyText,
     has_form: !!document.querySelector("form"),
     iframes: Array.from(document.querySelectorAll("iframe")).map(f => ({
@@ -347,6 +359,7 @@ class FormSnapshot:
     errors: list[str] = field(default_factory=list)
     body_text: str = ""
     has_form: bool = False
+    invalid: list[dict[str, Any]] = field(default_factory=list)
     iframes: list[dict[str, Any]] = field(default_factory=list)
     frame_urls: list[str] = field(default_factory=list)
 
@@ -414,6 +427,7 @@ def extract_form(page: Page, include_frames: bool = True) -> FormSnapshot:
         errors=data.get("errors", []),
         body_text=data.get("body_text", ""),
         has_form=bool(data.get("has_form")),
+        invalid=data.get("invalid", []),
         iframes=data.get("iframes", []),
     )
 
@@ -432,6 +446,7 @@ def extract_form(page: Page, include_frames: bool = True) -> FormSnapshot:
                     {**b, "frame_url": frame.url} for b in sub.get("buttons", [])
                 )
                 snapshot.errors.extend(sub.get("errors", []))
+                snapshot.invalid.extend(sub.get("invalid", []))
                 snapshot.frame_urls.append(frame.url)
                 if not snapshot.body_text:
                     snapshot.body_text = sub.get("body_text", "")

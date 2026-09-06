@@ -21,6 +21,7 @@ from .field_resolver import FieldResolver, ResolvedAnswer
 log = get_logger("application.filler")
 
 MAX_FORM_STEPS = 6
+MAX_SUBMIT_ATTEMPTS = 2
 
 
 @dataclass
@@ -154,7 +155,8 @@ class ApplicationFiller:
                     ", ".join(b.get("text", "") for b in after.buttons[:8]))
                 return outcome
 
-            return self._finish(page, job, outcome, after, submit_button, dry_run)
+            return self._finish(page, job, outcome, after, submit_button, dry_run,
+                                application_id, job_context)
 
         outcome.status = JobStatus.FAILED
         outcome.detail = f"form did not reach a submit step within {MAX_FORM_STEPS} steps"
@@ -227,7 +229,8 @@ class ApplicationFiller:
 
     def _finish(self, page: Page, job: Job, outcome: FillOutcome,
                 snapshot: FormSnapshot, submit_button: dict[str, Any],
-                dry_run: bool) -> FillOutcome:
+                dry_run: bool, application_id: int,
+                job_context: dict[str, Any]) -> FillOutcome:
         unmet = [f for f in snapshot.visible_required() if not self._has_value(page, f)]
         if unmet:
             outcome.status = JobStatus.BLOCKED
@@ -252,34 +255,105 @@ class ApplicationFiller:
                             "filled": outcome.filled, "skipped": outcome.skipped})
             return outcome
 
-        before_url = page.url
-        watcher = ResponseWatcher(page)
-        try:
-            log.info("submitting application",
-                     extra={"job_id": job.job_id, "company": job.company,
-                            "title": job.title, "button": submit_button.get("text")})
-            clicked = actions.click_button(page, submit_button["selector"],
-                                           submit_button.get("frame_url", ""),
-                                           timeout=self.config.browser.action_timeout_ms)
-            if not clicked:
-                outcome.status = JobStatus.FAILED
-                outcome.detail = "submit button could not be clicked"
-                return outcome
-            self._settle(page)
-            evidence = verify_submission(page, before_url, watcher, self.qwen)
-        finally:
-            watcher.stop()
+        evidence: Optional[SubmissionEvidence] = None
 
-        evidence.screenshot = self.browser.screenshot(page, f"{job.company}_after_submit") or ""
-        outcome.evidence = evidence
-        if evidence.verified:
-            outcome.status = JobStatus.VERIFIED
-        else:
-            # The click happened; without evidence it stays SUBMITTED, never VERIFIED.
-            outcome.status = JobStatus.SUBMITTED
-            outcome.detail = (f"submitted but unverified: {evidence.signal}; "
-                              f"{evidence.failure_text[:150]}")
+        for attempt in range(1, MAX_SUBMIT_ATTEMPTS + 1):
+            before_url = page.url
+            watcher = ResponseWatcher(page)
+            try:
+                log.info("submitting application",
+                         extra={"job_id": job.job_id, "company": job.company,
+                                "title": job.title, "attempt": attempt,
+                                "button": submit_button.get("text")})
+                clicked = actions.click_button(page, submit_button["selector"],
+                                               submit_button.get("frame_url", ""),
+                                               timeout=self.config.browser.action_timeout_ms)
+                if not clicked:
+                    outcome.status = JobStatus.FAILED
+                    outcome.detail = "submit button could not be clicked"
+                    return outcome
+                self._settle(page)
+                evidence = verify_submission(page, before_url, watcher, self.qwen)
+            finally:
+                watcher.stop()
+
+            evidence.screenshot = self.browser.screenshot(
+                page, f"{job.company}_after_submit_{attempt}") or ""
+            outcome.evidence = evidence
+
+            if evidence.verified:
+                outcome.status = JobStatus.VERIFIED
+                return outcome
+
+            if evidence.signal != "failed":
+                # No confirmation and no rejection either. The click may have
+                # landed, so retrying could submit twice: stop and record it as
+                # submitted-but-unverified for a human to check.
+                outcome.status = JobStatus.SUBMITTED
+                outcome.detail = (f"submitted but unverified: {evidence.signal}; "
+                                  f"{evidence.failure_text[:150]}").strip("; ")
+                return outcome
+
+            # The form explicitly rejected the submit, so nothing was submitted.
+            # Some ATS forms only reveal a conditional required question at this
+            # point; one repair pass fills whatever is newly missing.
+            if attempt >= MAX_SUBMIT_ATTEMPTS:
+                break
+            repaired = self._repair(page, job, application_id, job_context, outcome)
+            if not repaired:
+                break
+            after = extract_form(page, include_frames=True)
+            submit_button = after.find_submit() or submit_button
+
+        blocker_detail = (evidence.failure_text if evidence else "") or \
+            "; ".join((evidence.details.get("dom_errors") or []) if evidence else [])
+        outcome.status = JobStatus.BLOCKED
+        outcome.blocker = blockers.Blocker(
+            blockers.VALIDATION_FAILED,
+            "the form rejected the submission",
+            blocker_detail[:240] or "no validation message shown")
+        outcome.detail = "submission rejected by form validation; nothing was submitted"
+        log.warning("submission rejected by the form",
+                    extra={"job_id": job.job_id, "company": job.company,
+                           "detail": blocker_detail[:200]})
         return outcome
+
+    def _repair(self, page: Page, job: Job, application_id: int,
+                job_context: dict[str, Any], outcome: FillOutcome) -> bool:
+        """Fill fields that became required or empty after a rejected submit.
+
+        Returns True if anything was filled, so a second submit is worth trying.
+        """
+        snapshot = extract_form(page, include_frames=True)
+        pending = [
+            f for f in snapshot.fields
+            if not f.disabled and not f.readonly and f.required
+            and not self._has_value(page, f)
+        ]
+        if not pending:
+            log.info("nothing left to repair after a rejected submit",
+                     extra={"job_id": job.job_id})
+            return False
+
+        log.info("repairing form after a rejected submit",
+                 extra={"job_id": job.job_id,
+                        "fields": [f.label[:50] for f in pending[:5]]})
+        filled = 0
+        for form_field in pending:
+            answer = self.resolver.resolve(form_field, job_context)
+            outcome.answers.append(answer)
+            if not answer.answerable:
+                self._record(application_id, job, form_field, answer, filled=False)
+                outcome.blocked_fields.append(answer)
+                continue
+            ok = actions.apply_value(page, form_field, answer.value,
+                                     resume_path=self.config.run.resume_path,
+                                     timeout=self.config.browser.action_timeout_ms)
+            self._record(application_id, job, form_field, answer, filled=ok)
+            if ok:
+                filled += 1
+                outcome.filled += 1
+        return filled > 0
 
     # ------------------------------------------------------------- helpers
 
