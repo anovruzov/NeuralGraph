@@ -80,6 +80,10 @@ def canonicalize_url(url: str) -> str:
     if not url:
         return ""
     parts = urlsplit(url.strip())
+    if not parts.netloc:
+        # A relative or malformed URL must stay recognizable rather than be
+        # turned into a plausible-looking but wrong absolute URL.
+        return url.strip()
     drop_prefixes = ("utm_", "gh_src", "src", "ref", "source", "trk", "lever-",
                      "gclid", "fbclid", "mc_")
     query = [

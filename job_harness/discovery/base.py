@@ -4,6 +4,7 @@ from __future__ import annotations
 import abc
 import html
 import re
+from pathlib import Path
 from typing import Any, Iterable, Iterator, Optional
 
 import httpx
@@ -108,6 +109,10 @@ class DiscoveryAdapter(abc.ABC):
         return resp.json()
 
     def get_text(self, url: str) -> str:
+        if url.startswith("file://"):
+            # Local fixtures and offline testing; httpx has no file transport.
+            from urllib.parse import unquote, urlsplit
+            return Path(unquote(urlsplit(url).path)).read_text(errors="ignore")
         resp = self.client.get(url)
         resp.raise_for_status()
         return resp.text

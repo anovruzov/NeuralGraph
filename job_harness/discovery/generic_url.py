@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 import re
 from typing import Any, Iterator, Optional
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 
 from ..ats import detect as ats_detect
 from ..config.logging_setup import get_logger
@@ -18,6 +18,8 @@ _JSONLD = re.compile(
 )
 _TITLE = re.compile(r"<title[^>]*>(.*?)</title>", re.S | re.I)
 _HREF = re.compile(r'href=["\']([^"\']+)["\']', re.I)
+_JOB_PATH = re.compile(r"/(jobs?|postings?|careers?|positions?|openings?|vacanc\w*)(/|\?|$)", re.I)
+_SKIP_EXT = re.compile(r"\.(png|jpe?g|gif|svg|webp|css|js|ico|pdf|zip|xml|rss)(\?|$)", re.I)
 
 
 class GenericUrlAdapter(DiscoveryAdapter):
@@ -40,20 +42,38 @@ class GenericUrlAdapter(DiscoveryAdapter):
         if found:
             return
 
-        # Board index page: follow links that look like job postings on known ATS hosts.
-        links = {urljoin(target, href) for href in _HREF.findall(html)}
-        candidates = [
-            u for u in links
-            if ats_detect.detect_from_url(u).known
-            and re.search(r"/jobs?/|/postings?/|/job/", u)
-        ][: self.config.max_jobs_per_board]
-        for url in candidates:
+        # Board index page: follow candidate links and keep the ones that turn out
+        # to carry JobPosting markup. Validating by content rather than by URL
+        # shape means an unfamiliar board layout still works.
+        for url in self._candidate_links(html, target):
             try:
                 page = self.get_text(url)
             except Exception:
                 continue
             for job in self._from_jsonld(page, url):
                 yield job
+
+    def _candidate_links(self, html: str, base: str) -> list[str]:
+        base_host = urlsplit(base).netloc
+        seen: set[str] = set()
+        job_like: list[str] = []
+        same_host: list[str] = []
+        for href in _HREF.findall(html):
+            if href.startswith(("mailto:", "tel:", "javascript:", "#")):
+                continue
+            url = urljoin(base, href).split("#")[0]
+            if url in seen or url.rstrip("/") == base.rstrip("/"):
+                continue
+            if _SKIP_EXT.search(url):
+                continue
+            seen.add(url)
+            host = urlsplit(url).netloc
+            if ats_detect.detect_from_url(url).known or _JOB_PATH.search(url):
+                job_like.append(url)
+            elif host == base_host:
+                same_host.append(url)
+        # Obvious job links first, then other same-host pages, within the cap.
+        return (job_like + same_host)[: self.config.max_jobs_per_board]
 
     def _from_jsonld(self, html: str, url: str) -> Iterator[Job]:
         for block in _JSONLD.findall(html):
@@ -93,13 +113,18 @@ class GenericUrlAdapter(DiscoveryAdapter):
         if not salary_min:
             salary_min, salary_max = parse_salary(description)
         detection = ats_detect.detect(url, html)
-        apply_url = ats_detect.apply_url_for(
-            node.get("url") or node.get("sameAs") or url, detection.ats_type
-        )
+        # JobPosting markup often carries a relative url; resolve it against the page.
+        raw_apply = node.get("url") or node.get("sameAs") or url
+        if isinstance(raw_apply, list):
+            raw_apply = raw_apply[0] if raw_apply else url
+        # Store the posting URL, not an ATS-specific apply URL: the pipeline derives
+        # that at open time and can fall back if it does not exist, and dedupe needs
+        # the same key as the board APIs produce.
+        posting_url = urljoin(url, str(raw_apply))
         return Job(
             company=company or "Unknown",
             title=title,
-            canonical_apply_url=apply_url,
+            canonical_apply_url=posting_url,
             location=location,
             remote_status=("remote" if node.get("jobLocationType") == "TELECOMMUTE"
                            else guess_remote_status(location, description)),
@@ -113,7 +138,9 @@ class GenericUrlAdapter(DiscoveryAdapter):
             ats_type=detection.ats_type if detection.known else None,
             ats_job_key=node.get("identifier", {}).get("value")
             if isinstance(node.get("identifier"), dict) else None,
-            raw={"source": "jsonld"},
+            raw={"source": "jsonld",
+                 "derived_apply_url": ats_detect.apply_url_for(posting_url,
+                                                               detection.ats_type)},
         )
 
     @staticmethod

@@ -69,9 +69,7 @@ class ApplicationPipeline:
                 self.browser.recover()
 
             page = self.browser.new_page()
-            target = apply_url_for(job.canonical_apply_url,
-                                   job.ats_type or detect(job.canonical_apply_url).ats_type)
-            if not self.browser.goto(page, target):
+            if not self._open(page, job):
                 return self._fail(job, application_id, JobStatus.BLOCKED,
                                   "navigation failed", blockers.NAVIGATION_FAILED,
                                   started)
@@ -92,6 +90,25 @@ class ApplicationPipeline:
         finally:
             self.browser.close_page(page)
             self.db.set_run_context(self.run_id, current_state="IDLE")
+
+    def _open(self, page: Any, job: Job) -> bool:
+        """Open the application page.
+
+        The ATS-derived apply URL (Lever /apply, Ashby /application) is tried
+        first; if it is missing or errors, the posting URL is used instead.
+        """
+        canonical = job.canonical_apply_url
+        derived = apply_url_for(canonical, job.ats_type or detect(canonical).ats_type)
+        for candidate in ([derived, canonical] if derived != canonical else [canonical]):
+            ok, status = self.browser.goto_status(page, candidate)
+            if not ok:
+                continue
+            if status is not None and status >= 400:
+                log.info("apply URL returned an error status; trying the posting URL",
+                         extra={"url": candidate, "status": status})
+                continue
+            return True
+        return False
 
     # ---------------------------------------------------------------- state
 

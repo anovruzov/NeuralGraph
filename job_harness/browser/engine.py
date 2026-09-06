@@ -205,21 +205,26 @@ class BrowserEngine:
 
     def goto(self, page: Page, url: str, retries: int = 2,
              wait_until: str = "domcontentloaded") -> bool:
+        return self.goto_status(page, url, retries, wait_until)[0]
+
+    def goto_status(self, page: Page, url: str, retries: int = 2,
+                    wait_until: str = "domcontentloaded") -> tuple[bool, Optional[int]]:
+        """Navigate, returning (ok, http_status). Status is None if unavailable."""
         for attempt in range(retries + 1):
             try:
-                page.goto(url, wait_until=wait_until,
-                          timeout=self.config.navigation_timeout_ms)
+                response = page.goto(url, wait_until=wait_until,
+                                     timeout=self.config.navigation_timeout_ms)
                 try:
                     page.wait_for_load_state("networkidle", timeout=6000)
                 except PlaywrightTimeout:
                     pass  # Many ATS pages poll forever; DOM-ready is enough.
-                return True
+                return True, (response.status if response is not None else None)
             except (PlaywrightTimeout, PlaywrightError) as exc:
                 log.warning("navigation failed",
                             extra={"url": url, "attempt": attempt + 1, "error": str(exc)[:200]})
                 if attempt < retries:
                     time.sleep(2 ** attempt)
-        return False
+        return False, None
 
     def screenshot(self, page: Page, name: str) -> Optional[str]:
         if not self.config.screenshot_on_blocker:
