@@ -1,0 +1,97 @@
+{
+  "_source": "ali_s_novruz_resume.pdf — authoritative. Nothing in this file is inferred or invented.",
+  "identity": {
+    "name": "Ali Novruzov",
+    "phone": "713-572-7711",
+    "email": "anovruzov0708@gmail.com",
+    "github": "github.com/anovruzov",
+    "linkedin": "linkedin.com/in/ali-novruzov",
+    "location": "Katy, TX",
+    "pronouns": "NOT STATED IN RESUME — use they/them; never guess"
+  },
+  "education": {
+    "school": "The University of Texas at Austin",
+    "location": "Austin, TX",
+    "degree": "Bachelor of Science in Computer Science",
+    "minor": "Business",
+    "expected_graduation": "May 2027",
+    "class_standing_as_of_2026_09": "Rising senior / third-year (derived from May 2027 graduation)",
+    "gpa": "NOT ON RESUME — do not state a GPA anywhere",
+    "coursework": [
+      "Linear Algebra", "Statistics & Probability", "Operating Systems",
+      "Software Engineering", "Computer Architecture", "Cyber-Physical Systems",
+      "Discrete Mathematics"
+    ]
+  },
+  "experience": [
+    {
+      "company": "Mercor",
+      "title": "AI Mathematical Reasoning Specialist",
+      "location": "Remote",
+      "dates": "August 2026 – Present",
+      "current": true,
+      "bullets": [
+        "Author original adversarial math problems across combinatorics, number theory, linear algebra, and analysis that expose reasoning failures in frontier LLMs; each problem has an exact, machine-verifiable answer and is validated against live models before submission.",
+        "Design grading rubrics and structured error analyses that classify model failures in logic, computation, and consistency, producing high-quality data for frontier-model post-training."
+      ]
+    },
+    {
+      "company": "Mercor",
+      "title": "AI Model Evaluation Specialist",
+      "location": "Remote",
+      "dates": "May 2026 – July 2026",
+      "current": false,
+      "bullets": [
+        "Evaluated frontier LLMs and AI agents on coding, mathematical reasoning, data analysis, tool calling, and multi-step agentic tasks, documenting failures in hallucination resistance, instruction following, and factual reliability.",
+        "Performed human-in-the-loop RLHF preference ranking and response refinement to improve alignment and reasoning quality of production model outputs."
+      ]
+    },
+    {
+      "company": "Fujitsu",
+      "title": "AI/ML Engineer Intern",
+      "location": "Dallas, TX",
+      "dates": "June 2025 – August 2025",
+      "current": false,
+      "bullets": [
+        "Deployed an AI-powered agent that ingests AT&T configuration and operational JSON files to auto-detect mismatches, cutting network troubleshooting time from 48 hours to 20 minutes; integrated AI-driven root-cause analysis across thousands of devices daily.",
+        "Built a Retrieval-Augmented Generation (RAG) pipeline that parses Statement of Work documents and auto-generates Operational Level Agreements, replacing manual contract drafting.",
+        "Led department-wide generative AI enablement through live demos and reusable prompt libraries that expanded adoption of Fujitsu's internal AI platform across engineering teams."
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "name": "Mycelic — Self-Healing Collective Memory for AI Agents",
+      "credential": "Provisional Patent Filed (10479PPA)",
+      "bullets": [
+        "Invented a lineage-aware distributed memory architecture that tracks independent derivation paths for agent knowledge, enabling detection of silent forgetting when failures invalidate critical supporting evidence.",
+        "Designed a self-healing reconstruction mechanism that identifies missing support paths and selectively rebuilds them through independent sources rather than relying on universal replication.",
+        "Implemented structured temporal and entity memory graphs, query-aware multi-hop retrieval, event sourcing, and NATS JetStream for replayable, fault-tolerant distributed agent memory."
+      ]
+    }
+  ],
+  "skills": {
+    "ai_ml_post_training": ["Generative AI","Large Language Models (LLMs)","Machine Learning","Deep Learning","NLP","Mathematical Reasoning","LLM Evaluation","Benchmark Design","RLHF","Human Feedback","Adversarial Testing","Red Teaming","Rubric Design","Model Evaluation"],
+    "agents_retrieval": ["AI Agents","Agentic Workflows","Multi-Agent Systems","Retrieval-Augmented Generation (RAG)","Knowledge Graphs","Embeddings","Semantic Search","Vector Search","Vector Databases","Multi-Hop Retrieval","PyTorch","LangChain","scikit-learn"],
+    "programming_data": ["Python","C","C++","Java","Go","SQL","JavaScript","TypeScript","Bash","Pandas","NumPy"],
+    "systems_infrastructure": ["Distributed Systems","Event-Driven Architecture","Event Sourcing","NATS JetStream","Docker","Kubernetes","Linux","Git","AWS","Flask","Milvus","Pinecone"]
+  },
+  "NOT_ON_RESUME_never_assert": [
+    "GPA", "work authorization status", "visa / sponsorship need", "citizenship",
+    "security clearance or clearance eligibility", "salary expectation",
+    "willingness to relocate", "race / ethnicity / gender / veteran / disability status",
+    "publications", "any employment or education not listed above",
+    "years-of-experience totals beyond what the dated entries above support",
+    "any technology not listed in skills (notably: JAX, TensorFlow, Triton, CUDA, Ray, Spark, Terraform, GCP, Azure)"
+  ],
+  "verifiable_positioning": {
+    "strongest_lane": "LLM evaluation, post-training data, and agent memory/retrieval systems — backed by 2 paid frontier-model eval roles and a provisionally patented distributed agent-memory system.",
+    "years_professional_ai": "~1.25 yrs cumulative dated AI/ML work (Fujitsu Jun-Aug 2025; Mercor May 2026-present)",
+    "eligible_role_classes": [
+      "Summer 2027 internship (primary — graduation May 2027 satisfies 'graduating Dec 2027 or later'? NO — verify each posting's grad-date window)",
+      "New Grad 2027 (start mid-2027, post-graduation)",
+      "Part-time / contract AI research + eval work (already doing this at Mercor)"
+    ],
+    "eligibility_caution": "Many Summer 2027 internships require graduation Dec 2027 or later. May 2027 graduation makes Ali INELIGIBLE for those. Ali is eligible for Summer 2026-style 'final summer before graduation' internships and for New Grad 2027. VERIFY the grad-date window on every internship posting."
+  }
+}
