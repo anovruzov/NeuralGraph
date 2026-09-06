@@ -1,0 +1,181 @@
+{
+  "experiment_id": "budget_n10000_k2_20260906T140429Z",
+  "tag": "k2",
+  "config": {
+    "systems": [
+      "B3",
+      "B5",
+      "B6"
+    ],
+    "n_regions": 8,
+    "nodes_per_domain": 25,
+    "domains_per_org": 4,
+    "n_specialties": 12,
+    "claims_per_node": 2.0,
+    "claim_floor": 2000,
+    "root_mix": [
+      0.35,
+      0.4,
+      0.25
+    ],
+    "family_alpha": 1.1,
+    "family_cap": 40,
+    "correlated_family_size": 100,
+    "frac_class_correlated": 0.02,
+    "frac_class_independent": 0.02,
+    "revision_fraction": 0.25,
+    "home_same_domain": 0.6,
+    "home_same_org": 0.3,
+    "budget_k": 2,
+    "full_replicas": 16,
+    "gossip_replicas": 4,
+    "gossip_redundancy": 1.8,
+    "central_replicas": 3,
+    "max_probe": 8,
+    "parallel_probe": 4,
+    "querier_local_prob": 0.5,
+    "multi_hop2_fraction": 0.5,
+    "multi_hop3_fraction": 0.5,
+    "question_strategy": "hybrid",
+    "question_budget": 0.6,
+    "question_equalize_storage": true,
+    "failure_grid": {
+      "random": [
+        0.5
+      ],
+      "correlated_org": [
+        0.5
+      ],
+      "targeted_whitebox": [
+        0.5
+      ],
+      "correlated_domain": [
+        0.7
+      ]
+    },
+    "corruption_types": [],
+    "corruption_levels": [],
+    "corruption_base_regime": "random",
+    "corruption_base_severity": 0.3,
+    "n_false_variants": 4,
+    "partition_parts": [],
+    "partition_update_fraction": 0.3,
+    "name": "budget_n10000",
+    "n_agents": 10000,
+    "n_seeds": 15,
+    "note": "Storage-budget sweep (budget_k overridden on the command line).",
+    "overrides": [
+      "budget_k=2"
+    ]
+  },
+  "config_path": "/home/user/NeuralGraph/experiments/large_scale_agentic_web/configs/budget_n10000.json",
+  "seeds": [
+    1000,
+    1007,
+    1014,
+    1021,
+    1028,
+    1035,
+    1042,
+    1049,
+    1056,
+    1063,
+    1070,
+    1077,
+    1084,
+    1091,
+    1098
+  ],
+  "n_seeds": 15,
+  "systems": [
+    "B3",
+    "B5",
+    "B6"
+  ],
+  "n_conditions": 4,
+  "conditions": [
+    {
+      "regime": "random",
+      "severity": 0.5,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "correlated_org",
+      "severity": 0.5,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "targeted_whitebox",
+      "severity": 0.5,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "correlated_domain",
+      "severity": 0.7,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    }
+  ],
+  "git_commit": "88a82d7aaf8de43768221a7e48f7fa682f54dcb0",
+  "git_dirty": true,
+  "started_utc": "2026-09-06T14:04:29.570200+00:00",
+  "environment": {
+    "python": "3.11.15",
+    "numpy": "2.4.6",
+    "scipy": "1.17.1",
+    "platform": "Linux-6.18.44-fc-v24-x86_64-with-glibc2.39",
+    "processor": "x86_64",
+    "cpu_count": 4,
+    "hostname": "vm"
+  },
+  "command": "/home/user/NeuralGraph/experiments/large_scale_agentic_web/src/runner.py --config experiments/large_scale_agentic_web/configs/budget_n10000.json --tag k2 --index-name budget_n10000 --set budget_k=2",
+  "finished_utc": "2026-09-06T14:04:34.948128+00:00",
+  "runtime_seconds": 5.3711981773376465,
+  "per_seed_seconds": [
+    0.3900458812713623,
+    0.39984965324401855,
+    0.3377070426940918,
+    0.3698849678039551,
+    0.3385961055755615,
+    0.35677218437194824,
+    0.3654944896697998,
+    0.354341983795166,
+    0.36519622802734375,
+    0.346057653427124,
+    0.3504610061645508,
+    0.3509063720703125,
+    0.34577345848083496,
+    0.3403339385986328,
+    0.35913586616516113
+  ],
+  "n_rows": 180,
+  "world_summary": {
+    "n_agents": 10000,
+    "n_orgs": 100,
+    "n_failure_domains": 400,
+    "n_regions": 8,
+    "n_claims": 20000,
+    "n_lineage_roots": 55823,
+    "n_evidence_items": 240123,
+    "mean_roots_per_claim": 2.79115,
+    "mean_items_per_claim": 12.00615,
+    "max_items_per_claim": 136,
+    "frac_single_root_claims": 0.3582,
+    "frac_revised_claims": 0.24785,
+    "frac_stale_items": 0.12884230165373578,
+    "n_questions_per_seed": 127374
+  },
+  "questions_per_seed": 127374,
+  "total_question_instances": 1910610
+}

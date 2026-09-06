@@ -1,0 +1,607 @@
+{
+  "experiment_id": "n1000_main_20260906T132121Z",
+  "tag": "main",
+  "config": {
+    "systems": [
+      "B0",
+      "B1",
+      "B2",
+      "B3",
+      "B4",
+      "B5",
+      "B6",
+      "B7",
+      "B3Q"
+    ],
+    "n_regions": 8,
+    "nodes_per_domain": 25,
+    "domains_per_org": 4,
+    "n_specialties": 12,
+    "claims_per_node": 2.0,
+    "claim_floor": 2000,
+    "root_mix": [
+      0.35,
+      0.4,
+      0.25
+    ],
+    "family_alpha": 1.1,
+    "family_cap": 40,
+    "correlated_family_size": 100,
+    "frac_class_correlated": 0.02,
+    "frac_class_independent": 0.02,
+    "revision_fraction": 0.25,
+    "home_same_domain": 0.6,
+    "home_same_org": 0.3,
+    "budget_k": 4,
+    "full_replicas": 16,
+    "gossip_replicas": 4,
+    "gossip_redundancy": 1.8,
+    "central_replicas": 3,
+    "max_probe": 8,
+    "parallel_probe": 4,
+    "querier_local_prob": 0.5,
+    "multi_hop2_fraction": 0.5,
+    "multi_hop3_fraction": 0.5,
+    "question_strategy": "hybrid",
+    "question_budget": 0.6,
+    "question_equalize_storage": true,
+    "failure_grid": {
+      "random": [
+        0.0,
+        0.1,
+        0.3,
+        0.5,
+        0.7,
+        0.9
+      ],
+      "correlated_domain": [
+        0.1,
+        0.3,
+        0.5,
+        0.7,
+        0.9
+      ],
+      "correlated_org": [
+        0.1,
+        0.3,
+        0.5,
+        0.7,
+        0.9
+      ],
+      "correlated_region": [
+        0.1,
+        0.3,
+        0.5,
+        0.7,
+        0.9
+      ],
+      "targeted_world": [
+        0.1,
+        0.3,
+        0.5,
+        0.7,
+        0.9
+      ],
+      "targeted_whitebox": [
+        0.1,
+        0.3,
+        0.5,
+        0.7,
+        0.9
+      ]
+    },
+    "corruption_types": [
+      "node_coordinated",
+      "node_uncoordinated",
+      "root"
+    ],
+    "corruption_levels": [
+      0.01,
+      0.05,
+      0.1,
+      0.2
+    ],
+    "corruption_base_regime": "random",
+    "corruption_base_severity": 0.3,
+    "n_false_variants": 4,
+    "partition_parts": [
+      2,
+      4
+    ],
+    "partition_update_fraction": 0.3,
+    "name": "n1000",
+    "n_agents": 1000,
+    "n_seeds": 30,
+    "overrides": []
+  },
+  "config_path": "/home/user/NeuralGraph/experiments/large_scale_agentic_web/configs/n1000.json",
+  "seeds": [
+    1000,
+    1007,
+    1014,
+    1021,
+    1028,
+    1035,
+    1042,
+    1049,
+    1056,
+    1063,
+    1070,
+    1077,
+    1084,
+    1091,
+    1098,
+    1105,
+    1112,
+    1119,
+    1126,
+    1133,
+    1140,
+    1147,
+    1154,
+    1161,
+    1168,
+    1175,
+    1182,
+    1189,
+    1196,
+    1203
+  ],
+  "n_seeds": 30,
+  "systems": [
+    "B0",
+    "B1",
+    "B2",
+    "B3",
+    "B4",
+    "B5",
+    "B6",
+    "B7",
+    "B3Q"
+  ],
+  "n_conditions": 47,
+  "conditions": [
+    {
+      "regime": "random",
+      "severity": 0.0,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "random",
+      "severity": 0.1,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "random",
+      "severity": 0.3,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "random",
+      "severity": 0.5,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "random",
+      "severity": 0.7,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "random",
+      "severity": 0.9,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "correlated_domain",
+      "severity": 0.1,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "correlated_domain",
+      "severity": 0.3,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "correlated_domain",
+      "severity": 0.5,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "correlated_domain",
+      "severity": 0.7,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "correlated_domain",
+      "severity": 0.9,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "correlated_org",
+      "severity": 0.1,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "correlated_org",
+      "severity": 0.3,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "correlated_org",
+      "severity": 0.5,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "correlated_org",
+      "severity": 0.7,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "correlated_org",
+      "severity": 0.9,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "correlated_region",
+      "severity": 0.1,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "correlated_region",
+      "severity": 0.3,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "correlated_region",
+      "severity": 0.5,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "correlated_region",
+      "severity": 0.7,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "correlated_region",
+      "severity": 0.9,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "targeted_world",
+      "severity": 0.1,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "targeted_world",
+      "severity": 0.3,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "targeted_world",
+      "severity": 0.5,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "targeted_world",
+      "severity": 0.7,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "targeted_world",
+      "severity": 0.9,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "targeted_whitebox",
+      "severity": 0.1,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "targeted_whitebox",
+      "severity": 0.3,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "targeted_whitebox",
+      "severity": 0.5,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "targeted_whitebox",
+      "severity": 0.7,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "targeted_whitebox",
+      "severity": 0.9,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "random",
+      "severity": 0.3,
+      "corruption_type": "node_coordinated",
+      "corruption_level": 0.01,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "random",
+      "severity": 0.3,
+      "corruption_type": "node_coordinated",
+      "corruption_level": 0.05,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "random",
+      "severity": 0.3,
+      "corruption_type": "node_coordinated",
+      "corruption_level": 0.1,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "random",
+      "severity": 0.3,
+      "corruption_type": "node_coordinated",
+      "corruption_level": 0.2,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "random",
+      "severity": 0.3,
+      "corruption_type": "node_uncoordinated",
+      "corruption_level": 0.01,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "random",
+      "severity": 0.3,
+      "corruption_type": "node_uncoordinated",
+      "corruption_level": 0.05,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "random",
+      "severity": 0.3,
+      "corruption_type": "node_uncoordinated",
+      "corruption_level": 0.1,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "random",
+      "severity": 0.3,
+      "corruption_type": "node_uncoordinated",
+      "corruption_level": 0.2,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "random",
+      "severity": 0.3,
+      "corruption_type": "root",
+      "corruption_level": 0.01,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "random",
+      "severity": 0.3,
+      "corruption_type": "root",
+      "corruption_level": 0.05,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "random",
+      "severity": 0.3,
+      "corruption_type": "root",
+      "corruption_level": 0.1,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "random",
+      "severity": 0.3,
+      "corruption_type": "root",
+      "corruption_level": 0.2,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "partition",
+      "severity": 0.0,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 2,
+      "phase": "during_partition"
+    },
+    {
+      "regime": "partition",
+      "severity": 0.0,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 2,
+      "phase": "after_reconnect"
+    },
+    {
+      "regime": "partition",
+      "severity": 0.0,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 4,
+      "phase": "during_partition"
+    },
+    {
+      "regime": "partition",
+      "severity": 0.0,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 4,
+      "phase": "after_reconnect"
+    }
+  ],
+  "git_commit": "88a82d7aaf8de43768221a7e48f7fa682f54dcb0",
+  "git_dirty": true,
+  "started_utc": "2026-09-06T13:21:21.446869+00:00",
+  "environment": {
+    "python": "3.11.15",
+    "numpy": "2.4.6",
+    "scipy": "1.17.1",
+    "platform": "Linux-6.18.44-fc-v24-x86_64-with-glibc2.39",
+    "processor": "x86_64",
+    "cpu_count": 4,
+    "hostname": "vm"
+  },
+  "command": "/home/user/NeuralGraph/experiments/large_scale_agentic_web/src/runner.py --config experiments/large_scale_agentic_web/configs/n1000.json --tag main --index-name main_n1000",
+  "finished_utc": "2026-09-06T13:22:53.312923+00:00",
+  "runtime_seconds": 91.85907793045044,
+  "per_seed_seconds": [
+    3.083120107650757,
+    2.977621555328369,
+    2.9532523155212402,
+    2.9752511978149414,
+    3.048077344894409,
+    3.0523624420166016,
+    3.0303707122802734,
+    3.318678617477417,
+    3.0188560485839844,
+    2.931277275085449,
+    3.1383137702941895,
+    3.152672290802002,
+    3.1543710231781006,
+    3.212522506713867,
+    3.1707141399383545,
+    3.206425189971924,
+    3.3438913822174072,
+    3.2327864170074463,
+    3.296382427215576,
+    2.931309461593628,
+    2.928079605102539,
+    2.8277792930603027,
+    3.006349802017212,
+    2.8984556198120117,
+    3.0720841884613037,
+    2.976914167404175,
+    3.0261359214782715,
+    2.980637788772583,
+    2.947451591491699,
+    2.9656639099121094
+  ],
+  "n_rows": 12690,
+  "world_summary": {
+    "n_agents": 1000,
+    "n_orgs": 10,
+    "n_failure_domains": 40,
+    "n_regions": 8,
+    "n_claims": 2000,
+    "n_lineage_roots": 5561,
+    "n_evidence_items": 24232,
+    "mean_roots_per_claim": 2.7805,
+    "mean_items_per_claim": 12.116,
+    "max_items_per_claim": 100,
+    "frac_single_root_claims": 0.367,
+    "frac_revised_claims": 0.2415,
+    "frac_stale_items": 0.1169115219544404,
+    "n_questions_per_seed": 12712
+  },
+  "questions_per_seed": 12712,
+  "total_question_instances": 381360
+}

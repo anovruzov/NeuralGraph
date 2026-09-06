@@ -5,3 +5,4 @@ __pycache__/
 demo/results/emb_cache/
 demo/results/smoke*.json
 demo/omega.json
+experiments/**/__pycache__/

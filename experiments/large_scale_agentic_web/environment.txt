@@ -1,0 +1,9 @@
+python 3.11.15 (main, Mar  3 2026, 09:26:23) [GCC 13.3.0]
+numpy 2.4.6
+scipy 1.17.1
+matplotlib 3.11.1
+reportlab 5.0.1 (PDF rendering only)
+platform Linux-6.18.44-fc-v24-x86_64-with-glibc2.39
+machine x86_64
+cpu_count 4
+git_commit 88a82d7aaf8de43768221a7e48f7fa682f54dcb0

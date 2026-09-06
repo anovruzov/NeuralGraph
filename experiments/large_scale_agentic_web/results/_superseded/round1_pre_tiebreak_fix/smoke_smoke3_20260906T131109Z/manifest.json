@@ -1,0 +1,209 @@
+{
+  "experiment_id": "smoke_smoke3_20260906T131109Z",
+  "tag": "smoke3",
+  "config": {
+    "systems": [
+      "B0",
+      "B1",
+      "B2",
+      "B3",
+      "B4",
+      "B5",
+      "B6",
+      "B7",
+      "B3Q"
+    ],
+    "n_regions": 8,
+    "nodes_per_domain": 25,
+    "domains_per_org": 4,
+    "n_specialties": 12,
+    "claims_per_node": 2.0,
+    "claim_floor": 400,
+    "root_mix": [
+      0.35,
+      0.4,
+      0.25
+    ],
+    "family_alpha": 1.1,
+    "family_cap": 40,
+    "correlated_family_size": 100,
+    "frac_class_correlated": 0.02,
+    "frac_class_independent": 0.02,
+    "revision_fraction": 0.25,
+    "home_same_domain": 0.6,
+    "home_same_org": 0.3,
+    "budget_k": 4,
+    "full_replicas": 16,
+    "gossip_replicas": 4,
+    "gossip_redundancy": 1.8,
+    "central_replicas": 3,
+    "max_probe": 8,
+    "parallel_probe": 4,
+    "querier_local_prob": 0.5,
+    "multi_hop2_fraction": 0.5,
+    "multi_hop3_fraction": 0.5,
+    "question_strategy": "hybrid",
+    "question_budget": 0.6,
+    "question_equalize_storage": true,
+    "failure_grid": {
+      "random": [
+        0.0,
+        0.5,
+        0.9
+      ],
+      "correlated_org": [
+        0.5
+      ],
+      "targeted_whitebox": [
+        0.5
+      ]
+    },
+    "corruption_types": [
+      "node_coordinated",
+      "root"
+    ],
+    "corruption_levels": [
+      0.1
+    ],
+    "corruption_base_regime": "random",
+    "corruption_base_severity": 0.3,
+    "n_false_variants": 4,
+    "partition_parts": [
+      2
+    ],
+    "partition_update_fraction": 0.3,
+    "name": "smoke",
+    "n_agents": 100,
+    "n_seeds": 2
+  },
+  "config_path": "/home/user/NeuralGraph/experiments/large_scale_agentic_web/configs/smoke.json",
+  "seeds": [
+    1000,
+    1007
+  ],
+  "n_seeds": 2,
+  "systems": [
+    "B0",
+    "B1",
+    "B2",
+    "B3",
+    "B4",
+    "B5",
+    "B6",
+    "B7",
+    "B3Q"
+  ],
+  "n_conditions": 9,
+  "conditions": [
+    {
+      "regime": "random",
+      "severity": 0.0,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "random",
+      "severity": 0.5,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "random",
+      "severity": 0.9,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "correlated_org",
+      "severity": 0.5,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "targeted_whitebox",
+      "severity": 0.5,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "random",
+      "severity": 0.3,
+      "corruption_type": "node_coordinated",
+      "corruption_level": 0.1,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "random",
+      "severity": 0.3,
+      "corruption_type": "root",
+      "corruption_level": 0.1,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "partition",
+      "severity": 0.0,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 2,
+      "phase": "during_partition"
+    },
+    {
+      "regime": "partition",
+      "severity": 0.0,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 2,
+      "phase": "after_reconnect"
+    }
+  ],
+  "git_commit": "88a82d7aaf8de43768221a7e48f7fa682f54dcb0",
+  "git_dirty": true,
+  "started_utc": "2026-09-06T13:11:09.153817+00:00",
+  "environment": {
+    "python": "3.11.15",
+    "numpy": "2.4.6",
+    "scipy": "1.17.1",
+    "platform": "Linux-6.18.44-fc-v24-x86_64-with-glibc2.39",
+    "processor": "x86_64",
+    "cpu_count": 4,
+    "hostname": "vm"
+  },
+  "command": "/home/user/NeuralGraph/experiments/large_scale_agentic_web/src/runner.py --config experiments/large_scale_agentic_web/configs/smoke.json --tag smoke3",
+  "finished_utc": "2026-09-06T13:11:09.688392+00:00",
+  "runtime_seconds": 0.5279419422149658,
+  "per_seed_seconds": [
+    0.2805919647216797,
+    0.2471599578857422
+  ],
+  "n_rows": 162,
+  "world_summary": {
+    "n_agents": 100,
+    "n_orgs": 4,
+    "n_failure_domains": 16,
+    "n_regions": 8,
+    "n_claims": 400,
+    "n_lineage_roots": 1164,
+    "n_evidence_items": 4954,
+    "mean_roots_per_claim": 2.91,
+    "mean_items_per_claim": 12.385,
+    "max_items_per_claim": 100,
+    "frac_single_root_claims": 0.345,
+    "frac_revised_claims": 0.2775,
+    "frac_stale_items": 0.16128381106176826,
+    "n_questions_per_seed": 2570
+  },
+  "questions_per_seed": 2570,
+  "total_question_instances": 5140
+}

@@ -1,0 +1,64 @@
+{
+  "systems": [
+    "B3",
+    "B5",
+    "B6"
+  ],
+  "n_regions": 8,
+  "nodes_per_domain": 25,
+  "domains_per_org": 4,
+  "n_specialties": 12,
+  "claims_per_node": 2.0,
+  "claim_floor": 2000,
+  "root_mix": [
+    0.35,
+    0.4,
+    0.25
+  ],
+  "family_alpha": 1.1,
+  "family_cap": 40,
+  "correlated_family_size": 100,
+  "frac_class_correlated": 0.02,
+  "frac_class_independent": 0.02,
+  "revision_fraction": 0.25,
+  "home_same_domain": 0.6,
+  "home_same_org": 0.3,
+  "budget_k": 4,
+  "full_replicas": 16,
+  "gossip_replicas": 4,
+  "gossip_redundancy": 1.8,
+  "central_replicas": 3,
+  "max_probe": 8,
+  "parallel_probe": 4,
+  "querier_local_prob": 0.5,
+  "multi_hop2_fraction": 0.5,
+  "multi_hop3_fraction": 0.5,
+  "question_strategy": "hybrid",
+  "question_budget": 0.6,
+  "question_equalize_storage": true,
+  "failure_grid": {
+    "random": [
+      0.5
+    ],
+    "correlated_org": [
+      0.5
+    ],
+    "targeted_whitebox": [
+      0.5
+    ],
+    "correlated_domain": [
+      0.7
+    ]
+  },
+  "corruption_types": [],
+  "corruption_levels": [],
+  "corruption_base_regime": "random",
+  "corruption_base_severity": 0.3,
+  "n_false_variants": 4,
+  "partition_parts": [],
+  "partition_update_fraction": 0.3,
+  "name": "budget_n10000",
+  "n_agents": 10000,
+  "n_seeds": 15,
+  "note": "Storage-budget sweep (budget_k overridden on the command line)."
+}

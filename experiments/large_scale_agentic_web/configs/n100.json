@@ -1,0 +1,112 @@
+{
+  "systems": [
+    "B0",
+    "B1",
+    "B2",
+    "B3",
+    "B4",
+    "B5",
+    "B6",
+    "B7",
+    "B3Q"
+  ],
+  "n_regions": 8,
+  "nodes_per_domain": 25,
+  "domains_per_org": 4,
+  "n_specialties": 12,
+  "claims_per_node": 2.0,
+  "claim_floor": 2000,
+  "root_mix": [
+    0.35,
+    0.4,
+    0.25
+  ],
+  "family_alpha": 1.1,
+  "family_cap": 40,
+  "correlated_family_size": 100,
+  "frac_class_correlated": 0.02,
+  "frac_class_independent": 0.02,
+  "revision_fraction": 0.25,
+  "home_same_domain": 0.6,
+  "home_same_org": 0.3,
+  "budget_k": 4,
+  "full_replicas": 16,
+  "gossip_replicas": 4,
+  "gossip_redundancy": 1.8,
+  "central_replicas": 3,
+  "max_probe": 8,
+  "parallel_probe": 4,
+  "querier_local_prob": 0.5,
+  "multi_hop2_fraction": 0.5,
+  "multi_hop3_fraction": 0.5,
+  "question_strategy": "hybrid",
+  "question_budget": 0.6,
+  "question_equalize_storage": true,
+  "failure_grid": {
+    "random": [
+      0.0,
+      0.1,
+      0.3,
+      0.5,
+      0.7,
+      0.9
+    ],
+    "correlated_domain": [
+      0.1,
+      0.3,
+      0.5,
+      0.7,
+      0.9
+    ],
+    "correlated_org": [
+      0.1,
+      0.3,
+      0.5,
+      0.7,
+      0.9
+    ],
+    "correlated_region": [
+      0.1,
+      0.3,
+      0.5,
+      0.7,
+      0.9
+    ],
+    "targeted_world": [
+      0.1,
+      0.3,
+      0.5,
+      0.7,
+      0.9
+    ],
+    "targeted_whitebox": [
+      0.1,
+      0.3,
+      0.5,
+      0.7,
+      0.9
+    ]
+  },
+  "corruption_types": [
+    "node_coordinated",
+    "node_uncoordinated",
+    "root"
+  ],
+  "corruption_levels": [
+    0.01,
+    0.05,
+    0.1,
+    0.2
+  ],
+  "corruption_base_regime": "random",
+  "corruption_base_severity": 0.3,
+  "n_false_variants": 4,
+  "partition_parts": [
+    2,
+    4
+  ],
+  "partition_update_fraction": 0.3,
+  "name": "n100",
+  "n_agents": 100,
+  "n_seeds": 30
+}

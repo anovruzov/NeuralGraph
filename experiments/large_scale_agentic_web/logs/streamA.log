@@ -1,0 +1,113 @@
+[n100_main_20260906T140421Z] N=100 seeds=30 systems=['B0', 'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B3Q'] conditions=47 -> 12690 rows
+  world: {"n_agents": 100, "n_orgs": 4, "n_failure_domains": 16, "n_regions": 8, "n_claims": 2000, "n_lineage_roots": 5582, "n_evidence_items": 24132, "mean_roots_per_claim": 2.791, "mean_items_per_claim": 12.066, "max_items_per_claim": 100, "frac_single_root_claims": 0.3575, "frac_revised_claims": 0.2515, "frac_stale_items": 0.13334990883474226, "n_questions_per_seed": 12745}
+  seed 1000 (1/30) 3.0s
+  seed 1007 (2/30) 3.0s
+  seed 1014 (3/30) 3.0s
+  seed 1021 (4/30) 3.0s
+  seed 1028 (5/30) 3.0s
+  seed 1035 (6/30) 3.0s
+  seed 1042 (7/30) 3.0s
+  seed 1049 (8/30) 3.1s
+  seed 1056 (9/30) 3.2s
+  seed 1063 (10/30) 3.2s
+  seed 1070 (11/30) 3.0s
+  seed 1077 (12/30) 2.9s
+  seed 1084 (13/30) 3.1s
+  seed 1091 (14/30) 3.2s
+  seed 1098 (15/30) 3.0s
+  seed 1105 (16/30) 3.0s
+  seed 1112 (17/30) 3.0s
+  seed 1119 (18/30) 3.0s
+  seed 1126 (19/30) 3.0s
+  seed 1133 (20/30) 3.1s
+  seed 1140 (21/30) 3.1s
+  seed 1147 (22/30) 3.0s
+  seed 1154 (23/30) 3.0s
+  seed 1161 (24/30) 3.1s
+  seed 1168 (25/30) 3.2s
+  seed 1175 (26/30) 3.1s
+  seed 1182 (27/30) 3.1s
+  seed 1189 (28/30) 3.0s
+  seed 1196 (29/30) 3.0s
+  seed 1203 (30/30) 3.1s
+[n100_main_20260906T140421Z] 12690 rows in 91.9s -> /home/user/NeuralGraph/experiments/large_scale_agentic_web/results/n100_main_20260906T140421Z
+[n1000_main_20260906T140553Z] N=1000 seeds=30 systems=['B0', 'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B3Q'] conditions=47 -> 12690 rows
+  world: {"n_agents": 1000, "n_orgs": 10, "n_failure_domains": 40, "n_regions": 8, "n_claims": 2000, "n_lineage_roots": 5561, "n_evidence_items": 24232, "mean_roots_per_claim": 2.7805, "mean_items_per_claim": 12.116, "max_items_per_claim": 100, "frac_single_root_claims": 0.367, "frac_revised_claims": 0.2415, "frac_stale_items": 0.1169115219544404, "n_questions_per_seed": 12712}
+  seed 1000 (1/30) 3.3s
+  seed 1007 (2/30) 3.2s
+  seed 1014 (3/30) 3.2s
+  seed 1021 (4/30) 3.2s
+  seed 1028 (5/30) 3.1s
+  seed 1035 (6/30) 3.2s
+  seed 1042 (7/30) 3.3s
+  seed 1049 (8/30) 3.1s
+  seed 1056 (9/30) 3.0s
+  seed 1063 (10/30) 3.0s
+  seed 1070 (11/30) 3.1s
+  seed 1077 (12/30) 3.1s
+  seed 1084 (13/30) 3.0s
+  seed 1091 (14/30) 3.1s
+  seed 1098 (15/30) 3.0s
+  seed 1105 (16/30) 3.3s
+  seed 1112 (17/30) 3.2s
+  seed 1119 (18/30) 3.1s
+  seed 1126 (19/30) 3.1s
+  seed 1133 (20/30) 3.0s
+  seed 1140 (21/30) 3.0s
+  seed 1147 (22/30) 2.9s
+  seed 1154 (23/30) 3.0s
+  seed 1161 (24/30) 3.0s
+  seed 1168 (25/30) 3.1s
+  seed 1175 (26/30) 3.0s
+  seed 1182 (27/30) 3.1s
+  seed 1189 (28/30) 3.2s
+  seed 1196 (29/30) 3.1s
+  seed 1203 (30/30) 3.1s
+[n1000_main_20260906T140553Z] 12690 rows in 92.9s -> /home/user/NeuralGraph/experiments/large_scale_agentic_web/results/n1000_main_20260906T140553Z
+[n10000_main_20260906T140726Z] N=10000 seeds=30 systems=['B0', 'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B3Q'] conditions=47 -> 12690 rows
+  world: {"n_agents": 10000, "n_orgs": 100, "n_failure_domains": 400, "n_regions": 8, "n_claims": 20000, "n_lineage_roots": 55823, "n_evidence_items": 240123, "mean_roots_per_claim": 2.79115, "mean_items_per_claim": 12.00615, "max_items_per_claim": 136, "frac_single_root_claims": 0.3582, "frac_revised_claims": 0.24785, "frac_stale_items": 0.12884230165373578, "n_questions_per_seed": 127374}
+  seed 1000 (1/30) 28.0s
+  seed 1007 (2/30) 27.2s
+  seed 1014 (3/30) 26.7s
+  seed 1021 (4/30) 25.8s
+  seed 1028 (5/30) 24.9s
+  seed 1035 (6/30) 24.6s
+  seed 1042 (7/30) 25.4s
+  seed 1049 (8/30) 25.4s
+  seed 1056 (9/30) 24.7s
+  seed 1063 (10/30) 25.1s
+  seed 1070 (11/30) 25.9s
+  seed 1077 (12/30) 25.8s
+  seed 1084 (13/30) 25.4s
+  seed 1091 (14/30) 25.9s
+  seed 1098 (15/30) 27.0s
+  seed 1105 (16/30) 25.6s
+  seed 1112 (17/30) 25.0s
+  seed 1119 (18/30) 26.2s
+  seed 1126 (19/30) 25.1s
+  seed 1133 (20/30) 25.8s
+  seed 1140 (21/30) 24.6s
+  seed 1147 (22/30) 25.5s
+  seed 1154 (23/30) 25.0s
+  seed 1161 (24/30) 24.9s
+  seed 1168 (25/30) 25.3s
+  seed 1175 (26/30) 26.3s
+  seed 1182 (27/30) 26.5s
+  seed 1189 (28/30) 27.4s
+  seed 1196 (29/30) 27.1s
+  seed 1203 (30/30) 26.9s
+[n10000_main_20260906T140726Z] 12690 rows in 774.9s -> /home/user/NeuralGraph/experiments/large_scale_agentic_web/results/n10000_main_20260906T140726Z
+[n100000_main_20260906T142021Z] N=100000 seeds=10 systems=['B0', 'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B3Q'] conditions=20 -> 1800 rows
+  world: {"n_agents": 100000, "n_orgs": 1000, "n_failure_domains": 4000, "n_regions": 8, "n_claims": 200000, "n_lineage_roots": 562761, "n_evidence_items": 2424271, "mean_roots_per_claim": 2.813805, "mean_items_per_claim": 12.121355, "max_items_per_claim": 152, "frac_single_root_claims": 0.356145, "frac_revised_claims": 0.25036, "frac_stale_items": 0.12652463359088154, "n_questions_per_seed": 1273977}
+  seed 1000 (1/10) 309.0s
+  seed 1007 (2/10) 270.1s
+  seed 1014 (3/10) 271.3s
+  seed 1021 (4/10) 270.4s
+  seed 1028 (5/10) 309.6s
+  seed 1035 (6/10) 310.8s
+  seed 1042 (7/10) 311.7s
+  seed 1049 (8/10) 288.6s
+  seed 1056 (9/10) 303.3s
+  seed 1063 (10/10) 282.3s
+[n100000_main_20260906T142021Z] 1800 rows in 2927.2s -> /home/user/NeuralGraph/experiments/large_scale_agentic_web/results/n100000_main_20260906T142021Z
+STREAM_A_DONE

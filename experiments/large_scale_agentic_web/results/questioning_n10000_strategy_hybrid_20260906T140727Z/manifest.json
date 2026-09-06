@@ -1,0 +1,193 @@
+{
+  "experiment_id": "questioning_n10000_strategy_hybrid_20260906T140727Z",
+  "tag": "strategy_hybrid",
+  "config": {
+    "systems": [
+      "B6",
+      "B7",
+      "B3",
+      "B3Q"
+    ],
+    "n_regions": 8,
+    "nodes_per_domain": 25,
+    "domains_per_org": 4,
+    "n_specialties": 12,
+    "claims_per_node": 2.0,
+    "claim_floor": 2000,
+    "root_mix": [
+      0.35,
+      0.4,
+      0.25
+    ],
+    "family_alpha": 1.1,
+    "family_cap": 40,
+    "correlated_family_size": 100,
+    "frac_class_correlated": 0.02,
+    "frac_class_independent": 0.02,
+    "revision_fraction": 0.25,
+    "home_same_domain": 0.6,
+    "home_same_org": 0.3,
+    "budget_k": 4,
+    "full_replicas": 16,
+    "gossip_replicas": 4,
+    "gossip_redundancy": 1.8,
+    "central_replicas": 3,
+    "max_probe": 8,
+    "parallel_probe": 4,
+    "querier_local_prob": 0.5,
+    "multi_hop2_fraction": 0.5,
+    "multi_hop3_fraction": 0.5,
+    "question_strategy": "hybrid",
+    "question_budget": 0.6,
+    "question_equalize_storage": true,
+    "failure_grid": {
+      "correlated_org": [
+        0.5
+      ],
+      "random": [
+        0.5
+      ],
+      "targeted_whitebox": [
+        0.5
+      ]
+    },
+    "corruption_types": [
+      "node_coordinated",
+      "root"
+    ],
+    "corruption_levels": [
+      0.2
+    ],
+    "corruption_base_regime": "random",
+    "corruption_base_severity": 0.3,
+    "n_false_variants": 4,
+    "partition_parts": [],
+    "partition_update_fraction": 0.3,
+    "name": "questioning_n10000",
+    "n_agents": 10000,
+    "n_seeds": 15,
+    "note": "Continual-questioning ablation (strategy / budget / mix overridden on CLI).",
+    "overrides": [
+      "question_strategy=\"hybrid\""
+    ]
+  },
+  "config_path": "/home/user/NeuralGraph/experiments/large_scale_agentic_web/configs/questioning_n10000.json",
+  "seeds": [
+    1000,
+    1007,
+    1014,
+    1021,
+    1028,
+    1035,
+    1042,
+    1049,
+    1056,
+    1063,
+    1070,
+    1077,
+    1084,
+    1091,
+    1098
+  ],
+  "n_seeds": 15,
+  "systems": [
+    "B6",
+    "B7",
+    "B3",
+    "B3Q"
+  ],
+  "n_conditions": 5,
+  "conditions": [
+    {
+      "regime": "correlated_org",
+      "severity": 0.5,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "random",
+      "severity": 0.5,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "targeted_whitebox",
+      "severity": 0.5,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "random",
+      "severity": 0.3,
+      "corruption_type": "node_coordinated",
+      "corruption_level": 0.2,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "random",
+      "severity": 0.3,
+      "corruption_type": "root",
+      "corruption_level": 0.2,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    }
+  ],
+  "git_commit": "88a82d7aaf8de43768221a7e48f7fa682f54dcb0",
+  "git_dirty": true,
+  "started_utc": "2026-09-06T14:07:27.947258+00:00",
+  "environment": {
+    "python": "3.11.15",
+    "numpy": "2.4.6",
+    "scipy": "1.17.1",
+    "platform": "Linux-6.18.44-fc-v24-x86_64-with-glibc2.39",
+    "processor": "x86_64",
+    "cpu_count": 4,
+    "hostname": "vm"
+  },
+  "command": "/home/user/NeuralGraph/experiments/large_scale_agentic_web/src/runner.py --config experiments/large_scale_agentic_web/configs/questioning_n10000.json --tag strategy_hybrid --index-name questioning_strategy --set question_strategy=\"hybrid\"",
+  "finished_utc": "2026-09-06T14:07:40.770551+00:00",
+  "runtime_seconds": 12.81660509109497,
+  "per_seed_seconds": [
+    0.8857197761535645,
+    0.8413381576538086,
+    0.8693139553070068,
+    0.8607378005981445,
+    0.8473341464996338,
+    0.8394260406494141,
+    0.858590841293335,
+    0.8493046760559082,
+    0.8646643161773682,
+    0.8398017883300781,
+    0.8533055782318115,
+    0.8661057949066162,
+    0.8250327110290527,
+    0.8264634609222412,
+    0.8887543678283691
+  ],
+  "n_rows": 300,
+  "world_summary": {
+    "n_agents": 10000,
+    "n_orgs": 100,
+    "n_failure_domains": 400,
+    "n_regions": 8,
+    "n_claims": 20000,
+    "n_lineage_roots": 55823,
+    "n_evidence_items": 240123,
+    "mean_roots_per_claim": 2.79115,
+    "mean_items_per_claim": 12.00615,
+    "max_items_per_claim": 136,
+    "frac_single_root_claims": 0.3582,
+    "frac_revised_claims": 0.24785,
+    "frac_stale_items": 0.12884230165373578,
+    "n_questions_per_seed": 127374
+  },
+  "questions_per_seed": 127374,
+  "total_question_instances": 1910610
+}

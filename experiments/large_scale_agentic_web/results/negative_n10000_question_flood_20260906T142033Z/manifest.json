@@ -1,0 +1,198 @@
+{
+  "experiment_id": "negative_n10000_question_flood_20260906T142033Z",
+  "tag": "question_flood",
+  "config": {
+    "systems": [
+      "B3",
+      "B5",
+      "B6",
+      "B7",
+      "B3Q",
+      "B2"
+    ],
+    "n_regions": 8,
+    "nodes_per_domain": 25,
+    "domains_per_org": 4,
+    "n_specialties": 12,
+    "claims_per_node": 2.0,
+    "claim_floor": 2000,
+    "root_mix": [
+      0.35,
+      0.4,
+      0.25
+    ],
+    "family_alpha": 1.1,
+    "family_cap": 40,
+    "correlated_family_size": 100,
+    "frac_class_correlated": 0.02,
+    "frac_class_independent": 0.02,
+    "revision_fraction": 0.25,
+    "home_same_domain": 0.6,
+    "home_same_org": 0.3,
+    "budget_k": 4,
+    "full_replicas": 16,
+    "gossip_replicas": 4,
+    "gossip_redundancy": 1.8,
+    "central_replicas": 3,
+    "max_probe": 8,
+    "parallel_probe": 4,
+    "querier_local_prob": 0.5,
+    "multi_hop2_fraction": 0.5,
+    "multi_hop3_fraction": 0.5,
+    "question_strategy": "random",
+    "question_budget": 8.0,
+    "question_equalize_storage": true,
+    "failure_grid": {
+      "random": [
+        0.5,
+        0.9
+      ],
+      "correlated_org": [
+        0.5
+      ],
+      "targeted_whitebox": [
+        0.5
+      ]
+    },
+    "corruption_types": [
+      "root"
+    ],
+    "corruption_levels": [
+      0.2
+    ],
+    "corruption_base_regime": "random",
+    "corruption_base_severity": 0.3,
+    "n_false_variants": 4,
+    "partition_parts": [],
+    "partition_update_fraction": 0.3,
+    "name": "negative_n10000",
+    "n_agents": 10000,
+    "n_seeds": 15,
+    "note": "Adversarial search for regimes where lineage awareness and/or continual questioning stop helping.  World parameters are overridden per run on the command line (see run_all.sh).",
+    "overrides": [
+      "question_budget=8.0",
+      "question_strategy=\"random\""
+    ]
+  },
+  "config_path": "/home/user/NeuralGraph/experiments/large_scale_agentic_web/configs/negative_n10000.json",
+  "seeds": [
+    1000,
+    1007,
+    1014,
+    1021,
+    1028,
+    1035,
+    1042,
+    1049,
+    1056,
+    1063,
+    1070,
+    1077,
+    1084,
+    1091,
+    1098
+  ],
+  "n_seeds": 15,
+  "systems": [
+    "B3",
+    "B5",
+    "B6",
+    "B7",
+    "B3Q",
+    "B2"
+  ],
+  "n_conditions": 5,
+  "conditions": [
+    {
+      "regime": "random",
+      "severity": 0.5,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "random",
+      "severity": 0.9,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "correlated_org",
+      "severity": 0.5,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "targeted_whitebox",
+      "severity": 0.5,
+      "corruption_type": "none",
+      "corruption_level": 0.0,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    },
+    {
+      "regime": "random",
+      "severity": 0.3,
+      "corruption_type": "root",
+      "corruption_level": 0.2,
+      "partition_parts": 0,
+      "phase": "post_failure"
+    }
+  ],
+  "git_commit": "88a82d7aaf8de43768221a7e48f7fa682f54dcb0",
+  "git_dirty": true,
+  "started_utc": "2026-09-06T14:20:33.596450+00:00",
+  "environment": {
+    "python": "3.11.15",
+    "numpy": "2.4.6",
+    "scipy": "1.17.1",
+    "platform": "Linux-6.18.44-fc-v24-x86_64-with-glibc2.39",
+    "processor": "x86_64",
+    "cpu_count": 4,
+    "hostname": "vm"
+  },
+  "command": "/home/user/NeuralGraph/experiments/large_scale_agentic_web/src/runner.py --config experiments/large_scale_agentic_web/configs/negative_n10000.json --tag question_flood --index-name negative --set question_budget=8.0 --set question_strategy=\"random\"",
+  "finished_utc": "2026-09-06T14:21:37.412521+00:00",
+  "runtime_seconds": 63.80951738357544,
+  "per_seed_seconds": [
+    4.429511308670044,
+    4.759388208389282,
+    4.528555393218994,
+    4.005404710769653,
+    4.3186657428741455,
+    3.9019815921783447,
+    3.8808696269989014,
+    3.9967222213745117,
+    3.9928503036499023,
+    4.013284921646118,
+    4.607591152191162,
+    4.227984666824341,
+    4.762346982955933,
+    4.218858242034912,
+    4.164562940597534
+  ],
+  "n_rows": 450,
+  "world_summary": {
+    "n_agents": 10000,
+    "n_orgs": 100,
+    "n_failure_domains": 400,
+    "n_regions": 8,
+    "n_claims": 20000,
+    "n_lineage_roots": 55823,
+    "n_evidence_items": 240123,
+    "mean_roots_per_claim": 2.79115,
+    "mean_items_per_claim": 12.00615,
+    "max_items_per_claim": 136,
+    "frac_single_root_claims": 0.3582,
+    "frac_revised_claims": 0.24785,
+    "frac_stale_items": 0.12884230165373578,
+    "n_questions_per_seed": 127374
+  },
+  "questions_per_seed": 127374,
+  "total_question_instances": 1910610
+}
