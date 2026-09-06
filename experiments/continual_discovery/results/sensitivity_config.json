@@ -1,0 +1,48 @@
+{
+  "base_config": "configs/fast.json",
+  "agent_scale": 1000,
+  "n_seeds": 8,
+  "n_claims": 1500,
+  "axes": {
+    "corrupt_root_prob": [
+      0.05,
+      0.1,
+      0.14,
+      0.2,
+      0.3
+    ],
+    "root_zipf_exponent": [
+      0.0,
+      0.6,
+      1.0,
+      1.35,
+      1.8
+    ],
+    "question_budget_per_claim": [
+      1,
+      2,
+      3,
+      5,
+      8
+    ],
+    "min_independent_roots": [
+      2,
+      3,
+      4,
+      5
+    ],
+    "candidate_pool_size": [
+      16,
+      32,
+      64,
+      128
+    ]
+  },
+  "base_values": {
+    "corrupt_root_prob": 0.14,
+    "root_zipf_exponent": 1.35,
+    "question_budget_per_claim": 3,
+    "min_independent_roots": 3,
+    "candidate_pool_size": 64
+  }
+}

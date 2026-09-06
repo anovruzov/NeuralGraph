@@ -1,0 +1,25 @@
+{
+  "evidence_class": "measured_existing_experiments",
+  "source": "MYCELIC_ALL_RESULTS.md supplied by user, 2026-09-06",
+  "capability_survival": {
+    "lineage_targeted": 0.778,
+    "source_count": 0.556,
+    "full_replication": 0.667,
+    "random_diversification": 0.667
+  },
+  "transfer_bytes": {
+    "lineage_targeted": 5448,
+    "full_replication": 9877
+  },
+  "survival_per_kb_ratio_vs_full_replication": 2.11,
+  "routing_plus_pairs_mean_gain_pp": 8.6,
+  "graph_expansion_recall_at_10": {
+    "before": 0.468,
+    "after": 0.537
+  },
+  "matched_answer_accuracy": {
+    "before": 0.78,
+    "after": 0.68
+  },
+  "large_scale_hierarchy_status": "planned_not_completed"
+}

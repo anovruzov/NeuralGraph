@@ -163,6 +163,65 @@ exist to be compared against, not cited.
 
 ---
 
+## Track D — Continual discovery: strategic questioning (synthetic)
+
+Source: `experiments/continual_discovery/` on this branch. **Evidence class:
+synthetic simulation / mechanism probe.** Not a deployment result, and not
+comparable with Track A's measured survival numbers — the two share a
+mechanism, not an experiment.
+
+The question: when a collective's evidence descends from a few upstream
+roots, when should it ask for more evidence, and whom should it ask? Five
+policies (`none`, `random`, `uncertainty`, `lineage`, `continual`) share one
+root-balanced aggregator, so the comparison isolates question triggering and
+selection rather than the answer rule.
+
+Headline sweep, 10 seeds x 2,000 claims at each population label:
+
+| agents | policy | accuracy | false confident consensus | Q / claim | new roots / Q |
+|---:|---|---:|---:|---:|---:|
+| 10,000 | none | 0.810 ± 0.008 | 0.028 | 0.00 | 0.00 |
+| 10,000 | random | 0.834 ± 0.005 | 0.017 | 3.00 | 0.23 |
+| 10,000 | uncertainty | 0.833 ± 0.007 | 0.028 | 1.13 | 0.24 |
+| 10,000 | lineage | 0.827 ± 0.008 | 0.015 | 0.24 | 0.93 |
+| **10,000** | **continual** | **0.871 ± 0.004** | 0.019 | 1.92 | 0.84 |
+
+The 100 and 1,000 rows are within noise of these (full table in
+`experiments/continual_discovery/results/summary.md`). That flatness is
+expected, not a scaling finding: the per-claim candidate coalition is bounded
+at 64, so the population size is a label on the ID space, not a workload.
+
+Sensitivity sweep, 23 cells over the five protocol parameters, 8 seeds x 1,500
+claims each, seed-paired
+(`experiments/continual_discovery/results/sensitivity_summary.md`):
+
+- `continual` wins on accuracy against every baseline in **23 of 23** cells,
+  at about two thirds of `random`'s question spend.
+- `continual` is the only policy that resolves initial epistemic gaps at a
+  meaningful rate: 0.26 at base, against 0.10 random, 0.01 uncertainty, 0.00
+  lineage.
+- **Negative result:** `continual` loses to `random` on false confident
+  consensus in 15 of 23 cells, worst at high root corruption (0.076 vs 0.059
+  at `corrupt_root_prob = 0.30`). Its early stop leaves confidently wrong
+  claims that the full budget would have caught.
+- **Negative result:** `lineage` alone does not beat `random` on accuracy
+  (3 wins / 8 ties / 12 losses). It buys cost and calibration instead — 23 of
+  23 wins over `uncertainty` on false confident consensus, ~0.93 new roots per
+  question against ~0.23, at ~0.25 questions per claim.
+
+Reproduction: `bash run_fast.sh` regenerates the headline table; on Linux,
+Python 3.11.15, numpy 2.4.6 it reproduced the supplied run's metrics
+column-for-column (only `runtime_sec` differs). `bash run_sensitivity.sh`
+regenerates the sweep. 9 tests pass, including one asserting that a
+sensitivity cell at the base parameter values reproduces the headline rows.
+
+Notes that must survive into any citation: every number here is synthetic;
+"10,000 agents" means a synthetic population label with bounded per-claim
+routing; the false-confident-consensus loss is part of the result, not a
+footnote.
+
+---
+
 ## Evidence classes at a glance
 
 | track | headline | evidence class |
@@ -171,4 +230,5 @@ exist to be compared against, not cited.
 | Retrieval flat→shipped | +8.9, survives all four judges | judge-robust, committed per-question artifacts |
 | Retrieval overall | 72.2% vs 66.9% | partial cohort (conv 1–5), cross-judge, lenient |
 | December baseline | 66.7% | leaky, superseded |
-| Agentic Web N=100/1K/10K | — | proposed only; no experiment exists |
+| Continual questioning | continual 87.1% vs 83.4% best baseline, 23/23 cells | synthetic simulation / mechanism probe |
+| Agentic Web N=100/1K/10K | — | still proposed only; Track D is a simulation, not a deployment |

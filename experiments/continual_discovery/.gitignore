@@ -1,0 +1,5 @@
+# Run outputs are committed on purpose: the protocol requires that a reported
+# table travels with the config and seeds that produced it. Re-running a sweep
+# overwrites them in place, and the diff is the record of what changed.
+__pycache__/
+*.pyc

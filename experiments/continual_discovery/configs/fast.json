@@ -1,0 +1,42 @@
+{
+  "experiment_name": "continual_discovery_synthetic",
+  "agent_scales": [
+    100,
+    1000,
+    10000
+  ],
+  "n_claims": 2000,
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+  ],
+  "candidate_pool_size": 64,
+  "initial_observers": 6,
+  "question_budget_per_claim": 3,
+  "mean_roots_per_claim": 7.0,
+  "root_zipf_exponent": 1.35,
+  "root_correct_prob": 0.86,
+  "corrupt_root_prob": 0.14,
+  "local_flip_prob": 0.025,
+  "uncertainty_threshold": 0.72,
+  "high_confidence_threshold": 0.8,
+  "min_independent_roots": 3,
+  "continual_conflict_weight": 1.0,
+  "continual_lineage_weight": 1.0,
+  "continual_uncertainty_weight": 1.0,
+  "strategies": [
+    "none",
+    "random",
+    "uncertainty",
+    "lineage",
+    "continual"
+  ]
+}
