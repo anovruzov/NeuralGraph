@@ -1,0 +1,375 @@
+{
+  "audit_date": "2026-09-06",
+  "environment": {
+    "machine": "local macOS arm64 (Darwin 24.6.0)",
+    "python": "3.11.14",
+    "numpy": "2.4.6",
+    "pytest": "9.1.1",
+    "note": "prior cloud audit used Python 3.12.13/Linux; its workspace did not survive"
+  },
+  "head": "49c0a4df76c7397bfd3b5d174a543db7725bb3ed",
+  "branch": "audit/repository-readiness-2026-09-06",
+  "audited_main": "8785d691a95352eed618abca5b515aafaeab06dd",
+  "report_generation_state": {
+    "REPO_AUDIT.md": "complete",
+    "CLEANUP_LOG.md": "complete",
+    "REPRODUCIBILITY.md": "complete",
+    "repo_audit.json": "complete",
+    "prior_session_reports": "lost with cloud workspace; not recovered"
+  },
+  "remote_divergence": {
+    "observed": "2026-09-06 via ls-remote + fetch",
+    "origin_main": "8785d691a95352eed618abca5b515aafaeab06dd",
+    "local_only_branches": {
+      "locomo-six-fix-loop": {
+        "tip": "91253888660e2710937f9181be1fc3d394aea9bc",
+        "unpushed_commits": 15,
+        "upstream": null
+      },
+      "claude/mycelic-gate-0-recovery-tjl82x": {
+        "tip": "37103e50102c539318a1d6f3ec2a4ea14735818a",
+        "unpushed_commits": 5,
+        "upstream_tip": "1c8245c042dbfc449ba1d68b8ecffc26d5933686"
+      },
+      "tesseract-operator-plugin-v1": {
+        "tip": "899cb4b7d350ffc5a045368e45fc0de3008e9127",
+        "unpushed_commits": 1,
+        "tracking": "origin/claude/new-session-e99pju"
+      }
+    },
+    "previously_missing_commits_7dab416_37103e5": "FOUND \u2014 the 5 unpushed commits on local claude/mycelic-gate-0-recovery-tjl82x",
+    "stash": "stash@{0} 'On tesseract-coordination-v1: pre-replay 2026-08-21' \u2014 8 files +454/-107, retained, ownership UNKNOWN",
+    "master": "unrelated history (no common root with main), tip 46af258, frozen"
+  },
+  "ownership_boundaries": [
+    {
+      "owner": "PNurmanM (Nurman Mahammadov)",
+      "scope": "PR #3, branch research/retrieval-campaign-2026-09, and per CLAUDE.md rule 3: NeuralGraph/{answering,llm_profile_extractor,prompts,reranker,service,tesseract}.py, demo/runner.py",
+      "modified_by_audit": false,
+      "note": "audit-branch commit 9591a18 edits demo/runner.py on the audit branch only, one line, credential removal mirroring Nurman's own fix; flagged for his review"
+    },
+    {
+      "owner": "anovruzov",
+      "scope": "everything else including PRs #1-#2, coordination line, manuscript line"
+    },
+    {
+      "owner": "UNKNOWN",
+      "scope": "stash@{0}",
+      "action": "BLOCKED \u2014 CONTRIBUTOR APPROVAL REQUIRED"
+    }
+  ],
+  "tests": {
+    "command": "python -m pytest (repo root)",
+    "subtest_note": "subtest counts not separately reported by pytest 9.1.1; prior counts (2960 @13a1729, 3382 @37103e5) not re-measured; failing subTests would fail parents",
+    "runs": [
+      {
+        "commit": "8785d691",
+        "label": "main before cleanup",
+        "result": "collection INTERRUPTED (demo/test_instruments_fix.py TypeError)",
+        "classification": "PRE-EXISTING"
+      },
+      {
+        "commit": "8785d691",
+        "label": "main targeted NeuralGraph/tests",
+        "result": "1 skipped, 7 errors",
+        "classification": "PRE-EXISTING"
+      },
+      {
+        "commit": "audit branch post-cleanup",
+        "result": "identical to main (collection error + 1 skipped/7 errors targeted)",
+        "classification": "PRE-EXISTING; zero CLEANUP-INTRODUCED failures"
+      },
+      {
+        "commit": "13a1729a",
+        "result": "277 passed, 1 skipped, 7.5s"
+      },
+      {
+        "commit": "37103e50",
+        "result": "266 passed, 1 skipped, 8.0s"
+      },
+      {
+        "commit": "91253888",
+        "result": "346 passed, 1 skipped, 8.4s; tools.build_paper_tables --check PASS; tools.build_paper_figures --check PASS"
+      }
+    ]
+  },
+  "pull_requests": [
+    {
+      "number": 1,
+      "url": "https://github.com/anovruzov/NeuralGraph/pull/1",
+      "title": "Harden LoCoMo retrieval and GPT evaluation",
+      "author": "anovruzov",
+      "head_branch": "agent/locomo-integrity-gpt",
+      "head_sha": "e20215e9927bcd4c8bfb1c8fd4111c7ba14f1ad0",
+      "base": "main",
+      "base_sha": "8785d691a95352eed618abca5b515aafaeab06dd",
+      "created": "2026-08-02T19:52:45Z",
+      "updated": "2026-08-02T20:13:33Z",
+      "draft": true,
+      "mergeable_vs_main": "clean (fast-forward base)",
+      "reviews": 0,
+      "ci": "none",
+      "files": 16,
+      "additions": 1329,
+      "deletions": 814,
+      "commits": 3,
+      "purpose": "category-blind LoCoMo runner, OpenAI Responses client, lexical+RRF ranking, local hash embeddings, corrected category mapping, anti-leakage tests",
+      "experimental_semantics_changed": true,
+      "tests": "13 targeted tests, meaningful; judge/reranker-parser/fusion untested",
+      "artifacts": "none committed",
+      "conflicts": {
+        "with_pr3": "26 hunks across 6 retrieval-track files"
+      },
+      "recommendation": "NEEDS HUMAN REVIEW",
+      "relevance": "HIGH",
+      "risk": "MEDIUM",
+      "evidence_to_change": "Nurman adopting the category fix into #3, or owner decision on the retrieval track"
+    },
+    {
+      "number": 2,
+      "url": "https://github.com/anovruzov/NeuralGraph/pull/2",
+      "title": "Tesseract coordination v1",
+      "author": "anovruzov",
+      "head_branch": "tesseract-coordination-v1",
+      "head_sha": "8258d13e4f2fe1d74cbd21d799fe35706806e318",
+      "base": "main",
+      "base_sha": "8785d691a95352eed618abca5b515aafaeab06dd",
+      "created": "2026-08-16T07:05:58Z",
+      "updated": "2026-08-16T07:05:58Z",
+      "draft": false,
+      "mergeable_vs_main": "clean",
+      "reviews": 0,
+      "ci": "none",
+      "files": 13,
+      "additions": 5311,
+      "deletions": 0,
+      "commits": 3,
+      "purpose": "coordination package foundation + 2800 lines of tests + 3-line sqlite_storage source_memory_ids serialization",
+      "experimental_semantics_changed": false,
+      "tests": "extensive",
+      "artifacts": "none",
+      "superseded_by": "claude/session-analysis-continuation-sm1a1t (13a1729) \u2014 8258d13 is its ancestor",
+      "recommendation": "SUPERSEDED",
+      "relevance": "CRITICAL",
+      "risk": "LOW",
+      "evidence_to_change": "a decision not to publish the fuller branch"
+    },
+    {
+      "number": 3,
+      "url": "https://github.com/anovruzov/NeuralGraph/pull/3",
+      "title": "Leakage-free harness, per-agent memory routing + pair nodes, LM Studio",
+      "author": "PNurmanM",
+      "head_branch": "research/retrieval-campaign-2026-09",
+      "head_sha": "63aef96e797a394eaa23caa0f1e2314d8cc26f98",
+      "previously_audited_head": "eed4873c53342df5ba76aadb8e47ffb97a7c3170",
+      "delta_since_prior_audit": "307ba2b (KG extractor experiment, negative result) + 63aef96 (conversation-5 run, KG-union ablation, final tally)",
+      "base": "main",
+      "base_sha": "8785d691a95352eed618abca5b515aafaeab06dd",
+      "created": "2026-09-06T05:44:07Z",
+      "updated": "2026-09-06T06:53:52Z",
+      "draft": false,
+      "mergeable_vs_main": "clean",
+      "reviews": 0,
+      "ci": "none",
+      "files": 74,
+      "additions": 368476,
+      "deletions": 169,
+      "commits": 3,
+      "purpose": "LM Studio backend, mega search (vector+BM25+PPR), KG extractor, pair nodes, per-agent routing, leakage fixes, credential removal, 18 research docs, 20 result/cache JSONs",
+      "experimental_semantics_changed": true,
+      "tests": "none",
+      "artifacts": "capstone_full/rest + variant runs; metadata lacks run config, seeds, git SHA; judge field hardcoded",
+      "confirmed_issues": [
+        "category labels swapped (single_hop<->multi_hop, inherited from main; every per-category number mislabeled)",
+        "judge metadata hardcoded 'GPT-4o (OpenAI)' with silent local-Gemma fallback; final tally per report used the Gemma judge",
+        "caches (embedding/KG/reranker) not keyed on model or prompt",
+        "provider errors scored as wrong answers, no error accounting (0 errors present in shipped artifacts)",
+        "cohort 744/1540: conversations 6-10 unrun; adversarial category (29%) skipped; capstone_full.json is not full",
+        "profile-path category routing gate remains (off by default)",
+        "~12 referenced ablation outputs absent (author-machine absolute paths)"
+      ],
+      "headline_claim_check": "72.2% vs 66.9% over 744 q recomputes exactly from committed artifacts vs main's demo/maximal.json; merge/dedup/filter script not included",
+      "ownership": "Nurman \u2014 findings reported, nothing fixed on his branch",
+      "recommendation": "KEEP OPEN",
+      "relevance": "CRITICAL",
+      "risk": "MEDIUM",
+      "evidence_to_change": "label-swap correction, real judge/run-config metadata, cohort completion or scoped-down claims"
+    }
+  ],
+  "orphan_branches": [
+    {
+      "name": "plan/post-six-round-completion",
+      "tip": "2b0fbb7",
+      "content": "710-line plan doc + .env ignore on 1c8245c; documentation only"
+    },
+    {
+      "name": "claude/mycelic-three-agent-orchestration-af8bmr",
+      "tip": "2c1b29b",
+      "content": "gitignore/bytecode hygiene off main"
+    },
+    {
+      "name": "claude/new-session-e99pju",
+      "tip": "727490f",
+      "content": "embedding cache + question limit"
+    },
+    {
+      "name": "fix-the-accuracies",
+      "tip": "85eba75",
+      "content": "single-hop retrieval fix, pre-PR#1 line"
+    },
+    {
+      "name": "master",
+      "tip": "46af258",
+      "content": "unrelated history (SporeOS import); carries secrets #1 and #3 in tip/history"
+    }
+  ],
+  "research_claims": "see REPO_AUDIT.md section 8 (claim matrix); statuses used: VERIFIED, REPRODUCIBLE, IMPLEMENTED BUT NOT VALIDATED, PARTIALLY IMPLEMENTED, PROPOSED ONLY, CONTRADICTED, UNKNOWN",
+  "artifacts": [
+    {
+      "path": "NeuralGraph/coordination/artifacts/*.json (4) + figures/*.svg (5) + SHA256SUMS",
+      "commit": "13a1729",
+      "status": "VERIFIED: checksums OK, regeneration bitwise-identical, PYTHONHASHSEED-independent",
+      "generator_commit": "UNKNOWN (no metadata in artifacts; 13a1729 regenerates bitwise)"
+    },
+    {
+      "path": "evaluation/artifacts/*.json (3) + SHA256SUMS",
+      "commit": "13a1729",
+      "status": "checksums OK; producer commands undocumented in REPRODUCE.md"
+    },
+    {
+      "path": "docs/paper/* via tools/build_paper_{tables,figures}.py",
+      "commit": "9125388 (local-only)",
+      "status": "--check PASS; unpublished"
+    },
+    {
+      "path": "demo/results/* (PR #3)",
+      "commit": "63aef96",
+      "status": "aggregate arithmetic verified; metadata contradicted (judge, categories); run config absent"
+    }
+  ],
+  "security_findings": [
+    {
+      "id": 1,
+      "type": "OpenAI project key (sk-proj, 164ch)",
+      "locations": "history of demo/runner.py + demo/run_benchmark.py since 2025-12-16",
+      "public_tip": "origin/master (run_benchmark.py)",
+      "rotation": "REQUIRED, UNRESOLVED"
+    },
+    {
+      "id": 2,
+      "type": "OpenAI project key",
+      "locations": "demo/runner.py:72 since 791dbe8 (2025-12-19)",
+      "public_tip": "origin/main + 14 other tips incl. pr/2",
+      "fixed_on": [
+        "audit branch 9591a18",
+        "PR #1",
+        "PR #3"
+      ],
+      "rotation": "REQUIRED, UNRESOLVED"
+    },
+    {
+      "id": 3,
+      "type": "OpenAI project key",
+      "locations": "evaluation/locomo10_parallel_benchmark.py, origin/master history only (2025-12-07..13)",
+      "public_tip": "none",
+      "rotation": "REQUIRED, UNRESOLVED"
+    },
+    {
+      "id": 4,
+      "type": "OpenAI project key",
+      "locations": "untracked .env, never committed",
+      "public_tip": "none",
+      "rotation": "REQUIRED, UNRESOLVED"
+    },
+    {
+      "note": "values never printed; full scan of 4015 blobs, all ref tips, 3 stash trees, working tree; false positives documented; no history rewrite performed (unauthorized; would touch every ref); 21 unpushed commits introduce no secret (20 inherit already-public #2)"
+    }
+  ],
+  "cleanup_actions": [
+    {
+      "commit": "999823f",
+      "action": "DELETE 22 tracked NeuralGraph/__pycache__/*.pyc + add .gitignore (verbatim from 13a1729)",
+      "recovery": "git checkout 8785d691 -- NeuralGraph/__pycache__/",
+      "recreates": "35570724"
+    },
+    {
+      "commit": "f48da4a",
+      "action": "ADD evaluation/agentic_web/README.md (boundary contract, no fake modules)",
+      "recreates": "130e82da"
+    },
+    {
+      "commit": "9591a18",
+      "action": "demo/runner.py hardcoded key -> os.environ lookup (1 line)",
+      "recreates": "e45c5c7a",
+      "ownership_note": "retrieval-track file; minimal security-only edit, flagged for Nurman"
+    },
+    {
+      "incident": "a defensive stash pop applied historical stash@{0} into the audit worktree; fully reverted (reset --hard f48da4a + clean); stash entry preserved intact; original checkout unaffected"
+    }
+  ],
+  "reproducibility": {
+    "verified_bitwise": [
+      "13a1729 coordination artifacts (4 JSON + 5 SVG)",
+      "9125388 paper tables/figures --check"
+    ],
+    "class": "bitwise deterministic (PYTHONHASHSEED-independent), no network, no credentials, ~1s/command",
+    "not_reproducible": [
+      "PR #3 LLM numbers (live models, no seeds, config absent from metadata)",
+      "PR #3 ablations (outputs on author machine)",
+      "PR #1 claims (no artifacts)"
+    ],
+    "gaps": [
+      "9125388 line unpublished (single-machine)",
+      "RESULTS.md/SCALE.md unpinned",
+      "evaluation SHA256SUMS producers undocumented",
+      "no CI"
+    ],
+    "details": "REPRODUCIBILITY.md"
+  },
+  "agentic_web_readiness": {
+    "boundary": "evaluation/agentic_web/ reserved with experimental contract",
+    "gates": {
+      "1_deterministic_small_world": "PROPOSED",
+      "2_provenance_evaluator_isolation": "PROPOSED",
+      "3_n100_smoke": "PROPOSED",
+      "4_n1000": "PROPOSED",
+      "5_n10000": "PROPOSED",
+      "6_independent_reproduction": "PROPOSED"
+    },
+    "verdict": "ready for implementation against the contract; not ready for execution; no population-scale claim supportable"
+  },
+  "recommended_actions": [
+    {
+      "priority": "P0",
+      "action": "rotate all four OpenAI keys",
+      "owner": "human"
+    },
+    {
+      "priority": "P0",
+      "action": "push the 21 local-only commits (user-authorized after verification)",
+      "status": "pending GitHub auth"
+    },
+    {
+      "priority": "P0",
+      "action": "retrieval-track ownership decision between PR #1 and PR #3 semantics",
+      "owner": "Anar + Nurman"
+    },
+    {
+      "priority": "P1",
+      "action": "PR #3 label-swap and judge-metadata fixes",
+      "owner": "Nurman"
+    },
+    {
+      "priority": "P1",
+      "action": "supersede PR #2 with a PR at 13a1729+"
+    },
+    {
+      "priority": "P1",
+      "action": "add CI: pytest + figures --check + secret scan"
+    },
+    {
+      "priority": "P2",
+      "action": "commit the dirty closeout addendum; recover PR #3 ablation outputs; resolve stash@{0} ownership"
+    }
+  ]
+}
