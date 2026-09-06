@@ -1,0 +1,75 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Machine Learning Engineer - BigCo Careers</title></head><body>
+<div data-automation-id="jobPostingPage">
+<h1>Machine Learning Engineer</h1>
+<div id="step1" class="step">
+  <h2>My Information</h2>
+  <form id="f1" onsubmit="return next1(event)">
+    <label for="wd_first">First Name<abbr title="required">*</abbr></label>
+    <input id="wd_first" data-automation-id="legalNameSection_firstName" name="firstName" required>
+    <label for="wd_last">Last Name<abbr title="required">*</abbr></label>
+    <input id="wd_last" data-automation-id="legalNameSection_lastName" name="lastName" required>
+    <label for="wd_email">Email Address<abbr title="required">*</abbr></label>
+    <input id="wd_email" type="email" name="email" required>
+    <label for="wd_phone">Phone Number<abbr title="required">*</abbr></label>
+    <input id="wd_phone" type="tel" name="phone" required>
+    <label for="wd_country">Country<abbr title="required">*</abbr></label>
+    <select id="wd_country" name="country" required>
+      <option value="">Select One</option><option>United States of America</option>
+      <option>Canada</option><option>United Kingdom</option></select>
+    <label for="wd_source">How Did You Hear About Us?<abbr title="required">*</abbr></label>
+    <select id="wd_source" name="source" required>
+      <option value="">Select One</option><option>Company Website</option>
+      <option>Job Board</option><option>Referral</option><option>Career Fair</option></select>
+    <button type="submit" id="nextBtn1">Save and Continue</button>
+  </form>
+</div>
+<div id="step2" class="step" style="display:none">
+  <h2>My Experience</h2>
+  <form id="f2" onsubmit="return next2(event)">
+    <label for="wd_resume">Resume/CV<abbr title="required">*</abbr></label>
+    <input id="wd_resume" type="file" name="resume" required>
+    <label for="wd_school">School or University<abbr title="required">*</abbr></label>
+    <input id="wd_school" name="school" required>
+    <label for="wd_degree">Degree<abbr title="required">*</abbr></label>
+    <select id="wd_degree" name="degree" required>
+      <option value="">Select One</option><option>Bachelor's Degree</option>
+      <option>Master's Degree</option><option>Doctorate</option></select>
+    <label for="wd_field">Field of Study</label>
+    <input id="wd_field" name="fieldOfStudy">
+    <label for="wd_skills">Skills</label>
+    <input id="wd_skills" name="skills">
+    <button type="submit" id="nextBtn2">Save and Continue</button>
+  </form>
+</div>
+<div id="step3" class="step" style="display:none">
+  <h2>Application Questions</h2>
+  <form id="f3" onsubmit="return done(event)">
+    <label for="wd_auth">Are you legally authorized to work in the country of employment?<abbr title="required">*</abbr></label>
+    <select id="wd_auth" name="auth" required><option value="">Select One</option>
+      <option>Yes</option><option>No</option></select>
+    <label for="wd_sponsor">Will you now or in the future require sponsorship to work in the country of employment?<abbr title="required">*</abbr></label>
+    <select id="wd_sponsor" name="sponsor" required><option value="">Select One</option>
+      <option>Yes</option><option>No</option></select>
+    <label for="wd_start">Earliest Start Date</label>
+    <input id="wd_start" type="date" name="startDate">
+    <label><input type="checkbox" id="wd_terms" name="terms" required> I certify that the information provided is true and complete.</label>
+    <button type="submit" id="submitAppBtn">Submit</button>
+  </form>
+</div></div>
+<script>
+function guard(form){const bad=[];
+ for(const el of form.querySelectorAll('[required]')){
+  if(el.type==='file'){if(!el.files.length)bad.push(el.id);}
+  else if(el.type==='checkbox'){if(!el.checked)bad.push(el.id);}
+  else if(!el.value)bad.push(el.id);}
+ if(bad.length){let d=form.querySelector('.error');if(!d){d=document.createElement('div');
+   d.className='error';d.setAttribute('role','alert');form.prepend(d);}
+   d.innerText='This field is required: '+bad.join(', ');return false;} return true;}
+function next1(e){e.preventDefault();if(!guard(e.target))return false;
+ document.getElementById('step1').style.display='none';document.getElementById('step2').style.display='block';return false;}
+function next2(e){e.preventDefault();if(!guard(e.target))return false;
+ document.getElementById('step2').style.display='none';document.getElementById('step3').style.display='block';return false;}
+function done(e){e.preventDefault();if(!guard(e.target))return false;
+ history.pushState({},'','?confirmation=submitted');
+ document.body.innerHTML='<h1>Thank you for applying</h1><p>Your application has been received by BigCo. Reference Number: R-889231</p>';return false;}
+</script></body></html>

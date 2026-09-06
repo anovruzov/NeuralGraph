@@ -20,6 +20,10 @@
   "work_authorization": "Authorized to work in the United States for any employer",
   "sponsorship_requirement": "No, I do not now or in the future require sponsorship",
   "security_clearance": "",
+  "criminal_history": "No",
+  "visa_status": "",
+  "age_over_18": "Yes",
+  "prior_employment": "No",
   "relocation_preferences": "Open to relocation within the United States",
   "remote_preferences": "Prefer remote, open to hybrid in Austin",
   "salary_preferences": "150000",
@@ -46,7 +50,16 @@
       "summary": "Worked on transformer fine-tuning and model evaluation tooling."
     }
   ],
-  "skills": ["Python", "PyTorch", "LLM evaluation", "RAG", "SQL", "Playwright", "Docker", "Distributed training"],
+  "skills": [
+    "Python",
+    "PyTorch",
+    "LLM evaluation",
+    "RAG",
+    "SQL",
+    "Playwright",
+    "Docker",
+    "Distributed training"
+  ],
   "demographic_response_policy": {
     "gender": "decline",
     "race_ethnicity": "decline",
@@ -55,5 +68,8 @@
     "disability_status": "decline",
     "pronouns": "decline"
   },
-  "cover_letter_policy": {"mode": "generate", "cover_letter_path": ""}
+  "cover_letter_policy": {
+    "mode": "generate",
+    "cover_letter_path": ""
+  }
 }

@@ -61,9 +61,28 @@ class ApplicationFiller:
                        "location": job.location,
                        "description_excerpt": (job.description or "")[:600]}
 
+        seen_signatures: list[str] = []
+
         for step in range(1, MAX_FORM_STEPS + 1):
             outcome.steps = step
             snapshot = extract_form(page, include_frames=True)
+
+            signature = self._signature(snapshot)
+            if signature in seen_signatures:
+                # Clicking Next left us on the same step: the form rejected the
+                # advance. Refilling it again would only repeat the failure.
+                outcome.status = JobStatus.BLOCKED
+                outcome.blocker = blockers.Blocker(
+                    blockers.VALIDATION_FAILED,
+                    "form did not advance past this step",
+                    "; ".join(snapshot.errors[:3]) or "no validation message shown")
+                outcome.screenshot = self.browser.screenshot(
+                    page, f"{job.company}_stuck") or ""
+                log.warning("form did not advance", extra={"job_id": job.job_id,
+                                                           "step": step,
+                                                           "errors": snapshot.errors[:3]})
+                return outcome
+            seen_signatures.append(signature)
 
             blocker = blockers.detect_blocker(snapshot, self._page_html(page))
             if blocker is not None:
@@ -263,6 +282,11 @@ class ApplicationFiller:
         return outcome
 
     # ------------------------------------------------------------- helpers
+
+    @staticmethod
+    def _signature(snapshot: FormSnapshot) -> str:
+        """Identity of a form step, used to notice that a Next click did nothing."""
+        return "|".join(sorted(f"{f.key}:{f.type}" for f in snapshot.fields))
 
     def _settle(self, page: Page) -> None:
         """Wait for the page to react to the submit click."""

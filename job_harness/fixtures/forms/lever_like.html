@@ -1,0 +1,58 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Research Engineer - Frontier Labs</title></head><body>
+<div class="content">
+<h2>Apply for this job</h2>
+<form method="POST" class="application-form" onsubmit="return go(event)">
+ <div class="application-field"><input type="text" name="name" placeholder="Full name" required></div>
+ <div class="application-field"><input type="email" name="email" placeholder="Email" required></div>
+ <div class="application-field"><input type="tel" name="phone" placeholder="Phone" required></div>
+ <div class="application-field"><input type="text" name="org" placeholder="Current company"></div>
+ <div class="application-field"><input type="url" name="urls[LinkedIn]" placeholder="LinkedIn URL"></div>
+ <div class="application-field"><input type="url" name="urls[GitHub]" placeholder="GitHub URL"></div>
+ <div class="application-field"><label>Resume/CV<input type="file" name="resume" required></label></div>
+ <div class="application-question">
+   <div class="application-label">What is the total number of years of professional software engineering experience you have? <span class="required">✱</span></div>
+   <input type="text" name="cards[q1][field0]" required>
+ </div>
+ <div class="application-question">
+   <div class="application-label">Are you legally authorized to work in the United States? ✱</div>
+   <div class="application-field">
+     <label><input type="radio" name="cards[q2][field0]" value="Yes" required> Yes</label>
+     <label><input type="radio" name="cards[q2][field0]" value="No"> No</label>
+   </div>
+ </div>
+ <div class="application-question">
+   <div class="application-label">Do you now or will you in the future require visa sponsorship? ✱</div>
+   <div class="application-field">
+     <label><input type="radio" name="cards[q3][field0]" value="Yes" required> Yes</label>
+     <label><input type="radio" name="cards[q3][field0]" value="No"> No</label>
+   </div>
+ </div>
+ <div class="application-question">
+   <div class="application-label">What is your expected annual base salary (USD)?</div>
+   <input type="text" name="cards[q4][field0]">
+ </div>
+ <div class="application-question">
+   <div class="application-label">Have you ever been convicted of a felony? ✱</div>
+   <div class="application-field">
+     <label><input type="radio" name="cards[q5][field0]" value="Yes" required> Yes</label>
+     <label><input type="radio" name="cards[q5][field0]" value="No"> No</label>
+   </div>
+ </div>
+ <div class="application-field"><label>Additional information<textarea name="comments" rows="4"></textarea></label></div>
+ <div class="application-field"><label><input type="checkbox" name="consent" required> I consent to Frontier Labs storing my application data.</label></div>
+ <button type="submit" class="postings-btn">Submit application</button>
+</form></div>
+<script>
+function go(e){e.preventDefault();
+ const f=e.target, bad=[];
+ for(const el of f.querySelectorAll('[required]')){
+   if(el.type==='file'){ if(!el.files.length) bad.push(el.name); }
+   else if(el.type==='radio'){ if(!f.querySelector(`input[name="${el.name}"]:checked`)) bad.push(el.name); }
+   else if(el.type==='checkbox'){ if(!el.checked) bad.push(el.name); }
+   else if(!el.value) bad.push(el.name);
+ }
+ if(bad.length){const d=document.createElement('div');d.className='error';d.setAttribute('role','alert');
+   d.innerText='Please complete required fields: '+bad.join(', ');f.prepend(d);return false;}
+ document.body.innerHTML='<h1>Thanks for applying!</h1><p>Your application was submitted to Frontier Labs. We will be in touch.</p>';
+ return false;}
+</script></body></html>

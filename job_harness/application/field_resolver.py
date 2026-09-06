@@ -44,6 +44,31 @@ DEGREE_SYNONYMS = {
     "high_school": ["high school", "secondary", "ged", "diploma"],
 }
 
+# Verbose attestation options ("I am authorized to work in the US without
+# sponsorship") cannot be matched by yes/no text alone; these decide an option's
+# polarity for the question being asked.
+POLARITY_MARKERS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
+    # semantic_key: (markers meaning "yes", markers meaning "no")
+    "work_authorization": (
+        ("authorized", "authorised", "eligible to work", "citizen", "permanent resident",
+         "green card", "no sponsorship", "without sponsorship", "do not require sponsorship"),
+        ("not authorized", "not authorised", "not eligible", "require sponsorship",
+         "need sponsorship", "will require", "visa sponsorship is required"),
+    ),
+    "sponsorship_required": (
+        ("require sponsorship", "need sponsorship", "will require", "yes, i require",
+         "sponsorship is required", "i will need"),
+        ("do not require", "don't require", "not require", "no sponsorship",
+         "without sponsorship", "do not need", "no, i do not"),
+    ),
+    "criminal_history": (
+        ("yes",), ("no", "have not", "never")),
+    "relocation": (
+        ("yes", "willing", "open to"), ("no", "not willing", "unable")),
+}
+
+NEGATION_NEAR = re.compile(r"\b(not|never|no|don't|do not|cannot|can't)\b")
+
 REMOTE_SYNONYMS = {
     "remote": ["remote", "fully remote", "work from home", "wfh", "distributed"],
     "hybrid": ["hybrid", "flexible", "partially remote"],
@@ -106,6 +131,49 @@ def _match_degree_option(profile_degree: str, options: list[dict[str, Any]]
     return None
 
 
+def _option_polarity(label: str, semantic_key: str) -> Optional[bool]:
+    """True/False if this option clearly expresses yes/no for the question, else None."""
+    markers = POLARITY_MARKERS.get(semantic_key)
+    if not markers:
+        return None
+    text = re.sub(r"\s+", " ", str(label or "").lower()).strip()
+    if not text:
+        return None
+    yes_markers, no_markers = markers
+    # Negative markers are checked first: they are the more specific phrases and
+    # usually contain a positive marker as a substring.
+    if any(m in text for m in no_markers):
+        return False
+    if any(m in text for m in yes_markers):
+        return True
+    if text in ("yes", "y"):
+        return True
+    if text in ("no", "n"):
+        return False
+    return None
+
+
+def match_attestation_option(verdict: str, options: list[dict[str, Any]],
+                             semantic_key: str) -> Optional[dict[str, Any]]:
+    """Pick the option expressing `verdict` ('yes'/'no') for an attestation question.
+
+    Requires an unambiguous winner: if two options read the same way, the harness
+    refuses rather than picking one.
+    """
+    want = verdict == "yes"
+    scored = [(option, _option_polarity(option.get("label") or "", semantic_key))
+              for option in options]
+    scored = [(o, p) for o, p in scored
+              if p is not None and not str(o.get("label") or "").lower().startswith("select")]
+    matches = [o for o, p in scored if p is want]
+    if len(matches) == 1:
+        return matches[0]
+    if len(matches) > 1:
+        # Prefer the most explicit phrasing, e.g. "Yes" over "Yes, with conditions".
+        return min(matches, key=lambda o: len(str(o.get("label") or "")))
+    return None
+
+
 def _decline_option(options: list[dict[str, Any]]) -> Optional[dict[str, Any]]:
     for option in options:
         label = str(option.get("label") or "").lower()
@@ -126,8 +194,13 @@ class FieldResolver:
     # ------------------------------------------------------------- resolve
 
     def resolve(self, field: FormField, job_context: dict[str, Any]) -> ResolvedAnswer:
-        semantic_key = semantics.classify_label(
-            field.label, field.name, field.placeholder, field.help
+        # The visible label is the most reliable signal; fall back to the wider
+        # blob (name, placeholder, help text) only if it yields nothing.
+        semantic_key = (
+            semantics.classify_label(field.label)
+            or semantics.classify_label(field.aria_label)
+            or semantics.classify_label(field.placeholder)
+            or semantics.classify_label(field.label, field.name, field.placeholder, field.help)
         )
         resolver_used = "deterministic"
 
@@ -221,6 +294,8 @@ class FieldResolver:
             "security_clearance": ("security_clearance", a.get("security_clearance")),
             "criminal_history": ("criminal_history", a.get("criminal_history")),
             "visa_status": ("visa_status", a.get("visa_status")),
+            "age_verification": ("age_over_18", a.get("age_over_18")),
+            "prior_employment": ("prior_employment", a.get("prior_employment")),
         }
         if key in simple:
             path, value = simple[key]
@@ -294,7 +369,13 @@ class FieldResolver:
             if option:
                 return option.get("label")
         option = best_option(value, field.options)
-        return option.get("label") if option else None
+        if option is not None:
+            return option.get("label")
+        if str(value).lower() in ("yes", "no"):
+            option = match_attestation_option(str(value).lower(), field.options, semantic_key)
+            if option is not None:
+                return option.get("label")
+        return None
 
     def _worth_asking(self, field: FormField, semantic_key: str) -> bool:
         """Is it worth spending a model call on this optional field?"""

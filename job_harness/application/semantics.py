@@ -19,6 +19,16 @@ LABEL_PATTERNS: list[tuple[re.Pattern[str], str]] = [(re.compile(p, re.I), k) fo
     (r"\b(phone|mobile|cell|telephone)\b", "phone"),
     (r"\bpronouns?\b", "pronouns"),
 
+    # Work status. Sponsorship is checked before generic authorization because
+    # both mention "visa" and the answers are opposite.
+    (r"sponsor(ship)?", "sponsorship_required"),
+    (r"(legally )?authoriz(ed|ation) to work|work authorization|right to work|eligible to work",
+     "work_authorization"),
+    (r"\bvisa\b|\bimmigration status\b|\bh-?1b\b|\bopt\b|\bcpt\b", "visa_status"),
+    (r"security clearance|\bclearance\b|ts/sci|top secret", "security_clearance"),
+    (r"felony|criminal|convicted|background check consent", "criminal_history"),
+    (r"\b(are you|have you).*(18|eighteen)\b|age.*(18|eighteen)", "age_verification"),
+
     # Location
     (r"\b(street|address\s*line|address1|mailing address)\b", "address"),
     (r"\b(zip|postal)\s*code\b", "postal_code"),
@@ -39,24 +49,15 @@ LABEL_PATTERNS: list[tuple[re.Pattern[str], str]] = [(re.compile(p, re.I), k) fo
 
     # Education
     (r"\b(school|university|college|institution)\b", "university"),
-    (r"\bdegree\b|\bqualification\b", "degree"),
+    (r"\bdegree\b|\bqualification\b|highest level of education|level of education|"
+     r"education level|highest (education|degree)", "degree"),
     (r"\b(discipline|major|field of study|concentration)\b", "major"),
     (r"\b(graduation|grad)\s*(date|year|month)?\b|expected graduation", "graduation_date"),
     (r"\bgpa\b|grade point", "gpa"),
 
-    # Work status. Sponsorship is checked before generic authorization because
-    # both mention "visa" and the answers are opposite.
-    (r"sponsor(ship)?", "sponsorship_required"),
-    (r"(legally )?authoriz(ed|ation) to work|work authorization|right to work|eligible to work",
-     "work_authorization"),
-    (r"\bvisa\b|\bimmigration status\b|\bh-?1b\b|\bopt\b|\bcpt\b", "visa_status"),
-    (r"security clearance|\bclearance\b|ts/sci|top secret", "security_clearance"),
-    (r"felony|criminal|convicted|background check consent", "criminal_history"),
-    (r"\b(are you|have you).*(18|eighteen)\b|age.*(18|eighteen)", "age_verification"),
-
     # Experience / logistics
-    (r"years? of (relevant |professional |industry |total )?experience|how many years",
-     "years_experience"),
+    (r"years?\s+of\s+[\w\s/&,-]{0,60}?experience|(number|how many)\s+(of\s+)?years|"
+     r"experience.*\byears\b", "years_experience"),
     (r"\b(desired|expected|target)?\s*(salary|compensation|pay|rate)\b|salary expectation",
      "salary_expectation"),
     (r"\b(start date|available to start|availability|earliest.*(start|join))\b", "start_date"),
@@ -99,11 +100,20 @@ SENSITIVE_KEYS = {"security_clearance", "criminal_history", "visa_status",
 FREE_TEXT_KEYS = {"why_this_company", "open_question", "cover_letter"}
 
 
+REQUIRED_MARKERS = re.compile(r"[*✱†‡]+|\(\s*required\s*\)|\brequired\b\s*$", re.I)
+
+
+def clean_label(text: str) -> str:
+    """Strip required markers and punctuation noise so patterns can anchor."""
+    cleaned = REQUIRED_MARKERS.sub(" ", str(text or ""))
+    cleaned = re.sub(r"[_\[\]]+", " ", cleaned)
+    return re.sub(r"\s+", " ", cleaned).strip()
+
+
 def classify_label(field_label: str, name: str = "", placeholder: str = "",
                    help_text: str = "") -> Optional[str]:
     """Return a semantic key from deterministic patterns, or None."""
-    blob = " ".join(x for x in (field_label, name, placeholder, help_text) if x)
-    blob = re.sub(r"[_\[\]]+", " ", blob)
+    blob = " ".join(clean_label(x) for x in (field_label, name, placeholder, help_text) if x)
     if not blob.strip():
         return None
     for pattern, key in LABEL_PATTERNS:

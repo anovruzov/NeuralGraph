@@ -1,0 +1,54 @@
+<!doctype html><html><head><meta charset="utf-8"><title>LLM Engineer at Nova</title></head><body>
+<div id="root"><h1>LLM Engineer</h1>
+<form id="ashby-application-form" onsubmit="return send(event)">
+ <div class="_fieldEntry"><label id="l1">Name<span aria-hidden="true">*</span></label>
+   <input aria-labelledby="l1" aria-required="true" name="_systemfield_name" type="text"></div>
+ <div class="_fieldEntry"><label id="l2">Email<span aria-hidden="true">*</span></label>
+   <input aria-labelledby="l2" aria-required="true" name="_systemfield_email" type="email"></div>
+ <div class="_fieldEntry"><label id="l3">Resume<span aria-hidden="true">*</span></label>
+   <input aria-labelledby="l3" aria-required="true" name="_systemfield_resume" type="file" accept=".pdf,.docx"></div>
+ <div class="_fieldEntry"><label id="l4">LinkedIn</label>
+   <input aria-labelledby="l4" name="linkedin" type="url"></div>
+ <div class="_fieldEntry"><label id="l5">Location (City)<span aria-hidden="true">*</span></label>
+   <input aria-labelledby="l5" aria-required="true" role="combobox" aria-controls="loc-list" aria-autocomplete="list" name="location" type="text" autocomplete="off">
+   <ul id="loc-list" role="listbox">
+     <li role="option" data-value="austin">Austin, Texas, United States</li>
+     <li role="option" data-value="sf">San Francisco, California, United States</li>
+     <li role="option" data-value="nyc">New York, New York, United States</li>
+   </ul></div>
+ <div class="_fieldEntry"><label id="l6">Which best describes your work authorization?<span aria-hidden="true">*</span></label>
+   <select aria-labelledby="l6" aria-required="true" name="work_auth">
+     <option value="">Please select</option>
+     <option value="a">I am authorized to work in the US without sponsorship</option>
+     <option value="b">I require sponsorship now or in the future</option>
+   </select></div>
+ <div class="_fieldEntry"><label id="l7">Highest level of education completed<span aria-hidden="true">*</span></label>
+   <select aria-labelledby="l7" aria-required="true" name="edu">
+     <option value="">Please select</option>
+     <option>High School</option><option>Associate's Degree</option>
+     <option>Bachelor's Degree</option><option>Master's Degree</option><option>PhD</option>
+   </select></div>
+ <div class="_fieldEntry"><label id="l8">Tell us about a system you built that you are proud of.<span aria-hidden="true">*</span></label>
+   <textarea aria-labelledby="l8" aria-required="true" name="q_system" maxlength="3000"></textarea></div>
+ <div class="_fieldEntry"><label id="l9">What is your mother's maiden name?</label>
+   <input aria-labelledby="l9" name="q_weird" type="text"></div>
+ <button type="submit">Submit Application</button>
+</form></div>
+<script>
+document.querySelectorAll('[role=combobox]').forEach(cb=>{
+  const list=document.getElementById(cb.getAttribute('aria-controls'));
+  list.style.display='none';
+  cb.addEventListener('focus',()=>list.style.display='block');
+  cb.addEventListener('input',()=>{list.style.display='block';
+    for(const li of list.children){li.style.display = li.innerText.toLowerCase().includes(cb.value.toLowerCase())?'block':'none';}});
+  for(const li of list.children){li.addEventListener('click',()=>{cb.value=li.innerText;list.style.display='none';});}
+});
+function send(e){e.preventDefault();const f=e.target;const bad=[];
+ for(const el of f.querySelectorAll('[aria-required=true]')){
+  if(el.type==='file'){if(!el.files.length)bad.push(el.name);} else if(!el.value)bad.push(el.name);}
+ if(bad.length){const d=document.createElement('div');d.setAttribute('role','alert');d.className='error';
+   d.innerText='Required: '+bad.join(', ');f.prepend(d);return false;}
+ window.history.pushState({},'','?success=true');
+ document.body.innerHTML='<h1>Application received</h1><p>Thank you for applying to Nova. Application ID: NOVA-778812</p>';
+ return false;}
+</script></body></html>

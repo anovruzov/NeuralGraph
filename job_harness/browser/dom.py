@@ -23,14 +23,25 @@ EXTRACT_JS = r"""
   const MAX_TEXT = 400;
   const clean = (s) => (s || "").replace(/\s+/g, " ").trim().slice(0, MAX_TEXT);
 
+  const hiddenByAncestor = (el) => {
+    // A step of a multi-step form is display:none until it is reached; its
+    // controls must not be treated as part of the current step.
+    let node = el;
+    while (node && node.nodeType === 1) {
+      const style = window.getComputedStyle(node);
+      if (style.display === "none" || style.visibility === "hidden") return true;
+      if (node.hasAttribute && node.hasAttribute("hidden")) return true;
+      node = node.parentElement;
+    }
+    return false;
+  };
+
   const isVisible = (el) => {
     if (!el) return false;
-    const style = window.getComputedStyle(el);
-    if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0")
-      return false;
+    if (hiddenByAncestor(el)) return false;
     const r = el.getBoundingClientRect();
     if (r.width === 0 && r.height === 0) {
-      // A styled file input or custom control may be sized zero but still usable.
+      // A styled file input or custom select can be sized zero but still usable.
       return el.type === "file" || el.tagName === "SELECT";
     }
     return true;
@@ -75,12 +86,16 @@ EXTRACT_JS = r"""
     // 3. wrapping <label>
     const wrap = el.closest("label");
     if (wrap && clean(wrap.innerText)) return clean(wrap.innerText);
-    // 4. nearest labelling text in the enclosing field group
+    // 4. nearest labelling text in the enclosing field group. Climb only while
+    //    the container holds this control alone: a container with several
+    //    controls would hand back some other field's label.
     let node = el.parentElement;
-    for (let depth = 0; node && depth < 4; depth++, node = node.parentElement) {
-      const lbl = node.querySelector("label, legend, .label, [class*='label'], [class*='Label']");
+    for (let depth = 0; node && depth < 5; depth++, node = node.parentElement) {
+      const controls = node.querySelectorAll("input:not([type=hidden]), select, textarea");
+      if (controls.length > 1) break;
+      const lbl = node.querySelector(
+        "label, legend, .label, [class*='label'], [class*='Label'], [class*='question']");
       if (lbl && clean(lbl.innerText)) return clean(lbl.innerText);
-      node.querySelectorAll && null;
     }
     // 5. previous sibling text
     let prev = el.previousElementSibling;
@@ -110,17 +125,35 @@ EXTRACT_JS = r"""
     return "";
   };
 
+  const REQUIRED_MARK = /[*✱†]|\(\s*required\s*\)|\brequired\b/i;
+
   const isRequired = (el) => {
     if (el.required || el.getAttribute("aria-required") === "true") return true;
-    const group = el.closest("div, fieldset, li, section");
-    if (group) {
-      const cls = group.className || "";
-      if (/required/i.test(typeof cls === "string" ? cls : "")) return true;
-      const text = clean(group.innerText).slice(0, 200);
-      if (/\*\s*$|\*\s|\(required\)|required\b/i.test(text)) return true;
+    if (el.getAttribute("aria-required") === "false") return false;
+
+    const lbl = el.id
+      ? document.querySelector(`label[for="${CSS.escape ? CSS.escape(el.id) : el.id}"]`)
+      : null;
+    if (lbl && REQUIRED_MARK.test(lbl.innerText || "")) return true;
+
+    const labelledby = el.getAttribute("aria-labelledby");
+    if (labelledby) {
+      for (const id of labelledby.split(/\s+/)) {
+        const n = document.getElementById(id);
+        if (n && REQUIRED_MARK.test(n.innerText || "")) return true;
+      }
     }
-    const lbl = el.id ? document.querySelector(`label[for="${CSS.escape ? CSS.escape(el.id) : el.id}"]`) : null;
-    if (lbl && /\*|required/i.test(lbl.innerText || "")) return true;
+
+    // Climb only while the container holds this control alone: a shared
+    // container carries other fields' required markers.
+    let node = el.parentElement;
+    for (let depth = 0; node && depth < 4; depth++, node = node.parentElement) {
+      if (node.querySelectorAll("input:not([type=hidden]), select, textarea").length > 1) break;
+      const cls = typeof node.className === "string" ? node.className : "";
+      if (/(^|[-_ ])required([-_ ]|$)/i.test(cls)) return true;
+      const text = clean(node.innerText).slice(0, 250);
+      if (REQUIRED_MARK.test(text)) return true;
+    }
     return false;
   };
 
@@ -136,7 +169,7 @@ EXTRACT_JS = r"""
     const type = (el.getAttribute("type") || (tag === "select" ? "select" : tag)).toLowerCase();
     if (["hidden", "submit", "button", "reset", "image"].includes(type)) continue;
     if (el.getAttribute("aria-hidden") === "true") continue;
-    if (!isVisible(el) && type !== "file") continue;
+    if (!isVisible(el)) continue;
 
     const name = el.getAttribute("name") || "";
     const entry = {
@@ -175,12 +208,23 @@ EXTRACT_JS = r"""
           label: labelFor(m) || clean(m.value), value: m.value, selector: cssPath(m),
           checked: !!m.checked,
         }));
-        // The group label sits above the options, not on any single input.
-        const fieldset = el.closest("fieldset, [role='radiogroup'], div");
-        if (fieldset) {
-          const legend = fieldset.querySelector("legend, label, .label, [class*='label']");
-          if (legend && clean(legend.innerText)) entry.label = clean(legend.innerText);
+        // The group label sits above the options, never on one input. Climb until
+        // a labelling element is found whose text is not one of the option labels.
+        const optionTexts = new Set(entry.options.map(o => (o.label || "").toLowerCase()));
+        let group = el.parentElement, groupLabel = "";
+        for (let depth = 0; group && depth < 5 && !groupLabel; depth++, group = group.parentElement) {
+          const candidates = group.querySelectorAll(
+            "legend, .label, [class*='label'], [class*='Label'], [class*='question'], label, p, div");
+          for (const c of candidates) {
+            if (c.querySelector("input, select, textarea")) continue;
+            const t = clean(c.innerText);
+            if (!t || t.length > 300) continue;
+            if (optionTexts.has(t.toLowerCase())) continue;
+            groupLabel = t;
+            break;
+          }
         }
+        if (groupLabel) entry.label = groupLabel;
         entry.type = "radio";
       } else {
         entry.checked = !!el.checked;

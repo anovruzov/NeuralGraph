@@ -287,6 +287,20 @@ class FakeQwenTransport(httpx.BaseTransport):
         options = field.get("options") or []
         option_texts = [o.get("label") if isinstance(o, dict) else str(o) for o in options]
 
+        if field.get("type") == "textarea" or "tell us" in label or "describe" in label:
+            history = profile.get("employment_history") or []
+            first = history[0] if history and isinstance(history[0], dict) else {}
+            skills = ", ".join((profile.get("skills") or [])[:5])
+            if first.get("summary"):
+                return {"field_type": "textarea",
+                        "answer": (f"At {first.get('company','')} I worked as "
+                                   f"{first.get('title','')}: {first.get('summary','')} "
+                                   f"My core skills are {skills}."),
+                        "confidence": 0.85,
+                        "source": "profile.employment_history[0].summary",
+                        "safe_to_submit": True,
+                        "reason": "composed from employment history"}
+
         if "why" in label and field.get("type") == "textarea":
             skills = ", ".join((profile.get("skills") or [])[:5])
             return {"field_type": "textarea",
