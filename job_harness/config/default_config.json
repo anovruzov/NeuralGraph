@@ -1,0 +1,28 @@
+{
+  "discovery": {
+    "freshness_days": 7,
+    "remote_only": false,
+    "max_jobs_per_board": 200,
+    "boards": {
+      "greenhouse": [],
+      "lever": [],
+      "ashby": []
+    },
+    "seed_urls": []
+  },
+  "scoring": {
+    "apply_threshold": 65,
+    "borderline_threshold": 50,
+    "allow_senior_roles": false
+  },
+  "run": {
+    "max_applications": 25,
+    "max_applications_per_hour": 12,
+    "max_applications_per_company": 2
+  },
+  "dashboard": {
+    "enabled": true,
+    "host": "127.0.0.1",
+    "port": 8765
+  }
+}
