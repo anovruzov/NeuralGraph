@@ -94,13 +94,16 @@ def parse_posted_date(value: Optional[str]) -> Optional[date]:
             return datetime.fromtimestamp(num, tz=timezone.utc).date()
         except (OverflowError, OSError, ValueError):
             return None
-    relative = re.match(r"(\d+)\s*(day|hour|week|month)s?\s+ago", text, re.I)
+    # ATS listings usually prefix these ("Posted 3 Days Ago"), so search, not match.
+    relative = re.search(r"(\d+)\+?\s*(day|hour|week|month)s?\s+ago", text, re.I)
     if relative:
         n, unit = int(relative.group(1)), relative.group(2).lower()
         delta = {"hour": timedelta(hours=n), "day": timedelta(days=n),
                  "week": timedelta(weeks=n), "month": timedelta(days=30 * n)}[unit]
         return (datetime.now(timezone.utc) - delta).date()
-    if re.match(r"(today|just posted|new)", text, re.I):
+    if re.search(r"\b(today|just posted|posted today|yesterday)\b", text, re.I):
+        if re.search(r"\byesterday\b", text, re.I):
+            return (datetime.now(timezone.utc) - timedelta(days=1)).date()
         return datetime.now(timezone.utc).date()
     return None
 

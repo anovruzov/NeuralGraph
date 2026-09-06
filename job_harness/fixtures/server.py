@@ -11,7 +11,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Optional
 
-FIXTURE_DIR = Path(__file__).resolve().parent.parent / "fixtures" / "forms"
+FIXTURE_DIR = Path(__file__).resolve().parent / "forms"
 
 BOARD_TEMPLATE = """<!doctype html><html><head><meta charset="utf-8">
 <title>Fixture Job Board</title></head><body>

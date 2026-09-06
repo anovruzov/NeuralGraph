@@ -103,11 +103,20 @@ class Orchestrator:
 
     @property
     def state(self) -> str:
-        return self.db.get_control(CONTROL_KEY, STATE_RUNNING) or STATE_RUNNING
+        try:
+            return self.db.get_control(CONTROL_KEY, STATE_RUNNING) or STATE_RUNNING
+        except Exception:
+            return STATE_STOPPED       # database gone: treat as a stop, never spin
 
     def set_state(self, state: str) -> None:
-        self.db.set_control(CONTROL_KEY, state)
-        self.db.set_run_context(self.run_id, state=state)
+        # A stop can arrive from a signal handler while shutdown is already in
+        # progress, so persisting the new state must never raise.
+        try:
+            self.db.set_control(CONTROL_KEY, state)
+            self.db.set_run_context(self.run_id, state=state)
+        except Exception as exc:
+            log.warning("could not persist state change",
+                        extra={"state": state, "error": str(exc)[:200]})
         log.info("harness state changed", extra={"state": state})
 
     def request_stop(self, reason: str = "stop requested") -> None:
