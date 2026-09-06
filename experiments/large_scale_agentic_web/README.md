@@ -243,5 +243,29 @@ logs/       run logs
 seeds.json  the fixed seed list
 environment.txt  dependency and machine versions of the last run
 RESULTS.md  the full report
-PAPER_SECTION.md  ~500-word section ready for insertion, with captions
+RESULTS.pdf full report rendered, with all figures
+PAPER_SECTION.md  ~500-word section, long form, with captions
+SECTION_INSERT.pdf  the same result compressed to ONE camera-ready page
+MycelialFabric_with_stress_test.pdf  the paper with that page spliced in before
+            the references (body becomes 10pp; trim one page to return to the
+            9-page limit)
 ```
+
+## Figure design
+
+Nine systems is more colour than any categorical palette can carry: validated
+against the six-check colour formula with `--pairs all`, seven or more chromatic
+slots fail CVD separation outright. The figures therefore facet by *role*. The
+four equal-budget policies the paper's claim is actually about (`B3`, `B5`, `B6`,
+`B7`) get four hues — `#0059A0 #C24400 #3D8FC8 #0F7A5A`, which pass lightness
+band, chroma floor, all-pairs CVD separation, normal-vision floor and 3:1
+contrast — and the systems that serve as cost or performance envelopes are drawn
+as neutral reference lines with distinct dash patterns and direct labels, so
+identity never rests on colour alone. Survival and accuracy axes always span the
+full [0, 1]; nothing is truncated.
+
+The seed-to-seed spread is far narrower than that axis, so a single marker per
+system would hide the distribution. Figure 2 and the insert figure therefore plot
+**every run as its own point** on a zoomed companion panel — 180-210 dots — which
+is what makes it visible that the three equal-budget policies genuinely coincide
+while questioning separates.

@@ -1,8 +1,8 @@
 {
   "experiment": "Large-Scale Agentic Web Stress Test",
   "paper": "3D Lineage-First Mycelial Fabric \u2014 Continual Discovery",
-  "generated_utc": "2026-09-06T15:16:19.275308+00:00",
-  "git_commit": "88a82d7aaf8de43768221a7e48f7fa682f54dcb0",
+  "generated_utc": "2026-09-06T15:41:57.212243+00:00",
+  "git_commit": "bcf1e1121136ead655296fa955fc79e38a6eaf8d",
   "git_dirty_at_manifest_time": true,
   "environment": {
     "python": "3.11.15",
@@ -628,12 +628,12 @@
       "bytes": 0
     },
     "src/analyze.py": {
-      "sha256": "b5a726ac0cafd32f3ede5bdcf934b6fc772d2fbfc53b0e97e9cca5ebc970b791",
-      "bytes": 35424
+      "sha256": "4a9f14acf722ab4f751da1da7c3bc70e40e9e38dbdc8c47258eefc6a700ae6d6",
+      "bytes": 36076
     },
     "src/append_to_paper.py": {
-      "sha256": "687de2a50e2c5fc3274d056b5cffad0b70ebdea7935239b75cdd4ddeffe94a91",
-      "bytes": 8010
+      "sha256": "4d76962b377970dbe7cc3c0e70ab1f1d778d5b897eb605c233ae7de7aaa6f28b",
+      "bytes": 9112
     },
     "src/evaluate.py": {
       "sha256": "bf89f0471db77a0571acd8d5e2af53d3b35bbaccd645c171813f9d999c8d0fc0",
@@ -644,8 +644,12 @@
       "bytes": 7759
     },
     "src/figures.py": {
-      "sha256": "75c1e439bbcd61b660ab58d0beefe5af8ec341fa8369809cbd3a7ff53d25c6f8",
-      "bytes": 12946
+      "sha256": "09ff400b1287b22b730856a5e060ce6bb7cfbaf87a8db8b8dbc5d9a3cbc89b77",
+      "bytes": 21143
+    },
+    "src/insert_page.py": {
+      "sha256": "605f8fa01fa763fd9d78ff99c419fd79e4f62a13e74c0613b151638a642e4ad7",
+      "bytes": 10606
     },
     "src/make_pdf.py": {
       "sha256": "55aef91b979a5c2eb2ff10a5d309dc1dec0c6bbb0cc0ada09ec91bfbb81f0c60",
@@ -752,8 +756,8 @@
       "bytes": 28178
     },
     "tables/table4b_questioning_gq.csv": {
-      "sha256": "86361ea036a9c42547ab719f37f93bf557b486c7e67f4ad3f93084fe5a28317e",
-      "bytes": 85111
+      "sha256": "e2f6441b0b56833c44251f9648ba8307e0fce15da340ffa6cc0181d08281f321",
+      "bytes": 73974
     },
     "tables/table4c_questioning_strategy.csv": {
       "sha256": "7207c947e71ec7f5c44588b94d0b75d53bcbd6dd6221ff4ae20c235ed7d92f67",
@@ -796,52 +800,60 @@
       "bytes": 94794
     },
     "figures/fig1_money_survival_vs_failure.pdf": {
-      "sha256": "3468d7fc98f3c89103815d6493852d75776711dd6b3499175fb93ffeab0d1282",
-      "bytes": 44201
+      "sha256": "2d9fb5502be7283c8ed8a3b931560c5fd158da1d5c96c4be38699dd30e605423",
+      "bytes": 43570
     },
     "figures/fig1_money_survival_vs_failure.png": {
-      "sha256": "865ab1b36f5eca271dba511186ba9937cb4b8e3a0314324694a662097ee44408",
-      "bytes": 675556
+      "sha256": "31c5192a53a23f4be6b88144b0647a70d95b9cdec5ecda02ecdd1b37cef55397",
+      "bytes": 710988
     },
     "figures/fig2_money_frontier.pdf": {
-      "sha256": "66a11cb9cfd84dcfb17b033bb7347af13df187b1d60a3adab80b9d1804c8d1de",
-      "bytes": 24387
+      "sha256": "b7609aac5798b6ba98df783c5e64b9b8e465f62134c8e0538de27d198f8d3291",
+      "bytes": 26865
     },
     "figures/fig2_money_frontier.png": {
-      "sha256": "10a75999b29dc792761c5437b5f1a7f6c619a4ae8c37655a3e69b6ce4c30af84",
-      "bytes": 207378
+      "sha256": "3b8e68ff76c4227f8b5995ae5105b8d318f67f3da1efe9bcbb55a15a79ebbc50",
+      "bytes": 303519
     },
     "figures/fig3_scaling.pdf": {
-      "sha256": "c392b0469c208c31f2916a3a07b46a8b566a29ef7fcc0044920c40b88ebee61d",
-      "bytes": 29129
+      "sha256": "9b08cd9325a0c4c3af9509b6a4005272ee9888db66b6be48ed8d0757b6265807",
+      "bytes": 28409
     },
     "figures/fig3_scaling.png": {
-      "sha256": "a0cdfa7e35707dee5a694a3dcfcce9b1e14596489d90861572daf6ea02c29633",
-      "bytes": 219698
+      "sha256": "c3ffcf7aac6537e056ea00e6caf81a6ab67b4bf6c5b686526b400f2bd2f5a62c",
+      "bytes": 265112
     },
     "figures/fig4_corruption.pdf": {
-      "sha256": "49ff6913f29e13c1d82e4296d391344c25726fe3771a68461b428d50f0f5db7d",
-      "bytes": 31760
+      "sha256": "269a123fc26556f33aa3fe94a5bc116ccd5c48927fb79a0c283ef7f7e40cb8ae",
+      "bytes": 30945
     },
     "figures/fig4_corruption.png": {
-      "sha256": "f79477ad154b2c9470f3557291508f450c60eeecbe0519d521e6acfda9e8aab4",
-      "bytes": 357040
+      "sha256": "654d27954fed7464372da9050fa05812928427b7b6576ed9d8d6585f4af2b5a2",
+      "bytes": 394355
     },
     "figures/fig5_correlated_vs_independent.pdf": {
-      "sha256": "ca94642b86078ae300e2f1961dff00adcfdb9fed2c200577311e82b76da2893a",
-      "bytes": 22602
+      "sha256": "d3248379548eb1f0c69f1dd0665e5fd819e7aa158a16cfe2fd48c1e0f19f2a4e",
+      "bytes": 22962
     },
     "figures/fig5_correlated_vs_independent.png": {
-      "sha256": "88892a24e08971eb8ca6fee8308fcf7c9ab284f7a59958d43054fc5c5a1581e4",
-      "bytes": 134474
+      "sha256": "aa5ab92df4a002af32bfe6620eb7af688e5deb7f81576f8083ffe35471acf63e",
+      "bytes": 165709
     },
     "figures/fig6_questioning_budget.pdf": {
-      "sha256": "84c328c90d7e7d00536c132e84e205da21a61973f1e3cb625f18c0861ed34dd9",
-      "bytes": 25414
+      "sha256": "eb6c4bedfb8fd56b4297e83f9454fc475d8c2ba44debdcc8a7b478ffdb29e46a",
+      "bytes": 27106
     },
     "figures/fig6_questioning_budget.png": {
-      "sha256": "649e909215a6cd4dfc2eb43630cd2ab15b9ab75820a5b384835cafff9f354cb4",
-      "bytes": 247694
+      "sha256": "00dc754a2a4603c5a7147c2824735cf85f9ba4833c136baf76178c187ef2dd0f",
+      "bytes": 309226
+    },
+    "figures/fig_insert.pdf": {
+      "sha256": "bf4a3757e4fa97de52bf348eb18ae8b22452c85dd6d946949d52dd10d65c012a",
+      "bytes": 27491
+    },
+    "figures/fig_insert.png": {
+      "sha256": "ab11298cf127abcc7da994a8b82d0df41163f8a89633f9c4a6e40d614fd89d08",
+      "bytes": 233394
     },
     "run_all.sh": {
       "sha256": "f693dbb26f6efe3116d0ad465b6db04739a31768c5b00a7587a29b9942a3d444",
@@ -856,11 +868,11 @@
       "bytes": 40
     },
     "README.md": {
-      "sha256": "95edf9f0d38296b6b2568118f0b71ea6608874de4fea47bd583e2b695d7d282a",
-      "bytes": 12820
+      "sha256": "a205d5b736d320e2d17b6f162129a74df4d7b351bd305c39ced2a593979bdae6",
+      "bytes": 14245
     },
     "RESULTS.md": {
-      "sha256": "caa0e77b5187cc077ec5cc48049bed07aed53b8bb569d010c98270c835ec4f39",
+      "sha256": "6cf31d9fcf739ec8f9c078398a728e04ae2c150b86029fa37d663220a8e625b4",
       "bytes": 58692
     },
     "PAPER_SECTION.md": {
@@ -1196,9 +1208,9 @@
       "bytes": 112581
     },
     "results/summary.json": {
-      "sha256": "cb37883eb89ae228bb7efc9281c836d68698b892d8fdc036ea6cd7bbbaab61a4",
-      "bytes": 2810633
+      "sha256": "581887be6ff52af6650f3f94f6e22cad27ed96f61ffc0f4871bd02f6d107f3dc",
+      "bytes": 2783856
     }
   },
-  "n_files": 144
+  "n_files": 147
 }

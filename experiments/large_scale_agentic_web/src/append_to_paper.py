@@ -158,12 +158,35 @@ def main(argv=None):
     ap.add_argument("--out", default=None)
     ap.add_argument("--section-number", type=int, default=9)
     ap.add_argument("--md", default=str(ROOT / "PAPER_SECTION.md"))
+    ap.add_argument("--insert", default=None,
+                    help="a ready-made PDF (e.g. SECTION_INSERT.pdf) to splice in "
+                         "immediately before the page where the references start, "
+                         "instead of typesetting PAPER_SECTION.md at the end")
     args = ap.parse_args(argv)
 
     from pypdf import PdfReader, PdfWriter
     paper = Path(args.paper)
     reader = PdfReader(str(paper))
     n_pages = len(reader.pages)
+
+    if args.insert:
+        ins = PdfReader(str(Path(args.insert)))
+        ref_at = next((i for i, pg in enumerate(reader.pages)
+                       if "References" in (pg.extract_text() or "")), n_pages)
+        w = PdfWriter()
+        for pg in reader.pages[:ref_at]:
+            w.add_page(pg)
+        for pg in ins.pages:
+            w.add_page(pg)
+        for pg in reader.pages[ref_at:]:
+            w.add_page(pg)
+        out = Path(args.out) if args.out else ROOT / (paper.stem + "_with_insert.pdf")
+        with open(out, "wb") as fh:
+            w.write(fh)
+        print(f"wrote {out}: body is now {ref_at + len(ins.pages)} pages before the "
+              f"references (was {ref_at}); trim {ref_at + len(ins.pages) - 9} page(s) "
+              f"elsewhere to return to 9")
+        return out
 
     tmp = ROOT / "figures" / "_new_section.pdf"
     render_section(Path(args.md), tmp, args.section_number, n_pages + 1)

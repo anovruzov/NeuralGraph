@@ -284,8 +284,7 @@ def build_main_tables(rows_by_n: dict[int, list[dict]], out_tables: Path,
 
     # ---- money figure 1 ------------------------------------------------------
     regimes = ["random", "correlated_org", "targeted_whitebox"]
-    titles = ["random churn", "correlated failure (whole organisations)",
-              "targeted lineage attack (white box)"]
+    titles = ["Random churn", "Correlated failure", "Targeted attack"]
     data = defaultdict(list)
     for key, per_sys in s.items():
         _, reg, sev, ct, cl, pp, phase = key
@@ -293,9 +292,10 @@ def build_main_tables(rows_by_n: dict[int, list[dict]], out_tables: Path,
             continue
         for sysid, e in per_sys.items():
             data[(reg, sysid)].append({"severity": sev, **e})
+    summary["_severity_data"] = data
     F.money_figure(data, systems_order, regimes, titles,
                    ["knowledge_survival", "accuracy_macro"],
-                   ["knowledge survival", "task accuracy (macro)"],
+                   ["knowledge survival", "task accuracy"],
                    main_n, out_figs / "fig1_money_survival_vs_failure.png", n_seeds)
 
     # ---- corruption figure ---------------------------------------------------
@@ -434,8 +434,22 @@ def build_frontier(index, main_rows_by_n, out_tables: Path, out_figs: Path, summ
                            "storage_per_claim": e["storage_per_claim"]["mean"],
                            "total_cost_per_claim": e["storage_per_claim"]["mean"]
                            + e["messages_per_claim"]["mean"]})
+    # every seed's own knowledge-survival value, so the figure can show the
+    # actual spread instead of a single summary marker per system
+    per_seed = {}
+    for sysid in ["B0", "B1", "B2", "B3", "B3Q", "B4", "B5", "B6", "B7"]:
+        try:
+            vals = series(main, key, sysid, "knowledge_survival") if main else np.array([])
+        except KeyError:
+            continue
+        if vals.size:
+            per_seed[sysid] = vals
     F.frontier_figure(points, sweep, out_figs / "fig2_money_frontier.png", n_agents,
-                      "50% targeted lineage attack", n_seeds)
+                      "50% targeted lineage attack", n_seeds, per_seed=per_seed)
+    sev = summary.get("_severity_data")
+    if sev:
+        F.insert_figure(sev, points, sweep, per_seed,
+                        out_figs / "fig_insert.png", n_agents, n_seeds)
     summary["frontier_points"] = [{"system": p["system"],
                                    "storage_per_claim": p["storage_per_claim"],
                                    "total_cost_per_claim": p["total_cost_per_claim"],
@@ -738,6 +752,7 @@ def main(argv=None):
     }
 
     out = ROOT / "results" / f"summary{('_' + args.out_tag) if args.out_tag else ''}.json"
+    summary.pop("_severity_data", None)
     out.write_text(json.dumps(summary, indent=2, default=float))
     print(f"wrote {out}")
     print(f"tables -> {out_tables}, figures -> {out_figs}")
