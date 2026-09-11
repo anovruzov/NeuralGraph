@@ -87,6 +87,27 @@ Conversation / Event Stream
    Grounded Answer + Evidence
 ```
 
+## Process Summary
+
+End-to-end path a message takes from ingestion to a grounded answer.
+
+| # | Stage | Input | What happens | Key modules | Output |
+|---|-------|-------|--------------|-------------|--------|
+| 1 | Episode intake | Raw conversation / event stream | Extract text, speaker, timestamp and entities; resolve relative dates against the message timestamp | `service.py`, `temporal_utils.py` | Normalized episode with metadata |
+| 2 | Node creation | Normalized episode | Embed the text, compute wave amplitudes, write a Layer-0 message node | `service.py`, `data_types.py`, `storage.py` / `sqlite_storage.py` | Message node (Layer 0) |
+| 3 | Edge building | Message node | Add TEMPORAL and ENTITY edges, then batched SEMANTIC edges above the similarity threshold | `temporal.py`, `hierarchy.py` | Linked memory graph |
+| 4 | Dialogue linking | Linked graph | Bind question/answer pairs, topic threads and coreference across messages | `dialogue_linker.py` | Q/A pair and thread edges |
+| 5 | Consolidation | Linked graph | Deduplicate, prune weak edges, promote and merge nodes across the 4-layer hierarchy | `consolidation.py`, `gating.py` | Compressed, promoted memory |
+| 6 | Query routing | User question | Classify query type, extract entities, pick a speaker filter and retrieval strategy (strict / temporal / list / aggregation / inference / open-domain) | `query_router.py`, `tesseract.py` | Query analysis + strategy |
+| 7 | Candidate filtering | Query analysis | Boost-mode filtering so entity and speaker matches are favored rather than hard-excluded | `retriever.py` (filtered retriever) | Boosted candidate set |
+| 8 | Multi-stage recall | Candidate set | Stage 1 fast recall (vector + keyword + wave routing), Stage 2 entity expansion (3 hops), Stage 3 temporal chain (3 hops), Stage 4 hierarchy traversal (2 hops), Stage 5 co-activation (1 hop) | `retriever.py`, `lsh.py`, `flash_retriever.py`, `mega_search.py` | Recalled node set |
+| 9 | Advanced processing | Recalled nodes | CA3 pattern completion, wavefront propagation and interference detection | `pattern_completion.py`, `wavefront.py`, `interference.py` | Completed, disambiguated set |
+| 10 | Reranking | Completed set | Multi-signal scoring: base score, keyword match, entity overlap, heat, importance, wave alignment | `reranker.py` | Ranked evidence |
+| 11 | Post-processing | Ranked evidence | Dialogue-link expansion, STDP updates, co-activation recording (the graph learns from the retrieval) | `dialogue_linker.py`, `gating.py` | Final context + updated weights |
+| 12 | Answering | Final context | Route-specific prompting over the retrieved evidence, with open-domain fallback when memory is insufficient | `answering.py`, `prompts.py`, `external_retriever.py`, `llm_backend.py` | Grounded answer |
+| 13 | Attribution | Every stage above | Record candidate counts, latency, score components and rerank deltas per stage | `attribution.py` | Per-stage retrieval trace |
+| 14 | Evaluation | Benchmark questions | Leakage-free harness runs the pipeline end to end and scores answers under multiple judges | `demo/runner.py`, `demo/retrieval_eval.py`, `demo/two_agent_eval.py` | Benchmark results in `demo/results/` |
+
 ## Local Models
 
 The current answering and embedding pipeline is designed to work with local models through [Ollama](https://ollama.com/).
@@ -138,9 +159,14 @@ NeuralGraph is under active development. Current work focuses on improving singl
 - [ ] add multi-agent memory namespaces and permissions
 - [ ] package the core library for easier installation
 
-## Author
+## Authors
 
-Built by [Ali Novruzov](https://github.com/anovruzov) as part of ongoing work on persistent memory, agent orchestration, and graph-based intelligence.
+| ID | Name |
+|----|------|
+| msn782 | Muhammad-Ali Novruzov |
+| aa224487 | Amlan Abhidarshi |
+
+Built by [Muhammad-Ali Novruzov](https://github.com/anovruzov) and Amlan Abhidarshi as part of ongoing work on persistent memory, agent orchestration, and graph-based intelligence.
 
 ## License
 
