@@ -33,7 +33,7 @@ python3.11 --version    # expect 3.11.x
 python3.11 -m pytest
 ```
 
-Expected: **290 passed, 1 skipped, 3516 subtests**.
+Expected: **294 passed, 1 skipped, 3516 subtests**.
 
 The one skip is a NeuralGraph retrieval integration test that needs live data;
 it is unrelated to coordination.

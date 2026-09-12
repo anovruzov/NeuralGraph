@@ -1,9 +1,119 @@
 # Mycelic / NeuralGraph / Tesseract State
 
-Last updated: 2026-08-25 (session 3)
-Branch: `claude/mycelic-gate-0-recovery-tjl82x`
-Base: `origin/tesseract-coordination-v1` (`8258d13`)
+Last updated: 2026-09-12 (session 4)
+Branch: `claude/cognitive-forcing-function-nwwzbn`
+Base: `origin/main` (`88a82d7`, PR #2 merge) plus the two coordination
+branches merged in this session (see below).
 Working tree: clean. Everything below was executed, not inferred.
+
+## Session 4 (2026-09-12): recovery, reconciliation, one coordinator fix
+
+### Recovered checkpoint
+
+`main` never received the Gate 0 recovery work. It carried the *August 16*
+`state.md` (Gate 1 closed, Gate 2 "not started", 109 tests) while Gates 2-6,
+the 8-strategy benchmark, the scale sweep, the pinned artifacts, the audit and
+the paper figures lived on two unmerged branches:
+
+- `claude/mycelic-gate-0-recovery-tjl82x` (`37103e5`): Gates 0-6, benchmark,
+  scale, audit, manuscript, corrected counts. 20 commits ahead of `main`.
+- `claude/session-analysis-continuation-sm1a1t` (`13a1729`): the same base
+  plus `figures.py`, `test_figures.py`, pinned SVGs. Diverged from the first
+  after `1c8245c`.
+
+`main`'s 6 unique commits are the retrieval-campaign track (PR #2/#3:
+`llm_backend.py`, `mega_search.py`, `kg_extractor.py`, `docs/research/`,
+`docs/BENCHMARKS.md`). Neither side had the other.
+
+**"Gate 0 recovery" is not open.** Its branch closed Gates 0-6; the only thing
+open was that the result had never been reconciled with `main`. This session
+did the reconciliation. Historical reports (`AUDIT.md`, `VERIFICATION.md`,
+`docs/paper/capability_survival.md`) keep their dated counts (266) on purpose:
+they are logs of what ran then.
+
+### What was done
+
+1. **Merged both coordination branches into this branch** (`c84813d`,
+   `63f8c22`). Conflicts: `.gitignore` (add/add, both sides kept), and the
+   canonical command block / suite count in `CLAUDE.md`, `docs/REPRODUCE.md`,
+   `state.md` (kept `python3.11 -m`, added `figures --check`, replaced both
+   sides' stale counts with the measured union). Code merged cleanly; the
+   stale root `__init__.py` that broke `pytest` on `main` is gone.
+2. **Fixed a coordinator defect found while testing duplicate delivery**
+   (`c5b7cb7`). `TesseractCoordinator.execute` sliced raw claims to
+   `budget.max_claims` *before* normalizing, so a re-delivered claim (worker
+   retry, at-least-once transport) consumed a budget slot and could evict a
+   distinct worker's claim. Reproduced: `max_claims=2`, node-a delivered
+   twice, node-b's half dropped, reconstruction failed with both halves
+   present. Duplicates are now dropped by `claim_id` before the budget, first
+   occurrence wins, count kept as `QueryExecution.duplicate_claim_count`
+   (in-memory only, not in any artifact). Bytes are still charged. Pinned
+   artifacts regenerate byte-identically, which is the proof the fix is
+   behaviour-neutral on the recorded runs.
+   Tests: `NeuralGraph/tests/test_coordination_delivery.py` (4; two fail on
+   the old coordinator).
+3. **Dropped a duplicate Gate 2 slice.** Before the unmerged branches were
+   found, this session built a 4-node `centralized` baseline
+   (`coordination/baselines.py`, 11 tests, byte-deterministic) against the
+   August plan. `benchmark.py` already has `centralized` under 9 interventions
+   and a 30-seed sweep, so the new module was redundant and was **not
+   committed**. Negative result recorded here so it is not rebuilt.
+
+### Verification (this session, Linux, Python 3.11.15, `pip install -r requirements.txt`)
+
+```
+$ python -m pytest -q
+294 passed, 1 skipped, 3516 subtests passed
+$ PYTHONHASHSEED=4242 python -m pytest -q
+294 passed, 1 skipped, 3516 subtests passed
+$ python -m pytest -q NeuralGraph/tests/test_artifact_reproducibility.py
+11 passed, 24 subtests passed
+$ (cd NeuralGraph/coordination/artifacts && sha256sum -c SHA256SUMS)   # 9/9 OK
+$ (cd evaluation/artifacts && sha256sum -c SHA256SUMS)                 # 3/3 OK
+$ python -m NeuralGraph.coordination.figures --check
+5 figures match their artifacts.
+$ python -m NeuralGraph.coordination.experiment | sha256sum           # f712e12d… (pinned)
+$ PYTHONHASHSEED=7 python -m NeuralGraph.coordination.benchmark --output b.json; sha256sum b.json
+2d8564e7…                                                             # (pinned)
+```
+
+Checks required by the brief and where they live: successful execution
+(`test_coordination.py::EndToEndExperimentTests`), worker failure
+(`FailureAndLineageTests`, `test_benchmark.py`), duplicate delivery
+(`test_coordination_delivery.py`, new), provenance preservation
+(`test_coordination_lineage.py`, `test_failure_domains_real_storage.py`),
+permission enforcement (`RealAdapterBoundaryTests::test_capability_is_unavailable_to_an_unauthorized_context`,
+`test_denied_export_leaks_neither_content_nor_identifiers`).
+
+### Budget
+
+No paid calls. No LLM, no network beyond `pip install` and `git fetch`.
+Everything run is a local deterministic simulation or a unit test.
+
+### Unresolved / not done here
+
+- **This branch is not merged to `main`.** That is a PR decision for the
+  owners; nothing here was pushed to `main`.
+- `docs/BENCHMARKS.md` Track A still cites branch `sm1a1t` at `13a1729` as its
+  source. The same artifacts now live here too; the numbers are unchanged.
+- Retrieval-track files were not touched (rule 3 in `CLAUDE.md`).
+- `REDACTED` still fails closed to `DENIED` (unchanged, deliberate).
+
+### Next executable step
+
+Coordination is complete through Gate 6 and the reconciliation is done. The
+next concrete step is the one the August notes named and this session did
+not start: **transport**. The coordinator, adapters and repair planner are
+in-process; a `MemoryNodeAdapter` implemented over a real message boundary
+(local subprocess workers, no NATS yet) would make the duplicate-delivery and
+failure paths real rather than simulated. Start from
+`NeuralGraph/coordination/adapters.py::MemoryNodeAdapter` (the Protocol) and
+`test_coordination_delivery.py::RedeliveringAdapter` (the at-least-once
+test double), keep `contracts.py` unchanged, and pin the first artifact.
+
+---
+
+## Session 3 (2026-08-25) notes, kept verbatim below
 
 ## Corrections to prior session notes
 
@@ -41,7 +151,7 @@ python3.11 -m NeuralGraph.coordination.figures --check
 ```
 
 Setup is `pip install -r requirements.txt`. Suite as of this writing:
-**290 passed, 1 skipped, 3516 subtests**, identical under `PYTHONHASHSEED`
+**294 passed, 1 skipped, 3516 subtests**, identical under `PYTHONHASHSEED`
 1, 7, 4242 and 99991.
 
 `pytest` previously failed to collect anything (5 errors, every file). The repo
@@ -201,7 +311,7 @@ this session and should not be touched from the coordination side.
   `evaluation/call_center/`) need a live Ollama at `localhost:11434`, so they are
   not reproducible from a clean checkout. Separating retrieval failure from
   answer-generation failure remains open and belongs to the NeuralGraph track.
-- Gates 4-6.
+- (Gates 4-6 were listed here in an earlier draft; the gate table above records them as PASS with evidence.)
 - `REDACTED` still has no real-adapter projection and fails closed to `DENIED`.
   Do not invent one without deciding what partial payload is provably safe.
 
