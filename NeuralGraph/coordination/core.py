@@ -375,6 +375,12 @@ class QueryExecution:
     metrics: FragilityMetrics
     exported_bytes: int
     policy_violations: int
+    #: Claims delivered more than once (same ``claim_id``) within this
+    #: execution.  Duplicates are charged as transferred bytes but never as
+    #: budgeted evidence; see ``TesseractCoordinator.execute``.  Not part of
+    #: any serialized artifact: pinned outputs contain no duplicates and are
+    #: unchanged by this accounting.
+    duplicate_claim_count: int = 0
 
 
 class TesseractCoordinator:
@@ -436,7 +442,26 @@ class TesseractCoordinator:
                         lineage_root_ids=claim.lineage_root_ids,
                         failure_domains=claim.failure_domains,
                     )
-        claims = self.normalizer.normalize(raw_claims[:request.budget.max_claims], request.query_id)
+        # A worker retry or an at-least-once transport can deliver one claim
+        # twice.  The claim budget bounds *distinct* evidence, so repeats are
+        # dropped before the budget is applied: a duplicate must never occupy a
+        # slot a different worker's claim would otherwise have filled.  First
+        # occurrence wins, which keeps the surviving claim identical to what a
+        # clean delivery would have produced.  The bytes are still charged
+        # below: ``exports`` keeps every delivery because it really crossed the
+        # boundary.
+        distinct_claims: list[ClaimEnvelope] = []
+        seen_claim_ids: set[str] = set()
+        duplicate_claim_count = 0
+        for claim in raw_claims:
+            if claim.claim_id in seen_claim_ids:
+                duplicate_claim_count += 1
+                continue
+            seen_claim_ids.add(claim.claim_id)
+            distinct_claims.append(claim)
+        claims = self.normalizer.normalize(
+            distinct_claims[:request.budget.max_claims], request.query_id
+        )
         synthesis = self.synthesizer.synthesize(claims)
         self.traces.emit(
             TraceEventType.CLAIM_SYNTHESIZED,
@@ -468,6 +493,7 @@ class TesseractCoordinator:
             metrics=metrics,
             exported_bytes=exported_bytes,
             policy_violations=policy_violations,
+            duplicate_claim_count=duplicate_claim_count,
         )
 
 
