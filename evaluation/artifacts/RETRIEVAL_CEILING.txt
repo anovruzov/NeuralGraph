@@ -1,0 +1,18 @@
+questions 1540  accuracy 66.7%
+
+Wrong answers, by why the evidence was not used:
+  retrieved       327
+  missed          139
+  unanswerable     47
+
+category        retrieved   missed  unanswerable
+------------------------------------------------
+multi_hop             143       66             9
+open_domain            11       17            18
+single_hop             86       42             7
+temporal               87       14            13
+
+recoverable by retrieval : 139
+unanswerable from corpus : 47
+hard ceiling             : 96.9% (no retrieval or generation fix can exceed this)
+correct without corpus support: 37 (parametric knowledge or judge leniency)

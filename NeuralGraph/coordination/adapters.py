@@ -566,12 +566,103 @@ class NeuralGraphMemoryAdapter:
         return exportable
 
     async def verify(self, request: VerificationRequest) -> VerificationResult:
+        """Report whether this node holds support independent of the excluded lineage.
+
+        This is the mechanism lineage-aware repair depends on: after a failure,
+        the coordinator asks each candidate whether it can supply the missing
+        slots *without* leaning on the roots or domains already known to be
+        compromised.  It previously returned a fixed ``valid=False``, so on the
+        real adapter no repair could ever succeed and lineage-aware repair
+        existed only against the mock.
+
+        It is answered here from this adapter's own real machinery -- the
+        owner's retrieval callback, the lineage resolver, and the policy filter
+        -- rather than from an injected verification callback, so there is one
+        source of truth about what this node can support and no second
+        configuration surface that can silently disagree with ``query``.
+
+        Two deliberate differences from ``MockMemoryNodeAdapter.verify``:
+
+        * Only policy-ALLOWED records contribute to the reported
+          ``lineage_root_ids`` and ``failure_domains``.  The mock reports the
+          lineage of every matching record including denied ones; doing that
+          here would export provenance for a record this adapter just refused
+          to export, which is precisely the payload-free-denial rule that
+          ``RetrievalTrace`` enforces structurally.
+        * ``failure_domains`` stays empty whenever the resolver reports none, so
+          a domain exclusion cannot be satisfied by an invented domain.  Against
+          NeuralGraph storage today that is always: the graph records no
+          failure-domain concept, so domain-based exclusion is inert here and
+          only root-based exclusion does real work.
+        """
+        if request.query.requested_capability != self._capability.capability_id:
+            return VerificationResult(
+                verification_id=request.verification_id,
+                node_id=self.node_id,
+                valid=False,
+                lineage_root_ids=(), failure_domains=(), supported_slots=(),
+                reason="capability not served by this node",
+            )
+
+        excluded_roots = frozenset(request.excluded_lineage_roots)
+        excluded_domains = frozenset(request.excluded_failure_domains)
+        required = frozenset(request.required_slots)
+
+        supported: set[str] = set()
+        roots: set[str] = set()
+        domains: set[str] = set()
+        reasons: list[str] = []
+        seen_memory_ids: set[str] = set()
+
+        for candidate in await self._local_retrieve(request.query):
+            node = candidate[0] if isinstance(candidate, tuple) else candidate
+            memory_id = self._memory_id(node)
+            if memory_id in seen_memory_ids:
+                continue
+            seen_memory_ids.add(memory_id)
+
+            if self._policy_filter(node, request.query.authorization) is not PolicyStatus.ALLOWED:
+                reasons.append("policy denied")
+                continue
+
+            known: dict[str, Any] = {}
+            if self._lineage_resolver is not None:
+                known = self._exportable_lineage(await self._lineage_resolver(node))
+            node_roots = self._exportable_identifiers(
+                known.get("lineage_root_ids", ()), "lineage_root_ids"
+            )
+            node_domains = self._exportable_identifiers(
+                known.get("failure_domains", ()), "failure_domains"
+            )
+            roots.update(node_roots)
+            domains.update(node_domains)
+
+            if excluded_roots.intersection(node_roots) or excluded_domains.intersection(node_domains):
+                reasons.append("correlated support")
+                continue
+
+            slot = None
+            if self._claim_projection is not None:
+                content = self._exportable_content(self._claim_projection(node))
+                slot = content.get("slot")
+            if slot is not None and slot in required:
+                supported.add(str(slot))
+
+        valid = bool(supported)
+        if valid:
+            reason = "independent support available"
+        elif reasons:
+            reason = reasons[0]
+        else:
+            reason = "no matching support"
         return VerificationResult(
             verification_id=request.verification_id,
             node_id=self.node_id,
-            valid=False,
-            lineage_root_ids=(), failure_domains=(), supported_slots=(),
-            reason="verification callback not configured",
+            valid=valid,
+            lineage_root_ids=tuple(sorted(roots)),
+            failure_domains=tuple(sorted(domains)),
+            supported_slots=tuple(sorted(supported)),
+            reason=reason,
         )
 
     async def propose_learning(self, signal: LearningSignal) -> LearningDecision:

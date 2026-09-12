@@ -78,14 +78,50 @@ class StorageLineageResolver:
         *,
         max_depth: int = 3,
         max_nodes: int = 64,
+        domain_key: str | None = None,
     ) -> None:
+        """``domain_key`` opts in to reading a recorded failure domain.
+
+        NeuralGraph has no failure-domain concept of its own, so by default this
+        resolver reports none and every domain-derived metric stays visibly
+        zero.  That default is deliberate: a synthesised domain would make
+        coalition counts and the minimum failure-domain cut look meaningful
+        while measuring nothing.
+
+        When ``domain_key`` is set, the domain of a memory is read from the
+        metadata of the **lineage roots** the walk actually resolved -- not from
+        the retrieved node itself.  That is what a failure domain means here:
+        the upstream origin a memory ultimately derives from, which is the thing
+        that fails as a unit.  Two nodes in different databases that ingested
+        the same upstream feed share a domain; two nodes that merely hold equal
+        values do not.
+
+        A root recording no domain contributes none.  Absence is reported as
+        absence, so provenance that was never recorded can never be mistaken for
+        a genuine independent origin.
+        """
         if max_depth < 0:
             raise ValueError("max_depth must not be negative")
         if max_nodes < 0:
             raise ValueError("max_nodes must not be negative")
+        if domain_key is not None and not str(domain_key).strip():
+            raise ValueError("domain_key must not be blank")
         self._storage = storage
         self._max_depth = max_depth
         self._max_nodes = max_nodes
+        self._domain_key = domain_key
+
+    def _declared_domain(self, node: Any) -> str | None:
+        """Read a recorded failure domain off one resolved root node."""
+        if self._domain_key is None:
+            return None
+        metadata = getattr(node, "metadata", None)
+        if not isinstance(metadata, dict):
+            return None
+        value = metadata.get(self._domain_key)
+        if value is None:
+            return None
+        return _identifier(value, f"metadata[{self._domain_key}]")
 
     async def __call__(self, node: Any) -> dict[str, Any]:
         """Resolve the derivation facts recorded for one retrieved node.
@@ -107,17 +143,19 @@ class StorageLineageResolver:
         declared = _identifiers(getattr(node, "source_memory_ids", ()), "source_memory_ids")
         edge_ids: set[str] = set()
         parents = await self._direct_parents(origin_id, declared, edge_ids)
-        roots = await self._walk(origin_id, parents, edge_ids)
+        domains: set[str] = set()
+        roots = await self._walk(origin_id, parents, edge_ids, domains)
         return {
             "source_ids": tuple(sorted(set(declared))),
             "parent_memory_ids": tuple(sorted(parents)),
             "lineage_root_ids": tuple(sorted(roots)),
             "edge_path": tuple(sorted(edge_ids)),
-            # This resolver has no failure-domain model.  Reporting () keeps the
-            # absence visible instead of synthesising a domain the graph does
-            # not record; see the coordination lineage tests for the effect on
+            # Empty unless ``domain_key`` was configured AND a resolved root
+            # actually records a domain under it.  Absence stays visible rather
+            # than being synthesised into a domain the graph does not record;
+            # see the coordination lineage tests for the effect on
             # LineageAnalyzer.
-            "failure_domains": (),
+            "failure_domains": tuple(sorted(domains)),
         }
 
     async def _direct_parents(
@@ -154,6 +192,7 @@ class StorageLineageResolver:
         origin_id: str,
         parents: set[str],
         edge_ids: set[str],
+        domains: set[str],
     ) -> set[str]:
         """Breadth-first search upward for nodes that record no parent.
 
@@ -186,6 +225,9 @@ class StorageLineageResolver:
                 candidate_parents = await self._direct_parents(candidate, declared, edge_ids)
                 if not candidate_parents:
                     roots.add(candidate)
+                    declared_domain = self._declared_domain(reached)
+                    if declared_domain is not None:
+                        domains.add(declared_domain)
                     continue
                 for parent in sorted(candidate_parents - visited):
                     visited.add(parent)

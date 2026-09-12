@@ -1,3 +1,25 @@
+> **ARCHIVED 2026-08-25 — superseded, and several numbers below are contradicted.**
+>
+> Retained for its design intent (the marker-system taxonomy), not for its
+> numbers. Do not cite anything in this file as a result.
+>
+> Measured evidence is in `docs/ACCURACY.md` and
+> `evaluation/artifacts/accuracy_diagnosis.json`. The contradictions:
+>
+> | Claim below | Measured |
+> |---|---|
+> | single_hop "Before: 50% (39/78)" | **52.1%**, n = **282** |
+> | "77% recall@50" | no committed artifact |
+> | "**Expected**: 70-80%" | never measured — a projection, not a result |
+> | Temporal "78.4%" | **64.5%** |
+> | Multi_hop "81.5%" | **74.1%** |
+> | Open_domain "72%" | **52.1%** |
+> | headline "2,000+ patterns" | its own table sums to **5,100+**; ~3,599 string literals exist across all four routing modules |
+>
+> See `AUDIT.md` §5.
+
+---
+
 # Query Routing Improvements - Comprehensive Marker System
 
 ## Overview

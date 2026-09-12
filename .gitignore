@@ -1,7 +1,44 @@
-.venv/
+# Python bytecode
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+
+# Secrets (.env holds provider API keys; `env/` above is a virtualenv, not this)
+.env
+.env.*
+!.env.example
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Packaging / build
+build/
+dist/
+*.egg-info/
+
+# Test & coverage artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local memory databases (never commit persisted memory state)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Editor / OS noise
+.DS_Store
+.idea/
+.vscode/
 .claude/worktrees/
+
+# Replay outputs (contain API responses; regenerate with a key)
+evaluation/artifacts/replay_*.json
+
+# Retrieval-campaign caches and scratch outputs
 demo/results/emb_cache/
 demo/results/smoke*.json
 demo/omega.json
