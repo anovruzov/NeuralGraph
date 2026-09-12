@@ -31,35 +31,39 @@ are far cheaper than reconstructing the same facts from 5,000 lines.
 
 ```bash
 pip install -r requirements.txt
-python3.11 -m pytest                                          # 266 passed, 1 skipped, 3382 subtests
+python3.11 -m pytest                                          # 290 passed, 1 skipped, 3516 subtests
 
 python3.11 -m NeuralGraph.coordination.benchmark --sweep 30 --format markdown
 python3.11 -m NeuralGraph.coordination.scale --format markdown
 python3.11 -m NeuralGraph.coordination.experiment --output experiment.json
+python3.11 -m NeuralGraph.coordination.figures --check    # paper figures vs artifacts
 ```
 
 Run `pytest` from the repo root. There is no venv activation step.
 
 ## Rules that are not negotiable
 
-1. **Never refresh a pinned artifact to get a test green.** Diff it, find out
+1. **A figure is an artifact.** `artifacts/figures/*.svg` is generated from the
+   pinned JSON and pinned in the same `SHA256SUMS`. Never hand-edit one, and
+   never re-render one to get a test green without knowing why it moved.
+2. **Never refresh a pinned artifact to get a test green.** Diff it, find out
    why it moved, re-pin deliberately with the reason in the commit message.
    See `docs/REPRODUCE.md`.
-2. **Never skip, disable, xfail or quarantine a test** to get green.
-3. **Do not touch the retrieval track** without Anar's explicit say-so.
+3. **Never skip, disable, xfail or quarantine a test** to get green.
+4. **Do not touch the retrieval track** without Anar's explicit say-so.
    `answering.py`, `llm_profile_extractor.py`, `prompts.py`, `reranker.py`,
    `service.py`, `tesseract.py`, `demo/runner.py` belong to Nurman. The
    accuracy *diagnosis* (`evaluation/diagnose_accuracy.py`) is additive and
    touches none of them; the fixes it points to would.
-4. **Never synthesize a failure domain.** Domains are read from recorded root
+5. **Never synthesize a failure domain.** Domains are read from recorded root
    metadata or reported absent. Inferring one from storage identity, node id,
    file path, or value equality makes every domain metric fiction.
-5. **Coordination stays domain-neutral.** `contracts.py` and `core.py` import no
+6. **Coordination stays domain-neutral.** `contracts.py` and `core.py` import no
    NeuralGraph storage types. Only `storage_adapter.py` bridges.
-6. **Lineage direction is load-bearing.** Derivation parents are the *targets*
+7. **Lineage direction is load-bearing.** Derivation parents are the *targets*
    of outgoing HIERARCHY edges plus `source_memory_ids`. `parent_id` and
    `get_edges_to` point the wrong way.
-7. **Repair policies see exported contracts only**, never `Placement` internals
+8. **Repair policies see exported contracts only**, never `Placement` internals
    or node-private records. A policy that reads private state is an oracle.
 
 ## Results that must not silently change

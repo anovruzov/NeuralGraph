@@ -76,14 +76,42 @@ them first, and they make C4 more credible rather than less.
 
 | Figure | Content | Source |
 |---|---|---|
-| 1 | The A/B/C/D fixture: why C is not redundancy | schematic, hand-drawn |
-| 2 | Survival matrix heatmap, 8 × 9 | `benchmark_sweep30_seed20260813.json` |
-| 3 | Pareto: survival vs storage, lineage-aware above full replication | same |
-| 4 | Scale invariance: survival flat in K and H, split by I | `scale_seed20260813.json` |
-| 5 | Silent forgetting: confidence vs genuine coverage | benchmark cells |
+| Figure | Content | Source | File |
+|---|---|---|---|
+| 1 | The A/B/C/D fixture: why C is not redundancy | `NeuralGraph/coordination/fixture.py` | `figures/fig1_fixture.svg` |
+| 2 | Survival matrix heatmap, 8 × 9 | `benchmark_sweep30_seed20260813.json` | `figures/fig2_survival_matrix.svg` |
+| 3 | Pareto: survival vs storage, lineage-aware above full replication | same | `figures/fig3_pareto_survival_vs_storage.svg` |
+| 4 | Scale invariance: every verdict flat in K and H, split by I | `scale_seed20260813.json` | `figures/fig4_scale_invariance.svg` |
+| 5 | Silent forgetting: confidence when the capability is gone | `benchmark_seed20260813.json` | `figures/fig5_silent_forgetting.svg` |
+
+All five figures are rendered by `python3 -m NeuralGraph.coordination.figures` into
+`NeuralGraph/coordination/artifacts/figures/`, pinned in `SHA256SUMS`, and
+regenerated and compared by `test_figures.py` — a figure is a result and is
+held to the same standard as the JSON behind it. They are hand-emitted SVG
+rather than matplotlib output, because matplotlib's SVG is not byte-stable
+across machines; the rationale is in the module docstring.
 
 Figure 3 is the one that carries the paper. Figure 1 is what makes the rest
-legible — spend time on it.
+legible, and it is drawn from `fixture.py` rather than by hand: the point it
+has to make is structural — node-c shares node-b's lineage root, node-d does
+not — and a hand-drawn figure can drift from the code while still looking
+right. It prints no premise value, so it cannot leak the held-out answer;
+both properties are pinned as tests.
+
+Two of the four make a counter-claim visible without being asked to. Figure 2's
+partition column is blank for every distributed strategy (N1), and figure 4 has
+one surviving I1 row — source-count repair under node failure, which
+lineage-aware repair loses (N2).
+
+### Figure 5 changed shape deliberately
+
+It was specified as confidence vs. genuine coverage. Plotted, the cells take
+three coverage values and almost every mark lands on top of another, so the
+scatter argues nothing. What carries the claim is the overlap: the lost cells
+report 0.93–0.96 and the intact ones 0.91–0.96, so the highest confidence in
+the figure belongs to cells that lost the capability and **no threshold
+separates them**. The figure is therefore a strip plot of confidence split by
+outcome. The underlying numbers are unchanged.
 
 ---
 
@@ -126,7 +154,9 @@ what they did.
 ## Pre-submission checklist
 
 - [ ] `pytest` green from a clean clone
-- [ ] `sha256sum -c SHA256SUMS` passes
+- [ ] `sha256sum -c SHA256SUMS` passes (JSON *and* figures)
+- [ ] `python3 -m NeuralGraph.coordination.figures --check` exits 0
+- [x] Figure 1 drawn (generated from the fixture)
 - [ ] Every number in the paper traced to an artifact field
 - [ ] N1, N2, N3 present in Limitations
 - [ ] Failure-domain derivation named explicitly

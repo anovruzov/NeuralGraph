@@ -33,10 +33,26 @@ python3.11 --version    # expect 3.11.x
 python3.11 -m pytest
 ```
 
-Expected: **266 passed, 1 skipped, 3382 subtests**.
+Expected: **290 passed, 1 skipped, 3516 subtests**.
 
 The one skip is a NeuralGraph retrieval integration test that needs live data;
 it is unrelated to coordination.
+
+---
+
+## The paper's figures
+
+```bash
+python3 -m NeuralGraph.coordination.figures          # rewrite artifacts/figures/*.svg
+python3 -m NeuralGraph.coordination.figures --check  # verify, write nothing; exit 1 if stale
+```
+
+Figures 2–5 are plotted from the pinned JSON and figure 1 from `fixture.py`,
+so all five are byte-reproducible and pinned in the same `SHA256SUMS`.
+`--check` is the fast way to find out whether a benchmark or fixture change has
+silently invalidated a figure in the paper.
+
+For LaTeX, convert once: `rsvg-convert -f pdf -o fig3.pdf fig3_pareto_survival_vs_storage.svg`.
 
 ---
 

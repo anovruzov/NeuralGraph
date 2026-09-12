@@ -49,7 +49,10 @@ def _expected_sums() -> dict[str, str]:
 class ArtifactReproducibilityTests(unittest.TestCase):
     def test_sha256sums_covers_every_committed_json_artifact(self):
         on_disk = {path.name for path in ARTIFACTS.glob("*.json")}
-        self.assertEqual(on_disk, set(_expected_sums()))
+        # SHA256SUMS also pins the rendered figures (see test_figures.py); this
+        # test owns the JSON half of it.
+        recorded = {name for name in _expected_sums() if not name.startswith("figures/")}
+        self.assertEqual(on_disk, recorded)
 
     def test_committed_files_match_their_recorded_digests(self):
         for name, digest in sorted(_expected_sums().items()):
