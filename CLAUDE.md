@@ -13,8 +13,11 @@ context re-deriving facts that are already established.
 | Claims mapped to evidence | `docs/PAPER.md` |
 | Why retrieval accuracy is low | `docs/ACCURACY.md` |
 | Current status, gates, open decisions | `state.md` |
+| Where a symbol lives (`file:line`), without reading the module | `CODEMAP.md` (generated: `python -m tools.codemap`) |
 
-Prefer reading a doc over grepping the source. The docs are kept accurate and
+Prefer reading a doc over grepping the source. To find one symbol, grep
+`CODEMAP.md` for the file path and jump to the line it names; regenerate the
+map after adding or moving a definition (`test_codemap.py` fails when stale). The docs are kept accurate and
 are far cheaper than reconstructing the same facts from 5,000 lines.
 
 ## Naming traps — get these wrong and you lose an hour
