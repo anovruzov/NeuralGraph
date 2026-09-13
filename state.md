@@ -99,6 +99,29 @@ Everything run is a local deterministic simulation or a unit test.
 - Retrieval-track files were not touched (rule 3 in `CLAUDE.md`).
 - `REDACTED` still fails closed to `DENIED` (unchanged, deliberate).
 
+### Later in session 4 (2026-09-13)
+
+- **Memory bus** (`coordination/bus.py`, `test_coordination_bus.py`, 10 tests).
+  Append-only, hash-chained log of `QueryExecution`s. Vertical link:
+  `prev_hash`. Horizontal links: `peer_entry_ids` to earlier entries whose
+  query was similar, estimated from a bottom-k sketch of token hashes (no
+  query text, no claim payload on the bus; pinned by test). `route_hint()`
+  returns the nodes that produced *selected* evidence for similar successful
+  queries; `execute_on_bus()` is the orchestrator loop. JSON-lines
+  persistence with verify-on-load (a flipped byte refuses to load).
+  `contracts.py` untouched.
+- **Agent-enabling prompt** (`coordination/agent_prompt.py`,
+  `docs/AGENT_PROMPT.md` generated, `test_agent_prompt.py`, 5 tests). Node
+  and orchestrator protocol rendered from the dataclasses, so every contract
+  field is named and cannot drift. Defines bounded questioning (ask below
+  confidence 0.6 or when all copies share one root; 2 rounds) and states
+  plainly that the coordinator does not yet route questions.
+- **Code map** (`CODEMAP.md`, `tools/codemap.py`, `test_codemap.py`):
+  every file's symbols with line numbers; test fails when stale.
+- **Forest Ops game** (`docs/sim/`): shareable simulation with a pre-mortem
+  oracle (counterfactual per root/organism) and a hash-chained ledger.
+  Illustrative only; not the benchmark.
+
 ### Next executable step
 
 Coordination is complete through Gate 6 and the reconciliation is done. The
@@ -151,7 +174,7 @@ python3.11 -m NeuralGraph.coordination.figures --check
 ```
 
 Setup is `pip install -r requirements.txt`. Suite as of this writing:
-**294 passed, 1 skipped, 3516 subtests**, identical under `PYTHONHASHSEED`
+**311 passed, 1 skipped, 3516 subtests**, identical under `PYTHONHASHSEED`
 1, 7, 4242 and 99991.
 
 `pytest` previously failed to collect anything (5 errors, every file). The repo

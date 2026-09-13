@@ -31,6 +31,7 @@ from .contracts import (
     VerificationRequest,
     VerificationResult,
 )
+from .bus import BusEntry, MemoryBus, execute_on_bus
 from .core import (
     CapabilityRegistry,
     ClaimNormalizer,

@@ -272,6 +272,10 @@ NeuralGraph/coordination/
   experiment.py       3-strategy reconstruction experiment
   benchmark.py        8 strategies x 9 interventions
   scale.py            K x H x I sweep (Gates 4 and 5)
+  bus.py              MemoryBus: hash-chained, horizontally linked log of
+                      executions; route hints for the orchestrator
+  agent_prompt.py     the node / orchestrator protocol prompt, rendered from
+                      the contracts (docs/AGENT_PROMPT.md is generated)
   artifacts/          pinned JSON + SHA256SUMS
 ```
 

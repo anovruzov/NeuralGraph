@@ -6,21 +6,21 @@ Do not hand-edit. Regenerate after adding or moving a definition.
 
 ## .
 
-### `CLAUDE.md` (111 lines)
+### `CLAUDE.md` (114 lines)
 
 ```
   L1     # CLAUDE.md
   L6     ## Read in this order
-  L23    ## Naming traps — get these wrong and you lose an hour
-  L33    ## Canonical commands
-  L47    ## Rules that are not negotiable
-  L72    ## Results that must not silently change
-  L86    ## Retrieval accuracy — diagnosed, not fixed
-  L101   ## Gate status
-  L107   ## Ownership
+  L24    ## Naming traps — get these wrong and you lose an hour
+  L34    ## Canonical commands
+  L50    ## Rules that are not negotiable
+  L75    ## Results that must not silently change
+  L89    ## Retrieval accuracy — diagnosed, not fixed
+  L104   ## Gate status
+  L110   ## Ownership
 ```
 
-### `state.md` (361 lines)
+### `state.md` (384 lines)
 
 ```
   L1     # Mycelic / NeuralGraph / Tesseract State
@@ -30,20 +30,21 @@ Do not hand-edit. Regenerate after adding or moving a definition.
   L62    ### Verification (this session, Linux, Python 3.11.15, `pip install -r requirements.txt`)
   L88    ### Budget
   L93    ### Unresolved / not done here
-  L102   ### Next executable step
-  L116   ## Session 3 (2026-08-25) notes, kept verbatim below
-  L118   ## Corrections to prior session notes
-  L140   ## Canonical commands
-  L165   ## Results
-  L202   ### Seven harness bugs found before any of this was trusted
-  L225   ### Reported against interest, additionally
-  L237   ## Artifacts
-  L258   ## Gate status
-  L270   ## Resolved: `failure_domains` now has a real-storage model
-  L295   ## Ownership
-  L306   ## Not done
-  L318   ## Documentation
-  L330   ## Next task
+  L102   ### Later in session 4 (2026-09-13)
+  L125   ### Next executable step
+  L139   ## Session 3 (2026-08-25) notes, kept verbatim below
+  L141   ## Corrections to prior session notes
+  L163   ## Canonical commands
+  L188   ## Results
+  L225   ### Seven harness bugs found before any of this was trusted
+  L248   ### Reported against interest, additionally
+  L260   ## Artifacts
+  L281   ## Gate status
+  L293   ## Resolved: `failure_domains` now has a real-storage model
+  L318   ## Ownership
+  L329   ## Not done
+  L341   ## Documentation
+  L353   ## Next task
 ```
 
 ### `README.md` (201 lines)
@@ -219,7 +220,7 @@ Memory consolidation for Neural Memory Graph.
   L1016    async def protect_session_facts
 ```
 
-### `NeuralGraph/coordination/__init__.py` (52 lines)
+### `NeuralGraph/coordination/__init__.py` (53 lines)
 Tesseract coordination above private, non-converging local memories.
 
 ```
@@ -257,6 +258,22 @@ Private local-memory adapters for the coordination boundary.
   L513     def _exportable_content
   L568     async def verify
   L668     async def propose_learning
+```
+
+### `NeuralGraph/coordination/agent_prompt.py` (218 lines)
+The agent-enabling prompt: how a real AI agent joins the fabric.
+
+```
+  L39    PROTOCOL_VERSION = …
+  L40    ASK_THRESHOLD = …
+  L41    MAX_QUESTION_ROUNDS = …
+  L43    INVARIANTS = …
+  L51    NEVER = …
+  L61    def _field_lines
+  L65    def render_node_prompt
+  L165   def render_orchestrator_prompt
+  L195   def render_document
+  L204   def main
 ```
 
 ### `NeuralGraph/coordination/artifacts/RESULTS.md` (25 lines)
@@ -337,6 +354,35 @@ Capability-survival benchmark: placement strategies under targeted intervention.
   L1215  def render_sweep_markdown
   L1249  def render_markdown
   L1295  def main
+```
+
+### `NeuralGraph/coordination/bus.py` (243 lines)
+Hash-chained memory bus: an append-only log of query executions.
+
+```
+  L36    GENESIS_HASH = …
+  L37    BUS_SCHEMA_VERSION = …
+  L38    _TOKEN = …
+  L41    def sketch
+  L55    def similarity
+  L65    class BusEntry
+  L86      def payload
+  L90      def digest
+  L94    class MemoryBus
+  L97      def __init__
+  L113     def entries
+  L117     def head_hash
+  L121     def peers_for
+  L132     def route_hint
+  L151     def peer_graph
+  L156     def append
+  L184     def verify
+  L194     def dump
+  L200     def load
+  L215     def to_jsonable
+  L219   def _entry_from_json
+  L229   async def execute_on_bus
+  L241   def replay_hashes
 ```
 
 ### `NeuralGraph/coordination/contracts.py` (308 lines)
@@ -1366,6 +1412,19 @@ NeuralGraph test package.
   (no top-level definitions)
 ```
 
+### `NeuralGraph/tests/test_agent_prompt.py` (57 lines)
+The agent prompt is generated from the contracts and the doc is in sync.
+
+```
+  L19    ROOT = …
+  L22    class AgentPromptTests(unittest.TestCase)
+  L23      def test_every_contract_field_is_named
+  L29      def test_invariants_and_nevers_are_present
+  L39      def test_parameters_are_substituted
+  L47      def test_document_is_in_sync
+  L52      def test_rendering_is_deterministic
+```
+
 ### `NeuralGraph/tests/test_artifact_reproducibility.py` (160 lines)
 Pinned-artifact regression: committed results must be byte-reproducible.
 
@@ -1565,6 +1624,27 @@ Deterministic tests for the Tesseract coordination vertical slice.
   L935     async def test_hostile_numeric_subclasses_cannot_survive_a_coordinated_run
   L980     async def test_float_subclass_hiding_a_non_finite_value_is_still_rejected
   L1004    async def test_collapsing_identifier_str_cannot_merge_two_memories
+```
+
+### `NeuralGraph/tests/test_coordination_bus.py` (174 lines)
+The memory bus: hash chain, horizontal peer links, route hints, privacy, persistence.
+
+```
+  L29    def coordinator
+  L36    def similar_query
+  L40    def unrelated_query
+  L44    class SketchTests(unittest.TestCase)
+  L45      def test_sketch_holds_hashes_not_tokens
+  L51      def test_similarity_orders_like_jaccard
+  L60    class MemoryBusTests(unittest.IsolatedAsyncioTestCase)
+  L61      async def test_chain_is_intact_and_tamper_evident
+  L77      async def test_similar_queries_link_horizontally_and_unrelated_do_not
+  L91      async def test_route_hint_prefers_peers_that_produced_selected_evidence
+  L111     async def test_hint_ignores_failed_peers
+  L122     async def test_nothing_private_crosses_onto_the_bus
+  L137     async def test_persistence_round_trip_and_corruption_detection
+  L156     async def test_same_seed_replays_identical_hashes
+  L168     def test_threshold_is_validated
 ```
 
 ### `NeuralGraph/tests/test_coordination_delivery.py` (151 lines)
@@ -2709,7 +2789,22 @@ Verify all 3 fixes are working in the new benchmark
   L257   ## Files
 ```
 
-### `docs/ARCHITECTURE.md` (279 lines)
+### `docs/AGENT_PROMPT.md` (174 lines)
+
+```
+  L3     # Mycelic memory-node protocol v1.0
+  L11    ## Invariants you keep
+  L19    ## What you receive
+  L37    ## What you send back
+  L78    ## When to ask instead of answering
+  L93    ## When the orchestrator verifies you
+  L116   ## Learning from peers
+  L129   ## Never
+  L138   ## The memory bus
+  L149   # Mycelic orchestrator protocol v1.0
+```
+
+### `docs/ARCHITECTURE.md` (283 lines)
 
 ```
   L1     # Architecture
@@ -3093,7 +3188,7 @@ N5: re-score existing LoCoMo answer files under three judges.
   L160   def main
 ```
 
-### `docs/sim/README.md` (24 lines)
+### `docs/sim/README.md` (35 lines)
 
 ```
   L1     # Mycelic Forest Ops (simulation game)

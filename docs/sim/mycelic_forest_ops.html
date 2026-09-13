@@ -383,7 +383,8 @@
         verifications++;
         if (c.score > 0) {
           // the repair node routes first; organisms that produced no valid claim are evicted before ones that did
-          const kept = [...exec.route].sort((a, b) => (exec.claims.some(x => x.org === b) ? 1 : 0) - (exec.claims.some(x => x.org === a) ? 1 : 0) || a.id - b.id);
+          const rank = o => exec.selected.some(x => x.org === o) ? 2 : exec.claims.some(x => x.org === o) ? 1 : 0;
+          const kept = [...exec.route].sort((a, b) => rank(b) - rank(a) || a.id - b.id);
           const route = [c.o, ...kept].slice(0, MAX_NODES);
           const again = execute(route);
           if (again.success) { exec = again; repaired = true; break; }
@@ -469,6 +470,10 @@
       blighted_roots: Object.values(S.roots).filter(r => r.blighted).map(r => r.id),
       prev,
     };
+    // horizontal peer links: earlier entries that reconstructed from the same lineage signature
+    const sig = entry.evidence.map(v => v.root + '/' + v.domain).sort().join(',');
+    entry.signature = sig;
+    entry.peers = S.ledger.filter(e => e.signature === sig && e.outcome !== 'lost').slice(-3).map(e => e.seq);
     entry.hash = chainHash(JSON.stringify({ ...entry, hash: undefined }), prev);
     S.ledger.push(entry);
     if (S.ledger.length > 200) S.ledger.shift();
@@ -781,7 +786,7 @@
   }
   function renderLedger() {
     const list = S.ledger || [];
-    $('l-list').innerHTML = list.slice(-12).reverse().map(e => `<div class="e"><span class="${e.outcome === 'lost' ? 'bad' : e.outcome === 'repaired' ? 'rep' : 'ok'}">#${e.seq} c${e.cycle} ${e.outcome}</span> · ${e.evidence.map(v => `${v.organism}:${v.slot}@${v.root}/${v.domain}`).join(' ') || 'no evidence'}<div class="h">${e.hash} ← ${e.prev}</div></div>`).join('') || '<div class="h">no cycles yet</div>';
+    $('l-list').innerHTML = list.slice(-12).reverse().map(e => `<div class="e"><span class="${e.outcome === 'lost' ? 'bad' : e.outcome === 'repaired' ? 'rep' : 'ok'}">#${e.seq} c${e.cycle} ${e.outcome}</span> · ${e.evidence.map(v => `${v.organism}:${v.slot}@${v.root}/${v.domain}`).join(' ') || 'no evidence'}<div class="h">${e.hash} ← ${e.prev}${e.peers && e.peers.length ? ` · peers #${e.peers.join(' #')}` : ''}</div></div>`).join('') || '<div class="h">no cycles yet</div>';
     $('l-json').value = JSON.stringify(list, null, 0);
   }
   function renderConsole() {
