@@ -36,7 +36,7 @@ are far cheaper than reconstructing the same facts from 5,000 lines.
 
 ```bash
 pip install -r requirements.txt
-python3.11 -m pytest                                          # 344 passed, 1 skipped, 3520 subtests
+python3.11 -m pytest                                          # 355 passed, 1 skipped, 3520 subtests
 
 python3.11 -m NeuralGraph.coordination.benchmark --sweep 30 --format markdown
 python3.11 -m NeuralGraph.coordination.scale --format markdown
@@ -45,6 +45,7 @@ python3.11 -m NeuralGraph.coordination.figures --check    # paper figures vs art
 python3.11 -m NeuralGraph.coordination.agent_prompt --write docs/AGENT_PROMPT.md   # regenerate the agent prompt
 python3.11 -m tools.codemap                                   # regenerate CODEMAP.md
 python3.11 -m NeuralGraph.mcp.server --print-config claude    # MCP memory server config (see docs/MCP.md)
+python3.11 -m NeuralGraph.mcp.evaluation --format markdown     # memory recall evaluation (pinned in NeuralGraph/mcp/artifacts)
 ```
 
 Run `pytest` from the repo root. There is no venv activation step.
@@ -56,7 +57,7 @@ Run `pytest` from the repo root. There is no venv activation step.
    never re-render one to get a test green without knowing why it moved.
 2. **Never refresh a pinned artifact to get a test green.** Diff it, find out
    why it moved, re-pin deliberately with the reason in the commit message.
-   See `docs/REPRODUCE.md`.
+   See `docs/REPRODUCE.md`. This covers `NeuralGraph/mcp/artifacts/` too.
 3. **Never skip, disable, xfail or quarantine a test** to get green.
 4. **Do not touch the retrieval track** without Anar's explicit say-so.
    `answering.py`, `llm_profile_extractor.py`, `prompts.py`, `reranker.py`,

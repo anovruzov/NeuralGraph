@@ -52,10 +52,29 @@ from ..data_types import (
 )
 from ..mega_search import entities_of, rrf
 from ..sqlite_storage import SQLiteNeuralGraphStorage
+from . import lexicon
+
+
+class Features:
+    """Recall preprocessing switches, each measurable on its own (evaluation.py)."""
+
+    def __init__(self, spelling: bool = True, thesaurus: bool = True, names: bool = True) -> None:
+        self.spelling = spelling
+        self.thesaurus = thesaurus
+        self.names = names
+
+    def as_dict(self) -> dict[str, bool]:
+        return {"spelling": self.spelling, "thesaurus": self.thesaurus, "names": self.names}
 
 MAX_TEXT_CHARS = 8000
 #: Words that flip meaning; never dropped from fingerprints or embeddings.
-NEGATIONS = {"not", "no", "never", "none", "without", "off", "on", "un", "non"}
+NEGATIONS = {"not", "no", "never", "none", "without", "non"}
+#: Kept in the dedupe fingerprint only: they flip meaning ("on"/"off") but are
+#: far too common to rank by.
+FINGERPRINT_ONLY = {"on", "off"}
+#: How a memory's own key contributes to recall (chosen by evaluation.py sweep).
+KEY_MATCH_MODE = "last"
+KEY_WEIGHT = 0.5
 _WORD = re.compile(r"\w+", re.UNICODE)
 DEFAULT_DB = "~/.neuralgraph/memory.db"
 _ISO_DATE = re.compile(r"\b(\d{4}-\d{2}-\d{2})\b")
@@ -103,7 +122,8 @@ def fingerprint(text: str) -> tuple[str, ...]:
     Two texts are near-duplicates only when every token matches; punctuation,
     case and spacing differences collapse, any changed word or number does not.
     """
-    return tuple(sorted(content_tokens(text)))
+    extra = [w for w in _WORD.findall(text.lower()) if w in FINGERPRINT_ONLY]
+    return tuple(sorted(content_tokens(text) + extra))
 
 
 class Embedder(Protocol):
@@ -219,8 +239,10 @@ class MemoryEngine:
         clock: Callable[[], datetime] = _now,
         failure_domain: str | None = None,
         storage: SQLiteNeuralGraphStorage | None = None,
+        features: Features | None = None,
     ) -> None:
         self.session_key = session_key
+        self.features = features or Features()
         self.embedder: Embedder = embedder or HashedEmbedder()
         self._clock = clock
         # Recorded only when the operator names it; never inferred from the
@@ -334,7 +356,9 @@ class MemoryEngine:
         embedder = self._private_embedder if private else self.embedder
         embedding, embedding_source = await self._embed(embedder, content)
 
-        entity_ids = extract_entities(content, tuple(entities))
+        name_ids = lexicon.names(content, tuple(entities)) if self.features.names else ()
+        name_candidates = lexicon.sentence_initial_candidates(content) if self.features.names else ()
+        entity_ids = tuple(sorted(set(extract_entities(content, tuple(entities))) | set(name_ids)))
         superseded: NeuralNode | None = None
         if key:
             superseded = next(
@@ -357,6 +381,8 @@ class MemoryEngine:
             "valid_from": _iso(valid_from_dt or (now if superseded is not None else None)),
             "valid_to": _iso(valid_to_dt),
             "mentioned_dates": sorted(set(_ISO_DATE.findall(content))),
+            "names": list(name_ids),
+            "name_candidates": list(name_candidates),
             "created_by": "neuralgraph-mcp",
         }
         if self.failure_domain:
@@ -432,6 +458,7 @@ class MemoryEngine:
         include_superseded: bool = False,
         explain: bool = False,
         strengthen: bool = True,
+        min_confidence: float = 0.0,
     ) -> list[dict[str, Any]]:
         query = normalize_text(query or "")
         if not query:
@@ -456,7 +483,31 @@ class MemoryEngine:
         if not candidates:
             return []
         by_id = {n.node_id: n for n in candidates}
-        query_vec, query_source = await self._embed(self.embedder, query)
+        corpus = [content_tokens(n.content) for n in candidates]
+        vocab: dict[str, int] = {}
+        for doc in corpus:
+            for w in doc:
+                vocab[w] = vocab.get(w, 0) + 1
+        corpus_names = {name for n in candidates for name in n.metadata.get("names", [])}
+        # A sentence-initial capitalised word ("Ali prefers ...") counts as a
+        # name once the session has seen it as a name anywhere else.
+        effective_names = {
+            n.node_id: set(n.metadata.get("names", [])) | (set(n.metadata.get("name_candidates", [])) & corpus_names)
+            for n in candidates
+        }
+        corrections: dict[str, str] = {}
+        raw_tokens = content_tokens(query)
+        if self.features.spelling and raw_tokens:
+            # correct against the corpus first (jargon and names are valid), never a capitalised word
+            original_case = {w.lower(): w for w in lexicon.query_words(query)}
+            q_tokens, corrections = lexicon.correct_tokens(
+                [original_case.get(w, w) for w in raw_tokens], vocab, protected=corpus_names,
+            )
+        else:
+            q_tokens = raw_tokens
+        expansions = lexicon.expand(q_tokens, set(vocab)) if self.features.thesaurus and q_tokens else {}
+        vector_query = " ".join(q_tokens) if corrections else query
+        query_vec, query_source = await self._embed(self.embedder, vector_query)
         vector_rank = [
             n.node_id for n, _ in sorted(
                 ((n, cosine_similarity(query_vec, n.embedding)) for n in candidates
@@ -464,9 +515,7 @@ class MemoryEngine:
                 key=lambda item: -item[1],
             ) if _ > 0.0
         ]
-        corpus = [content_tokens(n.content) for n in candidates]
         keyword_rank: list[str] = []
-        q_tokens = content_tokens(query)
         if q_tokens and any(corpus):
             # Overlap fraction is the primary signal so a one-memory corpus or a
             # term present in every memory still ranks; BM25 breaks ties.
@@ -475,7 +524,39 @@ class MemoryEngine:
             overlap = [len(q_set & set(doc)) / len(q_set) for doc in corpus]
             order = sorted(range(len(candidates)), key=lambda i: (-overlap[i], -bm25[i]))
             keyword_rank = [candidates[i].node_id for i in order if overlap[i] > 0]
-        q_entities = set(extract_entities(query))
+        synonym_rank: list[str] = []
+        if expansions:
+            syn_set = {s for syns in expansions.values() for s in syns}
+            syn_overlap = [len(syn_set & set(doc)) / len(syn_set) for doc in corpus]
+            synonym_rank = [candidates[i].node_id for i in sorted(range(len(candidates)), key=lambda i: -syn_overlap[i]) if syn_overlap[i] > 0]
+        q_names: set[str] = set()
+        name_rank: list[str] = []
+        if self.features.names:
+            q_names = set(lexicon.names(query)) | {w for w in q_tokens if w in corpus_names}
+            q_set_for_names = set(q_tokens)
+            name_hits = [
+                (n, len(q_names & effective_names[n.node_id]) / len(q_names),
+                 len(q_set_for_names & set(corpus[i])) / (len(q_set_for_names) or 1))
+                for i, n in enumerate(candidates)
+            ] if q_names else []
+            name_rank = [n.node_id for n, o, kw in sorted(name_hits, key=lambda item: (-item[1], -item[2])) if o > 0]
+        # Key rank: a memory's own key ("user.editor", "team.standup") is the
+        # agent's index term for it; query words that hit it are strong evidence.
+        key_rank: list[str] = []
+        if q_tokens:
+            q_set_for_keys = set(q_tokens)
+            key_hits = []
+            for n in candidates:
+                key = n.metadata.get("key")
+                if not key:
+                    continue
+                segments = [s for s in re.split(r"[._\-\s/]+", key.lower()) if s]
+                key_tokens = set(segments if KEY_MATCH_MODE == "all" else segments[-1:])
+                overlap = len(q_set_for_keys & key_tokens) / (len(key_tokens) or 1)
+                if overlap > 0:
+                    key_hits.append((n.node_id, overlap))
+            key_rank = [node_id for node_id, _ in sorted(key_hits, key=lambda item: -item[1])]
+        q_entities = set(extract_entities(query)) | q_names
         entity_rank = [
             n.node_id for n, overlap in sorted(
                 ((n, len(q_entities & set(n.entity_ids)) / (len(q_entities | set(n.entity_ids)) or 1)) for n in candidates),
@@ -483,13 +564,27 @@ class MemoryEngine:
             ) if overlap > 0
         ]
         recency_rank = [n.node_id for n in sorted(candidates, key=lambda n: n.created_at, reverse=True)]
-        fused = rrf([vector_rank, keyword_rank, entity_rank, recency_rank], weights=[1.0, 1.0, 0.6, 0.25])
+        fused = rrf(
+            [vector_rank, keyword_rank, entity_rank, recency_rank, synonym_rank, name_rank, key_rank],
+            weights=[1.0, 1.0, 0.6, 0.25, 0.5, 0.6, KEY_WEIGHT],
+        )
         # recency alone never surfaces a memory: at least one content signal must match
-        content_hits = set(vector_rank) | set(keyword_rank) | set(entity_rank)
+        content_hits = set(vector_rank) | set(keyword_rank) | set(entity_rank) | set(synonym_rank) | set(name_rank) | set(key_rank)
         hits = [(node_id, score) for node_id, score in fused if node_id in content_hits][:limit]
         results = []
+        q_content = set(q_tokens)
+        syn_map = {s: k for k, syns in expansions.items() for s in syns}
+        idx = {n.node_id: i for i, n in enumerate(candidates)}
         for node_id, score in hits:
             node = by_id[node_id]
+            # Evidence coverage: the share of query terms this memory supports
+            # directly, through a synonym, or as a name.  Unlike the fused rank
+            # score it is comparable across queries, so it can gate "no answer".
+            doc = set(corpus[idx[node_id]])
+            supported = (q_content & doc) | {syn_map[s] for s in doc if s in syn_map} | (q_names & effective_names[node_id])
+            coverage = round(len(supported) / len(q_content | q_names), 4) if (q_content | q_names) else 0.0
+            if coverage < min_confidence:
+                continue
             if strengthen and node.consolidation_state is ConsolidationState.ACTIVE:
                 node.heat_score = min(5.0, node.heat_score + 0.1)
                 node.activation_level = min(1.0, node.activation_level + 0.2)
@@ -501,6 +596,7 @@ class MemoryEngine:
                     pass  # read-only or locked store: recall still answers
             item = self._summary(node)
             item["score"] = round(score, 6)
+            item["confidence"] = coverage
             if explain:
                 item["why"] = {
                     "vector_rank": vector_rank.index(node_id) + 1 if node_id in vector_rank else None,
@@ -508,6 +604,12 @@ class MemoryEngine:
                     "entity_rank": entity_rank.index(node_id) + 1 if node_id in entity_rank else None,
                     "recency_rank": recency_rank.index(node_id) + 1,
                     "shared_entities": sorted(q_entities & set(node.entity_ids)),
+                    "synonym_rank": synonym_rank.index(node_id) + 1 if node_id in synonym_rank else None,
+                    "name_rank": name_rank.index(node_id) + 1 if node_id in name_rank else None,
+                    "matched_names": sorted(q_names & effective_names[node_id]),
+                    "key_rank": key_rank.index(node_id) + 1 if node_id in key_rank else None,
+                    "corrected_query_terms": corrections,
+                    "synonyms_used": {k: list(v) for k, v in expansions.items()},
                     "embedding_source": node.metadata.get("embedding_source"),
                 }
             results.append(item)
@@ -734,6 +836,7 @@ class MemoryEngine:
             "heat": round(node.heat_score, 4),
             "importance": node.importance_score,
             "source_memory_ids": list(node.source_memory_ids),
+            "names": m.get("names", []),
             "supersedes": m.get("supersedes"),
             "superseded_by": m.get("superseded_by"),
             "contradicts": m.get("contradicts"),

@@ -52,12 +52,15 @@ provenance, validity intervals and decay. Use it in this order:
    a deadline), pass a stable `key` such as `user.editor` or
    `project.default_branch`. A new memory with the same key supersedes the
    old one and records the contradiction; history is kept.
-4. If you are unsure which of two memories is current, `recall` with
+4. Every recall hit carries `confidence`, the share of your query terms the
+   memory supports. Treat anything below 0.34 as "memory has nothing on
+   this" rather than an answer.
+5. If you are unsure which of two memories is current, `recall` with
    `explain=true` and `include_superseded=true`, and prefer the one without
    `superseded_by`.
-5. Use `forget` only for memories that were wrong or must not be kept; it is
+6. Use `forget` only for memories that were wrong or must not be kept; it is
    a soft delete with a reason, and provenance survives.
-6. Run `decay` occasionally (daily is plenty). Recalled memories warm up;
+7. Run `decay` occasionally (daily is plenty). Recalled memories warm up;
    cold, unimportant ones are archived, never deleted.
 
 Do not store transcripts. Store the fact, the decision, the reason.
@@ -128,7 +131,7 @@ def build_server() -> MCPServer:
             derived_from=derived_from or (), private=private,
         ))
 
-    @server.tool(description="Retrieve the memories most relevant to a question. Fuses semantic, keyword and entity signals; `explain=true` returns why each hit ranked. `as_of` (ISO time) restricts to memories valid at that time; `include_superseded` includes replaced facts.")
+    @server.tool(description="Retrieve the memories most relevant to a question. Corrects spelling against what memory already contains, expands synonyms, matches names and keys, and fuses the signals. Each hit carries `confidence` (0-1, the share of your query terms it supports); hits below `min_confidence` are dropped (0.34 answered no unanswerable query in evaluation). `explain=true` returns why each hit ranked. `as_of` restricts to memories valid at that ISO time; `include_superseded` includes replaced facts.")
     async def recall(
         query: str,
         limit: int = 8,
@@ -137,10 +140,11 @@ def build_server() -> MCPServer:
         as_of: str | None = None,
         include_superseded: bool = False,
         explain: bool = False,
+        min_confidence: float = 0.25,
     ) -> dict[str, Any]:
         hits = await _guarded((await engine()).recall(
             query, limit=limit, kind=kind, tags=tags or (), as_of=as_of,
-            include_superseded=include_superseded, explain=explain,
+            include_superseded=include_superseded, explain=explain, min_confidence=min_confidence,
         ))
         return {"count": len(hits), "memories": hits}
 

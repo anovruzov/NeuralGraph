@@ -69,6 +69,62 @@ The server also publishes a `memory_policy` prompt: when to remember, what
 to key, what to mark private. The same text is sent as the server's
 `instructions`, so a client that honours instructions gets it automatically.
 
+## Preprocessing: thesaurus, spelling detector, names
+
+No language model runs anywhere in this path. Three deterministic components
+(`NeuralGraph/mcp/lexicon.py`), each switchable and measured on its own:
+
+- **Thesaurus.** The WordNet-derived `en_thesaurus.jsonl` (117k entries)
+  plus a small curated software table (`deploy`↔`ship`/`release`,
+  `editor`↔`ide`, `database`↔`db`, ...). A query term is expanded only into
+  synonyms that some memory actually contains, which is what keeps expansion
+  from adding noise.
+- **Spelling detector.** Norvig-style edit distance over two vocabularies:
+  the session's own memories first (project jargon and names are valid by
+  definition), then the 78k-word dictionary. Capitalised words, known names,
+  numbers and short tokens are never corrected. Stored text is never rewritten.
+- **Names.** Capitalised runs ("Nurman Mahammadov", "LM Studio"), handles,
+  possessives stripped, and capitalised words the dictionary does not know.
+  A sentence-initial name ("Ali prefers...") counts once the session has seen
+  it as a name mid-sentence anywhere.
+
+Recall fuses seven signals by reciprocal rank fusion: hashed or model vector,
+keyword overlap (BM25 tie-break), entities, recency, synonyms, names, and the
+memory's own `key`. Every hit carries `confidence`: the share of query terms
+the memory supports directly, by synonym, or by name.
+
+## Evaluation (pinned: `NeuralGraph/mcp/artifacts/`)
+
+60 memories from a realistic coding-agent session and 48 labelled queries in
+six categories, run under matched conditions with each component toggled.
+`python3.11 -m NeuralGraph.mcp.evaluation --format markdown` regenerates it;
+`test_mcp_evaluation.py` checks the pinned JSON byte for byte.
+
+| configuration | exact | paraphrase | misspelled | name | keyed | overall P@1 | R@5 | MRR |
+|---|---|---|---|---|---|---|---|---|
+| baseline | 0.80 | 0.40 | 0.50 | 0.88 | 1.00 | 0.68 | 0.82 | 0.73 |
+| spelling | 0.80 | 0.40 | 0.75 | 0.88 | 1.00 | 0.72 | 0.88 | 0.78 |
+| thesaurus | 0.80 | 0.50 | 0.50 | 0.88 | 1.00 | 0.70 | 0.85 | 0.76 |
+| names | 0.80 | 0.40 | 0.50 | 1.00 | 1.00 | 0.70 | 0.82 | 0.74 |
+| all | 0.90 | 0.50 | 1.00 | 1.00 | 1.00 | 0.85 | 0.90 | 0.87 |
+
+Each component lifts its own category and none lowers another. Paraphrase is
+the weakest category (0.50): WordNet lacks most software vocabulary, and the
+curated table is deliberately small.
+
+Unanswerable queries: without a gate every configuration returns something
+(negative hit rate 1.00). The `confidence` gate at 0.34 answers 0 of 8
+unanswerable queries and 35 of 40 answerable ones; at 0.25 it answers 6 of 8
+and 39 of 40. The `recall` tool defaults to `min_confidence=0.25` and the
+server instructions tell the agent to treat confidence below 0.34 as "memory
+has nothing on this".
+
+Negative result kept on record: an earlier key-matching rule (any key
+segment, weight 0.8) raised keyed queries to 1.00 but dropped exact queries
+from 0.80 to 0.60, because `office` matched the `office.location` key. The
+pinned setting matches the key's last segment at weight 0.5, chosen by a
+six-point sweep under the same conditions.
+
 ## What "great at creating memories" means here
 
 - One memory per fact, normalized, tagged, with source and speaker.

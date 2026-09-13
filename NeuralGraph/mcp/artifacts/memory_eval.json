@@ -1,0 +1,2229 @@
+{
+  "configurations": {
+    "all": {
+      "by_category": {
+        "exact": {
+          "mrr": 0.9333,
+          "n": 10,
+          "p_at_1": 0.9,
+          "r_at_5": 1.0
+        },
+        "keyed": {
+          "mrr": 1.0,
+          "n": 4,
+          "p_at_1": 1.0,
+          "r_at_5": 1.0
+        },
+        "misspelled": {
+          "mrr": 1.0,
+          "n": 8,
+          "p_at_1": 1.0,
+          "r_at_5": 1.0
+        },
+        "name": {
+          "mrr": 1.0,
+          "n": 8,
+          "p_at_1": 1.0,
+          "r_at_5": 1.0
+        },
+        "paraphrase": {
+          "mrr": 0.55,
+          "n": 10,
+          "p_at_1": 0.5,
+          "r_at_5": 0.6
+        }
+      },
+      "confidence_gate": {
+        "0.25": {
+          "negatives_answered": 6,
+          "positives_answered": 39
+        },
+        "0.34": {
+          "negatives_answered": 0,
+          "positives_answered": 35
+        }
+      },
+      "features": {
+        "names": true,
+        "spelling": true,
+        "thesaurus": true
+      },
+      "negative_hit_rate": 1.0,
+      "overall": {
+        "mrr": 0.8708,
+        "n": 40,
+        "p_at_1": 0.85,
+        "r_at_5": 0.9
+      },
+      "per_query": [
+        {
+          "category": "exact",
+          "gold": "m03",
+          "hits": 5,
+          "query": "which database does staging use",
+          "rank_of_gold": 3,
+          "top_confidence": 0.3333
+        },
+        {
+          "category": "exact",
+          "gold": "m06",
+          "hits": 5,
+          "query": "where do deploy secrets live",
+          "rank_of_gold": 1,
+          "top_confidence": 0.5
+        },
+        {
+          "category": "exact",
+          "gold": "m12",
+          "hits": 5,
+          "query": "what is the default branch",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "exact",
+          "gold": "m27",
+          "hits": 5,
+          "query": "how do tests run",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "exact",
+          "gold": "m19",
+          "hits": 5,
+          "query": "what is the single-hop accuracy ceiling on LoCoMo",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "exact",
+          "gold": "m21",
+          "hits": 5,
+          "query": "what embedding model do we use",
+          "rank_of_gold": 1,
+          "top_confidence": 0.4
+        },
+        {
+          "category": "exact",
+          "gold": "m15",
+          "hits": 4,
+          "query": "what happened when max_nodes was lifted",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "exact",
+          "gold": "m35",
+          "hits": 5,
+          "query": "how often is the staging API token rotated",
+          "rank_of_gold": 1,
+          "top_confidence": 0.8333
+        },
+        {
+          "category": "exact",
+          "gold": "m39",
+          "hits": 5,
+          "query": "what is the office wifi",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "exact",
+          "gold": "m42",
+          "hits": 5,
+          "query": "what does the reranker cost per question",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m05",
+          "hits": 5,
+          "query": "how do we release to prod",
+          "rank_of_gold": 1,
+          "top_confidence": 0.8
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m60",
+          "hits": 5,
+          "query": "which IDE does Ali like",
+          "rank_of_gold": 2,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m03",
+          "hits": 5,
+          "query": "where is the db for the staging environment",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m15",
+          "hits": 5,
+          "query": "what was the defect with the benchmark run",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m11",
+          "hits": 5,
+          "query": "when is the team meeting",
+          "rank_of_gold": null,
+          "top_confidence": 0.3333
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m06",
+          "hits": 5,
+          "query": "where are the credentials for rollout kept",
+          "rank_of_gold": null,
+          "top_confidence": 0.0
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m22",
+          "hits": 5,
+          "query": "which llm answers questions",
+          "rank_of_gold": null,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m05",
+          "hits": 5,
+          "query": "what is the ci workflow for shipping",
+          "rank_of_gold": null,
+          "top_confidence": 0.25
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m26",
+          "hits": 5,
+          "query": "what settings does the code style use",
+          "rank_of_gold": 1,
+          "top_confidence": 0.5
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m23",
+          "hits": 5,
+          "query": "is there a container orchestration setup",
+          "rank_of_gold": 1,
+          "top_confidence": 0.5
+        },
+        {
+          "category": "misspelled",
+          "gold": "m03",
+          "hits": 5,
+          "query": "posgres on stagng",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "misspelled",
+          "gold": "m60",
+          "hits": 5,
+          "query": "nevoim or zed for Ali",
+          "rank_of_gold": 1,
+          "top_confidence": 0.75
+        },
+        {
+          "category": "misspelled",
+          "gold": "m09",
+          "hits": 5,
+          "query": "listwise rerankr accuracy",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "misspelled",
+          "gold": "m23",
+          "hits": 5,
+          "query": "kubernets in use?",
+          "rank_of_gold": 1,
+          "top_confidence": 0.3333
+        },
+        {
+          "category": "misspelled",
+          "gold": "m34",
+          "hits": 5,
+          "query": "wokshop submision deadline",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "misspelled",
+          "gold": "m21",
+          "hits": 5,
+          "query": "embeding model port",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "misspelled",
+          "gold": "m48",
+          "hits": 5,
+          "query": "backups of the memroy databse",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "misspelled",
+          "gold": "m12",
+          "hits": 5,
+          "query": "deafult brnach name",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "name",
+          "gold": "m09",
+          "hits": 5,
+          "query": "what did Nurman say about the reranker",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "name",
+          "gold": "m08",
+          "hits": 5,
+          "query": "who owns coordination and lineage",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "name",
+          "gold": "m33",
+          "hits": 5,
+          "query": "where is Anar based",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "name",
+          "gold": "m32",
+          "hits": 5,
+          "query": "what machine does Nurman run LM Studio on",
+          "rank_of_gold": 1,
+          "top_confidence": 0.7143
+        },
+        {
+          "category": "name",
+          "gold": "m49",
+          "hits": 5,
+          "query": "Anar's preference on merging branches",
+          "rank_of_gold": 1,
+          "top_confidence": 0.8
+        },
+        {
+          "category": "name",
+          "gold": "m46",
+          "hits": 5,
+          "query": "what is Miso",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "name",
+          "gold": "m57",
+          "hits": 5,
+          "query": "what is happening to the Berlin office",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6
+        },
+        {
+          "category": "name",
+          "gold": "m03",
+          "hits": 5,
+          "query": "what runs on Railway",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "keyed",
+          "gold": "m11",
+          "hits": 5,
+          "query": "what time is standup",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "keyed",
+          "gold": "m60",
+          "hits": 5,
+          "query": "what editor does Ali use now",
+          "rank_of_gold": 1,
+          "top_confidence": 0.5
+        },
+        {
+          "category": "keyed",
+          "gold": "m11",
+          "hits": 5,
+          "query": "current standup time in Berlin",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6
+        },
+        {
+          "category": "keyed",
+          "gold": "m60",
+          "hits": 5,
+          "query": "Ali's editor",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "negative",
+          "gold": null,
+          "hits": 5,
+          "query": "what is the capital of Australia",
+          "rank_of_gold": null,
+          "top_confidence": 0.25
+        },
+        {
+          "category": "negative",
+          "gold": null,
+          "hits": 5,
+          "query": "how many moons does Jupiter have",
+          "rank_of_gold": null,
+          "top_confidence": 0.0
+        },
+        {
+          "category": "negative",
+          "gold": null,
+          "hits": 5,
+          "query": "what is the recipe for sourdough",
+          "rank_of_gold": null,
+          "top_confidence": 0.3333
+        },
+        {
+          "category": "negative",
+          "gold": null,
+          "hits": 5,
+          "query": "who won the 2018 world cup",
+          "rank_of_gold": null,
+          "top_confidence": 0.25
+        },
+        {
+          "category": "negative",
+          "gold": null,
+          "hits": 5,
+          "query": "what is the speed of light",
+          "rank_of_gold": null,
+          "top_confidence": 0.25
+        },
+        {
+          "category": "negative",
+          "gold": null,
+          "hits": 5,
+          "query": "translate hello to Japanese",
+          "rank_of_gold": null,
+          "top_confidence": 0.25
+        },
+        {
+          "category": "negative",
+          "gold": null,
+          "hits": 5,
+          "query": "what is the weather tomorrow",
+          "rank_of_gold": null,
+          "top_confidence": 0.3333
+        },
+        {
+          "category": "negative",
+          "gold": null,
+          "hits": 5,
+          "query": "how tall is Mount Everest",
+          "rank_of_gold": null,
+          "top_confidence": 0.2
+        }
+      ]
+    },
+    "baseline": {
+      "by_category": {
+        "exact": {
+          "mrr": 0.82,
+          "n": 10,
+          "p_at_1": 0.8,
+          "r_at_5": 0.9
+        },
+        "keyed": {
+          "mrr": 1.0,
+          "n": 4,
+          "p_at_1": 1.0,
+          "r_at_5": 1.0
+        },
+        "misspelled": {
+          "mrr": 0.6146,
+          "n": 8,
+          "p_at_1": 0.5,
+          "r_at_5": 0.875
+        },
+        "name": {
+          "mrr": 0.9375,
+          "n": 8,
+          "p_at_1": 0.875,
+          "r_at_5": 1.0
+        },
+        "paraphrase": {
+          "mrr": 0.45,
+          "n": 10,
+          "p_at_1": 0.4,
+          "r_at_5": 0.5
+        }
+      },
+      "confidence_gate": {
+        "0.25": {
+          "negatives_answered": 6,
+          "positives_answered": 36
+        },
+        "0.34": {
+          "negatives_answered": 0,
+          "positives_answered": 28
+        }
+      },
+      "features": {
+        "names": false,
+        "spelling": false,
+        "thesaurus": false
+      },
+      "negative_hit_rate": 1.0,
+      "overall": {
+        "mrr": 0.7279,
+        "n": 40,
+        "p_at_1": 0.675,
+        "r_at_5": 0.825
+      },
+      "per_query": [
+        {
+          "category": "exact",
+          "gold": "m03",
+          "hits": 5,
+          "query": "which database does staging use",
+          "rank_of_gold": 5,
+          "top_confidence": 0.3333
+        },
+        {
+          "category": "exact",
+          "gold": "m06",
+          "hits": 5,
+          "query": "where do deploy secrets live",
+          "rank_of_gold": 1,
+          "top_confidence": 0.5
+        },
+        {
+          "category": "exact",
+          "gold": "m12",
+          "hits": 5,
+          "query": "what is the default branch",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "exact",
+          "gold": "m27",
+          "hits": 5,
+          "query": "how do tests run",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "exact",
+          "gold": "m19",
+          "hits": 5,
+          "query": "what is the single-hop accuracy ceiling on LoCoMo",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "exact",
+          "gold": "m21",
+          "hits": 5,
+          "query": "what embedding model do we use",
+          "rank_of_gold": null,
+          "top_confidence": 0.2
+        },
+        {
+          "category": "exact",
+          "gold": "m15",
+          "hits": 5,
+          "query": "what happened when max_nodes was lifted",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "exact",
+          "gold": "m35",
+          "hits": 5,
+          "query": "how often is the staging API token rotated",
+          "rank_of_gold": 1,
+          "top_confidence": 0.8333
+        },
+        {
+          "category": "exact",
+          "gold": "m39",
+          "hits": 5,
+          "query": "what is the office wifi",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "exact",
+          "gold": "m42",
+          "hits": 5,
+          "query": "what does the reranker cost per question",
+          "rank_of_gold": 1,
+          "top_confidence": 0.75
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m05",
+          "hits": 5,
+          "query": "how do we release to prod",
+          "rank_of_gold": 2,
+          "top_confidence": 0.2
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m60",
+          "hits": 5,
+          "query": "which IDE does Ali like",
+          "rank_of_gold": null,
+          "top_confidence": 0.5
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m03",
+          "hits": 5,
+          "query": "where is the db for the staging environment",
+          "rank_of_gold": 1,
+          "top_confidence": 0.5
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m15",
+          "hits": 5,
+          "query": "what was the defect with the benchmark run",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m11",
+          "hits": 5,
+          "query": "when is the team meeting",
+          "rank_of_gold": null,
+          "top_confidence": 0.3333
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m06",
+          "hits": 5,
+          "query": "where are the credentials for rollout kept",
+          "rank_of_gold": null,
+          "top_confidence": 0.0
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m22",
+          "hits": 5,
+          "query": "which llm answers questions",
+          "rank_of_gold": null,
+          "top_confidence": 0.3333
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m05",
+          "hits": 5,
+          "query": "what is the ci workflow for shipping",
+          "rank_of_gold": null,
+          "top_confidence": 0.25
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m26",
+          "hits": 5,
+          "query": "what settings does the code style use",
+          "rank_of_gold": 1,
+          "top_confidence": 0.5
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m23",
+          "hits": 5,
+          "query": "is there a container orchestration setup",
+          "rank_of_gold": 1,
+          "top_confidence": 0.5
+        },
+        {
+          "category": "misspelled",
+          "gold": "m03",
+          "hits": 5,
+          "query": "posgres on stagng",
+          "rank_of_gold": 3,
+          "top_confidence": 0.3333
+        },
+        {
+          "category": "misspelled",
+          "gold": "m60",
+          "hits": 5,
+          "query": "nevoim or zed for Ali",
+          "rank_of_gold": 1,
+          "top_confidence": 0.5
+        },
+        {
+          "category": "misspelled",
+          "gold": "m09",
+          "hits": 5,
+          "query": "listwise rerankr accuracy",
+          "rank_of_gold": 1,
+          "top_confidence": 0.3333
+        },
+        {
+          "category": "misspelled",
+          "gold": "m23",
+          "hits": 5,
+          "query": "kubernets in use?",
+          "rank_of_gold": null,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "misspelled",
+          "gold": "m34",
+          "hits": 5,
+          "query": "wokshop submision deadline",
+          "rank_of_gold": 1,
+          "top_confidence": 0.3333
+        },
+        {
+          "category": "misspelled",
+          "gold": "m21",
+          "hits": 5,
+          "query": "embeding model port",
+          "rank_of_gold": 3,
+          "top_confidence": 0.3333
+        },
+        {
+          "category": "misspelled",
+          "gold": "m48",
+          "hits": 5,
+          "query": "backups of the memroy databse",
+          "rank_of_gold": 1,
+          "top_confidence": 0.5
+        },
+        {
+          "category": "misspelled",
+          "gold": "m12",
+          "hits": 5,
+          "query": "deafult brnach name",
+          "rank_of_gold": 4,
+          "top_confidence": 0.0
+        },
+        {
+          "category": "name",
+          "gold": "m09",
+          "hits": 5,
+          "query": "what did Nurman say about the reranker",
+          "rank_of_gold": 2,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "name",
+          "gold": "m08",
+          "hits": 5,
+          "query": "who owns coordination and lineage",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "name",
+          "gold": "m33",
+          "hits": 5,
+          "query": "where is Anar based",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "name",
+          "gold": "m32",
+          "hits": 5,
+          "query": "what machine does Nurman run LM Studio on",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "name",
+          "gold": "m49",
+          "hits": 5,
+          "query": "Anar's preference on merging branches",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6
+        },
+        {
+          "category": "name",
+          "gold": "m46",
+          "hits": 5,
+          "query": "what is Miso",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "name",
+          "gold": "m57",
+          "hits": 5,
+          "query": "what is happening to the Berlin office",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6
+        },
+        {
+          "category": "name",
+          "gold": "m03",
+          "hits": 5,
+          "query": "what runs on Railway",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "keyed",
+          "gold": "m11",
+          "hits": 5,
+          "query": "what time is standup",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "keyed",
+          "gold": "m60",
+          "hits": 5,
+          "query": "what editor does Ali use now",
+          "rank_of_gold": 1,
+          "top_confidence": 0.5
+        },
+        {
+          "category": "keyed",
+          "gold": "m11",
+          "hits": 5,
+          "query": "current standup time in Berlin",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6
+        },
+        {
+          "category": "keyed",
+          "gold": "m60",
+          "hits": 5,
+          "query": "Ali's editor",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "negative",
+          "gold": null,
+          "hits": 5,
+          "query": "what is the capital of Australia",
+          "rank_of_gold": null,
+          "top_confidence": 0.25
+        },
+        {
+          "category": "negative",
+          "gold": null,
+          "hits": 5,
+          "query": "how many moons does Jupiter have",
+          "rank_of_gold": null,
+          "top_confidence": 0.0
+        },
+        {
+          "category": "negative",
+          "gold": null,
+          "hits": 5,
+          "query": "what is the recipe for sourdough",
+          "rank_of_gold": null,
+          "top_confidence": 0.3333
+        },
+        {
+          "category": "negative",
+          "gold": null,
+          "hits": 5,
+          "query": "who won the 2018 world cup",
+          "rank_of_gold": null,
+          "top_confidence": 0.0
+        },
+        {
+          "category": "negative",
+          "gold": null,
+          "hits": 5,
+          "query": "what is the speed of light",
+          "rank_of_gold": null,
+          "top_confidence": 0.25
+        },
+        {
+          "category": "negative",
+          "gold": null,
+          "hits": 5,
+          "query": "translate hello to Japanese",
+          "rank_of_gold": null,
+          "top_confidence": 0.25
+        },
+        {
+          "category": "negative",
+          "gold": null,
+          "hits": 5,
+          "query": "what is the weather tomorrow",
+          "rank_of_gold": null,
+          "top_confidence": 0.3333
+        },
+        {
+          "category": "negative",
+          "gold": null,
+          "hits": 5,
+          "query": "how tall is Mount Everest",
+          "rank_of_gold": null,
+          "top_confidence": 0.25
+        }
+      ]
+    },
+    "names": {
+      "by_category": {
+        "exact": {
+          "mrr": 0.82,
+          "n": 10,
+          "p_at_1": 0.8,
+          "r_at_5": 0.9
+        },
+        "keyed": {
+          "mrr": 1.0,
+          "n": 4,
+          "p_at_1": 1.0,
+          "r_at_5": 1.0
+        },
+        "misspelled": {
+          "mrr": 0.6146,
+          "n": 8,
+          "p_at_1": 0.5,
+          "r_at_5": 0.875
+        },
+        "name": {
+          "mrr": 1.0,
+          "n": 8,
+          "p_at_1": 1.0,
+          "r_at_5": 1.0
+        },
+        "paraphrase": {
+          "mrr": 0.45,
+          "n": 10,
+          "p_at_1": 0.4,
+          "r_at_5": 0.5
+        }
+      },
+      "confidence_gate": {
+        "0.25": {
+          "negatives_answered": 5,
+          "positives_answered": 36
+        },
+        "0.34": {
+          "negatives_answered": 0,
+          "positives_answered": 28
+        }
+      },
+      "features": {
+        "names": true,
+        "spelling": false,
+        "thesaurus": false
+      },
+      "negative_hit_rate": 1.0,
+      "overall": {
+        "mrr": 0.7404,
+        "n": 40,
+        "p_at_1": 0.7,
+        "r_at_5": 0.825
+      },
+      "per_query": [
+        {
+          "category": "exact",
+          "gold": "m03",
+          "hits": 5,
+          "query": "which database does staging use",
+          "rank_of_gold": 5,
+          "top_confidence": 0.3333
+        },
+        {
+          "category": "exact",
+          "gold": "m06",
+          "hits": 5,
+          "query": "where do deploy secrets live",
+          "rank_of_gold": 1,
+          "top_confidence": 0.5
+        },
+        {
+          "category": "exact",
+          "gold": "m12",
+          "hits": 5,
+          "query": "what is the default branch",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "exact",
+          "gold": "m27",
+          "hits": 5,
+          "query": "how do tests run",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "exact",
+          "gold": "m19",
+          "hits": 5,
+          "query": "what is the single-hop accuracy ceiling on LoCoMo",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "exact",
+          "gold": "m21",
+          "hits": 5,
+          "query": "what embedding model do we use",
+          "rank_of_gold": null,
+          "top_confidence": 0.2
+        },
+        {
+          "category": "exact",
+          "gold": "m15",
+          "hits": 5,
+          "query": "what happened when max_nodes was lifted",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "exact",
+          "gold": "m35",
+          "hits": 5,
+          "query": "how often is the staging API token rotated",
+          "rank_of_gold": 1,
+          "top_confidence": 0.8333
+        },
+        {
+          "category": "exact",
+          "gold": "m39",
+          "hits": 5,
+          "query": "what is the office wifi",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "exact",
+          "gold": "m42",
+          "hits": 5,
+          "query": "what does the reranker cost per question",
+          "rank_of_gold": 1,
+          "top_confidence": 0.75
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m05",
+          "hits": 5,
+          "query": "how do we release to prod",
+          "rank_of_gold": 2,
+          "top_confidence": 0.2
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m60",
+          "hits": 5,
+          "query": "which IDE does Ali like",
+          "rank_of_gold": null,
+          "top_confidence": 0.5
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m03",
+          "hits": 5,
+          "query": "where is the db for the staging environment",
+          "rank_of_gold": 1,
+          "top_confidence": 0.5
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m15",
+          "hits": 5,
+          "query": "what was the defect with the benchmark run",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m11",
+          "hits": 5,
+          "query": "when is the team meeting",
+          "rank_of_gold": null,
+          "top_confidence": 0.3333
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m06",
+          "hits": 5,
+          "query": "where are the credentials for rollout kept",
+          "rank_of_gold": null,
+          "top_confidence": 0.0
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m22",
+          "hits": 5,
+          "query": "which llm answers questions",
+          "rank_of_gold": null,
+          "top_confidence": 0.3333
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m05",
+          "hits": 5,
+          "query": "what is the ci workflow for shipping",
+          "rank_of_gold": null,
+          "top_confidence": 0.25
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m26",
+          "hits": 5,
+          "query": "what settings does the code style use",
+          "rank_of_gold": 1,
+          "top_confidence": 0.5
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m23",
+          "hits": 5,
+          "query": "is there a container orchestration setup",
+          "rank_of_gold": 1,
+          "top_confidence": 0.5
+        },
+        {
+          "category": "misspelled",
+          "gold": "m03",
+          "hits": 5,
+          "query": "posgres on stagng",
+          "rank_of_gold": 3,
+          "top_confidence": 0.3333
+        },
+        {
+          "category": "misspelled",
+          "gold": "m60",
+          "hits": 5,
+          "query": "nevoim or zed for Ali",
+          "rank_of_gold": 1,
+          "top_confidence": 0.5
+        },
+        {
+          "category": "misspelled",
+          "gold": "m09",
+          "hits": 5,
+          "query": "listwise rerankr accuracy",
+          "rank_of_gold": 1,
+          "top_confidence": 0.3333
+        },
+        {
+          "category": "misspelled",
+          "gold": "m23",
+          "hits": 5,
+          "query": "kubernets in use?",
+          "rank_of_gold": null,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "misspelled",
+          "gold": "m34",
+          "hits": 5,
+          "query": "wokshop submision deadline",
+          "rank_of_gold": 1,
+          "top_confidence": 0.3333
+        },
+        {
+          "category": "misspelled",
+          "gold": "m21",
+          "hits": 5,
+          "query": "embeding model port",
+          "rank_of_gold": 3,
+          "top_confidence": 0.3333
+        },
+        {
+          "category": "misspelled",
+          "gold": "m48",
+          "hits": 5,
+          "query": "backups of the memroy databse",
+          "rank_of_gold": 1,
+          "top_confidence": 0.5
+        },
+        {
+          "category": "misspelled",
+          "gold": "m12",
+          "hits": 5,
+          "query": "deafult brnach name",
+          "rank_of_gold": 4,
+          "top_confidence": 0.0
+        },
+        {
+          "category": "name",
+          "gold": "m09",
+          "hits": 5,
+          "query": "what did Nurman say about the reranker",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "name",
+          "gold": "m08",
+          "hits": 5,
+          "query": "who owns coordination and lineage",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "name",
+          "gold": "m33",
+          "hits": 5,
+          "query": "where is Anar based",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "name",
+          "gold": "m32",
+          "hits": 5,
+          "query": "what machine does Nurman run LM Studio on",
+          "rank_of_gold": 1,
+          "top_confidence": 0.7143
+        },
+        {
+          "category": "name",
+          "gold": "m49",
+          "hits": 5,
+          "query": "Anar's preference on merging branches",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6
+        },
+        {
+          "category": "name",
+          "gold": "m46",
+          "hits": 5,
+          "query": "what is Miso",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "name",
+          "gold": "m57",
+          "hits": 5,
+          "query": "what is happening to the Berlin office",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6
+        },
+        {
+          "category": "name",
+          "gold": "m03",
+          "hits": 5,
+          "query": "what runs on Railway",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "keyed",
+          "gold": "m11",
+          "hits": 5,
+          "query": "what time is standup",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "keyed",
+          "gold": "m60",
+          "hits": 5,
+          "query": "what editor does Ali use now",
+          "rank_of_gold": 1,
+          "top_confidence": 0.5
+        },
+        {
+          "category": "keyed",
+          "gold": "m11",
+          "hits": 5,
+          "query": "current standup time in Berlin",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6
+        },
+        {
+          "category": "keyed",
+          "gold": "m60",
+          "hits": 5,
+          "query": "Ali's editor",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "negative",
+          "gold": null,
+          "hits": 5,
+          "query": "what is the capital of Australia",
+          "rank_of_gold": null,
+          "top_confidence": 0.25
+        },
+        {
+          "category": "negative",
+          "gold": null,
+          "hits": 5,
+          "query": "how many moons does Jupiter have",
+          "rank_of_gold": null,
+          "top_confidence": 0.0
+        },
+        {
+          "category": "negative",
+          "gold": null,
+          "hits": 5,
+          "query": "what is the recipe for sourdough",
+          "rank_of_gold": null,
+          "top_confidence": 0.3333
+        },
+        {
+          "category": "negative",
+          "gold": null,
+          "hits": 5,
+          "query": "who won the 2018 world cup",
+          "rank_of_gold": null,
+          "top_confidence": 0.0
+        },
+        {
+          "category": "negative",
+          "gold": null,
+          "hits": 5,
+          "query": "what is the speed of light",
+          "rank_of_gold": null,
+          "top_confidence": 0.25
+        },
+        {
+          "category": "negative",
+          "gold": null,
+          "hits": 5,
+          "query": "translate hello to Japanese",
+          "rank_of_gold": null,
+          "top_confidence": 0.25
+        },
+        {
+          "category": "negative",
+          "gold": null,
+          "hits": 5,
+          "query": "what is the weather tomorrow",
+          "rank_of_gold": null,
+          "top_confidence": 0.3333
+        },
+        {
+          "category": "negative",
+          "gold": null,
+          "hits": 5,
+          "query": "how tall is Mount Everest",
+          "rank_of_gold": null,
+          "top_confidence": 0.2
+        }
+      ]
+    },
+    "spelling": {
+      "by_category": {
+        "exact": {
+          "mrr": 0.8533,
+          "n": 10,
+          "p_at_1": 0.8,
+          "r_at_5": 1.0
+        },
+        "keyed": {
+          "mrr": 1.0,
+          "n": 4,
+          "p_at_1": 1.0,
+          "r_at_5": 1.0
+        },
+        "misspelled": {
+          "mrr": 0.8333,
+          "n": 8,
+          "p_at_1": 0.75,
+          "r_at_5": 1.0
+        },
+        "name": {
+          "mrr": 0.9375,
+          "n": 8,
+          "p_at_1": 0.875,
+          "r_at_5": 1.0
+        },
+        "paraphrase": {
+          "mrr": 0.45,
+          "n": 10,
+          "p_at_1": 0.4,
+          "r_at_5": 0.5
+        }
+      },
+      "confidence_gate": {
+        "0.25": {
+          "negatives_answered": 6,
+          "positives_answered": 37
+        },
+        "0.34": {
+          "negatives_answered": 0,
+          "positives_answered": 32
+        }
+      },
+      "features": {
+        "names": false,
+        "spelling": true,
+        "thesaurus": false
+      },
+      "negative_hit_rate": 1.0,
+      "overall": {
+        "mrr": 0.78,
+        "n": 40,
+        "p_at_1": 0.725,
+        "r_at_5": 0.875
+      },
+      "per_query": [
+        {
+          "category": "exact",
+          "gold": "m03",
+          "hits": 5,
+          "query": "which database does staging use",
+          "rank_of_gold": 5,
+          "top_confidence": 0.3333
+        },
+        {
+          "category": "exact",
+          "gold": "m06",
+          "hits": 5,
+          "query": "where do deploy secrets live",
+          "rank_of_gold": 1,
+          "top_confidence": 0.5
+        },
+        {
+          "category": "exact",
+          "gold": "m12",
+          "hits": 5,
+          "query": "what is the default branch",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "exact",
+          "gold": "m27",
+          "hits": 5,
+          "query": "how do tests run",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "exact",
+          "gold": "m19",
+          "hits": 5,
+          "query": "what is the single-hop accuracy ceiling on LoCoMo",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "exact",
+          "gold": "m21",
+          "hits": 5,
+          "query": "what embedding model do we use",
+          "rank_of_gold": 3,
+          "top_confidence": 0.2
+        },
+        {
+          "category": "exact",
+          "gold": "m15",
+          "hits": 4,
+          "query": "what happened when max_nodes was lifted",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "exact",
+          "gold": "m35",
+          "hits": 5,
+          "query": "how often is the staging API token rotated",
+          "rank_of_gold": 1,
+          "top_confidence": 0.8333
+        },
+        {
+          "category": "exact",
+          "gold": "m39",
+          "hits": 5,
+          "query": "what is the office wifi",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "exact",
+          "gold": "m42",
+          "hits": 5,
+          "query": "what does the reranker cost per question",
+          "rank_of_gold": 1,
+          "top_confidence": 0.75
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m05",
+          "hits": 5,
+          "query": "how do we release to prod",
+          "rank_of_gold": 2,
+          "top_confidence": 0.2
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m60",
+          "hits": 5,
+          "query": "which IDE does Ali like",
+          "rank_of_gold": null,
+          "top_confidence": 0.5
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m03",
+          "hits": 5,
+          "query": "where is the db for the staging environment",
+          "rank_of_gold": 1,
+          "top_confidence": 0.5
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m15",
+          "hits": 5,
+          "query": "what was the defect with the benchmark run",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m11",
+          "hits": 5,
+          "query": "when is the team meeting",
+          "rank_of_gold": null,
+          "top_confidence": 0.3333
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m06",
+          "hits": 5,
+          "query": "where are the credentials for rollout kept",
+          "rank_of_gold": null,
+          "top_confidence": 0.0
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m22",
+          "hits": 5,
+          "query": "which llm answers questions",
+          "rank_of_gold": null,
+          "top_confidence": 0.3333
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m05",
+          "hits": 5,
+          "query": "what is the ci workflow for shipping",
+          "rank_of_gold": null,
+          "top_confidence": 0.25
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m26",
+          "hits": 5,
+          "query": "what settings does the code style use",
+          "rank_of_gold": 1,
+          "top_confidence": 0.5
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m23",
+          "hits": 5,
+          "query": "is there a container orchestration setup",
+          "rank_of_gold": 1,
+          "top_confidence": 0.5
+        },
+        {
+          "category": "misspelled",
+          "gold": "m03",
+          "hits": 5,
+          "query": "posgres on stagng",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "misspelled",
+          "gold": "m60",
+          "hits": 5,
+          "query": "nevoim or zed for Ali",
+          "rank_of_gold": 1,
+          "top_confidence": 0.75
+        },
+        {
+          "category": "misspelled",
+          "gold": "m09",
+          "hits": 5,
+          "query": "listwise rerankr accuracy",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "misspelled",
+          "gold": "m23",
+          "hits": 5,
+          "query": "kubernets in use?",
+          "rank_of_gold": 3,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "misspelled",
+          "gold": "m34",
+          "hits": 5,
+          "query": "wokshop submision deadline",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "misspelled",
+          "gold": "m21",
+          "hits": 5,
+          "query": "embeding model port",
+          "rank_of_gold": 3,
+          "top_confidence": 0.3333
+        },
+        {
+          "category": "misspelled",
+          "gold": "m48",
+          "hits": 5,
+          "query": "backups of the memroy databse",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "misspelled",
+          "gold": "m12",
+          "hits": 5,
+          "query": "deafult brnach name",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "name",
+          "gold": "m09",
+          "hits": 5,
+          "query": "what did Nurman say about the reranker",
+          "rank_of_gold": 2,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "name",
+          "gold": "m08",
+          "hits": 5,
+          "query": "who owns coordination and lineage",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "name",
+          "gold": "m33",
+          "hits": 5,
+          "query": "where is Anar based",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "name",
+          "gold": "m32",
+          "hits": 5,
+          "query": "what machine does Nurman run LM Studio on",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "name",
+          "gold": "m49",
+          "hits": 5,
+          "query": "Anar's preference on merging branches",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6
+        },
+        {
+          "category": "name",
+          "gold": "m46",
+          "hits": 5,
+          "query": "what is Miso",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "name",
+          "gold": "m57",
+          "hits": 5,
+          "query": "what is happening to the Berlin office",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6
+        },
+        {
+          "category": "name",
+          "gold": "m03",
+          "hits": 5,
+          "query": "what runs on Railway",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "keyed",
+          "gold": "m11",
+          "hits": 5,
+          "query": "what time is standup",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "keyed",
+          "gold": "m60",
+          "hits": 5,
+          "query": "what editor does Ali use now",
+          "rank_of_gold": 1,
+          "top_confidence": 0.5
+        },
+        {
+          "category": "keyed",
+          "gold": "m11",
+          "hits": 5,
+          "query": "current standup time in Berlin",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6
+        },
+        {
+          "category": "keyed",
+          "gold": "m60",
+          "hits": 5,
+          "query": "Ali's editor",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "negative",
+          "gold": null,
+          "hits": 5,
+          "query": "what is the capital of Australia",
+          "rank_of_gold": null,
+          "top_confidence": 0.25
+        },
+        {
+          "category": "negative",
+          "gold": null,
+          "hits": 5,
+          "query": "how many moons does Jupiter have",
+          "rank_of_gold": null,
+          "top_confidence": 0.0
+        },
+        {
+          "category": "negative",
+          "gold": null,
+          "hits": 5,
+          "query": "what is the recipe for sourdough",
+          "rank_of_gold": null,
+          "top_confidence": 0.3333
+        },
+        {
+          "category": "negative",
+          "gold": null,
+          "hits": 5,
+          "query": "who won the 2018 world cup",
+          "rank_of_gold": null,
+          "top_confidence": 0.0
+        },
+        {
+          "category": "negative",
+          "gold": null,
+          "hits": 5,
+          "query": "what is the speed of light",
+          "rank_of_gold": null,
+          "top_confidence": 0.25
+        },
+        {
+          "category": "negative",
+          "gold": null,
+          "hits": 5,
+          "query": "translate hello to Japanese",
+          "rank_of_gold": null,
+          "top_confidence": 0.25
+        },
+        {
+          "category": "negative",
+          "gold": null,
+          "hits": 5,
+          "query": "what is the weather tomorrow",
+          "rank_of_gold": null,
+          "top_confidence": 0.3333
+        },
+        {
+          "category": "negative",
+          "gold": null,
+          "hits": 5,
+          "query": "how tall is Mount Everest",
+          "rank_of_gold": null,
+          "top_confidence": 0.25
+        }
+      ]
+    },
+    "thesaurus": {
+      "by_category": {
+        "exact": {
+          "mrr": 0.8333,
+          "n": 10,
+          "p_at_1": 0.8,
+          "r_at_5": 0.9
+        },
+        "keyed": {
+          "mrr": 1.0,
+          "n": 4,
+          "p_at_1": 1.0,
+          "r_at_5": 1.0
+        },
+        "misspelled": {
+          "mrr": 0.6146,
+          "n": 8,
+          "p_at_1": 0.5,
+          "r_at_5": 0.875
+        },
+        "name": {
+          "mrr": 0.9375,
+          "n": 8,
+          "p_at_1": 0.875,
+          "r_at_5": 1.0
+        },
+        "paraphrase": {
+          "mrr": 0.55,
+          "n": 10,
+          "p_at_1": 0.5,
+          "r_at_5": 0.6
+        }
+      },
+      "confidence_gate": {
+        "0.25": {
+          "negatives_answered": 7,
+          "positives_answered": 38
+        },
+        "0.34": {
+          "negatives_answered": 0,
+          "positives_answered": 31
+        }
+      },
+      "features": {
+        "names": false,
+        "spelling": false,
+        "thesaurus": true
+      },
+      "negative_hit_rate": 1.0,
+      "overall": {
+        "mrr": 0.7562,
+        "n": 40,
+        "p_at_1": 0.7,
+        "r_at_5": 0.85
+      },
+      "per_query": [
+        {
+          "category": "exact",
+          "gold": "m03",
+          "hits": 5,
+          "query": "which database does staging use",
+          "rank_of_gold": 3,
+          "top_confidence": 0.3333
+        },
+        {
+          "category": "exact",
+          "gold": "m06",
+          "hits": 5,
+          "query": "where do deploy secrets live",
+          "rank_of_gold": 1,
+          "top_confidence": 0.5
+        },
+        {
+          "category": "exact",
+          "gold": "m12",
+          "hits": 5,
+          "query": "what is the default branch",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "exact",
+          "gold": "m27",
+          "hits": 5,
+          "query": "how do tests run",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "exact",
+          "gold": "m19",
+          "hits": 5,
+          "query": "what is the single-hop accuracy ceiling on LoCoMo",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "exact",
+          "gold": "m21",
+          "hits": 5,
+          "query": "what embedding model do we use",
+          "rank_of_gold": null,
+          "top_confidence": 0.4
+        },
+        {
+          "category": "exact",
+          "gold": "m15",
+          "hits": 5,
+          "query": "what happened when max_nodes was lifted",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "exact",
+          "gold": "m35",
+          "hits": 5,
+          "query": "how often is the staging API token rotated",
+          "rank_of_gold": 1,
+          "top_confidence": 0.8333
+        },
+        {
+          "category": "exact",
+          "gold": "m39",
+          "hits": 5,
+          "query": "what is the office wifi",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "exact",
+          "gold": "m42",
+          "hits": 5,
+          "query": "what does the reranker cost per question",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m05",
+          "hits": 5,
+          "query": "how do we release to prod",
+          "rank_of_gold": 1,
+          "top_confidence": 0.8
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m60",
+          "hits": 5,
+          "query": "which IDE does Ali like",
+          "rank_of_gold": 2,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m03",
+          "hits": 5,
+          "query": "where is the db for the staging environment",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m15",
+          "hits": 5,
+          "query": "what was the defect with the benchmark run",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m11",
+          "hits": 5,
+          "query": "when is the team meeting",
+          "rank_of_gold": null,
+          "top_confidence": 0.3333
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m06",
+          "hits": 5,
+          "query": "where are the credentials for rollout kept",
+          "rank_of_gold": null,
+          "top_confidence": 0.0
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m22",
+          "hits": 5,
+          "query": "which llm answers questions",
+          "rank_of_gold": null,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m05",
+          "hits": 5,
+          "query": "what is the ci workflow for shipping",
+          "rank_of_gold": null,
+          "top_confidence": 0.25
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m26",
+          "hits": 5,
+          "query": "what settings does the code style use",
+          "rank_of_gold": 1,
+          "top_confidence": 0.5
+        },
+        {
+          "category": "paraphrase",
+          "gold": "m23",
+          "hits": 5,
+          "query": "is there a container orchestration setup",
+          "rank_of_gold": 1,
+          "top_confidence": 0.5
+        },
+        {
+          "category": "misspelled",
+          "gold": "m03",
+          "hits": 5,
+          "query": "posgres on stagng",
+          "rank_of_gold": 3,
+          "top_confidence": 0.3333
+        },
+        {
+          "category": "misspelled",
+          "gold": "m60",
+          "hits": 5,
+          "query": "nevoim or zed for Ali",
+          "rank_of_gold": 1,
+          "top_confidence": 0.5
+        },
+        {
+          "category": "misspelled",
+          "gold": "m09",
+          "hits": 5,
+          "query": "listwise rerankr accuracy",
+          "rank_of_gold": 1,
+          "top_confidence": 0.3333
+        },
+        {
+          "category": "misspelled",
+          "gold": "m23",
+          "hits": 5,
+          "query": "kubernets in use?",
+          "rank_of_gold": null,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "misspelled",
+          "gold": "m34",
+          "hits": 5,
+          "query": "wokshop submision deadline",
+          "rank_of_gold": 1,
+          "top_confidence": 0.3333
+        },
+        {
+          "category": "misspelled",
+          "gold": "m21",
+          "hits": 5,
+          "query": "embeding model port",
+          "rank_of_gold": 3,
+          "top_confidence": 0.3333
+        },
+        {
+          "category": "misspelled",
+          "gold": "m48",
+          "hits": 5,
+          "query": "backups of the memroy databse",
+          "rank_of_gold": 1,
+          "top_confidence": 0.5
+        },
+        {
+          "category": "misspelled",
+          "gold": "m12",
+          "hits": 5,
+          "query": "deafult brnach name",
+          "rank_of_gold": 4,
+          "top_confidence": 0.0
+        },
+        {
+          "category": "name",
+          "gold": "m09",
+          "hits": 5,
+          "query": "what did Nurman say about the reranker",
+          "rank_of_gold": 2,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "name",
+          "gold": "m08",
+          "hits": 5,
+          "query": "who owns coordination and lineage",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "name",
+          "gold": "m33",
+          "hits": 5,
+          "query": "where is Anar based",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "name",
+          "gold": "m32",
+          "hits": 5,
+          "query": "what machine does Nurman run LM Studio on",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "name",
+          "gold": "m49",
+          "hits": 5,
+          "query": "Anar's preference on merging branches",
+          "rank_of_gold": 1,
+          "top_confidence": 0.8
+        },
+        {
+          "category": "name",
+          "gold": "m46",
+          "hits": 5,
+          "query": "what is Miso",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "name",
+          "gold": "m57",
+          "hits": 5,
+          "query": "what is happening to the Berlin office",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6
+        },
+        {
+          "category": "name",
+          "gold": "m03",
+          "hits": 5,
+          "query": "what runs on Railway",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "keyed",
+          "gold": "m11",
+          "hits": 5,
+          "query": "what time is standup",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6667
+        },
+        {
+          "category": "keyed",
+          "gold": "m60",
+          "hits": 5,
+          "query": "what editor does Ali use now",
+          "rank_of_gold": 1,
+          "top_confidence": 0.5
+        },
+        {
+          "category": "keyed",
+          "gold": "m11",
+          "hits": 5,
+          "query": "current standup time in Berlin",
+          "rank_of_gold": 1,
+          "top_confidence": 0.6
+        },
+        {
+          "category": "keyed",
+          "gold": "m60",
+          "hits": 5,
+          "query": "Ali's editor",
+          "rank_of_gold": 1,
+          "top_confidence": 1.0
+        },
+        {
+          "category": "negative",
+          "gold": null,
+          "hits": 5,
+          "query": "what is the capital of Australia",
+          "rank_of_gold": null,
+          "top_confidence": 0.25
+        },
+        {
+          "category": "negative",
+          "gold": null,
+          "hits": 5,
+          "query": "how many moons does Jupiter have",
+          "rank_of_gold": null,
+          "top_confidence": 0.0
+        },
+        {
+          "category": "negative",
+          "gold": null,
+          "hits": 5,
+          "query": "what is the recipe for sourdough",
+          "rank_of_gold": null,
+          "top_confidence": 0.3333
+        },
+        {
+          "category": "negative",
+          "gold": null,
+          "hits": 5,
+          "query": "who won the 2018 world cup",
+          "rank_of_gold": null,
+          "top_confidence": 0.25
+        },
+        {
+          "category": "negative",
+          "gold": null,
+          "hits": 5,
+          "query": "what is the speed of light",
+          "rank_of_gold": null,
+          "top_confidence": 0.25
+        },
+        {
+          "category": "negative",
+          "gold": null,
+          "hits": 5,
+          "query": "translate hello to Japanese",
+          "rank_of_gold": null,
+          "top_confidence": 0.25
+        },
+        {
+          "category": "negative",
+          "gold": null,
+          "hits": 5,
+          "query": "what is the weather tomorrow",
+          "rank_of_gold": null,
+          "top_confidence": 0.3333
+        },
+        {
+          "category": "negative",
+          "gold": null,
+          "hits": 5,
+          "query": "how tall is Mount Everest",
+          "rank_of_gold": null,
+          "top_confidence": 0.25
+        }
+      ]
+    }
+  },
+  "dataset": {
+    "by_category": {
+      "exact": 10,
+      "keyed": 4,
+      "misspelled": 8,
+      "name": 8,
+      "negative": 8,
+      "paraphrase": 10
+    },
+    "embedder": "hashed-bow-v1",
+    "memories": 60,
+    "queries": 48
+  },
+  "eval_version": "memory-eval-v1",
+  "schema_version": "1.0"
+}

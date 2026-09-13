@@ -6,21 +6,21 @@ Do not hand-edit. Regenerate after adding or moving a definition.
 
 ## .
 
-### `CLAUDE.md` (116 lines)
+### `CLAUDE.md` (117 lines)
 
 ```
   L1     # CLAUDE.md
   L6     ## Read in this order
   L25    ## Naming traps — get these wrong and you lose an hour
   L35    ## Canonical commands
-  L52    ## Rules that are not negotiable
-  L77    ## Results that must not silently change
-  L91    ## Retrieval accuracy — diagnosed, not fixed
-  L106   ## Gate status
-  L112   ## Ownership
+  L53    ## Rules that are not negotiable
+  L78    ## Results that must not silently change
+  L92    ## Retrieval accuracy — diagnosed, not fixed
+  L107   ## Gate status
+  L113   ## Ownership
 ```
 
-### `state.md` (395 lines)
+### `state.md` (414 lines)
 
 ```
   L1     # Mycelic / NeuralGraph / Tesseract State
@@ -31,20 +31,20 @@ Do not hand-edit. Regenerate after adding or moving a definition.
   L88    ### Budget
   L93    ### Unresolved / not done here
   L102   ### Later in session 4 (2026-09-13)
-  L136   ### Next executable step
-  L150   ## Session 3 (2026-08-25) notes, kept verbatim below
-  L152   ## Corrections to prior session notes
-  L174   ## Canonical commands
-  L199   ## Results
-  L236   ### Seven harness bugs found before any of this was trusted
-  L259   ### Reported against interest, additionally
-  L271   ## Artifacts
-  L292   ## Gate status
-  L304   ## Resolved: `failure_domains` now has a real-storage model
-  L329   ## Ownership
-  L340   ## Not done
-  L352   ## Documentation
-  L364   ## Next task
+  L155   ### Next executable step
+  L169   ## Session 3 (2026-08-25) notes, kept verbatim below
+  L171   ## Corrections to prior session notes
+  L193   ## Canonical commands
+  L218   ## Results
+  L255   ### Seven harness bugs found before any of this was trusted
+  L278   ### Reported against interest, additionally
+  L290   ## Artifacts
+  L311   ## Gate status
+  L323   ## Resolved: `failure_domains` now has a real-storage model
+  L348   ## Ownership
+  L359   ## Not done
+  L371   ## Documentation
+  L383   ## Next task
 ```
 
 ### `README.md` (205 lines)
@@ -933,69 +933,123 @@ NeuralGraph as an MCP memory server for coding agents (Claude Code, Codex).
   (no top-level definitions)
 ```
 
-### `NeuralGraph/mcp/memory.py` (743 lines)
+### `NeuralGraph/mcp/artifacts/memory_eval.json` (2229 lines, 57894 bytes)
+
+### `NeuralGraph/mcp/artifacts/memory_eval.md` (23 lines)
+
+```
+  L1     # Memory recall evaluation (memory-eval-v1)
+```
+
+### `NeuralGraph/mcp/evaluation.py` (289 lines)
+Offline evaluation of the memory server's recall quality.
+
+```
+  L38    EVAL_VERSION = …
+  L41    MEMORIES = …
+  L105   QUERIES = …
+  L162   CONFIGURATIONS = …
+  L171   class _Clock
+  L172     def __init__
+  L175     def __call__
+  L180   async def _run_configuration
+  L231   async def run_evaluation
+  L246   def render_markdown
+  L274   def main
+```
+
+### `NeuralGraph/mcp/lexicon.py` (241 lines)
+Lexical preprocessing for the memory server: thesaurus, spelling, names.
+
+```
+  L29    _ALNUM = …
+  L30    _CAP_RUN = …
+  L31    _HANDLE = …
+  L32    _LETTERS = …
+  L34    COMMON_STARTERS = …
+  L43    def _thesaurus
+  L50    def dictionary
+  L78    SOFTWARE_SYNONYMS = …
+  L105   def _software_bidirectional
+  L115   def synonyms
+  L123   def expand
+  L133   def _edits1
+  L142   def correct
+  L173   def correct_tokens
+  L184   def query_words
+  L189   def names
+  L224   def sentence_initial_candidates
+```
+
+### `NeuralGraph/mcp/memory.py` (846 lines)
 Memory engine for the MCP server: create memories that stay useful.
 
 ```
-  L56    MAX_TEXT_CHARS = …
-  L58    NEGATIONS = …
-  L59    _WORD = …
-  L60    DEFAULT_DB = …
-  L61    _ISO_DATE = …
-  L62    _HANDLE = …
-  L63    _PATH = …
-  L66    def _now
-  L70    def _iso
-  L74    def _parse_time
-  L84    def normalize_text
-  L88    def content_tokens
-  L100   def fingerprint
-  L109   class Embedder(Protocol)
-  L112     async def embed
-  L115   class HashedEmbedder
-  L124     def __init__
-  L127     async def embed
-  L130     def embed_sync
-  L143   class ModelEmbedder
-  L146     def __init__
-  L154     async def embed
-  L166   async def choose_embedder
-  L190   _SENTENCE_START = …
-  L191   _COMMON_STARTERS = …
-  L198   def extract_entities
-  L213   class MemoryEngine
-  L214     def __init__
-  L239     async def remember
-  L263     async def _remember
-  L424     async def recall
-  L517     async def forget
-  L537     async def get
-  L550     async def list_recent
-  L558     async def decay
-  L580     async def stats
-  L601     async def export_claims
-  L663     def close
-  L667     async def _session_nodes
-  L675     def _file_stamp
-  L682     def _invalidate
-  L685     async def _embed
-  L695     def dominant_embedding_source
-  L712     def _valid_at
-  L717     def _summary
+  L58    class Features
+  L61      def __init__
+  L66      def as_dict
+  L69    MAX_TEXT_CHARS = …
+  L71    NEGATIONS = …
+  L74    FINGERPRINT_ONLY = …
+  L76    KEY_MATCH_MODE = …
+  L77    KEY_WEIGHT = …
+  L78    _WORD = …
+  L79    DEFAULT_DB = …
+  L80    _ISO_DATE = …
+  L81    _HANDLE = …
+  L82    _PATH = …
+  L85    def _now
+  L89    def _iso
+  L93    def _parse_time
+  L103   def normalize_text
+  L107   def content_tokens
+  L119   def fingerprint
+  L129   class Embedder(Protocol)
+  L132     async def embed
+  L135   class HashedEmbedder
+  L144     def __init__
+  L147     async def embed
+  L150     def embed_sync
+  L163   class ModelEmbedder
+  L166     def __init__
+  L174     async def embed
+  L186   async def choose_embedder
+  L210   _SENTENCE_START = …
+  L211   _COMMON_STARTERS = …
+  L218   def extract_entities
+  L233   class MemoryEngine
+  L234     def __init__
+  L261     async def remember
+  L285     async def _remember
+  L450     async def recall
+  L619     async def forget
+  L639     async def get
+  L652     async def list_recent
+  L660     async def decay
+  L682     async def stats
+  L703     async def export_claims
+  L765     def close
+  L769     async def _session_nodes
+  L777     def _file_stamp
+  L784     def _invalidate
+  L787     async def _embed
+  L797     def dominant_embedding_source
+  L814     def _valid_at
+  L819     def _summary
 ```
 
-### `NeuralGraph/mcp/server.py` (222 lines)
+### `NeuralGraph/mcp/server.py` (226 lines)
 NeuralGraph memory as an MCP server for Claude Code and Codex.
 
 ```
   L37    SERVER_NAME = …
   L39    INSTRUCTIONS = …
-  L70    async def _guarded
-  L82    async def engine
-  L100   def set_engine
-  L106   def build_server
-  L183   def client_config
-  L201   def main
+  L73    async def _guarded
+  L85    async def engine
+  L103   def set_engine
+  L109   def build_server
+  L187   def client_config
+  L205   def main
 ```
 
 ### `NeuralGraph/mega_search.py` (194 lines)
@@ -2015,6 +2069,33 @@ The paper's figures must be regenerable, byte-stable, and true to the data.
   L243     def test_every_figure_matches_its_recorded_digest
 ```
 
+### `NeuralGraph/tests/test_mcp_evaluation.py` (57 lines)
+The pinned memory evaluation regenerates byte-for-byte and its claims hold.
+
+```
+  L17    ARTIFACTS = …
+  L20    class EvaluationArtifactTests(unittest.TestCase)
+  L22      def setUpClass
+  L26      def test_json_artifact_is_byte_identical
+  L30      def test_markdown_artifact_is_byte_identical
+  L34      def test_sha256sums_match_the_files
+  L39      def test_each_component_helps_its_own_category_and_all_beats_baseline
+  L50      def test_confidence_gate_answers_no_unanswerable_query
+```
+
+### `NeuralGraph/tests/test_mcp_lexicon.py` (57 lines)
+Thesaurus, spelling detector and name extraction used by the memory server.
+
+```
+  L10    class LexiconTests(unittest.TestCase)
+  L11      def test_dictionary_includes_headwords_without_synonyms
+  L16      def test_synonyms_curated_first_then_wordnet
+  L23      def test_expand_only_into_words_the_corpus_contains
+  L27      def test_correct_prefers_corpus_then_dictionary_and_protects_names
+  L41      def test_names_runs_possessives_handles_and_unknown_words
+  L50      def test_sentence_initial_dictionary_words_are_candidates_not_names
+```
+
 ### `NeuralGraph/tests/test_mcp_memory.py` (410 lines)
 NeuralGraph as an MCP memory server: engine behaviour and tool surface.
 
@@ -2965,16 +3046,18 @@ Verify all 3 fixes are working in the new benchmark
   L166   ## Evidence classes at a glance
 ```
 
-### `docs/MCP.md` (108 lines)
+### `docs/MCP.md` (164 lines)
 
 ```
   L1     # NeuralGraph as an MCP memory server
   L10    ## Install
   L45    ## Environment
   L55    ## Tools
-  L72    ## What "great at creating memories" means here
-  L96    ## Boundaries kept
-  L104   ## Verify
+  L72    ## Preprocessing: thesaurus, spelling detector, names
+  L96    ## Evaluation (pinned: `NeuralGraph/mcp/artifacts/`)
+  L128   ## What "great at creating memories" means here
+  L152   ## Boundaries kept
+  L160   ## Verify
 ```
 
 ### `docs/PAPER.md` (164 lines)

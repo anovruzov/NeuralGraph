@@ -140,6 +140,15 @@ Everything run is a local deterministic simulation or a unit test.
   `--print-config` uses PYTHONPATH (Claude Code ignores cwd). 33 tests.
   Live-verified: `.mcp.json` was picked up by the authoring Claude Code
   session and `remember`/`recall` ran through the real server.
+- **Lexical preprocessing + pinned evaluation** (`NeuralGraph/mcp/lexicon.py`,
+  `evaluation.py`, `mcp/artifacts/`, `test_mcp_lexicon.py`,
+  `test_mcp_evaluation.py`). Thesaurus (WordNet + curated software table,
+  corpus-restricted expansion), spelling detector (corpus-first edit distance,
+  names protected), name extraction, key rank, evidence-coverage confidence.
+  60-memory / 48-query labelled eval, 5 configurations, matched conditions:
+  overall P@1 0.68 → 0.85, each component lifts its own category, none
+  lowers another. Confidence gate 0.34 answers 0/8 unanswerable queries.
+  No model anywhere in preprocessing.
 - Merged Nurman's two post-PR commits from `research/retrieval-campaign-2026-09`
   (`RERANK=none` switch and latency tables); PR #3 itself was already in main.
 
@@ -195,7 +204,7 @@ python3.11 -m NeuralGraph.coordination.figures --check
 ```
 
 Setup is `pip install -r requirements.txt`. Suite as of this writing:
-**344 passed, 1 skipped, 3520 subtests**, identical under `PYTHONHASHSEED`
+**355 passed, 1 skipped, 3520 subtests**, identical under `PYTHONHASHSEED`
 1, 7, 4242 and 99991.
 
 `pytest` previously failed to collect anything (5 errors, every file). The repo
