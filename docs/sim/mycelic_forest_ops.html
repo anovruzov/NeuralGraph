@@ -1,0 +1,695 @@
+<title>Mycelic Forest Ops</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap">
+<style>
+  :root {
+    --ground: #050807;
+    --panel: #0b1210;
+    --panel-2: #0e1815;
+    --hair: #1c2a25;
+    --hair-2: #26382f;
+    --text: #c9d6cf;
+    --muted: #6f8279;
+    --phos: #39ff9e;
+    --phos-dim: #1f8f5a;
+    --amber: #ffb347;
+    --crit: #ff4d5e;
+    --cyan: #4de3ff;
+    --violet: #9b6bff;
+    --display: "Chakra Petch", "Rajdhani", "Segoe UI", sans-serif;
+    --mono: "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+    --body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { color-scheme: dark; }
+  body {
+    margin: 0; background: var(--ground); color: var(--text);
+    font-family: var(--body); font-size: 14px; line-height: 1.45;
+    padding-block: 0; padding-inline: 0; min-height: 100vh;
+  }
+  .app {
+    display: grid; grid-template-rows: auto 1fr auto; min-height: 100vh;
+    background:
+      radial-gradient(1200px 700px at 50% 20%, rgba(57,255,158,0.06), transparent 60%),
+      var(--ground);
+  }
+  /* ---------- top bar ---------- */
+  .bar {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 10px 16px; border-bottom: 1px solid var(--hair);
+    font-family: var(--display); letter-spacing: 0.08em; text-transform: uppercase; font-size: 12px;
+  }
+  .bar .brand { display: flex; align-items: baseline; gap: 10px; }
+  .bar .brand b { font-weight: 700; color: var(--phos); font-size: 14px; letter-spacing: 0.16em; }
+  .bar .brand span { color: var(--muted); }
+  .bar .meta { display: flex; gap: 14px; font-family: var(--mono); letter-spacing: 0.04em; text-transform: none; color: var(--muted); font-size: 12px; }
+  .bar .meta b { color: var(--text); font-weight: 500; font-variant-numeric: tabular-nums; }
+  .bar button { margin-left: 4px; }
+  /* ---------- field ---------- */
+  .field { position: relative; min-height: 420px; overflow: hidden; }
+  canvas#field { display: block; width: 100%; height: 100%; position: absolute; inset: 0; }
+  .hud { position: absolute; pointer-events: none; font-family: var(--mono); font-size: 11px; line-height: 1.5; }
+  .hud .brk { position: relative; padding: 8px 12px; background: rgba(5,8,7,0.55); backdrop-filter: blur(2px); }
+  .hud .brk::before, .hud .brk::after {
+    content: ""; position: absolute; width: 10px; height: 10px; border-color: var(--phos-dim); border-style: solid;
+  }
+  .hud .brk::before { left: 0; top: 0; border-width: 1px 0 0 1px; }
+  .hud .brk::after { right: 0; bottom: 0; border-width: 0 1px 1px 0; }
+  .hud.tl { left: 12px; top: 12px; }
+  .hud.tr { right: 12px; top: 12px; text-align: right; }
+  .hud.bl { left: 12px; bottom: 12px; max-width: 46%; }
+  .lbl { color: var(--muted); letter-spacing: 0.12em; text-transform: uppercase; font-family: var(--display); font-size: 10px; }
+  .val { color: var(--text); font-variant-numeric: tabular-nums; }
+  .status { font-family: var(--display); font-weight: 700; font-size: 18px; letter-spacing: 0.14em; }
+  .status.on { color: var(--phos); text-shadow: 0 0 12px rgba(57,255,158,0.55); }
+  .status.off { color: var(--crit); text-shadow: 0 0 12px rgba(255,77,94,0.55); }
+  .status.rep { color: var(--amber); text-shadow: 0 0 12px rgba(255,179,71,0.5); }
+  .meter { display: grid; grid-template-columns: 92px 120px 34px; gap: 8px; align-items: center; margin-top: 4px; }
+  .meter .track { height: 6px; background: var(--hair); position: relative; }
+  .meter .fill { position: absolute; inset: 0 auto 0 0; background: var(--phos); }
+  .meter .fill.warn { background: var(--amber); }
+  .meter .fill.crit { background: var(--crit); }
+  .flag {
+    display: inline-block; margin-top: 6px; padding: 3px 8px; border: 1px solid var(--crit); color: var(--crit);
+    font-family: var(--display); letter-spacing: 0.14em; font-size: 10px; text-transform: uppercase;
+    animation: blink 1.1s steps(2, end) infinite;
+  }
+  .log { margin: 0; padding: 0; list-style: none; }
+  .log li { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .log li.ok { color: var(--phos); }
+  .log li.bad { color: var(--crit); }
+  .log li.warn { color: var(--amber); }
+  .log li.act { color: var(--cyan); }
+  @keyframes blink { 50% { opacity: 0.35; } }
+  /* ---------- console ---------- */
+  .console {
+    display: grid; grid-template-columns: 1.1fr 1fr 1.2fr; gap: 0; border-top: 1px solid var(--hair);
+    background: linear-gradient(180deg, var(--panel), var(--ground));
+  }
+  .console > section { padding: 12px 16px; border-right: 1px solid var(--hair); min-width: 0; }
+  .console > section:last-child { border-right: 0; }
+  .console h3 {
+    margin: 0 0 8px; font-family: var(--display); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--muted); font-weight: 600; display: flex; justify-content: space-between; gap: 8px;
+  }
+  .console h3 .val { color: var(--text); }
+  .mem { display: grid; grid-template-columns: 70px 1fr 44px; gap: 8px; align-items: center; font-family: var(--mono); font-size: 12px; padding: 4px 0; border-bottom: 1px dashed var(--hair); }
+  .mem:last-child { border-bottom: 0; }
+  .mem .slot { font-family: var(--display); letter-spacing: 0.1em; font-size: 11px; }
+  .mem .root { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+  .mem .root i { width: 8px; height: 8px; display: inline-block; border-radius: 50%; }
+  .mem .root i.dead { background: transparent !important; border: 1px solid var(--crit); }
+  .mem .str { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .mem.dead .slot, .mem.dead .str { color: var(--crit); text-decoration: line-through; }
+  .empty { color: var(--muted); font-family: var(--mono); font-size: 12px; }
+  .slots { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+  .chip {
+    font-family: var(--display); letter-spacing: 0.12em; font-size: 11px; text-transform: uppercase;
+    padding: 6px 10px; border: 1px solid var(--hair-2); background: transparent; color: var(--muted); cursor: pointer;
+  }
+  .chip[aria-pressed="true"] { color: var(--phos); border-color: var(--phos-dim); background: rgba(57,255,158,0.06); }
+  .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  button.act {
+    font-family: var(--display); letter-spacing: 0.1em; text-transform: uppercase; font-size: 11px;
+    padding: 9px 10px; background: var(--panel-2); border: 1px solid var(--hair-2); color: var(--text); cursor: pointer;
+    text-align: left; display: flex; justify-content: space-between; gap: 6px;
+  }
+  button.act small { font-family: var(--mono); color: var(--muted); letter-spacing: 0; text-transform: none; }
+  button.act:hover:not(:disabled) { border-color: var(--phos-dim); color: var(--phos); }
+  button.act:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.act.primary { border-color: var(--phos-dim); }
+  button:focus-visible, .chip:focus-visible { outline: 1px solid var(--phos); outline-offset: 2px; }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 8px; }
+  .spores { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+  .spores b { color: var(--phos); font-weight: 500; }
+  .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px 14px; font-family: var(--mono); font-size: 12px; }
+  .stats div { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px dashed var(--hair); padding: 3px 0; }
+  .stats div span:last-child { color: var(--text); font-variant-numeric: tabular-nums; }
+  .ghost { background: transparent; border: 1px solid var(--hair-2); color: var(--muted); font-family: var(--display); letter-spacing: 0.12em; text-transform: uppercase; font-size: 10px; padding: 5px 9px; cursor: pointer; }
+  .ghost[aria-pressed="true"], .ghost:hover { color: var(--phos); border-color: var(--phos-dim); }
+  /* ---------- overlay ---------- */
+  .overlay {
+    position: absolute; inset: 0; display: grid; place-items: center; background: rgba(5,8,7,0.82); z-index: 5;
+    padding: 20px;
+  }
+  .overlay[hidden] { display: none; }
+  .card { border: 1px solid var(--hair-2); background: var(--panel); padding: 22px 24px; max-width: 460px; width: 100%; position: relative; }
+  .card::before, .card::after { content: ""; position: absolute; width: 14px; height: 14px; border-color: var(--phos); border-style: solid; }
+  .card::before { left: -1px; top: -1px; border-width: 1px 0 0 1px; }
+  .card::after { right: -1px; bottom: -1px; border-width: 0 1px 1px 0; }
+  .card h1 { font-family: var(--display); font-size: 26px; letter-spacing: 0.16em; text-transform: uppercase; margin: 0 0 6px; color: var(--phos); text-wrap: balance; }
+  .card h2 { font-family: var(--display); font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; margin: 0 0 14px; color: var(--muted); font-weight: 600; }
+  .card p { margin: 0 0 10px; max-width: 60ch; }
+  .card .grade { font-family: var(--display); font-size: 64px; line-height: 1; font-weight: 700; letter-spacing: 0.1em; color: var(--phos); }
+  .card .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+  .rec .console, .rec .bar .meta, .rec .hud.bl { display: none; }
+  .rec .field { min-height: 100vh; }
+  @media (max-width: 760px) {
+    .console { grid-template-columns: 1fr; }
+    .console > section { border-right: 0; border-bottom: 1px solid var(--hair); }
+    .field { min-height: 62vh; }
+    .hud.bl { display: none; }
+    .bar .meta { display: none; }
+    .stats { grid-template-columns: 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .flag { animation: none; }
+  }
+</style>
+
+<div class="app" id="app">
+  <header class="bar">
+    <div class="brand"><b>MYCELIC</b><span>// forest ops</span></div>
+    <div class="meta">
+      <span>wave <b id="m-wave">1</b>/10</span>
+      <span>cycle <b id="m-cycle">0</b></span>
+      <span>uptime <b id="m-uptime">—</b></span>
+      <span>min-cut <b id="m-cut">1</b></span>
+    </div>
+    <div>
+      <button class="ghost" id="btn-auto" aria-pressed="false" title="The forester AI plays for you">Autopilot</button>
+      <button class="ghost" id="btn-rec" aria-pressed="false" title="Hide the console for recording">Rec</button>
+    </div>
+  </header>
+
+  <main class="field" id="fieldwrap" aria-label="Mycelial field">
+    <canvas id="field"></canvas>
+    <div class="hud tl"><div class="brk">
+      <div class="lbl">Capability · incident signature</div>
+      <div class="status on" id="h-status">RECONSTRUCTED</div>
+      <div class="meter"><span class="lbl">reported conf</span><div class="track"><div class="fill" id="h-conf" style="width:0%"></div></div><span class="val" id="h-conf-v">0.00</span></div>
+      <div class="meter"><span class="lbl">valid support</span><div class="track"><div class="fill" id="h-cov" style="width:0%"></div></div><span class="val" id="h-cov-v">0/3</span></div>
+      <div id="h-flag" hidden><span class="flag">silent forgetting</span></div>
+    </div></div>
+    <div class="hud tr"><div class="brk">
+      <div class="lbl">Lineage strata</div>
+      <div id="h-roots" class="val"></div>
+    </div></div>
+    <div class="hud bl"><div class="brk"><ul class="log" id="h-log"></ul></div></div>
+
+    <div class="overlay" id="intro">
+      <div class="card">
+        <h1>Mycelic Forest Ops</h1>
+        <h2>Keep the collective from forgetting</h2>
+        <p>Seven organisms hold three premises of one incident signature. No single one holds the whole thing. Every few seconds the coordinator routes through the network and tries to reconstruct it.</p>
+        <p>Blight kills a <em>lineage root</em>, and every memory grown from that root withers together. Replicas look like safety. They are not. Reseed independent roots to raise the min-cut above 1.</p>
+        <p class="hint">Tap an organism, pick a premise, then Reseed or Replicate. Spores regrow on every successful reconstruction.</p>
+        <div class="row"><button class="act primary" id="btn-start">Begin season</button><button class="act" id="btn-demo">Watch autopilot</button></div>
+      </div>
+    </div>
+    <div class="overlay" id="outro" hidden>
+      <div class="card">
+        <h2>Season complete</h2>
+        <div class="grade" id="o-grade">A</div>
+        <h1 id="o-title">Forest health</h1>
+        <div class="stats" id="o-stats"></div>
+        <div class="row"><button class="act primary" id="btn-again">Replant</button></div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="console">
+    <section>
+      <h3><span>Organism</span><span class="val" id="c-name">none selected</span></h3>
+      <div id="c-mems" class="empty">Tap an organism in the field.</div>
+    </section>
+    <section>
+      <h3><span>Forester actions</span></h3>
+      <div class="spores">spores <b id="c-spores">8</b> · regrow +1 per reconstruction</div>
+      <div class="slots" id="c-slots" role="group" aria-label="Premise"></div>
+      <div class="actions">
+        <button class="act primary" id="a-reseed" disabled>Reseed <small>independent root · 5</small></button>
+        <button class="act" id="a-replicate" disabled>Replicate <small>copy same root · 2</small></button>
+        <button class="act" id="a-regrow" disabled>Regrow <small>revive organism · 3</small></button>
+        <button class="act" id="a-reconnect" disabled>Reconnect <small>heal partition · 1</small></button>
+      </div>
+      <div class="hint" id="c-hint">Reseed creates a new root and failure domain. Replicate copies an existing root: cheap, correlated, dies with it.</div>
+    </section>
+    <section>
+      <h3><span>Season telemetry</span></h3>
+      <div class="stats">
+        <div><span>reconstructions</span><span id="s-ok">0</span></div>
+        <div><span>failures</span><span id="s-bad">0</span></div>
+        <div><span>silent forgetting</span><span id="s-sf">0</span></div>
+        <div><span>lineage repairs</span><span id="s-rep">0</span></div>
+        <div><span>bytes moved</span><span id="s-bytes">0</span></div>
+        <div><span>withered memories</span><span id="s-wither">0</span></div>
+        <div><span>blighted roots</span><span id="s-blight">0</span></div>
+        <div><span>spores spent</span><span id="s-spent">0</span></div>
+      </div>
+    </section>
+  </footer>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  // ------------------------------------------------------------------
+  // Model. Mirrors NeuralGraph/coordination: premises (slots), private
+  // memories with lineage roots + failure domains, a bounded route, a
+  // rule-based synthesizer, silent-forgetting gap, min failure-domain cut,
+  // lineage-aware repair. Simplified for play; not the pinned benchmark.
+  // ------------------------------------------------------------------
+  const SLOTS = ['LOCUS', 'VECTOR', 'EPOCH'];
+  const STRATA = ['#4de3ff', '#9b6bff', '#ffd166', '#ff7ab6', '#39ff9e', '#7cffc4', '#ffa07a', '#c0f0ff'];
+  const NAMES = ['ARBOR', 'BRYO', 'CORAL', 'DUNE', 'ELM', 'FERN', 'GLADE'];
+  const MAX_NODES = 4, MAX_VERIFY = 2, CYCLE_MS = 3600, WAVE_MS = 24000, WAVES = 10;
+  const COST = { reseed: 5, replicate: 2, regrow: 3, reconnect: 1 };
+  const BYTES_PER_CLAIM = 214; // canonical-json size of one ClaimEnvelope in the pinned experiment, rounded
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // seeded RNG so a season is replayable
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  let rng = mulberry32(20260813);
+
+  let S = null; // game state
+  function newState() {
+    rng = mulberry32(20260813 + (S ? S.season + 1 : 0));
+    const roots = {};
+    let rootSeq = 0;
+    const mkRoot = (slot) => { const id = 'R' + (++rootSeq); roots[id] = { id, slot, domain: 'FD' + rootSeq, blighted: false, color: STRATA[(rootSeq - 1) % STRATA.length] }; return id; };
+    const R1 = mkRoot('LOCUS'), R2 = mkRoot('VECTOR'), R3 = mkRoot('EPOCH');
+    const mem = (slot, root, strength) => ({ slot, root, strength, id: 'm' + Math.floor(rng() * 1e9).toString(36) });
+    const organisms = NAMES.map((name, i) => ({ id: i, name, alive: true, partitioned: false, partitionUntil: 0, memories: [], recent: 0, pulse: 0, x: 0, y: 0 }));
+    organisms[0].memories.push(mem('LOCUS', R1, 0.92));
+    organisms[1].memories.push(mem('VECTOR', R2, 0.88));
+    organisms[2].memories.push(mem('VECTOR', R2, 0.84)); // apparent replica: same root
+    organisms[3].memories.push(mem('EPOCH', R3, 0.9));
+    organisms[4].memories.push(mem('EPOCH', R3, 0.8));   // apparent replica
+    organisms[5].memories.push(mem('LOCUS', R1, 0.78));   // apparent replica
+    // organism 6 (GLADE) starts empty: fertile ground for reseeding
+    return {
+      season: S ? S.season + 1 : 1, roots, rootSeq, organisms, spores: 8, spent: 0,
+      wave: 1, cycle: 0, ok: 0, bad: 0, sf: 0, repairs: 0, bytes: 0, wither: 0,
+      selected: null, slot: 'LOCUS', running: false, auto: false, over: false,
+      lastCycle: 0, lastWave: 0, t0: 0, log: [], last: null, packets: [], events: [],
+      hub: { x: 0, y: 0 }, edges: [],
+    };
+  }
+
+  function healthy(org, m) { return org.alive && !org.partitioned && !S.roots[m.root].blighted && m.strength >= 0.15; }
+  function claimsOf(org) { return org.memories.filter(m => healthy(org, m)).map(m => ({ org, m, conf: Math.round((0.35 + 0.65 * m.strength) * 100) / 100 })); }
+
+  function minCut() {
+    // smallest set of failure domains whose loss severs every coalition
+    const perSlot = SLOTS.map(slot => {
+      const domains = new Set();
+      for (const org of S.organisms) for (const m of org.memories) if (m.slot === slot && healthy(org, m)) domains.add(S.roots[m.root].domain);
+      return [...domains];
+    });
+    if (perSlot.some(d => d.length === 0)) return 0;
+    const all = [...new Set(perSlot.flat())];
+    // a cut must remove every domain of at least one slot
+    for (let k = 1; k <= all.length; k++) {
+      const found = combos(all, k).some(cut => perSlot.some(d => d.every(x => cut.includes(x))));
+      if (found) return k;
+    }
+    return all.length;
+  }
+  function combos(arr, k, start = 0, cur = [], out = []) {
+    if (cur.length === k) { out.push(cur.slice()); return out; }
+    for (let i = start; i < arr.length; i++) { cur.push(arr[i]); combos(arr, k, i + 1, cur, out); cur.pop(); }
+    return out;
+  }
+
+  function execute(route) {
+    const claims = route.flatMap(claimsOf);
+    const selected = [];
+    for (const slot of SLOTS) {
+      const c = claims.filter(x => x.m.slot === slot).sort((a, b) => b.conf - a.conf || a.org.id - b.org.id)[0];
+      if (c) selected.push(c);
+    }
+    const success = selected.length === SLOTS.length;
+    // The pinned synthesizer reports max(claims) when it fails: that is the
+    // confidence/coverage gap the research calls silent forgetting.
+    const reported = success ? Math.min(...selected.map(c => c.conf)) : (claims.length ? Math.max(...claims.map(c => c.conf)) : 0);
+    const coverage = selected.length / SLOTS.length;
+    return { route, claims, selected, success, reported, coverage, gap: Math.max(0, reported - coverage) };
+  }
+
+  function chooseRoute() {
+    const eligible = S.organisms.filter(o => o.alive && !o.partitioned);
+    eligible.sort((a, b) => b.recent - a.recent || a.id - b.id);
+    return eligible.slice(0, MAX_NODES);
+  }
+
+  function runCycle(now) {
+    S.cycle++;
+    let exec = execute(chooseRoute());
+    let repaired = false, verifications = 0;
+    if (!exec.success) {
+      // lineage-aware repair: verify candidates outside the route, preferring
+      // support independent of the roots known to be compromised.
+      const missing = SLOTS.filter(s => !exec.selected.some(c => c.m.slot === s));
+      const compromised = new Set(Object.values(S.roots).filter(r => r.blighted).map(r => r.id));
+      const cands = S.organisms.filter(o => o.alive && !o.partitioned && !exec.route.includes(o))
+        .map(o => ({ o, score: o.memories.filter(m => missing.includes(m.slot) && !compromised.has(m.root) && m.strength >= 0.15).length }))
+        .sort((a, b) => b.score - a.score || a.o.id - b.o.id);
+      for (const c of cands.slice(0, MAX_VERIFY)) {
+        verifications++;
+        if (c.score > 0) {
+          const route = [c.o, ...exec.route].slice(0, MAX_NODES);
+          const again = execute(route);
+          if (again.success) { exec = again; repaired = true; S.repairs++; break; }
+        }
+      }
+    }
+    // route memory: organisms that just produced valid evidence route first next time
+    for (const c of exec.claims) c.org.recent = now;
+    S.bytes += exec.claims.length * BYTES_PER_CLAIM + verifications * 96;
+    if (exec.success) {
+      S.ok++; S.spores = Math.min(20, S.spores + 1);
+      for (const c of exec.selected) c.m.strength = Math.min(1, c.m.strength + 0.08); // used knowledge strengthens
+      logLine(repaired ? `cycle ${S.cycle} · repaired via lineage-aware route (${verifications} verify)` : `cycle ${S.cycle} · reconstructed · conf ${exec.reported.toFixed(2)}`, repaired ? 'warn' : 'ok');
+    } else {
+      S.bad++;
+      if (exec.gap > 0) { S.sf++; logLine(`cycle ${S.cycle} · LOST · reports ${exec.reported.toFixed(2)} on ${Math.round(exec.coverage * 3)}/3 support`, 'bad'); }
+      else logLine(`cycle ${S.cycle} · LOST · no support`, 'bad');
+    }
+    S.last = { ...exec, repaired, verifications };
+    // spawn packets from routed organisms to the hub
+    for (const c of exec.claims) S.packets.push({ from: c.org, t: 0, color: S.roots[c.m.root].color, ok: exec.success });
+    for (const o of exec.route) o.pulse = 1;
+    if (exec.success) S.hubPulse = 1;
+  }
+
+  function decay() {
+    for (const org of S.organisms) {
+      for (const m of org.memories) m.strength = Math.max(0, m.strength - 0.0025);
+      const before = org.memories.length;
+      org.memories = org.memories.filter(m => m.strength >= 0.05 || S.roots[m.root].blighted === false && m.strength >= 0.05);
+      const withered = org.memories.filter(m => m.strength < 0.15 && !m.warned);
+      for (const m of withered) { m.warned = true; logLine(`${org.name} · ${m.slot} withering (unsupported)`, 'warn'); }
+      if (org.memories.length < before) S.wither += before - org.memories.length;
+    }
+    for (const org of S.organisms) if (org.partitioned && S.now > org.partitionUntil) { org.partitioned = false; logLine(`${org.name} · partition healed`, 'ok'); }
+  }
+
+  function waveEvent() {
+    S.wave++;
+    if (S.wave > WAVES) { endSeason(); return; }
+    const live = S.organisms.filter(o => o.alive);
+    const roll = rng();
+    if (roll < 0.5) {
+      // blight the root with the most dependents (adversarial, like the benchmark's load-bearing target)
+      const counts = {};
+      for (const o of live) for (const m of o.memories) if (!S.roots[m.root].blighted) counts[m.root] = (counts[m.root] || 0) + 1;
+      const target = Object.entries(counts).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
+      if (target) { S.roots[target[0]].blighted = true; logLine(`wave ${S.wave} · BLIGHT on root ${target[0]} (${target[1]} memories share it)`, 'bad'); S.events.push({ kind: 'blight', t: 0 }); }
+    } else if (roll < 0.75) {
+      const o = live[Math.floor(rng() * live.length)];
+      o.alive = false; logLine(`wave ${S.wave} · ${o.name} went dormant (node failure)`, 'bad'); S.events.push({ kind: 'node', t: 0, o });
+    } else if (roll < 0.9) {
+      const o = live[Math.floor(rng() * live.length)];
+      o.partitioned = true; o.partitionUntil = S.now + 14000; logLine(`wave ${S.wave} · ${o.name} partitioned from the network`, 'warn');
+    } else {
+      const rootsAlive = Object.values(S.roots).filter(r => !r.blighted);
+      const r = rootsAlive[Math.floor(rng() * rootsAlive.length)];
+      for (const o of live) for (const m of o.memories) if (m.root === r.id) m.strength *= 0.5;
+      logLine(`wave ${S.wave} · stale knowledge · root ${r.id} evidence halved`, 'warn');
+    }
+  }
+
+  // ---------------- actions ----------------
+  function spend(n) { if (S.spores < n) return false; S.spores -= n; S.spent += n; return true; }
+  function newRootFor(slot) { const id = 'R' + (++S.rootSeq); S.roots[id] = { id, slot, domain: 'FD' + S.rootSeq, blighted: false, color: STRATA[(S.rootSeq - 1) % STRATA.length] }; return id; }
+  function actReseed(org, slot) {
+    if (!org || !org.alive || !spend(COST.reseed)) return false;
+    const root = newRootFor(slot);
+    org.memories = org.memories.filter(m => !(m.slot === slot && S.roots[m.root].blighted));
+    org.memories.push({ slot, root, strength: 0.9, id: 'm' + Math.floor(rng() * 1e9).toString(36) });
+    logLine(`${org.name} · reseeded ${slot} on new root ${root} (domain FD${S.rootSeq})`, 'act'); return true;
+  }
+  function actReplicate(org, slot) {
+    if (!org || !org.alive) return false;
+    const donor = S.organisms.filter(o => o !== org && o.alive).flatMap(o => o.memories.filter(m => m.slot === slot && !S.roots[m.root].blighted)).sort((a, b) => b.strength - a.strength)[0];
+    if (!donor) { logLine(`no healthy ${slot} to replicate from`, 'warn'); return false; }
+    if (!spend(COST.replicate)) return false;
+    org.memories.push({ slot, root: donor.root, strength: donor.strength * 0.95, id: 'm' + Math.floor(rng() * 1e9).toString(36) });
+    logLine(`${org.name} · replicated ${slot} from root ${donor.root} (correlated)`, 'act'); return true;
+  }
+  function actRegrow(org) { if (!org || org.alive || !spend(COST.regrow)) return false; org.alive = true; logLine(`${org.name} · regrown, memories intact`, 'act'); return true; }
+  function actReconnect(org) { if (!org || !org.partitioned || !spend(COST.reconnect)) return false; org.partitioned = false; logLine(`${org.name} · reconnected`, 'act'); return true; }
+
+  function autopilot() {
+    // the forester AI: fix access first, then raise independence where it is lowest
+    const down = S.organisms.find(o => !o.alive); if (down && S.spores >= COST.regrow) { actRegrow(down); return; }
+    const cut = S.organisms.find(o => o.partitioned); if (cut && S.spores >= COST.reconnect) { actReconnect(cut); return; }
+    const indep = SLOTS.map(slot => ({ slot, n: new Set(S.organisms.flatMap(o => o.memories.filter(m => m.slot === slot && healthy(o, m)).map(m => S.roots[m.root].domain))).size }))
+      .sort((a, b) => a.n - b.n);
+    const weakest = indep[0];
+    if (weakest.n < 2 && S.spores >= COST.reseed) {
+      const host = S.organisms.filter(o => o.alive && !o.memories.some(m => m.slot === weakest.slot && healthy(o, m))).sort((a, b) => a.memories.length - b.memories.length)[0]
+        || S.organisms.filter(o => o.alive)[0];
+      actReseed(host, weakest.slot);
+    } else if (weakest.n === 0 && S.spores >= COST.replicate) {
+      const host = S.organisms.filter(o => o.alive)[0]; actReplicate(host, weakest.slot);
+    }
+  }
+
+  function endSeason() {
+    S.over = true; S.running = false;
+    const uptime = S.cycle ? S.ok / S.cycle : 0;
+    const cut = minCut();
+    const grade = uptime >= 0.9 && cut >= 2 ? 'A' : uptime >= 0.8 ? 'B' : uptime >= 0.65 ? 'C' : uptime >= 0.5 ? 'D' : 'F';
+    document.getElementById('o-grade').textContent = grade;
+    document.getElementById('o-title').textContent = { A: 'Old-growth forest', B: 'Healthy canopy', C: 'Patchy regrowth', D: 'Thinning stand', F: 'Collective forgetting' }[grade];
+    document.getElementById('o-stats').innerHTML = [
+      ['uptime', `${Math.round(uptime * 100)}%`], ['final min-cut', cut], ['reconstructions', S.ok], ['failures', S.bad],
+      ['silent forgetting', S.sf], ['lineage repairs', S.repairs], ['spores spent', S.spent], ['bytes moved', S.bytes.toLocaleString()],
+    ].map(([k, v]) => `<div><span>${k}</span><span>${v}</span></div>`).join('');
+    document.getElementById('outro').hidden = false;
+  }
+
+  function logLine(text, cls) { S.log.unshift({ text, cls }); S.log.length = Math.min(S.log.length, 7); }
+
+  // ---------------- layout ----------------
+  const canvas = document.getElementById('field'), ctx = canvas.getContext('2d');
+  const wrap = document.getElementById('fieldwrap');
+  let W = 0, H = 0, DPR = 1;
+  function resize() {
+    DPR = Math.min(2, window.devicePixelRatio || 1);
+    W = wrap.clientWidth; H = wrap.clientHeight;
+    canvas.width = Math.floor(W * DPR); canvas.height = Math.floor(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    if (S) layout();
+  }
+  function layout() {
+    const cx = W / 2, cy = H / 2, r = Math.min(W, H) * 0.36;
+    S.hub.x = cx; S.hub.y = cy;
+    S.organisms.forEach((o, i) => {
+      const a = -Math.PI / 2 + i * (Math.PI * 2 / S.organisms.length);
+      const wob = 1 + 0.08 * Math.sin(i * 2.3);
+      o.x = cx + Math.cos(a) * r * wob; o.y = cy + Math.sin(a) * r * wob;
+    });
+    // mycelial edges: hub to each, plus ring neighbours
+    S.edges = [];
+    S.organisms.forEach((o, i) => { S.edges.push([o, S.organisms[(i + 1) % S.organisms.length]]); });
+  }
+
+  // ---------------- drawing ----------------
+  function curve(a, b, bulge, t) {
+    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len, ny = dx / len;
+    const cxp = mx + nx * bulge, cyp = my + ny * bulge;
+    return { cx: cxp, cy: cyp, at(u) { const v = 1 - u; return { x: v * v * a.x + 2 * v * u * cxp + u * u * b.x, y: v * v * a.y + 2 * v * u * cyp + u * u * b.y }; } };
+  }
+  function draw(now, dt) {
+    ctx.clearRect(0, 0, W, H);
+    // ground grid
+    ctx.save(); ctx.strokeStyle = 'rgba(57,255,158,0.045)'; ctx.lineWidth = 1;
+    for (let x = (W / 2) % 40; x < W; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    for (let y = (H / 2) % 40; y < H; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+    ctx.restore();
+    const flow = reduceMotion ? 0 : (now / 40) % 24;
+    // hyphae: ring + spokes
+    const links = [...S.edges, ...S.organisms.map(o => [o, S.hub])];
+    for (const [a, b] of links) {
+      const dead = (a.alive === false) || (b.alive === false) || a.partitioned || b.partitioned;
+      const c = curve(a, b, b === S.hub ? 18 : 34);
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.quadraticCurveTo(c.cx, c.cy, b.x, b.y);
+      ctx.strokeStyle = dead ? 'rgba(255,77,94,0.22)' : 'rgba(57,255,158,0.16)'; ctx.lineWidth = 1.2; ctx.setLineDash([]); ctx.stroke();
+      if (!dead) { ctx.setLineDash([2, 22]); ctx.lineDashOffset = -flow; ctx.strokeStyle = 'rgba(57,255,158,0.55)'; ctx.lineWidth = 1.6; ctx.stroke(); ctx.setLineDash([]); }
+      else if (a.partitioned || b.partitioned) { ctx.setLineDash([3, 9]); ctx.strokeStyle = 'rgba(255,179,71,0.5)'; ctx.stroke(); ctx.setLineDash([]); }
+    }
+    // packets
+    S.packets = S.packets.filter(p => p.t < 1);
+    for (const p of S.packets) {
+      p.t += dt / (reduceMotion ? 300 : 900);
+      const c = curve(p.from, S.hub, 18).at(Math.min(1, p.t));
+      ctx.beginPath(); ctx.arc(c.x, c.y, 3, 0, Math.PI * 2); ctx.fillStyle = p.color; ctx.shadowColor = p.color; ctx.shadowBlur = 12; ctx.fill(); ctx.shadowBlur = 0;
+    }
+    // hub: tesseract wireframe
+    drawHub(now);
+    // organisms
+    for (const o of S.organisms) drawOrganism(o, now, dt);
+    // event flashes
+    S.events = S.events.filter(e => e.t < 1);
+    for (const e of S.events) {
+      e.t += dt / 1400;
+      if (e.kind === 'blight') { ctx.fillStyle = `rgba(255,77,94,${0.18 * (1 - e.t)})`; ctx.fillRect(0, 0, W, H); }
+      if (e.kind === 'node' && e.o) { ctx.beginPath(); ctx.arc(e.o.x, e.o.y, 30 + 80 * e.t, 0, Math.PI * 2); ctx.strokeStyle = `rgba(255,77,94,${0.6 * (1 - e.t)})`; ctx.lineWidth = 2; ctx.stroke(); }
+    }
+    // vignette
+    const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
+    g.addColorStop(0, 'rgba(5,8,7,0)'); g.addColorStop(1, 'rgba(5,8,7,0.85)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  }
+  function drawHub(now) {
+    const { x, y } = S.hub; const s = 22; const rot = reduceMotion ? 0 : now / 2600;
+    S.hubPulse = Math.max(0, (S.hubPulse || 0) - 0.02);
+    const ok = S.last ? S.last.success : true;
+    const col = ok ? '57,255,158' : '255,77,94';
+    ctx.save(); ctx.translate(x, y);
+    ctx.shadowColor = `rgba(${col},0.9)`; ctx.shadowBlur = 18 + 30 * S.hubPulse;
+    for (let k = 0; k < 2; k++) {
+      ctx.save(); ctx.rotate(rot * (k ? -1 : 1)); const r = k ? s : s * 1.7;
+      ctx.beginPath(); ctx.rect(-r / 2, -r / 2, r, r); ctx.strokeStyle = `rgba(${col},${k ? 0.9 : 0.5})`; ctx.lineWidth = k ? 1.6 : 1; ctx.stroke(); ctx.restore();
+    }
+    ctx.save(); ctx.rotate(rot);
+    for (const [ax, ay] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { ctx.beginPath(); ctx.moveTo(ax * s / 2, ay * s / 2); const rr = s * 1.7; ctx.lineTo(ax * rr / 2 * Math.cos(rot * 2) - ay * rr / 2 * Math.sin(rot * 2), ax * rr / 2 * Math.sin(rot * 2) + ay * rr / 2 * Math.cos(rot * 2)); ctx.strokeStyle = `rgba(${col},0.35)`; ctx.lineWidth = 1; ctx.stroke(); }
+    ctx.restore();
+    ctx.restore();
+    ctx.font = '600 9px "Chakra Petch", sans-serif'; ctx.fillStyle = 'rgba(111,130,121,1)'; ctx.textAlign = 'center'; ctx.letterSpacing = '0.14em';
+    ctx.fillText('TESSERACT', x, y + s * 1.7);
+  }
+  function drawOrganism(o, now, dt) {
+    o.pulse = Math.max(0, o.pulse - dt / 900);
+    const sel = S.selected === o;
+    const base = !o.alive ? '255,77,94' : o.partitioned ? '255,179,71' : '57,255,158';
+    // roots: filaments radiating outward from the ring, one per memory
+    const outward = Math.atan2(o.y - S.hub.y, o.x - S.hub.x);
+    o.memories.forEach((m, i) => {
+      const root = S.roots[m.root];
+      const dead = root.blighted || !o.alive;
+      const spread = (i - (o.memories.length - 1) / 2) * 0.55;
+      const len = 34 + 74 * m.strength;
+      const a = outward + spread;
+      ctx.save();
+      ctx.strokeStyle = dead ? 'rgba(255,77,94,0.5)' : root.color; ctx.globalAlpha = dead ? 0.6 : 0.5 + 0.5 * m.strength; ctx.lineWidth = dead ? 1.2 : 2.2;
+      ctx.lineCap = 'round'; ctx.shadowColor = root.color; ctx.shadowBlur = dead ? 0 : 12;
+      let px = o.x + Math.cos(a) * 16, py = o.y + Math.sin(a) * 16;
+      ctx.beginPath(); ctx.moveTo(px, py);
+      const segs = 4;
+      for (let k = 1; k <= segs; k++) {
+        const wig = Math.sin(now / 700 + i * 1.7 + k) * (reduceMotion ? 0 : 3);
+        const ang = a + Math.sin(k * 1.3 + i) * 0.25;
+        px += Math.cos(ang) * (len / segs) + Math.cos(ang + Math.PI / 2) * wig * 0.3;
+        py += Math.sin(ang) * (len / segs) + Math.sin(ang + Math.PI / 2) * wig * 0.3;
+        ctx.lineTo(px, py);
+        if (k === 2) { ctx.moveTo(px, py); ctx.lineTo(px + Math.cos(ang + 0.7) * len * 0.3, py + Math.sin(ang + 0.7) * len * 0.3); ctx.moveTo(px, py); }
+        if (k === 3) { ctx.moveTo(px, py); ctx.lineTo(px + Math.cos(ang - 0.6) * len * 0.22, py + Math.sin(ang - 0.6) * len * 0.22); ctx.moveTo(px, py); }
+      }
+      if (dead) { ctx.setLineDash([2, 4]); }
+      ctx.stroke();
+      ctx.restore();
+      // slot glyph at tip
+      ctx.save(); ctx.font = '600 8px "Chakra Petch", sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = dead ? 'rgba(255,77,94,0.8)' : root.color; ctx.globalAlpha = 0.9;
+      ctx.fillText(m.slot[0] + (dead ? '×' : ''), px + Math.cos(a) * 8, py + Math.sin(a) * 8 + 3); ctx.restore();
+    });
+    // body: cell ring + nucleus
+    ctx.save();
+    ctx.shadowColor = `rgba(${base},0.9)`; ctx.shadowBlur = 14 + 22 * o.pulse;
+    ctx.beginPath(); ctx.arc(o.x, o.y, 15 + 3 * o.pulse, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(5,8,7,0.95)'; ctx.fill();
+    ctx.strokeStyle = `rgba(${base},${o.alive ? 0.95 : 0.6})`; ctx.lineWidth = 1.6; if (!o.alive) ctx.setLineDash([3, 4]); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath(); ctx.arc(o.x, o.y, 4.5, 0, Math.PI * 2); ctx.fillStyle = `rgba(${base},${o.alive ? 0.9 : 0.35})`; ctx.fill();
+    ctx.restore();
+    if (sel) {
+      ctx.save(); ctx.strokeStyle = 'rgba(77,227,255,0.95)'; ctx.lineWidth = 1.2; const r = 26;
+      for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { ctx.beginPath(); ctx.moveTo(o.x + sx * r, o.y + sy * (r - 8)); ctx.lineTo(o.x + sx * r, o.y + sy * r); ctx.lineTo(o.x + sx * (r - 8), o.y + sy * r); ctx.stroke(); }
+      ctx.restore();
+    }
+    ctx.save(); ctx.font = '600 10px "Chakra Petch", sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = sel ? '#4de3ff' : 'rgba(201,214,207,0.9)'; ctx.letterSpacing = '0.14em';
+    ctx.fillText(o.name, o.x, o.y + 34); ctx.restore();
+    if (!o.alive) { ctx.save(); ctx.font = '500 9px "IBM Plex Mono", monospace'; ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,77,94,0.9)'; ctx.fillText('DORMANT', o.x, o.y + 46); ctx.restore(); }
+    else if (o.partitioned) { ctx.save(); ctx.font = '500 9px "IBM Plex Mono", monospace'; ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,179,71,0.9)'; ctx.fillText('PARTITIONED', o.x, o.y + 46); ctx.restore(); }
+  }
+
+  // ---------------- HUD / console ----------------
+  const $ = id => document.getElementById(id);
+  function renderHud() {
+    const last = S.last;
+    const st = $('h-status');
+    if (!last) { st.textContent = 'AWAITING QUERY'; st.className = 'status on'; }
+    else if (last.success && last.repaired) { st.textContent = 'REPAIRED'; st.className = 'status rep'; }
+    else if (last.success) { st.textContent = 'RECONSTRUCTED'; st.className = 'status on'; }
+    else { st.textContent = 'CAPABILITY LOST'; st.className = 'status off'; }
+    const conf = last ? last.reported : 0, cov = last ? last.coverage : 0;
+    $('h-conf').style.width = (conf * 100) + '%'; $('h-conf').className = 'fill' + (last && !last.success ? ' crit' : '');
+    $('h-conf-v').textContent = conf.toFixed(2);
+    $('h-cov').style.width = (cov * 100) + '%'; $('h-cov').className = 'fill' + (cov < 1 ? (cov > 0 ? ' warn' : ' crit') : '');
+    $('h-cov-v').textContent = `${Math.round(cov * SLOTS.length)}/${SLOTS.length}`;
+    $('h-flag').hidden = !(last && !last.success && last.gap > 0);
+    $('h-roots').innerHTML = Object.values(S.roots).map(r => {
+      const n = S.organisms.reduce((k, o) => k + o.memories.filter(m => m.root === r.id).length, 0);
+      return `<div><span style="color:${r.blighted ? 'var(--crit)' : r.color}">${r.blighted ? '×' : '●'}</span> ${r.id} <span class="lbl">${r.slot}</span> ${r.domain} · ${n}</div>`;
+    }).join('');
+    $('h-log').innerHTML = S.log.map(l => `<li class="${l.cls}">${l.text}</li>`).join('');
+    const uptime = S.cycle ? Math.round(100 * S.ok / S.cycle) + '%' : '—';
+    $('m-wave').textContent = Math.min(S.wave, WAVES); $('m-cycle').textContent = S.cycle; $('m-uptime').textContent = uptime; $('m-cut').textContent = minCut();
+    $('s-ok').textContent = S.ok; $('s-bad').textContent = S.bad; $('s-sf').textContent = S.sf; $('s-rep').textContent = S.repairs;
+    $('s-bytes').textContent = S.bytes.toLocaleString(); $('s-wither').textContent = S.wither; $('s-blight').textContent = Object.values(S.roots).filter(r => r.blighted).length; $('s-spent').textContent = S.spent;
+    $('c-spores').textContent = S.spores;
+  }
+  function renderConsole() {
+    const o = S.selected;
+    $('c-name').textContent = o ? `${o.name} · ${!o.alive ? 'dormant' : o.partitioned ? 'partitioned' : 'online'}` : 'none selected';
+    const box = $('c-mems');
+    if (!o) { box.className = 'empty'; box.textContent = 'Tap an organism in the field.'; }
+    else if (!o.memories.length) { box.className = 'empty'; box.textContent = 'Fertile ground. No memories yet.'; }
+    else {
+      box.className = '';
+      box.innerHTML = o.memories.map(m => { const r = S.roots[m.root]; const dead = r.blighted;
+        return `<div class="mem${dead ? ' dead' : ''}"><span class="slot">${m.slot}</span><span class="root"><i class="${dead ? 'dead' : ''}" style="background:${r.color}"></i>${r.id} · ${r.domain}${dead ? ' · blighted' : ''}</span><span class="str">${Math.round(m.strength * 100)}%</span></div>`; }).join('');
+    }
+    $('c-slots').innerHTML = SLOTS.map(s => `<button class="chip" data-slot="${s}" aria-pressed="${S.slot === s}">${s}</button>`).join('');
+    const alive = o && o.alive;
+    $('a-reseed').disabled = !alive || S.spores < COST.reseed || S.over || !S.running;
+    $('a-replicate').disabled = !alive || S.spores < COST.replicate || S.over || !S.running;
+    $('a-regrow').disabled = !(o && !o.alive) || S.spores < COST.regrow || S.over || !S.running;
+    $('a-reconnect').disabled = !(o && o.partitioned) || S.spores < COST.reconnect || S.over || !S.running;
+  }
+
+  // ---------------- input ----------------
+  canvas.addEventListener('pointerdown', e => {
+    const rect = canvas.getBoundingClientRect(); const x = e.clientX - rect.left, y = e.clientY - rect.top;
+    let best = null, bd = 42;
+    for (const o of S.organisms) { const d = Math.hypot(o.x - x, o.y - y); if (d < bd) { best = o; bd = d; } }
+    S.selected = best; renderConsole();
+  });
+  $('c-slots').addEventListener('click', e => { const b = e.target.closest('.chip'); if (!b) return; S.slot = b.dataset.slot; renderConsole(); });
+  $('a-reseed').addEventListener('click', () => { actReseed(S.selected, S.slot); renderConsole(); renderHud(); });
+  $('a-replicate').addEventListener('click', () => { actReplicate(S.selected, S.slot); renderConsole(); renderHud(); });
+  $('a-regrow').addEventListener('click', () => { actRegrow(S.selected); renderConsole(); renderHud(); });
+  $('a-reconnect').addEventListener('click', () => { actReconnect(S.selected); renderConsole(); renderHud(); });
+  $('btn-auto').addEventListener('click', () => { S.auto = !S.auto; $('btn-auto').setAttribute('aria-pressed', String(S.auto)); logLine(S.auto ? 'autopilot engaged' : 'autopilot off', 'act'); });
+  $('btn-rec').addEventListener('click', () => { const on = !document.getElementById('app').classList.toggle('rec'); $('btn-rec').setAttribute('aria-pressed', String(!on)); resize(); });
+  function start(auto) {
+    S.running = true; S.auto = auto; $('btn-auto').setAttribute('aria-pressed', String(auto));
+    S.t0 = performance.now(); S.lastCycle = S.t0 - CYCLE_MS + 600; S.lastWave = S.t0;
+    $('intro').hidden = true; logLine(`season ${S.season} · ${S.organisms.length} organisms · 3 premises · min-cut ${minCut()}`, 'act');
+    renderConsole(); renderHud();
+  }
+  $('btn-start').addEventListener('click', () => start(false));
+  $('btn-demo').addEventListener('click', () => start(true));
+  $('btn-again').addEventListener('click', () => { S = newState(); layout(); $('outro').hidden = true; $('intro').hidden = false; renderConsole(); renderHud(); });
+
+  // ---------------- loop ----------------
+  let lastT = 0;
+  function frame(now) {
+    const dt = Math.min(50, now - (lastT || now)); lastT = now; S.now = now;
+    if (S.running && !S.over) {
+      if (now - S.lastCycle >= CYCLE_MS) { S.lastCycle = now; if (S.auto) autopilot(); runCycle(now); renderHud(); renderConsole(); }
+      if (now - S.lastWave >= WAVE_MS) { S.lastWave = now; waveEvent(); renderHud(); renderConsole(); }
+      if (Math.floor(now / 1000) !== Math.floor((now - dt) / 1000)) { decay(); }
+    }
+    draw(now, dt);
+    requestAnimationFrame(frame);
+  }
+  window.addEventListener('resize', resize);
+  S = newState(); resize(); layout(); renderConsole(); renderHud();
+  requestAnimationFrame(frame);
+})();
+</script>

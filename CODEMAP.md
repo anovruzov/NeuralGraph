@@ -3092,3 +3092,9 @@ N5: re-score existing LoCoMo answer files under three judges.
   L153   def log
   L160   def main
 ```
+
+### `docs/sim/README.md` (24 lines)
+
+```
+  L1     # Mycelic Forest Ops (simulation game)
+```
