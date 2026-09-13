@@ -27,10 +27,13 @@ Design goals, each pinned by a test in ``test_mcp_memory.py``:
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import math
 import os
 import re
+import sqlite3
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Protocol
@@ -47,11 +50,13 @@ from ..data_types import (
     generate_edge_id,
     generate_node_id,
 )
-from ..mega_search import entities_of, rrf, tokenize
+from ..mega_search import entities_of, rrf
 from ..sqlite_storage import SQLiteNeuralGraphStorage
 
 MAX_TEXT_CHARS = 8000
-NEAR_DUPLICATE_COSINE = 0.97
+#: Words that flip meaning; never dropped from fingerprints or embeddings.
+NEGATIONS = {"not", "no", "never", "none", "without", "off", "on", "un", "non"}
+_WORD = re.compile(r"\w+", re.UNICODE)
 DEFAULT_DB = "~/.neuralgraph/memory.db"
 _ISO_DATE = re.compile(r"\b(\d{4}-\d{2}-\d{2})\b")
 _HANDLE = re.compile(r"(?<![\w.])@([A-Za-z0-9_][A-Za-z0-9_.-]{1,38})")
@@ -80,6 +85,27 @@ def normalize_text(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+def content_tokens(text: str) -> list[str]:
+    """Unicode-aware tokens for embedding and keyword ranking.
+
+    Keeps numbers, short tokens and negation words: '09:30' vs '10:30' and
+    'enabled' vs 'not enabled' must produce different tokens, or dedupe and
+    recall silently merge facts that differ.  Only pure stop words are dropped.
+    """
+    from ..mega_search import _STOP
+
+    return [w for w in _WORD.findall(text.lower()) if w in NEGATIONS or (w not in _STOP and len(w) >= 2)]
+
+
+def fingerprint(text: str) -> tuple[str, ...]:
+    """Lexical identity of a memory: the sorted multiset of its content tokens.
+
+    Two texts are near-duplicates only when every token matches; punctuation,
+    case and spacing differences collapse, any changed word or number does not.
+    """
+    return tuple(sorted(content_tokens(text)))
+
+
 class Embedder(Protocol):
     name: str
 
@@ -103,7 +129,7 @@ class HashedEmbedder:
 
     def embed_sync(self, text: str) -> list[float]:
         vec = [0.0] * self.dims
-        tokens = tokenize(text)
+        tokens = content_tokens(text)
         features = tokens + [f"{a}_{b}" for a, b in zip(tokens, tokens[1:])]
         for feature in features:
             digest = hashlib.blake2b(feature.encode("utf-8"), digest_size=8).digest()
@@ -137,14 +163,23 @@ class ModelEmbedder:
         return [float(v) for v in vector]
 
 
-async def choose_embedder(mode: str = "auto") -> Embedder:
-    """``hashed`` never touches the network; ``model`` requires one; ``auto`` probes once."""
+async def choose_embedder(mode: str = "auto", existing_source: str | None = None) -> Embedder:
+    """``hashed`` never touches the network; ``model`` requires one; ``auto`` probes once.
+
+    In ``auto`` mode a store that already holds memories keeps their space:
+    if they were hashed, no probe is made and no model is used, so the choice
+    is deterministic across restarts.  If they came from a model, that model
+    is tried first and hashed is the fallback.
+    """
     if mode == "hashed":
         return HashedEmbedder()
-    model = ModelEmbedder()
+    model_name = existing_source[6:] if existing_source and existing_source.startswith("model:") else None
+    model = ModelEmbedder(model=model_name, timeout_seconds=3.0)
     if mode == "model":
         await model.embed("probe")
         return model
+    if existing_source == HashedEmbedder.name:
+        return HashedEmbedder()
     try:
         await model.embed("probe")
         return model
@@ -152,8 +187,23 @@ async def choose_embedder(mode: str = "auto") -> Embedder:
         return HashedEmbedder()
 
 
+_SENTENCE_START = re.compile(r"(?:^|[.!?]\s+)([A-Z][a-zA-Z]+)")
+_COMMON_STARTERS = {
+    "the", "what", "this", "these", "those", "after", "before", "use", "using", "add", "run", "note", "todo",
+    "remember", "always", "never", "every", "each", "please", "when", "where", "while", "if", "it", "its", "we",
+    "our", "you", "your", "they", "there", "here", "also", "make", "keep", "set", "do", "don", "let", "check",
+}
+
+
 def extract_entities(text: str, explicit: tuple[str, ...] = ()) -> tuple[str, ...]:
+    from ..mega_search import _STOP
+
     found = set(entities_of(text))
+    # A sentence-initial capitalised word is a name unless it is a common
+    # function word ('The', 'What', 'After'): those are dropped, 'Ali' stays.
+    starts = {w.lower() for w in _SENTENCE_START.findall(text)}
+    found -= {w for w in starts if w in _STOP or w in _COMMON_STARTERS}
+    found -= _STOP
     found.update(h.lower() for h in _HANDLE.findall(text))
     found.update(p for p in _PATH.findall(text))
     found.update(e.strip().lower() for e in explicit if e and e.strip())
@@ -177,6 +227,13 @@ class MemoryEngine:
         # database path, host, or anything else (CLAUDE.md rule 5).
         self.failure_domain = failure_domain or os.environ.get("NEURALGRAPH_FAILURE_DOMAIN") or None
         self.storage = storage or SQLiteNeuralGraphStorage(db_path)
+        self._db_path = getattr(self.storage, "_db_path", None)
+        # One writer at a time: the check-then-write in remember() must not race.
+        self._lock = asyncio.Lock()
+        self._cache: list[NeuralNode] | None = None
+        self._cache_stamp: tuple[int, int] | None = None
+        # Private memories are never sent to a model endpoint.
+        self._private_embedder = HashedEmbedder()
 
     # ------------------------------------------------------------------ create
     async def remember(
@@ -196,6 +253,30 @@ class MemoryEngine:
         derived_from: tuple[str, ...] | list[str] = (),
         private: bool = False,
     ) -> dict[str, Any]:
+        async with self._lock:
+            return await self._remember(
+                text, kind=kind, key=key, tags=tags, speaker=speaker, source=source, when=when,
+                valid_from=valid_from, valid_to=valid_to, importance=importance, entities=entities,
+                derived_from=derived_from, private=private,
+            )
+
+    async def _remember(
+        self,
+        text: str,
+        *,
+        kind: str,
+        key: str | None,
+        tags: tuple[str, ...] | list[str],
+        speaker: str | None,
+        source: str | None,
+        when: str | None,
+        valid_from: str | None,
+        valid_to: str | None,
+        importance: float,
+        entities: tuple[str, ...] | list[str],
+        derived_from: tuple[str, ...] | list[str],
+        private: bool,
+    ) -> dict[str, Any]:
         content = normalize_text(text or "")
         if not content:
             raise ValueError("text must not be empty")
@@ -204,6 +285,7 @@ class MemoryEngine:
         if not 0.0 <= importance <= 1.0:
             raise ValueError("importance must be between 0 and 1")
         kind = (kind or "note").strip().lower()
+        key = key.strip() if isinstance(key, str) and key.strip() else None
         tags = tuple(sorted({t.strip().lower() for t in tags if t and t.strip()}))
         event_time = _parse_time(when, "when")
         valid_from_dt = _parse_time(valid_from, "valid_from")
@@ -214,33 +296,43 @@ class MemoryEngine:
         content_hash = hashlib.sha256(f"{self.session_key}\n{content.lower()}".encode("utf-8")).hexdigest()
 
         nodes = await self._session_nodes()
-        # exact duplicate: strengthen, do not clone
+        # Duplicate = same lexical fingerprint (every token equal; numbers and
+        # negations count) in the same kind.  A duplicate strengthens the
+        # existing memory and merges tags/source; it never clones.  A key on the
+        # new statement is adopted by an unkeyed existing memory; a different
+        # key is a different fact.  A private re-statement upgrades the
+        # existing memory to private rather than leaving the text exposed.
+        new_fp = fingerprint(content)
         for node in nodes:
-            if node.metadata.get("content_hash") == content_hash and node.consolidation_state is ConsolidationState.ACTIVE:
-                node.heat_score = min(5.0, node.heat_score + 0.25)
-                node.updated_at = now
-                await self.storage.update_node(node)
-                return self._summary(node, deduplicated=True)
-
-        embedding = await self.embedder.embed(content)
-        # near duplicate in the same embedding space and kind
-        for node in nodes:
-            if (
-                node.consolidation_state is ConsolidationState.ACTIVE
-                and node.embedding
-                and node.metadata.get("embedding_source") == self.embedder.name
-                and node.metadata.get("kind") == kind
-                and node.metadata.get("key") == key
-                and cosine_similarity(embedding, node.embedding) >= NEAR_DUPLICATE_COSINE
-            ):
-                node.heat_score = min(5.0, node.heat_score + 0.25)
-                node.updated_at = now
-                await self.storage.update_node(node)
-                return self._summary(node, deduplicated=True, near_duplicate_of=node.node_id)
+            if node.consolidation_state is not ConsolidationState.ACTIVE or node.metadata.get("kind") != kind:
+                continue
+            same_text = node.metadata.get("content_hash") == content_hash or tuple(node.metadata.get("fingerprint", ())) == new_fp
+            existing_key = node.metadata.get("key")
+            if not same_text or (key and existing_key and existing_key != key):
+                continue
+            if key and not existing_key:
+                node.metadata["key"] = key
+            node.metadata["tags"] = sorted(set(node.metadata.get("tags", [])) | set(tags))
+            if source and not node.metadata.get("source"):
+                node.metadata["source"] = source
+            if private and not node.metadata.get("private"):
+                node.metadata["private"] = True
+                if node.metadata.get("embedding_source") != HashedEmbedder.name:
+                    node.embedding = await self._private_embedder.embed(content)
+                    node.metadata["embedding_source"] = HashedEmbedder.name
+            node.heat_score = min(5.0, node.heat_score + 0.25)
+            node.updated_at = now
+            await self.storage.update_node(node)
+            self._invalidate()
+            return self._summary(node, deduplicated=True)
 
         for parent in derived_from:
-            if await self.storage.get_node(parent) is None:
+            parent_node = await self.storage.get_node(parent)
+            if parent_node is None or parent_node.session_key != self.session_key:
                 raise ValueError(f"derived_from names an unknown memory: {parent}")
+
+        embedder = self._private_embedder if private else self.embedder
+        embedding, embedding_source = await self._embed(embedder, content)
 
         entity_ids = extract_entities(content, tuple(entities))
         superseded: NeuralNode | None = None
@@ -257,9 +349,12 @@ class MemoryEngine:
             "source": source,
             "private": bool(private),
             "content_hash": content_hash,
-            "embedding_source": self.embedder.name,
+            "fingerprint": list(new_fp),
+            "embedding_source": embedding_source,
             "event_time": _iso(event_time),
-            "valid_from": _iso(valid_from_dt),
+            # A superseding fact starts being valid now unless told otherwise,
+            # so as_of before it existed does not return it.
+            "valid_from": _iso(valid_from_dt or (now if superseded is not None else None)),
             "valid_to": _iso(valid_to_dt),
             "mentioned_dates": sorted(set(_ISO_DATE.findall(content))),
             "created_by": "neuralgraph-mcp",
@@ -308,7 +403,8 @@ class MemoryEngine:
             if shared:
                 union = set(other.entity_ids) | set(entity_ids)
                 related.append((len(shared) / len(union), other))
-        related.sort(key=lambda item: (-item[0], item[1].created_at), reverse=False)
+        # strongest overlap first, then most recent
+        related.sort(key=lambda item: (-item[0], -item[1].created_at.timestamp()))
         for weight, other in related[:5]:
             await self.storage.save_edge(NeuralEdge(
                 edge_id=generate_edge_id(), source_id=node.node_id, target_id=other.node_id,
@@ -321,6 +417,7 @@ class MemoryEngine:
                 edge_id=generate_edge_id(), source_id=previous.node_id, target_id=node.node_id,
                 edge_type=EdgeType.TEMPORAL, base_weight=0.5, confidence=1.0,
             ))
+        self._invalidate()
         return self._summary(node, deduplicated=False, superseded=superseded.node_id if superseded else None)
 
     # ------------------------------------------------------------------ recall
@@ -359,20 +456,25 @@ class MemoryEngine:
         if not candidates:
             return []
         by_id = {n.node_id: n for n in candidates}
-        query_vec = await self.embedder.embed(query)
+        query_vec, query_source = await self._embed(self.embedder, query)
         vector_rank = [
             n.node_id for n, _ in sorted(
                 ((n, cosine_similarity(query_vec, n.embedding)) for n in candidates
-                 if n.embedding and n.metadata.get("embedding_source") == self.embedder.name),
+                 if n.embedding and n.metadata.get("embedding_source") == query_source),
                 key=lambda item: -item[1],
             ) if _ > 0.0
         ]
-        corpus = [tokenize(n.content) for n in candidates]
+        corpus = [content_tokens(n.content) for n in candidates]
         keyword_rank: list[str] = []
-        q_tokens = tokenize(query)
+        q_tokens = content_tokens(query)
         if q_tokens and any(corpus):
-            scores = BM25Okapi([doc or ["_"] for doc in corpus]).get_scores(q_tokens)
-            keyword_rank = [candidates[i].node_id for i in sorted(range(len(candidates)), key=lambda i: -scores[i]) if scores[i] > 0]
+            # Overlap fraction is the primary signal so a one-memory corpus or a
+            # term present in every memory still ranks; BM25 breaks ties.
+            bm25 = BM25Okapi([doc or ["_"] for doc in corpus]).get_scores(q_tokens)
+            q_set = set(q_tokens)
+            overlap = [len(q_set & set(doc)) / len(q_set) for doc in corpus]
+            order = sorted(range(len(candidates)), key=lambda i: (-overlap[i], -bm25[i]))
+            keyword_rank = [candidates[i].node_id for i in order if overlap[i] > 0]
         q_entities = set(extract_entities(query))
         entity_rank = [
             n.node_id for n, overlap in sorted(
@@ -392,7 +494,11 @@ class MemoryEngine:
                 node.heat_score = min(5.0, node.heat_score + 0.1)
                 node.activation_level = min(1.0, node.activation_level + 0.2)
                 node.last_activated = self._clock()
-                await self.storage.update_node(node)
+                try:
+                    await self.storage.update_node(node)
+                    self._invalidate()
+                except sqlite3.OperationalError:
+                    pass  # read-only or locked store: recall still answers
             item = self._summary(node)
             item["score"] = round(score, 6)
             if explain:
@@ -412,11 +518,20 @@ class MemoryEngine:
         node = await self.storage.get_node(memory_id)
         if node is None or node.session_key != self.session_key:
             return False
-        node.consolidation_state = ConsolidationState.EVICTED
-        node.metadata["forgotten_reason"] = reason
-        node.metadata["forgotten_at"] = _iso(self._clock())
-        node.updated_at = self._clock()
-        await self.storage.update_node(node)
+        async with self._lock:
+            node.consolidation_state = ConsolidationState.EVICTED
+            node.metadata["forgotten_reason"] = reason
+            node.metadata["forgotten_at"] = _iso(self._clock())
+            node.updated_at = self._clock()
+            await self.storage.update_node(node)
+            # A superseding memory keeps a verbatim copy of what it replaced;
+            # forgetting the original must scrub that copy too.
+            for other in await self._session_nodes():
+                c = other.metadata.get("contradicts")
+                if isinstance(c, dict) and c.get("memory_id") == memory_id and "previous" in c:
+                    other.metadata["contradicts"] = {"memory_id": memory_id, "previous": None, "scrubbed": True}
+                    await self.storage.update_node(other)
+            self._invalidate()
         return True
 
     async def get(self, memory_id: str) -> dict[str, Any] | None:
@@ -424,6 +539,9 @@ class MemoryEngine:
         if node is None or node.session_key != self.session_key:
             return None
         item = self._summary(node)
+        if node.consolidation_state is ConsolidationState.EVICTED:
+            item["content"] = None  # forgotten: the text is not served again
+            item["contradicts"] = None
         edges = await self.storage.get_edges_from(memory_id)
         item["derived_from"] = [e.target_id for e in edges if e.edge_type is EdgeType.HIERARCHY]
         item["related"] = [e.target_id for e in edges if e.edge_type is EdgeType.ENTITY]
@@ -439,8 +557,11 @@ class MemoryEngine:
 
     async def decay(self, rate: float = 0.05, archive_below: float = 0.1, protect_importance: float = 0.8) -> dict[str, int]:
         """Cool every active memory; archive cold, unimportant ones. Nothing is deleted."""
+        if rate < 0 or archive_below < 0 or not 0.0 <= protect_importance <= 1.0:
+            raise ValueError("decay parameters must be non-negative (rate, archive_below) and protect_importance in [0, 1]")
         cooled = archived = 0
-        for node in await self._session_nodes():
+        async with self._lock:
+          for node in await self._session_nodes():
             if node.consolidation_state is not ConsolidationState.ACTIVE:
                 continue
             node.heat_score = max(0.0, node.heat_score - rate)
@@ -453,6 +574,7 @@ class MemoryEngine:
                 archived += 1
             node.updated_at = self._clock()
             await self.storage.update_node(node)
+          self._invalidate()
         return {"cooled": cooled, "archived": archived}
 
     async def stats(self) -> dict[str, Any]:
@@ -543,7 +665,48 @@ class MemoryEngine:
 
     # ----------------------------------------------------------------- helpers
     async def _session_nodes(self) -> list[NeuralNode]:
-        return await self.storage.get_nodes_by_session(self.session_key, NodeLayer.MESSAGE)
+        """Session memories, cached until this engine writes or the file changes."""
+        stamp = self._file_stamp()
+        if self._cache is None or stamp != self._cache_stamp:
+            self._cache = await self.storage.get_nodes_by_session(self.session_key, NodeLayer.MESSAGE)
+            self._cache_stamp = stamp
+        return self._cache
+
+    def _file_stamp(self) -> tuple[int, int] | None:
+        try:
+            st = os.stat(self._db_path) if self._db_path else None
+        except OSError:
+            return None
+        return (st.st_mtime_ns, st.st_size) if st else None
+
+    def _invalidate(self) -> None:
+        self._cache = None
+
+    async def _embed(self, embedder: Embedder, content: str) -> tuple[list[float], str]:
+        """Embed with the given embedder; if a model dies, fall back to hashed honestly."""
+        try:
+            return await embedder.embed(content), embedder.name
+        except Exception as exc:  # network / model failure
+            if isinstance(embedder, HashedEmbedder):
+                raise
+            print(f"neuralgraph-mcp: embedding model failed ({type(exc).__name__}); using hashed embedding", file=sys.stderr)
+            return await self._private_embedder.embed(content), HashedEmbedder.name
+
+    def dominant_embedding_source(self) -> str | None:
+        """The embedding space most of this session's memories live in, or None."""
+        counts: dict[str, int] = {}
+        try:
+            rows = self.storage._conn.execute(
+                "SELECT data FROM nodes WHERE session_key = ?", (self.session_key,)
+            ).fetchall()
+        except Exception:
+            return None
+        import json as _json
+        for row in rows:
+            src = (_json.loads(row[0]).get("metadata") or {}).get("embedding_source")
+            if src:
+                counts[src] = counts.get(src, 0) + 1
+        return max(counts, key=counts.get) if counts else None
 
     @staticmethod
     def _valid_at(node: NeuralNode, at: datetime) -> bool:

@@ -206,6 +206,146 @@ class EngineTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(normalize_text("  a \n b  "), "a b")
 
 
+class HardeningTests(unittest.IsolatedAsyncioTestCase):
+    """Regressions for the defects the adversarial review confirmed."""
+
+    async def asyncSetUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.db = Path(self.tmp.name) / "memory.db"
+        self.clock = _Clock()
+        self.engine = MemoryEngine(self.db, session_key="a", clock=self.clock)
+
+    async def asyncTearDown(self):
+        self.engine.close()
+        self.tmp.cleanup()
+
+    async def test_changed_keyed_fact_supersedes_instead_of_deduplicating(self):
+        old = await self.engine.remember("Standup is at 09:30.", kind="fact", key="team.standup")
+        new = await self.engine.remember("Standup is at 10:30.", kind="fact", key="team.standup")
+        self.assertFalse(new["deduplicated"])
+        self.assertEqual(new["supersedes"], old["id"])
+        self.assertEqual(new["contradicts"]["previous"], "Standup is at 09:30.")
+        self.assertIsNotNone(new["valid_from"])  # the new fact is valid from now
+        hits = await self.engine.recall("standup time")
+        self.assertEqual([h["content"] for h in hits], ["Standup is at 10:30."])
+        self.assertEqual(len(await self.engine.recall("standup", as_of="2026-01-01T00:00:00Z", include_superseded=True)), 1)
+
+    async def test_negations_numbers_and_dates_are_distinct_memories(self):
+        pairs = [
+            ("CI is enabled.", "CI is not enabled."),
+            ("Tests pass on main.", "Tests do not pass on main."),
+            ("Deadline for the ledger is 2026-09-14.", "Deadline for the ledger is 2026-09-21."),
+            ("dark_mode is on", "dark_mode is off"),
+        ]
+        for a, b in pairs:
+            with self.subTest(a=a, b=b):
+                first = await self.engine.remember(a, kind="fact")
+                second = await self.engine.remember(b, kind="fact")
+                self.assertFalse(second["deduplicated"], (a, b))
+                self.assertNotEqual(first["id"], second["id"])
+        punct = await self.engine.remember("ci IS enabled!!", kind="fact")
+        self.assertTrue(punct["deduplicated"])
+
+    async def test_unkeyed_memory_adopts_a_later_key_and_then_supersedes(self):
+        first = await self.engine.remember("The default branch is main.", kind="fact")
+        keyed = await self.engine.remember("The default branch is main.", kind="fact", key="repo.default_branch", tags=["git"], source="README")
+        self.assertTrue(keyed["deduplicated"])
+        self.assertEqual(keyed["key"], "repo.default_branch")
+        self.assertEqual(keyed["tags"], ["git"])
+        self.assertEqual(keyed["source"], "README")
+        changed = await self.engine.remember("The default branch is develop.", kind="fact", key="repo.default_branch")
+        self.assertEqual(changed["supersedes"], first["id"])
+        active = [m["content"] for m in await self.engine.list_recent()]
+        self.assertEqual(active, ["The default branch is develop."])
+
+    async def test_different_key_same_text_is_a_different_fact(self):
+        a = await self.engine.remember("Owner is Ali.", kind="fact", key="repo.owner")
+        b = await self.engine.remember("Owner is Ali.", kind="fact", key="team.lead")
+        self.assertNotEqual(a["id"], b["id"])
+
+    async def test_private_restatement_upgrades_and_never_uses_a_model_embedder(self):
+        class Exploding:
+            name = "model:fake"
+
+            async def embed(self, text):
+                raise AssertionError(f"private text reached the model: {text}")
+
+        engine = MemoryEngine(Path(self.tmp.name) / "p.db", session_key="p", clock=self.clock, embedder=Exploding())
+        try:
+            item = await engine.remember("Vault token is xyz.", kind="fact", private=True)
+            self.assertTrue(item["private"])
+            self.assertEqual(item["embedding_source"], HashedEmbedder.name)
+        finally:
+            engine.close()
+        public = await self.engine.remember("Vault token is xyz.", kind="fact")
+        upgraded = await self.engine.remember("Vault token is xyz.", kind="fact", private=True)
+        self.assertEqual(upgraded["id"], public["id"])
+        self.assertTrue(upgraded["private"])
+        self.assertEqual((await self.engine.export_claims("vault token"))["allowed"], 0)
+
+    async def test_model_failure_falls_back_to_hashed_and_records_it(self):
+        class Dying:
+            name = "model:dying"
+
+            async def embed(self, text):
+                raise ConnectionError("endpoint down")
+
+        engine = MemoryEngine(Path(self.tmp.name) / "d.db", session_key="d", clock=self.clock, embedder=Dying())
+        try:
+            item = await engine.remember("Fallback works.", kind="fact")
+            self.assertEqual(item["embedding_source"], HashedEmbedder.name)
+            self.assertEqual((await engine.recall("fallback"))[0]["id"], item["id"])
+        finally:
+            engine.close()
+
+    async def test_derived_from_cannot_cross_sessions(self):
+        other = MemoryEngine(self.db, session_key="b", clock=self.clock)
+        foreign = await other.remember("Foreign fact.")
+        with self.assertRaises(ValueError):
+            await self.engine.remember("Derived from a foreign memory.", derived_from=[foreign["id"]])
+
+    async def test_forget_scrubs_the_copy_held_by_the_superseding_memory(self):
+        old = await self.engine.remember("Secret plan: buy the domain.", kind="decision", key="plan")
+        new = await self.engine.remember("Plan changed: lease the domain.", kind="decision", key="plan")
+        self.assertEqual(new["contradicts"]["previous"], "Secret plan: buy the domain.")
+        await self.engine.forget(old["id"], reason="wrong")
+        self.assertIsNone((await self.engine.get(old["id"]))["content"])
+        self.assertIsNone((await self.engine.get(new["id"]))["contradicts"]["previous"])
+        self.assertNotIn("buy the domain", json.dumps(await self.engine.get(new["id"])))
+
+    async def test_single_memory_and_unicode_are_recallable_by_keyword(self):
+        only = await self.engine.remember("The staging database is Postgres 16.", kind="fact")
+        hits = await self.engine.recall("postgres", explain=True)
+        self.assertEqual(hits[0]["id"], only["id"])
+        self.assertEqual(hits[0]["why"]["keyword_rank"], 1)
+        ru = await self.engine.remember("Сервер базы данных находится в Берлине.", kind="fact")
+        self.assertEqual((await self.engine.recall("Берлине"))[0]["id"], ru["id"])
+
+    async def test_entities_keep_names_and_drop_sentence_starters(self):
+        ents = extract_entities("Ali prefers dark mode. The build runs nightly. What about Nurman?")
+        self.assertIn("ali", ents)
+        self.assertIn("nurman", ents)
+        self.assertNotIn("the", ents)
+        self.assertNotIn("what", ents)
+
+    async def test_decay_rejects_negative_rate(self):
+        with self.assertRaises(ValueError):
+            await self.engine.decay(rate=-1.0)
+
+    async def test_concurrent_remembers_do_not_duplicate(self):
+        import asyncio
+
+        results = await asyncio.gather(*[self.engine.remember("Same concurrent fact.", kind="fact") for _ in range(6)])
+        self.assertEqual(len({r["id"] for r in results}), 1)
+        self.assertEqual((await self.engine.stats())["memories"], 1)
+
+    async def test_cache_sees_writes_from_another_engine_on_the_same_file(self):
+        await self.engine.list_recent()  # warm the cache
+        other = MemoryEngine(self.db, session_key="a", clock=self.clock)
+        await other.remember("Written by another process.", kind="fact")
+        self.assertEqual(len(await self.engine.list_recent()), 1)
+
+
 class ServerTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -243,14 +383,23 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ToolError) as ctx:
             await self.server.call_tool("remember", {"text": "   "})
         self.assertIn("text must not be empty", str(ctx.exception))
+        with self.assertRaises(ToolError) as ctx:
+            await self.server.call_tool("get_memory", {"memory_id": "missing"})
+        self.assertIn("memory not found", str(ctx.exception))
+        with self.assertRaises(ToolError) as ctx:
+            await self.server.call_tool("decay", {"rate": -1})
+        self.assertIn("non-negative", str(ctx.exception))
 
     def test_client_configs(self):
         claude = json.loads(mcp_server.client_config("claude", python="/usr/bin/python3.11", cwd="/repo"))
         self.assertEqual(claude["mcpServers"]["neuralgraph"]["args"], ["-m", "NeuralGraph.mcp.server"])
-        self.assertEqual(claude["mcpServers"]["neuralgraph"]["cwd"], "/repo")
+        self.assertNotIn("cwd", claude["mcpServers"]["neuralgraph"])  # Claude Code ignores cwd
+        self.assertEqual(claude["mcpServers"]["neuralgraph"]["env"]["PYTHONPATH"], "/repo")
         codex = mcp_server.client_config("codex", python="/usr/bin/python3.11", cwd="/repo")
         self.assertIn("[mcp_servers.neuralgraph]", codex)
         self.assertIn('args = ["-m", "NeuralGraph.mcp.server"]', codex)
+        self.assertIn('cwd = "/repo"', codex)
+        self.assertIn('PYTHONPATH = "/repo"', codex)
         with self.assertRaises(ValueError):
             mcp_server.client_config("cursor")
         project = json.loads(Path(__file__).resolve().parents[2].joinpath(".mcp.json").read_text())

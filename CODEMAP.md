@@ -933,59 +933,69 @@ NeuralGraph as an MCP memory server for coding agents (Claude Code, Codex).
   (no top-level definitions)
 ```
 
-### `NeuralGraph/mcp/memory.py` (580 lines)
+### `NeuralGraph/mcp/memory.py` (743 lines)
 Memory engine for the MCP server: create memories that stay useful.
 
 ```
-  L53    MAX_TEXT_CHARS = …
-  L54    NEAR_DUPLICATE_COSINE = …
-  L55    DEFAULT_DB = …
-  L56    _ISO_DATE = …
-  L57    _HANDLE = …
-  L58    _PATH = …
-  L61    def _now
-  L65    def _iso
-  L69    def _parse_time
-  L79    def normalize_text
-  L83    class Embedder(Protocol)
-  L86      async def embed
-  L89    class HashedEmbedder
-  L98      def __init__
-  L101     async def embed
-  L104     def embed_sync
-  L117   class ModelEmbedder
-  L120     def __init__
-  L128     async def embed
-  L140   async def choose_embedder
-  L155   def extract_entities
-  L163   class MemoryEngine
-  L164     def __init__
-  L182     async def remember
-  L327     async def recall
-  L411     async def forget
-  L422     async def get
-  L432     async def list_recent
-  L440     async def decay
-  L458     async def stats
-  L479     async def export_claims
-  L541     def close
-  L545     async def _session_nodes
-  L549     def _valid_at
-  L554     def _summary
+  L56    MAX_TEXT_CHARS = …
+  L58    NEGATIONS = …
+  L59    _WORD = …
+  L60    DEFAULT_DB = …
+  L61    _ISO_DATE = …
+  L62    _HANDLE = …
+  L63    _PATH = …
+  L66    def _now
+  L70    def _iso
+  L74    def _parse_time
+  L84    def normalize_text
+  L88    def content_tokens
+  L100   def fingerprint
+  L109   class Embedder(Protocol)
+  L112     async def embed
+  L115   class HashedEmbedder
+  L124     def __init__
+  L127     async def embed
+  L130     def embed_sync
+  L143   class ModelEmbedder
+  L146     def __init__
+  L154     async def embed
+  L166   async def choose_embedder
+  L190   _SENTENCE_START = …
+  L191   _COMMON_STARTERS = …
+  L198   def extract_entities
+  L213   class MemoryEngine
+  L214     def __init__
+  L239     async def remember
+  L263     async def _remember
+  L424     async def recall
+  L517     async def forget
+  L537     async def get
+  L550     async def list_recent
+  L558     async def decay
+  L580     async def stats
+  L601     async def export_claims
+  L663     def close
+  L667     async def _session_nodes
+  L675     def _file_stamp
+  L682     def _invalidate
+  L685     async def _embed
+  L695     def dominant_embedding_source
+  L712     def _valid_at
+  L717     def _summary
 ```
 
-### `NeuralGraph/mcp/server.py` (206 lines)
+### `NeuralGraph/mcp/server.py` (222 lines)
 NeuralGraph memory as an MCP server for Claude Code and Codex.
 
 ```
-  L36    SERVER_NAME = …
-  L38    INSTRUCTIONS = …
-  L68    async def _guarded
-  L76    async def engine
-  L88    def set_engine
-  L94    def build_server
-  L169   def client_config
-  L185   def main
+  L37    SERVER_NAME = …
+  L39    INSTRUCTIONS = …
+  L70    async def _guarded
+  L82    async def engine
+  L100   def set_engine
+  L106   def build_server
+  L183   def client_config
+  L201   def main
 ```
 
 ### `NeuralGraph/mega_search.py` (194 lines)
@@ -2005,7 +2015,7 @@ The paper's figures must be regenerable, byte-stable, and true to the data.
   L243     def test_every_figure_matches_its_recorded_digest
 ```
 
-### `NeuralGraph/tests/test_mcp_memory.py` (261 lines)
+### `NeuralGraph/tests/test_mcp_memory.py` (410 lines)
 NeuralGraph as an MCP memory server: engine behaviour and tool surface.
 
 ```
@@ -2031,13 +2041,29 @@ NeuralGraph as an MCP memory server: engine behaviour and tool surface.
   L175     async def test_persistence_survives_reopen
   L186     async def test_export_claims_denies_private_memories_without_payload
   L201     async def test_entity_extraction_covers_handles_and_paths
-  L209   class ServerTests(unittest.IsolatedAsyncioTestCase)
-  L210     async def asyncSetUp
-  L216     async def asyncTearDown
-  L221     async def test_tool_surface
-  L230     async def test_remember_recall_round_trip_through_the_protocol
-  L240     async def test_validation_errors_reach_the_client_with_their_message
-  L247     def test_client_configs
+  L209   class HardeningTests(unittest.IsolatedAsyncioTestCase)
+  L212     async def asyncSetUp
+  L218     async def asyncTearDown
+  L222     async def test_changed_keyed_fact_supersedes_instead_of_deduplicating
+  L233     async def test_negations_numbers_and_dates_are_distinct_memories
+  L249     async def test_unkeyed_memory_adopts_a_later_key_and_then_supersedes
+  L261     async def test_different_key_same_text_is_a_different_fact
+  L266     async def test_private_restatement_upgrades_and_never_uses_a_model_embedder
+  L286     async def test_model_failure_falls_back_to_hashed_and_records_it
+  L301     async def test_derived_from_cannot_cross_sessions
+  L307     async def test_forget_scrubs_the_copy_held_by_the_superseding_memory
+  L316     async def test_single_memory_and_unicode_are_recallable_by_keyword
+  L324     async def test_entities_keep_names_and_drop_sentence_starters
+  L331     async def test_decay_rejects_negative_rate
+  L335     async def test_concurrent_remembers_do_not_duplicate
+  L342     async def test_cache_sees_writes_from_another_engine_on_the_same_file
+  L349   class ServerTests(unittest.IsolatedAsyncioTestCase)
+  L350     async def asyncSetUp
+  L356     async def asyncTearDown
+  L361     async def test_tool_surface
+  L370     async def test_remember_recall_round_trip_through_the_protocol
+  L380     async def test_validation_errors_reach_the_client_with_their_message
+  L393     def test_client_configs
 ```
 
 ### `NeuralGraph/tests/test_replay_generation.py` (503 lines)
@@ -2939,16 +2965,16 @@ Verify all 3 fixes are working in the new benchmark
   L166   ## Evidence classes at a glance
 ```
 
-### `docs/MCP.md` (93 lines)
+### `docs/MCP.md` (108 lines)
 
 ```
   L1     # NeuralGraph as an MCP memory server
   L10    ## Install
-  L43    ## Environment
-  L53    ## Tools
-  L70    ## What "great at creating memories" means here
-  L81    ## Boundaries kept
-  L89    ## Verify
+  L45    ## Environment
+  L55    ## Tools
+  L72    ## What "great at creating memories" means here
+  L96    ## Boundaries kept
+  L104   ## Verify
 ```
 
 ### `docs/PAPER.md` (164 lines)

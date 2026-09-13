@@ -22,6 +22,7 @@ Print a ready-to-paste client config::
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import os
 import sys
@@ -63,25 +64,36 @@ Do not store transcripts. Store the fact, the decision, the reason.
 """
 
 _engine: MemoryEngine | None = None
+_engine_lock: "asyncio.Lock | None" = None
 
 
 async def _guarded(coro):
-    """Surface engine validation errors to the client as tool errors with their message."""
+    """Surface engine errors to the client as tool errors with their message."""
     try:
         return await coro
     except ValueError as exc:
         raise ToolError(str(exc)) from exc
+    except ToolError:
+        raise
+    except Exception as exc:  # model/network/storage failures: name them, never a bare 'error'
+        raise ToolError(f"{type(exc).__name__}: {exc}") from exc
 
 
 async def engine() -> MemoryEngine:
-    global _engine
-    if _engine is None:
-        embedder = await choose_embedder(os.environ.get("NEURALGRAPH_EMBED", "auto"))
-        _engine = MemoryEngine(
-            db_path=os.environ.get("NEURALGRAPH_DB", DEFAULT_DB),
-            session_key=os.environ.get("NEURALGRAPH_SESSION", "default"),
-            embedder=embedder,
-        )
+    global _engine, _engine_lock
+    if _engine_lock is None:
+        _engine_lock = asyncio.Lock()
+    async with _engine_lock:
+        if _engine is None:
+            # Open the store first so the embedding choice can honour the space
+            # its memories already live in (deterministic across restarts).
+            store = MemoryEngine(
+                db_path=os.environ.get("NEURALGRAPH_DB", DEFAULT_DB),
+                session_key=os.environ.get("NEURALGRAPH_SESSION", "default"),
+            )
+            existing = store.dominant_embedding_source()
+            store.embedder = await choose_embedder(os.environ.get("NEURALGRAPH_EMBED", "auto"), existing)
+            _engine = store
     return _engine
 
 
@@ -135,7 +147,9 @@ def build_server() -> MCPServer:
     @server.tool(description="Fetch one memory by id with its derivation parents and related memories.")
     async def get_memory(memory_id: str) -> dict[str, Any]:
         item = await _guarded((await engine()).get(memory_id))
-        return item or {"error": "not found", "memory_id": memory_id}
+        if item is None:
+            raise ToolError(f"memory not found: {memory_id}")
+        return item
 
     @server.tool(description="Soft-delete a memory that was wrong or must not be kept. Provenance is preserved; give a reason.")
     async def forget(memory_id: str, reason: str = "forgotten by agent") -> dict[str, Any]:
@@ -168,9 +182,11 @@ def build_server() -> MCPServer:
 
 def client_config(client: str, python: str = sys.executable, cwd: str | None = None) -> str:
     cwd = cwd or str(Path(__file__).resolve().parents[2])
-    env = {"NEURALGRAPH_DB": os.environ.get("NEURALGRAPH_DB", DEFAULT_DB), "NEURALGRAPH_SESSION": os.environ.get("NEURALGRAPH_SESSION", "default"), "NEURALGRAPH_EMBED": os.environ.get("NEURALGRAPH_EMBED", "auto")}
+    # PYTHONPATH makes `-m NeuralGraph.mcp.server` resolve from any working
+    # directory; Claude Code does not honour a cwd key, Codex does.
+    env = {"PYTHONPATH": cwd, "NEURALGRAPH_DB": os.environ.get("NEURALGRAPH_DB", DEFAULT_DB), "NEURALGRAPH_SESSION": os.environ.get("NEURALGRAPH_SESSION", "default"), "NEURALGRAPH_EMBED": os.environ.get("NEURALGRAPH_EMBED", "auto")}
     if client == "claude":
-        cfg = {"mcpServers": {"neuralgraph": {"type": "stdio", "command": python, "args": ["-m", "NeuralGraph.mcp.server"], "cwd": cwd, "env": env}}}
+        cfg = {"mcpServers": {"neuralgraph": {"type": "stdio", "command": python, "args": ["-m", "NeuralGraph.mcp.server"], "env": env}}}
         return json.dumps(cfg, indent=2) + "\n"
     if client == "codex":
         env_toml = "\n".join(f'{k} = "{v}"' for k, v in env.items())

@@ -130,6 +130,16 @@ Everything run is a local deterministic simulation or a unit test.
   memory), keyed facts supersede with contradiction recorded, soft forget,
   decay archives, export through the real adapter with private memories
   denied payload-free. Retrieval-track files untouched.
+  Hardened after an adversarial review (4 lenses, 31 findings, the critical
+  and high ones reproduced): dedupe is lexical fingerprint equality (numbers,
+  dates, negations distinguish facts), key-aware and private-aware; keyed
+  changes always supersede with `valid_from`; `derived_from` is same-session
+  only; private text never reaches a model; forget scrubs the superseding
+  copy; unicode tokens; write lock; session cache with file-change
+  invalidation; read-only tolerant recall; tool errors carry their message;
+  `--print-config` uses PYTHONPATH (Claude Code ignores cwd). 33 tests.
+  Live-verified: `.mcp.json` was picked up by the authoring Claude Code
+  session and `remember`/`recall` ran through the real server.
 - Merged Nurman's two post-PR commits from `research/retrieval-campaign-2026-09`
   (`RERANK=none` switch and latency tables); PR #3 itself was already in main.
 
@@ -185,7 +195,7 @@ python3.11 -m NeuralGraph.coordination.figures --check
 ```
 
 Setup is `pip install -r requirements.txt`. Suite as of this writing:
-**331 passed, 1 skipped, 3516 subtests**, identical under `PYTHONHASHSEED`
+**344 passed, 1 skipped, 3520 subtests**, identical under `PYTHONHASHSEED`
 1, 7, 4242 and 99991.
 
 `pytest` previously failed to collect anything (5 errors, every file). The repo

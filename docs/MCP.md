@@ -24,7 +24,9 @@ claude mcp add neuralgraph -s user -e NEURALGRAPH_DB=~/.neuralgraph/memory.db \
   -- python3.11 -m NeuralGraph.mcp.server
 ```
 
-(run from this repository root, or set `PYTHONPATH` to it).
+`--print-config` sets `PYTHONPATH` to this checkout in the server's `env`, so
+the command resolves from any working directory. Claude Code does not honour
+a `cwd` key; Codex does, and both get `PYTHONPATH`.
 
 **Codex.** Paste the printed block into `~/.codex/config.toml`:
 
@@ -69,7 +71,15 @@ to key, what to mark private. The same text is sent as the server's
 
 ## What "great at creating memories" means here
 
-- One memory per fact, normalized, deduplicated, tagged, with source and speaker.
+- One memory per fact, normalized, tagged, with source and speaker.
+- Deduplication is lexical, never semantic: a repeat is one whose every
+  token matches (case, punctuation and spacing aside). Numbers, dates and
+  negations count, so "09:30" vs "10:30" or "enabled" vs "not enabled" are
+  distinct facts. A repeat strengthens the existing memory and merges tags;
+  a repeat that adds a `key` adopts it; a repeat marked `private` upgrades
+  the existing memory to private.
+- Private memories are embedded with the offline hashed embedder only; their
+  text never reaches a model endpoint.
 - Entities extracted (names, handles, file paths) and linked to related memories.
 - A temporal chain across the session and ISO dates mentioned in the text.
 - Facts that change are keyed, so history is kept and contradictions are explicit.
@@ -77,6 +87,11 @@ to key, what to mark private. The same text is sent as the server's
   direction the coordination layer's lineage resolver reads (new → what it was
   built from).
 - Used memories strengthen; unsupported ones decay to archive, never to deletion.
+- Forgetting a memory also scrubs the verbatim copy a superseding memory kept
+  of it, and a forgotten memory's text is not served again.
+- `auto` embedding is deterministic across restarts: a store whose memories
+  are hashed stays hashed without probing; a store built with a model tries
+  that model and falls back to hashed (recorded per memory) if it is down.
 
 ## Boundaries kept
 
