@@ -33,3 +33,15 @@ What it models, and what it does not:
 It is a game, not the benchmark. Numbers on screen are illustrative and are
 not comparable to `NeuralGraph/coordination/artifacts/`. The benchmark's
 mechanism definitions live in `NeuralGraph/coordination/benchmark.py`.
+
+## NeuralGraph Memory Console (demo)
+
+`neuralgraph_memory_console.html` is a shareable demo of the MCP memory
+server: the 60-memory evaluation session, live recall showing spelling
+corrections, synonym expansions, matched names, key hits and per-hit
+confidence, a composer that stores, deduplicates and supersedes memories, and
+the pinned evaluation table. It is a JavaScript port of the Python ranking
+(different hash function, so vector ties can differ); the "run in this
+browser" button reports the port's precision next to the pinned Python
+number. Rebuild with `python3.11 -m tools.build_memory_console` after the
+evaluation artifact or the lexicon changes. No model, no network.

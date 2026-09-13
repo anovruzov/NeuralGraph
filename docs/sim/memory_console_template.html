@@ -1,0 +1,265 @@
+<title>NeuralGraph Memory Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap">
+<style>
+  :root { --ground:#050807; --panel:#0b1210; --panel-2:#0e1815; --hair:#1c2a25; --hair-2:#26382f; --text:#c9d6cf; --muted:#6f8279;
+    --phos:#39ff9e; --phos-dim:#1f8f5a; --amber:#ffb347; --crit:#ff4d5e; --cyan:#4de3ff; --violet:#9b6bff;
+    --display:"Chakra Petch","Rajdhani","Segoe UI",sans-serif; --mono:"IBM Plex Mono",Menlo,Consolas,monospace; --body:"IBM Plex Sans","Helvetica Neue",Arial,sans-serif; }
+  * { box-sizing:border-box; } html { color-scheme:dark; }
+  body { margin:0; background:var(--ground); color:var(--text); font-family:var(--body); font-size:14px; line-height:1.45; padding-block:0; padding-inline:16px; }
+  .wrap { max-width:1240px; margin:0 auto; padding-block:14px 40px; }
+  header.bar { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; padding:10px 0 12px; border-bottom:1px solid var(--hair); font-family:var(--display); letter-spacing:.08em; text-transform:uppercase; font-size:12px; }
+  .brand b { color:var(--phos); font-size:15px; letter-spacing:.16em; } .brand span { color:var(--muted); margin-left:8px; }
+  .chips { display:flex; gap:8px; flex-wrap:wrap; font-family:var(--mono); text-transform:none; letter-spacing:0; font-size:12px; color:var(--muted); }
+  .chips b { color:var(--text); font-weight:500; font-variant-numeric:tabular-nums; }
+  .lbl { color:var(--muted); letter-spacing:.14em; text-transform:uppercase; font-family:var(--display); font-size:10px; font-weight:600; }
+  .grid { display:grid; grid-template-columns:1.25fr 1fr; gap:16px; margin-top:16px; }
+  .panel { border:1px solid var(--hair); background:linear-gradient(180deg,var(--panel),var(--ground)); padding:14px 16px; position:relative; min-width:0; }
+  .panel::before,.panel::after { content:""; position:absolute; width:12px; height:12px; border-color:var(--phos-dim); border-style:solid; }
+  .panel::before { left:-1px; top:-1px; border-width:1px 0 0 1px; } .panel::after { right:-1px; bottom:-1px; border-width:0 1px 1px 0; }
+  h2 { margin:0 0 10px; font-family:var(--display); font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); font-weight:600; display:flex; justify-content:space-between; gap:8px; }
+  h2 .val { color:var(--text); font-family:var(--mono); letter-spacing:0; text-transform:none; font-weight:500; }
+  input[type=text], textarea, select { width:100%; background:var(--ground); color:var(--text); border:1px solid var(--hair-2); font-family:var(--mono); font-size:13px; padding:9px 10px; }
+  input[type=text]:focus, textarea:focus, select:focus, button:focus-visible { outline:1px solid var(--phos); outline-offset:1px; }
+  textarea { min-height:70px; resize:vertical; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .examples { display:flex; gap:6px; flex-wrap:wrap; margin:10px 0 12px; }
+  .ex { font-family:var(--mono); font-size:11px; padding:5px 8px; border:1px solid var(--hair-2); background:transparent; color:var(--muted); cursor:pointer; }
+  .ex:hover { color:var(--phos); border-color:var(--phos-dim); }
+  .ex i { font-style:normal; color:var(--violet); margin-right:6px; font-family:var(--display); letter-spacing:.08em; font-size:9px; text-transform:uppercase; }
+  button.act { font-family:var(--display); letter-spacing:.1em; text-transform:uppercase; font-size:11px; padding:9px 12px; background:var(--panel-2); border:1px solid var(--hair-2); color:var(--text); cursor:pointer; }
+  button.act.primary { border-color:var(--phos-dim); color:var(--phos); } button.act:hover { border-color:var(--phos-dim); }
+  .hit { border-top:1px dashed var(--hair); padding:10px 0; display:grid; grid-template-columns:64px 1fr; gap:10px; }
+  .hit:first-child { border-top:0; }
+  .conf { font-family:var(--display); font-weight:700; font-size:18px; letter-spacing:.04em; font-variant-numeric:tabular-nums; }
+  .conf.hi { color:var(--phos); } .conf.mid { color:var(--amber); } .conf.lo { color:var(--crit); }
+  .conf small { display:block; font-family:var(--display); font-weight:600; font-size:9px; letter-spacing:.12em; color:var(--muted); }
+  .track { height:4px; background:var(--hair); margin-top:4px; } .fill { height:4px; background:var(--phos); }
+  .hit .text { margin:0 0 6px; }
+  .badge { font-family:var(--display); letter-spacing:.1em; font-size:9px; padding:1px 6px; border:1px solid var(--hair-2); color:var(--muted); text-transform:uppercase; margin-right:6px; }
+  .badge.key { color:var(--cyan); border-color:var(--cyan); } .badge.kind { color:var(--violet); border-color:var(--violet); } .badge.arch { color:var(--crit); border-color:var(--crit); }
+  .why { display:flex; gap:6px; flex-wrap:wrap; font-family:var(--mono); font-size:11px; color:var(--muted); }
+  .why span { border:1px solid var(--hair); padding:2px 6px; } .why .fix { color:var(--amber); border-color:var(--amber); } .why .syn { color:var(--cyan); border-color:var(--cyan); }
+  .why .name { color:var(--phos); border-color:var(--phos-dim); } .why .keyhit { color:var(--violet); border-color:var(--violet); }
+  .empty { color:var(--muted); font-family:var(--mono); font-size:12px; padding:12px 0; }
+  .ledger { max-height:420px; overflow:auto; margin-top:10px; border-top:1px solid var(--hair); }
+  .mem { display:grid; grid-template-columns:40px 1fr; gap:8px; padding:7px 0; border-bottom:1px dashed var(--hair); font-size:13px; }
+  .mem .id { font-family:var(--mono); color:var(--muted); font-size:11px; padding-top:2px; }
+  .mem.archived .t { color:var(--muted); text-decoration:line-through; }
+  .outcome { font-family:var(--mono); font-size:12px; margin-top:8px; color:var(--muted); min-height:18px; }
+  .outcome.ok { color:var(--phos); } .outcome.warn { color:var(--amber); }
+  .field { display:grid; gap:6px; margin-top:8px; }
+  .field label { font-family:var(--display); letter-spacing:.12em; text-transform:uppercase; font-size:10px; color:var(--muted); }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  table { border-collapse:collapse; width:100%; font-family:var(--mono); font-size:12px; margin-top:8px; }
+  th,td { text-align:right; padding:5px 8px; border-bottom:1px dashed var(--hair); font-variant-numeric:tabular-nums; }
+  th:first-child, td:first-child { text-align:left; } th { color:var(--muted); font-family:var(--display); letter-spacing:.1em; font-size:10px; text-transform:uppercase; font-weight:600; }
+  td.best { color:var(--phos); }
+  .note { color:var(--muted); font-size:12px; margin-top:8px; max-width:70ch; }
+  .tablewrap { overflow-x:auto; }
+  .slider { display:flex; align-items:center; gap:8px; font-family:var(--mono); font-size:12px; color:var(--muted); flex-wrap:wrap; }
+  input[type=range] { accent-color:var(--phos); }
+  @media (max-width: 820px) { .grid { grid-template-columns:1fr; } .two { grid-template-columns:1fr; } }
+</style>
+<div class="wrap">
+  <header class="bar">
+    <div class="brand"><b>NEURALGRAPH</b><span>// memory console</span></div>
+    <div class="chips"><span>active <b id="c-active">0</b></span><span>archived <b id="c-arch">0</b></span><span>embedder <b>hashed (browser port)</b></span><span>model calls <b>0</b></span></div>
+  </header>
+
+  <div class="grid">
+    <section class="panel">
+      <h2><span>Recall</span><span class="val" id="r-meta"></span></h2>
+      <div class="row"><input type="text" id="q" placeholder="ask memory (try a typo, a synonym, a name)" autocomplete="off" style="flex:1;min-width:200px"><button class="act primary" id="btn-recall">Recall</button></div>
+      <div class="examples" id="examples"></div>
+      <div class="slider"><span class="lbl">min confidence</span><input type="range" id="minconf" min="0" max="0.6" step="0.01" value="0.34"><b id="minconf-v">0.34</b><span>0.34 answered no unanswerable query in the pinned evaluation</span></div>
+      <div id="results"><div class="empty">Pick an example or type a question.</div></div>
+    </section>
+
+    <section class="panel">
+      <h2><span>Remember</span><span class="val">one fact per memory</span></h2>
+      <textarea id="m-text" placeholder="e.g. Ali switched to Helix as the editor."></textarea>
+      <div class="two">
+        <div class="field"><label for="m-kind">kind</label><select id="m-kind"><option>fact</option><option>preference</option><option>decision</option><option>convention</option><option>commitment</option><option>incident</option><option>note</option></select></div>
+        <div class="field"><label for="m-key">key (optional, for facts that change)</label><input type="text" id="m-key" placeholder="user.editor" autocomplete="off"></div>
+      </div>
+      <div class="row" style="margin-top:10px"><button class="act primary" id="btn-remember">Store memory</button><label class="slider"><input type="checkbox" id="m-private"> private</label></div>
+      <div class="outcome" id="outcome"></div>
+      <h2 style="margin-top:14px"><span>Ledger</span><span class="val" id="l-meta"></span></h2>
+      <div class="ledger" id="ledger"></div>
+    </section>
+  </div>
+
+  <section class="panel" style="margin-top:16px">
+    <h2><span>Pinned evaluation, Python engine</span><span class="val">60 memories, 48 queries, precision@1</span></h2>
+    <div class="tablewrap"><table id="evaltable"></table></div>
+    <div class="row" style="margin-top:10px"><button class="act" id="btn-runeval">Run the 48 queries in this browser</button><span class="note" id="evalnote">The table above is the pinned artifact (NeuralGraph/mcp/artifacts). This page runs a JavaScript port of the same ranking with a different hash function, so the browser figure checks the port; it is not the source of truth.</span></div>
+    <div class="tablewrap"><table id="jstable"></table></div>
+  </section>
+</div>
+
+<script id="data" type="application/json">__DATA__</script>
+<script id="dict" type="text/plain">__DICT__</script>
+<script>
+(function () {
+  'use strict';
+  const D = JSON.parse(document.getElementById('data').textContent);
+  const DICT = new Set(document.getElementById('dict').textContent.split(' '));
+  const STOP = new Set(D.stop), STARTERS = new Set(D.common_starters);
+  const NEG = new Set(['not','no','never','none','without','non']);
+  const WEIGHTS = { vector:1.0, keyword:1.0, entity:0.6, recency:0.25, synonym:0.5, name:0.6, key:0.5 };
+
+  const WORD_RE = new RegExp('[\\p{L}\\p{N}_]+', 'gu');
+  const words = t => (t.toLowerCase().match(WORD_RE) || []);
+  const caseWords = t => (t.match(WORD_RE) || []);
+  const tokens = t => words(t).filter(w => NEG.has(w) || (!STOP.has(w) && w.length >= 2));
+  const fingerprint = t => [...tokens(t), ...words(t).filter(w => w === 'on' || w === 'off')].sort().join(' ');
+  const norm = t => t.replace(/\s+/g, ' ').trim();
+
+  const DIMS = 256;
+  function fnv(s) { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return h; }
+  function embed(text) {
+    const v = new Float32Array(DIMS); const t = tokens(text);
+    const feats = t.concat(t.slice(1).map((b, i) => t[i] + '_' + b));
+    for (const f of feats) { const h = fnv(f); v[h % DIMS] += (h & 0x10000) ? 1 : -1; }
+    let n = 0; for (const x of v) n += x * x; n = Math.sqrt(n) || 1; for (let i = 0; i < DIMS; i++) v[i] /= n; return v;
+  }
+  const cos = (a, b) => { let s = 0; for (let i = 0; i < DIMS; i++) s += a[i] * b[i]; return s; };
+
+  const LET = 'abcdefghijklmnopqrstuvwxyz';
+  function edits1(w) { const out = new Set(); for (let i = 0; i <= w.length; i++) { const a = w.slice(0, i), b = w.slice(i);
+    if (b) out.add(a + b.slice(1)); if (b.length > 1) out.add(a + b[1] + b[0] + b.slice(2));
+    for (const c of LET) { if (b) out.add(a + c + b.slice(1)); out.add(a + c + b); } } return out; }
+  function correct(tok, vocab, protectedNames) {
+    const t = tok.toLowerCase();
+    if (t.length < 4 || /^\d+$/.test(t) || !/^[a-z0-9]+$/.test(t) || /^[A-Z]/.test(tok) || protectedNames.has(t)) return [t, false];
+    if (vocab.has(t) || DICT.has(t)) return [t, false];
+    const e1 = edits1(t); let best = null;
+    for (const c of e1) if (vocab.has(c) && (!best || vocab.get(c) > vocab.get(best))) best = c;
+    if (best) return [best, true];
+    if (t.length >= 6) { for (const w of e1) for (const c of edits1(w)) if (vocab.has(c) && (!best || vocab.get(c) > vocab.get(best))) best = c; if (best) return [best, true]; }
+    const d = [...e1].filter(c => DICT.has(c)).sort(); if (d.length) return [d[0], true];
+    return [t, false];
+  }
+
+  const CAPRUN = /\b([A-Z][a-zA-Z'\-]+(?:\s+[A-Z][a-zA-Z'\-]+)*)\b/g;
+  const HANDLE = /(?<![\w.])@([A-Za-z0-9_][A-Za-z0-9_.-]{1,38})/g;
+  function names(text) {
+    text = text.replace(/(\w)'s\b/g, '$1'); const found = new Set();
+    for (const m of text.matchAll(CAPRUN)) { const run = m[1]; const low = run.split(/\s+/).map(w => w.toLowerCase().replace(/^['\-]+|['\-]+$/g, ''));
+      if (low.length >= 2) { if (low.every(w => STARTERS.has(w))) continue; found.add(low.join(' '));
+        for (let s = 2; s < low.length; s++) for (let i = 0; i + s <= low.length; i++) found.add(low.slice(i, i + s).join(' '));
+        low.forEach(w => { if (!STARTERS.has(w) && !DICT.has(w)) found.add(w); }); continue; }
+      const w = low[0]; if (STARTERS.has(w) || w.length < 2) continue;
+      const before = text.slice(0, m.index).trimEnd(); const initial = m.index === 0 || /[.!?\n]$/.test(before);
+      if (!initial || !DICT.has(w)) found.add(w); }
+    for (const m of text.matchAll(HANDLE)) found.add(m[1].toLowerCase().replace(/\.$/, ''));
+    return found;
+  }
+  function candidates(text) { text = text.replace(/(\w)'s\b/g, '$1'); const out = new Set();
+    for (const m of text.matchAll(CAPRUN)) { const ws = m[1].split(/\s+/); if (ws.length !== 1) continue; const w = ws[0].toLowerCase();
+      const before = text.slice(0, m.index).trimEnd(); const initial = m.index === 0 || /[.!?\n]$/.test(before);
+      if (initial && !STARTERS.has(w) && w.length >= 2 && DICT.has(w)) out.add(w); } return out; }
+  function entities(text) { const caps = new Set((text.match(/\b[A-Z][a-zA-Z]+\b/g) || []).map(w => w.toLowerCase()).filter(w => w !== 'i'));
+    const long = new Set(tokens(text).filter(w => w.length >= 5)); const all = new Set([...caps, ...long]);
+    for (const w of STOP) all.delete(w); for (const w of STARTERS) all.delete(w); return all; }
+
+  let seq = 0; const mems = [];
+  function remember(text, kind, key, priv) {
+    const content = norm(text); if (!content) return { error: 'text must not be empty' };
+    kind = (kind || 'note').toLowerCase(); key = (key || '').trim() || null;
+    const fp = fingerprint(content);
+    for (const m of mems) { if (m.state !== 'active' || m.kind !== kind) continue; if (m.fp !== fp) continue; if (key && m.key && m.key !== key) continue;
+      if (key && !m.key) m.key = key; if (priv) m.private = true; m.heat = Math.min(5, m.heat + 0.25); return { dedup: m }; }
+    let superseded = null; if (key) superseded = mems.find(m => m.state === 'active' && m.key === key) || null;
+    const m = { id: 'm' + String(++seq).padStart(2, '0'), content, kind, key, fp, private: !!priv, state: 'active', heat: 0.5, created: seq,
+      toks: tokens(content), vec: embed(content), names: names(content), cand: candidates(content), ents: entities(content),
+      supersedes: superseded ? superseded.id : null, contradicts: superseded && superseded.content !== content ? superseded.content : null };
+    m.names.forEach(n => m.ents.add(n));
+    if (superseded) { superseded.state = 'archived'; superseded.superseded_by = m.id; }
+    mems.push(m); return { created: m, superseded };
+  }
+
+  function rrf(lists, weights) { const s = new Map(); lists.forEach((l, k) => l.forEach((id, r) => s.set(id, (s.get(id) || 0) + weights[k] / (60 + r + 1)))); return [...s.entries()].sort((a, b) => b[1] - a[1]); }
+  function recall(query, opts) {
+    const { limit = 8, includeSuperseded = false, minConf = 0 } = opts || {};
+    const cands = mems.filter(m => m.state === 'active' || (includeSuperseded && m.state === 'archived'));
+    if (!cands.length) return { hits: [], corrections: {}, expansions: {} };
+    const vocab = new Map(); cands.forEach(m => m.toks.forEach(w => vocab.set(w, (vocab.get(w) || 0) + 1)));
+    const corpusNames = new Set(); cands.forEach(m => m.names.forEach(n => corpusNames.add(n)));
+    const eff = new Map(cands.map(m => [m.id, new Set([...m.names, ...[...m.cand].filter(c => corpusNames.has(c))])]));
+    const raw = tokens(query);
+    const origCase = new Map(caseWords(query).map(w => [w.toLowerCase(), w]));
+    const corrections = {}; const q = raw.map(t => { const [c, ch] = correct(origCase.get(t) || t, vocab, corpusNames); if (ch) corrections[t] = c; return c; });
+    const qset = new Set(q);
+    const expansions = {}; for (const t of qset) { const rel = (D.related[t] || []).filter(w => vocab.has(w) && !qset.has(w)).slice(0, 3); if (rel.length) expansions[t] = rel; }
+    const synSet = new Set(Object.values(expansions).flat()); const synOf = new Map(); for (const [k, v] of Object.entries(expansions)) v.forEach(s => synOf.set(s, k));
+    const qvec = embed(Object.keys(corrections).length ? q.join(' ') : query);
+    const vector = cands.map(m => [m.id, cos(qvec, m.vec)]).filter(x => x[1] > 0).sort((a, b) => b[1] - a[1]).map(x => x[0]);
+    const N = cands.length; const df = new Map(); cands.forEach(m => new Set(m.toks).forEach(w => df.set(w, (df.get(w) || 0) + 1)));
+    const kw = cands.map(m => { const d = new Set(m.toks); const ov = [...qset].filter(w => d.has(w)); const idf = ov.reduce((s, w) => s + Math.log(1 + N / (df.get(w) || 1)), 0); return [m.id, ov.length / (qset.size || 1), idf]; })
+      .filter(x => x[1] > 0).sort((a, b) => b[1] - a[1] || b[2] - a[2]).map(x => x[0]);
+    const syn = synSet.size ? cands.map(m => [m.id, [...synSet].filter(s => m.toks.includes(s)).length / synSet.size]).filter(x => x[1] > 0).sort((a, b) => b[1] - a[1]).map(x => x[0]) : [];
+    const qnames = new Set([...names(query), ...q.filter(t => corpusNames.has(t))]);
+    const nm = qnames.size ? cands.map(m => { const e = eff.get(m.id); const ov = [...qnames].filter(n => e.has(n)).length / qnames.size; const kwv = [...qset].filter(w => m.toks.includes(w)).length / (qset.size || 1); return [m.id, ov, kwv]; })
+      .filter(x => x[1] > 0).sort((a, b) => b[1] - a[1] || b[2] - a[2]).map(x => x[0]) : [];
+    const keyr = cands.map(m => { if (!m.key) return null; const seg = m.key.toLowerCase().split(/[._\-\s/]+/).filter(Boolean); const last = new Set(seg.slice(-1)); const ov = [...qset].filter(w => last.has(w)).length / (last.size || 1); return ov > 0 ? [m.id, ov] : null; }).filter(Boolean).sort((a, b) => b[1] - a[1]).map(x => x[0]);
+    const qents = new Set([...entities(query), ...qnames]);
+    const ent = cands.map(m => { const u = new Set([...qents, ...m.ents]); const i = [...qents].filter(e => m.ents.has(e)).length; return [m.id, u.size ? i / u.size : 0]; }).filter(x => x[1] > 0).sort((a, b) => b[1] - a[1]).map(x => x[0]);
+    const rec = [...cands].sort((a, b) => b.created - a.created).map(m => m.id);
+    const fused = rrf([vector, kw, ent, rec, syn, nm, keyr], [WEIGHTS.vector, WEIGHTS.keyword, WEIGHTS.entity, WEIGHTS.recency, WEIGHTS.synonym, WEIGHTS.name, WEIGHTS.key]);
+    const content = new Set([...vector, ...kw, ...ent, ...syn, ...nm, ...keyr]);
+    const byId = new Map(cands.map(m => [m.id, m])); const hits = [];
+    for (const [id, score] of fused) { if (!content.has(id)) continue; const m = byId.get(id); const d = new Set(m.toks);
+      const supported = new Set([...[...qset].filter(w => d.has(w)), ...[...d].filter(s => synOf.has(s)).map(s => synOf.get(s)), ...[...qnames].filter(n => eff.get(id).has(n))]);
+      const denom = new Set([...qset, ...qnames]).size; const conf = denom ? supported.size / denom : 0; if (conf < minConf) continue;
+      hits.push({ m, score, conf, why: { corrected: corrections, synonyms: expansions, names: [...qnames].filter(n => eff.get(id).has(n)), key: keyr.includes(id), ranks: { vector: vector.indexOf(id) + 1 || null, keyword: kw.indexOf(id) + 1 || null, entity: ent.indexOf(id) + 1 || null, synonym: syn.indexOf(id) + 1 || null, name: nm.indexOf(id) + 1 || null } } });
+      if (hits.length >= limit) break; }
+    return { hits, corrections, expansions };
+  }
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  function renderCounts() { $('c-active').textContent = mems.filter(m => m.state === 'active').length; $('c-arch').textContent = mems.filter(m => m.state === 'archived').length; $('l-meta').textContent = mems.length + ' memories'; }
+  function renderLedger() { const box = $('ledger'); box.innerHTML = [...mems].reverse().map(m => '<div class="mem ' + m.state + '"><span class="id">' + m.id + '</span><div><span class="badge kind">' + esc(m.kind) + '</span>' + (m.key ? '<span class="badge key">' + esc(m.key) + '</span>' : '') + (m.private ? '<span class="badge arch">private</span>' : '') + (m.state === 'archived' ? '<span class="badge arch">superseded by ' + m.superseded_by + '</span>' : '') + '<div class="t">' + esc(m.content) + '</div></div></div>').join(''); renderCounts(); }
+  function renderResults(res) {
+    const box = $('results'); const minConf = parseFloat($('minconf').value);
+    const nCorr = Object.keys(res.corrections).length, nExp = Object.keys(res.expansions).length;
+    $('r-meta').textContent = res.hits.length ? res.hits.length + ' hits, ' + nCorr + ' corrections, ' + nExp + ' expansions' : '';
+    if (!res.hits.length) { box.innerHTML = '<div class="empty">Memory has nothing on this above confidence ' + minConf.toFixed(2) + '.' + (nCorr ? ' Corrected: ' + esc(Object.entries(res.corrections).map(([a, b]) => a + ' to ' + b).join(', ')) : '') + '</div>'; return; }
+    box.innerHTML = res.hits.map(h => { const cls = h.conf >= 0.5 ? 'hi' : h.conf >= 0.34 ? 'mid' : 'lo'; const w = h.why;
+      const chips = [ ...Object.entries(w.corrected).map(([a, b]) => '<span class="fix">' + esc(a) + ' &rarr; ' + esc(b) + '</span>'), ...Object.entries(w.synonyms).map(([a, b]) => '<span class="syn">' + esc(a) + ' &asymp; ' + esc(b.join(', ')) + '</span>'), ...w.names.map(n => '<span class="name">name: ' + esc(n) + '</span>'), w.key ? '<span class="keyhit">key match</span>' : '',
+        '<span>ranks v' + (w.ranks.vector || '-') + ' k' + (w.ranks.keyword || '-') + ' e' + (w.ranks.entity || '-') + ' s' + (w.ranks.synonym || '-') + ' n' + (w.ranks.name || '-') + '</span>' ].filter(Boolean).join('');
+      return '<div class="hit"><div class="conf ' + cls + '">' + h.conf.toFixed(2) + '<small>confidence</small><div class="track"><div class="fill" style="width:' + Math.round(h.conf * 100) + '%"></div></div></div><div><p class="text"><span class="badge kind">' + esc(h.m.kind) + '</span>' + (h.m.key ? '<span class="badge key">' + esc(h.m.key) + '</span>' : '') + (h.m.state === 'archived' ? '<span class="badge arch">superseded</span>' : '') + esc(h.m.content) + '</p><div class="why">' + chips + '</div></div></div>'; }).join('');
+  }
+  function doRecall() { const q = $('q').value.trim(); if (!q) return; renderResults(recall(q, { minConf: parseFloat($('minconf').value) })); }
+  $('btn-recall').addEventListener('click', doRecall); $('q').addEventListener('keydown', e => { if (e.key === 'Enter') doRecall(); });
+  $('minconf').addEventListener('input', () => { $('minconf-v').textContent = parseFloat($('minconf').value).toFixed(2); if ($('q').value.trim()) doRecall(); });
+  $('btn-remember').addEventListener('click', () => { const r = remember($('m-text').value, $('m-kind').value, $('m-key').value, $('m-private').checked); const o = $('outcome');
+    if (r.error) { o.className = 'outcome warn'; o.textContent = r.error; return; }
+    if (r.dedup) { o.className = 'outcome warn'; o.textContent = 'duplicate of ' + r.dedup.id + ': strengthened, not cloned (heat ' + r.dedup.heat.toFixed(2) + ')'; }
+    else if (r.superseded) { o.className = 'outcome ok'; o.textContent = r.created.id + ' stored, supersedes ' + r.superseded.id + ' (archived, valid_to set)' + (r.created.contradicts ? ', contradiction recorded' : ''); }
+    else { o.className = 'outcome ok'; o.textContent = r.created.id + ' stored, names: ' + ([...r.created.names].join(', ') || 'none'); }
+    $('m-text').value = ''; renderLedger(); });
+  const EX = [['exact', 'which database does staging use'], ['misspelled', 'posgres on stagng'], ['paraphrase', 'how do we release to prod'], ['name', 'what did Nurman say about the reranker'], ['keyed', 'what editor does Ali use now'], ['negative', 'what is the capital of Australia']];
+  $('examples').innerHTML = EX.map(([c, q]) => '<button class="ex" data-q="' + esc(q) + '"><i>' + c + '</i>' + esc(q) + '</button>').join('');
+  $('examples').addEventListener('click', e => { const b = e.target.closest('.ex'); if (!b) return; $('q').value = b.dataset.q; doRecall(); });
+
+  const CATS = ['exact', 'paraphrase', 'misspelled', 'name', 'keyed'];
+  function evalTable(el, rows, title) { const best = {}; CATS.concat(['overall']).forEach(c => best[c] = Math.max(...rows.map(r => r[c])));
+    el.innerHTML = '<tr><th>' + title + '</th>' + CATS.map(c => '<th>' + c + '</th>').join('') + '<th>overall P@1</th></tr>' + rows.map(r => '<tr><td>' + r.label + '</td>' + CATS.concat(['overall']).map(c => '<td class="' + (r[c] === best[c] ? 'best' : '') + '">' + r[c].toFixed(2) + '</td>').join('') + '</tr>').join(''); }
+  const pinned = Object.entries(D.eval.configurations).map(([label, c]) => { const r = { label }; CATS.forEach(k => r[k] = c.by_category[k].p_at_1); r.overall = c.overall.p_at_1; return r; });
+  evalTable($('evaltable'), pinned, 'python, pinned');
+  $('btn-runeval').addEventListener('click', () => {
+    const saved = mems.splice(0); const savedSeq = seq; seq = 0; D.memories.forEach(m => remember(m.text, m.kind, m.key, false));
+    const per = {}; CATS.forEach(c => per[c] = []);
+    for (const q of D.queries) { if (!q.gold) continue; const res = recall(q.q, { limit: 5, minConf: 0 }); const goldText = D.memories.find(x => x.label === q.gold).text; const gold = mems.find(m => m.content === goldText); per[q.cat].push(res.hits.length && gold && res.hits[0].m.id === gold.id ? 1 : 0); }
+    const row = { label: 'browser port (all)' }; let all = []; CATS.forEach(c => { row[c] = per[c].reduce((a, b) => a + b, 0) / per[c].length; all = all.concat(per[c]); }); row.overall = all.reduce((a, b) => a + b, 0) / all.length;
+    mems.splice(0, mems.length, ...saved); seq = savedSeq; renderLedger();
+    evalTable($('jstable'), [pinned.find(r => r.label === 'all'), row], 'python vs browser');
+  });
+
+  D.memories.forEach(m => remember(m.text, m.kind, m.key, false)); renderLedger();
+  window.__ng = { pinned, recall, remember, mems, D };
+})();
+</script>

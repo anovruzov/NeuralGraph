@@ -149,6 +149,12 @@ Everything run is a local deterministic simulation or a unit test.
   overall P@1 0.68 → 0.85, each component lifts its own category, none
   lowers another. Confidence gate 0.34 answers 0/8 unanswerable queries.
   No model anywhere in preprocessing.
+- **Memory console demo** (`docs/sim/neuralgraph_memory_console.html`,
+  built by `tools/build_memory_console.py`): shareable browser port of the
+  memory engine over the evaluation session, pinned table embedded; the
+  in-browser rerun scores 0.88 vs the pinned 0.85 (different hash).
+  Curated synonym groups no longer link siblings (staging was a synonym of
+  production); artifact re-pinned, headline numbers unchanged.
 - Merged Nurman's two post-PR commits from `research/retrieval-campaign-2026-09`
   (`RERANK=none` switch and latency tables); PR #3 itself was already in main.
 

@@ -933,7 +933,7 @@ NeuralGraph as an MCP memory server for coding agents (Claude Code, Codex).
   (no top-level definitions)
 ```
 
-### `NeuralGraph/mcp/artifacts/memory_eval.json` (2229 lines, 57894 bytes)
+### `NeuralGraph/mcp/artifacts/memory_eval.json` (2229 lines, 57898 bytes)
 
 ### `NeuralGraph/mcp/artifacts/memory_eval.md` (23 lines)
 
@@ -958,7 +958,7 @@ Offline evaluation of the memory server's recall quality.
   L274   def main
 ```
 
-### `NeuralGraph/mcp/lexicon.py` (241 lines)
+### `NeuralGraph/mcp/lexicon.py` (247 lines)
 Lexical preprocessing for the memory server: thesaurus, spelling, names.
 
 ```
@@ -970,15 +970,15 @@ Lexical preprocessing for the memory server: thesaurus, spelling, names.
   L43    def _thesaurus
   L50    def dictionary
   L78    SOFTWARE_SYNONYMS = …
-  L105   def _software_bidirectional
-  L115   def synonyms
-  L123   def expand
-  L133   def _edits1
-  L142   def correct
-  L173   def correct_tokens
-  L184   def query_words
-  L189   def names
-  L224   def sentence_initial_candidates
+  L109   def _software_bidirectional
+  L121   def synonyms
+  L129   def expand
+  L139   def _edits1
+  L148   def correct
+  L179   def correct_tokens
+  L190   def query_words
+  L195   def names
+  L230   def sentence_initial_candidates
 ```
 
 ### `NeuralGraph/mcp/memory.py` (846 lines)
@@ -2460,6 +2460,14 @@ Split retrieval failures into recoverable misses and unanswerable questions.
   (no top-level definitions)
 ```
 
+### `tools/build_memory_console.py` (54 lines)
+Rebuild docs/sim/neuralgraph_memory_console.html from the template and live data.
+
+```
+  L16    ROOT = …
+  L19    def main
+```
+
 ### `tools/build_paper_tables.py` (244 lines)
 Emit every manuscript table from the pinned coordination artifacts.
 
@@ -3409,8 +3417,9 @@ N5: re-score existing LoCoMo answer files under three judges.
   L160   def main
 ```
 
-### `docs/sim/README.md` (35 lines)
+### `docs/sim/README.md` (47 lines)
 
 ```
   L1     # Mycelic Forest Ops (simulation game)
+  L37    ## NeuralGraph Memory Console (demo)
 ```

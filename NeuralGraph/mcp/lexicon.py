@@ -77,38 +77,44 @@ def dictionary() -> frozenset[str]:
 #: small: every pair here is a real paraphrase an agent uses, not a guess.
 SOFTWARE_SYNONYMS: dict[str, set[str]] = {
     "deploy": {"release", "ship", "rollout", "deployment"},
-    "database": {"db", "datastore", "postgres", "sqlite", "store"},
+    "release": {"ship", "rollout"},
+    "database": {"db", "datastore"},
+    "postgres": {"db", "database"},
+    "sqlite": {"db", "database"},
     "editor": {"ide"},
     "bug": {"defect", "issue", "regression", "glitch"},
     "error": {"exception", "failure", "fault"},
     "config": {"configuration", "settings", "setup"},
     "repo": {"repository", "codebase"},
-    "secret": {"token", "credential", "password", "key"},
-    "test": {"tests", "spec", "suite", "check"},
-    "branch": {"ref"},
+    "secret": {"token", "credential", "credentials", "password"},
+    "test": {"tests", "suite"},
     "merge": {"integrate", "land"},
-    "fast": {"quick", "speedy", "latency"},
+    "fast": {"quick", "speedy"},
     "slow": {"latency", "lag"},
     "preference": {"prefers", "likes", "favourite", "favorite"},
     "decision": {"decided", "chose", "choice"},
-    "meeting": {"standup", "sync", "call"},
+    "meeting": {"standup", "sync"},
     "deadline": {"due", "cutoff"},
-    "environment": {"env", "staging", "production", "prod"},
-    "endpoint": {"api", "route", "url"},
-    "model": {"llm", "embedding"},
+    "environment": {"env"},
+    "prod": {"production"},
+    "endpoint": {"api", "route"},
+    "model": {"llm"},
     "container": {"docker", "image", "pod"},
     "pipeline": {"ci", "workflow", "actions"},
+    "kubernetes": {"k8s", "orchestration"},
 }
 
 
 @lru_cache(maxsize=1)
 def _software_bidirectional() -> dict[str, set[str]]:
     table: dict[str, set[str]] = {}
+    # Head word <-> each synonym only.  Members of one group are NOT linked to
+    # each other: "staging" and "production" are both environments and are
+    # not synonyms, and an earlier sibling link made them so.
     for word, syns in SOFTWARE_SYNONYMS.items():
         table.setdefault(word, set()).update(syns)
         for s in syns:
             table.setdefault(s, set()).add(word)
-            table[s].update(x for x in syns if x != s)
     return table
 
 
