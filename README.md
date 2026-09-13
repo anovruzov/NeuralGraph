@@ -17,6 +17,10 @@ NeuralGraph is designed for those harder cases:
 - **Why was this answer produced?** Retrieval-stage metrics, score breakdowns, and evidence tracking
 - **What should happen when memory is insufficient?** Query routing between strict retrieval, inference, and open-domain fallback
 
+## Use it as your coding agent's memory
+
+NeuralGraph runs as an MCP memory server for Claude Code and Codex: `python3.11 -m NeuralGraph.mcp.server`. See [`docs/MCP.md`](docs/MCP.md).
+
 ## Distributed coordination
 
 Alongside single-node memory, this repository contains a coordination layer

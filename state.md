@@ -122,6 +122,17 @@ Everything run is a local deterministic simulation or a unit test.
   oracle (counterfactual per root/organism) and a hash-chained ledger.
   Illustrative only; not the benchmark.
 
+- **MCP memory server** (`NeuralGraph/mcp/`, `docs/MCP.md`, `.mcp.json`,
+  `test_mcp_memory.py`, 20 tests). NeuralGraph as long-term memory for
+  Claude Code and Codex over stdio: remember / recall / get / forget /
+  list_recent / decay / memory_stats / export_claims. Offline by default
+  (hashed embedding + BM25 + entities, `embedding_source` recorded per
+  memory), keyed facts supersede with contradiction recorded, soft forget,
+  decay archives, export through the real adapter with private memories
+  denied payload-free. Retrieval-track files untouched.
+- Merged Nurman's two post-PR commits from `research/retrieval-campaign-2026-09`
+  (`RERANK=none` switch and latency tables); PR #3 itself was already in main.
+
 ### Next executable step
 
 Coordination is complete through Gate 6 and the reconciliation is done. The
@@ -174,7 +185,7 @@ python3.11 -m NeuralGraph.coordination.figures --check
 ```
 
 Setup is `pip install -r requirements.txt`. Suite as of this writing:
-**311 passed, 1 skipped, 3516 subtests**, identical under `PYTHONHASHSEED`
+**331 passed, 1 skipped, 3516 subtests**, identical under `PYTHONHASHSEED`
 1, 7, 4242 and 99991.
 
 `pytest` previously failed to collect anything (5 errors, every file). The repo

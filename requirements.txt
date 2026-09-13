@@ -2,3 +2,5 @@ aiohttp>=3.10,<4
 numpy>=1.26,<3
 pytest>=8,<10
 pytest-asyncio>=0.23,<2
+mcp>=2,<3
+rank-bm25>=0.2,<1

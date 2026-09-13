@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "neuralgraph": {
+      "type": "stdio",
+      "command": "python3.11",
+      "args": ["-m", "NeuralGraph.mcp.server"],
+      "env": {
+        "NEURALGRAPH_DB": "~/.neuralgraph/memory.db",
+        "NEURALGRAPH_SESSION": "default",
+        "NEURALGRAPH_EMBED": "auto"
+      }
+    }
+  }
+}

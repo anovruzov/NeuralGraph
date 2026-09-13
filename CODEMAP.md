@@ -6,21 +6,21 @@ Do not hand-edit. Regenerate after adding or moving a definition.
 
 ## .
 
-### `CLAUDE.md` (114 lines)
+### `CLAUDE.md` (116 lines)
 
 ```
   L1     # CLAUDE.md
   L6     ## Read in this order
-  L24    ## Naming traps — get these wrong and you lose an hour
-  L34    ## Canonical commands
-  L50    ## Rules that are not negotiable
-  L75    ## Results that must not silently change
-  L89    ## Retrieval accuracy — diagnosed, not fixed
-  L104   ## Gate status
-  L110   ## Ownership
+  L25    ## Naming traps — get these wrong and you lose an hour
+  L35    ## Canonical commands
+  L52    ## Rules that are not negotiable
+  L77    ## Results that must not silently change
+  L91    ## Retrieval accuracy — diagnosed, not fixed
+  L106   ## Gate status
+  L112   ## Ownership
 ```
 
-### `state.md` (384 lines)
+### `state.md` (395 lines)
 
 ```
   L1     # Mycelic / NeuralGraph / Tesseract State
@@ -31,43 +31,44 @@ Do not hand-edit. Regenerate after adding or moving a definition.
   L88    ### Budget
   L93    ### Unresolved / not done here
   L102   ### Later in session 4 (2026-09-13)
-  L125   ### Next executable step
-  L139   ## Session 3 (2026-08-25) notes, kept verbatim below
-  L141   ## Corrections to prior session notes
-  L163   ## Canonical commands
-  L188   ## Results
-  L225   ### Seven harness bugs found before any of this was trusted
-  L248   ### Reported against interest, additionally
-  L260   ## Artifacts
-  L281   ## Gate status
-  L293   ## Resolved: `failure_domains` now has a real-storage model
-  L318   ## Ownership
-  L329   ## Not done
-  L341   ## Documentation
-  L353   ## Next task
+  L136   ### Next executable step
+  L150   ## Session 3 (2026-08-25) notes, kept verbatim below
+  L152   ## Corrections to prior session notes
+  L174   ## Canonical commands
+  L199   ## Results
+  L236   ### Seven harness bugs found before any of this was trusted
+  L259   ### Reported against interest, additionally
+  L271   ## Artifacts
+  L292   ## Gate status
+  L304   ## Resolved: `failure_domains` now has a real-storage model
+  L329   ## Ownership
+  L340   ## Not done
+  L352   ## Documentation
+  L364   ## Next task
 ```
 
-### `README.md` (201 lines)
+### `README.md` (205 lines)
 
 ```
   L1     # NeuralGraph
   L7     ## Why NeuralGraph
-  L20    ## Distributed coordination
-  L50    ### Two things this result is not
-  L74    ## Core Capabilities
-  L76    ### Graph-native memory
-  L79    ### Hybrid retrieval
-  L90    ### Temporal reasoning
-  L93    ### Query routing
-  L103   ### Retrieval attribution
-  L106   ## Architecture
-  L144   ## Local Models
-  L162   ## Example Use Cases
-  L172   ## Design Principles
-  L181   ## Current Status
-  L185   ## Roadmap
-  L195   ## Author
-  L199   ## License
+  L20    ## Use it as your coding agent's memory
+  L24    ## Distributed coordination
+  L54    ### Two things this result is not
+  L78    ## Core Capabilities
+  L80    ### Graph-native memory
+  L83    ### Hybrid retrieval
+  L94    ### Temporal reasoning
+  L97    ### Query routing
+  L107   ### Retrieval attribution
+  L110   ## Architecture
+  L148   ## Local Models
+  L166   ## Example Use Cases
+  L176   ## Design Principles
+  L185   ## Current Status
+  L189   ## Roadmap
+  L199   ## Author
+  L203   ## License
 ```
 
 ### `AUDIT.md` (255 lines)
@@ -130,7 +131,7 @@ Do not hand-edit. Regenerate after adding or moving a definition.
   L54    ## 6. In progress at the time of writing
 ```
 
-### `requirements.txt` (4 lines, 70 bytes)
+### `requirements.txt` (6 lines, 98 bytes)
 
 ### `pytest.ini` (3 lines, 59 bytes)
 
@@ -923,6 +924,68 @@ Locality-Sensitive Hashing (LSH) for approximate nearest neighbor search.
   L405     def hamming_distance
   L411     def estimated_cosine_similarity
   L426     def find_near_duplicates
+```
+
+### `NeuralGraph/mcp/__init__.py` (12 lines)
+NeuralGraph as an MCP memory server for coding agents (Claude Code, Codex).
+
+```
+  (no top-level definitions)
+```
+
+### `NeuralGraph/mcp/memory.py` (580 lines)
+Memory engine for the MCP server: create memories that stay useful.
+
+```
+  L53    MAX_TEXT_CHARS = …
+  L54    NEAR_DUPLICATE_COSINE = …
+  L55    DEFAULT_DB = …
+  L56    _ISO_DATE = …
+  L57    _HANDLE = …
+  L58    _PATH = …
+  L61    def _now
+  L65    def _iso
+  L69    def _parse_time
+  L79    def normalize_text
+  L83    class Embedder(Protocol)
+  L86      async def embed
+  L89    class HashedEmbedder
+  L98      def __init__
+  L101     async def embed
+  L104     def embed_sync
+  L117   class ModelEmbedder
+  L120     def __init__
+  L128     async def embed
+  L140   async def choose_embedder
+  L155   def extract_entities
+  L163   class MemoryEngine
+  L164     def __init__
+  L182     async def remember
+  L327     async def recall
+  L411     async def forget
+  L422     async def get
+  L432     async def list_recent
+  L440     async def decay
+  L458     async def stats
+  L479     async def export_claims
+  L541     def close
+  L545     async def _session_nodes
+  L549     def _valid_at
+  L554     def _summary
+```
+
+### `NeuralGraph/mcp/server.py` (206 lines)
+NeuralGraph memory as an MCP server for Claude Code and Codex.
+
+```
+  L36    SERVER_NAME = …
+  L38    INSTRUCTIONS = …
+  L68    async def _guarded
+  L76    async def engine
+  L88    def set_engine
+  L94    def build_server
+  L169   def client_config
+  L185   def main
 ```
 
 ### `NeuralGraph/mega_search.py` (194 lines)
@@ -1942,6 +2005,41 @@ The paper's figures must be regenerable, byte-stable, and true to the data.
   L243     def test_every_figure_matches_its_recorded_digest
 ```
 
+### `NeuralGraph/tests/test_mcp_memory.py` (261 lines)
+NeuralGraph as an MCP memory server: engine behaviour and tool surface.
+
+```
+  L19    class _Clock
+  L20      def __init__
+  L23      def __call__
+  L28    class EngineTests(unittest.IsolatedAsyncioTestCase)
+  L29      async def asyncSetUp
+  L35      async def asyncTearDown
+  L39      async def test_remember_creates_a_memory_with_entities_and_provenance_fields
+  L55      async def test_failure_domain_is_absent_unless_the_operator_names_it
+  L64      async def test_exact_and_near_duplicates_strengthen_instead_of_cloning
+  L75      async def test_keyed_fact_supersedes_records_contradiction_and_keeps_history
+  L92      async def test_same_content_under_a_key_does_not_create_a_contradiction
+  L98      async def test_recall_fuses_keyword_entity_and_vector_signals_and_explains
+  L110     async def test_recall_strengthens_used_memories_and_decay_archives_cold_ones
+  L122     async def test_keyed_and_important_memories_survive_decay
+  L129     async def test_forget_is_soft_and_keeps_provenance
+  L138     async def test_validity_window_and_as_of
+  L147     async def test_derived_from_links_and_rejects_unknown_parents
+  L154     async def test_input_validation
+  L165     async def test_sessions_are_isolated
+  L175     async def test_persistence_survives_reopen
+  L186     async def test_export_claims_denies_private_memories_without_payload
+  L201     async def test_entity_extraction_covers_handles_and_paths
+  L209   class ServerTests(unittest.IsolatedAsyncioTestCase)
+  L210     async def asyncSetUp
+  L216     async def asyncTearDown
+  L221     async def test_tool_surface
+  L230     async def test_remember_recall_round_trip_through_the_protocol
+  L240     async def test_validation_errors_reach_the_client_with_their_message
+  L247     def test_client_configs
+```
+
 ### `NeuralGraph/tests/test_replay_generation.py` (503 lines)
 Tests for the generation-replay harness and its item-level grader.
 
@@ -2841,6 +2939,18 @@ Verify all 3 fixes are working in the new benchmark
   L166   ## Evidence classes at a glance
 ```
 
+### `docs/MCP.md` (93 lines)
+
+```
+  L1     # NeuralGraph as an MCP memory server
+  L10    ## Install
+  L43    ## Environment
+  L53    ## Tools
+  L70    ## What "great at creating memories" means here
+  L81    ## Boundaries kept
+  L89    ## Verify
+```
+
 ### `docs/PAPER.md` (164 lines)
 
 ```
@@ -3122,7 +3232,7 @@ Verify all 3 fixes are working in the new benchmark
   L88    ## Final tally (Sept 6, 01:50; run stopped at the user's request)
 ```
 
-### `docs/research/RESULTS_ALL.md` (297 lines)
+### `docs/research/RESULTS_ALL.md` (336 lines)
 
 ```
   L1     # NeuralGraph: complete results of the retrieval research campaign
@@ -3130,30 +3240,32 @@ Verify all 3 fixes are working in the new benchmark
   L16    ### 1.1 Conversations 1 to 5, 744 of 1,540 questions (run stopped early at the user's request)
   L28    ### 1.2 Conversations 1 to 4, 584 questions, under four judges
   L38    ### 1.3 The clean comparison: single_hop, original flat retrieval vs shipped stack
-  L62    ## 2. Retrieval experiments (recall, no LLM calls)
-  L64    ### 2.1 Baseline retrievers, all 1,540 questions
-  L77    ### 2.2 Pair nodes (H3): index each reply together with the message before it
-  L89    ### 2.3 Scoring-formula fixes (H4, H6)
-  L103   ### 2.4 Two-agent memory split (H9a): treat each speaker as an agent with its own store
-  L116   ### 2.5 Speaker-swap probe (H9b): rewrite the question with the other speaker's name, 244 single_hop questions
-  L126   ### 2.6 Combined stacks with local routing (H9 follow-up), 1,219 questions (three categories)
-  L139   ### 2.7 Reply-only pair mapping (N3)
-  L150   ### 2.8 Mega search (M1): vector + BM25 + entity-graph PageRank hop, fused by reciprocal rank, 1,219 questions
-  L167   ## 3. End-to-end experiments (accuracy, same 100 single_hop ids unless noted, shipped retrieval, Gemma lenient judge)
-  L171   ### 3.1 Listwise reranker (H1)
-  L181   ### 3.2 Answer context size (H2, N1)
-  L194   ### 3.3 LLM router vs regex router (H7)
-  L203   ### 3.4 Open-domain prompt flags (H5), all 96 open_domain questions
-  L213   ### 3.5 Pair-aware reranker and answer prompt (N4)
-  L224   ### 3.6 Answer model swap (H8): Gemma-4-e4b vs Qwen3.6-35b-a3b for the answer call only
-  L238   ### 3.7 Mega search and LLM-built graph end to end (M1, M2)
-  L249   ## 4. Judge sensitivity (N5)
-  L251   ### 4.1 Same answer files, four graders
-  L262   ### 4.2 Does the verdict survive the judge?
-  L274   ## 5. Summary table of every experiment
+  L60    ### 1.4 Full benchmark without the LLM reranker (all 1,540 questions, Ali's ablation)
+  L76    ## 2. Retrieval experiments (recall, no LLM calls)
+  L78    ### 2.1 Baseline retrievers, all 1,540 questions
+  L91    ### 2.2 Pair nodes (H3): index each reply together with the message before it
+  L103   ### 2.3 Scoring-formula fixes (H4, H6)
+  L117   ### 2.4 Two-agent memory split (H9a): treat each speaker as an agent with its own store
+  L130   ### 2.5 Speaker-swap probe (H9b): rewrite the question with the other speaker's name, 244 single_hop questions
+  L140   ### 2.6 Combined stacks with local routing (H9 follow-up), 1,219 questions (three categories)
+  L153   ### 2.7 Reply-only pair mapping (N3)
+  L164   ### 2.8 Mega search (M1): vector + BM25 + entity-graph PageRank hop, fused by reciprocal rank, 1,219 questions
+  L181   ## 3. End-to-end experiments (accuracy, same 100 single_hop ids unless noted, shipped retrieval, Gemma lenient judge)
+  L185   ### 3.1 Listwise reranker (H1)
+  L195   ### 3.2 Answer context size (H2, N1)
+  L208   ### 3.3 LLM router vs regex router (H7)
+  L217   ### 3.4 Open-domain prompt flags (H5), all 96 open_domain questions
+  L227   ### 3.5 Pair-aware reranker and answer prompt (N4)
+  L238   ### 3.6 Answer model swap (H8): Gemma-4-e4b vs Qwen3.6-35b-a3b for the answer call only
+  L252   ### 3.7 Mega search and LLM-built graph end to end (M1, M2)
+  L263   ## 4. Judge sensitivity (N5)
+  L265   ### 4.1 Same answer files, four graders
+  L276   ### 4.2 Does the verdict survive the judge?
+  L288   ## 5. Summary table of every experiment
+  L315   ## 6. Latency per stage (seconds per question, mean; last column p95 end to end)
 ```
 
-### `docs/research/RESULTS_running.md` (32 lines)
+### `docs/research/RESULTS_running.md` (34 lines)
 
 ```
   L1     ## Phase 0 end-to-end, single_hop 282 q, gemma-4-e4b answer+rerank+judge, no leakage

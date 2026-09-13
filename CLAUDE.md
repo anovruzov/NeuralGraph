@@ -15,6 +15,7 @@ context re-deriving facts that are already established.
 | Current status, gates, open decisions | `state.md` |
 | Where a symbol lives (`file:line`), without reading the module | `CODEMAP.md` (generated: `python -m tools.codemap`) |
 | How a real agent joins the fabric (node + orchestrator protocol) | `docs/AGENT_PROMPT.md` (generated from the contracts) |
+| Using NeuralGraph as Claude Code / Codex memory (MCP) | `docs/MCP.md` |
 
 Prefer reading a doc over grepping the source. To find one symbol, grep
 `CODEMAP.md` for the file path and jump to the line it names; regenerate the
@@ -35,7 +36,7 @@ are far cheaper than reconstructing the same facts from 5,000 lines.
 
 ```bash
 pip install -r requirements.txt
-python3.11 -m pytest                                          # 311 passed, 1 skipped, 3516 subtests
+python3.11 -m pytest                                          # 331 passed, 1 skipped, 3516 subtests
 
 python3.11 -m NeuralGraph.coordination.benchmark --sweep 30 --format markdown
 python3.11 -m NeuralGraph.coordination.scale --format markdown
@@ -43,6 +44,7 @@ python3.11 -m NeuralGraph.coordination.experiment --output experiment.json
 python3.11 -m NeuralGraph.coordination.figures --check    # paper figures vs artifacts
 python3.11 -m NeuralGraph.coordination.agent_prompt --write docs/AGENT_PROMPT.md   # regenerate the agent prompt
 python3.11 -m tools.codemap                                   # regenerate CODEMAP.md
+python3.11 -m NeuralGraph.mcp.server --print-config claude    # MCP memory server config (see docs/MCP.md)
 ```
 
 Run `pytest` from the repo root. There is no venv activation step.
