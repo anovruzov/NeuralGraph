@@ -18,6 +18,17 @@ What it models, and what it does not:
   failed cycle the reported confidence is the max over surviving claims, so it
   stays high while valid support drops.
 - Used knowledge strengthens; unsupported knowledge decays and withers.
+- **Pre-mortem oracle.** Before anything fails, the game runs the same
+  reconstruction attempt under a reversible mask for every live root and every
+  live organism, and reports which single failure would make the collective
+  forget. Tapping a stratum paints its blast radius on the field and names the
+  cheapest reseed that would prevent the loss, verified by simulation. This is
+  the min failure-domain cut turned into a decision: a forecast, not a
+  post-mortem.
+- **Hash-chained provenance ledger.** Every cycle appends an entry naming the
+  organisms, roots, domains and confidences that supplied evidence, chained by
+  hash to the previous entry. "Verify chain" walks it. Copy the JSON from the
+  ledger panel.
 
 It is a game, not the benchmark. Numbers on screen are illustrative and are
 not comparable to `NeuralGraph/coordination/artifacts/`. The benchmark's

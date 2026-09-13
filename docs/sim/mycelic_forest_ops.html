@@ -58,6 +58,24 @@
   .hud.tl { left: 12px; top: 12px; }
   .hud.tr { right: 12px; top: 12px; text-align: right; }
   .hud.bl { left: 12px; bottom: 12px; max-width: 46%; }
+  .hud.br { right: 12px; bottom: 12px; max-width: 44%; pointer-events: auto; }
+  .hud.tr { pointer-events: auto; }
+  .hud.tr .row { cursor: pointer; padding: 1px 0; display: flex; gap: 6px; align-items: center; justify-content: flex-end; }
+  .hud.tr .row:hover, .hud.tr .row[aria-pressed="true"] { color: var(--cyan); }
+  .badge { font-family: var(--display); letter-spacing: 0.1em; font-size: 9px; padding: 1px 5px; border: 1px solid; text-transform: uppercase; }
+  .badge.ok { color: var(--phos); border-color: var(--phos-dim); }
+  .badge.bad { color: var(--crit); border-color: var(--crit); }
+  .badge.dim { color: var(--muted); border-color: var(--hair-2); }
+  .mini { font-family: var(--display); letter-spacing: 0.1em; text-transform: uppercase; font-size: 10px; padding: 4px 8px; background: var(--panel-2); border: 1px solid var(--hair-2); color: var(--text); cursor: pointer; margin-top: 6px; margin-right: 4px; }
+  .mini.primary { border-color: var(--phos-dim); color: var(--phos); }
+  .mini:disabled { opacity: 0.4; cursor: not-allowed; }
+  .f-num { font-family: var(--display); font-weight: 700; font-size: 20px; letter-spacing: 0.08em; }
+  .f-num.bad { color: var(--crit); } .f-num.ok { color: var(--phos); }
+  .ledger { max-height: 44vh; overflow: auto; font-family: var(--mono); font-size: 11px; margin-bottom: 8px; }
+  .ledger .e { border-bottom: 1px dashed var(--hair); padding: 5px 0; }
+  .ledger .h { color: var(--muted); word-break: break-all; }
+  .ledger .ok { color: var(--phos); } .ledger .bad { color: var(--crit); } .ledger .rep { color: var(--amber); }
+  textarea.copy { width: 100%; height: 80px; background: var(--ground); color: var(--text); border: 1px solid var(--hair-2); font-family: var(--mono); font-size: 10px; resize: vertical; }
   .lbl { color: var(--muted); letter-spacing: 0.12em; text-transform: uppercase; font-family: var(--display); font-size: 10px; }
   .val { color: var(--text); font-variant-numeric: tabular-nums; }
   .status { font-family: var(--display); font-weight: 700; font-size: 18px; letter-spacing: 0.14em; }
@@ -149,6 +167,7 @@
     .console > section { border-right: 0; border-bottom: 1px solid var(--hair); }
     .field { min-height: 62vh; }
     .hud.bl { display: none; }
+    .hud.br { max-width: 60%; bottom: 8px; right: 8px; }
     .bar .meta { display: none; }
     .stats { grid-template-columns: 1fr; }
   }
@@ -168,6 +187,7 @@
     </div>
     <div>
       <button class="ghost" id="btn-auto" aria-pressed="false" title="The forester AI plays for you">Autopilot</button>
+      <button class="ghost" id="btn-ledger" title="Hash-chained provenance ledger">Ledger</button>
       <button class="ghost" id="btn-rec" aria-pressed="false" title="Hide the console for recording">Rec</button>
     </div>
   </header>
@@ -186,6 +206,11 @@
       <div id="h-roots" class="val"></div>
     </div></div>
     <div class="hud bl"><div class="brk"><ul class="log" id="h-log"></ul></div></div>
+    <div class="hud br"><div class="brk">
+      <div class="lbl">Pre-mortem · counterfactual forecast</div>
+      <div id="f-summary" class="val"></div>
+      <div id="f-detail"></div>
+    </div></div>
 
     <div class="overlay" id="intro">
       <div class="card">
@@ -195,6 +220,15 @@
         <p>Blight kills a <em>lineage root</em>, and every memory grown from that root withers together. Replicas look like safety. They are not. Reseed independent roots to raise the min-cut above 1.</p>
         <p class="hint">Tap an organism, pick a premise, then Reseed or Replicate. Spores regrow on every successful reconstruction.</p>
         <div class="row"><button class="act primary" id="btn-start">Begin season</button><button class="act" id="btn-demo">Watch autopilot</button></div>
+      </div>
+    </div>
+    <div class="overlay" id="ledger" hidden>
+      <div class="card">
+        <h2>Provenance ledger · hash-chained</h2>
+        <p class="hint">Every reconstruction cycle appends an entry naming the organisms, roots and failure domains that supplied evidence. Each entry hashes the previous one, so a tampered history breaks the chain.</p>
+        <div class="ledger" id="l-list"></div>
+        <textarea class="copy" id="l-json" readonly aria-label="Ledger JSON"></textarea>
+        <div class="row"><button class="act primary" id="btn-verify">Verify chain</button><button class="act" id="btn-ledger-close">Close</button></div>
       </div>
     </div>
     <div class="overlay" id="outro" hidden>
@@ -333,8 +367,8 @@
     return eligible.slice(0, MAX_NODES);
   }
 
-  function runCycle(now) {
-    S.cycle++;
+  function attempt() {
+    // one reconstruction attempt with lineage-aware repair; no side effects
     let exec = execute(chooseRoute());
     let repaired = false, verifications = 0;
     if (!exec.success) {
@@ -348,12 +382,22 @@
       for (const c of cands.slice(0, MAX_VERIFY)) {
         verifications++;
         if (c.score > 0) {
-          const route = [c.o, ...exec.route].slice(0, MAX_NODES);
+          // the repair node routes first; organisms that produced no valid claim are evicted before ones that did
+          const kept = [...exec.route].sort((a, b) => (exec.claims.some(x => x.org === b) ? 1 : 0) - (exec.claims.some(x => x.org === a) ? 1 : 0) || a.id - b.id);
+          const route = [c.o, ...kept].slice(0, MAX_NODES);
           const again = execute(route);
-          if (again.success) { exec = again; repaired = true; S.repairs++; break; }
+          if (again.success) { exec = again; repaired = true; break; }
         }
       }
     }
+    return { exec, repaired, verifications };
+  }
+
+  function runCycle(now) {
+    S.cycle++;
+    const r = attempt();
+    const exec = r.exec, repaired = r.repaired, verifications = r.verifications;
+    if (repaired) S.repairs++;
     // route memory: organisms that just produced valid evidence route first next time
     for (const c of exec.claims) c.org.recent = now;
     S.bytes += exec.claims.length * BYTES_PER_CLAIM + verifications * 96;
@@ -367,10 +411,76 @@
       else logLine(`cycle ${S.cycle} · LOST · no support`, 'bad');
     }
     S.last = { ...exec, repaired, verifications };
+    ledgerAppend(exec, repaired);
+    S.forecast = forecast();
     // spawn packets from routed organisms to the hub
     for (const c of exec.claims) S.packets.push({ from: c.org, t: 0, color: S.roots[c.m.root].color, ok: exec.success });
     for (const o of exec.route) o.pulse = 1;
     if (exec.success) S.hubPulse = 1;
+  }
+
+  // ---------------- pre-mortem oracle ----------------
+  // For every live root and every live organism: what if THIS fails next?
+  // Runs the same attempt() the coordinator runs, under a reversible mask,
+  // and names the cheapest reseed that would keep the capability alive.
+  function withMask(mutate, restore, fn) { mutate(); try { return fn(); } finally { restore(); } }
+  function simulateReseed(slot) {
+    // cheapest fix: reseed `slot` on the alive organism that lacks it and holds the fewest memories
+    const host = S.organisms.filter(o => o.alive && !o.partitioned && !o.memories.some(m => m.slot === slot && healthy(o, m)))
+      .sort((a, b) => a.memories.length - b.memories.length || a.id - b.id)[0] || S.organisms.find(o => o.alive);
+    if (!host) return null;
+    const tmpRoot = { id: 'R?', slot, domain: 'FD?', blighted: false, color: '#fff' };
+    const mem = { slot, root: 'R?', strength: 0.9 };
+    S.roots['R?'] = tmpRoot; host.memories.push(mem);
+    const recent = host.recent; host.recent = Infinity; // it would route first
+    try { return { host, survives: attempt().exec.success }; }
+    finally { host.memories.pop(); delete S.roots['R?']; host.recent = recent; }
+  }
+  function forecast() {
+    const roots = Object.values(S.roots).filter(r => !r.blighted).map(root => {
+      const dependents = S.organisms.reduce((k, o) => k + o.memories.filter(m => m.root === root.id).length, 0);
+      const out = withMask(() => { root.blighted = true; }, () => { root.blighted = false; }, () => {
+        const r = attempt();
+        let fix = null;
+        if (!r.exec.success) fix = simulateReseed(root.slot);
+        return { survives: r.exec.success, repaired: r.repaired, fix };
+      });
+      return { kind: 'root', id: root.id, slot: root.slot, domain: root.domain, dependents, ...out };
+    });
+    const nodes = S.organisms.filter(o => o.alive).map(o => {
+      const out = withMask(() => { o.alive = false; }, () => { o.alive = true; }, () => attempt());
+      return { kind: 'node', id: o.name, org: o, survives: out.exec.success, repaired: out.repaired };
+    });
+    return { roots, nodes, rootKills: roots.filter(r => !r.survives).length, nodeKills: nodes.filter(n => !n.survives).length };
+  }
+
+  // ---------------- provenance ledger (hash-chained) ----------------
+  function fnv1a(str, seed) { let h = seed >>> 0; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return h; }
+  function chainHash(payload, prev) { const s = prev + '|' + payload; return (fnv1a(s, 0x811c9dc5).toString(16).padStart(8, '0') + fnv1a(s, 0x1b873593).toString(16).padStart(8, '0')); }
+  function ledgerAppend(exec, repaired) {
+    S.ledger = S.ledger || [];
+    const prev = S.ledger.length ? S.ledger[S.ledger.length - 1].hash : '0000000000000000';
+    const entry = {
+      seq: S.ledger.length + 1, cycle: S.cycle, wave: S.wave,
+      outcome: exec.success ? (repaired ? 'repaired' : 'reconstructed') : 'lost',
+      reported_confidence: exec.reported, valid_support: exec.coverage,
+      route: exec.route.map(o => o.name),
+      evidence: exec.selected.map(c => ({ organism: c.org.name, slot: c.m.slot, root: c.m.root, domain: S.roots[c.m.root].domain, confidence: c.conf })),
+      blighted_roots: Object.values(S.roots).filter(r => r.blighted).map(r => r.id),
+      prev,
+    };
+    entry.hash = chainHash(JSON.stringify({ ...entry, hash: undefined }), prev);
+    S.ledger.push(entry);
+    if (S.ledger.length > 200) S.ledger.shift();
+  }
+  function verifyLedger() {
+    let prev = S.ledger.length ? S.ledger[0].prev : '0000000000000000';
+    for (const e of S.ledger) {
+      const { hash, ...rest } = e; void hash;
+      if (e.prev !== prev || chainHash(JSON.stringify({ ...rest, hash: undefined }), prev) !== e.hash) return e.seq;
+      prev = e.hash;
+    }
+    return 0;
   }
 
   function decay() {
@@ -524,6 +634,23 @@
     drawHub(now);
     // organisms
     for (const o of S.organisms) drawOrganism(o, now, dt);
+    // pre-mortem blast radius: memories of the selected stratum pulse red, hub shows the verdict
+    if (S.forecastRoot && S.roots[S.forecastRoot] && !S.roots[S.forecastRoot].blighted) {
+      const f = (S.forecast || forecast()).roots.find(r => r.id === S.forecastRoot);
+      const pulse = reduceMotion ? 0.5 : 0.5 + 0.5 * Math.sin(now / 260);
+      for (const o of S.organisms) if (o.memories.some(m => m.root === S.forecastRoot)) {
+        ctx.beginPath(); ctx.arc(o.x, o.y, 24 + 6 * pulse, 0, Math.PI * 2); ctx.strokeStyle = `rgba(255,77,94,${0.35 + 0.5 * pulse})`; ctx.lineWidth = 1.5; ctx.setLineDash([4, 5]); ctx.stroke(); ctx.setLineDash([]);
+        ctx.font = '500 9px "IBM Plex Mono", monospace'; ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,77,94,0.95)'; ctx.fillText('WOULD GO DARK', o.x, o.y - 30);
+      }
+      if (f) {
+        const col = f.survives ? '57,255,158' : '255,77,94';
+        ctx.beginPath(); ctx.arc(S.hub.x, S.hub.y, 54 + 4 * pulse, 0, Math.PI * 2); ctx.strokeStyle = `rgba(${col},0.6)`; ctx.lineWidth = 1; ctx.setLineDash([2, 6]); ctx.stroke(); ctx.setLineDash([]);
+        ctx.font = '700 10px "Chakra Petch", sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = `rgba(${col},1)`; ctx.letterSpacing = '0.14em';
+        ctx.fillText(f.survives ? 'FORECAST · SURVIVES' : 'FORECAST · FORGETS', S.hub.x, S.hub.y - 62);
+        if (!f.survives && f.fix) { ctx.beginPath(); ctx.arc(f.fix.host.x, f.fix.host.y, 30, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(77,227,255,0.9)'; ctx.lineWidth = 1.5; ctx.stroke();
+          ctx.font = '600 9px "Chakra Petch", sans-serif'; ctx.fillStyle = '#4de3ff'; ctx.fillText(`RESEED ${f.slot} HERE`, f.fix.host.x, f.fix.host.y - 38); }
+      }
+    }
     // event flashes
     S.events = S.events.filter(e => e.t < 1);
     for (const e of S.events) {
@@ -622,16 +749,40 @@
     $('h-cov').style.width = (cov * 100) + '%'; $('h-cov').className = 'fill' + (cov < 1 ? (cov > 0 ? ' warn' : ' crit') : '');
     $('h-cov-v').textContent = `${Math.round(cov * SLOTS.length)}/${SLOTS.length}`;
     $('h-flag').hidden = !(last && !last.success && last.gap > 0);
+    const fc = S.forecast || (S.forecast = forecast());
     $('h-roots').innerHTML = Object.values(S.roots).map(r => {
       const n = S.organisms.reduce((k, o) => k + o.memories.filter(m => m.root === r.id).length, 0);
-      return `<div><span style="color:${r.blighted ? 'var(--crit)' : r.color}">${r.blighted ? '×' : '●'}</span> ${r.id} <span class="lbl">${r.slot}</span> ${r.domain} · ${n}</div>`;
+      const f = fc.roots.find(x => x.id === r.id);
+      const badge = r.blighted ? '<span class="badge dim">blighted</span>' : f ? (f.survives ? '<span class="badge ok">survives</span>' : '<span class="badge bad">would forget</span>') : '';
+      return `<div class="row" data-root="${r.id}" aria-pressed="${S.forecastRoot === r.id}"><span style="color:${r.blighted ? 'var(--crit)' : r.color}">${r.blighted ? '×' : '●'}</span> ${r.id} <span class="lbl">${r.slot}</span> ${r.domain} · ${n} ${badge}</div>`;
     }).join('');
+    renderForecast(fc);
     $('h-log').innerHTML = S.log.map(l => `<li class="${l.cls}">${l.text}</li>`).join('');
     const uptime = S.cycle ? Math.round(100 * S.ok / S.cycle) + '%' : '—';
     $('m-wave').textContent = Math.min(S.wave, WAVES); $('m-cycle').textContent = S.cycle; $('m-uptime').textContent = uptime; $('m-cut').textContent = minCut();
     $('s-ok').textContent = S.ok; $('s-bad').textContent = S.bad; $('s-sf').textContent = S.sf; $('s-rep').textContent = S.repairs;
     $('s-bytes').textContent = S.bytes.toLocaleString(); $('s-wither').textContent = S.wither; $('s-blight').textContent = Object.values(S.roots).filter(r => r.blighted).length; $('s-spent').textContent = S.spent;
     $('c-spores').textContent = S.spores;
+  }
+  function renderForecast(fc) {
+    const rk = fc.rootKills, nk = fc.nodeKills;
+    $('f-summary').innerHTML = `<div><span class="f-num ${rk ? 'bad' : 'ok'}">${rk}</span> <span class="lbl">of ${fc.roots.length} single-root failures forget</span></div>` +
+      `<div><span class="f-num ${nk ? 'bad' : 'ok'}">${nk}</span> <span class="lbl">of ${fc.nodes.length} single-organism failures forget</span></div>`;
+    const sel = S.forecastRoot ? fc.roots.find(r => r.id === S.forecastRoot) : null;
+    const d = $('f-detail');
+    if (!sel) { d.innerHTML = `<div class="lbl" style="margin-top:6px">tap a stratum to see its blast radius</div>`; return; }
+    const fix = sel.fix;
+    d.innerHTML = `<div style="margin-top:6px">if <b>${sel.id}</b> (${sel.domain}) blights: <b>${sel.dependents}</b> memories go dark → ` +
+      (sel.survives ? `<span class="badge ok">${sel.repaired ? 'repaired' : 'survives'}</span>` : `<span class="badge bad">capability lost</span>`) + `</div>` +
+      (!sel.survives && fix ? `<div class="lbl" style="margin-top:4px">cheapest fix: reseed ${sel.slot} on ${fix.host.name} · ${COST.reseed} spores → ${fix.survives ? 'survives' : 'still lost (route bound)'}</div>` : '') +
+      `<div>${!sel.survives && fix ? `<button class="mini primary" id="f-apply" ${S.spores < COST.reseed || !S.running || S.over ? 'disabled' : ''}>Apply fix · ${COST.reseed}</button>` : ''}<button class="mini" id="f-clear">Clear</button></div>`;
+    const ap = $('f-apply'); if (ap) ap.addEventListener('click', () => { if (actReseed(fix.host, sel.slot)) { S.forecast = forecast(); S.forecastRoot = null; renderHud(); renderConsole(); } });
+    $('f-clear').addEventListener('click', () => { S.forecastRoot = null; renderHud(); });
+  }
+  function renderLedger() {
+    const list = S.ledger || [];
+    $('l-list').innerHTML = list.slice(-12).reverse().map(e => `<div class="e"><span class="${e.outcome === 'lost' ? 'bad' : e.outcome === 'repaired' ? 'rep' : 'ok'}">#${e.seq} c${e.cycle} ${e.outcome}</span> · ${e.evidence.map(v => `${v.organism}:${v.slot}@${v.root}/${v.domain}`).join(' ') || 'no evidence'}<div class="h">${e.hash} ← ${e.prev}</div></div>`).join('') || '<div class="h">no cycles yet</div>';
+    $('l-json').value = JSON.stringify(list, null, 0);
   }
   function renderConsole() {
     const o = S.selected;
@@ -660,10 +811,15 @@
     S.selected = best; renderConsole();
   });
   $('c-slots').addEventListener('click', e => { const b = e.target.closest('.chip'); if (!b) return; S.slot = b.dataset.slot; renderConsole(); });
-  $('a-reseed').addEventListener('click', () => { actReseed(S.selected, S.slot); renderConsole(); renderHud(); });
-  $('a-replicate').addEventListener('click', () => { actReplicate(S.selected, S.slot); renderConsole(); renderHud(); });
-  $('a-regrow').addEventListener('click', () => { actRegrow(S.selected); renderConsole(); renderHud(); });
-  $('a-reconnect').addEventListener('click', () => { actReconnect(S.selected); renderConsole(); renderHud(); });
+  const refresh = () => { S.forecast = forecast(); renderConsole(); renderHud(); };
+  $('a-reseed').addEventListener('click', () => { actReseed(S.selected, S.slot); refresh(); });
+  $('a-replicate').addEventListener('click', () => { actReplicate(S.selected, S.slot); refresh(); });
+  $('a-regrow').addEventListener('click', () => { actRegrow(S.selected); refresh(); });
+  $('a-reconnect').addEventListener('click', () => { actReconnect(S.selected); refresh(); });
+  $('h-roots').addEventListener('click', e => { const row = e.target.closest('.row'); if (!row) return; S.forecastRoot = S.forecastRoot === row.dataset.root ? null : row.dataset.root; renderHud(); });
+  $('btn-ledger').addEventListener('click', () => { renderLedger(); $('ledger').hidden = false; });
+  $('btn-ledger-close').addEventListener('click', () => { $('ledger').hidden = true; });
+  $('btn-verify').addEventListener('click', () => { const bad = verifyLedger(); $('btn-verify').textContent = bad ? `Chain broken at #${bad}` : `Chain intact · ${(S.ledger || []).length} entries`; });
   $('btn-auto').addEventListener('click', () => { S.auto = !S.auto; $('btn-auto').setAttribute('aria-pressed', String(S.auto)); logLine(S.auto ? 'autopilot engaged' : 'autopilot off', 'act'); });
   $('btn-rec').addEventListener('click', () => { const on = !document.getElementById('app').classList.toggle('rec'); $('btn-rec').setAttribute('aria-pressed', String(!on)); resize(); });
   function start(auto) {
@@ -674,7 +830,7 @@
   }
   $('btn-start').addEventListener('click', () => start(false));
   $('btn-demo').addEventListener('click', () => start(true));
-  $('btn-again').addEventListener('click', () => { S = newState(); layout(); $('outro').hidden = true; $('intro').hidden = false; renderConsole(); renderHud(); });
+  $('btn-again').addEventListener('click', () => { S = newState(); layout(); S.forecast = forecast(); $('outro').hidden = true; $('intro').hidden = false; renderConsole(); renderHud(); });
 
   // ---------------- loop ----------------
   let lastT = 0;
@@ -682,14 +838,14 @@
     const dt = Math.min(50, now - (lastT || now)); lastT = now; S.now = now;
     if (S.running && !S.over) {
       if (now - S.lastCycle >= CYCLE_MS) { S.lastCycle = now; if (S.auto) autopilot(); runCycle(now); renderHud(); renderConsole(); }
-      if (now - S.lastWave >= WAVE_MS) { S.lastWave = now; waveEvent(); renderHud(); renderConsole(); }
+      if (now - S.lastWave >= WAVE_MS) { S.lastWave = now; waveEvent(); S.forecast = forecast(); renderHud(); renderConsole(); }
       if (Math.floor(now / 1000) !== Math.floor((now - dt) / 1000)) { decay(); }
     }
     draw(now, dt);
     requestAnimationFrame(frame);
   }
   window.addEventListener('resize', resize);
-  S = newState(); resize(); layout(); renderConsole(); renderHud();
+  S = newState(); resize(); layout(); S.forecast = forecast(); renderConsole(); renderHud();
   requestAnimationFrame(frame);
 })();
 </script>
