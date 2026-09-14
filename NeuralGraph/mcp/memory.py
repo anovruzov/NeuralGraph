@@ -240,9 +240,12 @@ class MemoryEngine:
         failure_domain: str | None = None,
         storage: SQLiteNeuralGraphStorage | None = None,
         features: Features | None = None,
+        id_factory: Callable[[], str] | None = None,
     ) -> None:
         self.session_key = session_key
         self.features = features or Features()
+        # Tests and pinned demos pass a deterministic factory; production uses uuid4.
+        self._new_id = id_factory or generate_node_id
         self.embedder: Embedder = embedder or HashedEmbedder()
         self._clock = clock
         # Recorded only when the operator names it; never inferred from the
@@ -388,7 +391,7 @@ class MemoryEngine:
         if self.failure_domain:
             metadata["failure_domain"] = self.failure_domain
         node = NeuralNode(
-            node_id=generate_node_id(),
+            node_id=self._new_id(),
             layer=NodeLayer.MESSAGE,
             content=content,
             embedding=embedding,
@@ -700,11 +703,55 @@ class MemoryEngine:
         }
 
     # ------------------------------------------------------ coordination bridge
-    async def export_claims(self, query: str, capability_id: str = "memory", scope: str = "memory:read", limit: int = 8) -> dict[str, Any]:
-        """Export recall results as policy-filtered claims through the real adapter.
+    CAPABILITY_ID = "memory"
+    SCOPE = "memory:read"
 
-        Private memories are denied and cross the boundary as payload-free
-        traces; everything else carries its lineage from the store.
+    def node_id(self) -> str:
+        return f"neuralgraph:{self.session_key}"
+
+    def capability(self) -> dict[str, Any]:
+        """What this node advertises to a fabric: id, scope, declared domain."""
+        return {
+            "capability_id": self.CAPABILITY_ID,
+            "node_id": self.node_id(),
+            "description": "private NeuralGraph memory",
+            "query_types": ["recall", "keyed"],
+            "policy_scope": [self.SCOPE],
+            "availability": "available",
+            "failure_domain": self.failure_domain,
+        }
+
+    async def _claim_candidates(self, query: str, keys: tuple[str, ...] | list[str], limit: int) -> list[tuple[NeuralNode, float]]:
+        """Memories to offer a fabric: keyed facts for ``keys``, else recall hits."""
+        if keys:
+            wanted = {k.strip() for k in keys if k and k.strip()}
+            nodes = [n for n in await self._session_nodes()
+                     if n.consolidation_state is ConsolidationState.ACTIVE and n.metadata.get("key") in wanted]
+            nodes.sort(key=lambda n: (n.metadata.get("key") or "", n.created_at))
+            return [(n, min(1.0, 0.5 + 0.5 * n.importance_score)) for n in nodes[:limit]]
+        hits = await self.recall(query, limit=limit, strengthen=False)
+        out = []
+        for h in hits:
+            node = await self.storage.get_node(h["id"])
+            if node is not None:
+                out.append((node, max(0.0, min(1.0, h["confidence"]))))
+        return out
+
+    async def export_claims(
+        self,
+        query: str,
+        capability_id: str = CAPABILITY_ID,
+        scope: str = SCOPE,
+        limit: int = 8,
+        keys: tuple[str, ...] | list[str] = (),
+    ) -> dict[str, Any]:
+        """Export memories as policy-filtered claims through the real adapter.
+
+        With ``keys`` the claims are keyed facts (``content = {"slot": key,
+        "value": text}``) so a fabric can compose an answer across peers; without
+        them they are recall hits (``slot = "memory"``).  Private memories are
+        denied and cross the boundary as payload-free traces; everything else
+        carries its lineage from the store and the domain declared on its root.
         """
         from ..coordination.adapters import NeuralGraphMemoryAdapter
         from ..coordination.contracts import (
@@ -717,9 +764,7 @@ class MemoryEngine:
         from ..coordination.core import to_jsonable
         from ..coordination.storage_adapter import StorageLineageResolver
 
-        hits = await self.recall(query, limit=limit, strengthen=False)
-        nodes = {h["id"]: await self.storage.get_node(h["id"]) for h in hits}
-        ordered = [(nodes[h["id"]], h["score"]) for h in hits if nodes.get(h["id"])]
+        ordered = await self._claim_candidates(query, keys, limit)
 
         async def local_retrieve(_request):
             return ordered
@@ -741,26 +786,70 @@ class MemoryEngine:
                 known["failure_domains"] = (str.__str__(declared),) if isinstance(declared, str) and declared.strip() else ()
             return known
 
+        def projection(node):
+            key = node.metadata.get("key")
+            return {"slot": key if keys and key else "memory", "value": node.content, "kind": node.metadata.get("kind")}
+
         adapter = NeuralGraphMemoryAdapter(
-            node_id=f"neuralgraph:{self.session_key}",
+            node_id=self.node_id(),
             capability=CapabilityDescriptor(
-                capability_id=capability_id, node_id=f"neuralgraph:{self.session_key}",
-                description="private NeuralGraph memory", query_types=("recall",), policy_scope=(scope,),
+                capability_id=capability_id, node_id=self.node_id(),
+                description="private NeuralGraph memory", query_types=("recall", "keyed"), policy_scope=(scope,),
             ),
             local_retrieve=local_retrieve,
             policy_filter=policy,
             clock=lambda: _iso(self._clock()) or "",
             lineage_resolver=lineage,
-            claim_projection=lambda node: {"text": node.content, "kind": node.metadata.get("kind")},
+            claim_projection=projection,
         )
         request = QueryRequest(
-            query_id=hashlib.sha256(query.encode("utf-8")).hexdigest()[:16],
-            content=query, requester_id="mcp-client", issued_at=_iso(self._clock()) or "",
+            query_id=hashlib.sha256(("|".join(sorted(keys)) + "\n" + query).encode("utf-8")).hexdigest()[:16],
+            content=query, requester_id="fabric", issued_at=_iso(self._clock()) or "",
             authorization=AuthorizationContext(scopes=(scope,)),
             requested_capability=capability_id, budget=QueryBudget(max_nodes=1, max_claims=limit, max_verifications=0),
         )
         exports = await adapter.query(request)
-        return {"exports": to_jsonable(exports), "denied": sum(1 for e in exports if not e.claims), "allowed": sum(1 for e in exports if e.claims)}
+        return {"node_id": self.node_id(), "exports": to_jsonable(exports), "denied": sum(1 for e in exports if not e.claims), "allowed": sum(1 for e in exports if e.claims)}
+
+    async def verify_support(
+        self,
+        required_keys: tuple[str, ...] | list[str],
+        excluded_lineage_roots: tuple[str, ...] | list[str] = (),
+        excluded_failure_domains: tuple[str, ...] | list[str] = (),
+    ) -> dict[str, Any]:
+        """Can this node support ``required_keys`` independently of the exclusions?
+
+        Mirrors ``MemoryNodeAdapter.verify``: support is valid only when the
+        memory's lineage roots and declared domain share nothing with what is
+        already known to be compromised.  Private memories never count.
+        """
+        from ..coordination.storage_adapter import StorageLineageResolver
+
+        wanted = {k.strip() for k in required_keys if k and k.strip()}
+        ex_roots, ex_domains = set(excluded_lineage_roots), set(excluded_failure_domains)
+        resolver = StorageLineageResolver(self.storage, domain_key="failure_domain")
+        roots: set[str] = set(); domains: set[str] = set(); supported: set[str] = set(); reasons: list[str] = []
+        for n in await self._session_nodes():
+            key = n.metadata.get("key")
+            if n.consolidation_state is not ConsolidationState.ACTIVE or key not in wanted:
+                continue
+            if n.metadata.get("private"):
+                reasons.append("policy denied"); continue
+            known = await resolver(n)
+            n_roots = set(known["lineage_root_ids"]) or {n.node_id}
+            declared = n.metadata.get("failure_domain")
+            n_domains = set(known["failure_domains"]) or ({declared} if isinstance(declared, str) and declared.strip() else set())
+            roots |= n_roots; domains |= n_domains
+            if n_roots & ex_roots or n_domains & ex_domains:
+                reasons.append("correlated support"); continue
+            supported.add(key)
+        valid = bool(supported)
+        return {
+            "node_id": self.node_id(), "valid": valid,
+            "lineage_root_ids": sorted(roots), "failure_domains": sorted(domains),
+            "supported_slots": sorted(supported),
+            "reason": "independent support available" if valid else (reasons[0] if reasons else "no matching support"),
+        }
 
     def close(self) -> None:
         self.storage.close()

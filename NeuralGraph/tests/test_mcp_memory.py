@@ -193,7 +193,8 @@ class EngineTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(denied["trace"]["policy_status"], "denied")
         self.assertNotIn("vault", json.dumps(denied))
         allowed = [e for e in out["exports"] if e["claims"]][0]
-        self.assertEqual(allowed["claims"][0]["content"]["text"], "Staging runs on Railway.")
+        self.assertEqual(allowed["claims"][0]["content"]["value"], "Staging runs on Railway.")
+        self.assertEqual(allowed["claims"][0]["content"]["slot"], "memory")
         self.assertEqual(allowed["claims"][0]["failure_domains"], ["workstation-1"])
         self.assertEqual(allowed["claims"][0]["lineage_root_ids"], [public["id"]])  # an origin is its own root
         self.assertEqual(allowed["trace"]["memory_ids"], [public["id"]])
@@ -360,7 +361,7 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_tool_surface(self):
         names = [t.name for t in await self.server.list_tools()]
-        self.assertEqual(names, ["remember", "recall", "get_memory", "forget", "list_recent", "decay", "memory_stats", "export_claims"])
+        self.assertEqual(names, ["remember", "recall", "get_memory", "forget", "list_recent", "decay", "memory_stats", "export_claims", "describe_capability", "verify_support"])
         self.assertEqual([p.name for p in await self.server.list_prompts()], ["memory_policy"])
         remember = next(t for t in await self.server.list_tools() if t.name == "remember")
         self.assertEqual(remember.input_schema["required"], ["text"])

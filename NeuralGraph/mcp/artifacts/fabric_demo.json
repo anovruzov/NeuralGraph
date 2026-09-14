@@ -1,0 +1,358 @@
+{
+  "after_agent_b_offline": {
+    "answer": {
+      "env.staging_db": {
+        "confidence": 0.75,
+        "failure_domains": [
+          "laptop-a"
+        ],
+        "lineage_root_ids": [
+          "agent-a-001"
+        ],
+        "producer": "neuralgraph:agent-a",
+        "value": "The staging database is Postgres 16 on Railway."
+      },
+      "team.standup": {
+        "confidence": 0.75,
+        "failure_domains": [
+          "office-b"
+        ],
+        "lineage_root_ids": [
+          "agent-c-001"
+        ],
+        "producer": "neuralgraph:agent-c",
+        "value": "Standup is at 10:00 Berlin time."
+      },
+      "user.editor": {
+        "confidence": 0.75,
+        "failure_domains": [
+          "laptop-a"
+        ],
+        "lineage_root_ids": [
+          "agent-a-002"
+        ],
+        "producer": "neuralgraph:agent-a",
+        "value": "Ali uses Zed as the editor."
+      }
+    },
+    "bus_entry": {
+      "hash": "83166aa5442dec48978851da560a954b4ebae35e2a2f618f212419a0b84e9cfd",
+      "peers": [
+        "bus_000001"
+      ],
+      "seq": 4
+    },
+    "claims": 3,
+    "complete": true,
+    "covered": [
+      "env.staging_db",
+      "user.editor",
+      "team.standup"
+    ],
+    "denied_exports": 0,
+    "duplicates_dropped": 0,
+    "keys": [
+      "env.staging_db",
+      "user.editor",
+      "team.standup"
+    ],
+    "metrics": {
+      "apparent_replica_count": 3,
+      "confidence_valid_support_gap": 0.0,
+      "current_confidence": 0.75,
+      "current_task_success": true,
+      "minimal_failure_domain_cut": 1,
+      "minimal_support_coalition_size": 3,
+      "reconstruction_coalition_count": 1,
+      "unique_failure_domain_count": 2,
+      "unique_lineage_root_count": 3,
+      "valid_support_coverage": 1.0
+    },
+    "missing": [],
+    "query_id": "q_71b385a59d5fc5f6",
+    "repair": null,
+    "route": [
+      "neuralgraph:agent-a",
+      "neuralgraph:agent-c"
+    ],
+    "support_by_key": {
+      "env.staging_db": [
+        "neuralgraph:agent-a"
+      ],
+      "team.standup": [
+        "neuralgraph:agent-c"
+      ],
+      "user.editor": [
+        "neuralgraph:agent-a"
+      ]
+    },
+    "transport_failures": 0
+  },
+  "bus_entries": 4,
+  "bus_intact": true,
+  "collective": {
+    "answer": {
+      "env.staging_db": {
+        "confidence": 0.75,
+        "failure_domains": [
+          "laptop-a"
+        ],
+        "lineage_root_ids": [
+          "agent-a-001"
+        ],
+        "producer": "neuralgraph:agent-a",
+        "value": "The staging database is Postgres 16 on Railway."
+      },
+      "team.standup": {
+        "confidence": 0.75,
+        "failure_domains": [
+          "office-b"
+        ],
+        "lineage_root_ids": [
+          "agent-b-001"
+        ],
+        "producer": "neuralgraph:agent-b",
+        "value": "Standup is at 10:00 Berlin time."
+      },
+      "user.editor": {
+        "confidence": 0.75,
+        "failure_domains": [
+          "laptop-a"
+        ],
+        "lineage_root_ids": [
+          "agent-a-002"
+        ],
+        "producer": "neuralgraph:agent-a",
+        "value": "Ali uses Zed as the editor."
+      }
+    },
+    "bus_entry": {
+      "hash": "6936bc853e3fd12c1058519c2aba0dde93c38a2d0f97b7db2877d83344c01404",
+      "peers": [],
+      "seq": 1
+    },
+    "claims": 6,
+    "complete": true,
+    "covered": [
+      "env.staging_db",
+      "user.editor",
+      "team.standup"
+    ],
+    "denied_exports": 0,
+    "duplicates_dropped": 0,
+    "keys": [
+      "env.staging_db",
+      "user.editor",
+      "team.standup"
+    ],
+    "metrics": {
+      "apparent_replica_count": 6,
+      "confidence_valid_support_gap": 0.0,
+      "current_confidence": 0.75,
+      "current_task_success": true,
+      "minimal_failure_domain_cut": 1,
+      "minimal_support_coalition_size": 3,
+      "reconstruction_coalition_count": 6,
+      "unique_failure_domain_count": 3,
+      "unique_lineage_root_count": 6,
+      "valid_support_coverage": 1.0
+    },
+    "missing": [],
+    "query_id": "q_65a55498f0f3e849",
+    "repair": null,
+    "route": [
+      "neuralgraph:agent-a",
+      "neuralgraph:agent-b",
+      "neuralgraph:agent-c",
+      "neuralgraph:agent-d"
+    ],
+    "support_by_key": {
+      "env.staging_db": [
+        "neuralgraph:agent-a",
+        "neuralgraph:agent-b"
+      ],
+      "team.standup": [
+        "neuralgraph:agent-b",
+        "neuralgraph:agent-c",
+        "neuralgraph:agent-d"
+      ],
+      "user.editor": [
+        "neuralgraph:agent-a"
+      ]
+    },
+    "transport_failures": 0
+  },
+  "federated": {
+    "bus_entry": {
+      "hash": "ea21fbd6ddd3948cacee9b2d2476101e14fb90ab856315f82d54020648426e3d",
+      "peers": [],
+      "seq": 2
+    },
+    "claims": 2,
+    "denied_exports": 1,
+    "duplicates_dropped": 0,
+    "hits": [
+      {
+        "confidence": 1.0,
+        "failure_domains": [
+          "laptop-a",
+          "office-b"
+        ],
+        "independent_domains": 2,
+        "kind": "fact",
+        "lineage_root_ids": [
+          "agent-a-001",
+          "agent-b-002"
+        ],
+        "producers": [
+          "neuralgraph:agent-a",
+          "neuralgraph:agent-b"
+        ],
+        "replicas": 2,
+        "value": "The staging database is Postgres 16 on Railway."
+      }
+    ],
+    "metrics": {
+      "apparent_replica_count": 2,
+      "confidence_valid_support_gap": 0.0,
+      "current_confidence": 1.0,
+      "current_task_success": true,
+      "minimal_failure_domain_cut": 2,
+      "minimal_support_coalition_size": 1,
+      "reconstruction_coalition_count": 2,
+      "unique_failure_domain_count": 2,
+      "unique_lineage_root_count": 2,
+      "valid_support_coverage": 1.0
+    },
+    "query_id": "q_316f1828a548e7e8",
+    "repair": null,
+    "route": [
+      "neuralgraph:agent-a",
+      "neuralgraph:agent-b",
+      "neuralgraph:agent-c",
+      "neuralgraph:agent-d"
+    ],
+    "transport_failures": 0
+  },
+  "forecast": {
+    "baseline_complete": true,
+    "baseline_missing": [],
+    "by_domain": {
+      "home-d": {
+        "complete": true,
+        "lost": [],
+        "repaired": false
+      },
+      "laptop-a": {
+        "complete": false,
+        "lost": [
+          "user.editor"
+        ],
+        "repaired": false
+      },
+      "office-b": {
+        "complete": true,
+        "lost": [],
+        "repaired": false
+      }
+    },
+    "by_node": {
+      "neuralgraph:agent-a": {
+        "complete": false,
+        "lost": [
+          "user.editor"
+        ],
+        "repaired": true
+      },
+      "neuralgraph:agent-b": {
+        "complete": true,
+        "lost": [],
+        "repaired": false
+      },
+      "neuralgraph:agent-c": {
+        "complete": true,
+        "lost": [],
+        "repaired": false
+      },
+      "neuralgraph:agent-d": {
+        "complete": true,
+        "lost": [],
+        "repaired": false
+      }
+    },
+    "keys": [
+      "env.staging_db",
+      "user.editor",
+      "team.standup"
+    ],
+    "minimal_failure_domain_cut": 1,
+    "single_domain_failures_that_forget": [
+      "laptop-a"
+    ],
+    "single_node_failures_that_forget": [
+      "neuralgraph:agent-a"
+    ]
+  },
+  "keys": [
+    "env.staging_db",
+    "user.editor",
+    "team.standup"
+  ],
+  "peers": [
+    "neuralgraph:agent-a",
+    "neuralgraph:agent-b",
+    "neuralgraph:agent-c",
+    "neuralgraph:agent-d"
+  ],
+  "private_memory_leaked": false,
+  "private_probe": {
+    "answer": {},
+    "bus_entry": {
+      "hash": "9321d027d03dc3e7f5fb000a3e463da6570eb6150f4dccb2af65b97f0c07fe16",
+      "peers": [],
+      "seq": 3
+    },
+    "claims": 0,
+    "complete": false,
+    "covered": [],
+    "denied_exports": 1,
+    "duplicates_dropped": 0,
+    "keys": [
+      "env.staging_token"
+    ],
+    "metrics": {
+      "apparent_replica_count": 0,
+      "confidence_valid_support_gap": 0.0,
+      "current_confidence": 0.0,
+      "current_task_success": false,
+      "minimal_failure_domain_cut": 0,
+      "minimal_support_coalition_size": 0,
+      "reconstruction_coalition_count": 0,
+      "unique_failure_domain_count": 0,
+      "unique_lineage_root_count": 0,
+      "valid_support_coverage": 0.0
+    },
+    "missing": [
+      "env.staging_token"
+    ],
+    "query_id": "q_d4d89773db1bf97c",
+    "repair": {
+      "reason": "no independent support within budget",
+      "selected_node_id": null,
+      "steps": 0,
+      "verification_results": []
+    },
+    "route": [
+      "neuralgraph:agent-a",
+      "neuralgraph:agent-b",
+      "neuralgraph:agent-c",
+      "neuralgraph:agent-d"
+    ],
+    "support_by_key": {
+      "env.staging_token": []
+    },
+    "transport_failures": 0
+  },
+  "schema_version": "1.0",
+  "trace_events": 219
+}

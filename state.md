@@ -158,17 +158,35 @@ Everything run is a local deterministic simulation or a unit test.
 - Merged Nurman's two post-PR commits from `research/retrieval-campaign-2026-09`
   (`RERANK=none` switch and latency tables); PR #3 itself was already in main.
 
+- **The fabric** (`mcp/fabric.py`, `mcp/fabric_server.py`,
+  `coordination/mcp_peer.py`, `docs/FABRIC.md`, `test_mcp_fabric.py` 10,
+  `test_mcp_fabric_transport.py` 3). Agents' memory servers as peers over
+  MCP on stdio (real processes); collective recall composes keyed facts no
+  single peer holds, with min failure-domain cut and lineage-aware repair;
+  forecast masks each peer and each declared domain at the orchestrator and
+  reports what the collective would forget; federated recall merges
+  replicas across peers; every recall goes on the hash-chained bus. A peer
+  killed with SIGKILL is a transport-failure denial, reconnects on retry and
+  answers from its store. Pinned deterministic demo `fabric_demo.json`.
+  Peer learning not enabled. This closes the transport step named in
+  session 4's handoff; NATS remains unimplemented.
+
 ### Next executable step
 
-Coordination is complete through Gate 6 and the reconciliation is done. The
-next concrete step is the one the August notes named and this session did
-not start: **transport**. The coordinator, adapters and repair planner are
-in-process; a `MemoryNodeAdapter` implemented over a real message boundary
-(local subprocess workers, no NATS yet) would make the duplicate-delivery and
-failure paths real rather than simulated. Start from
-`NeuralGraph/coordination/adapters.py::MemoryNodeAdapter` (the Protocol) and
-`test_coordination_delivery.py::RedeliveringAdapter` (the at-least-once
-test double), keep `contracts.py` unchanged, and pin the first artifact.
+Transport is done (MCP over stdio, `docs/FABRIC.md`). The next concrete
+steps, in order of leverage:
+
+1. **Peer learning with provenance.** `propose_learning` is rejected today.
+   Accepting a peer's claim into one's own store must preserve the sender's
+   lineage roots and declared domain as recorded provenance (not as a new
+   origin), and the fabric's forecast must then count the copy as
+   correlated with its source domain. Measure with the pinned demo.
+2. **Automatic memory creation behind a flag**, only after a labelled set of
+   conversation turns with gold facts exists (see the answer recorded in the
+   MCP docs: no model runs in the memory path today, by design).
+3. **Fabric evaluation**: extend `mcp/evaluation.py` with a multi-peer
+   variant (precision of collective recall vs a single merged store, bytes
+   moved, forecast accuracy against injected failures).
 
 ---
 
@@ -210,7 +228,7 @@ python3.11 -m NeuralGraph.coordination.figures --check
 ```
 
 Setup is `pip install -r requirements.txt`. Suite as of this writing:
-**355 passed, 1 skipped, 3520 subtests**, identical under `PYTHONHASHSEED`
+**368 passed, 1 skipped, 3520 subtests**, identical under `PYTHONHASHSEED`
 1, 7, 4242 and 99991.
 
 `pytest` previously failed to collect anything (5 errors, every file). The repo

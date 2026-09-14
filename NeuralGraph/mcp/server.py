@@ -173,9 +173,17 @@ def build_server() -> MCPServer:
     async def memory_stats() -> dict[str, Any]:
         return await _guarded((await engine()).stats())
 
-    @server.tool(description="Export recall results as policy-filtered coordination claims (private memories are denied without payload). For handing evidence to other agents through the Tesseract boundary.")
-    async def export_claims(query: str, limit: int = 8) -> dict[str, Any]:
-        return await _guarded((await engine()).export_claims(query, limit=limit))
+    @server.tool(description="Export memories as policy-filtered coordination claims for a fabric of peers (private memories are denied without payload). With `keys`, exports keyed facts as slots so peers can compose an answer; without, exports recall hits.")
+    async def export_claims(query: str, limit: int = 8, keys: list[str] | None = None) -> dict[str, Any]:
+        return await _guarded((await engine()).export_claims(query, limit=limit, keys=keys or ()))
+
+    @server.tool(description="Advertise this node's memory capability to a fabric: id, scope, declared failure domain.")
+    async def describe_capability() -> dict[str, Any]:
+        return (await engine()).capability()
+
+    @server.tool(description="Fabric repair handshake: can this node support `required_keys` with evidence independent of the excluded lineage roots and failure domains?")
+    async def verify_support(required_keys: list[str], excluded_lineage_roots: list[str] | None = None, excluded_failure_domains: list[str] | None = None) -> dict[str, Any]:
+        return await _guarded((await engine()).verify_support(required_keys, excluded_lineage_roots or (), excluded_failure_domains or ()))
 
     @server.prompt(name="memory_policy", description="When and how to create memories with NeuralGraph.")
     def memory_policy() -> str:

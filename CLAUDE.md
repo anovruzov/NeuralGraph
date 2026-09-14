@@ -16,6 +16,7 @@ context re-deriving facts that are already established.
 | Where a symbol lives (`file:line`), without reading the module | `CODEMAP.md` (generated: `python -m tools.codemap`) |
 | How a real agent joins the fabric (node + orchestrator protocol) | `docs/AGENT_PROMPT.md` (generated from the contracts) |
 | Using NeuralGraph as Claude Code / Codex memory (MCP) | `docs/MCP.md` |
+| Agents' memories as peers: collective recall, forecast, transport | `docs/FABRIC.md` |
 
 Prefer reading a doc over grepping the source. To find one symbol, grep
 `CODEMAP.md` for the file path and jump to the line it names; regenerate the
@@ -28,15 +29,17 @@ are far cheaper than reconstructing the same facts from 5,000 lines.
 - `NeuralGraph/tesseract.py` is intra-node retrieval fusion. **Not** the
   coordinator. Unrelated. If a task says "Tesseract", ask which one.
 - **"Mycelic" appears in no committed file.** Branch names only.
-- **NATS / JetStream are not implemented.** Design intent. Everything is
-  in-process.
+- **NATS / JetStream are not implemented.** The process boundary that exists
+  is MCP over stdio between peer memory servers (`coordination/mcp_peer.py`,
+  `mcp/fabric.py`, see `docs/FABRIC.md`); the coordination benchmark itself
+  is in-process.
 - Commit `b5b9c3e271` **does not exist**. Do not look for it.
 
 ## Canonical commands
 
 ```bash
 pip install -r requirements.txt
-python3.11 -m pytest                                          # 355 passed, 1 skipped, 3520 subtests
+python3.11 -m pytest                                          # 368 passed, 1 skipped, 3520 subtests
 
 python3.11 -m NeuralGraph.coordination.benchmark --sweep 30 --format markdown
 python3.11 -m NeuralGraph.coordination.scale --format markdown
@@ -46,6 +49,8 @@ python3.11 -m NeuralGraph.coordination.agent_prompt --write docs/AGENT_PROMPT.md
 python3.11 -m tools.codemap                                   # regenerate CODEMAP.md
 python3.11 -m NeuralGraph.mcp.server --print-config claude    # MCP memory server config (see docs/MCP.md)
 python3.11 -m NeuralGraph.mcp.evaluation --format markdown     # memory recall evaluation (pinned in NeuralGraph/mcp/artifacts)
+python3.11 -m NeuralGraph.mcp.fabric --demo                    # deterministic fabric demo (pinned in NeuralGraph/mcp/artifacts)
+python3.11 -m NeuralGraph.mcp.fabric_server                    # the collective as an MCP server (NEURALGRAPH_FABRIC=peers.json)
 ```
 
 Run `pytest` from the repo root. There is no venv activation step.

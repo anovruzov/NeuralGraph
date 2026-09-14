@@ -6,21 +6,21 @@ Do not hand-edit. Regenerate after adding or moving a definition.
 
 ## .
 
-### `CLAUDE.md` (117 lines)
+### `CLAUDE.md` (122 lines)
 
 ```
   L1     # CLAUDE.md
   L6     ## Read in this order
-  L25    ## Naming traps — get these wrong and you lose an hour
-  L35    ## Canonical commands
-  L53    ## Rules that are not negotiable
-  L78    ## Results that must not silently change
-  L92    ## Retrieval accuracy — diagnosed, not fixed
-  L107   ## Gate status
-  L113   ## Ownership
+  L26    ## Naming traps — get these wrong and you lose an hour
+  L38    ## Canonical commands
+  L58    ## Rules that are not negotiable
+  L83    ## Results that must not silently change
+  L97    ## Retrieval accuracy — diagnosed, not fixed
+  L112   ## Gate status
+  L118   ## Ownership
 ```
 
-### `state.md` (414 lines)
+### `state.md` (438 lines)
 
 ```
   L1     # Mycelic / NeuralGraph / Tesseract State
@@ -31,20 +31,20 @@ Do not hand-edit. Regenerate after adding or moving a definition.
   L88    ### Budget
   L93    ### Unresolved / not done here
   L102   ### Later in session 4 (2026-09-13)
-  L155   ### Next executable step
-  L169   ## Session 3 (2026-08-25) notes, kept verbatim below
-  L171   ## Corrections to prior session notes
-  L193   ## Canonical commands
-  L218   ## Results
-  L255   ### Seven harness bugs found before any of this was trusted
-  L278   ### Reported against interest, additionally
-  L290   ## Artifacts
-  L311   ## Gate status
-  L323   ## Resolved: `failure_domains` now has a real-storage model
-  L348   ## Ownership
-  L359   ## Not done
-  L371   ## Documentation
-  L383   ## Next task
+  L174   ### Next executable step
+  L193   ## Session 3 (2026-08-25) notes, kept verbatim below
+  L195   ## Corrections to prior session notes
+  L217   ## Canonical commands
+  L242   ## Results
+  L279   ### Seven harness bugs found before any of this was trusted
+  L302   ### Reported against interest, additionally
+  L314   ## Artifacts
+  L335   ## Gate status
+  L347   ## Resolved: `failure_domains` now has a real-storage model
+  L372   ## Ownership
+  L383   ## Not done
+  L395   ## Documentation
+  L407   ## Next task
 ```
 
 ### `README.md` (205 lines)
@@ -534,6 +534,37 @@ Seeded opaque four-node fixture for collective capability experiments.
   L132   def assert_fixture_privacy
 ```
 
+### `NeuralGraph/coordination/mcp_peer.py` (280 lines)
+Peer memory nodes for the coordinator: in-process and over MCP on stdio.
+
+```
+  L49    _TUPLE_FIELDS = …
+  L52    def _strs
+  L63    def claim_from_json
+  L81    def trace_from_json
+  L93    def exports_from_json
+  L104   def verification_from_json
+  L114   class _PeerBase
+  L117     def __init__
+  L127     def _denial
+  L135     def _mask
+  L152     async def propose_learning
+  L157   class InProcessPeer(_PeerBase)
+  L160     def __init__
+  L165     async def describe_capabilities
+  L174     async def query
+  L178     async def verify
+  L183   class McpPeerAdapter(_PeerBase)
+  L186     def __init__
+  L196     async def connect
+  L206     async def close
+  L215     async def _call
+  L234     async def describe_capabilities
+  L245     async def query
+  L251     async def verify
+  L262   def _rekey
+```
+
 ### `NeuralGraph/coordination/scale.py` (374 lines)
 Scale and generalization sweep: does the mechanism hold beyond the 4-node pair?
 
@@ -933,6 +964,8 @@ NeuralGraph as an MCP memory server for coding agents (Claude Code, Codex).
   (no top-level definitions)
 ```
 
+### `NeuralGraph/mcp/artifacts/fabric_demo.json` (358 lines, 8576 bytes)
+
 ### `NeuralGraph/mcp/artifacts/memory_eval.json` (2229 lines, 57898 bytes)
 
 ### `NeuralGraph/mcp/artifacts/memory_eval.md` (23 lines)
@@ -958,6 +991,44 @@ Offline evaluation of the memory server's recall quality.
   L274   def main
 ```
 
+### `NeuralGraph/mcp/fabric.py` (282 lines)
+The fabric: agents' memory servers as peers of one another.
+
+```
+  L64    CAPABILITY_ID = …
+  L65    SCOPE = …
+  L68    class Fabric
+  L69      def __init__
+  L81      def add_in_process
+  L85      def add_mcp
+  L90      def node_ids
+  L93      async def close
+  L101     def _request
+  L112     def _coordinator
+  L116     async def collective_recall
+  L137     def _report
+  L171     async def forecast
+  L205   class _Clock
+  L206     def __init__
+  L209     def __call__
+  L214   def _ids
+  L224   async def run_demo
+  L264   def main
+```
+
+### `NeuralGraph/mcp/fabric_server.py` (99 lines)
+The fabric as an MCP server: ask the collective, not one agent.
+
+```
+  L29    SERVER_NAME = …
+  L30    INSTRUCTIONS = …
+  L42    def _load_config
+  L52    async def fabric
+  L65    def set_fabric
+  L70    def build_server
+  L93    def main
+```
+
 ### `NeuralGraph/mcp/lexicon.py` (247 lines)
 Lexical preprocessing for the memory server: thesaurus, spelling, names.
 
@@ -981,7 +1052,7 @@ Lexical preprocessing for the memory server: thesaurus, spelling, names.
   L230   def sentence_initial_candidates
 ```
 
-### `NeuralGraph/mcp/memory.py` (846 lines)
+### `NeuralGraph/mcp/memory.py` (935 lines)
 Memory engine for the MCP server: create memories that stay useful.
 
 ```
@@ -1019,26 +1090,30 @@ Memory engine for the MCP server: create memories that stay useful.
   L218   def extract_entities
   L233   class MemoryEngine
   L234     def __init__
-  L261     async def remember
-  L285     async def _remember
-  L450     async def recall
-  L619     async def forget
-  L639     async def get
-  L652     async def list_recent
-  L660     async def decay
-  L682     async def stats
-  L703     async def export_claims
-  L765     def close
-  L769     async def _session_nodes
-  L777     def _file_stamp
-  L784     def _invalidate
-  L787     async def _embed
-  L797     def dominant_embedding_source
-  L814     def _valid_at
-  L819     def _summary
+  L264     async def remember
+  L288     async def _remember
+  L453     async def recall
+  L622     async def forget
+  L642     async def get
+  L655     async def list_recent
+  L663     async def decay
+  L685     async def stats
+  L709     def node_id
+  L712     def capability
+  L724     async def _claim_candidates
+  L740     async def export_claims
+  L814     async def verify_support
+  L854     def close
+  L858     async def _session_nodes
+  L866     def _file_stamp
+  L873     def _invalidate
+  L876     async def _embed
+  L886     def dominant_embedding_source
+  L903     def _valid_at
+  L908     def _summary
 ```
 
-### `NeuralGraph/mcp/server.py` (226 lines)
+### `NeuralGraph/mcp/server.py` (234 lines)
 NeuralGraph memory as an MCP server for Claude Code and Codex.
 
 ```
@@ -1048,8 +1123,8 @@ NeuralGraph memory as an MCP server for Claude Code and Codex.
   L85    async def engine
   L103   def set_engine
   L109   def build_server
-  L187   def client_config
-  L205   def main
+  L195   def client_config
+  L213   def main
 ```
 
 ### `NeuralGraph/mega_search.py` (194 lines)
@@ -2083,6 +2158,44 @@ The pinned memory evaluation regenerates byte-for-byte and its claims hold.
   L50      def test_confidence_gate_answers_no_unanswerable_query
 ```
 
+### `NeuralGraph/tests/test_mcp_fabric.py` (136 lines)
+The fabric over in-process peers: composition, forecast, repair, privacy, bus, pinned demo.
+
+```
+  L18    ARTIFACTS = …
+  L19    Q = …
+  L22    def engine
+  L26    class FabricTests(unittest.IsolatedAsyncioTestCase)
+  L27      async def asyncSetUp
+  L40      async def asyncTearDown
+  L46      async def test_collective_composes_keys_no_single_peer_holds
+  L55      async def test_forecast_names_the_single_points_of_failure
+  L65      async def test_same_domain_replica_is_not_protection_but_independent_domain_is
+  L73      async def test_repair_reaches_an_independent_holder_when_the_route_is_bounded
+  L83      async def test_private_memory_crosses_as_denial_only
+  L89      async def test_federated_recall_merges_replicas_across_peers
+  L96      async def test_redelivered_exports_are_dropped_not_double_counted
+  L106     async def test_bus_records_and_hints
+  L113     async def test_bus_persists_across_fabric_restarts
+  L121   class FabricDemoArtifactTests(unittest.TestCase)
+  L122     def test_pinned_demo_regenerates_byte_for_byte
+```
+
+### `NeuralGraph/tests/test_mcp_fabric_transport.py` (69 lines)
+The fabric over REAL peer processes: MCP on stdio, a peer killed and regrown.
+
+```
+  L15    ROOT = …
+  L18    def _env
+  L22    def _pids
+  L27    class TransportTests(unittest.IsolatedAsyncioTestCase)
+  L28      async def asyncSetUp
+  L39      async def asyncTearDown
+  L42      async def test_collective_over_two_real_processes
+  L49      async def test_killed_peer_is_a_transport_failure_then_regrows_from_its_store
+  L61      async def test_unreachable_peer_is_reported_not_raised
+```
+
 ### `NeuralGraph/tests/test_mcp_lexicon.py` (57 lines)
 Thesaurus, spelling detector and name extraction used by the memory server.
 
@@ -2096,7 +2209,7 @@ Thesaurus, spelling detector and name extraction used by the memory server.
   L50      def test_sentence_initial_dictionary_words_are_candidates_not_names
 ```
 
-### `NeuralGraph/tests/test_mcp_memory.py` (410 lines)
+### `NeuralGraph/tests/test_mcp_memory.py` (411 lines)
 NeuralGraph as an MCP memory server: engine behaviour and tool surface.
 
 ```
@@ -2121,30 +2234,30 @@ NeuralGraph as an MCP memory server: engine behaviour and tool surface.
   L165     async def test_sessions_are_isolated
   L175     async def test_persistence_survives_reopen
   L186     async def test_export_claims_denies_private_memories_without_payload
-  L201     async def test_entity_extraction_covers_handles_and_paths
-  L209   class HardeningTests(unittest.IsolatedAsyncioTestCase)
-  L212     async def asyncSetUp
-  L218     async def asyncTearDown
-  L222     async def test_changed_keyed_fact_supersedes_instead_of_deduplicating
-  L233     async def test_negations_numbers_and_dates_are_distinct_memories
-  L249     async def test_unkeyed_memory_adopts_a_later_key_and_then_supersedes
-  L261     async def test_different_key_same_text_is_a_different_fact
-  L266     async def test_private_restatement_upgrades_and_never_uses_a_model_embedder
-  L286     async def test_model_failure_falls_back_to_hashed_and_records_it
-  L301     async def test_derived_from_cannot_cross_sessions
-  L307     async def test_forget_scrubs_the_copy_held_by_the_superseding_memory
-  L316     async def test_single_memory_and_unicode_are_recallable_by_keyword
-  L324     async def test_entities_keep_names_and_drop_sentence_starters
-  L331     async def test_decay_rejects_negative_rate
-  L335     async def test_concurrent_remembers_do_not_duplicate
-  L342     async def test_cache_sees_writes_from_another_engine_on_the_same_file
-  L349   class ServerTests(unittest.IsolatedAsyncioTestCase)
-  L350     async def asyncSetUp
-  L356     async def asyncTearDown
-  L361     async def test_tool_surface
-  L370     async def test_remember_recall_round_trip_through_the_protocol
-  L380     async def test_validation_errors_reach_the_client_with_their_message
-  L393     def test_client_configs
+  L202     async def test_entity_extraction_covers_handles_and_paths
+  L210   class HardeningTests(unittest.IsolatedAsyncioTestCase)
+  L213     async def asyncSetUp
+  L219     async def asyncTearDown
+  L223     async def test_changed_keyed_fact_supersedes_instead_of_deduplicating
+  L234     async def test_negations_numbers_and_dates_are_distinct_memories
+  L250     async def test_unkeyed_memory_adopts_a_later_key_and_then_supersedes
+  L262     async def test_different_key_same_text_is_a_different_fact
+  L267     async def test_private_restatement_upgrades_and_never_uses_a_model_embedder
+  L287     async def test_model_failure_falls_back_to_hashed_and_records_it
+  L302     async def test_derived_from_cannot_cross_sessions
+  L308     async def test_forget_scrubs_the_copy_held_by_the_superseding_memory
+  L317     async def test_single_memory_and_unicode_are_recallable_by_keyword
+  L325     async def test_entities_keep_names_and_drop_sentence_starters
+  L332     async def test_decay_rejects_negative_rate
+  L336     async def test_concurrent_remembers_do_not_duplicate
+  L343     async def test_cache_sees_writes_from_another_engine_on_the_same_file
+  L350   class ServerTests(unittest.IsolatedAsyncioTestCase)
+  L351     async def asyncSetUp
+  L357     async def asyncTearDown
+  L362     async def test_tool_surface
+  L371     async def test_remember_recall_round_trip_through_the_protocol
+  L381     async def test_validation_errors_reach_the_client_with_their_message
+  L394     def test_client_configs
 ```
 
 ### `NeuralGraph/tests/test_replay_generation.py` (503 lines)
@@ -3017,7 +3130,7 @@ Verify all 3 fixes are working in the new benchmark
   L149   # Mycelic orchestrator protocol v1.0
 ```
 
-### `docs/ARCHITECTURE.md` (283 lines)
+### `docs/ARCHITECTURE.md` (286 lines)
 
 ```
   L1     # Architecture
@@ -3036,7 +3149,7 @@ Verify all 3 fixes are working in the new benchmark
   L194   ## Repair policies
   L223   ## Determinism
   L238   ## Known limitations
-  L262   ## Where things live
+  L263   ## Where things live
 ```
 
 ### `docs/BENCHMARKS.md` (174 lines)
@@ -3052,6 +3165,18 @@ Verify all 3 fixes are working in the new benchmark
   L133   ### Mechanics worth keeping
   L147   ## Track C — The December baseline (superseded, leaky)
   L166   ## Evidence classes at a glance
+```
+
+### `docs/FABRIC.md` (92 lines)
+
+```
+  L1     # The fabric: agents' memories as peers
+  L9     ## Transport
+  L28    ## Collective recall
+  L52    ## Forecast (the pre-mortem oracle on real memories)
+  L66    ## As an MCP server
+  L73    ## Pinned demo
+  L84    ## Boundaries kept
 ```
 
 ### `docs/MCP.md` (164 lines)

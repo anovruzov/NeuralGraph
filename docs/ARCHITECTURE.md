@@ -251,8 +251,9 @@ Stated here so they are not rediscovered from the diff.
 3. **`REDACTED`** has no real-adapter projection; fails closed to `DENIED`.
 4. **Per-source-memory authorization** is absent. `query()` performs no
    capability-scope authorization of its own; that is the router's job.
-5. **Transport is not implemented.** NATS/JetStream is design intent. Everything
-   runs in-process.
+5. **NATS/JetStream is not implemented.** The transport that exists is MCP over
+   stdio between peer memory servers (`coordination/mcp_peer.py`); the
+   benchmark itself runs in-process. See `docs/FABRIC.md`.
 6. **`recovery_steps` is a logical step count**, not wall-clock latency. No
    wall-clock timing is measured anywhere, because a mock adapter's timings
    would say nothing about a deployed system.
@@ -276,6 +277,8 @@ NeuralGraph/coordination/
                       executions; route hints for the orchestrator
   agent_prompt.py     the node / orchestrator protocol prompt, rendered from
                       the contracts (docs/AGENT_PROMPT.md is generated)
+  mcp_peer.py         peer adapters: in-process and MCP over stdio; masking
+                      through the orchestrator's failure view
   artifacts/          pinned JSON + SHA256SUMS
 ```
 
