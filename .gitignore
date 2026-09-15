@@ -5,3 +5,10 @@ __pycache__/
 demo/results/emb_cache/
 demo/results/smoke*.json
 demo/omega.json
+
+# website
+site/node_modules/
+site/.next/
+site/out/
+site/next-env.d.ts
+site/*.tsbuildinfo
