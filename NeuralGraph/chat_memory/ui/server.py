@@ -47,6 +47,17 @@ def _bad(msg: str, status: int = 400) -> web.Response:
     return _json({"error": msg}, status)
 
 
+async def _body_object(request: web.Request) -> tuple[dict[str, Any] | None, web.Response | None]:
+    """Decode the JSON body; (dict, None) on success, (None, 400 response) otherwise."""
+    try:
+        body = await request.json()
+    except Exception:
+        return None, _bad("invalid JSON body")
+    if not isinstance(body, dict):
+        return None, _bad("JSON body must be an object")
+    return body, None
+
+
 LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "[::1]", "::1", "0.0.0.0"})
 
 
@@ -184,10 +195,9 @@ def create_app(cm: ChatMemory, *, mcp_token: str | None = None, api_token: str |
         return _json(await cm.profile(request.match_info["subject"]))
 
     async def add_message(request: web.Request) -> web.Response:
-        try:
-            body = await request.json()
-        except Exception:
-            return _bad("invalid JSON body")
+        body, err = await _body_object(request)
+        if err is not None:
+            return err
         for f in ("chat_id", "speaker", "text"):
             if not isinstance(body.get(f), str) or not body[f].strip():
                 return _bad(f"'{f}' is required")
@@ -201,25 +211,28 @@ def create_app(cm: ChatMemory, *, mcp_token: str | None = None, api_token: str |
         return _json({"queued": True, "message": msg.to_dict()}, 202)
 
     async def add_batch(request: web.Request) -> web.Response:
-        try:
-            body = await request.json()
-        except Exception:
-            return _bad("invalid JSON body")
+        body, err = await _body_object(request)
+        if err is not None:
+            return err
         chat_id = body.get("chat_id")
         items = body.get("messages")
         if not isinstance(chat_id, str) or not chat_id or not isinstance(items, list):
             return _bad("'chat_id' and 'messages' are required")
-        for i, it in enumerate(items):
+        for i, it in enumerate(items):   # validate everything before inserting anything (all-or-nothing)
             if not isinstance(it, dict) or not isinstance(it.get("text"), str):
                 return _bad(f"messages[{i}] must be an object with a 'text' string")
+            for f in ("speaker", "role", "sent_at", "message_id"):
+                if it.get(f) is not None and not isinstance(it.get(f), str):
+                    return _bad(f"messages[{i}].{f} must be a string")
+            if it.get("metadata") is not None and not isinstance(it.get("metadata"), dict):
+                return _bad(f"messages[{i}].metadata must be an object")
         msgs = await cm.add_messages(chat_id, items)
         return _json({"queued": len(msgs), "message_ids": [m.message_id for m in msgs]}, 202)
 
     async def remember(request: web.Request) -> web.Response:
-        try:
-            body = await request.json()
-        except Exception:
-            return _bad("invalid JSON body")
+        body, err = await _body_object(request)
+        if err is not None:
+            return err
         if not isinstance(body.get("text"), str) or not body["text"].strip():
             return _bad("'text' is required")
         try:
@@ -237,10 +250,9 @@ def create_app(cm: ChatMemory, *, mcp_token: str | None = None, api_token: str |
         return _json({"memory": mem.to_dict()}, 201)
 
     async def forget(request: web.Request) -> web.Response:
-        try:
-            body = await request.json()
-        except Exception:
-            return _bad("invalid JSON body")
+        body, err = await _body_object(request)
+        if err is not None:
+            return err
         if not isinstance(body.get("memory_id"), str):
             return _bad("'memory_id' is required")
         ok = await cm.retract(body["memory_id"], body.get("reason") or "user request")

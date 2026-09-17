@@ -339,3 +339,79 @@ class HttpMcpFixTests(Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ResidualTests(Base):
+    async def test_debounce_coalesces_with_sub_second_timing(self) -> None:
+        """A turn at x.60 s and its reply 0.5 s later must wait for each other and be leased as one batch."""
+        from datetime import datetime, timedelta, timezone
+        from unittest import mock
+        import NeuralGraph.chat_memory.store as store_mod
+        t0 = datetime(2026, 9, 17, 10, 0, 0, 600000, tzinfo=timezone.utc)
+        clock = {"now": t0}
+        with mock.patch.object(store_mod, "utcnow", lambda: clock["now"]):
+            await self.store.add_message("t", "Ali", "I moved to Berlin.", debounce_seconds=1.0)
+            clock["now"] = t0 + timedelta(seconds=0.5)
+            await self.store.add_message("t", "assistant", "Nice! Berlin is lovely.", role="assistant", debounce_seconds=1.0)
+            clock["now"] = t0 + timedelta(seconds=1.2)
+            self.assertEqual(await self.store.lease_job("w", 60, batch_size=6), [], "nothing runnable inside the reply's window")
+            clock["now"] = t0 + timedelta(seconds=1.6)
+            jobs = await self.store.lease_job("w", 60, batch_size=6)
+            self.assertEqual(len(jobs), 2, "turn and reply leased together")
+
+    async def test_kind_and_time_filters_reach_keyword_and_graph_channels(self) -> None:
+        for i in range(300):
+            m = make_memory(f"User note {i} about the marathon training block.", subject="user", chat_id="big",
+                            embedding=fake_embedding(f"note {i} marathon"), importance=0.9, observed_at="2026-02-01T00:00:00+00:00")
+            await self.store.insert_memory(m, entity_ids=["user", "marathon"])
+        old = make_memory("Mel ran the Osaka marathon.", subject="mel", embedding=fake_embedding("Mel ran the Osaka marathon."),
+                          kind="event", importance=0.3, observed_at="2019-06-01T00:00:00+00:00")
+        await self.store.insert_memory(old, entity_ids=["mel", "marathon"])
+        await self.store.upsert_entity("marathon", "marathon", "event")
+        ret = MemoryRetriever(self.store, FakeLLMClient())
+        self.assertEqual([h.memory.memory_id for h in await ret.search("marathon", kinds=["event"], channels="K")], [old.memory_id])
+        self.assertEqual([h.memory.memory_id for h in await ret.search("marathon", until="2020-01-01", channels="G")], [old.memory_id])
+        # store-side list/timeline use the same interval semantics as the index
+        month = make_memory("Mel plans a Kyoto trip.", subject="mel", embedding=fake_embedding("Kyoto trip"), kind="plan")
+        month.event_time, month.event_time_precision = "2026-10", "month"
+        await self.store.insert_memory(month, entity_ids=["mel"])
+        self.assertEqual([m.memory_id for m in await self.store.list_memories(subject="mel", since="2026-10-01", until="2026-10-31")], [month.memory_id])
+        self.assertEqual([m.memory_id for m in await self.store.list_memories(subject="mel", since="2019-01-01", until="2019-12-31")], [old.memory_id])
+
+    async def test_non_object_json_bodies_are_400(self) -> None:
+        cfg = ChatMemoryConfig(); cfg.debounce_seconds = 0
+        await self.store.close()
+        cm = ChatMemory(self.db_path, llm=scripted_fake_llm(), config=cfg)
+        self.store = cm.store
+        client = TestClient(TestServer(create_app(cm)))
+        await client.start_server()
+        try:
+            for path in ("/api/messages", "/api/messages/batch", "/api/remember", "/api/forget"):
+                r = await client.post(path, data=b"[1, 2]", headers={"Content-Type": "application/json"})
+                self.assertEqual(r.status, 400, path)
+            r = await client.post("/api/messages/batch", json={"chat_id": "b", "messages": [{"text": "ok one"}, {"text": "bad", "speaker": 5}]})
+            self.assertEqual(r.status, 400)
+            self.assertEqual(await cm.store.message_counts(), {}, "all-or-nothing: nothing inserted")
+        finally:
+            await client.close()
+            await cm.close()
+            self.store = ChatMemoryStore(self.db_path)
+
+    async def test_worker_learns_embedding_dimension_from_its_own_plans(self) -> None:
+        cfg = ChatMemoryConfig(); cfg.debounce_seconds = 0
+        await self.store.close()
+        cm = ChatMemory(self.db_path, llm=scripted_fake_llm(), config=cfg)
+        self.store = cm.store
+        await cm.add_message("d", "Ali", "I moved to Berlin in March and my cat Luna is 3 years old.", sent_at="2026-04-01T10:00:00+00:00")
+        await cm.process_pending()
+        self.assertEqual(await cm.store.get_meta("embed_dim"), str(len(fake_embedding("x"))))
+        # switch to a model with another dimension: maintenance re-embeds the old rows
+        cm.llm = cm.worker.llm = scripted_fake_llm(dim=128)
+        report = await cm.maintain()
+        self.assertEqual(report["reembedded"], 0, "dimension meta still says 256; the probe is only used when unknown")
+        await cm.store.set_meta("embed_dim", "128")
+        report = await cm.maintain()
+        self.assertGreaterEqual(report["reembedded"], 1)
+        self.assertTrue(all(len(m.embedding) == 128 for m in await cm.memories() if m.embedding))
+        await cm.close()
+        self.store = ChatMemoryStore(self.db_path)

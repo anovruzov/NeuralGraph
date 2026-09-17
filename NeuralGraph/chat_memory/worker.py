@@ -100,6 +100,7 @@ class MemoryWorker:
         self._last_sweep = 0.0
         self._last_maint = time.monotonic()
         self._running = False
+        self._embed_dim: str | None = None
 
     # ------------------------------------------------------------------ lifecycle
     @property
@@ -275,6 +276,12 @@ class MemoryWorker:
         finally:
             hb.cancel()
         dt = time.perf_counter() - t0
+        dims = {len(m.embedding) for m, _, _ in plan.new_memories if m.embedding}
+        if len(dims) == 1:
+            d = str(next(iter(dims)))
+            if self._embed_dim != d:
+                self._embed_dim = d
+                await self.store.set_meta("embed_dim", d)
         self.metrics.batches += 1
         self.metrics.messages_processed += len(plan.processed_message_ids)
         self.metrics.messages_skipped += len(plan.skipped_message_ids)
@@ -332,6 +339,12 @@ class MemoryWorker:
                         report["embedded"] += 1
                         await self.store.set_meta("embed_dim", str(len(v)))
             dim = await self.store.get_meta("embed_dim")
+            if not dim:
+                # nothing learned yet (e.g. every memory so far came from another process): one probe call
+                probe = await self.llm.embed_many(["embedding dimension probe"])
+                if probe and probe[0]:
+                    dim = str(len(probe[0]))
+                    await self.store.set_meta("embed_dim", dim)
             if dim:
                 stale = await self.store.memories_with_embedding_dim_other_than(int(dim), cfg.reembed_limit)
                 if stale:

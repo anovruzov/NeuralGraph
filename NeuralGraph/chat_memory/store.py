@@ -23,7 +23,7 @@ import logging
 import sqlite3
 import struct
 from contextlib import contextmanager
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterable, Iterator
 
@@ -245,6 +245,57 @@ def _unpack(blob: bytes | None) -> list[float] | None:
     return list(struct.unpack(f"{n}f", blob))
 
 
+def _precise_iso(dt: datetime) -> str:
+    """Sub-second ISO timestamp for job scheduling. ``iso()`` truncates to whole seconds, which let a one-second
+    debounce expire up to a second early and made the pull-forward a no-op at that granularity."""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).isoformat(timespec="microseconds")
+
+
+def query_bounds(since: str | None, until: str | None) -> tuple[str, str]:
+    """Expand date-only / month / year ``since``/``until`` to full ISO bounds (inclusive of the whole period)."""
+    lo = since or ""
+    hi = until or ""
+    if lo and len(lo) == 10:
+        lo += "T00:00:00"
+    elif lo and len(lo) == 7:
+        lo += "-01T00:00:00"
+    elif lo and len(lo) == 4:
+        lo += "-01-01T00:00:00"
+    if hi and len(hi) == 10:
+        hi += "T23:59:59"
+    elif hi and len(hi) == 7:
+        hi += "-31T23:59:59"
+    elif hi and len(hi) == 4:
+        hi += "-12-31T23:59:59"
+    return lo[:19], hi[:19]
+
+
+# SQL twins of retrieval._time_bounds: a memory's [start, end] given the precision of its event_time
+_MEM_START_SQL = ("(CASE WHEN m.event_time IS NULL OR m.event_time = '' THEN substr(m.observed_at, 1, 19)"
+                  " WHEN length(m.event_time) = 4 THEN m.event_time || '-01-01T00:00:00'"
+                  " WHEN length(m.event_time) = 7 THEN m.event_time || '-01T00:00:00'"
+                  " WHEN length(m.event_time) = 10 THEN m.event_time || 'T00:00:00'"
+                  " ELSE substr(m.event_time, 1, 19) END)")
+_MEM_END_SQL = ("(CASE WHEN m.event_time IS NULL OR m.event_time = '' THEN substr(m.observed_at, 1, 19)"
+                " WHEN length(m.event_time) = 4 THEN m.event_time || '-12-31T23:59:59'"
+                " WHEN length(m.event_time) = 7 THEN m.event_time || '-31T23:59:59'"
+                " WHEN length(m.event_time) = 10 THEN m.event_time || 'T23:59:59'"
+                " ELSE substr(m.event_time, 1, 19) END)")
+
+
+def _time_predicates(since: str | None, until: str | None, args: list) -> str:
+    """SQL fragment (starting with ' AND ...') restricting rows whose time interval overlaps [since, until]."""
+    lo, hi = query_bounds(since, until)
+    sql = ""
+    if lo:
+        sql += f" AND {_MEM_END_SQL} >= ?"; args.append(lo)
+    if hi:
+        sql += f" AND {_MEM_START_SQL} <= ?"; args.append(hi)
+    return sql
+
+
 def _j(v: Any) -> str:
     return json.dumps(v if v is not None else {}, ensure_ascii=False, sort_keys=True)
 
@@ -434,14 +485,15 @@ class ChatMemoryStore:
                     (now, chat_id, chat_id),
                 )
                 if enqueue:
-                    avail = iso(utcnow() + timedelta(seconds=max(0.0, debounce_seconds)))
+                    ingest = utcnow()
+                    avail = _precise_iso(ingest + timedelta(seconds=max(0.0, debounce_seconds)))
                     self._enqueue_sync(c, "extract", chat_id=chat_id, ref_id=mid, seq=seq,
                                        dedupe_key=f"extract:{mid}", available_at=avail, max_attempts=max_attempts)
                     if debounce_seconds > 0:
                         # pull-forward debounce: earlier queued messages of this chat that are still inside their
                         # debounce window wait for this one, so a turn and its reply are extracted together
                         c.execute("UPDATE jobs SET available_at=? WHERE chat_id=? AND kind='extract' AND status='queued' "
-                                  "AND available_at > ? AND available_at < ?", (avail, chat_id, now, avail))
+                                  "AND available_at > ? AND available_at < ?", (avail, chat_id, _precise_iso(ingest), avail))
                 msg = self._row_message(c.execute("SELECT * FROM messages WHERE message_id=?", (mid,)).fetchone())
         return msg, True
 
@@ -574,6 +626,7 @@ class ChatMemoryStore:
         queued or leased. Returns ``[]`` when nothing is runnable.
         """
         now = now_iso()
+        runnable_at = _precise_iso(utcnow())
         until = iso(utcnow() + timedelta(seconds=lease_seconds))
         kind_list = list(kinds) if kinds else None
         async with self._lock:
@@ -584,7 +637,7 @@ class ChatMemoryStore:
                                  SELECT 1 FROM jobs j2
                                  WHERE j2.chat_id = j.chat_id AND j2.job_id <> j.job_id
                                    AND j2.status IN ('queued', 'leased') AND j2.seq < j.seq))"""
-                args: list[Any] = [now]
+                args: list[Any] = [runnable_at]
                 if kind_list:
                     sql += f" AND j.kind IN ({','.join('?' * len(kind_list))})"; args.extend(kind_list)
                 sql += " ORDER BY j.available_at, j.job_id LIMIT 1"
@@ -599,7 +652,7 @@ class ChatMemoryStore:
                     rows = c.execute(
                         """SELECT * FROM jobs WHERE kind='extract' AND chat_id=? AND status='queued'
                            AND seq > ? AND available_at <= ? ORDER BY seq LIMIT ?""",
-                        (head["chat_id"], head["seq"], now, eff_batch - 1),
+                        (head["chat_id"], head["seq"], runnable_at, eff_batch - 1),
                     ).fetchall()
                     prev = head["seq"]
                     for r in rows:
@@ -666,7 +719,7 @@ class ChatMemoryStore:
         if not ids:
             return result
         now = now_iso()
-        avail = iso(utcnow() + timedelta(seconds=max(0.0, backoff_seconds)))
+        avail = _precise_iso(utcnow() + timedelta(seconds=max(0.0, backoff_seconds)))
         err = (error or "")[:2000]
         async with self._lock:
             with self._tx() as c:
@@ -966,7 +1019,7 @@ class ChatMemoryStore:
         order: str = "observed_at DESC",
         with_sources: bool = False,
     ) -> list[Memory]:
-        sql = "SELECT * FROM memories WHERE 1=1"
+        sql = "SELECT m.* FROM memories m WHERE 1=1"
         args: list[Any] = []
         if status:
             sql += " AND status=?"; args.append(status)
@@ -979,10 +1032,7 @@ class ChatMemoryStore:
         kl = list(kinds) if kinds else None
         if kl:
             sql += f" AND kind IN ({','.join('?' * len(kl))})"; args.extend(kl)
-        if since:
-            sql += " AND COALESCE(event_time, observed_at) >= ?"; args.append(since)
-        if until:
-            sql += " AND COALESCE(event_time, observed_at) <= ?"; args.append(until)
+        sql += _time_predicates(since, until, args)
         if order not in ("observed_at DESC", "observed_at ASC", "importance DESC", "created_at DESC", "created_at ASC"):
             raise ValueError("unsupported order")
         sql += f" ORDER BY {order}, rid"
@@ -1063,7 +1113,8 @@ class ChatMemoryStore:
         return [self._row_memory(r) for r in rows]
 
     async def keyword_candidates(self, query: str, limit: int = 50, *, status: str = "active", subject: str | None = None,
-                                 chat_id: str | None = None, speaker: str | None = None) -> list[tuple[str, float]]:
+                                 chat_id: str | None = None, speaker: str | None = None, kinds: Iterable[str] | None = None,
+                                 since: str | None = None, until: str | None = None) -> list[tuple[str, float]]:
         """Keyword channel over memory text: FTS5 bm25 when available, else in-process BM25.
         Filters are pushed into the query so a filtered search is not starved by the global LIMIT."""
         toks = tokenize(query)
@@ -1082,6 +1133,10 @@ class ChatMemoryStore:
                 sql += " AND m.chat_id = ?"; args.append(chat_id)
             if speaker:
                 sql += " AND m.speaker = ?"; args.append(speaker)
+            kl = list(kinds) if kinds else None
+            if kl:
+                sql += f" AND m.kind IN ({','.join('?' * len(kl))})"; args.extend(kl)
+            sql += _time_predicates(since, until, args)
             sql += " ORDER BY s LIMIT ?"; args.append(limit)
             rows = self._conn.execute(sql, args).fetchall()
             return [(r["id"], -float(r["s"])) for r in rows]
@@ -1101,13 +1156,18 @@ class ChatMemoryStore:
         _, ids, bm25 = cache
         if not ids or bm25 is None:
             return []
+        allowed: set[str] | None = None
+        if subject or chat_id or speaker or kinds or since or until:
+            allowed = {m.memory_id for m in await self.list_memories(status=status, subject=subject, chat_id=chat_id, speaker=speaker,
+                                                                   kinds=kinds, since=since, until=until)}
         scores = bm25.get_scores(toks)
-        ranked = sorted(((ids[i], float(s)) for i, s in enumerate(scores) if s > 0), key=lambda x: -x[1])
+        ranked = sorted(((ids[i], float(s)) for i, s in enumerate(scores) if s > 0 and (allowed is None or ids[i] in allowed)),
+                        key=lambda x: -x[1])
         if not ranked:
             # tiny corpora: BM25's idf goes non-positive; fall back to plain token containment
             qset = set(toks)
             ranked = [(ids[i], float(len(qset & set(bm25.doc_freqs[i].keys()) if hasattr(bm25, "doc_freqs") else set())))
-                      for i in range(len(ids))]
+                      for i in range(len(ids)) if allowed is None or ids[i] in allowed]
             ranked = sorted(((m, sc) for m, sc in ranked if sc > 0), key=lambda x: -x[1])
         return ranked[:limit]
 
@@ -1195,7 +1255,8 @@ class ChatMemoryStore:
         return out
 
     async def memories_for_entities(self, entity_ids: Iterable[str], limit: int = 200, *, status: str = "active",
-                                    subject: str | None = None, chat_id: str | None = None) -> list[tuple[str, str]]:
+                                    subject: str | None = None, chat_id: str | None = None, kinds: Iterable[str] | None = None,
+                                    since: str | None = None, until: str | None = None) -> list[tuple[str, str]]:
         ids = list(dict.fromkeys(e for e in entity_ids if e))
         if not ids:
             return []
@@ -1206,6 +1267,10 @@ class ChatMemoryStore:
             sql += " AND m.subject = ?"; args.append(subject)
         if chat_id:
             sql += " AND m.chat_id = ?"; args.append(chat_id)
+        kl = list(kinds) if kinds else None
+        if kl:
+            sql += f" AND m.kind IN ({','.join('?' * len(kl))})"; args.extend(kl)
+        sql += _time_predicates(since, until, args)
         sql += " ORDER BY m.importance DESC, m.observed_at DESC LIMIT ?"; args.append(limit)
         rows = self._conn.execute(sql, args).fetchall()
         return [(r["memory_id"], r["entity_id"]) for r in rows]

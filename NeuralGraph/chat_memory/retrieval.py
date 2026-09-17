@@ -27,7 +27,7 @@ import numpy as np
 
 from .llm import LLMClient
 from .models import ChatMessage, Memory, RetrievedMemory, parse_iso, utcnow
-from .store import ChatMemoryStore
+from .store import ChatMemoryStore, query_bounds
 from .textutil import norm_entity, normalize_ws, tokenize
 
 
@@ -83,22 +83,7 @@ def _time_bounds(t: str | None, precision: str | None) -> tuple[str, str]:
     return base, base
 
 
-def _query_bounds(since: str | None, until: str | None) -> tuple[str, str]:
-    lo = since or ""
-    hi = until or ""
-    if lo and len(lo) == 10:
-        lo += "T00:00:00"
-    elif lo and len(lo) == 7:
-        lo += "-01T00:00:00"
-    elif lo and len(lo) == 4:
-        lo += "-01-01T00:00:00"
-    if hi and len(hi) == 10:
-        hi += "T23:59:59"
-    elif hi and len(hi) == 7:
-        hi += "-31T23:59:59"
-    elif hi and len(hi) == 4:
-        hi += "-12-31T23:59:59"
-    return lo[:19], hi[:19]
+_query_bounds = query_bounds
 
 
 class _Index:
@@ -313,7 +298,7 @@ class MemoryRetriever:
                 rankings.append([m for m, _ in vr]); weights.append(cfg.weight_vector)
 
         if "K" in channels:
-            kw_filters = {"subject": subject_id, "chat_id": chat_id, "speaker": speaker}
+            kw_filters = {"subject": subject_id, "chat_id": chat_id, "speaker": speaker, "kinds": kind_set, "since": since, "until": until}
             kw_rows = await self.store.keyword_candidates(query, cfg.depth * 2, **kw_filters)
             if include_superseded or since or until:
                 kw_rows = kw_rows + await self.store.keyword_candidates(query, cfg.depth * 2, status="superseded", **kw_filters)
@@ -326,7 +311,7 @@ class MemoryRetriever:
             q_entities = await self.query_entities(query)
             if q_entities:
                 gr = await self._graph_rank(q_entities, allowed, cfg.depth, bool(include_superseded or since or until),
-                                            subject=subject_id, chat_id=chat_id)
+                                            subject=subject_id, chat_id=chat_id, kinds=kind_set, since=since, until=until)
                 per_channel["graph"] = dict(gr)
                 rankings.append([m for m, _ in gr]); weights.append(cfg.weight_graph)
 
@@ -397,11 +382,12 @@ class MemoryRetriever:
         return out
 
     async def _graph_rank(self, entity_ids: list[str], allowed: set[str], depth: int, with_superseded: bool = False,
-                          *, subject: str | None = None, chat_id: str | None = None) -> list[tuple[str, float]]:
+                          *, subject: str | None = None, chat_id: str | None = None, kinds: set[str] | None = None,
+                          since: str | None = None, until: str | None = None) -> list[tuple[str, float]]:
         counts = await self.store.entity_memory_counts(entity_ids)
         scores: dict[str, float] = {}
         # direct mentions, weighted by inverse entity frequency (hub entities carry less signal)
-        flt = {"subject": subject, "chat_id": chat_id}
+        flt = {"subject": subject, "chat_id": chat_id, "kinds": kinds, "since": since, "until": until}
         rows = await self.store.memories_for_entities(entity_ids, limit=depth * 4, **flt)
         if with_superseded:
             rows = rows + await self.store.memories_for_entities(entity_ids, limit=depth * 4, status="superseded", **flt)
