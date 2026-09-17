@@ -1,0 +1,49 @@
+# Hierarchy policy defaults and experiment tiers.
+policy:
+  sketch_order: 3                 # max cell order promoted upward (1..3); 4 only via questions
+  compression: order_capped   # full_sketch | order_capped | order2_plus_significant | significant_cells_only | claims_only
+  top_k_claims: 200               # max claims promoted per node per round
+  byte_budget: 0                  # 0 = unlimited; otherwise bytes per node per round
+  min_cell_n: 3                   # suppress promoted higher-order cells with n below this (k-anonymity)
+  k_anonymity: 3
+  quote_policy: none              # none | redacted | raw
+  fdr_q: 0.05
+  n_min: 8
+  effect_min: 0.08
+  support_min: 2.0                # minimum independent support to accept a claim
+  lineage: true                   # provenance signatures, dedup, correlation discount
+  questioning: none               # none | fixed | confidence | eig | budget
+  question_budget: 20             # questions per node per round (fixed / eig)
+  question_byte_budget: 4096      # bytes per node per round (budget policy)
+  recent_window: 6                # rounds for temporal revision tests
+  cadence: {team: 1, department: 1, region: 1, executive: 1}   # aggregation every k rounds
+  fan_in_budget_bytes: 0          # 0 = unlimited; flat baseline uses a finite budget
+  resolve_ratio: 2.0              # independent support ratio to resolve a contradiction
+  max_order_questions: 4
+
+tiers:
+  tier1:
+    org: {n_workers: 1000, workers_per_team: 100, teams_per_department: 5, departments_per_region: 2, n_rounds: 30, interactions_per_worker: 10}
+    world: {n_local_findings: 100, n_cross_team_findings: 25, n_global_findings: 10, n_decoys: 30, n_contradictions: 10, n_temporal_revisions: 10}
+    seeds: 30
+  tier2:
+    org: {n_workers: 10000, workers_per_team: 100, teams_per_department: 5, departments_per_region: 4, n_rounds: 30, interactions_per_worker: 10}
+    world: {n_local_findings: 1000, n_cross_team_findings: 250, n_global_findings: 100, n_decoys: 200, n_contradictions: 100, n_temporal_revisions: 100}
+    seeds: 10
+  tier3:
+    org: {n_workers: 50000, workers_per_team: 100, teams_per_department: 10, departments_per_region: 10, n_rounds: 30, interactions_per_worker: 10}
+    world: {n_local_findings: 2000, n_cross_team_findings: 500, n_global_findings: 200, n_decoys: 400, n_contradictions: 100, n_temporal_revisions: 100}
+    seeds: 3
+
+systems:
+  B0_isolated: {kind: baseline}
+  B1_central_keyword: {kind: baseline, query_budget: 3000}
+  B2_central_rag: {kind: baseline, query_budget: 3000, top_k: 50}
+  B3_central_llm_summary: {kind: baseline, window_records: 200}
+  B4_majority_vote: {kind: baseline, min_votes: 3}
+  B5_flat_agents: {kind: hierarchy, layers: 1, fan_in_budget_bytes: 2000000, lineage: false}
+  B6_hier_no_lineage: {kind: hierarchy, lineage: false, detector: none}
+  B7_mycelic: {kind: hierarchy, lineage: true, detector: none}
+  B8_mycelic_security: {kind: hierarchy, lineage: true, detector: lineage_aware, local_slm_classifier: true}
+  B9_mycelic_questioning: {kind: hierarchy, lineage: true, detector: lineage_aware, local_slm_classifier: true, questioning: eig}
+  ORACLE_central_stats: {kind: oracle}

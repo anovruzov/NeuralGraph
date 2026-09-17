@@ -1,0 +1,64 @@
+# Organization, workforce and world configuration (Tier-1 defaults; the
+# headline demo overrides n_workers=10000 etc. in experiments.yaml)
+org:
+  n_workers: 1000
+  workers_per_team: 100
+  teams_per_department: 5
+  departments_per_region: 4
+  n_regions: 1            # derived if 0: ceil(teams / (teams_per_department*departments_per_region))
+  layers: 5               # 1 | 2 | 3 | 5 | 7 (hierarchy ablation)
+  interactions_per_worker: 10
+  n_rounds: 30            # simulated days
+  seed: 0
+
+  # Worker quality mix (must sum to 1). 'adversarial' here is the *baseline*
+  # malicious fraction; attack experiments override attacks.malicious_fraction.
+  worker_mix:
+    expert: 0.10
+    average: 0.55
+    weak: 0.20
+    overconfident: 0.05
+    underconfident: 0.03
+    noisy: 0.04
+    duplicator: 0.03
+    adversarial: 0.00
+
+  worker_types:
+    expert:        {label_recall: 0.95, label_fpr: 0.010, conf_bias: 0.00, conf_noise: 0.05, mention_prob: 0.90, copy_prob: 0.0}
+    average:       {label_recall: 0.82, label_fpr: 0.020, conf_bias: 0.00, conf_noise: 0.10, mention_prob: 0.75, copy_prob: 0.0}
+    weak:          {label_recall: 0.60, label_fpr: 0.050, conf_bias: 0.00, conf_noise: 0.15, mention_prob: 0.55, copy_prob: 0.0}
+    overconfident: {label_recall: 0.78, label_fpr: 0.030, conf_bias: 0.25, conf_noise: 0.10, mention_prob: 0.70, copy_prob: 0.0}
+    underconfident: {label_recall: 0.85, label_fpr: 0.015, conf_bias: -0.25, conf_noise: 0.10, mention_prob: 0.75, copy_prob: 0.0}
+    noisy:         {label_recall: 0.50, label_fpr: 0.150, conf_bias: 0.00, conf_noise: 0.30, mention_prob: 0.50, copy_prob: 0.0}
+    duplicator:    {label_recall: 0.80, label_fpr: 0.020, conf_bias: 0.00, conf_noise: 0.10, mention_prob: 0.70, copy_prob: 0.80}
+    adversarial:   {label_recall: 0.80, label_fpr: 0.020, conf_bias: 0.30, conf_noise: 0.10, mention_prob: 0.80, copy_prob: 0.0}
+
+  # Team-level correlated bias: fraction of teams with a shared label bias and its strength
+  correlated_team_fraction: 0.15
+  team_bias_strength: 0.10
+  # Specialisation sharpness (Dirichlet concentration; lower = more specialised teams)
+  specialization_alpha: 0.35
+  regional_language_bias: 0.6
+
+world:
+  base_rate_mean: 0.03          # mean per-label base error rate
+  base_rate_spread: 0.02
+  effect_delta_range: [0.20, 0.45]
+  n_local_findings: 100
+  n_cross_team_findings: 25
+  n_global_findings: 10
+  n_decoys: 30
+  n_contradictions: 6
+  n_base_rate_effects: 12
+  base_rate_effect_range: [0.04, 0.12]
+  n_temporal_revisions: 10
+  local_orders: [2, 3]
+  cross_team_orders: [2, 3]
+  global_orders: [3, 4]
+  power_alpha: 0.00001   # per-test alpha after multiple-comparison burden (~5e4 tests per node)
+  power_target: 0.8
+  power_margin: 1.5             # required matching count = margin x n_min at the minimum layer
+  min_layer_for_global: department
+  sensitive_fraction: 0.08
+  version_release_rounds: {v2: 0.25, v3: 0.5, v4: 0.75}   # fraction of n_rounds
+  max_generation_attempts: 40
