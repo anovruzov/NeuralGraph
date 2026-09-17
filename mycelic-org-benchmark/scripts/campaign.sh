@@ -26,7 +26,8 @@ fam() {   # fam <seeds> <family> [extra args passed through EXTRA_ARGS]
 
 if stage tier1; then
   export TIER=tier1
-  fam 30 aggregation
+  fam 30 aggregation --only aggregation
+  fam 10 aggregation --only compression
   fam 10 hierarchy
   fam 10 contradictions
   fam 10 temporal
@@ -43,7 +44,8 @@ if stage tier2; then
   export TIER=tier2
   JOBS="${JOBS2:-2}"
   fam 5 headline
-  fam 5 aggregation
+  fam 5 aggregation --only aggregation
+  fam 3 aggregation --only compression
   fam 3 poisoning
   fam 2 scaling --sizes 10000
 fi

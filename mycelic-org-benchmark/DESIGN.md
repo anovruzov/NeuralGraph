@@ -274,11 +274,21 @@ Per round, each node runs `step()`:
    marginal z), confidence-triggered, EIG (expected reduction in posterior
    variance of the cell rate per byte), budget-aware (EIG under a byte
    budget).
-8. **Promote**: select what goes to the parent under `policy.compression`
-   (`full_sketch`, `order_capped`, `significant_cells_only`, `claims_only`,
-   plus `top_k_claims` and `byte_budget`). Privacy filter: canary scan
-   (should find nothing under DLP), k-anonymity suppression. Bytes are
-   metered on the wire representation.
+8. **Promote**: select what goes to the parent under `policy.compression`:
+   `full_sketch` (every cell of every order ≤ sketch_order, no suppression:
+   the privacy-unsafe reference), `order_capped` (default: cells with
+   n ≥ min_cell_n, then k-anonymity suppression), `order2_plus_significant`
+   (all order-≤2 cells plus the order-3/4 cells that pass the significance
+   screen), `significant_cells_only` (order-1 marginals, cells whose rate
+   for some label is elevated over the organisation-wide marginal by a
+   one-sided z ≥ 2.5 *and* an exact binomial tail ≤ 0.005, the cells of
+   accepted claims, and the order-(k−1) sub-cells of every kept cell so the
+   parent can still form the test's contrast), `claims_only` (only the
+   cells of accepted claims), plus `top_k_claims` and `byte_budget`.
+   Significance-filtered rungs pre-select elevated cells, so the parent's
+   test inherits a selection bias; the ladder is there to measure that
+   trade-off. Privacy filter: canary scan (should find nothing under DLP),
+   k-anonymity suppression. Bytes are metered on the wire representation.
 
 ### 6.1 The interaction test
 For a candidate cell C of order k and label l, with counts (n_C, k_C), find

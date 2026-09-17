@@ -252,6 +252,13 @@ def claim_pvalues(sketch: Sketch, cells: np.ndarray, labels: np.ndarray, signs: 
     return p, n_c, effect, ok
 
 
+def binomial_tail(k: np.ndarray, n: np.ndarray, p: np.ndarray) -> np.ndarray:
+    """P(K >= k) for K ~ Binomial(n, p), vectorised (used by the promotion screen of the
+    significance-filtered compression rungs, not by the hypothesis test)."""
+    from scipy.stats import binom
+    return binom.sf(np.asarray(k) - 1, np.asarray(n), np.asarray(p))
+
+
 def rate_test(n_c: np.ndarray, k_c: np.ndarray, n_o: np.ndarray, k_o: np.ndarray, sign: np.ndarray) -> np.ndarray:
     """One-sided p-values for specific (cell vs outside) comparisons."""
     M = n_c + n_o

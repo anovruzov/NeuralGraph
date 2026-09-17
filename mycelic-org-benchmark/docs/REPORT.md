@@ -167,3 +167,115 @@ encodings, questioning with local-only answers.
 Not modelled: natural-language reasoning (claims are structured), real
 inference latency, network topology, human review, model drift beyond the
 release schedule, and adversaries that adapt to the detector.
+
+## 5. Results
+
+Generated from `results/processed/*.csv` by `experiments/report.py` into
+`docs/RESULTS.md` (per-family tables, paired comparisons against B7_mycelic,
+figure links) and `results/summary.json` (machine-readable). The narrative
+below is written after reading those tables and cites them; it is completed
+once the campaign has finished (see §9 for the exact commands that produced
+every number).
+
+<!-- RESULTS_NARRATIVE -->
+
+## 6. Failure analysis
+
+Every hidden effect that a system did not accept is classified once. The
+specification's eleven categories map onto the evaluator's keys as follows
+(`evaluate.failure_reasons_hierarchy` for hierarchical systems, which have
+node-level traces; `evaluate.failure_reasons_from_probe` for centralized
+systems, which are probed with the exact evidence they held):
+
+| specification category | evaluator key | how it is decided |
+|---|---|---|
+| retrieval failure | `retrieval_failure` | the centralized system never tested the cell (RAG did not retrieve it; the analyst never queried it) |
+| aggregation loss | `aggregation_loss` | a child accepted the claim, the parent never did |
+| compression loss | `compression_loss` | the cell's counts never reached the layer that could test it (order cap, k-anonymity, byte budget) |
+| routing failure | `routing_failure` | tested only in a wider pool where the scoped effect is diluted |
+| insufficient independent support | `insufficient_independent_support` | significant at the node, independent support below `support_min` |
+| contradiction mishandling | `contradiction_mishandling` | contested or disputed by a conflict and never resolved |
+| privacy filter suppression | `privacy_or_security_suppression` | quarantined by the detector or suppressed by k-anonymity |
+| poison contamination | `poison_contamination` | the cell's evidence was ≥30 % attack records |
+| temporal staleness | `temporal_staleness` | accepted only for a phase that had ended |
+| model reasoning failure | `model_reasoning_failure` | the perceived (edge-profile) evidence no longer passes the test the exact evidence passes |
+| hierarchy isolation | `hierarchy_isolation` | evidence split across units below the minimum layer, none of which pooled it |
+| (benchmark-level) | `statistical_power` | even exact pooled evidence at the best unit is below n_min·margin: a generator/tier limit, not a system failure |
+
+Counts and percentages per system are in `results/tables/failure_reasons.md`.
+
+<!-- FAILURE_NARRATIVE -->
+
+## 7. Answers to the research questions
+
+| # | question | family (CSV) | decisive metric(s) |
+|---|---|---|---|
+| 1 | Does hierarchical aggregation improve organizational discovery? | aggregation | recall_global, recall_cross_team vs B0/B5 |
+| 2 | Does Mycelic discover information no individual worker knows? | aggregation, hierarchy | recall of effects with min layer ≥ department; B0 recall |
+| 3 | How much information is lost at each aggregation layer? | aggregation (fidelity table) | survived / dropped / distorted per transition |
+| 4 | Does lineage improve trustworthiness? | aggregation, poisoning, independent_support | false_association_rate, poison_promotion_rate, lineage_correctness: B7 vs B6, B5_lineage vs B5 |
+| 5 | Does independent-support modelling beat raw vote counts? | independent_support, contradictions | correct_resolution_rate, false acceptance of replicated claims |
+| 6 | Can local SLMs contain poisoning before it spreads? | poisoning, edge_security | poison_promotion_rate by layer, detector precision/recall, latency |
+| 7 | Does Mycelic expose less sensitive information? | privacy | raw_sensitive_leakage, n_canaries_exposed, bytes_off_device, reconstructability |
+| 8 | How much bandwidth does hierarchical abstraction save? | compression, aggregation | bytes_transmitted, compression_ratio vs recall |
+| 9 | Does the five-layer hierarchy beat flatter alternatives? | hierarchy | recall_global, TTD, bytes by depth (1/2/3/5/7) |
+| 10 | Which edge model gives the best quality/latency trade-off? | models | recall, false_association_rate vs latency/energy (synthetic capability sweep) |
+| 11 | What happens at 10k, 50k, 100k employees? | scaling | recall_global, TTD, bytes, runtime, memory vs N |
+| 12 | Does active questioning materially improve discovery? | questioning | recall_global (order-4 effects), question bytes, B9 vs B8 |
+| 13 | Does local/global routing help or hurt retrieval? | routing | recall_at_budget, unnecessary_escalation_rate, hops |
+| 14 | Which workloads produce the largest advantage for Mycelic? | all | conditions where B7 − best centralized is largest |
+| 15 | Under what conditions does Mycelic lose to a centralized architecture? | all | conditions where B7 − best centralized is most negative |
+
+<!-- RQ_ANSWERS -->
+
+## 8. Limitations
+
+1. **No real language model was reachable.** Every edge and frontier model
+   is a simulated perception profile (§0). Model-capability conclusions
+   (RQ 10, the detector comparison, prompt-injection susceptibility) are
+   sensitivity analyses over assumed profiles; information-flow conclusions
+   are measured.
+2. **ORACLE is a reference, not an upper bound.** It tests the largest
+   hypothesis family (orders ≤4 at every scope), so its recall can be below a
+   system that tests fewer hypotheses; its false-association rate on exact
+   data is the calibration check of the shared test.
+3. **Cadence.** Centralized systems analyse on the executive node's cadence
+   (every round at Tier 1, every third round at Tier 2/3), which is what a
+   nightly batch job would do; time-to-discovery is therefore comparable but
+   quantised at Tier 2/3.
+4. **Precision counts over-specified claims as non-exact.** A claim that
+   asserts a true effect plus an extra irrelevant attribute is not
+   population-false; the false-association rate is the number to compare
+   systems on.
+5. **Few seeds in sweeps.** Bootstrap intervals at 3–5 seeds are wide and
+   under-cover; sweep results are reported with their n and should be read
+   as trends.
+6. **Prompt injection is inert for centralized devices**: an injected
+   instruction can only change what a device emits; a centralized system
+   that never runs a model on-device is unaffected by construction.
+7. **B2's cost model** charges retrieved records once per hypothesis with a
+   read cache; a real RAG deployment could be cheaper or costlier.
+8. **Generator counts** are met approximately at small sizes (the
+   hidden-evidence cap rejects most candidates); the achieved counts per seed
+   are in every run manifest and in the ground-truth summaries.
+9. **Simulated organisations** have no natural-language reasoning, no human
+   review and no adaptive adversaries (§4).
+
+## 9. Reproduction
+
+```
+python3 -m pip install -e .                                  # numpy, scipy, pandas, matplotlib, pyyaml, pytest
+PYTHONPATH=src python3 -m pytest -q tests/                 # ~4 min
+STAGE=tier1 scripts/campaign.sh                            # the Tier-1 families (hours on 4 cores)
+STAGE=tier2 scripts/campaign.sh                            # headline / aggregation / poisoning / scaling at 10k workers
+STAGE=tier3 scripts/campaign.sh                            # 50k and 100k scaling points
+PYTHONPATH=src python3 experiments/tables.py --results results
+PYTHONPATH=src python3 experiments/figures.py --results results
+PYTHONPATH=src python3 experiments/report.py --results results --out docs/RESULTS.md --summary results/summary.json
+```
+
+Seeds 1…k are the evaluation seeds; seed 0 is the development seed on
+which design decisions were checked and is excluded from every reported
+number. Every run directory under `results/raw/<family>/` holds a
+`manifest.json` (config, seed, git commit, hardware, dataset hash, runtime)
+and `metrics.json`.

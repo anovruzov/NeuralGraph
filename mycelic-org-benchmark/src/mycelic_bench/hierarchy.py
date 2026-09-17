@@ -24,7 +24,7 @@ from typing import Any, Callable
 import numpy as np
 
 from .agents import ObservationBatch, SimulatedSLM, make_batches
-from .hypothesis import Candidates, null_evidence, rate_test, search, claim_pvalues
+from .hypothesis import Candidates, binomial_tail, claim_pvalues, null_evidence, rate_test, search
 from .schemas import Claim, Conflict, LineageRecord, QuestionArtifact, SupportRecord, stable_hash
 from .sketch import COL_DD, COL_DR, COL_DT, COL_DW, COL_K0, COL_N, N_COLS, Sketch
 from .vocab import N_LABELS, cell_index, mask_matrix
@@ -61,6 +61,8 @@ class Policy:
     resolve_ratio: float = 2.0
     max_order_questions: int = 4
     retain_superseded: bool = True
+    significance_z: float = 2.5   # one-sided z screen of the significant_cells_only / order2_plus_significant rungs
+    significance_p: float = 0.005  # exact binomial tail the screened cells must also pass
     withdraw_p: float = 0.05   # cumulative re-verification: an accepted own claim is withdrawn when its cumulative one-sided p exceeds this (0 disables)
     consistency_z: float = 3.0
     rho_team: float = 0.25
@@ -844,8 +846,9 @@ class UnitNode:
             selected = cum.restrict(keep_ids=claim_cells, min_n=p.min_cell_n)
         else:
             raise ValueError(p.compression)
-        # k-anonymity suppression on higher-order cells (order-1 marginals are aggregates)
-        if p.k_anonymity > 0:
+        # k-anonymity suppression on higher-order cells (order-1 marginals are aggregates); the full_sketch rung
+        # is the unsuppressed reference (every cell, including singletons) for the compression and privacy sweeps
+        if p.k_anonymity > 0 and p.compression != "full_sketch":
             selected = selected.restrict(min_n=max(p.min_cell_n, p.k_anonymity))
         delta = _delta(selected, self.sent)
         # claims: own accepted first (by q then effect), then inherited
@@ -894,8 +897,11 @@ class UnitNode:
         return art
 
     def _significant_cells(self, cum: Sketch) -> Sketch:
-        """Order-1 marginals plus higher-order cells whose label rate deviates
-        from the cell's own order-1 marginal by a cheap z >= 1 screen."""
+        """Order-1 marginals, higher-order cells whose rate for some label is *elevated* over the
+        organisation-wide marginal by a one-sided z >= `significance_z` screen (2.5: keeps ~10 % of null
+        cells over 18 labels; a |z| >= 1 screen kept 99.9 % and compressed nothing), the cells of accepted
+        claims, and the order-(k-1) sub-cells of every kept cell so that the parent can still form the
+        interaction test's contrast (without them a promoted cell is untestable)."""
         ci = cell_index()
         if len(cum.ids) == 0:
             return cum
@@ -906,8 +912,27 @@ class UnitNode:
         n = cum.counts[:, COL_N][:, None]
         rate = cum.counts[:, COL_K0:COL_K0 + N_LABELS] / np.maximum(n, 1)
         z = (rate - tot_rate[None, :]) / np.sqrt(np.maximum(tot_rate * (1 - tot_rate), 1e-4) / np.maximum(n, 1))
-        keep = (orders == 1) | ((np.abs(z) >= 1.0).any(axis=1) & (cum.counts[:, COL_N] >= self.policy.min_cell_n))
+        z_min = float(getattr(self.policy, "significance_z", 2.5))
+        elevated = (z >= z_min) & (cum.counts[:, COL_N][:, None] >= self.policy.min_cell_n)
+        # exact binomial tail for the cheap screen's survivors: a single error in a 3-record cell has z ~ 3
+        # against a 3 % base rate but is not evidence of anything (P(K>=1) = 0.09)
+        p_max = float(getattr(self.policy, "significance_p", 0.005))
+        if elevated.any():
+            r_, c_ = np.nonzero(elevated)
+            kk = cum.counts[r_, COL_K0 + c_]
+            nn = cum.counts[r_, COL_N]
+            elevated[r_, c_] = binomial_tail(kk, nn, np.maximum(tot_rate[c_], 1e-6)) <= p_max
+        keep = (orders == 1) | elevated.any(axis=1)
         keep |= np.isin(cum.ids, np.array([c.cell for c in self.claims.values() if c.status == "accepted"], dtype=np.int64))
+        # downward closure: the sub-cells of kept higher-order cells (they carry the test's baseline)
+        need = set()
+        for order in (4, 3, 2):
+            sel = cum.ids[keep & (orders == order)]
+            if len(sel):
+                subs = np.unique(ci.sub_ids(sel, order).ravel())
+                need.update(int(x) for x in subs)
+                keep |= np.isin(cum.ids, subs)
+        # sub-cells of sub-cells (order 3 -> 2 -> 1) are covered because the loop descends by order
         return Sketch(cum.producer_id, cum.layer, cum.round, cum.ids[keep], cum.counts[keep], cum.max_order)
 
     def accepted_claims(self) -> list[Claim]:
