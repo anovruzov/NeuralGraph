@@ -1,0 +1,2 @@
+2026-09-17T19:12:50Z start 20260917T190142-a6ef_B1_central_keyword_default_s4 system=B1_central_keyword kind=baseline seed=4 condition=default dataset=43d2c39c01e88b89
+2026-09-17T19:14:30Z ok runtime_s=100.10 peak_rss_mb=384 n_accepted=1643 recall_global=0.9
