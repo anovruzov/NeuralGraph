@@ -63,10 +63,19 @@ class FixedQuestionPolicy(QuestionPolicy):
 
     def propose(self, node, round_: int) -> list[tuple[int, int, float, str]]:
         cands = self.candidate_cells(node)
-        asked = {(q.cell, q.label) for q in node.questions.values()}
-        cands = [c for c in cands if (c[0], c[1]) not in asked]
+        asked = {q.cell for q in node.questions.values()}     # an answer carries every label: one question per cell
+        cands = [c for c in cands if c[0] not in asked]
         cands.sort(key=lambda t: -t[2])
-        return [(cell, label, gain, "fixed") for cell, label, gain in cands[: self.policy.question_budget]]
+        out: list[tuple[int, int, float, str]] = []
+        seen: set[int] = set()
+        for cell, label, gain in cands:
+            if cell in seen:
+                continue
+            seen.add(cell)
+            out.append((cell, label, gain, "fixed"))
+            if len(out) >= self.policy.question_budget:
+                break
+        return out
 
 
 def build_question_policy(name: str, policy, seed: int) -> QuestionPolicy:

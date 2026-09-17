@@ -28,7 +28,7 @@ security:
   quarantine_threshold: 0.5
   consistency_z: 3.0             # z threshold for the cross-source consistency test
   min_independent_support: 2.0
-  rho_team: 0.5
+  rho_team: 0.25   # within-team replication discount; 0.5 let one correlated team's raters outvote three honest teams on the development seed (seed 0); swept in experiments/independent_support
   rho_department: 0.7
   rho_region: 0.9
   max_roots_tracked: 64

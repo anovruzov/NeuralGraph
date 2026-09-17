@@ -410,6 +410,10 @@ class FailurePlan:
         self.log.append({"round": round_, "event": "recover", "units": list(self.failed_units)})
 
     # ---- observation-batch hook -----------------------------------------
+    def wrap_hook(self, attack_hook: Hook | None = None) -> Hook | None:
+        """Compose an attack hook with this plan's record filter (what experiments/common.run_grid expects)."""
+        return chain_hooks(attack_hook, self.record_filter)
+
     def record_filter(self, batch: ObservationBatch, slm: Any = None) -> ObservationBatch:
         """Chainable batch hook: user loss, accounting of records addressed to dead nodes,
         buffering/replay for stale replicas.  Safe to call without `apply` for `random_user`."""

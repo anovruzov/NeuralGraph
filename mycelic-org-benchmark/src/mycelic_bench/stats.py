@@ -119,9 +119,12 @@ def paired_summary(a: Iterable[Any], b: Iterable[Any], n_boot: int = 10000, seed
     ``diff = mean(a - b)`` — positive means ``a`` is larger.  Pairs with a NaN on
     either side are dropped.  Returns::
 
-        dict(mean_a, mean_b, diff, ci_low, ci_high, t_p, wilcoxon_p, cohen_dz, n)
+        dict(mean_a, mean_b, diff, ci_low, ci_high, t_ci_low, t_ci_high, t_p, wilcoxon_p, cohen_dz, n)
 
     * ``ci_low/ci_high``: paired percentile bootstrap of ``diff`` (``n_boot`` resamples, ``seed``).
+      The percentile bootstrap under-covers at small n (simulated coverage of a nominal 95% interval:
+      0.95 at n=30, 0.89 at n=10, ~0.8 at n=5, ~0.74 at n=3), so the paired-t interval is reported too.
+    * ``t_ci_low/t_ci_high``: paired-t 95% CI of ``diff`` (``diff +- t_{n-1} sd(d)/sqrt(n)``); NaN when ``n < 2``.
     * ``t_p``: two-sided paired t-test.  Zero-variance differences give 1.0 when the
       difference is exactly zero and 0.0 otherwise (a degenerate but honest answer).
     * ``wilcoxon_p``: two-sided Wilcoxon signed-rank test (zero differences dropped,
@@ -137,7 +140,7 @@ def paired_summary(a: Iterable[Any], b: Iterable[Any], n_boot: int = 10000, seed
     a, b = a[keep], b[keep]
     n = int(a.size)
     out: dict[str, float] = {"mean_a": _NAN, "mean_b": _NAN, "diff": _NAN, "ci_low": _NAN, "ci_high": _NAN,
-                             "t_p": _NAN, "wilcoxon_p": _NAN, "cohen_dz": _NAN, "n": n}
+                             "t_ci_low": _NAN, "t_ci_high": _NAN, "t_p": _NAN, "wilcoxon_p": _NAN, "cohen_dz": _NAN, "n": n}
     if n == 0:
         return out
     d = a - b
@@ -147,6 +150,8 @@ def paired_summary(a: Iterable[Any], b: Iterable[Any], n_boot: int = 10000, seed
     if n < 2:
         return out
     sd_d = float(d.std(ddof=1))
+    half = float(sps.t.ppf(1 - alpha / 2, n - 1) * sd_d / math.sqrt(n))
+    out["t_ci_low"], out["t_ci_high"] = diff - half, diff + half
     # A constant shift (all differences equal up to floating-point cancellation) has no
     # sampling variance: report the degenerate but honest answer instead of a 1e15 d_z.
     if sd_d <= 1e-9 * max(1.0, abs(diff)):
@@ -204,7 +209,7 @@ def compare_systems(df: pd.DataFrame, metric: str, baseline_system: str, systems
     system; ``n_pairs`` and everything after it describe the paired subset.
 
     Columns: ``system, n, mean, sd, ci_low, ci_high, n_pairs, diff, diff_ci_low,
-    diff_ci_high, t_p, holm_p, wilcoxon_p, wilcoxon_holm_p, cohen_dz``.
+    diff_ci_high, diff_t_ci_low, diff_t_ci_high, t_p, holm_p, wilcoxon_p, wilcoxon_holm_p, cohen_dz``.
 
     ``holm_p`` corrects ``t_p`` within this family (all non-baseline systems of the
     call); ``wilcoxon_holm_p`` does the same for the Wilcoxon p-values.  The
@@ -231,13 +236,16 @@ def compare_systems(df: pd.DataFrame, metric: str, baseline_system: str, systems
         row: dict[str, Any] = {"system": s, "n": summ["n"], "mean": summ["mean"], "sd": summ["sd"],
                                "ci_low": summ["ci_low"], "ci_high": summ["ci_high"],
                                "n_pairs": 0, "diff": _NAN, "diff_ci_low": _NAN, "diff_ci_high": _NAN,
+                               "diff_t_ci_low": _NAN, "diff_t_ci_high": _NAN,
                                "t_p": _NAN, "holm_p": _NAN, "wilcoxon_p": _NAN, "wilcoxon_holm_p": _NAN, "cohen_dz": _NAN}
         if s == baseline_system:
-            row.update({"n_pairs": summ["n"], "diff": 0.0, "diff_ci_low": 0.0, "diff_ci_high": 0.0})
+            row.update({"n_pairs": summ["n"], "diff": 0.0, "diff_ci_low": 0.0, "diff_ci_high": 0.0,
+                        "diff_t_ci_low": 0.0, "diff_t_ci_high": 0.0})
         elif base is not None:
             joined = pd.concat([vals.rename("a"), base.rename("b")], axis=1, join="inner").dropna()
             ps = paired_summary(joined["a"].to_numpy(), joined["b"].to_numpy(), n_boot=n_boot, seed=seed)
             row.update({"n_pairs": ps["n"], "diff": ps["diff"], "diff_ci_low": ps["ci_low"], "diff_ci_high": ps["ci_high"],
+                        "diff_t_ci_low": ps["t_ci_low"], "diff_t_ci_high": ps["t_ci_high"],
                         "t_p": ps["t_p"], "wilcoxon_p": ps["wilcoxon_p"], "cohen_dz": ps["cohen_dz"]})
         rows.append(row)
     out = pd.DataFrame(rows)

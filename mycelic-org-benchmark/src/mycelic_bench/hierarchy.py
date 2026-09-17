@@ -30,6 +30,9 @@ from .sketch import COL_DD, COL_DR, COL_DT, COL_DW, COL_K0, COL_N, N_COLS, Sketc
 from .vocab import N_LABELS, cell_index, mask_matrix
 
 LAYER_ORDER = ("worker", "squad", "team", "department", "division", "region", "executive")
+_LAYER_RANK = {l: i for i, l in enumerate(LAYER_ORDER)}
+# distinct-source columns of a sketch and the organisational layer each one counts (position in unit_membership)
+_DISTINCT_COLS = ((COL_DT, "team", 0), (COL_DD, "department", 1), (COL_DR, "region", 2))
 
 
 # --------------------------------------------------------------------------
@@ -59,7 +62,7 @@ class Policy:
     max_order_questions: int = 4
     retain_superseded: bool = True
     consistency_z: float = 3.0
-    rho_team: float = 0.5
+    rho_team: float = 0.25
     rho_department: float = 0.7
     rho_region: float = 0.9
     detector: str = "none"
@@ -72,7 +75,7 @@ class Policy:
         base = dict(cfg.get("policy", {}))
         sec = cfg.get("security", {})
         base.setdefault("consistency_z", sec.get("consistency_z", 3.0))
-        base.setdefault("rho_team", sec.get("rho_team", 0.5))
+        base.setdefault("rho_team", sec.get("rho_team", 0.25))
         base.setdefault("rho_department", sec.get("rho_department", 0.7))
         base.setdefault("rho_region", sec.get("rho_region", 0.9))
         base.setdefault("max_roots_tracked", sec.get("max_roots_tracked", 64))
@@ -111,7 +114,12 @@ class UnitNode:
         self.children = children
         self.policy = policy
         self.hier = hier
-        self.cumulative = Sketch(unit_id, layer, 0, max_order=policy.sketch_order)
+        self._cumulative = Sketch(unit_id, layer, 0, max_order=policy.sketch_order)
+        self._cum_dirty = False          # leaf store changed since the last rebuild (rebuilt lazily on read)
+        self._cum_round = 0
+        self._distinct_dirty = False     # children's sketches pooled since the distinct-source columns were fixed
+        ln = hier.layer_names
+        self.child_layer = ln[ln.index(layer) - 1] if layer in ln and ln.index(layer) > 0 else None
         self.sent = Sketch(unit_id, layer, 0, max_order=policy.sketch_order)
         self.recent: OrderedDict[int, Sketch] = OrderedDict()
         self.received_from: dict[str, Sketch] = {}
@@ -145,6 +153,90 @@ class UnitNode:
         self.quotes_received: list[str] = []
         self.n_records_in = 0
         self.last_synth_round = -1
+
+    # ---- pooled sketch (lazy rebuild for leaf nodes) ---------------------
+    @property
+    def cumulative(self) -> Sketch:
+        """Pooled sketch of everything below this node.  A leaf node rebuilds it from its local store on the
+        first read after new observations arrived (once per round instead of once per worker batch: the flat
+        topology's single leaf receives every team's batch, which made the rebuild quadratic)."""
+        if self._cum_dirty:
+            self._rebuild_cumulative(self._cum_round)
+        if self._distinct_dirty:
+            self._cumulative = self._fix_distinct(self._cumulative)
+            self._distinct_dirty = False
+        return self._cumulative
+
+    @cumulative.setter
+    def cumulative(self, sk: Sketch) -> None:
+        self._cumulative = sk
+        self._cum_dirty = False
+
+    # ---- distinct-source columns after pooling ---------------------------
+    def _distinct_units(self, ids: np.ndarray, pos: int, children: list[str] | None = None) -> np.ndarray:
+        """Number of distinct organisational units (team / department / region by `pos`) among the children
+        (default: every child in `received_from`) whose sketch holds each cell of `ids`."""
+        mem = self.hier.unit_membership
+        parts_c, parts_u = [], []
+        for cid in (children if children is not None else list(self.received_from)):
+            sk = self.received_from.get(cid)
+            if sk is None or len(sk.ids) == 0:
+                continue
+            u = mem.get(cid, (-1, -1, -1))[pos]
+            held = sk.ids[sk.counts[:, COL_N] > 0]
+            parts_c.append(held); parts_u.append(np.full(len(held), u, dtype=np.int64))
+        out = np.zeros(len(ids), dtype=np.int64)
+        if not parts_c or len(ids) == 0:
+            return out
+        cells = np.concatenate(parts_c); units = np.concatenate(parts_u)
+        pairs = np.unique(cells.astype(np.int64) * (int(units.max()) + 2) + (units + 1))
+        pc = pairs // (int(units.max()) + 2)
+        uc, cnt = np.unique(pc, return_counts=True)
+        pos_ = np.clip(np.searchsorted(uc, ids), 0, max(len(uc) - 1, 0))
+        hit = uc[pos_] == ids
+        out[hit] = cnt[pos_[hit]]
+        return out
+
+    def _fix_distinct(self, sk: Sketch, children: list[str] | None = None) -> Sketch:
+        """Pooling children's sketches adds their distinct-source columns, which is exact only for the layers at
+        or below the child layer (those units are disjoint across children).  A column for this node's layer or
+        above is 1 for every cell with n > 0 (everything pooled here lies in one such unit); a column for a
+        layer the topology skips (2-/3-layer ablations) counts distinct units among the children holding the
+        cell.  Leaf sketches are rebuilt from the local store and never need this."""
+        if self.child_layer is None or len(sk.ids) == 0:
+            return sk
+        my_rank, child_rank = _LAYER_RANK[self.layer], _LAYER_RANK[self.child_layer]
+        counts = None
+        for col, layer_x, pos in _DISTINCT_COLS:
+            rx = _LAYER_RANK[layer_x]
+            if rx <= child_rank:
+                continue
+            if counts is None:
+                counts = sk.counts.copy()
+            if rx >= my_rank:
+                counts[:, col] = (counts[:, COL_N] > 0).astype(np.int64)
+            else:
+                counts[:, col] = np.minimum(self._distinct_units(sk.ids, pos, children), np.maximum(counts[:, COL_N], 1))
+        if counts is None:
+            return sk
+        return Sketch(sk.producer_id, sk.layer, sk.round, sk.ids, counts, sk.max_order)
+
+    def _pooled_distinct(self, rows: dict[str, np.ndarray], child_ids: list[str], cell: int) -> tuple[int, int, int, int]:
+        """(dw, dt, dd, dr) of one cell pooled over the given children (same rules as `_fix_distinct`)."""
+        n = sum(int(rows[i][COL_N]) for i in child_ids)
+        out = [sum(int(rows[i][COL_DW]) for i in child_ids)]
+        my_rank = _LAYER_RANK[self.layer]
+        child_rank = _LAYER_RANK[self.child_layer] if self.child_layer is not None else my_rank - 1
+        for col, layer_x, pos in _DISTINCT_COLS:
+            rx = _LAYER_RANK[layer_x]
+            if rx <= child_rank:
+                out.append(sum(int(rows[i][COL_DT + pos]) for i in child_ids))
+            elif rx >= my_rank:
+                out.append(1 if n > 0 else 0)
+            else:
+                held = [i for i in child_ids if int(rows[i][COL_N]) > 0]
+                out.append(int(self._distinct_units(np.array([cell], dtype=np.int64), pos, held)[0]) if held else 0)
+        return out[0], out[1], out[2], out[3]
 
     # ---- helpers ---------------------------------------------------------
     def _independent_support(self, dw: int, dt: int, dd: int, dr: int, n: int) -> float:
@@ -224,7 +316,8 @@ class UnitNode:
             self.obs_present.append(batch.present[keep]); self.obs_worker.append(w)
             self.obs_fp.append(batch.fingerprint[keep]); self.obs_idx.append(batch.idx[keep])
             self.obs_round.append(np.full(int(keep.sum()), round_))
-            self._rebuild_cumulative(round_)
+            self._cum_dirty = True
+            self._cum_round = round_
         # injected / fabricated claims emitted by compromised devices arrive as bare claims
         for d in batch.injected_claims:
             c = Claim(claim_id=f"W{int(d['worker']):06d}:{d['cell']}:{d['label']}:+:{round_}", producer_id=f"W{int(d['worker']):06d}",
@@ -243,14 +336,19 @@ class UnitNode:
         contributes in many rounds), so the leaf sketch is rebuilt rather than pooled."""
         p = self.policy
         org = self.hier.org
+        self._cum_dirty = False
+        if not self.obs_attrs:
+            self._cumulative = Sketch(self.unit_id, self.layer, round_, max_order=p.sketch_order)
+            return
         attrs = np.concatenate(self.obs_attrs); labels = np.concatenate(self.obs_labels)
         present = np.concatenate(self.obs_present); w = np.concatenate(self.obs_worker)
-        self.cumulative = Sketch.from_interactions(
+        sk = Sketch.from_interactions(
             self.unit_id, self.layer, round_, attrs, labels, w, org.worker_team[w], org.worker_department[w],
             org.worker_region[w], max_order=p.sketch_order, present=present)
         # question answers of higher order previously absorbed must survive the rebuild
         if self._answer_cells is not None and len(self._answer_cells.ids):
-            self.cumulative = Sketch.pool([self.cumulative, self._answer_cells], self.unit_id, self.layer, round_, p.sketch_order)
+            sk = Sketch.pool([sk, self._answer_cells], self.unit_id, self.layer, round_, p.sketch_order)
+        self._cumulative = sk
 
     def _receive_claim(self, sender: str, c: Claim, round_: int) -> None:
         p = self.policy
@@ -273,7 +371,7 @@ class UnitNode:
         self.received_claims.setdefault(sender, {})[key] = c
         # update an inherited copy already in the knowledge base (status / counts changed upstream)
         cur = self.claims.get(key)
-        if cur is not None and cur.claim_id == c.claim_id and key[3] != self.unit_id:
+        if cur is not None and key[3] != self.unit_id and _newer_version(c, cur):
             self.claims[key] = c
 
     def ingest_artifact(self, art: Artifact, round_: int) -> None:
@@ -285,11 +383,14 @@ class UnitNode:
         self.tokens += art.wire_bytes() // 4
         self.model_calls += 1
         if len(art.sketch.ids):
-            self.cumulative = Sketch.pool([self.cumulative, art.sketch], self.unit_id, self.layer, round_, p.sketch_order)
+            # pool into the raw sketch; the distinct-source columns are fixed once, on the next read (lazy flag)
+            base = self.cumulative if self._cum_dirty else self._cumulative
+            self.cumulative = Sketch.pool([base, art.sketch], self.unit_id, self.layer, round_, p.sketch_order)
             self.recent[round_] = Sketch.pool([self.recent.get(round_, Sketch(self.unit_id, self.layer, round_)), art.sketch],
                                               self.unit_id, self.layer, round_, p.sketch_order)
             prev = self.received_from.get(art.sender_id, Sketch(art.sender_id, art.layer, round_))
             self.received_from[art.sender_id] = Sketch.pool([prev, art.sketch], art.sender_id, art.layer, round_, p.sketch_order)
+            self._distinct_dirty = True
         for c in art.claims:
             self._receive_claim(art.sender_id, c, round_)
         for qid, sk in art.answers:
@@ -333,10 +434,21 @@ class UnitNode:
         if existing is not None and existing.status != "superseded" and source == "recent":
             return   # the cumulative evidence already carries this claim; window stats must not replace it
         if existing is not None and existing.status in ("rejected", "contested") and source == "cumulative":
-            # keep counts fresh but do not silently re-accept a contested claim; consistency decides
+            # keep counts fresh but do not silently re-accept a contested claim; consistency decides,
+            # except for a claim contested only because a child's claim was: it clears with the child's dispute
             existing.n, existing.k, existing.rate = int(cands.n[i]), int(cands.k[i]), float(cands.rate[i])
             existing.baseline_rate, existing.effect = float(cands.baseline[i]), float(cands.effect[i])
             existing.p_value, existing.q_value, existing.round_updated = float(cands.p[i]), float(cands.q[i]), round_
+            if existing.status == "contested" and existing.quarantine_reason == "contested below":
+                still = any(c2.status == "contested" and k2[0] == cell and k2[1] == label and k2[2] == sign and k2[3] == sender
+                            for sender, ch in self.received_claims.items() for k2, c2 in ch.items())
+                if not still:
+                    existing.status = "accepted"; existing.quarantine_reason = None
+                    if p.lineage:
+                        existing.sign_with(self.key)
+                    conf = self.conflicts.get(key)
+                    if conf is not None and conf.reason == "a child's own-scope claim is contested":
+                        conf.status = "resolved"; conf.winner = existing.claim_id
             return
         conf = float((1.0 - cands.q[i]) * (1.0 - math.exp(-is_ / max(p.support_min, 1e-6))))
         contributing = [cid for cid, cnt in self.child_cell_counts(cell).items()]
@@ -350,7 +462,7 @@ class UnitNode:
                 cell=cell, label=label, sign=sign, n=int(cands.n[i]), k=int(cands.k[i]), rate=float(cands.rate[i]),
                 baseline_rate=float(cands.baseline[i]), effect=float(cands.effect[i]), p_value=float(cands.p[i]),
                 q_value=float(cands.q[i]), confidence=conf, round_created=round_, round_updated=round_,
-                valid_from=max(0, round_ - p.recent_window) if source == "recent" else 0,
+                valid_from=max(0, round_ - p.recent_window + 1) if source == "recent" else 0,   # window = [r-w+1, r]
                 revision_of=existing.claim_id if existing is not None else None,
             )
             c.lineage = LineageRecord(parent_claim_ids=parents, contributing_units=contributing,
@@ -374,6 +486,9 @@ class UnitNode:
                                   distinct_teams=int(cands.dt[i]), distinct_departments=int(cands.dd[i]),
                                   distinct_regions=int(cands.dr[i]))
         accept = is_ >= p.support_min if p.lineage else int(cands.n[i]) >= p.support_min
+        contested_below = p.lineage and any(
+            c2.status == "contested" and k2[0] == cell and k2[1] == label and k2[2] == sign and k2[3] == sender
+            for sender, ch in self.received_claims.items() for k2, c2 in ch.items())
         if self.received_from and p.lineage:
             # a synthesis at this scope must rest on independent evidence from >= 2 children; a cell seen by
             # one child only stays that child's scoped claim (also removes single-source selection bias)
@@ -382,6 +497,11 @@ class UnitNode:
                 accept = False
         if c.status in ("proposed", "accepted"):
             c.status = "accepted" if accept else "proposed"
+        if contested_below and c.status == "accepted":
+            c.status = "contested"; c.quarantine_reason = "contested below"
+            self.conflicts.setdefault(key, Conflict(conflict_id=f"C:{self.unit_id}:{cell}:{label}", cell=cell, label=label,
+                                                    claim_ids=[c.claim_id], signs=[1, 0], round_opened=round_, status="contested",
+                                                    reason="a child's own-scope claim is contested"))
         if c.status == "accepted" and p.lineage:
             c.sign_with(self.key)
         self.hier.trace_claim(self, c, round_)
@@ -415,7 +535,9 @@ class UnitNode:
                 if cur is None:
                     if c.status in ("accepted", "contested"):
                         self.claims[key] = c
-                elif cur.claim_id == c.claim_id and (c.round_updated, c.status) != (cur.round_updated, cur.status):
+                elif _newer_version(c, cur):
+                    # same version with changed status/counts, or a later claim of the same scope (a revival after
+                    # supersession / a rebuilt node carries a new claim_id): the child's current view replaces the copy
                     self.claims[key] = c
 
     def _consistency(self, round_: int) -> None:
@@ -450,7 +572,8 @@ class UnitNode:
             nulls = np.zeros(len(n), dtype=bool)
             if elevated.any() and n_rest >= p.n_min and n_el > 0:
                 # the pooled rest must be (i) powerful null evidence and (ii) significantly below the elevated side
-                ub_ok = bool(null_evidence(np.array([n_rest]), np.array([k_rest]), np.array([c.baseline_rate]), p.effect_min)[0])
+                ub_ok = bool(null_evidence(np.array([n_rest]), np.array([k_rest]), np.array([c.baseline_rate]), p.effect_min,
+                                           margin=p.effect_min)[0])
                 p_two = float(rate_test(np.array([n_el]), np.array([k_el]), np.array([n_rest]), np.array([k_rest]), np.array([1]))[0])
                 if ub_ok and p_two < 0.01:
                     nulls = rest & (n > 0)
@@ -459,13 +582,12 @@ class UnitNode:
                 if conf is not None and conf.status in ("open", "contested"):
                     conf.status = "resolved"; conf.winner = c.claim_id; conf.reason = "disagreement vanished"
                     if c.status == "contested":
-                        c.status = "accepted"
+                        c.status = "accepted"; c.round_updated = round_
+                        if key[3] == self.unit_id and p.lineage:
+                            c.sign_with(self.key)
                 continue
             def side_support(mask):
-                dw = sum(int(rows[i][COL_DW]) for i, m in zip(ids, mask) if m)
-                dt = sum(int(rows[i][COL_DT]) for i, m in zip(ids, mask) if m)
-                dd = sum(int(rows[i][COL_DD]) for i, m in zip(ids, mask) if m)
-                dr = sum(int(rows[i][COL_DR]) for i, m in zip(ids, mask) if m)
+                dw, dt, dd, dr = self._pooled_distinct(rows, [i for i, m in zip(ids, mask) if m], cell)
                 return self._independent_support(dw, dt, dd, dr, int(n[mask].sum()))
             is_pos, is_null = side_support(elevated), side_support(nulls)
             if conf is None:
@@ -488,7 +610,10 @@ class UnitNode:
             if is_pos >= p.resolve_ratio * is_null:
                 conf.status = "resolved"; conf.winner = c.claim_id; conf.reason = f"IS {is_pos:.1f} vs null {is_null:.1f}"
                 if c.status == "contested":
-                    c.status = "accepted"; self.hier.trace_claim(self, c, round_)
+                    c.status = "accepted"; c.round_updated = round_
+                    if own_scope and p.lineage:
+                        c.sign_with(self.key)   # counts changed while contested; sign the current content
+                    self.hier.trace_claim(self, c, round_)
                 c.disputed = False
             else:
                 conf.status = "contested"; conf.winner = None; conf.reason = f"IS {is_pos:.1f} vs null {is_null:.1f}"
@@ -509,11 +634,35 @@ class UnitNode:
                 del self.recent[r]
 
     def _recent_pool(self, round_: int) -> Sketch:
-        return Sketch.pool(list(self.recent.values()), self.unit_id, self.layer, round_, self.policy.sketch_order)
+        p = self.policy
+        if self.obs_attrs:
+            # leaf: rebuild the window from the local store so distinct-source columns are exact (pooling the
+            # per-round sketches counts a worker once per round it contributed in)
+            rounds = np.concatenate(self.obs_round)
+            m = rounds >= round_ - p.recent_window + 1
+            if not m.any():
+                return Sketch(self.unit_id, self.layer, round_, max_order=p.sketch_order)
+            org = self.hier.org
+            w = np.concatenate(self.obs_worker)[m]
+            sk = Sketch.from_interactions(
+                self.unit_id, self.layer, round_, np.concatenate(self.obs_attrs)[m], np.concatenate(self.obs_labels)[m], w,
+                org.worker_team[w], org.worker_department[w], org.worker_region[w], max_order=p.sketch_order,
+                present=np.concatenate(self.obs_present)[m])
+            return sk
+        return self._fix_distinct(Sketch.pool(list(self.recent.values()), self.unit_id, self.layer, round_, p.sketch_order))
 
     # ---- questions -------------------------------------------------------
     def answer_question(self, q: QuestionArtifact, round_: int) -> Sketch | None:
-        """Exact counts for one cell from local evidence (bounded artifact)."""
+        """Exact counts for one cell from local evidence (bounded artifact), subject to the same
+        k-anonymity floor as promoted sketch cells (a cell held by fewer than k records is not disclosed)."""
+        ans = self._answer_question_raw(q, round_)
+        k = int(self.policy.k_anonymity)
+        if ans is not None and k > 0 and len(ans.ids) and int(ans.counts[0, COL_N]) < k:
+            self.hier.stats["answers_suppressed_k_anonymity"] = self.hier.stats.get("answers_suppressed_k_anonymity", 0) + 1
+            return None
+        return ans
+
+    def _answer_question_raw(self, q: QuestionArtifact, round_: int) -> Sketch | None:
         ci = cell_index()
         order = int(ci.order_of(np.array([q.cell]))[0])
         if order <= self.policy.sketch_order and len(self.cumulative.ids):
@@ -551,26 +700,48 @@ class UnitNode:
                 parts.append(ans)
         if not parts:
             return None
-        return Sketch.pool(parts, self.unit_id, self.layer, round_, order)
+        pooled = Sketch.pool(parts, self.unit_id, self.layer, round_, order)
+        # the relayed answer is pooled over this node's children: fix the columns for the layers above them
+        held = {p_.producer_id for p_ in parts}
+        return self._fix_distinct(pooled, [cid for cid in self.children if cid in held])
 
-    def _absorb_answer(self, qid: str, sk: Sketch, round_: int) -> None:
+    def _absorb_answer(self, qid: str, sk: Sketch, round_: int) -> Sketch | None:
+        """Pool an answer (the child's exact current count for one cell) into this node's evidence.
+
+        Only what this node does not already hold from that child for the cell (promoted deltas, an earlier
+        answer) is new evidence, so absorption never double-counts.  Returns the absorbed delta (the caller
+        mirrors it into the child's `sent`, so the child's later promotions stay relative to what the parent holds)."""
         q = self.questions.get(qid)
         if q is None:
-            return
+            return None
         q.status = "answered"; q.answer_bytes += sk.wire_bytes()
-        self.cumulative = Sketch.pool([self.cumulative, sk], self.unit_id, self.layer, round_, self.policy.sketch_order)
-        if self.obs_attrs:
-            prev = self._answer_cells if self._answer_cells is not None else Sketch(self.unit_id, self.layer, round_)
-            self._answer_cells = Sketch.pool([prev, sk], self.unit_id, self.layer, round_, self.policy.sketch_order)
-        self.recent[round_] = Sketch.pool([self.recent.get(round_, Sketch(self.unit_id, self.layer, round_)), sk],
-                                          self.unit_id, self.layer, round_, self.policy.sketch_order)
         sender = sk.producer_id
         prev = self.received_from.get(sender, Sketch(sender, "?", round_))
-        self.received_from[sender] = Sketch.pool([prev, sk], sender, prev.layer, round_, self.policy.sketch_order)
+        delta = _delta(sk, prev)
+        if len(delta.ids) == 0:
+            return None
+        self.cumulative = Sketch.pool([self.cumulative, delta], self.unit_id, self.layer, round_, self.policy.sketch_order)
+        if self.obs_attrs:
+            prev_a = self._answer_cells if self._answer_cells is not None else Sketch(self.unit_id, self.layer, round_)
+            self._answer_cells = Sketch.pool([prev_a, delta], self.unit_id, self.layer, round_, self.policy.sketch_order)
+        self.recent[round_] = Sketch.pool([self.recent.get(round_, Sketch(self.unit_id, self.layer, round_)), delta],
+                                          self.unit_id, self.layer, round_, self.policy.sketch_order)
+        self.received_from[sender] = Sketch.pool([prev, delta], sender, prev.layer, round_, self.policy.sketch_order)
+        self._distinct_dirty = True
+        return delta
 
     def ask(self, proposals: list[tuple[int, int, float, str]], round_: int) -> None:
-        """Send questions (cell, label, gain, trigger) to children and absorb answers."""
+        """Send questions (cell, label, gain, trigger) to children and absorb answers.
+
+        One question per cell: an answer is a one-cell sketch carrying every label's count and is pooled into
+        `cumulative`, so a cell whose answer this node already absorbed (or that appears twice in `proposals`)
+        is skipped rather than double-counted."""
+        answered = {q.cell for q in self.questions.values() if q.status == "answered"}
         for cell, label, gain, trigger in proposals:
+            if int(cell) in answered:
+                self.hier.stats["questions_skipped_duplicate"] = self.hier.stats.get("questions_skipped_duplicate", 0) + 1
+                continue
+            answered.add(int(cell))
             qid = f"Q:{self.unit_id}:{cell}:{label}:{round_}"
             q = QuestionArtifact(question_id=qid, asker_id=self.unit_id, cell=int(cell), label=int(label), trigger=trigger,
                                  budget_bytes=self.policy.question_byte_budget, target_unit_ids=list(self.children),
@@ -585,7 +756,10 @@ class UnitNode:
                 ans = child.answer_question(q, round_)
                 if ans is not None:
                     self.hier.stats["question_bytes"] += ans.wire_bytes()
-                    self._absorb_answer(qid, ans, round_)
+                    d = self._absorb_answer(qid, ans, round_)
+                    if d is not None:
+                        # the child's `sent` mirrors what this node holds from it (as after a promotion / resync)
+                        child.sent = Sketch.pool([child.sent, d], child.unit_id, child.layer, round_, child.policy.sketch_order)
 
     # ---- promotion -------------------------------------------------------
     def promote(self, round_: int) -> Artifact | None:
@@ -690,6 +864,15 @@ def _delta(selected: Sketch, sent: Sketch) -> Sketch:
     return Sketch(selected.producer_id, selected.layer, selected.round, selected.ids[keep], d[keep], selected.max_order)
 
 
+def _newer_version(c: Claim, cur: Claim) -> bool:
+    """Is `c` a fresher view of the claim `cur` holds under the same (cell, label, sign, scope) key?  The same
+    claim_id with a changed (round_updated, status), or a later claim of that scope (a revival after supersession
+    carries `revision_of`; a rebuilt node re-creates its claims with new ids)."""
+    if c.claim_id == cur.claim_id:
+        return (c.round_updated, c.status) != (cur.round_updated, cur.status)
+    return c.revision_of == cur.claim_id or c.round_created > cur.round_created
+
+
 # --------------------------------------------------------------------------
 # Hierarchy
 # --------------------------------------------------------------------------
@@ -774,6 +957,20 @@ class Hierarchy:
         for uid, node in self.nodes.items():
             if node.parent_id is not None and node.parent_id in self.nodes:
                 self.nodes[node.parent_id].children.append(uid)
+        # (team, department, region) index of every unit (-1 where the unit spans several); used to count distinct
+        # units when a node pools children from a layer the topology skips (UnitNode._fix_distinct)
+        td, dr = org.team_department, org.department_region
+        self.unit_membership: dict[str, tuple[int, int, int]] = {"EXEC": (-1, -1, -1)}
+        for t, tid in enumerate(org.team_ids):
+            self.unit_membership[tid] = (t, int(td[t]), int(dr[td[t]]))
+            for s in range(squads_per_team):
+                self.unit_membership[f"S{t:04d}.{s}"] = self.unit_membership[tid]
+        for d, did in enumerate(org.department_ids):
+            self.unit_membership[did] = (-1, d, int(dr[d]))
+        for v, vid in enumerate(ids_for["division"]):
+            self.unit_membership[vid] = (-1, -1, int(dr[min(2 * v, org.n_departments - 1)]))
+        for r, rid in enumerate(org.region_ids):
+            self.unit_membership[rid] = (-1, -1, r)
         # where worker batches land
         for t in range(org.n_teams):
             if L == 1:
@@ -828,11 +1025,14 @@ class Hierarchy:
                 # split the team batch into squads by worker index
                 wpt = max(1, self.org.n_workers // max(self.org.n_teams, 1))
                 squad = ((batch.worker - t * wpt) * 4 // max(wpt, 1)).clip(0, 3)
+                # a bare claim goes to the squad of the worker it names (never to all four)
+                claim_squad = [int(np.clip((int(d.get("worker", -1)) - t * wpt) * 4 // max(wpt, 1), 0, 3)) for d in batch.injected_claims]
                 for s in range(4):
                     m = squad == s
-                    if not m.any():
+                    inj = [d for d, cs in zip(batch.injected_claims, claim_squad) if cs == s]
+                    if not m.any() and not inj:
                         continue
-                    sub = _subset_batch(batch, m)
+                    sub = _subset_batch(batch, m, inj)
                     node = self.nodes[f"S{t:04d}.{s}"]
                     if node.available:
                         node.ingest_batch(sub, r)
@@ -902,8 +1102,10 @@ class Hierarchy:
         return out
 
 
-def _subset_batch(b: ObservationBatch, m: np.ndarray) -> ObservationBatch:
+def _subset_batch(b: ObservationBatch, m: np.ndarray, injected: list[dict] | None = None) -> ObservationBatch:
+    quotes = [q for q, keep in zip(b.quotes, m) if keep] if len(b.quotes) == len(m) else list(b.quotes[: int(m.sum())])
     return ObservationBatch(unit_id=b.unit_id, round=b.round, idx=b.idx[m], attrs=b.attrs[m], present=b.present[m],
                             labels=b.labels[m], worker=b.worker[m], fingerprint=b.fingerprint[m], confidence=b.confidence[m],
-                            signature_ok=b.signature_ok[m], is_attack=b.is_attack[m], quotes=b.quotes[: int(m.sum())] if b.quotes else [],
-                            injected_claims=b.injected_claims, model_calls=int(m.sum()), tokens_in=int(m.sum()) * 180)
+                            signature_ok=b.signature_ok[m], is_attack=b.is_attack[m], quotes=quotes,
+                            injected_claims=list(b.injected_claims if injected is None else injected),
+                            model_calls=int(m.sum()), tokens_in=int(m.sum()) * 180)

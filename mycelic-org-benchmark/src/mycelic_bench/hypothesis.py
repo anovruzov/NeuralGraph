@@ -124,10 +124,17 @@ def search(
     max_order: int = 3,
     restrict_ids: np.ndarray | None = None,
     z_screen: float = 1.5,
-    two_sided: bool = True,
+    two_sided: bool = False,
     min_order: int = 1,
 ) -> Candidates:
-    """Run the interaction test on every eligible cell of the sketch."""
+    """Run the interaction test on every eligible cell of the sketch.
+
+    The test is one-sided (rate(C) > rate(S \\ C), DESIGN.md 6.1): the contrast is the *most elevated*
+    sub-marginal, which is the right baseline for an elevated cell but not for a depressed one -- with
+    ``two_sided=True`` every sibling of a real effect cell is reported as "reduced" relative to the
+    sub-marginal that contains the effect (in a tier-1 world 73-85% of accepted claims were such sign=-1
+    artefacts).  With ``two_sided=True`` the reported p is the doubled one-sided p, so BH at ``fdr_q`` keeps
+    its nominal level."""
     ci = cell_index()
     if len(sketch.ids) == 0:
         return _empty()
@@ -167,9 +174,9 @@ def search(
     kk = k_c[ri, li]
     sign = np.where(diff[ri, li] >= 0, 1, -1)
     p = exact_or_normal_p(kk, M, K, N, sign)
-    p_up = p
-    if not two_sided:
-        p = p_up
+    if two_sided:
+        p = 2.0 * p          # two one-sided tests per (cell, label): the one-sided p in the observed direction is not a two-sided p
+    else:
         sign = np.ones_like(sign)
     p = np.clip(p, 1e-300, 1.0)
     # BH over the full tested family: screened-out hypotheses have p >= ~0.067 (z<1.5),
@@ -189,8 +196,11 @@ def search(
 
 def exact_or_normal_p(kk: np.ndarray, M: np.ndarray, K: np.ndarray, N: np.ndarray, sign: np.ndarray) -> np.ndarray:
     """One-sided p-value of the 2x2 table: exact hypergeometric when any
-    expected count is small (< 15), otherwise the normal approximation with
-    continuity correction (indistinguishable at that size, 20x faster)."""
+    expected count is small (< 15) and the normal screen is below 0.02, or
+    whenever the normal screen is below 1e-3 (the far tail of a skewed table
+    is where BH decisions are made and where the continuity-corrected normal
+    approximation is off by 10-1000x in either direction); otherwise the normal
+    approximation with continuity correction."""
     from scipy.stats import norm
     M = np.maximum(M, 1)
     mean = N * K / M
@@ -203,6 +213,7 @@ def exact_or_normal_p(kk: np.ndarray, M: np.ndarray, K: np.ndarray, N: np.ndarra
         p0 = np.where(sign > 0, norm.sf(z0), norm.cdf(z0))
     p[:] = np.clip(p0, 1e-300, 1.0)
     small &= (p0 < 0.02) | (var <= 0)
+    small |= p0 < 1e-3      # far tail: exact regardless of size (a few hundred tables per search call)
     if small.any():
         idx = np.flatnonzero(small)
         p_up = hypergeom.sf(kk[idx] - 1, M[idx], K[idx], N[idx])
@@ -223,12 +234,14 @@ def rate_test(n_c: np.ndarray, k_c: np.ndarray, n_o: np.ndarray, k_o: np.ndarray
     return exact_or_normal_p(np.asarray(k_c), np.asarray(M), np.asarray(K), np.asarray(n_c), np.asarray(sign))
 
 
-def null_evidence(n: np.ndarray, k: np.ndarray, baseline: np.ndarray, effect_min: float, conf: float = 0.99) -> np.ndarray:
-    """True where the data is powerful enough to say the rate is NOT elevated by
-    effect_min over baseline: upper Clopper-Pearson-style bound (normal approx)
-    of the rate below baseline + effect_min/2."""
+def null_evidence(n: np.ndarray, k: np.ndarray, baseline: np.ndarray, effect_min: float, conf: float = 0.99,
+                  margin: float | None = None) -> np.ndarray:
+    """True where the data is powerful enough to say the rate is NOT elevated over
+    baseline by `margin` (default effect_min/2): the upper confidence bound (normal
+    approximation) of the rate lies below baseline + margin."""
     from scipy.stats import norm
     z = norm.ppf(conf)
+    m = effect_min / 2 if margin is None else margin
     rate = k / np.maximum(n, 1)
     upper = rate + z * np.sqrt(np.maximum(rate * (1 - rate), 0.01) / np.maximum(n, 1))
-    return (n > 0) & (upper < baseline + effect_min / 2)
+    return (n > 0) & (upper < baseline + m)

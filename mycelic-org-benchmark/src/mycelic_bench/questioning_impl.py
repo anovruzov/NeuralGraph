@@ -507,8 +507,14 @@ class ScoredQuestionPolicy(QuestionPolicy):
             return []
         out: list[tuple[int, int, float, str]] = []
         asked = self._asked_by_node.setdefault(node.unit_id, set())
+        cells_this_call: set[int] = set()
         for i in idx:
             i = int(i)
+            # one question per cell: the answer is a one-cell sketch with every label's count, so asking the same
+            # cell again for another label would pool the identical answer twice (double-counted evidence)
+            if int(table.cell[i]) in cells_this_call or int(table.cell[i]) in asked:
+                continue
+            cells_this_call.add(int(table.cell[i]))
             trigger = SOURCE_MARGINAL if table.source[i] == SOURCE_MARGINAL else self.name
             cell, label, gain = int(table.cell[i]), int(table.label[i]), float(table.gain[i])
             out.append((cell, label, gain, trigger))

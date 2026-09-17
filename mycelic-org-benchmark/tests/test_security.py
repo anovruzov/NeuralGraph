@@ -439,3 +439,16 @@ def test_run_hierarchy_lineage_aware_local_slm_bounded_benign_drop(world, cfg):
     assert la["metrics"]["n_accepted"] == ref["metrics"]["n_accepted"]
     assert la["metrics"]["recall_local"] == ref["metrics"]["recall_local"]
     assert la["metrics"]["security"]["claims_flagged"] == 0
+
+
+def test_per_attack_type_names_follow_attack_codes() -> None:
+    """Record counters are keyed by attack code (1-based); the summary must name them with attacks.ATTACK_NAME."""
+    from mycelic_bench import attacks as A
+    from mycelic_bench.config import get_profile, load_config
+    from mycelic_bench.security_impl import SecurityImpl
+    cfg = load_config()
+    s = SecurityImpl("rules", cfg, get_profile(cfg, cfg["models"]["edge_profile"]), 0)
+    for code, name in A.ATTACK_NAME.items():
+        assert s._attack_name(code) == name
+    s.record_type_counts[A.ATTACK_CODE["provenance_spoof"]] = [5, 4]
+    assert s.summary()["per_attack_type"]["provenance_spoof"] == {"records": 5, "records_flagged": 4}

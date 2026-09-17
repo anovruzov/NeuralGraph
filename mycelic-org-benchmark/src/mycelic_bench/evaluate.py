@@ -137,6 +137,15 @@ class PopulationTruth:
         return frac
 
 
+def _n_min_round(world: World, e: Effect) -> int:
+    """Round at which the world first held ``e.n_min`` matching, active, non-copy interactions anywhere
+    (the time origin of time-to-discovery, DESIGN.md 10)."""
+    r = np.sort(world.round[world.effect_active_mask(e) & ~world.is_copy])
+    if len(r) == 0:
+        return 0
+    return int(r[min(max(int(e.n_min), 1), len(r)) - 1])
+
+
 def match_effects(world: World, claims: list[ClaimRecord], effect_min: float = 0.08) -> dict[str, Any]:
     """Classify each claim and compute discovery metrics per effect kind."""
     ci = cell_index()
@@ -187,6 +196,7 @@ def match_effects(world: World, claims: list[ClaimRecord], effect_min: float = 0
                     break
         p_in, p_out = pt.evaluate(int(c.cell), int(c.label), c.scope_layer, c.scope_unit)
         pop_true = (p_in - p_out) * c.sign >= effect_min / 4
+        pop_true_strict = (p_in - p_out) * c.sign >= effect_min / 2   # sensitivity: half the claim's own threshold
         if cat == "false" and pop_true:
             cat = "confounded_true"
         attack_frac = pt.attack_fraction(int(c.cell), c.scope_layer, c.scope_unit)
@@ -196,6 +206,7 @@ def match_effects(world: World, claims: list[ClaimRecord], effect_min: float = 0
                            "scope": f"{c.scope_layer}:{c.scope_unit}", "layer": c.layer, "category": cat, "status": c.status,
                            "disputed": c.disputed,
                            "effect_id": matched.effect_id if matched else None, "population_true": bool(pop_true),
+                           "population_true_strict": bool(pop_true_strict),
                            "p_in": p_in, "p_out": p_out, "confidence": c.confidence, "round": c.round_accepted,
                            "attack_fraction": attack_frac,
                            "is": c.independent_support, "replica": c.replica_count, "attack": c.origin_attack})
@@ -227,6 +238,7 @@ def match_effects(world: World, claims: list[ClaimRecord], effect_min: float = 0
     metrics["precision_lenient"] = (cats["exact"] + cats["under_specified"] + cats["confounded_true"]) / n_acc if n_acc else 0.0
     metrics["false_discovery_rate"] = (cats["false"] + cats["poison"] + cats["over_specified"]) / n_acc if n_acc else 0.0
     metrics["false_association_rate"] = sum(1 for c in classified if not c["population_true"]) / n_acc if n_acc else 0.0
+    metrics["false_association_rate_strict"] = sum(1 for c in classified if not c["population_true_strict"]) / n_acc if n_acc else 0.0
     metrics["false_but_disputed"] = sum(1 for c in classified if not c["population_true"] and c.get("disputed"))
     metrics["n_disputed"] = sum(1 for c in classified if c.get("disputed"))
     for kind in ("local", "cross_team", "global", "temporal", "contradiction"):
@@ -241,9 +253,13 @@ def match_effects(world: World, claims: list[ClaimRecord], effect_min: float = 0
         metrics[f"recall_{kind}_lenient"] = len(found_any) / n_e if n_e else float("nan")
         metrics[f"n_{kind}"] = n_e
         if kind in ("cross_team", "global"):
-            ttd = [discovered[e.effect_id]["round"] for e in found]
+            # DESIGN.md 10: time-to-discovery = first round accepted - round when the world first held n_min matching
+            # interactions anywhere.  The absolute first-acceptance round is kept alongside (the previous `ttd`).
+            first = [discovered[e.effect_id]["round"] for e in found]
+            ttd = [r - _n_min_round(world, e) for r, e in zip(first, found)]
             metrics[f"ttd_{kind}_median"] = float(np.median(ttd)) if ttd else float("nan")
             metrics[f"ttd_{kind}_mean"] = float(np.mean(ttd)) if ttd else float("nan")
+            metrics[f"first_accept_round_{kind}_median"] = float(np.median(first)) if first else float("nan")
             # layers needed: layer where first accepted vs ground-truth minimum layer
             extra = []
             for e in found:
@@ -336,7 +352,12 @@ def transition_fidelity(world: World, kb_by_layer: dict[str, list[ClaimRecord]],
         row["n_accepted"] = m["n_accepted"]
         cl = [c for c in m["classified"] if c["status"] == "accepted"]
         exact_ids = [c["effect_id"] for c in cl if c["category"] == "exact"]
-        row["duplicated"] = (len(exact_ids) - len(set(exact_ids))) / max(len(set(exact_ids)), 1)
+        # fraction of exactly-matched effects reported by more than one accepted claim at this layer (in [0, 1];
+        # the former "extra claims per effect" ratio exceeded 1 as soon as an effect had three claims)
+        n_per_effect: dict[Any, int] = {}
+        for eid in exact_ids:
+            n_per_effect[eid] = n_per_effect.get(eid, 0) + 1
+        row["duplicated"] = sum(1 for v in n_per_effect.values() if v > 1) / max(len(n_per_effect), 1)
         row["distorted"] = float(np.mean([abs((c["p_in"] - c["p_out"]) - next(e.delta for e in world.effects if e.effect_id == c["effect_id"])) > 0.5 *
                                           next(e.delta for e in world.effects if e.effect_id == c["effect_id"])
                                           for c in cl if c["category"] == "exact"])) if exact_ids else 0.0
@@ -432,9 +453,14 @@ def contradiction_metrics(world: World, conflicts: list[dict[str, Any]], kb: lis
     any_accepted = {(c.cell, c.label) for c in kb if c.status == "accepted" and c.sign > 0}
     conditional_accepted = {(c.cell, c.label) for c in kb if c.status == "accepted" and c.sign > 0 and c.conditional}
     gt_keys = {(es[0].cell, es[0].label) for es in groups.values()}
+    scoped_keys = {(e.cell, e.label) for e in world.effects if e.kind in ("local", "cross_team") and e.delta > 0}
     tp = sum(1 for k in gt_keys if k in conf_by_sig)
     fn = len(gt_keys) - tp
-    fp = sum(1 for k in conf_by_sig if k not in gt_keys)
+    # a conflict about a genuinely scoped effect (one unit sees it, siblings do not) is a legitimate
+    # scope disagreement; conflicts about other signatures are real data disagreements too (projections,
+    # specialization confounds) and are reported separately rather than counted as false contradictions
+    n_scope = sum(1 for k in conf_by_sig if k not in gt_keys and k in scoped_keys)
+    fp = sum(1 for k in conf_by_sig if k not in gt_keys and k not in scoped_keys)
     correct = incorrect = unresolved_ok = n_cond = 0
     detect_rounds = [conf_by_sig[k].get("round_opened", 0) for k in gt_keys if k in conf_by_sig]
     per_shape: dict[str, dict[str, int]] = {}
@@ -466,7 +492,8 @@ def contradiction_metrics(world: World, conflicts: list[dict[str, Any]], kb: lis
             "correct_resolution_rate": correct / max(len(groups), 1), "incorrect_resolution_rate": incorrect / max(len(groups), 1),
             "unresolved_when_appropriate": unresolved_ok / n_cond if n_cond else float("nan"),
             "time_to_detect_mean": float(np.mean(detect_rounds)) if detect_rounds else float("nan"),
-            "n_conflicts_raised": len(conf_by_sig), "per_shape": per_shape}
+            "n_conflicts_raised": len(conf_by_sig), "n_scope_disagreements": n_scope, "n_other_conflicts": fp,
+            "other_conflict_rate": fp / max(len(conf_by_sig), 1), "per_shape": per_shape}
 
 
 def privacy_metrics(world: World, canaries_exposed: list[str], bytes_off_device: int, raw_bytes: int,

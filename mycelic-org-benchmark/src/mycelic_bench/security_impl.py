@@ -542,7 +542,9 @@ class SecurityImpl(SecurityPipeline):
             return str(self.attack_names[code])
         try:   # attacks.py may expose a code table (any of these names); imported lazily, never required
             from . import attacks as _att  # type: ignore
-            for attr in ("ATTACK_NAMES", "ATTACK_TYPES", "ATTACK_CODES", "CODE_TO_NAME", "NAME_TO_CODE"):
+            # attacks.py: ATTACK_NAME (code -> name) / ATTACK_CODE (name -> code, 1-based); ATTACK_TYPES is the
+            # 0-based tuple of names, so it must never be indexed by a code
+            for attr in ("ATTACK_NAME", "ATTACK_NAMES", "ATTACK_CODE", "ATTACK_CODES", "CODE_TO_NAME", "NAME_TO_CODE"):
                 tab = getattr(_att, attr, None)
                 if isinstance(tab, dict):
                     if code in tab and isinstance(tab[code], str):
@@ -550,8 +552,6 @@ class SecurityImpl(SecurityPipeline):
                     for k, v in tab.items():
                         if isinstance(k, str) and v == code:
                             return k
-                elif isinstance(tab, (list, tuple)) and 0 <= code < len(tab) and isinstance(tab[code], str):
-                    return tab[code]
         except Exception:
             pass
         return f"attack_{int(code)}"

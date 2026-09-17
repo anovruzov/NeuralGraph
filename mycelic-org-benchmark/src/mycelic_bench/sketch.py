@@ -2,8 +2,10 @@
 
 A `Sketch` is the bounded abstraction that travels upward.  It contains, for
 each observed cell id: n (matching interactions), k[18] (label counts), and
-distinct-source counts (workers, teams, departments, regions) which are exact
-under pooling because organisational units are disjoint.
+distinct-source counts (workers, teams, departments, regions).  Pooling adds
+them, which is exact only for the layers at or below the pooled producers'
+layer (those units are disjoint); a node pooling its children restores the
+columns for its own layer and above (`hierarchy.UnitNode._fix_distinct`).
 
 Columns of `counts`:  0: n, 1..18: label counts, 19: distinct_workers,
 20: distinct_teams, 21: distinct_departments, 22: distinct_regions.

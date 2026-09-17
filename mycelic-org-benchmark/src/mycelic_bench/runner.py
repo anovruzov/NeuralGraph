@@ -13,6 +13,7 @@ from typing import Any
 
 import numpy as np
 
+from .agents import OBS_BYTES_PER_RECORD
 from .config import get_profile
 from .evaluate import (ClaimRecord, contradiction_metrics, evidence_metrics, failure_reasons_hierarchy, match_effects,
                        privacy_metrics, raw_record_bytes, temporal_metrics, transition_fidelity, unit_index)
@@ -150,6 +151,11 @@ def run_hierarchy(world: World, cfg: dict[str, Any], seed: int, name: str, sys_c
     # per-transition ratio of the first promotion (team -> parent), the DESIGN §10 definition for one transition
     leaf_out = sum(n.bytes_out for n in hier.layer_nodes(hier.layer_names[0])) if len(hier.layer_names) > 1 else 0
     metrics["compression_ratio_leaf_transition"] = raw_bytes / leaf_out if leaf_out > 0 else None
+    # the same records in the devices' compact structured encoding (baselines report bytes_off_device_compact likewise):
+    # compression read against a compact centralized upload rather than against verbose raw JSON
+    metrics["raw_bytes_compact"] = int(world.n * OBS_BYTES_PER_RECORD)
+    metrics["compression_ratio_vs_compact"] = metrics["raw_bytes_compact"] / metrics["bytes_above_team"] \
+        if metrics["bytes_above_team"] > 0 else None
     metrics["tokens"] = int(tot["tokens"]); metrics["model_calls"] = int(tot["model_calls"])
     metrics["tokens_to_cloud"] = int(getattr(security, "tokens_to_cloud", 0) or 0) if security is not None else 0
     metrics["latency_ms_est"] = float(tot["tokens"] / 1000 * profile.latency_ms_per_1k_tokens / max(len(hier.nodes), 1))

@@ -286,10 +286,11 @@ def write_stats_table(results: Path, out: Path, family: str, baseline: str, n_bo
         warn(f"stats_{family}: no headline metric columns — skipped"); return None
     df = _num(df, [c for c, _ in metrics])
     conds, groups = _condition_groups(df)
-    headers = ["System", "n", "mean", "SD", "95% CI (t)", f"Δ vs {baseline}", "Δ 95% CI (paired bootstrap)", "paired t p", "Holm p", "Wilcoxon p", "Cohen's d_z"]
+    headers = ["System", "n", "mean", "SD", "95% CI (t)", f"Δ vs {baseline}", "Δ 95% CI (paired bootstrap)", "Δ 95% CI (paired t)", "paired t p", "Holm p", "Wilcoxon p", "Cohen's d_z"]
     text = f"# Paired statistics — `{family}`\n\n"
     text += (f"Per metric and condition: unpaired mean/SD/95% t-CI per system, and the seed-paired difference of each system against "
-             f"`{baseline}` (inner join on seed): paired-bootstrap 95% CI (10,000 resamples unless stated), paired t-test p, "
+             f"`{baseline}` (inner join on seed): paired-bootstrap 95% CI (percentile, 10,000 resamples unless stated; it under-covers "
+             f"below ~20 seeds — simulated coverage 0.89 at n=10 and ~0.8 at n=5 — so the paired-t 95% CI is given next to it), paired t-test p, "
              f"Holm-adjusted p (family = all systems compared against the baseline for that metric and condition), Wilcoxon signed-rank p, "
              f"and Cohen's d_z. Bootstrap resamples used: {n_boot}.\n\n") + _source_line(fam, df)
     if conds:
@@ -313,6 +314,7 @@ def write_stats_table(results: Path, out: Path, family: str, baseline: str, n_bo
                              fmt_num(r["mean"]), fmt_num(r["sd"]), fmt_ci(r["ci_low"], r["ci_high"]),
                              "—" if is_base or not base_present else f"{fmt_num(r['diff'])} (n={int(r['n_pairs'])})",
                              "—" if is_base or not base_present else fmt_ci(r["diff_ci_low"], r["diff_ci_high"]),
+                             "—" if is_base or not base_present else fmt_ci(r["diff_t_ci_low"], r["diff_t_ci_high"]),
                              "—" if is_base or not base_present else fmt_p(r["t_p"]),
                              "—" if is_base or not base_present else fmt_p(r["holm_p"]),
                              "—" if is_base or not base_present else fmt_p(r["wilcoxon_p"]),

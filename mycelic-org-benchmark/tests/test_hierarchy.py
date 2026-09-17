@@ -223,3 +223,175 @@ def test_layer_ablation_topologies() -> None:
     hier = Hierarchy(w.org, w.records(), Policy.from_cfg(cfg), profile, 0, layers=1)
     hier.run(3)
     assert hier.root_node().n_records_in == int((w.round < 3).sum())
+
+
+# --------------------------------------------------------------------------
+# correctness review: pooled counts, distinct-source columns, revivals, answers, squads
+# --------------------------------------------------------------------------
+def _exact_sketch(hier, teams, max_order: int = 3) -> Sketch:
+    org = hier.org
+    cat = lambda name: np.concatenate([np.concatenate(getattr(hier.nodes[t], name)) for t in teams])  # noqa: E731
+    attrs, labels, present, w = cat("obs_attrs"), cat("obs_labels"), cat("obs_present"), cat("obs_worker")
+    return Sketch.from_interactions("X", "x", 0, attrs, labels, w, org.worker_team[w], org.worker_department[w],
+                                    org.worker_region[w], max_order=max_order, present=present)
+
+
+@pytest.mark.parametrize("compression", ["order_capped", "claims_only"])
+def test_department_pool_matches_union_of_team_stores(compression: str) -> None:
+    """Delta promotion never double-counts; every cell all teams promoted has exact n, k and distinct-source
+    columns at the department (dd = dr = 1 in a one-department org, not the number of teams)."""
+    from mycelic_bench.sketch import COL_DD, COL_DR, COL_DT, COL_DW
+    hier, policy = run_hier(compression=compression, lineage=True)
+    org = hier.org
+    dept = hier.nodes[org.department_ids[0]]
+    teams = [t for t in dept.children if t in hier.nodes]
+    exact = _exact_sketch(hier, teams)
+    cum = dept.cumulative
+    ex = exact.lookup(cum.ids)
+    ci = cell_index()
+    assert (cum.counts[:, COL_N] <= ex[:, COL_N]).all()                       # never more than the teams hold
+    thr = max(policy.min_cell_n, policy.k_anonymity)
+    full = ci.order_of(cum.ids) == 1
+    if compression == "order_capped":
+        full = np.ones(len(cum.ids), dtype=bool)
+        for t in teams:
+            tc = hier.nodes[t].cumulative.lookup(cum.ids)[:, COL_N]
+            full &= (tc >= thr) | (tc == 0) | (ci.order_of(cum.ids) == 1)
+    assert full.sum() >= 50
+    np.testing.assert_array_equal(cum.counts[full][:, :COL_DW], ex[full][:, :COL_DW])   # n and every label count
+    np.testing.assert_array_equal(cum.counts[full][:, COL_DW], ex[full][:, COL_DW])
+    np.testing.assert_array_equal(cum.counts[full][:, COL_DT], ex[full][:, COL_DT])
+    assert (cum.counts[:, COL_DD] == (cum.counts[:, COL_N] > 0)).all()
+    assert (cum.counts[:, COL_DR] == (cum.counts[:, COL_N] > 0)).all()
+    own = [c for (cell, label, sign, scope), c in dept.claims.items() if scope == dept.unit_id and c.status == "accepted"]
+    assert own
+    for c in own:
+        assert c.support.distinct_departments == 1 and c.support.distinct_regions == 1
+        assert c.support.distinct_teams <= len(teams) and c.support.distinct_workers >= c.support.distinct_teams
+    # the executive sees three teams, one department, one region
+    root = hier.root_node().cumulative
+    assert root.counts[:, COL_DT].max() == len(teams) and root.counts[:, COL_DD].max() == 1 and root.counts[:, COL_DR].max() == 1
+    # leaf recent window: distinct workers are exact (not once per round a worker contributed in)
+    team = hier.nodes[teams[0]]
+    r = max(team.recent)
+    rp = team._recent_pool(r)
+    m = np.concatenate(team.obs_round) >= r - policy.recent_window + 1
+    w = np.concatenate(team.obs_worker)[m]
+    ex_r = Sketch.from_interactions("X", "x", 0, np.concatenate(team.obs_attrs)[m], np.concatenate(team.obs_labels)[m], w,
+                                    org.worker_team[w], org.worker_department[w], org.worker_region[w], max_order=3,
+                                    present=np.concatenate(team.obs_present)[m])
+    np.testing.assert_array_equal(rp.lookup(rp.ids)[:, COL_DW], ex_r.lookup(rp.ids)[:, COL_DW])
+    assert rp.counts[:, COL_DW].max() <= len(np.unique(w))
+
+
+def test_skipped_layer_distinct_counts_in_two_layer_topology() -> None:
+    """With teams reporting straight to the executive, distinct departments / regions per cell are counted from
+    the contributing teams' membership, not from the number of teams."""
+    from mycelic_bench.sketch import COL_DD, COL_DR, COL_DT
+    cfg, w = small_world()
+    policy = Policy.from_cfg(cfg)
+    hier = Hierarchy(w.org, w.records(), policy, get_profile(cfg, cfg["models"]["edge_profile"]), 0, layers=2)
+    hier.run(w.n_rounds)
+    root = hier.root_node()
+    cum = root.cumulative
+    org = w.org
+    for i in range(0, len(cum.ids), max(1, len(cum.ids) // 50)):
+        cell = int(cum.ids[i])
+        teams = [t for t, sk in root.received_from.items() if sk.lookup(np.array([cell]))[0, COL_N] > 0]
+        tidx = [org.team_ids.index(t) for t in teams]
+        assert cum.counts[i, COL_DT] == len(teams)
+        assert cum.counts[i, COL_DD] == len({int(org.team_department[t]) for t in tidx})
+        assert cum.counts[i, COL_DR] == len({int(org.department_region[org.team_department[t]]) for t in tidx})
+
+
+def test_revived_claim_replaces_superseded_copy_at_parent() -> None:
+    """A claim revived after supersession carries a new claim_id under the same key; the parent must adopt it."""
+    cfg, w = small_world()
+    policy = Policy.from_cfg(cfg, lineage=True)
+    hier = Hierarchy(w.org, w.records(), policy, get_profile(cfg, cfg["models"]["edge_profile"]), 0, layers=5)
+    dept = hier.nodes[w.org.department_ids[0]]
+    parent = hier.nodes[dept.parent_id]
+    c1 = _own_accepted_claim(dept, 2); c1.sign_with(dept.key)
+    key = (c1.cell, c1.label, c1.sign, dept.unit_id)
+    dept.claims[key] = c1
+    parent.ingest_artifact(dept.promote(2), 2); parent._inherit(2)
+    assert parent.claims[key].claim_id == c1.claim_id and parent.claims[key].status == "accepted"
+    c1.status = "superseded"; c1.valid_to = 4; c1.round_updated = 4
+    parent.ingest_artifact(dept.promote(4), 4); parent._inherit(4)
+    assert parent.claims[key].status == "superseded"
+    c2 = _own_accepted_claim(dept, 6); c2.revision_of = c1.claim_id; c2.sign_with(dept.key)
+    dept.claims[key] = c2
+    parent.ingest_artifact(dept.promote(6), 6); parent._inherit(6)
+    assert parent.claims[key].claim_id == c2.claim_id and parent.claims[key].status == "accepted"
+    # and the grandparent learns it through the parent's own promotion
+    grand = hier.nodes[parent.parent_id]
+    grand.ingest_artifact(parent.promote(6), 6); grand._inherit(6)
+    assert grand.claims[key].claim_id == c2.claim_id and grand.claims[key].status == "accepted"
+
+
+def test_question_answers_are_absorbed_without_double_counting() -> None:
+    """An answer is the child's exact count; pooling it on top of a count the parent already holds from that
+    child (a promoted delta, an earlier answer) must add only the difference, and the child's `sent` follows."""
+    from mycelic_bench.schemas import QuestionArtifact
+    hier, policy = run_hier(compression="order_capped", lineage=True)
+    dept = hier.nodes[hier.org.department_ids[0]]
+    teams = [t for t in dept.children if t in hier.nodes]
+    exact = _exact_sketch(hier, teams)
+    ci = cell_index()
+    # an order-2 cell the department already holds partially (some team below min_cell_n)
+    cum = dept.cumulative
+    ex = exact.lookup(cum.ids)
+    partial = np.flatnonzero((ci.order_of(cum.ids) == 2) & (cum.counts[:, COL_N] > 0) & (cum.counts[:, COL_N] < ex[:, COL_N]))
+    assert len(partial)
+    cell = int(cum.ids[partial[0]])
+    true_n = int(ex[partial[0], COL_N])
+    r = 9
+    for _ in range(2):   # asking twice is idempotent
+        dept.ask([(cell, 0, 1.0, "fixed")], r)
+        got = dept.cumulative.lookup(np.array([cell]))[0]
+        assert int(got[COL_N]) == true_n, (int(got[COL_N]), true_n)
+        for t in teams:
+            child = hier.nodes[t]
+            held = dept.received_from[t].lookup(np.array([cell]))[0, COL_N]
+            assert int(child.sent.lookup(np.array([cell]))[0, COL_N]) == int(held) == int(child.cumulative.lookup(np.array([cell]))[0, COL_N])
+        r += 1
+    # a later promotion by the teams must not re-send the answered cell
+    for t in teams:
+        art = hier.nodes[t].promote(r)
+        assert cell not in set(art.sketch.ids.tolist())
+
+
+def test_seven_layer_routes_bare_claims_to_one_squad() -> None:
+    """Injected bare claims of a team batch reach only the squad of the worker they name (not all four)."""
+    from mycelic_bench import attacks as A
+    cfg, w = small_world()
+    plan = A.apply_attacks(w, cfg, seed=0, fraction=0.10, type_mix={"false_claim": 1.0})
+    try:
+        hier = Hierarchy(w.org, w.records(), Policy.from_cfg(cfg, lineage=True), get_profile(cfg, cfg["models"]["edge_profile"]), 0,
+                         layers=7, attack_hook=plan.hook)
+        hier.run(w.n_rounds)
+        injected = plan.hook_stats["claims_injected"]
+        quarantined = sum(len(n.quarantined) for n in hier.layer_nodes("squad"))
+        received = sum(len(ch) for n in hier.layer_nodes("squad") for ch in n.received_claims.values())
+        assert injected > 0 and quarantined + received <= injected
+        wpt = max(1, w.org.n_workers // w.org.n_teams)
+        for n in hier.layer_nodes("squad"):
+            t, s = int(n.unit_id[1:5]), int(n.unit_id[-1])
+            for c in n.quarantined:
+                wk = int(c.producer_id[1:])
+                assert int(np.clip((wk - t * wpt) * 4 // wpt, 0, 3)) == s
+    finally:
+        plan.restore()
+
+
+def test_fidelity_duplicated_is_a_fraction() -> None:
+    from mycelic_bench.evaluate import ClaimRecord, transition_fidelity
+    cfg, w = small_world()
+    e = next(x for x in w.effects if x.kind == "local" and x.delta > 0)
+    sl, su = (e.scope_layer, int(e.scope_unit)) if e.scope_layer in ("team", "department", "region") else ("executive", 0)
+    recs = [ClaimRecord(cell=e.cell, label=e.label, sign=e.sign, scope_layer=sl, scope_unit=su, layer="team", round_accepted=1,
+                        confidence=0.9, independent_support=3.0, replica_count=10, claim_id=f"c{i}") for i in range(3)]
+    fid = transition_fidelity(w, {"team": recs}, 0.08)
+    assert fid["table"]["team"]["duplicated"] == 1.0
+    fid1 = transition_fidelity(w, {"team": recs[:1]}, 0.08)
+    assert fid1["table"]["team"]["duplicated"] == 0.0

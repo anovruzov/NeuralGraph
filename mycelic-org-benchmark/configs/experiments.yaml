@@ -36,12 +36,29 @@ tiers:
     seeds: 3
 
 systems:
+  # Baseline knobs (baselines.py; every value below is the default the code applies when the key is absent):
+  #   analysis_every: 3        centralized systems analyse every 3rd round (and the last); the hierarchy runs every round,
+  #                            so baseline time-to-discovery carries up to +2 rounds of cadence lag
+  #   max_query_order: 4       B1/B2/B4 analyst may AND four terms (an inverted index answers 4-term ANDs as readily as
+  #                            3-term ones); set 3 to cap the analyst at the hierarchy's promoted sketch order
+  #   index_fields: record     B2 indexes the rendered structured record (unit ids + exact attributes + rationale);
+  #                            `rationale` = text-only index where each attribute is mentioned with worker-dependent prob.
+  #   read_cache: true         B2 reads a retrieved document once (extraction memoised); stats.tokens_to_cloud_uncached
+  #                            reports the naive re-read-per-hypothesis cost
+  #   rag_scopes: executive,region,department   B2 retrieves per organisation / region / department; add `team` for
+  #                            team-scoped retrieval (local effects are team-scoped; ~10x more retrievals per round)
+  #   scopes: org              B3 searches org-wide only; `per_unit` also groups the reader's extractions by unit
+  #   flush_partial: true      B3 summarises a partial window at each analysis point instead of holding it back
+  #   voter_min_records: 4, vote_share: 0.6, max_candidates: 400   B4 (MODULE_SPEC text says 3 records / simple majority,
+  #                            i.e. voter_min_records: 3, vote_share: 0.5); candidates are the most elevated cells, not the lowest ids
   B0_isolated: {kind: baseline}
   B1_central_keyword: {kind: baseline, query_budget_per_10k: 3000}   # 3,000 exact facet queries per analysis round per 10k records
   B2_central_rag: {kind: baseline, query_budget_per_10k: 3000, top_k: 200}   # 200 records x ~180 tokens = 36k-token context per hypothesis
-  B3_central_llm_summary: {kind: baseline, window_records: 200}
-  B4_majority_vote: {kind: baseline, query_budget_per_10k: 3000, min_votes: 3}
-  B5_flat_agents: {kind: hierarchy, layers: 1, fan_in_budget_bytes: 2000000, lineage: false}
+  B3_central_llm_summary: {kind: baseline, window_records: 200}   # 200 x 180 = 36k tokens/window (frontier context is 200k; chunk size does not change pooled counts)
+  B3_central_llm_summary_scoped: {kind: baseline, base: B3_central_llm_summary, window_records: 200, scopes: per_unit}   # strong variant: reduce per unit
+  B4_majority_vote: {kind: baseline, query_budget_per_10k: 3000, min_votes: 3, voter_min_records: 3, vote_share: 0.5}   # MODULE_SPEC Task A (>=3 records, simple majority); the code's fallback 4 / 0.6 is the stricter older setting
+  B5_flat_agents: {kind: hierarchy, layers: 1, fan_in_budget_bytes: 2000000, lineage: false}   # naive flat aggregator (replica counts); 2 MB/round never binds (40 B/record, <=17k records/round at tier3)
+  B5_flat_agents_lineage: {kind: hierarchy, layers: 1, fan_in_budget_bytes: 2000000, lineage: true, detector: none}   # flat + B7's lineage features: isolates topology from lineage
   B6_hier_no_lineage: {kind: hierarchy, lineage: false, detector: none}
   B7_mycelic: {kind: hierarchy, lineage: true, detector: none}
   B8_mycelic_security: {kind: hierarchy, lineage: true, detector: lineage_aware, local_slm_classifier: true}

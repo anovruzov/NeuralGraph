@@ -55,9 +55,10 @@ world:
   local_orders: [2, 3]
   cross_team_orders: [2, 3]
   global_orders: [3, 4]
-  power_alpha: 0.00001   # per-test alpha after multiple-comparison burden (~5e4 tests per node)
+  power_alpha: 1.0e-8    # per-test alpha: survives BH over ~3e5 hypotheses at an executive node
   power_target: 0.8
-  power_margin: 1.5             # required matching count = margin x n_min at the minimum layer
+  power_margin: 1.25            # required matching count = margin x n_min at the minimum layer
+  generator_effect_min: 0.10    # a candidate must exceed its best sub-marginal by this much (test uses 0.08)
   min_layer_for_global: department
   sensitive_fraction: 0.08
   version_release_rounds: {v2: 0.25, v3: 0.5, v4: 0.75}   # fraction of n_rounds

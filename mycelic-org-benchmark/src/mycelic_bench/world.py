@@ -510,22 +510,72 @@ def generate_world(cfg: dict[str, Any], seed: int) -> World:
     used_cells: list[tuple[int, int]] = []   # (cell, label)
     lo, hi = w["effect_delta_range"]
     alpha, power = float(w["power_alpha"]), float(w["power_target"])
+    gen_effect_min = float(w.get("generator_effect_min", 0.10))
     team_of = org.worker_team[worker]
     dept_of = org.worker_department[worker]
     region_of = org.worker_region[worker]
+    region = region_of
+    # the generative label-probability matrix is maintained incrementally so that every
+    # candidate is calibrated against the outside rate the shared interaction test will see
+    p = base[attrs[:, 0], attrs[:, 2], :].copy()   # [n, labels]
+
+    def effect_rows(cell: int, valid_from: int = 0, valid_to: int | None = None, regions=None,
+                    scope_layer: str | None = None, scope_unit: int = -1) -> np.ndarray:
+        m = cell_match_mask(attrs, cell) & (rounds >= valid_from)
+        if valid_to is not None:
+            m &= rounds < valid_to
+        if regions is not None:
+            m &= np.isin(region, list(regions))
+        if scope_layer in ("team", "department", "region"):
+            m &= org.membership(scope_layer)[worker] == scope_unit
+        return m
+
+    def apply_effect(cell: int, label: int, delta: float, sign: float = 1.0, **kw: Any) -> None:
+        if delta == 0.0:
+            return
+        p[effect_rows(cell, **kw), label] += sign * delta
+
+    def outside_rate(cell: int, label: int, valid: np.ndarray) -> float:
+        """Rate of the most elevated order-(k-1) sub-cell outside the cell (what the test contrasts against)."""
+        pairs = ci.decode(int(cell))
+        cm = cell_match_mask(attrs, cell)
+        best = -1.0
+        if len(pairs) == 1:
+            out = valid & ~cm
+            return float(p[out, label].mean()) if out.any() else 0.0
+        for drop in range(len(pairs)):
+            sub = np.ones(n, dtype=bool)
+            for j, (a, v) in enumerate(pairs):
+                if j != drop:
+                    sub &= attrs[:, a] == v
+            out = valid & sub & ~cm
+            if out.sum() >= 10:
+                best = max(best, float(p[out, label].mean()))
+        if best < 0:
+            out = valid & ~cm
+            best = float(p[out, label].mean()) if out.any() else 0.0
+        return best
 
     def scope_mask(scope_layer: str | None, scope_unit: int) -> np.ndarray | None:
         if scope_layer is None:
             return None
         return org.membership(scope_layer)[worker] == scope_unit
 
-    def classify(cell: int, delta: float, label: int, valid: np.ndarray | None) -> tuple[str, int, dict, dict]:
+    def classify(cell: int, delta: float, label: int, valid: np.ndarray | None, planted: bool = False) -> tuple[str, int, dict, dict]:
+        """Minimum discovery layer of a candidate effect, calibrated to the shared interaction test:
+        the outside rate is the most elevated sub-marginal under the *current* probability matrix (other
+        planted effects included), the inside rate is the cell's current rate plus delta (or the current
+        rate when the effect is already planted), both attenuated by average worker label noise."""
         valid = unique_rec if valid is None else (valid & unique_rec)   # copies are not evidence
         m = cell_match_mask(attrs, cell) & valid
         if m.sum() == 0:
             return "none", 10**9, {}, {}
-        p0 = float(base[attrs[m, 0], attrs[m, 2], label].mean())
-        nmin = n_min_for(delta, p0, alpha, power, avg_recall, avg_fpr)
+        p0 = outside_rate(cell, label, valid)
+        p1 = float(p[m, label].mean()) + (0.0 if planted else delta)
+        delta_eff = min(p1, 0.97) - p0
+        if delta_eff < gen_effect_min:
+            return "none", 10**9, {}, {}
+        nmin = n_min_for(delta_eff, p0, alpha, power, avg_recall, avg_fpr)
         uc = _unit_counts_for_cell(attrs, cell, org, worker, valid)
         margin = float(w.get("power_margin", 1.5))
         min_layer = "none"
@@ -576,6 +626,7 @@ def generate_world(cfg: dict[str, Any], seed: int) -> World:
             eid = f"{kind[:3].upper()}{len(effects):04d}"
             effects.append(Effect(eid, kind, cell, label, delta, order=order, min_layer=min_layer, n_min=nmin,
                                   unit_counts=uc, contributing_units=cu, scope_layer=scope_layer, scope_unit=scope_unit))
+            apply_effect(cell, label, delta, scope_layer=scope_layer, scope_unit=scope_unit)
             used_cells.append((cell, label))
             added += 1
         return added
@@ -597,48 +648,11 @@ def generate_world(cfg: dict[str, Any], seed: int) -> World:
             continue
         effects.append(Effect(f"BAS{len(effects):04d}", "base_rate", cell, label, delta, order=1, min_layer=min_layer, n_min=nmin,
                               unit_counts=uc, contributing_units=cu))
+        apply_effect(cell, label, delta)
         used_cells.append((cell, label)); added += 1
     gen_report["base_rate"] = added
-    # local: scoped to one team, discoverable by that team alone
-    gen_report["local"] = add_effects("local", int(w["n_local_findings"]), list(w["local_orders"]),
-                                      {"worker", "team"}, "team")
-    # cross-team: scoped to one department; no team alone has enough evidence, >=2 teams contribute
-    gen_report["cross_team"] = add_effects(
-        "cross_team", int(w["n_cross_team_findings"]), list(w["cross_team_orders"]), {"department"}, "department",
-        extra_check=lambda uc, cu, ml: cu["team"] >= 2)
-    # global: organisation-wide; evidence spread across departments (and regions when they exist)
-    global_layers = {"region", "executive"}
-    if org.n_regions == 1:
-        global_layers = {"executive"}
-    if org.n_departments == 1:
-        global_layers = {"department", "executive"}
-    if str(w.get("min_layer_for_global", "department")) == "department":
-        global_layers |= {"department"}
-    gen_report["global"] = add_effects(
-        "global", int(w["n_global_findings"]), list(w["global_orders"]), global_layers, None,
-        extra_check=lambda uc, cu, ml: cu["department"] >= 2 and cu["team"] >= 3
-        and (org.n_regions == 1 or cu["region"] >= 2))
-    # decoys: zero-delta cells adjacent to real effects (share label and 2 attribute-values)
-    n_dec = 0
-    real = [e for e in effects if e.kind != "base_rate"]
-    attempts = 0
-    while n_dec < int(w["n_decoys"]) and real and attempts < 20 * int(w["n_decoys"]):
-        attempts += 1
-        e = real[int(rng.integers(0, len(real)))]
-        pairs = list(ci.decode(e.cell))
-        if len(pairs) < 2:
-            continue
-        keep = [pairs[i] for i in sorted(rng.choice(len(pairs), size=min(2, len(pairs)), replace=False))]
-        others = [a for a in range(N_ATTR) if a not in {a for a, _ in keep} and a != ATTR_INDEX["model_version"]]
-        a_new = int(rng.choice(others))
-        cell = ci.encode(keep + [(a_new, int(rng.integers(0, N_VALUES[a_new])))])
-        if conflicts_existing(cell, e.label):
-            continue
-        effects.append(Effect(f"DEC{len(effects):04d}", "decoy", cell, e.label, 0.0, order=len(keep) + 1, min_layer="none"))
-        used_cells.append((cell, e.label))
-        n_dec += 1
-    gen_report["decoy"] = n_dec
-
+    # organisation-wide effects (contradictions, temporal phases) are planted BEFORE scoped effects so that
+    # they cannot mask them; a scoped effect changes an organisation-wide sub-marginal only marginally.
     # contradictions.  Three shapes:
     #  (a) biased_positive: no true effect; 1-2 correlated teams in one department over-report the label on the
     #      cell (their positive claim is false; correct outcome = reject it);
@@ -647,7 +661,8 @@ def generate_world(cfg: dict[str, Any], seed: int) -> World:
     n_con = 0
     attempts = 0
     contradiction_bias_teams: dict[str, tuple[str, list[int]]] = {}
-    while n_con < int(w["n_contradictions"]) and attempts < 40 * int(w["n_contradictions"]):
+    n_con_target = int(round(int(w["n_contradictions"]) * float(w.get('overgenerate_factor', 1.4))))
+    while n_con < n_con_target and attempts < 40 * n_con_target:
         attempts += 1
         order = int(rng.choice([2, 3]))
         cell = sample_cell_from(np.arange(n), order)
@@ -673,12 +688,13 @@ def generate_world(cfg: dict[str, Any], seed: int) -> World:
             effects.append(Effect(f"CON{len(effects):04d}", "contradiction", cell, label, delta, sign=1, regions=a_regs,
                                   group=gid, conditional=True, true_side=True, order=order, min_layer=min_layer, n_min=nmin,
                                   unit_counts=uc, contributing_units=cu))
+            apply_effect(cell, label, delta, regions=a_regs)
             used_cells.append((cell, label))
             effects.append(Effect(f"CON{len(effects):04d}", "contradiction", cell, label, 0.0, sign=-1, regions=b_regs,
                                   group=gid, conditional=True, true_side=True, order=order, min_layer=min_layer, n_min=nmin,
                                   unit_counts=uc, contributing_units=cu))
         else:
-            teams_with, tcounts = np.unique(team_of[m], return_counts=True)
+            teams_with, tcounts = np.unique(team_of[m & unique_rec], return_counts=True)
             if len(teams_with) < 3:
                 continue
             depts = org.team_department[teams_with]
@@ -686,12 +702,23 @@ def generate_world(cfg: dict[str, Any], seed: int) -> World:
             cand = teams_with[depts == d]
             if len(cand) < 1 or len(cand) >= len(teams_with) - 1:
                 continue
-            k = min(len(cand), int(rng.integers(1, 3)))
-            bias_teams = [int(t) for t in rng.choice(cand, size=k, replace=False)]
+            # the biased team(s) must hold enough matching records to surface the (false or suppressed)
+            # claim at their own layer, and the honest remainder of the organisation must hold enough
+            # records to contradict it (otherwise no system could tell the two apart)
+            cand_counts = tcounts[np.isin(teams_with, cand)]
+            enough = cand[cand_counts >= nmin * float(w.get("power_margin", 1.5))]
+            if len(enough) == 0:
+                continue
+            k = min(len(enough), int(rng.integers(1, 3)))
+            bias_teams = [int(t) for t in rng.choice(enough, size=k, replace=False)]
+            honest = int(tcounts[~np.isin(teams_with, bias_teams)].sum())
+            if honest < 2 * nmin:
+                continue
             if shape == "biased_null":
                 effects.append(Effect(f"CON{len(effects):04d}", "contradiction", cell, label, delta, sign=1,
                                       group=gid, conditional=False, true_side=True, order=order, min_layer=min_layer, n_min=nmin,
                                       unit_counts=uc, contributing_units=cu))
+                apply_effect(cell, label, delta)
                 used_cells.append((cell, label))
                 effects.append(Effect(f"CON{len(effects):04d}", "contradiction", cell, label, 0.0, sign=-1,
                                       group=gid, conditional=False, true_side=False, order=order, min_layer=min_layer, n_min=nmin,
@@ -700,7 +727,7 @@ def generate_world(cfg: dict[str, Any], seed: int) -> World:
             else:  # biased_positive: the positive side is the false one
                 effects.append(Effect(f"CON{len(effects):04d}", "contradiction", cell, label, delta, sign=1,
                                       group=gid, conditional=False, true_side=False, order=order, min_layer=min_layer, n_min=nmin,
-                                      unit_counts={"biased_teams": len(bias_teams)}, contributing_units={},
+                                      unit_counts={"biased_teams": len(bias_teams)}, contributing_units={"bias_teams": bias_teams},
                                       scope_layer="team_set", scope_unit=-1))
                 used_cells.append((cell, label))
                 effects.append(Effect(f"CON{len(effects):04d}", "contradiction", cell, label, 0.0, sign=-1,
@@ -717,7 +744,8 @@ def generate_world(cfg: dict[str, Any], seed: int) -> World:
     n_tmp = 0
     attempts = 0
     release_rounds_sorted = sorted(release_round.values())
-    while n_tmp < int(w["n_temporal_revisions"]) and attempts < 40 * int(w["n_temporal_revisions"]):
+    n_tmp_target = int(round(int(w["n_temporal_revisions"]) * float(w.get('overgenerate_factor', 1.4)) * 1.5))
+    while n_tmp < n_tmp_target and attempts < 40 * n_tmp_target:
         attempts += 1
         order = int(rng.choice([2, 3]))
         cell = sample_cell_from(np.arange(n), order)
@@ -744,24 +772,137 @@ def generate_world(cfg: dict[str, Any], seed: int) -> World:
             effects.append(Effect(f"TMP{len(effects):04d}", "temporal", cell, label, delta * pattern[ph], sign=1,
                                   valid_from=a, valid_to=b, group=gid, phase=ph, order=order, min_layer=ml,
                                   n_min=nmin, unit_counts=uc, contributing_units=cu))
+            apply_effect(cell, label, delta * pattern[ph], valid_from=a, valid_to=b)
         used_cells.append((cell, label))
         n_tmp += 1
     gen_report["temporal"] = n_tmp
 
-    # ---- true labels -------------------------------------------------------
-    p = base[attrs[:, 0], attrs[:, 2], :].copy()   # [n, labels]
-    region = org.worker_region[worker]
-    for e in effects:
-        if e.delta == 0.0 or not e.true_side:
+    # local: scoped to one team, discoverable by that team alone
+    overgen = float(w.get('overgenerate_factor', 1.4))   # plant extra candidates; trim to the requested counts after validation
+    gen_report["local"] = add_effects("local", int(round(int(w["n_local_findings"]) * overgen)), list(w["local_orders"]),
+                                      {"worker", "team"}, "team")
+    # cross-team: scoped to one department; no team alone has enough evidence, >=2 teams contribute
+    gen_report["cross_team"] = add_effects(
+        "cross_team", int(round(int(w["n_cross_team_findings"]) * overgen)), list(w["cross_team_orders"]), {"department"}, "department",
+        extra_check=lambda uc, cu, ml: cu["team"] >= 2)
+    # global: organisation-wide; evidence spread across departments (and regions when they exist)
+    global_layers = {"region", "executive"}
+    if org.n_regions == 1:
+        global_layers = {"executive"}
+    if org.n_departments == 1:
+        global_layers = {"department", "executive"}
+    if str(w.get("min_layer_for_global", "department")) == "department":
+        global_layers |= {"department"}
+    gen_report["global"] = add_effects(
+        "global", int(round(int(w["n_global_findings"]) * overgen)), list(w["global_orders"]), global_layers, None,
+        extra_check=lambda uc, cu, ml: cu["department"] >= 2 and cu["team"] >= 3
+        and (org.n_regions == 1 or cu["region"] >= 2))
+    # decoys: zero-delta cells adjacent to real effects (share label and 2 attribute-values)
+    n_dec = 0
+    real = [e for e in effects if e.kind != "base_rate"]
+    attempts = 0
+    while n_dec < int(w["n_decoys"]) and real and attempts < 20 * int(w["n_decoys"]):
+        attempts += 1
+        e = real[int(rng.integers(0, len(real)))]
+        pairs = list(ci.decode(e.cell))
+        if len(pairs) < 2:
             continue
-        m = cell_match_mask(attrs, e.cell) & (rounds >= e.valid_from)
-        if e.valid_to is not None:
-            m &= rounds < e.valid_to
-        if e.regions is not None:
-            m &= np.isin(region, list(e.regions))
-        if e.scope_layer in ("team", "department", "region"):
-            m &= org.membership(e.scope_layer)[worker] == e.scope_unit
-        p[m, e.label] += e.delta
+        keep = [pairs[i] for i in sorted(rng.choice(len(pairs), size=min(2, len(pairs)), replace=False))]
+        others = [a for a in range(N_ATTR) if a not in {a for a, _ in keep} and a != ATTR_INDEX["model_version"]]
+        a_new = int(rng.choice(others))
+        cell = ci.encode(keep + [(a_new, int(rng.integers(0, N_VALUES[a_new])))])
+        if conflicts_existing(cell, e.label):
+            continue
+        effects.append(Effect(f"DEC{len(effects):04d}", "decoy", cell, e.label, 0.0, order=len(keep) + 1, min_layer="none"))
+        used_cells.append((cell, e.label))
+        n_dec += 1
+    gen_report["decoy"] = n_dec
+
+    # ---- validation pass: every planted effect must still meet its kind's layer requirement under the
+    # final probability matrix (later effects can raise a sub-marginal and mask an earlier one).  Effects
+    # that fail are removed (their delta subtracted) and counted; two passes converge in practice.
+    def kind_requirement(e: Effect, ml: str, uc: dict, cu: dict) -> bool:
+        if e.kind == "local":
+            return ml in ("worker", "team")
+        if e.kind == "cross_team":
+            return ml == "department" and cu.get("team", 0) >= 2
+        if e.kind == "global":
+            return ml in global_layers and cu.get("department", 0) >= 2 and cu.get("team", 0) >= 3 \
+                and (org.n_regions == 1 or cu.get("region", 0) >= 2)
+        if e.kind == "temporal":
+            return ml != "none"
+        if e.kind == "contradiction":
+            return ml not in ("none", "worker")
+        return ml != "none"
+
+    dropped: dict[str, int] = {}
+    for _pass in range(2):
+        drop_groups: set[str] = set(); drop_ids: set[str] = set()
+        for e in effects:
+            if e.delta <= 0 or not e.true_side or e.kind in ("base_rate", "decoy"):
+                continue
+            valid = None
+            if e.scope_layer in ("team", "department", "region"):
+                valid = org.membership(e.scope_layer)[worker] == e.scope_unit
+            if e.kind == "temporal":
+                valid = (rounds >= e.valid_from) & (rounds < (e.valid_to if e.valid_to is not None else n_rounds))
+            if e.regions is not None:
+                vr = np.isin(region, list(e.regions))
+                valid = vr if valid is None else (valid & vr)
+            ml, nmin, uc, cu = classify(e.cell, e.delta, e.label, valid, planted=True)
+            if kind_requirement(e, ml, uc, cu):
+                e.min_layer, e.n_min, e.unit_counts, e.contributing_units = ml, nmin, uc, cu
+            elif e.group is not None:
+                drop_groups.add(e.group)
+            else:
+                drop_ids.add(e.effect_id)
+        if not drop_groups and not drop_ids:
+            break
+        keep: list[Effect] = []
+        for e in effects:
+            if e.effect_id in drop_ids or (e.group is not None and e.group in drop_groups):
+                dropped[e.kind] = dropped.get(e.kind, 0) + 1
+                if e.delta > 0 and e.true_side:
+                    apply_effect(e.cell, e.label, e.delta, sign=-1.0, valid_from=e.valid_from, valid_to=e.valid_to,
+                                 regions=e.regions, scope_layer=e.scope_layer, scope_unit=e.scope_unit)
+                used_cells[:] = [uc_ for uc_ in used_cells if uc_ != (e.cell, e.label)]
+            else:
+                keep.append(e)
+        effects[:] = keep
+        contradiction_bias_teams = {g: v for g, v in contradiction_bias_teams.items() if g not in drop_groups}
+    gen_report["validation_dropped"] = dropped
+    # trim over-generated kinds back to the requested counts (extras are removed like validation failures)
+    targets = {"local": int(w["n_local_findings"]), "cross_team": int(w["n_cross_team_findings"]),
+               "global": int(w["n_global_findings"])}
+    group_targets = {"contradiction": int(w["n_contradictions"]), "temporal": int(w["n_temporal_revisions"])}
+    keep_ids: set[str] = set(); keep_groups: set[str] = set(); seen_groups: dict[str, list[str]] = {}
+    counts: dict[str, int] = {}
+    for e in effects:
+        if e.kind in targets:
+            if counts.get(e.kind, 0) < targets[e.kind]:
+                keep_ids.add(e.effect_id); counts[e.kind] = counts.get(e.kind, 0) + 1
+        elif e.kind in group_targets:
+            seen_groups.setdefault(e.kind, [])
+            if e.group not in seen_groups[e.kind] and len(seen_groups[e.kind]) < group_targets[e.kind]:
+                seen_groups[e.kind].append(e.group)
+            if e.group in seen_groups[e.kind]:
+                keep_groups.add(e.group)
+        else:
+            keep_ids.add(e.effect_id)
+    trimmed: list[Effect] = []
+    for e in effects:
+        if e.effect_id in keep_ids or (e.group is not None and e.group in keep_groups):
+            trimmed.append(e)
+        else:
+            if e.delta > 0 and e.true_side:
+                apply_effect(e.cell, e.label, e.delta, sign=-1.0, valid_from=e.valid_from, valid_to=e.valid_to,
+                             regions=e.regions, scope_layer=e.scope_layer, scope_unit=e.scope_unit)
+            used_cells[:] = [uc_ for uc_ in used_cells if uc_ != (e.cell, e.label)]
+    effects[:] = trimmed
+    contradiction_bias_teams = {g: v for g, v in contradiction_bias_teams.items() if g in keep_groups}
+    gen_report["final_counts"] = {k: sum(1 for e in effects if e.kind == k) for k in ("base_rate", "local", "cross_team", "global", "decoy", "contradiction", "temporal")}
+
+    # ---- true labels (p was built incrementally while planting effects) ------
     p = np.clip(p, 0.0, 0.97)
     true_lab = rng.random((n, N_LABELS)) < p
 
@@ -813,7 +954,7 @@ def generate_world(cfg: dict[str, Any], seed: int) -> World:
         p_true=p.astype(np.float32),
     )
     # ground-truth independent support per effect at each layer (honest, non-copied, benign)
-    rho = (float(cfg.get("security", {}).get("rho_team", 0.5)), float(cfg.get("security", {}).get("rho_department", 0.7)),
+    rho = (float(cfg.get("security", {}).get("rho_team", 0.25)), float(cfg.get("security", {}).get("rho_department", 0.7)),
            float(cfg.get("security", {}).get("rho_region", 0.9)))
     for e in effects:
         if e.kind in ("local", "cross_team", "global", "temporal", "contradiction") and (e.true_side or e.conditional):

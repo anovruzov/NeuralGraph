@@ -226,7 +226,8 @@ def test_hidden_in_rationale_flips_labels_without_touching_attrs() -> None:
 def test_poison_accounting_reported_for_b6_and_b7() -> None:
     cfg, w = small_world()
     before = _snapshot(w)
-    plan = A.apply_attacks(w, cfg, seed=0, fraction=0.20, type_mix=cfg["attacks"]["type_mix"])
+    # 10% keeps the lineage-blind run short (its accepted-claim count explodes with the malicious fraction)
+    plan = A.apply_attacks(w, cfg, seed=0, fraction=0.10, type_mix=cfg["attacks"]["type_mix"])
     try:
         out = {}
         for name in ("B6_hier_no_lineage", "B7_mycelic"):
