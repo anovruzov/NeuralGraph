@@ -1,0 +1,2 @@
+2026-09-17T21:34:23Z start 20260917T194336-2a01_B3_central_llm_summary_default_s20 system=B3_central_llm_summary kind=baseline seed=20 condition=default dataset=3260b8f1e04cba9a
+2026-09-17T21:34:35Z ok runtime_s=11.89 peak_rss_mb=411 n_accepted=253 recall_global=0.8
