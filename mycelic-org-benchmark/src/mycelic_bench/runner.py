@@ -14,8 +14,8 @@ from typing import Any
 import numpy as np
 
 from .config import get_profile
-from .evaluate import (ClaimRecord, contradiction_metrics, evidence_metrics, match_effects, privacy_metrics,
-                       raw_record_bytes, temporal_metrics, transition_fidelity, unit_index)
+from .evaluate import (ClaimRecord, contradiction_metrics, evidence_metrics, failure_reasons_hierarchy, match_effects,
+                       privacy_metrics, raw_record_bytes, temporal_metrics, transition_fidelity, unit_index)
 from .hierarchy import Hierarchy, Policy
 from .world import World
 
@@ -121,6 +121,10 @@ def run_hierarchy(world: World, cfg: dict[str, Any], seed: int, name: str, sys_c
     exposed = []
     for q in canaries:
         exposed.extend(re.findall(r"CANARY-[a-z_]+-[0-9a-f]{8}", q))
+    # security accounting hook (C-security): text shipped to a central/cloud classifier is off-device exposure
+    sec_bytes_exposed = int(getattr(security, "bytes_exposed", 0) or 0) if security is not None else 0
+    if security is not None:
+        exposed.extend(list(getattr(security, "text_exposed", []) or []))
     raw_bytes = raw_record_bytes(world)
     # reconstructability: promoted higher-order cells with n < k
     small = total_cells = 0
@@ -134,24 +138,36 @@ def run_hierarchy(world: World, cfg: dict[str, Any], seed: int, name: str, sys_c
         total_cells += int(hi.sum())
         small += int((node.sent.counts[hi, 0] < max(policy.k_anonymity, 1)).sum())
     bytes_up = sum(n.bytes_out for n in hier.nodes.values()) + tot["bytes_worker_to_team"]
-    metrics.update(privacy_metrics(world, exposed, int(tot["bytes_worker_to_team"]), raw_bytes, small, total_cells))
+    metrics.update(privacy_metrics(world, exposed, int(tot["bytes_worker_to_team"]) + sec_bytes_exposed, raw_bytes, small, total_cells))
     metrics["bytes_transmitted"] = int(bytes_up)
     metrics["bytes_worker_to_team"] = int(tot["bytes_worker_to_team"])
     metrics["bytes_above_team"] = int(sum(n.bytes_out for n in hier.nodes.values()))
-    metrics["compression_ratio"] = raw_bytes / max(metrics["bytes_above_team"], 1)
     metrics["compression_ratio_total"] = raw_bytes / max(bytes_up, 1)
+    # raw bytes / bytes promoted above the leaf layer; a topology with nothing above the leaf (B5 flat / 1 layer)
+    # has no such transition, so the total (worker -> root) ratio is reported instead of raw / 1
+    metrics["compression_ratio"] = raw_bytes / metrics["bytes_above_team"] if metrics["bytes_above_team"] > 0 \
+        else metrics["compression_ratio_total"]
+    # per-transition ratio of the first promotion (team -> parent), the DESIGN §10 definition for one transition
+    leaf_out = sum(n.bytes_out for n in hier.layer_nodes(hier.layer_names[0])) if len(hier.layer_names) > 1 else 0
+    metrics["compression_ratio_leaf_transition"] = raw_bytes / leaf_out if leaf_out > 0 else None
     metrics["tokens"] = int(tot["tokens"]); metrics["model_calls"] = int(tot["model_calls"])
-    metrics["tokens_to_cloud"] = 0
+    metrics["tokens_to_cloud"] = int(getattr(security, "tokens_to_cloud", 0) or 0) if security is not None else 0
     metrics["latency_ms_est"] = float(tot["tokens"] / 1000 * profile.latency_ms_per_1k_tokens / max(len(hier.nodes), 1))
     metrics["energy_j_est"] = float(tot["tokens"] / 1000 * profile.energy_j_per_1k_tokens)
     metrics["cost_usd_est"] = float(tot["tokens"] / 1000 * profile.usd_per_1k_tokens)
+    if metrics["tokens_to_cloud"]:
+        # security accounting hook (C-security): a cloud classifier is billed at the frontier price
+        frontier = get_profile(cfg, cfg["models"].get("frontier_profile", cfg["models"]["edge_profile"]))
+        metrics["cost_usd_est"] += float(metrics["tokens_to_cloud"] / 1000 * frontier.usd_per_1k_tokens)
+    if security is not None and hasattr(security, "summary"):
+        metrics["security"] = security.summary()   # detection recall / precision / F1 / false suppression
     metrics["runtime_s"] = runtime
     metrics["stats"] = {k: (int(v) if isinstance(v, (int, np.integer)) else v) for k, v in hier.stats.items()}
     metrics["per_layer_bytes"] = tot["per_layer"]
     # poisoning accounting (only meaningful when attacks are active)
     metrics["poison"] = poison_accounting(world, hier, m["classified"])
     metrics["n_root_claims"] = len(root.accepted_claims())
-    metrics["failure_reasons"] = failure_reasons(world, m, hier, policy)
+    metrics["failure_reasons"] = failure_reasons_hierarchy(world, m, hier, policy)   # evaluation (reads truth) lives in evaluate.py
     return {"metrics": metrics, "hier": hier, "classified": m["classified"], "discovered": m["discovered"], "snapshots": snapshots}
 
 
@@ -161,8 +177,10 @@ def poison_accounting(world: World, hier: Hierarchy, classified: list[dict[str, 
     benign_dropped = sum(b["benign_dropped"] for b in hier.batch_trace)
     quarantined = len(hier.quarantine_trace)
     q_attack = sum(1 for q in hier.quarantine_trace if q["attack"])
-    root_poison = sum(1 for c in classified if c["category"] == "poison")
-    root_total = len(classified)
+    # accepted claims only (the same population `categories` / precision use); contested poison is reported separately
+    root_poison = sum(1 for c in classified if c["category"] == "poison" and c["status"] == "accepted")
+    root_total = sum(1 for c in classified if c["status"] == "accepted")
+    contested_poison = sum(1 for c in classified if c["category"] == "poison" and c["status"] == "contested")
     # poison survival by layer: accepted claims with origin_attack per layer
     by_layer: dict[str, int] = {}
     for node in hier.nodes.values():
@@ -172,55 +190,4 @@ def poison_accounting(world: World, hier: Hierarchy, classified: list[dict[str, 
     return {"attack_records": attack_records, "attack_records_kept_at_team": kept, "benign_records_dropped": benign_dropped,
             "claims_quarantined": quarantined, "attack_claims_quarantined": q_attack,
             "poison_claims_at_root": root_poison, "poison_promotion_rate": root_poison / max(root_total, 1),
-            "poison_by_layer": by_layer}
-
-
-def failure_reasons(world: World, m: dict[str, Any], hier: Hierarchy, policy: Policy) -> dict[str, int]:
-    """Classify why each hidden (cross-team/global) effect was NOT discovered at the root.
-
-    Categories follow the task's list: retrieval failure (n/a for hierarchy), aggregation loss (evidence never
-    pooled where it was needed), compression loss (cell order or cell suppression removed it), routing failure
-    (n/a), insufficient independent support, contradiction mishandling, privacy/security suppression, poison
-    contamination, temporal staleness, model reasoning failure (perception noise erased the signal),
-    hierarchy isolation (found at a lower layer but never forwarded), statistical power.
-    """
-    from .sketch import COL_K0, COL_N
-    from .vocab import cell_index
-    ci = cell_index()
-    reasons: dict[str, int] = {}
-    root = hier.root_node()
-    disc = m["discovered"]
-    for e in world.effects:
-        if e.kind not in ("cross_team", "global") or (e.effect_id in disc and disc[e.effect_id]["status"] == "accepted"):
-            continue
-        order = int(ci.order_of(np.array([e.cell]))[0])
-        cnt = root.cumulative.lookup(np.array([e.cell]))[0]
-        n_root = int(cnt[COL_N]); k_root = int(cnt[COL_K0 + e.label])
-        all_claims = [(node, c) for node in hier.nodes.values() for (cell, label, sign, scope), c in node.claims.items()
-                      if cell == e.cell and label == e.label]
-        statuses = {c.status for _, c in all_claims}
-        found_below = any(c.status == "accepted" and node.unit_id != root.unit_id for node, c in all_claims)
-        if e.effect_id in disc and disc[e.effect_id]["status"] == "contested":
-            r = "contradiction_mishandling"
-        elif "quarantined" in {c.status for node in hier.nodes.values() for c in node.quarantined if c.cell == e.cell and c.label == e.label}:
-            r = "privacy_or_security_suppression"
-        elif "rejected" in statuses:
-            r = "contradiction_mishandling"
-        elif found_below:
-            r = "hierarchy_isolation"
-        elif "proposed" in statuses:
-            r = "insufficient_independent_support"
-        elif order > policy.sketch_order and n_root == 0:
-            r = "compression_loss"
-        elif n_root < 0.6 * e.unit_counts.get("executive", 0):
-            r = "compression_loss" if n_root > 0 else "aggregation_loss"
-        elif n_root < e.n_min:
-            r = "statistical_power"
-        elif k_root / max(n_root, 1) < e.delta * 0.35:
-            r = "model_reasoning_failure"
-        elif e.valid_to is not None:
-            r = "temporal_staleness"
-        else:
-            r = "statistical_power"
-        reasons[r] = reasons.get(r, 0) + 1
-    return reasons
+            "poison_claims_contested_at_root": contested_poison, "poison_by_layer": by_layer}

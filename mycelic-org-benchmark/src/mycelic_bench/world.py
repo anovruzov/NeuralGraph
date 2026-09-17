@@ -481,6 +481,30 @@ def generate_world(cfg: dict[str, Any], seed: int) -> World:
     copy_prob = np.array([wt[t]["copy_prob"] for t in WORKER_TYPES])[org.worker_type]
     avg_recall = float(np.mean(recall)); avg_fpr = float(np.mean(fpr))
 
+    # ---- copies (duplicator behaviour), part 1: attribute rows -------------
+    # Decided *before* effects are planted so that effect classification (minimum
+    # discovery layer, per-unit evidence counts) sees the final attribute rows;
+    # outcome fields are replicated in part 2 once they exist.  Copies are excluded
+    # from evidence counts: they are not independent evidence (lineage-aware systems
+    # dedup them by fingerprint), so the minimum-layer property holds on unique records.
+    is_copy = np.zeros(n, dtype=bool)
+    copy_src = np.arange(n)
+    team = org.worker_team[worker]
+    dup_idx = np.flatnonzero(rng.random(n) < copy_prob[worker])
+    if len(dup_idx):
+        is_dup = np.zeros(n, dtype=bool); is_dup[dup_idx] = True
+        by_team: dict[int, np.ndarray] = {}
+        for t in np.unique(team[dup_idx]):
+            by_team[int(t)] = np.flatnonzero((team == t) & ~is_dup)   # copy an original teammate record
+        for i in dup_idx:
+            pool = by_team[int(team[i])]
+            pool = pool[(rounds[pool] <= rounds[i]) & (worker[pool] != worker[i])]   # a teammate's earlier record
+            if len(pool) == 0:
+                continue
+            j = int(pool[rng.integers(0, len(pool))])
+            attrs[i] = attrs[j]; copy_src[i] = j; is_copy[i] = True
+    unique_rec = ~is_copy
+
     # ---- effects -----------------------------------------------------------
     effects: list[Effect] = []
     used_cells: list[tuple[int, int]] = []   # (cell, label)
@@ -496,9 +520,8 @@ def generate_world(cfg: dict[str, Any], seed: int) -> World:
         return org.membership(scope_layer)[worker] == scope_unit
 
     def classify(cell: int, delta: float, label: int, valid: np.ndarray | None) -> tuple[str, int, dict, dict]:
-        m = cell_match_mask(attrs, cell)
-        if valid is not None:
-            m &= valid
+        valid = unique_rec if valid is None else (valid & unique_rec)   # copies are not evidence
+        m = cell_match_mask(attrs, cell) & valid
         if m.sum() == 0:
             return "none", 10**9, {}, {}
         p0 = float(base[attrs[m, 0], attrs[m, 2], label].mean())
@@ -762,27 +785,14 @@ def generate_world(cfg: dict[str, Any], seed: int) -> World:
     agree = (obs == true_lab).mean(axis=1)
     confidence = np.clip(agree * 0.6 + 0.3 + conf_bias[worker] + rng.normal(0, 1, size=n) * conf_noise[worker], 0.02, 0.99)
 
-    # ---- copies (duplicator behaviour) ------------------------------------
-    is_copy = np.zeros(n, dtype=bool)
+    # ---- copies, part 2: replicate the source record's outcome fields ------
     origin_worker = worker.copy()
     fingerprint = np.array([int(hashlib.blake2b(f"{t}|{ob}|{s:.1f}".encode(), digest_size=8).hexdigest(), 16) % (2**62)
                             for t, ob, s in zip(task_id, observed, np.round(score, 1))], dtype=np.int64)
-    team = org.worker_team[worker]
-    dup_idx = np.flatnonzero(rng.random(n) < copy_prob[worker])
-    if len(dup_idx):
-        # copy a random same-team, same-round record (fallback: any same-team record)
-        by_team: dict[int, np.ndarray] = {}
-        for t in np.unique(team[dup_idx]):
-            by_team[int(t)] = np.flatnonzero(team == t)
-        for i in dup_idx:
-            pool = by_team[int(team[i])]
-            pool = pool[pool != i]
-            if len(pool) == 0:
-                continue
-            j = int(pool[rng.integers(0, len(pool))])
-            attrs[i] = attrs[j]; true_mask[i] = true_mask[j]; observed[i] = observed[j]
-            score[i] = score[j]; task_id[i] = task_id[j]; fingerprint[i] = fingerprint[j]
-            origin_worker[i] = origin_worker[j]; is_copy[i] = True
+    for i in np.flatnonzero(is_copy):
+        j = int(copy_src[i])
+        true_mask[i] = true_mask[j]; observed[i] = observed[j]; score[i] = score[j]; task_id[i] = task_id[j]
+        fingerprint[i] = fingerprint[j]; origin_worker[i] = origin_worker[j]
 
     # ---- sensitive content ------------------------------------------------
     sens = rng.random(n) < float(w["sensitive_fraction"])

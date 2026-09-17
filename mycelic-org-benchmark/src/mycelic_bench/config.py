@@ -47,9 +47,15 @@ def apply_dotted(cfg: dict, key: str, value: Any) -> None:
 
 def parse_scalar(text: str) -> Any:
     try:
-        return yaml.safe_load(text)
+        v = yaml.safe_load(text)
     except Exception:
         return text
+    if isinstance(v, str):
+        try:
+            return float(v) if any(c in v for c in ".eE") and v.strip().lstrip("+-").replace(".", "", 1).replace("e", "", 1).replace("E", "", 1).replace("-", "", 1).replace("+", "", 1).isdigit() else v
+        except ValueError:
+            return v
+    return v
 
 
 def load_config(

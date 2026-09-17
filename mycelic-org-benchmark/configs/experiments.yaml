@@ -28,19 +28,19 @@ tiers:
     seeds: 30
   tier2:
     org: {n_workers: 10000, workers_per_team: 100, teams_per_department: 5, departments_per_region: 4, n_rounds: 30, interactions_per_worker: 10}
-    world: {n_local_findings: 1000, n_cross_team_findings: 250, n_global_findings: 100, n_decoys: 200, n_contradictions: 100, n_temporal_revisions: 100}
+    world: {n_local_findings: 1000, n_cross_team_findings: 250, n_global_findings: 100, n_decoys: 200, n_contradictions: 100, n_temporal_revisions: 100, min_layer_for_global: region}
     seeds: 10
   tier3:
     org: {n_workers: 50000, workers_per_team: 100, teams_per_department: 10, departments_per_region: 10, n_rounds: 30, interactions_per_worker: 10}
-    world: {n_local_findings: 2000, n_cross_team_findings: 500, n_global_findings: 200, n_decoys: 400, n_contradictions: 100, n_temporal_revisions: 100}
+    world: {n_local_findings: 2000, n_cross_team_findings: 500, n_global_findings: 200, n_decoys: 400, n_contradictions: 100, n_temporal_revisions: 100, min_layer_for_global: region}
     seeds: 3
 
 systems:
   B0_isolated: {kind: baseline}
-  B1_central_keyword: {kind: baseline, query_budget: 3000}
-  B2_central_rag: {kind: baseline, query_budget: 3000, top_k: 50}
+  B1_central_keyword: {kind: baseline, query_budget_per_10k: 3000}   # 3,000 exact facet queries per analysis round per 10k records
+  B2_central_rag: {kind: baseline, query_budget_per_10k: 3000, top_k: 200}   # 200 records x ~180 tokens = 36k-token context per hypothesis
   B3_central_llm_summary: {kind: baseline, window_records: 200}
-  B4_majority_vote: {kind: baseline, min_votes: 3}
+  B4_majority_vote: {kind: baseline, query_budget_per_10k: 3000, min_votes: 3}
   B5_flat_agents: {kind: hierarchy, layers: 1, fan_in_budget_bytes: 2000000, lineage: false}
   B6_hier_no_lineage: {kind: hierarchy, lineage: false, detector: none}
   B7_mycelic: {kind: hierarchy, lineage: true, detector: none}

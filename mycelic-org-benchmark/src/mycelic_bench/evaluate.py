@@ -157,6 +157,7 @@ def match_effects(world: World, claims: list[ClaimRecord], effect_min: float = 0
 
     classified: list[dict[str, Any]] = []
     discovered: dict[str, dict[str, Any]] = {}   # effect_id -> first matching claim info
+    is_at_scope: dict[str, list[tuple[str, float, str]]] = {}
     for c in claims:
         if c.status not in ("accepted", "contested"):
             continue
@@ -199,6 +200,9 @@ def match_effects(world: World, claims: list[ClaimRecord], effect_min: float = 0
                            "attack_fraction": attack_frac,
                            "is": c.independent_support, "replica": c.replica_count, "attack": c.origin_attack})
         if matched is not None and cat == "exact":
+            es_layer = effect_scope(matched)[0]
+            if c.scope_layer == es_layer or (es_layer == "executive" and c.scope_layer in ("region", "executive")):
+                is_at_scope.setdefault(matched.effect_id, []).append((c.status, c.independent_support, c.scope_layer))
             d = discovered.get(matched.effect_id)
             better = d is None or (c.status == "accepted" and d["status"] != "accepted") or \
                 (c.status == d["status"] and c.round_accepted < d["round"])
@@ -260,6 +264,11 @@ def match_effects(world: World, claims: list[ClaimRecord], effect_min: float = 0
         metrics["mean_confidence"] = float(conf.mean())
     else:
         metrics["ece"] = float("nan"); metrics["mean_confidence"] = float("nan")
+    for eid, lst in is_at_scope.items():
+        if eid in discovered:
+            acc = [x for x in lst if x[0] == "accepted"] or lst
+            discovered[eid]["is_at_scope"] = float(np.median([x[1] for x in acc]))
+            discovered[eid]["is_scope_layer"] = acc[0][2]
     metrics["discovered"] = discovered
     metrics["classified"] = classified_all
     return metrics
@@ -341,9 +350,10 @@ def transition_fidelity(world: World, kb_by_layer: dict[str, list[ClaimRecord]],
         is_ok, lin_ok = [], []
         for eid, d in disc.items():
             e = next(x for x in world.effects if x.effect_id == eid)
-            t = e.true_independent_support.get(d.get("scope_layer", l))
-            if t is not None:
-                is_ok.append(abs(d["is"] - t) <= max(1.0, 0.25 * t))
+            layer_t = d.get("is_scope_layer")
+            t = e.true_independent_support.get(layer_t) if layer_t else None
+            if t is not None and "is_at_scope" in d:
+                is_ok.append(abs(d["is_at_scope"] - t) <= max(1.0, 0.25 * t))
             lin_ok.append(bool(d.get("contributing_units")))
         row["independent_support_preserved"] = float(np.mean(is_ok)) if is_ok else float("nan")
         row["lineage_retention"] = float(np.mean(lin_ok)) if lin_ok else float("nan")
@@ -479,3 +489,109 @@ def raw_record_bytes(world: World, idx: np.ndarray | None = None) -> int:
     import json
     avg = np.mean([len(json.dumps(world.record(int(i)))) for i in sample])
     return int(avg * n)
+
+
+def failure_reasons_from_probe(world: World, m: dict[str, Any], probe, kinds: tuple[str, ...] = ("cross_team", "global")) -> dict[str, int]:
+    """Failure-reason classification for systems without a `Hierarchy` (baselines).
+
+    HOOK (added for baselines.py): the system may not read ground truth, so it hands over `probe(cell, label,
+    scope_layer, scope_unit) -> dict` describing its *own* state for a signature: `order_supported` (bool),
+    `tested_scope` / `tested_wide` (was the signature ever tested at that scope / organisation-wide),
+    `n_scope`, `k_scope`, `n_wide`, `k_wide` (its counts), optional `retrieved_n` (RAG context matches),
+    `votes_for` (vote systems) and `untested_reason`.  This function maps those facts plus the effect's
+    truth (n_min, delta, validity, attack fraction) to the task's reason categories.
+    """
+    pt = PopulationTruth(world)
+    disc = m.get("discovered", {})
+    reasons: dict[str, int] = {}
+    for e in world.effects:
+        if e.kind not in kinds or not e.true_side or e.delta <= 0:
+            continue
+        if e.effect_id in disc and disc[e.effect_id]["status"] == "accepted":
+            continue
+        if e.scope_layer in ("team", "department", "region"):
+            sl, su = e.scope_layer, int(e.scope_unit)
+        else:
+            sl, su = "executive", 0
+        f = probe(int(e.cell), int(e.label), sl, su) or {}
+        tested_scope = bool(f.get("tested_scope", False))
+        tested_wide = bool(f.get("tested_wide", False))
+        if not f.get("order_supported", True):
+            r = "compression_loss"
+        elif e.effect_id in disc and disc[e.effect_id]["status"] == "contested":
+            r = "contradiction_mishandling"
+        elif not (tested_scope or tested_wide):
+            r = str(f.get("untested_reason") or "retrieval_failure")
+        elif pt.attack_fraction(int(e.cell), sl, su) >= 0.3:
+            r = "poison_contamination"
+        elif tested_scope or sl == "executive":
+            n, k = int(f.get("n_scope", 0)), int(f.get("k_scope", 0))
+            if f.get("retrieved_n") is not None and int(f["retrieved_n"]) < e.n_min:
+                r = "retrieval_failure"
+            elif n < e.n_min:
+                r = "statistical_power"
+            elif f.get("votes_for") is not None:
+                r = "insufficient_independent_support"
+            elif k / max(n, 1) < e.delta * 0.35:
+                r = "model_reasoning_failure"
+            elif e.valid_to is not None:
+                r = "temporal_staleness"
+            else:
+                r = "statistical_power"
+        else:
+            r = "routing_failure"   # tested only in a wider pool where the scoped effect is diluted
+        reasons[r] = reasons.get(r, 0) + 1
+    return reasons
+
+
+def failure_reasons_hierarchy(world: World, m: dict[str, Any], hier, policy) -> dict[str, int]:
+    """Classify why each hidden (cross-team/global) effect was NOT discovered at the root of a `Hierarchy`.
+
+    Moved here from runner.py (integration): it reads `world.effects`, which only this module (and
+    world/attacks/failures/routing) may do.  `hier` / `policy` are duck-typed hierarchy state.
+
+    Categories follow the task's list: retrieval failure (n/a for hierarchy), aggregation loss (evidence never
+    pooled where it was needed), compression loss (cell order or cell suppression removed it), routing failure
+    (n/a), insufficient independent support, contradiction mishandling, privacy/security suppression, poison
+    contamination, temporal staleness, model reasoning failure (perception noise erased the signal),
+    hierarchy isolation (found at a lower layer but never forwarded), statistical power.
+    """
+    from .sketch import COL_K0, COL_N
+    ci = cell_index()
+    reasons: dict[str, int] = {}
+    root = hier.root_node()
+    disc = m["discovered"]
+    for e in world.effects:
+        if e.kind not in ("cross_team", "global") or (e.effect_id in disc and disc[e.effect_id]["status"] == "accepted"):
+            continue
+        order = int(ci.order_of(np.array([e.cell]))[0])
+        cnt = root.cumulative.lookup(np.array([e.cell]))[0]
+        n_root = int(cnt[COL_N]); k_root = int(cnt[COL_K0 + e.label])
+        all_claims = [(node, c) for node in hier.nodes.values() for (cell, label, sign, scope), c in node.claims.items()
+                      if cell == e.cell and label == e.label]
+        statuses = {c.status for _, c in all_claims}
+        found_below = any(c.status == "accepted" and node.unit_id != root.unit_id for node, c in all_claims)
+        if e.effect_id in disc and disc[e.effect_id]["status"] == "contested":
+            r = "contradiction_mishandling"
+        elif "quarantined" in {c.status for node in hier.nodes.values() for c in node.quarantined if c.cell == e.cell and c.label == e.label}:
+            r = "privacy_or_security_suppression"
+        elif "rejected" in statuses:
+            r = "contradiction_mishandling"
+        elif found_below:
+            r = "hierarchy_isolation"
+        elif "proposed" in statuses:
+            r = "insufficient_independent_support"
+        elif order > policy.sketch_order and n_root == 0:
+            r = "compression_loss"
+        elif n_root < 0.6 * e.unit_counts.get("executive", 0):
+            r = "compression_loss" if n_root > 0 else "aggregation_loss"
+        elif n_root < e.n_min:
+            r = "statistical_power"
+        elif k_root / max(n_root, 1) < e.delta * 0.35:
+            r = "model_reasoning_failure"
+        elif e.valid_to is not None:
+            r = "temporal_staleness"
+        else:
+            r = "statistical_power"
+        reasons[r] = reasons.get(r, 0) + 1
+    return reasons

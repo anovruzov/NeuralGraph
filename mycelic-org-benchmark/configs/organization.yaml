@@ -5,7 +5,7 @@ org:
   workers_per_team: 100
   teams_per_department: 5
   departments_per_region: 4
-  n_regions: 1            # derived if 0: ceil(teams / (teams_per_department*departments_per_region))
+  n_regions: 0            # 0 = derived: ceil(departments / departments_per_region)
   layers: 5               # 1 | 2 | 3 | 5 | 7 (hierarchy ablation)
   interactions_per_worker: 10
   n_rounds: 30            # simulated days

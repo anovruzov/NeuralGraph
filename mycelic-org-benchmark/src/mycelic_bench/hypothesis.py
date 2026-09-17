@@ -84,24 +84,33 @@ def outside_counts(sketch: Sketch, ids: np.ndarray) -> tuple[np.ndarray, np.ndar
     first_attr_ids = np.arange(ci.order_base[1], ci.order_base[1] + int(ci.combo_size[1][0]))
     tot = sketch.lookup(first_attr_ids).sum(axis=0)
     tot_n, tot_k = int(tot[COL_N]), tot[COL_K0:COL_K0 + N_LABELS]
+    # Outside evidence is only usable when it is a consistent 2x2 table: 0 <= k_out <= n_out.  Pooled sketches
+    # can be transiently inconsistent (a question answer carries the exact current count of an order-4 cell
+    # while its order-3 sub-cells at the same node lag behind through delta promotion / min_n suppression);
+    # such a sub-cell is skipped for that label rather than yielding a rate > 1 and a p-value of 1e-300.
     for order in np.unique(orders):
         sel = np.flatnonzero(orders == order)
         if order == 1:
-            n_out[sel] = (tot_n - n_c[sel])[:, None]
-            k_out[sel] = tot_k[None, :] - k_c[sel]
-            ok[sel] = (tot_n - n_c[sel]) > 0
+            no = (tot_n - n_c[sel])[:, None]
+            ko = tot_k[None, :] - k_c[sel]
+            good = (no > 0) & (ko >= 0) & (ko <= no)
+            n_out[sel] = np.where(good, no, 0)
+            k_out[sel] = np.where(good, ko, 0)
+            ok[sel] = good.any(axis=1)
             continue
         subs = ci.sub_ids(ids[sel], int(order))            # [s, order]
         sub_cnt = sketch.lookup(subs.ravel()).reshape(len(sel), int(order), -1)
         so_n = sub_cnt[:, :, COL_N] - n_c[sel][:, None]  # outside n per sub-cell  [s, order]
         so_k = sub_cnt[:, :, COL_K0:COL_K0 + N_LABELS] - k_c[sel][:, None, :]   # [s, order, L]
-        valid = so_n > 0
-        rate = np.where(valid[:, :, None], so_k / np.maximum(so_n, 1)[:, :, None], -1.0)
+        valid = (so_n > 0)[:, :, None] & (so_k >= 0) & (so_k <= so_n[:, :, None])   # [s, order, L]
+        rate = np.where(valid, so_k / np.maximum(so_n, 1)[:, :, None], -1.0)
         best = rate.argmax(axis=1)                            # [s, L]
         s_idx = np.arange(len(sel))[:, None]
-        n_out[sel] = so_n[s_idx, best]
-        k_out[sel] = so_k[s_idx, best, np.arange(N_LABELS)[None, :]]
-        ok[sel] = valid.any(axis=1)
+        lab = np.arange(N_LABELS)[None, :]
+        good = valid[s_idx, best, lab]                        # [s, L]: the chosen sub-cell is consistent
+        n_out[sel] = np.where(good, so_n[s_idx, best], 0)
+        k_out[sel] = np.where(good, so_k[s_idx, best, lab], 0)
+        ok[sel] = good.any(axis=1)
     n_out = np.maximum(n_out, 0)
     k_out = np.maximum(k_out, 0)
     return n_out, k_out, ok
@@ -188,6 +197,12 @@ def exact_or_normal_p(kk: np.ndarray, M: np.ndarray, K: np.ndarray, N: np.ndarra
     var = N * (K / M) * (1 - K / M) * (M - N) / np.maximum(M - 1, 1)
     small = (mean < 15) | ((N - mean) < 15) | (var <= 0)
     p = np.empty(len(kk), dtype=float)
+    # cheap normal-approximation screen: the exact tail is only needed where it could reach significance
+    with np.errstate(divide="ignore", invalid="ignore"):
+        z0 = (kk - mean - 0.5 * sign) / np.sqrt(np.maximum(var, 1e-9))
+        p0 = np.where(sign > 0, norm.sf(z0), norm.cdf(z0))
+    p[:] = np.clip(p0, 1e-300, 1.0)
+    small &= (p0 < 0.02) | (var <= 0)
     if small.any():
         idx = np.flatnonzero(small)
         p_up = hypergeom.sf(kk[idx] - 1, M[idx], K[idx], N[idx])

@@ -96,12 +96,16 @@ class Sketch:
         parts = [s for s in sketches if len(s.ids)]
         if not parts:
             return Sketch(producer_id, layer, round, max_order=max_order)
+        if len(parts) == 1:
+            s0 = parts[0]
+            return Sketch(producer_id, layer, round, s0.ids.copy(), s0.counts.copy(), max_order)
         ids = np.concatenate([s.ids for s in parts])
         counts = np.concatenate([s.counts for s in parts])
-        uniq, inv = np.unique(ids, return_inverse=True)
-        pooled = np.zeros((len(uniq), N_COLS), dtype=np.int64)
-        np.add.at(pooled, inv, counts)
-        return Sketch(producer_id, layer, round, uniq, pooled, max_order)
+        order = np.argsort(ids, kind="stable")
+        ids_s = ids[order]
+        starts = np.flatnonzero(np.concatenate([[True], ids_s[1:] != ids_s[:-1]]))
+        pooled = np.add.reduceat(counts[order], starts, axis=0)
+        return Sketch(producer_id, layer, round, ids_s[starts], pooled, max_order)
 
     # ---- queries ---------------------------------------------------------
     def lookup(self, ids: np.ndarray) -> np.ndarray:

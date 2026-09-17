@@ -134,6 +134,7 @@ class UnitNode:
         self.obs_round: list[np.ndarray] = []
         self.seen_fingerprints: set[int] = set()
         self.sent_claim_version: dict[str, tuple[int, str]] = {}
+        self._answer_cells: Sketch | None = None
         # accounting
         self.bytes_in = 0
         self.bytes_out = 0
@@ -217,13 +218,13 @@ class UnitNode:
                 self.unit_id, self.layer, round_, batch.attrs[keep], batch.labels[keep], w,
                 org.worker_team[w], org.worker_department[w], org.worker_region[w],
                 max_order=p.sketch_order, present=batch.present[keep])
-            self.cumulative = Sketch.pool([self.cumulative, sk], self.unit_id, self.layer, round_, p.sketch_order)
             self.recent[round_] = Sketch.pool([self.recent.get(round_, Sketch(self.unit_id, self.layer, round_)), sk],
                                               self.unit_id, self.layer, round_, p.sketch_order)
             self.obs_attrs.append(batch.attrs[keep]); self.obs_labels.append(batch.labels[keep])
             self.obs_present.append(batch.present[keep]); self.obs_worker.append(w)
             self.obs_fp.append(batch.fingerprint[keep]); self.obs_idx.append(batch.idx[keep])
             self.obs_round.append(np.full(int(keep.sum()), round_))
+            self._rebuild_cumulative(round_)
         # injected / fabricated claims emitted by compromised devices arrive as bare claims
         for d in batch.injected_claims:
             c = Claim(claim_id=f"W{int(d['worker']):06d}:{d['cell']}:{d['label']}:+:{round_}", producer_id=f"W{int(d['worker']):06d}",
@@ -235,6 +236,21 @@ class UnitNode:
             c.lineage = LineageRecord(contributing_units=[c.producer_id], path=[c.producer_id], derivation_operator="observe")
             c.signature = d.get("signature", "")
             self._receive_claim(c.producer_id, c, round_)
+
+    def _rebuild_cumulative(self, round_: int) -> None:
+        """Team-level cumulative sketch from all retained observations.  Distinct-source
+        columns are exact only when computed over the full local store (a worker
+        contributes in many rounds), so the leaf sketch is rebuilt rather than pooled."""
+        p = self.policy
+        org = self.hier.org
+        attrs = np.concatenate(self.obs_attrs); labels = np.concatenate(self.obs_labels)
+        present = np.concatenate(self.obs_present); w = np.concatenate(self.obs_worker)
+        self.cumulative = Sketch.from_interactions(
+            self.unit_id, self.layer, round_, attrs, labels, w, org.worker_team[w], org.worker_department[w],
+            org.worker_region[w], max_order=p.sketch_order, present=present)
+        # question answers of higher order previously absorbed must survive the rebuild
+        if self._answer_cells is not None and len(self._answer_cells.ids):
+            self.cumulative = Sketch.pool([self.cumulative, self._answer_cells], self.unit_id, self.layer, round_, p.sketch_order)
 
     def _receive_claim(self, sender: str, c: Claim, round_: int) -> None:
         p = self.policy
@@ -314,6 +330,8 @@ class UnitNode:
         existing = self.claims.get(key)
         if existing is not None and existing.status == "superseded" and source == "cumulative":
             return   # stale cumulative signal; only a recent-window signal can revive it
+        if existing is not None and existing.status != "superseded" and source == "recent":
+            return   # the cumulative evidence already carries this claim; window stats must not replace it
         if existing is not None and existing.status in ("rejected", "contested") and source == "cumulative":
             # keep counts fresh but do not silently re-accept a contested claim; consistency decides
             existing.n, existing.k, existing.rate = int(cands.n[i]), int(cands.k[i]), float(cands.rate[i])
@@ -541,6 +559,9 @@ class UnitNode:
             return
         q.status = "answered"; q.answer_bytes += sk.wire_bytes()
         self.cumulative = Sketch.pool([self.cumulative, sk], self.unit_id, self.layer, round_, self.policy.sketch_order)
+        if self.obs_attrs:
+            prev = self._answer_cells if self._answer_cells is not None else Sketch(self.unit_id, self.layer, round_)
+            self._answer_cells = Sketch.pool([prev, sk], self.unit_id, self.layer, round_, self.policy.sketch_order)
         self.recent[round_] = Sketch.pool([self.recent.get(round_, Sketch(self.unit_id, self.layer, round_)), sk],
                                           self.unit_id, self.layer, round_, self.policy.sketch_order)
         sender = sk.producer_id
@@ -612,6 +633,11 @@ class UnitNode:
         claims = [_copy.deepcopy(c) for c in claims]
         for c in claims:
             self.sent_claim_version[c.claim_id] = (c.round_updated, c.status)
+            # security hook (C-security): own claims leave with a signature over their *current* content, so a
+            # parent's lineage-aware verifier can check the producer signature after count refreshes or a
+            # contested -> accepted flip (which do not re-sign in place).  Inherited copies keep the producer's.
+            if p.lineage and c.producer_id == self.unit_id and c.status in ("accepted", "contested"):
+                c.sign_with(self.key)
         # byte budget: drop lowest-priority claims then largest cells
         art = Artifact(self.unit_id, self.layer, round_, delta, claims, answers=self.pending_answers)
         if p.byte_budget > 0:
