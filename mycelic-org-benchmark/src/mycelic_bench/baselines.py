@@ -633,6 +633,10 @@ def _run_central(world, cfg, seed, name, sys_cfg, policy, edge, frontier, perfec
     parts: list[Ingested] = []
     canaries: list[str] = []
     bytes_off = 0; tokens_cloud = 0; calls = 0; queries_charged = 0
+    # A centre has no claim channel: attackers reach it through their records (fabricated, duplicated, spoofed,
+    # label-flipped, injected text), never through device-emitted bare claims, which only agent architectures
+    # without lineage (B5/B6) accept by replica count.  `ingest_bare_claims: true` restores the old behaviour.
+    ingest_bare = bool(sys_cfg.get("ingest_bare_claims", False))
     query_budget = int(sys_cfg.get("query_budget", 3000))
     if "query_budget_per_10k" in sys_cfg:   # the analyst's budget grows with the data it is asked to cover
         query_budget = int(float(sys_cfg["query_budget_per_10k"]) * max(1.0, world.n / 10000.0))
@@ -698,7 +702,7 @@ def _run_central(world, cfg, seed, name, sys_cfg, policy, edge, frontier, perfec
         if name == "B3_central_llm_summary":
             if flush_partial:
                 frontier_chunks(None, flush=True)   # a partial window is summarised now rather than held back
-            inj = _inject_sketch(allv.injected)
+            inj = _inject_sketch(allv.injected if ingest_bare else [])
             if b3_scopes == "per_unit":
                 # the reduce step groups the reader's per-record extractions by unit (records carry their unit ids)
                 allp = _concat(perceived)
@@ -735,7 +739,7 @@ def _run_central(world, cfg, seed, name, sys_cfg, policy, edge, frontier, perfec
                 probe_state["sketches"][(sl, su)] = sk
             calls += 1
         else:  # B1 keyword, B2 RAG, B4 majority vote share the analyst
-            inj = _inject_sketch(allv.injected)
+            inj = _inject_sketch(allv.injected if ingest_bare else [])
             sketches = {}
             for sl, su, mask in _scope_masks(world, allv):
                 parts_ = [_sketch(allv, mask, 3)]
@@ -797,7 +801,8 @@ def _run_central(world, cfg, seed, name, sys_cfg, policy, edge, frontier, perfec
         return f
 
     extra = {"records_ingested": len(allv), "queries_used": analyst.queries_used, "chunks": len(chunk_sketches),
-             "injected_claims_ingested": len(allv.injected), "text_bytes": int(text_bytes),
+             "injected_claims_ingested": len(allv.injected) if ingest_bare else 0, "injected_claims_seen": len(allv.injected),
+             "text_bytes": int(text_bytes),
              # B2: tokens the reader would consume without the extraction cache (every hypothesis re-reads its top-k)
              "tokens_to_cloud_uncached": int(tokens_cloud_uncached if name == "B2_central_rag" else tokens_cloud)}
     return _finish(world, cfg, policy, book, snapshots, bytes_off_device=bytes_off, canaries_exposed=exposed, tokens_edge=0,

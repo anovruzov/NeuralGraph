@@ -99,7 +99,7 @@ what information reaches the test:
 | B9_mycelic_questioning | B8 + bounded QuestionArtifacts (expected-information-gain policy) |
 | ORACLE_central_stats | exhaustive search on exact, copy-deduplicated sketches at every scope, orders ≤4 (an exact-data *reference*, not an upper bound on recall: it tests the largest hypothesis family) |
 
-Centralized systems analyse on the same cadence as the hierarchy's executive node (every round at Tier 1, every third round at Tier 2/3). Device-emitted bare claims (attacks) are ingested unverified by every lineage-blind system, centralized or flat; ORACLE ignores them. Centralized systems receive strictly more information than the hierarchy
+Centralized systems analyse on the same cadence as the hierarchy's executive node (every round at Tier 1, every third round at Tier 2/3). Centralized systems have no claim channel: attackers reach them through their records (fabricated, duplicated, provenance-spoofed, label-flipped, injected text read by the summariser's model profile) but never through device-emitted bare claims, which only agent architectures without lineage (B5, B6) accept by replica count; the claim-level attack types (false_claim, fake_consensus, confidence_inflation) therefore test agent architectures against each other, and the record-level types test everyone. Centralized systems receive strictly more information than the hierarchy
 (exact attributes, full text, all units), the frontier profile dominates the
 edge profile on every fidelity parameter (enforced by `config.validate`),
 and no system reads ground truth (`tests/test_no_cheating.py`).

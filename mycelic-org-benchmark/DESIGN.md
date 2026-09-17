@@ -308,6 +308,13 @@ fake signature on real interactions), `provenance_spoof` (forged worker_id),
 `confidence_inflation`, `prompt_injection` (payload text; a susceptible SLM
 emits the injected claim), `adversarial_format` (malformed artifacts),
 `gradual` (ramp over rounds), `cross_team_coordinated`.
+Each type has a record-level side (what the attacker's interactions look
+like) and a device-level side (what a compromised device emits: bare
+claims). Centralized baselines have no claim channel, so they face only the
+record-level side; agent architectures without lineage (B5, B6) accept bare
+claims by replica count; lineage-aware systems verify them. `false_claim`,
+`fake_consensus` and `confidence_inflation` are device-only attacks and
+therefore compare agent architectures against each other.
 
 Detectors (each a `Detector` with `inspect(artifact, context) ->
 Verdict(flag, score, reason)`): `RegexRules`, `CentralClassifier(profile)`,
