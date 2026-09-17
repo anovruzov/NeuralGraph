@@ -253,13 +253,16 @@ def match_effects(world: World, claims: list[ClaimRecord], effect_min: float = 0
         metrics[f"recall_{kind}_lenient"] = len(found_any) / n_e if n_e else float("nan")
         metrics[f"n_{kind}"] = n_e
         if kind in ("cross_team", "global"):
-            # DESIGN.md 10: time-to-discovery = first round accepted - round when the world first held n_min matching
-            # interactions anywhere.  The absolute first-acceptance round is kept alongside (the previous `ttd`).
-            first = [discovered[e.effect_id]["round"] for e in found]
-            ttd = [r - _n_min_round(world, e) for r, e in zip(first, found)]
+            # `ttd_*` = first round the effect was accepted at the root (absolute; only discovered effects, so it is
+            # conditional on discovery and must be read next to recall).  `ttd_*_rel_nmin_*` is the DESIGN.md 10
+            # definition (minus the round when the world first held n_min matching interactions anywhere); it is
+            # negative when a system detects an effect with fewer records than the generator's n_min (computed at
+            # power_alpha=1e-8, far below the shared test's effective BH threshold), which is why it is diagnostic only.
+            ttd = [discovered[e.effect_id]["round"] for e in found]
+            rel = [r - _n_min_round(world, e) for r, e in zip(ttd, found)]
             metrics[f"ttd_{kind}_median"] = float(np.median(ttd)) if ttd else float("nan")
             metrics[f"ttd_{kind}_mean"] = float(np.mean(ttd)) if ttd else float("nan")
-            metrics[f"first_accept_round_{kind}_median"] = float(np.median(first)) if first else float("nan")
+            metrics[f"ttd_{kind}_rel_nmin_median"] = float(np.median(rel)) if rel else float("nan")
             # layers needed: layer where first accepted vs ground-truth minimum layer
             extra = []
             for e in found:

@@ -227,6 +227,31 @@ def exact_or_normal_p(kk: np.ndarray, M: np.ndarray, K: np.ndarray, N: np.ndarra
     return np.clip(p, 1e-300, 1.0)
 
 
+def claim_pvalues(sketch: Sketch, cells: np.ndarray, labels: np.ndarray, signs: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Re-test specific claims on a sketch: one-sided p-value of each (cell, label, sign) against the
+    most elevated order-(k-1) sub-marginal outside the cell *as it stands now*.  Returns
+    (p, n_cell, effect, ok); ok is False where no consistent comparison exists.  Used for cumulative
+    re-verification: a claim accepted on an early fluke is withdrawn once the evidence it rests on is no
+    longer even nominally significant."""
+    cells = np.asarray(cells, dtype=np.int64); labels = np.asarray(labels, dtype=np.int64); signs = np.asarray(signs, dtype=np.int64)
+    m = len(cells)
+    if m == 0 or len(sketch.ids) == 0:
+        z = np.zeros(m)
+        return np.ones(m), z.astype(np.int64), z, np.zeros(m, dtype=bool)
+    n_out, k_out, ok = outside_counts(sketch, cells)
+    cnt = sketch.lookup(cells)
+    n_c = cnt[:, COL_N].astype(np.int64)
+    k_c = np.array([cnt[i, COL_K0 + int(labels[i])] for i in range(m)], dtype=np.int64)
+    no = n_out[np.arange(m), labels]; ko = k_out[np.arange(m), labels]
+    ok = ok & (n_c > 0) & (no > 0)
+    p = np.ones(m)
+    if ok.any():
+        idx = np.flatnonzero(ok)
+        p[idx] = rate_test(n_c[idx], k_c[idx], no[idx], ko[idx], signs[idx])
+    effect = k_c / np.maximum(n_c, 1) - ko / np.maximum(no, 1)
+    return p, n_c, effect, ok
+
+
 def rate_test(n_c: np.ndarray, k_c: np.ndarray, n_o: np.ndarray, k_o: np.ndarray, sign: np.ndarray) -> np.ndarray:
     """One-sided p-values for specific (cell vs outside) comparisons."""
     M = n_c + n_o

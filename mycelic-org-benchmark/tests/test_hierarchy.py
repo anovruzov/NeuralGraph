@@ -333,7 +333,7 @@ def test_question_answers_are_absorbed_without_double_counting() -> None:
     """An answer is the child's exact count; pooling it on top of a count the parent already holds from that
     child (a promoted delta, an earlier answer) must add only the difference, and the child's `sent` follows."""
     from mycelic_bench.schemas import QuestionArtifact
-    hier, policy = run_hier(compression="order_capped", lineage=True)
+    hier, policy = run_hier(compression="order_capped", lineage=True, k_anonymity=0)   # exact counts: no k-anonymity floor on answers
     dept = hier.nodes[hier.org.department_ids[0]]
     teams = [t for t in dept.children if t in hier.nodes]
     exact = _exact_sketch(hier, teams)

@@ -268,6 +268,11 @@ def write_failure_reasons(results: Path, out: Path) -> Path | None:
 
 def _condition_groups(df: pd.DataFrame) -> tuple[list[str], list[tuple[dict[str, Any], pd.DataFrame]]]:
     conds = [c for c in CONDITION_COLS if c in df.columns and df[c].nunique(dropna=True) > 1]
+    if "system" in df.columns:
+        # A column that differs only *between* systems (`layers` is 0 for baselines and 5 for B7, `detector`, `questioning`)
+        # is a system property, not a sweep (same rule as figures.default_condition).  Grouping by it put the baseline and
+        # the systems compared against it into different groups, so no paired comparison was ever produced.
+        conds = [c for c in conds if bool((df.groupby("system")[c].nunique(dropna=True) > 1).any())]
     if not conds:
         return [], [({}, df)]
     groups = []

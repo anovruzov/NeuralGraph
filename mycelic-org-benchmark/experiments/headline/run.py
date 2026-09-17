@@ -24,8 +24,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from experiments.common import (Condition, fmt_mean_sd, load_processed, log, make_cfg, parse_args, resolve_systems,  # noqa: E402
                                 run_grid, runner_banner, seeds_from_args)
 
-SYSTEMS = ["B2_central_rag", "B3_central_llm_summary", "B5_flat_agents", "B6_hier_no_lineage", "B7_mycelic",
-           "B8_mycelic_security", "B9_mycelic_questioning", "ORACLE_central_stats"]
+SYSTEMS = ["B1_central_keyword", "B2_central_rag", "B3_central_llm_summary", "B3_central_llm_summary_scoped",
+           "B5_flat_agents", "B6_hier_no_lineage", "B7_mycelic", "B8_mycelic_security", "B9_mycelic_questioning",
+           "ORACLE_central_stats"]
 COLUMNS = [
     ("Global discovery (recall_global)", "metrics.recall_global", 3, 1.0, ""),
     ("Cross-org synthesis (recall_cross_team)", "metrics.recall_cross_team", 3, 1.0, ""),

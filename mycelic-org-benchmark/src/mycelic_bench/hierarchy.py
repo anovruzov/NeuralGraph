@@ -24,7 +24,7 @@ from typing import Any, Callable
 import numpy as np
 
 from .agents import ObservationBatch, SimulatedSLM, make_batches
-from .hypothesis import Candidates, null_evidence, rate_test, search
+from .hypothesis import Candidates, null_evidence, rate_test, search, claim_pvalues
 from .schemas import Claim, Conflict, LineageRecord, QuestionArtifact, SupportRecord, stable_hash
 from .sketch import COL_DD, COL_DR, COL_DT, COL_DW, COL_K0, COL_N, N_COLS, Sketch
 from .vocab import N_LABELS, cell_index, mask_matrix
@@ -61,6 +61,7 @@ class Policy:
     resolve_ratio: float = 2.0
     max_order_questions: int = 4
     retain_superseded: bool = True
+    withdraw_p: float = 0.05   # cumulative re-verification: an accepted own claim is withdrawn when its cumulative one-sided p exceeds this (0 disables)
     consistency_z: float = 3.0
     rho_team: float = 0.25
     rho_department: float = 0.7
@@ -271,6 +272,26 @@ class UnitNode:
         ws = np.unique(w[m])[: self.policy.max_roots_tracked]
         return [f"W{int(x):06d}" for x in ws]
 
+    def _build_round_cache(self, cells: np.ndarray) -> dict[str, Any]:
+        """Per-synthesis lookup tables: contributing children per cell, received parent claims and
+        contested child claims per signature (computed once per node-round, not per candidate)."""
+        contrib: dict[int, list[str]] = {}
+        if len(cells):
+            for cid, sk in self.received_from.items():
+                hit = sk.lookup(cells)[:, COL_N] > 0
+                for c in cells[hit]:
+                    contrib.setdefault(int(c), []).append(cid)
+        parents: dict[tuple, list[str]] = {}
+        contested: set[tuple] = set()
+        for sender, ch in self.received_claims.items():
+            for k2, c2 in ch.items():
+                if c2.status == "quarantined":
+                    continue
+                parents.setdefault((k2[0], k2[1], k2[2]), []).append(c2.claim_id)
+                if c2.status == "contested" and k2[3] == sender:
+                    contested.add((k2[0], k2[1], k2[2]))
+        return {"contrib": contrib, "parents": parents, "contested_below": contested}
+
     def child_cell_counts(self, cell: int) -> dict[str, np.ndarray]:
         out = {}
         for cid, sk in self.received_from.items():
@@ -352,6 +373,10 @@ class UnitNode:
 
     def _receive_claim(self, sender: str, c: Claim, round_: int) -> None:
         p = self.policy
+        if not p.lineage and c.layer == "worker" and c.status == "proposed":
+            # replica-count support: a bare claim with n >= support_min is taken at face value (DESIGN §8, B5/B6)
+            if c.n >= p.support_min:
+                c.status = "accepted"; c.support.replica_count = c.n; c.support.independent_support = float(c.n)
         if p.lineage and c.layer == "worker":
             # a bare worker claim must be backed by that worker's own observations in this node's local store
             backed = self._worker_backing(int(c.producer_id[1:]) if c.producer_id[1:].isdigit() else -1, c.cell)
@@ -408,6 +433,9 @@ class UnitNode:
             if len(recent_sk.ids) else None
         self.tokens += (self.cumulative.wire_bytes() // 16)
         self.model_calls += 1
+        # one vectorised pass over the candidates' cells replaces per-candidate child lookups
+        all_cells = np.concatenate([cands.cell, recent_c.cell]) if recent_c is not None and len(recent_c) else cands.cell
+        self._round_cache = self._build_round_cache(np.unique(all_cells))
         # own-scope claims from cumulative evidence
         for i in range(len(cands)):
             self._upsert_own_claim(cands, i, round_, source="cumulative")
@@ -417,6 +445,9 @@ class UnitNode:
                 self._upsert_own_claim(recent_c, i, round_, source="recent")
         # temporal revision: refute accepted own claims that the recent window contradicts with power
         self._revise(round_, recent_sk)
+        # cumulative re-verification: withdraw accepted own claims whose cumulative evidence no longer holds up
+        self._recheck(round_)
+        self._round_cache = None
         # inherit child claims (scoped) that this node did not synthesize itself
         self._inherit(round_)
         # cross-source consistency -> conflicts (contradictions & poisoning containment)
@@ -429,8 +460,9 @@ class UnitNode:
         key = (cell, label, sign, self.unit_id)
         is_ = self._independent_support(int(cands.dw[i]), int(cands.dt[i]), int(cands.dd[i]), int(cands.dr[i]), int(cands.n[i]))
         existing = self.claims.get(key)
-        if existing is not None and existing.status == "superseded" and source == "cumulative":
-            return   # stale cumulative signal; only a recent-window signal can revive it
+        if existing is not None and existing.status == "superseded" and source == "cumulative" \
+                and existing.quarantine_reason != "withdrawn":
+            return   # stale cumulative signal; only a recent-window signal can revive it (a withdrawn claim may return)
         if existing is not None and existing.status != "superseded" and source == "recent":
             return   # the cumulative evidence already carries this claim; window stats must not replace it
         if existing is not None and existing.status in ("rejected", "contested") and source == "cumulative":
@@ -451,11 +483,16 @@ class UnitNode:
                         conf.status = "resolved"; conf.winner = existing.claim_id
             return
         conf = float((1.0 - cands.q[i]) * (1.0 - math.exp(-is_ / max(p.support_min, 1e-6))))
-        contributing = [cid for cid, cnt in self.child_cell_counts(cell).items()]
+        cache = getattr(self, "_round_cache", None)
+        if cache is not None:
+            contributing = list(cache["contrib"].get(cell, ()))
+            parents = list(cache["parents"].get((cell, label, sign), ()))
+        else:
+            contributing = [cid for cid, cnt in self.child_cell_counts(cell).items()]
+            parents = [c.claim_id for ch in self.received_claims.values() for k2, c in ch.items()
+                       if k2[0] == cell and k2[1] == label and k2[2] == sign and c.status != "quarantined"]
         if not contributing and self.obs_attrs:
             contributing = self._team_roots(cell)
-        parents = [c.claim_id for ch in self.received_claims.values() for k2, c in ch.items()
-                   if k2[0] == cell and k2[1] == label and k2[2] == sign and c.status != "quarantined"]
         if existing is None or existing.status == "superseded":
             c = Claim(
                 claim_id=self._claim_id(cell, label, sign, round_), producer_id=self.unit_id, layer=self.layer,
@@ -486,9 +523,12 @@ class UnitNode:
                                   distinct_teams=int(cands.dt[i]), distinct_departments=int(cands.dd[i]),
                                   distinct_regions=int(cands.dr[i]))
         accept = is_ >= p.support_min if p.lineage else int(cands.n[i]) >= p.support_min
-        contested_below = p.lineage and any(
-            c2.status == "contested" and k2[0] == cell and k2[1] == label and k2[2] == sign and k2[3] == sender
-            for sender, ch in self.received_claims.items() for k2, c2 in ch.items())
+        if cache is not None:
+            contested_below = p.lineage and (cell, label, sign) in cache["contested_below"]
+        else:
+            contested_below = p.lineage and any(
+                c2.status == "contested" and k2[0] == cell and k2[1] == label and k2[2] == sign and k2[3] == sender
+                for sender, ch in self.received_claims.items() for k2, c2 in ch.items())
         if self.received_from and p.lineage:
             # a synthesis at this scope must rest on independent evidence from >= 2 children; a cell seen by
             # one child only stays that child's scoped claim (also removes single-source selection bias)
@@ -523,6 +563,28 @@ class UnitNode:
         for i in np.flatnonzero(refuted):
             c = own[i]
             c.status = "superseded"; c.valid_to = round_; c.round_updated = round_
+            self.hier.trace_claim(self, c, round_)
+            if not p.retain_superseded:
+                del self.claims[(c.cell, c.label, c.sign, self.unit_id)]
+
+    def _recheck(self, round_: int) -> None:
+        """Withdraw accepted own-scope cumulative claims that are no longer even nominally significant on the
+        node's cumulative evidence (p > withdraw_p against the current most-elevated sub-marginal).  Every
+        system applies the same rule through its claim book; a withdrawn claim is revived if the signal returns."""
+        p = self.policy
+        if p.withdraw_p <= 0 or len(self.cumulative.ids) == 0:
+            return
+        own = [c for (cell, label, sign, scope), c in self.claims.items()
+               if scope == self.unit_id and c.status == "accepted" and c.valid_from == 0]
+        if not own:
+            return
+        pv, n_c, _eff, ok = claim_pvalues(self.cumulative, np.array([c.cell for c in own]), np.array([c.label for c in own]),
+                                          np.array([c.sign for c in own]))
+        withdraw = ok & (n_c >= p.n_min) & (pv > p.withdraw_p)
+        for i in np.flatnonzero(withdraw):
+            c = own[i]
+            c.status = "superseded"; c.quarantine_reason = "withdrawn"; c.valid_to = round_; c.round_updated = round_
+            c.p_value = float(pv[i])
             self.hier.trace_claim(self, c, round_)
             if not p.retain_superseded:
                 del self.claims[(c.cell, c.label, c.sign, self.unit_id)]

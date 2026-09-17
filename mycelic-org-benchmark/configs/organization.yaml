@@ -62,4 +62,4 @@ world:
   min_layer_for_global: department
   sensitive_fraction: 0.08
   version_release_rounds: {v2: 0.25, v3: 0.5, v4: 0.75}   # fraction of n_rounds
-  max_generation_attempts: 40
+  max_generation_attempts: 200   # attempts per requested effect; the hidden-evidence cap rejects most candidates in small worlds

@@ -60,10 +60,13 @@ evidence lives:
 
 "Minimum discovery layer" is computed by the generator: for each effect the
 number of matching records in every unit at every layer is counted, the
-sample size needed to detect δ at α = 10⁻⁵ (a per-test level that reflects
-the ~5·10⁴-hypothesis burden of one node's search) and power 0.8 after
-average-worker label noise is computed, and the lowest layer whose best
-unit holds ≥ 1.5× that count is recorded. Effects that do not satisfy their
+sample size needed to detect δ at α = 10⁻⁸ (a per-test level that survives
+Benjamini–Hochberg over the ~3·10⁵ hypotheses of an executive node's search)
+and power 0.8 after average-worker label noise is computed against the most
+elevated sub-marginal under the final probability matrix (exactly the contrast
+the shared test uses), and the lowest layer whose best unit holds ≥ 1.25×
+that count is recorded. For cross-team and global effects no single unit
+below the minimum layer may hold more than half of that count. Effects that do not satisfy their
 kind's layer requirement are resampled. This makes "no individual worker can
 infer it alone" a verified property of every cross-team and global finding.
 
@@ -83,18 +86,20 @@ what information reaches the test:
 | id | information flow |
 |---|---|
 | B0_isolated | each worker tests its own perceived records |
-| B1_central_keyword | all raw records centralized; an analyst with 3,000 exact facet queries per analysis round explores conjunctions by beam search, org-wide and per unit |
+| B1_central_keyword | all raw records centralized; an analyst with 3,000 exact facet queries per 10k records per analysis round explores conjunctions (up to 4 terms) by beam search, org-wide and per unit |
 | B2_central_rag | same centre; evidence per hypothesis is the 200 records retrieved by hashed bag-of-words similarity (cell and its sub-cells); a frontier model reads them |
-| B3_central_llm_summary | records chunked in arrival order into 200-record windows perceived by the frontier profile; chunk sketches pooled without lineage |
-| B4_majority_vote | keyword-analyst candidates; workers with ≥4 matching records vote against their own sub-marginal; 60 % supermajority of ≥3 voters |
+| B3_central_llm_summary | records chunked in arrival order into 200-record windows perceived by the frontier profile; chunk sketches pooled without lineage, organisation-wide scope |
+| B3_central_llm_summary_scoped | as B3 but the frontier's per-record extractions are reduced per organisational unit as well (the strongest chunked-summarisation variant) |
+| B4_majority_vote | keyword-analyst candidates (ranked by facet z); workers with ≥3 matching records vote against their own sub-marginal; simple majority of ≥3 voters |
 | B5_flat_agents | one aggregator receives every device's structured observations (fan-in budget) |
+| B5_flat_agents_lineage | flat topology with the lineage features (isolates topology from lineage) |
 | B6_hier_no_lineage | Mycelic topology with replica counts as support: no signatures, no dedup, no cross-source consistency |
 | B7_mycelic | lineage-aware hierarchy: signed artifacts, evidence-hash dedup, correlation-discounted independent support, two-child synthesis rule, cross-source consistency conflicts, recent-window revision, k-anonymous sketch promotion |
 | B8_mycelic_security | B7 + lineage-aware verifier + local content classifier |
 | B9_mycelic_questioning | B8 + bounded QuestionArtifacts (expected-information-gain policy) |
-| ORACLE_central_stats | exhaustive search on exact, copy-deduplicated sketches at every scope, orders ≤4 |
+| ORACLE_central_stats | exhaustive search on exact, copy-deduplicated sketches at every scope, orders ≤4 (an exact-data *reference*, not an upper bound on recall: it tests the largest hypothesis family) |
 
-Centralized systems receive strictly more information than the hierarchy
+Centralized systems analyse on the same cadence as the hierarchy's executive node (every round at Tier 1, every third round at Tier 2/3). Device-emitted bare claims (attacks) are ingested unverified by every lineage-blind system, centralized or flat; ORACLE ignores them. Centralized systems receive strictly more information than the hierarchy
 (exact attributes, full text, all units), the frontier profile dominates the
 edge profile on every fidelity parameter (enforced by `config.validate`),
 and no system reads ground truth (`tests/test_no_cheating.py`).
@@ -109,8 +114,11 @@ pool sketches, synthesize claims at their own scope, forward child claims as
 scoped knowledge, open **conflicts** when children with elevated evidence
 disagree with children holding powerful null evidence, resolve conflicts by
 independent support ratio or region split, and supersede claims that a
-recent window refutes. Bytes are metered on a compact wire encoding of
-every artifact that crosses a node boundary.
+recent window refutes. Every system, centralized or hierarchical, also
+re-tests its accepted claims on cumulative evidence each analysis round and
+withdraws those that are no longer nominally significant (p > 0.05), so an
+early fluke does not persist by default. Bytes are metered on a compact wire
+encoding of every artifact that crosses a node boundary.
 
 ## 2. Metrics
 

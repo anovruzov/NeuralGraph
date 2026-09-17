@@ -17,7 +17,8 @@ SMALL = [
     "world.n_global_findings=3", "world.n_decoys=5", "world.n_contradictions=2", "world.n_temporal_revisions=2",
 ]
 # a topology with several departments and regions so that cross-team and global effects exist
-TOPOLOGY = ["org.workers_per_team=20", "org.teams_per_department=3", "org.departments_per_region=2", "org.n_regions=0"]
+TOPOLOGY = ["org.workers_per_team=20", "org.teams_per_department=3", "org.departments_per_region=2", "org.n_regions=0",
+            "org.interactions_per_worker=20"]   # 6000 records: enough for order-3/4 global effects to satisfy the hidden-evidence cap
 LAYER_RANK = {l: i for i, l in enumerate(LAYER_NAMES_5)}
 
 
@@ -52,7 +53,7 @@ def test_topology_and_effect_kinds() -> None:
     assert 1 <= kinds.get("local", 0) <= 20 and 1 <= kinds.get("cross_team", 0) <= 5 and 1 <= kinds.get("global", 0) <= 3   # validation may drop a few
     assert kinds.get("decoy", 0) == 5
     assert summary["dataset_sha256"] == w.dataset_sha256
-    assert w.n == 3000 and len(w.effects) > 0
+    assert w.n == 6000 and len(w.effects) > 0
 
 
 @pytest.mark.parametrize("seed", [0, 1])

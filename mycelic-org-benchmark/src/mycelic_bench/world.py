@@ -10,6 +10,7 @@ violations.
 from __future__ import annotations
 
 import hashlib
+import itertools
 import math
 from dataclasses import dataclass, field
 from typing import Any
@@ -507,6 +508,7 @@ def generate_world(cfg: dict[str, Any], seed: int) -> World:
 
     # ---- effects -----------------------------------------------------------
     effects: list[Effect] = []
+    eid_seq = itertools.count()   # effect ids stay unique across validation drops and top-ups
     used_cells: list[tuple[int, int]] = []   # (cell, label)
     lo, hi = w["effect_delta_range"]
     alpha, power = float(w["power_alpha"]), float(w["power_target"])
@@ -603,7 +605,7 @@ def generate_world(cfg: dict[str, Any], seed: int) -> World:
                     extra_check=None) -> int:
         added = 0
         attempts = 0
-        max_attempts = int(w.get("max_generation_attempts", 40)) * max(count, 1)
+        max_attempts = int(w.get("max_generation_attempts", 200)) * max(count, 1)
         n_scope_units = org.n_units(scope_layer) if scope_layer else 1
         while added < count and attempts < max_attempts:
             attempts += 1
@@ -621,9 +623,9 @@ def generate_world(cfg: dict[str, Any], seed: int) -> World:
             min_layer, nmin, uc, cu = classify(cell, delta, label, valid)
             if min_layer not in allowed_layers:
                 continue
-            if extra_check is not None and not extra_check(uc, cu, min_layer):
+            if extra_check is not None and not extra_check(uc, cu, min_layer, nmin):
                 continue
-            eid = f"{kind[:3].upper()}{len(effects):04d}"
+            eid = f"{kind[:3].upper()}{next(eid_seq):04d}"
             effects.append(Effect(eid, kind, cell, label, delta, order=order, min_layer=min_layer, n_min=nmin,
                                   unit_counts=uc, contributing_units=cu, scope_layer=scope_layer, scope_unit=scope_unit))
             apply_effect(cell, label, delta, scope_layer=scope_layer, scope_unit=scope_unit)
@@ -646,7 +648,7 @@ def generate_world(cfg: dict[str, Any], seed: int) -> World:
         min_layer, nmin, uc, cu = classify(cell, delta, label, None)
         if min_layer == "none":
             continue
-        effects.append(Effect(f"BAS{len(effects):04d}", "base_rate", cell, label, delta, order=1, min_layer=min_layer, n_min=nmin,
+        effects.append(Effect(f"BAS{next(eid_seq):04d}", "base_rate", cell, label, delta, order=1, min_layer=min_layer, n_min=nmin,
                               unit_counts=uc, contributing_units=cu))
         apply_effect(cell, label, delta)
         used_cells.append((cell, label)); added += 1
@@ -685,12 +687,12 @@ def generate_world(cfg: dict[str, Any], seed: int) -> World:
                 continue
             if (np.isin(region_of[m], a_regs).sum() < nmin) or (np.isin(region_of[m], b_regs).sum() < nmin):
                 continue
-            effects.append(Effect(f"CON{len(effects):04d}", "contradiction", cell, label, delta, sign=1, regions=a_regs,
+            effects.append(Effect(f"CON{next(eid_seq):04d}", "contradiction", cell, label, delta, sign=1, regions=a_regs,
                                   group=gid, conditional=True, true_side=True, order=order, min_layer=min_layer, n_min=nmin,
                                   unit_counts=uc, contributing_units=cu))
             apply_effect(cell, label, delta, regions=a_regs)
             used_cells.append((cell, label))
-            effects.append(Effect(f"CON{len(effects):04d}", "contradiction", cell, label, 0.0, sign=-1, regions=b_regs,
+            effects.append(Effect(f"CON{next(eid_seq):04d}", "contradiction", cell, label, 0.0, sign=-1, regions=b_regs,
                                   group=gid, conditional=True, true_side=True, order=order, min_layer=min_layer, n_min=nmin,
                                   unit_counts=uc, contributing_units=cu))
         else:
@@ -715,22 +717,22 @@ def generate_world(cfg: dict[str, Any], seed: int) -> World:
             if honest < 2 * nmin:
                 continue
             if shape == "biased_null":
-                effects.append(Effect(f"CON{len(effects):04d}", "contradiction", cell, label, delta, sign=1,
+                effects.append(Effect(f"CON{next(eid_seq):04d}", "contradiction", cell, label, delta, sign=1,
                                       group=gid, conditional=False, true_side=True, order=order, min_layer=min_layer, n_min=nmin,
                                       unit_counts=uc, contributing_units=cu))
                 apply_effect(cell, label, delta)
                 used_cells.append((cell, label))
-                effects.append(Effect(f"CON{len(effects):04d}", "contradiction", cell, label, 0.0, sign=-1,
+                effects.append(Effect(f"CON{next(eid_seq):04d}", "contradiction", cell, label, 0.0, sign=-1,
                                       group=gid, conditional=False, true_side=False, order=order, min_layer=min_layer, n_min=nmin,
                                       unit_counts={"biased_teams": len(bias_teams)}, contributing_units={},
                                       scope_layer="team_set", scope_unit=-1))
             else:  # biased_positive: the positive side is the false one
-                effects.append(Effect(f"CON{len(effects):04d}", "contradiction", cell, label, delta, sign=1,
+                effects.append(Effect(f"CON{next(eid_seq):04d}", "contradiction", cell, label, delta, sign=1,
                                       group=gid, conditional=False, true_side=False, order=order, min_layer=min_layer, n_min=nmin,
                                       unit_counts={"biased_teams": len(bias_teams)}, contributing_units={"bias_teams": bias_teams},
                                       scope_layer="team_set", scope_unit=-1))
                 used_cells.append((cell, label))
-                effects.append(Effect(f"CON{len(effects):04d}", "contradiction", cell, label, 0.0, sign=-1,
+                effects.append(Effect(f"CON{next(eid_seq):04d}", "contradiction", cell, label, 0.0, sign=-1,
                                       group=gid, conditional=False, true_side=True, order=order, min_layer=min_layer, n_min=nmin,
                                       unit_counts=uc, contributing_units=cu))
             contradiction_bias_teams[gid] = (shape, bias_teams)
@@ -769,7 +771,7 @@ def generate_world(cfg: dict[str, Any], seed: int) -> World:
         pattern = [1, 0, 1, 0][: len(cuts) - 1] if rng.random() < 0.5 else [1, 0, 0, 1][: len(cuts) - 1]
         for ph, (a, b) in enumerate(zip(cuts[:-1], cuts[1:])):
             ml, nmin, uc, cu = phase_layers[ph]
-            effects.append(Effect(f"TMP{len(effects):04d}", "temporal", cell, label, delta * pattern[ph], sign=1,
+            effects.append(Effect(f"TMP{next(eid_seq):04d}", "temporal", cell, label, delta * pattern[ph], sign=1,
                                   valid_from=a, valid_to=b, group=gid, phase=ph, order=order, min_layer=ml,
                                   n_min=nmin, unit_counts=uc, contributing_units=cu))
             apply_effect(cell, label, delta * pattern[ph], valid_from=a, valid_to=b)
@@ -782,9 +784,12 @@ def generate_world(cfg: dict[str, Any], seed: int) -> World:
     gen_report["local"] = add_effects("local", int(round(int(w["n_local_findings"]) * overgen)), list(w["local_orders"]),
                                       {"worker", "team"}, "team")
     # cross-team: scoped to one department; no team alone has enough evidence, >=2 teams contribute
+    hidden_frac = float(w.get("hidden_max_fraction", 0.5))   # no single unit below the min layer may hold more than this x n_min x margin
+    hidden_cap = lambda nmin: hidden_frac * nmin * float(w.get("power_margin", 1.5))
+    cross_check = lambda uc, cu, ml, nmin: cu["team"] >= 2 and uc["team"] <= hidden_cap(nmin)
     gen_report["cross_team"] = add_effects(
         "cross_team", int(round(int(w["n_cross_team_findings"]) * overgen)), list(w["cross_team_orders"]), {"department"}, "department",
-        extra_check=lambda uc, cu, ml: cu["team"] >= 2)
+        extra_check=cross_check)
     # global: organisation-wide; evidence spread across departments (and regions when they exist)
     global_layers = {"region", "executive"}
     if org.n_regions == 1:
@@ -793,10 +798,12 @@ def generate_world(cfg: dict[str, Any], seed: int) -> World:
         global_layers = {"department", "executive"}
     if str(w.get("min_layer_for_global", "department")) == "department":
         global_layers |= {"department"}
+    global_check = lambda uc, cu, ml, nmin: (cu["department"] >= 2 and cu["team"] >= 3
+        and (org.n_regions == 1 or cu["region"] >= 2) and uc["team"] <= hidden_cap(nmin)
+        and (ml == "department" or uc["department"] <= hidden_cap(nmin)))
     gen_report["global"] = add_effects(
         "global", int(round(int(w["n_global_findings"]) * overgen)), list(w["global_orders"]), global_layers, None,
-        extra_check=lambda uc, cu, ml: cu["department"] >= 2 and cu["team"] >= 3
-        and (org.n_regions == 1 or cu["region"] >= 2))
+        extra_check=global_check)
     # decoys: zero-delta cells adjacent to real effects (share label and 2 attribute-values)
     n_dec = 0
     real = [e for e in effects if e.kind != "base_rate"]
@@ -813,7 +820,7 @@ def generate_world(cfg: dict[str, Any], seed: int) -> World:
         cell = ci.encode(keep + [(a_new, int(rng.integers(0, N_VALUES[a_new])))])
         if conflicts_existing(cell, e.label):
             continue
-        effects.append(Effect(f"DEC{len(effects):04d}", "decoy", cell, e.label, 0.0, order=len(keep) + 1, min_layer="none"))
+        effects.append(Effect(f"DEC{next(eid_seq):04d}", "decoy", cell, e.label, 0.0, order=len(keep) + 1, min_layer="none"))
         used_cells.append((cell, e.label))
         n_dec += 1
     gen_report["decoy"] = n_dec
@@ -825,10 +832,11 @@ def generate_world(cfg: dict[str, Any], seed: int) -> World:
         if e.kind == "local":
             return ml in ("worker", "team")
         if e.kind == "cross_team":
-            return ml == "department" and cu.get("team", 0) >= 2
+            return ml == "department" and cu.get("team", 0) >= 2 and uc.get("team", 0) <= hidden_cap(e.n_min)
         if e.kind == "global":
             return ml in global_layers and cu.get("department", 0) >= 2 and cu.get("team", 0) >= 3 \
-                and (org.n_regions == 1 or cu.get("region", 0) >= 2)
+                and (org.n_regions == 1 or cu.get("region", 0) >= 2) and uc.get("team", 0) <= hidden_cap(e.n_min) \
+                and (ml == "department" or uc.get("department", 0) <= hidden_cap(e.n_min))
         if e.kind == "temporal":
             return ml != "none"
         if e.kind == "contradiction":
@@ -836,40 +844,62 @@ def generate_world(cfg: dict[str, Any], seed: int) -> World:
         return ml != "none"
 
     dropped: dict[str, int] = {}
-    for _pass in range(2):
-        drop_groups: set[str] = set(); drop_ids: set[str] = set()
-        for e in effects:
-            if e.delta <= 0 or not e.true_side or e.kind in ("base_rate", "decoy"):
-                continue
-            valid = None
-            if e.scope_layer in ("team", "department", "region"):
-                valid = org.membership(e.scope_layer)[worker] == e.scope_unit
-            if e.kind == "temporal":
-                valid = (rounds >= e.valid_from) & (rounds < (e.valid_to if e.valid_to is not None else n_rounds))
-            if e.regions is not None:
-                vr = np.isin(region, list(e.regions))
-                valid = vr if valid is None else (valid & vr)
-            ml, nmin, uc, cu = classify(e.cell, e.delta, e.label, valid, planted=True)
-            if kind_requirement(e, ml, uc, cu):
-                e.min_layer, e.n_min, e.unit_counts, e.contributing_units = ml, nmin, uc, cu
-            elif e.group is not None:
-                drop_groups.add(e.group)
-            else:
-                drop_ids.add(e.effect_id)
-        if not drop_groups and not drop_ids:
+
+    def validation_pass() -> None:
+        """Re-classify every planted effect under the final probability matrix; drop the ones whose kind
+        requirement no longer holds (later effects can raise a sub-marginal and mask an earlier one)."""
+        nonlocal contradiction_bias_teams
+        for _pass in range(2):
+            drop_groups: set[str] = set(); drop_ids: set[str] = set()
+            for e in effects:
+                if e.delta <= 0 or not e.true_side or e.kind in ("base_rate", "decoy"):
+                    continue
+                valid = None
+                if e.scope_layer in ("team", "department", "region"):
+                    valid = org.membership(e.scope_layer)[worker] == e.scope_unit
+                if e.kind == "temporal":
+                    valid = (rounds >= e.valid_from) & (rounds < (e.valid_to if e.valid_to is not None else n_rounds))
+                if e.regions is not None:
+                    vr = np.isin(region, list(e.regions))
+                    valid = vr if valid is None else (valid & vr)
+                ml, nmin, uc, cu = classify(e.cell, e.delta, e.label, valid, planted=True)
+                if kind_requirement(e, ml, uc, cu):
+                    e.min_layer, e.n_min, e.unit_counts, e.contributing_units = ml, nmin, uc, cu
+                elif e.group is not None:
+                    drop_groups.add(e.group)
+                else:
+                    drop_ids.add(e.effect_id)
+            if not drop_groups and not drop_ids:
+                break
+            keep: list[Effect] = []
+            for e in effects:
+                if e.effect_id in drop_ids or (e.group is not None and e.group in drop_groups):
+                    dropped[e.kind] = dropped.get(e.kind, 0) + 1
+                    if e.delta > 0 and e.true_side:
+                        apply_effect(e.cell, e.label, e.delta, sign=-1.0, valid_from=e.valid_from, valid_to=e.valid_to,
+                                     regions=e.regions, scope_layer=e.scope_layer, scope_unit=e.scope_unit)
+                    used_cells[:] = [uc_ for uc_ in used_cells if uc_ != (e.cell, e.label)]
+                else:
+                    keep.append(e)
+            effects[:] = keep
+            contradiction_bias_teams = {g: v for g, v in contradiction_bias_teams.items() if g not in drop_groups}
+
+    validation_pass()
+    # top-up: kinds whose validated count fell below the requested count are re-planted (the hidden-evidence
+    # cap and masking by later effects drop candidates unevenly across kinds), then validated again
+    topup_specs = {"local": (int(w["n_local_findings"]), list(w["local_orders"]), {"worker", "team"}, "team", None),
+                   "cross_team": (int(w["n_cross_team_findings"]), list(w["cross_team_orders"]), {"department"}, "department", cross_check),
+                   "global": (int(w["n_global_findings"]), list(w["global_orders"]), global_layers, None, global_check)}
+    gen_report["topups"] = {}
+    for _topup in range(int(w.get("max_topups", 5))):
+        short = {k: spec[0] - sum(1 for e in effects if e.kind == k) for k, spec in topup_specs.items()}
+        short = {k: v for k, v in short.items() if v > 0}
+        if not short:
             break
-        keep: list[Effect] = []
-        for e in effects:
-            if e.effect_id in drop_ids or (e.group is not None and e.group in drop_groups):
-                dropped[e.kind] = dropped.get(e.kind, 0) + 1
-                if e.delta > 0 and e.true_side:
-                    apply_effect(e.cell, e.label, e.delta, sign=-1.0, valid_from=e.valid_from, valid_to=e.valid_to,
-                                 regions=e.regions, scope_layer=e.scope_layer, scope_unit=e.scope_unit)
-                used_cells[:] = [uc_ for uc_ in used_cells if uc_ != (e.cell, e.label)]
-            else:
-                keep.append(e)
-        effects[:] = keep
-        contradiction_bias_teams = {g: v for g, v in contradiction_bias_teams.items() if g not in drop_groups}
+        for k, v in short.items():
+            target, orders, layers, scope, check = topup_specs[k]
+            gen_report["topups"][k] = gen_report["topups"].get(k, 0) + add_effects(k, int(math.ceil(v * overgen)), orders, layers, scope, extra_check=check)
+        validation_pass()
     gen_report["validation_dropped"] = dropped
     # trim over-generated kinds back to the requested counts (extras are removed like validation failures)
     targets = {"local": int(w["n_local_findings"]), "cross_team": int(w["n_cross_team_findings"]),

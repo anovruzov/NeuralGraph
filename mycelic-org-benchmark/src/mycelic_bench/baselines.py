@@ -53,7 +53,7 @@ from .config import get_profile
 from .evaluate import (ClaimRecord, contradiction_metrics, evidence_metrics, failure_reasons_from_probe, match_effects,
                        privacy_metrics, raw_record_bytes, temporal_metrics, transition_fidelity)
 from .hierarchy import Policy
-from .hypothesis import Candidates, bh_qvalues, null_evidence, rate_test, search
+from .hypothesis import Candidates, bh_qvalues, claim_pvalues, null_evidence, rate_test, search
 from .sketch import COL_DD, COL_DR, COL_DT, COL_DW, COL_K0, COL_N, N_COLS, Sketch
 from .vocab import ATTRIBUTES, LABELS, N_ATTR, N_LABELS, N_VALUES, VALUES, cell_index, mask_matrix
 from .world import World
@@ -159,6 +159,23 @@ class ClaimBook:
         for i in np.flatnonzero(ref):
             self.claims[keys[i]]["status"] = "superseded"; self.claims[keys[i]]["valid_to"] = round_
 
+    def recheck(self, sketch: Sketch, scope_layer: str, scope_unit: int, round_: int) -> int:
+        """Cumulative re-verification (the same rule the hierarchy applies): an accepted positive claim whose
+        cumulative evidence at this scope is no longer even nominally significant (p > withdraw_p against the
+        current most-elevated sub-marginal) is withdrawn; `upsert` revives it if the signal returns.
+        Returns the number of claims re-tested (charged as facet queries by the analyst baselines)."""
+        p = self.policy
+        if p.withdraw_p <= 0 or len(sketch.ids) == 0:
+            return 0
+        keys = [k for k, c in self.claims.items() if k[0] == scope_layer and k[1] == scope_unit and c["status"] == "accepted" and k[4] > 0]
+        if not keys:
+            return 0
+        pv, n_c, _eff, ok = claim_pvalues(sketch, np.array([k[2] for k in keys]), np.array([k[3] for k in keys]), np.array([k[4] for k in keys]))
+        for i in np.flatnonzero(ok & (n_c >= p.n_min) & (pv > p.withdraw_p)):
+            c = self.claims[keys[i]]
+            c["status"] = "superseded"; c["valid_to"] = round_; c["withdrawn"] = True; c["p"] = float(pv[i])
+        return len(keys)
+
     def records(self, world: World, include_superseded: bool = True) -> list[ClaimRecord]:
         out = []
         for (sl, su, cell, label, sign), c in self.claims.items():
@@ -204,6 +221,19 @@ def _dedup_weights(fp: np.ndarray) -> np.ndarray:
     _, first = np.unique(fp, return_index=True)
     w = np.zeros(len(fp), dtype=np.int64); w[first] = 1
     return w
+
+
+def _accept_bare_claims(book: "ClaimBook", injected: list[dict[str, Any]], r: int, policy: Policy) -> None:
+    """A centre without lineage ingests device-emitted bare claims as facts (replica count = claimed n);
+    symmetric with the lineage-blind hierarchy (B5/B6), which accepts them by replica count too."""
+    for d in injected:
+        key = ("executive", 0, int(d["cell"]), int(d["label"]), 1)
+        if int(d["n"]) < policy.support_min or key in book.claims:
+            continue
+        book.claims[key] = {"first_round": r, "status": "accepted", "valid_to": None, "n": int(d["n"]), "k": int(d["k"]),
+                            "rate": d["k"] / max(d["n"], 1), "baseline": 0.0, "effect": d["k"] / max(d["n"], 1), "p": 1e-6,
+                            "q": 1e-4, "conf": float(d.get("confidence", 0.9)), "support": float(d["n"]), "replica": int(d["n"]),
+                            "last_round": r, "dw": 1, "dt": 1, "dd": 1, "dr": 1}
 
 
 def _inject_sketch(injected: list[dict[str, Any]], layer: str = "executive") -> Sketch:
@@ -451,7 +481,8 @@ def run_baseline(world: World, cfg: dict[str, Any], seed: int, name: str, sys_cf
     perfect = get_profile(cfg, "sim-perfect") if "sim-perfect" in cfg["models"]["profiles"] else frontier
     records = world.records()
     n_rounds = world.n_rounds
-    cadence = int(sys_cfg.get("analysis_every", 3))
+    # analysis cadence defaults to the hierarchy's executive cadence so time-to-discovery is comparable
+    cadence = int(sys_cfg.get("analysis_every", int(policy.cadence.get("executive", 1))))
     analysis_rounds = sorted(set(list(range(0, n_rounds, cadence)) + [n_rounds - 1]))
     order = np.argsort(records.round, kind="stable")
     bounds = np.searchsorted(records.round[order], np.arange(n_rounds + 1))
@@ -560,6 +591,7 @@ def _run_b0(world, cfg, seed, policy, edge, records, order, bounds, analysis_rou
                 if len(c):
                     book.upsert("worker", int(w), c, r)
                     calls += 1
+                book.recheck(sk, "worker", int(w), r)
             # injected claims from compromised devices become their own worker's claims (self-poisoning only)
             for d in allv.injected:
                 key = ("worker", int(d["worker"]), int(d["cell"]), int(d["label"]), 1)
@@ -600,7 +632,7 @@ def _run_central(world, cfg, seed, name, sys_cfg, policy, edge, frontier, perfec
     snapshots: dict[int, list[ClaimRecord]] = {}
     parts: list[Ingested] = []
     canaries: list[str] = []
-    bytes_off = 0; tokens_cloud = 0; calls = 0
+    bytes_off = 0; tokens_cloud = 0; calls = 0; queries_charged = 0
     query_budget = int(sys_cfg.get("query_budget", 3000))
     if "query_budget_per_10k" in sys_cfg:   # the analyst's budget grows with the data it is asked to cover
         query_budget = int(float(sys_cfg["query_budget_per_10k"]) * max(1.0, world.n / 10000.0))
@@ -678,6 +710,7 @@ def _run_central(world, cfg, seed, name, sys_cfg, policy, edge, frontier, perfec
                     book.upsert(sl, su, c, r)
                     probe_state["sketches"][(sl, su)] = pooled
                     book.revise(_sketch(allv, exact.get((sl, su), recent_mask) & recent_mask, 3), sl, su, r)
+                    book.recheck(pooled, sl, su, r)
                     tokens_cloud += int(pooled.wire_bytes() // 4)
                 calls += 1
             else:
@@ -686,6 +719,7 @@ def _run_central(world, cfg, seed, name, sys_cfg, policy, edge, frontier, perfec
                 book.upsert("executive", 0, c, r)
                 probe_state["sketches"][("executive", 0)] = pooled
                 book.revise(_sketch(allv, recent_mask, 3), "executive", 0, r)
+                book.recheck(pooled, "executive", 0, r)
                 tokens_cloud += int(pooled.wire_bytes() // 4); calls += 1
         elif name == "ORACLE_central_stats":
             weights = _dedup_weights(allv.fingerprint)
@@ -697,6 +731,7 @@ def _run_central(world, cfg, seed, name, sys_cfg, policy, edge, frontier, perfec
                 c = search(sk, n_min=policy.n_min, effect_min=policy.effect_min, fdr_q=policy.fdr_q, max_order=4)
                 book.upsert(sl, su, c, r, support_fn=lambda cd, i: _is_from(cd, i, policy))
                 book.revise(_sketch(allv, mask & recent_mask, 3), sl, su, r)
+                book.recheck(sk, sl, su, r)
                 probe_state["sketches"][(sl, su)] = sk
             calls += 1
         else:  # B1 keyword, B2 RAG, B4 majority vote share the analyst
@@ -713,7 +748,10 @@ def _run_central(world, cfg, seed, name, sys_cfg, policy, edge, frontier, perfec
                 sketches[(sl, su)] = Sketch.pool(parts_, "C", sl, r, max(3, max_query_order))
             queried = analyst.explore(sketches, query_budget)
             probe_state["queried"] = queried; probe_state["sketches"] = sketches
-            tokens_cloud += query_budget * 40; calls += 1   # the analyst is a frontier model issuing queries
+            tokens_cloud += (analyst.queries_used - queries_charged) * 40; queries_charged = analyst.queries_used
+            calls += 1   # the analyst is a frontier model issuing queries
+            for (sl, su), sk_ in sketches.items():   # cumulative re-verification of accepted claims: one facet query each
+                analyst.queries_used += book.recheck(sk_, sl, su, r)
             if name == "B1_central_keyword":
                 for (sl, su), ids in queried.items():
                     if len(ids) == 0:

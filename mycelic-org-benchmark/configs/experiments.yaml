@@ -16,6 +16,7 @@ policy:
   question_budget: 20             # questions per node per round (fixed / eig)
   question_byte_budget: 4096      # bytes per node per round (budget policy)
   recent_window: 6                # rounds for temporal revision tests
+  withdraw_p: 0.05                # cumulative re-verification: withdraw an accepted claim whose cumulative one-sided p exceeds this (all systems; 0 disables)
   cadence: {team: 1, department: 1, region: 1, executive: 1}   # aggregation every k rounds
   fan_in_budget_bytes: 0          # 0 = unlimited; flat baseline uses a finite budget
   resolve_ratio: 2.0              # independent support ratio to resolve a contradiction
@@ -29,15 +30,17 @@ tiers:
   tier2:
     org: {n_workers: 10000, workers_per_team: 100, teams_per_department: 5, departments_per_region: 4, n_rounds: 30, interactions_per_worker: 10}
     world: {n_local_findings: 1000, n_cross_team_findings: 250, n_global_findings: 100, n_decoys: 200, n_contradictions: 100, n_temporal_revisions: 100, min_layer_for_global: region}
+    policy: {cadence: {team: 1, department: 3, region: 3, executive: 3}}   # baselines analyse on the executive cadence too
     seeds: 10
   tier3:
     org: {n_workers: 50000, workers_per_team: 100, teams_per_department: 10, departments_per_region: 10, n_rounds: 30, interactions_per_worker: 10}
     world: {n_local_findings: 2000, n_cross_team_findings: 500, n_global_findings: 200, n_decoys: 400, n_contradictions: 100, n_temporal_revisions: 100, min_layer_for_global: region}
+    policy: {cadence: {team: 1, department: 3, region: 3, executive: 3}}
     seeds: 3
 
 systems:
   # Baseline knobs (baselines.py; every value below is the default the code applies when the key is absent):
-  #   analysis_every: 3        centralized systems analyse every 3rd round (and the last); the hierarchy runs every round,
+  #   analysis_every           centralized analysis cadence; defaults to policy.cadence.executive (1 at tier1, 3 at tier2/3),
   #                            so baseline time-to-discovery carries up to +2 rounds of cadence lag
   #   max_query_order: 4       B1/B2/B4 analyst may AND four terms (an inverted index answers 4-term ANDs as readily as
   #                            3-term ones); set 3 to cap the analyst at the hierarchy's promoted sketch order
