@@ -241,6 +241,7 @@ class MemoryWorker:
             counts = await self.store.apply_plan(plan, worker_id=self.worker_id)
         except asyncio.CancelledError:
             await self.store.set_message_status([m.message_id for m in messages], "pending")
+            await self.store.release_jobs(ids)
             raise
         except LostLease as exc:
             hb.cancel()

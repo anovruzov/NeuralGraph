@@ -69,6 +69,16 @@ class SchemaAndMessagesTests(StoreTestCase):
         self.assertFalse(c2)
         self.assertEqual(m1.message_id, m2.message_id)
         self.assertEqual(await self.store.job_counts(), {"queued": 1})
+        # a person really repeating themselves is NOT a duplicate once something else was said in between
+        m_yes1, c1 = await self.store.add_message("chat", "Ali", "yes")
+        await self.store.add_message("chat", "Mel", "are you sure?")
+        m_yes2, c2 = await self.store.add_message("chat", "Ali", "yes")
+        self.assertTrue(c1 and c2)
+        self.assertNotEqual(m_yes1.message_id, m_yes2.message_id)
+        # but an immediate resend of the last message (client retry) is
+        m_yes3, c3 = await self.store.add_message("chat", "Ali", "yes")
+        self.assertFalse(c3)
+        self.assertEqual(m_yes3.message_id, m_yes2.message_id)
         # explicit id is honoured and also idempotent
         m3, c3 = await self.store.add_message("chat", "Ali", "with id", message_id="m-42")
         m4, c4 = await self.store.add_message("chat", "Ali", "with id", message_id="m-42")

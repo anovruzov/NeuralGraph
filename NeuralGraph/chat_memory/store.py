@@ -72,13 +72,14 @@ CREATE TABLE IF NOT EXISTS messages (
     text         TEXT NOT NULL,
     sent_at      TEXT,
     ingested_at  TEXT NOT NULL,
-    content_hash TEXT NOT NULL UNIQUE,
+    content_hash TEXT NOT NULL,
     status       TEXT NOT NULL DEFAULT 'pending',
     processed_at TEXT,
     metadata     TEXT NOT NULL DEFAULT '{}',
     UNIQUE(chat_id, seq)
 );
 CREATE INDEX IF NOT EXISTS idx_messages_chat_seq ON messages(chat_id, seq);
+CREATE INDEX IF NOT EXISTS idx_messages_hash ON messages(content_hash);
 CREATE INDEX IF NOT EXISTS idx_messages_status ON messages(status);
 
 CREATE TABLE IF NOT EXISTS memories (
@@ -379,23 +380,32 @@ class ChatMemoryStore:
         debounce_seconds: float = 0.0,
         max_attempts: int = 5,
     ) -> tuple[ChatMessage, bool]:
-        """Append a message to a chat and (optionally) enqueue its extraction job.
+        """Append a message to a chat and (optionally) enqueue its extraction job. Never calls the LLM.
 
-        Idempotent: re-adding the same (chat, speaker, text, sent_at, explicit message_id) returns the
-        stored row with ``created=False``. Never calls the LLM.
+        Idempotency (a client retrying a send must not duplicate the message, but a person really saying
+        "yes" twice must not be dropped):
+        * an explicit ``message_id`` that already exists returns the stored row;
+        * otherwise the same (chat, speaker, text, sent_at) with a ``sent_at`` given is a resend;
+        * without ``sent_at`` or ``message_id`` only an immediate repeat of the chat's *last* message
+          (same speaker and text) is treated as a resend.
         """
         text = text if isinstance(text, str) else str(text)
         speaker = normalize_ws(speaker) or "unknown"
         chash = content_hash(chat_id, speaker, text, sent_at or "", message_id or "")
         async with self._lock:
             with self._tx() as c:
-                existing = c.execute("SELECT * FROM messages WHERE content_hash=?", (chash,)).fetchone()
-                if existing is not None:
-                    return self._row_message(existing), False
                 if message_id is not None:
                     dup = c.execute("SELECT * FROM messages WHERE message_id=?", (message_id,)).fetchone()
                     if dup is not None:
                         return self._row_message(dup), False
+                elif sent_at:
+                    existing = c.execute("SELECT * FROM messages WHERE content_hash=? LIMIT 1", (chash,)).fetchone()
+                    if existing is not None:
+                        return self._row_message(existing), False
+                else:
+                    last = c.execute("SELECT * FROM messages WHERE chat_id=? ORDER BY seq DESC LIMIT 1", (chat_id,)).fetchone()
+                    if last is not None and last["speaker"] == speaker and last["text"] == text and not last["sent_at"]:
+                        return self._row_message(last), False
                 self._upsert_chat_sync(c, chat_id)
                 row = c.execute("SELECT COALESCE(MAX(seq), -1) + 1 AS nxt FROM messages WHERE chat_id=?", (chat_id,)).fetchone()
                 seq = int(row["nxt"])
@@ -584,6 +594,16 @@ class ChatMemoryStore:
                 )
                 out = [self._row_job(c.execute("SELECT * FROM jobs WHERE job_id=?", (i,)).fetchone()) for i in ids]
         return out
+
+    async def release_jobs(self, job_ids: Iterable[int]) -> None:
+        """Return leased jobs to the queue immediately (graceful shutdown); the attempt stays charged."""
+        ids = [int(i) for i in job_ids]
+        if not ids:
+            return
+        async with self._lock:
+            with self._tx() as c:
+                c.executemany("UPDATE jobs SET status='queued', leased_until=NULL, worker_id=NULL, updated_at=? "
+                              "WHERE job_id=? AND status='leased'", [(now_iso(), i) for i in ids])
 
     async def heartbeat(self, job_ids: Iterable[str | int], lease_seconds: float) -> None:
         ids = [int(i) for i in job_ids]

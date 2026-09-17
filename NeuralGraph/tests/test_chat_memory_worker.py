@@ -189,7 +189,7 @@ class FailureTests(WorkerTestCase):
         await cm.stop(timeout=0.2)   # cancels the in-flight batch
         self.assertFalse(cm.worker.running)
         self.assertEqual((await cm.store.message_counts()).get("pending"), 1)
-        self.assertEqual(await cm.store.requeue_expired_leases(), 0, "lease still valid; a restart sweeps it later")
+        self.assertEqual(await cm.store.job_counts(), {"queued": 1}, "the lease is released immediately on graceful stop")
         await cm.close()
 
 

@@ -205,11 +205,12 @@ class ChatMemory:
         raw_processed = int(c.execute("SELECT COALESCE(SUM(length(text)), 0) AS n FROM messages WHERE status IN ('processed','skipped')").fetchone()["n"])
         raw_all = int(c.execute("SELECT COALESCE(SUM(length(text)), 0) AS n FROM messages").fetchone()["n"])
         mem_active = int(c.execute("SELECT COALESCE(SUM(length(text)), 0) AS n FROM memories WHERE status='active'").fetchone()["n"])
-        raw_tokens = estimate_tokens(" " * raw_processed) if raw_processed else 0
-        mem_tokens = estimate_tokens(" " * mem_active) if mem_active else 0
+        chars_to_tokens = lambda n: max(1, int(round(n / 4.0))) if n else 0
+        raw_tokens = chars_to_tokens(raw_processed)
+        mem_tokens = chars_to_tokens(mem_active)
         saved = max(0, raw_tokens - mem_tokens)
         return {
-            "raw_tokens_total": estimate_tokens(" " * raw_all) if raw_all else 0,
+            "raw_tokens_total": chars_to_tokens(raw_all),
             "raw_tokens_digested": raw_tokens,
             "memory_tokens": mem_tokens,
             "tokens_saved": saved,
