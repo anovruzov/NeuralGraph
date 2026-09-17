@@ -230,6 +230,18 @@ dead-lettering, restart recovery of expired leases, lease-fenced commits, reconc
 superseded handling, the token ledger and grade, and the MCP protocol over stdio and HTTP.
 (`pytest` cannot collect from the repo root because of the stale root `__init__.py`; use `unittest`.)
 
+## Deployment
+
+* **Container (cloud):** `docker build -f deploy/chat_memory/Dockerfile -t neuralgraph-memory .` or
+  `docker compose -f deploy/chat_memory/docker-compose.yml up` (memory server + Ollama, volumes for both).
+  Set `NEURALGRAPH_MCP_TOKEN` / `NEURALGRAPH_API_TOKEN`, terminate TLS in front, and point Claude at
+  `https://your-host/mcp`.
+* **Edge (laptop / mini-PC):** `deploy/chat_memory/neuralgraph-memory.service` runs `serve` as a systemd
+  user service next to a local Ollama; Claude Desktop/Code talk to it over stdio (`mcp`) or to the local
+  HTTP endpoint. Everything is one Python process plus one SQLite file; no other services.
+* Read caches are keyed on SQLite's `data_version` as well as the in-process write counter, so a reader in a
+  second process (for example `search` on the CLI while `serve` is running) never serves stale indexes.
+
 ## Known limits
 
 * Speaker identity is by display name; two different people called "Alex" in different chats would share
@@ -237,4 +249,4 @@ superseded handling, the token ledger and grade, and the MCP protocol over stdio
 * Extraction quality is prompt-bound to a 7B model; the reconcile decision (UPDATE vs CONTRADICT vs ADD) is
   the weakest step, and it is biased towards ADD, which keeps the store safe but leaves near-duplicates for
   maintenance to merge. Thresholds are exposed for tuning against a labelled sample of your own chats.
-* One process owns the SQLite file (WAL); run one `serve`/`mcp` per database.
+* Run one *worker* per database (`serve` or `mcp`); read-only CLI commands can run alongside it.

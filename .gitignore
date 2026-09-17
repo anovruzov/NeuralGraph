@@ -5,3 +5,6 @@ __pycache__/
 demo/results/emb_cache/
 demo/results/smoke*.json
 demo/omega.json
+*.db
+*.db-wal
+*.db-shm

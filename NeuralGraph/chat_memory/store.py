@@ -280,7 +280,7 @@ class ChatMemoryStore:
         self._lock = asyncio.Lock()
         self.revision = 0
         self.has_fts = False
-        self._bm25_cache: tuple[int, list[str], Any] | None = None
+        self._bm25_cache: tuple[tuple[int, int], list[str], Any] | None = None
         self._init_schema()
 
     # ------------------------------------------------------------------ setup / lifecycle
@@ -329,6 +329,15 @@ class ChatMemoryStore:
     def _bump(self) -> None:
         self.revision += 1
         self._bm25_cache = None
+
+    def cache_key(self) -> tuple[int, int]:
+        """Key for read caches: local write counter + SQLite ``data_version`` (changes when *another*
+        connection/process commits), so a second process sharing the file never serves stale indexes."""
+        try:
+            dv = int(self._conn.execute("PRAGMA data_version").fetchone()[0])
+        except sqlite3.Error:
+            dv = 0
+        return (self.revision, dv)
 
     # ------------------------------------------------------------------ meta
     async def get_meta(self, key: str) -> str | None:
@@ -1003,11 +1012,12 @@ class ChatMemoryStore:
         except ImportError:  # pragma: no cover - dependency present in this repo
             return []
         cache = self._bm25_cache
-        if cache is None or cache[0] != self.revision:
+        key = self.cache_key()
+        if cache is None or cache[0] != key:
             rows = self._conn.execute("SELECT memory_id, text FROM memories WHERE status=? ORDER BY rid", (status,)).fetchall()
             ids = [r["memory_id"] for r in rows]
             docs = [tokenize(r["text"]) for r in rows]
-            cache = (self.revision, ids, BM25Okapi(docs) if docs else None)
+            cache = (key, ids, BM25Okapi(docs) if docs else None)
             self._bm25_cache = cache
         _, ids, bm25 = cache
         if not ids or bm25 is None:

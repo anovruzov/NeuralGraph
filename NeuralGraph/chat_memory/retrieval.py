@@ -139,26 +139,28 @@ class MemoryRetriever:
         self.llm = llm
         self.config = config or RetrievalConfig()
         self._index: _Index | None = None
-        self._index_rev = -1
+        self._index_rev: tuple[int, int] | None = None
         self._entity_keys: dict[str, str] = {}
-        self._entity_rev = -1
+        self._entity_rev: tuple[int, int] | None = None
 
     # ------------------------------------------------------------------ caches
     async def _get_index(self) -> _Index:
-        if self._index is None or self._index_rev != self.store.revision:
+        key = self.store.cache_key()
+        if self._index is None or self._index_rev != key:
             self._index = _Index(await self.store.index_rows())
-            self._index_rev = self.store.revision
+            self._index_rev = key
         return self._index
 
     async def _get_entity_keys(self) -> dict[str, str]:
-        if self._entity_rev != self.store.revision:
+        key = self.store.cache_key()
+        if self._entity_rev != key:
             self._entity_keys = await self.store.all_entity_keys()
-            self._entity_rev = self.store.revision
+            self._entity_rev = key
         return self._entity_keys
 
     def invalidate(self) -> None:
-        self._index_rev = -1
-        self._entity_rev = -1
+        self._index_rev = None
+        self._entity_rev = None
 
     # ------------------------------------------------------------------ query analysis
     async def query_entities(self, query: str) -> list[str]:
