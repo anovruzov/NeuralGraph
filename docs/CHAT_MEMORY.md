@@ -92,14 +92,20 @@ One pass:
 2. **Extract** – two concurrent Qwen calls: memories (`MEMORY_PROMPT`) and entities + triples
    (`RELATION_PROMPT`), both with the known-entity registry, recent memories about the speakers, prior
    context, and relative dates pre-annotated (`yesterday [= 7 May 2023]`).
-3. **Normalise & ground** – names resolve through the registry (exact, alias, first-name, fuzzy); `when`
-   becomes an ISO date + precision; candidates with hallucinated names, no lexical overlap with the window,
-   assistant-only sources, or low importance are rejected (each rejection is audited).
+3. **Normalise & ground** – names resolve through the registry (exact, alias, first name → known full name,
+   fuzzy; a longer name never collapses onto a shorter known one); `when` becomes an ISO date + precision;
+   candidates with names that neither the window nor the pre-existing registry contains (the model's own new
+   entity list cannot vouch for a name it invented), no lexical overlap with the window (skipped for very
+   short identity facts), assistant subjects or assistant-only sources, or low importance are rejected, and
+   every relation endpoint must occur in the window or be already known (each rejection is audited).
 4. **Reconcile** – each candidate is embedded and compared with the subject's active memories:
    cosine ≥ `dedupe_cosine` → duplicate (no LLM); ≥ `reconcile_cosine` → one `RECONCILE_PROMPT` call
    decides **ADD / DUPLICATE / UPDATE / CONTRADICT**; otherwise ADD. UPDATE and CONTRADICT create a new
-   version and supersede the old one — but an observation *older* than the stored fact never overrides it
-   (bulk-importing old chats after new ones is safe).
+   version and supersede the old one (an UPDATE keeps the old memory's date, importance, entities and
+   sources and re-embeds the merged sentence; two corrections of the same fact in one batch chain instead of
+   both staying active) — but an observation *older* than the stored fact never overrides it
+   (bulk-importing old chats after new ones is safe), and a concurrent plan from another chat that already
+   replaced the same target is reconciled at commit time by observation time.
 5. **Commit** – `ChatMemoryStore.apply_plan` writes memories, entities, relations, links, provenance,
    message and job status atomically.
 
@@ -116,9 +122,13 @@ two chats produced at the same moment and prunes old finished jobs.
 
 `MemoryRetriever.search(query, k, subject, speaker, chat_id, kinds, since, until, include_superseded)`
 
-* **vector** – cosine over a numpy matrix of active memory embeddings (cached per store revision; filters
-  are masks, so tens of thousands of memories stay in the low milliseconds); floor `vector_min_sim`.
-* **keyword** – FTS5 bm25 (Porter) or in-process BM25.
+* **vector** – cosine over numpy matrices of memory embeddings (one per embedding dimension, refreshed
+  incrementally with the rows written since the last query, so an ingest-heavy server never rebuilds the
+  whole index; filters are masks, so tens of thousands of memories stay in the low milliseconds); floor
+  `vector_min_sim`. Changing the embedding model is safe: old rows keep matching queries of their own
+  dimension until maintenance re-embeds them (`reembed_limit` per run).
+* **keyword** – FTS5 bm25 (Porter, accent-folded, possessives stripped) or in-process BM25; subject/chat/
+  speaker filters are pushed into the query so a filtered search is never starved by the global limit.
 * **graph** – entities named in the query (longest alias match) → memories that mention them, plus one typed
   hop over relations; hub entities are down-weighted by inverse frequency.
 * fused with RRF, then priors: importance, mild recency, ×`subject_boost` when the query names the memory's
@@ -153,9 +163,14 @@ REST: `GET /api/status`, `GET /api/search?q=&k=&subject=&chat_id=&kinds=&since=&
 Optional `--api-token` requires `Authorization: Bearer …` on `/api/*`.
 
 Security defaults: **no CORS** (a page on another origin cannot read the API; add `--cors-origin https://…`
-or `*` deliberately), a **Host allow-list** when bound to loopback (`--allowed-host` to override) so DNS
-rebinding cannot reach a local server, bearer tokens for `/api/*` and `/mcp`, `--allowed-origin` for browser
-clients of `/mcp`, and an 8 MB request-body cap.
+or `*` deliberately); **CSRF protection** (a state-changing request from a foreign `Origin` is refused, and
+JSON endpoints require `Content-Type: application/json`, so a cross-site page cannot write or forget memories
+even with a body that skips the browser preflight); a **Host allow-list** when bound to loopback
+(`--allowed-host` to override) so DNS rebinding cannot reach a local server; bearer tokens for `/api/*` and
+`/mcp` compared in constant time; when `serve` binds a non-loopback address the MCP token also protects
+`/api/*` unless `--api-token` is given (and a warning is printed if neither is set); `--allowed-origin` for
+browser clients of `/mcp`; an 8 MB request-body cap; bounded MCP session table. The dashboard sends the API
+token itself: open `http://host:8765/?token=…` once (it is remembered per browser) or enter it when prompted.
 
 ## Claude access through MCP (edge and cloud)
 

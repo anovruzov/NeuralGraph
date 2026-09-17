@@ -124,9 +124,7 @@ class ChatMemory:
         if block:
             # ledger: what would it have cost to re-read the source chats instead?
             chats = {r.memory.chat_id for r in results}
-            raw = 0
-            for c in chats:
-                raw += sum(estimate_tokens(m.text) for m in await self.store.get_messages(c))
+            raw = max(1, int(round((await self.store.chat_text_chars(chats)) / 4.0))) if chats else 0
             self._context_ledger["queries"] += 1
             self._context_ledger["context_tokens"] += estimate_tokens(block)
             self._context_ledger["raw_tokens_avoided"] += raw
@@ -246,10 +244,9 @@ class ChatMemory:
         else:
             lag = (utcnow() - (parse_iso(oldest_pending) or utcnow())).total_seconds()
             freshness = 100.0 * math.exp(-lag / 600.0)   # 10-minute e-folding
-        jobs = st["jobs"]
         attempts = self.worker.metrics.batches + self.worker.metrics.failures
         fail_rate = (self.worker.metrics.failures / attempts) if attempts else 0.0
-        dead = jobs.get("dead", 0)
+        dead = int(c.execute("SELECT COUNT(*) AS n FROM jobs WHERE status='dead' AND kind='extract'").fetchone()["n"])
         reliability = 100.0 * max(0.0, 1.0 - fail_rate - 0.05 * dead)
         axes = {
             "coverage": round(coverage, 1), "compression": round(compression, 1), "connectivity": round(connectivity, 1),

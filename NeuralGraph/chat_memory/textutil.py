@@ -57,16 +57,40 @@ def stem(word: str) -> str:
     return w
 
 
-def tokenize(text: str, *, do_stem: bool = True) -> list[str]:
-    """Lower-cased content tokens (>= 3 chars, stop-words removed, lightly stemmed). Used for BM25."""
-    toks = _TOKEN_RE.findall((text or "").lower())
+def fold(text: str) -> str:
+    """Lower-case and strip diacritics (Zürich -> zurich) so keyword matching survives accents."""
+    s = unicodedata.normalize("NFKD", text or "")
+    return "".join(ch for ch in s if not unicodedata.combining(ch)).lower()
+
+
+_POSSESSIVE_RE = re.compile(r"'s\b|'\b")
+_NUM_RE = re.compile(r"^\d+$")
+
+
+def tokenize(text: str, *, do_stem: bool = True, keep_numbers: bool = True) -> list[str]:
+    """Lower-cased, accent-folded content tokens (>= 3 chars or any number, stop-words removed, possessives
+    stripped, lightly stemmed). Used for BM25, grounding overlap and the fake embeddings."""
+    toks = _TOKEN_RE.findall(_POSSESSIVE_RE.sub("", fold(text)))
     out = []
     for t in toks:
         t = t.strip("'-")
-        if len(t) < 3 or t in _STOP:
+        if not t or t in _STOP:
             continue
-        out.append(stem(t) if do_stem else t)
+        if len(t) < 3 and not (keep_numbers and _NUM_RE.match(t)):
+            continue
+        out.append(stem(t) if do_stem and not _NUM_RE.match(t) else t)
     return out
+
+
+def fts_match_string(query: str) -> str:
+    """Build a safe FTS5 MATCH expression: quoted alphanumeric tokens joined by OR (no possessives, no
+    operators, no quotes). Returns '' when the query has no usable token."""
+    toks = []
+    for t in _TOKEN_RE.findall(_POSSESSIVE_RE.sub("", fold(query))):
+        t = re.sub(r"[^a-z0-9]", "", t)
+        if t and t not in _STOP and (len(t) >= 3 or _NUM_RE.match(t)) and t not in toks:
+            toks.append(t)
+    return " OR ".join(f'"{t}"' for t in toks)
 
 
 def content_hash(*parts: str) -> str:

@@ -47,6 +47,8 @@ class WorkerConfig:
     merge_duplicates_limit: int = 200
     merge_cosine: float = 0.96
     prune_done_after_days: float = 7.0
+    prune_audit_after_days: float = 30.0
+    reembed_limit: int = 50            # memories re-embedded per maintenance run after an embedding-model change
 
 
 @dataclass
@@ -163,12 +165,17 @@ class MemoryWorker:
     async def drain(self, max_batches: int | None = None) -> int:
         """Process until the queue is empty (used by CLI batch ingestion and tests). Returns batches processed."""
         n = 0
+        await self.store.requeue_expired_leases()
         while max_batches is None or n < max_batches:
             if not await self.run_once():
-                # nothing runnable now: maybe backing off; check whether anything is still queued
+                # nothing runnable now: maybe backing off, or a lease left behind by a crashed process
                 if await self.store.pending_jobs() == 0:
                     break
+                if await self.store.requeue_expired_leases():
+                    continue
                 nxt = await self.store.next_available_at()
+                if nxt is None:
+                    break   # only foreign live leases remain; nothing this drain can do
                 await asyncio.sleep(min(1.0, self.config.poll_interval) if nxt else self.config.poll_interval)
                 continue
             n += 1
@@ -241,7 +248,7 @@ class MemoryWorker:
             counts = await self.store.apply_plan(plan, worker_id=self.worker_id)
         except asyncio.CancelledError:
             await self.store.set_message_status([m.message_id for m in messages], "pending")
-            await self.store.release_jobs(ids)
+            await self.store.release_jobs(ids, worker_id=self.worker_id)
             raise
         except LostLease as exc:
             hb.cancel()
@@ -253,7 +260,7 @@ class MemoryWorker:
             hb.cancel()
             attempts = max(j.attempts for j in jobs)
             delay = min(cfg.backoff_max, cfg.backoff_base * (2 ** max(0, attempts - 1))) * (0.8 + 0.4 * random.random())
-            result = await self.store.fail_jobs(ids, f"{type(exc).__name__}: {exc}", delay)
+            result = await self.store.fail_jobs(ids, f"{type(exc).__name__}: {exc}", delay, worker_id=self.worker_id)
             dead = [j for j, s in result.items() if s == "dead"]
             requeued = [m.message_id for m, j in zip(messages, jobs) if result.get(j.job_id) == "queued"]
             if requeued:
@@ -286,12 +293,14 @@ class MemoryWorker:
         logger.info("chat %s: %d msgs -> %s in %.1fs", plan.chat_id, len(messages), plan.summary(), dt)
 
     async def _heartbeat(self, job_ids: list[int]) -> None:
-        try:
-            while True:
+        while True:
+            try:
                 await asyncio.sleep(self.config.heartbeat_seconds)
                 await self.store.heartbeat(job_ids, self.config.lease_seconds)
-        except asyncio.CancelledError:
-            return
+            except asyncio.CancelledError:
+                return
+            except Exception as exc:  # a transient store error must not silently drop the lease renewal
+                logger.warning("heartbeat failed (will retry): %s", exc)
 
     # ------------------------------------------------------------------ maintenance
     async def _run_maintenance(self, jobs: list[Job]) -> None:
@@ -303,22 +312,37 @@ class MemoryWorker:
             self.metrics.maintenance_runs += 1
             self.metrics.note("maintenance", report)
         except Exception as exc:
-            await self.store.fail_jobs(ids, f"maintenance: {exc}", cfg.backoff_base)
+            await self.store.fail_jobs(ids, f"maintenance: {exc}", cfg.backoff_base, worker_id=self.worker_id)
             self.metrics.last_error = f"maintenance: {exc}"[:500]
             logger.warning("maintenance failed: %s", exc)
 
     async def maintain(self) -> dict[str, Any]:
         """One maintenance pass (also callable directly). Returns a small report."""
         cfg = self.config
-        report: dict[str, Any] = {"embedded": 0, "merged": 0, "requeued": 0, "pruned": 0}
+        report: dict[str, Any] = {"embedded": 0, "reembedded": 0, "merged": 0, "requeued": 0, "pruned": 0, "audit_pruned": 0, "errors": []}
         report["requeued"] = await self.store.requeue_expired_leases()
-        missing = await self.store.memories_missing_embedding(cfg.embed_missing_limit)
-        if missing:
-            vecs = await self.llm.embed_many([m.text for m in missing])
-            for m, v in zip(missing, vecs):
-                if v:
-                    await self.store.update_memory(m.memory_id, embedding=v)
-                    report["embedded"] += 1
+        # embedding back-fill: an embedding outage must not abort the rest of maintenance
+        try:
+            missing = await self.store.memories_missing_embedding(cfg.embed_missing_limit)
+            if missing:
+                vecs = await self.llm.embed_many([m.text for m in missing])
+                for m, v in zip(missing, vecs):
+                    if v:
+                        await self.store.update_memory(m.memory_id, embedding=v)
+                        report["embedded"] += 1
+                        await self.store.set_meta("embed_dim", str(len(v)))
+            dim = await self.store.get_meta("embed_dim")
+            if dim:
+                stale = await self.store.memories_with_embedding_dim_other_than(int(dim), cfg.reembed_limit)
+                if stale:
+                    vecs = await self.llm.embed_many([m.text for m in stale])
+                    for m, v in zip(stale, vecs):
+                        if v and len(v) == int(dim):
+                            await self.store.update_memory(m.memory_id, embedding=v)
+                            report["reembedded"] += 1
+        except Exception as exc:
+            report["errors"].append(f"embed: {exc}"[:200])
+            logger.warning("maintenance: embedding back-fill skipped: %s", exc)
         # merge exact/near duplicates among recent active memories of the same subject
         rows = await self.store.active_embedding_rows()
         by_subject: dict[str, list[tuple[str, list[float]]]] = {}
@@ -343,4 +367,5 @@ class MemoryWorker:
                         merged += 1
         report["merged"] = merged
         report["pruned"] = await self.store.prune_jobs(cfg.prune_done_after_days)
+        report["audit_pruned"] = await self.store.prune_audit(cfg.prune_audit_after_days)
         return report

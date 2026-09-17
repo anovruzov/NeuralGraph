@@ -18,10 +18,12 @@ the server answers with the client's version when it is supported, otherwise wit
 from __future__ import annotations
 
 import asyncio
+import hmac
 import json
 import logging
 import sys
 import uuid
+from collections import OrderedDict
 from typing import Any, Awaitable, Callable
 
 from .service import ChatMemory
@@ -29,6 +31,8 @@ from .service import ChatMemory
 logger = logging.getLogger(__name__)
 
 SUPPORTED_PROTOCOL_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
+STDIO_LINE_LIMIT = 64 * 1024 * 1024      # one JSON-RPC line may carry a whole document
+MAX_HTTP_SESSIONS = 10_000
 LATEST_PROTOCOL_VERSION = SUPPORTED_PROTOCOL_VERSIONS[0]
 SERVER_INFO = {"name": "neuralgraph-chat-memory", "version": "1.0.0"}
 
@@ -264,11 +268,17 @@ class MCPProtocol:
 
     async def handle(self, message: Any) -> dict[str, Any] | None:
         """Process one JSON-RPC message (request or notification). Returns a response dict or None."""
-        if not isinstance(message, dict) or message.get("jsonrpc") != "2.0" or "method" not in message:
+        if not isinstance(message, dict) or message.get("jsonrpc") != "2.0" or not isinstance(message.get("method"), str):
             return self._error(message.get("id") if isinstance(message, dict) else None, JSONRPC_INVALID_REQUEST, "invalid request")
         method = message["method"]
-        params = message.get("params") or {}
+        params = message.get("params")
+        if params is None:
+            params = {}
+        if not isinstance(params, dict):
+            return self._error(message.get("id"), JSONRPC_INVALID_PARAMS, "params must be an object")
         id_ = message.get("id")
+        if id_ is not None and not isinstance(id_, (str, int)):
+            return self._error(None, JSONRPC_INVALID_REQUEST, "id must be a string or number")
         is_notification = "id" not in message
         try:
             if method == "initialize":
@@ -362,6 +372,8 @@ class MCPProtocol:
     async def handle_payload(self, payload: Any) -> Any:
         """Handle a decoded JSON payload that may be a single message or a batch. Returns the response payload or None."""
         if isinstance(payload, list):
+            if not payload:
+                return self._error(None, JSONRPC_INVALID_REQUEST, "empty batch")
             responses = [r for r in await asyncio.gather(*(self.handle(m) for m in payload)) if r is not None]
             return responses or None
         return await self.handle(payload)
@@ -378,7 +390,7 @@ async def serve_stdio(cm: ChatMemory, *, reader: asyncio.StreamReader | None = N
     proto = MCPProtocol(cm)
     loop = asyncio.get_running_loop()
     if reader is None:
-        reader = asyncio.StreamReader()
+        reader = asyncio.StreamReader(limit=STDIO_LINE_LIMIT)
         await loop.connect_read_pipe(lambda: asyncio.StreamReaderProtocol(reader), sys.stdin.buffer)
     if write is None:
         out = sys.stdout.buffer
@@ -409,8 +421,23 @@ async def serve_stdio(cm: ChatMemory, *, reader: asyncio.StreamReader | None = N
 
     while True:
         try:
-            line = await reader.readline()
-        except (asyncio.IncompleteReadError, ConnectionError):
+            line = await reader.readuntil(b"\n")
+        except asyncio.IncompleteReadError as exc:
+            line = exc.partial
+            if not line.strip():
+                break
+        except asyncio.LimitOverrunError:
+            # a single message larger than the buffer: drain it and answer with a parse error instead of dying
+            try:
+                while True:
+                    chunk = await reader.read(STDIO_LINE_LIMIT)
+                    if not chunk or b"\n" in chunk:
+                        break
+            except Exception:
+                break
+            await emit(MCPProtocol._error(None, JSONRPC_PARSE_ERROR, "message too large"))
+            continue
+        except ConnectionError:
             break
         if not line:
             break
@@ -445,13 +472,13 @@ class StreamableHTTPTransport:
         self.proto = MCPProtocol(cm)
         self.token = token or None
         self.allowed_origins = allowed_origins
-        self.sessions: dict[str, dict[str, Any]] = {}
+        self.sessions: "OrderedDict[str, dict[str, Any]]" = OrderedDict()
 
     def _authorized(self, request) -> bool:
         if not self.token:
             return True
         auth = request.headers.get("Authorization", "")
-        return auth.startswith("Bearer ") and auth[7:].strip() == self.token
+        return auth.startswith("Bearer ") and hmac.compare_digest(auth[7:].strip(), self.token)
 
     def _origin_ok(self, request) -> bool:
         origin = request.headers.get("Origin")
@@ -475,6 +502,9 @@ class StreamableHTTPTransport:
             return web.Response(status=204)
         if request.method != "POST":
             return web.json_response({"error": "method not allowed"}, status=405, headers={"Allow": "GET, POST, DELETE"})
+        pv = request.headers.get("MCP-Protocol-Version")
+        if pv and pv not in SUPPORTED_PROTOCOL_VERSIONS:
+            return web.json_response({"error": f"unsupported MCP-Protocol-Version {pv}", "supported": list(SUPPORTED_PROTOCOL_VERSIONS)}, status=400)
         try:
             payload = await request.json()
         except Exception:
@@ -486,6 +516,8 @@ class StreamableHTTPTransport:
         if is_init:
             sid = uuid.uuid4().hex
             self.sessions[sid] = {"created": asyncio.get_running_loop().time()}
+            while len(self.sessions) > MAX_HTTP_SESSIONS:
+                self.sessions.popitem(last=False)
             headers["Mcp-Session-Id"] = sid
             if isinstance(resp, dict) and "result" in resp:
                 headers["MCP-Protocol-Version"] = resp["result"]["protocolVersion"]

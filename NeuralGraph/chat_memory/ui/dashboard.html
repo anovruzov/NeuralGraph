@@ -227,6 +227,11 @@ footer{margin-top:18px;color:var(--text-muted);font-size:12.5px;display:flex;gap
 <script>
 (function(){
   const $ = s => document.querySelector(s);
+  // API token (for --api-token deployments): ?token=... once, then remembered per browser
+  let TOKEN = '';
+  try { const u = new URL(location.href); if (u.searchParams.get('token')) { TOKEN = u.searchParams.get('token'); localStorage.setItem('ng-token', TOKEN); u.searchParams.delete('token'); history.replaceState(null, '', u.toString()); } else { TOKEN = localStorage.getItem('ng-token') || ''; } } catch(e){}
+  const api = (path, opts={}) => { const h = Object.assign({}, opts.headers||{}); if (TOKEN) h['Authorization'] = 'Bearer ' + TOKEN; return fetch(path, Object.assign({cache:'no-store'}, opts, {headers:h})); };
+  async function askToken(){ const t = prompt('This server requires an API token (--api-token). Enter it:'); if (t) { TOKEN = t.trim(); try { localStorage.setItem('ng-token', TOKEN); } catch(e){} } }
   const fmt = n => n==null ? '—' : (n>=1e6? (n/1e6).toFixed(2)+'M' : n>=1e4 ? (n/1e3).toFixed(1)+'K' : n>=1e3 ? (n/1e3).toFixed(2)+'K' : String(n));
   const esc = s => String(s??'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -243,7 +248,7 @@ footer{margin-top:18px;color:var(--text-muted);font-size:12.5px;display:flex;gap
   // ---------- pentagon (single series, fixed axis order, 0-100 scale) ----------
   const AXES = [
     ['coverage','Coverage','share of ingested messages the worker has digested'],
-    ['compression','Compression','1 - memory tokens / raw tokens'],
+    ['compression','Compression','log2(raw tokens / memory tokens) / 2 → 2× smaller = 50, 4× = 100'],
     ['connectivity','Connectivity','relations + links per memory'],
     ['freshness','Freshness','how far behind the newest message the worker is'],
     ['reliability','Reliability','1 - failed batches, minus dead jobs'],
@@ -298,7 +303,7 @@ footer{margin-top:18px;color:var(--text-muted);font-size:12.5px;display:flex;gap
   setInterval(()=>{ const eyes=document.querySelectorAll('.eye'); eyes.forEach(e=>e.setAttribute('ry', .8)); setTimeout(()=>eyes.forEach(e=>e.setAttribute('ry',6.5)),120); }, 4200);
 
   // ---------- render ----------
-  let seen = new Set(), first = true;
+  let seen = new Set(), first = true, askedToken = false;
   function render(st){
     const tk = st.tokens||{};
     $('#tokens-saved').textContent = fmt(tk.tokens_saved||0);
@@ -335,7 +340,8 @@ footer{margin-top:18px;color:var(--text-muted);font-size:12.5px;display:flex;gap
     first = false;
   }
   async function poll(){
-    try { const r = await fetch('/api/status', {cache:'no-store'}); if (r.ok) render(await r.json()); else throw new Error(r.status); }
+    try { const r = await api('/api/status'); if (r.status === 401) { const p=$('#worker-pill'); p.className='pill warn'; p.lastElementChild.textContent='token required'; if (!askedToken) { askedToken = true; await askToken(); } }
+          else if (r.ok) render(await r.json()); else throw new Error(r.status); }
     catch(e){ const p=$('#worker-pill'); p.className='pill bad'; p.lastElementChild.textContent='server unreachable'; }
     finally { setTimeout(poll, 2000); }
   }
@@ -345,16 +351,16 @@ footer{margin-top:18px;color:var(--text-muted);font-size:12.5px;display:flex;gap
   async function search(){
     const q = $('#q').value.trim(); if(!q) return;
     $('#results').innerHTML = '<span class="muted">searching…</span>';
-    const r = await fetch('/api/search?q='+encodeURIComponent(q)+'&k=8'); const d = await r.json();
+    const r = await api('/api/search?q='+encodeURIComponent(q)+'&k=8'); const d = await r.json();
     $('#results').innerHTML = (d.results||[]).map(x=>`<div class="result">${esc(x.memory.text)}<div class="why">${esc(x.memory.subject_name)} · ${esc(x.memory.kind)} · ${esc(x.memory.chat_id)} · score ${x.score.toFixed(3)} · ${esc(x.explanation)}</div></div>`).join('') || '<span class="muted">nothing relevant stored yet</span>';
   }
   $('#search').onclick = search; $('#q').addEventListener('keydown', e=>{ if(e.key==='Enter') search(); });
-  $('#ctx').onclick = async ()=>{ const q=$('#q').value.trim(); if(!q) return; const r=await fetch('/api/context?q='+encodeURIComponent(q)); const d=await r.json();
+  $('#ctx').onclick = async ()=>{ const q=$('#q').value.trim(); if(!q) return; const r=await api('/api/context?q='+encodeURIComponent(q)); const d=await r.json();
     $('#results').innerHTML = `<pre>${esc(d.context||'(empty: nothing relevant)')}</pre>`; };
   $('#send').onclick = async ()=>{
     const body = {chat_id: $('#chat').value.trim()||'demo-chat', speaker: $('#speaker').value.trim()||'user', text: $('#text').value};
     if(!body.text.trim()) return;
-    const r = await fetch('/api/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const r = await api('/api/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     const d = await r.json(); $('#send-status').textContent = r.ok ? `queued as ${d.message.message_id} (seq ${d.message.seq})` : ('error: '+(d.error||r.status));
     if (r.ok) $('#text').value='';
   };

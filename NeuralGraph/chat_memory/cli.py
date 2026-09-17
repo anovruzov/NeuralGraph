@@ -98,8 +98,15 @@ async def cmd_serve(args: argparse.Namespace) -> int:
 
     cm = _build(args)
     await cm.start()
-    runner = await run_server(cm, host=args.host, port=args.port, mcp_token=args.mcp_token or os.environ.get("NEURALGRAPH_MCP_TOKEN"),
-                              api_token=args.api_token or os.environ.get("NEURALGRAPH_API_TOKEN"),
+    mcp_token = args.mcp_token or os.environ.get("NEURALGRAPH_MCP_TOKEN") or None
+    api_token = args.api_token or os.environ.get("NEURALGRAPH_API_TOKEN") or None
+    if api_token is None and args.host not in ("127.0.0.1", "localhost", "::1"):
+        if mcp_token:
+            api_token = mcp_token     # never expose the REST surface unauthenticated when /mcp is protected
+            print("note: /api/* is protected with the MCP token (set --api-token to use a different one)", flush=True)
+        else:
+            print("WARNING: serving on a non-loopback address without --api-token/--mcp-token: the API is open to the network", flush=True)
+    runner = await run_server(cm, host=args.host, port=args.port, mcp_token=mcp_token, api_token=api_token,
                               allowed_origins=args.allowed_origin or None, cors_origins=args.cors_origin or None,
                               allowed_hosts=args.allowed_host or None)
     print(f"dashboard: http://{args.host}:{args.port}/   MCP: http://{args.host}:{args.port}/mcp   db: {cm.store.db_path}", flush=True)

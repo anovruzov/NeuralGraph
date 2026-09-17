@@ -40,7 +40,7 @@ from .models import (
     parse_iso,
     utcnow,
 )
-from .textutil import content_hash, norm_entity, normalize_ws, tokenize
+from .textutil import content_hash, fts_match_string, norm_entity, normalize_ws, tokenize
 
 logger = logging.getLogger(__name__)
 
@@ -437,6 +437,11 @@ class ChatMemoryStore:
                     avail = iso(utcnow() + timedelta(seconds=max(0.0, debounce_seconds)))
                     self._enqueue_sync(c, "extract", chat_id=chat_id, ref_id=mid, seq=seq,
                                        dedupe_key=f"extract:{mid}", available_at=avail, max_attempts=max_attempts)
+                    if debounce_seconds > 0:
+                        # pull-forward debounce: earlier queued messages of this chat that are still inside their
+                        # debounce window wait for this one, so a turn and its reply are extracted together
+                        c.execute("UPDATE jobs SET available_at=? WHERE chat_id=? AND kind='extract' AND status='queued' "
+                                  "AND available_at > ? AND available_at < ?", (avail, chat_id, now, avail))
                 msg = self._row_message(c.execute("SELECT * FROM messages WHERE message_id=?", (mid,)).fetchone())
         return msg, True
 
@@ -511,7 +516,9 @@ class ChatMemoryStore:
         if not toks:
             return []
         if self.has_fts:
-            match = " OR ".join(f'"{t}"' for t in dict.fromkeys(tokenize(query, do_stem=False)))
+            match = fts_match_string(query)
+            if not match:
+                return []
             sql = ("SELECT m.*, bm25(messages_fts) AS s FROM messages_fts f JOIN messages m ON m.rid = f.rowid "
                    "WHERE messages_fts MATCH ?")
             args: list[Any] = [match]
@@ -608,15 +615,20 @@ class ChatMemoryStore:
                 out = [self._row_job(c.execute("SELECT * FROM jobs WHERE job_id=?", (i,)).fetchone()) for i in ids]
         return out
 
-    async def release_jobs(self, job_ids: Iterable[int]) -> None:
-        """Return leased jobs to the queue immediately (graceful shutdown); the attempt stays charged."""
+    async def release_jobs(self, job_ids: Iterable[int], worker_id: str | None = None) -> None:
+        """Return leased jobs to the queue immediately (graceful shutdown); the attempt stays charged.
+        Fenced on ``worker_id`` when given."""
         ids = [int(i) for i in job_ids]
         if not ids:
             return
         async with self._lock:
             with self._tx() as c:
-                c.executemany("UPDATE jobs SET status='queued', leased_until=NULL, worker_id=NULL, updated_at=? "
-                              "WHERE job_id=? AND status='leased'", [(now_iso(), i) for i in ids])
+                if worker_id is None:
+                    c.executemany("UPDATE jobs SET status='queued', leased_until=NULL, worker_id=NULL, updated_at=? "
+                                  "WHERE job_id=? AND status='leased'", [(now_iso(), i) for i in ids])
+                else:
+                    c.executemany("UPDATE jobs SET status='queued', leased_until=NULL, worker_id=NULL, updated_at=? "
+                                  "WHERE job_id=? AND status='leased' AND worker_id=?", [(now_iso(), i, worker_id) for i in ids])
 
     async def heartbeat(self, job_ids: Iterable[str | int], lease_seconds: float) -> None:
         ids = [int(i) for i in job_ids]
@@ -641,10 +653,13 @@ class ChatMemoryStore:
         c.executemany("UPDATE jobs SET status='done', finished_at=?, updated_at=?, leased_until=NULL WHERE job_id=?",
                       [(now, now, i) for i in ids])
 
-    async def fail_jobs(self, job_ids: Iterable[int], error: str, backoff_seconds: float) -> dict[int, str]:
+    async def fail_jobs(self, job_ids: Iterable[int], error: str, backoff_seconds: float,
+                        worker_id: str | None = None) -> dict[int, str]:
         """Mark leased jobs failed: requeue with backoff, or ``dead`` when attempts are exhausted.
 
-        Returns ``{job_id: new_status}``.
+        Fenced: with ``worker_id`` given, a job that is no longer leased by that worker is left alone (a zombie
+        whose lease expired cannot dead-letter or requeue a job another worker now holds). Returns
+        ``{job_id: new_status}`` (``"lost"`` for jobs the caller no longer holds).
         """
         ids = [int(i) for i in job_ids]
         result: dict[int, str] = {}
@@ -656,8 +671,11 @@ class ChatMemoryStore:
         async with self._lock:
             with self._tx() as c:
                 for i in ids:
-                    r = c.execute("SELECT attempts, max_attempts, ref_id, kind FROM jobs WHERE job_id=?", (i,)).fetchone()
+                    r = c.execute("SELECT attempts, max_attempts, ref_id, kind, status, worker_id FROM jobs WHERE job_id=?", (i,)).fetchone()
                     if r is None:
+                        continue
+                    if worker_id is not None and (r["status"] != "leased" or r["worker_id"] != worker_id):
+                        result[i] = "lost"
                         continue
                     if r["attempts"] >= r["max_attempts"]:
                         c.execute("UPDATE jobs SET status='dead', last_error=?, finished_at=?, updated_at=?, leased_until=NULL WHERE job_id=?",
@@ -727,6 +745,35 @@ class ChatMemoryStore:
                 c.execute("UPDATE messages SET status='pending' WHERE status='failed' AND message_id IN "
                           "(SELECT ref_id FROM jobs WHERE status='queued' AND kind='extract')")
                 return cur.rowcount
+
+    async def prune_audit(self, older_than_days: float = 30.0, keep_last: int = 5000) -> int:
+        """Delete audit rows older than ``older_than_days`` while always keeping the ``keep_last`` newest."""
+        cutoff = iso(utcnow() - timedelta(days=older_than_days))
+        async with self._lock:
+            with self._tx() as c:
+                cur = c.execute(
+                    "DELETE FROM audit_log WHERE at < ? AND id NOT IN (SELECT id FROM audit_log ORDER BY id DESC LIMIT ?)",
+                    (cutoff, int(keep_last)),
+                )
+                return cur.rowcount
+
+    async def chat_text_chars(self, chat_ids: Iterable[str]) -> int:
+        ids = list(dict.fromkeys(chat_ids))
+        if not ids:
+            return 0
+        total = 0
+        for i in range(0, len(ids), 500):
+            chunk = ids[i:i + 500]
+            total += int(self._conn.execute(
+                f"SELECT COALESCE(SUM(length(text)), 0) AS n FROM messages WHERE chat_id IN ({','.join('?' * len(chunk))})", chunk
+            ).fetchone()["n"])
+        return total
+
+    async def memories_with_embedding_dim_other_than(self, dim: int, limit: int = 100) -> list[Memory]:
+        rows = self._conn.execute(
+            "SELECT * FROM memories WHERE status='active' AND embedding IS NOT NULL AND embedding_dim <> ? ORDER BY rid LIMIT ?",
+            (int(dim), limit)).fetchall()
+        return [self._row_memory(r) for r in rows]
 
     async def prune_jobs(self, older_than_days: float = 7.0, statuses: tuple[str, ...] = ("done",)) -> int:
         cutoff = iso(utcnow() - timedelta(days=older_than_days))
@@ -838,6 +885,16 @@ class ChatMemoryStore:
                 c.execute(f"UPDATE memories SET {', '.join(sets)} WHERE memory_id=?", args)
             self._bump()
 
+    def _current_head_sync(self, c: sqlite3.Connection, memory_id: str, limit: int = 50) -> str:
+        """Follow ``superseded_by`` to the memory that currently replaces ``memory_id`` (itself if active)."""
+        cur = memory_id
+        for _ in range(limit):
+            r = c.execute("SELECT status, superseded_by FROM memories WHERE memory_id=?", (cur,)).fetchone()
+            if r is None or r["status"] != "superseded" or not r["superseded_by"] or r["superseded_by"] == cur:
+                return cur
+            cur = r["superseded_by"]
+        return cur
+
     def _supersede_sync(self, c: sqlite3.Connection, old_id: str, new_id_: str, link_type: str = "supersedes") -> None:
         now = now_iso()
         c.execute("UPDATE memories SET status='superseded', superseded_by=?, updated_at=? WHERE memory_id=? AND status='active'",
@@ -914,7 +971,7 @@ class ChatMemoryStore:
         if status:
             sql += " AND status=?"; args.append(status)
         if subject:
-            sql += " AND subject=?"; args.append(norm_entity(subject))
+            sql += " AND subject=?"; args.append(await self.resolve_alias(subject) or norm_entity(subject))
         if speaker:
             sql += " AND speaker=?"; args.append(speaker)
         if chat_id:
@@ -951,15 +1008,22 @@ class ChatMemoryStore:
         ).fetchall()
         return [(r["memory_id"], r["subject"], r["speaker"], r["chat_id"], r["kind"], r["t"], _unpack(r["embedding"])) for r in rows]
 
-    async def index_rows(self, *, status: str = "active") -> list[dict[str, Any]]:
-        """Light-weight rows for the retrieval index (embedding may be None)."""
-        rows = self._conn.execute(
-            "SELECT memory_id, subject, speaker, chat_id, kind, importance, observed_at, event_time, status, embedding "
-            "FROM memories WHERE status=? ORDER BY rid", (status,)
-        ).fetchall()
+    async def index_rows(self, *, status: str | None = "active", updated_after: str | None = None) -> list[dict[str, Any]]:
+        """Light-weight rows for the retrieval index (embedding may be None). ``status=None`` returns every status;
+        ``updated_after`` returns only rows written since that ISO timestamp (for incremental index refresh)."""
+        sql = ("SELECT memory_id, subject, speaker, chat_id, kind, importance, observed_at, event_time, event_time_precision, "
+               "status, updated_at, embedding FROM memories WHERE 1=1")
+        args: list[Any] = []
+        if status:
+            sql += " AND status=?"; args.append(status)
+        if updated_after:
+            sql += " AND updated_at >= ?"; args.append(updated_after)
+        sql += " ORDER BY rid"
+        rows = self._conn.execute(sql, args).fetchall()
         return [{"memory_id": r["memory_id"], "subject": r["subject"], "speaker": r["speaker"], "chat_id": r["chat_id"],
                  "kind": r["kind"], "importance": r["importance"], "observed_at": r["observed_at"],
-                 "event_time": r["event_time"], "status": r["status"], "embedding": _unpack(r["embedding"])} for r in rows]
+                 "event_time": r["event_time"], "event_time_precision": r["event_time_precision"], "status": r["status"],
+                 "updated_at": r["updated_at"], "embedding": _unpack(r["embedding"])} for r in rows]
 
     async def entity_ids_for_memories(self, memory_ids: Iterable[str]) -> dict[str, list[str]]:
         ids = list(dict.fromkeys(memory_ids))
@@ -986,7 +1050,8 @@ class ChatMemoryStore:
             m = await self.get_memory(r["target_id"])
             if m is None:
                 break
-            out.append(m)
+            if m.status != "retracted":   # forgotten memories stay forgotten
+                out.append(m)
             seen.add(m.memory_id)
             cur = m.memory_id
         return out
@@ -997,18 +1062,28 @@ class ChatMemoryStore:
         ).fetchall()
         return [self._row_memory(r) for r in rows]
 
-    async def keyword_candidates(self, query: str, limit: int = 50, *, status: str = "active") -> list[tuple[str, float]]:
-        """Keyword channel over memory text: FTS5 bm25 when available, else in-process BM25."""
+    async def keyword_candidates(self, query: str, limit: int = 50, *, status: str = "active", subject: str | None = None,
+                                 chat_id: str | None = None, speaker: str | None = None) -> list[tuple[str, float]]:
+        """Keyword channel over memory text: FTS5 bm25 when available, else in-process BM25.
+        Filters are pushed into the query so a filtered search is not starved by the global LIMIT."""
         toks = tokenize(query)
         if not toks:
             return []
         if self.has_fts:
-            match = " OR ".join(f'"{t}"' for t in dict.fromkeys(tokenize(query, do_stem=False)))
-            rows = self._conn.execute(
-                "SELECT m.memory_id AS id, bm25(memories_fts) AS s FROM memories_fts f JOIN memories m ON m.rid = f.rowid "
-                "WHERE memories_fts MATCH ? AND m.status = ? ORDER BY s LIMIT ?",
-                (match, status, limit),
-            ).fetchall()
+            match = fts_match_string(query)
+            if not match:
+                return []
+            sql = ("SELECT m.memory_id AS id, bm25(memories_fts) AS s FROM memories_fts f JOIN memories m ON m.rid = f.rowid "
+                   "WHERE memories_fts MATCH ? AND m.status = ?")
+            args: list[Any] = [match, status]
+            if subject:
+                sql += " AND m.subject = ?"; args.append(subject)
+            if chat_id:
+                sql += " AND m.chat_id = ?"; args.append(chat_id)
+            if speaker:
+                sql += " AND m.speaker = ?"; args.append(speaker)
+            sql += " ORDER BY s LIMIT ?"; args.append(limit)
+            rows = self._conn.execute(sql, args).fetchall()
             return [(r["id"], -float(r["s"])) for r in rows]
         # fallback: rank_bm25 over active memories, cached per revision
         try:
@@ -1028,6 +1103,12 @@ class ChatMemoryStore:
             return []
         scores = bm25.get_scores(toks)
         ranked = sorted(((ids[i], float(s)) for i, s in enumerate(scores) if s > 0), key=lambda x: -x[1])
+        if not ranked:
+            # tiny corpora: BM25's idf goes non-positive; fall back to plain token containment
+            qset = set(toks)
+            ranked = [(ids[i], float(len(qset & set(bm25.doc_freqs[i].keys()) if hasattr(bm25, "doc_freqs") else set())))
+                      for i in range(len(ids))]
+            ranked = sorted(((m, sc) for m, sc in ranked if sc > 0), key=lambda x: -x[1])
         return ranked[:limit]
 
     # ------------------------------------------------------------------ entities & relations
@@ -1113,15 +1194,20 @@ class ChatMemoryStore:
         out.update({r["alias"]: r["entity_id"] for r in self._conn.execute("SELECT alias, entity_id FROM entity_aliases")})
         return out
 
-    async def memories_for_entities(self, entity_ids: Iterable[str], limit: int = 200, *, status: str = "active") -> list[tuple[str, str]]:
+    async def memories_for_entities(self, entity_ids: Iterable[str], limit: int = 200, *, status: str = "active",
+                                    subject: str | None = None, chat_id: str | None = None) -> list[tuple[str, str]]:
         ids = list(dict.fromkeys(e for e in entity_ids if e))
         if not ids:
             return []
-        rows = self._conn.execute(
-            f"""SELECT me.memory_id, me.entity_id FROM memory_entities me JOIN memories m ON m.memory_id = me.memory_id
-                WHERE me.entity_id IN ({','.join('?' * len(ids))}) AND m.status = ? ORDER BY m.importance DESC, m.observed_at DESC LIMIT ?""",
-            (*ids, status, limit),
-        ).fetchall()
+        sql = (f"SELECT me.memory_id, me.entity_id FROM memory_entities me JOIN memories m ON m.memory_id = me.memory_id "
+               f"WHERE me.entity_id IN ({','.join('?' * len(ids))}) AND m.status = ?")
+        args: list[Any] = [*ids, status]
+        if subject:
+            sql += " AND m.subject = ?"; args.append(subject)
+        if chat_id:
+            sql += " AND m.chat_id = ?"; args.append(chat_id)
+        sql += " ORDER BY m.importance DESC, m.observed_at DESC LIMIT ?"; args.append(limit)
+        rows = self._conn.execute(sql, args).fetchall()
         return [(r["memory_id"], r["entity_id"]) for r in rows]
 
     async def entity_memory_counts(self, entity_ids: Iterable[str]) -> dict[str, int]:
@@ -1253,7 +1339,24 @@ class ChatMemoryStore:
                     self._insert_memory_sync(c, m, src_ids, ent_ids)
                     counts["memories_added"] += 1
                 for old_id, new_mid, link_type in plan.supersedes:
-                    self._supersede_sync(c, old_id, new_mid, link_type)
+                    # the target may have been superseded by another chat's plan while this one was being
+                    # computed: follow the chain to the current head and decide by observation time
+                    head = self._current_head_sync(c, old_id)
+                    if head != old_id:
+                        ours = c.execute("SELECT observed_at FROM memories WHERE memory_id=?", (new_mid,)).fetchone()
+                        theirs = c.execute("SELECT observed_at, status FROM memories WHERE memory_id=?", (head,)).fetchone()
+                        if theirs is None or theirs["status"] != "active":
+                            head = old_id
+                        elif ours is not None and (ours["observed_at"] or "") < (theirs["observed_at"] or ""):
+                            # theirs is newer: ours becomes history behind their head
+                            c.execute("UPDATE memories SET status='superseded', superseded_by=?, updated_at=? WHERE memory_id=?",
+                                      (head, now, new_mid))
+                            c.execute("INSERT OR REPLACE INTO memory_links(source_id, target_id, link_type, weight, created_at) "
+                                      "VALUES (?, ?, ?, 1.0, ?)", (head, new_mid, link_type, now))
+                            self._log_sync(c, "supersede_race", new_mid, {"kept": head, "target": old_id})
+                            counts["memories_superseded"] += 1
+                            continue
+                    self._supersede_sync(c, head, new_mid, link_type)
                     counts["memories_superseded"] += 1
                 for mem_id, src_ids in plan.duplicate_sources:
                     c.executemany("INSERT OR IGNORE INTO memory_sources(memory_id, message_id) VALUES (?, ?)",

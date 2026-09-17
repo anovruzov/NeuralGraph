@@ -68,33 +68,100 @@ def _recency(observed_at: str | None, half_life_days: float, now: datetime) -> f
     return math.exp(-math.log(2) * days / max(1.0, half_life_days))
 
 
+def _time_bounds(t: str | None, precision: str | None) -> tuple[str, str]:
+    """[start, end] ISO bounds of a memory's time given its precision ("2026-10" -> whole month)."""
+    if not t:
+        return "", ""
+    t = t.strip()
+    if precision == "year" or len(t) == 4:
+        return f"{t[:4]}-01-01T00:00:00", f"{t[:4]}-12-31T23:59:59"
+    if precision == "month" or len(t) == 7:
+        return f"{t[:7]}-01T00:00:00", f"{t[:7]}-31T23:59:59"
+    if len(t) == 10:
+        return f"{t}T00:00:00", f"{t}T23:59:59"
+    base = t[:19]
+    return base, base
+
+
+def _query_bounds(since: str | None, until: str | None) -> tuple[str, str]:
+    lo = since or ""
+    hi = until or ""
+    if lo and len(lo) == 10:
+        lo += "T00:00:00"
+    elif lo and len(lo) == 7:
+        lo += "-01T00:00:00"
+    elif lo and len(lo) == 4:
+        lo += "-01-01T00:00:00"
+    if hi and len(hi) == 10:
+        hi += "T23:59:59"
+    elif hi and len(hi) == 7:
+        hi += "-31T23:59:59"
+    elif hi and len(hi) == 4:
+        hi += "-12-31T23:59:59"
+    return lo[:19], hi[:19]
+
+
 class _Index:
-    """Per-revision cache of active memories for fast filtering + vector search."""
+    """In-memory view of memories (active + superseded) for fast filtering and vector search.
+
+    Built once, then refreshed incrementally: rows written since the last refresh are upserted, so an
+    ingest-heavy server never rebuilds the whole matrix per query. One normalised matrix per embedding
+    dimension, so a change of embedding model degrades gracefully (old rows keep matching queries of
+    their own dimension until maintenance re-embeds them).
+    """
 
     def __init__(self, rows: list[dict[str, Any]]) -> None:
-        self.rows = rows
+        self.rows: dict[str, dict[str, Any]] = {}
+        self.last_updated_at = ""
+        self._dirty = True
+        self.upsert(rows)
+
+    # ---- mutation
+    def upsert(self, rows: list[dict[str, Any]]) -> None:
+        for r in rows:
+            if r["status"] in ("active", "superseded"):
+                self.rows[r["memory_id"]] = r
+            else:
+                self.rows.pop(r["memory_id"], None)
+            if r.get("updated_at") and r["updated_at"] > self.last_updated_at:
+                self.last_updated_at = r["updated_at"]
+        self._dirty = True
+
+    def _build(self) -> None:
+        rows = list(self.rows.values())
         self.ids = [r["memory_id"] for r in rows]
         self.pos = {mid: i for i, mid in enumerate(self.ids)}
-        self.subject = np.array([r["subject"] for r in rows], dtype=object) if rows else np.array([], dtype=object)
-        self.speaker = np.array([r["speaker"] for r in rows], dtype=object) if rows else np.array([], dtype=object)
-        self.chat = np.array([r["chat_id"] for r in rows], dtype=object) if rows else np.array([], dtype=object)
-        self.kind = np.array([r["kind"] for r in rows], dtype=object) if rows else np.array([], dtype=object)
-        self.t = np.array([(r["event_time"] or r["observed_at"] or "") for r in rows], dtype=object) if rows else np.array([], dtype=object)
-        self.active = np.array([r["status"] == "active" for r in rows], dtype=bool) if rows else np.zeros(0, dtype=bool)
-        self.importance = np.array([float(r["importance"]) for r in rows], dtype=np.float32) if rows else np.zeros(0, dtype=np.float32)
-        vec_rows = [i for i, r in enumerate(rows) if r["embedding"]]
-        self.vec_pos = np.array(vec_rows, dtype=np.int64)
-        if vec_rows:
-            dim = len(rows[vec_rows[0]]["embedding"])
-            M = np.array([rows[i]["embedding"] if len(rows[i]["embedding"]) == dim else [0.0] * dim for i in vec_rows], dtype=np.float32)
-            self.M = M / (np.linalg.norm(M, axis=1, keepdims=True) + 1e-9)
-            self.dim = dim
-        else:
-            self.M = None
-            self.dim = 0
+        n = len(rows)
+        self.subject = np.array([r["subject"] for r in rows], dtype=object) if n else np.array([], dtype=object)
+        self.speaker = np.array([r["speaker"] for r in rows], dtype=object) if n else np.array([], dtype=object)
+        self.chat = np.array([r["chat_id"] for r in rows], dtype=object) if n else np.array([], dtype=object)
+        self.kind = np.array([r["kind"] for r in rows], dtype=object) if n else np.array([], dtype=object)
+        bounds = [_time_bounds(r["event_time"] or r["observed_at"], r.get("event_time_precision") if r["event_time"] else None) for r in rows]
+        self.t_lo = [b[0] for b in bounds]
+        self.t_hi = [b[1] for b in bounds]
+        self.importance = np.array([float(r["importance"]) for r in rows], dtype=np.float32) if n else np.zeros(0, dtype=np.float32)
+        self.active = np.array([r["status"] == "active" for r in rows], dtype=bool) if n else np.zeros(0, dtype=bool)
+        self.observed = [r["observed_at"] for r in rows]
+        by_dim: dict[int, list[int]] = {}
+        for i, r in enumerate(rows):
+            e = r.get("embedding")
+            if e:
+                by_dim.setdefault(len(e), []).append(i)
+        self.mats: dict[int, tuple[np.ndarray, np.ndarray]] = {}
+        for dim, idxs in by_dim.items():
+            M = np.array([rows[i]["embedding"] for i in idxs], dtype=np.float32)
+            M = M / (np.linalg.norm(M, axis=1, keepdims=True) + 1e-9)
+            self.mats[dim] = (np.array(idxs, dtype=np.int64), M)
+        self._dirty = False
 
+    def _ensure(self) -> None:
+        if self._dirty:
+            self._build()
+
+    # ---- queries
     def mask(self, *, subject: str | None, speaker: str | None, chat_id: str | None, kinds: set[str] | None,
              since: str | None, until: str | None, include_superseded: bool = False) -> np.ndarray:
+        self._ensure()
         n = len(self.ids)
         m = np.ones(n, dtype=bool)
         if n == 0:
@@ -104,37 +171,40 @@ class _Index:
         if not include_superseded and not (since or until):
             m &= self.active
         if subject:
-            m &= self.subject == norm_entity(subject)
+            m &= self.subject == subject
         if speaker:
             m &= self.speaker == speaker
         if chat_id:
             m &= self.chat == chat_id
         if kinds:
             m &= np.isin(self.kind, list(kinds))
-        if since:
-            m &= np.array([x >= since for x in self.t], dtype=bool)
-        if until:
-            m &= np.array([x <= until for x in self.t], dtype=bool)
+        lo, hi = _query_bounds(since, until)
+        if lo:
+            m &= np.array([x >= lo for x in self.t_hi], dtype=bool)   # memory interval ends after the window starts
+        if hi:
+            m &= np.array([x <= hi for x in self.t_lo], dtype=bool)   # and starts before the window ends
         return m
 
     def vector_rank(self, qvec: list[float], mask: np.ndarray, k: int, min_sim: float = 0.0) -> list[tuple[str, float]]:
-        if self.M is None or not qvec or len(qvec) != self.dim:
+        self._ensure()
+        if not qvec or len(qvec) not in self.mats:
             return []
+        idxs, M = self.mats[len(qvec)]
         q = np.asarray(qvec, dtype=np.float32)
         q = q / (np.linalg.norm(q) + 1e-9)
-        sims = self.M @ q
-        allowed = mask[self.vec_pos] & (sims >= min_sim)
+        sims = M @ q
+        allowed = mask[idxs] & (sims >= min_sim)
         sims = np.where(allowed, sims, -np.inf)
         if k < len(sims):
-            idx = np.argpartition(-sims, k)[:k]
+            top = np.argpartition(-sims, k)[:k]
         else:
-            idx = np.arange(len(sims))
-        idx = idx[np.argsort(-sims[idx])]
+            top = np.arange(len(sims))
+        top = top[np.argsort(-sims[top])]
         out = []
-        for i in idx:
+        for i in top:
             if not np.isfinite(sims[i]):
                 break
-            out.append((self.ids[self.vec_pos[i]], float(sims[i])))
+            out.append((self.ids[idxs[i]], float(sims[i])))
         return out
 
 
@@ -151,9 +221,13 @@ class MemoryRetriever:
     # ------------------------------------------------------------------ caches
     async def _get_index(self) -> _Index:
         key = self.store.cache_key()
-        if self._index is None or self._index_rev != key:
-            rows = await self.store.index_rows(status="active") + await self.store.index_rows(status="superseded")
-            self._index = _Index(rows)
+        if self._index is None:
+            self._index = _Index(await self.store.index_rows(status=None))
+            self._index_rev = key
+        elif self._index_rev != key:
+            # incremental: only rows written since the last refresh (inclusive; upsert is idempotent)
+            changed = await self.store.index_rows(status=None, updated_after=self._index.last_updated_at or None)
+            self._index.upsert(changed)
             self._index_rev = key
         return self._index
 
@@ -174,7 +248,7 @@ class MemoryRetriever:
         keys = await self._get_entity_keys()
         if not keys:
             return []
-        q = " " + norm_entity(query) + " "
+        q = " " + norm_entity(re.sub(r"'s\b|'\b", "", query)) + " "
         found: list[tuple[int, str]] = []
         for alias, eid in keys.items():
             if len(alias) < 3:
@@ -213,7 +287,10 @@ class MemoryRetriever:
             return []
         index = await self._get_index()
         kind_set = set(kinds) if kinds else None
-        mask = index.mask(subject=subject, speaker=speaker, chat_id=chat_id, kinds=kind_set, since=since, until=until,
+        subject_id = None
+        if subject:
+            subject_id = await self.store.resolve_alias(subject) or norm_entity(subject)
+        mask = index.mask(subject=subject_id, speaker=speaker, chat_id=chat_id, kinds=kind_set, since=since, until=until,
                           include_superseded=include_superseded)
         allowed = {index.ids[i] for i in np.nonzero(mask)[0]}
         if not allowed:
@@ -236,9 +313,10 @@ class MemoryRetriever:
                 rankings.append([m for m, _ in vr]); weights.append(cfg.weight_vector)
 
         if "K" in channels:
-            kw_rows = await self.store.keyword_candidates(query, cfg.depth * 2)
+            kw_filters = {"subject": subject_id, "chat_id": chat_id, "speaker": speaker}
+            kw_rows = await self.store.keyword_candidates(query, cfg.depth * 2, **kw_filters)
             if include_superseded or since or until:
-                kw_rows = kw_rows + await self.store.keyword_candidates(query, cfg.depth * 2, status="superseded")
+                kw_rows = kw_rows + await self.store.keyword_candidates(query, cfg.depth * 2, status="superseded", **kw_filters)
             kr = [(m, s) for m, s in kw_rows if m in allowed][: cfg.depth]
             per_channel["keyword"] = dict(kr)
             rankings.append([m for m, _ in kr]); weights.append(cfg.weight_keyword)
@@ -247,7 +325,8 @@ class MemoryRetriever:
         if "G" in channels:
             q_entities = await self.query_entities(query)
             if q_entities:
-                gr = await self._graph_rank(q_entities, allowed, cfg.depth, bool(include_superseded or since or until))
+                gr = await self._graph_rank(q_entities, allowed, cfg.depth, bool(include_superseded or since or until),
+                                            subject=subject_id, chat_id=chat_id)
                 per_channel["graph"] = dict(gr)
                 rankings.append([m for m, _ in gr]); weights.append(cfg.weight_graph)
 
@@ -265,7 +344,7 @@ class MemoryRetriever:
             if i is None:
                 continue
             imp = float(index.importance[i])
-            rec = _recency(index.rows[i]["observed_at"], cfg.recency_half_life_days, now)
+            rec = _recency(index.observed[i], cfg.recency_half_life_days, now)
             s = base * ((1 - cfg.importance_weight) + cfg.importance_weight * imp)
             s *= (1 - cfg.recency_weight) + cfg.recency_weight * rec
             boosts = {}
@@ -317,13 +396,15 @@ class MemoryRetriever:
             await self.store.touch_access([r.memory.memory_id for r in out])
         return out
 
-    async def _graph_rank(self, entity_ids: list[str], allowed: set[str], depth: int, with_superseded: bool = False) -> list[tuple[str, float]]:
+    async def _graph_rank(self, entity_ids: list[str], allowed: set[str], depth: int, with_superseded: bool = False,
+                          *, subject: str | None = None, chat_id: str | None = None) -> list[tuple[str, float]]:
         counts = await self.store.entity_memory_counts(entity_ids)
         scores: dict[str, float] = {}
         # direct mentions, weighted by inverse entity frequency (hub entities carry less signal)
-        rows = await self.store.memories_for_entities(entity_ids, limit=depth * 4)
+        flt = {"subject": subject, "chat_id": chat_id}
+        rows = await self.store.memories_for_entities(entity_ids, limit=depth * 4, **flt)
         if with_superseded:
-            rows = rows + await self.store.memories_for_entities(entity_ids, limit=depth * 4, status="superseded")
+            rows = rows + await self.store.memories_for_entities(entity_ids, limit=depth * 4, status="superseded", **flt)
         for mid, eid in rows:
             if mid in allowed:
                 scores[mid] = scores.get(mid, 0.0) + 1.0 / math.log(2.0 + counts.get(eid, 1))
@@ -332,7 +413,7 @@ class MemoryRetriever:
         hop = [n for lst in nbrs.values() for n, _, _ in lst if n not in entity_ids]
         if hop:
             hop_counts = await self.store.entity_memory_counts(hop)
-            for mid, eid in await self.store.memories_for_entities(hop[:40], limit=depth * 2):
+            for mid, eid in await self.store.memories_for_entities(hop[:40], limit=depth * 2, **flt):
                 if mid in allowed:
                     scores[mid] = scores.get(mid, 0.0) + 0.35 / math.log(2.0 + hop_counts.get(eid, 1))
         return sorted(scores.items(), key=lambda x: -x[1])[:depth]
@@ -383,7 +464,7 @@ class MemoryRetriever:
             when = f"{m.event_time}, " if m.event_time else ""
             line = f"- [{when}{m.kind}] {m.text} (from chat {m.chat_id}, {(m.observed_at or '')[:10]})"
             if used + len(line) + 1 > limit:
-                break
+                continue   # too long for the remaining budget; a shorter, later line may still fit
             lines.append(line)
             included.append(r)
             used += len(line) + 1
@@ -392,7 +473,7 @@ class MemoryRetriever:
         return "\n".join(lines), included
 
     async def profile(self, subject: str, *, limit: int = 60) -> dict[str, Any]:
-        sid = norm_entity(subject)
+        sid = await self.store.resolve_alias(subject) or norm_entity(subject)
         mems = await self.store.list_memories(subject=sid, limit=limit, order="importance DESC", with_sources=True)
         by_kind: dict[str, list[dict[str, Any]]] = {}
         for m in mems:
@@ -413,7 +494,7 @@ class MemoryRetriever:
         for link in await self.store.links_for(memory_id):
             other = link.target_id if link.source_id == memory_id else link.source_id
             m = await self.store.get_memory(other)
-            if m is not None:
+            if m is not None and m.status != "retracted":
                 direction = "out" if link.source_id == memory_id else "in"
                 out.append({"memory": m.to_dict(), "link_type": link.link_type, "weight": link.weight, "direction": direction})
         return out

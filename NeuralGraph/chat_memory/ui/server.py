@@ -22,6 +22,7 @@ about it; the worker learns in the background and the dashboard shows it happeni
 """
 from __future__ import annotations
 
+import hmac
 import json
 import logging
 from pathlib import Path
@@ -76,6 +77,17 @@ def create_app(cm: ChatMemory, *, mcp_token: str | None = None, api_token: str |
     cors_set = {o.lower() for o in cors_origins} if cors_origins else set()
     hosts = frozenset(h.lower() for h in allowed_hosts) if allowed_hosts else None
 
+    def origin_allowed(request: web.Request) -> bool:
+        """Same-origin, no Origin (non-browser client), or an origin on the allow-list."""
+        origin = request.headers.get("Origin")
+        if not origin:
+            return True
+        o = origin.lower()
+        if "*" in cors_set or o in cors_set:
+            return True
+        host = (request.headers.get("Host") or "").lower()
+        return bool(host) and o.split("://", 1)[-1] == host
+
     def cors_for(request: web.Request) -> dict[str, str]:
         origin = request.headers.get("Origin")
         if not origin or not cors_set or not ("*" in cors_set or origin.lower() in cors_set):
@@ -89,9 +101,16 @@ def create_app(cm: ChatMemory, *, mcp_token: str | None = None, api_token: str |
         if request.method == "OPTIONS":
             h = cors_for(request)
             return web.Response(status=204 if h else 403, headers=h)
+        protected = request.path.startswith("/api/") or request.path == "/mcp"
+        if protected and request.method in ("POST", "PUT", "PATCH", "DELETE"):
+            # CSRF: a browser page on another origin cannot write, even with a text/plain body that skips preflight
+            if not origin_allowed(request):
+                return _bad("origin not allowed", 403)
+            if request.can_read_body and not request.content_type.startswith("application/json"):
+                return _bad("Content-Type must be application/json", 415)
         if api_token and request.path.startswith("/api/"):
             auth = request.headers.get("Authorization", "")
-            if not (auth.startswith("Bearer ") and auth[7:].strip() == api_token):
+            if not (auth.startswith("Bearer ") and hmac.compare_digest(auth[7:].strip(), api_token)):
                 return _bad("unauthorized", 401)
         resp = await handler(request)
         for k, v in cors_for(request).items():
@@ -172,6 +191,11 @@ def create_app(cm: ChatMemory, *, mcp_token: str | None = None, api_token: str |
         for f in ("chat_id", "speaker", "text"):
             if not isinstance(body.get(f), str) or not body[f].strip():
                 return _bad(f"'{f}' is required")
+        for f in ("role", "sent_at", "message_id"):
+            if body.get(f) is not None and not isinstance(body.get(f), str):
+                return _bad(f"'{f}' must be a string")
+        if body.get("metadata") is not None and not isinstance(body.get("metadata"), dict):
+            return _bad("'metadata' must be an object")
         msg = await cm.add_message(body["chat_id"], body["speaker"], body["text"], role=body.get("role", "") or "",
                                    sent_at=body.get("sent_at"), message_id=body.get("message_id"), metadata=body.get("metadata"))
         return _json({"queued": True, "message": msg.to_dict()}, 202)
@@ -185,6 +209,9 @@ def create_app(cm: ChatMemory, *, mcp_token: str | None = None, api_token: str |
         items = body.get("messages")
         if not isinstance(chat_id, str) or not chat_id or not isinstance(items, list):
             return _bad("'chat_id' and 'messages' are required")
+        for i, it in enumerate(items):
+            if not isinstance(it, dict) or not isinstance(it.get("text"), str):
+                return _bad(f"messages[{i}] must be an object with a 'text' string")
         msgs = await cm.add_messages(chat_id, items)
         return _json({"queued": len(msgs), "message_ids": [m.message_id for m in msgs]}, 202)
 
@@ -195,9 +222,18 @@ def create_app(cm: ChatMemory, *, mcp_token: str | None = None, api_token: str |
             return _bad("invalid JSON body")
         if not isinstance(body.get("text"), str) or not body["text"].strip():
             return _bad("'text' is required")
-        mem = await cm.remember(body["text"], subject=body.get("subject") or "user", kind=body.get("kind") or "fact",
-                                importance=float(body.get("importance", 0.8)), chat_id=body.get("chat_id") or "manual",
-                                when=body.get("when"))
+        try:
+            importance = float(body.get("importance") if body.get("importance") is not None else 0.8)
+        except (TypeError, ValueError):
+            return _bad("'importance' must be a number")
+        for f in ("subject", "kind", "chat_id", "when"):
+            if body.get(f) is not None and not isinstance(body.get(f), str):
+                return _bad(f"'{f}' must be a string")
+        try:
+            mem = await cm.remember(body["text"], subject=body.get("subject") or "user", kind=body.get("kind") or "fact",
+                                    importance=importance, chat_id=body.get("chat_id") or "manual", when=body.get("when"))
+        except ValueError as exc:
+            return _bad(str(exc))
         return _json({"memory": mem.to_dict()}, 201)
 
     async def forget(request: web.Request) -> web.Response:

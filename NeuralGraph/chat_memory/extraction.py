@@ -229,7 +229,9 @@ class EntityRegistry:
         people = [eid for eid, v in self.entries.items() if v["type"] == "person"]
         # first-name / prefix match against people (either direction, min 3 chars, unambiguous)
         if len(key) >= 3:
-            cands = [eid for eid in people if eid.startswith(key + " ") or key.startswith(eid + " ")]
+            # a short mention ("Mel", "Melanie") may name a known longer person ("melanie carter");
+            # a LONGER mention ("Alex Jones") never collapses onto a shorter known key ("alex")
+            cands = [eid for eid in people if eid.startswith(key + " ")]
             if len(cands) == 1:
                 return cands[0]
             # a bare first name that matches exactly one person's first token
@@ -292,6 +294,9 @@ def parse_when(when: Any, observed_at: str | None) -> tuple[str | None, str]:
     # relative phrases: resolve with the repo's temporal utilities against the message date
     base = parse_iso(observed_at)
     if base is not None:
+        yr = {"this year": 0, "last year": -1, "next year": 1, "a year ago": -1, "two years ago": -2}.get(s)
+        if yr is not None:
+            return str(base.year + yr), "year"
         try:
             from ..temporal_utils import parse_datetime_flexible, resolve_relative_dates
 
@@ -370,6 +375,16 @@ class ExtractionConfig:
     require_name_grounding: bool = True    # capitalised names in a memory must occur in the window/registry
 
 
+def _older(a: str | None, b: str | None) -> bool:
+    """True when observation time ``a`` is strictly earlier than ``b`` (timezone-aware; string fallback)."""
+    if not a or not b:
+        return False
+    da, db = parse_iso(a), parse_iso(b)
+    if da is not None and db is not None:
+        return da < db
+    return a < b
+
+
 def _cos(a: list[float] | None, b: list[float] | None) -> float:
     if not a or not b or len(a) != len(b):
         return 0.0
@@ -424,6 +439,7 @@ class MemoryExtractor:
         self.llm = llm
         self.config = config or ExtractionConfig()
         self._pending_audit: list[tuple[str, str | None, dict[str, Any]]] = []
+        self._superseded_in_plan: dict[str, Memory] = {}
 
     # ------------------------------------------------------------------ public entry
     async def build_plan(self, batch: list[ChatMessage], job_ids: Iterable[int] = (), *, attempt: int = 1) -> ExtractionPlan:
@@ -495,7 +511,7 @@ class MemoryExtractor:
         plan.audit.append(("extract", chat_id, {"messages": [m.message_id for m in worthy], "raw_candidates": len(candidates)}))
 
         # relations (independent of memory reconciliation; provenance attached below)
-        rel_entities, triples = self._parse_relations(rel_out, worthy, registry, speaker_ids) if rel_out else ([], [])
+        rel_entities, triples = self._parse_relations(rel_out, worthy, registry, speaker_ids, context) if rel_out else ([], [])
 
         # reconcile candidates against the existing store
         await self._reconcile(candidates, plan, worthy)
@@ -534,18 +550,24 @@ class MemoryExtractor:
 
     def _ground(self, cands: list[CandidateMemory], worthy: list[ChatMessage], context: list[ChatMessage],
                 registry: EntityRegistry, names: dict[str, str], plan: ExtractionPlan) -> list[CandidateMemory]:
-        """Drop candidates the window does not support: assistant-only sources, hallucinated names, no overlap."""
+        """Drop candidates the window does not support: assistant-only sources, hallucinated names, no overlap.
+
+        Names are checked against what was known BEFORE this batch plus the window text: the model's own new
+        entity list never vouches for a name it invented. Entities attached to a memory must occur in the window
+        too. The lexical-overlap check is skipped for very short memories (identity facts like "Ali is 34").
+        """
         cfg = self.config
-        window_text = " ".join(m.text for m in worthy + context)
+        speaker_names = [names.get(m.speaker, m.speaker) for m in worthy + context]
+        window_text = " ".join([m.text for m in worthy + context] + speaker_names)
         window_tokens = set(tokenize(window_text))
         window_lower = " " + norm_entity(window_text) + " "
         known_names = set()
-        for eid, v in list(registry.entries.items()) + list(registry.new_entities.items()):
+        for eid, v in registry.entries.items():
             known_names.update(norm_entity(v["name"]).split())
             known_names.update(eid.split())
         for a in registry.aliases:
             known_names.update(a.split())
-        for sp in names.values():
+        for sp in list(names.values()) + speaker_names:
             known_names.update(norm_entity(sp).split())
         kept = []
         for c in cands:
@@ -561,8 +583,11 @@ class MemoryExtractor:
                 if bad:
                     plan.audit.append(("reject", None, {"reason": "unknown_name", "names": bad[:3], "text": clip(c.text, 100)}))
                     continue
-            toks = set(tokenize(c.text))
-            if toks and cfg.min_grounding_overlap > 0:
+                c.entity_ids = [e for e in c.entity_ids if e == c.subject_id or e in registry.entries
+                                or (" " + e + " ") in window_lower or (tokenize(e) and all(t in window_tokens for t in tokenize(e)))]
+            subj_tokens = set(tokenize(c.subject_name))
+            toks = set(tokenize(c.text)) - subj_tokens
+            if len(toks) >= 3 and cfg.min_grounding_overlap > 0:
                 overlap = len(toks & window_tokens) / len(toks)
                 if overlap < cfg.min_grounding_overlap:
                     plan.audit.append(("reject", None, {"reason": "ungrounded", "overlap": round(overlap, 2), "text": clip(c.text, 100)}))
@@ -637,10 +662,16 @@ class MemoryExtractor:
             if re.match(r"^(i|you|he|she|they|we)\b", c.text.lower()):
                 # third-person rule violated; still usable if a subject is given, rewrite the pronoun
                 if c.subject_raw:
-                    c.text = re.sub(r"^(i|you|he|she|they|we)\b", c.subject_raw, c.text, count=1, flags=re.IGNORECASE)
+                    subj = c.subject_raw
+                    c.text = re.sub(r"^(i|you|he|she|they|we)\b", lambda _m: subj, c.text, count=1, flags=re.IGNORECASE)
                 else:
+                    self._audit_reject(c, "first_person")
                     continue
-            src_msgs = [worthy[i - 1] for i in c.source_indices] or [worthy[-1]]
+            if c.subject_raw and norm_entity(c.subject_raw) in set(cfg.ignore_speakers) | {"assistant", "ai", "bot", "system", "the assistant"}:
+                self._audit_reject(c, "assistant_subject")
+                continue
+            humans = [m for m in worthy if not self._is_assistant(m)] or worthy
+            src_msgs = [worthy[i - 1] for i in c.source_indices] or [humans[-1]]
             primary = src_msgs[0]
             c.speaker = primary.speaker
             c.source_message_ids = [m.message_id for m in src_msgs]
@@ -671,14 +702,32 @@ class MemoryExtractor:
         return kept
 
     def _parse_relations(self, raw: str, worthy: list[ChatMessage], registry: EntityRegistry,
-                         speaker_ids: dict[str, str]) -> tuple[list[str], list[tuple[str, str, str, float, str | None]]]:
+                         speaker_ids: dict[str, str], context: list[ChatMessage] | None = None) -> tuple[list[str], list[tuple[str, str, str, float, str | None]]]:
         obj = parse_json_object(raw) or {}
+        window_lower = " " + norm_entity(" ".join(m.text for m in worthy + (context or []))) + " "
+        window_tokens = set(tokenize(" ".join(m.text for m in worthy + (context or []))))
+        known_before = set(registry.entries) | set(registry.aliases) | set(speaker_ids.values())
+
+        def grounded(mention: Any, eid: str) -> bool:
+            """An endpoint must be a speaker/known entity or literally occur in the window."""
+            if eid in known_before:
+                return True
+            m = norm_entity(as_str(mention, 80))
+            if m and (" " + m + " ") in window_lower:
+                return True
+            mt = tokenize(m)
+            return bool(mt) and all(t in window_tokens for t in mt)
+
         ent_ids: list[str] = []
         for e in as_list(obj.get("entities")):
             name = as_str(e.get("name"), 80) if isinstance(e, dict) else as_str(e, 80)
             etype = as_str(e.get("type"), 30) if isinstance(e, dict) else ""
-            eid = registry.resolve(name, speaker_id=None, etype=etype, create=True) if name else None
-            if eid and eid not in ent_ids and eid.lower() not in self.config.ignore_speakers:
+            if not name:
+                continue
+            eid = registry.resolve(name, speaker_id=None, etype=etype, create=False)
+            if eid is None and grounded(name, norm_entity(name)):
+                eid = registry.resolve(name, speaker_id=None, etype=etype, create=True)
+            if eid and eid not in ent_ids and eid.lower() not in self.config.ignore_speakers and grounded(name, eid):
                 ent_ids.append(eid)
         triples: list[tuple[str, str, str, float, str | None]] = []
         seen: set[tuple[str, str, str]] = set()
@@ -695,12 +744,19 @@ class MemoryExtractor:
                 idx = int(src) if src is not None else None
             except (TypeError, ValueError):
                 idx = None
-            msg = worthy[idx - 1] if idx and 1 <= idx <= len(worthy) else worthy[-1]
+            humans = [m for m in worthy if not self._is_assistant(m)] or worthy
+            msg = worthy[idx - 1] if idx and 1 <= idx <= len(worthy) else humans[-1]
             speaker_eid = speaker_ids.get(msg.speaker) or norm_entity(msg.speaker)
-            sid = registry.resolve(s, speaker_id=speaker_eid)
-            oid = registry.resolve(o, speaker_id=speaker_eid)
+            sid = registry.resolve(s, speaker_id=speaker_eid, create=False)
+            if sid is None and grounded(s, norm_entity(as_str(s, 80))):
+                sid = registry.resolve(s, speaker_id=speaker_eid)
+            oid = registry.resolve(o, speaker_id=speaker_eid, create=False)
+            if oid is None and grounded(o, norm_entity(as_str(o, 80))):
+                oid = registry.resolve(o, speaker_id=speaker_eid)
             pred = norm_relation(as_str(r, 60))
             if not sid or not oid or not pred or sid == oid:
+                continue
+            if not grounded(s, sid) or not grounded(o, oid):
                 continue
             if sid.lower() in self.config.ignore_speakers or oid.lower() in self.config.ignore_speakers:
                 continue
@@ -732,6 +788,7 @@ class MemoryExtractor:
                 by_subject[c.subject_id] = await self.store.list_memories(subject=c.subject_id, limit=2000, order="observed_at DESC")
 
         accepted: list[CandidateMemory] = []   # for intra-batch dedupe
+        self._superseded_in_plan = {}          # target id -> the new memory that replaced it in this plan
         for c in cands:
             # exact text duplicate anywhere
             exact = await self.store.find_active_by_text_hash(c.text_hash)
@@ -746,7 +803,8 @@ class MemoryExtractor:
             if c.embedding:
                 sims = sorted(((_cos(c.embedding, m.embedding), m) for m in by_subject.get(c.subject_id, []) if m.embedding),
                               key=lambda x: -x[0])
-                top = [(s, m) for s, m in sims[: cfg.reconcile_candidates] if s >= cfg.related_cosine]
+                floor = min(cfg.related_cosine, cfg.reconcile_cosine)
+                top = [(s, m) for s, m in sims[: cfg.reconcile_candidates] if s >= floor]
             else:
                 # no vector: use keyword overlap among the subject's memories as the pre-filter
                 pool = {m.memory_id: m for m in by_subject.get(c.subject_id, [])}
@@ -757,7 +815,10 @@ class MemoryExtractor:
                 decision, target = "DUPLICATE", top[0][1]
             elif top and top[0][0] >= cfg.reconcile_cosine:
                 decision, target, merged_text = await self._ask_reconcile(c, [m for _, m in top])
-            self._apply_decision(c, decision, target, merged_text, top, plan)
+            if decision in ("UPDATE", "CONTRADICT") and target is not None and target.memory_id in self._superseded_in_plan:
+                # an earlier candidate of this batch already replaced that target: chain onto the replacement
+                target = self._superseded_in_plan[target.memory_id]
+            await self._apply_decision(c, decision, target, merged_text, top, plan)
             if decision in ("ADD", "UPDATE", "CONTRADICT"):
                 accepted.append(c)
 
@@ -786,8 +847,8 @@ class MemoryExtractor:
             text = c.text
         return decision, target, text
 
-    def _apply_decision(self, c: CandidateMemory, decision: str, target: Memory | None, merged_text: str | None,
-                        top: list[tuple[float, Memory]], plan: ExtractionPlan) -> None:
+    async def _apply_decision(self, c: CandidateMemory, decision: str, target: Memory | None, merged_text: str | None,
+                              top: list[tuple[float, Memory]], plan: ExtractionPlan) -> None:
         cfg = self.config
         now = now_iso()
         if decision == "DUPLICATE" and target is not None:
@@ -798,26 +859,45 @@ class MemoryExtractor:
         version = 1
         status = "active"
         superseded_by = None
+        importance, kind, event_time, precision = c.importance, c.kind, c.event_time, c.event_time_precision
+        sources, entity_ids, embedding = list(c.source_message_ids), list(c.entity_ids), c.embedding
         if decision in ("UPDATE", "CONTRADICT") and target is not None:
-            if decision == "UPDATE" and merged_text:
-                text = merged_text
             version = target.version + 1
+            if decision == "UPDATE":
+                if merged_text:
+                    text = merged_text
+                # a refinement keeps everything the old memory had that the new sentence does not restate
+                importance = max(importance, target.importance)
+                if event_time is None and target.event_time:
+                    event_time, precision = target.event_time, target.event_time_precision
+                if kind == "other":
+                    kind = target.kind
+                full = await self.store.get_memory(target.memory_id, with_sources=True)
+                if full is not None:
+                    sources = list(dict.fromkeys(sources + full.source_message_ids))
+                    entity_ids = list(dict.fromkeys(entity_ids + full.entity_ids))
+                if text != c.text:
+                    try:
+                        embedding = await self.llm.embed(text)
+                    except Exception:
+                        embedding = c.embedding
             # temporal order: a candidate observed EARLIER than the existing memory cannot supersede it
-            if c.observed_at and target.observed_at and c.observed_at < target.observed_at:
+            if _older(c.observed_at, target.observed_at):
                 status, superseded_by = "superseded", target.memory_id
         mem = Memory(
-            memory_id=new_id("mem"), text=text, kind=c.kind, subject=c.subject_id, subject_name=c.subject_name,
-            speaker=c.speaker, chat_id=plan.chat_id, importance=c.importance, confidence=c.confidence,
-            event_time=c.event_time, event_time_precision=c.event_time_precision, observed_at=c.observed_at or now,
+            memory_id=new_id("mem"), text=text, kind=kind, subject=c.subject_id, subject_name=c.subject_name,
+            speaker=c.speaker, chat_id=plan.chat_id, importance=importance, confidence=c.confidence,
+            event_time=event_time, event_time_precision=precision, observed_at=c.observed_at or now,
             created_at=now, updated_at=now, status=status, superseded_by=superseded_by, version=version,
-            text_hash=content_hash(normalize_ws(text).lower()), embedding=c.embedding,
+            text_hash=content_hash(normalize_ws(text).lower()), embedding=embedding,
             metadata={"decision": decision, "source_kind": "chat", "when_raw": c.when_raw or None},
         )
-        plan.new_memories.append((mem, c.source_message_ids, c.entity_ids))
+        plan.new_memories.append((mem, sources, entity_ids))
         if decision in ("UPDATE", "CONTRADICT") and target is not None:
             link = "supersedes" if decision == "UPDATE" else "contradicts"
             if status == "active":
                 plan.supersedes.append((target.memory_id, mem.memory_id, link))
+                self._superseded_in_plan[target.memory_id] = mem
             else:  # older observation: link for history only, existing memory stays current
                 plan.links.append((target.memory_id, mem.memory_id, link, 1.0))
             plan.audit.append((decision.lower(), mem.memory_id, {"target": target.memory_id, "text": clip(text, 120)}))
