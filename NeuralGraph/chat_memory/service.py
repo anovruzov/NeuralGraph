@@ -120,12 +120,9 @@ class ChatMemory:
         return await self.retriever.search(query, **kwargs)
 
     async def context_for(self, query: str, **kwargs: Any) -> str:
-        block = await self.retriever.context_for(query, **kwargs)
+        block, results = await self.retriever.context_with_results(query, **kwargs)
         if block:
             # ledger: what would it have cost to re-read the source chats instead?
-            results = await self.retriever.search(query, k=kwargs.get("k") or self.config.retrieval.context_k,
-                                                  with_sources=False, touch=False,
-                                                  **{k: v for k, v in kwargs.items() if k not in ("k", "max_chars", "header")})
             chats = {r.memory.chat_id for r in results}
             raw = 0
             for c in chats:

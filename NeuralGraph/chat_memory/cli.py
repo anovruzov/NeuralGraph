@@ -100,7 +100,8 @@ async def cmd_serve(args: argparse.Namespace) -> int:
     await cm.start()
     runner = await run_server(cm, host=args.host, port=args.port, mcp_token=args.mcp_token or os.environ.get("NEURALGRAPH_MCP_TOKEN"),
                               api_token=args.api_token or os.environ.get("NEURALGRAPH_API_TOKEN"),
-                              allowed_origins=args.allowed_origin or None)
+                              allowed_origins=args.allowed_origin or None, cors_origins=args.cors_origin or None,
+                              allowed_hosts=args.allowed_host or None)
     print(f"dashboard: http://{args.host}:{args.port}/   MCP: http://{args.host}:{args.port}/mcp   db: {cm.store.db_path}", flush=True)
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
@@ -250,6 +251,8 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--mcp-token", default=None, help="bearer token required on /mcp (env NEURALGRAPH_MCP_TOKEN)")
     s.add_argument("--api-token", default=None, help="bearer token required on /api/* (env NEURALGRAPH_API_TOKEN)")
     s.add_argument("--allowed-origin", action="append", help="restrict browser Origin on /mcp (repeatable)")
+    s.add_argument("--cors-origin", action="append", help="browser origins allowed to call /api/* cross-site (repeatable; '*' for any). Off by default.")
+    s.add_argument("--allowed-host", action="append", help="accepted Host headers (repeatable). Default: loopback names when bound to 127.0.0.1")
     s.set_defaults(fn=cmd_serve)
 
     s = sub.add_parser("mcp", help="run worker + MCP server over stdio"); _add_common(s); s.set_defaults(fn=cmd_mcp)

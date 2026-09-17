@@ -185,9 +185,11 @@ class HttpTransportTests(MCPTestCase):
         r = await self.client.post("/mcp", data=b"{not json", headers={"Authorization": "Bearer secret", "Content-Type": "application/json"})
         self.assertEqual(r.status, 400)
         self.assertEqual((await r.json())["error"]["code"], -32700)
-        r = await self.client.options("/mcp", headers={"Origin": "https://claude.ai"})
-        self.assertEqual(r.status, 204)
-        self.assertIn("Mcp-Session-Id", r.headers.get("Access-Control-Allow-Headers", ""))
+        # CORS is off by default: a cross-site browser page gets no allow headers (and no preflight)
+        r = await self.client.options("/mcp", headers={"Origin": "https://evil.example"})
+        self.assertEqual(r.status, 403)
+        r = await self.client.get("/api/status", headers={"Origin": "https://evil.example"})
+        self.assertNotIn("Access-Control-Allow-Origin", r.headers)
 
     async def test_dashboard_and_api(self) -> None:
         r = await self.client.get("/")
@@ -223,6 +225,25 @@ class HttpTransportTests(MCPTestCase):
         self.assertEqual(len((await r.json())["memories"]), 2)
         r = await self.client.get("/healthz")
         self.assertEqual((await r.json())["ok"], True)
+
+    async def test_cors_allow_list_and_host_check(self) -> None:
+        app = create_app(self.cm, cors_origins=["https://claude.ai"], allowed_hosts=["localhost", "127.0.0.1"])
+        client = TestClient(TestServer(app))
+        await client.start_server()
+        try:
+            r = await client.options("/mcp", headers={"Origin": "https://claude.ai"})
+            self.assertEqual(r.status, 204)
+            self.assertEqual(r.headers.get("Access-Control-Allow-Origin"), "https://claude.ai")
+            self.assertIn("Mcp-Session-Id", r.headers.get("Access-Control-Allow-Headers", ""))
+            r = await client.get("/api/status", headers={"Origin": "https://other.example"})
+            self.assertNotIn("Access-Control-Allow-Origin", r.headers)
+            # DNS rebinding: a request that reached us with a foreign Host header is refused
+            r = await client.get("/api/status", headers={"Host": "attacker.example"})
+            self.assertEqual(r.status, 421)
+            r = await client.get("/api/status", headers={"Host": "localhost:8765"})
+            self.assertEqual(r.status, 200)
+        finally:
+            await client.close()
 
     async def test_api_token_when_configured(self) -> None:
         app = create_app(self.cm, api_token="api-secret")

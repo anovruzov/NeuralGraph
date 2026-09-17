@@ -336,20 +336,28 @@ class MemoryRetriever:
     async def context_for(self, query: str, *, k: int | None = None, max_chars: int | None = None,
                           header: str = "Relevant long-term memories (most relevant first):", **filters: Any) -> str:
         """A compact block to prepend to a new chat's prompt. Empty string when nothing is relevant."""
+        block, _ = await self.context_with_results(query, k=k, max_chars=max_chars, header=header, **filters)
+        return block
+
+    async def context_with_results(self, query: str, *, k: int | None = None, max_chars: int | None = None,
+                                   header: str = "Relevant long-term memories (most relevant first):",
+                                   **filters: Any) -> tuple[str, list[RetrievedMemory]]:
+        """Like :meth:`context_for` but also returns the memories that made it into the block."""
         cfg = self.config
         results = await self.search(query, k=k or cfg.context_k, with_sources=False, **filters)
         if not results:
-            return ""
+            return "", []
         # evidence floor: a line needs a keyword or graph hit, or a reasonably similar embedding
         results = [r for r in results if "keyword" in r.channels or "graph" in r.channels
                    or r.channels.get("vector", 0.0) >= cfg.context_min_vector_sim]
         if not results:
-            return ""
+            return "", []
         top_score = results[0].score or 1.0
         results = [r for r in results if r.score >= cfg.context_min_relative_score * top_score]
         lines = [header]
         used = len(header)
         limit = max_chars or cfg.context_max_chars
+        included: list[RetrievedMemory] = []
         for r in results:
             m = r.memory
             when = f"{m.event_time}, " if m.event_time else ""
@@ -357,8 +365,11 @@ class MemoryRetriever:
             if used + len(line) + 1 > limit:
                 break
             lines.append(line)
+            included.append(r)
             used += len(line) + 1
-        return "\n".join(lines) if len(lines) > 1 else ""
+        if len(lines) == 1:
+            return "", []
+        return "\n".join(lines), included
 
     async def profile(self, subject: str, *, limit: int = 60) -> dict[str, Any]:
         sid = norm_entity(subject)

@@ -145,6 +145,11 @@ REST: `GET /api/status`, `GET /api/search?q=&k=&subject=&chat_id=&kinds=&since=&
 `POST /api/messages/batch`, `POST /api/remember`, `POST /api/forget`, `POST /api/maintain`, `GET /healthz`.
 Optional `--api-token` requires `Authorization: Bearer …` on `/api/*`.
 
+Security defaults: **no CORS** (a page on another origin cannot read the API; add `--cors-origin https://…`
+or `*` deliberately), a **Host allow-list** when bound to loopback (`--allowed-host` to override) so DNS
+rebinding cannot reach a local server, bearer tokens for `/api/*` and `/mcp`, `--allowed-origin` for browser
+clients of `/mcp`, and an 8 MB request-body cap.
+
 ## Claude access through MCP (edge and cloud)
 
 The same tool set is exposed over two transports (`NeuralGraph/chat_memory/mcp_server.py`):
@@ -197,6 +202,7 @@ bearer auth, optional `--allowed-origin` (DNS-rebinding protection), CORS. Verif
 python -m NeuralGraph.chat_memory serve|mcp|ingest|process|search|context|profile|stats|forget|remember|maintain
   --db PATH  --model M  --base-url URL  --embed-model E  --parallel N  --workers N  --batch-size N
   --debounce SECONDS  --user-name NAME  --extract-assistant  --fake-llm  -v
+serve --host --port --mcp-token --api-token --allowed-origin --cors-origin --allowed-host
 ingest FILE.jsonl [--chat-id ID] [--process]        # {"chat_id","speaker","text","sent_at"?,"role"?} per line
 ingest evaluation/locomo/locomo10.json --locomo --only 0,1 --process
 ```

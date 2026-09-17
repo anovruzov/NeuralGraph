@@ -46,24 +46,56 @@ def _bad(msg: str, status: int = 400) -> web.Response:
     return _json({"error": msg}, status)
 
 
+LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "[::1]", "::1", "0.0.0.0"})
+
+
+def _host_allowed(request: web.Request, allowed_hosts: frozenset[str] | None) -> bool:
+    if allowed_hosts is None:
+        return True
+    host = (request.headers.get("Host") or "").strip().lower()
+    if host.startswith("["):  # [::1]:8765
+        name = host.split("]")[0] + "]"
+    else:
+        name = host.split(":")[0]
+    return name in allowed_hosts
+
+
 def create_app(cm: ChatMemory, *, mcp_token: str | None = None, api_token: str | None = None,
-               allowed_origins: list[str] | None = None, cors: bool = True) -> web.Application:
+               allowed_origins: list[str] | None = None, cors_origins: list[str] | None = None,
+               allowed_hosts: list[str] | None = None) -> web.Application:
+    """Build the aiohttp application.
+
+    Security defaults: no CORS headers unless ``cors_origins`` lists the browser origins allowed to call the
+    API (``"*"`` for any); the MCP endpoint additionally validates ``Origin`` against ``allowed_origins``;
+    ``allowed_hosts`` (when given) rejects requests whose ``Host`` header is not in the list, which blocks DNS
+    rebinding against a server bound to localhost (``run_server`` sets it automatically for loopback binds).
+    """
     app = web.Application(client_max_size=8 * 1024 * 1024)
     app["cm"] = cm
     mcp = StreamableHTTPTransport(cm, token=mcp_token, allowed_origins=allowed_origins)
+    cors_set = {o.lower() for o in cors_origins} if cors_origins else set()
+    hosts = frozenset(h.lower() for h in allowed_hosts) if allowed_hosts else None
+
+    def cors_for(request: web.Request) -> dict[str, str]:
+        origin = request.headers.get("Origin")
+        if not origin or not cors_set or not ("*" in cors_set or origin.lower() in cors_set):
+            return {}
+        return _cors_headers(origin)
 
     @web.middleware
     async def middleware(request: web.Request, handler):
-        if request.method == "OPTIONS" and cors:
-            return web.Response(status=204, headers=_cors_headers(request))
+        if not _host_allowed(request, hosts):
+            return _bad("host not allowed", 421)
+        if request.method == "OPTIONS":
+            h = cors_for(request)
+            return web.Response(status=204 if h else 403, headers=h)
         if api_token and request.path.startswith("/api/"):
             auth = request.headers.get("Authorization", "")
             if not (auth.startswith("Bearer ") and auth[7:].strip() == api_token):
                 return _bad("unauthorized", 401)
         resp = await handler(request)
-        if cors:
-            for k, v in _cors_headers(request).items():
-                resp.headers.setdefault(k, v)
+        for k, v in cors_for(request).items():
+            resp.headers.setdefault(k, v)
         return resp
 
     app.middlewares.append(middleware)
@@ -199,8 +231,7 @@ def create_app(cm: ChatMemory, *, mcp_token: str | None = None, api_token: str |
     return app
 
 
-def _cors_headers(request: web.Request) -> dict[str, str]:
-    origin = request.headers.get("Origin", "*")
+def _cors_headers(origin: str) -> dict[str, str]:
     return {
         "Access-Control-Allow-Origin": origin,
         "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
@@ -211,9 +242,17 @@ def _cors_headers(request: web.Request) -> dict[str, str]:
 
 
 async def run_server(cm: ChatMemory, *, host: str = "127.0.0.1", port: int = 8765, mcp_token: str | None = None,
-                     api_token: str | None = None, allowed_origins: list[str] | None = None) -> web.AppRunner:
-    """Start the HTTP server (returns the runner; call ``await runner.cleanup()`` to stop)."""
-    app = create_app(cm, mcp_token=mcp_token, api_token=api_token, allowed_origins=allowed_origins)
+                     api_token: str | None = None, allowed_origins: list[str] | None = None,
+                     cors_origins: list[str] | None = None, allowed_hosts: list[str] | None = None) -> web.AppRunner:
+    """Start the HTTP server (returns the runner; call ``await runner.cleanup()`` to stop).
+
+    When bound to a loopback address and no ``allowed_hosts`` are given, only loopback Host headers are
+    accepted (DNS-rebinding protection for the local dashboard/API).
+    """
+    if allowed_hosts is None and host in LOOPBACK_HOSTS - {"0.0.0.0"}:
+        allowed_hosts = sorted(LOOPBACK_HOSTS - {"0.0.0.0"})
+    app = create_app(cm, mcp_token=mcp_token, api_token=api_token, allowed_origins=allowed_origins,
+                     cors_origins=cors_origins, allowed_hosts=allowed_hosts)
     runner = web.AppRunner(app, access_log=None)
     await runner.setup()
     site = web.TCPSite(runner, host, port)
