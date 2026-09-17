@@ -113,6 +113,24 @@ class FusionTests(RetrievalTestCase):
         self.assertEqual(old[0].memory.status, "superseded")
         self.assertIn("superseded by", old[0].explanation)
 
+    async def test_time_window_query_returns_the_fact_that_was_true_then(self) -> None:
+        ids = await self.seed()
+        new = emb_memory("Ali lives in Tokyo since June 2026.", subject="ali", chat_id="c4", observed_at="2026-07-01T00:00:00+00:00",
+                         kind="identity", importance=0.9)
+        new.event_time, new.event_time_precision = "2026-06", "month"
+        await self.store.insert_memory(new, entity_ids=["ali", "tokyo"])
+        await self.store.supersede(ids["ali_city"], new.memory_id, "contradicts")
+        # no time filter: only the current fact
+        now_hits = [h.memory.memory_id for h in await self.ret.search("Where does Ali live?", k=5)]
+        self.assertIn(new.memory_id, now_hits)
+        self.assertNotIn(ids["ali_city"], now_hits)
+        # asking about March 2026: the Berlin fact was current then and must come back
+        then_hits = await self.ret.search("Where did Ali live?", k=5, since="2026-03-01", until="2026-03-31")
+        then_ids = [h.memory.memory_id for h in then_hits]
+        self.assertEqual(then_ids[0], ids["ali_city"])
+        self.assertNotIn(new.memory_id, then_ids)
+        self.assertIn(f"superseded by {new.memory_id}", then_hits[0].explanation)
+
     async def test_index_cache_tracks_store_revision(self) -> None:
         await self.seed()
         before = {h.memory.memory_id for h in await self.ret.search("Ali", k=50)}

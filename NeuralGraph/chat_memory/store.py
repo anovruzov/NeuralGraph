@@ -156,6 +156,7 @@ CREATE TABLE IF NOT EXISTS relations (
     message_id        TEXT,
     status            TEXT NOT NULL DEFAULT 'active',
     observation_count INTEGER NOT NULL DEFAULT 1,
+    observed_at       TEXT,
     created_at        TEXT NOT NULL,
     updated_at        TEXT NOT NULL,
     metadata          TEXT NOT NULL DEFAULT '{}',
@@ -584,11 +585,14 @@ class ChatMemoryStore:
                 if head is None:
                     return []
                 leased = [head]
-                if head["kind"] == "extract" and batch_size > 1 and head["chat_id"] is not None:
+                # a job that already failed is retried with a smaller batch (halved per attempt) so one bad
+                # message cannot poison its neighbours and the retried prompt differs from the failed one
+                eff_batch = max(1, batch_size >> int(head["attempts"]))
+                if head["kind"] == "extract" and eff_batch > 1 and head["chat_id"] is not None:
                     rows = c.execute(
                         """SELECT * FROM jobs WHERE kind='extract' AND chat_id=? AND status='queued'
                            AND seq > ? AND available_at <= ? ORDER BY seq LIMIT ?""",
-                        (head["chat_id"], head["seq"], now, batch_size - 1),
+                        (head["chat_id"], head["seq"], now, eff_batch - 1),
                     ).fetchall()
                     prev = head["seq"]
                     for r in rows:
@@ -950,12 +954,12 @@ class ChatMemoryStore:
     async def index_rows(self, *, status: str = "active") -> list[dict[str, Any]]:
         """Light-weight rows for the retrieval index (embedding may be None)."""
         rows = self._conn.execute(
-            "SELECT memory_id, subject, speaker, chat_id, kind, importance, observed_at, event_time, embedding "
+            "SELECT memory_id, subject, speaker, chat_id, kind, importance, observed_at, event_time, status, embedding "
             "FROM memories WHERE status=? ORDER BY rid", (status,)
         ).fetchall()
         return [{"memory_id": r["memory_id"], "subject": r["subject"], "speaker": r["speaker"], "chat_id": r["chat_id"],
                  "kind": r["kind"], "importance": r["importance"], "observed_at": r["observed_at"],
-                 "event_time": r["event_time"], "embedding": _unpack(r["embedding"])} for r in rows]
+                 "event_time": r["event_time"], "status": r["status"], "embedding": _unpack(r["embedding"])} for r in rows]
 
     async def entity_ids_for_memories(self, memory_ids: Iterable[str]) -> dict[str, list[str]]:
         ids = list(dict.fromkeys(memory_ids))
@@ -1133,43 +1137,55 @@ class ChatMemoryStore:
     def _row_relation(self, r: sqlite3.Row) -> Relation:
         return Relation(relation_id=r["relation_id"], subject_id=r["subject_id"], predicate=r["predicate"], object_id=r["object_id"],
                         confidence=r["confidence"], chat_id=r["chat_id"], memory_id=r["memory_id"], message_id=r["message_id"],
-                        status=r["status"], observation_count=r["observation_count"], created_at=r["created_at"],
-                        updated_at=r["updated_at"], metadata=_jl(r["metadata"], {}))
+                        status=r["status"], observation_count=r["observation_count"], observed_at=r["observed_at"],
+                        created_at=r["created_at"], updated_at=r["updated_at"], metadata=_jl(r["metadata"], {}))
 
     def _upsert_relation_sync(self, c: sqlite3.Connection, subject_id: str, predicate: str, object_id: str, *,
-                              confidence: float, chat_id: str, memory_id: str | None, message_id: str | None) -> str:
+                              confidence: float, chat_id: str, memory_id: str | None, message_id: str | None,
+                              observed_at: str | None = None) -> str:
         now = now_iso()
+        observed = observed_at or now
         rid = new_id("rel")
+        # single-valued predicate: the observation with the LATEST source time wins, whatever the ingestion order
+        newer_exists = False
+        if predicate in FUNCTIONAL_PREDICATES:
+            row = c.execute(
+                "SELECT MAX(COALESCE(observed_at, created_at)) AS t FROM relations WHERE subject_id=? AND predicate=? "
+                "AND object_id<>? AND status='active'", (subject_id, predicate, object_id)).fetchone()
+            newer_exists = bool(row and row["t"] and row["t"] > observed)
+        status = "superseded" if newer_exists else "active"
         c.execute(
             """INSERT INTO relations(relation_id, subject_id, predicate, object_id, confidence, chat_id, memory_id, message_id,
-                                     status, observation_count, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', 1, ?, ?)
+                                     status, observation_count, observed_at, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
                ON CONFLICT(subject_id, predicate, object_id) DO UPDATE SET
                  observation_count = relations.observation_count + 1,
                  confidence = MAX(relations.confidence, excluded.confidence),
-                 status = 'active',
+                 status = CASE WHEN excluded.status = 'superseded' THEN relations.status ELSE 'active' END,
                  memory_id = COALESCE(excluded.memory_id, relations.memory_id),
                  message_id = COALESCE(excluded.message_id, relations.message_id),
+                 observed_at = MAX(COALESCE(relations.observed_at, ''), excluded.observed_at),
                  updated_at = excluded.updated_at""",
-            (rid, subject_id, predicate, object_id, float(confidence), chat_id, memory_id, message_id, now, now),
+            (rid, subject_id, predicate, object_id, float(confidence), chat_id, memory_id, message_id, status, observed, now, now),
         )
         r = c.execute("SELECT relation_id FROM relations WHERE subject_id=? AND predicate=? AND object_id=?",
                       (subject_id, predicate, object_id)).fetchone()
-        if predicate in FUNCTIONAL_PREDICATES:
-            # single-valued predicate: the newest observation wins, older objects become history
+        if predicate in FUNCTIONAL_PREDICATES and not newer_exists:
             c.execute(
                 "UPDATE relations SET status='superseded', updated_at=? WHERE subject_id=? AND predicate=? "
-                "AND object_id<>? AND status='active'",
-                (now, subject_id, predicate, object_id),
+                "AND object_id<>? AND status='active' AND COALESCE(observed_at, created_at) <= ?",
+                (now, subject_id, predicate, object_id, observed),
             )
         return r["relation_id"]
 
     async def upsert_relation(self, subject_id: str, predicate: str, object_id: str, *, confidence: float = 0.6,
-                              chat_id: str = "", memory_id: str | None = None, message_id: str | None = None) -> Relation:
+                              chat_id: str = "", memory_id: str | None = None, message_id: str | None = None,
+                              observed_at: str | None = None) -> Relation:
         async with self._lock:
             with self._tx() as c:
                 rid = self._upsert_relation_sync(c, subject_id, predicate, object_id, confidence=confidence,
-                                                 chat_id=chat_id, memory_id=memory_id, message_id=message_id)
+                                                 chat_id=chat_id, memory_id=memory_id, message_id=message_id,
+                                                 observed_at=observed_at)
             self._bump()
         return self._row_relation(self._conn.execute("SELECT * FROM relations WHERE relation_id=?", (rid,)).fetchone())
 
@@ -1245,8 +1261,11 @@ class ChatMemoryStore:
                     c.execute("UPDATE memories SET updated_at=?, metadata=json_set(metadata, '$.observations', "
                               "COALESCE(json_extract(metadata, '$.observations'), 1) + 1) WHERE memory_id=?", (now, mem_id))
                     counts["duplicates"] += 1
-                for s, p, o, conf, mem_id, msg_id in plan.relations:
-                    self._upsert_relation_sync(c, s, p, o, confidence=conf, chat_id=plan.chat_id, memory_id=mem_id, message_id=msg_id)
+                for rel in plan.relations:
+                    s, p, o, conf, mem_id, msg_id = rel[:6]
+                    observed = rel[6] if len(rel) > 6 else None
+                    self._upsert_relation_sync(c, s, p, o, confidence=conf, chat_id=plan.chat_id, memory_id=mem_id,
+                                               message_id=msg_id, observed_at=observed)
                     counts["relations"] += 1
                 for a, b, lt, w in plan.links:
                     c.execute("INSERT OR REPLACE INTO memory_links(source_id, target_id, link_type, weight, created_at) VALUES (?, ?, ?, ?, ?)",
@@ -1307,7 +1326,7 @@ class ExtractionPlan:
         self.new_memories: list[tuple[Memory, list[str], list[str]]] = []   # (memory, source_message_ids, entity_ids)
         self.supersedes: list[tuple[str, str, str]] = []              # (old_id, new_id, link_type)
         self.duplicate_sources: list[tuple[str, list[str]]] = []      # (existing_memory_id, source_message_ids)
-        self.relations: list[tuple[str, str, str, float, str | None, str | None]] = []  # (s, p, o, conf, memory_id, message_id)
+        self.relations: list[tuple] = []   # (s, p, o, conf, memory_id, message_id[, observed_at])
         self.links: list[tuple[str, str, str, float]] = []            # (source_id, target_id, link_type, weight)
         self.processed_message_ids: list[str] = []
         self.skipped_message_ids: list[str] = []

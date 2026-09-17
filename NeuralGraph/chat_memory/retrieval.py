@@ -80,6 +80,7 @@ class _Index:
         self.chat = np.array([r["chat_id"] for r in rows], dtype=object) if rows else np.array([], dtype=object)
         self.kind = np.array([r["kind"] for r in rows], dtype=object) if rows else np.array([], dtype=object)
         self.t = np.array([(r["event_time"] or r["observed_at"] or "") for r in rows], dtype=object) if rows else np.array([], dtype=object)
+        self.active = np.array([r["status"] == "active" for r in rows], dtype=bool) if rows else np.zeros(0, dtype=bool)
         self.importance = np.array([float(r["importance"]) for r in rows], dtype=np.float32) if rows else np.zeros(0, dtype=np.float32)
         vec_rows = [i for i, r in enumerate(rows) if r["embedding"]]
         self.vec_pos = np.array(vec_rows, dtype=np.int64)
@@ -93,11 +94,15 @@ class _Index:
             self.dim = 0
 
     def mask(self, *, subject: str | None, speaker: str | None, chat_id: str | None, kinds: set[str] | None,
-             since: str | None, until: str | None) -> np.ndarray:
+             since: str | None, until: str | None, include_superseded: bool = False) -> np.ndarray:
         n = len(self.ids)
         m = np.ones(n, dtype=bool)
         if n == 0:
             return m
+        # superseded memories are hidden unless asked for, or unless the query is about a time window (a fact
+        # that was later replaced was still the truth back then)
+        if not include_superseded and not (since or until):
+            m &= self.active
         if subject:
             m &= self.subject == norm_entity(subject)
         if speaker:
@@ -147,7 +152,8 @@ class MemoryRetriever:
     async def _get_index(self) -> _Index:
         key = self.store.cache_key()
         if self._index is None or self._index_rev != key:
-            self._index = _Index(await self.store.index_rows())
+            rows = await self.store.index_rows(status="active") + await self.store.index_rows(status="superseded")
+            self._index = _Index(rows)
             self._index_rev = key
         return self._index
 
@@ -207,9 +213,10 @@ class MemoryRetriever:
             return []
         index = await self._get_index()
         kind_set = set(kinds) if kinds else None
-        mask = index.mask(subject=subject, speaker=speaker, chat_id=chat_id, kinds=kind_set, since=since, until=until)
+        mask = index.mask(subject=subject, speaker=speaker, chat_id=chat_id, kinds=kind_set, since=since, until=until,
+                          include_superseded=include_superseded)
         allowed = {index.ids[i] for i in np.nonzero(mask)[0]}
-        if not allowed and not include_superseded:
+        if not allowed:
             return []
 
         rankings: list[list[str]] = []
@@ -229,7 +236,10 @@ class MemoryRetriever:
                 rankings.append([m for m, _ in vr]); weights.append(cfg.weight_vector)
 
         if "K" in channels:
-            kr = [(m, s) for m, s in await self.store.keyword_candidates(query, cfg.depth * 2) if m in allowed][: cfg.depth]
+            kw_rows = await self.store.keyword_candidates(query, cfg.depth * 2)
+            if include_superseded or since or until:
+                kw_rows = kw_rows + await self.store.keyword_candidates(query, cfg.depth * 2, status="superseded")
+            kr = [(m, s) for m, s in kw_rows if m in allowed][: cfg.depth]
             per_channel["keyword"] = dict(kr)
             rankings.append([m for m, _ in kr]); weights.append(cfg.weight_keyword)
 
@@ -237,7 +247,7 @@ class MemoryRetriever:
         if "G" in channels:
             q_entities = await self.query_entities(query)
             if q_entities:
-                gr = await self._graph_rank(q_entities, allowed, cfg.depth)
+                gr = await self._graph_rank(q_entities, allowed, cfg.depth, bool(include_superseded or since or until))
                 per_channel["graph"] = dict(gr)
                 rankings.append([m for m, _ in gr]); weights.append(cfg.weight_graph)
 
@@ -290,21 +300,31 @@ class MemoryRetriever:
                 explanation=self._explain(ch),
             ))
         if include_superseded:
+            present = {r.memory.memory_id for r in out}
             hist: list[RetrievedMemory] = []
-            for rm in out:
+            for rm in list(out):
                 for old in await self.store.history(rm.memory.memory_id):
-                    hist.append(RetrievedMemory(memory=old, score=rm.score * 0.5, channels={"history_of": rm.score},
-                                                explanation=f"superseded by {rm.memory.memory_id}"))
+                    if old.memory_id not in present:
+                        present.add(old.memory_id)
+                        hist.append(RetrievedMemory(memory=old, score=rm.score * 0.5, channels={"history_of": rm.score},
+                                                    explanation=f"superseded by {rm.memory.memory_id}"))
             out.extend(hist)
+        for r in out:
+            if r.memory.status == "superseded" and "superseded" not in r.explanation:
+                note = f"superseded by {r.memory.superseded_by}" if r.memory.superseded_by else "superseded"
+                r.explanation = (r.explanation + ", " if r.explanation else "") + note + " (was current at that time)"
         if touch and out:
             await self.store.touch_access([r.memory.memory_id for r in out])
         return out
 
-    async def _graph_rank(self, entity_ids: list[str], allowed: set[str], depth: int) -> list[tuple[str, float]]:
+    async def _graph_rank(self, entity_ids: list[str], allowed: set[str], depth: int, with_superseded: bool = False) -> list[tuple[str, float]]:
         counts = await self.store.entity_memory_counts(entity_ids)
         scores: dict[str, float] = {}
         # direct mentions, weighted by inverse entity frequency (hub entities carry less signal)
-        for mid, eid in await self.store.memories_for_entities(entity_ids, limit=depth * 4):
+        rows = await self.store.memories_for_entities(entity_ids, limit=depth * 4)
+        if with_superseded:
+            rows = rows + await self.store.memories_for_entities(entity_ids, limit=depth * 4, status="superseded")
+        for mid, eid in rows:
             if mid in allowed:
                 scores[mid] = scores.get(mid, 0.0) + 1.0 / math.log(2.0 + counts.get(eid, 1))
         # one typed hop over relations

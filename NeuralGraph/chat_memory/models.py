@@ -142,6 +142,7 @@ class Relation:
     message_id: str | None
     status: str = "active"
     observation_count: int = 1
+    observed_at: str | None = None
     created_at: str = ""
     updated_at: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)

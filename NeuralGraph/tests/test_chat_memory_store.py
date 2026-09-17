@@ -121,6 +121,17 @@ class JobQueueTests(StoreTestCase):
         fourth = await self.store.lease_job("w1", 60, batch_size=1)
         self.assertEqual([j.ref_id for j in fourth], [a1.message_id])
 
+    async def test_retry_halves_the_batch(self) -> None:
+        ids = [(await self.store.add_message("A", "x", f"m{i}"))[0].message_id for i in range(4)]
+        jobs = await self.store.lease_job("w", 60, batch_size=4)
+        self.assertEqual(len(jobs), 4)
+        await self.store.fail_jobs([j.job_id for j in jobs], "boom", backoff_seconds=0)
+        jobs = await self.store.lease_job("w", 60, batch_size=4)
+        self.assertEqual([j.ref_id for j in jobs], ids[:2], "second attempt: half the batch")
+        await self.store.fail_jobs([j.job_id for j in jobs], "boom", backoff_seconds=0)
+        jobs = await self.store.lease_job("w", 60, batch_size=4)
+        self.assertEqual([j.ref_id for j in jobs], ids[:1], "third attempt: single message")
+
     async def test_batch_lease_coalesces_contiguous_messages_only(self) -> None:
         ids = [(await self.store.add_message("A", "x", f"m{i}"))[0].message_id for i in range(4)]
         # make m2 unavailable (future) so the batch must stop at the gap
@@ -225,14 +236,20 @@ class PlanApplicationTests(StoreTestCase):
         self.assertEqual(await self.store.relation_counts(), {"superseded": 1}, "relations grounded only in the old memory follow it")
 
     async def test_functional_predicate_supersession(self) -> None:
-        await self.store.upsert_relation("ali", "lives_in", "berlin", chat_id="c1")
+        await self.store.upsert_relation("ali", "lives_in", "berlin", chat_id="c1", observed_at="2026-01-01T00:00:00+00:00")
         await self.store.upsert_relation("ali", "likes", "tea", chat_id="c1")
         await self.store.upsert_relation("ali", "likes", "coffee", chat_id="c1")
-        await self.store.upsert_relation("ali", "lives_in", "tokyo", chat_id="c2")
+        await self.store.upsert_relation("ali", "lives_in", "tokyo", chat_id="c2", observed_at="2026-06-01T00:00:00+00:00")
         active = {(r.predicate, r.object_id) for r in await self.store.relations_for("ali")}
         self.assertEqual(active, {("lives_in", "tokyo"), ("likes", "tea"), ("likes", "coffee")})
-        again = await self.store.upsert_relation("ali", "lives_in", "tokyo", chat_id="c3")
+        again = await self.store.upsert_relation("ali", "lives_in", "tokyo", chat_id="c3", observed_at="2026-07-01T00:00:00+00:00")
         self.assertEqual(again.observation_count, 2)
+        # an OLDER observation ingested later (bulk import of an old chat) must not replace the current value
+        older = await self.store.upsert_relation("ali", "lives_in", "paris", chat_id="old", observed_at="2020-01-01T00:00:00+00:00")
+        self.assertEqual(older.status, "superseded")
+        active = {(r.predicate, r.object_id) for r in await self.store.relations_for("ali")}
+        self.assertIn(("lives_in", "tokyo"), active)
+        self.assertNotIn(("lives_in", "paris"), active)
 
     async def test_keyword_candidates_and_retract(self) -> None:
         a = make_memory("Ali adopted a golden retriever named Bailey.")

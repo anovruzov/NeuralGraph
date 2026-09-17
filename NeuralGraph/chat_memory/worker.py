@@ -237,7 +237,7 @@ class MemoryWorker:
         await self.store.set_message_status([m.message_id for m in messages], "processing")
         hb = asyncio.create_task(self._heartbeat(ids))
         try:
-            plan = await self.extractor.build_plan(messages, ids)
+            plan = await self.extractor.build_plan(messages, ids, attempt=max(1, max(j.attempts for j in jobs)))
             counts = await self.store.apply_plan(plan, worker_id=self.worker_id)
         except asyncio.CancelledError:
             await self.store.set_message_status([m.message_id for m in messages], "pending")

@@ -346,8 +346,8 @@ class CandidateMemory:
 class ExtractionConfig:
     context_messages: int = 6
     max_message_chars: int = 1500
-    max_memories_per_batch: int = 12
-    max_triples_per_batch: int = 15
+    max_memories_per_batch: int = 8
+    max_triples_per_batch: int = 12
     registry_prompt_entities: int = 80
     known_memories_in_prompt: int = 12
     min_importance: float = 0.3
@@ -359,7 +359,7 @@ class ExtractionConfig:
     max_related_links: int = 3
     extract_relations: bool = True
     gate_chitchat: bool = True
-    generate_max_tokens: int = 900
+    generate_max_tokens: int = 2000        # 8 memories x ~150 tokens of JSON fits comfortably
     reconcile_max_tokens: int = 220
     llm_timeout: float = 120.0
     speaker_names: dict[str, str] = field(default_factory=dict)   # e.g. {"user": "Ali Novruzov"}
@@ -408,6 +408,14 @@ def _fmt_messages(msgs: list[ChatMessage], names: dict[str, str], max_chars: int
     return "\n".join(lines) if lines else "(none)"
 
 
+class UnparseableOutput(RuntimeError):
+    """The model returned no JSON object at all; the batch is retried (with variation) rather than dropped."""
+
+
+_REPAIR_SUFFIX = ("\n\nIMPORTANT: your previous answer to this request was not valid JSON. Return ONLY the JSON object, "
+                  "starting with {{ and ending with }}, with no prose before or after it.")
+
+
 class MemoryExtractor:
     """Turns a batch of messages into an :class:`ExtractionPlan` using the LLM. Read-only w.r.t. the store."""
 
@@ -418,7 +426,9 @@ class MemoryExtractor:
         self._pending_audit: list[tuple[str, str | None, dict[str, Any]]] = []
 
     # ------------------------------------------------------------------ public entry
-    async def build_plan(self, batch: list[ChatMessage], job_ids: Iterable[int] = ()) -> ExtractionPlan:
+    async def build_plan(self, batch: list[ChatMessage], job_ids: Iterable[int] = (), *, attempt: int = 1) -> ExtractionPlan:
+        """``attempt`` (1-based) comes from the job queue: retries get a repair instruction and more output room,
+        so a failed prompt is never re-sent byte-identical at temperature 0."""
         cfg = self.config
         assert batch, "empty batch"
         chat_id = batch[0].chat_id
@@ -452,25 +462,30 @@ class MemoryExtractor:
         ctx_txt = _fmt_messages(context, names, cfg.max_message_chars, numbered=False, assistant_roles=roles)
         new_txt = _fmt_messages(worthy, names, cfg.max_message_chars, numbered=True, assistant_roles=roles,
                                 annotate=cfg.annotate_relative_dates)
+        repair = _REPAIR_SUFFIX.format() if attempt > 1 else ""
+        max_tokens = int(cfg.generate_max_tokens * (1.0 + 0.5 * min(3, attempt - 1)))
         mem_prompt = MEMORY_PROMPT.format(
             kinds=", ".join(MEMORY_KINDS), max_memories=cfg.max_memories_per_batch,
             speakers=", ".join(names.get(s, s) for s in speakers) or "unknown",
             registry=registry.prompt_text(cfg.registry_prompt_entities),
             known_memories="\n".join(f"- {k}" for k in known) or "(none)",
             context=ctx_txt, messages=new_txt, date=date,
-        )
-        tasks = [self.llm.generate(mem_prompt, max_tokens=cfg.generate_max_tokens, timeout=cfg.llm_timeout)]
+        ) + repair
+        tasks = [self.llm.generate(mem_prompt, max_tokens=max_tokens, timeout=cfg.llm_timeout)]
         if cfg.extract_relations:
             rel_prompt = RELATION_PROMPT.format(
                 speakers=" and ".join(names.get(s, s) for s in speakers) or "unknown", max_triples=cfg.max_triples_per_batch,
                 registry=registry.prompt_text(cfg.registry_prompt_entities),
                 context=ctx_txt, messages=new_txt, date=date,
-            )
-            tasks.append(self.llm.generate(rel_prompt, max_tokens=cfg.generate_max_tokens, timeout=cfg.llm_timeout))
+            ) + repair
+            tasks.append(self.llm.generate(rel_prompt, max_tokens=max_tokens, timeout=cfg.llm_timeout))
         outs = await asyncio.gather(*tasks)
         mem_out = outs[0]
         rel_out = outs[1] if len(outs) > 1 else ""
 
+        if parse_json_object(mem_out) is None:
+            # no JSON at all (prose, refusal, empty): let the queue retry with variation instead of losing the facts
+            raise UnparseableOutput(f"memory extraction returned no JSON (attempt {attempt}): {clip(mem_out, 160)!r}")
         candidates = self._parse_memories(mem_out, worthy)
         self._pending_audit = []
         candidates = self._normalise(candidates, worthy, registry, speaker_ids, names)
@@ -500,13 +515,14 @@ class MemoryExtractor:
             plan.entities.append({"entity_id": eid, "name": registry.display(eid), "type": registry.type_of(eid),
                                   "seen_at": seen_at, "mentions": max(1, n)})
         # attach relation provenance: a memory that mentions both endpoints from the same source message
+        msg_time = {m.message_id: (m.sent_at or m.ingested_at) for m in worthy}
         for s, p, o, conf, msg_id in triples:
             mem_id = None
             for mem, srcs, ent_ids in plan.new_memories:
                 if s in ent_ids and o in ent_ids and (msg_id in srcs or not msg_id):
                     mem_id = mem.memory_id
                     break
-            plan.relations.append((s, p, o, conf, mem_id, msg_id))
+            plan.relations.append((s, p, o, conf, mem_id, msg_id, msg_time.get(msg_id)))
 
         plan.processed_message_ids.extend(m.message_id for m in worthy)
         return plan

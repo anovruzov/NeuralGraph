@@ -103,8 +103,11 @@ One pass:
 5. **Commit** – `ChatMemoryStore.apply_plan` writes memories, entities, relations, links, provenance,
    message and job status atomically.
 
-Failures back off exponentially (`backoff_base`, `backoff_max`) and dead-letter after `max_attempts`; the
-raw message keeps its text and is marked `failed` (`retry_dead_jobs` re-queues). Expired leases are swept on
+A model answer with no JSON at all is never silently dropped: the batch fails and is retried with variation
+(a repair instruction is appended, the output budget grows, and the batch is halved on every attempt so one
+bad message cannot poison its neighbours). Failures back off exponentially (`backoff_base`, `backoff_max`)
+and dead-letter after `max_attempts`; the raw message keeps its text and is marked `failed`
+(`retry_dead_jobs` re-queues). Expired leases are swept on
 start and periodically. If only the embedding endpoint is down, memories are stored without vectors and
 maintenance back-fills them. Maintenance (`maintenance_interval`) also merges near-duplicate memories that
 two chats produced at the same moment and prunes old finished jobs.
@@ -121,7 +124,11 @@ two chats produced at the same moment and prunes old finished jobs.
 * fused with RRF, then priors: importance, mild recency, ×`subject_boost` when the query names the memory's
   subject, ×`entity_boost` when it names a mentioned entity.
 
-Superseded memories are hidden unless `include_superseded=True` (then the history chain is appended).
+Superseded memories are hidden unless `include_superseded=True` (then the history chain is appended) or the
+query carries a time window (`since`/`until`): a fact that was later replaced was still the truth back then,
+so "where did Ali live in March?" returns the Berlin memory marked `superseded by …`. Single-valued relations
+(`lives_in`, `works_at`, …) follow the same rule: the observation with the latest *source* time is current,
+whatever order the chats were ingested in.
 `context_for()` renders the top hits as a compact block with an evidence floor (a line needs a keyword or
 graph hit, or cosine ≥ `context_min_vector_sim`) and a relative-score cutoff, and updates the token ledger.
 

@@ -15,6 +15,7 @@ from NeuralGraph.chat_memory.extraction import (
     EntityRegistry,
     ExtractionConfig,
     MemoryExtractor,
+    UnparseableOutput,
     parse_when,
 )
 from NeuralGraph.chat_memory.jsonutil import parse_json_array, parse_json_object
@@ -272,13 +273,27 @@ class ExtractorPlanTests(ExtractorTestCase):
         await self.store.apply_plan(plan)
         self.assertEqual(len(await self.store.memories_missing_embedding()), 2)
 
-    async def test_malformed_llm_output_yields_empty_plan_not_crash(self) -> None:
+    async def test_unparseable_output_raises_for_retry_and_retries_vary(self) -> None:
         m1, m2 = await self.seed()
         llm = FakeLLMClient(default_response="I cannot help with that.")
+        ex = MemoryExtractor(self.store, llm)
+        with self.assertRaises(UnparseableOutput):
+            await ex.build_plan([m1, m2])
+        with self.assertRaises(UnparseableOutput):
+            await ex.build_plan([m1, m2], attempt=2)
+        first, second = llm.prompts[0], llm.prompts[2]
+        self.assertNotEqual(first, second, "a retry must not resend the identical prompt")
+        self.assertIn("was not valid JSON", second)
+        # an explicit empty answer is fine: nothing worth remembering
+        llm = FakeLLMClient(default_response='{"memories": []}')
         plan = await MemoryExtractor(self.store, llm).build_plan([m1, m2])
         self.assertEqual(plan.new_memories, [])
-        self.assertEqual(plan.relations, [])
         self.assertEqual(sorted(plan.processed_message_ids), sorted([m1.message_id, m2.message_id]))
+
+    async def test_relations_carry_source_time(self) -> None:
+        m1, m2 = await self.seed()
+        plan = await MemoryExtractor(self.store, self.make_llm()).build_plan([m1, m2])
+        self.assertTrue(all(len(r) == 7 and r[6] == m1.sent_at for r in plan.relations))
 
 
 if __name__ == "__main__":
