@@ -118,7 +118,8 @@ def test_centralized_ship_everything_and_leak_every_canary() -> None:
         assert 0.98 <= m["fraction_raw_exposed"] <= 1.02, name
         assert m["compression_ratio"] is not None and 0.98 <= m["compression_ratio"] <= 1.02, name
         assert m["bytes_above_team"] == 0
-        assert m["stats"]["records_ingested"] == w.n, name
+        assert m["stats"]["records_received"] == w.n, name          # every record crosses the wire
+        assert m["stats"]["records_ingested"] <= w.n, name          # exact copies are stored once (content hash)
 
 
 def test_b0_never_leaves_the_device() -> None:

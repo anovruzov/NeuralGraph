@@ -54,6 +54,18 @@ class ObservationBatch:
         return len(self.idx)
 
 
+def schema_valid(attrs: np.ndarray, labels: np.ndarray) -> np.ndarray:
+    """Rows that parse: every attribute value inside its vocabulary and the label mask inside the 18 known
+    labels.  Any consumer of structured observations validates its input schema; this is not a lineage
+    feature, so every system (centralized or hierarchical) applies it at ingestion."""
+    attrs = np.asarray(attrs); labels = np.asarray(labels).astype(np.int64)
+    ok = np.ones(len(attrs), dtype=bool)
+    for a in range(N_ATTR):
+        ok &= (attrs[:, a] >= 0) & (attrs[:, a] < N_VALUES[a])
+    ok &= (labels >= 0) & (labels < (1 << N_LABELS))
+    return ok
+
+
 class SimulatedSLM:
     """Backend-agnostic perception channel with profile-driven noise."""
 

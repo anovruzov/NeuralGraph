@@ -84,19 +84,19 @@ def test_smoke_b7_returns_full_metric_dictionary() -> None:
     assert len(root.accepted_claims()) == m["n_root_claims"]
 
 
-def test_lineage_dedup_removes_copies() -> None:
+def test_content_hash_dedup_removes_copies_for_every_system() -> None:
+    """Exact copies (same content hash) are stored once by every system, lineage or not: content hashing is a
+    standard record-store measure.  Lineage adds provenance verification, not dedup."""
     cfg, w = small_world()
     n_copies = int(w.is_copy.sum())
     assert n_copies > 0
     b6 = run("B6_hier_no_lineage")["metrics"]
     b7 = run("B7_mycelic")["metrics"]
-    assert b6["stats"]["records_rejected"] == 0
-    assert b7["stats"]["records_rejected"] > 0
+    assert b6["stats"]["records_rejected"] == b7["stats"]["records_rejected"] > 0
     assert b7["stats"]["records_rejected"] <= n_copies
-    # copies count once for the lineage-aware system, so its team nodes retain fewer records
     kept6 = sum(len(np.concatenate(n.obs_idx)) for n in run("B6_hier_no_lineage")["hier"].layer_nodes("team"))
     kept7 = sum(len(np.concatenate(n.obs_idx)) for n in run("B7_mycelic")["hier"].layer_nodes("team"))
-    assert kept6 == w.n and kept7 == w.n - b7["stats"]["records_rejected"]
+    assert kept6 == kept7 == w.n - b7["stats"]["records_rejected"]
     # and no record fingerprint is retained twice under lineage
     for node in run("B7_mycelic")["hier"].layer_nodes("team"):
         fps = np.concatenate(node.obs_fp)

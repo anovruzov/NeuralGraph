@@ -23,7 +23,7 @@ from typing import Any, Callable
 
 import numpy as np
 
-from .agents import ObservationBatch, SimulatedSLM, make_batches
+from .agents import ObservationBatch, SimulatedSLM, make_batches, schema_valid
 from .hypothesis import Candidates, binomial_tail, claim_pvalues, null_evidence, rate_test, search
 from .schemas import Claim, Conflict, LineageRecord, QuestionArtifact, SupportRecord, stable_hash
 from .sketch import COL_DD, COL_DR, COL_DT, COL_DW, COL_K0, COL_N, N_COLS, Sketch
@@ -311,17 +311,20 @@ class UnitNode:
         self.model_calls += batch.model_calls
         self.tokens += batch.tokens_in
         self.quotes_received.extend(batch.quotes)
-        keep = np.ones(len(batch), dtype=bool)
+        keep = schema_valid(batch.attrs, batch.labels)   # malformed rows never parse (every system)
+        if not keep.all():
+            self.hier.stats["records_malformed_dropped"] = self.hier.stats.get("records_malformed_dropped", 0) + int((~keep).sum())
+        # content-hash dedup (copies / replayed evidence count once): a standard record-store measure that every
+        # system applies (the centralized baselines do the same at ingestion); it is not a lineage feature
+        fps = batch.fingerprint
+        uniq, first = np.unique(fps, return_index=True)
+        dup = np.ones(len(batch), dtype=bool)
+        dup[first] = False
+        already = np.array([int(f) in self.seen_fingerprints for f in fps], dtype=bool)
+        keep &= ~dup & ~already
+        self.seen_fingerprints.update(int(f) for f in uniq)
         if p.lineage:
-            keep &= batch.signature_ok
-            # evidence-hash dedup (copies / replayed evidence count once)
-            fps = batch.fingerprint
-            uniq, first = np.unique(fps, return_index=True)
-            dup = np.ones(len(batch), dtype=bool)
-            dup[first] = False
-            already = np.array([int(f) in self.seen_fingerprints for f in fps], dtype=bool)
-            keep &= ~dup & ~already
-            self.seen_fingerprints.update(int(f) for f in uniq)
+            keep &= batch.signature_ok   # provenance: a forged worker id fails signature verification
         sec = self.hier.security
         if sec is not None:
             keep &= sec.filter_batch(batch, self)

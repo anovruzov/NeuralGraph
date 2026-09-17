@@ -48,7 +48,7 @@ from typing import Any, Callable
 
 import numpy as np
 
-from .agents import OBS_BYTES_PER_RECORD, ObservationBatch, SimulatedSLM, make_batches
+from .agents import OBS_BYTES_PER_RECORD, ObservationBatch, SimulatedSLM, make_batches, schema_valid
 from .config import get_profile
 from .evaluate import (ClaimRecord, contradiction_metrics, evidence_metrics, failure_reasons_from_probe, match_effects,
                        privacy_metrics, raw_record_bytes, temporal_metrics, transition_fidelity)
@@ -96,23 +96,39 @@ def _concat(parts: list[Ingested]) -> Ingested:
         np.concatenate([p.confidence for p in parts]), [c for p in parts for c in p.injected], sum(p.quotes for p in parts))
 
 
-def ingest_round(world: World, records, idx: np.ndarray, slm: SimulatedSLM, attack_hook, failure_plan, round_: int) -> Ingested:
+def ingest_round(world: World, records, idx: np.ndarray, slm: SimulatedSLM, attack_hook, failure_plan, round_: int,
+                 seen_fp: set | None = None) -> Ingested:
     """Emit this round's records from the devices (perception by `slm`, then the
     attack hook and the failure record filter) and collect them centrally."""
     org = world.org
     batches = make_batches(records, idx, records.team, org.n_teams, slm, "none", attack_hook)
     parts: list[Ingested] = []
+    shipped: list[np.ndarray] = []   # every record the devices sent this round (before the centre's validation / dedup)
     for t, b in batches.items():
         if failure_plan is not None and hasattr(failure_plan, "record_filter"):
             b = failure_plan.record_filter(b, slm)
         if len(b) == 0 and not b.injected_claims:
             continue
-        w = b.worker.astype(np.int64)
+        shipped.append(np.asarray(b.idx))
+        # input validation (every system): malformed rows never parse; exact copies (same content hash) are
+        # stored once -- a content-hash index is standard for any record store and is not a lineage feature.
+        # What a centre cannot do is verify provenance (spoofed worker ids count) or discount correlated sources.
+        keep = schema_valid(b.attrs, b.labels)
+        if seen_fp is not None:
+            fps = b.fingerprint.astype(np.int64)
+            _, first = np.unique(fps, return_index=True)
+            dup = np.ones(len(b), dtype=bool); dup[first] = False
+            already = np.array([int(f) in seen_fp for f in fps], dtype=bool)
+            keep &= ~dup & ~already
+            seen_fp.update(int(f) for f in fps[keep])
+        w = b.worker.astype(np.int64)[keep]
         parts.append(Ingested(
-            b.idx, b.attrs.astype(np.int64), b.labels.astype(np.int64), w, org.worker_team[w], org.worker_department[w],
-            org.worker_region[w], b.fingerprint.astype(np.int64), np.full(len(b), round_), b.confidence,
-            list(b.injected_claims), len(b.quotes)))
-    return _concat(parts)
+            b.idx[keep], b.attrs.astype(np.int64)[keep], b.labels.astype(np.int64)[keep], w, org.worker_team[w],
+            org.worker_department[w], org.worker_region[w], b.fingerprint.astype(np.int64)[keep],
+            np.full(int(keep.sum()), round_), b.confidence[keep], list(b.injected_claims), len(b.quotes)))
+    out = _concat(parts)
+    out.shipped_idx = np.concatenate(shipped) if shipped else np.zeros(0, dtype=np.int64)
+    return out
 
 
 # --------------------------------------------------------------------------
@@ -574,10 +590,11 @@ def _run_b0(world, cfg, seed, policy, edge, records, order, bounds, analysis_rou
     snapshots: dict[int, list[ClaimRecord]] = {}
     parts: list[Ingested] = []
     tokens = 0; calls = 0
+    seen_fp: set = set()
     n_min = policy.n_min
     for r in range(world.n_rounds):
         idx = order[bounds[r]:bounds[r + 1]]
-        ing = ingest_round(world, records, idx, slm, attack_hook, failure_plan, r)
+        ing = ingest_round(world, records, idx, slm, attack_hook, failure_plan, r, seen_fp)
         tokens += len(ing) * TOKENS_PER_RECORD; calls += len(ing)
         parts.append(ing)
         if r in analysis_rounds:
@@ -633,6 +650,8 @@ def _run_central(world, cfg, seed, name, sys_cfg, policy, edge, frontier, perfec
     parts: list[Ingested] = []
     canaries: list[str] = []
     bytes_off = 0; tokens_cloud = 0; calls = 0; queries_charged = 0
+    seen_fp: set = set()   # content-hash index: exact copies are stored once
+    records_received = 0
     # A centre has no claim channel: attackers reach it through their records (fabricated, duplicated, spoofed,
     # label-flipped, injected text), never through device-emitted bare claims, which only agent architectures
     # without lineage (B5/B6) accept by replica count.  `ingest_bare_claims: true` restores the old behaviour.
@@ -683,12 +702,14 @@ def _run_central(world, cfg, seed, name, sys_cfg, policy, edge, frontier, perfec
 
     for r in range(world.n_rounds):
         idx = order[bounds[r]:bounds[r + 1]]
-        ing = ingest_round(world, records, idx, device, attack_hook, failure_plan, r)
+        ing = ingest_round(world, records, idx, device, attack_hook, failure_plan, r, seen_fp)
         parts.append(ing)
-        bytes_off += int(len(ing) * per_record_bytes)
-        canaries.extend(records.canaries_in(ing.idx))
-        if name in ("B2_central_rag", "B3_central_llm_summary") and len(ing):
-            text_bytes += sum(len(records.rationale(int(i))) for i in ing.idx)   # text a text-reading centre must receive
+        shipped_idx = getattr(ing, "shipped_idx", ing.idx)   # the wire carries every record, copies included
+        records_received += int(len(shipped_idx))
+        bytes_off += int(len(shipped_idx) * per_record_bytes)
+        canaries.extend(records.canaries_in(shipped_idx))
+        if name in ("B2_central_rag", "B3_central_llm_summary") and len(shipped_idx):
+            text_bytes += sum(len(records.rationale(int(i))) for i in shipped_idx)   # text a text-reading centre must receive
         if index is not None and len(ing):
             index.add([_index_text(world, records, int(i), index_fields) for i in ing.idx], ing.idx)
         if name == "B3_central_llm_summary" and len(ing):
@@ -801,6 +822,7 @@ def _run_central(world, cfg, seed, name, sys_cfg, policy, edge, frontier, perfec
         return f
 
     extra = {"records_ingested": len(allv), "queries_used": analyst.queries_used, "chunks": len(chunk_sketches),
+             "records_received": int(records_received),
              "injected_claims_ingested": len(allv.injected) if ingest_bare else 0, "injected_claims_seen": len(allv.injected),
              "text_bytes": int(text_bytes),
              # B2: tokens the reader would consume without the extraction cache (every hypothesis re-reads its top-k)

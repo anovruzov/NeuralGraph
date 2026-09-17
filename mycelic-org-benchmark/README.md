@@ -139,14 +139,14 @@ attributes and full text.
 | system | what it is | receives | lineage |
 |---|---|---|---|
 | `B0_isolated` | each worker searches only its own cumulative data | own records | n/a |
-| `B1_central_keyword` | central inverted index with exact facet counts; an analyst explores conjunctions of up to 4 terms by beam search under a query budget (3,000 per 10k records per analysis) | all raw records | none (copies and spoofs count) |
+| `B1_central_keyword` | central inverted index with exact facet counts; an analyst explores conjunctions of up to 4 terms by beam search under a query budget (3,000 per 10k records per analysis) | all raw records | none (spoofed worker ids count; exact copies are content-hashed once, as for every system) |
 | `B2_central_rag` | hashed bag-of-words retrieval; rate estimated from the top-k retrieved records per hypothesis | all raw records | none |
 | `B3_central_llm_summary` | records chunked; a frontier-profile extractor builds an order-<=3 sketch per chunk; pooled without lineage, organisation-wide scope | all raw records (all text to cloud) | none |
 | `B3_central_llm_summary_scoped` | as B3, but the extractor's per-record output is also reduced per organisational unit (the strongest chunked-summarisation variant) | all raw records (all text to cloud) | none |
 | `B4_majority_vote` | B1's candidate cells; workers with >=3 matching records vote from their own data; a simple majority of >=3 voters decides | all raw records | replica count |
 | `B5_flat_agents` | every edge agent promotes to one aggregator with a fan-in byte budget | sketches | none |
 | `B5_flat_agents_lineage` | the flat topology with B7's lineage features (isolates topology from lineage) | sketches + claims with lineage | yes |
-| `B6_hier_no_lineage` | the Mycelic topology without signatures, dedup, correlation discount or consistency test | sketches + claims | replica count |
+| `B6_hier_no_lineage` | the Mycelic topology without signatures, correlation discount, cross-source consistency or the two-child rule; bare claims accepted by replica count | sketches + claims | replica count |
 | `B7_mycelic` | lineage-aware five-layer hierarchy with DLP (no text leaves a device) | sketches + claims with lineage | yes |
 | `B8_mycelic_security` | B7 + local SLM content classifier + lineage-aware verifier | same | yes |
 | `B9_mycelic_questioning` | B8 + expected-information-gain questioning for order-(k+1) cells | same + question answers | yes |

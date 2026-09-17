@@ -129,7 +129,7 @@ def test_tables_run_on_fixture(results: Path, tmp_path: Path) -> None:
     for name in ("executive_comparison", "layer_fidelity", "failure_reasons", "stats_aggregation", "stats_headline"):
         assert written.get(name) is not None and Path(written[name]).exists(), name
     exec_md = (out / "executive_comparison.md").read_text()
-    assert "B7 Mycelic" in exec_md and "Oracle (upper bound)" in exec_md and "|" in exec_md
+    assert "B7 Mycelic" in exec_md and "Oracle (exact-data reference)" in exec_md and "|" in exec_md
     stats_md = (out / "stats_aggregation.md").read_text()
     assert "Cohen" in stats_md and "Holm" in stats_md and "B7_mycelic" in stats_md
     fid = (out / "layer_fidelity.md").read_text()

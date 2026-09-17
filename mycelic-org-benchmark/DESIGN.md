@@ -346,7 +346,7 @@ All receive the full raw `Interaction` list (rule 1.3) and the same
   from its own data; replica count decides.
 - `B5_flat_agents`: all edge agents promote to one aggregator with fan-in
   intake budget (bytes per round); overflow dropped by confidence order.
-- `B6_hier_no_lineage`: Mycelic topology, no signatures, no dedup, replica
+- `B6_hier_no_lineage`: Mycelic topology, no signatures, no correlation discount, no consistency test, replica
   count as support, no consistency test.
 - `B7_mycelic`: lineage-aware hierarchy (§6) with DLP.
 - `B8_mycelic_security`: B7 + LocalSLMClassifier + LineageAwareVerifier.

@@ -108,6 +108,14 @@ def outside_counts(sketch: Sketch, ids: np.ndarray) -> tuple[np.ndarray, np.ndar
         s_idx = np.arange(len(sel))[:, None]
         lab = np.arange(N_LABELS)[None, :]
         good = valid[s_idx, best, lab]                        # [s, L]: the chosen sub-cell is consistent
+        # A cell whose records are exactly those of one of its sub-cells (a present sub-cell with no records
+        # outside the cell) is not a distinct hypothesis: it cannot add anything beyond that sub-cell and is
+        # reported there instead.  Without this rule a block of identical attribute rows (a coordinated attack,
+        # or a tiny specialised team) makes every super-cell of the row "significant" against a weaker
+        # sub-marginal, and one signal becomes hundreds of over-specified claims.
+        present = sub_cnt[:, :, COL_N] > 0
+        degenerate = (present & (so_n == 0)).any(axis=1)      # [s]
+        good &= ~degenerate[:, None]
         n_out[sel] = np.where(good, so_n[s_idx, best], 0)
         k_out[sel] = np.where(good, so_k[s_idx, best, lab], 0)
         ok[sel] = good.any(axis=1)
