@@ -95,9 +95,14 @@ runs Qwen in parallel to selectively extract memories and relationships, hybrid 
 Streamable HTTP for cloud). See [docs/CHAT_MEMORY.md](docs/CHAT_MEMORY.md).
 
 ```bash
+.venv/bin/python demo/chat_memory_live_demo.py --fake-llm                     # narrated live demo, no model server needed
 .venv/bin/python -m NeuralGraph.chat_memory serve --user-name "Your Name"     # http://127.0.0.1:8765/
-.venv/bin/python demo/chat_memory_demo.py --fake-llm                          # no model server needed
 ```
+
+The live demo streams five chats into the running system while the dashboard animates, asks memory the
+questions Claude would ask through MCP before each new chat, and ends with cross-chat questions
+(`--screenshots` saves a storyboard to `demo/results/chat_memory_demo/`). Planning brief for the next
+phase: [docs/PLANNING_PROMPT.md](docs/PLANNING_PROMPT.md).
 
 ## Local Models
 

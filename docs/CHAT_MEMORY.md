@@ -63,6 +63,12 @@ async with ChatMemory("~/.neuralgraph/chat_memory.db") as cm:        # worker st
 
 No model server? `--fake-llm` (CLI) or `llm=scripted_fake_llm()` (Python) runs a deterministic stand-in.
 
+**Live demo:** `.venv/bin/python demo/chat_memory_live_demo.py --fake-llm` starts everything, replays
+`evaluation/chats/sample_chats.jsonl` with human pacing, calls `memory_context`/`memory_search` over the
+MCP endpoint the way Claude would, prints what the worker learned after each chat, and keeps serving at the
+end (`--screenshots` saves a storyboard, `--locomo 0` adds a 400-message chat for volume, `--no-serve` exits
+when the story ends; drop `--fake-llm` to use your local model).
+
 ## What gets stored
 
 | Table | Contents |
