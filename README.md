@@ -87,6 +87,18 @@ Conversation / Event Stream
    Grounded Answer + Evidence
 ```
 
+## Cross-chat memory (new)
+
+`NeuralGraph.chat_memory` stores memories across all of your chats: a SQLite store, a background worker that
+runs Qwen in parallel to selectively extract memories and relationships, hybrid retrieval, a live dashboard
+(avatar with tokens saved, pentagon grade), a REST API, and MCP access for Claude (stdio for local/edge,
+Streamable HTTP for cloud). See [docs/CHAT_MEMORY.md](docs/CHAT_MEMORY.md).
+
+```bash
+.venv/bin/python -m NeuralGraph.chat_memory serve --user-name "Your Name"     # http://127.0.0.1:8765/
+.venv/bin/python demo/chat_memory_demo.py --fake-llm                          # no model server needed
+```
+
 ## Local Models
 
 The current answering and embedding pipeline is designed to work with local models through [Ollama](https://ollama.com/).

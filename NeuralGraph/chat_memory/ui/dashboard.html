@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NeuralGraph Memory</title>
+<meta name="description" content="Live dashboard for the cross-chat memory worker: avatar, tokens saved, pentagon grade, memory stream.">
+<style>
+:root{
+  color-scheme:light;
+  --surface-0:#f4f3f0; --surface-1:#fcfcfb; --surface-2:#ecebe7; --line:#dcdad4;
+  --text-primary:#0b0b0b; --text-secondary:#52514e; --text-muted:#7a7873;
+  --accent:#2a78d6; --accent-soft:#cde2fb; --accent-deep:#1c5cab;
+  --series-2:#eb6834; --series-3:#1baf7a;
+  --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
+  --radius:14px; --shadow:0 1px 2px rgba(0,0,0,.06),0 8px 24px rgba(0,0,0,.05);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --surface-0:#121211; --surface-1:#1a1a19; --surface-2:#242422; --line:#33332f;
+    --text-primary:#ffffff; --text-secondary:#c3c2b7; --text-muted:#8d8c84;
+    --accent:#3987e5; --accent-soft:#184f95; --accent-deep:#86b6ef;
+    --series-2:#d95926; --series-3:#199e70;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --surface-0:#121211; --surface-1:#1a1a19; --surface-2:#242422; --line:#33332f;
+  --text-primary:#ffffff; --text-secondary:#c3c2b7; --text-muted:#8d8c84;
+  --accent:#3987e5; --accent-soft:#184f95; --accent-deep:#86b6ef;
+  --series-2:#d95926; --series-3:#199e70;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--surface-0);color:var(--text-primary);
+  font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,Inter,sans-serif}
+a{color:var(--accent)}
+.wrap{max-width:1240px;margin:0 auto;padding:20px 16px 48px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+header h1{font-size:18px;margin:0;font-weight:650;letter-spacing:.2px}
+header h1 span{color:var(--text-muted);font-weight:500}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:var(--surface-2);
+  color:var(--text-secondary);font-size:12.5px;border:1px solid var(--line)}
+.pill i{width:8px;height:8px;border-radius:50%;background:var(--text-muted);display:inline-block}
+.pill.good i{background:var(--good)} .pill.warn i{background:var(--warning)} .pill.bad i{background:var(--critical)}
+.pill.busy i{background:var(--accent);animation:blink 1s infinite}
+@keyframes blink{50%{opacity:.25}}
+button,input,select,textarea{font:inherit;color:inherit}
+button{background:var(--accent);color:#fff;border:0;border-radius:10px;padding:8px 14px;cursor:pointer;font-weight:600}
+button.ghost{background:var(--surface-2);color:var(--text-primary);border:1px solid var(--line)}
+input,textarea,select{background:var(--surface-1);border:1px solid var(--line);border-radius:10px;padding:8px 10px;width:100%}
+textarea{min-height:64px;resize:vertical}
+.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px}
+.card{grid-column:span 12;background:var(--surface-1);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:16px 18px;min-width:0}
+.card h2{margin:0 0 10px;font-size:13px;font-weight:650;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.6px}
+@media (min-width:860px){
+  .c4{grid-column:span 4}.c5{grid-column:span 5}.c6{grid-column:span 6}.c7{grid-column:span 7}.c8{grid-column:span 8}.c3{grid-column:span 3}
+}
+/* avatar + hero */
+.avatar-row{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.avatar{width:150px;height:150px;flex:0 0 auto}
+.hero{flex:1 1 220px;min-width:0}
+.hero .label{font-size:13px;color:var(--text-secondary)}
+.hero .value{font-size:52px;font-weight:650;line-height:1.05;letter-spacing:-.5px;margin:2px 0 6px}
+.hero .sub{color:var(--text-secondary);font-size:13px}
+.mood{margin-top:8px;font-size:13px;color:var(--text-secondary)}
+.mood b{color:var(--text-primary);font-weight:600}
+/* stat tiles */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px}
+.tile{background:var(--surface-2);border-radius:12px;padding:10px 12px;border:1px solid var(--line)}
+.tile .l{font-size:12px;color:var(--text-secondary)}
+.tile .v{font-size:22px;font-weight:650;margin-top:2px}
+.tile .d{font-size:12px;color:var(--text-muted);margin-top:2px}
+/* pentagon */
+.penta{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.penta svg{width:340px;max-width:100%;height:auto;flex:0 0 auto}
+.penta table{border-collapse:collapse;font-size:13px;flex:1 1 180px}
+.penta td{padding:4px 8px;border-bottom:1px solid var(--line)}
+.penta td:last-child{text-align:right;font-variant-numeric:tabular-nums}
+.penta .letter{font-size:40px;font-weight:700;fill:var(--text-primary)}
+.penta .axis-label{font-size:11.5px;fill:var(--text-secondary)}
+.penta .axis-value{font-size:11px;fill:var(--text-primary);font-weight:600}
+.penta .ring{fill:none;stroke:var(--line);stroke-width:1}
+.penta .spoke{stroke:var(--line);stroke-width:1}
+.penta .poly{fill:var(--accent);fill-opacity:.18;stroke:var(--accent);stroke-width:2;stroke-linejoin:round;transition:d .6s ease}
+.penta .dot{fill:var(--accent);stroke:var(--surface-1);stroke-width:2}
+.penta .hit{fill:transparent;cursor:default}
+.tip{position:fixed;pointer-events:none;background:var(--surface-1);border:1px solid var(--line);border-radius:8px;
+  padding:6px 9px;font-size:12.5px;box-shadow:var(--shadow);display:none;z-index:9;max-width:260px}
+/* feed */
+.feed{list-style:none;margin:0;padding:0;max-height:420px;overflow:auto}
+.feed li{padding:8px 0;border-bottom:1px solid var(--line);display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start}
+.feed .k{font-size:11px;padding:2px 7px;border-radius:999px;background:var(--surface-2);color:var(--text-secondary);
+  border:1px solid var(--line);white-space:nowrap;margin-top:2px}
+.feed .t{font-size:14px}
+.feed .m{font-size:12px;color:var(--text-muted);margin-top:2px}
+.feed .m b{color:var(--text-secondary);font-weight:600}
+.feed li.new{animation:pop .7s ease}
+@keyframes pop{from{background:var(--accent-soft)}to{background:transparent}}
+.ents{display:flex;flex-wrap:wrap;gap:6px}
+.ent{font-size:12.5px;padding:3px 9px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line);color:var(--text-primary)}
+.ent small{color:var(--text-muted);margin-left:4px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.row>*{flex:1 1 140px}
+.row>button{flex:0 0 auto}
+.muted{color:var(--text-muted);font-size:12.5px}
+.result{padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+.result .why{font-size:12px;color:var(--text-muted)}
+pre{white-space:pre-wrap;background:var(--surface-2);border-radius:10px;padding:10px;font-size:12.5px;margin:8px 0 0;border:1px solid var(--line)}
+.meter{height:8px;background:var(--accent-soft);border-radius:999px;overflow:hidden;margin-top:6px}
+.meter i{display:block;height:100%;background:var(--accent);border-radius:999px;transition:width .5s}
+.sr{position:absolute;left:-9999px}
+footer{margin-top:18px;color:var(--text-muted);font-size:12.5px;display:flex;gap:12px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>NeuralGraph Memory <span>· cross-chat memory worker</span></h1>
+    <div class="row" style="flex:0 0 auto">
+      <span id="worker-pill" class="pill"><i></i><span>connecting…</span></span>
+      <span id="llm-pill" class="pill"><i></i><span>model</span></span>
+      <button class="ghost" id="theme" title="Toggle theme" aria-label="Toggle theme">◐</button>
+    </div>
+  </header>
+
+  <div class="grid">
+    <section class="card c5" aria-label="Avatar and tokens saved">
+      <div class="avatar-row">
+        <svg class="avatar" id="avatar" viewBox="0 0 150 150" role="img" aria-label="Memory avatar">
+          <defs>
+            <radialGradient id="g1" cx="50%" cy="40%" r="60%">
+              <stop offset="0%" stop-color="var(--accent-soft)"/>
+              <stop offset="100%" stop-color="var(--accent)"/>
+            </radialGradient>
+          </defs>
+          <circle id="halo" cx="75" cy="75" r="66" fill="var(--accent)" fill-opacity=".10"/>
+          <circle id="ring1" cx="75" cy="75" r="58" fill="none" stroke="var(--accent)" stroke-opacity=".35" stroke-width="1.5" stroke-dasharray="6 7"/>
+          <circle cx="75" cy="75" r="46" fill="url(#g1)"/>
+          <g id="face">
+            <ellipse class="eye" cx="61" cy="70" rx="5" ry="6.5" fill="#fff"/>
+            <ellipse class="eye" cx="89" cy="70" rx="5" ry="6.5" fill="#fff"/>
+            <circle cx="62" cy="71" r="2.4" fill="#0b0b0b"/>
+            <circle cx="90" cy="71" r="2.4" fill="#0b0b0b"/>
+            <path id="mouth" d="M62 88 Q75 96 88 88" stroke="#fff" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+          </g>
+          <g id="sparks" opacity="0">
+            <circle cx="118" cy="40" r="3" fill="var(--series-3)"/>
+            <circle cx="30" cy="48" r="2.2" fill="var(--series-2)"/>
+            <circle cx="120" cy="108" r="2.2" fill="var(--series-3)"/>
+          </g>
+        </svg>
+        <div class="hero">
+          <div class="label">Tokens saved by memory</div>
+          <div class="value" id="tokens-saved">—</div>
+          <div class="sub" id="tokens-sub">raw chat text digested vs. the memories that replace it</div>
+          <div class="meter" title="compression"><i id="compress-bar" style="width:0%"></i></div>
+          <div class="mood" id="mood">Waking up…</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card c7" aria-label="Pentagon grade">
+      <h2>Pentagon grade</h2>
+      <div class="penta">
+        <svg id="penta" viewBox="0 0 380 300" role="img" aria-labelledby="penta-title">
+          <title id="penta-title">Five-axis grade of the memory system</title>
+        </svg>
+        <table aria-label="Grade axes as a table">
+          <tbody id="penta-table"></tbody>
+        </table>
+      </div>
+      <div class="muted" id="grade-note"></div>
+    </section>
+
+    <section class="card c12" aria-label="Counters">
+      <div class="tiles" id="tiles"></div>
+    </section>
+
+    <section class="card c7" aria-label="Memory stream">
+      <h2>Live memory stream</h2>
+      <ul class="feed" id="feed"><li><span class="k">…</span><div class="t muted">waiting for the worker</div></li></ul>
+    </section>
+
+    <section class="card c5" aria-label="Entities">
+      <h2>Entity graph</h2>
+      <div class="ents" id="ents"><span class="muted">no entities yet</span></div>
+      <h2 style="margin-top:16px">Recent events</h2>
+      <ul class="feed" id="events" style="max-height:200px"></ul>
+    </section>
+
+    <section class="card c6" aria-label="Ask memory">
+      <h2>Ask memory</h2>
+      <div class="row">
+        <input id="q" placeholder="e.g. where does Ali live? what are Mel's pets called?" aria-label="Query">
+        <button id="search">Search</button>
+        <button class="ghost" id="ctx">Context block</button>
+      </div>
+      <div id="results" style="margin-top:8px"></div>
+    </section>
+
+    <section class="card c6" aria-label="Feed a message">
+      <h2>Feed a chat turn (the worker learns automatically)</h2>
+      <div class="row">
+        <input id="chat" placeholder="chat id" value="demo-chat" aria-label="Chat id">
+        <input id="speaker" placeholder="speaker" value="user" aria-label="Speaker">
+      </div>
+      <textarea id="text" placeholder="I moved to Berlin in March and my cat Luna is 3 years old" aria-label="Message text" style="margin-top:8px"></textarea>
+      <div class="row" style="margin-top:8px">
+        <span class="muted">Posts to <code>/api/messages</code>; nothing blocks on the model.</span>
+        <button id="send">Send</button>
+      </div>
+      <div id="send-status" class="muted" style="margin-top:6px"></div>
+    </section>
+  </div>
+  <footer>
+    <span>API: <code>/api/status</code>, <code>/api/search?q=</code>, <code>POST /api/messages</code></span>
+    <span>MCP (Streamable HTTP): <code>/mcp</code> · stdio: <code>python -m NeuralGraph.chat_memory mcp</code></span>
+    <span id="db"></span>
+  </footer>
+</div>
+<div class="tip" id="tip" role="tooltip"></div>
+
+<script>
+(function(){
+  const $ = s => document.querySelector(s);
+  const fmt = n => n==null ? '—' : (n>=1e6? (n/1e6).toFixed(2)+'M' : n>=1e4 ? (n/1e3).toFixed(1)+'K' : n>=1e3 ? (n/1e3).toFixed(2)+'K' : String(n));
+  const esc = s => String(s??'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  // theme toggle (per-viewer convenience)
+  const root = document.documentElement;
+  try { const t = localStorage.getItem('ng-theme'); if (t) root.setAttribute('data-theme', t); } catch(e){}
+  $('#theme').onclick = () => {
+    const cur = root.getAttribute('data-theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark':'light');
+    const nxt = cur === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', nxt);
+    try { localStorage.setItem('ng-theme', nxt); } catch(e){}
+  };
+
+  // ---------- pentagon (single series, fixed axis order, 0-100 scale) ----------
+  const AXES = [
+    ['coverage','Coverage','share of ingested messages the worker has digested'],
+    ['compression','Compression','1 - memory tokens / raw tokens'],
+    ['connectivity','Connectivity','relations + links per memory'],
+    ['freshness','Freshness','how far behind the newest message the worker is'],
+    ['reliability','Reliability','1 - failed batches, minus dead jobs'],
+  ];
+  const svg = $('#penta'), NS = 'http://www.w3.org/2000/svg';
+  const CX=190, CY=150, R=100;
+  const pt = (i, v) => { const a = -Math.PI/2 + i*2*Math.PI/5; const r = R*v/100; return [CX + r*Math.cos(a), CY + r*Math.sin(a)]; };
+  const el = (n, attrs, parent) => { const e = document.createElementNS(NS, n); for (const k in attrs) e.setAttribute(k, attrs[k]); (parent||svg).appendChild(e); return e; };
+  // rings + spokes (recessive)
+  [20,40,60,80,100].forEach(v => el('polygon', {class:'ring', points: AXES.map((_,i)=>pt(i,v).join(',')).join(' ')}));
+  AXES.forEach((_,i)=>{ const [x,y]=pt(i,100); el('line',{class:'spoke',x1:CX,y1:CY,x2:x,y2:y}); });
+  const poly = el('polygon', {class:'poly', points: AXES.map((_,i)=>pt(i,0).join(',')).join(' ')});
+  const dots = AXES.map((_,i)=>el('circle',{class:'dot',r:4,cx:CX,cy:CY}));
+  const labels = AXES.map((a,i)=>{ const [x,y]=pt(i,122); const anchor = Math.abs(x-CX)<8 ? 'middle' : (x<CX?'end':'start');
+    const t = el('text',{class:'axis-label',x,y:y+(i===0?-2:4),'text-anchor':anchor}); t.textContent=a[1];
+    const v = el('text',{class:'axis-value',x,y:y+(i===0?-2:4)+14,'text-anchor':anchor}); v.textContent='—'; return [t,v]; });
+  const letter = el('text',{class:'letter',x:CX,y:CY+14,'text-anchor':'middle'}); letter.textContent='—';
+  const hits = AXES.map((a,i)=>{ const h = el('circle',{class:'hit',r:16,cx:CX,cy:CY}); h.dataset.i=i; return h; });
+  const tip = $('#tip');
+  hits.forEach(h=>{ h.addEventListener('mousemove', e=>{ const a=AXES[+h.dataset.i]; const v=h.dataset.v||'—';
+      tip.style.display='block'; tip.innerHTML=`<b>${a[1]}</b> ${v}<br><span class="muted">${a[2]}</span>`;
+      tip.style.left=(e.clientX+12)+'px'; tip.style.top=(e.clientY+12)+'px'; });
+    h.addEventListener('mouseleave', ()=> tip.style.display='none'); });
+
+  function drawGrade(g){
+    const axes = g.axes || {};
+    poly.setAttribute('points', AXES.map((a,i)=>pt(i, axes[a[0]]||0).join(',')).join(' '));
+    AXES.forEach((a,i)=>{ const v = axes[a[0]]||0; const [x,y]=pt(i,v); dots[i].setAttribute('cx',x); dots[i].setAttribute('cy',y);
+      hits[i].setAttribute('cx',x); hits[i].setAttribute('cy',y); hits[i].dataset.v = v.toFixed(0)+' / 100'; labels[i][1].textContent = v.toFixed(0); });
+    letter.textContent = g.letter || '—';
+    $('#penta-table').innerHTML = AXES.map(a=>`<tr><td>${a[1]}</td><td>${(axes[a[0]]??0).toFixed(0)}</td></tr>`).join('') +
+      `<tr><td><b>Overall</b></td><td><b>${(g.overall??0).toFixed(0)} · ${esc(g.letter||'—')}</b></td></tr>`;
+  }
+
+  // ---------- avatar ----------
+  let blinkT = 0;
+  function setMood(st){
+    const w = st.worker||{}; const busy = (w.busy_workers||0)>0; const running = !!w.running;
+    const jobs = st.jobs||{}; const queued = (jobs.queued||0)+(jobs.leased||0);
+    const halo = $('#halo'), ring = $('#ring1'), sparks=$('#sparks'), mouth=$('#mouth');
+    halo.style.transition='fill-opacity .6s'; halo.setAttribute('fill-opacity', busy? .22 : .10);
+    ring.style.transformOrigin='75px 75px'; ring.style.animation = busy ? 'spin 6s linear infinite' : 'none';
+    sparks.setAttribute('opacity', busy ? 1 : 0);
+    mouth.setAttribute('d', w.last_error && !busy ? 'M62 92 Q75 86 88 92' : (busy ? 'M60 86 Q75 100 90 86' : 'M62 88 Q75 96 88 88'));
+    const mood = !running ? 'Worker is <b>stopped</b>' : busy ? `<b>Learning</b> — ${w.busy_workers} of ${w.concurrency} workers busy, ${queued} queued` :
+                 queued ? `<b>Waiting</b> — ${queued} queued (backing off or debouncing)` : '<b>Idle</b> — everything digested';
+    $('#mood').innerHTML = mood + (w.last_error ? `<br><span class="muted">last error: ${esc(String(w.last_error).slice(0,120))}</span>` : '');
+    const pill = $('#worker-pill'); pill.className = 'pill ' + (!running ? 'bad' : busy ? 'busy' : ((jobs.dead||0)>0 ? 'warn':'good'));
+    pill.lastElementChild.textContent = !running ? 'worker stopped' : busy ? 'worker busy' : 'worker idle';
+  }
+  const style = document.createElement('style'); style.textContent='@keyframes spin{to{transform:rotate(360deg)}}'; document.head.appendChild(style);
+  setInterval(()=>{ const eyes=document.querySelectorAll('.eye'); eyes.forEach(e=>e.setAttribute('ry', .8)); setTimeout(()=>eyes.forEach(e=>e.setAttribute('ry',6.5)),120); }, 4200);
+
+  // ---------- render ----------
+  let seen = new Set(), first = true;
+  function render(st){
+    const tk = st.tokens||{};
+    $('#tokens-saved').textContent = fmt(tk.tokens_saved||0);
+    $('#tokens-sub').textContent = `${fmt(tk.raw_tokens_digested||0)} raw tokens → ${fmt(tk.memory_tokens||0)} memory tokens` + (tk.compression_ratio? ` · ${tk.compression_ratio}× smaller` : '') + (tk.context_queries? ` · ${tk.context_queries} context queries avoided ${fmt(tk.context_raw_tokens_avoided)} tokens`:'');
+    const ratio = tk.raw_tokens_digested ? Math.max(0, Math.min(100, 100*(1 - (tk.memory_tokens||0)/tk.raw_tokens_digested))) : 0;
+    $('#compress-bar').style.width = ratio.toFixed(0)+'%';
+    drawGrade(st.grade||{});
+    $('#grade-note').textContent = `Overall ${(st.grade?.overall??0).toFixed(1)} → grade ${st.grade?.letter||'—'}. Axes are 0–100; hover a corner for the definition.`;
+    setMood(st);
+    const m = st.messages||{}, mem = st.memories||{}, jobs = st.jobs||{}, w = st.worker||{};
+    const tiles = [
+      ['Chats', st.chats||0, ''],
+      ['Messages', Object.values(m).reduce((a,b)=>a+b,0), `${m.processed||0} processed · ${m.skipped||0} skipped · ${m.pending||0} pending`],
+      ['Active memories', (mem.by_status||{}).active||0, `${(mem.by_status||{}).superseded||0} superseded`],
+      ['Entities', st.entities||0, ''],
+      ['Relations', (st.relations||{}).active||0, `${st.links||0} memory links`],
+      ['Queue', (jobs.queued||0)+(jobs.leased||0), `${jobs.done||0} done · ${jobs.dead||0} dead`],
+      ['LLM calls', (st.llm||{}).generate_calls||0, `${(st.llm||{}).embed_calls||0} embeddings · ${(w.failures||0)} failed batches`],
+      ['Last batch', w.last_batch_seconds ? w.last_batch_seconds.toFixed(1)+'s' : '—', w.last_batch_at ? new Date(w.last_batch_at).toLocaleTimeString() : ''],
+    ];
+    $('#tiles').innerHTML = tiles.map(t=>`<div class="tile"><div class="l">${t[0]}</div><div class="v">${typeof t[1]==='number'?fmt(t[1]):esc(t[1])}</div><div class="d">${esc(t[2])}</div></div>`).join('');
+    const llm = st.llm||{}; $('#llm-pill').lastElementChild.textContent = `${llm.model||'?'} @ ${llm.base_url||''}`; $('#llm-pill').className='pill';
+    // feed
+    const feed = $('#feed'); const items = st.recent_memories||[];
+    if (items.length){
+      feed.innerHTML = items.map(x=>`<li class="${(!first && !seen.has(x.memory_id))?'new':''}"><span class="k">${esc(x.kind)}</span><div><div class="t">${esc(x.text)}</div><div class="m"><b>${esc(x.subject_name)}</b> · ${esc(x.chat_id)} · ${esc((x.event_time||x.observed_at||'').slice(0,10))} · imp ${x.importance} · v${x.version} ${x.metadata&&x.metadata.decision&&x.metadata.decision!=='ADD'?'· '+esc(x.metadata.decision):''}</div></div></li>`).join('');
+      items.forEach(x=>seen.add(x.memory_id));
+    }
+    const ents = st.top_entities||[];
+    $('#ents').innerHTML = ents.length ? ents.map(e=>`<span class="ent">${esc(e.name)}<small>${esc(e.type||'')} ${e.mention_count}</small></span>`).join('') : '<span class="muted">no entities yet</span>';
+    const ev = st.recent_events||[];
+    $('#events').innerHTML = ev.map(e=>`<li><span class="k">${esc(e.kind)}</span><div class="t muted">${esc(JSON.stringify(e.detail)).slice(0,140)}</div></li>`).join('') || '<li><span class="k">…</span><div class="t muted">no events yet</div></li>';
+    $('#db').textContent = `db: ${st.db_path||''}`;
+    first = false;
+  }
+  async function poll(){
+    try { const r = await fetch('/api/status', {cache:'no-store'}); if (r.ok) render(await r.json()); else throw new Error(r.status); }
+    catch(e){ const p=$('#worker-pill'); p.className='pill bad'; p.lastElementChild.textContent='server unreachable'; }
+    finally { setTimeout(poll, 2000); }
+  }
+  poll();
+
+  // ---------- ask ----------
+  async function search(){
+    const q = $('#q').value.trim(); if(!q) return;
+    $('#results').innerHTML = '<span class="muted">searching…</span>';
+    const r = await fetch('/api/search?q='+encodeURIComponent(q)+'&k=8'); const d = await r.json();
+    $('#results').innerHTML = (d.results||[]).map(x=>`<div class="result">${esc(x.memory.text)}<div class="why">${esc(x.memory.subject_name)} · ${esc(x.memory.kind)} · ${esc(x.memory.chat_id)} · score ${x.score.toFixed(3)} · ${esc(x.explanation)}</div></div>`).join('') || '<span class="muted">nothing relevant stored yet</span>';
+  }
+  $('#search').onclick = search; $('#q').addEventListener('keydown', e=>{ if(e.key==='Enter') search(); });
+  $('#ctx').onclick = async ()=>{ const q=$('#q').value.trim(); if(!q) return; const r=await fetch('/api/context?q='+encodeURIComponent(q)); const d=await r.json();
+    $('#results').innerHTML = `<pre>${esc(d.context||'(empty: nothing relevant)')}</pre>`; };
+  $('#send').onclick = async ()=>{
+    const body = {chat_id: $('#chat').value.trim()||'demo-chat', speaker: $('#speaker').value.trim()||'user', text: $('#text').value};
+    if(!body.text.trim()) return;
+    const r = await fetch('/api/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const d = await r.json(); $('#send-status').textContent = r.ok ? `queued as ${d.message.message_id} (seq ${d.message.seq})` : ('error: '+(d.error||r.status));
+    if (r.ok) $('#text').value='';
+  };
+})();
+</script>
+</body>
+</html>
