@@ -521,6 +521,26 @@ def raw_record_bytes(world: World, idx: np.ndarray | None = None) -> int:
     return int(avg * n)
 
 
+def _true_cell_rate(world: World, e: Effect) -> float:
+    """Noise-free rate of the effect's label inside its cell (and scope): what a perfect perceiver's
+    evidence would show.  NaN when the world carries no population truth."""
+    pt = getattr(world, "p_true", None)
+    if pt is None:
+        return float("nan")
+    mask = cell_match_mask(world.attrs, e.cell)
+    if e.scope_layer in ("team", "department", "region"):
+        mask &= world.org.membership(e.scope_layer)[world.worker] == e.scope_unit
+    if not mask.any():
+        return float("nan")
+    return float(pt[mask, e.label].mean())
+
+
+def _attenuated(k: int, n: int, true_rate: float, factor: float = 0.7) -> bool:
+    """True when the system's perceived label rate is below `factor` x the noise-free rate: the evidence
+    reached the tester but perception (attribute omission, label drop) attenuated it."""
+    return n > 0 and true_rate == true_rate and (k / n) < factor * true_rate
+
+
 def failure_reasons_from_probe(world: World, m: dict[str, Any], probe, kinds: tuple[str, ...] = ("cross_team", "global")) -> dict[str, int]:
     """Failure-reason classification for systems without a `Hierarchy` (baselines).
 
@@ -562,12 +582,12 @@ def failure_reasons_from_probe(world: World, m: dict[str, Any], probe, kinds: tu
                 r = "statistical_power"
             elif f.get("votes_for") is not None:
                 r = "insufficient_independent_support"
-            elif k / max(n, 1) < e.delta * 0.35:
+            elif k / max(n, 1) < e.delta * 0.35 or _attenuated(k, n, _true_cell_rate(world, e)):
                 r = "model_reasoning_failure"
             elif e.valid_to is not None:
                 r = "temporal_staleness"
             else:
-                r = "statistical_power"
+                r = "statistical_power"   # the evidence was there and un-attenuated; the shared test at BH q did not accept it
         else:
             r = "routing_failure"   # tested only in a wider pool where the scoped effect is diluted
         reasons[r] = reasons.get(r, 0) + 1
@@ -617,11 +637,13 @@ def failure_reasons_hierarchy(world: World, m: dict[str, Any], hier, policy) -> 
             r = "compression_loss" if n_root > 0 else "aggregation_loss"
         elif n_root < e.n_min:
             r = "statistical_power"
-        elif k_root / max(n_root, 1) < e.delta * 0.35:
-            r = "model_reasoning_failure"
+        elif k_root / max(n_root, 1) < e.delta * 0.35 or _attenuated(k_root, n_root, _true_cell_rate(world, e)):
+            r = "model_reasoning_failure"   # perception attenuated the rate the root sees by > 30 %
+        elif len(root.child_cell_counts(e.cell)) < 2 and len(root.children) >= 2:
+            r = "insufficient_independent_support"   # the two-child synthesis rule: one child holds all the evidence
         elif e.valid_to is not None:
             r = "temporal_staleness"
         else:
-            r = "statistical_power"
+            r = "statistical_power"   # evidence present and un-attenuated; the shared test at BH q did not accept it
         reasons[r] = reasons.get(r, 0) + 1
     return reasons

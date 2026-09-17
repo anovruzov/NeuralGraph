@@ -96,10 +96,10 @@ SYSTEM_ORDER = [
 ]
 SYSTEM_LABEL = {
     "B0_isolated": "B0 isolated workers", "B1_central_keyword": "B1 central keyword", "B2_central_rag": "B2 central RAG",
-    "B3_central_llm_summary": "B3 central LLM summary", "B4_majority_vote": "B4 majority vote",
-    "B5_flat_agents": "B5 flat agents", "B6_hier_no_lineage": "B6 hierarchy, no lineage", "B7_mycelic": "B7 Mycelic",
+    "B3_central_llm_summary": "B3 central LLM summary", "B3_central_llm_summary_scoped": "B3 central LLM summary (scoped)", "B4_majority_vote": "B4 majority vote",
+    "B5_flat_agents": "B5 flat agents", "B5_flat_agents_lineage": "B5 flat agents + lineage", "B6_hier_no_lineage": "B6 hierarchy, no lineage", "B7_mycelic": "B7 Mycelic",
     "B8_mycelic_security": "B8 Mycelic + security", "B9_mycelic_questioning": "B9 Mycelic + questioning",
-    "ORACLE_central_stats": "Oracle (upper bound)",
+    "ORACLE_central_stats": "Oracle (exact-data reference)",
 }
 SYSTEM_SHORT = {
     "B0_isolated": "B0", "B1_central_keyword": "B1", "B2_central_rag": "B2", "B3_central_llm_summary": "B3",

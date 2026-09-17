@@ -43,15 +43,15 @@ fi
 if stage tier2; then
   export TIER=tier2
   JOBS="${JOBS2:-2}"
-  fam 5 headline
-  fam 5 aggregation --only aggregation
-  fam 3 aggregation --only compression
-  fam 3 poisoning
+  fam 3 headline
+  fam 3 aggregation --only aggregation
+  QUICK=1 fam 3 aggregation --only compression     # the 5-point ladder (the 45-point grid is Tier 1 only)
+  QUICK=1 fam 3 poisoning                          # malicious fractions 0 / 0.10 / 0.30 at Tier 2
   fam 2 scaling --sizes 10000
 fi
 if stage tier3; then
   export TIER=tier3
   JOBS=1
-  fam 1 scaling --sizes 50000,100000
+  fam 1 scaling --sizes 20000,50000                # 100k workers needs ~30 GB of sketches on this engine (measured, see REPORT.md)
 fi
 echo "=== campaign ($STAGE) done in $(( (SECONDS - T0) / 60 )) min"
