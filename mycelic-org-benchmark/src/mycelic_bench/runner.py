@@ -127,9 +127,11 @@ def run_hierarchy(world: World, cfg: dict[str, Any], seed: int, name: str, sys_c
     if security is not None:
         exposed.extend(list(getattr(security, "text_exposed", []) or []))
     raw_bytes = raw_record_bytes(world)
-    # reconstructability: promoted higher-order cells with n < k
+    # reconstructability: promoted higher-order cells attributable to a single worker (distinct-worker count 1),
+    # a policy-independent linkage risk (n-based k-anonymity suppresses n < k, not single-worker cells with n >= k)
     small = total_cells = 0
     from .vocab import cell_index
+    from .sketch import COL_DW
     ci = cell_index()
     for node in hier.nodes.values():
         if node.parent_id is None or len(node.sent.ids) == 0:
@@ -137,7 +139,7 @@ def run_hierarchy(world: World, cfg: dict[str, Any], seed: int, name: str, sys_c
         orders = ci.order_of(node.sent.ids)
         hi = orders >= 2
         total_cells += int(hi.sum())
-        small += int((node.sent.counts[hi, 0] < max(policy.k_anonymity, 1)).sum())
+        small += int((node.sent.counts[hi, COL_DW] <= 1).sum())
     bytes_up = sum(n.bytes_out for n in hier.nodes.values()) + tot["bytes_worker_to_team"]
     metrics.update(privacy_metrics(world, exposed, int(tot["bytes_worker_to_team"]) + sec_bytes_exposed, raw_bytes, small, total_cells))
     metrics["bytes_transmitted"] = int(bytes_up)

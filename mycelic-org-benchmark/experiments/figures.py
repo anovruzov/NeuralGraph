@@ -599,7 +599,7 @@ def fig_f4(results: Path, out: Path) -> bool:
         return False
     panels = [(m, l) for m, l in [("metrics.raw_sensitive_leakage", "Canary tokens leaked (fraction)"),
                                   ("metrics.fraction_raw_exposed", "Raw bytes off-device / raw bytes"),
-                                  ("metrics.reconstructability", "Re-identifiable promoted cells (n < k)")] if m in df.columns]
+                                  ("metrics.reconstructability", "Promoted cells attributable to one worker")] if m in df.columns]
     if not panels:
         warn("F4: none of metrics.raw_sensitive_leakage / metrics.fraction_raw_exposed present — skipped"); return False
     conds = [c for c in ("quote_policy", "k_anonymity") if c in df.columns]

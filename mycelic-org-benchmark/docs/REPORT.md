@@ -142,7 +142,7 @@ against population truth. The layer-fidelity table tracks each true effect
 through the transitions (survived, dropped, distorted, duplicated,
 incorrectly promoted, independent support preserved, lineage retained).
 Compression ratio is raw record bytes divided by promoted bytes. Privacy:
-canary leakage, bytes off device, k-anonymity reconstructability. Costs:
+canary leakage, bytes off device, reconstructability (promoted higher-order cells attributable to a single worker). Costs:
 tokens (edge and cloud), model calls, latency, energy, USD from the
 profiles.
 
