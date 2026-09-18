@@ -7,9 +7,17 @@ Usage:
     ONLY_CAT=single_hop ONLY_CONV=0,1 .venv/bin/python demo/retrieval_eval.py
     VARIANTS=embed,tesseract,tesseract+graph .venv/bin/python demo/retrieval_eval.py
 
-Recall uses the same substring check as the benchmark (gold split on "," / " and ").
+Recall uses the same substring check as the benchmark (gold split on "," / " and "), plus an
+evidence check against LoCoMo's gold ``evidence`` dialogue ids (ev@10 = every gold message is in
+the top 10, ev_any@10 = at least one is).
+
+Set EMB_BACKEND=local to run without any model server: messages and questions are embedded with a
+deterministic hashed TF-IDF (word + character n-grams, fitted per conversation). Retrieval quality is
+then well below the nomic-embed numbers in docs/BENCHMARKS.md, but the run is reproducible, needs no
+network and finishes on a laptop CPU, so it can gate retrieval changes in CI.
 """
 import asyncio
+import hashlib
 import json
 import os
 import re
@@ -37,8 +45,10 @@ from NeuralGraph.temporal_utils import (
 import runner  # reuse benchmark helpers so both evaluators agree
 from runner import check_gold_in_memories_substring, expand_via_graph, CATEGORIES
 
+EMB_BACKEND = os.environ.get("EMB_BACKEND", "server")   # "server" (LM Studio / Ollama) or "local"
 CACHE_DIR = Path(os.environ.get("EMB_CACHE_DIR", Path(__file__).parent / "results" / "emb_cache"))
-CACHE_DIR.mkdir(parents=True, exist_ok=True)
+if EMB_BACKEND != "local":
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
 ONLY_CAT = {c.strip() for c in os.environ.get("ONLY_CAT", "").split(",") if c.strip()}
 ONLY_CONV = {int(c) for c in os.environ.get("ONLY_CONV", "").split(",") if c.strip()}
 VARIANTS = [v.strip() for v in os.environ.get("VARIANTS", "embed,tesseract,tesseract+graph").split(",")]
@@ -65,7 +75,57 @@ async def embed_batch(http, texts: list[str]) -> list[list[float]]:
     return out
 
 
+class LocalEmbedder:
+    """Deterministic hashed TF-IDF embedding (word unigrams + char 3..5-grams), no model needed."""
+
+    def __init__(self, dims: int = 8192):
+        self.dims = dims
+        self.idf = np.ones(dims, dtype=np.float32)
+
+    @staticmethod
+    def _features(text: str) -> list[str]:
+        t = text.lower()
+        words = re.findall(r"[a-z0-9']+", t)
+        feats = [f"w:{w}" for w in words]
+        padded = f" {' '.join(words)} "
+        for n in (3, 4, 5):
+            feats.extend(padded[i:i + n] for i in range(len(padded) - n + 1))
+        return feats
+
+    def _index(self, feat: str) -> int:
+        return int.from_bytes(hashlib.blake2b(feat.encode(), digest_size=4).digest(), "little") % self.dims
+
+    def _counts(self, text: str) -> np.ndarray:
+        v = np.zeros(self.dims, dtype=np.float32)
+        for f in self._features(text):
+            v[self._index(f)] += 1.0
+        return v
+
+    def fit(self, texts: list[str]) -> "LocalEmbedder":
+        df = np.zeros(self.dims, dtype=np.float32)
+        for t in texts:
+            df += (self._counts(t) > 0)
+        self.idf = np.log((1.0 + len(texts)) / (1.0 + df)) + 1.0
+        return self
+
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        out = []
+        for t in texts:
+            v = np.log1p(self._counts(t)) * self.idf
+            v /= np.linalg.norm(v) + 1e-9
+            out.append(v.tolist())
+        return out
+
+
+_LOCAL_EMBEDDERS: dict[str, LocalEmbedder] = {}
+
+
 async def cached_embeddings(http, key: str, texts: list[str]) -> list[list[float]]:
+    if EMB_BACKEND == "local":
+        conv_key = key.split("_")[0]                      # "conv3_msgs" / "conv3_questions_all" share one fit
+        if key.endswith("_msgs"):
+            _LOCAL_EMBEDDERS[conv_key] = LocalEmbedder().fit(texts)
+        return _LOCAL_EMBEDDERS[conv_key].embed(texts)
     path = CACHE_DIR / f"{key}.json"
     if path.exists():
         cached = json.load(open(path))
@@ -82,7 +142,8 @@ def flatten_messages(conv: dict) -> list[dict]:
     while f"session_{i}" in conversation:
         dt = conversation.get(f"session_{i}_date_time", "")
         for msg in conversation[f"session_{i}"]:
-            messages.append({"speaker": msg.get("speaker", "Unknown"), "text": msg.get("text", ""), "datetime": dt})
+            messages.append({"speaker": msg.get("speaker", "Unknown"), "text": msg.get("text", ""), "datetime": dt,
+                             "dia_id": msg.get("dia_id", "")})
         i += 1
     return messages
 
@@ -116,7 +177,7 @@ async def ingest(http, conv_idx: int, conv: dict):
             node_id=node_id, session_key=f"conv_{conv_idx}", content=msg["text"],
             layer=NodeLayer.MESSAGE, embedding=emb, created_at=datetime.now(),
             metadata={
-                "speaker": msg["speaker"], "datetime": msg["datetime"],
+                "speaker": msg["speaker"], "datetime": msg["datetime"], "dia_id": msg["dia_id"],
                 "keywords": list(extract_keywords(msg["text"])), "entities": list(entities),
                 "temporal_tokens": temporal["date_tokens"], "temporal_metadata": temporal["temporal_metadata"],
                 "resolved_date": resolved_date, "resolved_date_source": source, "explicit_date": explicit_date,
@@ -198,7 +259,7 @@ async def retrieve(variant, question, qvec, storage, tesseract, linker, nodes, s
 
 async def main():
     data = json.load(open(Path(__file__).parent.parent / "evaluation" / "locomo" / "locomo10.json"))
-    hits = {v: defaultdict(lambda: {"r10": 0, "r50": 0, "rall": 0, "n": 0}) for v in VARIANTS}
+    hits = {v: defaultdict(lambda: {"r10": 0, "r50": 0, "rall": 0, "ev10": 0, "evany10": 0, "n": 0}) for v in VARIANTS}
     t0 = time.time()
     async with aiohttp.ClientSession() as http:
         for conv_idx, conv in enumerate(data):
@@ -226,15 +287,25 @@ async def main():
                     h["r10"] += int(r10)
                     h["r50"] += int(r50)
                     h["rall"] += int(rall)
+                    evidence = {e for e in qa.get("evidence", []) if e}
+                    top10_ids = {n.metadata.get("dia_id") for n, _ in res[:10]}
+                    h["ev10"] += int(bool(evidence) and evidence <= top10_ids)
+                    h["evany10"] += int(bool(evidence & top10_ids))
             print(f"conv {conv_idx}: {len(qas)} questions done ({time.time() - t0:.0f}s)")
 
-    print(f"\n{'variant':24} {'category':12} {'n':>5} {'recall@10':>10} {'recall@50':>10} {'recall@all':>11}")
+    print(f"\nembeddings: {EMB_BACKEND}")
+    print(f"{'variant':24} {'category':12} {'n':>5} {'recall@10':>10} {'recall@50':>10} {'recall@all':>11} {'ev@10':>7} {'ev_any@10':>10}")
+
+    def row(v, cat, h):
+        print(f"{v:24} {cat:12} {h['n']:5d} {100 * h['r10'] / h['n']:9.1f}% {100 * h['r50'] / h['n']:9.1f}% "
+              f"{100 * h['rall'] / h['n']:10.1f}% {100 * h['ev10'] / h['n']:6.1f}% {100 * h['evany10'] / h['n']:9.1f}%")
+
     for v in VARIANTS:
         for cat, h in sorted(hits[v].items()):
-            print(f"{v:24} {cat:12} {h['n']:5d} {100 * h['r10'] / h['n']:9.1f}% {100 * h['r50'] / h['n']:9.1f}% {100 * h['rall'] / h['n']:10.1f}%")
-        tot = {k: sum(h[k] for h in hits[v].values()) for k in ("r10", "r50", "rall", "n")}
+            row(v, cat, h)
+        tot = {k: sum(h[k] for h in hits[v].values()) for k in ("r10", "r50", "rall", "ev10", "evany10", "n")}
         if tot["n"]:
-            print(f"{v:24} {'ALL':12} {tot['n']:5d} {100 * tot['r10'] / tot['n']:9.1f}% {100 * tot['r50'] / tot['n']:9.1f}% {100 * tot['rall'] / tot['n']:10.1f}%")
+            row(v, "ALL", tot)
         print()
 
 
