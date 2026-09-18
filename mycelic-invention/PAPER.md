@@ -156,7 +156,2401 @@ to work at all.
 
 ---
 
-<!-- SECTIONS 2-9 ARE ASSEMBLED FROM THE DRAFTING PASS AND INSERTED HERE -->
+## 2. Problem formulation and scope
+
+> **Status of this section.** Nothing described here has been run. No number below is a measurement: every threshold is written symbolically and is an unset configuration parameter, collected in §2.6. No reference below has been checked against a source; §2.5 names traditions in prose and must be paired with a verified bibliography before circulation.
+
+### 2.1 The output object, and why it is not an answer
+
+Retrieval, summarisation and retrieval-augmented question answering are all **support-seeking** procedures: they emit an object whose acceptance test is a positive existential over the retrieved set. Retrieval emits a ranked document list `D` accepted when its members are relevant to a query. Summarisation emits text `s` accepted when every assertion in `s` is entailed by, and jointly covers, a designated source set. RAG-style QA emits an assertion `a` with a citation set `R ⊆ C` and is accepted when `ENTAILS(R, a)` holds and `a` answers the question `q`. All three acceptance tests are **monotone in evidence** *as stated*: enlarging the corpus can never falsify the test an already-accepted output passed. This is a property of those acceptance tests, not of truth — a later document can of course show an accepted summary or answer to be wrong. The difference below is that non-monotonicity sits inside the acceptance test itself, not only in the world.
+
+Invention discovery emits a different object and inverts the test. The output is an `InventionCandidate` — a typed, composite artifact description with a mechanism-of-action chain, an operating point, a distinguishing-element map against its nearest references, and a lineage graph — and its acceptance test is a **conjunction with a negative existential at its core**: the candidate's *parts* must be attested by the corpus, while the candidate's *whole* must be attested by nothing in it and not derivable from it by a bounded, obvious combination. Formally, for candidate `x` over corpus `C`:
+
+```
+ACCEPT_RAG(a, R)  ≡  ENTAILS(R, a) ∧ ANSWERS(a, q)
+ACCEPT_INV(x, C)  ≡  PARTS_ATTESTED(x, C)
+                     ∧ ¬∃r ∈ C: ANTICIPATES(r, x)
+                     ∧ ¬∃R' ⊆ C, |R'| ≤ κ: DERIVES_κ(R', x)
+                     ∧ ENABLED(x) ∧ INDEPENDENT(x)
+```
+
+Each conjunct is discharged by named machinery rather than left to the reader:
+
+- `PARTS_ATTESTED(x, C)` — every element of `x` carries at least one `doc_span` into the snapshot of `C` (§2.2, candidate clause (i)).
+- `ANTICIPATES(r, x)` — single-reference, element-complete, relation-preserving disclosure (§2.2).
+- `DERIVES_κ(R', x)` — derivability by the skilled-artisan model `A` from at most `κ` references given a grounded motivation-to-combine witness (§2.2).
+- `ENABLED(x)` — the candidate's `EnablementRecord` contains no failing mechanised hard-constraint check and no *undeclared* envelope excursion (§2.2).
+- `INDEPENDENT(x)` — the evidence for `x` is not concentrated in a single source, agent or domain, in the sense made precise by condition 7 of §2.3.
+
+`ACCEPT_INV` as written is **not computable**. Its two negative conjuncts quantify over disclosure in general and over a combinatorial subset space, while any implementation can quantify only over a snapshot searched by a stated policy under a stated budget. §2.3 defines `VALIDATED_t`, the implementable predicate, which substitutes a bounded proxy for each negative conjunct. The disagreement between the two is the system's error term, and §2.6 lists the measurements that would bound it; none has been made.
+
+Three consequences follow and drive the whole architecture. First, `ACCEPT_INV` is **non-monotone**: a document ingested tomorrow can defeat a candidate accepted today, so acceptance is time-indexed and must be re-evaluated cumulatively, exactly as a `Claim` in the host framework this architecture extends (referred to below as Mycelic) is re-tested each analysis round against the current evidence and withdrawn when it stops clearing its test (`withdraw_p` in `Policy`, applied on the round `_recheck` path). That is a dependency, not a redefinition: the semantics of those constructs live in the host's hierarchy and schema modules and are assumed unchanged here (D1, §2.6). An invention candidate is never "proved"; it is *currently undefeated*. Second, a negative existential over an unbounded universe cannot be discharged by exhibiting a witness — the search terminates on budget exhaustion, not on success. An honest system therefore cannot emit `NOVEL(x)`; it emits `NOT_ANTICIPATED_UNDER(C, ρ, B)`, where `C` names an immutable corpus snapshot, `ρ` is the retrieval policy actually executed (operator set, query-expansion generator, classification schemes, languages, date cut-offs, and the criterion by which references were judged nearest) and `B` is the budget spent per resource — together with a **coverage certificate** recording all three plus the outcome of the recall probes. Absence of evidence is only interpretable when the effort that failed to find it is on the record. Third, the retrieval objective is inverted: RAG retrieves to *support* a hypothesis, whereas novelty and obviousness screening retrieve to *defeat* one. Defeater search is a distinct operator with a distinct stopping rule and its own adversarial agents.
+
+### 2.2 Typed definitions
+
+```python
+# Primitives
+quantity      = name in a controlled vocabulary with a declared, SI-reducible unit
+unit          = element of the unit system used for dimensional checking
+Predicate     = boolean expression over quantities, units and Concept membership
+ResourceBound = dict[resource -> limit]     # wall clock, tool calls, tokens, retrievals
+doc_span      = (corpus_snapshot_id, document_id, locator, extractor_version)
+```
+
+```python
+TargetPredicate = (quantity, comparator ∈ {≥, ≤, ∈}, value, unit, measured_under: Envelope)
+Envelope        = dict[quantity -> interval]        # temperature, pressure, throughput, unit cost, ...
+IncumbentRecord = (doc_span, artifact_name, attested: dict[quantity -> value], envelope,
+                   unmet: list[TargetPredicate])
+GapWitness      = (unmet_predicate, best_attested_value, residual, dominating_incumbent)
+
+Problem   = (problem_id, statement, goal: list[TargetPredicate], envelope: Envelope,
+             budget: ResourceBound, forbidden: list[Predicate],
+             incumbents: list[IncumbentRecord], gap: list[GapWitness],
+             corpus_snapshot, status ∈ {open, superseded, retired}, status_reason,
+             lineage: LineageRecord)
+
+Concept   = (concept_id, kind ∈ {phenomenon, mechanism, material, method, component,
+             constraint, metric, artifact, failure_mode}, canonical_name, surface_forms,
+             domain_tags, attested_in: list[doc_span])
+
+Mechanism = (mech_id, actuates: quantity, direction ∈ {+, -}, substrate: Concept,
+             preconditions: list[Predicate], envelope: Envelope,
+             side_effects: list[Concept], scaling_law: str | None,
+             attested_in: list[doc_span], contradicted_by: list[doc_span])
+
+Connection = (src, dst, relation ∈ {enables, requires, substitutes_for, antagonises,
+              is_analogue_of, transfers_to}, justification: list[doc_span],
+              cross_domain: bool, activation_path: list[node_id])
+
+InventionCandidate = (candidate_id, problem_ref,
+             elements: list[(Concept | Mechanism, role)], coupling: list[Connection],
+             moa: MechanismChain, operating_point: Envelope,
+             predicted_effect: list[(TargetPredicate, verdict ∈ {met, unmet, indeterminate})],
+             distinguishing: dict[reference_id -> list[element_id]],
+             novelty: NoveltyRecord, obviousness: ObviousnessRecord,
+             enablement: EnablementRecord, support: SupportRecord, lineage: LineageRecord,
+             challenges: list[ChallengeRecord],
+             status ∈ {proposed, accepted, contested, quarantined, superseded},
+             status_reason ∈ {none, withdrawn, defeated, duplicate, expert_rejected},
+             round_created, round_updated)
+```
+
+The record types referenced above are part of this section's contract and are fixed here rather than assumed:
+
+```python
+CoverageCertificate = (corpus_snapshot_id, retrieval_policy_ρ, operators_run,
+                       classification_schemes, languages, date_cutoffs,
+                       nearness_criterion, budget_spent: ResourceBound,
+                       probes: list[(probe_id, plants_anticipation_of, retrieved: bool)])
+
+NoveltyRecord     = (anticipations: list[(reference_id, element_mapping, adjudicator)],
+                     nearest_references: list[reference_id], searched: CoverageCertificate)
+
+ObviousnessRecord = (derivations_found: list[(reference_subset, witness, derivation_trace,
+                     challenger_id)],
+                     challengers: list[(agent_id, retrieval_seed_set, budget_spent)],
+                     artisan_model_A: (model_id, prompt_id, toolset, derivation_budget),
+                     baseline_rediscovery: bool)
+
+EnablementRecord  = (steps: list[(moa_step_id, status ∈ {attested, extrapolated, unattested},
+                     span | None, envelope_excursion, experiment: ExperimentSpec | None)],
+                     hard_constraint_checks: list[(check_id, kind ∈ {mechanised, flagged},
+                     verdict ∈ {pass, fail, not_run}, detail)])
+
+SupportRecord     = (contributions: list[(source_id, agent_id, domain_tag, raw_weight)],
+                     independent_support,                       # after correlation discount
+                     concentration: dict[axis ∈ {source, agent, domain} -> max_share])
+
+ChallengeRecord   = (kind ∈ {anticipation, obviousness, enablement, constraint,
+                     provenance, duplication}, challenger_id, retrieval_seed_set,
+                     budget_spent, outcome ∈ {defeated, failed_to_defeat, aborted}, artifacts)
+
+LineageRecord     = (parents, operators_applied, activation_paths, round, agent_ids, inputs_hash)
+
+MechanismChain    = ordered list of links (Mechanism, input_binding, output_quantity),
+                    terminating in a TargetPredicate of problem_ref
+
+ExperimentSpec    = (hypothesis, manipulated_quantity, measured_quantity, envelope,
+                     decision_rule, disconfirming_outcome)
+```
+
+Two challenge kinds are otherwise opaque and are fixed here: a **provenance** challenge attacks the spans themselves (mis-extraction, a span that does not say what the element claims, a retracted or superseded source); a **duplication** challenge asserts that `x` is a re-description of another candidate already in the pool rather than of prior art.
+
+**Unsolved problem.** A `Problem` is *unsolved at time t relative to `C`* iff no `IncumbentRecord` extractable from `C` attests an artifact satisfying every `TargetPredicate` in `goal` within `envelope`, under `budget`, without violating a member of `forbidden`; and at least one `GapWitness` names the binding unmet predicate, the best attested value, and the residual. Unsolvedness is itself a defeasible claim with the same lifecycle as a candidate: when ingestion later surfaces a solving artifact, the `Problem` is superseded and every candidate rooted in it is re-scored, not silently retained.
+
+**Concept / mechanism.** A `Concept` is a canonicalised node with attested surface forms. A `Mechanism` is strictly stronger: it asserts that a named substrate, under stated preconditions and within a stated envelope, moves a named quantity in a named direction, and it carries the spans that attest that assertion and any that contradict it. Only `Mechanism` nodes may appear in a mechanism-of-action chain; `Concept` nodes may not, because a concept has no operating envelope to check.
+
+**Invention candidate.** A composition `x` is a candidate iff (i) every element is a `Concept` or `Mechanism` with at least one attesting span; (ii) `coupling` is a connected graph over the elements in which every edge carries a justification span or is explicitly flagged as agent-proposed; (iii) `moa` is a directed chain from the elements to at least one `TargetPredicate` of `problem_ref` in which each link is a `Mechanism` and either that mechanism's envelope contains `operating_point`, or the link is marked `extrapolated` in `EnablementRecord` with the size of the excursion recorded and an `ExperimentSpec` naming what would decide it; and (iv) `distinguishing` is populated for every reference the novelty search identified as nearest, under a nearness criterion that is part of `ρ` and is recorded in the coverage certificate (the criterion itself is not fixed here — Q1). A composition failing (iii) is a *speculation*, a legitimate intermediate object, but never a candidate.
+
+Clause (iii) draws the line at *declaration*, not at extrapolation: an undeclared excursion outside a mechanism's attested envelope is a well-formedness failure, while a declared one yields a candidate carrying a named experimental dependency. Drawing it at extrapolation instead would contradict the `extrapolated` status that `EnablementRecord` carries and that condition 6 of §2.3 permits.
+
+**Novelty (anticipation).** `ANTICIPATES(r, x)` holds iff there is an injective map φ from the elements of `x` to matter disclosed in the single reference `r` such that (a) every element of `x` has an image — element-completeness, with no gap filled from outside `r` — and (b) for every edge `(u, v, relation)` in `x.coupling`, `r` discloses `φ(u)` and `φ(v)` standing in that same relation. Single-reference, element-complete, relation-preserving: this is the strict reading, deliberately narrow so that the second predicate carries the combination cases. The element judgements in (a) and the relation judgements in (b) are made by a model against a written rubric, and φ is stored in `NoveltyRecord` so that a human can see exactly which disclosure was taken to correspond to which element. **Open (Q1):** the rubric, the nearness criterion of clause (iv), and the agreement rate between this matcher and human adjudication on a labelled set of reference/candidate pairs are all undetermined. Until that agreement is measured, `ANTICIPATES` is an unvalidated matcher and its verdicts are auditable claims, not findings.
+
+**Non-obviousness.** `DERIVES_κ(R', x)` holds iff a skilled-artisan model `A`, given a reference subset `R'` of size at most `κ` and a *motivation-to-combine witness* `w`, derives `x` within a stated derivation budget. `w` must itself be grounded, in one of four forms: a span suggesting the combination, a shared classification code, a shared failure mode, or a path of at most `λ` edges in the concept graph between the donor and recipient domains. `A` is a configured model with a recorded identity, prompt, toolset and derivation budget, stored on every `ObviousnessRecord`. It is a stipulation about a hypothetical artisan, not a measurement of one; changing it changes every obviousness verdict in the pool, which is why its identity is part of each candidate's lineage.
+
+`DERIVES_κ` is not directly computable — the space of subsets `R' ⊆ C` with `|R'| ≤ κ` is combinatorial — so the system computes an approximation `OBVIOUS_{κ,A}` in two ways, both of which are proxies and must be stated as such: (a) constructive — a challenger agent exhibits an actual derivation with its witness, recorded in full; (b) rediscovery — if the default associative expansion, run from a single seed under the same budget and *without* a cross-domain jump, reproduces `x`, the combination is presumptively obvious. It is `OBVIOUS_{κ,A}`, never `DERIVES_κ`, that condition 5 of §2.3 actually tests. Proxy (a) is sound but incomplete: a derivation found is real; a derivation not found is only a failed search. Proxy (b) has no a-priori validity in either direction. **Open (Q2):** the evaluation section must specify how agreement between (b) and human expert judgement would be measured, and on what sample, before (b) carries any weight in ranking; until then (b) is recorded and not scored.
+
+**Reduction-to-practice plausibility.** Not a score but a structured verdict. `EnablementRecord` lists every step of `moa` with status `attested | extrapolated | unattested`, the span supporting it, the size of any excursion outside the step's envelope, and — where a step is unattested or extrapolated — a named `ExperimentSpec` that would decide it. `hard_constraint_checks` are split by whether an executable checker exists, because "checks thermodynamic bounds" is a promise an unqualified sentence cannot keep:
+
+- **mechanised** — dimensional and unit consistency across the chain; conservation balances over the quantities the chain declares; sign and monotonicity consistency of declared `scaling_law` expressions; violation of an impossibility result that the corpus attests *and* whose applicability conditions the candidate's own declared quantities satisfy. A `fail` here **rejects** the candidate; it is not traded off against novelty.
+- **flagged** — everything requiring domain physics the system cannot evaluate symbolically (an actual thermodynamic cycle analysis; an information-theoretic bound whose applicability is itself a judgement). These raise a flag for expert attention on the dossier and are never converted into an automatic rejection or an automatic pass.
+
+**Open (Q3):** the inventory of mechanised checkers, and the rule deciding whether a corpus-attested impossibility result applies to a given candidate, are undetermined. Until that inventory is fixed, "no hard-constraint violation" honestly reads as "no violation of the small set of checks currently implemented".
+
+### 2.3 The acceptance predicate
+
+`VALIDATED_t` is a statement about a search, not a success criterion for an invention; it is named accordingly.
+
+```
+VALIDATED_t(x) ≡
+ 1. problem_ref resolves to a Problem whose unsolvedness claim is un-withdrawn at t;
+ 2. every element, coupling edge and moa link has lineage to a doc_span or is flagged
+    agent-proposed, and no agent-proposed link occurs inside moa;
+ 3. enablement.hard_constraint_checks contains no mechanised check with verdict=fail, and
+    every moa step whose operating_point lies outside its envelope is declared extrapolated
+    with an ExperimentSpec (an undeclared excursion fails well-formedness, not this test);
+ 4. novelty.anticipations is empty AND novelty.searched is a coverage certificate whose
+    budget_spent meets budget_floor on every resource and whose planted
+    known-anticipation probes were all retrieved;
+ 5. obviousness.derivations_found is empty after ≥ m challengers with disjoint retrieval
+    seed sets each spent their budget, and baseline_rediscovery is False;
+ 6. every moa step is attested, or declared extrapolated/unattested with a critical
+    ExperimentSpec named;
+ 7. support.independent_support ≥ support_min after correlation discounting, and
+    concentration[axis] ≤ τ_axis for each of source, agent and domain;
+ 8. challenges contains an attempted-and-failed record of each kind in {anticipation,
+    obviousness, enablement, constraint, provenance, duplication};
+ 9. x survived cumulative re-verification at every round since round_created.
+```
+
+`κ`, `λ`, `m`, `budget_floor`, `support_min` and `τ_source / τ_agent / τ_domain` are configuration parameters with **no defaults set and no empirical basis yet** (§2.6). They are symbolic on purpose: any number printed here today would be invented, and a `VALIDATED_t` verdict means nothing until they are fixed per problem class and published alongside the dossier.
+
+Condition 9 needs an explicit scope rule, because a full re-sweep of conditions 4 and 5 every round is the dominant cost of the loop. The default assumed here is that each round re-runs conditions 4 and 5 in *delta* form, against newly ingested documents only, with a full re-sweep at the current `budget_floor` on a fixed cadence and on any change to `A`, to `ρ`, or to the extractor version. **Open (Q4):** that cadence.
+
+Conditions 7 and 9 are deliberate re-uses of existing Mycelic machinery rather than new mechanisms. Condition 7 is the promotion gate — a finding propagates only when its evidence is not concentrated in one unit below. Applied to an invention loop whose units are domain-specialised, passing it is a *necessary signature* of a cross-domain discovery: a candidate whose evidence mass is spread across domains is one that no single desk held all the evidence for. It is not sufficient, and it is not a definition — spread evidence is equally consistent with a shallow candidate that touches many literatures without depending on any of them, which is exactly what candidate clause (iii) exists to exclude. **Dependency (D2):** the discount weights, and the mapping from agent/desk identity to the distinct-source columns of `SupportRecord`, are owned by the host's hierarchy module, not by this section; condition 7 is not implementable until that mapping is written down. Condition 9 is `_recheck`/`withdraw_p` generalised from a statistical test to a defeater search: each round, newly ingested documents are tested against every accepted candidate, and a candidate that acquires an anticipation or an obviousness derivation moves to `superseded` with `status_reason = withdrawn`, retaining its lineage so that the withdrawal itself is auditable and reversible if the defeater is later discredited.
+
+Note what `VALIDATED_t` does **not** assert. It is a statement about the search, not about the world: the system's warranted output is the tuple `⟨x, E, S, D⟩` — candidate, evidence set, coverage certificate, defeater record — and the epistemic status is "undefeated by a search of stated extent at time t". Conditions 4 and 5 are decisions under incomplete evidence, because the prior-art universe strictly contains the corpus (unindexed art, non-English disclosures, prior public use and sale, trade-secret practice, and anything post-dating the snapshot) and because the skilled-artisan model `A` is an assumption, not a measurement. Two failure modes follow directly and must be instrumented rather than argued away.
+
+**False novelty through vocabulary mismatch** — the same invention, described in another domain's terms, is not retrieved, and the candidate is wrongly accepted. This is partially addressed by requiring the novelty search to expand through canonical `Concept` surface forms and by planting known-anticipation recall probes in the certificate. Neither closes the gap: canonicalisation covers only surface forms the graph has already seen, and probes measure recall only over the failure kinds the probes were built to represent. The residual miss rate is unmeasured, and it upper-bounds what any `VALIDATED_t` verdict is worth. **Open (Q5):** how probes are constructed so that they exercise genuine cross-domain paraphrase rather than lexical variation, and are not themselves retrievable by the surface route they are meant to test.
+
+**Correlated challengers** — multiple adversarial agents built on the same base model share blind spots, so their agreement is not independent evidence. This is why condition 5 requires disjoint retrieval seeds and condition 7 applies to challenger agreement the same correlation discount Mycelic applies to worker replicas. Disjoint seeds reduce shared retrieval, not shared priors; the residual correlation between challengers drawn from one base model is unquantified and is not removed by either mechanism.
+
+### 2.4 Out of scope
+
+This architecture is not a patent attorney: it performs no legal claim construction, no jurisdiction-specific statutory analysis, no priority-date or claim-scope reasoning, and no freedom-to-operate opinion. Its `ANTICIPATES` and `DERIVES_κ` predicates are engineering approximations of examination concepts, deliberately renamed and defined here in their own terms, and a positive `VALIDATED_t` is **not** a prediction of patentability. It is not a physical validator: it runs no experiment and no first-principles simulation of ground truth, so `predicted_effect` verdicts are derived from attested mechanisms and their stated scaling behaviour only, and `critical_experiment` is an output, not a result. It is not a novelty oracle, for the reasons in §2.1 and §2.3.
+
+It does not decide. It produces an auditable dossier — candidate, evidence set, coverage certificate, defeater record and failed-challenge record — whose intended consumer is a domain expert who can read the lineage graph and disagree with all of it. Candidates are presented in an order; **open (Q6):** the ranking function is undefined, and since any such function necessarily weighs proxies of unknown validity (Q1, Q2) against one another, that order should be treated as a triage sequence for expert attention, not as a measure of merit.
+
+### 2.5 Positioning
+
+Six families of prior work bound this problem. The attributions below are to traditions rather than to documents: no reference here has been verified in this environment, and a checked bibliography must be attached before this section is circulated.
+
+**Literature-based discovery** — mining undiscovered public knowledge, canonically through open and closed discovery over a term chain (A relates to B, B to C, no document relating A to C) — established that a corpus can entail relationships no document states, and that the bottleneck is ranking an enormous candidate set. This system differs in that its output is an engineered composition with a mechanism chain and an operating envelope, not a term-pair association, and in that it screens candidates by defeater search rather than by co-occurrence statistics.
+
+**Computational creativity**, including bisociation (combining frames from unrelated matrices) and conceptual blending, supplies the generative intuition but characteristically lacks an acceptance test with teeth; §2.3 supplies one, subject to the proxy caveats §2.2 attaches to it.
+
+**TRIZ**, developed from manual analysis of patent corpora, contributes the idea of abstracting a problem to a contradiction and resolving it with a catalogued principle; the `Problem`/`GapWitness` schema is compatible with that abstraction but derives its principles from the ingested corpus rather than from a fixed inventory.
+
+**RAG** contributes the retrieval substrate and the grounding discipline, and is inverted at the acceptance layer as argued in §2.1.
+
+**Multi-agent research systems** contribute the decomposition and adversarial-review pattern; the contribution claimed here is not multi-agency itself but the requirement that agreement between agents be discounted for correlation and that a refutation attempt be recorded as a first-class artifact, so that the absence of a defeater is evidence proportional to the effort that failed to produce one — proportional, and no more than that.
+
+**Spreading activation in semantic networks**, together with cognitive architectures in the production-system tradition, are the acknowledged models for the associative-memory layer. The activation operator itself is defined in the associative-memory section; this section assumes only that it returns a `Connection` set with `activation_path` populated, so that every cross-domain jump a candidate rests on is reconstructible (**Dependency D3**).
+
+### 2.6 Unset parameters, open questions and dependencies
+
+No component of this design has been executed. This section reports no accuracy, recall, latency or yield figure, and any such figure appearing in a later draft must be traceable to a run of the evaluation section.
+
+**Unset parameters** (no defaults, no empirical basis): `κ` maximum references in a derivation subset; `λ` maximum concept-graph path length for a motivation witness; `m` challengers per candidate; `budget_floor` per-resource minimum for a coverage certificate; `support_min`; `τ_source`, `τ_agent`, `τ_domain`; the derivation budget allotted to `A`; the full re-sweep cadence of condition 9.
+
+**Open questions.** Q1 — matching rubric, nearness criterion, and measured agreement with human adjudication for `ANTICIPATES`. Q2 — measured agreement between the rediscovery proxy and expert judgement, before that proxy is scored at all. Q3 — the inventory of mechanised hard-constraint checkers and the applicability rule for corpus-attested impossibility results. Q4 — re-sweep cadence for condition 9. Q5 — probe construction that exercises cross-domain paraphrase without being retrievable by the route it tests. Q6 — the ranking function, and whether any defensible one exists given Q1 and Q2.
+
+**Dependencies on other sections.** D1 — `Claim`, `Policy.withdraw_p` and the round `_recheck` path of the host framework, assumed unchanged. D2 — hierarchy-owned correlation-discount weights and the agent/desk → `SupportRecord` source-column mapping, without which condition 7 is not implementable. D3 — the activation operator, and the guarantee that `activation_path` is populated on every `Connection`.
+
+---
+
+## 3. The associative memory substrate
+
+The substrate is a typed, versioned concept graph plus a bounded spreading-activation process over it. It is the only component in the loop that *generates* candidate connections; everything downstream (novelty screening, adversarial verification, promotion) filters and re-verifies what it emits. Its output is never a ranked node list — it is an `ActivationTrace` and the `ActivatedPath` objects recovered from it, because a path with typed edges is simultaneously the hypothesis and its derivation.
+
+What an `ActivatedPath` is, stated once so that nothing later has to be read charitably: a **defeasible candidate with an attached evidence set**. It is a conjecture that a typed chain of extracted relations exists between a problem and a composition, together with the documents and spans that chain was extracted from. It is not an invention, not a claim of novelty, and not a substitute for expert judgement. The substrate cannot establish that a path is correct (the edges are extractions and may be wrong), that it is novel (novelty screening sees only the ingested corpus, and absence of prior art in a corpus is not absence of prior art), or that it is useful (nothing here models cost, manufacturability or demand). Every quantitative property below is a definition of something to measure, not a measurement: nothing in this section has been run.
+
+### Typed concept graph
+
+A snapshot of the graph is identified by a `graph_version = (epoch: int, digest: str)`, where `epoch` is a monotonically increasing build counter and `digest` is a content digest over the node and edge tables. The two are separate because a digest gives integrity but no order, and several parts of this section (edge validity intervals, "takes effect at the next version") need an order. Every trace names the version it ran against, and a trace must not be interpreted against any other.
+
+```
+ConceptNode:
+  node_id: str            # stable_hash(ntype, canonical_label, domain_path[0])
+  ntype: str              # mechanism | material | method | constraint | effect
+                          # | problem | artifact | failure_mode | actor
+  canonical_label: str; aliases: list[str]; gloss: str   # extracted spans, never generated
+  domain_path: tuple[str, ...]      # rooted path in the ingest taxonomy, root at depth 1
+  partition_id: int                 # modularity partition, computed once per epoch and stored
+  embedding_id: int                 # row in the seeding index (seeding/re-entry only)
+  evidence: EvidenceRef             # bounded (doc_id, span_hash) pairs
+  support: SupportRecord            # assumed interface; see "Assumed interfaces"
+  base_level: float                 # recency/frequency prior over evidence; form is an open question
+  deg_in: int; deg_out: int; hub_rank: float
+  owner_unit: str                   # organisational unit holding the local evidence
+  privacy_class: str                # aggregate | local_only | quotable
+  valid_from: int; valid_to: int | None      # epochs, half-open [valid_from, valid_to)
+
+ConceptEdge:
+  edge_id: str; src: str; dst: str; etype: str
+  conf: float                       # extraction confidence in [0,1]
+  polarity: int                     # +1 supporting, -1 opposing, 0 neither (fixed per etype)
+  routing: str                      # activating | inhibiting | hazard (a function of etype)
+  conditions: dict[str, str]        # qualifiers that scope the edge, e.g. {"regime": "cryogenic"}
+  support: SupportRecord; evidence: EvidenceRef
+  extraction: str                   # rule | model | curated | derived
+  status: str                       # active | disputed | retracted
+  valid_from: int; valid_to: int | None      # epochs
+```
+
+`routing` is separated from `polarity` because the draft schema previously used `polarity` for three different things. `polarity` is a sign used in the update rule; `routing` selects which accumulator an incoming quantum lands in. Both are functions of `etype`, stored denormalised so the traversal does not need a lookup.
+
+Edge types are typed in both endpoints; extraction that violates the table is rejected rather than coerced. `T` below is a metavariable over `ntype` meaning "any one ntype, the same one at both endpoints".
+
+| etype | src ntype | dst ntype | polarity | routing |
+|---|---|---|---|---|
+| `achieves` | mechanism, method, artifact | effect | +1 | activating |
+| `requires` | mechanism, method, artifact, effect, problem | material, constraint, mechanism, actor, effect | +1 | activating |
+| `contradicts` | `T` | `T` | −1 | inhibiting |
+| `substitutes` | mechanism, material, method | same ntype as src | +1 | activating |
+| `analogous_to` | `T` | `T`, endpoints cross-domain | +1 | activating |
+| `cited_by` | artifact | artifact | +1 | activating |
+| `derived_from` | any | any | +1 | activating |
+| `fails_under` | mechanism, material, method, artifact | constraint, failure_mode | 0 | hazard |
+
+The cross-domain admission rule on `analogous_to` is circular as stated if it is evaluated against `partition_id`, because partitions are computed from the graph the edge is being admitted to. It is therefore evaluated at build time for epoch *n* against the partitions of epoch *n−1*, using only the taxonomic and corpus measures defined below for the first epoch, where no prior partition exists. This is a bootstrap compromise, not a principled fix.
+
+A problem node is attached to the effect it demands by `requires`; a candidate path is therefore a path from a `problem` to a `mechanism`/`material`/`method` composition that `achieves` that effect without accumulating a `fails_under` hazard under the conditions on the path. `fails_under` deliberately carries no positive activation: it accumulates `hazard[(u, v)]` instead — keyed by the pair, because the subject that fails is `u` and the hazard node is `v`, and recording only `v` loses which mechanism the hazard attaches to. Known-dead combinations therefore remain reachable (they must be, or the loop re-proposes them) but are flagged in the trace for the feasibility challenger.
+
+**Conditions are declared but not consumed.** `conditions` scopes an edge, but the traversal below never reads it, so a path may compose an edge qualified `{"regime": "cryogenic"}` with one qualified `{"regime": "ambient"}` and be emitted without penalty. Condition compatibility along a path is an **open design question**. The two candidate resolutions are (a) a compatibility predicate checked during traversal, which requires a qualifier ontology the ingestion section does not currently produce, and (b) checking it downstream in the feasibility challenger, which is the current default and which means the substrate knowingly emits condition-incoherent paths. Until (a) exists, `ActivatedPath` carries the union of conditions on its edges so the challenger can see the conflict.
+
+**Traversal filters.** The traversal runs against `G_active`: edges with `status = active` and `valid_from ≤ epoch < valid_to`. `status = disputed` edges are traversed at a reduced typed gain `g_disputed` and are marked as such in every transmission record; `status = retracted` edges are never traversed. Nodes are filtered by the same validity interval.
+
+Edge conductance is `w(e) = conf(e) · g[etype, direction] · s(e)`, where `g` is a typed gain matrix with separate forward and reverse entries — the reverse of `achieves` (effect → mechanism) is the generative direction and is weighted independently of the forward one — and `s(e) = log(1 + IS(e)) / log(1 + IS_max)`, with `IS(e)` the independent-support count of the edge's evidence and `IS_max` a fixed normalising constant in the config (not a corpus maximum, which would make `w` depend on ingest order). `IS` is supplied by the ingestion layer, not computed here; the contract this section requires of it is that documents sharing an assignee family, a priority document or a continuation chain are treated as near-duplicates and discounted, so that a mechanism repeated across many members of one patent family does not outweigh one corroborated independently by two literatures. Whether that discount behaves as intended is a property of ingestion and must be tested there.
+
+**Node identity is not free.** `node_id` is a hash of `canonical_label`, so re-canonicalisation mints a *new* node rather than updating an existing one. A relabelling therefore requires an explicit `same_as` link and an alias map from retired to current ids; a trace referencing an id with no entry in that map is marked unreplayable under I6 rather than silently repointed. The claim in "Assumed interfaces" that `node_id` is stable across versions is a requirement on the ingestion section's canonicalisation, not a property this schema provides.
+
+### Spreading activation
+
+Activation is a two-channel scalar `a_t(v) ∈ R²`, indexed by the number of `analogous_to` hops already consumed. Emission through an `analogous_to` edge moves energy from channel 0 to channel 1; channel 1 emission through such an edge is dropped. This bounds a *recovered path* at one analogy hop with no per-path bookkeeping. It is a structural bound on analogy chaining, not a guarantee of relevance: one wrong `analogous_to` edge still produces a confident single-hop bridge into unrelated literature, and the bound says nothing about that case.
+
+```
+ACTIVATE(query, G, cfg) -> ActivationTrace
+ 1  G_active <- nodes/edges of G valid at epoch, status != retracted
+ 2  seeds <- SEED(query)                       # see SEED; total injected energy = A0
+ 3  a[v,0] <- a0(v)·base_level(v) for v in seeds; a[.,1] <- 0
+ 4  frontier <- max-heap of seeds, capacity B; visited <- {}; L <- zero ledger
+ 5  L.injected += sum of a
+ 6  for t = 0 .. T_max-1:
+ 7      if t in cfg.reentry_rounds: INJECT_REENTRY(t)        # adds to L.injected
+ 8      E <- { v in frontier : max_c a[v,c] >= theta_fire and refractory[v] <= t }
+ 9      if E empty or energy(frontier) < eps or |visited| >= V_max: break
+10      delta <- 0 ; delta_inh <- 0 ; touched <- {}
+11      for u in E, for c in {0,1} with a[u,c] >= theta_fire:
+12          emitted <- zeta · a[u,c]
+13          out     <- emitted · hub(u)        # hub(u) = (1 + log(1+deg_out(u)/d_med))^(-beta), in (0,1]
+14          L.damped += emitted - out
+15          Eu <- top-d_cap out-edges of u in G_active, ordered by (w desc, edge_id asc)
+16          L.truncated[u] <- |out_edges(u)| - |Eu|      # the cap's bias, made countable
+17          Z  <- sum of w(e) over e in Eu
+18          for e = (u -> v) in Eu, in that fixed order:
+19              q <- out · w(e) / Z^alpha · lambda        # alpha: fan-out exponent; lambda: hop decay
+20              c' <- c + 1 if etype(e) == analogous_to else c
+21              if c' > 1:                 L.leaked += q ; continue
+22              if routing(e) == hazard:   hazard[(u,v)] += q ; L.hazard += q ; RECORD_HZ(t,u,v,e,q) ; continue
+23              if routing(e) == inhibiting: delta_inh[v] += q ; RECORD_INH(t,u,v,e,q)
+24              else:                      delta[v,c'] += q ; RECORD_TX(t,u,v,e,c,c',q)
+25              touched <- touched ∪ {v}
+26          L.created += (sum of q emitted from (u,c)) - out     # signed; zero iff alpha=1 and lambda=1
+27          a[u,c] <- a[u,c] - emitted ; refractory[u] <- t + rho
+28      for v in frontier ∪ touched, for c in {0,1}:            # decay applies to every live node
+29          pre  <- a[v,c] ; raw <- pre·phi + delta[v,c] - mu·delta_inh[v]
+30          a[v,c] <- clip(raw, 0, a_max)
+31          L.damped    += pre·(1-phi)
+32          L.inhibited += (pre·phi + delta[v,c]) - max(raw, 0)
+33          L.clipped   += max(raw - a_max, 0)
+34      for (v,c) receiving energy at t:
+35          back_ptr[v,c,t] <- argmax over (e, c_in) of energy delivered into (v,c) at t   # ties by edge_id
+36      for each partition P present in the frontier:           # divisive normalisation
+37          S <- (sum_{u in P ∩ frontier} max_c a[u,c])^eta
+38          for v in P ∩ frontier, for c in {0,1}:
+39              pre <- a[v,c] ; a[v,c] <- pre / (kappa + S) ; L.normalised += pre - a[v,c]
+40      visited <- visited ∪ touched ∪ E
+41      frontier <- top-B of (frontier ∪ touched) ; L.leaked += energy of evicted nodes
+42  L.residual <- energy held in a at exit
+43  return TRACE(seeds, fires, transmissions, inhibitions, hazards, back_ptr, L, paths, reason)
+
+SEED(query):
+  three sources — explicit problem nodes, lexical alias matches, top-m embedding kNN.
+  cfg.seed_mix gives each source a fixed fraction of the total budget A0; within a source
+  the share is split across its nodes in proportion to match score. Total injected = A0
+  regardless of how many nodes each source returns, so seed count does not change the
+  energy scale and traces remain comparable across queries.
+
+INJECT_REENTRY(t):
+  take the top-r nodes by max_c a; retrieve m_re embedding neighbours of each that are not
+  in visited; inject A_re total, split evenly, into channel 0 only; append them to seeds
+  with source = re_entry and the round t; L.injected += A_re.
+```
+
+Four mechanisms keep hubs from dominating, and each can be disabled independently in the config, which is what makes an ablation *possible*; whether their effects are separable is an empirical question the ablation exists to answer, not something asserted here. The **fan-out exponent** `alpha` interpolates between strict conservation (`alpha=1`, energy is split across the retained out-edges) and broadcast (`alpha=0`); the interpolation is a heuristic, and for `alpha ∈ (0,1)` the denominator `Z^alpha` is not dimensionally principled. The **hub penalty** `hub(u)` damps high-degree nodes sub-linearly in log-degree, where `d_med` is the median out-degree over `G_active` at this epoch, stored with the snapshot. The **refractory period** `rho` blocks a node that has fired from re-emitting, so a hub cannot re-broadcast every round and energy is forced through longer chains. **Divisive normalisation within a partition** (lines 36–39) means that when many nodes of the *same* partition are simultaneously active they suppress one another; the intent is diversity pressure, and whether it produces diversity or merely starvation is exactly what the hop-depth and domain-span distributions are defined to show. `contradicts` edges are subtractive, gated by `mu`. `theta_fire`, `B`, `V_max`, `T_max` and `eps` jointly bound the run — `energy(frontier)` is `sum over v in frontier of max_c a[v,c]` — and the frontier is a fixed-capacity best-first structure, not a full traversal.
+
+The full parameter set is `(A0, m, seed_mix, reentry_rounds, r, m_re, A_re, zeta, phi, lambda, alpha, beta, d_med, d_cap, mu, kappa, eta, rho, theta_fire, theta_log, a_max, B, V_max, T_max, eps, g, g_disputed, IS_max, tau_x)`. It is larger than the draft's nine-symbol list, it is coupled, and it requires a held-out tuning protocol; the size of the set is itself a cost of this design and should be read as one.
+
+**Complexity.** At most `T_max · B · d_cap` edge relaxations, `O(T_max · B · d_cap)` transmission records (logged only when `q > theta_log`), `O(T_max · B log B)` heap maintenance, and `O(V_max)` state at two channels per node. The *propagation loop* is therefore independent of `|V|` and `|E|` given an adjacency index, and depends on the *cap* `d_cap` rather than on the true degree distribution. That independence does not extend to the rest of a query: seeding does a kNN lookup and a lexical match against structures that scale with `|V|`, and `partition_id`, `hub_rank`, `deg_*` and `d_med` are per-epoch build costs that scale with `|V| + |E|`. The cap is also a bias: truncating a hub's out-edges to the top `d_cap` by weight makes low-confidence edges of well-connected nodes unreachable, and because `Z` is summed over the retained edges only, the truncation silently reweights rather than leaking. `L.truncated` records how many edges each firing dropped, so the bias is countable and must be reported alongside any recall figure the evaluation section defines.
+
+### Why this is not vector k-NN
+
+Cosine retrieval returns a ball around the query embedding. It is one hop and it has no composition rule: if `sim(A,B)` and `sim(B,C)` are both high, `sim(A,C)` need not be, and retrieval offers no way to traverse from `A` to `C` through `B`. The targets of this loop have the `A–B–C` shape — a problem `A`, a bridging mechanism or effect `B` stated in one literature, and a material or method `C` from a literature that never mentions `A`. This is the shape that literature-based discovery looks for: a link between two bodies of work that share no documents, visible only by composing two separately published relations. Creativity research has a separate term for the same move, joining two internally consistent but normally unconnected frames. Both formulations have named originators and canonical sources; none are asserted here, because no attribution, date or venue can be checked from this machine. Placeholders are recorded in `unverified_refs` and must be resolved against sources before this section cites anything, and nothing in the design depends on either attribution being correct.
+
+Enlarging `k` until `C` appears does not help: the ball that contains `C` contains everything else at that radius, and the retriever still cannot say *why* `C` is relevant, so there is nothing for the novelty and feasibility challengers to attack.
+
+Beyond multi-hop reach, three structures are available to spreading activation and unavailable to similarity. First, **type algebra**: the sequence of edge types along a path is itself the hypothesis — `problem -requires-> effect <-achieves- mechanism_1 -substitutes-> mechanism_2 -requires-> material` is a proposal with a readable form, whereas an embedding neighbourhood has no types to compose. Second, **negative and conditional structure**: `contradicts` subtracts and `fails_under` routes to hazard, so the substrate can represent "this combination is reported to fail under these conditions" — similarity has no sign. Third, **provenance by construction**: the path carries the edges and their evidence, so the artifact handed downstream is explanatory rather than merely ranked.
+
+Type algebra cuts both ways, and the draft previously glossed over it: an arbitrary etype sequence is not a hypothesis. A path consisting only of `cited_by` and `derived_from` edges is a bibliographic trail with the same shape and none of the meaning. A **path grammar** over etype sequences is therefore required, and its content is an **open design question**. The default it ships with, to be replaced once there is evidence: a path is emitted as a candidate only if it begins at a `problem`, traverses at least one `achieves` edge in the reverse (generative) direction, terminates at a `mechanism`, `material` or `method`, and contains no more than `j_cap` consecutive `cited_by`/`derived_from` edges. Paths failing the grammar are retained in the trace but not emitted as candidates.
+
+The costs are real and must be stated. A query is a bounded traversal and does substantially more work than a single ANN lookup; the ratio is a quantity the evaluation section defines and measures, not one asserted here, and its variance depends on where the seeds land. The working assumption — untested — is that embeddings degrade gradually on noisy text whereas a wrongly extracted typed edge does not degrade but manufactures a confident chain; this is the reason every path is re-verified against its evidence downstream and the reason `extraction` provenance is stored per edge, and it is also a hypothesis about failure behaviour that the evaluation should try to falsify. There is a genuine recall blind spot: a relevant node with no edge into the activated subgraph is invisible to spreading activation but retrievable by cosine. The substrate therefore uses both — embedding k-NN seeds the run, and `INJECT_REENTRY` performs bounded re-entry injections at the rounds in `cfg.reentry_rounds`. Re-entry seeds enter channel 0, which resets the analogy budget: `analogy_hops ≤ 1` continues to hold for every *recovered path*, but a chain of reasoning that passes through a re-entry seed can contain more than one analogy hop in total, and the trace records the round and source of every seed so that this is visible rather than hidden. Vector retrieval is the entry point; spreading activation is the composition operator.
+
+Quantities are defined here, not measured: hop-depth and domain-span distributions per trace; edge relaxations, frontier peak and wall-clock per query; leaked-energy fraction and the full ledger decomposition; truncated-edge counts; and, for the k-NN ablation, the share of *validated* candidates whose recovered path has at least two hops and a domain span above `tau_x`, under an identical downstream verification pipeline. A held-out temporal protocol — cut the corpus at a date, ask whether the substrate re-derives connections that later documents made explicit — is defined in the evaluation section. It is a necessary test of the bridge claim and the strongest one available offline, but it measures *rediscovery of connections that were subsequently published*, which is a proxy for, and not the same as, proposing a connection nobody has made. A system that scores well on it has demonstrated that it can compose published relations into links that turned out to be real; it has not demonstrated that it invents.
+
+### Operationalising "cross-domain"
+
+Three measures, because any one of them alone is an artefact generator. They are *not* independent: the taxonomic and corpus measures both rest on the same domain assignment produced by ingestion, so a systematically mis-assigned domain corrupts two of the three votes at once. Only the structural measure is derived from graph topology rather than from labels. The 2-of-3 rule below therefore buys robustness against *one* measure being noisy, not against three independent errors, and a crossing carried by the taxonomic and corpus measures together should be treated as roughly one piece of evidence, not two.
+
+Let `domain(u)` be the level-`k_dom` prefix of `domain_path(u)`, with `k_dom` fixed in config so that all three measures are computed at one granularity. All three are normalised to `[0,1]`.
+
+1. **Taxonomic.** `d_tax(u,v) = 1 − 2·depth(lca(u,v)) / (depth(u) + depth(v))` over `domain_path`, with the taxonomy root at depth 1 so the denominator is never zero. This is a lowest-common-ancestor depth ratio of the standard form used in taxonomic similarity; the formula is given in full so that no citation is load-bearing, and its usual attribution is recorded in `unverified_refs` rather than asserted here.
+2. **Structural.** `d_part(u,v) = 1` if `partition_id(u) ≠ partition_id(v)`, else `0`. The partition is computed by modularity optimisation on the graph **with `analogous_to` edges removed**, so that analogy edges cannot define the partitions they are supposed to bridge. Modularity optimisation is typically stochastic, so the partition is computed once per epoch, stored on the node, and never recomputed at query time — otherwise replay determinism (I2) would not hold.
+3. **Corpus.** `d_pmi(u,v) = (1 − nPMI(domain(u), domain(v))) / 2` over co-classification of ingested documents, which maps `nPMI ∈ [−1,1]` onto `[0,1]`: domains that rarely appear on the same document are far.
+
+Define the scalar crossing score `X(u,v) = median(d_tax, d_part, d_pmi)`. A pair is **cross-domain** when `X(u,v) ≥ tau_x`, which with a single shared threshold is exactly the 2-of-3 rule — the median clears `tau_x` iff at least two of the three do — and which also gives the scalar that `domain_span` and `tau_x` need but that the draft used without ever defining. The 2-of-3 form exists because shallow or mis-assigned taxonomy labels can make same-field concepts look distant; how often they do is an open empirical question about the ingest taxonomy, not something claimed here.
+
+For a path, `domain_span = max_{i<j} X(v_i, v_j)` over all node pairs on the path (not consecutive pairs, which underestimate a path that leaves a domain and returns), and `bridge_edge` is the edge on the path — a consecutive pair — whose endpoints maximise `X`. These maximise over different sets, so `X(bridge_edge)` can be strictly less than `domain_span`; both are recorded. The trace records *which* measures fired, so a downstream reviewer can discount a crossing that rests on labels alone.
+
+### The activation trace
+
+```
+ActivationTrace:
+  trace_id, query_id, graph_version, config_digest, tie_break_seed
+  seeds: list[(node_id, a0, source, round)]  # explicit | lexical | knn | re_entry
+  fires: list[FireEvent(t, node_id, channel, a_in, a_out, refractory_until)]
+  transmissions: list[Tx(t, src, dst, edge_id, etype, w, delivered,
+                         channel_in, channel_out, edge_status)]
+  inhibitions: list[Inh(t, src, dst, edge_id, amount)]
+  hazards: list[Hz(t, subject_node_id, hazard_node_id, edge_id, amount)]
+  back_pointers: dict[(node_id, channel, t) -> (src, src_channel, edge_id, delivered)]
+  truncated: dict[node_id -> int]            # out-edges dropped by d_cap, per firing node
+  ledger: EnergyLedger(injected, created, hazard, inhibited, damped,
+                       clipped, normalised, leaked, residual)
+  truncation_flags: list[str]                # which records were capped: tx | paths | root_docs
+  termination: str                           # t_max | energy | budget | quiescent
+  paths: list[ActivatedPath]
+
+ActivatedPath:
+  path_id, nodes: list[node_id], edges: list[edge_id], etypes: list[str]
+  hops: int, analogy_hops: int
+  delivered_energy: float          # delivered on the final back-pointer of the walk
+  bottleneck_energy: float         # min delivered over the path's edges
+  grammar_ok: bool, cycle_trimmed: bool
+  domain_span: float, bridge_edge_id: str, crossing_measures: list[str]
+  conditions: dict[str, list[str]]  # union of edge conditions; conflicts are visible, not resolved
+  hazards: list[(subject_node_id, hazard_node_id)]
+  root_docs: list[doc_hash]        # bounded union of node+edge evidence; see root_docs_truncated
+  root_docs_truncated: bool
+  unit_evidence: dict[unit_id -> int]   # per-unit evidence counts; the gate derives the share
+```
+
+**Path recovery.** Terminal nodes are the top-`N_paths` visited nodes by `max_c a` at exit whose `ntype` is in `cfg.terminal_types` (default `mechanism | material | method`), excluding seeds. From a terminal `(v, c, t)` the walk follows `back_ptr[v,c,t] -> (u, c_in, e)` and continues at the largest `t' < t` for which `back_ptr[u, c_in, t']` is defined, stopping when `u` is a seed. The back-pointer is keyed by channel, not just by node and round: without the channel key a recovered path can mix channels and I4 does not follow from the channel rule. Because a back-pointer at round `t` always names a node that fired at `t`, whose own energy arrived strictly before `t`, the walk is strictly decreasing in `t` and terminates. It is not guaranteed acyclic in *nodes* — the refractory period permits a node to fire again after `rho` rounds — so a walk that revisits a node has the cycle removed and the path is marked `cycle_trimmed`.
+
+**Privacy reduction at unit boundaries.** Before a trace crosses a unit boundary: evidence on nodes with `privacy_class = local_only` is reduced to a count; evidence on nodes with `privacy_class = aggregate` crosses as counts and bucketed statistics only; `quotable` evidence may cross with spans. Independently of class, any node whose within-unit evidence count is below `k_anonymity` is reduced to a count. Spans and text never cross for the first two classes. `unit_evidence` carries per-unit counts rather than a precomputed `max_unit_share`, because the share the promotion gate needs is defined relative to the promoting node in the hierarchy, which is not known at trace time; the gate computes it from these counts. `root_docs` and `unit_evidence` are the fields the promotion gate reads, so the existing evidence-concentration rule — a finding propagates only when no unit below the promoting node holds more than the policy's permitted fraction of the evidence — applies to candidate paths without modification.
+
+**Invariants.**
+
+- **I1 (ledger).** `injected + created = hazard + inhibited + damped + clipped + normalised + leaked + residual`, within a stated floating-point tolerance. The draft's simpler identity could not hold: the hub penalty, the decay `phi`, saturation at `a_max`, divisive normalisation and `lambda` all destroy energy, and `alpha < 1` creates it, so a conservation law over injection alone is false by construction. Each non-conservative operation now has a named counter incremented at the line that performs it (`damped`, `clipped`, `normalised`, `created`), and the invariant is a bookkeeping identity over those counters. A ledger that fails means a propagation bug and voids the trace.
+- **I2 (replay determinism).** `(graph_version, config_digest, seeds, tie_break_seed)` reproduces the trace exactly, including eviction order. This requires that every reduction have a fixed order — out-edges iterated by `(w desc, edge_id asc)`, ties broken by `edge_id`, floating-point accumulation single-threaded or order-pinned — because bit-exact replay and unordered parallel summation are incompatible. I1's tolerance and I2's exactness are consistent only under that constraint: the tolerance absorbs rounding within a run, not nondeterminism across runs.
+- **I3 (back-pointer termination).** Strictly decreasing in `t`, as above; node-acyclicity is enforced by trimming, not by construction.
+- **I4 (analogy bound).** `analogy_hops ≤ 1` on every recovered path, which follows from the channel rule *given* per-channel back-pointers. It bounds a path, not a chain of reasoning that passes through a re-entry seed.
+- **I5.** No raw text in a boundary-crossing trace for `local_only` or `aggregate` evidence.
+- **I6.** A trace whose `graph_version` is no longer resolvable, or which references retired `node_id`s absent from the alias map, is retained but marked unreplayable rather than reinterpreted.
+- **I7 (honest truncation).** Any record capped by `theta_log`, `B`, `N_paths` or the `root_docs` bound sets the corresponding entry in `truncation_flags`. A truncated trace is a truncated provenance record and must be marked as such rather than silently trimmed; a path whose `root_docs_truncated` is set must not be promoted on evidence-count grounds.
+
+**Failure modes.** Hub domination when `alpha` and `beta` are set too low — diagnostic: the share of total activation mass held by the top decile of nodes by `hub_rank`, compared against that decile's share of nodes. Starvation when `theta_fire` or the partition normalisation is too aggressive — diagnostic: the hop-depth histogram collapsing to one, and `termination = quiescent`. Analogy drift, bounded per path by the channel rule but not eliminated, and not bounded at all across a re-entry injection, when a single `analogous_to` edge is wrong. Label artefacts in the crossing test, mitigated but not removed by the 2-of-3 rule, and weakly mitigated where the taxonomic and corpus measures share a corrupted domain assignment. Confident wrong chains from mis-extracted edges, which nothing in this section catches and which only downstream re-verification can. Condition-incoherent paths, which the traversal cannot currently detect at all. Trace-size blowup on dense seeds, bounded by `theta_log` and `B` under I7.
+
+**Assumed interfaces.** The ingestion and extraction section owns node canonicalisation, supplies `ExtractionRecord(doc_id, span_hash, conf, extraction)` and the `independent_support` count `IS(e)` with the correlation discount described above, and owes `node_id` stability plus an alias map for retired ids. `SupportRecord` is assumed to exist with the fields this section reads; this draft does not reproduce its definition and does not assert that any particular implementation of it is already in place. `graph_version.epoch` is assumed monotone across builds. The novelty and prior-art section consumes `ActivatedPath` and is assumed to need `root_docs` and the `etypes` sequence, nothing more. The adversarial verification section may write `status = disputed | retracted` back onto edges, which takes effect at the next epoch and does not mutate past traces. The hierarchy section owns `Policy`, `k_anonymity`, the promoting-node definition and the promotion gate; this section commits only to populating `unit_evidence`, `owner_unit` and `root_docs` so that the existing significance and evidence-concentration screens apply without modification.
+
+**Open design questions**, collected so they are not mistaken for settled design: the path grammar over etype sequences; condition compatibility along a path; the functional form of `base_level`; the tuning protocol for a coupled parameter set of this size; whether divisive normalisation produces diversity or starvation; whether the re-entry rounds, count and energy budget should be fixed in config or adapted to the trace; and whether `d_pmi` and `d_tax` sharing a domain assignment makes the 2-of-3 rule weaker than a 2-of-3 rule sounds.
+
+---
+
+## 4. Ingestion and typed extraction
+
+Ingestion converts an unbounded, heterogeneous, continually revised corpus into a typed, provenance-complete concept graph that the activation layer (Section 3) can traverse and the verification layer (Section 7) can audit. Its contract is narrow and strict: **every assertion in the graph — every node and every edge — is anchored to at least one verbatim span of an identified document, and replays back to that span at the epoch at which it was asserted.**
+
+Two clarifications, because the strong form of that sentence is false as written. First, extraction *is* a rewriting: the span constrains the assertion but does not uniquely determine it, and a field marked `basis = "assumed_by_extractor"` records exactly where the extractor went beyond what the span says. The contract is anchoring and replay, not identity between span and assertion. Second, the graph holds derived objects that are not assertions about the world — merge groups, unit normalisations, indices. These carry their own witnesses and are separately revocable, and they are kept out of the assertion layer precisely so that a withdrawn source can be subtracted without re-deriving them by hand. Inference over the graph is the job of the operator layer (Section 6) and is required to be separable from the substrate. Subtraction is not perfectly clean — the bounding failure mode at the end of this section states where it is lossy — but it is bounded and it errs in a stated direction.
+
+Nothing in this section has been measured. Every quantity below is given as a definition of how it would be measured, in keeping with the status of this document.
+
+### Source classes
+
+Four classes are ingested, each with a distinct extractor and a distinct set of structures worth recovering. The extractors are specified here to the level of the structures they must recover and the invariants they must satisfy; where the recovery procedure itself is not stated, it is an open item and is marked as one.
+
+**Patents.** The front page yields the family, priority and publication dates, assignee, and classification codes (CPC/IPC). Three structures matter more than the prose.
+
+First, the **claim tree**: independent claims parsed into preamble, transitional phrase, and elements; dependent claims linked to their parents; each element resolved to a `Mechanism`, `Material`, `Method` or `Constraint` node with `requires` edges from the claim node. The claim is the unit of *claimed scope*, so the prior-art layer must index claims. It is not the unit of disclosure: for anticipation, the whole document teaches, including matter that was never claimed. Description and drawings are therefore indexed as disclosure alongside the claim tree, and the two indices are kept distinct — conflating them would either miss art that teaches without claiming, or treat a passing mention as an assertion of scope.
+
+Second, **examiner-cited prior art**: a third-party assertion that two documents were considered related, made by someone with no stake in either text. This is a relatedness edge the system does not have to infer, and it is cheap to collect. It is not unbiased and must not be treated as independent evidence: citations are inserted for a specific legal purpose, applicant-submitted disclosures are filtered by the applicant, and citations issuing from one office — or one examiner — are correlated with each other. Each such edge therefore carries its own independence key (office, examiner where identifiable, and whether examiner- or applicant-supplied) and is discounted like any other correlated evidence root.
+
+Third, where prosecution history is available — which is jurisdiction-dependent, and is not available for most of the world's patent corpus, so any coverage claim must be stated per office — **rejected claim versions and the art cited against them**. A claim amended after an obviousness rejection is evidence that an examiner asserted a specific combination was obvious over specific art. It is not proof that the combination is obvious, and the amendment has many possible causes: cost, speed, a business decision, or a narrower claim simply being enough. What is recorded is the examiner's assertion, not a verdict: `judged_obvious(elements, authority, date, art_cited)`, with the rejection text as its span. The obviousness challenger (Section 7) consumes it as evidence inside its own argument, where it can be rebutted. Recovering `elements` from file-wrapper prose — mapping a rejection to the particular element combination it was directed at — is an open extraction problem, not a solved one; until it is solved the edge is recorded at whole-claim granularity, which is weaker but correct.
+
+**Papers.** Sections are typed by role (methods, results, limitations, related work, negative results) before extraction, because the same sentence means different things in "Results" and in "Limitations". Role assignment runs first on explicit structure — heading strings matched against a controlled map, plus publisher XML section types where the source has them — and falls back to a classifier over heading plus leading sentences where structure is absent. The fallback's accuracy is unmeasured; it would be measured against hand-typed sections sampled per publisher and reported per role, since the cost of a miss is asymmetric (a limitations paragraph read as results is worse than the reverse). Spans typed by the fallback are marked `role_basis = "inferred"`, so every downstream rule conditioned on role can be re-run when the typing changes.
+
+Extractors emit `Mechanism`, `Material`, `Method`, `Metric`, and `MeasuredResult` nodes, the last always with its measurement conditions attached, never as a bare number. Open problems are extracted as `Problem` nodes from explicit statements of absence ("no known method", "remains unsolved"). The negation scope recorded is the smallest span the negation governs — what is claimed absent, over what class, under what hedge — because "no known method achieves X" and "no method we tried achieves X" are different assertions, and the second is a `FailureMode`, not a `Problem`.
+
+**Technical documentation and standards.** Normative and informative text are separated at parse time, using the MUST/SHOULD/MAY keyword convention where the issuing body uses it and explicit document structure otherwise, because a normative clause is a `Constraint` with an authority attached and an informative rationale annex is something else entirely — and the annexes listing *rejected alternatives* are among the densest sources of negative knowledge in the corpus. Datasheets yield `Quantity` nodes with operating envelopes, tolerances, and test conditions.
+
+**Negative-knowledge sources.** Retraction notices, errata, replication reports, terminated-trial registries with stated termination reasons, abandoned applications, engineering post-mortems, and the "we were unable to" passages buried in supplementary material.
+
+### Why negative knowledge is the load-bearing class
+
+The combinatorial space this system searches is much larger than the space of things anyone has written down as working. That is an assumption about corpora rather than a measurement, and the design depends on it. What prunes the space is not knowing what succeeds but knowing what was tried and failed, and under exactly which conditions. Three consequences follow.
+
+First, the positive corpus is selection-biased by construction. Papers report successes; patent prosecution discards the claims that were refused and preserves the ones allowed. A system that reads only what survived that filter will re-propose known dead ends, and — this is the dangerous part — those proposals can *pass* a novelty check, because a failure that was never published is not disclosed prior art. Since novelty here is a defeasible predicate over an evidence set (Section 2) rather than a property of the proposal, missing negative evidence does not make a proposal novel; it makes the evidence set silent. Novelty and viability come apart precisely where negative knowledge is missing.
+
+Second, a recorded failure is almost never a universal. It is a conditional: mechanism M did not achieve objective O under envelope E, as observed by source S. A conditional failure can act as a *generator*, not only a filter — if the record says M failed under condition c, a mechanism drawn from an unrelated domain that removes c is a candidate proposal. This is the design bet on which the negative-knowledge machinery rests. How often such proposals are worth anything is exactly what the evaluation protocol (Section 9) exists to find out, and is not claimed here. Discarding the conditions and keeping "M doesn't work" destroys the structure that makes the record usable this way at all.
+
+Third, negative knowledge is the most commonly discarded signal because it has no citable unit. It lives in limitations paragraphs, rationale annexes, prosecution files, and retraction notices; it has no identifier of its own, no index term, and no incentive structure that rewards its publication. Recovering it requires extractors aimed specifically at hedged and negated prose. The working assumption — to be tested, not asserted — is that general-purpose relation extraction drops or inverts negation and hedging often enough to be unusable for this class. The test is a negation-and-hedge benchmark drawn from limitations sections and rationale annexes, scored per extractor version, with confusion among *asserted / negated / hypothesised* reported separately from ordinary extraction error.
+
+Failure is therefore a first-class node type, and its representation forbids the unconditioned form:
+
+```python
+@dataclass(frozen=True)
+class Quantity:
+    value: float
+    unit: str              # SI base or derived, after normalisation
+    tolerance: float | None
+    source_unit: str       # the unit as written, before normalisation
+
+@dataclass
+class Condition:
+    variable: str          # canonical quantity name, or "as_reported" for the N1 sentinel
+    comparator: str        # "<" | "<=" | "==" | ">=" | ">" | "in" | "material_is" | "as_reported"
+    value: Quantity | str  # SI-normalised where dimensional; the source doc_id for the sentinel
+    basis: str             # "measured" | "stated" | "assumed_by_extractor"
+
+@dataclass
+class FailureMode:
+    node_id: str
+    attempted: EdgeRef                 # ref to the (mechanism -> objective) edge that was tried
+    observed_outcome: str              # closed vocabulary: no_effect | degraded | unstable |
+                                       # side_effect | infeasible_cost | infeasible_scale | unsafe
+    conditions: list[Condition]        # the envelope E; MAY NOT be empty
+    scope: str                         # "single_trial" | "conditional" | "universal_claimed"
+    attributed_cause: str | None       # only when the source states a mechanism for the failure
+    refuted_by: list[str]              # prov_ids of later reports of success inside this envelope
+    prov: list[Provenance]
+```
+
+**Invariant N1.** `conditions` is non-empty. An extraction that recovers no condition is emitted with the sentinel `Condition("as_reported", "as_reported", <source doc_id>, basis="stated")` and `scope = "single_trial"`. The sentinel is a typed value with defined fields rather than prose, so that envelope comparison (N3) is total.
+
+**Invariant N2.** `scope` defaults to `single_trial`. It may be raised to `conditional` only when the source states conditions, and to `universal_claimed` only when the source explicitly asserts that the failure holds across a stated class of conditions rather than in the trial reported. A stated cause is recorded in `attributed_cause` and does not by itself raise scope: a cause can be given for a single trial, and universality can be claimed without one. `universal_claimed` records the *source's* claim and never the system's endorsement of it. Only `conditional` and `universal_claimed` failures may prune a proposal, and pruning is raised as a *challenge* to the verification layer (Section 7) — never a silent deletion — so a failure record can itself be overturned by a `refuted_by` source.
+
+**Invariant N3.** `refuted_by` is populated when a later source reports success under a condition set *contained* in this envelope, where containment is interval containment on SI-normalised dimensional conditions and equality on categorical ones. Envelopes containing the N1 sentinel are incomparable: nothing is contained in them and they contain nothing. This is what stops a conditionless failure record from silently refuting, or being refuted by, anything.
+
+### Provenance capture
+
+```python
+@dataclass(frozen=True)
+class Locator:
+    doc_id: str          # content-addressed: sha256 over normalised text, with the
+                         # normaliser's own version included in the hashed input
+    part: str            # claim | abstract | description | section | table | figure |
+                         # annex_informative | annex_normative | retraction_notice | prosecution
+    ordinal: str         # "claim-7", "§4.2", "p3/l12-18", "table-2/row-5"
+    char_span: tuple[int, int]   # offsets into the normalised text that doc_id hashes,
+                                 # not into the source bytes
+    quote_hash: str      # sha256 of the exact span text
+
+@dataclass(frozen=True)
+class IndependenceKey:
+    doc_family: str | None     # patent family, preprint/version group, mirror set
+    author_group: str | None
+    organisation: str | None
+    funder: str | None
+
+@dataclass
+class Provenance:
+    prov_id: str
+    locator: Locator
+    extractor: str       # "<extractor-name>@<semver>+<hash of ruleset or weights>"
+    epoch: int           # ingestion epoch at which this assertion was written
+    confidence: float | None  # calibrated P(assertion faithful to span); None = not calibrated
+    modality: str        # asserted | reported_of_others | negated | hypothesised | counterfactual
+    independence: IndependenceKey
+    void_epoch: int | None = None
+```
+
+Because the normaliser's version participates in `doc_id`, changing the normaliser mints new document ids instead of silently invalidating every stored offset; a normaliser upgrade is run as an ordinary supersession event (below), which re-anchors carried-forward assertions.
+
+**Invariant P1.** No node or edge exists without at least one non-void `Provenance`. Garbage collection is provenance-driven: an assertion whose last supporting record is voided is withdrawn, not orphaned.
+
+**Invariant P2.** An assertion with no verbatim span is rejected at ingestion, enforced by a lookup and a hash comparison at write time. Its scope should be stated precisely, because it is easy to overstate. P2 makes it impossible to assert something about a document that the document does not contain at the offsets given. It does not make the assertion a faithful *reading* of that span: an extractor can anchor correctly and still mis-type a node, mis-scope a negation, or invert a comparator. P2 eliminates the unanchored failure mode; the anchored-but-unfaithful failure mode is what calibration, cross-version disagreement and the adjudication queue are for.
+
+**Invariant P3.** Two distinct checks share `quote_hash`. (a) *Integrity*: the hash must re-verify against the stored span on read; a mismatch is a storage fault and fails closed. (b) *Drift*: when a source is re-fetched, the span at the recorded locator may no longer hash to the recorded value, because the document was revised, re-typeset, or re-normalised. That is not a fault but an event — the assertion is quarantined for adjudication and the new text is ingested as a supersession, rather than the old record being silently updated.
+
+`confidence` is a per-assertion calibrated probability, not an extractor score. It *would* be measured by adjudicating a stratified sample (per extractor version, per source class, per node type) against human annotation, reported as a reliability diagram and expected calibration error, with sample sizes and inter-annotator agreement stated alongside. An extractor version whose calibration has not been measured writes `confidence = None`; such assertions are stored, traversable and usable as leads, but contribute zero to support arithmetic. The consequence is worth stating rather than discovering: at bootstrap every extractor is uncalibrated, so no candidate clears a support threshold until at least one extractor version per source class has been adjudicated. Calibration is on the critical path for the first useful run, not a later refinement. Extractor identity includes a semantic version and a hash of its ruleset or weights. Re-extraction under a new version **appends** Provenance records; it never overwrites. Disagreement between extractor versions over the same span is a first-class signal and is routed to the adjudication queue.
+
+### Normalisation and entity/mechanism resolution
+
+The same mechanism — say, transporting a load by a travelling wave on a compliant boundary — appears as peristalsis in physiology, travelling-wave actuation in robotics, stator excitation in ultrasonic motors, acoustic streaming in fluid dynamics, and a conveyance means in a patent claim. If those five stay separate, the cross-domain edge this system exists to find never forms. If they are merged carelessly, two genuinely different things collapse into one node and the machine emits false candidates with laundered provenance. Both failures are fatal, so resolution is designed to be *reversible* rather than *accurate on the first pass*.
+
+Three rules govern it.
+
+**1. Surface forms are never merged; nodes are never rewritten.** Each mention resolves to a source-local node with a stable content-addressed `node_id`. Edges always point at member node ids. Cross-vocabulary identity is expressed by a separate `MergeGroup` object that traversal resolves through at the pinned snapshot epoch. A merge or a split is therefore a metadata change, and provenance recorded before a split still replays correctly.
+
+**2. Merging is a predicate over named witnesses, not a similarity threshold.** Every `Mechanism` node carries a **structural signature** derived from extraction rather than from an embedding: a typed record of five fields — kind of input quantity, kind of output quantity, transduced or conserved quantity, class of governing relation, required boundary conditions. Each field takes a value from a controlled vocabulary, or a variable where the source does not say. `unify` is field-wise: two signatures unify when every field pair is equal, or one side is a variable, or one is a strict specialisation of the other within that field's vocabulary; the result is the most specific common instance, and unification fails (⊥) on any incompatible pair. The two dimensional fields have closed vocabularies (SI quantity kinds with a stated specialisation order). The governing-relation and boundary-condition vocabularies are **not settled, and are the main open item in this subsection**: an under-specified vocabulary here makes W5 near-vacuous, which is exactly the over-merging failure recorded at the end of the section.
+
+```
+MERGE_ELIGIBLE(a, b) :=
+      type(a) = type(b)
+    ∧ unify(signature(a), signature(b)) ≠ ⊥
+    ∧ Σ_{w ∈ witnesses(a,b)} weight(w) ≥ w_min
+    ∧ ¬ ∃ d ∈ distinguishers(a, b)
+```
+
+Witnesses, each carrying its own Provenance and each independently checkable:
+- **W1** an explicit cross-vocabulary statement in a source ("peristaltic, also termed travelling-wave");
+- **W2** a shared classification code assigned by a third party (CPC subgroup, standard clause, controlled thesaurus term);
+- **W3** a patent citing both as the same prior-art element against the same claim element;
+- **W4** dimensional agreement plus overlapping ranges on the shared governing quantities after SI normalisation;
+- **W5** signature unification with no free variables remaining.
+
+Distinguishers, any one of which blocks or splits a merge:
+- **D1** a source explicitly contrasts them ("unlike X, Y ...");
+- **D2** dimensional mismatch after unit normalisation;
+- **D3** disjoint operating envelopes on a shared governing variable — two descriptions that cannot hold of the same object;
+- **D4** a `FailureMode` attached to one that a source reports as absent for the other under a contained envelope (N3). Where available, D4 turns on observed behaviour rather than on wording or classification, and it is the reason negative knowledge is load-bearing for resolution as well as for pruning. It is also the rarest of the four, and its strength relative to the others is an assumption encoded in `weight(w)`, not a measured ranking.
+
+`weight(w)` and `w_min` are free parameters, not measured quantities. They would be set on a held-out adjudication set of node pairs labelled same/different by domain annotators, choosing an operating point on the resulting precision–recall curve and reporting the curve rather than a single number. The relevant error is asymmetric: a false merge launders provenance across two unrelated lineages, while a missed merge only costs a candidate, so the operating point belongs on the precision side and the asymmetry should be stated whenever the parameter is quoted.
+
+**3. Merges are provisional and carry blast radius.**
+
+```python
+@dataclass
+class MergeGroup:
+    group_id: str
+    member_ids: list[str]
+    witnesses: list[MergeWitness]     # each: (kind ∈ {W1..W5}, weight, Provenance)
+    state: str                        # "open" | "split_pending" | "split"
+    strength: float                   # Σ witness weights; NOT a similarity score
+    epoch_opened: int
+    epoch_split: int | None = None
+    split_reason: str | None = None   # distinguisher id, or "witness_voided"
+```
+
+A group enters `split_pending` when a distinguisher fires or a witness is voided and `MERGE_ELIGIBLE` no longer holds. Traversal treats a `split_pending` group as split from that epoch forward, so adjudication latency never leaves a known-bad merge in force. The queue is prioritised by the number of live invention candidates whose lineage traverses the group.
+
+This makes an over-merge repairable, and — once any distinguisher surfaces — detectable. It does not make over-merging detectable in general: a merge for which no source ever states a contrast, no dimensional conflict exists, and no differing failure record is ever published stays latent indefinitely, and nothing in this design finds it. What the design buys is that when contrary evidence does arrive, the repair is a metadata change with a computable blast radius rather than an unrecoverable corruption.
+
+### Incremental and continual ingestion
+
+Documents are content-addressed: `doc_id` hashes the normalised full text together with the normaliser's version. Exact copies therefore collapse by construction. Near-duplicates do not — differing bytes hash differently — so near-duplicate grouping is a separate object: a `DocGroup` with a designated canonical member, an alias set of external identifiers (family members of one patent, preprint/version pairs, a record and its mirrored copy), and its own provenance for each grouping decision. Locators always name the concrete `doc_id` whose text they index, never the group, because a character offset is meaningful only in one text. This mirrors rule 1 above: grouping is reversible metadata over stable ids.
+
+Deduplication happens at three levels.
+
+1. **Document level** — exact identity by `doc_id`; near-duplicate detection (shingle overlap) *proposes* `DocGroup` membership, which is revisable and carries witnesses like any other grouping.
+2. **Assertion level** — an assertion is keyed by `(subject, predicate, object, condition-set)`, where subject and object are *merge-group-resolved at the pinned epoch*, not raw node ids. This has to be stated carefully, because rule 1 forbids rewriting node ids: two documents describing the same mechanism in different vocabularies produce different source-local nodes, and their assertions collapse onto one edge only under a merge group that joins them. Assertion identity is therefore epoch-relative, and a merge or a split changes it. The consequence is operational: support must be recomputed when a group opens or splits, not only when provenance is voided. The cascade below does both, in that order.
+3. **Independence level** — repetition is not replication. A review paper restating a result it cites is not independent evidence of it. Each Provenance carries an `IndependenceKey`, and support is computed by a nested correlation discount over that key, so that a widely cited claim is not mistaken for a well-replicated one.
+
+On that discount, one thing must not be glossed. The *shape* already exists in Mycelic: `UnitNode` computes `independent_support` as a nested discount over the organisational hierarchy, `dr + rho_region·(dd − dr) + rho_department·(dt − dd) + rho_team·(dw − dt)`, over distinct-unit counts at each level. Ingestion needs the same *form* over a different nesting — distinct funders ⊂ organisations ⊂ author groups ⊂ document families — which means a new parameter ladder (`rho_family`, `rho_author_group`, `rho_org`) and new distinct-counts on the support record. This is reuse of the formula, not of the existing coefficients: `rho_team`, `rho_department` and `rho_region` are set for organisational correlation and carry no information about bibliographic correlation. Setting the new ladder is an open item. The honest procedure is to estimate each coefficient from observed agreement rates between sources sharing that key; until that is done the coefficients are declared assumptions and the sensitivity of any downstream result to them is reported alongside it.
+
+Supersession and withdrawal are handled by a single cascade. Ingestion is append-only into numbered **epochs**: nothing is mutated in place, and what reads like a status change below is the appending of an epoch-stamped status record. The current status of a document, assertion or merge group is the fold of its status records up to the pinned epoch. Activation and verification run against a pinned snapshot epoch so that a candidate's lineage replays deterministically.
+
+```
+on_source_event(doc, event ∈ {superseded, retracted, withdrawn, expired}, epoch):
+
+ 0. if event == "expired":                      # legal status only
+        append doc.status_record(expired, epoch)
+        return                                   # an expired patent is still a disclosure and
+                                                 # still prior art: nothing is voided, nothing
+                                                 # downstream is re-verified
+
+    # event ∈ {superseded, retracted, withdrawn}
+ 1. append doc.status_record(event, epoch)
+    append prov.void_record(epoch) for every Provenance with
+      prov.locator.doc_id == doc.doc_id
+      (for `superseded`, void only assertions absent from the successor version;
+       assertions carried forward are re-anchored to the successor's locator as a
+       NEW Provenance record, never as an edit of the old one)
+ 2. A := assertions (nodes ∪ edges) holding any newly voided provenance
+ 3. G := MergeGroups that lost a witness; re-evaluate MERGE_ELIGIBLE;
+        those that now fail enter `split_pending` at this epoch,
+        split_reason = "witness_voided"
+ 4. A := A ∪ assertions whose identity key changed under split(G)
+        (a split un-collapses an edge: its provenance divides between the parts)
+ 5. for a in A:
+        recompute support(a) over non-void provenance with independence discounting
+        if support(a) < support_min:
+            append a.status_record(withdrawn, epoch)
+ 6. repeat 3–5 while a split or withdrawal removes a further witness or changes a
+    further identity key. Each iteration only removes witnesses and splits groups,
+    never the reverse, so the loop terminates; it is bounded by the number of live
+    merge groups.
+ 7. I := invention candidates whose lineage intersects A ∪ split(G)
+ 8. enqueue re-verification of each i ∈ I at the unit that holds it
+ 9. emit an IngestionEvent to those units
+```
+
+Step 3 must precede step 5: a split changes which provenance records back which assertion, so recomputing support first would produce numbers that the same cascade immediately invalidates.
+
+Step 7 is a lookup, not a graph scan: reverse indices `prov_id -> {assertion_id}` and `assertion_id -> {candidate_id}` are maintained at write time.
+
+`support_min` is named after Mycelic's existing policy threshold, but reusing that value assumes the two support scales are commensurable, which they are not until the ladder above is set. Until then it is a parameter of this layer, not an inherited constant.
+
+An `IngestionEvent` crosses unit boundaries, so it obeys the same rule as every other artifact in the hierarchy: it carries `prov_id`s, `doc_id`s, epoch numbers, the event type and the affected assertion ids — identifiers and hashes — and never span text. A withdrawal notice that quoted the retracted passage would move raw corpus text across the boundary the architecture exists to hold.
+
+### Handoff to cumulative re-verification
+
+Nothing in the cascade decides whether a downstream invention survives. It only withdraws evidence and signals. The decision is the existing Mycelic one — with one interface gap that should be named rather than glossed.
+
+An invention candidate is carried as a `Claim` whose `support.evidence_hashes` are `prov_id`s rather than interaction hashes, whose `support.independent_support` is computed by the correlation discount described above, and whose `lineage.derivation_operator` is `ingest` for extraction-derived assertions. `ingest` is **not** in the current operator vocabulary (`observe | pool | synthesize | revise | answer_question | copy`); adding it is an explicit schema change to `LineageRecord`, not an assumed one. The vocabulary for synthesis steps is owned by the operator-algebra section (Section 6).
+
+**The gap.** Mycelic's cumulative re-verification (`UnitNode._recheck`) withdraws an accepted claim when its cumulative one-sided tail exceeds `withdraw_p` at a minimum of `n_min` observations, computed against the current most-elevated sub-marginal. That test presupposes counted trials — an `n`, a `k`, and a baseline rate — because it tests a statistical regularity over observations. An invention candidate has none of those: it has an evidence set of spans and a structural argument. `_recheck` therefore cannot be reused unmodified, and this section does not claim that it can. Two resolutions are available; the choice is open:
+
+**(a) Define the mapping.** State what `n`, `k` and the baseline mean for a candidate — for example `n` as the number of independent challenge trials the candidate has faced and `k` as the number it survived, making withdrawal a test on challenge-survival rate rather than on evidence volume. One code path and one threshold, at the cost of `withdraw_p` meaning something different for candidates than for cell claims.
+
+**(b) Add a sibling test.** Leave `_recheck` alone and add a support-threshold re-test for candidates: withdraw when discounted independent support falls below the level that admitted the candidate, or when a challenge is sustained. Keeps the statistics honest, costs a second code path and a second parameter.
+
+Under either resolution the retirement path is the existing one: a candidate that fails its re-test at the next analysis round is set to `status = "superseded"` with `quarantine_reason = "withdrawn"`, exactly as an organisational claim is, and is revived if the support returns. Promotion remains gated by the rules the architecture states — a candidate rises only when it clears its significance screen and no single unit below holds more than half its evidence — so a withdrawal at any layer propagates by the ordinary claim-retirement path rather than by a special case. The concentration half of that gate needs a statistic the support record does not currently carry: `SupportRecord` holds distinct-unit counts (`distinct_workers`, `distinct_teams`, …), not per-unit evidence shares. A per-child share must be maintained for candidates, or that half of the gate cannot be evaluated at all.
+
+**Bounding and its failure mode.** A candidate stores at most `max_roots_tracked` provenance roots verbatim; beyond that, per-document counts only. When a withdrawal touches a document whose spans were summarised to a count, the system cannot attribute the loss to an individual span and voids the whole document's contribution to that candidate. Re-verification is therefore conservative under bounding: it can withdraw a candidate that a full-lineage system would have kept. This is a deliberate trade of recall for auditability, and the size of the trade is the quantity a lineage-budget sweep *would* measure — candidates withdrawn under a bounded lineage but retained under an unbounded one, as a function of `max_roots_tracked`.
+
+### Stated failure modes of this layer
+
+- **Over-merging under vocabulary poverty** — a domain with few distinct terms yields weak signatures and easy W5 unification. Mitigation: require at least one of W1–W3 (a third-party witness) for any merge that crosses a classification boundary, since those are precisely the merges the cross-domain machinery relies on. Whether the rule actually suppresses false merges is unmeasured; it would be measured on the merge adjudication set described above, reported separately for boundary-crossing and within-domain pairs.
+- **Latent over-merge** — the repair machinery only fires on an observed distinguisher. A false merge that no source ever contradicts is invisible to this design, and its cost is silently laundered provenance in every candidate whose lineage traverses it. No mitigation is claimed; the mitigation is the precision-side operating point on `w_min`.
+- **Extraction hallucination** — the unanchored form is eliminated structurally by P2 (no span, no assertion) rather than by model confidence. The anchored-but-unfaithful form is not, and is the residual this layer carries: it is addressed only by calibration, cross-version disagreement routing, and human adjudication, all of which are sampling procedures rather than guarantees.
+- **Uncalibrated bootstrap** — because `confidence = None` assertions contribute nothing to support, the graph can be large and entirely unable to support a candidate until adjudication has run per source class. Detectable by construction (the support arithmetic simply returns zero) but easy to mistake for a retrieval failure.
+- **Adjudication as a rate limit** — merge splits, extractor disagreements, drift quarantines and calibration sampling all terminate at human judgement. The queues are prioritised by live-candidate blast radius, but the throughput is finite and unmodelled here; if arrival outruns service, the visible symptom is stale `split_pending` groups suppressing candidates rather than any loud failure.
+- **Negative-knowledge scope inflation** — one failed trial recorded as a universal permanently prunes a good candidate. Mitigated by N2's default, by keeping `attributed_cause` separate from `scope`, and by routing every prune through the challenge mechanism.
+- **Echo inflation** — citation cartels and review chains inflating apparent support. Mitigated by independence discounting; the residual failure is unrecorded co-dependence between nominally independent groups, which no key in `IndependenceKey` captures.
+- **Classification drift** — CPC and thesaurus revisions change W2 witnesses retroactively; handled as an ordinary source-supersession event on the classification scheme itself, which means scheme revisions can split merge groups and trigger the cascade, including its fixpoint loop, across a large fraction of the graph at once.
+
+---
+
+## 5. Swarm architecture and control
+
+*Nothing in this section has been run. Every threshold named below is a parameter to be set in the run configuration, and every rate named is a definition of how it would be measured, not a measurement.*
+
+The swarm is not a pool of interchangeable workers. It is a fixed taxonomy of six agent classes with disjoint outputs, all resident inside a Mycelic `UnitNode` and all bound by the same rule that governs the organisational benchmark: an agent reads the local store of the unit it lives in, and only bounded, typed, signed, lineage-carrying artifacts cross a unit boundary. Nothing in this section introduces a shared mutable blackboard; the closest analogue — the unit's pooled concept sketch — is a count structure local to one node, pooled from children's promoted deltas exactly as `Sketch.pool` pools cell counts today (`mycelic-org-benchmark/src/mycelic_bench/sketch.py`).
+
+Two of the six artifact types cross unit boundaries: `ProbeSketch` (counts, no text) and `GossipDigest`, plus the `ConnectionClaim` that rises through the existing promotion path. `TerritoryLease`, `FacetRecord`, `ConnectionProposal`, `ChallengeArtifact` and `InventionCandidate` are unit-local and are never emitted upward; the candidate text and the raw corpus stay where they were produced.
+
+### Agent taxonomy
+
+| role | input | output | stopping condition | characteristic failure |
+|---|---|---|---|---|
+| Scout | a `TerritoryLease` (seed concepts, facet filter, hop radius, token budget) | `ProbeSketch` | frontier queue empty, expansion budget spent, or marginal new-concept rate over the last `w_s` expansions below `tau_scout` | hub collapse |
+| Domain specialist | `ProbeSketch` cells in its resident domain | `FacetRecord` set (grounded mechanism / material / method / constraint / failure-mode assertions, each with a locator) | every queued concept has a resolved facet record or is marked `unresolvable` | ungrounded assertion |
+| Connector | two `ProbeSketch`es from *different* domain classes plus the `ProblemSpec` | `ConnectionProposal` | `q_max` proposals emitted, pair budget spent, or pair sampler empty | degenerate bisociation |
+| Critic (4 axes) | one `ConnectionProposal`, the locators it names, and — for the novelty and obviousness axes — the prior-art search interface over the pinned index snapshot | `ChallengeArtifact` (`sustained` / `withdrawn` / `inconclusive`) | verdict on its axis, or required evidence unavailable (which is `inconclusive`, not a verdict) | rubber-stamping or nihilism |
+| Synthesiser | a proposal whose required challenge slots are all *resolved* and none `sustained` | `InventionCandidate` + `ConnectionClaim` | candidate written with assertion-to-locator coverage 1.0, or coverage unreachable and the claim returned to `proposed` | narrative smoothing |
+| Allocator | territory ledger, gossip digests, budget | `TerritoryLease` grants | deterministic; runs once per unit-round | starvation of the frontier |
+
+The Allocator is not a model-backed agent. It is a deterministic scheduler inside the `UnitNode`: given the same ledger, the same received digests, the same budget and the same run seed it produces the same grants, so its decisions are auditable without replaying a model. This is weaker than run reproducibility — the ledger it reads is downstream of model-backed agents, so replaying a whole run additionally requires the pinned graph snapshot and a recorded transcript of agent outputs. The allocator is the part that does not have to be replayed to be checked.
+
+**Scout.** Runs spreading activation from the lease's seeds over the typed concept graph. The propagation rule is explicit: activation reaching node `v` at hop `i+1` is `a_{i+1}(v) = sum_{u in N(v)} a_i(u) * w(type(u,v)) / deg(v)^delta`, with per-edge-type weights `w` and degree exponent `delta` declared in the run configuration; nodes below activation `theta` are pruned, each hop keeps at most `F_max` nodes by activation with ties broken on concept id, and traversal stops at radius `rho`. The `deg(v)^delta` term is what keeps a high-degree hub (a concept such as "polymer") from swallowing the frontier. Hub collapse is the scout's characteristic failure by construction rather than by observation — it is detected, not assumed, by the share of a `ProbeSketch`'s mass sitting on nodes above the `p_hub` degree percentile, which is recorded per probe. Whether a hub-heavy probe is actually worth less is exactly what the yield definition below measures; no value is claimed here. The scout emits counts, never text.
+
+**Domain specialist.** Resident to one domain; it converts activated concept ids into grounded facet assertions, each carrying a `SourceLocator`. Its failure mode is asserting a mechanism its source does not state. This is caught structurally, not by trust: a facet record whose locator does not resolve in the holding unit's local store is quarantined at intake, by the same rule that quarantines an unbacked worker claim in `UnitNode._receive_claim` (`hierarchy.py`, quarantine reason `unbacked claim (provenance)`).
+
+**Connector.** The only role permitted to emit a cross-domain pairing. Because specialists are single-domain and raw corpora do not leave a unit, a connector runs at the lowest unit whose *pooled* sketch spans two domain classes — the first common ancestor of the two domains — which is why `ProbeSketch` (counts, no text) is the artifact that crosses the boundary. It samples concept pairs under one hard constraint, `min_bridge_hops`: a proposal whose endpoints lie within `min_bridge_hops` hops of each other in the concept graph is rejected at intake as near-domain, is recorded in the quarantine ledger with that reason, and does not count toward the connector's yield. This is the cheapest of the three diversity mechanisms listed below and the only one that acts on a single proposal in isolation; it is what makes the connector structurally different from a retrieval agent.
+
+**Critics.** Four axes — novelty, obviousness, feasibility, evidence fidelity — instantiated as separate agents in separate contexts with no access to each other's verdicts. The *required slot set* is all four axes for every proposal unless the run configuration declares a subset, in which case the subset is recorded in the `RunCertificate`. A slot is **resolved** only by `sustained` or `withdrawn`; `inconclusive` records that the evidence a verdict would need was unavailable and leaves the slot unresolved. A proposal is promotable only when every required slot is resolved and none is `sustained`; an unresolved slot leaves the claim `proposed`. This is the point the earlier draft of this section contradicted itself on, and it is the invariant the rest of the gate rests on: absence of challenge is never evidence of survival, and it is what partial failure most easily violates, since a crashed or timed-out critic produces exactly the same silence as a critic that found nothing. Critic drift is assessed against a control set built from the corpus's own examiner record where one exists: pairs already disclosed (which must be rejected) and pairs granted over an obviousness objection (which must survive). Two limits are part of the definition — examiner records cover only the patent portion of the corpus, so the control set is unavailable for large domains, and no calibration result is claimed here; the procedure is what would be run, and what it would report is the per-axis rate on each control arm.
+
+**Synthesiser.** Emits the human-readable candidate and the `ConnectionClaim` that carries it upward. It refuses to emit when any assertion in the candidate lacks a locator, returning the claim to `proposed` rather than writing a coherent story across a gap.
+
+### Typed artifacts on the wire
+
+```python
+@dataclass
+class TerritoryLease:
+    territory_id: str; seeds: list[int]; facet_filter: int; radius: int
+    owner_agent_id: str; lease_round: int; ttl: int   # ttl in rounds
+    budget_tokens: int                  # the b_a the agent is invoked with
+
+@dataclass
+class ProbeSketch:                      # additive, poolable, no text
+    producer_id: str; layer: str; round: int; territory_id: str
+    ids: np.ndarray                     # activated concept-class ids (the coarsening the
+                                        # sketch pools over; not concept-pair ids)
+    counts: np.ndarray                  # [n_paths,
+                                        #  distinct_agents, distinct_units,
+                                        #  distinct_departments, distinct_regions,   <- discount inputs
+                                        #  distinct_domains, distinct_corpora]       <- diversity only
+
+@dataclass
+class ConnectionProposal:
+    proposal_id: str; producer_id: str
+    operator: str                       # drawn from the operator vocabulary defined in the
+                                        # generation-operators section; this section adds none
+    lhs: int; rhs: int; bridge_path: list[int]; problem_id: str
+    class_key: tuple                    # canonicalised: (operator, sorted((dom,facet) of lhs,
+                                        #                 (dom,facet) of rhs)) so a mirrored
+                                        #                 proposal collapses to the same class
+    support: SupportRecord; lineage: LineageRecord; status: str
+
+@dataclass
+class ChallengeArtifact:
+    challenge_id: str; challenger_id: str; proposal_id: str
+    axis: str                           # novelty|obviousness|feasibility|evidence_fidelity
+    verdict: str                        # sustained|withdrawn|inconclusive
+    locators: list[str]
+    search_record_id: str | None        # required on novelty and obviousness: the recorded
+                                        # queries + index snapshot that failed to anticipate
+    signature: str                      # unit-key HMAC; see "Garbage" below for what it attests
+
+@dataclass
+class GossipDigest:                     # bounded: top max_classes entries by g, ties on class key
+    sender_id: str; round: int
+    exhaustion: dict[tuple, tuple[int, int, int, int]]  # class -> (visits, yield_num, yield_den, last_round)
+```
+
+`SupportRecord`, `LineageRecord` and `SourceLocator` are the lineage section's types and are used here unchanged.
+
+The `ProbeSketch` count columns mirror the benchmark's sketch layout deliberately: `n_paths` stands where `COL_N` stands and the four distinct-source columns stand where `COL_DW`/`COL_DT`/`COL_DD`/`COL_DR` stand, with agents in the worker position and the units above them unchanged, so `UnitNode._independent_support` consumes the vector without modification. The two trailing columns (`distinct_domains`, `distinct_corpora`) feed diversity scoring only and are not inputs to the discount. Two consequences follow and neither is optional. First, a single agent looping on one territory contributes one distinct agent, not many, which is the property that makes the correlation discount meaningful. Second, additive pooling of distinct-source columns is exact only for the layers at or below the producers' layer, exactly as `sketch.py` documents; a node pooling its children must restore the columns for its own layer and above, the analogue of `UnitNode._fix_distinct`. Where children's source sets are not disjoint the pooled distinct counts are upper bounds, so the independence they imply is an upper bound too, and the gate should be read that way.
+
+### Work allocation and diversity pressure
+
+A **territory** is `(seed set S, facet filter F, hop radius rho)`; its **class** is the coarsening `(domain(S), F)`, which is what gossip carries. Two territories **overlap** when their seed sets intersect; leases are granted only on non-overlapping territories within a unit.
+
+Candidate territories are enumerated deterministically from the unit's pooled sketch: one territory per `(seed cell, facet filter)` pair, where seed cells are the highest-activation cells not currently leased and facet filters are those named in the `ProblemSpec`. *Open design question:* the generator is the least constrained part of this design. A top-activation generator biases toward the region already explored, and the exploration term below is the only counterweight; whether that is sufficient, or whether territories must be sampled from a coverage-driven generator instead, is unresolved and is the first thing an ablation should attack.
+
+The allocator scores each offered territory
+
+```
+score(t) = yhat(t) + c_ucb * sqrt(log N_r / max(v(t), 1)) - lambda * g(t)
+yhat(t)  = 1000 * (gate_survivors(t) + alpha) / (tokens(t) + beta)
+```
+
+where `v(t)` is the territory's visit count, `N_r` the total visit count across all territories in the unit's ledger at round `r`, `alpha`/`beta` the shrinkage priors, and `gate_survivors(t)` the number of candidates attributable to `t` through lineage whose required challenge slots resolved with none sustained. `yhat` is therefore in candidates per thousand tokens, the same unit as the cost model below. The middle term has the form of a UCB exploration bonus; no regret guarantee is claimed for it, because the rewards here are neither stationary nor independent across territories and the assumptions that would license such a guarantee do not hold.
+
+`g(t)` is the gossiped exhaustion mass for `t`'s class, and is computed, not gestured at. Summing received digests componentwise for that class gives `(V, Ynum, Yden, r_last)`; then
+
+```
+g(t) = gamma^(r - r_last) * (V / (V + kappa)) * max(0, 1 - ((Ynum + alpha) / (Yden + beta)) / y_ref)
+```
+
+with staleness decay `gamma`, visit half-saturation `kappa` and reference yield `y_ref` from the run configuration, so `g` lies in `[0, 1]` and is large only for a class that was visited often, recently, with little to show.
+
+The top `m` territories are offered and idle agents bid. A bid is `(match(a, t), chat(a, t))`: `match` is the fraction of `t`'s facet filter covered by the agent's declared capability mask — a bitmask test, not a model call — and `chat` is the agent's own token estimate. The allocator grants each territory to the bidder maximising `match(a, t) / max(chat(a, t), 1)`, ties broken on agent id, and records `lease_round` and `budget_tokens`. Because a self-estimate is an invitation to under-bid, the allocator records each agent's realised-to-estimated token ratio and multiplies its future estimates by that agent's trailing median, so systematic under-bidding stops paying after one round. *Open design question:* whether self-estimated cost buys anything over an allocator-side estimate from the territory's size is untested.
+
+A hard floor reserves a fraction `phi` of each round's budget for territories with `v(t) = 0`; if no unvisited territory is on offer, the floor is released to the general pool for that round. Given `phi > 0` and at least one unvisited territory on offer, the index cannot fully starve the unexplored frontier — starvation is the allocator's own characteristic failure and the floor is the guard against it.
+
+Three diversity mechanisms operate at three timescales, and all three are required:
+
+1. **Territory leasing** (per round, hard). Leases are exclusive; two scouts in the same unit cannot hold overlapping territories. This prevents same-round duplication.
+2. **Negative gossip** (per round, soft, bounded). Each unit broadcasts a `GossipDigest` of visited-and-unproductive territory classes through its parent to siblings — the stigmergic analogue of a depleted trail. It subtracts from the sampling prior via `lambda * g(t)`; it never hard-blocks a class, because a class that was dry under one problem may be productive under another.
+3. **Class-level novelty accounting** (per proposal, hard). `min_bridge_hops` plus class-level deduplication: a connector's *class yield* counts distinct canonicalised `class_key`s, not proposals, so emitting a hundred variants of one analogy scores as one.
+
+The word *yield* carries three distinct meanings here and they are kept apart on purpose: **territory yield** is `yhat`, in candidates per thousand tokens; **class yield** is the connector's count of distinct `class_key`s; **class exhaustion yield** is the `(Ynum, Yden)` pair inside a gossip digest. Only the first enters `score(t)` directly.
+
+### Control loop
+
+```
+ROUND(unit U, round r):
+ 1  U.allocator.retire_expired_leases(r)      # TTL expiry: v(t) += 1, yield numerator and
+                                              # denominator unchanged
+ 2  T       <- U.allocator.offer(m)
+ 3  leases  <- contract_net(T, U.idle_agents) # bid rule above; deterministic given the seed
+ 4  parallel for a in U.agents:
+ 5        art <- a.run(lease(a), budget=lease(a).budget_tokens, deadline=d_a)
+ 6        U.intake(art)                       # schema, signature, locator resolution, dedup,
+                                              # near-domain rejection, quarantine
+ 7  U.pool_probes(r)                          # additive pooling + distinct-column restoration
+ 8  U.schedule_challenges(r)                  # fill required slots; unresolved != passed
+ 9  U.synthesise(r)                           # ConnectionClaim upsert with lineage
+10  U.recheck(r)                              # withdraw_p re-verification on cumulative evidence
+11  U.broadcast(U.gossip_digest(r))
+12  U.promote(r)                              # significance screen + dispersion gate + challenge gate
+13  U.saturation.update(r)                    # the three predicates over the trailing window W
+```
+
+Step 12 reuses the benchmark's promotion gate literally. The **significance screen** is the existing per-node screen; the **dispersion gate** is the existing rule that no single unit below may hold more than half the supporting evidence; the **challenge gate** is the resolved-and-none-sustained rule above. A claim is promoted when it clears its screen, when independent support after correlation discount meets `support_min`, when the dispersion gate holds, and when the challenge gate holds — the invention-loop reading of the existing rule that a synthesis must rest on evidence from at least two children. A candidate that one agent could have produced alone stays at that agent's unit.
+
+### What promotion establishes, and what it does not
+
+Promotion is a statement about an evidence set, not about the world. A promoted `ConnectionClaim` asserts exactly this: every assertion in the candidate resolves to a locator that resolved in the holding unit's store; the required challenge slots were resolved and none sustained; the recorded prior-art searches, over the pinned index snapshot and under the queries recorded in their search records, failed to anticipate the combination; and support after correlation discount met `support_min` with no single child holding more than half of it.
+
+It does not assert that the mechanism works, that no source anywhere discloses the combination — only that the searched index under the recorded queries did not — or that a skilled practitioner would not have reached it. The output is a defeasible candidate plus the evidence set that makes it defeasible, which is why the withdrawal cascade exists at all: candidates are expected to be withdrawn when a source is retracted or a later search anticipates them. Acceptance remains a human expert judgement that this architecture supplies evidence for and does not replace.
+
+### Termination, and telling dry from merely stopped
+
+A swarm that stops emitting is not the same as a swarm that has nothing left to emit, and the loop must never report the second when it has the first. Three predicates are evaluated per unit over a sliding window `W` of rounds — the saturation window of step 13.
+
+**dry.** Let `T(W)` be the number of proposals that survived intake in the window and `f1(W)` the number of connection classes represented by exactly one such proposal. The coverage-deficit indicator is `Uhat = f1(W) / T(W)`: under an exchangeable sampling model it estimates the probability that the next proposal belongs to a class never yet seen. This is the standard unseen-mass argument from frequency estimation, applied to connection classes rather than word types; the attribution is from memory, is unverified on this machine, and must be located and checked before this document goes anywhere. Two caveats matter more than the attribution. First, the allocator steers sampling and negative gossip suppresses visited classes on purpose, so the exchangeability the estimator assumes is violated by construction: `Uhat` is a monotone indicator we threshold, not an unbiased estimate, and calibrating it against a synthetic corpus of known finite class count is part of the evaluation protocol, not a result. Second, a nonparametric richness estimator could in principle give a companion bound on how many classes remain unseen; which estimator, and whether its assumptions survive the first caveat, is an open question rather than a component of this design. `dry` holds for a unit when `Uhat <= epsilon` for `k_dry` consecutive windows.
+
+**broken.** At run start the indexer draws a reserve of **recoverable bridges**: concept pairs that some source present in the corpus states are connected, whose bridging edge is withheld from the index. A stratified subset of `h` of them is active at any time (the set `H_active`, drawn under the run seed, stratified by domain pair); the rest are held as replacements. Canary recall `recall_c(W)` is the fraction of `H_active` proposed by some connector within the window, and is the swarm's liveness probe. A canary that is found is retired and replaced from the reserve, so recall is measured over a rolling set rather than a saturating one, and proposals matching a canary are tagged and excluded from `gate_survivors`, from `yhat` and from the `Uhat` class counts, so the probe cannot inflate the quantities it exists to check. What the probe measures is retrieval, activation and backend liveness on connections known to be recoverable; it says nothing about the system's ability to produce connections no source contains, and must not be reported as if it did. The two-by-two, against thresholds `epsilon` and `rho_canary`, is the whole point:
+
+- `Uhat <= epsilon`, `recall_c >= rho_canary` — genuinely dry over the searched region; terminate and report exhaustion of that region, not of the domain.
+- `Uhat <= epsilon`, `recall_c < rho_canary` — retrieval, activation or a model backend has degraded; terminate as **broken**, never as dry.
+- `Uhat > epsilon`, `recall_c < rho_canary` — degraded but still productive; quarantine the window, exclude it from the saturation window and retry, up to `n_retry` times in a run; on the `n_retry + 1`-th, terminate as **broken**.
+- `Uhat > epsilon`, `recall_c >= rho_canary` — continue.
+
+**blocked.** Let `s(W)` be the fraction of proposals whose required slots all resolved in the window that had no sustained challenge. `blocked` holds when `s(W) <= sigma` while `Uhat > epsilon`, for `k_blocked` consecutive windows: the swarm is still finding connections but none survives criticism. The run terminates with the blocking axis named — the axis holding the largest share of sustained challenges in those windows — which is a different outcome from exhaustion and must be reported as such.
+
+The predicates are per unit; the run-level rule is explicit. A unit whose predicate fires stops requesting budget and its share returns to its parent. The run terminates when every unit below the root has fired a predicate or the granted budget is exhausted. The run-level reason is the least favourable one present: a run is reported dry only if every terminated unit is dry, and any broken unit makes the run **broken with partial coverage**, whatever the others did.
+
+Every run emits a `RunCertificate` carrying the final state of all three predicates per unit and at run level, the required-slot set in force, the budget consumed against the budget granted, the quarantine ledger by reason, and the full canary recall trace, so a run stopped by budget exhaustion can never be mistaken downstream for a run that went dry.
+
+### Cost model and scheduling
+
+Budget is a single global quantity `B` denominated in model tokens, with retrieval calls and graph expansions converted at fixed per-operation rates declared in the run configuration. `B` is split by layer, then by unit, with a per-unit floor so that a productive department cannot starve a quiet one; within a unit, the allocator spends against the score above, and an agent's `b_a` is the `budget_tokens` on its lease. Each agent invocation carries `(b_a, deadline d_a)`; exceeding either is a timeout, not an error.
+
+Yield is defined as gate-surviving candidates per thousand tokens attributable to a territory through lineage — stated here as the quantity the allocator estimates and the evaluation would measure; no value is claimed for it. One consequence of the definition is worth stating because it shapes the allocator's behaviour: validation lags spending, since a proposal's slots resolve rounds after the tokens were spent. `yhat` at round `r` counts only outcomes resolved by `r` while tokens for still-unresolved proposals already sit in the denominator, so a freshly opened territory's `yhat` is biased low. The exploration term is what keeps that bias from being self-sealing; whether it is enough is measurable by comparing final-round `yhat` against the `yhat` the allocator acted on.
+
+### Partial failure
+
+- **Death.** Leases expire by TTL and return to the pool. Critically, expiry increments `visits` but leaves the yield numerator and denominator untouched, so a crashed agent cannot mark its territory exhausted. We expect this to be the way a gossip-driven swarm most easily blinds itself, which is the reason for the accounting rule; it is an anticipated failure mode, not an observed frequency.
+- **Timeout.** `ProbeSketch` is monotone and additive, so a partial sketch is accepted as evidence. `ConnectionProposal`, `ChallengeArtifact` and `InventionCandidate` are atomic and a partial one is discarded. A discarded challenge leaves its slot unresolved, which blocks promotion rather than permitting it.
+- **Garbage.** Intake applies schema validation, HMAC signature verification, content-fingerprint deduplication, locator resolution and the near-domain check. Anything that fails is quarantined with a reason and retained, never deleted; quarantine volume by reason is part of the run record. The threat model for the signature must be stated plainly: keys are per unit, provisioned by the parent at run start, so an HMAC attests that an artifact came from *some* holder of that unit's key and was not altered in transit. It does not attribute an artifact to an individual agent, and it is not a non-repudiable signature between mutually distrusting units. Agent-level attribution rests on the unit's own issuance of agent ids, which is only as good as the unit. *Open design question:* whether cross-unit artifacts need asymmetric signatures, and what that costs, is unresolved.
+- **Correlated failure.** A shared model backend failing makes every agent produce plausible garbage in the same round. The canary probe is evaluated per round precisely to catch this: when a round's canary recall falls below `kappa_c` times the trailing median over the previous `W` rounds, or the round's intake quarantine rate exceeds `q_bad`, that round's artifacts are quarantined wholesale, the round is excluded from the saturation window, and the round is retried under the `n_retry` budget above.
+- **Manufactured consensus.** Agents co-resident in one unit are correlation-discounted exactly as co-resident workers are, so replication alone does not manufacture independent support: an agent looping on its own proposal contributes one distinct agent. Two honest limits. Running critics in separate contexts prevents verdict copying, but it does not make their verdicts statistically independent when they share a model backend and a prompt lineage — the correlated-failure case above is precisely that dependence, and critic independence is a modelling assumption the panel calibration and the canary trace exist to test, not a property the architecture guarantees. And the discount defends against replication, not against an adversary inside a unit that can mint artifacts under distinct agent ids with the unit key; that case is bounded by the unit's own issuance and by the dispersion gate above it, not by this mechanism.
+
+### Parameters
+
+| symbol | meaning | set in |
+|---|---|---|
+| `w_s`, `tau_scout` | scout stopping window and marginal new-concept rate floor | run config |
+| `delta`, `theta`, `F_max`, `rho` | degree damping exponent, activation prune threshold, per-hop frontier cap, hop radius | run config / lease |
+| `p_hub` | degree percentile defining a hub, for the hub-collapse detector | run config |
+| `min_bridge_hops` | minimum graph distance between a proposal's endpoints | run config |
+| `q_max` | per-connector proposal cap | run config |
+| `m`, `phi` | territories offered per round; budget fraction reserved for unvisited territories | run config |
+| `c_ucb`, `lambda`, `alpha`, `beta` | exploration constant, gossip penalty weight, yield shrinkage priors | run config |
+| `gamma`, `kappa`, `y_ref`, `max_classes` | gossip staleness decay, visit half-saturation, reference yield, digest bound | run config |
+| `support_min`, `withdraw_p` | existing Mycelic promotion and re-verification policy | hierarchy policy |
+| `W`, `epsilon`, `k_dry` | saturation window; coverage-deficit threshold; consecutive windows for `dry` | run config |
+| `h`, `rho_canary`, `n_retry` | active canary set size; canary recall threshold; per-run retry budget | run config |
+| `sigma`, `k_blocked` | challenge-survival floor; consecutive windows for `blocked` | run config |
+| `kappa_c`, `q_bad` | canary-collapse drop factor; intake quarantine rate triggering a round retry | run config |
+
+---
+
+### 5.5 Stochastic recombination and Hebbian consolidation
+
+The sections above describe how a candidate is generated once. This section
+describes the regime the system actually runs in: each agent performing thousands
+of cheap combinatorial trials per cycle, agents seeding each other, and the graph
+itself changing under the results so that the swarm's second week is not a repeat
+of its first.
+
+#### 5.5.1 The economics that force stochastic search
+
+The combination space is not searchable by enumeration. For an activated frontier
+of `n` concepts and operators of arity 2 and 3, the candidate space is on the
+order of `n²` and `n³`; with a frontier in the low thousands — which is a small
+frontier — the arity-3 space is already beyond exhaustive evaluation by any
+process that costs a model call per candidate.
+
+Two consequences follow, and they determine the whole design of this stage.
+
+**Generation must be orders of magnitude cheaper than verification.** A trial
+that costs a model call cannot be run ten thousand times per agent per cycle. So
+the inner loop is not a model call. It is a *symbolic* operation over typed
+nodes: sample a small set of concepts from the frontier, check the operator's
+precondition (a type and constraint check, Section 6), and emit a structure or
+fail. Most trials fail on the precondition and cost almost nothing. The model is
+invoked only on the survivors of the cheap filter, and the adversarial panel
+(Section 7) — by far the most expensive stage — sees only a small fraction of
+those.
+
+**The sampler cannot be uniform.** Uniform sampling over the frontier spends
+almost all its trials inside single domains, because that is where most of the
+mass is, and intra-domain combinations are the ones the domain's own literature
+has already explored. The sampler is therefore biased toward *domain distance*:
+the probability of drawing a set is weighted by how many distinct domain labels
+it spans and by how weakly the drawn concepts are already connected in the graph.
+Sampling a pair that already has a strong direct edge is close to worthless — the
+connection is known — so the sampler explicitly down-weights it.
+
+```
+procedure RECOMBINE(frontier F, operators O, trials T):
+    emitted ← ∅
+    for t in 1..T:                                  # T ≈ 10³–10⁴ per agent-cycle
+        k  ← sample_arity()                         # 2 or 3
+        S  ← sample_concepts(F, k)                  # biased: high domain spread,
+                                                    #   low existing connectivity
+        op ← sample_operator(O, types(S))
+        if not precondition(op, S): continue         # cheap type/constraint check
+        c  ← apply(op, S)                            # symbolic, no model call
+        if cheap_score(c) < θ_keep: continue         # Section 6 filter
+        emitted ← emitted ∪ {c}
+    return emitted                                   # typically |emitted| ≪ T
+```
+
+`T` is set per agent-cycle by the budget model above; the ratio
+`|emitted| / T` is itself a monitored quantity, because a ratio that climbs
+toward 1 means `θ_keep` has gone slack and the expensive stages are about to be
+flooded, and a ratio near 0 means the frontier has been exhausted and the agent
+should be moved.
+
+We state plainly that the overwhelming majority of emitted structures are
+nonsense. That is the intended operating point. The cheap filter is not a
+judgment of merit; it is a device for keeping the expensive stages solvent.
+
+#### 5.5.2 Cross-agent reference
+
+Agents do not search in isolation, and they do not share raw state. Sharing raw
+frontiers would violate the Mycelic rule that bounded, typed, lineage-carrying
+artifacts move rather than stores (Section 9), and it would also collapse the
+diversity the swarm exists to maintain.
+
+Instead each agent periodically publishes a **co-activation digest**: a bounded,
+typed summary of which concepts fired together in its trials, with counts, the
+domains spanned, and no raw text. Digests are readable by other agents and are
+used in two ways.
+
+*As additional activation seeds.* An agent whose frontier has gone cold can seed
+from another agent's digest, entering a region of the graph it would not have
+reached from its own starting problem.
+
+*As chain completion.* The genuinely interesting case is a **partial candidate**:
+an agent emits a structure whose operator precondition is satisfied except for
+one missing element — a mechanism that needs a material with a property no
+concept in that agent's frontier has. The partial is published with its unmet
+requirement stated as a typed query. Another agent, working in a different domain
+entirely, may hold a concept that satisfies it. The completed candidate's lineage
+records both agents and both activation traces, and this is the common case for
+the cross-domain results the architecture is built to find: neither agent could
+have produced the candidate alone, and the lineage graph shows that as a fact
+about the derivation rather than as a claim.
+
+This is the agent-level analogue of the organisational property in Section 9, and
+it is verified the same way: by inspecting which units the supporting evidence
+came from, not by asserting that collaboration occurred.
+
+#### 5.5.3 Hebbian consolidation
+
+If the graph's edge weights never change, the swarm's ten-thousandth cycle
+samples from exactly the same distribution as its first, and nothing has been
+learned. We therefore make the substrate adaptive under a Hebbian rule: concepts
+that repeatedly fire together in *productive* trials strengthen the association
+between them, and the strengthened association changes future activation
+propagation (Section 3) and future sampling bias.
+
+The critical design question is what counts as productive, and getting it wrong
+makes the system worse than a static graph.
+
+**The naive rule is actively harmful.** Reinforcing on co-activation alone —
+strengthening an edge whenever two concepts appear together in an emitted
+candidate — reinforces whatever the sampler already favours. Within a few cycles
+the strengthened edges attract more activation, which produces more
+co-activations along them, which strengthens them further. The result is a
+rich-get-richer collapse: the swarm converges on a small, self-reinforcing
+neighbourhood, generates variations of the same idea, and reports high internal
+productivity while its actual coverage of the graph has fallen off a cliff. This
+is the same pathology the diversity pressure of Section 5 exists to prevent, and
+a naive Hebbian rule reintroduces it directly into the substrate.
+
+**The reinforcement signal is the verification outcome, not generation.** An edge
+is strengthened when a co-activation contributed to a candidate that *survived*
+the adversarial panel, weighted by how hard the challenge was. Generation earns
+nothing. This makes the learned structure expensive to acquire, which is
+appropriate: it should take real evidence to change the substrate.
+
+For an edge `e` and cycle `t`:
+
+```
+w(e, t+1) = clip( (1 − λ)·w(e, t)  +  η·Σ_c [ r(c) · χ(e, c) ]  ,  w_min, w_max )
+
+  λ      decay per cycle — an association not re-earned fades
+  η      learning rate
+  c      ranges over candidates resolved this cycle
+  χ(e,c) 1 if e was traversed in c's activation trace, else 0
+  r(c)   reinforcement:
+           + survived the panel unchallenged        → strong positive
+           + survived with a challenge overturned   → positive
+           0 never reached the panel                → none
+           − killed by the feasibility challenger   → negative
+           − killed as anticipated or obvious       → negative
+```
+
+Four guards are not optional:
+
+1. **Decay (`λ`).** Every association fades unless re-earned. Without decay the
+   graph only ever accumulates, and early accidents become permanent structure.
+2. **Weight ceiling (`w_max`) and normalisation over a node's incident edges.** A
+   node's outgoing weight is normalised so that strengthening one association
+   costs another. This makes consolidation competitive and bounds hub formation
+   directly, complementing the fan-out penalty and inhibition already in the
+   activation rule (Section 3).
+3. **Anti-Hebbian updates on refuted candidates.** This is where the negative
+   knowledge of Section 4 becomes *learned* rather than merely stored. When a
+   combination is killed — anticipated by a patent, refuted on physics, judged
+   obvious — the traversed edges are weakened. The swarm stops re-proposing
+   combinations that have already been shot down, which is otherwise one of the
+   most irritating and expensive failure modes of a generate-and-test system. The
+   refutation is also written back as a failure-mode node, so the knowledge is
+   available both as structure (weights) and as content (a node with the
+   conditions of failure).
+4. **A protected exploration fraction.** A fixed fraction of each agent's trials
+   samples from the *unweighted* graph, ignoring learned weights entirely. This
+   is the floor that prevents consolidation from ever fully determining where the
+   swarm looks, and it is what allows a region abandoned early — possibly for a
+   bad reason — to be revisited.
+
+#### 5.5.4 What must be measured, and what would show this is not working
+
+Consolidation is the component of this architecture most likely to produce an
+impressive-looking failure, because a collapsing swarm and a converging swarm
+look similar from the inside: both show rising candidate yield per cycle. The
+following are therefore monitored quantities, and Section 9 specifies how they
+are computed.
+
+- **Frontier coverage over time** — the fraction of the graph reachable at
+  non-trivial activation, per cycle. A monotone decline is the signature of
+  collapse, and it is the primary alarm.
+- **Domain-spread distribution of emitted candidates** — if consolidation is
+  working, spread should hold or widen; if it is collapsing, spread narrows while
+  yield rises.
+- **Survival rate by edge age** — whether candidates traversing recently
+  strengthened edges actually survive verification at a higher rate than those
+  traversing unweighted edges. If they do not, consolidation is learning noise,
+  and the honest response is to set `η` to zero and report that the mechanism did
+  not work.
+- **Re-proposal rate of previously refuted combinations** — the direct test of
+  whether anti-Hebbian updating is doing its job.
+
+We note the obvious risk of circularity: the panel's verdicts train the substrate,
+and the substrate then shapes what the panel sees. A panel with a systematic bias
+will, under this rule, have that bias amplified into the graph. The countermeasure
+is the calibration procedure of Section 7 — periodically re-running resolved
+candidates through a panel with no access to the consolidated weights — and the
+protected exploration fraction above. We do not claim these are sufficient. We
+claim they are the places to look first when the system starts confidently
+producing similar ideas.
+
+---
+
+## 6. Cross-domain connection and candidate generation
+
+This section specifies the step at which a cross-domain connection is proposed. Everything before it widens a frontier; everything after it tries to kill what this step emits. What this step emits is a **defeasible candidate with an attached evidence set and an explicit refutation condition** — not an invention, and not a novelty claim. Novelty and non-obviousness are defined in Section 2 as defeasible predicates over an evidence set, and they are tested in Section 7; nothing in this section establishes either, and a candidate leaving this stage carries no entitlement beyond "an operator fired, and here is the record of why it was admissible." Consistent with Section 1.4, this stage does not decide that a mechanism works, and it is not a substitute for expert judgement — it produces attackable proposals for a reviewer, human or automated, to destroy.
+
+The design commitment here is that generation is a set of **named operators with stated preconditions over a typed graph**, not a model asked for an idea. An operator either fires or does not, and when it fires, the structure it emits records why it was admissible. Together with invariant I2 below, this is what makes the derivation replayable (Section 8) and the failure analysable: when the system produces nonsense, we can say which operator produced it and which precondition was too weak.
+
+### 6.1 Interfaces assumed from other sections
+
+From Section 3: a typed `ConceptGraph` pinned by `snapshot_id`, with node types including `Mechanism`, `Material`, `Method`, `Property`, `Quantity`, `Constraint`, `FailureMode`, `Problem`, `Device`, and typed edges including `requires`, `produces`, `causes`, `prevents`, `measured_by`, `substitutes_for`, `operates_in_regime`, `fails_under`, `disclosed_by`; a `Frontier` of `(node, activation, ActivationTrace)` produced by spreading activation; a domain label `domain(n)` and a domain-distance metric `dist_D`. **`dist_D` must be bounded and normalised to `[0, 1]`** for `g(d)` in 6.5 to be well defined; if Section 3 leaves it unbounded, this section requires a normalising map and Section 3 must state it.
+
+From Section 4: `FailureMode` nodes with a causal signature, refutation records, and — load-bearing for operator O3 — a **provenance tag on every constraint**, `tag(c) ∈ {law, assumed, economic, regulatory}`, recording whether the constraint is derived from a stated physical bound or merely asserted by a source. Section 4 also owns the refutation store read by `S_refut` in 6.5.
+
+From Section 5: the `RECOMBINE` trial loop, `sample_concepts`, the keep threshold `θ_keep` (consumed there, *defined here* in 6.5), the **co-activation digest** and the publication of **partial candidates** with unmet typed requirements (5.2), and the Hebbian/anti-Hebbian consolidation rule and the **protected exploration fraction** (5.3). Two interface corrections are required and are stated here rather than silently assumed:
+
+- Section 5.1's `RECOMBINE` pseudocode runs `apply(op, S)` and then compares `cheap_score(c)` to `θ_keep` with no falsifiability gate between them. The gate of 6.4 sits **between** those two steps: a candidate that fails the gate is never scored. Section 5.1's listing must be amended to match.
+- `cheap_score(c)` in that listing denotes the quantity this section calls `rank(c)` (6.5). They are the same number; the two sections must not thresholds different quantities against the same `θ_keep`.
+
+From Section 7: the two-stage verification gate — prior-art search and then the challenger panel — and the panel's throughput `V` candidates per cycle. Where this section says the prior-art stage, it means Section 7's first stage.
+
+From Section 8: `SourceLocator`, `Assertion`, and deterministic replay. From Section 9: the retrospective rediscovery benchmark, which is where every calibration parameter named below is fitted, and the hierarchical promotion gate.
+
+From the existing Mycelic implementation: `SupportRecord` (which carries `replica_count`, `independent_support` after dedup and correlation discount, and distinct-unit counts) and the promotion gate. **One extension is required and does not exist today:** the deployed correlation discount is computed over organisational units (workers, teams, departments, regions). This section's `S_ev` needs the corpus-side analogue — a discount over shared authorship, shared institution and citation ancestry, so that one paper cited fifty times counts as one piece of evidence. That mapping is specified as work to be done, not as behaviour already available.
+
+Types used below and defined in this section: `MechanismSpec` (an ordered list of typed steps, each `(node, role, effect, regime)`, with no free text), `PropertyClaim` `(property, value, unit, regime, SourceLocator)`, `TypedQuery` (a typed slot specification resolvable against the graph or publishable to other agents per 5.2), `BaselineRecord` (the incumbent's recorded values with regimes and sources), and `GenerationRecord` (agent, cycle, trial, rng seed, cost).
+
+The problem is not free text. It is a typed object, because all four operators take preconditions from its fields:
+
+```
+ProblemSpec:
+  problem_id, snapshot_id
+  goal:          (Quantity q, direction ±1, threshold τ, unit)
+  failure_modes: [FailureModeRef]        # WHY known approaches fail — not that they do
+  constraints:   [(Constraint c, tag(c), SourceLocator)]
+  regime:        {Condition -> interval}
+  incumbent:     BaselineRecord          # the best recorded approach and what it achieves
+  prior_attempts:[SourceLocator]
+```
+
+An **approach** — the word is used by O2 and by `incumbent` — is not a separate node type. It is a `Method` or `Device` node together with its `requires` edges to the constituents it depends on. Section 3's type list must be read that way, or the word is undefined.
+
+### 6.2 Generation operators
+
+Each operator is a partial function over typed node sets. `precondition(op, S)` is a sequence of graph lookups and interval tests; no operator calls a model. Roles, regimes and property values are read from the graph, so the emitted structure is filled from recorded values rather than generated text.
+
+Every operator also fills the candidate's `predictions` from recorded graph values: the target `Quantity` node, the measurement method on its `measured_by` edge, the threshold derived from `goal` and `incumbent`, and the regime from the intersection computed in the precondition. This is deliberate — the falsifiability gate of 6.4 must test the emitted structure, not how well something was phrased.
+
+Three of the four operators consume concept sets sampled by Section 5's `sample_concepts(F, k)`. **O3 does not**: it has no `k`-set arity and is instead enumerated over the `assumed`-tagged constraints of `P`, at most once per constraint per cycle. Section 5's sampler description should not be read as covering it.
+
+**O1 — structural transfer.** *Precondition:* a `Mechanism` `m` with role structure `roles(m) = {(role, filler_type, condition)}` producing effect `E_m` on quantity `q_m`; a problem `P` with failure mode `f` whose signature is `(q_f, direction, regime_f)`; and an injective role assignment `φ` from `roles(m)` into entities in `P`'s **activated neighbourhood** — defined as `{n : (n, a, trace) ∈ Frontier(P) ∧ a ≥ a_min}`, with `a_min` a configured activation floor — such that (i) each filler's type is a subtype of the required filler type, (ii) `regime(m) ∩ regime_f ≠ ∅` on every shared condition dimension, (iii) `q_m = q_f` with `E_m` opposing the failure direction, and (iv) `domain(m) ≠ domain(P)`. *Emits:* a candidate carrying `φ` explicitly, with unmatched roles listed as open requirements, and predictions filled as above. *Inapplicable when:* the regime intersection is empty on any dimension the mechanism's sources state as necessary; or the match is carried only by shared surface properties — we require at least `r_min` role correspondences with type agreement (configured, default 2, a design choice and not a value derived from any experiment), and reject a match whose sole support is a shared `Property` node. The assumption behind that rejection is that surface-feature analogy is a major source of fluent nonsense; it is a hypothesis, not a finding, and the share of O1 rejections attributable to property-only matches, and the panel survival rate of property-only matches admitted through the control arm (6.5), are logged so that Section 9 can test it. Also inapplicable when `domain(m) = domain(P)`, which we exclude to preserve budget, not because within-field transfer is worthless. Notation, as printed in Figure 1(b): `transfer(m₁ : materials → manufacturing)`.
+
+**O2 — substitution under constraint.** *Precondition:* an approach `a` recorded as failing under `f`, where the attribution to a constituent `x` is a recorded edge `causes(x, f)` with a `SourceLocator` and `requires(a, x)` — an attribution inferred by the system rather than recorded does not satisfy this precondition; and a `y ≠ x` such that (i) every property `a` requires of `x` has a recorded value for `y` within tolerance, (ii) the property implicated in `f` is recorded for `y` on the safe side of a stated bound, and (iii) every `law`-tagged constraint of `P` remains satisfied.
+
+Two definitions this operator cannot be built without:
+
+- **Tolerance** is taken from the source that states the requirement on `x`. Where the source states none, a configured per-property-type default is used, and the candidate records which of the two applied. A tolerance chosen by the system at generation time and not recorded is a defect, not a default.
+- **"Absent from `y`"** means a *recorded* value on the safe side of a stated bound, in a regime overlapping `P`'s. A missing value is not absence. Absence of evidence here is the exact failure this operator is most likely to launder into a confident-looking swap.
+
+*Emits:* the swap with a required-property table giving, per property, the value for `x`, the value for `y`, the tolerance and its origin, the **measurement regime** of each value, and a `SourceLocator` for each. *Inapplicable when:* a required property is unmeasured for `y` — emit as a partial with that property as a typed open requirement rather than as a complete candidate; or `y`'s values are recorded only in a regime disjoint from `P`'s (a room-temperature property used in a 900 K proposal), which is why the check is on the measurement condition and not on the property; or the `causes(x, f)` attribution is absent, the failure being attributed only to the system as a whole. That last exclusion is not free: where the corpus attributes failures coarsely, it discards swaps that would have been correct, and the rate at which O2 is blocked for want of a recorded attribution is a monitored quantity.
+
+We expect regime mismatch to be this operator's most frequent silent error, because such candidates look well-evidenced. That expectation is not measured. It is measurable, as the share of O2 candidates the panel kills for regime mismatch, and Section 9 reports it.
+
+**O3 — constraint relaxation.** Some problems may be open because a constraint that is treated as fixed is in fact contingent; whether this is a common situation or a rare one is not something this design establishes. *Precondition:*
+
+```
+precondition(RELAX, P, c):
+    c ∈ constraints(P) ∧ tag(c) = assumed
+  ∧ ∃ witness w ∈ Graph : ¬holds(c, w)        # c is demonstrably not universal
+  ∧ admissible(P \ {c}) ⊋ admissible(P)       # relaxing c unblocks some operator
+```
+
+where:
+
+- `holds(c, w)` evaluates `c`'s recorded predicate against `w`'s recorded property values, in a regime overlapping `c`'s stated scope. If `w` has no recorded value for the quantity `c` constrains, `holds` is undefined and `w` is not a witness.
+- a **witness** is a graph entity carrying at least one `SourceLocator`, whose recorded values make `holds(c, w)` false. A witness is never the system's own inference.
+- `admissible(P)` is the set of `(operator, arguments)` pairs whose preconditions evaluate true against `P` at `snapshot_id`. The strict-superset test is computed by re-running the other operators' preconditions with `c` removed, bounded to the candidate's activated neighbourhood.
+
+*Emits:* the constraint, its provenance (who asserted it, where), the witness, a `cost_of_relaxation` field naming what else in `P` breaks, and — always — the downstream candidate the relaxation admits. A relaxation is never emitted alone. *Inapplicable when:* `tag(c) = law`, which the operator must not touch; this is the guard against perpetual-motion output, and we state plainly that it is only as good as the ingest that assigned the tag, with the feasibility challenger as second line and not first. Also inapplicable when no witness exists — the system then has no evidence the constraint is contingent, and "assume it is not a problem" is not a candidate — or when the relaxation unblocks nothing. Relaxations of `economic` or `regulatory` constraints are emitted flagged `non_technical` into a separate queue that does not draw on the panel budget `V`; they are business proposals, not inventions. **Open:** what consumes that queue is not specified here.
+
+The framing of a problem as a contradiction to be dissolved rather than traded off is, as we understand it from memory, the framing associated with Altshuller and TRIZ. The attribution is unverified — see the note at the end of this section — and nothing in O3 depends on it being correct.
+
+**O4 — composition.** *Precondition:* mechanisms `m₁`, `m₂` where `produces(m₁)` unifies with a requirement of `m₂` on type, quantity and regime; neither alone closes the gap from `incumbent` to `goal`; and the chain's net effect on `q` clears `τ` under the combination rule recorded on the `Quantity` node `q`, selected by `composition_assumption`. Where `q` carries no recorded combination rule, the chain is emitted as a **partial** with the combination rule as a typed open requirement — the operator does not assume additivity in order to fire. *Emits:* the chain, the junction conditions that must hold at the interface, the goal arithmetic with units, and `composition_assumption ∈ {independent, sequential, requires_interface}` as an explicit field, because that assumption is the candidate's most likely point of failure and must be attackable. *Inapplicable when:* the junction requires a regime neither mechanism tolerates and no bridging concept exists — with a bridge, the bridge becomes a third constituent, must satisfy the same unification at both junctions, and enters the cost term `C` of 6.5 accordingly; or a single source already discloses the chain as a unit, a cheap local co-occurrence check over `disclosed_by` edges that is a budget filter and explicitly **not** a substitute for the prior-art stage (Section 7); or `m₁` and `m₂` share a domain and appear together in one source's related work, which marks the composition as routine.
+
+### 6.3 The InventionCandidate
+
+```python
+@dataclass(frozen=True)
+class ConstituentRef:
+    node_id: str; node_type: str; role: str; domain: str
+    sources: list[SourceLocator]          # non-empty (I1)
+    relied_on: list[PropertyClaim]        # (property, value, unit, regime, source) actually used
+
+@dataclass(frozen=True)
+class Prediction:
+    quantity: str; direction: int; threshold: float; unit: str
+    regime: dict[str, tuple]
+    method: str             # the `measured_by` method the threshold is stated under
+    observation: str        # the measurement that would settle it
+    refuted_if: str         # the outcome that kills the candidate
+    discriminating: bool    # claim that the incumbent does NOT already satisfy it;
+                            # asserted by the operator, verified by the gate (6.4 step 4)
+
+@dataclass
+class InventionCandidate:
+    candidate_id: str; problem_id: str; snapshot_id: str
+    operator: str                     # transfer | substitute | relax | compose
+    operator_args: dict               # φ, or (x→y), or (c, witness), or the chain
+    mechanism: MechanismSpec          # ordered typed steps, not prose
+    constituents: list[ConstituentRef]
+    addresses_failure_mode: list[str]
+    activation_trace: ActivationTrace  # seeds, edges traversed, agent id
+    preconditions: list[Assertion]     # what must be TRUE for this to work
+    predictions: list[Prediction]
+    open_requirements: list[TypedQuery]   # non-empty => partial candidate (5.2)
+    flags: set[str]                    # e.g. within_domain, non_technical
+    generation: GenerationRecord       # agent, cycle, trial, rng seed, cost
+    status: str                        # emitted | gated | scored | admitted |
+                                       # control_arm | rejected | refuted | withdrawn
+    # set after the gate, not at construction:
+    cheap_score: float | None = None            # == rank(c), 6.5
+    score_components: dict[str, float] | None = None
+```
+
+Invariants, checked at construction: **I1** every constituent has at least one source locator — a constituent with none is a hallucinated concept and voids the candidate; **I2** `apply(operator, operator_args)` at `snapshot_id` re-derives `mechanism` exactly; **I3** `addresses_failure_mode` is a non-empty subset of the problem's failure modes; **I4** at least one prediction carries `discriminating = True` — construction checks that the claim is made, and the gate (6.4 step 4) checks that it is true against the incumbent record; **I5** the activation trace terminates at seeds present in the `ProblemSpec` or in another agent's published co-activation digest (5.2); **I6** for `operator = transfer`, constituents span at least two domains, which O1's precondition (iv) already enforces. I6 is **not** imposed on `substitute` or `compose`, whose preconditions permit within-domain candidates; those are emitted with a `within_domain` flag rather than voided, and `relax`'s interesting move is assumptional rather than spatial in any case. Prose, where it is rendered at all, is rendered from `mechanism` last, and is excluded by construction from the inputs of every function in 6.4 and 6.5 — the gate and the scorer read typed fields only, so this is a property of the interfaces and not a convention to be observed.
+
+### 6.4 The falsifiability gate
+
+A candidate that cannot be wrong is rejected here, before any verification spend. The gate runs between `apply` and scoring in Section 5's trial loop.
+
+```
+1. predictions = ∅                                      -> reject "no prediction"
+2. for each p: p.quantity must resolve to a Quantity node with a
+   `measured_by` edge; p.method must be one of that edge's methods;
+   p.threshold must be numeric and p.unit compatible with the Quantity
+   node's unit; p.regime non-empty; p.refuted_if must be expressible as a
+   comparison of a value measured by p.method, under p.regime, against
+   p.threshold. Free text that is not so expressible fails.
+   Any failure -> drop p.   ("improves performance" dies at this step.)
+3. surviving = ∅                                        -> reject "unfalsifiable"
+4. DISCRIMINATION: some surviving p must fail for `incumbent`, evaluated
+   against the incumbent's recorded value for p.quantity under p.regime.
+   If that value is unrecorded, p is NOT discriminating; the candidate is
+   emitted as a partial with the incumbent measurement as an open
+   requirement rather than being credited with discrimination.
+   No discriminating p -> reject "non-discriminating"
+5. RISK: preconditions must contain >=1 Assertion not established at
+   snapshot_id, where "established" means recorded in the graph with at
+   least one SourceLocator and no unresolved refutation record.
+                                                        -> reject "no risk"
+6. accept
+```
+
+We are explicit about this gate's limits. It is graph lookup plus a type check. It rejects candidates that cannot be wrong; it does not check that a prediction is reasonable, and a candidate with an absurd threshold passes. Step 5 is weaker than it looks: "not established at `snapshot_id`" is a fact about the corpus's coverage, not about the world, so a candidate can score as risky merely because the graph is thin. Its value is that it forces every proposal into a shape the panel can attack, and it is intended to discard output that is fluent and states no commitment. How much it actually discards, and of what kind, is not known and is not asserted: the gate's rejection counts by reason, and the panel survival rate of the control-arm sample in 6.5, are what Section 9 reports.
+
+### 6.5 Cheap scoring
+
+Scoring runs on every survivor of the gate. Its budget requirement, inherited from Section 5.1, is that the cost of scoring an entire cycle's emitted batch stays below the panel's cost of verifying a single candidate; the realised ratio (`total scoring cost per cycle / mean panel cost per candidate`) is measured and reported rather than claimed. Scoring is a **triage device, not a judgment of merit**. We expect the overwhelming majority of emitted structures to be nonsense; that is the designed operating point of Section 5, and no threshold applied to these components changes it.
+
+Components, all computable from the pinned snapshot without a model call, and all in `[0, 1]` unless stated:
+
+- `S_plaus` — satisfied / (satisfied + assumed + unknown) over the mechanism's required type, regime and property constraints, with unknowns counted against.
+- `g(d)` — a **unimodal** function of `d`, the mean pairwise `dist_D` over the candidate's constituent domains, peaking at `d*`. Monotone distance-seeking is wrong: at zero distance the combination is within a literature that has already explored it, and at maximum distance there is no shared regime and the transfer is noise. `d*` is a calibration parameter fitted on the retrospective benchmark of Section 9. We have not measured it and do not assert a value.
+- `S_addr` — whether the mechanism's effect acts on the quantity implicated in the failure mode, in the opposing direction, in an intersecting regime. The determination is categorical — `direct`, `indirect` (via a recorded causal edge), or `none` — and enters the product through a configured numeric map `a_direct > a_indirect > 0`, since a category cannot be multiplied. A `none` never reaches the scorer at all: it is emitted as a partial with the missing causal link as an open requirement.
+- `S_ev` — the **minimum** over constituents of normalised `independent_support`, read from each constituent's `SupportRecord` and computed with the corpus-side correlation discount described in 6.1 (shared authorship, institution, citation ancestry), so that one paper cited fifty times is one piece of evidence. Minimum rather than mean: a chain is as well-evidenced as its weakest link, and averaging lets one well-attested constituent carry a fabricated one.
+- `S_anticip` — co-occurrence of the constituent pair in a single source, via shared `disclosed_by` edges. It is *intended* as a high-precision, low-recall signal for "already known". Its precision is measurable — the fraction of co-occurrence-flagged pairs that Section 7's prior-art stage confirms as disclosed — and is currently unmeasured.
+- `S_refut` — penalty from the refutation store of Section 4, as written back by the anti-Hebbian rule of 5.3. An exact constituent-set match to a previously refuted candidate is rejected outright; a near match is penalised, where "near" means Jaccard similarity over constituent node-id sets at or above a configured `σ_refut`.
+- `C` — estimated verification cost, defined explicitly so that it is auditable rather than "roughly a function of" anything: `C = c₀ + c₁·|constituents| + c₂·|distinct domains| + c₃·|open_requirements|`. The coefficients are fitted to observed panel cost on the Section 9 runs; until they are, they are configuration, and `rank` is only as meaningful as they are.
+
+```
+EV(c)   = S_addr · S_plaus^α · S_ev^β · g(d) · (1 − S_anticip) · (1 − S_refut)
+rank(c) = EV(c) / C(c)
+```
+
+The form is a product, not a weighted sum, so that a zero on any axis kills the candidate rather than being compensated: a proposal with no evidence support must not be rescued by being exotic.
+
+`θ_keep` thresholds `rank`, not `EV`, and is the same quantity Section 5.1's loop compares `cheap_score` against. It is set by admission control rather than as a fixed quality bar: it is the quantile of the **previous** cycle's `rank` distribution (or a running quantile estimate maintained across cycles) that would admit approximately `V` candidates, subject to a floor `θ_floor`. It cannot be the quantile of the current cycle's distribution, because Section 5's loop applies it per trial while that distribution is still being produced; the realised admitted count therefore differs from `V` whenever the distribution shifts, and that difference is monitored. The floor matters — a pure quota guarantees the panel always receives "the best" of an arbitrarily bad batch, and reports a full pipeline while doing nothing.
+
+Finally, the scorer must be auditable. A fraction `ε_control` of the panel's throughput — drawn from *within* `V`, not added on top of it, so the panel is never overrun — is reserved each cycle for **below-threshold** candidates admitted at random as a control arm. The quantity that matters is not the scorer's accuracy but the **lift**: panel survival rate of above-threshold admissions minus panel survival rate of the control sample, with the sampling uncertainty stated. Without the control arm there is no way to distinguish a working scorer from an expensive random filter, and we would not know which we had built.
+
+Every configured quantity in this section, so that none of them can be mistaken for a result. All are configuration or calibration; none is a claim, and none has been fitted on any run:
+
+| Parameter | Where | What sets it |
+|---|---|---|
+| `a_min` | O1 activated neighbourhood | configured |
+| `r_min` (default 2) | O1 role correspondences | configured design choice |
+| per-property-type tolerance defaults | O2 | configured; recorded per candidate |
+| `α`, `β` | EV exponents | calibrated (Section 9) |
+| `a_direct`, `a_indirect` | `S_addr` map | calibrated |
+| `d*` | `g(d)` peak | calibrated |
+| `σ_refut` | near-match penalty | configured |
+| `c₀…c₃` | cost model `C` | fitted to observed panel cost |
+| `θ_floor` | admission control floor | configured |
+| `ε_control` | control-arm share of `V` | configured |
+| protected exploration fraction | Section 5.3 | owned by Section 5 |
+
+### 6.6 Failure modes of this stage
+
+Each entry names a mitigation and the residual risk it leaves. None of these is eliminated.
+
+1. **Surface analogy.** Reduced by `r_min` role correspondences and the rejection of property-only matches; residual risk wherever the graph's role structure is thin, which is most of it for poorly formalised domains.
+2. **Property transplant across regimes.** Expected to be the most damaging silent failure, because such candidates look well-evidenced. Reduced by checking the measurement condition of every relied-on value, and by O2's rule that a missing value is an open requirement rather than an absence. Residual risk where the source records a value with no stated regime at all.
+3. **Mis-tagged constraint.** A `law` mis-ingested as `assumed` lets O3 relax a conservation law. Ingest quality is the first line; the feasibility challenger is the second. Neither is a guarantee, and this is the failure most likely to produce confident nonsense that survives to a reader.
+4. **Score–substrate feedback.** Consolidation (5.3) raises weights on edges that produced panel survivors, which raises those regions' activation and their share of admitted candidates — a loop the scorer cannot observe, because the scorer sees only the current snapshot. The protected exploration fraction (5.3) and the control arm above are the countermeasures, and Section 5.4's frontier-coverage alarm is where the collapse would first show.
+5. **Operator monoculture.** If transfer dominates the mix, the swarm produces one shape of idea. Monitored as the per-cycle share of admitted candidates by `operator`, tracked against the share of *emitted* candidates by operator; a widening divergence means the scorer, not the sampler, is selecting the shape. **Open:** whether the controller should respond by reserving admission quota per operator, or only raise an alarm, is not decided here.
+6. **Gate as style filter.** Reduced by filling prediction slots from graph values inside the operator and excluding prose from gate and scorer inputs by construction (6.3), so that passing the gate is a property of the emitted structure rather than of how well a proposal was phrased.
+
+The lineage of admitted candidates joins the Mycelic promotion path unchanged (Section 9): a candidate rises only when it clears its screen, no single unit below holds more than half its supporting evidence, and the derivation replays from the pinned snapshot; and a candidate whose constituents lose their support under cumulative re-verification is withdrawn by the same mechanism that withdraws a claim (Section 8).
+
+**Ideas named in prose above, to be verified before submission.** This document was prepared on a machine with no network access, so none of the following has been checked against the record; each is named from memory and none is cited as a formatted reference, in line with the References note in the front matter. Altshuller's TRIZ and its treatment of contradictions (referenced in O3). The structure-mapping account of analogy, attributed from memory to Gentner, which is the stated motivation for O1's role-correspondence requirement — O1 stands or falls on its own precondition, not on that attribution. Koestler's bisociation. Swanson's undiscovered public knowledge. Before submission each must be located and verified, given a correct citation, or removed.
+
+---
+
+## 7. Prior-art checking and adversarial verification
+
+A candidate arrives at this stage with the structure Section 6 gives it: a named
+operator, its operands as typed concept nodes, an activation trace, and a stated
+falsifiable prediction. It is at this point an assembly, not a finding. The gate
+below is what separates the two, and it is deliberately two stages with different
+epistemics: the first is a *search* whose product is a bounded statement about
+what was and was not found, and the second is an *adversary* whose product is a
+set of defeaters that were tried and failed.
+
+Neither stage establishes that a candidate works, and neither establishes that it
+is new. What they establish is bounded and negative, and the wording matters
+because the temptation to round it upward is constant: that the probes actually
+executed, over a stated corpus scope, did not find a single reference disclosing
+every essential element; that the search made for a motivation to combine did not
+find one; and that the checks actually run did not refute it. Absence of a found
+motivation is not unreachability of one. Every step is recorded so that a human,
+and later a changed corpus, can overturn it. What leaves this gate is what
+Section 2 defines: a defeasible predicate over an evidence set, not a property of
+the proposal.
+
+### 7.1 Standing, and what this is not
+
+The decomposition and the two novelty predicates below are modelled on the
+*structure* of patent examination: anticipation as the disclosure of every element
+by a single reference, and obviousness as a combination a skilled practitioner
+would have been *led to* make — as distinct from one they merely *could* have made
+— with a reasonable expectation of success.
+
+This section names no statutes, cases or patent offices. Earlier drafts cited
+specific authorities for both doctrines "from memory, flagged for verification";
+that hedge is not sufficient, because a statute number or case name recalled
+without access to primary sources is exactly the kind of detail that is wrong in a
+way prose is not, and it borrows authority while doing so. The specific
+authorities have therefore been moved to this document's `unverified_refs`
+collection under the policy in the References section, to be located and verified
+or dropped. The two structures above are used as engineering analogies because
+they are a well-developed public vocabulary for reasoning about the novelty of a
+combination; the correspondence between that vocabulary and the schemas below is
+an assumption of this design, not an established mapping, and a qualified reader
+must check it before anything here is relied upon.
+
+The system does not give legal advice and does not produce a patentability
+opinion. It does not construe claims, does not model jurisdictional differences
+(grace periods, prior-user rights, what qualifies as art, who the skilled person
+is), does not assess inventorship or ownership, and cannot resolve doctrines that
+turn on judgment — inherency and enablement are *flagged*, never decided. Its
+strongest output status is `advisory`; the word `patentable` is not in the status
+vocabulary. A patent attorney's judgment is required on the legal questions and a
+domain expert's on the physical ones before any candidate leaving this gate is
+treated as anything other than a research lead, and the artifact carries that
+statement as a field, not as a footnote.
+
+### 7.2 Element decomposition
+
+The candidate is decomposed into an `ElementSet` in the manner of a claim chart:
+a set of atomic assertions, each independently searchable.
+
+```
+Element:
+  element_id
+  kind        ∈ {mechanism, material, structure, process_step,
+                 parameter_range, constraint, interface, use_context}
+  assertion   : str                 # exactly one proposition
+  node_refs   : [node_id]           # pinned graph snapshot (Section 3)
+  locators    : [SourceLocator]     # positive grounding (Section 8)
+  essentiality ∈ {essential, optional}
+  relations   : [(relation ∈ {couples_to, upstream_of, contains,
+                   bounded_by}, element_id)]
+ElementSet:
+  candidate_id, version, elements, essential_closure, broadest_reading,
+  snapshot_id
+```
+
+`essential_closure` is used by every predicate below and is therefore defined
+here rather than assumed: it is the set of elements marked `essential` together
+with every `relation` both of whose endpoints are in that set. Relations are
+members of the closure, not annotations on it — this is what makes arrangement
+searchable in §7.3 instead of a matter of impression. `broadest_reading` is the
+closure with all optional elements dropped, stored explicitly so that the reading
+a search ran against is recoverable later. Nothing outside the closure can carry
+a novelty verdict.
+
+Four invariants govern the decomposition. They are **not** all mechanically
+checkable, and an earlier draft's claim that they are "checked mechanically" was
+false for two of them; the distinction is stated here because an invariant
+enforced by an agent is only as strong as that agent's calibration (§7.7).
+
+- **I1 Atomicity — mechanical, plus a check.** One proposition per element;
+  conjunctions are split. The harness rejects an assertion that parses to more
+  than one predicate or contains a coordinating conjunction between predicates.
+  This filter is crude and a paraphrase defeats it, so atomicity is also an
+  explicit item on the second decomposer's checklist. A search against a compound
+  assertion cannot distinguish "not found" from "one half not found".
+- **I2 Coverage — agent-enforced, and the weakest of the four.** The candidate's
+  falsifiable prediction must be re-derivable from `essential_closure` alone. An
+  element the prediction does not depend on is `optional` by definition.
+  Re-derivability is judged, not computed: a checking agent receives only the
+  closure and the prediction and must state which elements its derivation uses,
+  and that statement is recorded. **Open design question:** there is no mechanical
+  test of re-derivability here. For predictions that are numeric relations it
+  could be reduced to a symbolic check; for the general case we do not have one.
+- **I3 Minimality and breadth — mechanical in enumeration, judged in each
+  verdict.** `essential_closure` is minimal: removing any member leaves the
+  prediction underdetermined. The harness enumerates the single-element ablations
+  and records a verdict for each; each individual verdict is an I2 judgment and
+  inherits its weakness. Search runs against `broadest_reading` first, because
+  that is the reading most exposed to anticipation. A candidate anticipated at its
+  broadest reading may survive narrowed; the narrowing is an explicit, recorded
+  version bump, never a silent edit.
+- **I4 Decomposition is a reading, not a repair — partly mechanical.** No element
+  may be introduced that is not present in the candidate as generated. The
+  mechanical part is provenance: every element's `node_refs` must be a subset of
+  the candidate's operand nodes in the pinned snapshot, and an element introducing
+  a node the candidate does not contain is rejected outright. An element that adds
+  content by *rephrasing* within the existing node set is not caught this way and
+  is the residual risk, which is why it is also a checklist item. A decomposer
+  that needs to add an element returns `underspecified` to Section 6.
+
+Decomposition is performed by one agent and independently re-performed by a
+second. The two element sets are then aligned, and the alignment rule is stated
+concretely because "aligned by matching" against an unnamed threshold is not a
+rule: a bipartite matching in which two elements may be paired only if they share
+`kind` and share at least one `node_ref`, with the pairing accepted only if their
+assertions are judged mutually entailing by a third agent that sees the pair and
+nothing else, or, where both assertions are numeric or dimensional, by a
+deterministic unit-aware comparison. Acceptance is all-or-nothing rather than a
+score: every essential element on each side must have exactly one counterpart. An
+unmatched essential element on either side means the candidate's own statement is
+ambiguous, and the candidate is returned to Section 6 for restatement rather than
+adjudicated here — an ambiguous candidate that is searched produces a null result
+about nothing in particular. **Open design question:** assertion equivalence is
+decided by an agent and inherits that agent's error rate. The only property this
+design relies on is the direction of the failure: an alignment failure sends the
+candidate back, and never merges two readings silently.
+
+### 7.3 Search protocol
+
+**Per element.** Every essential element is searched independently. This is the
+one stage in the pipeline where a similarity neighbourhood is treated as
+evidence, and it is defensible *here* for a specific reason: an element is by
+construction a known thing, and only the combination is claimed to be new.
+(Section 1.2's argument against nearest-neighbour retrieval as the discovery
+primitive is untouched by this; retrieval of a known element is a different job
+from reaching an unknown combination.)
+
+The query family per element is: a typed neighbourhood query over the pinned
+graph snapshot; lexical and boolean queries expanded over the element's synonym
+set and over classification facets, meaning the corpus's own subject
+classification fields where documents carry them; and an embedding neighbourhood.
+Expansion must include the names *other domains* give the same mechanism — the
+cross-domain synonym edges of Section 3 exist partly to make this expansion
+possible, and an element searched only under its home domain's vocabulary
+generates a null result that means nothing.
+
+The expected outcome is that every element is found.
+
+```
+element_status ∈ {grounded, ungrounded, contested}
+  grounded   ≥ 1 locator survived screening
+  ungrounded  0 locators survived screening
+  contested  locators found on both sides: ≥ 1 supporting the assertion and
+             ≥ 1 asserting the contrary. Routed to review; never averaged.
+```
+
+An ungrounded essential element is a red flag rather than a novelty signal. The
+two explanations to exclude first are a fabricated element — which is the
+grounding challenger's surface (§7.5) — and a broken query, which §7.4's control
+condition is designed to catch. Which of the two dominates in practice is not
+known here; an earlier draft asserted that fabrication is "overwhelmingly more
+likely", and nothing in this system has measured that. It is one of the things
+§7.7's controls would measure.
+
+**Anticipation.** Defined over a single reference:
+
+```
+anticipates(R, E) ⇔ ∃ locator ∈ R for every e ∈ elements(essential_closure(E))
+                    ∧ ∃ locator ∈ R for every r ∈ relations(essential_closure(E))
+```
+
+Arrangement is not a separate species of judgment. Because relations are members
+of the closure, each essential relation must itself be located in R exactly as
+the elements are. A relation that is *inferred* from R rather than located in it
+is flagged `arrangement_inferred`, with the inference stated, and blocks a clean
+verdict in the same way the three qualifications below do.
+
+Three further qualifications are encoded and none is auto-resolved. A reference
+that expressly incorporates another may be treatable as one reference: flagged
+`incorporation_suspected`. A reference may disclose an element without naming it
+if the element necessarily follows: flagged `inherency_suspected` with the
+argument stated. A reference that mentions without teaching is weaker: flagged
+`enablement_doubt`. Each flag blocks a clean `anticipated` verdict and produces
+`indeterminate`, which is routed to human review and is not a pass — it carries
+the same non-passing force as `abstain` in §7.6.
+
+**Obviousness.** Defined over a set of references plus two further conditions
+that are evidence records, not assertions:
+
+```
+MotivationRecord:
+  kind ∈ {explicit_suggestion, shared_classification, common_problem_statement,
+          design_incentive, known_interchangeability, obvious_to_try_finite_space}
+  locators, argument
+  strength ∈ {express, inferred, weak}   # ordinal, keyed to kind; recorded for
+                                         # review and thresholded by no rule here
+ExpectationRecord:
+  art_predictability ∈ {predictable, unpredictable, unknown}
+  supporting_locators, contrary_locators, rebuttals
+
+obvious_established(E) ⇔ ∃ R₁..R_m jointly covering essential_closure(E)
+                       ∧ ∃ MotivationRecord with ≥ 1 locator
+                       ∧ expectation_supports(E)
+
+expectation_supports(E) ⇔ art_predictability = predictable
+                        ∧ supporting_locators ≠ ∅
+                        ∧ every contrary_locator carries a recorded rebuttal
+```
+
+Two changes from the earlier formulation are deliberate. `expectation_supports`
+is defined rather than left as prose — "the `ExpectationRecord` supports success
+in the candidate's context" was an undefined predicate sitting inside a
+definition. And the predicate is named `obvious_established`, not `obvious`,
+because its negation is *not* non-obviousness: failing to establish it yields
+`not_found_in_scope` or `obviousness_concern`, never a finding that the
+combination is inventive. This is the same discipline §7.4 applies to novelty,
+where no verdict value means "novel". `MotivationRecord.strength` was also a free
+`[0,1]` score that no rule in this section consumed; a number no rule reads gets
+read as a measurement, so it is now an ordinal keyed to the evidence kind and is
+explicitly recorded for review only.
+
+`obvious_to_try_finite_space` is admissible only when the option space is
+identified, finite and enumerated in the record; an unbounded "one could have
+tried" is rejected at schema validation. Evidence *against* obviousness is
+searched with equal effort, and this is where Section 4's negative knowledge
+inverts in value: a reference that teaches away from the combination, a recorded
+failure of others, a documented long-felt need, or a stated expectation contrary
+to the candidate's prediction are all surfaced as `contrary_locators`. The same
+failed-approach corpus that elsewhere refutes candidates can here defend them.
+
+**The hindsight problem is structural and gets a structural — and incomplete —
+defence.** This system constructs the combination first and then searches for a
+motivation to combine, which is precisely the reasoning error obviousness doctrine
+exists to guard against. The motivation search is therefore issued by an agent
+that does not see the candidate: it receives only the reference set and the
+element types and is asked what, in this art, would lead a practitioner to combine
+them. A motivation found by an agent that has seen the candidate is not admitted.
+
+The defence is partial and should not be presented otherwise. The reference set
+handed to the blinded agent was itself retrieved *using* the candidate's elements,
+so the candidate is substantially recoverable from its own evidence; blinding
+removes the narrative, not the information. Two mitigations are specified and
+neither is validated: the reference set is padded with distractor references
+retrieved for other candidates' elements, so that the set alone does not identify
+the combination, and the agent is asked to propose motivations for several element
+subsets, only one of which is the candidate's. Whether either measurably reduces
+leakage is an open question, and the `C_obviousness` controls of §7.7 are how it
+would be tested.
+
+### 7.4 Negative results are evidence and are logged as such
+
+A null result is a first-class artifact with the query that produced it.
+
+```
+SearchProbe:
+  probe_id, target ∈ {element:<id>, relation:<id>, combination:<set>},
+  question ∈ {anticipation, obviousness, grounding, motivation},
+  engine ∈ {graph_neighbourhood, lexical_boolean, classification_facet,
+            embedding_knn, structured_field},
+  query,                       # the exact executable query
+  snapshot_id, filters,        # date cutoff, sources, languages, doc types
+  executed_at, duration_ms, n_hits,
+  examined : [(locator, screen_verdict ∈ {responsive, not_responsive, unclear})],
+  outcome ∈ {hits_relevant, hits_irrelevant, no_hits},
+  controls : [locator],
+  controls_source ∈ {element_grounding, curated_set, none},
+  controls_passed : bool
+```
+
+**Probe validity condition.** A null result is admissible only if the probe
+returned its positive controls. Controls are documents already known to disclose
+the target — for an element probe, the element's own grounding locators. A query
+that cannot retrieve documents we know are responsive is broken, and its silence
+is a fact about the query, not about the world. Failed-control probes are retained
+with `controls_passed = false` and contribute nothing.
+
+An ungrounded element has no grounding locators to draw controls from, which is
+exactly the case where a broken query is most costly and where the earlier draft
+had no rule. Two additions close it. The fallback `controls_source =
+curated_set` draws on a small, versioned, hand-maintained set of documents known
+to be responsive to the element's `kind` and domain. And where no valid control
+exists at all (`controls_source = none`), the probe may still be executed and its
+hits used, but its *silence* is inadmissible: the target's novelty question
+resolves to `indeterminate` and never to `not_found_in_scope`.
+
+**Coverage scoping.** Every null result is annotated with what the corpus actually
+contained: sources, languages, date range, full text versus abstract only. The
+resulting finding reads *not found in scope S by probes P*, and
+`NoveltyEvidence.verdict ∈ {anticipated, obviousness_concern, not_found_in_scope,
+indeterminate}` has no value meaning "novel".
+
+**Null results are standing queries.** Each is written back as a typed negative
+node (Section 4) and re-executed when the corpus snapshot advances. A new document
+matching a stored probe re-opens every candidate whose novelty rested on it,
+through the same withdrawal cascade Section 8 uses for retractions — the direct
+analogue of Mycelic's cumulative re-verification, where a claim that stops
+clearing its test is withdrawn rather than left standing.
+
+Re-execution is bounded by cost, not by principle, and this section does not
+settle the policy: the stored-probe population grows with every candidate, so
+which probes are re-run, at what snapshot cadence, and under what budget is an
+open design question with an obvious failure mode (re-verification starves and
+novelty claims quietly go stale). What is fixed is the bookkeeping that makes the
+failure visible rather than silent: each probe records the snapshot it was last
+executed against, and a candidate whose probes are older than the current snapshot
+is reported as stale rather than as current.
+
+### 7.5 The challenger panel
+
+Four surfaces, four disjoint checklists, four *different input views*. The views
+are what make the separation more than nominal.
+
+The surfaces are disjoint in *authority and checklist*, not in evidence, and the
+earlier claim of "disjoint attack surfaces" needs that qualification: novelty and
+obviousness necessarily share the retrieved reference set, and anticipation is the
+single-reference limiting case of the obviousness question. What is disjoint is
+what each challenger may conclude and which enumerated defeaters it must answer.
+
+| surface | challenger sees | does not see |
+|---|---|---|
+| novelty | element set, retrieved references, anticipation flags | claimed advantages, candidate narrative |
+| feasibility | mechanism, prediction, quantitative constraints, cited material properties | prior-art results, novelty verdict |
+| obviousness | element set, reference set, motivation records | candidate narrative, generation trace |
+| grounding | (assertion, passage) pairs, shuffled, with decoys | any candidate-level context: no narrative, no element set, no indication of which pairs came from the same candidate |
+
+A surface may be run in replicate (§7.6 handles replicate disagreement), so the
+panel is four *surfaces* and not necessarily four agents; verdicts are sealed
+until every surface has reported.
+
+```
+ChallengeVerdict:
+  challenger_id, surface, verdict ∈ {sustained, not_sustained, abstain},
+  severity ∈ {fatal, major, minor},              # sustained only; must cite the
+                                                 # rubric item that licenses it
+  reducible_to_check ∈ {computable, judgemental},  # see §7.8, defence 3
+  defeaters_tested : [(checklist_item, outcome)],
+  argument, cited_locators, probes_issued,
+  confidence                                     # recorded for calibration
+                                                 # analysis; read by no rule
+```
+
+Three schema notes carry more weight than they look. `severity` is assigned by
+the challenger, which as written would let a challenger escalate by assertion, so
+each surface's checklist carries a severity rubric naming which failed items are
+eligible for `fatal` — for novelty, a single reference locating every essential
+element and every essential relation with no blocking flag — and a `fatal` whose
+rubric item is not cited is downgraded to `major`. `reducible_to_check` exists
+because §7.6 needs to cap verdicts that no computable check backs, and the earlier
+draft used a `judgemental` verdict value that was not in the verdict enum at all.
+And `confidence` is retained for calibration analysis while being deliberately
+consumed by nothing: §7.8 is the reason, since a panel that is being fooled
+reports confidence that tracks fluency, so confidence must never gate an outcome.
+
+What is enforced by construction is *isolation*, not independence: separate
+contexts with no shared conversation state; verdicts sealed until every surface
+reports, so no challenger sees a running tally; probe ledger write-only within a
+round; independent prompt templates and, where more than one model is available,
+different model families per surface. Statistical independence is not thereby
+achieved and we do not claim it — four challengers drawn from one base model have
+correlated errors, and the panel's effective size is then smaller than four. The
+grounding surface is therefore required to be either a different model family or a
+mechanical check. For the mechanical option, what is actually mechanisable is
+narrow and is stated as such: verbatim-span and unit-aware comparison, numeric
+and dimensional agreement between assertion and passage, and date-field checks.
+General textual entailment by a model is not deterministic, whatever it is called.
+**Open design question:** for assertions that are neither numeric nor
+verbatim-quotable, no mechanical grounding check is specified here, and the
+different-family requirement is the only defence available.
+
+Two invariants keep the panel honest in both directions. A `sustained` verdict
+with no cited locator is inadmissible and is recorded as `abstain` with flag
+`uncited_challenge`: a challenger may not kill by assertion any more than a
+generator may claim by assertion. A `not_sustained` verdict must enumerate the
+checklist items it tested; a bare "looks fine" is likewise recorded as `abstain`.
+
+### 7.6 Aggregation, and what happens on disagreement
+
+The aggregation rule is not a vote, and treating it as one would be a category
+error: the four surfaces are not four noisy measurements of one quantity, they are
+four necessary conditions. Majority voting over a conjunction is meaningless.
+
+1. Any one `sustained/fatal` ⇒ `refuted` on that surface. Terminal for this
+   version; written back as negative knowledge and as an anti-Hebbian signal
+   (Section 5.3).
+2. Any `sustained/major` ⇒ `challenged` ⇒ returned to Section 6 for repair
+   (narrowing, constraint addition, substitution), bounded at `R_max` rounds,
+   where `R_max` is a configured parameter this section does not fix. The repaired
+   candidate re-enters at §7.2 with a new `ElementSet.version`, and the sustained
+   challenge is attached as a standing test it must now survive. A repair must
+   change `essential_closure`; a resubmission whose closure is unchanged is
+   rejected without consuming a round, so the budget cannot be spent on
+   restatement. At `R_max` the candidate is retired as `unresolved` and archived,
+   never silently dropped.
+3. `sustained/minor` ⇒ a `caveat` recorded on the artifact; travels with it upward
+   and does not block.
+4. All four `not_sustained` ⇒ `survived`. Promotion is a further, independent
+   condition — Section 9's screen, together with Section 9's rule that no single
+   organisational unit below may hold more than half of a finding's supporting
+   evidence — and surviving the panel does not promote.
+5. `abstain` is never a pass. It leaves the surface unverified, the candidate's
+   status is `incomplete`, and promotion is blocked until the surface is covered.
+   Without this rule abstention becomes the cheapest route to approval.
+
+A feasibility verdict marked `reducible_to_check = judgemental` — one for which no
+computable check could be constructed (§7.8, defence 3) — is capped at `major`. It
+can force repair; it cannot alone be fatal.
+
+**The mapping to consolidation is stated here, because Section 5.3 reads it.**
+Section 5.3's reinforcement term is defined over outcomes ("survived the panel
+unchallenged", "survived with a challenge overturned", "killed by the feasibility
+challenger", "killed as anticipated or obvious", "never reached the panel"), and
+those cases do not correspond one-to-one with the statuses above. The mapping is
+therefore fixed rather than inferred: `survived` with no sustained challenge ⇒
+strong positive; `survived` after a repair round ⇒ the reduced positive Section
+5.3 calls a challenge overturned; `refuted` ⇒ anti-Hebbian negative, by the
+sustaining surface; `unresolved`, `incomplete`, and any candidate carrying an
+`indeterminate` novelty verdict ⇒ exactly zero, so that an abstention or an
+unanswerable question never becomes training signal; injected controls ⇒ excluded
+entirely (§7.7). Section 5.3 additionally weights reinforcement by "how hard the
+challenge was", and this section currently emits no measure of challenge
+difficulty. Either that weight reads `len(defeaters_tested)` and `probes_issued`,
+which are weak proxies, or it is dropped. **Open design question, and a real
+inconsistency between the two sections until it is resolved.**
+
+Within a surface, disagreement between replicate challengers is not averaged. An
+adjudicator that sees both arguments and no candidate narrative has exactly one
+permitted output: the single factual proposition the two arguments differ on,
+expressed as a `SearchProbe` or as a computable check. It may not issue a verdict
+on the candidate. That probe or check is then executed, and its result decides. If
+the adjudicator cannot reduce the disagreement to one executable question — which
+is itself recorded, with the attempt — the outcome takes the status
+`unresolved_appropriate`, the status the Mycelic claim book already carries for a
+disagreement that is correctly left open rather than forced to a winner. (This
+section uses that status and does not define it; it must be defined where the
+shared status vocabulary is, since this paper currently does not define it
+anywhere.) Both arguments are preserved in the lineage and travel upward together.
+Uncertainty is carried, not collapsed to a winner.
+
+Disagreement *between stages* is diagnostic. If §7.3 reported
+`not_found_in_scope` and the novelty challenger then sustains with a reference the
+automated search missed, the candidate is refuted *and* the probe that should have
+found that reference is recorded as a search-recall defect, its query family
+amended, and the defect counted. Each such catch is a confirmed stage-1 miss, so
+the running count is a **lower bound on stage-1's miss count** — not an estimate
+of stage-1 recall, which it cannot be, because misses that neither stage finds are
+invisible to both. An earlier draft called it "the cheapest available estimate of
+stage-1 recall"; read that way it flatters the search exactly in proportion to how
+bad the panel is.
+
+### 7.7 Calibration: detecting a panel that has started rubber-stamping
+
+A panel that approves everything is indistinguishable from a productive system by
+throughput alone, so the panel is measured against planted defects rather than
+trusted.
+
+**Negative controls.** A fraction of candidates presented to the panel are
+harness-injected controls carrying a known defect on exactly one surface: a
+candidate reconstructed from a single reference's actual disclosure (anticipated
+by construction, `C_novelty` must sustain); one violating a conservation law or a
+cited material limit by a stated factor recorded in the control's definition
+(`C_feasibility`); a combination for which an express suggestion to combine exists
+in the corpus (`C_obviousness`); a real candidate with one assertion's locator
+swapped for a passage that does not support it (`C_grounding`). The injection rate
+is a configured parameter and is not disclosed to challengers.
+
+Controls are *intended* to be indistinguishable from real candidates in the
+rendered view challengers see (§7.8, defence 1). Indistinguishability is an
+assumption, not a property this construction establishes, and the earlier claim
+that controls are "formally indistinguishable" was unsupported. It is, however,
+testable, and the test is part of the procedure: if a classifier trained on
+rendered views separates controls from real candidates, or if sustain rates on
+controls and on matched real candidates diverge for reasons unrelated to the
+planted defect, the control set is leaking and is retired.
+
+The per-surface **control detection rate** — the fraction of planted defects
+sustained by the responsible surface over a trailing window — is the primary
+calibration statistic. It is reported with an interval and with that interval's
+assumption stated alongside it: controls generated by a shared procedure are not
+independent trials, so a binomial interval is a floor on the uncertainty rather
+than an honest summary of it. This document asserts no value for the rate and sets
+no threshold on it. It specifies how the rate would be computed, that it is
+reported per surface and never pooled, and that choosing an acceptable value is a
+decision for whoever operates the system.
+
+**Positive controls.** Detection rate alone is trivially maximised by sustaining
+everything, so it is meaningless without the false-alarm side: historical
+candidates reconstructible from pre-priority-date corpora, which should survive.
+Both rates are reported or neither is. Section 9 owns the leakage caveat that makes
+retrospective controls easy to fool oneself with.
+
+**Drift.** Per-surface sustain rates are tracked over time. A falling sustain rate
+with rising throughput is consistent with rubber-stamping — and equally consistent
+with a generator that has genuinely improved, which is why sustain rate is never
+read alone and why calling it "the rubber-stamp signature" on its own was wrong.
+The alarm condition is the conjunction: sustain rate falling *while* per-surface
+control detection rate falls. Either movement alone is a reason to look, not a
+finding. A panel that kills everything is an equally useless and much more visible
+failure.
+
+**Blind replicate.** A sample of resolved candidates is re-run through a fresh
+panel with no access to the original verdicts, to promotion status, or to the
+consolidated Hebbian weights — the countermeasure Section 5.4 names against the
+circularity of the panel's verdicts training the substrate that then shapes what
+the panel sees. Original-versus-replicate agreement is reported per surface.
+Section 5.4 does not claim this is sufficient, and neither does this section.
+
+**Controls must not be learnable.** Section 5.3 writes refuted combinations back
+to the graph as negative knowledge; a repeatedly injected control would therefore
+become learnable and stop being a control. Controls are tagged and excluded from
+write-back and from reinforcement, the exclusion is enforced by the harness rather
+than by convention, and control sets are versioned and retired.
+
+### 7.8 The fluent-but-wrong candidate
+
+The dominant failure mode of this stage is not a challenger missing a fact. It is
+a challenger whose judgment is correlated with the fluency, internal coherence and
+vocabulary of the text it is judging. A candidate that reads well, uses the right
+terms of art and cites genuine documents may pass all four surfaces while being
+wrong, and nothing in a challenger's self-reported confidence would separate that
+case from a good one — which is why no rule in §7.6 reads `confidence`. Adding
+challengers of the same kind amplifies this rather than fixing it, because their
+errors are correlated in exactly this way. We have not measured this mode in this
+system; the whole of §7.7 exists to detect it.
+
+The defences are structural, not exhortative.
+
+1. **Presentation normalisation.** No challenger ever sees generated prose.
+   Challengers see a view rendered deterministically from the typed element set
+   and lineage records — identical template, identical ordering, no claimed
+   advantages, no narrative, no merit adjectives. Fluency is removed as a variable
+   by removing the fluent text from the judging context. We expect this to be the
+   highest-leverage of the five defences, because it removes the variable rather
+   than asking a model to ignore it; that expectation is untested, and the test is
+   an ablation — a matched control set run with prose restored, comparing
+   per-surface control detection rates.
+2. **Grounding is checked pairwise, out of context.** `C_grounding`'s unit of work
+   is one (assertion, passage) pair, shuffled among pairs from other candidates and
+   among decoy pairs whose passages are known not to support their assertion. A
+   pair-level judgment cannot be carried by the candidate's overall coherence
+   because the candidate is not present. Every grounding batch contains decoys at a
+   configured rate, so a decoy detection rate exists for every batch rather than
+   only for sampled audits.
+3. **Quantities leave the model.** Where an element carries numeric content, the
+   feasibility challenge must be reduced to a computable check executed by a
+   unit-aware deterministic tool: dimensional consistency, conservation or energy
+   balance, order-of-magnitude bounds against cited material properties. The model
+   proposes the check; it does not decide it. Symmetrically, a *pass* on a surface
+   where a computable check existed but was not executed is not a pass — and
+   whether such a check "existed" is decided against the surface's checklist rather
+   than by inference: checklist items are marked `computable`, and a verdict
+   leaving a `computable` item unexecuted is `incomplete` by schema. The limitation
+   follows immediately: the reachable set of computable checks is only as complete
+   as a hand-maintained checklist, and a quantity no checklist item covers is
+   judged by the model and marked `judgemental` (§7.6). Extending that checklist is
+   ongoing work, not a solved problem.
+4. **Fixed defeater checklists.** Each surface has an enumerated checklist — for
+   novelty: single-reference coverage of elements, coverage of essential relations,
+   incorporation by reference, inherency, enablement, date eligibility,
+   cross-domain naming — and a verdict missing items is `incomplete` by schema
+   rather than by inference. This converts an open-ended judgment into a bounded,
+   auditable set of answers. It does not make the set complete; a defeater absent
+   from the checklist is a defeater nobody is asked about.
+5. **The control channel is the detector of last resort.** If the panel is being
+   fooled in a way the control set represents, planted defects are missed and the
+   control detection rate falls before the degradation appears in outputs. A
+   failure mode the control set does not represent is invisible to this detector
+   too, so the control set is the boundary of what this calibration can see, and
+   extending it is a standing task rather than a finished one.
+
+We state the limit of the gate precisely. A candidate that survives it has not
+been shown to be correct, useful, novel, or patentable, and the gate does not
+replace the judgment of a patent attorney on the legal questions or of a domain
+expert on the physical ones. What has been established is narrower, and it is
+exactly what the artifact records: that a stated set of probes, each of which
+returned its positive controls, over a stated corpus scope, did not find a single
+reference locating every essential element and every essential relation; that the
+search made for a documented motivation to combine with a supported expectation of
+success did not find one, conducted by an agent blinded to the candidate's
+narrative and partly leaky in the way §7.3 admits; that four challengers on
+disjoint checklists and isolated views ran those checklists and sustained nothing
+fatal; and that every one of those statements resolves to a query, a locator or an
+executed check that can be replayed and overturned. Correctness is decided by
+experiment, and by people, outside this system.
+
+---
+
+## 8. Evidence and lineage graph
+
+A log is written for a reader who already trusts the process. Provenance here is written for a reader who does not, and who is expected to try to break the result. The difference is not verbosity: a log is an append-only narration keyed by wall-clock time, from which nothing can be recomputed, whereas the structure specified below is the object the acceptance predicates of Section 7 are *evaluated over*. The candidate is a view of the graph, and the invariants of §8.2 are what make that more than a slogan: invariant 1 requires every assertion to terminate in a locator or a declared assumption, so removing a supporting node either changes the candidate's assertion set or leaves it with no support closure at all. That is the property we want, and it is why lineage cannot be a side-channel.
+
+Two framings hold throughout, and the rest of this section is written to keep them true. A candidate is a **defeasible proposal with an evidence set**, never an established invention: the graph records what was searched, what was found, what was assumed, and what would overturn it. And provenance is an *integrity* mechanism inside one trust domain, not a proof to a stranger; where the two diverge — §8.2.8, §8.3 R2 — we state the limit rather than engineer around it.
+
+### 8.1 The data model
+
+The lineage of one candidate is a typed, content-addressed directed acyclic graph `G = (V, E)`. Every node carries `as_of` (semantics below) in addition to the fields listed. Node kinds:
+
+```
+Source        source_id, corpus_id, content_hash(sha256 of normalised bytes),
+              structural_kind ∈ {patent, paper, standard, manual, dataset, note},
+              priority_date, ingested_at, holder_unit_id,
+              privacy_class ∈ {public, unit_internal, unit_private},
+              status ∈ {active, amended, retracted, access_lost}
+Locator       locator_id, source_id, byte_span, structural_address
+              (patent claim number | paragraph id | figure id | table cell),
+              span_hash (sha256 of the normalised span bytes)
+Extraction    extraction_id, locator_id, kind ∈ {concept, mechanism, material,
+              method, constraint, failure_mode, open_problem, quantity},
+              normalised_label, extractor_id, extractor_version, extracted_at,
+              confidence (extractor-reported, uncalibrated, used for ranking
+              inside extraction only and by no gate in §8.2 or Section 7)
+ConceptNode   concept_id, merged_from: [extraction_id], resolution_rule, snapshot_hash
+FrontierSnapshot frontier_id, agent_id, cycle, snapshot_hash, concept_ids (or, above
+              policy.max_frontier_inline, a sorted-set digest plus membership witness)
+ActivationStep step_index, agent_id, edge_id, from_concept, to_concept, edge_type,
+              weight_at_snapshot, activation_in, activation_out
+OperatorApp   op_id, operator_id, operator_version, frontier_id, inputs: [node_id],
+              precondition_bindings, outputs: [node_id], agent_id, trial_index, rng_stream
+Assertion     assertion_id, text, kind ∈ {constituent, mechanism_step, quantitative,
+              novelty, feasibility, prediction},
+              modality ∈ {attested, inferred, assumed}, support: [node_id],
+              defeater, status ∈ {intact, narrowed, unsupported}
+Probe         probe_id, query, query_origin ∈ {template, model_generated},
+              index_id, index_version, index_root, as_of, k_examined,
+              results: [source_id], near_hits: [(source_id, non_anticipation_reason)],
+              outcome ∈ {no_anticipation_found, anticipation_found, inconclusive}
+Challenge     challenge_id, challenger_id, challenger_kind ∈ {machine, human},
+              surface ∈ {novelty, obviousness, feasibility, evidential_fidelity},
+              target_id, verdict ∈ {sustained, not_sustained, abstain},
+              evidence: [node_id], context_manifest: [node_id | digest],
+              context_hash (digest of context_manifest), rationale_hash,
+              model_id, model_version, decoding, seed
+Decision      decision_id, outcome ∈ {promoted, held, rejected, withdrawn},
+              gate_results, policy_hash, round, unit_id, signature
+SourceShadow  shadow_id, commitment (see §8.2.8), issuer_unit_id, privacy_class,
+              structural_kind, priority_date — no span text, no raw content hash
+Summarised    summary_id, replaced_count, per_source_counts, dropped_set_digest,
+              selection_rule_id
+```
+
+`Assertion.status` deliberately does not reuse the token `attested`, which belongs to `modality`; status is the cascade's field and modality is the derivation's. The cascade of §8.4 writes status and never rewrites modality, because modality is inside the content digest (§8.2.7) and an in-place change would silently invalidate every digest above it.
+
+`as_of` is defined per kind, and the definition matters because invariant 3 is stated over it: `as_of(Source) = ingested_at` — the time the document became available to the loop, not `priority_date`, which is the anticipation-dating field used by Section 7 and never by invariant 3; `as_of(Locator) = as_of` of its Source; `as_of(Extraction) = extracted_at`; `as_of(ConceptNode)` is the clock of the snapshot its resolution ran under; `as_of` of `FrontierSnapshot`, `ActivationStep`, `OperatorApp` and `Assertion` is the derivation clock of the cycle that produced them; `as_of(Probe) = probe.as_of`, the index cut the search was executed against; `as_of(Challenge)` and `as_of(Decision)` are the round clocks at which they were recorded.
+
+Edge kinds are `extracted_from`, `merged_into`, `activated_via`, `input_to`, `produced`, `supports`, `contradicts`, `probes`, `challenges`, `supersedes`, `decides`. The first six plus `supports` are the **support direction**: they point from the derived node to the node it rests on, and the support-direction subgraph is required to be acyclic under transitive closure. The remaining four are not part of any support closure and are excluded from that requirement: `contradicts` points from a node to what it counts against and may point at an older or a newer node; `probes` points from a Probe to the assertion whose novelty it tests; `challenges` points from a Challenge to its target; `decides` points from a Decision to the candidate root; `supersedes` points from the newer node to the older one and is acyclic because it may only cross a strictly increasing `round`.
+
+The candidate root reuses Mycelic's `Claim` record and its promotion path, and three things about that reuse are changes to existing code rather than uses of it. They are named here so the section cannot be read as claiming more integration than exists.
+
+*What is reused as is.* `producer_id`, `layer`, `status`, `support: SupportRecord`, `lineage: LineageRecord`, `signature`, `round_created`/`round_updated`, `valid_from`/`valid_to`, `revision_of`, `quarantine_reason`; the `UnitNode.promote` path; and the existing announcement of superseded and rejected claims, through which parents retire inherited copies, so no second promotion or retirement mechanism is introduced.
+
+*What must be extended.* `LineageRecord` gains `snapshot_hash`, `operator_path`, `activation_trace_ids`, `probe_ids`, `challenge_ids`, `dossier_hash`; `derivation_operator` gains `invent` alongside the existing `observe | pool | synthesize | revise | answer_question | copy`. `Claim`'s identifier is `claim_id`, not `candidate_id`, and a candidate is a `Claim` whose `derivation_operator = invent`.
+
+*What does not fit and is an open design question.* `Claim` currently requires the statistics of a cell-and-label frequency test — `cell`, `label`, `sign`, `n`, `k`, `rate`, `baseline_rate`, `effect`, `p_value`, `q_value`, `confidence` — none of which has a meaning for an invention candidate. Filling them with sentinels would let a candidate flow through code paths (`_significant_cells`, the `q`-ordered claim selection, `_recheck`'s cumulative test) whose semantics do not apply to it. Either those fields become nullable with every consumer made explicit about candidates, or candidates become a sibling record type sharing only the promotion and retirement path. We have not chosen, and the choice affects §8.4 step 6.
+
+The closure of a single candidate is bounded by `policy.max_trace_nodes`, in the spirit of the existing `max_roots_tracked = 64` bound on `LineageRecord.root_worker_hashes`. Truncation must be deterministic or invariant 9 fails, so the rule is fixed: nodes on the support closure of any `attested` or `inferred` assertion are never dropped; the remaining nodes are ordered canonically by `(kind, as_of, content digest)` and dropped from the end until the bound holds; the dropped set is replaced by a single `Summarised` node carrying per-source counts, a digest over the sorted list of dropped node digests, and the id of the selection rule used. A `Summarised` node is a valid closure terminator for invariants 1 and 2 — it is what keeps loss of detail visible in the graph rather than silently absorbed — and it is inside the structural digest, so a replay that truncates differently fails R0 rather than passing quietly.
+
+### 8.2 Invariants
+
+`verify_lineage(candidate, snapshot, phase) -> [Violation]` runs at three phases: **P1** before the adversarial panel, **P2** before promotion, **P3** on every replay. A violation at its phase blocks: a candidate with broken lineage is not a weaker candidate, it is not a candidate. Phase scoping is not a convenience; invariants 6 and parts of 5 and 7 are about nodes that do not exist yet at P1, and a checker that demanded them there would either be dead code or an invitation to pre-create empty challenge records.
+
+| # | Invariant | P1 | P2 | P3 |
+|---|---|---|---|---|
+| 1 | Groundedness | yes | yes | yes |
+| 2 | No orphans, both directions | yes | yes | yes |
+| 3 | Monotone time on positive evidence | yes | yes | yes |
+| 4 | Operator closure | yes | yes | yes |
+| 5 | Negative-evidence completeness | yes (probes precede the panel) | yes | yes |
+| 6 | Challenge coverage and input disjointness | no | yes | yes |
+| 7 | Digest chain | structural digest only | full | full |
+| 8 | Boundary | no | yes | yes |
+| 9 | Replay determinism | no | no | yes |
+
+1. **Groundedness.** Every `attested` assertion reaches at least one `Locator` or `SourceShadow` through `supports*`; every `inferred` assertion reaches at least one attested assertion; every `assumed` assertion names its assumption in a reviewer-visible field. No assertion has an empty support closure.
+2. **No orphans, both directions.** Every node in the closure is reachable from the root, and every node reaches a `Source`, a `SourceShadow`, a `Summarised` node, or a declared assumption. An unreferenced node is as much an error as a dangling one: it means the node set and the edge set disagree, so either an edge was removed or a node was inserted outside any derivation — and in both cases the closure no longer describes what produced the candidate.
+3. **Monotone time on positive evidence.** For every support-direction edge `u → v`, `as_of(v) ≤ as_of(u)`. Nothing may be supported by a document that was not available when the derivation ran. This is stated only over support-direction edges: negative evidence runs the other way by construction (invariant 5), a `contradicts` edge may cite a document published after the assertion, and `challenges`/`decides` are later by definition. What this invariant catches is retrospective backfilling of *positive* justification, which is the most natural way an honest pipeline fakes provenance. What it does not do is defend against a writer who can set `ingested_at`: it rests entirely on ingest timestamps being written by the ingest path and covered by the digest chain, and against a compromised writer the only remaining defence is invariant 7 and the strength of the signing key.
+4. **Operator closure.** Every node introduced into the candidate appears among the declared outputs of some `OperatorApp` whose `inputs` were all members of the `FrontierSnapshot` named by its `frontier_id`. No concept enters a candidate without a recorded traversal that reached it. This is why frontiers are nodes: without a recorded frontier the invariant is unenforceable, and the draft version of this section asserted it against a field that did not exist.
+5. **Negative-evidence completeness.** Every `novelty` assertion is backed by at least one `Probe` with a pinned `index_version`, a pinned `index_root`, and an `as_of` no earlier than the candidate's derivation clock. A novelty assertion with no executed search is a violation, not a low-confidence claim. Note the deliberate asymmetry with invariant 3: positive support must predate derivation, negative evidence must not.
+6. **Challenge coverage and input disjointness.** Each surface required by `policy` carries at least one non-abstaining `Challenge`, and for any two challenges on a candidate, neither's `context_manifest` contains the other's `challenge_id`, `rationale_hash` or any node produced by it. The check is over the manifest, not the hash: a digest cannot be inspected for what went into it, so each challenger records the list of node ids and digests placed in its context and `context_hash` is the digest of that list, which makes the check mechanical and the record falsifiable. We call this input disjointness and not independence on purpose. It establishes that no challenger read another's reasoning. It does not establish that their errors are independent — challengers sharing a base model, a prompt family or training data will fail in correlated ways, and nothing structural can detect that. The panel-calibration procedure of Section 7 is the only instrument aimed at correlated failure, and we claim no bound on it here.
+7. **Digest chain.** Digests are over canonical serialisation — sorted keys, no insignificant whitespace, NFC-normalised strings, floats as shortest round-trip decimals — which is the convention the existing `Claim.content_digest` already uses, and they are full sha256, never truncated (node ids must not be the 12-hex `stable_hash` truncation used elsewhere in the codebase; 48 bits collides well inside the node counts this graph is designed for). Two digests are defined because one cannot do the job. The **structural digest** of a node covers its own fields and the structural digests of its support-direction predecessors, over the symbolic kinds: `Source`, `SourceShadow`, `Locator`, `Extraction`, `ConceptNode`, `FrontierSnapshot`, `ActivationStep`, `OperatorApp`, `Assertion`, `Probe`, `Summarised`. The **root digest** covers the structural digest plus the `Challenge` and `Decision` nodes, including `model_id`, `model_version`, `decoding`, `seed`, `context_hash`, `rationale_hash`, `verdict` and `gate_results`. The split exists because the root digest is not reproducible under a sampled model and invariant 9 must therefore be scoped to the structural digest; a single Merkle root over everything would make R0 unattainable and the reproducibility claim false. The existing `Claim.content_digest` covers only `{producer_id, cell, label, sign, n, k, round_created}` and therefore covers no lineage at all: extending it to cover `lineage.snapshot_hash` and the structural digest is a required change to existing code, and until it lands, `sign_with`/`verify` authenticate a candidate's counters and not its derivation.
+8. **Boundary.** A node crossing a promotion boundary carries no locator into a `unit_private` source. Such sources are replaced by a `SourceShadow`, and the assertions they ground are marked `locally_verifiable_only`. The shadow's `commitment` is an HMAC over the normalised source bytes under a salt held by the issuing unit, not the bare `content_hash`: a bare sha256 of a document is a confirmation oracle, since anyone holding a candidate document can hash it and test whether it is the private source. The honest consequence, which §8.3 R2 restates, is that an outsider can then verify nothing about the shadow's referent without the issuing unit's cooperation. Note also that the existing `k_anonymity = 3` floor is a minimum count on aggregate cells and does not transfer to single documents; a per-document k-anonymity claim would be a category error. What the floor does constrain is any *counts* a shadow or a `Summarised` node carries upward, and that is the only sense in which it is invoked here.
+9. **Replay determinism.** `replay(snapshot, manifest)` reproduces the structural digest of the root exactly, under the conditions enumerated in §8.3 R0. It makes no claim about the root digest.
+
+### 8.3 What "reproducible" means here
+
+Reproducibility is a pin set plus a stated equivalence relation. The pin set is a `ReplayManifest`:
+
+```
+snapshot_hash        Merkle root over the concept graph at derivation: node set, edge set,
+                     edge weights (Hebbian updates produce a new snapshot, so a candidate
+                     always names the weights it was derived under). This is the same field
+                     ConceptNode carries; there is no separate snapshot_id.
+corpus_manifest_hash {corpus_id -> (doc_count, content-hash root, as_of)}
+extractor_versions   {extractor_id -> (version, weights_hash)}
+model_versions       {role -> (model_id, revision, temperature, top_p, max_tokens,
+                     prompt_template_hash)}
+index_versions       {index_id -> (builder_version, embedding_model + revision, params,
+                     index_root)}   -- the built artifact's root, not a rebuild recipe
+policy_hash          thresholds, panel composition, required surfaces, k_anonymity,
+                     withdraw_p, support_min, max_trace_nodes, gate parameters
+renderer_version     dossier renderer (§8.5), so a dossier digest is replayable
+seeds                {agent_id -> (root_seed, stream_id)}
+code_commit          git commit of the loop
+clock                derived_at, and the as_of used by every Probe
+```
+
+Randomness is drawn from a counter-based generator keyed by `(root_seed, agent_id, cycle, trial_index)`, so trial `t` replays without replaying trials `1..t−1` and parallel agents never share a stream. The alternative is replaying the swarm's scheduler, which we do not attempt.
+
+Three replay tiers, because bitwise replay of a sampled model is not generally available and pretending otherwise is the usual way a reproducibility claim dies:
+
+- **R0, structural replay.** Re-executing activation and the operators from the pinned snapshot and seeds reproduces the same closure and the same structural root digest. The generation inner loop is symbolic (Section 5), so determinism is attainable, but it is not free and the conditions are part of the specification: canonical iteration order over all node and edge collections (no hash-order iteration); order-stable accumulation of activation sums, since floating-point addition is not associative and a parallel reduction that varies its tree will diverge in the low bits and then across a threshold; canonical serialisation for every digest; truncation of oversized closures by the fixed rule of §8.1; and replay of probes from their *recorded* `query` text against the pinned `index_root` rather than a rebuilt index, because approximate-nearest-neighbour construction is not generally deterministic. Regenerating a `model_generated` probe query is not part of R0; it is R1. R0 is *required*: an R0 failure is a defect, not a tolerance.
+- **R1, verdict replay.** The panel re-run under pinned models and decoding reproduces each verdict's polarity and its cited evidence set. Equality is over the verdict tuple `(surface, target_id, verdict)` and the evidence set, not over rationale text. The monitored quantity and its computation: draw a sample of resolved candidates stratified by outcome and surface; for each `(candidate, surface)` re-run the challenger under the candidate's own manifest; report (i) polarity disagreement rate, the fraction of pairs whose verdict differs from the recorded one, per surface and pooled, with a binomial interval; (ii) evidence-set agreement, the mean Jaccard overlap of cited evidence over pairs that agree on polarity; (iii) the same two quantities recomputed with `temperature = 0`, to separate sampling variance from provider-side drift. Nothing has been run and no value is claimed. What disagreement rate should block promotion, or trigger recalibration under Section 7, is a policy parameter we have not set, and setting it without data would be guessing.
+- **R2, independent re-derivation.** A third party holding only the manifest and the public corpora reaches the same candidate. R2 is unattainable for candidates resting on unit-private sources, and we state two limits rather than engineering around them. First, under §8.2.8 the private source appears as a keyed commitment, so an outsider can check that the derivation's *shape* is consistent and that the issuing unit attested to some source at that position; they cannot check the source's content, and they cannot confirm any guess about its identity without the unit's cooperation. Full re-derivation is possible only inside the holding unit. Second, `sign_with`/`verify` are HMAC-SHA256 truncated to 96 bits under a per-unit key: that is integrity and authenticity *within* the trust domain, and an outsider without the key can verify neither. Third-party verifiable authorship would require public-key signatures over the root digest, which the current substrate does not provide. Adding them is an open design question, not a claimed property.
+
+### 8.4 The withdrawal cascade
+
+Each triggering event names its initial node set and its detector. Nothing in this table is self-executing; a trigger with no detector is a wish, so the detector column is part of the specification.
+
+```
+source_retracted      N0 = {Source} ∪ its Locators ∪ Extractions
+                      detector: ingest sets Source.status ← retracted
+source_amended        N0 = as source_retracted, plus re-extraction under new ids
+                      detector: ingest sees a changed content_hash under a stable
+                      source_id; treated as retraction plus re-extraction, since a
+                      silently amended source is indistinguishable from a different one
+locator_invalidated   N0 = {Locator}
+                      detector: span re-resolution at re-ingest (span_hash no longer
+                      matches at byte_span), or a sustained ReviewerVerdict (§8.5)
+probe_stale           N0 = {Probe}
+                      detector: at each index build, the delta set of documents with
+                      priority_date ≤ the candidate's derived_at that entered after
+                      probe.as_of is re-queried with the probe's recorded query
+anticipation_found    N0 = {Probe} ∪ the novelty assertions it backs
+                      detector: a probe re-run returns an anticipating disclosure
+challenge_reopened    N0 = {Challenge}
+                      detector: the challenge's target or cited evidence is in N0, or its
+                      model_id/model_version is withdrawn from the pinned set
+extractor_defect      N0 = all Extractions with that (extractor_id, extractor_version)
+                      detector: an extractor version is marked defective by evaluation
+                      or by a sustained evidential_fidelity challenge
+```
+
+```
+procedure CASCADE(event e, graph G):
+ 1. N0 ← nodes named by e; mark status ∈ {invalid, stale, suspect}.
+ 2. D  ← dependents of N0: nodes v such that v reaches N0 along support-direction
+         edges (extracted_from, merged_into, activated_via, input_to, produced,
+         supports), computed by traversing those edges in reverse from N0.
+ 3. for each Assertion a ∈ D:
+        recompute support closure ignoring invalid nodes
+        closure empty → a.status ← unsupported
+        else          → a.status ← narrowed   (record the support delta)
+        modality is never rewritten here (§8.1)
+ 4. for each candidate c reaching an assertion whose status changed, collect reasons
+    (a candidate may carry several; all are processed):
+        an unsupported novelty assertion, or e = anticipation_found → novelty_lost
+        an unsupported feasibility assertion                        → feasibility_lost
+        any other unsupported kind (constituent, mechanism_step,
+          quantitative, prediction)                                 → evidence_lost
+        nothing unsupported, something narrowed                     → margin_recheck
+ 5. Re-verify per reason, through Mycelic's existing cumulative re-verification:
+      evidence_lost   : recompute SupportRecord.independent_support over the surviving
+                        locators. The existing UnitNode._independent_support discounts
+                        only by unit level (rho_team / rho_department / rho_region);
+                        per-source collapse (same source ⇒ 0 beyond the first) and a
+                        per-corpus discount are an extension of that function, and the
+                        corpus coefficient is unset — see §8.6. Withdraw when
+                        independent_support falls below policy.support_min.
+      novelty_lost    : re-run the pinned probes at the current index as_of. Withdraw on
+                        an anticipating disclosure, or when the Section 7 novelty margin
+                        falls below policy.novelty_margin_min.
+      feasibility_lost: re-run the feasibility challenger under the candidate's manifest.
+      margin_recheck  : recompute the gate quantities on surviving support; no challenger
+                        is re-run.
+      affected-surface rule: only challengers whose surface lost evidence are re-run;
+                        verdicts on unaffected surfaces are retained with their original
+                        context_hash. The work of one cascade is therefore bounded by
+                        |D| plus the number of affected surfaces, not by the corpus.
+                        Whether that bound is small in practice is unknown: the
+                        distribution of cascade fan-out |D| per event is a monitored
+                        quantity (Section 9), and we claim no figure for it.
+ 6. A withdrawn candidate takes status = superseded, quarantine_reason = "withdrawn",
+    valid_to = current round — exactly the transition UnitNode._recheck applies when a
+    claim stops clearing its cumulative test at withdraw_p — and is announced upward in
+    the next promotion via the existing retired-claims list, so parents retire inherited
+    copies instead of silently holding them. Whether _recheck's own cumulative test can
+    run on a candidate at all depends on the Claim-field question in §8.1.
+ 7. Candidates cited as constituents of other candidates re-enter at step 2.
+    Termination requires two facts, and both are requirements on the rest of the system
+    rather than observations about this procedure: statuses move only along
+    intact → narrowed → unsupported within one cascade, never back (a revival is a new
+    revision, not a status reversal, per below); and the constituent-citation relation
+    between candidates is acyclic, which holds only if a candidate may cite as a
+    constituent solely candidates with strictly smaller round_created. That restriction
+    is stated here because without it step 7 is not guaranteed to terminate.
+```
+
+Four properties are load-bearing. **Withdrawal is not deletion**: under the existing `retain_superseded` the closure survives, so a reviewer can see what was believed and why belief stopped. **Revival is expressible but is not free**: the existing path already allows a withdrawn claim to return when evidence returns — a recent-window signal revives a superseded claim, and a claim whose `quarantine_reason` is `withdrawn` may be revived by cumulative evidence — but that path revives the same claim key in place. What this section requires is different and is a change: a candidate whose retraction is reversed, or whose re-run probe restores the novelty margin, is re-derived under a new `snapshot_hash` and returns as a revision (`revision_of`) rather than as a fresh discovery, so a reappearing candidate is not counted twice by any evaluation in Section 9. **Partial withdrawal is expressible**: status lives on assertions as well as on candidates, so the graph can say that a candidate survives while several of its assertions have dropped from `intact` to `narrowed` with their surviving support recorded. A change of *modality* — an assertion that was attested becoming assumed — is not a status edit but a new assertion revision, because modality is inside the structural digest. **The cascade transports, it does not judge**: a source whose extractions appear in withdrawn candidates raises a `source_reliability` signal — defined as the count and rate of that source's extractions implicated in withdrawals over a trailing window of rounds, emitted as a typed signal with those counts — which is consumed by the existing security pipeline. That pipeline decides; the cascade does not, and this section defines the signal's computation and not its policy.
+
+### 8.5 The reviewer's artifact
+
+A reviewer is not expected to read the graph. They read a **dossier**, a deterministic projection of the closure. Determinism here is mechanical, not asserted: the projection is a pure function of `(closure, privacy scope, renderer_version)` with rows in a canonical order, no wall-clock or locale-dependent rendering, and its output is content-addressed as `dossier_hash`, which is recorded in `LineageRecord` and pinned by `renderer_version` in the manifest. Two renderings of the same closure at the same scope under the same renderer are byte-identical, so a diff between dossier versions is itself a review object. The privacy scope is part of the function because it has to be: a dossier rendered outside the holding unit shows shadows where an internal one shows spans (§8.2.8), and the two are different objects with different digests rather than one object claimed to be identical across a boundary it cannot cross.
+
+Its sections: (1) the claim of invention in one paragraph, stated as a candidate rather than a result, with the falsifiable prediction quoted verbatim; (2) an **assertion table**, one row per assertion, carrying text, modality, status, rendered locators (source title, structural address, quoted span), the extractor and version that produced each, and a **defeater** — the specific observation that would make the row false; (3) the derivation path, rendered as the named operator chain and activation trace, so the intermediate concept that licensed the cross-domain jump is stated rather than implied; (4) the negative evidence — every probe's query, index, `index_root`, `as_of`, number of results examined, and each near-hit with its non-anticipation reason; (5) the challenge record with each challenger's surface, verdict, cited evidence, and the `context_manifest` disjointness that backs the input-disjointness check, stated as input disjointness and not as independence of judgment; (6) the gate record: the `Decision`, its `policy_hash`, the independent-support figure against `support_min` and the k-anonymity restriction that the existing `promote` path enforces, and — reported separately — the share of supporting evidence held by each unit below. That last quantity is reported because it is the organisational property the architecture is about; whether it also *gates* promotion is a Section 9 policy question and is not enforced by the existing promotion path today, and this section does not claim it is; (7) the replay manifest with a one-command invocation; (8) open items — assumed assertions, inconclusive probes, abstaining challengers, `Summarised` truncations, and every `locally_verifiable_only` assertion. The dossier leads with what is weak.
+
+Checkable, not merely visible, has an operational definition. Every row carries a **bounded verification obligation**: a typed, parameterised action a competent reviewer can take to settle it, drawn from a closed set — `open_locator(locator_id)`, confirm the span says what the row says; `rerun_probe(probe_id)`, confirm no anticipation at the current index; `recheck_arithmetic(assertion_id)`, confirm a quantitative assertion's computation from its cited quantities; `inspect_precondition(op_id)`, confirm the operator's precondition bindings hold over its inputs. Each obligation carries a `check_cost` in estimated reviewer-minutes, assigned from a fixed table keyed by obligation kind and size (span length, `k_examined`, number of cited quantities). That table is an assumption, not a measurement: its values are set by design and calibrating them against observed reviewer time is a monitored quantity, and no estimate in it should be read as a measured duration. Rows sort by `(status ≠ intact, unresolved, check_cost)` so the cheapest decisive checks come first.
+
+The falsifiability-within-budget property is checked at render time rather than asserted: the renderer must exhibit at least one set of obligations whose sustained failure would leave the central claim's assertion set unsupported, with total `check_cost ≤ policy.review_budget`. If it cannot, the dossier is emitted with that fact in section (8) and the candidate is held rather than promoted. A central claim that cannot be attacked within a bounded budget is a design failure of this section, not a failure of the reviewer.
+
+Review output is a typed write, not a comment. A reviewer emits a `Challenge` with `challenger_kind = human` — a `ReviewerVerdict` is exactly that, not a separate schema — and it enters the cascade of §8.4 as a machine challenger's does: a sustained verdict rejecting a locator's span raises `locator_invalidated` and propagates to every dependent candidate, including ones the reviewer never saw. Human disagreement is therefore first-class evidence with downstream force, which is the difference between a review that ends in a sign-off and one that ends in a graph that has changed. Two things about that force are unresolved and are named rather than papered over. Who may invalidate a locator, and whether a single reviewer's verdict propagates immediately or only after a second sustained verdict, is an authority question this section does not settle: as specified, one reviewer can cascade across the graph, which is correct when they are right and expensive when they are not. And a contested reviewer verdict needs a resolution path — the `contradicts` edge can express the disagreement, but nothing here decides it. Both belong in §8.6.
+
+### 8.6 Open design questions
+
+Collected so they are not mistaken for specification: (1) whether candidates reuse `Claim` with nullable test statistics or become a sibling record sharing only the promotion path (§8.1); (2) the definition of the novelty margin, which `policy.novelty_margin_min` thresholds — it is referenced here as a Section 7 quantity and this section does not define it, so the reference is dangling until Section 7 does; (3) per-source and per-corpus correlation discounting in `_independent_support`, including whether a corpus coefficient is identifiable at all from available data (§8.4); (4) public-key signing over the root digest, without which no third party can verify authorship (§8.3 R2); (5) the R1 disagreement rate at which promotion should be blocked or the panel recalibrated (§8.3); (6) calibration of the `check_cost` table against observed reviewer time (§8.5); (7) reviewer authority scoping and the resolution path for contested human verdicts (§8.5); (8) whether the evidence-share condition gates promotion or is only reported (§8.5, Section 9).
+
+---
+
+## 9. Hierarchy integration and evaluation protocol
+
+**Status of this section.** Nothing in it has been run. Every quantity below is a definition of a measurement, not a measurement; every threshold is a policy parameter carrying a placeholder value, not a tuned one; and nothing is cited, because this document was prepared on a machine with no network access — the paper's References note applies to every method named here by name. Where a mechanism is not yet specified, it is marked **Open:** rather than described in language that implies it exists.
+
+### 9.1 The unit as a discovery site
+
+Mycelic's hierarchy is `User → Team → Department → Region/Subsidiary → Global` (in the benchmark implementation, `worker → team → department → region → executive`). The invention loop does not change that topology and does not add a new transport. It reuses the existing rule: raw records stay where they were produced, and only bounded, typed, policy-checked, lineage-carrying artifacts move upward.
+
+Every unit runs the full loop of Sections 3–7 over the substrate it can legitimately see: the public concept graph replicated downward, plus its own shard — internal technical reports, failed-programme write-ups, defect databases, and its own open problems. The generation and verification loop therefore runs at every layer, including the lowest; whether anything worth having comes out of it at any layer is precisely what the protocol below exists to find out. What differs between layers is not the algorithm but the substrate available to it.
+
+Five artifact types cross a unit boundary. `PartialQuery` is Mycelic's existing `QuestionArtifact` under a different trigger; `ReplicationVerdict` is used only by the evaluation harness of 9.4 and never in normal operation; the other three are new.
+
+```
+ConceptSketch:  producer_id, layer, cycle, snapshot_id,
+                nodes: dict[node_key -> (support, node_type, domain_label,
+                                         corpus_class, holder_units)],
+                edges: dict[(node_key, node_key, edge_type) -> co_activation_count],
+
+                node_key     = concept_key       if corpus_class ∈ {public, licensed}
+                             | hashed_local_key  if corpus_class = internal
+                support      = number of distinct users in the producing unit that
+                               activated the node this cycle; this is the quantity the
+                               k-cohort rule of 9.5 is applied to
+                holder_units : bounded by policy.max_roots_tracked (the existing bound on
+                               tracked provenance roots, reused here). That is a wire-size
+                               bound, not a privacy bound; the privacy bound is the
+                               k-cohort rule, and the two must not be conflated.
+
+ProblemToken:   token_id (salted hash of the local problem id; the salt is unit-local,
+                          never emitted, rotated per epoch),
+                requirement: list[(property_key, comparator, value_bucket)],
+                comparator ∈ {<, >, ∈, ≈}, where ≈ means equality at bucket resolution
+                          (i.e. ∈ over a single bucket). The comparator set is kept this
+                          small so that satisfiability against the public ontology is
+                          decidable by a type/constraint check with no model call.
+                domain_labels, sensitivity ∈ {open, internal, embargoed},
+                k_cohort, k_req_snapshot_id, scope_layer, salt_epoch
+
+                scope_layer = the highest layer this token may reach. Default by
+                          sensitivity: embargoed → no token is emitted at all,
+                          internal → the unit's Region, open → Global. That is the
+                          entire difference between open and internal; nothing else
+                          about the two differs.
+
+PartialQuery:   question_id, asker_id, requirement, budget_bytes, target_unit_ids,
+                cycle, status ∈ {open, answered, expired}      # = QuestionArtifact
+
+InventionClaim: claim_id, producer_id, layer, problem_ref, operator,
+                elements: list[ElementRef], prediction,
+                prior_art: AnticipationRecord, panel: PanelRecord | ∅,
+                support: SupportRecord, lineage: LineageRecord, snapshot_id,
+                status ∈ {proposed, accepted, quarantined, superseded, unresolved, rejected},
+                privacy_class, quotes (empty unless policy.quote_policy ≠ none),
+                signature (HMAC over the content digest below, by the producer's key),
+                cycle_created, cycle_updated, withdrawal_reason
+
+ElementRef:     node_key (as above), role, essential: bool, corpus_class,
+                locator (public) | (locator_class, salted_hash) (internal), holder_units
+
+ReplicationVerdict:                                   # evaluation harness only (9.4)
+                claim_ref, verdict ∈ {reducible_trivial, publicly_reducible,
+                          reducible_with_witness, not_attempted_no_problem,
+                          not_reproduced}, matcher ∈ {strict, relaxed},
+                witness_unit_id | ∅, restarts_run, trials_run, harness_manifest_hash
+```
+
+`ConceptSketch` is the boundary-crossing serialisation of Section 5.2's co-activation digest — the same object, named for the boundary it crosses rather than for the agent that produces it.
+
+`AnticipationRecord` and `PanelRecord` are defined with the stages that produce them (Sections 7 and 6–7 respectively). What the invariants below require of them is only this: `AnticipationRecord` carries, per search, the snapshot id, the search budget, the query set and the retrieved-and-rejected references, so that a negative is always attributable to a budget; `PanelRecord` carries the challenger unit ids, each challenge, each verdict and the cycle, so that challenger disjointness (I5) is checkable after the fact.
+
+`SupportRecord` and `LineageRecord` are Mycelic's existing records, reinterpreted rather than redefined. `distinct_workers / teams / departments / regions` count units contributing at least one essential element's evidence; `independent_support` is computed by the existing correlation discount, `dr + ρ_region·(dd − dr) + ρ_dept·(dt − dd) + ρ_team·(dw − dt)`, so that ten users in one team do not look like ten independent sources. Two things about that reuse should be said rather than assumed. The formula presumes `dw ≥ dt ≥ dd ≥ dr`, which is asserted at the point of computation rather than trusted. And the `ρ` values are the benchmark configuration's existing constants, fitted for rate claims over observation counts; **Open:** whether element evidence has the same nested correlation structure. Until that is checked, `independent_support` over elements is a reused heuristic, not a calibrated quantity. `LineageRecord.derivation_operator` gains the values `activate`, `recombine`, `complete_partial`, `challenge`, `promote` alongside its existing ones.
+
+Re-resolution of an internal element inside its holding unit requires that unit to retain the salt-to-locator map for as long as any claim cites the element. The per-epoch salt rotation above therefore applies to `ProblemToken.token_id` only, not to `ElementRef.salted_hash`; rotating the latter would break I2 and I3 at the first epoch boundary. Rotation of the token salt deliberately makes problem tokens unlinkable across epochs — a stable `token_id` would let a parent watch a problem persist, which is most of what it wanted to know — and it costs the parent the ability to deduplicate or age tokens across that boundary. That is a cost we accept and state, not one we have solved. **Open:** the element-hash retention window, which is in tension with a unit's own data-deletion policy.
+
+**The signature must cover more than Mycelic's does.** The existing `Claim.content_digest` covers the producer, the cell and the counts — not the lineage and not the support record. For an invention claim the provenance *is* the content, so the digest covers the operator, the ordered essential element set (keys, roles, essentiality), the prediction, the `AnticipationRecord` and `PanelRecord` hashes, the `LineageRecord` hash and the snapshot id. A claim whose lineage can be edited without invalidating its signature cannot support I2. The mechanism is the existing HMAC, which has a limit worth naming: an HMAC is verifiable only by a holder of the producer's key, so a signature authenticates a claim to the parent that registered that key and provides neither third-party verifiability nor non-repudiation. **Open:** key registration and rotation, and whether cross-region audit requires asymmetric signatures instead.
+
+**What is deliberately not propagated**, at any layer: raw documents and passages; per-document activation traces; the text of a local problem statement; internal source locators (only a locator class plus a salted hash travels, enough to prove an element was held and to re-resolve it *within* the holding unit); the unit's learned Hebbian edge weights; the frontier itself. Because the frontier does not travel, no unit ever recombines over another unit's frontier — the pooled object is always the sketch, and 9.2 says what that costs. The Hebbian exclusion is the least obvious and matters most. An edge-weight delta vector is high-dimensional, unaggregated, and updated by verification outcomes; it is a behavioural fingerprint of what a unit is working on, and publishing it is close to publishing the problem list. Sketches therefore carry counts, not weights, and an edge enters one only when at least `policy.k_anonymity` distinct users within the unit co-activated it — the same suppression rule `promote()` already applies to sketch cells.
+
+### 9.2 What each layer adds
+
+**User.** Holds private problem statements and personal corpus. Emits `ConceptSketch` (public and licensed nodes by `concept_key`, internal nodes only as `hashed_local_key`, and in both cases only where the k-cohort rule of 9.5 is met), `ProblemToken`s for problems not marked `embargoed`, and `InventionClaim`s that clear the *local* gate — which is the gate of 9.3 with the steps that require a panel or child units marked inapplicable, as noted there.
+
+**Team.** First layer at which partial candidates from different people complete (Section 5.2). Pools the sketches it receives and runs recombination over their union. It does not pool frontiers: those never leave a user (9.1), so the team's substrate is the union of k-cohort-suppressed sketch nodes and edge counts, which is strictly smaller than the union of the frontiers behind them, and cross-user partial completion is correspondingly lossy. This is the first place in the architecture where a privacy gate can remove the signal it exists to protect, and it is swept by the disclosure ladder of 9.5.
+
+**Department.** Where the adversarial panel is normally convened, because independence of challengers is realised here as *organisational* independence. Invariant: no challenger agent may be drawn from a unit appearing in the candidate's lineage. A department with only one contributing team escalates the panel to its parent rather than seating a challenger from the proposing team. `policy.panel_layer` names the layer at which panels are seated; below it, claims travel with `panel = ∅`, and a claim with `panel = ∅` can never be marked `accepted`.
+
+**Region / Subsidiary.** The jurisdictional and data-residency boundary. Corpora differ by region and some cannot be replicated across one; a claim crossing a regional boundary must re-run its anticipation search against the destination region's corpus snapshot, and the result is appended to `AnticipationRecord` rather than replacing it. Where a corpus cannot move, the *search* moves instead: a `PartialQuery` descends and returns a bounded answer, exactly as the benchmark's question channel already works.
+
+**Global.** Maintains the canonical register of invention *candidates*, deduplicates claims that different regions derived independently (merging lineages rather than discarding one), and is the only layer authorised to mark a claim `accepted`. `accepted` is a routing state and nothing more: it means "this candidate has cleared every automated check in this architecture and is now eligible for expert review". It is not a finding of novelty, feasibility or patentability, and nothing here licenses external action on a claim's own authority. The honest reading of an accepted claim is a defeasible candidate plus the evidence set that currently supports it — and 9.6 exists because that set moves.
+
+### 9.3 The promotion gate
+
+The gate is the existing one — a significance screen plus a dispersion condition — with two changes, not one. The screen is replaced by the verification funnel, because a candidate is not a rate estimate. The dispersion condition is also replaced: Mycelic's is the two-child rule (a claim is not accepted unless at least `min(2, |children|)` distinct children contributed), and the invention gate keeps that *and* adds an element-share condition, because two children can both contribute while one of them holds every essential element.
+
+```
+procedure PROMOTE(unit u, candidate c, cycle t):
+ 1. SCREEN    if layer(u) ≥ policy.panel_layer:
+                  panel verdict = survived with no sustained challenge (§7)
+              ∧ anticipation search over snapshot S(u,t), at budget
+                  policy.prior_art_budget, returned no anticipating reference
+                  # a bounded negative — "none found at this budget", never "none exists"
+              ∧ prediction(c) ≠ ∅              # a candidate that cannot be wrong is rejected
+              ∧ cheap_score(c) ≥ θ_promote     # §6 score; θ_promote ≥ θ_keep (§5.1).
+                                               #   Both are policy parameters pinned in the
+                                               #   run manifest; see the Open note below.
+ 2. REPLAY    replay(c, snapshot_id(c)) reproduces c's element set exactly (§8),
+              else status ← quarantined, withdrawal_reason = replay_failure
+ 3. SUPPORT   independent_support(c) ≥ policy.support_min
+ 4. DISPERSE  at least min(2, |children(u)|) distinct children contributed an
+                  essential element                            # the existing two-child rule
+              ∧ max_unit_share(c) ≤ τ_share                    # τ_share placeholder 0.5
+              # Both are vacuous at the leaf layer, where u has no children. A
+              # user-emitted claim therefore carries no dispersion property at all,
+              # and no downstream layer may read one into it.
+ 5. PRIVACY   every internal ElementRef reduced to (locator_class, salted_hash);
+              every emitted node_key satisfies the k-cohort rule of 9.5;
+              canary scan over the artifact returns empty
+ 6. BUDGET    wire_bytes(artifact) ≤ parent's fan-in budget; overflow is deferred to the
+              next cycle, never truncated — a truncated lineage violates I2 below.
+              A claim deferred policy.max_defer_cycles times is not silently dropped: it
+              is marked unresolved with withdrawal_reason = budget_starved and counted,
+              because a gate that loses claims quietly is indistinguishable from one
+              that has nothing to promote.
+ emit InventionClaim to parent(u), signed with u's key
+```
+
+with
+
+```
+share(v, c) = Σ_{e ∈ elements(c), essential(e)} [ v holds e ] · ω(e)
+              / Σ_{e ∈ elements(c), essential(e)} ω(e)
+max_unit_share(c) = max over child units v of share(v, c)
+```
+
+`share(v, c)` is not a partition: an element held by several children counts in each of their shares, so shares need not sum to 1, and `max_unit_share ≤ 0.5` does not mean "no child holds a majority of the evidence" — it means no child holds more than half of the total essential weight, which is a weaker statement. `τ_share = 0.5` is a placeholder recorded in the manifest and swept; there is no result behind the number, and none of the thresholds in this procedure (`θ_promote`, `τ_share`, `policy.max_defer_cycles`, `policy.prior_art_budget`) has been calibrated. **Open:** how `θ_promote` is set. Setting it from the observed survival rate of promoted claims would let the gate drift toward whatever the panel currently likes, so it is frozen per run and changed only between runs, but that is a containment measure rather than a calibration procedure.
+
+Essentiality is declared by the generating operator's precondition (Section 6), not inferred after the fact; `ω(e)` weights an element by the number of distinct source locators supporting it, capped at `policy.omega_cap`, so that an element held by one document does not outweigh one held by many. **Open:** distinct locators are trivially inflated by near-duplicates — preprint plus journal version, patent family members, mirrored technical notes — and the rule that collapses them is not specified here. Until it is, `ω` is an upper bound on independent document support and should be read as one.
+
+A claim is **withdrawn** when its status leaves `accepted` for any of `quarantined`, `superseded` or `rejected`; the term is used throughout this section and means exactly that. `unresolved`, inherited from Mycelic's status enum, means a challenge or a promotion that neither completed nor failed within its budget, and is not a withdrawal. Invariants, checkable by assertion at every boundary: **I1** no artifact crossing a boundary contains raw text while `quote_policy = none`; **I2** every essential element of a promoted claim resolves to a locator or to a holding unit plus a hash, and the signature of 9.1 covers that resolution; **I3** a promoted claim replays from its pinned snapshot to an identical element set; **I4** `max_unit_share ≤ τ_share` at every promotion above the leaf layer, re-evaluated at each layer with that layer's children as the units; **I5** challenger disjointness, checkable from `PanelRecord` against `LineageRecord`; **I6** a withdrawal reaches, within one cycle, every unit holding a replica of the claim and every claim that lists it in `lineage.parent_claim_ids`, transitively — and no claim is `accepted` anywhere while any claim in its transitive `lineage.parent_claim_ids` is withdrawn.
+
+### 9.4 Irreducibility: tested, not asserted
+
+The property the architecture is built to produce is a *candidate* no single unit could have produced, because the connecting concepts lived in different units. It is easy to assert and easy to fake — a lineage listing three units proves only that three units were *touched*.
+
+Define `IRREDUCIBLE(c, ℓ)`: no unit at layer ℓ or below, running the same generation stage on everything it could legitimately see, produces a structure matching `c`. The procedure below does not decide that predicate and the predicate is never asserted; what the protocol reports is the procedure's outcome label, with its budget and its matcher attached.
+
+```
+procedure REPLICATION_TEST(claim c, node p, restarts R, trial budget T, matcher M):
+    if all essential elements of c are held by a single child unit: return reducible_trivial
+    if all essential elements have corpus_class = public:          return publicly_reducible
+    for each child unit v of p:
+        # runs inside v, executed by v: the harness never copies v's shard out (9.5)
+        G_v ← pin( G_public(S) ∪ subtree_substrate(v) ∪ A(v, c) )
+              S                    = snapshot_id(c)
+              subtree_substrate(v) = v's shard ∪ the shards of all of v's descendants
+              A(v, c)              = artifacts promoted to v strictly before
+                                     cycle_created(c), excluding c itself and every
+                                     claim in c's transitive lineage
+        if problem_ref(c) is not visible to v:
+            if policy.allow_privileged_problem_replay: seed with the problem statement
+            else: return not_attempted_no_problem        # NOT an irreducibility result
+        for r in 1..R:
+            E ← generation stage (§5–6) on G_v, seed r, trial budget T,
+                seeded by problem_ref(c) and the ProblemTokens visible to v
+            if ∃ c' ∈ E with MATCH_M(c', c): return reducible_with_witness(v, restart=r)
+    return not_reproduced(T, R, M)
+```
+
+Three parts of that need justifying, because each is a place where a lazier version of the test would produce a flattering number.
+
+**Why `v` is given its whole subtree.** Raw records stay where they are produced (9.1), so a child ordinarily sees only what its descendants promoted, not their shards. The definition of `IRREDUCIBLE` quantifies over every unit at layer ℓ *or below*, and a descendant can hold raw material its parent never received — the substrate is therefore not monotone up the hierarchy, and testing only the children with only the children's real visibility would not implement the definition. Granting `v` its whole subtree's material fixes the quantifier and biases the test toward `reducible`, which is the direction an honest test should be biased in. It also means the test cannot be run by a unit's parent or by a central harness: it runs inside `v`, and only the `ReplicationVerdict` crosses the boundary. A version of this test that copied shards upward to a central evaluator would violate 9.1 and 9.5 outright.
+
+**The matcher, which is doing more work than it looks.** `MATCH_strict(c', c)` holds iff the operators are equal and there is a role-preserving bijection between the essential elements of `c` and of `c'` mapping each element to one with an identical node key. No embeddings, no paraphrase judgement, no model call: the loop runs up to `R × |children| × T` trials per claim and cannot afford one, and a model-judged match would make the headline number a function of the judge. But strict key identity is biased the wrong way — a child that reached the same mechanism through an equivalent material *is* a reproduction, and strict matching scores it `not_reproduced`, inflating irreducibility. The test is therefore run under both matchers, with `MATCH_relaxed` allowing matched elements to differ within a stated equivalence relation over the public ontology, and **both numbers are reported; the strict number is never reported alone.** **Open:** which equivalence relation. Shared immediate parent class in the public ontology is the placeholder. This single choice moves the headline number more than almost anything else in the protocol, which is why it is pinned in the manifest before the first run rather than chosen afterwards.
+
+**The problem, which the privacy model may withhold.** A counterfactual in which `v` is never told the problem tests something weaker than the definition: `v` is unlikely to reproduce a candidate it was never asked for, so `not_reproduced` would partly be measuring the privacy gate rather than the substrate. Where the problem was `embargoed` this cannot be repaired inside the privacy model, and the verdict is `not_attempted_no_problem`, which may not be counted as irreducibility under any aggregation.
+
+The first two lines are cheap necessary conditions for irreducibility (equivalently, sufficient conditions for reducibility) and run on every promotion; the loop is expensive and runs only on candidates being promoted at Region or Global, under a harness budget recorded in the manifest. `IRREDUCIBILITY_DEPTH(c)` — the lowest layer whose descendants jointly hold all essential elements — is the direct analogue of the benchmark's computed minimum discovery layer (`min_layer`, derived there from the ground-truth distribution of evidence rather than declared), and like it, it is computed from the evidence distribution rather than declared by the generator.
+
+Two honesty constraints follow, and both must be stated wherever the property is reported. First, the test is **one-sided**: a negative result is "not reproduced at budget T over R restarts under matcher M", not "could not be produced", because the sampler is stochastic and the budget finite; the reported quantity is therefore a curve over T, not a flag. Second, the **publicly-reducible carve-out** is not a technicality. If every essential element is in the public corpus, then every unit could in principle have reached the candidate, the organisational claim is void, and the candidate must be labelled as such even though it may be perfectly good. The headline organisational number is the breakdown of promoted Global claims into *reducible (trivial)* / *publicly reducible* / *reducible with a named witness unit* / *not attempted for want of the problem* / *not reproduced at budget*, reported under both matchers, and only the last category, under the relaxed matcher, supports the claim that the hierarchy did anything.
+
+### 9.5 Privacy: what leaves a unit
+
+An organisation's unsolved problems are among its most sensitive assets: the list of what a company cannot yet do is a strategy document. The default is therefore that a problem statement never leaves as text, and `embargoed` problems produce no token at all — they are worked only against the public substrate pulled *down* into the unit. The public graph flows down; the private problem does not flow up.
+
+A `ProblemToken` is a generalisation, not a redaction. Requirements are expressed only over public ontology properties, with values coarsened into buckets; the token is emitted only when the requirement conjunction is satisfiable by at least `k_req` distinct public concepts. The child evaluates that count against its downward replica of the public graph and stamps the replica's `k_req_snapshot_id` onto the token; the parent re-evaluates against its own snapshot on receipt and drops the token if the count has fallen below `k_req`, because the replica can be stale and staleness in this direction leaks. A requirement so specific that it picks out a handful of concepts identifies the programme behind it, and is suppressed — the same logic, and the same failure, as k-anonymity suppression of a sketch cell with `n < k`.
+
+**The k-cohort rule**, used in 9.3 and referred to again in 9.12, is one rule with two instances, and is worth stating once rather than gestured at: a `node_key` may be emitted only if at least `policy.k_anonymity` distinct users within the producing unit activated it (`support ≥ policy.k_anonymity`; the benchmark configuration's default is 3), and a requirement bucket may be emitted only under the `k_req` condition above. For a *public* concept key the key itself discloses nothing — it is in the public ontology, and anyone can read it there. The rule is not protecting the key. It is protecting the fact that *this unit was interested in it*, which is the actual disclosure and the reason the rule applies to public keys at all.
+
+We name the criterion k-anonymity and use the term in its ordinary sense: suppression of any cell backed by fewer than k distinct contributors. We make no differential-privacy claim, because the mechanism adds no calibrated noise and composes over cycles in ways we have not bounded. Neither body of work is cited here, and none of the methods named in this section has been checked against the record on this machine; before this document goes anywhere, each must be located and cited or removed.
+
+Measurement reuses the benchmark's apparatus and extends it. Canary tokens of the form `CANARY-<kind>-<hex8>` are injected into local documents *and into problem statements*; exposure is exact canary presence in any artifact crossing any boundary, and under `quote_policy = none` it is required to be zero — a nonzero count is a defect to fix, not a number to report. The reconstructability measure is the minimum cohort size over promoted node keys and requirement buckets. Neither captures inference, so a third measurement is required: a **problem-reconstruction attack**, in which an adversary holding everything the parent legitimately received over a cycle is given a slate of `d + 1` problem statements — the child's true problem, plus `d` decoys drawn by a fixed procedure from pre-cutoff open-problem statements with the same domain labels and period — and must rank them. The adversary is a fixed model under a fixed prompt, both pinned in the manifest. The reported quantities are the rank distribution of the true problem and its mean reciprocal rank, read against the chance baseline `1/(d + 1)`, swept over the disclosure ladder (`embargoed` → token with wide buckets → token with narrow buckets → sketch sharing), which is the invention loop's analogue of the benchmark's compression ladder over `policy.compression`. This is a membership-inference-style evaluation, it bounds only the attack we implemented, and a good result under it is evidence about one adversary rather than a privacy guarantee.
+
+### 9.6 Re-verification and the withdrawal cascade
+
+Mycelic withdraws a claim that stops clearing its test; the invention register needs the same rule for a different reason. An accepted `InventionClaim` is re-checked at its holding layer against the *current* snapshot, and is superseded when (i) a newly ingested document anticipates it (`anticipated_after_acceptance`), (ii) a source it depends on is retracted (`source_retracted`), or (iii) a challenge from any unit is later sustained (`challenge_sustained`).
+
+The re-check is incremental rather than a re-run, because the naive version does not scale: a full anticipation search per accepted claim per cycle costs `|register| × search_cost` and grows without bound as the register does. Criterion (i) is therefore evaluated only against documents ingested since that claim's last check, which is equivalent for anticipation and affordable as a per-cycle sweep. Criteria (ii) and (iii) are event-driven, triggered by a retraction notice or a sustained challenge rather than by the sweep.
+
+A withdrawal cascades within one cycle (I6) to every claim listing the withdrawn claim in its `lineage.parent_claim_ids`, transitively, and to every unit holding a replica. A claim withdrawn under (i) is revived if the anticipating document is itself withdrawn, but it revives to `proposed` and must clear the gate of 9.3 again; it does not return directly to `accepted`. Without all of this the register only accumulates, and its acceptance rate stops meaning anything: novelty is a claim about the state of the corpus at a moment, and the corpus moves.
+
+### 9.7 The retrospective rediscovery benchmark
+
+Fix a cutoff `t*` and a horizon `Δ`, both pinned in the manifest before any run; `Δ` trades the size of the held-out set against how much post-cutoff dependency the targets carry, and both effects are discussed in L3 and 9.9. Ingest only documents admissible at `t*` (9.8). Hold out a target set `H` of inventions with priority date in `[t*, t* + Δ]`. Seed the system with problems drawn *from the pre-cutoff corpus* — open-problem statements, stated unmet needs, "future work" — never from the held-out documents. Run the loop under a fixed budget and score whether the validated candidates it proposes match members of `H`.
+
+Matching here is a human adjudication and is **not** the automated `MATCH` predicate of 9.4; the two are different instruments and must never be reported under one word. A proposal `p` matches a target `h` when a blinded assessor can map every essential element of `h`'s element decomposition onto an element of `p` with the same mechanism relation: `exact`, `narrower` (`p` strictly more specific than the target element — the over-specified case), or `partial` (`p` covers a proper subset, credited at half and always reported separately). Where `h` is a patent the decomposition is its independent claim. Where `h` is a paper or technical report there is no claim to decompose, so the harness produces and freezes an element decomposition for every such target before the first run, and hashes it into the manifest with everything else; a decomposition written after the proposals are in hand is not evidence.
+
+Adjudication is **forced-choice**, not judgement: the assessor is shown `p` together with a slate consisting of `h` and decoys drawn from the same classification and period, and must select the target `p` matches, or "none". Free-form similarity judgements against a known target are the single easiest way to fool yourself here, because any sufficiently fluent proposal can be read as close to anything. Every item is adjudicated by at least two assessors, and both raw agreement and a chance-corrected agreement statistic (the choice pinned in the manifest) are reported alongside every rediscovery number.
+
+### 9.8 Leakage, which is the whole difficulty
+
+**L1 — Corpus dating.** A document is admissible only if *every* date field it carries (priority, filing, publication, indexing, revision) is `≤ t*`; an unknown date makes it inadmissible. Preprints are pinned by version, not by identifier.
+
+**L2 — Derived-metadata leakage.** Citation counts, cited-by lists, re-classification codes, family membership and "similar documents" panels are computed continuously and reflect post-cutoff knowledge even on pre-cutoff documents. Any field for which the source cannot supply its `t*` state must be dropped entirely, not approximated. Most sources cannot, so most of this metadata is simply unavailable to the benchmark — a real capability loss, not a formality.
+
+**L3 — Model-weight leakage.** The agents' base models were trained on text after `t*` and may simply know the answer. This is the leak that corpus hygiene cannot fix, and there is no clean solution. Three partial controls, all of which must be run and reported:
+
+(a) choose `t*` after the base model's training cutoff. That cutoff is a provider statement rather than a verifiable fact, so it is treated as approximate and the margin is stated; and the choice shrinks `H` and narrows the domains available.
+
+(b) a **memorisation probe** — present each target's problem statement to the base model with no substrate access, over `n_probe` elicitation attempts at a stated temperature and across a stated set of prompt phrasings, and remove from `H` any item whose solution it reproduces under the relaxed matcher of 9.4. This is a removal criterion, not a guarantee: failure to elicit is not absence of knowledge.
+
+(c) a **substrate-ablation control** — re-run the pipeline with the concept graph's edges shuffled within degree. If the system still proposes `h`, then `h` did not depend on the graph's specific associative structure, and that item's credit is void. What this does *not* show is worth stating, because the shorter version of the sentence overclaims: the ablated run still reads the corpus, so the control separates "from the associative substrate" from "from everything else", not "from the weights" specifically.
+
+**L4 — Problem-statement leakage.** If the seed problem is phrased in the vocabulary of the target's solution, the answer is in the question. Seeds are quoted verbatim from pre-cutoff sources and frozen before the run. A term-overlap screen rejects any seed whose overlap with its target's claim language exceeds a pre-registered threshold; the screen is computed by the evaluation harness, which holds the targets, and neither the threshold nor the target text is ever exposed to the system — the screen only removes seeds. Reviewers then confirm that no surviving seed is a paraphrase of its target; they necessarily see the target, so what they are blind to is which candidates any system later produced. **Open:** the overlap statistic and its threshold, which remain a free parameter of the benchmark until fixed in the manifest.
+
+**L5 — Assessor leakage.** Addressed by the forced-choice slate in 9.7, plus assessors blind to which system produced `p`.
+
+### 9.9 What the retrospective benchmark cannot tell you
+
+It is a weak instrument and should be presented as one. `H` contains inventions that were made, filed, prosecuted and granted; it contains none of the good inventions nobody happened to make, so a rediscovery rate is not an estimate of an invention rate, and the two should never be conflated in a headline. Patent claims are legal artifacts drafted for breadth, so element matching partly measures paraphrase distance. The denominator for precision does not exist: there is no enumeration of "all true inventions", so precision cannot be computed against `H` and must be obtained separately by expert adjudication of a sample of non-matching validated candidates. Some post-cutoff inventions depended on an instrument, material or dataset that did not exist at `t*`, so proposing them at `t*` is partly an artifact of timing, and the larger `Δ` is, the more of `H` is like this. And `H` is small per domain, which caps statistical power regardless of how many candidates the system emits.
+
+### 9.10 Baselines and controls
+
+All baselines receive the same pre-cutoff corpus, the same generator model, the same budget, the same seeds and the same manifest, and their outputs go through the same adjudication with assessors blind to the producing system. Following Mycelic's existing honesty rule, the centralised baselines receive strictly more information than the hierarchical system, since they see the corpus unpartitioned and unfiltered by any privacy gate.
+
+- **B-RAG.** Hybrid dense and lexical retrieval over the identical corpus, same model, asked to propose rather than to answer. The comparison of record.
+- **B-RANDOM.** Sample `k` concepts uniformly from the same pinned substrate, with `k` drawn from the system's own arity distribution (2 or 3, Section 5.1), apply an operator, and run the identical verification funnel at the same trial count. This is the most important baseline in the protocol: it measures how much of the validated output is produced by the *gate* rather than by the search. If random combination plus the panel yields validated candidates at a comparable rate, the associative machinery is contributing nothing and the result is a statement about the panel.
+- **B-RANDOM-MATCHED.** As above, but resampled to match the system's domain-spread distribution, separating "being cross-domain" from "these particular paths".
+- **B-SINGLE.** One agent, same total compute, no sketch sharing, no partial completion, no consolidation. Isolates the swarm.
+- **B-NOCORPUS.** Base model, problem statement only, no substrate. The floor: what the weights already knew.
+- **Gate-admits-truth control.** Feed the verification stage the *real* held-out inventions, described in pre-cutoff vocabulary, as if they were proposals. If the panel rejects genuine inventions at a high rate, recall is capped by the gate and any search-side conclusion is unsupported. This control must be run before any recall number is interpreted.
+- **Ablations.** Negative knowledge removed; consolidation off (`η = 0`); partial completion off; domain-distance sampling bias off; hierarchy flattened to a single unit holding everything.
+
+### 9.11 Metrics and their failure modes
+
+No row in this table has a value. Each entry defines how the quantity would be computed and what would make the computed number misleading.
+
+| Metric | Definition | Failure mode |
+|---|---|---|
+| Rediscovery@B | Fraction of `H` matched within candidate budget `B`; reported as a curve over `B` | Trivially inflated by emitting more candidates; must always be reported with the candidate count and with rediscoveries per validated candidate |
+| Validated-candidate precision | Expert-adjudicated fraction of non-`H` validated candidates judged sound | Experts reward plausibility and fluency, which is exactly what the generator optimises; small samples, high variance |
+| Novelty-gate TPR/FPR | Measured on pairs of real patents and their examiner-cited prior art | Examiner citations are incomplete, so "no anticipation found" is bounded by the search and the gate's FPR is systematically underestimated. The pair set is also built from post-`t*` examiner data, so it must be kept disjoint from `H` and must never be used to tune anything that runs inside the `t*` discipline |
+| Irreducibility breakdown | Shares of promoted Global claims in each outcome category of 9.4, under both matchers, at budget `T` and `R` restarts | One-sided, budget-dependent and matcher-dependent; report the curve over `T` and both matchers, never a flag and never the strict matcher alone |
+| Replay success, provenance completeness | Fraction of promoted claims replaying to an identical element set; fraction of assertions resolving to a locator or to a holding unit plus a hash | Measures plumbing, not merit — a fully provenanced wrong idea scores 1.0 |
+| Panel calibration | Per-challenger TPR/FPR against the labelled anticipation set; sustained-challenge rate over cycles | Accuracy is meaningless at a low base rate: a challenger that rejects everything scores well. A sustained-challenge rate falling while volume rises is the rubber-stamp alarm |
+| Frontier coverage, domain spread, re-proposal rate | Coverage: fraction of nodes in the pinned snapshot at activation ≥ `policy.coverage_floor` at the end of a cycle, per unit per cycle. Spread: distribution of distinct `domain_label`s per emitted candidate. Re-proposal rate: fraction of emitted candidates whose essential element set matches (`MATCH_strict`) one already refuted. These are the definitions Section 5.4's forward reference points at; the monitoring intent is stated there and the computation is fixed here | Coverage can be inflated by activating cheaply and widely without depth; pair with survival rate by edge age |
+| Privacy exposure | Canary appearances across boundaries (required zero under `quote_policy = none`); minimum cohort size over promoted keys and buckets; problem-reconstruction rank against `1/(d+1)` | Canaries detect verbatim leakage only; the reconstruction attack bounds one attacker, not all |
+| Cost | Model calls, tokens, bytes per boundary per cycle, cost per validated candidate | Cheap candidates and expensive verification move in opposite directions; the only defensible summary is cost per *validated* candidate |
+
+The unit of analysis is the problem, not the candidate; systems are compared paired on the same problem set, with paired bootstrap confidence intervals and an effect size reported with every p-value, following the conventions already used in the Mycelic benchmark. Family-wise error is controlled by a step-down correction (Holm) within each pre-registered family of primary comparisons, and false-discovery rate by a step-up procedure across the exploratory metric sweep where many signatures are tested at once; both are named by procedure rather than cited, and the exact variants are pinned in the manifest. Cutoff, horizon, held-out set, seed problems, decoy-sampling procedure, adjudication rubric, target decompositions, matcher equivalence relation and metric list are frozen and hashed into the run manifest before the first run, alongside the corpus digest, so that the rubric cannot drift toward the results.
+
+### 9.12 Threats to validity
+
+**The recombination hypothesis may be false.** The architecture assumes that valuable inventions are recombinations of concepts already documented somewhere. If the binding constraint is instead a new measurement or observation that no corpus contains, the ceiling is low no matter how good the engineering, and no amount of graph quality moves it.
+
+**Feasibility cannot be assessed from text.** The panel detects *textual* refutation — a stated failure mode, a contradicted constraint, an anticipating disclosure. It cannot determine that a mechanism does not work. The system will therefore produce fluent, well-provenanced, physically impossible proposals, and this failure is silent: nothing in the pipeline flags it, and the provenance metrics will look excellent. Physical screening by simulation or experiment is out of scope here and is the obvious next dependency.
+
+**Non-obviousness is not computable.** It is a legal and social predicate about a hypothetical skilled practitioner. Our operational predicate — not retrievable from the corpus by a stated procedure at a stated budget — is a proxy and is defeasible, and a proposal that clears it is not a patentability opinion.
+
+**Prior-art coverage bounds everything.** Trade secrets, non-English literature, non-patent technical documentation and internal corpora are missing or partial. False novelty is the dominant error mode of the whole system, and it is not detectable from inside.
+
+**The economics may not close.** Generation is cheap by construction; verification is not. If the validated yield per panel-hour is low, the cost per validated candidate may exceed the value of a candidate, and the architecture fails on arithmetic rather than on science. The break-even relation should be stated and tracked from the first deployment cycle.
+
+**Evaluator capture.** Consolidation trains on panel verdicts, and the substrate then shapes what the panel sees. Any systematic bias in the panel is amplified into the graph. The countermeasures — periodic recalibration against panels blind to the consolidated weights, and the protected exploration fraction — are mitigations, not guarantees.
+
+**The hierarchy may add nothing.** If nearly all essential elements turn out to be public, irreducibility will be rare, and the hierarchical machinery is overhead on top of a system that a single well-resourced unit could have run. This is a testable claim with a publishable negative answer, which is precisely why the publicly-reducible share is a headline number rather than a footnote.
+
+**The privacy gates may remove the signal.** The generalisation and k-cohort screens suppress unusual requirements, and an unusual requirement is exactly the informative one; the same screens make cross-user partial completion lossy at the Team layer (9.2). There is a genuine discovery–disclosure trade-off here, it is swept by the disclosure ladder of 9.5, and there is no reason to assume the operating point that protects the organisation is one at which the system still finds anything.
+
+**Nothing here has been run.** Every quantity in this section is a definition of a measurement, and the first things any implementation should do are the gate-admits-truth control and the substrate-ablation control, because those two determine whether the rest of the protocol can be interpreted at all.
 
 ---
 
@@ -201,7 +2595,79 @@ document is submitted anywhere, every one must be located, verified, and given a
 correct citation, or removed. Entries are deliberately not formatted as a
 confident bibliography.
 
-*To be completed and verified — see `unverified_refs` collected during drafting.*
+**These are unverified.** This document was prepared on a machine with no network
+access, so no reference below has been checked against the record. Each entry
+names an idea and the tradition or author it is attributed to from memory; before
+this document is submitted anywhere, every one must be located, verified, and
+given a correct citation, or removed. They are deliberately not formatted as a
+confident bibliography, and no in-text citation keys point at them.
+
+64 items were flagged during drafting:
+
+1. 'Teaching away' and secondary considerations (long-felt need, failure of others, commercial success, skepticism) as evidence bearing on obviousness, recalled from memory as US doctrine. Authority must be located or the terms used only descriptively.
+2. ACT-R as a declarative-memory activation model — relevant to the activation layer, not to this section; verify attribution (Anderson) before citing.
+3. ACT-R declarative memory activation — John R. Anderson. Verify if cited in the final paper.
+4. Allan Collins and Elizabeth Loftus — spreading activation theory of semantic processing. Attribution stated from memory; publication venue and year not verified.
+5. Anticipation as the single-reference / every-element standard for novelty, attributed from memory to 35 U.S.C. § 102 (US). Statutory citation and the precise 'arranged as in the claim' formulation must be checked.
+6. Arthur Koestler — 'bisociation', the joining of two previously unrelated frames of reference. Named in the closing note of §6.6. Attribution from memory; title and date unverified.
+7. Arthur Koestler — bisociation, from his account of creativity (commonly attributed to 'The Act of Creation'). Title/date not verified here.
+8. Base-level activation (recency/frequency prior on a memory element) — associated with John Anderson's ACT-R architecture. Used here for the `base_level` node attribute; verify attribution and formula.
+9. Bisociation (connecting two habitually incompatible frames of reference) — associated with Arthur Koestler. Named in prose; verify attribution.
+10. Bisociation as the mechanism of creative combination — Arthur Koestler. Verify the work (believed to be 'The Act of Creation') and date.
+11. Bisociation — the joining of two previously unrelated frames of reference — attributed from memory to Arthur Koestler; referenced only obliquely in 8.5 item (3). If retained in the final text it must be verified or removed.
+12. Blackboard architectures (Hearsay-II) — Lee Erman, Victor Lesser and colleagues. Named only as contrast in an earlier draft; verify if retained.
+13. CPC and IPC patent classification schemes, and the alignment between them — referenced as third-party classification witnesses (W2). Verify the current scheme governance and revision cadence before making factual claims about them.
+14. Conceptual blending (Fauconnier and Turner) is alluded to as 'conceptual-blending work' without naming authors in the section text; if a human wishes to name them, the attribution must be checked.
+15. Content-addressed, fully pinned build systems (Nix; Bazel) as the model for the ReplayManifest pin set in 8.3. Named from memory as an analogy, not a citation; unverified.
+16. Contract-net protocol for distributed task allocation — Reid G. Smith. Verify the IEEE Transactions on Computers paper and year.
+17. Counter-based parallel pseudorandom number generators (Random123 / Philox), attributed from memory to Salmon and colleagues — the basis for the per-(agent, cycle, trial) reproducible streams in 8.3. Attribution unverified.
+18. Dedre Gentner — structure-mapping theory of analogy: analogical transfer carries relational structure rather than surface attributes. This is the stated justification for the role-correspondence minimum (r_min) in operator O1. Attribution from memory; no paper, venue or year verified.
+19. Differential privacy, attributed from memory to Cynthia Dwork and colleagues (mid-2000s). Named in 9.5 only to say we do NOT claim it. Verify before citing.
+20. Divisive normalisation as a canonical neural computation (associated with Carandini and Heeger) — the inspiration for the within-partition normalisation at lines 22-23. Verify attribution, or drop the analogy and present the rule as an engineering choice.
+21. Don R. Swanson — 'undiscovered public knowledge' / ABC literature-based discovery, the observation that complementary halves of a finding can sit in literatures no single reader reads. Referenced as background for cross-domain composition (O4). Attribution from memory; no citation verified.
+22. Don Swanson — undiscovered public knowledge; the ABC model of literature-based discovery (Swanson's fish-oil/Raynaud and magnesium/migraine work is the canonical example). Named in prose only; a human must locate and verify the actual publications before submission.
+23. Genrich Altshuller — TRIZ, and its framing of an unsolved problem as a contradiction to be dissolved rather than traded off. Named in prose in §6.2 (operator O3). Attribution from memory; no edition, date or title verified.
+24. Genrich Altshuller — TRIZ, derived from analysis of patent corpora; contradiction abstraction and inventive principles. No specific publication verified.
+25. Goodhart's law (a measure that becomes a target ceases to be a good measure), attributed from memory to Charles Goodhart. The idea underlies 9.11 and the evaluator-capture threat in 9.12; it is not named in the text as written, but if an editor adds it, it must be verified.
+26. Good–Turing frequency estimation and the unseen-mass argument — I. J. Good (with Alan Turing's wartime work). Verify the 1953 Biometrika paper reference before citing.
+27. John R. Anderson — ACT-R cognitive architecture. Attribution stated from memory; no specific publication cited or verified.
+28. Koestler's 'bisociation' — the notion of combining two unrelated frames of reference. Verify source (The Act of Creation) before citing.
+29. Leases as a fault-tolerance mechanism for distributed resource ownership — Cary Gray and David Cheriton. Verify the SOSP paper and year.
+30. Membership-inference attacks on machine-learning models, attributed from memory to Shokri and colleagues (circa 2017). 9.5 describes the problem-reconstruction attack as 'membership-inference-style'; verify before turning that phrase into a citation.
+31. Merkle hash trees, attributed from memory to Ralph Merkle — the basis for the root-digest-over-closure construction in invariant 7 and for snapshot_hash in 8.3. Unverified.
+32. Modularity-based community detection used for `partition_id` (commonly the Louvain method, associated with Blondel and co-authors). Verify method name and attribution, or replace with whatever partitioner is actually implemented.
+33. Non-obviousness under 35 U.S.C. § 103 (US), and the four Graham factors (scope and content of the prior art; differences; level of ordinary skill; secondary considerations), attributed from memory to Graham v. John Deere Co. (US Supreme Court, 1960s). Case name, year and the enumeration of factors must be verified.
+34. Nonparametric species-richness estimation (Chao1) — Anne Chao. Verify the original paper and year.
+35. Novelty search as an objective — Joel Lehman and Kenneth Stanley. Verify paper and venue.
+36. Patent-law notions of anticipation and obviousness are alluded to only via the 'already disclosed as a unit' check in O4; the section defers the actual analysis to Section 7 and makes no legal claim. If Section 7 cites statute or case law, that text must be verified by a human — nothing here should be read as a patentability opinion.
+37. Quality-diversity / MAP-Elites — Jean-Baptiste Mouret and Jeff Clune. Verify paper and year.
+38. RFC 2119 normative keyword conventions (MUST/SHOULD/MAY) — referenced by name for normative/informative separation in standards. Verify the RFC number and its BCP status before citing.
+39. Signal-detection framing of the calibration section (detection rate paired with false-alarm rate) is used as a generic statistical idea with no attribution; if the final paper attributes it, the attribution must be checked.
+40. Spreading activation in semantic networks — associated with Allan Collins and Elizabeth Loftus, and earlier with Ross Quillian's semantic memory model. Named in prose as the origin of the activation mechanism; a human must verify attribution and the exact formulation before citation.
+41. Spreading activation in semantic networks — commonly attributed to Allan Collins and Elizabeth Loftus; a human must verify the exact paper and year before this is cited formally.
+42. Spreading activation in semantic networks — the associative-retrieval model this layer feeds; commonly attributed to Collins and Loftus. Named in the design discussion but not cited in my section text; verify attribution and date before any citation is added.
+43. Stigmergy — Pierre-Paul Grassé; ant colony optimisation — Marco Dorigo. Verify both primary sources.
+44. Swanson's 'undiscovered public knowledge' / literature-based discovery — the canonical precedent for finding a connection latent across disjoint literatures. Verify author, venue and date before citing.
+45. Swanson's 'undiscovered public knowledge' — already invoked in the paper's introduction; noted here because 8.4's probe_stale trigger assumes the same premise (that the anticipating literature may already exist and simply not have been searched). Unverified.
+46. TRIZ (systematic inventive problem solving, contradiction-driven) — associated with Genrich Altshuller. Referenced in the surrounding programme framing for the `contradicts` edge semantics; verify attribution.
+47. TRIZ and its contradiction/inventive-principles apparatus, attributed to Altshuller — relevant to structural-signature design. Verify attribution before citing.
+48. TRIZ, the inventive-principles methodology — Genrich Altshuller. Verify the primary source and translation used.
+49. The Benjamini-Hochberg false-discovery-rate procedure, attributed from memory to Yoav Benjamini and Yosef Hochberg (1995). Named in 9.11. Already used by name in the existing mycelic_bench code; verify the reference before it appears in a bibliography.
+50. The EPO 'problem-solution approach' and its could/would distinction as the European framing of inventive step, recalled from memory. Source (EPO Guidelines for Examination) and exact terminology must be verified.
+51. The Holm step-down multiple-comparison correction, attributed from memory to Sture Holm (1979). Named in 9.11.
+52. The US obviousness standard (35 U.S.C. §103) referenced implicitly via 'obviousness rejection' in prosecution history — verify the statutory citation and that prosecution-history availability is as assumed before any legal claim is made in the paper.
+53. The claim that prosecution history (file wrappers) is machine-retrievable at scale for the jurisdictions of interest — stated as an ingestion capability. A human must confirm availability and licensing per jurisdiction before this is presented as implementable.
+54. The claim-chart element-by-element mapping practice, referred to here as an engineering analogy. It is professional practice rather than a citable source; if the paper cites it, a concrete reference must be found.
+55. The requirement that an anticipating reference be enabling, and the doctrine of inherent disclosure, named from memory as US patent-law doctrines without a specific case. If these are cited in the final paper, correct authority must be supplied or the reference removed.
+56. The section's ANTICIPATES and DERIVES_kappa predicates are engineering approximations loosely inspired by patent-examination concepts (anticipation and obviousness). No statute, jurisdiction, case law or examination guideline is cited, and none should be added without legal review.
+57. The treatment of 'obvious to try' as relevant only for a finite, identified and predictable set of options, and the rejection of a rigid teaching-suggestion-motivation requirement, attributed from memory to KSR International Co. v. Teleflex Inc. (US Supreme Court, 2007). Case name, year and holding must be verified.
+58. Truth maintenance systems and dependency-directed backtracking, attributed from memory to Jon Doyle; assumption-based truth maintenance (ATMS) attributed from memory to Johan de Kleer. These are the prior ideas behind the withdrawal cascade in 8.4 (justifications, not assertions, are the primitive). Attribution and correct references unverified.
+59. Undiscovered public knowledge / complementary-but-disjoint literatures, attributed from memory to Don R. Swanson (1980s; the Raynaud-fish-oil case is the standard example). Relevant to the retrospective rediscovery design in 9.7 and referenced conceptually in Section 1.2 of the paper; verify before citing.
+60. Undiscovered public knowledge / literature-based discovery — Don R. Swanson. Verify the canonical paper and the fish-oil/Raynaud case study reference.
+61. Undiscovered public knowledge / the A-B-C literature-based discovery pattern — associated with Don Swanson. Central to the 'why not k-NN' argument; verify attribution and terminology.
+62. W3C PROV / PROV-DM provenance data model (Entity / Activity / Agent) — named from memory as the closest standard analogue to the typed node kinds in 8.1; the exact model name, scope and authorship must be checked before submission.
+63. Wu-Palmer-style taxonomic similarity (lowest-common-ancestor depth ratio) — the form of `d_tax` given here. Verify the standard definition and attribution before naming it in the final text.
+64. k-anonymity as a disclosure-control criterion, attributed from memory to Latanya Sweeney (work of the late 1990s, journal article circa 2002). Named in 9.5. Locate and cite properly, or drop the attribution and keep the term.
 
 ---
 
