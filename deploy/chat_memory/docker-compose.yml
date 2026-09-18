@@ -1,0 +1,32 @@
+# docker compose -f deploy/chat_memory/docker-compose.yml up
+# Dashboard: http://localhost:8765/   MCP (Streamable HTTP): http://localhost:8765/mcp
+# Put a TLS-terminating reverse proxy in front for internet exposure and set NEURALGRAPH_MCP_TOKEN.
+services:
+  ollama:
+    image: ollama/ollama:latest
+    environment:
+      OLLAMA_NUM_PARALLEL: "4"
+    volumes:
+      - ollama:/root/.ollama
+    # first run: docker compose exec ollama ollama pull qwen2.5:7b-instruct && docker compose exec ollama ollama pull nomic-embed-text
+  memory:
+    build:
+      context: ../..
+      dockerfile: deploy/chat_memory/Dockerfile
+    depends_on: [ollama]
+    environment:
+      LLM_BASE_URL: http://ollama:11434
+      LLM_MODEL: qwen2.5:7b-instruct
+      EMBED_MODEL: nomic-embed-text
+      NEURALGRAPH_MCP_TOKEN: ${NEURALGRAPH_MCP_TOKEN:-}
+      NEURALGRAPH_API_TOKEN: ${NEURALGRAPH_API_TOKEN:-}
+      NEURALGRAPH_USER_NAME: ${NEURALGRAPH_USER_NAME:-}
+    command: ["--parallel", "4", "--user-name", "${NEURALGRAPH_USER_NAME:-user}"]
+    ports:
+      - "8765:8765"
+    volumes:
+      - memory-data:/data
+    restart: unless-stopped
+volumes:
+  ollama:
+  memory-data:

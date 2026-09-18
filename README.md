@@ -87,6 +87,34 @@ Conversation / Event Stream
    Grounded Answer + Evidence
 ```
 
+## Cross-chat memory and the MCP server
+
+`NeuralGraph.chat_memory` stores memories across all of your chats: a SQLite store, a background worker that
+runs Qwen in parallel to selectively extract memories and relationships, hybrid retrieval, a live dashboard
+(avatar with tokens saved, pentagon grade), a REST API, and MCP access for Claude (stdio for local/edge,
+Streamable HTTP for cloud).
+
+The MCP server is `neuralgraph-chat-memory`, exposing nine tools — `memory_search`, `memory_context`,
+`memory_add_message`, `memory_remember`, `memory_profile`, `memory_related`, `memory_entities`,
+`memory_forget`, `memory_status` — plus three resources and a `recall` prompt. It runs entirely on your
+machine against a local model; nothing is sent to a hosted service.
+
+- **[User guide](NeuralGraph/chat_memory/README.md)** — install, connect Claude Desktop or Claude Code,
+  full tool reference, CLI, configuration, security, troubleshooting.
+- **[Design](docs/CHAT_MEMORY.md)** — why extraction is gated, how the retrieval channels fuse, how commits
+  are fenced on a worker lease.
+
+```bash
+.venv/bin/python demo/chat_memory_live_demo.py --fake-llm                     # narrated live demo, no model server needed
+.venv/bin/python -m NeuralGraph.chat_memory serve --user-name "Your Name"     # http://127.0.0.1:8765/
+.venv/bin/python -m NeuralGraph.chat_memory mcp --user-name "Your Name"       # MCP over stdio, for Claude Desktop
+```
+
+The live demo streams five chats into the running system while the dashboard animates, asks memory the
+questions Claude would ask through MCP before each new chat, and ends with cross-chat questions
+(`--screenshots` saves a storyboard to `demo/results/chat_memory_demo/`). Planning brief for the next
+phase: [docs/PLANNING_PROMPT.md](docs/PLANNING_PROMPT.md).
+
 ## Local Models
 
 The current answering and embedding pipeline is designed to work with local models through [Ollama](https://ollama.com/).
