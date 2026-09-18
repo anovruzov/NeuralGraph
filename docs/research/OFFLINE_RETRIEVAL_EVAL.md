@@ -63,7 +63,16 @@ cd demo && EMB_BACKEND=local ONLY_CAT=single_hop \
 
 ## 5. Offline baseline (local TF-IDF embeddings, single_hop as labelled in the harness, n=282)
 
-RESULTS_TABLE
+Run 2026-09-18, 4-CPU container, 18 minutes wall time, no network.
+
+| variant | recall@10 | recall@50 | recall@all | ev@10 | ev_any@10 |
+|---|---:|---:|---:|---:|---:|
+| embed (flat cosine) | 30.9% | 52.8% | 52.8% | 9.2% | 46.8% |
+| tesseract | 35.8% | 55.7% | 55.7% | 10.6% | 53.2% |
+| tesseract + speaker boost + embed back-fill | 39.0% | 55.7% | 57.4% | 13.1% | 58.5% |
+
+For comparison, the same three variants with nomic-embed (`docs/BENCHMARKS.md`) score 39.4 / 44.7 /
+46.8 recall@10. The local embedding costs about 8 points of recall@10 but preserves the ranking.
 
 These numbers are a **retrieval-mechanics baseline with weak embeddings**, not comparable with the
 nomic-embed numbers in `docs/BENCHMARKS.md`. Their use is relative: a change to speaker routing,
