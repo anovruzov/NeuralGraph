@@ -1,0 +1,1027 @@
+"""Centralized and non-hierarchical baselines (DESIGN.md §8, MODULE_SPEC.md Task A).
+
+All baselines receive **every raw record** through `World.records()` (exact
+attributes, observed labels, unit membership, text) — strictly more than the
+hierarchy ever sees — and all of them call the shared `hypothesis.search`
+(or `rate_test`) with the same thresholds as the hierarchy policy.  What
+differs is the information flow:
+
+* B0_isolated          - each worker analyses only its own perceived records.
+* B1_central_keyword   - everything shipped raw to a centre; an analyst with a
+                         per-round *query budget* explores conjunctions by beam
+                         search over exact facet counts (org-wide and per unit).
+* B2_central_rag       - same centre, but evidence for each hypothesis is the
+                         `top_k` records retrieved by hashed bag-of-words cosine
+                         similarity; rates are estimated from those k only.
+* B3_central_llm_summary - records chunked in arrival order into windows read by
+                         a frontier-profile model; per-chunk sketches pooled
+                         without lineage; org-wide search only.
+* B4_majority_vote     - candidate cells from the keyword analyst; each worker
+                         votes from its own data; replica count decides.
+* ORACLE_central_stats - exhaustive search on exact, copy-deduplicated sketches
+                         at every organisational scope (upper-bound reference).
+
+Devices emit records through the same `agents.make_batches` path as the
+hierarchy (so device-side attacks — spoofed ids, replayed evidence, injected
+claims — reach the centre exactly as they reach a team node).  Centralized
+systems ingest injected bare claims as additional facet evidence with their
+claimed counts (they have no lineage to verify them).
+
+Baseline strength knobs (documented with their defaults in
+`configs/experiments.yaml` under `systems`): `max_query_order` (4-term AND
+queries for the analyst systems), `index_fields` / `read_cache` (B2 indexes the
+rendered structured record; a retrieved document is read once), `scopes` /
+`flush_partial` (B3 per-unit reduce variant `B3_central_llm_summary_scoped`),
+`voter_min_records` / `vote_share` / `max_candidates` (B4).  A variant entry
+names the system it specialises with `base:`.  `bytes_off_device_compact`
+reports the same upload in the devices' compact structured encoding (plus the
+text a text-reading centre needs) next to the raw-JSON figure.
+"""
+
+from __future__ import annotations
+
+import math
+import re
+import time
+from dataclasses import dataclass, field
+from typing import Any, Callable
+
+import numpy as np
+
+from .agents import OBS_BYTES_PER_RECORD, ObservationBatch, SimulatedSLM, make_batches, schema_valid
+from .config import get_profile
+from .evaluate import (ClaimRecord, contradiction_metrics, evidence_metrics, failure_reasons_from_probe, match_effects,
+                       privacy_metrics, raw_record_bytes, temporal_metrics, transition_fidelity)
+from .hierarchy import Policy
+from .hypothesis import Candidates, bh_qvalues, claim_pvalues, null_evidence, rate_test, search
+from .sketch import COL_DD, COL_DR, COL_DT, COL_DW, COL_K0, COL_N, N_COLS, Sketch
+from .vocab import ATTRIBUTES, LABELS, N_ATTR, N_LABELS, N_VALUES, VALUES, cell_index, mask_matrix
+from .world import World
+
+CANARY_RE = re.compile(r"CANARY-[a-z_]+-[0-9a-f]{8}")
+TOKENS_PER_RECORD = 180
+SCOPE_LAYERS = ("executive", "region", "department", "team")
+
+
+# --------------------------------------------------------------------------
+# Ingestion: what the centre receives each round (after device-side attacks)
+# --------------------------------------------------------------------------
+@dataclass
+class Ingested:
+    idx: np.ndarray                      # world record indices (evaluation drill-down only)
+    attrs: np.ndarray
+    labels: np.ndarray
+    worker: np.ndarray
+    team: np.ndarray
+    dept: np.ndarray
+    region: np.ndarray
+    fingerprint: np.ndarray
+    round: np.ndarray
+    confidence: np.ndarray
+    injected: list[dict[str, Any]] = field(default_factory=list)   # bare claims from compromised devices
+    quotes: int = 0
+
+    def __len__(self) -> int:
+        return len(self.idx)
+
+
+def _concat(parts: list[Ingested]) -> Ingested:
+    if not parts:
+        z = np.zeros(0, dtype=np.int64)
+        return Ingested(z, np.zeros((0, N_ATTR), dtype=np.int64), z, z, z, z, z, z, z, np.zeros(0))
+    return Ingested(
+        np.concatenate([p.idx for p in parts]), np.concatenate([p.attrs for p in parts]), np.concatenate([p.labels for p in parts]),
+        np.concatenate([p.worker for p in parts]), np.concatenate([p.team for p in parts]), np.concatenate([p.dept for p in parts]),
+        np.concatenate([p.region for p in parts]), np.concatenate([p.fingerprint for p in parts]), np.concatenate([p.round for p in parts]),
+        np.concatenate([p.confidence for p in parts]), [c for p in parts for c in p.injected], sum(p.quotes for p in parts))
+
+
+def ingest_round(world: World, records, idx: np.ndarray, slm: SimulatedSLM, attack_hook, failure_plan, round_: int,
+                 seen_fp: set | None = None) -> Ingested:
+    """Emit this round's records from the devices (perception by `slm`, then the
+    attack hook and the failure record filter) and collect them centrally."""
+    org = world.org
+    batches = make_batches(records, idx, records.team, org.n_teams, slm, "none", attack_hook)
+    parts: list[Ingested] = []
+    shipped: list[np.ndarray] = []   # every record the devices sent this round (before the centre's validation / dedup)
+    for t, b in batches.items():
+        if failure_plan is not None and hasattr(failure_plan, "record_filter"):
+            b = failure_plan.record_filter(b, slm)
+        if len(b) == 0 and not b.injected_claims:
+            continue
+        shipped.append(np.asarray(b.idx))
+        # input validation (every system): malformed rows never parse; exact copies (same content hash) are
+        # stored once -- a content-hash index is standard for any record store and is not a lineage feature.
+        # What a centre cannot do is verify provenance (spoofed worker ids count) or discount correlated sources.
+        keep = schema_valid(b.attrs, b.labels)
+        if seen_fp is not None:
+            fps = b.fingerprint.astype(np.int64)
+            _, first = np.unique(fps, return_index=True)
+            dup = np.ones(len(b), dtype=bool); dup[first] = False
+            already = np.array([int(f) in seen_fp for f in fps], dtype=bool)
+            keep &= ~dup & ~already
+            seen_fp.update(int(f) for f in fps[keep])
+        w = b.worker.astype(np.int64)[keep]
+        parts.append(Ingested(
+            b.idx[keep], b.attrs.astype(np.int64)[keep], b.labels.astype(np.int64)[keep], w, org.worker_team[w],
+            org.worker_department[w], org.worker_region[w], b.fingerprint.astype(np.int64)[keep],
+            np.full(int(keep.sum()), round_), b.confidence[keep], list(b.injected_claims), len(b.quotes)))
+    out = _concat(parts)
+    out.shipped_idx = np.concatenate(shipped) if shipped else np.zeros(0, dtype=np.int64)
+    return out
+
+
+# --------------------------------------------------------------------------
+# Claim bookkeeping shared by all baselines
+# --------------------------------------------------------------------------
+class ClaimBook:
+    """Signature -> claim state with first-acceptance rounds and window revision."""
+
+    def __init__(self, policy: Policy, layer: str) -> None:
+        self.policy = policy
+        self.layer = layer
+        self.claims: dict[tuple, dict[str, Any]] = {}
+
+    def upsert(self, scope_layer: str, scope_unit: int, cands: Candidates, round_: int, support_fn=None) -> None:
+        for i in range(len(cands)):
+            key = (scope_layer, scope_unit, int(cands.cell[i]), int(cands.label[i]), int(cands.sign[i]))
+            c = self.claims.get(key)
+            n = int(cands.n[i])
+            sup = support_fn(cands, i) if support_fn is not None else float(n)
+            conf = float((1.0 - cands.q[i]) * (1.0 - math.exp(-sup / max(self.policy.support_min, 1e-6))))
+            if c is None:
+                c = {"first_round": round_, "status": "accepted", "valid_to": None}
+                self.claims[key] = c
+            elif c["status"] == "superseded":
+                # a signal that returns after supersession is a revision
+                c["status"] = "accepted"; c["first_round"] = round_; c["valid_to"] = None
+            c.update({"n": n, "k": int(cands.k[i]), "rate": float(cands.rate[i]), "baseline": float(cands.baseline[i]),
+                      "effect": float(cands.effect[i]), "p": float(cands.p[i]), "q": float(cands.q[i]), "conf": conf,
+                      "support": sup, "replica": n, "last_round": round_,
+                      "dw": int(cands.dw[i]), "dt": int(cands.dt[i]), "dd": int(cands.dd[i]), "dr": int(cands.dr[i])})
+
+    def revise(self, recent: Sketch, scope_layer: str, scope_unit: int, round_: int) -> None:
+        """Supersede accepted claims that the recent window refutes with power."""
+        p = self.policy
+        keys = [k for k, c in self.claims.items() if k[0] == scope_layer and k[1] == scope_unit and c["status"] == "accepted" and k[4] > 0]
+        if not keys or len(recent.ids) == 0:
+            return
+        cells = np.array([k[2] for k in keys])
+        cnt = recent.lookup(cells)
+        n = cnt[:, COL_N]
+        k = np.array([cnt[i, COL_K0 + key[3]] for i, key in enumerate(keys)])
+        base = np.array([self.claims[key]["baseline"] for key in keys])
+        ref = (n >= p.n_min) & null_evidence(n, k, base, p.effect_min)
+        for i in np.flatnonzero(ref):
+            self.claims[keys[i]]["status"] = "superseded"; self.claims[keys[i]]["valid_to"] = round_
+
+    def recheck(self, sketch: Sketch, scope_layer: str, scope_unit: int, round_: int) -> int:
+        """Cumulative re-verification (the same rule the hierarchy applies): an accepted positive claim whose
+        cumulative evidence at this scope is no longer even nominally significant (p > withdraw_p against the
+        current most-elevated sub-marginal) is withdrawn; `upsert` revives it if the signal returns.
+        Returns the number of claims re-tested (charged as facet queries by the analyst baselines)."""
+        p = self.policy
+        if p.withdraw_p <= 0 or len(sketch.ids) == 0:
+            return 0
+        keys = [k for k, c in self.claims.items() if k[0] == scope_layer and k[1] == scope_unit and c["status"] == "accepted" and k[4] > 0]
+        if not keys:
+            return 0
+        pv, n_c, _eff, ok = claim_pvalues(sketch, np.array([k[2] for k in keys]), np.array([k[3] for k in keys]), np.array([k[4] for k in keys]))
+        for i in np.flatnonzero(ok & (n_c >= p.n_min) & (pv > p.withdraw_p)):
+            c = self.claims[keys[i]]
+            c["status"] = "superseded"; c["valid_to"] = round_; c["withdrawn"] = True; c["p"] = float(pv[i])
+        return len(keys)
+
+    def records(self, world: World, include_superseded: bool = True) -> list[ClaimRecord]:
+        out = []
+        for (sl, su, cell, label, sign), c in self.claims.items():
+            if c["status"] == "superseded" and not include_superseded:
+                continue
+            unit_id = _unit_id(world, sl, su)
+            out.append(ClaimRecord(cell=cell, label=label, sign=sign, scope_layer=sl, scope_unit=su, layer=self.layer,
+                                   round_accepted=c["first_round"], confidence=c["conf"], independent_support=float(c["support"]),
+                                   replica_count=int(c["replica"]), contributing_units=[unit_id], status=c["status"],
+                                   claim_id=f"{self.layer}:{sl}:{su}:{cell}:{label}:{'+' if sign > 0 else '-'}", valid_to=c["valid_to"]))
+        return out
+
+
+def _unit_id(world: World, layer: str, unit: int) -> str:
+    org = world.org
+    if layer == "executive":
+        return "EXEC"
+    if layer == "worker":
+        return f"W{unit:06d}"
+    return {"team": org.team_ids, "department": org.department_ids, "region": org.region_ids}[layer][unit]
+
+
+def _scope_masks(world: World, ing: Ingested, layers=SCOPE_LAYERS) -> list[tuple[str, int, np.ndarray]]:
+    out = []
+    for layer in layers:
+        if layer == "executive":
+            out.append(("executive", 0, np.ones(len(ing), dtype=bool)))
+            continue
+        arr = {"region": ing.region, "department": ing.dept, "team": ing.team}[layer]
+        for u in np.unique(arr):
+            out.append((layer, int(u), arr == u))
+    return out
+
+
+def _sketch(ing: Ingested, mask: np.ndarray, max_order: int = 3, present: np.ndarray | None = None, weights=None) -> Sketch:
+    return Sketch.from_interactions("C", "executive", 0, ing.attrs[mask], ing.labels[mask], ing.worker[mask], ing.team[mask],
+                                    ing.dept[mask], ing.region[mask], max_order=max_order,
+                                    present=None if present is None else present[mask],
+                                    weights=None if weights is None else weights[mask])
+
+
+def _dedup_weights(fp: np.ndarray) -> np.ndarray:
+    _, first = np.unique(fp, return_index=True)
+    w = np.zeros(len(fp), dtype=np.int64); w[first] = 1
+    return w
+
+
+def _accept_bare_claims(book: "ClaimBook", injected: list[dict[str, Any]], r: int, policy: Policy) -> None:
+    """A centre without lineage ingests device-emitted bare claims as facts (replica count = claimed n);
+    symmetric with the lineage-blind hierarchy (B5/B6), which accepts them by replica count too."""
+    for d in injected:
+        key = ("executive", 0, int(d["cell"]), int(d["label"]), 1)
+        if int(d["n"]) < policy.support_min or key in book.claims:
+            continue
+        book.claims[key] = {"first_round": r, "status": "accepted", "valid_to": None, "n": int(d["n"]), "k": int(d["k"]),
+                            "rate": d["k"] / max(d["n"], 1), "baseline": 0.0, "effect": d["k"] / max(d["n"], 1), "p": 1e-6,
+                            "q": 1e-4, "conf": float(d.get("confidence", 0.9)), "support": float(d["n"]), "replica": int(d["n"]),
+                            "last_round": r, "dw": 1, "dt": 1, "dd": 1, "dr": 1}
+
+
+def _inject_sketch(injected: list[dict[str, Any]], layer: str = "executive") -> Sketch:
+    """Bare claims ingested as facet evidence with their claimed counts (no lineage to verify)."""
+    if not injected:
+        return Sketch("C", layer, 0)
+    ids = np.array([int(d["cell"]) for d in injected], dtype=np.int64)
+    counts = np.zeros((len(injected), N_COLS), dtype=np.int64)
+    for i, d in enumerate(injected):
+        counts[i, COL_N] = int(d["n"]); counts[i, COL_K0 + int(d["label"])] = int(d["k"])
+        counts[i, COL_DW] = 1; counts[i, COL_DT] = 1; counts[i, COL_DD] = 1; counts[i, COL_DR] = 1
+    return Sketch.pool([Sketch("C", layer, 0, ids, counts)], "C", layer, 0)
+
+
+def _order4_sketch(ing: Ingested, mask: np.ndarray, n_min: int, layer: str, round_: int,
+                   weights: np.ndarray | None = None) -> Sketch | None:
+    """Sparse order-4 cells with n >= n_min over the masked (optionally deduplicated) rows: exact four-term
+    AND-query counts with distinct worker / team / department / region columns (shared by ORACLE and the
+    keyword analyst when `max_query_order` is 4)."""
+    ci = cell_index()
+    sel = mask if weights is None else mask & (weights > 0)
+    rows = ing.attrs[sel]
+    if len(rows) < n_min:
+        return None
+    ids4m = ci.ids_for_rows(rows, 4)
+    u, cnt = np.unique(ids4m.ravel(), return_counts=True)
+    keep = u[cnt >= n_min]
+    if len(keep) == 0:
+        return None
+    lab = mask_matrix(ing.labels[sel]).astype(np.int64)
+    rr, cc = np.nonzero(np.isin(ids4m, keep))
+    uu, inv = np.unique(ids4m[rr, cc], return_inverse=True)
+    counts = np.zeros((len(uu), N_COLS), dtype=np.int64)
+    counts[:, COL_N] = np.bincount(inv, minlength=len(uu))
+    for l in range(N_LABELS):
+        counts[:, COL_K0 + l] = np.bincount(inv, weights=lab[rr, l], minlength=len(uu)).astype(np.int64)
+    for col, src in ((COL_DW, ing.worker[sel][rr]), (COL_DT, ing.team[sel][rr]), (COL_DD, ing.dept[sel][rr]),
+                     (COL_DR, ing.region[sel][rr])):
+        base = int(src.max()) + 1
+        uk = np.unique(inv.astype(np.int64) * base + src.astype(np.int64))
+        counts[:, col] = np.bincount(uk // base, minlength=len(uu))
+    return Sketch("C", layer, round_, uu, counts, 4)
+
+
+_SUPER_IDS: dict[int, np.ndarray] = {}
+
+
+def _super_ids(cell: int) -> np.ndarray:
+    """Memoised `CellIndex.super_ids` (the analyst revisits the same cells every analysis round)."""
+    sup = _SUPER_IDS.get(cell)
+    if sup is None:
+        sup = _SUPER_IDS[cell] = cell_index().super_ids(cell)
+    return sup
+
+
+# --------------------------------------------------------------------------
+# The keyword analyst: beam search over exact facet counts under a query budget
+# --------------------------------------------------------------------------
+class BeamAnalyst:
+    """Explores conjunctions with AND-queries whose facet counts are exact.
+
+    Each queried cell costs one query at one scope.  Level 1 queries all
+    order-1 cells organisation-wide, then per region / department / team while
+    budget remains; the most promising queried cells (largest label-rate z
+    against their parent) are expanded by one attribute.  Only queried cells are
+    hypothesis-tested (`search(..., restrict_ids=...)`)."""
+
+    def __init__(self, policy: Policy, budget: int, seed: int, beam: int = 40, max_order: int = 3) -> None:
+        self.policy = policy
+        self.budget = int(budget)
+        self.beam = beam
+        self.max_order = int(max_order)   # highest conjunction an AND-query may name (4 = four terms; needs order-4 facets)
+        self.rng = np.random.default_rng(seed)
+        self.queried: dict[tuple[str, int], set[int]] = {}
+        self.expanded: dict[tuple[str, int], dict[int, int]] = {}   # scope -> cell -> #present supersets when fully queried
+        self.queries_used = 0
+
+    def _z_scores(self, sk: Sketch, ids: np.ndarray) -> np.ndarray:
+        ci = cell_index()
+        cnt = sk.lookup(ids)
+        n = cnt[:, COL_N]
+        first = np.arange(ci.order_base[1], ci.order_base[1] + int(ci.combo_size[1][0]))
+        tot = sk.lookup(first).sum(axis=0)
+        p0 = tot[COL_K0:COL_K0 + N_LABELS] / max(int(tot[COL_N]), 1)
+        rate = cnt[:, COL_K0:COL_K0 + N_LABELS] / np.maximum(n, 1)[:, None]
+        z = (rate - p0[None, :]) / np.sqrt(np.maximum(p0 * (1 - p0), 1e-4) / np.maximum(n, 1)[:, None])
+        z[n < self.policy.n_min] = -np.inf
+        return z.max(axis=1)
+
+    def explore(self, sketches: dict[tuple[str, int], Sketch], round_budget: int) -> dict[tuple[str, int], np.ndarray]:
+        """Return queried ids per scope for this analysis round."""
+        ci = cell_index()
+        remaining = round_budget
+        order1 = np.arange(ci.order_base[1], ci.order_base[1] + ci.order_size[1])
+        scopes = sorted(sketches, key=lambda s: SCOPE_LAYERS.index(s[0]))
+        out: dict[tuple[str, int], set[int]] = {s: set(self.queried.get(s, ())) for s in scopes}
+        # level 1: order-1 facets, top-down until the budget runs out
+        for s in scopes:
+            if remaining <= 0:
+                break
+            new = [int(c) for c in order1 if int(c) not in out[s]]
+            take = new[:remaining]
+            out[s].update(take); remaining -= len(take)
+        # expansions: promising cells get one more attribute (all values).
+        # pass 1 (top-down over scopes): the top-`beam` queried cells of each scope by facet z are expanded; a cell
+        #   whose present supersets were all queried in an earlier round costs nothing, so once a scope's beam is
+        #   exhausted the budget flows down to the next scope (teams are where local effects live).
+        # pass 2 (round-robin over scopes): budget left after every scope has had its beam buys expansions of the next
+        #   best not-yet-expanded cells instead of idling.  Untestable cells (n < n_min, z = -inf) are never expanded in
+        #   pass 2: their supersets are smaller still.
+        ranked: dict[tuple[str, int], tuple[np.ndarray, np.ndarray, np.ndarray]] = {}   # scope -> (ids by -z, z, order)
+        for s in scopes:
+            sk = sketches[s]
+            ids = np.array(sorted(out[s]), dtype=np.int64)
+            if len(ids) == 0 or len(sk.ids) == 0:
+                continue
+            z = self._z_scores(sk, ids)
+            pos = np.argsort(-z, kind="stable")
+            ranked[s] = (ids[pos], z[pos], ci.order_of(ids[pos]))
+
+        def expand(s: tuple[str, int], cell: int, remaining: int) -> int:
+            """Query the unqueried present supersets of `cell` at scope `s`; returns queries spent."""
+            done = self.expanded.setdefault(s, {})
+            if len(ci.decode(cell)) >= self.max_order:
+                return 0
+            sup = _super_ids(cell)
+            if len(sup) == 0:
+                return 0
+            # only expand into cells the sketch actually contains (facets with n>0)
+            present = sup[sketches[s].lookup(sup)[:, COL_N] > 0]
+            if done.get(cell) == len(present):
+                return 0
+            new = [int(c) for c in present if int(c) not in out[s]]
+            take = new[:remaining]
+            out[s].update(take)
+            if len(take) == len(new):
+                done[cell] = len(present)
+            return len(take)
+
+        for s in scopes:
+            if remaining <= 0 or s not in ranked:
+                continue
+            for cell in ranked[s][0][: self.beam]:
+                if remaining <= 0:
+                    break
+                remaining -= expand(s, int(cell), remaining)
+        cursor = {s: self.beam for s in ranked}
+        active = [s for s in scopes if s in ranked]
+        while remaining > 0 and active:
+            for s in list(active):
+                if remaining <= 0:
+                    break
+                ids_s, z_s, ord_s = ranked[s]
+                j = cursor[s]
+                while j < len(ids_s) and np.isfinite(z_s[j]) and (ord_s[j] >= self.max_order
+                                                                  or self.expanded.get(s, {}).get(int(ids_s[j])) is not None):
+                    j += 1
+                if j >= len(ids_s) or not np.isfinite(z_s[j]):
+                    active.remove(s); continue
+                remaining -= expand(s, int(ids_s[j]), remaining)
+                cursor[s] = j + 1
+        self.queries_used += round_budget - remaining
+        self.queried = out
+        return {s: np.array(sorted(v), dtype=np.int64) for s, v in out.items()}
+
+
+# --------------------------------------------------------------------------
+# RAG retrieval over hashed bag-of-words
+# --------------------------------------------------------------------------
+class HashedIndex:
+    def __init__(self, n_features: int = 2 ** 18) -> None:
+        from sklearn.feature_extraction.text import HashingVectorizer
+        self.vec = HashingVectorizer(n_features=n_features, alternate_sign=False, norm="l2", token_pattern=r"[A-Za-z0-9_=.\-]+")
+        self.matrix = None
+        self.doc_idx = np.zeros(0, dtype=np.int64)
+        self.read_docs = np.zeros(0, dtype=bool)   # documents the reading model has already extracted (cache)
+
+    def add(self, texts: list[str], idx: np.ndarray) -> None:
+        import scipy.sparse as sp
+        m = self.vec.transform(texts)
+        self.matrix = m if self.matrix is None else sp.vstack([self.matrix, m], format="csr")
+        self.doc_idx = np.concatenate([self.doc_idx, idx])
+        self.read_docs = np.concatenate([self.read_docs, np.zeros(len(idx), dtype=bool)])
+
+    def charge(self, hits: np.ndarray, cache: bool = True) -> tuple[int, int]:
+        """Documents the reading model must read for these hits: (new, total).  With the extraction cache a
+        document already read for an earlier hypothesis is not read again (its structured extraction is kept);
+        `total` is the naive cost of re-reading every retrieved document for every hypothesis."""
+        pos = hits[hits >= 0]
+        total = int(len(pos))
+        if not cache:
+            return total, total
+        pos = np.unique(pos)
+        fresh = pos[~self.read_docs[pos]]
+        self.read_docs[fresh] = True
+        return int(len(fresh)), total
+
+    def query(self, texts: list[str], top_k: int) -> np.ndarray:
+        """Positions (into doc order) of the top_k most similar documents per query; -1 padded."""
+        if self.matrix is None:
+            return np.full((len(texts), top_k), -1, dtype=np.int64)
+        q = self.vec.transform(texts)
+        out = np.full((len(texts), top_k), -1, dtype=np.int64)
+        n_docs = self.matrix.shape[0]
+        k = min(top_k, n_docs)
+        for a in range(0, len(texts), 128):
+            sims = (q[a:a + 128] @ self.matrix.T).toarray()
+            part = np.argpartition(-sims, k - 1, axis=1)[:, :k]
+            out[a:a + 128, :k] = part
+        return out
+
+
+def _cell_query_text(cell: int, label: int | None = None, unit: str | None = None) -> str:
+    ci = cell_index()
+    txt = " ".join(f"{ATTRIBUTES[a]}={VALUES[ATTRIBUTES[a]][v]}" for a, v in ci.decode(int(cell)))
+    if label is not None:
+        txt += f" errors={LABELS[label]}"
+    return (txt + f" {unit}").strip() if unit else txt
+
+
+def _index_text(world: World, records, i: int, fields: str = "record") -> str:
+    """Text a RAG system indexes for one record: the rendered structured record (unit ids, the exact
+    attributes, labels) plus the rationale — what a centre holding the raw JSON record would index — or the
+    rationale alone (`fields="rationale"`: a text-only view in which a worker mentions each attribute with
+    worker-dependent probability, so records matching a cell are only partially retrievable)."""
+    if fields == "rationale":
+        return records.rationale(i)
+    org = world.org
+    w = int(records.worker[i])
+    unit = (f"team={org.team_ids[int(org.worker_team[w])]} department={org.department_ids[int(org.worker_department[w])]} "
+            f"region={org.region_ids[int(org.worker_region[w])]}")
+    attrs = " ".join(f"{ATTRIBUTES[a]}={VALUES[ATTRIBUTES[a]][int(v)]}" for a, v in enumerate(records.attrs[i]))
+    return f"{unit} {attrs} {records.rationale(i)}"
+
+
+# --------------------------------------------------------------------------
+# Main entry point
+# --------------------------------------------------------------------------
+def run_baseline(world: World, cfg: dict[str, Any], seed: int, name: str, sys_cfg: dict[str, Any],
+                 attack_hook=None, failure_plan=None, snapshot_every: int = 1, policy_overrides: dict[str, Any] | None = None,
+                 **_: Any) -> dict[str, Any]:
+    policy = Policy.from_cfg(cfg, **(policy_overrides or {}))
+    edge = get_profile(cfg, cfg["models"]["edge_profile"])
+    frontier = get_profile(cfg, cfg["models"].get("frontier_profile", cfg["models"]["edge_profile"]))
+    perfect = get_profile(cfg, "sim-perfect") if "sim-perfect" in cfg["models"]["profiles"] else frontier
+    records = world.records()
+    n_rounds = world.n_rounds
+    # analysis cadence defaults to the hierarchy's executive cadence so time-to-discovery is comparable
+    cadence = int(sys_cfg.get("analysis_every", int(policy.cadence.get("executive", 1))))
+    analysis_rounds = sorted(set(list(range(0, n_rounds, cadence)) + [n_rounds - 1]))
+    order = np.argsort(records.round, kind="stable")
+    bounds = np.searchsorted(records.round[order], np.arange(n_rounds + 1))
+    t0 = time.time()
+    if failure_plan is not None and hasattr(failure_plan, "attach"):
+        try:
+            failure_plan.attach(_FakeHier(world))
+        except Exception:
+            pass
+
+    base = str(sys_cfg.get("base", name))   # a variant in configs/experiments.yaml names the system it specialises
+    if base == "B0_isolated":
+        result = _run_b0(world, cfg, seed, policy, edge, records, order, bounds, analysis_rounds, attack_hook, failure_plan, snapshot_every)
+    else:
+        result = _run_central(world, cfg, seed, base, sys_cfg, policy, edge, frontier, perfect, records, order, bounds,
+                              analysis_rounds, attack_hook, failure_plan, snapshot_every)
+    result["metrics"]["runtime_s"] = time.time() - t0
+    result["metrics"]["system"] = name
+    return result
+
+
+class _FakeHier:
+    """Minimal object so a FailurePlan can prepare worker-level failures without a hierarchy."""
+
+    def __init__(self, world: World) -> None:
+        self.org = world.org
+        self.nodes: dict[str, Any] = {}
+        self.delay: dict[str, int] = {}
+        self.layer_names = ["executive"]
+        self.by_layer: dict[str, list] = {}
+
+    def root_node(self):
+        return None
+
+
+def _finish(world: World, cfg: dict[str, Any], policy: Policy, book: ClaimBook, snapshots: dict[int, list[ClaimRecord]],
+            *, bytes_off_device: int, canaries_exposed: list[str], tokens_edge: int, tokens_cloud: int, model_calls: int,
+            edge, frontier, probe, extra: dict[str, Any], layer_name: str, seed: int, n_records: int = 0,
+            text_bytes: int = 0) -> dict[str, Any]:
+    kb = book.records(world)
+    m = match_effects(world, kb, policy.effect_min)
+    metrics: dict[str, Any] = {k: v for k, v in m.items() if k not in ("classified", "discovered")}
+    metrics.update(evidence_metrics(world, m["discovered"], None))
+    fid = transition_fidelity(world, {"executive": book.records(world, include_superseded=False)}, policy.effect_min)
+    metrics["fidelity"] = fid["table"]
+    metrics["per_layer"] = fid["per_layer"]
+    metrics.update(temporal_metrics(world, snapshots))
+    metrics.update(contradiction_metrics(world, [], kb))
+    raw_bytes = raw_record_bytes(world)
+    metrics.update(privacy_metrics(world, canaries_exposed, bytes_off_device, raw_bytes, 0, 0))
+    metrics["bytes_transmitted"] = int(bytes_off_device)
+    metrics["bytes_worker_to_team"] = int(bytes_off_device)
+    metrics["bytes_above_team"] = 0
+    metrics["compression_ratio"] = raw_bytes / max(bytes_off_device, 1) if bytes_off_device else None
+    metrics["compression_ratio_total"] = metrics["compression_ratio"]
+    # the same upload in the devices' compact structured encoding (what a hierarchy worker sends per record) plus the
+    # text a text-reading centre (B2 / B3) must ship: read the raw-JSON-based ratios against a compact centre with this
+    compact = int(n_records * OBS_BYTES_PER_RECORD + text_bytes) if bytes_off_device else 0
+    metrics["raw_bytes_compact"] = int(world.n * OBS_BYTES_PER_RECORD)
+    metrics["bytes_off_device_compact"] = compact
+    metrics["fraction_raw_exposed_compact"] = compact / max(raw_bytes, 1)
+    metrics["tokens"] = int(tokens_edge + tokens_cloud)
+    metrics["tokens_to_cloud"] = int(tokens_cloud)
+    metrics["model_calls"] = int(model_calls)
+    metrics["latency_ms_est"] = float(tokens_edge / 1000 * edge.latency_ms_per_1k_tokens + tokens_cloud / 1000 * frontier.latency_ms_per_1k_tokens)
+    metrics["energy_j_est"] = float(tokens_edge / 1000 * edge.energy_j_per_1k_tokens + tokens_cloud / 1000 * frontier.energy_j_per_1k_tokens)
+    egress = float(cfg.get("models", {}).get("cloud_egress_usd_per_gb", 0.09))
+    metrics["cost_usd_est"] = float(tokens_edge / 1000 * edge.usd_per_1k_tokens + tokens_cloud / 1000 * frontier.usd_per_1k_tokens
+                                    + bytes_off_device / 1e9 * egress)
+    cl = m["classified"]
+    root_poison = sum(1 for c in cl if c["category"] == "poison" and c["status"] == "accepted")
+    root_total = sum(1 for c in cl if c["status"] == "accepted")
+    metrics["poison"] = {"attack_records": int((world.attack_tag > 0).sum()), "attack_records_kept_at_team": int((world.attack_tag > 0).sum()),
+                         "benign_records_dropped": 0, "claims_quarantined": 0, "attack_claims_quarantined": 0,
+                         "poison_claims_at_root": root_poison, "poison_promotion_rate": root_poison / max(root_total, 1),
+                         "poison_by_layer": {layer_name: root_poison}}
+    metrics["n_root_claims"] = root_total
+    metrics["stats"] = extra
+    metrics["failure_reasons"] = failure_reasons_from_probe(world, m, probe)
+    return {"metrics": metrics, "classified": cl, "discovered": m["discovered"], "snapshots": snapshots, "hier": None}
+
+
+# --------------------------------------------------------------------------
+# B0: isolated workers
+# --------------------------------------------------------------------------
+def _run_b0(world, cfg, seed, policy, edge, records, order, bounds, analysis_rounds, attack_hook, failure_plan, snapshot_every):
+    slm = SimulatedSLM(edge, seed * 7919 + 17)
+    book = ClaimBook(policy, "worker")
+    snapshots: dict[int, list[ClaimRecord]] = {}
+    parts: list[Ingested] = []
+    tokens = 0; calls = 0
+    seen_fp: set = set()
+    n_min = policy.n_min
+    for r in range(world.n_rounds):
+        idx = order[bounds[r]:bounds[r + 1]]
+        ing = ingest_round(world, records, idx, slm, attack_hook, failure_plan, r, seen_fp)
+        tokens += len(ing) * TOKENS_PER_RECORD; calls += len(ing)
+        parts.append(ing)
+        if r in analysis_rounds:
+            allv = _concat(parts)
+            # workers with enough records (a worker needs >= n_min matching records for any claim)
+            wk, counts = np.unique(allv.worker, return_counts=True)
+            for w in wk[counts >= n_min]:
+                mask = allv.worker == w
+                sk = _sketch(allv, mask, max_order=3)
+                c = search(sk, n_min=n_min, effect_min=policy.effect_min, fdr_q=policy.fdr_q, max_order=3)
+                if len(c):
+                    book.upsert("worker", int(w), c, r)
+                    calls += 1
+                book.recheck(sk, "worker", int(w), r)
+            # injected claims from compromised devices become their own worker's claims (self-poisoning only)
+            for d in allv.injected:
+                key = ("worker", int(d["worker"]), int(d["cell"]), int(d["label"]), 1)
+                if key not in book.claims:
+                    book.claims[key] = {"first_round": r, "status": "accepted", "valid_to": None, "n": int(d["n"]), "k": int(d["k"]),
+                                        "rate": d["k"] / max(d["n"], 1), "baseline": 0.0, "effect": d["k"] / max(d["n"], 1), "p": 1e-6,
+                                        "q": 1e-4, "conf": float(d.get("confidence", 0.9)), "support": 1.0, "replica": int(d["n"]),
+                                        "last_round": r, "dw": 1, "dt": 1, "dd": 1, "dr": 1}
+        if r % snapshot_every == 0 or r == world.n_rounds - 1:
+            snapshots[r] = book.records(world)
+    allv = _concat(parts)
+
+    def probe(cell, label, sl, su):
+        m = np.ones(len(allv), dtype=bool)
+        for a, v in cell_index().decode(int(cell)):
+            m &= allv.attrs[:, a] == v
+        best = 0
+        if m.any():
+            _, cnt = np.unique(allv.worker[m], return_counts=True)
+            best = int(cnt.max())
+        return {"order_supported": True, "tested_scope": True, "tested_wide": False, "n_scope": best,
+                "k_scope": int(mask_matrix(allv.labels[m])[:, label].sum()) if m.any() else 0,
+                "untested_reason": "hierarchy_isolation"}
+
+    return _finish(world, cfg, policy, book, snapshots, bytes_off_device=0, canaries_exposed=[], tokens_edge=tokens, tokens_cloud=0,
+                   model_calls=calls, edge=edge, frontier=edge, probe=probe, extra={"records_ingested": len(allv)},
+                   layer_name="worker", seed=seed)
+
+
+# --------------------------------------------------------------------------
+# Centralized systems
+# --------------------------------------------------------------------------
+def _run_central(world, cfg, seed, name, sys_cfg, policy, edge, frontier, perfect, records, order, bounds, analysis_rounds,
+                 attack_hook, failure_plan, snapshot_every):
+    device = SimulatedSLM(perfect, seed * 7919 + 17)        # devices upload exact records
+    reader = SimulatedSLM(frontier, seed * 104729 + 3)      # the centre's frontier model (B3 perception)
+    book = ClaimBook(policy, "executive")
+    snapshots: dict[int, list[ClaimRecord]] = {}
+    parts: list[Ingested] = []
+    canaries: list[str] = []
+    bytes_off = 0; tokens_cloud = 0; calls = 0; queries_charged = 0
+    seen_fp: set = set()   # content-hash index: exact copies are stored once
+    records_received = 0
+    # A centre has no claim channel: attackers reach it through their records (fabricated, duplicated, spoofed,
+    # label-flipped, injected text), never through device-emitted bare claims, which only agent architectures
+    # without lineage (B5/B6) accept by replica count.  `ingest_bare_claims: true` restores the old behaviour.
+    ingest_bare = bool(sys_cfg.get("ingest_bare_claims", False))
+    query_budget = int(sys_cfg.get("query_budget", 3000))
+    if "query_budget_per_10k" in sys_cfg:   # the analyst's budget grows with the data it is asked to cover
+        query_budget = int(float(sys_cfg["query_budget_per_10k"]) * max(1.0, world.n / 10000.0))
+    top_k = int(sys_cfg.get("top_k", 50))
+    window = int(sys_cfg.get("window_records", 200))
+    min_votes = int(sys_cfg.get("min_votes", 3))
+    # analyst systems (B1 / B2 / B4): highest conjunction an AND-query may name.  An inverted index answers a
+    # four-term AND as readily as a three-term one, so 4 (default) makes order-4 effects reachable as they are for ORACLE.
+    max_query_order = int(sys_cfg.get("max_query_order", 4))
+    voter_min = int(sys_cfg.get("voter_min_records", 4))        # B4: matching records a worker needs to vote on a cell
+    vote_share = float(sys_cfg.get("vote_share", 0.6))          # B4: share of voters that must vote "elevated"
+    max_candidates = int(sys_cfg.get("max_candidates", 400))    # B4: candidates polled per scope-round (most elevated first)
+    index_fields = str(sys_cfg.get("index_fields", "record"))   # B2: record (structured + rationale) | rationale (text only)
+    read_cache = bool(sys_cfg.get("read_cache", True))          # B2: a retrieved document is read by the model once
+    rag_scopes = tuple(str(sys_cfg.get("rag_scopes", "executive,region,department")).replace(" ", "").split(","))   # B2 scopes
+    b3_scopes = str(sys_cfg.get("scopes", "org"))               # B3: org | per_unit (also search per region/department/team)
+    flush_partial = bool(sys_cfg.get("flush_partial", True))   # B3: summarise a partial window at each analysis point
+    analyst = BeamAnalyst(policy, query_budget, seed, max_order=max_query_order)
+    index = HashedIndex() if name == "B2_central_rag" else None
+    chunk_sketches: list[Sketch] = []
+    pending_chunk: list[Ingested] = []
+    perceived: list[Ingested] = []; perceived_present: list[np.ndarray] = []   # B3: per-record extractions of the reader
+    probe_state: dict[str, Any] = {"queried": {}, "sketches": {}, "retrieved": {}, "votes": {}}
+    per_record_bytes = raw_record_bytes(world) / max(world.n, 1)
+    text_bytes = 0; tokens_cloud_uncached = 0
+    W = policy.recent_window
+    fields = ("idx", "attrs", "labels", "worker", "team", "dept", "region", "fingerprint", "round", "confidence")
+
+    def frontier_chunks(new: Ingested | None, flush: bool = False) -> None:
+        nonlocal tokens_cloud, calls
+        if new is not None:
+            pending_chunk.append(new)
+        buf = _concat(pending_chunk)
+        while len(buf) >= window or (flush and len(buf) > 0):
+            take = min(window, len(buf))
+            chunk = Ingested(*(getattr(buf, f)[:take] for f in fields), [], 0)
+            view, present, lab = reader.perceive(chunk.attrs, chunk.labels)
+            chunk.attrs = view; chunk.labels = lab
+            chunk_sketches.append(_sketch(chunk, np.ones(len(chunk), dtype=bool), 3, present))
+            perceived.append(chunk); perceived_present.append(present)
+            tokens_cloud += take * TOKENS_PER_RECORD; calls += 1
+            buf = Ingested(*(getattr(buf, f)[take:] for f in fields), [], 0)
+        pending_chunk[:] = [buf]
+
+    for r in range(world.n_rounds):
+        idx = order[bounds[r]:bounds[r + 1]]
+        ing = ingest_round(world, records, idx, device, attack_hook, failure_plan, r, seen_fp)
+        parts.append(ing)
+        shipped_idx = getattr(ing, "shipped_idx", ing.idx)   # the wire carries every record, copies included
+        records_received += int(len(shipped_idx))
+        bytes_off += int(len(shipped_idx) * per_record_bytes)
+        canaries.extend(records.canaries_in(shipped_idx))
+        if name in ("B2_central_rag", "B3_central_llm_summary") and len(shipped_idx):
+            text_bytes += sum(len(records.rationale(int(i))) for i in shipped_idx)   # text a text-reading centre must receive
+        if index is not None and len(ing):
+            index.add([_index_text(world, records, int(i), index_fields) for i in ing.idx], ing.idx)
+        if name == "B3_central_llm_summary" and len(ing):
+            frontier_chunks(ing)
+        if r not in analysis_rounds:
+            if r % snapshot_every == 0:
+                snapshots[r] = book.records(world)
+            continue
+        allv = _concat(parts)
+        recent_mask = allv.round >= r - W + 1
+        if name == "B3_central_llm_summary":
+            if flush_partial:
+                frontier_chunks(None, flush=True)   # a partial window is summarised now rather than held back
+            inj = _inject_sketch(allv.injected if ingest_bare else [])
+            if b3_scopes == "per_unit":
+                # the reduce step groups the reader's per-record extractions by unit (records carry their unit ids)
+                allp = _concat(perceived)
+                pres = np.concatenate(perceived_present) if perceived_present else None
+                exact = {(sl, su): m for sl, su, m in _scope_masks(world, allv)}
+                for sl, su, pmask in _scope_masks(world, allp):
+                    pooled = Sketch.pool([_sketch(allp, pmask, 3, pres)] + ([inj] if sl == "executive" else []), "C", sl, r, 3)
+                    c = search(pooled, n_min=policy.n_min, effect_min=policy.effect_min, fdr_q=policy.fdr_q, max_order=3)
+                    book.upsert(sl, su, c, r)
+                    probe_state["sketches"][(sl, su)] = pooled
+                    book.revise(_sketch(allv, exact.get((sl, su), recent_mask) & recent_mask, 3), sl, su, r)
+                    book.recheck(pooled, sl, su, r)
+                    tokens_cloud += int(pooled.wire_bytes() // 4)
+                calls += 1
+            else:
+                pooled = Sketch.pool(chunk_sketches + [inj], "C", "executive", r, 3)
+                c = search(pooled, n_min=policy.n_min, effect_min=policy.effect_min, fdr_q=policy.fdr_q, max_order=3)
+                book.upsert("executive", 0, c, r)
+                probe_state["sketches"][("executive", 0)] = pooled
+                book.revise(_sketch(allv, recent_mask, 3), "executive", 0, r)
+                book.recheck(pooled, "executive", 0, r)
+                tokens_cloud += int(pooled.wire_bytes() // 4); calls += 1
+        elif name == "ORACLE_central_stats":
+            weights = _dedup_weights(allv.fingerprint)
+            for sl, su, mask in _scope_masks(world, allv):
+                sk = _sketch(allv, mask, 3, weights=weights)
+                sk4 = _order4_sketch(allv, mask, policy.n_min, sl, r, weights)   # order-4 cells with enough support (sparse)
+                if sk4 is not None:
+                    sk = Sketch.pool([sk, sk4], "C", sl, r, 4)
+                c = search(sk, n_min=policy.n_min, effect_min=policy.effect_min, fdr_q=policy.fdr_q, max_order=4)
+                book.upsert(sl, su, c, r, support_fn=lambda cd, i: _is_from(cd, i, policy))
+                book.revise(_sketch(allv, mask & recent_mask, 3), sl, su, r)
+                book.recheck(sk, sl, su, r)
+                probe_state["sketches"][(sl, su)] = sk
+            calls += 1
+        else:  # B1 keyword, B2 RAG, B4 majority vote share the analyst
+            inj = _inject_sketch(allv.injected if ingest_bare else [])
+            sketches = {}
+            for sl, su, mask in _scope_masks(world, allv):
+                parts_ = [_sketch(allv, mask, 3)]
+                if max_query_order >= 4:   # exact four-term facet counts (only cells with n >= n_min are testable anyway)
+                    sk4 = _order4_sketch(allv, mask, policy.n_min, sl, r)
+                    if sk4 is not None:
+                        parts_.append(sk4)
+                if sl == "executive":
+                    parts_.append(inj)
+                sketches[(sl, su)] = Sketch.pool(parts_, "C", sl, r, max(3, max_query_order))
+            queried = analyst.explore(sketches, query_budget)
+            probe_state["queried"] = queried; probe_state["sketches"] = sketches
+            tokens_cloud += (analyst.queries_used - queries_charged) * 40; queries_charged = analyst.queries_used
+            calls += 1   # the analyst is a frontier model issuing queries
+            for (sl, su), sk_ in sketches.items():   # cumulative re-verification of accepted claims: one facet query each
+                analyst.queries_used += book.recheck(sk_, sl, su, r)
+            if name == "B1_central_keyword":
+                for (sl, su), ids in queried.items():
+                    if len(ids) == 0:
+                        continue
+                    c = search(sketches[(sl, su)], n_min=policy.n_min, effect_min=policy.effect_min, fdr_q=policy.fdr_q,
+                               max_order=max(3, max_query_order), restrict_ids=ids)
+                    book.upsert(sl, su, c, r)
+                    mask = next(m for l, u, m in _scope_masks(world, allv) if l == sl and u == su)
+                    book.revise(_sketch(allv, mask & recent_mask, 3), sl, su, r)
+            elif name == "B2_central_rag":
+                t_new, t_all = _rag_round(world, allv, sketches, queried, index, top_k, policy, book, r, probe_state, read_cache,
+                                          rag_scopes)
+                tokens_cloud += t_new; tokens_cloud_uncached += t_all
+            elif name == "B4_majority_vote":
+                _vote_round(world, allv, sketches, queried, policy, book, r, min_votes, probe_state, voter_min, vote_share,
+                            max_candidates)
+        if r % snapshot_every == 0 or r == world.n_rounds - 1:
+            snapshots[r] = book.records(world)
+
+    allv = _concat(parts)
+    exposed = [c for c in canaries if c]
+    order_cap = 4 if name == "ORACLE_central_stats" else (3 if name == "B3_central_llm_summary" else max(3, max_query_order))
+
+    def probe(cell, label, sl, su):
+        sk = probe_state["sketches"].get((sl, su))
+        wide = probe_state["sketches"].get(("executive", 0))
+        q = probe_state["queried"]
+        tested_scope = (sl, su) in q and int(cell) in set(q[(sl, su)].tolist()) if q else sk is not None
+        tested_wide = ("executive", 0) in q and int(cell) in set(q[("executive", 0)].tolist()) if q else wide is not None
+        order = int(cell_index().order_of(np.array([cell]))[0])
+        f = {"order_supported": order <= order_cap, "tested_scope": bool(tested_scope),
+             "tested_wide": bool(tested_wide), "untested_reason": "retrieval_failure"}
+        if sk is not None:
+            cnt = sk.lookup(np.array([cell]))[0]
+            f["n_scope"], f["k_scope"] = int(cnt[COL_N]), int(cnt[COL_K0 + label])
+        if wide is not None:
+            cnt = wide.lookup(np.array([cell]))[0]
+            f["n_wide"], f["k_wide"] = int(cnt[COL_N]), int(cnt[COL_K0 + label])
+        if name == "B2_central_rag":
+            f["retrieved_n"] = probe_state["retrieved"].get((cell, label), 0)
+        if name == "B4_majority_vote":
+            f["votes_for"] = probe_state["votes"].get((sl, su, cell, label), 0)
+        return f
+
+    extra = {"records_ingested": len(allv), "queries_used": analyst.queries_used, "chunks": len(chunk_sketches),
+             "records_received": int(records_received),
+             "injected_claims_ingested": len(allv.injected) if ingest_bare else 0, "injected_claims_seen": len(allv.injected),
+             "text_bytes": int(text_bytes),
+             # B2: tokens the reader would consume without the extraction cache (every hypothesis re-reads its top-k)
+             "tokens_to_cloud_uncached": int(tokens_cloud_uncached if name == "B2_central_rag" else tokens_cloud)}
+    return _finish(world, cfg, policy, book, snapshots, bytes_off_device=bytes_off, canaries_exposed=exposed, tokens_edge=0,
+                   tokens_cloud=tokens_cloud, model_calls=calls, edge=edge, frontier=frontier, probe=probe, extra=extra,
+                   layer_name="executive", seed=seed, n_records=len(allv), text_bytes=int(text_bytes))
+
+
+def _is_from(cd: Candidates, i: int, policy: Policy) -> float:
+    dr, dd, dt, dw = int(cd.dr[i]), int(cd.dd[i]), int(cd.dt[i]), int(cd.dw[i])
+    return float(dr + policy.rho_region * (dd - dr) + policy.rho_department * (dt - dd) + policy.rho_team * (dw - dt))
+
+
+def _rag_round(world, allv: Ingested, sketches, queried, index: HashedIndex, top_k: int, policy: Policy, book: ClaimBook, r: int,
+               probe_state: dict[str, Any], cache: bool = True,
+               scopes: tuple[str, ...] = ("executive", "region", "department")) -> tuple[int, int]:
+    """Hypotheses (cells) come from the analyst; evidence is the top_k retrieved records only.
+
+    The retrieval query names the cell's attributes (and the unit for a scoped hypothesis) but NOT the
+    outcome label, so the retrieved set is an (approximately) unbiased sample of matching records; every
+    label's rate is then estimated from that sample.  Returns (tokens read, tokens read without the
+    extraction cache)."""
+    ci = cell_index()
+    ex = sketches[("executive", 0)]
+    first = np.arange(ci.order_base[1], ci.order_base[1] + int(ci.combo_size[1][0]))
+    tot = ex.lookup(first).sum(axis=0)
+    p0 = tot[COL_K0:COL_K0 + N_LABELS] / max(int(tot[COL_N]), 1)
+    tokens = 0; tokens_all = 0
+    for (sl, su), ids in queried.items():
+        if len(ids) == 0 or sl not in scopes:
+            continue   # by default a RAG analyst retrieves per organisation / region / department, not per team (`rag_scopes`)
+        cnt = sketches[(sl, su)].lookup(ids)
+        # shortlist: testable cells ranked by the analyst's facet z-score (most promising first)
+        testable = ids[cnt[:, COL_N] >= policy.n_min]
+        if len(testable) == 0:
+            continue
+        z = BeamAnalyst(policy, 0, 0)._z_scores(sketches[(sl, su)], testable)
+        cells = testable[np.argsort(-z)][:200]
+        unit_tok = None if sl == "executive" else f"{sl}={_unit_id(world, sl, su)}"   # scoped retrieval names the unit
+        texts = [_cell_query_text(int(c), None, unit_tok) for c in cells]
+        hits = index.query(texts, top_k)
+        new_docs, all_docs = index.charge(hits, cache)
+        tokens += new_docs * TOKENS_PER_RECORD; tokens_all += all_docs * TOKENS_PER_RECORD
+        n_c = np.zeros(len(cells), dtype=np.int64); k_c = np.zeros((len(cells), N_LABELS), dtype=np.int64)
+        # the same interaction test as every other system: outside evidence is the most elevated
+        # order-(k-1) sub-cell, which the RAG analyst must also retrieve (k more retrievals per cell)
+        n_o = np.zeros((len(cells), N_LABELS), dtype=np.int64); k_o = np.zeros((len(cells), N_LABELS), dtype=np.int64)
+        sub_texts, sub_owner = [], []
+        for j, c in enumerate(cells):
+            pairs = ci.decode(int(c))
+            for drop in range(len(pairs)):
+                sub = [pv for q_, pv in enumerate(pairs) if q_ != drop]
+                txt = " ".join(f"{ATTRIBUTES[a]}={VALUES[ATTRIBUTES[a]][v]}" for a, v in sub) if sub else ""
+                sub_texts.append((txt + f" {unit_tok}").strip() if unit_tok else txt)
+                sub_owner.append((j, drop))
+        sub_hits = index.query(sub_texts, top_k) if sub_texts else np.zeros((0, top_k), dtype=np.int64)
+        new_docs, all_docs = index.charge(sub_hits, cache)
+        tokens += new_docs * TOKENS_PER_RECORD; tokens_all += all_docs * TOKENS_PER_RECORD
+        unit_arr = None if sl == "executive" else {"region": world.region, "department": world.department, "team": world.team}[sl]
+        for j, c in enumerate(cells):
+            pos = hits[j][hits[j] >= 0]
+            if len(pos) == 0:
+                continue
+            rec = index.doc_idx[pos]
+            m = np.ones(len(pos), dtype=bool)
+            attrs = world.attrs[rec]
+            for at, v in ci.decode(int(c)):
+                m &= attrs[:, at] == v
+            if unit_arr is not None:
+                m &= unit_arr[rec] == su
+            n_c[j] = int(m.sum())
+            if m.any():
+                k_c[j] = mask_matrix(world.observed_labels[rec[m]]).sum(axis=0)
+            for l in range(N_LABELS):
+                probe_state["retrieved"][(int(c), l)] = max(probe_state["retrieved"].get((int(c), l), 0), int(n_c[j]))
+        # outside rates from the sub-cell retrievals (records matching the sub-cell but not the full cell)
+        best_rate = np.full((len(cells), N_LABELS), -1.0)
+        for s_i, (j, drop) in enumerate(sub_owner):
+            pos = sub_hits[s_i][sub_hits[s_i] >= 0]
+            if len(pos) == 0:
+                continue
+            rec = index.doc_idx[pos]
+            attrs = world.attrs[rec]
+            pairs = ci.decode(int(cells[j]))
+            m_sub = np.ones(len(pos), dtype=bool); m_full = np.ones(len(pos), dtype=bool)
+            for q_, (at, v) in enumerate(pairs):
+                hit = attrs[:, at] == v
+                m_full &= hit
+                if q_ != drop:
+                    m_sub &= hit
+            if unit_arr is not None:
+                m_sub &= unit_arr[rec] == su
+            m_out = m_sub & ~m_full
+            if int(m_out.sum()) < max(3, policy.n_min // 2):
+                continue
+            ko = mask_matrix(world.observed_labels[rec[m_out]]).sum(axis=0)
+            rate = ko / int(m_out.sum())
+            better = rate > best_rate[j]
+            best_rate[j, better] = rate[better]; n_o[j, better] = int(m_out.sum()); k_o[j, better] = ko[better]
+        # fall back to the global marginal where no sub-cell sample was retrievable
+        nofb = n_o == 0
+        n_o[nofb] = max(int(tot[COL_N]), 1)
+        k_o[nofb] = (np.broadcast_to(p0[None, :], n_o.shape)[nofb] * max(int(tot[COL_N]), 1)).astype(np.int64)
+        ok = n_c >= policy.n_min
+        if not ok.any():
+            continue
+        cc, ll = np.nonzero(ok[:, None] & np.ones((len(cells), N_LABELS), dtype=bool))
+        n_v = n_c[cc]; k_v = k_c[cc, ll]
+        n_o = n_o[cc, ll]; k_o = k_o[cc, ll]
+        base_v = k_o / np.maximum(n_o, 1)
+        sign = np.ones(len(cc), dtype=int)
+        p = rate_test(n_v, k_v, n_o, k_o, sign)
+        eff = k_v / np.maximum(n_v, 1) - base_v
+        q = bh_qvalues(p)   # family = tested cells x labels, exactly as hypothesis.search
+        keep = np.flatnonzero((q < policy.fdr_q) & (eff >= policy.effect_min))
+        if len(keep) == 0:
+            continue
+        cands = Candidates(cell=cells[cc[keep]], label=ll[keep].astype(np.int64), sign=np.ones(len(keep), dtype=np.int64),
+                           n=n_v[keep], k=k_v[keep], rate=k_v[keep] / np.maximum(n_v[keep], 1), baseline=base_v[keep],
+                           effect=eff[keep], p=p[keep], q=q[keep], n_out=n_o[keep],
+                           dw=n_v[keep], dt=np.ones(len(keep), dtype=np.int64), dd=np.ones(len(keep), dtype=np.int64),
+                           dr=np.ones(len(keep), dtype=np.int64), n_tested=len(p))
+        book.upsert(sl, su, cands, r)
+    return tokens, tokens_all
+
+
+def _vote_round(world, allv: Ingested, sketches, queried, policy: Policy, book: ClaimBook, r: int, min_votes: int,
+                probe_state: dict[str, Any], voter_min: int = 4, vote_share: float = 0.6, max_candidates: int = 400) -> None:
+    """Each worker with >= `voter_min` matching records votes; the cell is accepted when >= `min_votes` voters, a strict
+    majority and a `vote_share` share of the voters vote "elevated" (defaults 4 records / 60%; MODULE_SPEC's 3 records /
+    simple majority are `voter_min_records: 3, vote_share: 0.5`).  The `max_candidates` most elevated queried cells per
+    scope (facet z) are polled."""
+    ci = cell_index()
+    lab_all = mask_matrix(allv.labels).astype(np.int64)
+    # per-worker overall label rates (the voter's own baseline)
+    wk, inv = np.unique(allv.worker, return_inverse=True)
+    n_w = np.bincount(inv, minlength=len(wk))
+    k_w = np.stack([np.bincount(inv, weights=lab_all[:, l], minlength=len(wk)) for l in range(N_LABELS)], axis=1)
+    base_w = k_w / np.maximum(n_w, 1)[:, None]
+    for (sl, su), ids in queried.items():
+        if len(ids) == 0:
+            continue
+        cnt = sketches[(sl, su)].lookup(ids)
+        first = np.arange(ci.order_base[1], ci.order_base[1] + int(ci.combo_size[1][0]))
+        tot = sketches[(sl, su)].lookup(first).sum(axis=0)
+        p0 = tot[COL_K0:COL_K0 + N_LABELS] / max(int(tot[COL_N]), 1)
+        rate = cnt[:, COL_K0:COL_K0 + N_LABELS] / np.maximum(cnt[:, COL_N], 1)[:, None]
+        cand = np.argwhere((rate >= p0[None, :] + policy.effect_min / 2) & (cnt[:, COL_N][:, None] >= policy.n_min))
+        if len(cand) == 0:
+            continue
+        if len(cand) > max_candidates:   # poll the most elevated candidates, not the lowest cell ids
+            zc = (rate - p0[None, :]) / np.sqrt(np.maximum(p0 * (1 - p0), 1e-4)[None, :] / np.maximum(cnt[:, COL_N], 1)[:, None])
+            cand = cand[np.argsort(-zc[cand[:, 0], cand[:, 1]], kind="stable")[:max_candidates]]
+        scope_mask = np.ones(len(allv), dtype=bool) if sl == "executive" else \
+            {"region": allv.region, "department": allv.dept, "team": allv.team}[sl] == su
+        rows = []
+        for a, l in cand:
+            pairs = ci.decode(int(ids[a]))
+            m = scope_mask.copy()
+            for at, v in pairs:
+                m &= allv.attrs[:, at] == v
+            if not m.any():
+                continue
+            wi = inv[m]
+            n_wm = np.bincount(wi, minlength=len(wk)); k_wm = np.bincount(wi, weights=lab_all[m, l], minlength=len(wk))
+            voters = n_wm >= voter_min
+            if voters.sum() == 0:
+                continue
+            # each voter's baseline: its own rate on the most elevated sub-cell outside the cell (falls back to its overall rate)
+            base_v = base_w[:, l].copy()
+            if len(pairs) > 1:
+                for drop in range(len(pairs)):
+                    ms = scope_mask.copy()
+                    for q_, (at, v) in enumerate(pairs):
+                        if q_ != drop:
+                            ms &= allv.attrs[:, at] == v
+                    ms &= ~m
+                    if not ms.any():
+                        continue
+                    ws = inv[ms]
+                    n_s = np.bincount(ws, minlength=len(wk)); k_s = np.bincount(ws, weights=lab_all[ms, l], minlength=len(wk))
+                    r_s = np.where(n_s >= 3, k_s / np.maximum(n_s, 1), -1.0)
+                    base_v = np.maximum(base_v, r_s)
+            for_ = int(((k_wm / np.maximum(n_wm, 1)) >= base_v + policy.effect_min)[voters].sum())
+            against = int(voters.sum()) - for_
+            probe_state["votes"][(sl, su, int(ids[a]), int(l))] = for_
+            if for_ >= min_votes and for_ > against and for_ >= vote_share * (for_ + against):
+                n_c, k_c = int(m.sum()), int(lab_all[m, l].sum())
+                rows.append((int(ids[a]), int(l), n_c, k_c, float(p0[l]), for_, against))
+        if not rows:
+            continue
+        cells = np.array([x[0] for x in rows]); labels = np.array([x[1] for x in rows])
+        n_c = np.array([x[2] for x in rows]); k_c = np.array([x[3] for x in rows]); base = np.array([x[4] for x in rows])
+        votes = np.array([x[5] for x in rows])
+        # vote systems carry no p-value; report the vote share as pseudo-confidence
+        share = votes / np.maximum(votes + np.array([x[6] for x in rows]), 1)
+        cands = Candidates(cell=cells, label=labels, sign=np.ones(len(rows), dtype=np.int64), n=n_c, k=k_c,
+                           rate=k_c / np.maximum(n_c, 1), baseline=base, effect=k_c / np.maximum(n_c, 1) - base,
+                           p=1 - share, q=1 - share, n_out=np.zeros(len(rows), dtype=np.int64), dw=votes, dt=votes,
+                           dd=votes, dr=votes, n_tested=len(cand))
+        book.upsert(sl, su, cands, r, support_fn=lambda cd, i: float(cd.dw[i]))

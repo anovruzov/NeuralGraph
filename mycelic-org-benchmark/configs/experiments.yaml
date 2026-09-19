@@ -1,0 +1,71 @@
+# Hierarchy policy defaults and experiment tiers.
+policy:
+  sketch_order: 3                 # max cell order promoted upward (1..3); 4 only via questions
+  compression: order_capped   # full_sketch | order_capped | order2_plus_significant | significant_cells_only | claims_only
+  top_k_claims: 200               # max claims promoted per node per round
+  byte_budget: 0                  # 0 = unlimited; otherwise bytes per node per round
+  min_cell_n: 3                   # suppress promoted higher-order cells with n below this (k-anonymity)
+  k_anonymity: 3
+  quote_policy: none              # none | redacted | raw
+  fdr_q: 0.05
+  n_min: 8
+  effect_min: 0.08
+  support_min: 2.0                # minimum independent support to accept a claim
+  lineage: true                   # provenance signatures, dedup, correlation discount
+  questioning: none               # none | fixed | confidence | eig | budget
+  question_budget: 20             # questions per node per round (fixed / eig)
+  question_byte_budget: 4096      # bytes per node per round (budget policy)
+  recent_window: 6                # rounds for temporal revision tests
+  withdraw_p: 0.05                # cumulative re-verification: withdraw an accepted claim whose cumulative one-sided p exceeds this (all systems; 0 disables)
+  cadence: {team: 1, department: 1, region: 1, executive: 1}   # aggregation every k rounds
+  fan_in_budget_bytes: 0          # 0 = unlimited; flat baseline uses a finite budget
+  resolve_ratio: 2.0              # independent support ratio to resolve a contradiction
+  max_order_questions: 4
+
+tiers:
+  tier1:
+    org: {n_workers: 1000, workers_per_team: 100, teams_per_department: 5, departments_per_region: 2, n_rounds: 30, interactions_per_worker: 10}
+    world: {n_local_findings: 100, n_cross_team_findings: 25, n_global_findings: 10, n_decoys: 30, n_contradictions: 10, n_temporal_revisions: 10}
+    seeds: 30
+  tier2:
+    org: {n_workers: 10000, workers_per_team: 100, teams_per_department: 5, departments_per_region: 4, n_rounds: 30, interactions_per_worker: 10}
+    world: {n_local_findings: 1000, n_cross_team_findings: 250, n_global_findings: 100, n_decoys: 200, n_contradictions: 100, n_temporal_revisions: 100, min_layer_for_global: region}
+    policy: {cadence: {team: 1, department: 3, region: 3, executive: 3}}   # baselines analyse on the executive cadence too
+    seeds: 10
+  tier3:
+    org: {n_workers: 50000, workers_per_team: 100, teams_per_department: 10, departments_per_region: 10, n_rounds: 30, interactions_per_worker: 10}
+    world: {n_local_findings: 2000, n_cross_team_findings: 500, n_global_findings: 200, n_decoys: 400, n_contradictions: 100, n_temporal_revisions: 100, min_layer_for_global: region}
+    policy: {cadence: {team: 1, department: 3, region: 3, executive: 3}}
+    seeds: 3
+
+systems:
+  # Baseline knobs (baselines.py; every value below is the default the code applies when the key is absent):
+  #   analysis_every           centralized analysis cadence; defaults to policy.cadence.executive (1 at tier1, 3 at tier2/3),
+  #                            so baseline time-to-discovery carries up to +2 rounds of cadence lag
+  #   max_query_order: 4       B1/B2/B4 analyst may AND four terms (an inverted index answers 4-term ANDs as readily as
+  #                            3-term ones); set 3 to cap the analyst at the hierarchy's promoted sketch order
+  #   index_fields: record     B2 indexes the rendered structured record (unit ids + exact attributes + rationale);
+  #                            `rationale` = text-only index where each attribute is mentioned with worker-dependent prob.
+  #   read_cache: true         B2 reads a retrieved document once (extraction memoised); stats.tokens_to_cloud_uncached
+  #                            reports the naive re-read-per-hypothesis cost
+  #   rag_scopes: executive,region,department   B2 retrieves per organisation / region / department; add `team` for
+  #                            team-scoped retrieval (local effects are team-scoped; ~10x more retrievals per round)
+  #   scopes: org              B3 searches org-wide only; `per_unit` also groups the reader's extractions by unit
+  #   flush_partial: true      B3 summarises a partial window at each analysis point instead of holding it back
+  #   voter_min_records: 4, vote_share: 0.6, max_candidates: 400   B4 (MODULE_SPEC text says 3 records / simple majority,
+  #                            i.e. voter_min_records: 3, vote_share: 0.5); candidates are the most elevated cells, not the lowest ids
+  B0_isolated: {kind: baseline}
+  # Centralized baselines see attackers' records only (no claim channel); set `ingest_bare_claims: true` to make a centre
+  # ingest device-emitted bare claims as facts (ablation of the old symmetric-with-B6 assumption).
+  B1_central_keyword: {kind: baseline, query_budget_per_10k: 3000}   # 3,000 exact facet queries per analysis round per 10k records
+  B2_central_rag: {kind: baseline, query_budget_per_10k: 3000, top_k: 200}   # 200 records x ~180 tokens = 36k-token context per hypothesis
+  B3_central_llm_summary: {kind: baseline, window_records: 200}   # 200 x 180 = 36k tokens/window (frontier context is 200k; chunk size does not change pooled counts)
+  B3_central_llm_summary_scoped: {kind: baseline, base: B3_central_llm_summary, window_records: 200, scopes: per_unit}   # strong variant: reduce per unit
+  B4_majority_vote: {kind: baseline, query_budget_per_10k: 3000, min_votes: 3, voter_min_records: 3, vote_share: 0.5}   # MODULE_SPEC Task A (>=3 records, simple majority); the code's fallback 4 / 0.6 is the stricter older setting
+  B5_flat_agents: {kind: hierarchy, layers: 1, fan_in_budget_bytes: 2000000, lineage: false}   # naive flat aggregator (replica counts); 2 MB/round never binds (40 B/record, <=17k records/round at tier3)
+  B5_flat_agents_lineage: {kind: hierarchy, layers: 1, fan_in_budget_bytes: 2000000, lineage: true, detector: none}   # flat + B7's lineage features: isolates topology from lineage
+  B6_hier_no_lineage: {kind: hierarchy, lineage: false, detector: none}
+  B7_mycelic: {kind: hierarchy, lineage: true, detector: none}
+  B8_mycelic_security: {kind: hierarchy, lineage: true, detector: lineage_aware, local_slm_classifier: true}
+  B9_mycelic_questioning: {kind: hierarchy, lineage: true, detector: lineage_aware, local_slm_classifier: true, questioning: eig}
+  ORACLE_central_stats: {kind: oracle}

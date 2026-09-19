@@ -1,0 +1,2 @@
+2026-09-17T20:29:06Z start 20260917T194336-2a01_B5_flat_agents_default_s12 system=B5_flat_agents kind=hierarchy seed=12 condition=default dataset=4281c50f257377b6
+2026-09-17T20:29:32Z ok runtime_s=25.61 peak_rss_mb=355 n_accepted=152 recall_global=0.4
