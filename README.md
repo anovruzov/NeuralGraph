@@ -1,174 +1,298 @@
 # NeuralGraph
 
-**A graph-native memory and retrieval system for long-running AI agents.**
+**Local-first graph memory for AI agents.**
 
-NeuralGraph turns conversations and events into structured, searchable memory. Instead of treating memory as a flat vector store, it combines semantic retrieval, graph relationships, speaker identity, temporal reasoning, reranking, and evidence attribution to recover the right context for an answer.
+NeuralGraph gives AI assistants persistent, searchable memory across conversations. It stores memories and relationships locally, retrieves relevant context using multiple signals, and exposes the memory system through MCP so clients such as Claude Desktop and Claude Code can use it.
 
-## Why NeuralGraph
+This README is focused on getting NeuralGraph running.
 
-Most agent-memory systems are good at finding text that looks similar to a query. They are much weaker at questions that require identity, chronology, aggregation, or multi-step reasoning.
+## Requirements
 
-NeuralGraph is designed for those harder cases:
+Before installing, make sure you have:
 
-- **Who said what?** Speaker-aware indexing and retrieval
-- **When did it happen?** Relative-date resolution and temporal query expansion
-- **What changed over time?** Chronological memory organization
-- **What facts belong together?** Graph-based links between related memories
-- **Why was this answer produced?** Retrieval-stage metrics, score breakdowns, and evidence tracking
-- **What should happen when memory is insufficient?** Query routing between strict retrieval, inference, and open-domain fallback
+- Python 3.10+
+- Git
+- Ollama
+- macOS, Linux, or Windows with a Python environment
+- Claude Desktop or Claude Code if you want to use NeuralGraph through MCP
 
-## Core Capabilities
-
-### Graph-native memory
-Memories are represented as nodes with metadata and relationships rather than isolated text chunks. This allows the system to preserve identity, sequence, provenance, and semantic connections.
-
-### Hybrid retrieval
-NeuralGraph combines multiple signals instead of relying on embedding similarity alone:
-
-- semantic similarity
-- entity overlap
-- keyword matching
-- temporal relevance
-- speaker-aware boosts
-- specificity bonuses
-- reranking deltas
-
-### Temporal reasoning
-The system resolves relative expressions such as `yesterday`, `last week`, and explicit dates against the original message timestamp. It can expand time-sensitive queries and preserve the correct granularity of an event.
-
-### Query routing
-Questions are routed into specialized answer modes, including:
-
-- strict fact extraction
-- temporal reasoning
-- list questions
-- aggregation
-- memory-grounded inference
-- open-domain fallback
-
-### Retrieval attribution
-NeuralGraph records what happened at each retrieval stage, including candidate counts, latency, score components, reranking effects, and the evidence supplied to the final answer.
-
-## Architecture
-
-```text
-Conversation / Event Stream
-            │
-            ▼
-  Preprocessing + Metadata
-  - speaker identity
-  - entities
-  - timestamps
-  - resolved relative dates
-            │
-            ▼
-      Neural Memory Graph
-  - memory nodes
-  - semantic links
-  - temporal links
-  - provenance
-            │
-            ▼
-       Hybrid Retrieval
-  - vector search
-  - entity and keyword signals
-  - temporal scoring
-  - speaker-aware reranking
-            │
-            ▼
-        Query Router
-  - strict
-  - temporal
-  - list
-  - aggregation
-  - inference
-            │
-            ▼
-   Grounded Answer + Evidence
-```
-
-## Cross-chat memory and the MCP server
-
-`NeuralGraph.chat_memory` stores memories across all of your chats: a SQLite store, a background worker that
-runs Qwen in parallel to selectively extract memories and relationships, hybrid retrieval, a live dashboard
-(avatar with tokens saved, pentagon grade), a REST API, and MCP access for Claude (stdio for local/edge,
-Streamable HTTP for cloud).
-
-The MCP server is `neuralgraph-chat-memory`, exposing nine tools — `memory_search`, `memory_context`,
-`memory_add_message`, `memory_remember`, `memory_profile`, `memory_related`, `memory_entities`,
-`memory_forget`, `memory_status` — plus three resources and a `recall` prompt. It runs entirely on your
-machine against a local model; nothing is sent to a hosted service.
-
-- **[User guide](NeuralGraph/chat_memory/README.md)** — install, connect Claude Desktop or Claude Code,
-  full tool reference, CLI, configuration, security, troubleshooting.
-- **[Design](docs/CHAT_MEMORY.md)** — why extraction is gated, how the retrieval channels fuse, how commits
-  are fenced on a worker lease.
+## 1. Clone NeuralGraph
 
 ```bash
-.venv/bin/python demo/chat_memory_live_demo.py --fake-llm                     # narrated live demo, no model server needed
-.venv/bin/python -m NeuralGraph.chat_memory serve --user-name "Your Name"     # http://127.0.0.1:8765/
-.venv/bin/python -m NeuralGraph.chat_memory mcp --user-name "Your Name"       # MCP over stdio, for Claude Desktop
+git clone https://github.com/anovruzov/NeuralGraph.git
+cd NeuralGraph
 ```
 
-The live demo streams five chats into the running system while the dashboard animates, asks memory the
-questions Claude would ask through MCP before each new chat, and ends with cross-chat questions
-(`--screenshots` saves a storyboard to `demo/results/chat_memory_demo/`). Planning brief for the next
-phase: [docs/PLANNING_PROMPT.md](docs/PLANNING_PROMPT.md).
+## 2. Create a virtual environment
 
-## Local Models
+### macOS / Linux
 
-The current answering and embedding pipeline is designed to work with local models through [Ollama](https://ollama.com/).
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
 
-Default configuration:
+### Windows PowerShell
 
-- Answer model: `qwen2.5:7b-instruct`
-- Embedding model: `nomic-embed-text`
-- Ollama endpoint: `http://localhost:11434`
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+```
 
-Example model setup:
+## 3. Install dependencies
+
+Install the project dependencies from the repository:
+
+```bash
+pip install -r requirements.txt
+```
+
+If you are developing NeuralGraph itself, install the repository in editable mode when supported by your checkout:
+
+```bash
+pip install -e .
+```
+
+## 4. Install and start Ollama
+
+NeuralGraph is designed to run with local models through Ollama.
+
+Install Ollama from:
+
+https://ollama.com/
+
+Then download the default models:
 
 ```bash
 ollama pull qwen2.5:7b-instruct
 ollama pull nomic-embed-text
+```
+
+Start Ollama if it is not already running:
+
+```bash
 ollama serve
 ```
 
-## Example Use Cases
+Default configuration:
 
-- persistent memory for autonomous agents
-- personal AI that remembers conversations accurately
-- multi-agent shared memory
-- timeline and event reconstruction
-- long-horizon research assistants
-- benchmarkable retrieval-augmented generation
-- explainable memory retrieval
+| Purpose | Default |
+| --- | --- |
+| Answer model | `qwen2.5:7b-instruct` |
+| Embedding model | `nomic-embed-text` |
+| Ollama endpoint | `http://localhost:11434` |
 
-## Design Principles
+## 5. Run the live demo
 
-1. **Memory should preserve structure, not just text.**
-2. **Retrieval should use multiple signals.**
-3. **Time and speaker identity are first-class metadata.**
-4. **Answers should remain grounded in traceable evidence.**
-5. **The system should run locally when possible.**
-6. **Every retrieval failure should be measurable.**
+You can test the cross-chat memory system without a live model server by running the fake-LLM demo:
 
-## Current Status
+```bash
+.venv/bin/python demo/chat_memory_live_demo.py --fake-llm
+```
 
-NeuralGraph is under active development. Current work focuses on improving single-hop extraction, temporal questions, list and aggregation queries, query routing, latency tracking, and benchmark attribution.
+On Windows:
 
-## Roadmap
+```powershell
+.venv\Scripts\python.exe demo\chat_memory_live_demo.py --fake-llm
+```
 
-- [ ] publish reproducible benchmark results
-- [ ] add a minimal quick-start example
-- [ ] expose the memory graph through a documented API
-- [ ] add graph visualization tools
-- [ ] support additional local and hosted model providers
-- [ ] add multi-agent memory namespaces and permissions
-- [ ] package the core library for easier installation
+The demo streams example conversations into NeuralGraph and performs cross-chat memory retrieval.
 
-## Author
+## 6. Start NeuralGraph
 
-Built by [Ali Novruzov](https://github.com/anovruzov) as part of ongoing work on persistent memory, agent orchestration, and graph-based intelligence.
+Start the local memory service:
+
+### macOS / Linux
+
+```bash
+.venv/bin/python -m NeuralGraph.chat_memory serve --user-name "Your Name"
+```
+
+### Windows
+
+```powershell
+.venv\Scripts\python.exe -m NeuralGraph.chat_memory serve --user-name "Your Name"
+```
+
+Then open:
+
+```text
+http://127.0.0.1:8765/
+```
+
+The local dashboard lets you inspect the running memory system.
+
+## 7. Run the MCP server
+
+NeuralGraph includes an MCP server named:
+
+```text
+neuralgraph-chat-memory
+```
+
+Start it locally with:
+
+### macOS / Linux
+
+```bash
+.venv/bin/python -m NeuralGraph.chat_memory mcp --user-name "Your Name"
+```
+
+### Windows
+
+```powershell
+.venv\Scripts\python.exe -m NeuralGraph.chat_memory mcp --user-name "Your Name"
+```
+
+The MCP server communicates over stdio for local clients.
+
+For detailed Claude Desktop and Claude Code configuration, see:
+
+**[NeuralGraph Chat Memory User Guide](NeuralGraph/chat_memory/README.md)**
+
+## MCP tools
+
+Once connected, your AI client can access these memory tools:
+
+| Tool | Purpose |
+| --- | --- |
+| `memory_search` | Search stored memories |
+| `memory_context` | Retrieve context relevant to the current conversation |
+| `memory_add_message` | Add a conversation message |
+| `memory_remember` | Explicitly save something to memory |
+| `memory_profile` | Retrieve remembered information about the user |
+| `memory_related` | Find related memories |
+| `memory_entities` | Inspect remembered entities |
+| `memory_forget` | Remove memory |
+| `memory_status` | Check memory-system status |
+
+The server also exposes three MCP resources and a `recall` prompt.
+
+## How it works
+
+```text
+Conversation
+    │
+    ▼
+Metadata + Memory Extraction
+    │
+    ▼
+Neural Memory Graph
+    │
+    ├── semantic relationships
+    ├── temporal relationships
+    ├── entities
+    ├── speaker identity
+    └── provenance
+    │
+    ▼
+Hybrid Retrieval
+    │
+    ├── semantic similarity
+    ├── entity overlap
+    ├── keyword matching
+    ├── temporal relevance
+    └── speaker-aware scoring
+    │
+    ▼
+Relevant Memory Context
+    │
+    ▼
+AI Assistant
+```
+
+NeuralGraph uses a local SQLite store and a background worker that selectively extracts memories and relationships. Retrieval combines multiple channels instead of relying only on vector similarity.
+
+## Data and privacy
+
+NeuralGraph is designed to run locally.
+
+The default chat-memory configuration uses:
+
+- local SQLite storage
+- local Ollama models
+- local embeddings
+- local MCP transport
+- local dashboard and API
+
+With the default local configuration, your memory database does not need to be sent to a hosted memory service.
+
+You are responsible for the security of the machine and applications that have access to the local database and MCP server.
+
+## Verify your installation
+
+After setup, verify the following:
+
+1. Ollama is running.
+2. `qwen2.5:7b-instruct` is installed.
+3. `nomic-embed-text` is installed.
+4. NeuralGraph starts without an import error.
+5. The dashboard loads at `127.0.0.1:8765`.
+6. Your MCP client can see `neuralgraph-chat-memory`.
+7. `memory_status` returns successfully.
+
+## Troubleshooting
+
+### Ollama is not reachable
+
+Check that Ollama is running:
+
+```bash
+ollama serve
+```
+
+The default endpoint is:
+
+```text
+http://localhost:11434
+```
+
+### Model not found
+
+List installed models:
+
+```bash
+ollama list
+```
+
+If necessary:
+
+```bash
+ollama pull qwen2.5:7b-instruct
+ollama pull nomic-embed-text
+```
+
+### Python import errors
+
+Make sure your virtual environment is active and dependencies are installed:
+
+```bash
+pip install -r requirements.txt
+```
+
+### MCP client cannot connect
+
+First confirm that NeuralGraph's MCP server starts successfully from a terminal:
+
+```bash
+.venv/bin/python -m NeuralGraph.chat_memory mcp --user-name "Your Name"
+```
+
+Then verify the executable path in your MCP client configuration.
+
+See the **[full chat-memory guide](NeuralGraph/chat_memory/README.md)** for client-specific configuration and troubleshooting.
+
+## Documentation
+
+- **[Chat Memory User Guide](NeuralGraph/chat_memory/README.md)**
+- **[Chat Memory Design](docs/CHAT_MEMORY.md)**
+- **[Planning Brief](docs/PLANNING_PROMPT.md)**
+
+## Development status
+
+NeuralGraph is under active development. Interfaces, configuration, and storage formats may change.
+
+Current development focuses on retrieval quality, temporal reasoning, query routing, cross-chat memory, attribution, latency, and local-first agent integrations.
 
 ## License
 
