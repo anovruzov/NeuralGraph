@@ -1,0 +1,13 @@
+{
+  "name": "mse-site",
+  "compatibility_date": "2026-09-01",
+  "build": {
+    "cwd": "site",
+    "command": "npm ci && npm run build"
+  },
+  "assets": {
+    "directory": "site/out",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page"
+  }
+}
