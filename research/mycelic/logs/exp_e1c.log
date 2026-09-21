@@ -154,3 +154,9 @@
    10000/9 F_hier_retrieval     AP=0.0069 found=0.10 R@100=0.050 cu=3.76e+05
    10000/9 G_hier_questions     AP=0.0541 found=0.33 R@100=0.125 cu=1.09e+06
    10000/9 H_mycelic_full       AP=0.0498 found=0.42 R@100=0.175 cu=1.11e+06
+   10000/9 I_mycelic_completion AP=0.0598 found=0.35 R@100=0.200 cu=1.96e+06
+   10000/9 J_mycelic_verified   AP=0.0566 found=0.42 R@100=0.225 cu=1.12e+06
+   10000/9 Y_oracle_retrieval   AP=0.0124 found=0.30 R@100=0.100 cu=4.87e+05
+   10000/9 Z_random_rank        AP=0.0178 found=0.30 R@100=0.125 cu=1.97e+05
+   10000/9 Z2_naive_enumerate   AP=0.0049 found=0.20 R@100=0.050 cu=1.84e+05
+=== e1c done in 313s ===

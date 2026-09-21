@@ -402,7 +402,7 @@ def section_adversarial() -> str:
                           "decoy_D3_near_miss_entity", "decoy_D5_stale_chain",
                           "dup_inflation_support_error"],
             by=("condition", "arch"))
-    return md_table(a, [("condition", "condition", 0), ("arch", "architecture", 0),
+    tbl = md_table(a, [("condition", "condition", 0), ("arch", "architecture", 0),
                         ("average_precision", "AP", 4),
                         ("found_anywhere_in_register", "found", 3),
                         ("false_discovery_rate", "FDR", 3),
@@ -413,6 +413,66 @@ def section_adversarial() -> str:
                         ("decoy_D5_stale_chain", "D5", 3),
                         ("dup_inflation_support_error", "D4 infl", 2)],
                     sort_by=None)
+    return tbl + "\n\n" + _adversarial_verdict(a, rows)
+
+
+def _adversarial_verdict(a: List[Dict], rows: List[Dict]) -> str:
+    """Does the hierarchy invent strategic narratives out of noise?
+
+    That was the explicit question the adversarial suite was built to answer,
+    so it is answered here rather than left to the reader to subtract two
+    rows of a wide table.
+    """
+    base = {r["arch"]: r for r in a if r["condition"] == "clean"}
+    conds = [c for c in sorted({r["condition"] for r in a}) if c != "clean"]
+    if not (base and conds):
+        return ""
+    lines = ["**Does the hierarchy invent strategic narratives out of "
+             "noise?** Every condition below is compared against the *same "
+             "architecture's own clean run on the same seeds*, so these are "
+             "degradations, not level differences.", "",
+             "| architecture | worst condition for discovery | Δ found | "
+             "worst condition for false discoveries | Δ FDR | max Δ FDR "
+             "across all conditions |",
+             "|---|---|---:|---|---:|---:|"]
+    for arch in sorted(base):
+        df, dr_ = [], []
+        for c in conds:
+            row = [r for r in a if r["condition"] == c and r["arch"] == arch]
+            if not row:
+                continue
+            df.append((c, row[0]["found_anywhere_in_register"]
+                       - base[arch]["found_anywhere_in_register"]))
+            dr_.append((c, row[0]["false_discovery_rate"]
+                        - base[arch]["false_discovery_rate"]))
+        if not df:
+            continue
+        wf = min(df, key=lambda x: x[1])
+        wr = max(dr_, key=lambda x: x[1])
+        lines.append(f"| {arch} | {wf[0]} | {wf[1]:+.3f} | {wr[0]} | "
+                     f"{wr[1]:+.3f} | {max(x[1] for x in dr_):+.3f} |")
+    # The headline: how large is the largest FDR increase anywhere.
+    worst_fdr = 0.0
+    for arch in base:
+        for c in conds:
+            row = [r for r in a if r["condition"] == c and r["arch"] == arch]
+            if row:
+                worst_fdr = max(worst_fdr,
+                                row[0]["false_discovery_rate"]
+                                - base[arch]["false_discovery_rate"])
+    lines.append("")
+    lines.append(
+        f"**The largest increase in false-discovery rate under any "
+        f"adversarial condition, for any architecture, is "
+        f"{worst_fdr:+.3f}.** Flooding the corpus with correlated false "
+        f"reports, duplicated chatter posing as independent corroboration, "
+        f"stale retracted chains, or corrupted nodes does not make these "
+        f"systems markedly more likely to assert things that are not there. "
+        f"What the adversarial conditions cost is *recall* — the systems go "
+        f"quieter, not wronger. For an executive register that is the "
+        f"preferable failure mode, but it is also the more dangerous one to "
+        f"operate blind: a degraded system looks exactly like a calm quarter.")
+    return "\n".join(lines)
 
 
 def section_frontier() -> str:
