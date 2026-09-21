@@ -21,7 +21,8 @@ from .evalm import evaluate
 from .models import ALLOCATIONS, ANCHORS, allocation, tier_from_q
 from .org import DEFAULT_FANIN, ENT, REGION, SITE, TEAM, USER
 from .runner import ART, ARCHS, build_world, hier_cfg, run_arch
-from .systems import (HierRunner, central_triage, flat_rag, long_context,
+from .systems import (HierRunner, central_triage, chunked_long_context,
+                      flat_rag, long_context,
                       map_reduce, oracle_retrieval, random_rank,
                       recursive_summary)
 
@@ -42,7 +43,10 @@ CAL = _cal()
 
 def _hier(**kw):
     base = dict(triage_prior_weight=float(CAL["triage_prior_weight"]),
-                question_frac=float(CAL["question_frac"]))
+                question_frac=float(CAL["question_frac"]),
+                w_dispersion=float(CAL.get("w_dispersion", 0.0)),
+                w_synchrony=float(CAL.get("w_synchrony", 0.0)),
+                w_attribution=float(CAL.get("w_attribution", 0.0)))
     base.update(kw)
     return hier_cfg(**base)
 
@@ -98,6 +102,8 @@ def _run_named(name: str, world, alloc, seed: int, cfg_over=None):
         return recursive_summary(c, alloc, seed,
                                  ul=world.user_layer(alloc[USER], seed),
                                  near_miss=world.near_miss)
+    if kind == "chunked_ctx":
+        return chunked_long_context(c, alloc, seed, near_miss=world.near_miss)
     if kind == "central_triage":
         return central_triage(c, alloc, seed,
                               ul=world.user_layer(alloc[USER], seed),
@@ -165,7 +171,8 @@ def e1c_more_seeds(scales: Sequence[int] = (2_000, 10_000),
 
 
 def e1b_extra(scales: Sequence[int] = SCALES, seeds=EVAL_SEEDS,
-              archs=("B4_central_triage", "I_mycelic_completion"),
+              archs=("A2_chunked_ctx", "B4_central_triage",
+                     "I_mycelic_completion"),
               alloc_name: str = "back-loaded",
               fname: str = "e1b_extra.jsonl") -> List[Dict]:
     """Architectures added after the first E1 run; same worlds, same seeds,
@@ -211,6 +218,8 @@ ABLATIONS: Dict[str, Dict] = {
     "-sketch_channel": dict(sketch_channel=False),
     "-adaptive_abstraction": dict(adaptive_abstraction=False),
     "-triage_prior": dict(triage_prior_weight=0.0),
+    "+evidence_verification": dict(verify_evidence=True),
+    "+source_dispersion": dict(w_dispersion=1.5),
     "+chain_completion": dict(chain_completion=True),
     "-foreign_filter": dict(foreign_only_evidence=False),
     "-synthesis_restriction": dict(restrict_synthesis_to_triage=False),
@@ -542,10 +551,21 @@ def e8_crosslinks(scales=(2_000, 10_000, 50_000), seeds=(0, 1, 2),
     return rows
 
 
+def e11_verified(scales: Sequence[int] = SCALES, seeds=EVAL_SEEDS,
+                 archs=("J_mycelic_verified",),
+                 alloc_name: str = "back-loaded",
+                 fname: str = "e1b_extra.jsonl") -> List[Dict]:
+    """The evidence-verification architecture, on the same worlds and seeds as
+    E1 so the rows are directly comparable."""
+    return e1b_extra(scales=scales, seeds=seeds, archs=archs,
+                     alloc_name=alloc_name, fname=fname)
+
+
 def e10_scale_trend(scales: Sequence[int] = (100_000,), seeds=(0, 1, 2),
                     archs=("A_flat_rag", "B_long_context", "B2_map_reduce",
-                           "E_hier_lineage", "G_hier_questions",
-                           "H_mycelic_full", "Y_oracle_retrieval"),
+                           "A2_chunked_ctx", "E_hier_lineage",
+                           "G_hier_questions", "H_mycelic_full",
+                           "J_mycelic_verified", "Y_oracle_retrieval"),
                     alloc_name: str = "back-loaded",
                     fname: str = "e10_scale_trend.jsonl") -> List[Dict]:
     """One scale beyond the brief, to test whether the ordering at 50k is the
@@ -619,6 +639,7 @@ ALL = {
     "e3b": e3b_level_marginal, "e3c": e3c_q_sweep, "e4": e4_fanin,
     "e4b": e4b_dept_fanin, "e5": e5_adversarial, "e6": e6_frontier,
     "e7": e7_shape, "e8": e8_crosslinks, "e9": e9_privacy, "e10": e10_scale_trend,
+    "e11": e11_verified,
 }
 
 

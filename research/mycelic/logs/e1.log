@@ -162,3 +162,6 @@
    50000/4 F_hier_retrieval     AP=0.0005 found=0.01 R@100=0.010 cu=1.16e+06
    50000/4 G_hier_questions     AP=0.0068 found=0.30 R@100=0.040 cu=2.88e+06
    50000/4 H_mycelic_full       AP=0.0072 found=0.30 R@100=0.040 cu=2.90e+06
+   50000/4 Y_oracle_retrieval   AP=0.0015 found=0.20 R@100=0.010 cu=2.43e+06
+   50000/4 Z_random_rank        AP=0.0006 found=0.03 R@100=0.010 cu=7.41e+05
+=== e1 done in 834s ===

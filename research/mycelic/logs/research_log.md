@@ -236,3 +236,56 @@ to be revisited.
   link entities or reason about chains, compute cost ~0), so the question
   "does the edge need a language model at all?" is answerable rather than
   assumed.
+
+## Iteration 16 — the measurement that changed the recommendation
+
+Three real models were given the same 60 candidates from a real run, twice:
+once as **aggregate evidence statistics only**, once with the **raw work notes**
+behind those statistics.
+
+| ranker | AP |
+|---|---:|
+| random | 0.300 |
+| the simulator's calibrated logistic (statistics) | 0.453 |
+| Haiku 4.5 (statistics) | 0.439 |
+| Sonnet 5 (statistics) | 0.435 |
+| Opus 5 (statistics) | 0.473 |
+| Haiku 4.5 (statistics + raw notes) | **0.638** |
+| Opus 5 (statistics + raw notes) | **0.596** |
+
+Two conclusions, both measured:
+
+1. **At fixed evidence, model capability buys almost nothing here.** Three
+   models spanning a large capability range all land within noise of a
+   six-feature logistic. The simulator's kernel is therefore neither
+   generous nor pessimistic, and "put the strongest model at the top" has
+   very little headroom *on this operator*.
+2. **Changing what the evidence contains buys a lot.** The same models with
+   the original notes gain 0.15-0.20 AP and lift selection F1 from 0.30-0.38
+   to 0.41-0.50.
+
+Asked what the notes gave them that the statistics did not, the models named
+three specific things: **loud-site inflation** (many "independent sources" that
+are several departments of one site), **broadcast echo** (identical wording all
+dated the same day — one announcement fanned out, not independent discovery),
+and **phantom attribution** (link statistics whose underlying notes name a
+*different* entity, i.e. an edge model's mis-link that the aggregates preserve
+perfectly).
+
+All three were implemented as structured features and fitted on the held-out
+calibration seeds:
+
+* **source dispersion** — looked like a 3.5x AP win on seed 0 (0.019 → 0.068).
+  On held-out seeds the best weight is **0.0**. Rejected. This is the second
+  time the protocol has caught a large single-seed gain that did not exist.
+* **synchrony** — no effect; echoes already share an event id and are removed
+  by the independence sketch, so the generator does not really contain the
+  failure the models were describing.
+* **kernel-side evidence verification** — the kernel re-reads ~6 of each top
+  candidate's original notes with its OWN extractor and checks they name the
+  entity the candidate is about. Held-out AP 0.0445 → 0.0563 (**+27%**) for
+  **+1% compute**. Adopted.
+
+The architectural lesson is the inverse of the starting hypothesis: the useful
+way to spend frontier-tier compute at the kernel is not to reason harder over
+the same abstraction, it is to **re-open a few pieces of original evidence**.

@@ -316,6 +316,15 @@ class HierConfig:
     restrict_synthesis_to_triage: bool = True
     pin_importance: float = 3.0
     triage_prior_weight: float = 1.2
+    # Evidence-quality features that the live discrimination measurement
+    # showed a frontier model exploiting from raw notes but which the
+    # aggregate knowledge objects were not carrying.
+    w_dispersion: float = 0.0
+    w_synchrony: float = 0.0
+    verify_evidence: bool = False
+    verify_top_n: int = 120
+    verify_sample: int = 6
+    w_attribution: float = 0.0
     chain_completion: bool = False
     completion_budget: int = 400
     # --- adversarial / robustness knobs ---
@@ -818,7 +827,9 @@ class HierRunner:
                           use_temporal=cfg.temporal,
                           n_entities=len(c.entities),
                           max_reports=cfg.max_reports,
-                          stem_rep=self._stem if hasattr(self,'_stem') else None)
+                          stem_rep=self._stem if hasattr(self,'_stem') else None,
+                          w_dispersion=cfg.w_dispersion,
+                          w_synchrony=cfg.w_synchrony)
         h.meter.add("L5-kernel", kernel_tier, 0, len(hyps) * TOK_PER_HYP, calls=0)
 
         # ---- downward retrieval ----
@@ -835,6 +846,10 @@ class HierRunner:
         # ---- hypothesis-driven chain completion ----
         if cfg.chain_completion:
             hyps, pool = self._completion_round(hyps, pool, kernel_tier)
+
+        # ---- kernel spot-checks the provenance of its top candidates ----
+        if cfg.verify_evidence:
+            hyps = self._verify_evidence(hyps, kernel_tier)
 
         # ---- cross-region variant families ----
         fams = self._families(hyps, kernel_tier)
@@ -893,7 +908,9 @@ class HierRunner:
                            use_temporal=self.cfg.temporal,
                            n_entities=len(self.c.entities),
                            max_reports=self.cfg.max_reports,
-                           stem_rep=self._stem if hasattr(self,'_stem') else None)
+                           stem_rep=self._stem if hasattr(self,'_stem') else None,
+                          w_dispersion=self.cfg.w_dispersion,
+                          w_synchrony=self.cfg.w_synchrony)
         self.h.meter.add("L5-kernel-redo", kernel_tier, 0,
                          len(hyps2) * TOK_PER_HYP, calls=0)
         return hyps2, merged
@@ -1044,7 +1061,9 @@ class HierRunner:
                            use_temporal=cfg.temporal,
                            n_entities=len(self.c.entities),
                            max_reports=cfg.max_reports,
-                           stem_rep=self._stem if hasattr(self,'_stem') else None)
+                           stem_rep=self._stem if hasattr(self,'_stem') else None,
+                          w_dispersion=cfg.w_dispersion,
+                          w_synchrony=cfg.w_synchrony)
         h.meter.add("L5-kernel-q", kernel_tier, 0, len(hyps2) * TOK_PER_HYP,
                     calls=0)
         if cfg.triage_prior_weight > 0.0 and h.triage_gain:
@@ -1136,6 +1155,48 @@ class HierRunner:
                     len(hyps2) * TOK_PER_HYP, calls=0)
         h.completion_targets = len(targets)
         return hyps2, merged
+
+    def _verify_evidence(self, hyps: List[Hypothesis],
+                         kernel_tier: Tier) -> List[Hypothesis]:
+        """Re-read a sample of each top candidate's ORIGINAL notes with the
+        kernel's own extractor, and check they actually name the entity the
+        candidate is about.
+
+        The aggregated objects carry the anchor the *edge* model read. When a
+        small model mis-links a mention, the statistics look perfectly healthy
+        and point at the wrong entity. A live measurement showed a frontier
+        model catching exactly this from the raw notes, so the mechanism is to
+        let the kernel re-read a handful of them rather than to make the
+        kernel bigger.
+
+        Cost is bounded: `verify_top_n` candidates x a few notes each.
+        """
+        cfg = self.cfg
+        top = sorted(range(len(hyps)), key=lambda i: -hyps[i].conf)[:cfg.verify_top_n]
+        tin = tout = 0
+        calls = 0
+        for i in top:
+            hy = hyps[i]
+            ev = hy.evidence[:cfg.verify_sample]
+            if not ev:
+                continue
+            calls += 1
+            tin += len(ev) * TOK_PER_RECORD + 40
+            tout += 8
+            ex = extract(self.c, np.array(ev, dtype=np.int64), kernel_tier,
+                         self.rng, near_miss=self._near_miss,
+                         stem_rep=self._stem, entity_salt=7)
+            if len(ex) == 0:
+                hy.attribution = 0.0
+            else:
+                hy.attribution = float(np.mean(ex.anchor == hy.anchor))
+            lo = math.log(max(1e-6, hy.conf) / max(1e-6, 1 - hy.conf))
+            lo += cfg.w_attribution * (hy.attribution - 0.5)
+            hy.conf = float(1.0 / (1.0 + math.exp(-lo)))
+        if calls:
+            self.h.meter.add("L5-verify", kernel_tier, tin, tout, calls=calls)
+        hyps.sort(key=lambda x: -x.conf)
+        return hyps
 
     @staticmethod
     def _hkey(h: Hypothesis) -> Tuple[int, Tuple[int, ...]]:
@@ -1500,3 +1561,61 @@ def central_triage(corpus: Corpus, alloc: List[Tier], seed: int,
                      claims_leaving_node=int(len(ex)),
                      notes={"triage_candidates": len(cands),
                             "sketch_entries": len(mask)})
+
+
+def chunked_long_context(corpus: Corpus, alloc: List[Tier], seed: int,
+                         near_miss=None, max_chunks: int = 64,
+                         expand_schema: bool = True) -> RunResult:
+    """BASELINE A2 - "just use more context".
+
+    Partition the corpus into chunks that fill the kernel tier's whole context
+    window, run the kernel over every chunk, pool the resulting knowledge
+    objects and synthesise once at the end.  Unlike single-shot long context
+    this covers the ENTIRE enterprise, at a cost that grows linearly with it.
+
+    This is the obvious scaling answer and the one a reviewer will reach for
+    first, so it has to be in the comparison rather than argued away.  It is
+    also the most expensive configuration in the study by a wide margin.
+    """
+    rng = np.random.default_rng(61_000 + seed)
+    meter = Meter()
+    kt = alloc[ENT]
+    idx = _lexical_index(corpus)
+    cand = np.concatenate([idx[p] for p in range(N_CAUSAL_PRED) if p in idx]) \
+        if expand_schema else np.arange(len(corpus.recs))
+    per_chunk = max(1, (kt.ctx - TOK_PROMPT_OVERHEAD) // TOK_PER_RECORD)
+    n_chunks = int(min(max_chunks, math.ceil(len(cand) / per_chunk)))
+    rng.shuffle(cand)
+    kos: List[KO] = []
+    read = 0
+    for c in range(n_chunks):
+        sel = cand[c * per_chunk:(c + 1) * per_chunk]
+        if len(sel) == 0:
+            break
+        ex = extract(corpus, sel, kt, rng, near_miss=near_miss)
+        read += len(sel)
+        meter.add("L5-kernel-chunk", kt,
+                  int(len(sel) * TOK_PER_RECORD + TOK_PROMPT_OVERHEAD),
+                  int(len(ex) * 10), calls=1)
+        kos.extend(_flat_kos(corpus, ex, keep_lineage=True))
+    # merge across chunks so an entity seen in several chunks becomes one object
+    merged: Dict[Tuple[int, int], KO] = {}
+    for k in kos:
+        key = k.key()
+        m = merged.get(key)
+        if m is None:
+            merged[key] = k
+        else:
+            _merge_into(m, k, keep_lineage=True)
+    pool = list(merged.values())
+    meter.add("L5-kernel", kt, len(pool) * TOK_PER_KO + TOK_PROMPT_OVERHEAD, 0,
+              calls=1)
+    mr = int(min(6000, max(600, len(corpus.entities))))
+    hyps = synthesize(pool, kt, rng, corpus.org, n_entities=len(corpus.entities),
+                      max_reports=mr, stem_rep=stem_rep_map(corpus))
+    meter.add("L5-kernel", kt, 0, len(hyps) * TOK_PER_HYP, calls=0)
+    return RunResult(name="chunked_long_context", hypotheses=hyps, meter=meter,
+                     retained={(k.pred, k.anchor) for k in pool},
+                     kernel_kos=pool, propagated_records=read,
+                     exposed_raw_records=read, claims_leaving_node=0,
+                     notes={"chunks": n_chunks, "records_read": int(read)})

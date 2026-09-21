@@ -1,0 +1,27 @@
+=== e1b start 2026-09-21T12:27:35+00:00 ===
+=== e1b ===
+    2000/0 A2_chunked_ctx         AP=0.1374 found=0.80 cov2=1.00 cu=5.12e+05
+    2000/0 B4_central_triage      AP=0.0789 found=0.82 cov2=0.97 cu=1.34e+05
+    2000/0 I_mycelic_completion   AP=0.0686 found=0.78 cov2=0.97 cu=1.47e+06
+    2000/1 A2_chunked_ctx         AP=0.2952 found=0.75 cov2=1.00 cu=5.20e+05
+    2000/1 B4_central_triage      AP=0.1793 found=0.85 cov2=0.97 cu=1.32e+05
+    2000/1 I_mycelic_completion   AP=0.0903 found=0.78 cov2=0.97 cu=1.48e+06
+    2000/2 A2_chunked_ctx         AP=0.2426 found=0.82 cov2=1.00 cu=5.09e+05
+    2000/2 B4_central_triage      AP=0.0929 found=0.75 cov2=0.93 cu=1.25e+05
+    2000/2 I_mycelic_completion   AP=0.2103 found=0.78 cov2=0.95 cu=1.45e+06
+    2000/3 A2_chunked_ctx         AP=0.1762 found=0.82 cov2=1.00 cu=5.08e+05
+    2000/3 B4_central_triage      AP=0.1556 found=0.80 cov2=0.97 cu=1.31e+05
+    2000/3 I_mycelic_completion   AP=0.1147 found=0.75 cov2=0.97 cu=1.45e+06
+    2000/4 A2_chunked_ctx         AP=0.2063 found=0.88 cov2=1.00 cu=5.05e+05
+    2000/4 B4_central_triage      AP=0.0320 found=0.55 cov2=0.95 cu=1.32e+05
+    2000/4 I_mycelic_completion   AP=0.0609 found=0.62 cov2=1.00 cu=1.32e+06
+   10000/0 A2_chunked_ctx         AP=0.0911 found=0.60 cov2=1.00 cu=2.11e+06
+   10000/0 B4_central_triage      AP=0.0092 found=0.30 cov2=1.00 cu=4.59e+05
+   10000/0 I_mycelic_completion   AP=0.0282 found=0.47 cov2=0.70 cu=1.86e+06
+   10000/1 A2_chunked_ctx         AP=0.1362 found=0.75 cov2=1.00 cu=2.08e+06
+   10000/1 B4_central_triage      AP=0.0559 found=0.28 cov2=0.93 cu=4.43e+05
+   10000/1 I_mycelic_completion   AP=0.0756 found=0.33 cov2=0.57 cu=1.92e+06
+   10000/2 A2_chunked_ctx         AP=0.1352 found=0.60 cov2=1.00 cu=2.06e+06
+   10000/2 B4_central_triage      AP=0.0073 found=0.33 cov2=0.93 cu=4.33e+05
+   10000/2 I_mycelic_completion   AP=0.0226 found=0.38 cov2=0.60 cu=2.01e+06
+   10000/3 A2_chunked_ctx         AP=0.0784 found=0.72 cov2=1.00 cu=2.08e+06

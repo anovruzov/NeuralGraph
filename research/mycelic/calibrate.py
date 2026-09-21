@@ -133,9 +133,70 @@ def calibrate(scale: int = CAL_SCALE, seeds=CAL_SEEDS,
     return out
 
 
+def calibrate_evidence(scale: int = CAL_SCALE, seeds=CAL_SEEDS,
+                       alloc_name: str = "back-loaded") -> Dict[str, object]:
+    """Second calibration stage, for the evidence-quality features that the
+    live discrimination measurement motivated.
+
+    Fitted on the SAME held-out seeds and merged into calibration.json, so the
+    features are adopted on held-out evidence or not at all.  Dispersion
+    looked like a 3.5x AP win on seed 0; that is exactly the kind of number
+    this protocol exists to distrust.
+    """
+    worlds = {s: build_world(scale, s) for s in seeds}
+    alloc = allocation(alloc_name)
+    path = os.path.join(ART, "calibration.json")
+    cal = json.load(open(path)) if os.path.exists(path) else {}
+    base = dict(downward_retrieval=True, questions=True, cross_links=True,
+                triage_prior_weight=float(cal.get("triage_prior_weight", 0.0)),
+                question_frac=float(cal.get("question_frac", 0.25)))
+    grid = []
+    best, bv = None, -1.0
+    combos = []
+    for wd_ in (0.0, 0.8, 1.5, 2.5):
+        for wa_ in (0.0, 2.5):
+            combos.append((wd_, 0.0, wa_))
+    combos.append((1.5, 1.5, 2.5))
+    combos.append((2.5, 1.5, 0.0))
+    for wd_, ws_, wa_ in combos:
+        vals = []
+        for s in seeds:
+            w = worlds[s]
+            cfg = hier_cfg(**base, w_dispersion=wd_, w_synchrony=ws_,
+                           verify_evidence=wa_ > 0.0, w_attribution=wa_)
+            r = HierRunner(w.corpus, alloc, cfg, seed=s,
+                           ul=w.user_layer(alloc[USER], s),
+                           near_miss=w.near_miss).run()
+            vals.append(evaluate(w.corpus, w.gold, r))
+        v = _mean(vals, OBJECTIVE)
+        grid.append({"w_dispersion": wd_, "w_synchrony": ws_,
+                     "w_attribution": wa_, OBJECTIVE: round(v, 5),
+                     "found": round(_mean(vals, "found_anywhere_in_register"), 4),
+                     "recall_at_100": round(_mean(vals, "recall_at_100"), 4),
+                     "cu": float(np.mean([x["compute_units"] for x in vals]))})
+        if v > bv:
+            bv, best = v, (wd_, ws_, wa_)
+    cal["evidence_grid"] = grid
+    cal["w_dispersion"], cal["w_synchrony"], cal["w_attribution"] = best
+    cal["verify_evidence"] = best[2] > 0.0
+    with open(path, "w") as fh:
+        json.dump(cal, fh, indent=2)
+    return cal
+
+
 if __name__ == "__main__":
     import time
+    import sys
     t0 = time.time()
+    if "evidence" in sys.argv:
+        c = calibrate_evidence()
+        print(json.dumps({k: c[k] for k in ("w_dispersion", "w_synchrony",
+                                            "w_attribution", "verify_evidence")},
+                         indent=2))
+        for row in sorted(c["evidence_grid"], key=lambda r: -r[OBJECTIVE]):
+            print("  ", row)
+        print(f"\nevidence calibration took {time.time()-t0:.0f}s")
+        raise SystemExit(0)
     c = calibrate()
     print(json.dumps({k: v for k, v in c.items()
                       if not k.endswith("grid")}, indent=2))

@@ -470,6 +470,9 @@ class Hypothesis:
     chain: int = -1
     hallucinated: bool = False
     prior: float = 0.0
+    dispersion: float = 0.0        # sources spread over sites, per link
+    synchrony: float = 0.0         # links whose reports all land on one day
+    attribution: float = -1.0      # fraction of evidence that names this entity
     from_question: int = -1
     label: str = "pattern"
 
@@ -515,6 +518,8 @@ def synthesize(kos: List[KO], tier: Tier, rng: np.random.Generator,
                n_entities: int = 1000,
                max_reports: int = 1200,
                min_link_support: int = 1,
+               w_dispersion: float = 0.0,
+               w_synchrony: float = 0.0,
                stem_rep: Optional[np.ndarray] = None,
                question_tag: int = -1) -> List[Hypothesis]:
     """Enumerate candidate strategic patterns and verify them.
@@ -569,19 +574,35 @@ def synthesize(kos: List[KO], tier: Tier, rng: np.random.Generator,
         link_sup: List[int] = []
         link_regions: List[Set[int]] = []
         link_modal: List[int] = []
+        disp: List[float] = []
+        sync: List[float] = []
         for p in plist:
             ks = pred_kos[p]
             sg: Set[int] = set()
             rg: Set[int] = set()
+            st: Set[int] = set()
             rc: Dict[int, int] = {}
+            tlo, thi, nraw = 10 ** 9, -1, 0
             for k in ks:
                 sg |= k.sigs
+                nraw += k.n_raw
+                tlo = min(tlo, k.tmin)
+                thi = max(thi, k.tmax)
                 if use_lineage:
                     kr = k.branches.get(REGION, set())
                     rg |= kr
+                    st |= k.branches.get(SITE, set())
                     for rr in kr:
                         rc[rr] = rc.get(rr, 0) + k.n_raw
             link_modal.append(max(rc, key=rc.get) if rc else -1)
+            # SOURCE DISPERSION: are this link's reports spread over sites, or
+            # are they several departments of one loud site?  Measured to be a
+            # decisive cue that aggregate counts hide.
+            disp.append(len(st) / max(1.0, float(len(sg))) if use_lineage else 1.0)
+            # SYNCHRONY: many reports that all land in the same day or two are
+            # one announcement fanned out, not independent discovery.
+            span = max(0, thi - tlo)
+            sync.append(1.0 if (nraw >= 4 and span <= 1) else 0.0)
             if not use_dedup or rng.random() > tier.dedup_check:
                 link_sup.append(sum(k.n_raw for k in ks))   # echoes counted
             else:
@@ -620,6 +641,8 @@ def synthesize(kos: List[KO], tier: Tier, rng: np.random.Generator,
             spread = min(4, max(1, sum(k.n_raw for k in members) // 4))
             multi = 1
         min_sup = min(link_sup) if link_sup else 0
+        mean_disp = float(np.mean(disp)) if disp else 1.0
+        frac_sync = float(np.mean(sync)) if sync else 0.0
         # Calibrated logistic rather than a clipped linear sum: with a linear
         # score most candidates pin at the ceiling and the ranking - which is
         # what an executive report budget actually consumes - becomes
@@ -631,14 +654,17 @@ def synthesize(kos: List[KO], tier: Tier, rng: np.random.Generator,
              + 0.95 * min(3, max(0, multi - 1))
              + (0.55 if verified else 0.0)
              - 0.35 * min(4, contra)
-             - 3.0 * penalty)
+             - 3.0 * penalty
+             + w_dispersion * (mean_disp - 0.5)
+             - w_synchrony * frac_sync)
         conf = float(1.0 / (1.0 + math.exp(-z)))
         out.append(Hypothesis(
             anchor=anchor, preds=plist, kos=members, evidence=ev[:24],
             n_indep=n_indep, n_branch_regions=len(regions),
             n_branch_sites=len(sites), conf=conf, contra=contra,
             tspan=(min(k.tmin for k in members), max(k.tmax for k in members)),
-            chain=chain, from_question=question_tag))
+            chain=chain, from_question=question_tag,
+            dispersion=mean_disp, synchrony=frac_sync))
 
     def _support(ks: List[KO]) -> int:
         sg: Set[int] = set()
