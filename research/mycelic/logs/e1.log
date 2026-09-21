@@ -134,3 +134,33 @@
    10000/3 B4_central_triage    AP=0.0554 found=0.47 R@100=0.250 cu=4.40e+05
    10000/3 C_recursive_sum      AP=0.0000 found=0.00 R@100=0.000 cu=1.70e+05
    10000/3 D_hier_nolineage     AP=0.0008 found=0.03 R@100=0.025 cu=1.99e+05
+   10000/3 E_hier_lineage       AP=0.0010 found=0.05 R@100=0.050 cu=2.31e+05
+   10000/3 F_hier_retrieval     AP=0.0004 found=0.05 R@100=0.000 cu=3.81e+05
+   10000/3 G_hier_questions     AP=0.0842 found=0.57 R@100=0.300 cu=1.53e+06
+   10000/3 H_mycelic_full       AP=0.0544 found=0.47 R@100=0.225 cu=1.57e+06
+   10000/3 I_mycelic_completion AP=0.0769 found=0.55 R@100=0.200 cu=2.76e+06
+   10000/3 J_mycelic_verified   AP=0.0807 found=0.47 R@100=0.350 cu=1.58e+06
+   10000/3 Y_oracle_retrieval   AP=0.0101 found=0.28 R@100=0.100 cu=4.87e+05
+   10000/3 Z_random_rank        AP=0.0146 found=0.38 R@100=0.050 cu=1.99e+05
+   10000/3 Z2_naive_enumerate   AP=0.0265 found=0.25 R@100=0.125 cu=1.85e+05
+   10000/4 A_flat_rag           AP=0.0476 found=0.70 R@100=0.200 cu=1.09e+06
+   10000/4 B_long_context       AP=0.0160 found=0.42 R@100=0.075 cu=1.09e+06
+   10000/4 B2_map_reduce        AP=0.0052 found=0.23 R@100=0.050 cu=2.00e+05
+   10000/4 A2_chunked_ctx       AP=0.0561 found=0.72 R@100=0.225 cu=2.07e+06
+   10000/4 B4_central_triage    AP=0.0203 found=0.35 R@100=0.075 cu=4.61e+05
+   10000/4 C_recursive_sum      AP=0.0000 found=0.00 R@100=0.000 cu=1.67e+05
+   10000/4 D_hier_nolineage     AP=0.0021 found=0.03 R@100=0.025 cu=1.94e+05
+   10000/4 E_hier_lineage       AP=0.0000 found=0.00 R@100=0.000 cu=2.22e+05
+   10000/4 F_hier_retrieval     AP=0.0004 found=0.03 R@100=0.025 cu=3.61e+05
+   10000/4 G_hier_questions     AP=0.0134 found=0.33 R@100=0.125 cu=1.39e+06
+   10000/4 H_mycelic_full       AP=0.0099 found=0.35 R@100=0.075 cu=1.41e+06
+   10000/4 I_mycelic_completion AP=0.0160 found=0.25 R@100=0.100 cu=2.44e+06
+   10000/4 J_mycelic_verified   AP=0.0118 found=0.35 R@100=0.100 cu=1.42e+06
+   10000/4 Y_oracle_retrieval   AP=0.0071 found=0.30 R@100=0.050 cu=4.86e+05
+   10000/4 Z_random_rank        AP=0.0088 found=0.23 R@100=0.100 cu=2.00e+05
+   10000/4 Z2_naive_enumerate   AP=0.0001 found=0.03 R@100=0.000 cu=1.85e+05
+   50000/0 A_flat_rag           AP=0.0090 found=0.35 R@100=0.020 cu=1.24e+06
+   50000/0 B_long_context       AP=0.0009 found=0.05 R@100=0.020 cu=1.12e+06
+   50000/0 B2_map_reduce        AP=0.0005 found=0.03 R@100=0.010 cu=7.79e+05
+   50000/0 A2_chunked_ctx       AP=0.0389 found=0.63 R@100=0.070 cu=1.02e+07
+   50000/0 B4_central_triage    AP=0.0079 found=0.38 R@100=0.000 cu=1.69e+06

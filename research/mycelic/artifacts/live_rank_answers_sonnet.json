@@ -1,0 +1,17 @@
+{
+  "model": "claude-sonnet-5",
+  "ranking": [
+    "C-12", "C-30", "C-47", "C-56", "C-53", "C-9", "C-59", "C-41", "C-29", "C-14",
+    "C-34", "C-46", "C-40", "C-39", "C-28", "C-6", "C-50", "C-38", "C-55", "C-31",
+    "C-7", "C-48", "C-42", "C-43", "C-4", "C-58", "C-0", "C-21", "C-8", "C-45",
+    "C-27", "C-17", "C-15", "C-33", "C-2", "C-3", "C-51", "C-13", "C-25", "C-36",
+    "C-52", "C-19", "C-57", "C-10", "C-23", "C-22", "C-18", "C-44", "C-54", "C-1",
+    "C-37", "C-49", "C-32", "C-16", "C-11", "C-5", "C-20", "C-24", "C-26", "C-35"
+  ],
+  "real": [
+    "C-0", "C-4", "C-6", "C-7", "C-9", "C-12", "C-14", "C-21", "C-28", "C-29",
+    "C-30", "C-31", "C-34", "C-38", "C-39", "C-40", "C-41", "C-42", "C-43", "C-46",
+    "C-47", "C-48", "C-50", "C-53", "C-55", "C-56", "C-58", "C-59"
+  ],
+  "reasoning_notes": "For each candidate I matched its events to the best-fitting causal chain and checked three things in order of weight: (1) CAUSAL ORDER - do the first_seen_day values of the present events increase in the same sequence the chain dictates? Any inversion (e.g. component_defect before supplier_substitution, contract_penalty before sla_breach, forecast_revision before margin_compression) was treated as a strong artefact signal even when source/site counts were high, since a real cascade can't run backwards. This caught several high-volume 'trap' candidates (C-20, C-24) that looked impressive on raw counts but were badly scrambled. (2) PER-LINK CORROBORATION - within an order-consistent chain, I required every individual link to have independent_sources >= 2 (i.e. no stage resting on a single report from a single site); chains with even one single-source link were downgraded, and a candidate where literally every link had exactly 1 source/1 site (C-35) was flagged as the clearest 'single report' artefact. (3) LOUD-SITE PATTERN - a large gap between total_reports and independent_sources combined with a small, unchanging distinct_sites count across links (C-26: 17/15/16 reports from only 5-6 sources, 3 sites each) signals one site's repetitive routine traffic rather than organisation-wide spread, so it was ranked near the bottom despite correct ordering. Secondary tie-breakers: chain completeness (more of the 4-6 stage chain represented), total distinct_sites/regions covered, and contradiction_count. I also noticed four entity names appear twice (arbor-hub, nimbusx532, meridian-eu, basalt-net) with one instance forming a clean ordered chain and the other a weaker/inverted one on a different chain - treated as a real/decoy pair and scored independently on the same criteria, which correctly separated them (e.g. C-12 nimbusx532 ranked #1 while its C-37 namesake with an order inversion fell into the bottom artefact tier)."
+}

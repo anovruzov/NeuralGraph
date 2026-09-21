@@ -1,0 +1,16 @@
+{
+  "model": "claude-haiku-4.5",
+  "ranking": [
+    "C-12", "C-28", "C-39", "C-6", "C-47", "C-34", "C-9", "C-38", "C-30", "C-45",
+    "C-59", "C-53", "C-56", "C-7", "C-8", "C-29", "C-40", "C-14", "C-41", "C-55",
+    "C-46", "C-17", "C-15", "C-58", "C-26", "C-31", "C-3", "C-48", "C-51", "C-13",
+    "C-0", "C-33", "C-35", "C-42", "C-57", "C-36", "C-2", "C-20", "C-27", "C-4",
+    "C-18", "C-22", "C-43", "C-50", "C-19", "C-23", "C-25", "C-10", "C-44", "C-52",
+    "C-21", "C-11", "C-54", "C-32", "C-1", "C-5", "C-16", "C-24", "C-37", "C-49"
+  ],
+  "real": [
+    "C-12", "C-28", "C-39", "C-6", "C-47", "C-34", "C-9", "C-38", "C-30", "C-45",
+    "C-59", "C-53", "C-56", "C-7"
+  ],
+  "reasoning_notes": "Ranked by: (1) strict causal order—events must follow chain sequence temporally; (2) chain coverage—complete chains (5-6 events) score highest, partial chains (3-4 events) score moderate; (3) independent sourcing—averaged 2.0+ sources per event indicates multi-site reporting; (4) geographic spread—5+ distinct regions/8+ sites signals cross-organizational signal vs. local routine traffic; (5) contradiction count—zero contradictions favor genuine emerging risks. GENUINE subset (14 candidates, 'real'): Tier 1 complete chains with strong multi-region independent reporting: C-12 & C-30 (cert_rotation→revenue_miss, 5/5 events, 3.8 avg sources, 4-6 regions), C-28 (full supply chain 6/6, 3.3 sources, 6 regions), C-39 & C-47 (attrition_spike→account_churn, 5/5 events, 3.2-4.0 sources, 6 regions). Tier 1b complete 4-event chains: C-6 (policy chain 5/5), C-34 & C-45 (policy chain 4/5, missing audit), C-59 (attrition 4/5, missing backlog). Tier 2 pricing chains: C-53 & C-56 (4/4 complete price_increase→forecast_revision, consistent 2.8 sources, 5 regions). Tier 2 strong 3-4 event chains: C-7 (attrition 4/5), C-9 (policy 4/5, 5.5 avg sources), C-38 (supply defect→escalation, 6.0 sources). ARTIFACTS (lowest tier): Events out of temporal order (C-5, C-11, C-16, C-24, C-32, C-37, C-54); single-site/source routine traffic (C-35: all events 1 source, 3 regions); scattered events across multiple unrelated chains (C-20). Discriminative features: causal order violation is strongest artifact indicator; single-site concentration despite multiple events; average independent sources <2 per event (local reporting); geographic spread <3 regions."
+}

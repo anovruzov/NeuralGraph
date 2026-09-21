@@ -631,6 +631,64 @@ def e10_scale_trend(scales: Sequence[int] = (100_000,), seeds=(0, 1, 2),
     return rows
 
 
+def e12_provenance(scales: Sequence[int] = (10_000, 50_000), seeds=(0, 1, 2),
+                   archs=("A_flat_rag", "A2_chunked_ctx", "B2_map_reduce",
+                          "B4_central_triage", "E_hier_lineage",
+                          "H_mycelic_full", "J_mycelic_verified"),
+                   alloc_name: str = "back-loaded",
+                   fname: str = "e12_provenance.jsonl") -> List[Dict]:
+    """Provenance integrity: does a report's cited evidence actually name the
+    entity the report is about?
+
+    A live measurement flagged this: several textbook causal chains had
+    perfectly healthy statistics and *not one* underlying note naming the
+    candidate entity. That happens when a small edge model mis-links a
+    mention - the aggregates then preserve the error flawlessly and point at
+    the wrong thing. It is invisible to every other metric here, so it gets
+    its own, measured against ground truth rather than against what the
+    pipeline believes.
+    """
+    import numpy as _np
+    rows = []
+    _st = _Stream(fname)
+    alloc = allocation(alloc_name)
+    for scale in scales:
+        for seed in seeds:
+            w = build_world(scale, seed)
+            recs = w.corpus.recs
+            for a in archs:
+                res = _run_named(a, w, alloc, seed)
+                ok = tot = 0
+                per_hyp = []
+                for hy in res.hypotheses[:400]:
+                    ev = [e for e in hy.evidence if 0 <= e < len(recs)]
+                    if not ev:
+                        continue
+                    m = [int(recs["anchor"][e]) == int(hy.anchor) for e in ev]
+                    ok += sum(m)
+                    tot += len(m)
+                    per_hyp.append(float(_np.mean(m)))
+                r = _row(a, w, res, {
+                    "scale": scale, "seed": seed, "alloc": alloc_name,
+                    "evidence_names_claimed_entity": ok / max(1, tot),
+                    "reports_with_no_matching_evidence":
+                        float(_np.mean([1.0 if x == 0 else 0.0
+                                        for x in per_hyp])) if per_hyp else 0.0,
+                    "reports_fully_attributed":
+                        float(_np.mean([1.0 if x >= 0.999 else 0.0
+                                        for x in per_hyp])) if per_hyp else 0.0,
+                    "n_reports_checked": len(per_hyp)})
+                rows.append(_st.add(r))
+                print(f"  {scale:6d}/{seed} {a:22s} "
+                      f"evidence-names-entity={r['evidence_names_claimed_entity']:.3f} "
+                      f"fully-attributed={r['reports_fully_attributed']:.3f} "
+                      f"none-attributed={r['reports_with_no_matching_evidence']:.3f}",
+                      flush=True)
+            w.clear_cache()
+    _st.close()
+    return rows
+
+
 def e9_privacy(scales: Sequence[int] = SCALES, seeds=(0, 1),
                alloc_name: str = "back-loaded",
                fname: str = "e9_privacy.jsonl") -> List[Dict]:
@@ -670,6 +728,7 @@ ALL = {
     "e4b": e4b_dept_fanin, "e5": e5_adversarial, "e6": e6_frontier,
     "e7": e7_shape, "e8": e8_crosslinks, "e9": e9_privacy, "e10": e10_scale_trend,
     "e11": e11_verified, "e1d": e1d_b4_capped,
+    "e12": e12_provenance,
 }
 
 
