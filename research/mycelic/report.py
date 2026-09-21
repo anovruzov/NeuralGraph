@@ -157,6 +157,7 @@ def section_ablations() -> str:
     lines = [tbl, "", "**Paired against the full system** (same seeds):", "",
              "| removed | Δ found | 95% CI | wins | sign p | Δ AP | Δ compute |",
              "|---|---:|---|---:|---:|---:|---:|"]
+    collected = []
     for name in sorted({r["ablation"] for r in rows}):
         if name == "full":
             continue
@@ -173,7 +174,90 @@ def section_ablations() -> str:
             f"[{-pf['ci_hi']:+.4f}, {-pf['ci_lo']:+.4f}] | "
             f"{pf['wins']}/{pf['n_nonzero']} | {pf['sign_p']:.3f} | "
             f"{-pa['mean_diff']:+.4f} | {-pc['mean_diff']:+.3e} |")
+        collected.append((name, -pf["mean_diff"], -pf["ci_hi"], -pf["ci_lo"],
+                          pf["n_nonzero"]))
+    lines.append("")
+    lines.append(_ablation_verdict(collected))
     return "\n".join(lines)
+
+
+def _ablation_meaning(name: str) -> str:
+    """Spell out what a `+` variant actually changes.
+
+    `+source_dispersion` does not switch the feature on — calibration already
+    selected it — it raises the weight. Reading the bare name as "adds the
+    feature" gets that backwards.
+    """
+    from .experiments import ABLATIONS
+    over = ABLATIONS.get(name, {})
+    return name + " = " + ", ".join(f"{k}={v}" for k, v in over.items())
+
+
+def _ablation_verdict(rows) -> str:
+    """Sort the variants into buckets, keeping removals and additions apart.
+
+    A name beginning `-` removes a mechanism the full system has; one
+    beginning `+` adds a mechanism it does not.  They need opposite readings,
+    and lumping them together produced a bucket list that said the wrong
+    thing about `+source_dispersion`.
+    """
+    if not rows:
+        return ""
+    EPS = 5e-4   # a CI endpoint this close to zero is not a decisive interval
+    rm = [r for r in rows if not r[0].startswith("+")]
+    add = [r for r in rows if r[0].startswith("+")]
+    # r = (name, delta, ci_lo, ci_hi, n); delta is the VARIANT minus full.
+    costly = [r for r in rm if r[3] < -EPS]      # removing it is worse
+    gainful = [r for r in rm if r[2] > EPS]      # removing it is better
+    inert = [r for r in rm if r not in costly and r not in gainful]
+    out = ["**Reading the ablations.** Δ is the variant minus the full "
+           "system. For a `-` row, a negative Δ means removing the mechanism "
+           "made things worse, so the mechanism is doing work. For a `+` row "
+           "the mechanism is *added* to the full system, so a positive Δ is "
+           "the case for adopting it. A CI spanning zero means the seed count "
+           "cannot separate the two; with 5 seeds an exact sign test cannot "
+           "go below 0.0625, so the interval is carrying more of the argument "
+           "than the p-value.", ""]
+    if costly:
+        out.append("* **Load-bearing** — removing it costs discovery, "
+                   "interval entirely below zero: "
+                   + ", ".join(f"`{r[0]}` ({r[1]:+.3f})"
+                               for r in sorted(costly, key=lambda r: r[1]))
+                   + ".")
+    if inert:
+        out.append("* **Not distinguishable from noise at this seed count**: "
+                   + ", ".join(f"`{r[0]}`" for r in inert)
+                   + ". These are not shown to be useless; they are shown to "
+                     "be unmeasured, which is a different statement and the "
+                     "honest one.")
+    if add:
+        out.append("* **Variants tested on top of the full system.** These "
+                   "are not \"the feature off vs on\" — the full system "
+                   "already carries whatever calibration selected — so each "
+                   "is shown with the setting it actually changes:")
+        out.append("")
+        for r in sorted(add, key=lambda r: -r[1]):
+            call = ("**adopt**" if r[2] > EPS else
+                    "**do not adopt**" if r[3] < -EPS else
+                    "inconclusive at this seed count")
+            out.append(f"  * `{_ablation_meaning(r[0])}` → Δ {r[1]:+.3f} "
+                       f"[{r[2]:+.3f}, {r[3]:+.3f}] — {call}")
+        out.append("")
+    if gainful:
+        out.append("")
+        out.append(
+            "* **Removal apparently IMPROVES the system** — interval "
+            "entirely above zero: "
+            + ", ".join(f"`{r[0]}` ({r[1]:+.3f})"
+                        for r in sorted(gainful, key=lambda r: -r[1]))
+            + ". This is the bucket worth arguing about. A mechanism that "
+              "costs accuracy is a design defect however good the reason for "
+              "adding it was, and each should either be justified on a "
+              "non-accuracy ground — confidentiality, auditability, "
+              "operability — or removed. The caveat is the seed count: these "
+              "are the ablations most worth re-running with more seeds "
+              "before acting on them.")
+    return "\n".join(out)
 
 
 def section_alloc() -> str:

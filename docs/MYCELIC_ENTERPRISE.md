@@ -155,6 +155,8 @@ So the honest statement of what the hierarchy buys is narrow and specific: **the
 
 **2. The reason is measurable and is not a tuning artefact.** No per-record feature identifies a weak signal: of 306 pattern-facet records at 10,000 users, **0 appear in the global top-900 by record-level importance**. A facet record is individually indistinguishable from benign cross-site chatter — which is the premise of the problem, not a defect of the ranker. Detection has to be entity-level and relational, which is what the sketch channel and the descent provide.
 
+**3. At enterprise scale the binding constraint is discrimination, not retrieval.** A perfect-retrieval oracle — every extracted claim, no budget at all — holds the evidence for 100% of the hidden patterns and still reports only 19.0% of them. The hierarchy holds 32% and reports 25.5%. More undifferentiated evidence makes the kernel's ranking worse, so a propagation budget is a feature and not only a cost.
+
 **4. Directly measured: at fixed evidence, model capability buys almost nothing here, changing what the evidence *contains* helps the strongest model a lot and is not reliable across models.** 3 real models ranked the same 56 candidates from a real run (2 independent runs per cell). Given the aggregate evidence statistics they scored AP 0.354–0.407, against 0.420 for a six-feature logistic and 0.313 for random — i.e. a large capability range lands within noise of a logistic. Given the **raw work notes** behind the same statistics the same models scored 0.319–0.617. Richer evidence helped 2 of 3 models (Δ -0.048 to +0.262); the largest run-to-run range within a single cell is 0.107, and 1 of the 3 moves by more than that (opus). The abstraction, not the reasoner, is the plausible ceiling — but see §23 before treating the size of the effect as established.
 
 **5. Acting on that: the useful way to spend frontier compute at the kernel is to re-open original evidence, not to reason harder over the same abstraction.** Having the kernel re-read a handful of each top candidate's original notes with its own extractor changes AP by +18% for +0.9% compute (Δ +0.004 (95% CI [+0.002, +0.006], 4/5 seeds, sign p=0.375)).
@@ -609,16 +611,16 @@ variance.
 
 | architecture | 2,000 | 10,000 | 50,000 | 100,000 |
 |---|---:|---:|---:|---:|
-| A_flat_rag | 0.867 | 0.648 | 0.424 | 0.305 |
+| A_flat_rag | 0.867 | 0.648 | 0.424 | 0.268 |
 | A2_chunked_ctx | 0.882 | 0.663 | 0.686 | 0.665 |
-| B_long_context | 0.802 | 0.465 | 0.076 | 0.025 |
-| B2_map_reduce | 0.575 | 0.315 | 0.056 | 0.015 |
+| B_long_context | 0.802 | 0.465 | 0.076 | 0.022 |
+| B2_map_reduce | 0.575 | 0.315 | 0.056 | 0.022 |
 | B4_central_triage | 0.740 | 0.388 | 0.314 | — |
 | E_hier_lineage | 0.088 | 0.035 | 0.008 | 0.010 |
 | G_hier_questions | 0.693 | 0.398 | 0.336 | 0.245 |
 | H_mycelic_full | 0.715 | 0.385 | 0.336 | 0.255 |
-| J_mycelic_verified | 0.715 | 0.385 | 0.336 | — |
-| Y_oracle_retrieval | 0.685 | 0.232 | 0.284 | — |
+| J_mycelic_verified | 0.715 | 0.385 | 0.336 | 0.255 |
+| Y_oracle_retrieval | 0.685 | 0.232 | 0.284 | 0.190 |
 
 Compute (cu) at the same points:
 
@@ -632,8 +634,8 @@ Compute (cu) at the same points:
 | E_hier_lineage | 6.93e+04 | 2.27e+05 | 9.90e+05 | 1.92e+06 |
 | G_hier_questions | 8.37e+05 | 1.11e+06 | 2.92e+06 | 4.52e+06 |
 | H_mycelic_full | 8.43e+05 | 1.11e+06 | 2.93e+06 | 4.71e+06 |
-| J_mycelic_verified | 8.53e+05 | 1.12e+06 | 2.94e+06 | — |
-| Y_oracle_retrieval | 1.44e+05 | 4.87e+05 | 2.43e+06 | — |
+| J_mycelic_verified | 8.53e+05 | 1.12e+06 | 2.94e+06 | 4.72e+06 |
+| Y_oracle_retrieval | 1.44e+05 | 4.87e+05 | 2.43e+06 | 4.86e+06 |
 
 ## 12. Ablations
 
@@ -681,6 +683,17 @@ Compute (cu) at the same points:
 | -synthesis_restriction | -0.0000 | [-0.0200, +0.0250] | 2/3 | 1.000 | -0.0013 | +1.270e+03 |
 | -temporal | -0.0650 | [-0.1100, -0.0250] | 4/4 | 0.125 | -0.0129 | +7.386e+03 |
 | -triage_prior | -0.0000 | [-0.0000, -0.0000] | 0/0 | 1.000 | -0.0000 | -0.000e+00 |
+
+**Reading the ablations.** Δ is the variant minus the full system. For a `-` row, a negative Δ means removing the mechanism made things worse, so the mechanism is doing work. For a `+` row the mechanism is *added* to the full system, so a positive Δ is the case for adopting it. A CI spanning zero means the seed count cannot separate the two; with 5 seeds an exact sign test cannot go below 0.0625, so the interval is carrying more of the argument than the p-value.
+
+* **Load-bearing** — removing it costs discovery, interval entirely below zero: `-downward_retrieval` (-0.340), `-questions` (-0.305), `-sketch_channel` (-0.270), `-temporal` (-0.065).
+* **Not distinguishable from noise at this seed count**: `-adaptive_abstraction`, `-adaptive_routing`, `-contradiction`, `-cross_links`, `-foreign_filter`, `-independence`, `-lineage`, `-question_targeting`, `-synthesis_restriction`, `-triage_prior`. These are not shown to be useless; they are shown to be unmeasured, which is a different statement and the honest one.
+* **Variants tested on top of the full system.** These are not "the feature off vs on" — the full system already carries whatever calibration selected — so each is shown with the setting it actually changes:
+
+  * `+chain_completion = chain_completion=True` → Δ +0.005 [-0.030, +0.035] — inconclusive at this seed count
+  * `+evidence_verification = verify_evidence=True` → Δ -0.000 [-0.000, -0.000] — inconclusive at this seed count
+  * `+source_dispersion = w_dispersion=1.5` → Δ -0.030 [-0.050, -0.010] — **do not adopt**
+
 
 ## 13. Where compute should go
 
