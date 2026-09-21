@@ -25,3 +25,11 @@
   2 qfrac=0.05 AP=0.0172 found=0.42 cu=1.13e+06
   2 qfrac=0.15 AP=0.0172 found=0.42 cu=1.13e+06
   2 qfrac=0.35 AP=0.0144 found=0.40 cu=1.18e+06
+  2 qfrac=0.55 AP=0.0103 found=0.30 cu=1.47e+06
+  2 qfrac=1.00 AP=0.0062 found=0.23 cu=2.16e+06
+  2 mr_budget=300 AP=0.0038 cu=1.50e+05
+  2 mr_budget=900 AP=0.0131 cu=1.63e+05
+  2 mr_budget=2500 AP=0.0233 cu=1.98e+05
+  2 mr_budget=8000 AP=0.0060 cu=2.66e+05
+  2 mr_budget=20000 AP=0.0019 cu=3.90e+05
+=== e6 done in 141s ===

@@ -39,3 +39,11 @@
   0 approx_index_bloom       B2_map_reduce    AP=0.0709 FDR=0.974 decoy=0.325 dupErr=2.22
   0 approx_index_bloom       B_long_context   AP=0.0274 FDR=0.946 decoy=0.150 dupErr=1.45
   0 approx_index_bloom       E_hier_lineage   AP=0.0125 FDR=0.983 decoy=0.025 dupErr=1.00
+  0 extreme_imbalance        H_mycelic_full   AP=0.0303 FDR=0.975 decoy=0.225 dupErr=2.48
+  0 extreme_imbalance        B2_map_reduce    AP=0.1233 FDR=0.963 decoy=0.250 dupErr=3.27
+  0 extreme_imbalance        B_long_context   AP=0.0187 FDR=0.973 decoy=0.200 dupErr=1.87
+  0 extreme_imbalance        E_hier_lineage   AP=0.0156 FDR=0.917 decoy=0.000 dupErr=1.67
+  1 clean                    H_mycelic_full   AP=0.0496 FDR=0.980 decoy=0.200 dupErr=2.94
+  1 clean                    B2_map_reduce    AP=0.0260 FDR=0.980 decoy=0.250 dupErr=3.64
+  1 clean                    B_long_context   AP=0.0256 FDR=0.955 decoy=0.175 dupErr=1.94
+  1 clean                    E_hier_lineage   AP=0.0000 FDR=1.000 decoy=0.025 dupErr=0.67
