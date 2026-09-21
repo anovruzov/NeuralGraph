@@ -1,7 +1,7 @@
 {
  "seed": 901,
  "scale": 10000,
- "n_items": 60,
+ "n_items": 56,
  "causal_chains": [
   [
    "supplier_substitution",
@@ -57,142 +57,12 @@
  "candidates": [
   {
    "id": "C-0",
-   "entity": "wisteria-pay475",
+   "entity": "quarry-core",
    "links": [
     {
-     "event": "backlog_growth",
-     "first_seen_day": 29,
-     "last_seen_day": 121,
-     "independent_sources": 3,
-     "total_reports": 4,
-     "distinct_sites": 2,
-     "distinct_regions": 1,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "contract_penalty",
-     "first_seen_day": 45,
-     "last_seen_day": 98,
-     "independent_sources": 4,
-     "total_reports": 7,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "account_churn",
-     "first_seen_day": 73,
-     "last_seen_day": 121,
-     "independent_sources": 4,
-     "total_reports": 6,
-     "distinct_sites": 3,
-     "distinct_regions": 3,
-     "contradicting_reports": 0
-    }
-   ],
-   "n_links": 3,
-   "distinct_regions_total": 4,
-   "distinct_sites_total": 5,
-   "contradiction_count": 0
-  },
-  {
-   "id": "C-1",
-   "entity": "wexford-pay",
-   "links": [
-    {
-     "event": "data_exposure_risk",
-     "first_seen_day": 29,
-     "last_seen_day": 150,
-     "independent_sources": 5,
-     "total_reports": 5,
-     "distinct_sites": 5,
-     "distinct_regions": 5,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "policy_change",
-     "first_seen_day": 30,
-     "last_seen_day": 165,
-     "independent_sources": 4,
-     "total_reports": 4,
-     "distinct_sites": 3,
-     "distinct_regions": 3,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "audit_finding",
-     "first_seen_day": 90,
-     "last_seen_day": 90,
-     "independent_sources": 1,
-     "total_reports": 1,
-     "distinct_sites": 1,
-     "distinct_regions": 1,
-     "contradicting_reports": 0
-    }
-   ],
-   "n_links": 3,
-   "distinct_regions_total": 6,
-   "distinct_sites_total": 7,
-   "contradiction_count": 0
-  },
-  {
-   "id": "C-2",
-   "entity": "wisteriax",
-   "links": [
-    {
-     "event": "cert_rotation",
-     "first_seen_day": 42,
-     "last_seen_day": 42,
-     "independent_sources": 1,
-     "total_reports": 1,
-     "distinct_sites": 1,
-     "distinct_regions": 1,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "api_error_spike",
-     "first_seen_day": 75,
-     "last_seen_day": 124,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "checkout_drop",
-     "first_seen_day": 78,
-     "last_seen_day": 100,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "revenue_miss",
-     "first_seen_day": 104,
-     "last_seen_day": 174,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    }
-   ],
-   "n_links": 4,
-   "distinct_regions_total": 4,
-   "distinct_sites_total": 5,
-   "contradiction_count": 1
-  },
-  {
-   "id": "C-3",
-   "entity": "arbor-core",
-   "links": [
-    {
-     "event": "latency_regression",
-     "first_seen_day": 11,
-     "last_seen_day": 82,
+     "event": "network_change",
+     "first_seen_day": 34,
+     "last_seen_day": 99,
      "independent_sources": 3,
      "total_reports": 3,
      "distinct_sites": 3,
@@ -200,19 +70,19 @@
      "contradicting_reports": 0
     },
     {
-     "event": "reporting_delay",
-     "first_seen_day": 26,
-     "last_seen_day": 170,
-     "independent_sources": 5,
-     "total_reports": 5,
+     "event": "batch_job_overrun",
+     "first_seen_day": 71,
+     "last_seen_day": 179,
+     "independent_sources": 4,
+     "total_reports": 4,
      "distinct_sites": 4,
      "distinct_regions": 4,
      "contradicting_reports": 0
     },
     {
      "event": "close_delay",
-     "first_seen_day": 63,
-     "last_seen_day": 63,
+     "first_seen_day": 93,
+     "last_seen_day": 93,
      "independent_sources": 1,
      "total_reports": 1,
      "distinct_sites": 1,
@@ -222,107 +92,17 @@
    ],
    "n_links": 3,
    "distinct_regions_total": 6,
-   "distinct_sites_total": 8,
-   "contradiction_count": 0
-  },
-  {
-   "id": "C-4",
-   "entity": "vireo-lite",
-   "links": [
-    {
-     "event": "attrition_spike",
-     "first_seen_day": 8,
-     "last_seen_day": 67,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "backlog_growth",
-     "first_seen_day": 24,
-     "last_seen_day": 98,
-     "independent_sources": 3,
-     "total_reports": 3,
-     "distinct_sites": 3,
-     "distinct_regions": 3,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "sla_breach",
-     "first_seen_day": 93,
-     "last_seen_day": 179,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    }
-   ],
-   "n_links": 3,
-   "distinct_regions_total": 4,
-   "distinct_sites_total": 6,
-   "contradiction_count": 0
-  },
-  {
-   "id": "C-5",
-   "entity": "cobalt-na",
-   "links": [
-    {
-     "event": "attrition_spike",
-     "first_seen_day": 2,
-     "last_seen_day": 2,
-     "independent_sources": 1,
-     "total_reports": 1,
-     "distinct_sites": 1,
-     "distinct_regions": 1,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "sla_breach",
-     "first_seen_day": 40,
-     "last_seen_day": 136,
-     "independent_sources": 6,
-     "total_reports": 6,
-     "distinct_sites": 5,
-     "distinct_regions": 3,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "backlog_growth",
-     "first_seen_day": 41,
-     "last_seen_day": 41,
-     "independent_sources": 1,
-     "total_reports": 1,
-     "distinct_sites": 1,
-     "distinct_regions": 1,
-     "contradicting_reports": 0
-    }
-   ],
-   "n_links": 3,
-   "distinct_regions_total": 4,
    "distinct_sites_total": 7,
    "contradiction_count": 0
   },
   {
-   "id": "C-6",
-   "entity": "basalt-net",
+   "id": "C-1",
+   "entity": "tundra445",
    "links": [
     {
-     "event": "policy_change",
-     "first_seen_day": 3,
-     "last_seen_day": 135,
-     "independent_sources": 5,
-     "total_reports": 5,
-     "distinct_sites": 5,
-     "distinct_regions": 5,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "manual_workaround",
-     "first_seen_day": 4,
-     "last_seen_day": 10,
+     "event": "firmware_update",
+     "first_seen_day": 30,
+     "last_seen_day": 61,
      "independent_sources": 2,
      "total_reports": 2,
      "distinct_sites": 2,
@@ -330,437 +110,127 @@
      "contradicting_reports": 0
     },
     {
-     "event": "data_exposure_risk",
-     "first_seen_day": 23,
-     "last_seen_day": 23,
-     "independent_sources": 1,
-     "total_reports": 1,
-     "distinct_sites": 1,
-     "distinct_regions": 1,
+     "event": "sensor_drift",
+     "first_seen_day": 61,
+     "last_seen_day": 172,
+     "independent_sources": 3,
+     "total_reports": 11,
+     "distinct_sites": 7,
+     "distinct_regions": 3,
      "contradicting_reports": 0
     },
     {
-     "event": "audit_finding",
-     "first_seen_day": 168,
-     "last_seen_day": 168,
-     "independent_sources": 1,
-     "total_reports": 1,
-     "distinct_sites": 1,
-     "distinct_regions": 1,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "regulatory_notice",
-     "first_seen_day": 178,
-     "last_seen_day": 178,
-     "independent_sources": 1,
-     "total_reports": 1,
-     "distinct_sites": 1,
-     "distinct_regions": 1,
+     "event": "false_alarm",
+     "first_seen_day": 61,
+     "last_seen_day": 132,
+     "independent_sources": 5,
+     "total_reports": 12,
+     "distinct_sites": 6,
+     "distinct_regions": 4,
      "contradicting_reports": 0
     }
    ],
-   "n_links": 5,
-   "distinct_regions_total": 6,
+   "n_links": 3,
+   "distinct_regions_total": 4,
    "distinct_sites_total": 9,
-   "contradiction_count": 0
+   "contradiction_count": 1
   },
   {
-   "id": "C-7",
-   "entity": "arbor-apac",
+   "id": "C-2",
+   "entity": "kestrel-core",
    "links": [
     {
-     "event": "attrition_spike",
-     "first_seen_day": 14,
-     "last_seen_day": 14,
+     "event": "sla_breach",
+     "first_seen_day": 44,
+     "last_seen_day": 103,
      "independent_sources": 2,
      "total_reports": 2,
-     "distinct_sites": 1,
+     "distinct_sites": 2,
      "distinct_regions": 1,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "backlog_growth",
-     "first_seen_day": 25,
-     "last_seen_day": 25,
-     "independent_sources": 5,
-     "total_reports": 5,
-     "distinct_sites": 3,
-     "distinct_regions": 1,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "sla_breach",
-     "first_seen_day": 36,
-     "last_seen_day": 38,
-     "independent_sources": 5,
-     "total_reports": 5,
-     "distinct_sites": 4,
-     "distinct_regions": 3,
      "contradicting_reports": 0
     },
     {
      "event": "contract_penalty",
-     "first_seen_day": 62,
-     "last_seen_day": 62,
-     "independent_sources": 2,
-     "total_reports": 2,
+     "first_seen_day": 92,
+     "last_seen_day": 150,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "account_churn",
+     "first_seen_day": 92,
+     "last_seen_day": 92,
+     "independent_sources": 1,
+     "total_reports": 1,
      "distinct_sites": 1,
      "distinct_regions": 1,
      "contradicting_reports": 0
     }
    ],
-   "n_links": 4,
+   "n_links": 3,
    "distinct_regions_total": 5,
-   "distinct_sites_total": 8,
-   "contradiction_count": 0
-  },
-  {
-   "id": "C-8",
-   "entity": "vireo-pro",
-   "links": [
-    {
-     "event": "component_defect",
-     "first_seen_day": 19,
-     "last_seen_day": 107,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "yield_drop",
-     "first_seen_day": 30,
-     "last_seen_day": 82,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "shipment_delay",
-     "first_seen_day": 32,
-     "last_seen_day": 121,
-     "independent_sources": 3,
-     "total_reports": 3,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "customer_escalation",
-     "first_seen_day": 79,
-     "last_seen_day": 117,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "revenue_miss",
-     "first_seen_day": 83,
-     "last_seen_day": 83,
-     "independent_sources": 1,
-     "total_reports": 1,
-     "distinct_sites": 1,
-     "distinct_regions": 1,
-     "contradicting_reports": 0
-    }
-   ],
-   "n_links": 5,
-   "distinct_regions_total": 4,
-   "distinct_sites_total": 5,
-   "contradiction_count": 0
-  },
-  {
-   "id": "C-9",
-   "entity": "peregrine-edge",
-   "links": [
-    {
-     "event": "manual_workaround",
-     "first_seen_day": 30,
-     "last_seen_day": 167,
-     "independent_sources": 8,
-     "total_reports": 8,
-     "distinct_sites": 5,
-     "distinct_regions": 4,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "data_exposure_risk",
-     "first_seen_day": 36,
-     "last_seen_day": 116,
-     "independent_sources": 6,
-     "total_reports": 6,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "audit_finding",
-     "first_seen_day": 91,
-     "last_seen_day": 102,
-     "independent_sources": 4,
-     "total_reports": 4,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "regulatory_notice",
-     "first_seen_day": 102,
-     "last_seen_day": 147,
-     "independent_sources": 4,
-     "total_reports": 4,
-     "distinct_sites": 4,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    }
-   ],
-   "n_links": 4,
-   "distinct_regions_total": 6,
-   "distinct_sites_total": 11,
-   "contradiction_count": 1
-  },
-  {
-   "id": "C-10",
-   "entity": "kestrel-net",
-   "links": [
-    {
-     "event": "cert_rotation",
-     "first_seen_day": 24,
-     "last_seen_day": 88,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "api_error_spike",
-     "first_seen_day": 102,
-     "last_seen_day": 157,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "checkout_drop",
-     "first_seen_day": 174,
-     "last_seen_day": 174,
-     "independent_sources": 1,
-     "total_reports": 1,
-     "distinct_sites": 1,
-     "distinct_regions": 1,
-     "contradicting_reports": 0
-    }
-   ],
-   "n_links": 3,
-   "distinct_regions_total": 4,
-   "distinct_sites_total": 5,
-   "contradiction_count": 0
-  },
-  {
-   "id": "C-11",
-   "entity": "tundrax",
-   "links": [
-    {
-     "event": "component_defect",
-     "first_seen_day": 3,
-     "last_seen_day": 141,
-     "independent_sources": 7,
-     "total_reports": 7,
-     "distinct_sites": 5,
-     "distinct_regions": 3,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "supplier_substitution",
-     "first_seen_day": 5,
-     "last_seen_day": 67,
-     "independent_sources": 4,
-     "total_reports": 4,
-     "distinct_sites": 3,
-     "distinct_regions": 3,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "yield_drop",
-     "first_seen_day": 26,
-     "last_seen_day": 103,
-     "independent_sources": 4,
-     "total_reports": 4,
-     "distinct_sites": 4,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "revenue_miss",
-     "first_seen_day": 77,
-     "last_seen_day": 171,
-     "independent_sources": 3,
-     "total_reports": 3,
-     "distinct_sites": 3,
-     "distinct_regions": 3,
-     "contradicting_reports": 0
-    }
-   ],
-   "n_links": 4,
-   "distinct_regions_total": 7,
-   "distinct_sites_total": 12,
-   "contradiction_count": 0
-  },
-  {
-   "id": "C-12",
-   "entity": "nimbusx532",
-   "links": [
-    {
-     "event": "cert_rotation",
-     "first_seen_day": 52,
-     "last_seen_day": 169,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "auth_failure",
-     "first_seen_day": 60,
-     "last_seen_day": 107,
-     "independent_sources": 3,
-     "total_reports": 3,
-     "distinct_sites": 2,
-     "distinct_regions": 1,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "api_error_spike",
-     "first_seen_day": 70,
-     "last_seen_day": 96,
-     "independent_sources": 7,
-     "total_reports": 7,
-     "distinct_sites": 3,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "checkout_drop",
-     "first_seen_day": 97,
-     "last_seen_day": 141,
-     "independent_sources": 5,
-     "total_reports": 5,
-     "distinct_sites": 5,
-     "distinct_regions": 3,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "revenue_miss",
-     "first_seen_day": 120,
-     "last_seen_day": 120,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 1,
-     "distinct_regions": 1,
-     "contradicting_reports": 0
-    }
-   ],
-   "n_links": 5,
-   "distinct_regions_total": 6,
-   "distinct_sites_total": 10,
-   "contradiction_count": 0
-  },
-  {
-   "id": "C-13",
-   "entity": "wisteria-edge",
-   "links": [
-    {
-     "event": "sensor_drift",
-     "first_seen_day": 12,
-     "last_seen_day": 127,
-     "independent_sources": 3,
-     "total_reports": 3,
-     "distinct_sites": 3,
-     "distinct_regions": 3,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "unplanned_downtime",
-     "first_seen_day": 27,
-     "last_seen_day": 134,
-     "independent_sources": 3,
-     "total_reports": 3,
-     "distinct_sites": 3,
-     "distinct_regions": 3,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "output_shortfall",
-     "first_seen_day": 57,
-     "last_seen_day": 57,
-     "independent_sources": 1,
-     "total_reports": 1,
-     "distinct_sites": 1,
-     "distinct_regions": 1,
-     "contradicting_reports": 0
-    }
-   ],
-   "n_links": 3,
-   "distinct_regions_total": 6,
    "distinct_sites_total": 6,
    "contradiction_count": 0
   },
   {
-   "id": "C-14",
-   "entity": "arbor-hub",
+   "id": "C-3",
+   "entity": "zephyrx551",
    "links": [
     {
-     "event": "policy_change",
-     "first_seen_day": 19,
-     "last_seen_day": 155,
-     "independent_sources": 7,
-     "total_reports": 7,
-     "distinct_sites": 6,
-     "distinct_regions": 5,
+     "event": "supplier_substitution",
+     "first_seen_day": 1,
+     "last_seen_day": 1,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
      "contradicting_reports": 0
     },
     {
-     "event": "manual_workaround",
-     "first_seen_day": 19,
-     "last_seen_day": 75,
-     "independent_sources": 6,
-     "total_reports": 6,
-     "distinct_sites": 3,
-     "distinct_regions": 3,
+     "event": "component_defect",
+     "first_seen_day": 18,
+     "last_seen_day": 18,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
      "contradicting_reports": 0
     },
     {
-     "event": "data_exposure_risk",
-     "first_seen_day": 47,
-     "last_seen_day": 47,
+     "event": "yield_drop",
+     "first_seen_day": 39,
+     "last_seen_day": 110,
      "independent_sources": 2,
      "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "customer_escalation",
+     "first_seen_day": 169,
+     "last_seen_day": 169,
+     "independent_sources": 1,
+     "total_reports": 1,
      "distinct_sites": 1,
      "distinct_regions": 1,
      "contradicting_reports": 0
     }
    ],
-   "n_links": 3,
-   "distinct_regions_total": 6,
-   "distinct_sites_total": 8,
+   "n_links": 4,
+   "distinct_regions_total": 3,
+   "distinct_sites_total": 4,
    "contradiction_count": 0
   },
   {
-   "id": "C-15",
-   "entity": "marlin-eu",
+   "id": "C-4",
+   "entity": "halcyon-mk3",
    "links": [
     {
-     "event": "supplier_substitution",
+     "event": "policy_change",
      "first_seen_day": 35,
      "last_seen_day": 35,
      "independent_sources": 1,
@@ -770,49 +240,189 @@
      "contradicting_reports": 0
     },
     {
-     "event": "component_defect",
-     "first_seen_day": 67,
-     "last_seen_day": 176,
+     "event": "manual_workaround",
+     "first_seen_day": 96,
+     "last_seen_day": 144,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "data_exposure_risk",
+     "first_seen_day": 120,
+     "last_seen_day": 120,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "regulatory_notice",
+     "first_seen_day": 126,
+     "last_seen_day": 126,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "audit_finding",
+     "first_seen_day": 129,
+     "last_seen_day": 129,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 5,
+   "distinct_regions_total": 5,
+   "distinct_sites_total": 5,
+   "contradiction_count": 1
+  },
+  {
+   "id": "C-5",
+   "entity": "halcyon",
+   "links": [
+    {
+     "event": "sla_breach",
+     "first_seen_day": 4,
+     "last_seen_day": 135,
+     "independent_sources": 6,
+     "total_reports": 6,
+     "distinct_sites": 5,
+     "distinct_regions": 5,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "contract_penalty",
+     "first_seen_day": 19,
+     "last_seen_day": 157,
      "independent_sources": 5,
      "total_reports": 5,
+     "distinct_sites": 4,
+     "distinct_regions": 4,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "account_churn",
+     "first_seen_day": 71,
+     "last_seen_day": 130,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 7,
+   "distinct_sites_total": 8,
+   "contradiction_count": 0
+  },
+  {
+   "id": "C-6",
+   "entity": "halcyon-pay",
+   "links": [
+    {
+     "event": "network_change",
+     "first_seen_day": 16,
+     "last_seen_day": 106,
+     "independent_sources": 8,
+     "total_reports": 8,
      "distinct_sites": 4,
      "distinct_regions": 3,
      "contradicting_reports": 0
     },
     {
-     "event": "yield_drop",
-     "first_seen_day": 122,
-     "last_seen_day": 154,
+     "event": "reporting_delay",
+     "first_seen_day": 72,
+     "last_seen_day": 128,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "close_delay",
+     "first_seen_day": 96,
+     "last_seen_day": 157,
      "independent_sources": 3,
      "total_reports": 3,
      "distinct_sites": 3,
      "distinct_regions": 3,
      "contradicting_reports": 0
-    },
-    {
-     "event": "customer_escalation",
-     "first_seen_day": 157,
-     "last_seen_day": 157,
-     "independent_sources": 1,
-     "total_reports": 1,
-     "distinct_sites": 1,
-     "distinct_regions": 1,
-     "contradicting_reports": 0
     }
    ],
-   "n_links": 4,
-   "distinct_regions_total": 5,
-   "distinct_sites_total": 7,
+   "n_links": 3,
+   "distinct_regions_total": 4,
+   "distinct_sites_total": 8,
    "contradiction_count": 0
   },
   {
-   "id": "C-16",
-   "entity": "umbra-net",
+   "id": "C-7",
+   "entity": "zephyr-core495",
    "links": [
     {
-     "event": "backlog_growth",
-     "first_seen_day": 28,
-     "last_seen_day": 28,
+     "event": "cert_rotation",
+     "first_seen_day": 33,
+     "last_seen_day": 143,
+     "independent_sources": 5,
+     "total_reports": 5,
+     "distinct_sites": 5,
+     "distinct_regions": 4,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "auth_failure",
+     "first_seen_day": 100,
+     "last_seen_day": 140,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 2,
+   "distinct_regions_total": 4,
+   "distinct_sites_total": 5,
+   "contradiction_count": 0
+  },
+  {
+   "id": "C-8",
+   "entity": "tundra-core",
+   "links": [
+    {
+     "event": "price_increase",
+     "first_seen_day": 24,
+     "last_seen_day": 24,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 2,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "margin_compression",
+     "first_seen_day": 34,
+     "last_seen_day": 99,
+     "independent_sources": 5,
+     "total_reports": 5,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "discount_escalation",
+     "first_seen_day": 54,
+     "last_seen_day": 54,
      "independent_sources": 1,
      "total_reports": 1,
      "distinct_sites": 1,
@@ -820,49 +430,39 @@
      "contradicting_reports": 0
     },
     {
-     "event": "attrition_spike",
-     "first_seen_day": 31,
-     "last_seen_day": 112,
-     "independent_sources": 2,
-     "total_reports": 2,
+     "event": "forecast_revision",
+     "first_seen_day": 66,
+     "last_seen_day": 66,
+     "independent_sources": 3,
+     "total_reports": 3,
      "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "contract_penalty",
-     "first_seen_day": 63,
-     "last_seen_day": 149,
-     "independent_sources": 4,
-     "total_reports": 4,
-     "distinct_sites": 3,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "account_churn",
-     "first_seen_day": 166,
-     "last_seen_day": 168,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
+     "distinct_regions": 1,
      "contradicting_reports": 0
     }
    ],
    "n_links": 4,
    "distinct_regions_total": 4,
-   "distinct_sites_total": 6,
+   "distinct_sites_total": 7,
    "contradiction_count": 0
   },
   {
-   "id": "C-17",
-   "entity": "tessera-edge",
+   "id": "C-9",
+   "entity": "kestrel-pay",
    "links": [
     {
-     "event": "firmware_update",
-     "first_seen_day": 35,
-     "last_seen_day": 67,
+     "event": "component_defect",
+     "first_seen_day": 1,
+     "last_seen_day": 22,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "customer_escalation",
+     "first_seen_day": 1,
+     "last_seen_day": 43,
      "independent_sources": 2,
      "total_reports": 2,
      "distinct_sites": 2,
@@ -870,9 +470,19 @@
      "contradicting_reports": 0
     },
     {
-     "event": "sensor_drift",
-     "first_seen_day": 66,
-     "last_seen_day": 66,
+     "event": "supplier_substitution",
+     "first_seen_day": 3,
+     "last_seen_day": 29,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "shipment_delay",
+     "first_seen_day": 4,
+     "last_seen_day": 4,
      "independent_sources": 1,
      "total_reports": 1,
      "distinct_sites": 1,
@@ -880,19 +490,19 @@
      "contradicting_reports": 0
     },
     {
-     "event": "false_alarm",
-     "first_seen_day": 86,
-     "last_seen_day": 107,
-     "independent_sources": 3,
-     "total_reports": 3,
-     "distinct_sites": 3,
-     "distinct_regions": 3,
-     "contradicting_reports": 0
+     "event": "yield_drop",
+     "first_seen_day": 5,
+     "last_seen_day": 119,
+     "independent_sources": 6,
+     "total_reports": 6,
+     "distinct_sites": 4,
+     "distinct_regions": 4,
+     "contradicting_reports": 1
     },
     {
-     "event": "output_shortfall",
-     "first_seen_day": 153,
-     "last_seen_day": 159,
+     "event": "revenue_miss",
+     "first_seen_day": 46,
+     "last_seen_day": 139,
      "independent_sources": 2,
      "total_reports": 2,
      "distinct_sites": 2,
@@ -900,19 +510,189 @@
      "contradicting_reports": 0
     }
    ],
-   "n_links": 4,
+   "n_links": 6,
+   "distinct_regions_total": 6,
+   "distinct_sites_total": 9,
+   "contradiction_count": 0
+  },
+  {
+   "id": "C-10",
+   "entity": "nimbus-lite",
+   "links": [
+    {
+     "event": "policy_change",
+     "first_seen_day": 11,
+     "last_seen_day": 125,
+     "independent_sources": 5,
+     "total_reports": 9,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "data_exposure_risk",
+     "first_seen_day": 92,
+     "last_seen_day": 174,
+     "independent_sources": 4,
+     "total_reports": 9,
+     "distinct_sites": 4,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "regulatory_notice",
+     "first_seen_day": 99,
+     "last_seen_day": 110,
+     "independent_sources": 2,
+     "total_reports": 3,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
    "distinct_regions_total": 5,
    "distinct_sites_total": 6,
    "contradiction_count": 0
   },
   {
-   "id": "C-18",
-   "entity": "osprey-edge526",
+   "id": "C-11",
+   "entity": "cinder-mk3",
    "links": [
     {
-     "event": "latency_regression",
-     "first_seen_day": 28,
-     "last_seen_day": 154,
+     "event": "supplier_substitution",
+     "first_seen_day": 0,
+     "last_seen_day": 172,
+     "independent_sources": 5,
+     "total_reports": 5,
+     "distinct_sites": 5,
+     "distinct_regions": 4,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "yield_drop",
+     "first_seen_day": 8,
+     "last_seen_day": 178,
+     "independent_sources": 6,
+     "total_reports": 6,
+     "distinct_sites": 4,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "component_defect",
+     "first_seen_day": 10,
+     "last_seen_day": 54,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "revenue_miss",
+     "first_seen_day": 36,
+     "last_seen_day": 47,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 4,
+   "distinct_regions_total": 6,
+   "distinct_sites_total": 9,
+   "contradiction_count": 0
+  },
+  {
+   "id": "C-12",
+   "entity": "granite-core",
+   "links": [
+    {
+     "event": "attrition_spike",
+     "first_seen_day": 7,
+     "last_seen_day": 152,
+     "independent_sources": 4,
+     "total_reports": 4,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "backlog_growth",
+     "first_seen_day": 14,
+     "last_seen_day": 104,
+     "independent_sources": 4,
+     "total_reports": 4,
+     "distinct_sites": 4,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "sla_breach",
+     "first_seen_day": 14,
+     "last_seen_day": 164,
+     "independent_sources": 3,
+     "total_reports": 5,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "account_churn",
+     "first_seen_day": 32,
+     "last_seen_day": 155,
+     "independent_sources": 7,
+     "total_reports": 7,
+     "distinct_sites": 6,
+     "distinct_regions": 5,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 4,
+   "distinct_regions_total": 5,
+   "distinct_sites_total": 10,
+   "contradiction_count": 0
+  },
+  {
+   "id": "C-13",
+   "entity": "veridian-edge",
+   "links": [
+    {
+     "event": "yield_drop",
+     "first_seen_day": 20,
+     "last_seen_day": 136,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "customer_escalation",
+     "first_seen_day": 26,
+     "last_seen_day": 99,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 2,
+   "distinct_regions_total": 4,
+   "distinct_sites_total": 4,
+   "contradiction_count": 0
+  },
+  {
+   "id": "C-14",
+   "entity": "lumen-pay",
+   "links": [
+    {
+     "event": "price_increase",
+     "first_seen_day": 46,
+     "last_seen_day": 119,
      "independent_sources": 3,
      "total_reports": 3,
      "distinct_sites": 3,
@@ -920,17 +700,17 @@
      "contradicting_reports": 0
     },
     {
-     "event": "batch_job_overrun",
-     "first_seen_day": 102,
-     "last_seen_day": 102,
-     "independent_sources": 1,
-     "total_reports": 1,
-     "distinct_sites": 1,
-     "distinct_regions": 1,
+     "event": "margin_compression",
+     "first_seen_day": 60,
+     "last_seen_day": 174,
+     "independent_sources": 5,
+     "total_reports": 5,
+     "distinct_sites": 5,
+     "distinct_regions": 4,
      "contradicting_reports": 0
     },
     {
-     "event": "close_delay",
+     "event": "discount_escalation",
      "first_seen_day": 113,
      "last_seen_day": 113,
      "independent_sources": 1,
@@ -941,18 +721,258 @@
     }
    ],
    "n_links": 3,
-   "distinct_regions_total": 5,
-   "distinct_sites_total": 5,
+   "distinct_regions_total": 6,
+   "distinct_sites_total": 7,
+   "contradiction_count": 0
+  },
+  {
+   "id": "C-15",
+   "entity": "lumen",
+   "links": [
+    {
+     "event": "backlog_growth",
+     "first_seen_day": 12,
+     "last_seen_day": 162,
+     "independent_sources": 13,
+     "total_reports": 13,
+     "distinct_sites": 7,
+     "distinct_regions": 5,
+     "contradicting_reports": 1
+    },
+    {
+     "event": "sla_breach",
+     "first_seen_day": 18,
+     "last_seen_day": 168,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "contract_penalty",
+     "first_seen_day": 48,
+     "last_seen_day": 70,
+     "independent_sources": 4,
+     "total_reports": 4,
+     "distinct_sites": 4,
+     "distinct_regions": 4,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 7,
+   "distinct_sites_total": 9,
+   "contradiction_count": 0
+  },
+  {
+   "id": "C-16",
+   "entity": "pellucid-pay456",
+   "links": [
+    {
+     "event": "false_alarm",
+     "first_seen_day": 8,
+     "last_seen_day": 91,
+     "independent_sources": 3,
+     "total_reports": 4,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "close_delay",
+     "first_seen_day": 10,
+     "last_seen_day": 109,
+     "independent_sources": 4,
+     "total_reports": 5,
+     "distinct_sites": 4,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "attrition_spike",
+     "first_seen_day": 11,
+     "last_seen_day": 66,
+     "independent_sources": 2,
+     "total_reports": 3,
+     "distinct_sites": 2,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "supplier_substitution",
+     "first_seen_day": 28,
+     "last_seen_day": 178,
+     "independent_sources": 4,
+     "total_reports": 5,
+     "distinct_sites": 4,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "component_defect",
+     "first_seen_day": 37,
+     "last_seen_day": 163,
+     "independent_sources": 4,
+     "total_reports": 5,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "price_increase",
+     "first_seen_day": 51,
+     "last_seen_day": 140,
+     "independent_sources": 4,
+     "total_reports": 5,
+     "distinct_sites": 3,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "policy_change",
+     "first_seen_day": 122,
+     "last_seen_day": 122,
+     "independent_sources": 1,
+     "total_reports": 2,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 7,
+   "distinct_regions_total": 6,
+   "distinct_sites_total": 11,
+   "contradiction_count": 0
+  },
+  {
+   "id": "C-17",
+   "entity": "solace",
+   "links": [
+    {
+     "event": "backlog_growth",
+     "first_seen_day": 15,
+     "last_seen_day": 174,
+     "independent_sources": 5,
+     "total_reports": 5,
+     "distinct_sites": 5,
+     "distinct_regions": 5,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "sla_breach",
+     "first_seen_day": 26,
+     "last_seen_day": 176,
+     "independent_sources": 6,
+     "total_reports": 6,
+     "distinct_sites": 4,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "account_churn",
+     "first_seen_day": 86,
+     "last_seen_day": 162,
+     "independent_sources": 4,
+     "total_reports": 4,
+     "distinct_sites": 4,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 7,
+   "distinct_sites_total": 11,
+   "contradiction_count": 0
+  },
+  {
+   "id": "C-18",
+   "entity": "meridian-pay455",
+   "links": [
+    {
+     "event": "shipment_delay",
+     "first_seen_day": 11,
+     "last_seen_day": 96,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "customer_escalation",
+     "first_seen_day": 34,
+     "last_seen_day": 130,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "revenue_miss",
+     "first_seen_day": 85,
+     "last_seen_day": 125,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 4,
+   "distinct_sites_total": 4,
    "contradiction_count": 0
   },
   {
    "id": "C-19",
-   "entity": "arbor-edge516",
+   "entity": "marlin441",
    "links": [
     {
-     "event": "false_alarm",
-     "first_seen_day": 5,
-     "last_seen_day": 96,
+     "event": "policy_change",
+     "first_seen_day": 8,
+     "last_seen_day": 170,
+     "independent_sources": 7,
+     "total_reports": 7,
+     "distinct_sites": 7,
+     "distinct_regions": 5,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "manual_workaround",
+     "first_seen_day": 119,
+     "last_seen_day": 160,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "audit_finding",
+     "first_seen_day": 173,
+     "last_seen_day": 173,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 6,
+   "distinct_sites_total": 8,
+   "contradiction_count": 0
+  },
+  {
+   "id": "C-20",
+   "entity": "sable",
+   "links": [
+    {
+     "event": "price_increase",
+     "first_seen_day": 18,
+     "last_seen_day": 149,
      "independent_sources": 3,
      "total_reports": 3,
      "distinct_sites": 3,
@@ -960,9 +980,39 @@
      "contradicting_reports": 0
     },
     {
-     "event": "unplanned_downtime",
-     "first_seen_day": 141,
-     "last_seen_day": 141,
+     "event": "margin_compression",
+     "first_seen_day": 62,
+     "last_seen_day": 149,
+     "independent_sources": 5,
+     "total_reports": 5,
+     "distinct_sites": 5,
+     "distinct_regions": 4,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "forecast_revision",
+     "first_seen_day": 97,
+     "last_seen_day": 165,
+     "independent_sources": 5,
+     "total_reports": 5,
+     "distinct_sites": 5,
+     "distinct_regions": 4,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 6,
+   "distinct_sites_total": 10,
+   "contradiction_count": 0
+  },
+  {
+   "id": "C-21",
+   "entity": "lumen-mk3",
+   "links": [
+    {
+     "event": "attrition_spike",
+     "first_seen_day": 45,
+     "last_seen_day": 45,
      "independent_sources": 1,
      "total_reports": 1,
      "distinct_sites": 1,
@@ -970,89 +1020,9 @@
      "contradicting_reports": 0
     },
     {
-     "event": "output_shortfall",
-     "first_seen_day": 162,
-     "last_seen_day": 179,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 1,
-     "distinct_regions": 1,
-     "contradicting_reports": 0
-    }
-   ],
-   "n_links": 3,
-   "distinct_regions_total": 4,
-   "distinct_sites_total": 5,
-   "contradiction_count": 0
-  },
-  {
-   "id": "C-20",
-   "entity": "thistle",
-   "links": [
-    {
-     "event": "component_defect",
-     "first_seen_day": 0,
-     "last_seen_day": 102,
-     "independent_sources": 7,
-     "total_reports": 7,
-     "distinct_sites": 6,
-     "distinct_regions": 6,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "customer_escalation",
-     "first_seen_day": 2,
-     "last_seen_day": 144,
-     "independent_sources": 5,
-     "total_reports": 5,
-     "distinct_sites": 3,
-     "distinct_regions": 3,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "supplier_substitution",
-     "first_seen_day": 3,
-     "last_seen_day": 178,
-     "independent_sources": 8,
-     "total_reports": 8,
-     "distinct_sites": 5,
-     "distinct_regions": 4,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "revenue_miss",
-     "first_seen_day": 7,
-     "last_seen_day": 127,
-     "independent_sources": 6,
-     "total_reports": 6,
-     "distinct_sites": 5,
-     "distinct_regions": 4,
-     "contradicting_reports": 0
-    }
-   ],
-   "n_links": 4,
-   "distinct_regions_total": 7,
-   "distinct_sites_total": 10,
-   "contradiction_count": 0
-  },
-  {
-   "id": "C-21",
-   "entity": "vireo-core502",
-   "links": [
-    {
-     "event": "latency_regression",
-     "first_seen_day": 31,
-     "last_seen_day": 109,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "batch_job_overrun",
-     "first_seen_day": 58,
-     "last_seen_day": 159,
+     "event": "sla_breach",
+     "first_seen_day": 80,
+     "last_seen_day": 160,
      "independent_sources": 2,
      "total_reports": 2,
      "distinct_sites": 2,
@@ -1060,11 +1030,11 @@
      "contradicting_reports": 0
     },
     {
-     "event": "reporting_delay",
-     "first_seen_day": 70,
-     "last_seen_day": 179,
-     "independent_sources": 2,
-     "total_reports": 2,
+     "event": "account_churn",
+     "first_seen_day": 146,
+     "last_seen_day": 146,
+     "independent_sources": 1,
+     "total_reports": 1,
      "distinct_sites": 1,
      "distinct_regions": 1,
      "contradicting_reports": 0
@@ -1077,22 +1047,22 @@
   },
   {
    "id": "C-22",
-   "entity": "zephyr-pay467",
+   "entity": "peregrine-ii583",
    "links": [
     {
-     "event": "policy_change",
-     "first_seen_day": 15,
-     "last_seen_day": 15,
-     "independent_sources": 1,
-     "total_reports": 1,
+     "event": "checkout_drop",
+     "first_seen_day": 7,
+     "last_seen_day": 91,
+     "independent_sources": 2,
+     "total_reports": 2,
      "distinct_sites": 1,
      "distinct_regions": 1,
      "contradicting_reports": 0
     },
     {
-     "event": "data_exposure_risk",
-     "first_seen_day": 24,
-     "last_seen_day": 100,
+     "event": "api_error_spike",
+     "first_seen_day": 10,
+     "last_seen_day": 112,
      "independent_sources": 2,
      "total_reports": 2,
      "distinct_sites": 2,
@@ -1100,9 +1070,9 @@
      "contradicting_reports": 0
     },
     {
-     "event": "regulatory_notice",
-     "first_seen_day": 36,
-     "last_seen_day": 42,
+     "event": "revenue_miss",
+     "first_seen_day": 56,
+     "last_seen_day": 86,
      "independent_sources": 2,
      "total_reports": 2,
      "distinct_sites": 2,
@@ -1111,236 +1081,26 @@
     }
    ],
    "n_links": 3,
-   "distinct_regions_total": 5,
+   "distinct_regions_total": 4,
    "distinct_sites_total": 5,
    "contradiction_count": 0
   },
   {
    "id": "C-23",
-   "entity": "thistlex",
+   "entity": "cobalt-pro592",
    "links": [
     {
-     "event": "attrition_spike",
-     "first_seen_day": 5,
-     "last_seen_day": 123,
+     "event": "price_increase",
+     "first_seen_day": 2,
+     "last_seen_day": 178,
      "independent_sources": 2,
      "total_reports": 2,
      "distinct_sites": 2,
      "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "backlog_growth",
-     "first_seen_day": 13,
-     "last_seen_day": 158,
-     "independent_sources": 3,
-     "total_reports": 3,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "sla_breach",
-     "first_seen_day": 164,
-     "last_seen_day": 164,
-     "independent_sources": 1,
-     "total_reports": 1,
-     "distinct_sites": 1,
-     "distinct_regions": 1,
-     "contradicting_reports": 0
-    }
-   ],
-   "n_links": 3,
-   "distinct_regions_total": 4,
-   "distinct_sites_total": 4,
-   "contradiction_count": 0
-  },
-  {
-   "id": "C-24",
-   "entity": "solace",
-   "links": [
-    {
-     "event": "forecast_revision",
-     "first_seen_day": 21,
-     "last_seen_day": 162,
-     "independent_sources": 4,
-     "total_reports": 4,
-     "distinct_sites": 4,
-     "distinct_regions": 4,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "discount_escalation",
-     "first_seen_day": 22,
-     "last_seen_day": 166,
-     "independent_sources": 5,
-     "total_reports": 5,
-     "distinct_sites": 5,
-     "distinct_regions": 4,
      "contradicting_reports": 0
     },
     {
      "event": "margin_compression",
-     "first_seen_day": 25,
-     "last_seen_day": 173,
-     "independent_sources": 4,
-     "total_reports": 4,
-     "distinct_sites": 3,
-     "distinct_regions": 3,
-     "contradicting_reports": 0
-    }
-   ],
-   "n_links": 3,
-   "distinct_regions_total": 6,
-   "distinct_sites_total": 8,
-   "contradiction_count": 0
-  },
-  {
-   "id": "C-25",
-   "entity": "quarry-edge",
-   "links": [
-    {
-     "event": "firmware_update",
-     "first_seen_day": 33,
-     "last_seen_day": 172,
-     "independent_sources": 3,
-     "total_reports": 3,
-     "distinct_sites": 3,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "sensor_drift",
-     "first_seen_day": 52,
-     "last_seen_day": 52,
-     "independent_sources": 1,
-     "total_reports": 1,
-     "distinct_sites": 1,
-     "distinct_regions": 1,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "false_alarm",
-     "first_seen_day": 70,
-     "last_seen_day": 137,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    }
-   ],
-   "n_links": 3,
-   "distinct_regions_total": 4,
-   "distinct_sites_total": 6,
-   "contradiction_count": 0
-  },
-  {
-   "id": "C-26",
-   "entity": "halcyon-net",
-   "links": [
-    {
-     "event": "latency_regression",
-     "first_seen_day": 0,
-     "last_seen_day": 150,
-     "independent_sources": 5,
-     "total_reports": 17,
-     "distinct_sites": 3,
-     "distinct_regions": 3,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "batch_job_overrun",
-     "first_seen_day": 20,
-     "last_seen_day": 161,
-     "independent_sources": 6,
-     "total_reports": 15,
-     "distinct_sites": 3,
-     "distinct_regions": 3,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "close_delay",
-     "first_seen_day": 21,
-     "last_seen_day": 102,
-     "independent_sources": 6,
-     "total_reports": 16,
-     "distinct_sites": 3,
-     "distinct_regions": 3,
-     "contradicting_reports": 0
-    }
-   ],
-   "n_links": 3,
-   "distinct_regions_total": 6,
-   "distinct_sites_total": 7,
-   "contradiction_count": 1
-  },
-  {
-   "id": "C-27",
-   "entity": "solace-v2",
-   "links": [
-    {
-     "event": "backlog_growth",
-     "first_seen_day": 11,
-     "last_seen_day": 122,
-     "independent_sources": 4,
-     "total_reports": 4,
-     "distinct_sites": 4,
-     "distinct_regions": 4,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "account_churn",
-     "first_seen_day": 16,
-     "last_seen_day": 124,
-     "independent_sources": 5,
-     "total_reports": 5,
-     "distinct_sites": 5,
-     "distinct_regions": 5,
-     "contradicting_reports": 0
-    }
-   ],
-   "n_links": 2,
-   "distinct_regions_total": 5,
-   "distinct_sites_total": 8,
-   "contradiction_count": 0
-  },
-  {
-   "id": "C-28",
-   "entity": "kestrel-pay",
-   "links": [
-    {
-     "event": "supplier_substitution",
-     "first_seen_day": 8,
-     "last_seen_day": 8,
-     "independent_sources": 1,
-     "total_reports": 1,
-     "distinct_sites": 1,
-     "distinct_regions": 1,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "component_defect",
-     "first_seen_day": 22,
-     "last_seen_day": 126,
-     "independent_sources": 10,
-     "total_reports": 10,
-     "distinct_sites": 7,
-     "distinct_regions": 3,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "yield_drop",
-     "first_seen_day": 22,
-     "last_seen_day": 177,
-     "independent_sources": 3,
-     "total_reports": 3,
-     "distinct_sites": 3,
-     "distinct_regions": 3,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "shipment_delay",
      "first_seen_day": 37,
      "last_seen_day": 37,
      "independent_sources": 1,
@@ -1350,13 +1110,493 @@
      "contradicting_reports": 0
     },
     {
+     "event": "forecast_revision",
+     "first_seen_day": 61,
+     "last_seen_day": 106,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 2,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 4,
+   "distinct_sites_total": 5,
+   "contradiction_count": 0
+  },
+  {
+   "id": "C-24",
+   "entity": "quarry-pro597",
+   "links": [
+    {
+     "event": "policy_change",
+     "first_seen_day": 0,
+     "last_seen_day": 164,
+     "independent_sources": 4,
+     "total_reports": 6,
+     "distinct_sites": 4,
+     "distinct_regions": 4,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "audit_finding",
+     "first_seen_day": 32,
+     "last_seen_day": 153,
+     "independent_sources": 5,
+     "total_reports": 6,
+     "distinct_sites": 4,
+     "distinct_regions": 4,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "regulatory_notice",
+     "first_seen_day": 46,
+     "last_seen_day": 175,
+     "independent_sources": 6,
+     "total_reports": 6,
+     "distinct_sites": 3,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 7,
+   "distinct_sites_total": 8,
+   "contradiction_count": 0
+  },
+  {
+   "id": "C-25",
+   "entity": "zephyr-na",
+   "links": [
+    {
+     "event": "attrition_spike",
+     "first_seen_day": 30,
+     "last_seen_day": 107,
+     "independent_sources": 4,
+     "total_reports": 4,
+     "distinct_sites": 4,
+     "distinct_regions": 4,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "backlog_growth",
+     "first_seen_day": 35,
+     "last_seen_day": 179,
+     "independent_sources": 4,
+     "total_reports": 4,
+     "distinct_sites": 4,
+     "distinct_regions": 4,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "sla_breach",
+     "first_seen_day": 60,
+     "last_seen_day": 60,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "account_churn",
+     "first_seen_day": 61,
+     "last_seen_day": 90,
+     "independent_sources": 2,
+     "total_reports": 3,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 4,
+   "distinct_regions_total": 7,
+   "distinct_sites_total": 10,
+   "contradiction_count": 0
+  },
+  {
+   "id": "C-26",
+   "entity": "cobalt",
+   "links": [
+    {
+     "event": "supplier_substitution",
+     "first_seen_day": 3,
+     "last_seen_day": 170,
+     "independent_sources": 5,
+     "total_reports": 5,
+     "distinct_sites": 5,
+     "distinct_regions": 5,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "component_defect",
+     "first_seen_day": 17,
+     "last_seen_day": 176,
+     "independent_sources": 6,
+     "total_reports": 6,
+     "distinct_sites": 6,
+     "distinct_regions": 5,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "yield_drop",
+     "first_seen_day": 27,
+     "last_seen_day": 155,
+     "independent_sources": 8,
+     "total_reports": 8,
+     "distinct_sites": 6,
+     "distinct_regions": 5,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "revenue_miss",
+     "first_seen_day": 41,
+     "last_seen_day": 73,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
      "event": "customer_escalation",
-     "first_seen_day": 73,
-     "last_seen_day": 125,
+     "first_seen_day": 42,
+     "last_seen_day": 101,
+     "independent_sources": 9,
+     "total_reports": 9,
+     "distinct_sites": 5,
+     "distinct_regions": 5,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 5,
+   "distinct_regions_total": 7,
+   "distinct_sites_total": 13,
+   "contradiction_count": 0
+  },
+  {
+   "id": "C-27",
+   "entity": "basalt",
+   "links": [
+    {
+     "event": "attrition_spike",
+     "first_seen_day": 7,
+     "last_seen_day": 160,
+     "independent_sources": 5,
+     "total_reports": 5,
+     "distinct_sites": 5,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "backlog_growth",
+     "first_seen_day": 14,
+     "last_seen_day": 131,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "contract_penalty",
+     "first_seen_day": 61,
+     "last_seen_day": 83,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "account_churn",
+     "first_seen_day": 102,
+     "last_seen_day": 167,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 4,
+   "distinct_regions_total": 6,
+   "distinct_sites_total": 9,
+   "contradiction_count": 0
+  },
+  {
+   "id": "C-28",
+   "entity": "basalt-pay458",
+   "links": [
+    {
+     "event": "firmware_update",
+     "first_seen_day": 21,
+     "last_seen_day": 119,
+     "independent_sources": 5,
+     "total_reports": 5,
+     "distinct_sites": 5,
+     "distinct_regions": 4,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "sensor_drift",
+     "first_seen_day": 30,
+     "last_seen_day": 30,
+     "independent_sources": 4,
+     "total_reports": 4,
+     "distinct_sites": 3,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "false_alarm",
+     "first_seen_day": 43,
+     "last_seen_day": 132,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "unplanned_downtime",
+     "first_seen_day": 72,
+     "last_seen_day": 72,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "output_shortfall",
+     "first_seen_day": 161,
+     "last_seen_day": 161,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 5,
+   "distinct_regions_total": 6,
+   "distinct_sites_total": 10,
+   "contradiction_count": 0
+  },
+  {
+   "id": "C-29",
+   "entity": "wexford438",
+   "links": [
+    {
+     "event": "attrition_spike",
+     "first_seen_day": 44,
+     "last_seen_day": 105,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "backlog_growth",
+     "first_seen_day": 51,
+     "last_seen_day": 51,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "sla_breach",
+     "first_seen_day": 116,
+     "last_seen_day": 158,
      "independent_sources": 4,
      "total_reports": 4,
      "distinct_sites": 3,
      "distinct_regions": 3,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 5,
+   "distinct_sites_total": 6,
+   "contradiction_count": 0
+  },
+  {
+   "id": "C-30",
+   "entity": "nimbus-core",
+   "links": [
+    {
+     "event": "attrition_spike",
+     "first_seen_day": 1,
+     "last_seen_day": 10,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "backlog_growth",
+     "first_seen_day": 8,
+     "last_seen_day": 8,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "account_churn",
+     "first_seen_day": 90,
+     "last_seen_day": 94,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 3,
+   "distinct_sites_total": 4,
+   "contradiction_count": 0
+  },
+  {
+   "id": "C-31",
+   "entity": "vireo",
+   "links": [
+    {
+     "event": "price_increase",
+     "first_seen_day": 14,
+     "last_seen_day": 151,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "margin_compression",
+     "first_seen_day": 37,
+     "last_seen_day": 178,
+     "independent_sources": 4,
+     "total_reports": 4,
+     "distinct_sites": 4,
+     "distinct_regions": 4,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "discount_escalation",
+     "first_seen_day": 94,
+     "last_seen_day": 170,
+     "independent_sources": 5,
+     "total_reports": 5,
+     "distinct_sites": 5,
+     "distinct_regions": 4,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 6,
+   "distinct_sites_total": 8,
+   "contradiction_count": 0
+  },
+  {
+   "id": "C-32",
+   "entity": "orion",
+   "links": [
+    {
+     "event": "latency_regression",
+     "first_seen_day": 3,
+     "last_seen_day": 111,
+     "independent_sources": 4,
+     "total_reports": 4,
+     "distinct_sites": 4,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "batch_job_overrun",
+     "first_seen_day": 3,
+     "last_seen_day": 3,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "reporting_delay",
+     "first_seen_day": 29,
+     "last_seen_day": 63,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "close_delay",
+     "first_seen_day": 70,
+     "last_seen_day": 118,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 4,
+   "distinct_regions_total": 6,
+   "distinct_sites_total": 9,
+   "contradiction_count": 0
+  },
+  {
+   "id": "C-33",
+   "entity": "arbor-na",
+   "links": [
+    {
+     "event": "supplier_substitution",
+     "first_seen_day": 18,
+     "last_seen_day": 141,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 2,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "component_defect",
+     "first_seen_day": 20,
+     "last_seen_day": 20,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "yield_drop",
+     "first_seen_day": 30,
+     "last_seen_day": 30,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 2,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "shipment_delay",
+     "first_seen_day": 57,
+     "last_seen_day": 169,
+     "independent_sources": 4,
+     "total_reports": 4,
+     "distinct_sites": 3,
+     "distinct_regions": 2,
      "contradicting_reports": 0
     },
     {
@@ -1370,119 +1610,109 @@
      "contradicting_reports": 0
     }
    ],
-   "n_links": 6,
-   "distinct_regions_total": 6,
-   "distinct_sites_total": 12,
+   "n_links": 5,
+   "distinct_regions_total": 4,
+   "distinct_sites_total": 8,
    "contradiction_count": 1
   },
   {
-   "id": "C-29",
-   "entity": "lumen",
+   "id": "C-34",
+   "entity": "tundra",
    "links": [
     {
-     "event": "latency_regression",
-     "first_seen_day": 1,
-     "last_seen_day": 145,
-     "independent_sources": 6,
-     "total_reports": 6,
-     "distinct_sites": 6,
-     "distinct_regions": 5,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "batch_job_overrun",
-     "first_seen_day": 5,
-     "last_seen_day": 41,
-     "independent_sources": 4,
-     "total_reports": 4,
-     "distinct_sites": 3,
-     "distinct_regions": 3,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "reporting_delay",
-     "first_seen_day": 34,
-     "last_seen_day": 104,
-     "independent_sources": 6,
-     "total_reports": 6,
+     "event": "network_change",
+     "first_seen_day": 78,
+     "last_seen_day": 178,
+     "independent_sources": 5,
+     "total_reports": 5,
      "distinct_sites": 5,
-     "distinct_regions": 5,
-     "contradicting_reports": 0
-    }
-   ],
-   "n_links": 3,
-   "distinct_regions_total": 6,
-   "distinct_sites_total": 12,
-   "contradiction_count": 0
-  },
-  {
-   "id": "C-30",
-   "entity": "meridian-pay",
-   "links": [
-    {
-     "event": "cert_rotation",
-     "first_seen_day": 0,
-     "last_seen_day": 148,
-     "independent_sources": 6,
-     "total_reports": 6,
-     "distinct_sites": 6,
      "distinct_regions": 4,
      "contradicting_reports": 0
     },
     {
-     "event": "auth_failure",
-     "first_seen_day": 7,
-     "last_seen_day": 25,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "api_error_spike",
-     "first_seen_day": 26,
-     "last_seen_day": 179,
-     "independent_sources": 6,
-     "total_reports": 6,
-     "distinct_sites": 5,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "checkout_drop",
-     "first_seen_day": 38,
-     "last_seen_day": 141,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "revenue_miss",
-     "first_seen_day": 38,
-     "last_seen_day": 162,
+     "event": "batch_job_overrun",
+     "first_seen_day": 82,
+     "last_seen_day": 178,
      "independent_sources": 3,
      "total_reports": 3,
-     "distinct_sites": 3,
-     "distinct_regions": 3,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "reporting_delay",
+     "first_seen_day": 155,
+     "last_seen_day": 174,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
      "contradicting_reports": 0
     }
    ],
-   "n_links": 5,
-   "distinct_regions_total": 4,
-   "distinct_sites_total": 11,
-   "contradiction_count": 1
+   "n_links": 3,
+   "distinct_regions_total": 5,
+   "distinct_sites_total": 8,
+   "contradiction_count": 0
   },
   {
-   "id": "C-31",
-   "entity": "pellucid",
+   "id": "C-35",
+   "entity": "tundrax",
+   "links": [
+    {
+     "event": "supplier_substitution",
+     "first_seen_day": 8,
+     "last_seen_day": 174,
+     "independent_sources": 5,
+     "total_reports": 5,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "component_defect",
+     "first_seen_day": 12,
+     "last_seen_day": 163,
+     "independent_sources": 6,
+     "total_reports": 6,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "yield_drop",
+     "first_seen_day": 26,
+     "last_seen_day": 45,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 2,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "customer_escalation",
+     "first_seen_day": 38,
+     "last_seen_day": 134,
+     "independent_sources": 4,
+     "total_reports": 4,
+     "distinct_sites": 4,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 4,
+   "distinct_regions_total": 4,
+   "distinct_sites_total": 9,
+   "contradiction_count": 0
+  },
+  {
+   "id": "C-36",
+   "entity": "wexford-na",
    "links": [
     {
      "event": "firmware_update",
-     "first_seen_day": 5,
-     "last_seen_day": 94,
+     "first_seen_day": 9,
+     "last_seen_day": 82,
      "independent_sources": 2,
      "total_reports": 2,
      "distinct_sites": 2,
@@ -1491,158 +1721,58 @@
     },
     {
      "event": "sensor_drift",
-     "first_seen_day": 26,
-     "last_seen_day": 169,
-     "independent_sources": 4,
-     "total_reports": 4,
-     "distinct_sites": 4,
-     "distinct_regions": 3,
+     "first_seen_day": 33,
+     "last_seen_day": 97,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 2,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "false_alarm",
+     "first_seen_day": 82,
+     "last_seen_day": 128,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
      "contradicting_reports": 0
     },
     {
      "event": "unplanned_downtime",
-     "first_seen_day": 33,
-     "last_seen_day": 153,
-     "independent_sources": 5,
-     "total_reports": 5,
-     "distinct_sites": 3,
-     "distinct_regions": 3,
-     "contradicting_reports": 1
-    }
-   ],
-   "n_links": 3,
-   "distinct_regions_total": 6,
-   "distinct_sites_total": 9,
-   "contradiction_count": 0
-  },
-  {
-   "id": "C-32",
-   "entity": "wisteria-ii",
-   "links": [
-    {
-     "event": "yield_drop",
-     "first_seen_day": 4,
-     "last_seen_day": 51,
+     "first_seen_day": 88,
+     "last_seen_day": 170,
      "independent_sources": 2,
      "total_reports": 2,
      "distinct_sites": 2,
      "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "supplier_substitution",
-     "first_seen_day": 6,
-     "last_seen_day": 148,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "customer_escalation",
-     "first_seen_day": 7,
-     "last_seen_day": 141,
-     "independent_sources": 3,
-     "total_reports": 3,
-     "distinct_sites": 3,
-     "distinct_regions": 3,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "revenue_miss",
-     "first_seen_day": 168,
-     "last_seen_day": 168,
-     "independent_sources": 1,
-     "total_reports": 1,
-     "distinct_sites": 1,
-     "distinct_regions": 1,
      "contradicting_reports": 0
     }
    ],
    "n_links": 4,
    "distinct_regions_total": 5,
-   "distinct_sites_total": 5,
-   "contradiction_count": 0
-  },
-  {
-   "id": "C-33",
-   "entity": "peregrine-pay471",
-   "links": [
-    {
-     "event": "policy_change",
-     "first_seen_day": 15,
-     "last_seen_day": 35,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "manual_workaround",
-     "first_seen_day": 58,
-     "last_seen_day": 167,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "audit_finding",
-     "first_seen_day": 87,
-     "last_seen_day": 87,
-     "independent_sources": 1,
-     "total_reports": 1,
-     "distinct_sites": 1,
-     "distinct_regions": 1,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "regulatory_notice",
-     "first_seen_day": 104,
-     "last_seen_day": 104,
-     "independent_sources": 1,
-     "total_reports": 2,
-     "distinct_sites": 1,
-     "distinct_regions": 1,
-     "contradicting_reports": 0
-    }
-   ],
-   "n_links": 4,
-   "distinct_regions_total": 3,
    "distinct_sites_total": 6,
    "contradiction_count": 0
   },
   {
-   "id": "C-34",
-   "entity": "peregrine",
+   "id": "C-37",
+   "entity": "pellucid-eu",
    "links": [
     {
      "event": "policy_change",
-     "first_seen_day": 8,
-     "last_seen_day": 170,
-     "independent_sources": 2,
-     "total_reports": 3,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
+     "first_seen_day": 63,
+     "last_seen_day": 63,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
      "contradicting_reports": 0
     },
     {
      "event": "manual_workaround",
-     "first_seen_day": 14,
-     "last_seen_day": 155,
-     "independent_sources": 5,
-     "total_reports": 5,
-     "distinct_sites": 4,
-     "distinct_regions": 4,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "data_exposure_risk",
-     "first_seen_day": 14,
-     "last_seen_day": 36,
+     "first_seen_day": 100,
+     "last_seen_day": 152,
      "independent_sources": 2,
      "total_reports": 2,
      "distinct_sites": 2,
@@ -1650,99 +1780,59 @@
      "contradicting_reports": 0
     },
     {
-     "event": "regulatory_notice",
-     "first_seen_day": 21,
-     "last_seen_day": 178,
-     "independent_sources": 8,
-     "total_reports": 8,
-     "distinct_sites": 6,
-     "distinct_regions": 4,
-     "contradicting_reports": 1
+     "event": "data_exposure_risk",
+     "first_seen_day": 126,
+     "last_seen_day": 126,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "audit_finding",
+     "first_seen_day": 141,
+     "last_seen_day": 141,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
     }
    ],
    "n_links": 4,
    "distinct_regions_total": 5,
-   "distinct_sites_total": 9,
+   "distinct_sites_total": 5,
    "contradiction_count": 0
   },
   {
-   "id": "C-35",
-   "entity": "kestrel-edge",
+   "id": "C-38",
+   "entity": "pellucid-pro",
    "links": [
     {
-     "event": "cert_rotation",
-     "first_seen_day": 21,
-     "last_seen_day": 21,
-     "independent_sources": 1,
-     "total_reports": 1,
-     "distinct_sites": 1,
-     "distinct_regions": 1,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "auth_failure",
-     "first_seen_day": 29,
-     "last_seen_day": 29,
-     "independent_sources": 1,
-     "total_reports": 1,
-     "distinct_sites": 1,
-     "distinct_regions": 1,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "api_error_spike",
-     "first_seen_day": 105,
-     "last_seen_day": 105,
-     "independent_sources": 1,
-     "total_reports": 1,
-     "distinct_sites": 1,
-     "distinct_regions": 1,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "checkout_drop",
-     "first_seen_day": 109,
-     "last_seen_day": 109,
-     "independent_sources": 1,
-     "total_reports": 1,
-     "distinct_sites": 1,
-     "distinct_regions": 1,
-     "contradicting_reports": 0
-    }
-   ],
-   "n_links": 4,
-   "distinct_regions_total": 3,
-   "distinct_sites_total": 3,
-   "contradiction_count": 0
-  },
-  {
-   "id": "C-36",
-   "entity": "arbor-hub",
-   "links": [
-    {
-     "event": "firmware_update",
-     "first_seen_day": 0,
-     "last_seen_day": 51,
-     "independent_sources": 3,
-     "total_reports": 3,
-     "distinct_sites": 3,
-     "distinct_regions": 3,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "unplanned_downtime",
-     "first_seen_day": 2,
-     "last_seen_day": 2,
-     "independent_sources": 1,
+     "event": "price_increase",
+     "first_seen_day": 59,
+     "last_seen_day": 112,
+     "independent_sources": 2,
      "total_reports": 2,
-     "distinct_sites": 1,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "forecast_revision",
+     "first_seen_day": 80,
+     "last_seen_day": 108,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
      "distinct_regions": 1,
      "contradicting_reports": 0
     },
     {
-     "event": "output_shortfall",
-     "first_seen_day": 30,
-     "last_seen_day": 33,
+     "event": "margin_compression",
+     "first_seen_day": 81,
+     "last_seen_day": 127,
      "independent_sources": 2,
      "total_reports": 2,
      "distinct_sites": 2,
@@ -1751,12 +1841,12 @@
     }
    ],
    "n_links": 3,
-   "distinct_regions_total": 5,
+   "distinct_regions_total": 3,
    "distinct_sites_total": 5,
    "contradiction_count": 0
   },
   {
-   "id": "C-37",
+   "id": "C-39",
    "entity": "nimbusx532",
    "links": [
     {
@@ -1772,687 +1862,47 @@
     {
      "event": "backlog_growth",
      "first_seen_day": 37,
-     "last_seen_day": 54,
-     "independent_sources": 4,
-     "total_reports": 4,
-     "distinct_sites": 4,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "contract_penalty",
-     "first_seen_day": 49,
-     "last_seen_day": 49,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 1,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "sla_breach",
-     "first_seen_day": 50,
-     "last_seen_day": 50,
-     "independent_sources": 1,
-     "total_reports": 1,
-     "distinct_sites": 1,
-     "distinct_regions": 1,
+     "last_seen_day": 171,
+     "independent_sources": 7,
+     "total_reports": 7,
+     "distinct_sites": 5,
+     "distinct_regions": 3,
      "contradicting_reports": 0
     },
     {
      "event": "account_churn",
      "first_seen_day": 79,
-     "last_seen_day": 79,
+     "last_seen_day": 168,
      "independent_sources": 3,
      "total_reports": 3,
-     "distinct_sites": 1,
+     "distinct_sites": 2,
      "distinct_regions": 1,
      "contradicting_reports": 0
-    }
-   ],
-   "n_links": 5,
-   "distinct_regions_total": 4,
-   "distinct_sites_total": 7,
-   "contradiction_count": 0
-  },
-  {
-   "id": "C-38",
-   "entity": "meridian",
-   "links": [
-    {
-     "event": "component_defect",
-     "first_seen_day": 16,
-     "last_seen_day": 149,
-     "independent_sources": 9,
-     "total_reports": 9,
-     "distinct_sites": 5,
-     "distinct_regions": 5,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "yield_drop",
-     "first_seen_day": 21,
-     "last_seen_day": 69,
-     "independent_sources": 3,
-     "total_reports": 3,
-     "distinct_sites": 3,
-     "distinct_regions": 3,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "customer_escalation",
-     "first_seen_day": 34,
-     "last_seen_day": 172,
-     "independent_sources": 6,
-     "total_reports": 6,
-     "distinct_sites": 5,
-     "distinct_regions": 5,
-     "contradicting_reports": 1
     }
    ],
    "n_links": 3,
-   "distinct_regions_total": 7,
-   "distinct_sites_total": 8,
-   "contradiction_count": 0
-  },
-  {
-   "id": "C-39",
-   "entity": "zephyr-core495",
-   "links": [
-    {
-     "event": "attrition_spike",
-     "first_seen_day": 2,
-     "last_seen_day": 48,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "backlog_growth",
-     "first_seen_day": 22,
-     "last_seen_day": 84,
-     "independent_sources": 5,
-     "total_reports": 5,
-     "distinct_sites": 3,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "sla_breach",
-     "first_seen_day": 26,
-     "last_seen_day": 141,
-     "independent_sources": 5,
-     "total_reports": 5,
-     "distinct_sites": 4,
-     "distinct_regions": 4,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "contract_penalty",
-     "first_seen_day": 104,
-     "last_seen_day": 155,
-     "independent_sources": 3,
-     "total_reports": 3,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "account_churn",
-     "first_seen_day": 118,
-     "last_seen_day": 118,
-     "independent_sources": 1,
-     "total_reports": 1,
-     "distinct_sites": 1,
-     "distinct_regions": 1,
-     "contradicting_reports": 0
-    }
-   ],
-   "n_links": 5,
-   "distinct_regions_total": 6,
-   "distinct_sites_total": 9,
+   "distinct_regions_total": 4,
+   "distinct_sites_total": 7,
    "contradiction_count": 0
   },
   {
    "id": "C-40",
-   "entity": "marlin",
-   "links": [
-    {
-     "event": "firmware_update",
-     "first_seen_day": 6,
-     "last_seen_day": 159,
-     "independent_sources": 5,
-     "total_reports": 5,
-     "distinct_sites": 5,
-     "distinct_regions": 4,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "false_alarm",
-     "first_seen_day": 23,
-     "last_seen_day": 159,
-     "independent_sources": 4,
-     "total_reports": 4,
-     "distinct_sites": 3,
-     "distinct_regions": 3,
-     "contradicting_reports": 1
-    },
-    {
-     "event": "unplanned_downtime",
-     "first_seen_day": 118,
-     "last_seen_day": 173,
-     "independent_sources": 5,
-     "total_reports": 5,
-     "distinct_sites": 5,
-     "distinct_regions": 4,
-     "contradicting_reports": 0
-    }
-   ],
-   "n_links": 3,
-   "distinct_regions_total": 7,
-   "distinct_sites_total": 11,
-   "contradiction_count": 0
-  },
-  {
-   "id": "C-41",
-   "entity": "meridian-eu",
-   "links": [
-    {
-     "event": "firmware_update",
-     "first_seen_day": 1,
-     "last_seen_day": 100,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "sensor_drift",
-     "first_seen_day": 22,
-     "last_seen_day": 137,
-     "independent_sources": 4,
-     "total_reports": 4,
-     "distinct_sites": 3,
-     "distinct_regions": 3,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "false_alarm",
-     "first_seen_day": 72,
-     "last_seen_day": 134,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "unplanned_downtime",
-     "first_seen_day": 102,
-     "last_seen_day": 149,
-     "independent_sources": 3,
-     "total_reports": 3,
-     "distinct_sites": 3,
-     "distinct_regions": 3,
-     "contradicting_reports": 0
-    }
-   ],
-   "n_links": 4,
-   "distinct_regions_total": 5,
-   "distinct_sites_total": 9,
-   "contradiction_count": 0
-  },
-  {
-   "id": "C-42",
-   "entity": "basalt-core",
-   "links": [
-    {
-     "event": "firmware_update",
-     "first_seen_day": 44,
-     "last_seen_day": 83,
-     "independent_sources": 3,
-     "total_reports": 3,
-     "distinct_sites": 3,
-     "distinct_regions": 3,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "false_alarm",
-     "first_seen_day": 50,
-     "last_seen_day": 80,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "output_shortfall",
-     "first_seen_day": 65,
-     "last_seen_day": 119,
-     "independent_sources": 4,
-     "total_reports": 4,
-     "distinct_sites": 3,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    }
-   ],
-   "n_links": 3,
-   "distinct_regions_total": 4,
-   "distinct_sites_total": 5,
-   "contradiction_count": 0
-  },
-  {
-   "id": "C-43",
-   "entity": "tundra-pro",
-   "links": [
-    {
-     "event": "firmware_update",
-     "first_seen_day": 2,
-     "last_seen_day": 103,
-     "independent_sources": 3,
-     "total_reports": 3,
-     "distinct_sites": 2,
-     "distinct_regions": 1,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "sensor_drift",
-     "first_seen_day": 57,
-     "last_seen_day": 105,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "output_shortfall",
-     "first_seen_day": 115,
-     "last_seen_day": 115,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    }
-   ],
-   "n_links": 3,
-   "distinct_regions_total": 4,
-   "distinct_sites_total": 5,
-   "contradiction_count": 0
-  },
-  {
-   "id": "C-44",
-   "entity": "zephyr-eu",
-   "links": [
-    {
-     "event": "network_change",
-     "first_seen_day": 21,
-     "last_seen_day": 21,
-     "independent_sources": 1,
-     "total_reports": 1,
-     "distinct_sites": 1,
-     "distinct_regions": 1,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "latency_regression",
-     "first_seen_day": 77,
-     "last_seen_day": 77,
-     "independent_sources": 1,
-     "total_reports": 1,
-     "distinct_sites": 1,
-     "distinct_regions": 1,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "close_delay",
-     "first_seen_day": 97,
-     "last_seen_day": 175,
-     "independent_sources": 3,
-     "total_reports": 3,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    }
-   ],
-   "n_links": 3,
-   "distinct_regions_total": 4,
-   "distinct_sites_total": 4,
-   "contradiction_count": 0
-  },
-  {
-   "id": "C-45",
-   "entity": "nimbus-pay",
-   "links": [
-    {
-     "event": "manual_workaround",
-     "first_seen_day": 20,
-     "last_seen_day": 165,
-     "independent_sources": 3,
-     "total_reports": 3,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "data_exposure_risk",
-     "first_seen_day": 45,
-     "last_seen_day": 156,
-     "independent_sources": 3,
-     "total_reports": 3,
-     "distinct_sites": 3,
-     "distinct_regions": 3,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "audit_finding",
-     "first_seen_day": 59,
-     "last_seen_day": 59,
-     "independent_sources": 1,
-     "total_reports": 1,
-     "distinct_sites": 1,
-     "distinct_regions": 1,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "regulatory_notice",
-     "first_seen_day": 66,
-     "last_seen_day": 166,
-     "independent_sources": 6,
-     "total_reports": 6,
-     "distinct_sites": 5,
-     "distinct_regions": 4,
-     "contradicting_reports": 0
-    }
-   ],
-   "n_links": 4,
-   "distinct_regions_total": 6,
-   "distinct_sites_total": 10,
-   "contradiction_count": 0
-  },
-  {
-   "id": "C-46",
-   "entity": "halcyon-pay",
-   "links": [
-    {
-     "event": "supplier_substitution",
-     "first_seen_day": 21,
-     "last_seen_day": 167,
-     "independent_sources": 6,
-     "total_reports": 6,
-     "distinct_sites": 6,
-     "distinct_regions": 5,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "shipment_delay",
-     "first_seen_day": 43,
-     "last_seen_day": 164,
-     "independent_sources": 3,
-     "total_reports": 3,
-     "distinct_sites": 3,
-     "distinct_regions": 1,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "customer_escalation",
-     "first_seen_day": 139,
-     "last_seen_day": 174,
-     "independent_sources": 3,
-     "total_reports": 3,
-     "distinct_sites": 3,
-     "distinct_regions": 3,
-     "contradicting_reports": 0
-    }
-   ],
-   "n_links": 3,
-   "distinct_regions_total": 7,
-   "distinct_sites_total": 11,
-   "contradiction_count": 0
-  },
-  {
-   "id": "C-47",
-   "entity": "basalt",
-   "links": [
-    {
-     "event": "attrition_spike",
-     "first_seen_day": 7,
-     "last_seen_day": 135,
-     "independent_sources": 5,
-     "total_reports": 6,
-     "distinct_sites": 5,
-     "distinct_regions": 4,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "backlog_growth",
-     "first_seen_day": 7,
-     "last_seen_day": 147,
-     "independent_sources": 4,
-     "total_reports": 4,
-     "distinct_sites": 3,
-     "distinct_regions": 3,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "sla_breach",
-     "first_seen_day": 35,
-     "last_seen_day": 65,
-     "independent_sources": 6,
-     "total_reports": 6,
-     "distinct_sites": 4,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "contract_penalty",
-     "first_seen_day": 48,
-     "last_seen_day": 83,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "account_churn",
-     "first_seen_day": 103,
-     "last_seen_day": 179,
-     "independent_sources": 3,
-     "total_reports": 3,
-     "distinct_sites": 3,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    }
-   ],
-   "n_links": 5,
-   "distinct_regions_total": 6,
-   "distinct_sites_total": 11,
-   "contradiction_count": 1
-  },
-  {
-   "id": "C-48",
-   "entity": "quarry-core",
-   "links": [
-    {
-     "event": "policy_change",
-     "first_seen_day": 36,
-     "last_seen_day": 152,
-     "independent_sources": 5,
-     "total_reports": 5,
-     "distinct_sites": 5,
-     "distinct_regions": 3,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "data_exposure_risk",
-     "first_seen_day": 94,
-     "last_seen_day": 97,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "regulatory_notice",
-     "first_seen_day": 165,
-     "last_seen_day": 175,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    }
-   ],
-   "n_links": 3,
-   "distinct_regions_total": 6,
-   "distinct_sites_total": 8,
-   "contradiction_count": 0
-  },
-  {
-   "id": "C-49",
-   "entity": "meridian-eu",
-   "links": [
-    {
-     "event": "data_exposure_risk",
-     "first_seen_day": 5,
-     "last_seen_day": 164,
-     "independent_sources": 3,
-     "total_reports": 3,
-     "distinct_sites": 3,
-     "distinct_regions": 3,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "manual_workaround",
-     "first_seen_day": 6,
-     "last_seen_day": 6,
-     "independent_sources": 1,
-     "total_reports": 1,
-     "distinct_sites": 1,
-     "distinct_regions": 1,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "audit_finding",
-     "first_seen_day": 77,
-     "last_seen_day": 96,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    }
-   ],
-   "n_links": 3,
-   "distinct_regions_total": 4,
-   "distinct_sites_total": 6,
-   "contradiction_count": 0
-  },
-  {
-   "id": "C-50",
-   "entity": "orionx535",
-   "links": [
-    {
-     "event": "sensor_drift",
-     "first_seen_day": 5,
-     "last_seen_day": 117,
-     "independent_sources": 4,
-     "total_reports": 4,
-     "distinct_sites": 4,
-     "distinct_regions": 3,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "false_alarm",
-     "first_seen_day": 11,
-     "last_seen_day": 162,
-     "independent_sources": 4,
-     "total_reports": 4,
-     "distinct_sites": 4,
-     "distinct_regions": 4,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "unplanned_downtime",
-     "first_seen_day": 149,
-     "last_seen_day": 173,
-     "independent_sources": 3,
-     "total_reports": 3,
-     "distinct_sites": 3,
-     "distinct_regions": 3,
-     "contradicting_reports": 0
-    }
-   ],
-   "n_links": 3,
-   "distinct_regions_total": 5,
-   "distinct_sites_total": 9,
-   "contradiction_count": 1
-  },
-  {
-   "id": "C-51",
-   "entity": "lumen-hub",
+   "entity": "tessera-pay",
    "links": [
     {
      "event": "component_defect",
-     "first_seen_day": 21,
-     "last_seen_day": 157,
+     "first_seen_day": 15,
+     "last_seen_day": 109,
      "independent_sources": 5,
      "total_reports": 5,
-     "distinct_sites": 5,
-     "distinct_regions": 4,
+     "distinct_sites": 4,
+     "distinct_regions": 3,
      "contradicting_reports": 0
     },
     {
      "event": "yield_drop",
-     "first_seen_day": 69,
-     "last_seen_day": 155,
-     "independent_sources": 3,
-     "total_reports": 3,
-     "distinct_sites": 3,
-     "distinct_regions": 3,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "customer_escalation",
-     "first_seen_day": 95,
-     "last_seen_day": 95,
-     "independent_sources": 1,
-     "total_reports": 1,
-     "distinct_sites": 1,
-     "distinct_regions": 1,
-     "contradicting_reports": 0
-    }
-   ],
-   "n_links": 3,
-   "distinct_regions_total": 6,
-   "distinct_sites_total": 8,
-   "contradiction_count": 0
-  },
-  {
-   "id": "C-52",
-   "entity": "basalt-net",
-   "links": [
-    {
-     "event": "backlog_growth",
-     "first_seen_day": 8,
-     "last_seen_day": 111,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "sla_breach",
-     "first_seen_day": 32,
-     "last_seen_day": 32,
+     "first_seen_day": 40,
+     "last_seen_day": 40,
      "independent_sources": 1,
      "total_reports": 1,
      "distinct_sites": 1,
@@ -2460,338 +1910,48 @@
      "contradicting_reports": 0
     },
     {
-     "event": "contract_penalty",
-     "first_seen_day": 131,
-     "last_seen_day": 179,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
+     "event": "shipment_delay",
+     "first_seen_day": 157,
+     "last_seen_day": 170,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
      "contradicting_reports": 0
     }
    ],
    "n_links": 3,
-   "distinct_regions_total": 4,
-   "distinct_sites_total": 5,
-   "contradiction_count": 0
-  },
-  {
-   "id": "C-53",
-   "entity": "arbor-pay",
-   "links": [
-    {
-     "event": "price_increase",
-     "first_seen_day": 5,
-     "last_seen_day": 88,
-     "independent_sources": 3,
-     "total_reports": 3,
-     "distinct_sites": 3,
-     "distinct_regions": 3,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "margin_compression",
-     "first_seen_day": 24,
-     "last_seen_day": 125,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "discount_escalation",
-     "first_seen_day": 39,
-     "last_seen_day": 96,
-     "independent_sources": 3,
-     "total_reports": 3,
-     "distinct_sites": 3,
-     "distinct_regions": 3,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "forecast_revision",
-     "first_seen_day": 136,
-     "last_seen_day": 165,
-     "independent_sources": 3,
-     "total_reports": 3,
-     "distinct_sites": 3,
-     "distinct_regions": 3,
-     "contradicting_reports": 0
-    }
-   ],
-   "n_links": 4,
    "distinct_regions_total": 5,
    "distinct_sites_total": 7,
-   "contradiction_count": 0
+   "contradiction_count": 1
   },
   {
-   "id": "C-54",
-   "entity": "wexford-v2",
-   "links": [
-    {
-     "event": "supplier_substitution",
-     "first_seen_day": 58,
-     "last_seen_day": 149,
-     "independent_sources": 4,
-     "total_reports": 4,
-     "distinct_sites": 4,
-     "distinct_regions": 4,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "customer_escalation",
-     "first_seen_day": 70,
-     "last_seen_day": 70,
-     "independent_sources": 1,
-     "total_reports": 1,
-     "distinct_sites": 1,
-     "distinct_regions": 1,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "component_defect",
-     "first_seen_day": 71,
-     "last_seen_day": 124,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "revenue_miss",
-     "first_seen_day": 111,
-     "last_seen_day": 112,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    }
-   ],
-   "n_links": 4,
-   "distinct_regions_total": 7,
-   "distinct_sites_total": 9,
-   "contradiction_count": 0
-  },
-  {
-   "id": "C-55",
-   "entity": "thistle-ii",
-   "links": [
-    {
-     "event": "firmware_update",
-     "first_seen_day": 7,
-     "last_seen_day": 144,
-     "independent_sources": 7,
-     "total_reports": 7,
-     "distinct_sites": 6,
-     "distinct_regions": 6,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "sensor_drift",
-     "first_seen_day": 62,
-     "last_seen_day": 154,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "false_alarm",
-     "first_seen_day": 64,
-     "last_seen_day": 149,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    }
-   ],
-   "n_links": 3,
-   "distinct_regions_total": 7,
-   "distinct_sites_total": 8,
-   "contradiction_count": 0
-  },
-  {
-   "id": "C-56",
-   "entity": "tundra-core",
-   "links": [
-    {
-     "event": "price_increase",
-     "first_seen_day": 11,
-     "last_seen_day": 24,
-     "independent_sources": 3,
-     "total_reports": 3,
-     "distinct_sites": 3,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "margin_compression",
-     "first_seen_day": 26,
-     "last_seen_day": 34,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "discount_escalation",
-     "first_seen_day": 34,
-     "last_seen_day": 54,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "forecast_revision",
-     "first_seen_day": 66,
-     "last_seen_day": 126,
-     "independent_sources": 4,
-     "total_reports": 4,
-     "distinct_sites": 4,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    }
-   ],
-   "n_links": 4,
-   "distinct_regions_total": 5,
-   "distinct_sites_total": 8,
-   "contradiction_count": 0
-  },
-  {
-   "id": "C-57",
-   "entity": "solace-ii",
-   "links": [
-    {
-     "event": "cert_rotation",
-     "first_seen_day": 25,
-     "last_seen_day": 123,
-     "independent_sources": 5,
-     "total_reports": 5,
-     "distinct_sites": 3,
-     "distinct_regions": 3,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "api_error_spike",
-     "first_seen_day": 41,
-     "last_seen_day": 41,
-     "independent_sources": 1,
-     "total_reports": 1,
-     "distinct_sites": 1,
-     "distinct_regions": 1,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "checkout_drop",
-     "first_seen_day": 53,
-     "last_seen_day": 53,
-     "independent_sources": 1,
-     "total_reports": 1,
-     "distinct_sites": 1,
-     "distinct_regions": 1,
-     "contradicting_reports": 0
-    }
-   ],
-   "n_links": 3,
-   "distinct_regions_total": 5,
-   "distinct_sites_total": 5,
-   "contradiction_count": 0
-  },
-  {
-   "id": "C-58",
-   "entity": "arbor-mk3",
-   "links": [
-    {
-     "event": "manual_workaround",
-     "first_seen_day": 75,
-     "last_seen_day": 141,
-     "independent_sources": 3,
-     "total_reports": 3,
-     "distinct_sites": 1,
-     "distinct_regions": 1,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "data_exposure_risk",
-     "first_seen_day": 79,
-     "last_seen_day": 85,
-     "independent_sources": 3,
-     "total_reports": 3,
-     "distinct_sites": 3,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "audit_finding",
-     "first_seen_day": 85,
-     "last_seen_day": 85,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 1,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "regulatory_notice",
-     "first_seen_day": 114,
-     "last_seen_day": 126,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    }
-   ],
-   "n_links": 4,
-   "distinct_regions_total": 4,
-   "distinct_sites_total": 6,
-   "contradiction_count": 0
-  },
-  {
-   "id": "C-59",
-   "entity": "zephyr-na",
+   "id": "C-41",
+   "entity": "wexford",
    "links": [
     {
      "event": "attrition_spike",
-     "first_seen_day": 30,
-     "last_seen_day": 140,
-     "independent_sources": 4,
-     "total_reports": 4,
+     "first_seen_day": 19,
+     "last_seen_day": 98,
+     "independent_sources": 3,
+     "total_reports": 3,
      "distinct_sites": 3,
      "distinct_regions": 3,
      "contradicting_reports": 0
     },
     {
+     "event": "backlog_growth",
+     "first_seen_day": 63,
+     "last_seen_day": 63,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
      "event": "sla_breach",
-     "first_seen_day": 60,
-     "last_seen_day": 93,
-     "independent_sources": 2,
-     "total_reports": 2,
-     "distinct_sites": 2,
-     "distinct_regions": 2,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "contract_penalty",
-     "first_seen_day": 60,
-     "last_seen_day": 155,
-     "independent_sources": 4,
-     "total_reports": 4,
-     "distinct_sites": 4,
-     "distinct_regions": 3,
-     "contradicting_reports": 0
-    },
-    {
-     "event": "account_churn",
-     "first_seen_day": 61,
+     "first_seen_day": 112,
      "last_seen_day": 163,
      "independent_sources": 3,
      "total_reports": 3,
@@ -2800,9 +1960,589 @@
      "contradicting_reports": 0
     }
    ],
+   "n_links": 3,
+   "distinct_regions_total": 6,
+   "distinct_sites_total": 7,
+   "contradiction_count": 0
+  },
+  {
+   "id": "C-42",
+   "entity": "nimbus-pay448",
+   "links": [
+    {
+     "event": "cert_rotation",
+     "first_seen_day": 31,
+     "last_seen_day": 126,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "api_error_spike",
+     "first_seen_day": 41,
+     "last_seen_day": 111,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "checkout_drop",
+     "first_seen_day": 48,
+     "last_seen_day": 81,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 4,
+   "distinct_sites_total": 6,
+   "contradiction_count": 0
+  },
+  {
+   "id": "C-43",
+   "entity": "lumen-core",
+   "links": [
+    {
+     "event": "firmware_update",
+     "first_seen_day": 49,
+     "last_seen_day": 67,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "unplanned_downtime",
+     "first_seen_day": 79,
+     "last_seen_day": 84,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "sensor_drift",
+     "first_seen_day": 80,
+     "last_seen_day": 80,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 4,
+   "distinct_sites_total": 6,
+   "contradiction_count": 1
+  },
+  {
+   "id": "C-44",
+   "entity": "kestrel-edge506",
+   "links": [
+    {
+     "event": "component_defect",
+     "first_seen_day": 16,
+     "last_seen_day": 175,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "shipment_delay",
+     "first_seen_day": 19,
+     "last_seen_day": 101,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "customer_escalation",
+     "first_seen_day": 30,
+     "last_seen_day": 117,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "revenue_miss",
+     "first_seen_day": 173,
+     "last_seen_day": 173,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 4,
+   "distinct_regions_total": 5,
+   "distinct_sites_total": 7,
+   "contradiction_count": 0
+  },
+  {
+   "id": "C-45",
+   "entity": "solace-v2",
+   "links": [
+    {
+     "event": "attrition_spike",
+     "first_seen_day": 35,
+     "last_seen_day": 171,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "contract_penalty",
+     "first_seen_day": 39,
+     "last_seen_day": 39,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "account_churn",
+     "first_seen_day": 52,
+     "last_seen_day": 52,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 3,
+   "distinct_sites_total": 4,
+   "contradiction_count": 0
+  },
+  {
+   "id": "C-46",
+   "entity": "kestrel-ii562",
+   "links": [
+    {
+     "event": "supplier_substitution",
+     "first_seen_day": 1,
+     "last_seen_day": 75,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "component_defect",
+     "first_seen_day": 28,
+     "last_seen_day": 28,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "shipment_delay",
+     "first_seen_day": 45,
+     "last_seen_day": 116,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "revenue_miss",
+     "first_seen_day": 170,
+     "last_seen_day": 179,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    }
+   ],
    "n_links": 4,
    "distinct_regions_total": 6,
-   "distinct_sites_total": 10,
+   "distinct_sites_total": 8,
+   "contradiction_count": 0
+  },
+  {
+   "id": "C-47",
+   "entity": "meridian-hub",
+   "links": [
+    {
+     "event": "attrition_spike",
+     "first_seen_day": 17,
+     "last_seen_day": 38,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "backlog_growth",
+     "first_seen_day": 29,
+     "last_seen_day": 125,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "contract_penalty",
+     "first_seen_day": 129,
+     "last_seen_day": 129,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 3,
+   "distinct_sites_total": 4,
+   "contradiction_count": 0
+  },
+  {
+   "id": "C-48",
+   "entity": "tundra-pro",
+   "links": [
+    {
+     "event": "attrition_spike",
+     "first_seen_day": 2,
+     "last_seen_day": 135,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "backlog_growth",
+     "first_seen_day": 66,
+     "last_seen_day": 115,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "account_churn",
+     "first_seen_day": 92,
+     "last_seen_day": 145,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 6,
+   "distinct_sites_total": 6,
+   "contradiction_count": 0
+  },
+  {
+   "id": "C-49",
+   "entity": "granite",
+   "links": [
+    {
+     "event": "network_change",
+     "first_seen_day": 12,
+     "last_seen_day": 163,
+     "independent_sources": 6,
+     "total_reports": 6,
+     "distinct_sites": 5,
+     "distinct_regions": 4,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "latency_regression",
+     "first_seen_day": 39,
+     "last_seen_day": 126,
+     "independent_sources": 4,
+     "total_reports": 4,
+     "distinct_sites": 3,
+     "distinct_regions": 2,
+     "contradicting_reports": 1
+    },
+    {
+     "event": "batch_job_overrun",
+     "first_seen_day": 78,
+     "last_seen_day": 107,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 5,
+   "distinct_sites_total": 8,
+   "contradiction_count": 0
+  },
+  {
+   "id": "C-50",
+   "entity": "wexford-pay",
+   "links": [
+    {
+     "event": "policy_change",
+     "first_seen_day": 7,
+     "last_seen_day": 158,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "manual_workaround",
+     "first_seen_day": 30,
+     "last_seen_day": 175,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "audit_finding",
+     "first_seen_day": 31,
+     "last_seen_day": 163,
+     "independent_sources": 4,
+     "total_reports": 4,
+     "distinct_sites": 4,
+     "distinct_regions": 4,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 5,
+   "distinct_sites_total": 6,
+   "contradiction_count": 0
+  },
+  {
+   "id": "C-51",
+   "entity": "tundra-eu",
+   "links": [
+    {
+     "event": "manual_workaround",
+     "first_seen_day": 31,
+     "last_seen_day": 123,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "data_exposure_risk",
+     "first_seen_day": 65,
+     "last_seen_day": 167,
+     "independent_sources": 3,
+     "total_reports": 5,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "regulatory_notice",
+     "first_seen_day": 151,
+     "last_seen_day": 151,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 6,
+   "distinct_sites_total": 6,
+   "contradiction_count": 0
+  },
+  {
+   "id": "C-52",
+   "entity": "kestrel422",
+   "links": [
+    {
+     "event": "attrition_spike",
+     "first_seen_day": 15,
+     "last_seen_day": 33,
+     "independent_sources": 4,
+     "total_reports": 14,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "backlog_growth",
+     "first_seen_day": 33,
+     "last_seen_day": 159,
+     "independent_sources": 10,
+     "total_reports": 18,
+     "distinct_sites": 5,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "sla_breach",
+     "first_seen_day": 47,
+     "last_seen_day": 47,
+     "independent_sources": 3,
+     "total_reports": 7,
+     "distinct_sites": 3,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 5,
+   "distinct_sites_total": 9,
+   "contradiction_count": 1
+  },
+  {
+   "id": "C-53",
+   "entity": "quarry-na",
+   "links": [
+    {
+     "event": "component_defect",
+     "first_seen_day": 15,
+     "last_seen_day": 124,
+     "independent_sources": 5,
+     "total_reports": 5,
+     "distinct_sites": 4,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "customer_escalation",
+     "first_seen_day": 38,
+     "last_seen_day": 145,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 2,
+   "distinct_regions_total": 4,
+   "distinct_sites_total": 6,
+   "contradiction_count": 0
+  },
+  {
+   "id": "C-54",
+   "entity": "halcyon-eu",
+   "links": [
+    {
+     "event": "firmware_update",
+     "first_seen_day": 18,
+     "last_seen_day": 134,
+     "independent_sources": 7,
+     "total_reports": 7,
+     "distinct_sites": 2,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "sensor_drift",
+     "first_seen_day": 18,
+     "last_seen_day": 72,
+     "independent_sources": 4,
+     "total_reports": 4,
+     "distinct_sites": 4,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "false_alarm",
+     "first_seen_day": 42,
+     "last_seen_day": 177,
+     "independent_sources": 5,
+     "total_reports": 5,
+     "distinct_sites": 4,
+     "distinct_regions": 4,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "output_shortfall",
+     "first_seen_day": 43,
+     "last_seen_day": 169,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 4,
+   "distinct_regions_total": 5,
+   "distinct_sites_total": 8,
+   "contradiction_count": 0
+  },
+  {
+   "id": "C-55",
+   "entity": "arbor-hub",
+   "links": [
+    {
+     "event": "manual_workaround",
+     "first_seen_day": 15,
+     "last_seen_day": 47,
+     "independent_sources": 5,
+     "total_reports": 5,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "data_exposure_risk",
+     "first_seen_day": 47,
+     "last_seen_day": 138,
+     "independent_sources": 4,
+     "total_reports": 4,
+     "distinct_sites": 4,
+     "distinct_regions": 4,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "regulatory_notice",
+     "first_seen_day": 140,
+     "last_seen_day": 170,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 6,
+   "distinct_sites_total": 7,
    "contradiction_count": 0
   }
  ]

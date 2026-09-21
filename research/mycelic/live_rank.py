@@ -122,6 +122,19 @@ def build(seed: int = 901, scale: int = 10_000,
         pick = np.linspace(0, len(others_sorted) - 1, take).astype(int)
         others_sorted = [others_sorted[i] for i in pick.tolist()]
     chosen = g + others_sorted
+    # At most one candidate per entity.  A repeated entity lets a model
+    # compare two hypotheses about the same thing and infer which is the real
+    # one from the contrast - a hint that has nothing to do with the operator
+    # being measured.  (A measurement subject reported using exactly this.)
+    seen_ent = set()
+    uniq_chosen = []
+    for ci in chosen:
+        a_ = int(hyps[ci].anchor)
+        if a_ in seen_ent:
+            continue
+        seen_ent.add(a_)
+        uniq_chosen.append(ci)
+    chosen = uniq_chosen
     order = rng.permutation(len(chosen))
     items, key = [], {}
     for rank, ci in enumerate([chosen[i] for i in order.tolist()]):

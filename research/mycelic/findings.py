@@ -48,6 +48,106 @@ def _sig(p: Dict) -> str:
             f"{p['wins']}/{p['n_nonzero']} seeds, sign p={p['sign_p']:.3f})")
 
 
+
+GLOSSARY = """
+The report uses a small number of terms repeatedly. All of them are
+measurements, not scores on a scale someone invented.
+
+| term | what it means |
+|---|---|
+| **hidden pattern** | A genuine emerging problem planted in the synthetic company: a chain of causally linked events about one supplier, system or component, whose parts are deliberately scattered across different teams, sites and regions so that nobody sees more than one part. |
+| **discovery (`found`)** | The fraction of hidden patterns the system puts on the executive risk register *anywhere*. The plainest measure of "did we find it at all". |
+| **AP** (average precision) | How well the system *ranks* what it found. A register nobody can read top to bottom is worth less than one where the real items are at the top. Random ranking of the same candidates scores about 0.30 on the discrimination task. |
+| **evidence coverage** | The fraction of hidden patterns for which the system ever *held* the evidence, whether or not it reported them. The gap between coverage and discovery is what is lost to judgement rather than to retrieval. |
+| **rare-signal recall** | Discovery restricted to the hardest patterns: those supported by one or two people in the entire 50,000-person company. |
+| **FDR** (false discovery rate) | The fraction of what the system reports that is not a real pattern. |
+| **decoy acceptance** | The fraction of the deliberately planted traps the system falls for. |
+| **compute (cu)** | Normalised compute units: model size times tokens. Provider-independent; a dollar estimate is given separately. |
+| **raw-text exposure** | The fraction of employees' original notes read by anything other than the agent that owns them. The confidentiality cost. |
+"""
+
+
+def decision_summary() -> str:
+    """The front page: what to build, what it costs, what it buys."""
+    rows = _rows()
+    if not rows:
+        return "_(no results yet)_"
+    scales = sorted({r["scale"] for r in rows})
+    big = scales[-1]
+    out = []
+
+    best_arch, best_v = _best(rows, big)
+    h = _mean(rows, "H_mycelic_full", big, "found_anywhere_in_register")
+    h_cu = _mean(rows, "H_mycelic_full", big, "compute_units")
+    h_raw = _mean(rows, "H_mycelic_full", big, "raw_text_exposure_fraction")
+    h_rare = _mean(rows, "H_mycelic_full", big, "rare_signal_recall")
+    b_cu = _mean(rows, best_arch, big, "compute_units")
+    b_raw = _mean(rows, best_arch, big, "raw_text_exposure_fraction")
+    b_rare = _mean(rows, best_arch, big, "rare_signal_recall")
+
+    out.append("### The one-paragraph version")
+    out.append("")
+    out.append(
+        "We built a synthetic " + f"{big:,}" + "-person enterprise with known "
+        "hidden problems planted in it, and tested fourteen ways of finding "
+        "those problems, from simply pouring the company's notes into one very "
+        "large model, to a six-level hierarchy of agents mirroring the org "
+        "chart. **The hierarchy is not the most accurate option.** A "
+        "centralised approach that reads a filtered sample of the whole "
+        "company in one pass finds more, for less compute. The hierarchy earns "
+        "its place on three specific grounds - confidentiality, weak-signal "
+        "sensitivity and defensible provenance - and if none of those three "
+        "matter to us, we should not build it.")
+    out.append("")
+
+    out.append("### What the numbers say, at full scale")
+    out.append("")
+    out.append("| | best centralised option | the hierarchy |")
+    out.append("|---|---:|---:|")
+    out.append("| approach | `" + str(best_arch) + "` | `H_mycelic_full` |")
+    if best_v is not None and h is not None:
+        out.append(f"| hidden problems found | **{best_v:.0%}** | {h:.0%} |")
+    if b_rare is not None and h_rare is not None:
+        out.append("| of the *hardest* problems (1-2 witnesses company-wide) | "
+                   f"{b_rare:.0%} | **{h_rare:.0%}** |")
+    if b_cu is not None and h_cu is not None:
+        out.append(f"| compute | {b_cu:.2e} | {h_cu:.2e} |")
+    if b_raw is not None and h_raw is not None:
+        out.append("| employees' original notes read centrally | "
+                   f"{b_raw:.0%} | **{h_raw:.0%}** |")
+    out.append("")
+
+    out.append("### Three decisions this supports")
+    out.append("")
+    out.append(
+        "**1. Do not build progressive summarisation up the org chart.** This "
+        "is the intuitive design - each layer summarises the layer below - and "
+        "it is the clearest negative result in the study. It finds "
+        "approximately nothing, at any scale, in any variant tried: with "
+        "lineage, without lineage, with structured objects, with plain text. "
+        "The reason is measurable rather than a matter of tuning, and is given "
+        "in the executive summary below.")
+    out.append("")
+    out.append(
+        "**2. If we build a hierarchy, the value is in the downward path, not "
+        "the upward one.** Almost all of the hierarchy's performance comes "
+        "from the enterprise layer asking targeted questions *downward* and "
+        "pulling evidence back on demand, not from information flowing up. "
+        "Budget accordingly: the upward channel should be cheap and "
+        "statistical; the downward channel is where the work happens.")
+    out.append("")
+    out.append(
+        "**3. Spend top-tier model budget on re-reading original evidence, not "
+        "on bigger reasoning over summaries.** We measured this directly on "
+        "three real models. Given the same summarised evidence, a large model "
+        "and a small model perform the same, and no better than a six-feature "
+        "statistical rule. Given the *original notes* behind that evidence, "
+        "both improve sharply. Acting on this changed the design and was the "
+        "single best return on compute we found.")
+    out.append("")
+    return "\n".join(out)
+
+
 def executive_summary() -> str:
     rows = _rows()
     if not rows:

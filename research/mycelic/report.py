@@ -13,7 +13,8 @@ from typing import Dict, List, Optional, Sequence, Tuple
 import numpy as np
 
 from .analysis import agg, boot_ci, dedupe, load, md_table, paired
-from .findings import (critique, executive_summary, next_experiments,
+from .findings import (GLOSSARY, critique, decision_summary,
+                       executive_summary, next_experiments,
                        questions_section, recommendation)
 from .runner import ART
 
@@ -372,6 +373,28 @@ def section_crosslinks() -> str:
     return "\n".join(lines)
 
 
+
+def section_provenance() -> str:
+    rows = load("e12_provenance.jsonl")
+    if not rows:
+        return "_(E12 not run)_"
+    a = agg(rows, ["evidence_names_claimed_entity", "reports_fully_attributed",
+                   "reports_with_no_matching_evidence",
+                   "found_anywhere_in_register", "evidence_precision",
+                   "provenance_preservation"],
+            by=("scale", "arch"))
+    return md_table(a, [("scale", "users", 0), ("arch", "architecture", 0),
+                        ("evidence_names_claimed_entity",
+                         "cited evidence names the claimed entity", 3),
+                        ("reports_fully_attributed",
+                         "reports fully attributed", 3),
+                        ("reports_with_no_matching_evidence",
+                         "reports with NO matching evidence", 3),
+                        ("evidence_precision", "evidence precision", 3),
+                        ("found_anywhere_in_register", "found", 3)],
+                    sort_by=None)
+
+
 def section_privacy() -> str:
     rows = load("e9_privacy.jsonl")
     if not rows:
@@ -537,7 +560,10 @@ def build() -> str:
         "live": section_live(),
         "privacy": section_privacy(),
         "scale_trend": section_scale_trend(),
+        "provenance": section_provenance(),
         "summary": executive_summary(),
+        "decision": decision_summary(),
+        "glossary": GLOSSARY,
         "recommendation": recommendation(),
         "critique": critique(),
         "next": next_experiments(),

@@ -1,0 +1,27 @@
+=== e6 ===
+  0 qfrac=0.00 AP=0.0022 found=0.05 cu=3.65e+05
+  0 qfrac=0.05 AP=0.0077 found=0.30 cu=1.04e+06
+  0 qfrac=0.15 AP=0.0077 found=0.30 cu=1.04e+06
+  0 qfrac=0.35 AP=0.0085 found=0.35 cu=1.15e+06
+  0 qfrac=0.55 AP=0.0075 found=0.33 cu=1.44e+06
+  0 qfrac=1.00 AP=0.0074 found=0.23 cu=2.09e+06
+  0 mr_budget=300 AP=0.0125 cu=1.51e+05
+  0 mr_budget=900 AP=0.0444 cu=1.65e+05
+  0 mr_budget=2500 AP=0.0709 cu=2.00e+05
+  0 mr_budget=8000 AP=0.0090 cu=2.67e+05
+  0 mr_budget=20000 AP=0.0048 cu=3.92e+05
+  1 qfrac=0.00 AP=0.0002 found=0.03 cu=3.72e+05
+  1 qfrac=0.05 AP=0.0496 found=0.30 cu=1.08e+06
+  1 qfrac=0.15 AP=0.0496 found=0.30 cu=1.08e+06
+  1 qfrac=0.35 AP=0.0470 found=0.40 cu=1.17e+06
+  1 qfrac=0.55 AP=0.0280 found=0.38 cu=1.45e+06
+  1 qfrac=1.00 AP=0.0203 found=0.38 cu=2.12e+06
+  1 mr_budget=300 AP=0.0000 cu=1.51e+05
+  1 mr_budget=900 AP=0.0354 cu=1.64e+05
+  1 mr_budget=2500 AP=0.0260 cu=1.99e+05
+  1 mr_budget=8000 AP=0.0052 cu=2.66e+05
+  1 mr_budget=20000 AP=0.0026 cu=3.91e+05
+  2 qfrac=0.00 AP=0.0029 found=0.10 cu=3.82e+05
+  2 qfrac=0.05 AP=0.0172 found=0.42 cu=1.13e+06
+  2 qfrac=0.15 AP=0.0172 found=0.42 cu=1.13e+06
+  2 qfrac=0.35 AP=0.0144 found=0.40 cu=1.18e+06

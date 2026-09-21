@@ -313,132 +313,247 @@ evidence. The full chronology is in `research/mycelic/logs/research_log.md`.
 
 def compose(sec: Dict[str, str]) -> str:
     from datetime import date
-    return f"""{HEADER}
+    return f"""# Mycelic: hierarchical enterprise intelligence
+## Benchmark report and architecture recommendation
+
+**The question.** How should thousands of private, user-level AI agents
+abstract, route, combine, question, verify and propagate what they know
+upward, so that an enterprise-level system discovers strategic information
+that no individual employee, team, department, site or region could discover
+alone?
+
+**What this document is.** A mechanism study on a synthetic enterprise with
+known hidden ground truth. Fourteen architectures are compared under one
+shared implementation of every cognitive operation, at matched kernel context,
+with every tunable setting fitted on held-out data before the evaluation data
+was touched. It is not a deployment report, and it does not measure any
+specific model end to end. Part II states exactly what was measured on real
+models and what was simulated.
+
+**How to read it.** Part I is the decision. Part II is how to read the
+numbers. Parts III to V are the benchmark, the results and the case against
+them. Every table and figure is generated from raw per-run records; nothing is
+transcribed by hand.
 
 ---
 
-## 1. Executive summary
+# PART I — THE DECISION
+
+## 1. Decision summary
+
+{sec.get('decision', '_(filled from results)_')}
+
+---
+
+## 2. Executive summary
 
 {sec.get('summary', '_(filled from results)_')}
 
 ---
 
-## 2. Architecture diagram
+## 3. Recommended architecture
 
 {ARCH_DIAGRAM}
-
----
-
-## 3-6. Recommended hierarchy, models, fan-in, and why
 
 {sec.get('recommendation', '_(filled from results)_')}
 
 ---
 
-## 7. Benchmark methodology
+# PART II — HOW TO READ THIS
+
+## 4. Glossary
+
+{sec.get('glossary', '')}
+
+## 5. What was measured, what was simulated
+
+This distinction matters more than any single number in the report, so it is
+stated before the results rather than after them.
+
+| element | status |
+|---|---|
+| org chart, corpus, hidden patterns, decoys | **generated** — deterministic, seeded, reproducible from the committed code |
+| every architecture's control flow: routing, propagation, descent, questioning, verification | **executed** — real code on the real corpus, at every scale reported |
+| token counts, inference-call counts, context sizes, compute units | **measured** from those executed runs |
+| wall-clock latency | **modelled** from the metered token counts (see assumption A4); not observed on real hardware |
+| model-tier behaviour: extraction quality, abstraction loss, verification accuracy, hallucination | **simulated** from a capability vector |
+| primitive operator accuracy of Haiku 4.5, Sonnet 5 and Opus 5 | **directly measured**, blind, 198 items |
+| candidate-discrimination accuracy of those three models | **directly measured**, blind, on candidates taken from a real run |
+| where named open-weight model classes sit on the capability axis | **assumed** — never measured here |
+| 50,000-user results | **executed**, not extrapolated: every cell is a real run of the full pipeline |
+
+Nothing in this report is extrapolated from a smaller scale. Where a number is
+modelled rather than observed, the row above says so.
+
+---
+
+# PART III — THE BENCHMARK
+
+## 6. Methodology
 
 {METHOD}
 
-### The synthetic enterprise at each scale
+## 7. The synthetic enterprise at each scale
 
 {sec['world']}
 
-### Calibration (all knobs fitted on held-out seeds, then frozen)
+## 8. Calibration
+
+Every tunable setting was fitted on calibration seeds disjoint from the
+evaluation seeds, by the same procedure for every architecture, and then
+frozen. This is not a formality: it rejected two changes that looked like
+large improvements on a single evaluation seed and did not generalise.
 
 {sec['calibration']}
 
 ---
 
-## 8. Baseline comparison
+# PART IV — RESULTS
 
-Architectures under test:
+## 9. Architectures compared
 
 | id | architecture |
 |---|---|
-| `A_flat_rag` | lexical schema-aware retrieval over raw text → one kernel call |
-| `B_long_context` | unfiltered raw-record sample filling the kernel's context |
-| `B2_map_reduce` | cheap extraction over every record → global importance rank → one strong kernel call |
-| `B4_central_triage` | **control**: the hierarchy's own entity-level triage, run centrally on one claim pool with no propagation budget, no sketch cap, no routing error and no descent |
-| `C_recursive_sum` | recursive summarisation up the org tree, no structure, no lineage |
+| `A_flat_rag` | cheap lexical, schema-aware retrieval over raw text, into one kernel call |
+| `A2_chunked_ctx` | frontier context tiled over the **entire** corpus — the "just use more context" answer |
+| `B_long_context` | an unfiltered raw-record sample filling the kernel's context |
+| `B2_map_reduce` | cheap extraction over every record, global importance ranking, one strong kernel call |
+| `B4_central_triage` | **control**: the hierarchy's own triage algorithm run centrally, with no propagation budget, no routing error and no descent |
+| `C_recursive_sum` | recursive summarisation up the org tree: no structure, no lineage |
 | `D_hier_nolineage` | hierarchical semantic aggregation **without** lineage or independence tracking |
-| `E_hier_lineage` | lineage-aware hierarchical aggregation (pure upward flow) |
+| `E_hier_lineage` | lineage-aware hierarchical aggregation — pure upward flow |
 | `F_hier_retrieval` | E + targeted downward retrieval |
 | `G_hier_questions` | F + continual questioning |
 | `H_mycelic_full` | G + semantic cross-links |
 | `I_mycelic_completion` | H + hypothesis-driven chain completion |
+| `J_mycelic_verified` | H + kernel-side evidence verification |
 | `Y_oracle_retrieval` | **reference**: every extracted claim, no budget at all. Not deployable. |
 | `Z_random_rank` | **control**: map-reduce's candidates, ranked at random |
+| `Z2_naive_enumerate` | **control**: enumerate every entity's best chain, no verification at all |
+
+## 10. Baseline comparison
 
 {sec['baselines']}
 
 ### Paired comparisons
 
+Every comparison is paired on (scale, seed) — the seed controls both the org
+chart and the corpus, so unpaired tests would be swamped by between-world
+variance.
+
 {sec['pairs']}
 
----
+## 11. Scale
 
-## 9. Ablations
+![discovery and evidence coverage vs enterprise size](../research/mycelic/artifacts/figures/scale.png)
+
+{sec['scale_trend']}
+
+## 12. Ablations
 
 ![ablations](../research/mycelic/artifacts/figures/ablations.png)
 
 {sec['ablations']}
 
----
-
-## 10. Scale results
-
-![discovery and evidence coverage vs enterprise size](../research/mycelic/artifacts/figures/scale.png)
-
-
-Discovery (`found`) by architecture and scale — every cell is an executed run,
-none is extrapolated:
-
-{sec['scale_trend']}
-
----
-
-## 11. Cost analysis
-
-### Compute allocation across levels
-
-{sec['alloc']}
+## 13. Where compute should go
 
 ![marginal value of capability per level](../research/mycelic/artifacts/figures/level_marginal.png)
 
 ### Marginal value of capability at each level
 
-Baseline: every level at `small-7b`. Then exactly one level is upgraded to
-`frontier`, holding everything else fixed. This is the experiment that decides
-where compute should go.
+Baseline: every level running the same small model. Then exactly one level is
+upgraded to a frontier model, holding everything else fixed. This is the
+experiment that decides where model budget should go.
 
 {sec['level_marginal']}
 
-![capability sweep](../research/mycelic/artifacts/figures/q_sweep.png)
+### Allocation across levels
+
+{sec['alloc']}
 
 ### Uniform capability sweep
 
-The function from operator quality to architecture quality, which is the claim
-this study can actually make.
+![capability sweep](../research/mycelic/artifacts/figures/q_sweep.png)
+
+The function from operator quality to architecture quality — which is the
+claim this study can actually make, since named model classes are assumed
+positions on this axis rather than measured ones.
 
 {sec['qsweep']}
 
-### Cost / quality frontier
+## 14. Cost and quality
 
 ![cost vs quality](../research/mycelic/artifacts/figures/cost_quality.png)
 
 {sec['frontier']}
 
----
+## 15. Latency
 
-## 11b. Privacy and propagation volume
+Latency is a critical-path estimate over the token counts actually metered:
+stages run in sequence, calls within a stage run in parallel up to a per-tier
+fleet concurrency. Per-architecture wall-clock and per-call p50/p95 appear in
+the §10 tables. The operationally important difference is not the estimate but
+the **call count**: the centralised designs make one to a few dozen model
+calls; the hierarchy makes tens of thousands. That is a real deployment
+difference in scheduling, retry and failure-domain terms, independent of how
+accurate the latency model is.
+
+## 16. Information loss
+
+`information loss` is the fraction of the hidden patterns' claim types that do
+not survive to the kernel's working pool. `evidence coverage` is the fraction
+of patterns for which the kernel ever held two or more of the pattern's links.
+The gap between evidence coverage and discovery is loss to **judgement**; the
+gap between 1.0 and evidence coverage is loss to **retrieval**. Both are in
+§10, and the distinction is the single most useful diagnostic in this study.
+
+## 17. Continual questioning
+
+{sec.get('questions', '_(not run)_')}
+
+## 18. Downward retrieval, and adversarial conditions
+
+### Downward retrieval
+
+The downward path is the largest single contributor to the hierarchy's
+performance, and it works in two separable stages:
+
+* **targeted descent** (`E` to `F`) — the kernel forms a hypothesis and routes
+  a query down the index to the branches holding the missing evidence.
+  Expansion is best-first with a per-parent quota, the entity's home branch is
+  deliberately down-weighted (the retrieval budget should be spent where the
+  entity does *not* belong), and the reached user agents re-read their own raw
+  memory for that entity only. A descent touches a few dozen of roughly 57,000
+  nodes and its leaf count is capped, so it does not degenerate into a
+  broadcast as the enterprise grows — asserted by a test, not by construction.
+* **sketch-driven questioning** (`F` to `G`) — the kernel sweeps the complete
+  entity sketch for entities whose operational evidence repeats at sites where
+  they do not belong, and descends on those. Finding these costs no model
+  tokens at all, and this is where most of the discovery comes from.
+
+### Adversarial conditions
+
+{sec['adversarial']}
+
+## 19. Organisational shape
+
+### Fan-in
+
+{sec['fanin']}
+
+### Strict org tree versus org tree plus semantic cross-links
+
+{sec['crosslinks']}
+
+## 20. Confidentiality and propagation volume
 
 Three different things are usually collapsed into one "privacy" number. They
 are separated here:
 
-* **raw text out** — fraction of records whose original text was read by
+* **raw text out** — the fraction of records whose original text was read by
   anything other than the owning user agent. This is the confidentiality cost.
-* **claims out** — extracted claims (structured, no surface text) that left the
-  user node.
+* **claims out** — extracted claims (structured, no surface text) that left
+  the user node.
 * **index entries out** — sketch metadata (entity id, predicate bitmask,
   counts) that left the node. No claim content.
 
@@ -446,92 +561,26 @@ are separated here:
 
 {sec['privacy']}
 
----
+## 21. Provenance integrity
 
-## 12. Latency analysis
+Does a report's cited evidence actually name the entity the report is about?
+This was added after a measurement run flagged textbook causal chains with
+perfectly healthy statistics whose underlying notes named a *different*
+entity — the signature of a small edge model mis-linking a mention, which the
+aggregates then preserve flawlessly while pointing at the wrong thing. It is
+invisible to every other metric here.
 
-Latency is a critical-path estimate (assumption A4) over the token counts
-actually metered: stages in sequence, calls within a stage parallel up to a
-per-tier fleet concurrency. Per-architecture wall-clock, p50 and p95 per-call
-latency appear in the §8 tables.
+{sec.get('provenance', '_(not run)_')}
 
----
+## 22. Capability-shape sensitivity
 
-## 13. Information-loss analysis
-
-`information loss` = fraction of the hidden patterns' (predicate, entity)
-claim types that do **not** survive to the kernel's working pool.
-`evidence coverage` = fraction of patterns for which the kernel ever held two
-or more of the pattern's links under the right entity. The gap between
-evidence coverage and `found` is the discrimination loss; the gap between 1.0
-and evidence coverage is the propagation/retrieval loss. Both appear in §8.
-
----
-
-## 14-15. Strategic discovery and rare signals
-
-`found`, AP, recall@K and rare-signal recall in §8; rare-signal behaviour under
-the `rare_only` condition in §17.
-
----
-
-## 16. Continual questioning
-
-{sec.get('questions', 'Question utility, information gain and cost appear in the ablation table (§9, `-questions`, `-question_targeting`) and in the cost/quality frontier (§11).')}
-
----
-
-## 17. Downward retrieval, and adversarial conditions
-
-### Downward retrieval
-
-The downward path is the single largest contributor to the hierarchy's
-performance, and it works in two stages that are separable in the ablation
-table (§9):
-
-* **targeted descent** (`E → F`) — the kernel forms a hypothesis and routes a
-  query down the sketch index to the branches that hold the missing evidence.
-  Expansion is best-first with a per-parent quota, the entity's home branch is
-  down-weighted (the retrieval budget should be spent where the entity does
-  *not* belong), and the reached user agents re-read their own raw memory for
-  that entity only. A descent touches a few dozen of ~57,000 nodes and its leaf
-  count is capped, so it does not become a broadcast as the enterprise grows —
-  this is asserted by a test, not by construction.
-* **sketch-driven questioning** (`F → G`) — the kernel sweeps the complete
-  entity sketch for entities whose operational evidence repeats at sites where
-  they do not belong, and descends on those. This costs no model tokens to
-  find and is where most of the discovery comes from.
-
-Question utility, targeting and information gain are in §16; the compute these
-two stages consume, and what buying less of it costs, is the hierarchy curve
-in §11.
-
-### Adversarial conditions
-
-{sec['adversarial']}
-
----
-
-## 18. Organisational fan-in, and org tree vs semantic overlay
-
-{sec['fanin']}
-
-### Strict org tree vs org tree + semantic cross-links
-
-{sec['crosslinks']}
-
----
-
-## 19. Capability-shape sensitivity
-
-If a conclusion survives only under one assumed shape for how hard
-capabilities scale with model quality, it is not a conclusion.
+A conclusion that survives only under one assumed shape for how hard
+capabilities scale with model quality is not a conclusion. All three shapes
+are run.
 
 {sec['shape']}
 
----
-
-## 20. Direct model measurement
+## 23. Direct model measurement
 
 ![candidate discrimination, measured](../research/mycelic/artifacts/figures/discrimination.png)
 
@@ -539,69 +588,44 @@ capabilities scale with model quality, it is not a conclusion.
 
 ---
 
-## 21. Direct measurement vs simulation disclosure
+# PART V — THE CASE AGAINST THESE RESULTS
 
-| element | status |
-|---|---|
-| org chart, corpus, ground truth, decoys | **generated** — deterministic, seeded, reproducible |
-| every architecture's control flow, routing, propagation, descent, questioning | **executed** — real code on the real corpus |
-| token counts, inference-call counts, context sizes, compute units | **measured** from the executed runs |
-| wall-clock latency | **modelled** from metered tokens (assumption A4), not observed |
-| model-tier operator behaviour (extraction, abstraction, verification, hallucination) | **simulated** from the capability vector |
-| primitive operator accuracy of Haiku 4.5 / Sonnet 5 / Opus 5 | **directly measured**, blind, 198 items |
-| candidate-discrimination accuracy of those models | **directly measured**, blind, on candidates from a real run |
-| placement of named open-weight model classes on the capability axis | **assumed** (A1) — never measured here |
-| 50,000-user results | **executed**, not extrapolated — every 50k row is a real run of the full pipeline |
-
-Nothing in this report is extrapolated from a smaller scale. Where a number is
-modelled rather than observed, the row above says so.
-
----
-
-## 22. Reviewer critique and known limitations
+## 24. Reviewer critique
 
 {sec.get('critique', '_(filled from results)_')}
 
----
-
-## 23. Assumptions
+## 25. Assumptions
 
 {ASSUMPTIONS}
 
----
-
-## 24. Failed approaches, and what they taught us
+## 26. Failed approaches, and what they taught us
 
 {FAILED}
 
----
-
-## 25. Recommended next experiments
+## 27. Recommended next experiments
 
 {sec.get('next', '_(filled from results)_')}
 
----
-
-## 26. Reproducing this
+## 28. Reproducing this
 
 ```sh
-python3 -m research.mycelic.calibrate              # fit knobs on seeds 500-502
-python3 -m research.mycelic.experiments e1         # baselines x scales x seeds
-sh research/mycelic/run_suite.sh                   # ablations, allocation, fan-in,
-                                                   # adversarial, frontier, shape, links
-python3 -m research.mycelic.live_tasks             # build blind operator tasks
-python3 -m research.mycelic.live_rank              # build discrimination tasks
-python3 -m research.mycelic.score_live             # score operator measurements
-python3 -m research.mycelic.live_rank score        # score discrimination measurements
-python3 -m research.mycelic.report                 # regenerate this document
+python3 -m unittest research.mycelic.test_mycelic     # 27 tests
+python3 -m research.mycelic.calibrate                 # fit on held-out seeds
+python3 -m research.mycelic.calibrate ct
+python3 -m research.mycelic.calibrate evidence
+python3 -m research.mycelic.experiments e1            # baselines x scales x seeds
+sh research/mycelic/run_suite.sh                      # everything else
+python3 -m research.mycelic.plots                     # figures
+python3 -m research.mycelic.report                    # regenerate this document
 ```
 
-Raw per-run metrics: `research/mycelic/artifacts/*.jsonl` (one row per run,
-never aggregated in place). Calibration: `artifacts/calibration.json`.
-Live measurements: `artifacts/live_*.json`, answer keys held in
-`research/mycelic/keys/` outside the served directory. Research log with every
-failed design and the measurement that killed it:
-`research/mycelic/logs/research_log.md`.
+Raw per-run metrics live in `research/mycelic/artifacts/*.jsonl`, one JSON
+object per run, never aggregated in place. Calibration settings are in
+`artifacts/calibration.json`. Live measurements are in `artifacts/live_*.json`
+with answer keys held in `research/mycelic/keys/`, outside the directory the
+measured models were pointed at. The chronological research log — including
+every design that was measured and discarded, and the measurement that killed
+it — is in `research/mycelic/logs/research_log.md`.
 
 _Generated {date.today().isoformat()} by `research/mycelic/report.py` from the
 raw artifacts._
