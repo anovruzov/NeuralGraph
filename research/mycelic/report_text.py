@@ -678,7 +678,16 @@ mechanism from a sampling accident.
 
 {sec.get('next', '_(filled from results)_')}
 
-## 28. Reproducing this
+## 28. Headline findings that are not about Mycelic
+
+Everything above is a study of one architecture family on one synthetic
+corpus. A handful of the results are about the *problem*, not about our
+design, and those are the ones worth carrying into other work. Each is stated
+with the measurement that supports it and the reason it might not transfer.
+
+{sec['headline']}
+
+## 29. Reproducing this
 
 ```sh
 python3 -m unittest research.mycelic.test_mycelic     # 27 tests

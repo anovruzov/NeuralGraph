@@ -769,9 +769,109 @@ def world_description() -> str:
     return head + "\n" + "\n".join(lines)
 
 
+def section_headline() -> str:
+    """The claims that are about the problem rather than about our design.
+
+    Numbers are read back from the artifacts so that this section cannot
+    drift from the results as seeds are added.
+    """
+    rows = dedupe(load("e1_baselines.jsonl") + load("e1b_extra.jsonl"))
+    big = max((r["scale"] for r in rows), default=0)
+
+    def mean(arch, key):
+        v = [r[key] for r in rows if r["arch"] == arch and r["scale"] == big]
+        return float(np.mean(v)) if v else float("nan")
+
+    o_cov, o_found = (mean("Y_oracle_retrieval", "evidence_coverage_2links"),
+                      mean("Y_oracle_retrieval", "found_anywhere_in_register"))
+    n_or = len({r["seed"] for r in rows
+                if r["arch"] == "Y_oracle_retrieval" and r["scale"] == big})
+
+    live = ""
+    pa = os.path.join(ART, "live_rank_results.json")
+    pb = os.path.join(ART, "live_rank_results_rich.json")
+    if os.path.exists(pa) and os.path.exists(pb):
+        d, dr = json.load(open(pa)), json.load(open(pb))
+        ag, agr = d.get("models_aggregated", {}), dr.get("models_aggregated", {})
+        if ag and agr:
+            band = f"{min(v['ap_mean'] for v in ag.values()):.3f}–" \
+                   f"{max(v['ap_mean'] for v in ag.values()):.3f}"
+            gaps = {k: agr[k]["ap_mean"] - ag[k]["ap_mean"]
+                    for k in ag if k in agr}
+            live = (
+                f"3. **At fixed evidence, model capability is not the lever "
+                f"people expect it to be.** Measured directly, blind, on "
+                f"{len(ag)} real models across "
+                f"{max(v['n_runs'] for v in agr.values())} runs each: given "
+                f"the same aggregated evidence statistics, all of them land "
+                f"in a band (AP {band}) that does not beat a six-feature "
+                f"logistic regression ({d['simulator_logistic_ap']:.3f}). "
+                f"Changing what the evidence *contains* moved one model by "
+                f"{max(gaps.values()):+.2f} and another by "
+                f"{min(gaps.values()):+.2f}. *Might not transfer* — and note "
+                f"that it did not transfer uniformly even here, which is the "
+                f"point.\n")
+
+    prov = ""
+    pr = load("e12_provenance.jsonl")
+    if pr:
+        pb_ = max(r["scale"] for r in pr)
+        sub = agg([r for r in pr if r["scale"] == pb_],
+                  ["reports_fully_attributed"], by=("arch",))
+        h = [r for r in sub if r["arch"] == "H_mycelic_full"]
+        best = max(sub, key=lambda r: r["reports_fully_attributed"])
+        if h:
+            prov = (
+                f"4. **Carrying lineage is not the same as being auditable.** "
+                f"Measured: the lineage-carrying hierarchy attributes "
+                f"{h[0]['reports_fully_attributed']:.1%} of its reports to "
+                f"original evidence end to end; `{best['arch']}` attributes "
+                f"{best['reports_fully_attributed']:.0%}. A lineage path "
+                f"records where a claim travelled, which is not what an "
+                f"incident review asks for. *Transfers directly* to any "
+                f"system marketing provenance as a benefit of "
+                f"decentralisation.\n")
+
+    parts = [
+        "1. **Weak cross-organisational signals are not findable by ranking "
+        "records.** Measured: 0 of 306 pattern-facet records appear in the "
+        "global top 900 by any per-record importance feature at 10,000 "
+        "users. A record that is one facet of a distributed problem is, by "
+        "construction, indistinguishable from benign chatter. Any design "
+        "whose first stage is \"rank the documents\" is solving a different "
+        "problem. *Might not transfer if* real weak signals carry lexical "
+        "markers our generator does not simulate — urgency language, "
+        "escalation formatting, named severity levels.\n",
+        f"2. **Above a certain corpus size the binding constraint moves from "
+        f"retrieval to discrimination.** Measured: a perfect-retrieval "
+        f"oracle holds the evidence for {o_cov:.0%} of hidden patterns at "
+        f"{big:,} users ({n_or} seeds) and reports {o_found:.0%} of them. "
+        f"Adding undifferentiated evidence past that point makes the ranking "
+        f"*worse*. A propagation budget is therefore a feature, not only a "
+        f"cost. *Might not transfer if* the executive layer can be given far "
+        f"more reading budget than we modelled.\n",
+        live, prov,
+        "5. **A tuning knob that reverses sign when the corpus is "
+        "regenerated is fitted to the corpus.** Measured: `w_dispersion` was "
+        "rejected twice on one generator and selected at 0.8 on a corrected "
+        "one, mechanism unchanged. *Transfers directly*: hold out the data "
+        "used to fit anything, and re-fit when the data changes rather than "
+        "inheriting the setting.\n",
+        "6. **Measurement subjects make good reviewers.** The two most "
+        "consequential defects found in this benchmark — a non-blind "
+        "operator task file, and entity collisions between real patterns and "
+        "decoys — were both reported, unprompted, by models being measured, "
+        "not by reading the code. *Transfers directly*: leave room in the "
+        "task for the subject to say the task is broken, and read what comes "
+        "back.\n",
+    ]
+    return "\n".join(p for p in parts if p)
+
+
 def build() -> str:
     from .report_text import compose
     return compose({
+        "headline": section_headline(),
         "world": world_description(),
         "calibration": section_calibration(),
         "baselines": section_baselines(),

@@ -237,3 +237,6 @@
    50000/4 I_mycelic_completion AP=0.0056 found=0.30 R@100=0.020 cu=5.01e+06
    50000/4 J_mycelic_verified   AP=0.0091 found=0.32 R@100=0.030 cu=2.87e+06
    50000/4 Y_oracle_retrieval   AP=0.0062 found=0.32 R@100=0.020 cu=2.43e+06
+   50000/4 Z_random_rank        AP=0.0034 found=0.10 R@100=0.040 cu=7.81e+05
+   50000/4 Z2_naive_enumerate   AP=0.0024 found=0.22 R@100=0.000 cu=9.22e+05
+=== e1 done in 1406s ===
