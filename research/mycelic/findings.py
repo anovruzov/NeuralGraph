@@ -427,10 +427,17 @@ def executive_summary() -> str:
             biggest_spread = max(spread_s, spread_r)
             decisive = [m for m in common
                         if abs(mr[m] - ms[m]) > biggest_spread]
+            strength = (
+                "and changing what the evidence *contains* buys a lot"
+                if len(decisive) == len(common) else
+                "changing what the evidence *contains* helps the strongest "
+                "model a lot and is not reliable across models"
+                if decisive else
+                "and changing what the evidence *contains* does not "
+                "reliably help either")
             lines.append(
                 f"**4. Directly measured: at fixed evidence, model capability "
-                f"buys almost nothing here; changing what the evidence "
-                f"*contains* buys more, but not for every model.** "
+                f"buys almost nothing here, {strength}.** "
                 f"{len(common)} real models ranked the same {d['n_items']} "
                 f"candidates from a real run "
                 f"({max(n_s, n_r)} independent runs per cell). Given the "
@@ -445,8 +452,10 @@ def executive_summary() -> str:
                 f"(Δ {min(gaps):+.3f} to {max(gaps):+.3f}); the largest "
                 f"run-to-run range within a single cell is "
                 f"{biggest_spread:.3f}, and "
-                + (f"{len(decisive)} of {len(common)} models move by more "
-                   f"than that. " if decisive else
+                + (f"{len(decisive)} of the {len(common)} "
+                   f"{'moves' if len(decisive) == 1 else 'move'} "
+                   f"by more than that "
+                   f"({', '.join(sorted(decisive))}). " if decisive else
                    "no model moves by more than that, so this comparison "
                    "does not separate the two conditions. ")
                 + "The abstraction, not the reasoner, is the plausible "
@@ -625,14 +634,7 @@ def critique() -> str:
         "detection is a text problem everyone faces), and site-local echo "
         "propagation (global echoing smeared every entity across every region "
         "and destroyed the locality structure).\n")
-    lines.append(
-        "**Are the improvements real?** Two candidate improvements that looked "
-        "large on a single seed were rejected by the held-out protocol: a "
-        "triage prior (AP 0.027 → 0.098 on seed 0, best held-out weight 0.0) "
-        "and a source-dispersion feature (AP 0.019 → 0.068 on seed 0, best "
-        "held-out weight 0.0). Both are reported as non-results. The one that "
-        "survived, kernel-side evidence verification, did so on held-out "
-        "seeds.\n")
+    lines.append(_critique_improvements_real())
     lines.append(
         f"**Is the statistics adequate?** No, not fully. {P_FLOOR_NOTE}. "
         "Headline comparisons at 2k and 10k use ten seeds; 50k and 100k use "
@@ -653,6 +655,51 @@ def critique() -> str:
         "cannot, the ordering reported here inverts. That experiment was not "
         "run.\n")
     return "\n".join(lines)
+
+
+def _critique_improvements_real() -> str:
+    """Read the calibration file rather than asserting what it chose.
+
+    An earlier hand-written version of this paragraph named the source-
+    dispersion feature as a rejected non-result.  The calibration on the
+    corrected corpus *selected* it, so the paragraph was contradicting the
+    file it was describing.  Everything here is now read back from
+    `calibration.json`.
+    """
+    head = "**Are the improvements real?** "
+    p = os.path.join(ART, "calibration.json")
+    if not os.path.exists(p):
+        return head + "_(calibration not run)_\n"
+    d = json.load(open(p))
+    rejected, kept = [], []
+    for knob, label in (("triage_prior_weight", "a triage prior"),
+                        ("w_dispersion", "a source-dispersion feature"),
+                        ("w_synchrony", "a reporting-synchrony feature"),
+                        ("w_attribution", "an entity-attribution penalty")):
+        if knob not in d:
+            continue
+        (kept if float(d[knob]) > 0 else rejected).append(
+            f"{label} (held-out weight {float(d[knob]):g})")
+    body = (f"Every knob was fitted on calibration seeds {d['seeds']}, "
+            f"disjoint from the evaluation seeds, and then frozen. ")
+    if rejected:
+        body += ("The protocol **rejected** " + "; ".join(rejected) +
+                 " — each of which had looked like a clear win on a single "
+                 "seed. They are reported as non-results rather than quietly "
+                 "dropped. ")
+    if kept:
+        body += ("It **selected** " + "; ".join(kept) + ". ")
+    body += ("The one that matters most, kernel-side evidence verification, "
+             "was selected on held-out seeds and is reported with its paired "
+             "test in §12.\n\n"
+             "One caveat belongs here rather than in a footnote: "
+             "`w_dispersion` was rejected twice on the pre-correction corpus "
+             "and selected on the corrected one, with no change to the "
+             "mechanism. A setting whose sign flips when the data is "
+             "regenerated is fitted to that data, not to the problem. It "
+             "should be re-fitted on real data before deployment and should "
+             "not be treated as a transferable finding.\n")
+    return head + body
 
 
 def next_experiments() -> str:

@@ -97,3 +97,5 @@
   2 lexical-bottom E_hier_lineage   AP=0.0051 found=0.05 cu=8.73e+04
   2 lexical-to-kernel H_mycelic_full   AP=0.0125 found=0.33 cu=4.93e+05
   2 lexical-to-kernel B2_map_reduce    AP=0.0462 found=0.38 cu=5.51e+04
+  2 lexical-to-kernel E_hier_lineage   AP=0.0023 found=0.05 cu=1.48e+04
+=== e3 done in 337s ===

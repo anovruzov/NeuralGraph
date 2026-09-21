@@ -1,0 +1,7 @@
+=== e3c ===
+  0 q=0.10 H_mycelic_full   AP=0.0010 found=0.07 cu=1.92e+05
+  0 q=0.10 B2_map_reduce    AP=0.0007 found=0.07 cu=8.96e+04
+  0 q=0.10 E_hier_lineage   AP=0.0000 found=0.00 cu=1.05e+05
+  0 q=0.28 H_mycelic_full   AP=0.0019 found=0.10 cu=3.72e+05
+  0 q=0.28 B2_map_reduce    AP=0.0047 found=0.10 cu=1.76e+05
+  0 q=0.28 E_hier_lineage   AP=0.0000 found=0.00 cu=2.09e+05

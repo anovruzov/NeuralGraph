@@ -4,12 +4,28 @@
   "simulator_logistic_ap": 0.42035168849060683,
   "random_ap": 0.3134941379761509,
   "models": {
+    "haiku-r2": {
+      "ap": 0.4608116995500961,
+      "selection_precision": 0.47619047619047616,
+      "selection_recall": 0.6666666666666666,
+      "selection_f1": 0.5555555555555556,
+      "n_selected": 21,
+      "n_ranked_returned": 56
+    },
     "haiku": {
       "ap": 0.3540862257275435,
       "selection_precision": 0.36,
       "selection_recall": 0.6,
       "selection_f1": 0.45,
       "n_selected": 25,
+      "n_ranked_returned": 56
+    },
+    "opus-r2": {
+      "ap": 0.3308552423865724,
+      "selection_precision": 0.3125,
+      "selection_recall": 0.3333333333333333,
+      "selection_f1": 0.3225806451612903,
+      "n_selected": 16,
       "n_ranked_returned": 56
     },
     "opus": {
@@ -20,6 +36,14 @@
       "n_selected": 17,
       "n_ranked_returned": 56
     },
+    "sonnet-r2": {
+      "ap": 0.37475838183281407,
+      "selection_precision": 0.26666666666666666,
+      "selection_recall": 0.26666666666666666,
+      "selection_f1": 0.26666666666666666,
+      "n_selected": 15,
+      "n_ranked_returned": 56
+    },
     "sonnet": {
       "ap": 0.3606407431374948,
       "selection_precision": 0.2916666666666667,
@@ -27,6 +51,35 @@
       "selection_f1": 0.35897435897435903,
       "n_selected": 24,
       "n_ranked_returned": 56
+    }
+  },
+  "models_aggregated": {
+    "haiku": {
+      "n_runs": 2,
+      "ap_mean": 0.4074489626388198,
+      "ap_min": 0.3540862257275435,
+      "ap_max": 0.4608116995500961,
+      "selection_f1_mean": 0.5027777777777778,
+      "selection_f1_min": 0.45,
+      "selection_f1_max": 0.5555555555555556
+    },
+    "opus": {
+      "n_runs": 2,
+      "ap_mean": 0.35420372516804854,
+      "ap_min": 0.3308552423865724,
+      "ap_max": 0.37755220794952477,
+      "selection_f1_mean": 0.38004032258064513,
+      "selection_f1_min": 0.3225806451612903,
+      "selection_f1_max": 0.43749999999999994
+    },
+    "sonnet": {
+      "n_runs": 2,
+      "ap_mean": 0.36769956248515445,
+      "ap_min": 0.3606407431374948,
+      "ap_max": 0.37475838183281407,
+      "selection_f1_mean": 0.3128205128205128,
+      "selection_f1_min": 0.26666666666666666,
+      "selection_f1_max": 0.35897435897435903
     }
   }
 }

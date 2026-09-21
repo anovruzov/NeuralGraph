@@ -1,0 +1,14 @@
+=== e8 ===
+  2000 0 xlinks=False AP=0.0680 found=0.65 cu=8.20e+05
+  2000 0 xlinks=True AP=0.0817 found=0.72 cu=8.19e+05
+  2000 1 xlinks=False AP=0.0534 found=0.75 cu=8.46e+05
+  2000 1 xlinks=True AP=0.0703 found=0.78 cu=8.46e+05
+  2000 2 xlinks=False AP=0.0439 found=0.57 cu=8.66e+05
+  2000 2 xlinks=True AP=0.0483 found=0.62 cu=8.81e+05
+  10000 0 xlinks=False AP=0.0079 found=0.33 cu=1.04e+06
+  10000 0 xlinks=True AP=0.0077 found=0.30 cu=1.04e+06
+  10000 1 xlinks=False AP=0.0536 found=0.40 cu=1.07e+06
+  10000 1 xlinks=True AP=0.0496 found=0.30 cu=1.08e+06
+  10000 2 xlinks=False AP=0.0127 found=0.38 cu=1.12e+06
+  10000 2 xlinks=True AP=0.0172 found=0.42 cu=1.13e+06
+  50000 0 xlinks=False AP=0.0092 found=0.40 cu=2.98e+06

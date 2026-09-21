@@ -33,3 +33,12 @@
    50000/1 B4_central_triage      evidence-names-entity=0.581 fully-attributed=0.022 none-attributed=0.015
    50000/1 E_hier_lineage         evidence-names-entity=0.141 fully-attributed=0.054 none-attributed=0.821
    50000/1 H_mycelic_full         evidence-names-entity=0.517 fully-attributed=0.000 none-attributed=0.113
+   50000/1 J_mycelic_verified     evidence-names-entity=0.532 fully-attributed=0.000 none-attributed=0.083
+   50000/2 A_flat_rag             evidence-names-entity=0.787 fully-attributed=0.746 none-attributed=0.003
+   50000/2 A2_chunked_ctx         evidence-names-entity=0.805 fully-attributed=0.675 none-attributed=0.000
+   50000/2 B2_map_reduce          evidence-names-entity=0.058 fully-attributed=0.000 none-attributed=0.741
+   50000/2 B4_central_triage      evidence-names-entity=0.560 fully-attributed=0.028 none-attributed=0.025
+   50000/2 E_hier_lineage         evidence-names-entity=0.091 fully-attributed=0.021 none-attributed=0.872
+   50000/2 H_mycelic_full         evidence-names-entity=0.497 fully-attributed=0.003 none-attributed=0.115
+   50000/2 J_mycelic_verified     evidence-names-entity=0.519 fully-attributed=0.005 none-attributed=0.062
+=== e12 done in 379s ===

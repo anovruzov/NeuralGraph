@@ -308,6 +308,32 @@ evidence. The full chronology is in `research/mycelic/logs/research_log.md`.
     found *by the measurement run itself*; all three runs were discarded.
     A later run flagged that the key still sat in the served directory, and it
     was moved out.
+
+14. **Anchor entities shared between real patterns and decoys.** Pattern and
+    decoy anchors were drawn independently from the same pool, so about 10% of
+    real patterns shared an entity with a decoy and one report could be
+    credited as a correct discovery *and* a decoy acceptance at the same time.
+    Anchors are now drawn without replacement (0 collisions, verified at both
+    scales) and the scorer refuses the double credit. Flagged, again, by a
+    model doing the measurement rather than by reading the code.
+
+15. **A headline stated from one run per cell.** The most quotable result in
+    the study — richer evidence beating a bigger model — did not replicate
+    cleanly when the corpus was regenerated: one of the three models moved the
+    *wrong way*. Repeating each cell showed within-cell run-to-run ranges as
+    large as 0.098 AP, comparable to the gap the claim rested on for the
+    weaker models. The claim is now stated only as strongly as the spread
+    supports, and §23 reports the range rather than a mean. What failed was
+    not the mechanism; it was the evidentiary standard applied to it.
+
+16. **`w_dispersion`, a knob whose sign flipped with the corpus.** The
+    confidence term that penalises evidence clustered in time was rejected
+    twice during calibration on the earlier corpus and selected at 0.8 on the
+    corrected one, with no change to the mechanism. A setting that reverses
+    when the data is regenerated is fitted to that data, not to the problem.
+    It is kept — the calibration protocol chose it fairly on held-out seeds —
+    but it is flagged here as the single setting most likely not to transfer,
+    and it should be re-fitted on real data before deployment.
 """
 
 
