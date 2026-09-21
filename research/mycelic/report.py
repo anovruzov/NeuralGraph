@@ -420,9 +420,10 @@ def section_frontier() -> str:
     if not rows:
         return "_(E6 not run)_"
     out = []
+    EXTRA = ["cost_per_correct_discovery", "usd_estimate"]
     h = [r for r in rows if r["knob"] == "question_frac"]
     if h:
-        a = agg(h, CORE, by=("question_frac",))
+        a = agg(h, CORE + EXTRA, by=("question_frac",))
         out.append("#### Hierarchy: question / descent budget\n")
         out.append(md_table(a, [("question_frac", "question budget frac", 2),
                                 ("average_precision", "AP", 4),
@@ -431,9 +432,12 @@ def section_frontier() -> str:
                                 ("compute_units", "compute", 0),
                                 ("cost_per_correct_discovery", "cu/disc", 0)],
                             sort_by=None))
+        v = _budget_verdict(a, "question_frac", "question-budget fraction")
+        if v:
+            out.append("\n" + v)
     m = [r for r in rows if r["knob"] == "mr_budget"]
     if m:
-        a = agg(m, CORE, by=("mr_budget",))
+        a = agg(m, CORE + EXTRA, by=("mr_budget",))
         out.append("\n#### Map-reduce: kernel object budget\n")
         out.append(md_table(a, [("mr_budget", "kernel objects", 0),
                                 ("average_precision", "AP", 4),
@@ -441,7 +445,42 @@ def section_frontier() -> str:
                                 ("compute_units", "compute", 0),
                                 ("cost_per_correct_discovery", "cu/disc", 0)],
                             sort_by=None))
-    return "\n".join(out)
+        v = _budget_verdict(a, "mr_budget", "kernel objects")
+        if v:
+            out.append("\n" + v)
+    return "\n".join(x for x in out if x)
+
+
+def _budget_verdict(a: List[Dict], key: str, label: str) -> str:
+    """Report where a budget curve turns over, if it does.
+
+    More evidence making the answer worse is the study's central structural
+    claim, so it is stated from the curve rather than asserted.
+    """
+    pts = sorted(a, key=lambda r: r[key])
+    if len(pts) < 3:
+        return ""
+    fs = [r["found_anywhere_in_register"] for r in pts]
+    cost = [r.get("cost_per_correct_discovery", float("nan")) for r in pts]
+    peak = int(np.argmax(fs))
+    cheapest = int(np.nanargmin(cost)) if not all(
+        np.isnan(c) for c in cost) else peak
+    tail_drop = fs[peak] - fs[-1]
+    if peak == len(fs) - 1:
+        return (f"Discovery is still rising at the largest {label} tested "
+                f"({pts[-1][key]}), so this budget has not been pushed to its "
+                f"turning point; the ceiling here is the sweep, not the "
+                f"design.")
+    return (
+        f"**The curve turns over.** Discovery peaks at "
+        f"**{pts[peak][key]} {label}** ({fs[peak]:.3f}) and falls to "
+        f"{fs[-1]:.3f} at {pts[-1][key]} — a loss of {tail_drop:.3f} from "
+        f"spending *more*. Cost per correct discovery is lowest at "
+        f"{pts[cheapest][key]} ({cost[cheapest]:.3g} cu). This is the "
+        f"study's central structural claim in one table: past a point, "
+        f"additional undifferentiated evidence crowds the genuine candidates "
+        f"down the ranking faster than it adds new ones. A budget is a "
+        f"filter, and removing the filter is not free.")
 
 
 def section_shape() -> str:
