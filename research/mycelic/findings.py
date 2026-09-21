@@ -68,7 +68,13 @@ measurements, not scores on a scale someone invented.
 
 
 def decision_summary() -> str:
-    """The front page: what to build, what it costs, what it buys."""
+    """The front page: what to build, what it costs, what it buys.
+
+    Every comparative claim here is derived from the rows.  An earlier version
+    asserted three standing advantages for the hierarchy; one of them
+    (weak-signal sensitivity) is contradicted by the data at some scales, so
+    the claims are now computed and the ones that fail are stated as failures.
+    """
     rows = _rows()
     if not rows:
         return "_(no results yet)_"
@@ -77,73 +83,147 @@ def decision_summary() -> str:
     out = []
 
     best_arch, best_v = _best(rows, big)
-    h = _mean(rows, "H_mycelic_full", big, "found_anywhere_in_register")
-    h_cu = _mean(rows, "H_mycelic_full", big, "compute_units")
-    h_raw = _mean(rows, "H_mycelic_full", big, "raw_text_exposure_fraction")
-    h_rare = _mean(rows, "H_mycelic_full", big, "rare_signal_recall")
-    b_cu = _mean(rows, best_arch, big, "compute_units")
-    b_raw = _mean(rows, best_arch, big, "raw_text_exposure_fraction")
-    b_rare = _mean(rows, best_arch, big, "rare_signal_recall")
+    HIER = "H_mycelic_full"
 
+    def m(arch, k):
+        return _mean(rows, arch, big, k)
+
+    h, b = m(HIER, "found_anywhere_in_register"), best_v
     out.append("### The one-paragraph version")
     out.append("")
+    verdict = ("is not the most accurate option" if (h or 0) < (b or 0) - 1e-9
+               else "is the most accurate option measured")
     out.append(
-        "We built a synthetic " + f"{big:,}" + "-person enterprise with known "
-        "hidden problems planted in it, and tested fourteen ways of finding "
-        "those problems, from simply pouring the company's notes into one very "
-        "large model, to a six-level hierarchy of agents mirroring the org "
-        "chart. **The hierarchy is not the most accurate option.** A "
-        "centralised approach that reads a filtered sample of the whole "
-        "company in one pass finds more, for less compute. The hierarchy earns "
-        "its place on three specific grounds - confidentiality, weak-signal "
-        "sensitivity and defensible provenance - and if none of those three "
-        "matter to us, we should not build it.")
+        f"We built a synthetic {big:,}-person enterprise with known hidden "
+        "problems planted in it, and tested sixteen ways of finding those "
+        "problems, from pouring a filtered sample of the company's notes into "
+        "one very large model, to a six-level hierarchy of agents mirroring "
+        f"the org chart. **The hierarchy {verdict}.** The strongest "
+        f"single approach measured at this scale is `{best_arch}`, which finds "
+        f"{(b or 0):.0%} of the hidden problems against the hierarchy's "
+        f"{(h or 0):.0%}. Whether the hierarchy is nonetheless worth building "
+        "depends entirely on which of the secondary properties below we "
+        "actually need; the table states which ones it delivers and which it "
+        "does not.")
     out.append("")
 
-    out.append("### What the numbers say, at full scale")
+    out.append("### Head to head, at full scale")
     out.append("")
-    out.append("| | best centralised option | the hierarchy |")
-    out.append("|---|---:|---:|")
-    out.append("| approach | `" + str(best_arch) + "` | `H_mycelic_full` |")
-    if best_v is not None and h is not None:
-        out.append(f"| hidden problems found | **{best_v:.0%}** | {h:.0%} |")
-    if b_rare is not None and h_rare is not None:
-        out.append("| of the *hardest* problems (1-2 witnesses company-wide) | "
-                   f"{b_rare:.0%} | **{h_rare:.0%}** |")
-    if b_cu is not None and h_cu is not None:
-        out.append(f"| compute | {b_cu:.2e} | {h_cu:.2e} |")
-    if b_raw is not None and h_raw is not None:
-        out.append("| employees' original notes read centrally | "
-                   f"{b_raw:.0%} | **{h_raw:.0%}** |")
+    out.append("| | best centralised option | the hierarchy | hierarchy better? |")
+    out.append("|---|---:|---:|---|")
+    out.append(f"| approach | `{best_arch}` | `{HIER}` | |")
+
+    def row(label, key, higher_is_better=True, fmt="{:.0%}", invert=False):
+        bv, hv = m(best_arch, key), m(HIER, key)
+        if bv is None or hv is None:
+            return
+        better = (hv > bv + 1e-9) if higher_is_better else (hv < bv - 1e-9)
+        mark = "**yes**" if better else ("no" if abs(hv - bv) > 1e-9 else "tie")
+        bs = fmt.format(bv) if abs(bv) < 1e4 else f"{bv:.2e}"
+        hs = fmt.format(hv) if abs(hv) < 1e4 else f"{hv:.2e}"
+        out.append(f"| {label} | {bs} | {hs} | {mark} |")
+
+    row("hidden problems found", "found_anywhere_in_register")
+    row("the hardest problems (1-2 witnesses company-wide)",
+        "rare_signal_recall")
+    row("found within the top 100 of the register", "recall_at_100")
+    row("precision in the top 40 of the register", "precision_at_40")
+    row("precision in the top 100 of the register", "precision_at_100")
+    row("ranking quality (AP)", "average_precision", fmt="{:.3f}")
+    row("decoy traps accepted", "decoy_acceptance_all", higher_is_better=False)
+    row("evidence coverage (held it at all)", "evidence_coverage_2links")
+    row("independent-support accuracy", "independent_evidence_accuracy")
+    row("lineage accuracy", "lineage_accuracy")
+    row("contradictions detected (F1)", "contradiction_f1")
+    row("compute", "compute_units", higher_is_better=False, fmt="{:.2e}")
+    row("model calls", "inference_calls", higher_is_better=False, fmt="{:,.0f}")
+    row("employees' original notes read centrally",
+        "raw_text_exposure_fraction", higher_is_better=False)
     out.append("")
+    out.append(
+        "*Reading the false-discovery rate.* The register is a ranked "
+        "watchlist of roughly one entry per tracked entity, not a shortlist, "
+        "so a high FDR over the whole register is structural and is true of "
+        "every architecture including the perfect-retrieval reference. The "
+        "operationally meaningful numbers are precision in the top 40 or top "
+        "100 — what an executive would actually read — and the ranking "
+        "quality (AP) that determines them.")
+    out.append("")
+
+    # which grounds actually hold
+    wins, losses = [], []
+    checks = [
+        ("confidentiality (no original notes leave the owning agent)",
+         "raw_text_exposure_fraction", False),
+        ("weak-signal sensitivity", "rare_signal_recall", True),
+        ("independent-support accuracy", "independent_evidence_accuracy", True),
+        ("lineage / provenance", "lineage_accuracy", True),
+        ("resistance to planted traps", "decoy_acceptance_all", False),
+    ]
+    for label, key, hib in checks:
+        bv, hv = m(best_arch, key), m(HIER, key)
+        if bv is None or hv is None:
+            continue
+        better = (hv > bv + 1e-9) if hib else (hv < bv - 1e-9)
+        (wins if better else losses).append((label, bv, hv))
+
+    out.append("### Which of the usual arguments for a hierarchy actually hold")
+    out.append("")
+    if wins:
+        out.append("**Hold, on this evidence:**")
+        out.append("")
+        for label, bv, hv in wins:
+            out.append(f"* {label} — {hv:.0%} vs {bv:.0%} for the centralised "
+                       f"option." if abs(hv) < 1e4 else
+                       f"* {label} — {hv:.3g} vs {bv:.3g}.")
+        out.append("")
+    if losses:
+        out.append("**Do NOT hold, and should not be used to justify the "
+                   "build:**")
+        out.append("")
+        for label, bv, hv in losses:
+            out.append(f"* {label} — {hv:.0%} vs {bv:.0%}; the centralised "
+                       f"option is better." if abs(hv) < 1e4 else
+                       f"* {label} — {hv:.3g} vs {bv:.3g}; centralised wins.")
+        out.append("")
 
     out.append("### Three decisions this supports")
     out.append("")
+    c = m("C_recursive_sum", "found_anywhere_in_register")
+    d_ = m("D_hier_nolineage", "found_anywhere_in_register")
+    e_ = m("E_hier_lineage", "found_anywhere_in_register")
+    f_ = m("F_hier_retrieval", "found_anywhere_in_register")
+    g_ = m("G_hier_questions", "found_anywhere_in_register")
     out.append(
         "**1. Do not build progressive summarisation up the org chart.** This "
-        "is the intuitive design - each layer summarises the layer below - and "
-        "it is the clearest negative result in the study. It finds "
-        "approximately nothing, at any scale, in any variant tried: with "
-        "lineage, without lineage, with structured objects, with plain text. "
-        "The reason is measurable rather than a matter of tuning, and is given "
-        "in the executive summary below.")
+        "is the intuitive design — each layer summarises the layer below — and "
+        "it is the clearest negative result in the study. At "
+        f"{big:,} users it finds "
+        f"{(c if c is not None else 0):.0%} (plain summarisation), "
+        f"{(d_ if d_ is not None else 0):.0%} (structured, no lineage) and "
+        f"{(e_ if e_ is not None else 0):.0%} (structured with lineage) of the "
+        "hidden problems. The reason is measurable rather than a matter of "
+        "tuning, and is given in the executive summary.")
     out.append("")
+    if f_ is not None and g_ is not None:
+        out.append(
+            "**2. If we build a hierarchy, the value is in the downward path, "
+            "not the upward one.** Adding targeted downward retrieval takes "
+            f"discovery from {(e_ or 0):.0%} to {f_:.0%}; adding "
+            f"sketch-driven questioning on top takes it to {g_:.0%}. Budget "
+            "accordingly: the upward channel should be cheap and statistical, "
+            "and the downward channel is where the work — and the cost — "
+            "actually is.")
+        out.append("")
     out.append(
-        "**2. If we build a hierarchy, the value is in the downward path, not "
-        "the upward one.** Almost all of the hierarchy's performance comes "
-        "from the enterprise layer asking targeted questions *downward* and "
-        "pulling evidence back on demand, not from information flowing up. "
-        "Budget accordingly: the upward channel should be cheap and "
-        "statistical; the downward channel is where the work happens.")
-    out.append("")
-    out.append(
-        "**3. Spend top-tier model budget on re-reading original evidence, not "
-        "on bigger reasoning over summaries.** We measured this directly on "
-        "three real models. Given the same summarised evidence, a large model "
-        "and a small model perform the same, and no better than a six-feature "
-        "statistical rule. Given the *original notes* behind that evidence, "
-        "both improve sharply. Acting on this changed the design and was the "
-        "single best return on compute we found.")
+        "**3. Spend top-tier model budget on re-opening original evidence, not "
+        "on bigger reasoning over summaries.** Measured directly on three real "
+        "models: given the same summarised evidence, a large model and a small "
+        "model perform the same, and no better than a six-feature statistical "
+        "rule. Given the *original notes* behind that evidence, both improve "
+        "sharply. Acting on this — having the kernel re-read a handful of "
+        "source notes per candidate — was the best return on compute found in "
+        "the study.")
     out.append("")
     return "\n".join(out)
 

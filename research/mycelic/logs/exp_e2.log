@@ -23,3 +23,27 @@
   1 -contradiction           AP=0.0194 found=0.30 rare=0.050 lin=0.54 indep=0.76 cu=1.08e+06
   1 -temporal                AP=0.0093 found=0.28 rare=0.200 lin=0.47 indep=0.67 cu=1.09e+06
   1 -adaptive_routing        AP=0.0136 found=0.35 rare=0.200 lin=0.49 indep=0.79 cu=1.09e+06
+  1 -questions               AP=0.0002 found=0.03 rare=0.050 lin=0.25 indep=0.60 cu=3.72e+05
+  1 -question_targeting      AP=0.0226 found=0.33 rare=0.100 lin=0.52 indep=0.73 cu=1.08e+06
+  1 -downward_retrieval      AP=0.0000 found=0.00 rare=0.000 lin=0.00 indep=0.00 cu=2.27e+05
+  1 -cross_links             AP=0.0536 found=0.40 rare=0.150 lin=0.53 indep=0.78 cu=1.07e+06
+  1 -sketch_channel          AP=0.0010 found=0.07 rare=0.150 lin=0.50 indep=0.74 cu=1.25e+06
+  1 -adaptive_abstraction    AP=0.0184 found=0.38 rare=0.150 lin=0.56 indep=0.71 cu=1.08e+06
+  1 -triage_prior            AP=0.0496 found=0.30 rare=0.150 lin=0.50 indep=0.68 cu=1.08e+06
+  1 +evidence_verification   AP=0.0545 found=0.30 rare=0.150 lin=0.50 indep=0.68 cu=1.09e+06
+  1 +source_dispersion       AP=0.0454 found=0.30 rare=0.150 lin=0.50 indep=0.68 cu=1.08e+06
+  1 +chain_completion        AP=0.0493 found=0.35 rare=0.200 lin=0.44 indep=0.69 cu=1.95e+06
+  1 -foreign_filter          AP=0.0550 found=0.42 rare=0.300 lin=0.48 indep=0.70 cu=1.22e+06
+  1 -synthesis_restriction   AP=0.0471 found=0.35 rare=0.200 lin=0.48 indep=0.70 cu=1.08e+06
+  2 full                     AP=0.0172 found=0.42 rare=0.267 lin=0.48 indep=0.77 cu=1.13e+06
+  2 -lineage                 AP=0.0335 found=0.40 rare=0.067 lin=0.00 indep=0.74 cu=1.08e+06
+  2 -independence            AP=0.0260 found=0.42 rare=0.333 lin=0.52 indep=0.72 cu=1.13e+06
+  2 -contradiction           AP=0.0588 found=0.45 rare=0.400 lin=0.51 indep=0.80 cu=1.12e+06
+  2 -temporal                AP=0.0106 found=0.35 rare=0.333 lin=0.47 indep=0.78 cu=1.14e+06
+  2 -adaptive_routing        AP=0.0420 found=0.47 rare=0.400 lin=0.48 indep=0.73 cu=1.17e+06
+  2 -questions               AP=0.0029 found=0.10 rare=0.000 lin=0.50 indep=0.76 cu=3.82e+05
+  2 -question_targeting      AP=0.0158 found=0.38 rare=0.333 lin=0.53 indep=0.77 cu=1.13e+06
+  2 -downward_retrieval      AP=0.0007 found=0.03 rare=0.000 lin=1.00 indep=0.59 cu=2.34e+05
+  2 -cross_links             AP=0.0127 found=0.38 rare=0.333 lin=0.49 indep=0.78 cu=1.12e+06
+  2 -sketch_channel          AP=0.0021 found=0.12 rare=0.133 lin=0.40 indep=0.72 cu=1.19e+06
+  2 -adaptive_abstraction    AP=0.0162 found=0.45 rare=0.400 lin=0.52 indep=0.74 cu=1.11e+06
