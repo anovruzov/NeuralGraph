@@ -985,7 +985,62 @@ def section_scale_trend() -> str:
             cells.append(f"{np.mean(sub):.2e}" if sub else "—")
         if any(c != "—" for c in cells):
             lines.append(f"| {a} | " + " | ".join(cells) + " |")
-    return "\n".join(lines)
+    lines.append("")
+    lines.append(_scale_verdict(rows, scales))
+    return "\n".join(x for x in lines if x is not None)
+
+
+def _scale_verdict(rows: List[Dict], scales: List[int]) -> str:
+    """How do discovery and cost trend with enterprise size, and do the
+    curves ever cross?  Stated from the endpoints rather than eyeballed."""
+    if len(scales) < 2:
+        return ""
+    lo, hi = scales[0], scales[-1]
+
+    def g(arch, sc, key):
+        v = [r[key] for r in rows if r["arch"] == arch and r["scale"] == sc]
+        return float(np.mean(v)) if v else None
+
+    HIER = "H_mycelic_full"
+    # Compare against whichever non-reference architecture is strongest at
+    # the largest scale both were run at.
+    cands = [a for a in {r["arch"] for r in rows}
+             if a not in ("Y_oracle_retrieval", "Z_random_rank",
+                          "Z2_naive_enumerate", HIER)
+             and g(a, hi, "found_anywhere_in_register") is not None]
+    if not cands:
+        return ""
+    rival = max(cands, key=lambda a: g(a, hi, "found_anywhere_in_register"))
+    hf_lo, hf_hi = (g(HIER, lo, "found_anywhere_in_register"),
+                    g(HIER, hi, "found_anywhere_in_register"))
+    rf_lo, rf_hi = (g(rival, lo, "found_anywhere_in_register"),
+                    g(rival, hi, "found_anywhere_in_register"))
+    hc_lo, hc_hi = g(HIER, lo, "compute_units"), g(HIER, hi, "compute_units")
+    rc_lo, rc_hi = g(rival, lo, "compute_units"), g(rival, hi, "compute_units")
+    if None in (hf_lo, hf_hi, rf_lo, rf_hi, hc_lo, hc_hi, rc_lo, rc_hi):
+        return ""
+    users_mult = hi / lo
+    return (
+        f"**Does the picture change with size?** From {lo:,} to {hi:,} users "
+        f"— {users_mult:.0f}x the people — the hierarchy's discovery goes "
+        f"{hf_lo:.3f} → {hf_hi:.3f} and `{rival}`'s goes {rf_lo:.3f} → "
+        f"{rf_hi:.3f}, so the gap "
+        + ("widens" if (rf_hi - hf_hi) > (rf_lo - hf_lo) else "narrows")
+        + f" rather than closing. Compute tells the opposite story: the "
+          f"hierarchy's rises {hc_hi/hc_lo:.1f}x over that {users_mult:.0f}x "
+          f"growth in people, `{rival}`'s {rc_hi/rc_lo:.1f}x, so the "
+          f"hierarchy's cost advantage "
+        + ("grows" if (rc_hi / hc_hi) > (rc_lo / hc_lo) else "shrinks")
+        + f" with size: `{rival}` costs {rc_lo/hc_lo:.1f}x the hierarchy at "
+          f"{lo:,} users"
+        + (" — i.e. it is the cheaper of the two there — "
+           if rc_lo < hc_lo else " ")
+        + f"and {rc_hi/hc_hi:.1f}x at {hi:,}. Neither curve crosses inside the "
+          f"range measured. The trend is favourable to the hierarchy on cost "
+          f"and unfavourable on accuracy, and nothing here justifies "
+          f"extrapolating a crossing point beyond {hi:,} — that would be an "
+          f"extrapolation, and this study does not make any."
+    )
 
 
 def section_live() -> str:

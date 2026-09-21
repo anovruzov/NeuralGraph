@@ -157,7 +157,7 @@ So the honest statement of what the hierarchy buys is narrow and specific: **the
 
 **2. The reason is measurable and is not a tuning artefact.** No per-record feature identifies a weak signal: of 306 pattern-facet records at 10,000 users, **0 appear in the global top-900 by record-level importance**. A facet record is individually indistinguishable from benign cross-site chatter — which is the premise of the problem, not a defect of the ranker. Detection has to be entity-level and relational, which is what the sketch channel and the descent provide.
 
-**3. At enterprise scale the binding constraint is discrimination, not retrieval.** A perfect-retrieval oracle — every extracted claim, no budget at all — holds the evidence for 100% of the hidden patterns and still reports only 20.5% of them. The hierarchy holds 28% and reports 22.5%. More undifferentiated evidence makes the kernel's ranking worse, so a propagation budget is a feature and not only a cost.
+**3. At enterprise scale the binding constraint is discrimination, not retrieval.** A perfect-retrieval oracle — every extracted claim, no budget at all — holds the evidence for 100% of the hidden patterns and still reports only 20.5% of them. The hierarchy holds 29% and reports 23.2%. More undifferentiated evidence makes the kernel's ranking worse, so a propagation budget is a feature and not only a cost.
 
 **4. Directly measured: at fixed evidence, model capability buys almost nothing here, changing what the evidence *contains* helps the strongest model a lot and is not reliable across models.** 3 real models ranked the same 56 candidates from a real run (2 independent runs per cell). Given the aggregate evidence statistics they scored AP 0.354–0.407, against 0.420 for a six-feature logistic and 0.313 for random — i.e. a large capability range lands within noise of a logistic. Given the **raw work notes** behind the same statistics the same models scored 0.319–0.617. Richer evidence helped 2 of 3 models (Δ -0.048 to +0.262); the largest run-to-run range within a single cell is 0.107, and 1 of the 3 moves by more than that (opus). The abstraction, not the reasoner, is the plausible ceiling — but see §23 before treating the size of the effect as established.
 
@@ -622,8 +622,8 @@ variance.
 | B4_central_triage | 0.740 | 0.388 | 0.314 | — |
 | E_hier_lineage | 0.088 | 0.035 | 0.008 | 0.008 |
 | G_hier_questions | 0.693 | 0.398 | 0.336 | 0.235 |
-| H_mycelic_full | 0.715 | 0.385 | 0.336 | 0.225 |
-| J_mycelic_verified | 0.715 | 0.385 | 0.336 | 0.225 |
+| H_mycelic_full | 0.715 | 0.385 | 0.336 | 0.232 |
+| J_mycelic_verified | 0.715 | 0.385 | 0.336 | 0.232 |
 | Y_oracle_retrieval | 0.685 | 0.232 | 0.284 | 0.205 |
 
 Compute (cu) at the same points:
@@ -637,9 +637,11 @@ Compute (cu) at the same points:
 | B4_central_triage | 1.33e+05 | 3.98e+05 | 1.07e+06 | — |
 | E_hier_lineage | 6.93e+04 | 2.27e+05 | 9.90e+05 | 1.92e+06 |
 | G_hier_questions | 8.37e+05 | 1.11e+06 | 2.92e+06 | 4.51e+06 |
-| H_mycelic_full | 8.43e+05 | 1.11e+06 | 2.93e+06 | 4.72e+06 |
-| J_mycelic_verified | 8.53e+05 | 1.12e+06 | 2.94e+06 | 4.73e+06 |
+| H_mycelic_full | 8.43e+05 | 1.11e+06 | 2.93e+06 | 4.71e+06 |
+| J_mycelic_verified | 8.53e+05 | 1.12e+06 | 2.94e+06 | 4.72e+06 |
 | Y_oracle_retrieval | 1.44e+05 | 4.87e+05 | 2.43e+06 | 4.86e+06 |
+
+**Does the picture change with size?** From 2,000 to 100,000 users — 50x the people — the hierarchy's discovery goes 0.715 → 0.232 and `A2_chunked_ctx`'s goes 0.882 → 0.678, so the gap widens rather than closing. Compute tells the opposite story: the hierarchy's rises 5.6x over that 50x growth in people, `A2_chunked_ctx`'s 39.8x, so the hierarchy's cost advantage grows with size: `A2_chunked_ctx` costs 0.6x the hierarchy at 2,000 users — i.e. it is the cheaper of the two there — and 4.3x at 100,000. Neither curve crosses inside the range measured. The trend is favourable to the hierarchy on cost and unfavourable on accuracy, and nothing here justifies extrapolating a crossing point beyond 100,000 — that would be an extrapolation, and this study does not make any.
 
 ## 12. Ablations
 

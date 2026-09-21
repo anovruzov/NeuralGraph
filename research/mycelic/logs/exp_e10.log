@@ -24,3 +24,5 @@
    100000/2 E_hier_lineage         AP=0.0057 found=0.010 cov2=0.015 rare=0.000 cu=1.91e+06 (48s)
    100000/2 G_hier_questions       AP=0.0089 found=0.260 cov2=0.315 rare=0.165 cu=4.43e+06 (45s)
    100000/2 H_mycelic_full         AP=0.0081 found=0.245 cov2=0.315 rare=0.139 cu=4.69e+06 (53s)
+   100000/2 J_mycelic_verified     AP=0.0081 found=0.245 cov2=0.315 rare=0.139 cu=4.70e+06 (47s)
+   100000/2 Y_oracle_retrieval     AP=0.0037 found=0.320 cov2=1.000 rare=0.291 cu=4.86e+06 (30s)
