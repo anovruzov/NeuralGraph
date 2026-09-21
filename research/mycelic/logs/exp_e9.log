@@ -90,3 +90,9 @@
    50000/1 F_hier_retrieval       raw=0.0000 claims=0.1389 sketch=2.617e+06 found=0.02
    50000/1 G_hier_questions       raw=0.0000 claims=0.1389 sketch=2.617e+06 found=0.28
    50000/1 H_mycelic_full         raw=0.0000 claims=0.1389 sketch=2.617e+06 found=0.31
+   50000/1 I_mycelic_completion   raw=0.0000 claims=0.1389 sketch=2.617e+06 found=0.30
+   50000/1 J_mycelic_verified     raw=0.0000 claims=0.1389 sketch=2.617e+06 found=0.31
+   50000/1 Y_oracle_retrieval     raw=0.0000 claims=0.8847 sketch=0.000e+00 found=0.30
+   50000/1 Z_random_rank          raw=0.0000 claims=0.8847 sketch=0.000e+00 found=0.07
+   50000/1 Z2_naive_enumerate     raw=0.0000 claims=0.8847 sketch=0.000e+00 found=0.13
+=== e9 done in 574s ===

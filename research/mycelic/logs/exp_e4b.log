@@ -21,3 +21,6 @@
   2 t/dept= 7 E_hier_lineage   AP=0.0053
   2 t/dept=10 H_mycelic_full   AP=0.0238
   2 t/dept=10 E_hier_lineage   AP=0.0022
+  2 t/dept=14 H_mycelic_full   AP=0.0147
+  2 t/dept=14 E_hier_lineage   AP=0.0025
+=== e4b done in 122s ===

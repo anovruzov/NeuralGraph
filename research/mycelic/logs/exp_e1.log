@@ -185,3 +185,17 @@
    50000/1 E_hier_lineage       AP=0.0003 found=0.01 R@100=0.010 cu=9.87e+05
    50000/1 F_hier_retrieval     AP=0.0007 found=0.02 R@100=0.020 cu=1.14e+06
    50000/1 G_hier_questions     AP=0.0072 found=0.28 R@100=0.040 cu=2.91e+06
+   50000/1 H_mycelic_full       AP=0.0091 found=0.31 R@100=0.030 cu=2.94e+06
+   50000/1 I_mycelic_completion AP=0.0155 found=0.30 R@100=0.080 cu=5.09e+06
+   50000/1 J_mycelic_verified   AP=0.0190 found=0.31 R@100=0.070 cu=2.95e+06
+   50000/1 Y_oracle_retrieval   AP=0.0030 found=0.30 R@100=0.010 cu=2.43e+06
+   50000/1 Z_random_rank        AP=0.0008 found=0.07 R@100=0.000 cu=7.78e+05
+   50000/1 Z2_naive_enumerate   AP=0.0009 found=0.13 R@100=0.010 cu=9.19e+05
+   50000/2 A_flat_rag           AP=0.0100 found=0.38 R@100=0.030 cu=1.24e+06
+   50000/2 B_long_context       AP=0.0003 found=0.04 R@100=0.000 cu=1.12e+06
+   50000/2 B2_map_reduce        AP=0.0100 found=0.01 R@100=0.010 cu=7.74e+05
+   50000/2 A2_chunked_ctx       AP=0.1096 found=0.74 R@100=0.180 cu=1.02e+07
+   50000/2 B4_central_triage    AP=0.0094 found=0.32 R@100=0.040 cu=1.06e+06
+   50000/2 C_recursive_sum      AP=0.0000 found=0.00 R@100=0.000 cu=8.02e+05
+   50000/2 D_hier_nolineage     AP=0.0000 found=0.00 R@100=0.000 cu=8.76e+05
+   50000/2 E_hier_lineage       AP=0.0000 found=0.00 R@100=0.000 cu=9.83e+05

@@ -481,7 +481,75 @@ def section_live() -> str:
                        f"{v['selection_precision']:.3f} | "
                        f"{v['selection_recall']:.3f} | {v['selection_f1']:.3f} | "
                        f"{v['n_selected']} |")
+        ag = {k: v for k, v in d.get("models_aggregated", {}).items()
+              if v.get("n_runs", 1) > 1}
+        if ag:
+            out.append("")
+            out.append("Independent repeats of the same task, same model, "
+                       "fresh context. One run per cell cannot carry a "
+                       "mechanism claim, so the spread is reported rather "
+                       "than averaged away:")
+            out.append("")
+            out.append("| model | runs | AP mean | AP min | AP max | spread |")
+            out.append("|---|---:|---:|---:|---:|---:|")
+            for m, v in sorted(ag.items()):
+                out.append(f"| {m} | {v['n_runs']} | {v['ap_mean']:.4f} | "
+                           f"{v['ap_min']:.4f} | {v['ap_max']:.4f} | "
+                           f"{v['ap_max'] - v['ap_min']:.4f} |")
+    out.append("")
+    out.append(_live_rich_delta())
     return "\n".join(out) if out else "_(live measurements not run)_"
+
+
+def _live_rich_delta() -> str:
+    """Does richer evidence beat a bigger model?  Answered from the repeats."""
+    pa = os.path.join(ART, "live_rank_results.json")
+    pb = os.path.join(ART, "live_rank_results_rich.json")
+    if not (os.path.exists(pa) and os.path.exists(pb)):
+        return ""
+    d, dr = json.load(open(pa)), json.load(open(pb))
+
+    def _cell(dd, m):
+        ag = dd.get("models_aggregated", {}).get(m)
+        if ag:
+            return ag["ap_mean"], ag["ap_min"], ag["ap_max"], ag["n_runs"]
+        v = dd.get("models", {}).get(m)
+        if v:
+            return v["ap"], v["ap"], v["ap"], 1
+        return None
+
+    names = sorted(set(d.get("models_aggregated", d.get("models", {})))
+                   | set(dr.get("models_aggregated", dr.get("models", {}))))
+    lines = ["**Does giving the SAME model richer evidence beat giving the "
+             "task to a BIGGER model?**", "",
+             "| model | statistics only (mean [min, max], n) | "
+             "+ raw work notes (mean [min, max], n) | Δ |",
+             "|---|---:|---:|---:|"]
+    deltas = []
+    for m in names:
+        ca, cb = _cell(d, m), _cell(dr, m)
+        if not (ca and cb):
+            continue
+        deltas.append((m, cb[0] - ca[0], ca, cb))
+        lines.append(
+            f"| {m} | {ca[0]:.4f} [{ca[1]:.4f}, {ca[2]:.4f}] n={ca[3]} | "
+            f"{cb[0]:.4f} [{cb[1]:.4f}, {cb[2]:.4f}] n={cb[3]} | "
+            f"{cb[0]-ca[0]:+.4f} |")
+    if not deltas:
+        return ""
+    pos = sum(1 for _, dv, _, _ in deltas if dv > 0)
+    worst_overlap = [m for m, dv, ca, cb in deltas if cb[1] <= ca[2]]
+    lines.append("")
+    lines.append(
+        f"Richer evidence helped {pos} of {len(deltas)} models. "
+        + ("For " + ", ".join(worst_overlap) + " the two conditions' run "
+           "ranges OVERLAP, so for those models this comparison does not "
+           "separate the conditions at all. "
+           if worst_overlap else
+           "No model's two conditions overlap across runs. ")
+        + "Read the size of the run-to-run spread before reading any Δ: "
+          "where the spread is comparable to the gap, the gap is not a result.")
+    return "\n".join(lines)
 
 
 def section_calibration() -> str:

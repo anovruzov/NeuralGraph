@@ -533,11 +533,24 @@ performance, and it works in two separable stages:
 
 ### Adversarial conditions
 
+Each condition is compared against **that same architecture's own clean run on
+the same seeds**, so what is read here is degradation, not a level difference
+between architectures. The question this answers is not "which architecture is
+best" but "which architecture *breaks*, and in which direction": a condition
+that costs discovery is survivable, a condition that costs discovery *and*
+raises the false-discovery rate is the dangerous kind, because the system
+becomes quieter about real things and louder about invented ones at the same
+time.
+
+![degradation under adversarial conditions](../research/mycelic/artifacts/figures/adversarial.png)
+
 {sec['adversarial']}
 
 ## 19. Organisational shape
 
 ### Fan-in
+
+![fan-in vs discovery](../research/mycelic/artifacts/figures/fanin.png)
 
 {sec['fanin']}
 
@@ -581,6 +594,38 @@ are run.
 {sec['shape']}
 
 ## 23. Direct model measurement
+
+Everything above this point is simulation: real organisational structure, real
+corpus, real routing and retrieval, but the *cognitive* steps are executed by a
+parameterised operator model rather than by a language model. This section is
+the opposite — the simulator is absent and real models do the work, blind.
+
+Two tasks were put to real models. The first checks whether the primitive
+operations the simulator parameterises (extract a claim, keep the entity
+straight, judge causal membership, judge temporal order, link two mentions,
+tell independence from an echo) are things a real model can actually do. The
+second is the task that the measurements above say is the binding constraint:
+given the candidates the retrieval stage surfaced, tell the genuine emerging
+risks from the artefacts.
+
+The discrimination task is run under two conditions on the *same* 56
+candidates, so the only thing that changes is what the model is allowed to see:
+
+* **evidence statistics only** — the aggregate view an upper layer would hold
+  after propagation: per-event independent-source counts, site and region
+  spread, first/last day, contradiction counts.
+* **statistics + raw work notes** — the same, plus a sample of the actual
+  notes those counts were computed from.
+
+This is the architectural question stated as a measurement: is a strategic
+judgement better served by spending the budget on a *bigger model* reading
+aggregates, or on *carrying more evidence upward* for the model already there?
+
+Models were pointed at a task file in `artifacts/`; the answer key was held in
+`research/mycelic/keys/`, outside that directory, and the task file was
+checksummed so a mid-run regeneration would be detectable. Each cell was then
+repeated with a fresh context, because one run per cell cannot separate a
+mechanism from a sampling accident.
 
 ![candidate discrimination, measured](../research/mycelic/artifacts/figures/discrimination.png)
 

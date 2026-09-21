@@ -1,0 +1,27 @@
+=== e12 ===
+   10000/0 A_flat_rag             evidence-names-entity=0.894 fully-attributed=0.724 none-attributed=0.000
+   10000/0 A2_chunked_ctx         evidence-names-entity=0.888 fully-attributed=0.715 none-attributed=0.003
+   10000/0 B2_map_reduce          evidence-names-entity=0.164 fully-attributed=0.018 none-attributed=0.610
+   10000/0 B4_central_triage      evidence-names-entity=0.268 fully-attributed=0.000 none-attributed=0.388
+   10000/0 E_hier_lineage         evidence-names-entity=0.119 fully-attributed=0.000 none-attributed=0.893
+   10000/0 H_mycelic_full         evidence-names-entity=0.385 fully-attributed=0.003 none-attributed=0.287
+   10000/0 J_mycelic_verified     evidence-names-entity=0.394 fully-attributed=0.003 none-attributed=0.292
+   10000/1 A_flat_rag             evidence-names-entity=0.893 fully-attributed=0.745 none-attributed=0.000
+   10000/1 A2_chunked_ctx         evidence-names-entity=0.908 fully-attributed=0.757 none-attributed=0.000
+   10000/1 B2_map_reduce          evidence-names-entity=0.164 fully-attributed=0.010 none-attributed=0.563
+   10000/1 B4_central_triage      evidence-names-entity=0.295 fully-attributed=0.005 none-attributed=0.345
+   10000/1 E_hier_lineage         evidence-names-entity=0.117 fully-attributed=0.031 none-attributed=0.766
+   10000/1 H_mycelic_full         evidence-names-entity=0.351 fully-attributed=0.003 none-attributed=0.325
+   10000/1 J_mycelic_verified     evidence-names-entity=0.362 fully-attributed=0.003 none-attributed=0.333
+   10000/2 A_flat_rag             evidence-names-entity=0.893 fully-attributed=0.754 none-attributed=0.000
+   10000/2 A2_chunked_ctx         evidence-names-entity=0.877 fully-attributed=0.730 none-attributed=0.003
+   10000/2 B2_map_reduce          evidence-names-entity=0.165 fully-attributed=0.003 none-attributed=0.561
+   10000/2 B4_central_triage      evidence-names-entity=0.228 fully-attributed=0.000 none-attributed=0.417
+   10000/2 E_hier_lineage         evidence-names-entity=0.165 fully-attributed=0.024 none-attributed=0.780
+   10000/2 H_mycelic_full         evidence-names-entity=0.356 fully-attributed=0.007 none-attributed=0.330
+   10000/2 J_mycelic_verified     evidence-names-entity=0.365 fully-attributed=0.007 none-attributed=0.330
+   50000/0 A_flat_rag             evidence-names-entity=0.828 fully-attributed=0.767 none-attributed=0.010
+   50000/0 A2_chunked_ctx         evidence-names-entity=0.882 fully-attributed=0.765 none-attributed=0.003
+   50000/0 B2_map_reduce          evidence-names-entity=0.067 fully-attributed=0.003 none-attributed=0.743
+   50000/0 B4_central_triage      evidence-names-entity=0.568 fully-attributed=0.018 none-attributed=0.013
+   50000/0 E_hier_lineage         evidence-names-entity=0.095 fully-attributed=0.038 none-attributed=0.887

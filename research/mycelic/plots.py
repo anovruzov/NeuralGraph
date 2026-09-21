@@ -183,25 +183,41 @@ def fig_discrimination() -> Optional[str]:
     if not (os.path.exists(a) and os.path.exists(b)):
         return None
     d, dr = json.load(open(a)), json.load(open(b))
-    names, stats, rich = [], [], []
-    for m in sorted(set(d.get("models", {})) | set(dr.get("models", {}))):
-        names.append(m)
-        stats.append(d.get("models", {}).get(m, {}).get("ap", np.nan))
-        rich.append(dr.get("models", {}).get(m, {}).get("ap", np.nan))
-    fig, ax = plt.subplots(figsize=(7.0, 4.2))
+
+    def _cell(dd, m):
+        """(mean, lower err, upper err) across repeats, NaN if absent."""
+        ag = dd.get("models_aggregated", {}).get(m)
+        if ag:
+            return (ag["ap_mean"], ag["ap_mean"] - ag["ap_min"],
+                    ag["ap_max"] - ag["ap_mean"])
+        v = dd.get("models", {}).get(m)
+        return (v["ap"], 0.0, 0.0) if v else (np.nan, 0.0, 0.0)
+
+    keys = (set(d.get("models_aggregated", d.get("models", {})))
+            | set(dr.get("models_aggregated", dr.get("models", {}))))
+    names = sorted(keys)
+    stats = [_cell(d, m) for m in names]
+    rich = [_cell(dr, m) for m in names]
+    fig, ax = plt.subplots(figsize=(7.4, 4.4))
     x = np.arange(len(names))
-    ax.bar(x - 0.2, stats, 0.4, label="evidence statistics only",
-           color=COLORS(0))
-    ax.bar(x + 0.2, rich, 0.4, label="statistics + raw work notes",
-           color=COLORS(4))
+    # The error bar is the FULL RANGE over independent repeats of the same
+    # task with the same model, not a CI: with 2-3 runs a CI would be
+    # meaningless, and the range is the honest statement of the spread.
+    ax.bar(x - 0.2, [c[0] for c in stats], 0.4,
+           yerr=[[c[1] for c in stats], [c[2] for c in stats]], capsize=3,
+           label="evidence statistics only", color=COLORS(0))
+    ax.bar(x + 0.2, [c[0] for c in rich], 0.4,
+           yerr=[[c[1] for c in rich], [c[2] for c in rich]], capsize=3,
+           label="statistics + raw work notes", color=COLORS(4))
     ax.axhline(d["random_ap"], color="gray", ls=":", lw=1.2,
                label=f"random ({d['random_ap']:.3f})")
     ax.axhline(d["simulator_logistic_ap"], color="black", ls="--", lw=1.2,
                label=f"simulator logistic ({d['simulator_logistic_ap']:.3f})")
     ax.set_xticks(x)
     ax.set_xticklabels(names, fontsize=8)
-    _style(ax, "Directly measured: candidate discrimination\n"
-               "(60 candidates from a real run, 15 genuine)",
+    _style(ax, f"Directly measured: candidate discrimination\n"
+               f"({d['n_items']} candidates from a real run, {d['n_real']} "
+               f"genuine; bars = mean, whiskers = full range over repeats)",
            "model", "average precision")
     ax.legend(fontsize=7)
     fig.tight_layout()
@@ -269,8 +285,87 @@ def fig_privacy() -> Optional[str]:
     return p
 
 
+def fig_adversarial() -> Optional[str]:
+    rows = load("e5_adversarial.jsonl")
+    if not rows:
+        return None
+    archs = sorted({r["arch"] for r in rows})
+    a = agg(rows, ["found_anywhere_in_register", "false_discovery_rate",
+                   "decoy_acceptance_all"], by=("condition", "arch"))
+    base = {r["arch"]: r for r in a if r["condition"] == "clean"}
+    conds = [c for c in sorted({r["condition"] for r in a}) if c != "clean"]
+    if not conds:
+        return None
+    fig, axes = plt.subplots(1, 2, figsize=(13.0, max(3.6, 0.32 * len(conds) + 1.8)))
+    y = np.arange(len(conds))
+    h = 0.8 / max(1, len(archs))
+    for j, arch in enumerate(archs):
+        d_found, d_fdr = [], []
+        for c in conds:
+            row = [r for r in a if r["condition"] == c and r["arch"] == arch]
+            b = base.get(arch)
+            if row and b:
+                d_found.append(row[0]["found_anywhere_in_register"]
+                               - b["found_anywhere_in_register"])
+                d_fdr.append(row[0]["false_discovery_rate"]
+                             - b["false_discovery_rate"])
+            else:
+                d_found.append(0.0); d_fdr.append(0.0)
+        axes[0].barh(y + j * h, d_found, height=h, label=arch,
+                     color=_color(arch))
+        axes[1].barh(y + j * h, d_fdr, height=h, label=arch, color=_color(arch))
+    for ax, lab in ((axes[0], "Δ discovery (found) vs that architecture's "
+                              "own clean baseline"),
+                    (axes[1], "Δ false-discovery rate vs own clean baseline")):
+        ax.set_yticks(y + 0.4 - h / 2)
+        ax.set_yticklabels(conds, fontsize=7.5)
+        ax.axvline(0, color="black", lw=0.8)
+        _style(ax, lab, "Δ", "")
+    axes[0].legend(fontsize=6.5, loc="lower left")
+    fig.tight_layout()
+    p = os.path.join(FIG, "adversarial.png")
+    fig.savefig(p, dpi=150)
+    plt.close(fig)
+    return p
+
+
+def fig_fanin() -> Optional[str]:
+    rows = load("e4_fanin.jsonl")
+    rows_d = load("e4b_dept_fanin.jsonl")
+    if not (rows or rows_d):
+        return None
+    fig, axes = plt.subplots(1, 2, figsize=(11.0, 4.2))
+    for ax, rs, xkey, xlab in ((axes[0], rows, "team_size", "users per team"),
+                               (axes[1], rows_d, "teams_per_dept",
+                                "teams per department")):
+        if not rs:
+            ax.text(0.5, 0.5, "(not run)", ha="center", transform=ax.transAxes)
+            _style(ax, "", xlab, "discovery (found)")
+            continue
+        for arch in sorted({r["arch"] for r in rs}):
+            sub = [r for r in rs if r["arch"] == arch]
+            xs = sorted({r[xkey] for r in sub})
+            ys, los, his = [], [], []
+            for x in xs:
+                v = [r["found_anywhere_in_register"] for r in sub
+                     if r[xkey] == x]
+                m, lo, hi = boot_ci(v)
+                ys.append(m); los.append(m - lo); his.append(hi - m)
+            ax.errorbar(xs, ys, yerr=[los, his], marker="o", ms=4, lw=1.3,
+                        capsize=3, label=arch, color=_color(arch))
+        ax.set_ylim(0, None)
+        _style(ax, "Fan-in vs strategic discovery", xlab, "discovery (found)")
+        ax.legend(fontsize=7)
+    fig.tight_layout()
+    p = os.path.join(FIG, "fanin.png")
+    fig.savefig(p, dpi=150)
+    plt.close(fig)
+    return p
+
+
 ALL = [fig_scale, fig_frontier, fig_level_marginal, fig_qsweep,
-       fig_discrimination, fig_ablation, fig_privacy]
+       fig_discrimination, fig_ablation, fig_privacy, fig_adversarial,
+       fig_fanin]
 
 
 def build() -> List[str]:
