@@ -22,6 +22,29 @@ import numpy as np
 from .runner import ART
 
 
+def dedupe(rows: List[Dict], key=("arch", "scale", "seed")) -> List[Dict]:
+    """Keep the first row per (arch, scale, seed).
+
+    Several experiments append to shared files, and an architecture added late
+    can end up measured twice on the same world.  Averaging a duplicated row
+    twice would not move a mean much, but it silently inflates the seed count
+    a paired test thinks it has, which would be a real error.
+    """
+    seen = set()
+    out = []
+    for r in rows:
+        try:
+            k = tuple(r[x] for x in key)
+        except KeyError:
+            out.append(r)
+            continue
+        if k in seen:
+            continue
+        seen.add(k)
+        out.append(r)
+    return out
+
+
 def load(fname: str) -> List[Dict]:
     p = os.path.join(ART, fname)
     if not os.path.exists(p):

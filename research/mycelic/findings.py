@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
-from .analysis import agg, boot_ci, load, paired
+from .analysis import agg, boot_ci, dedupe, load, paired
 from .runner import ART
 
 P_FLOOR_NOTE = ("an exact sign test on *n* paired seeds cannot report below "
@@ -21,8 +21,8 @@ P_FLOOR_NOTE = ("an exact sign test on *n* paired seeds cannot report below "
 
 
 def _rows() -> List[Dict]:
-    return (load("e1_baselines.jsonl") + load("e1b_extra.jsonl")
-            + load("e10_scale_trend.jsonl"))
+    return dedupe(load("e1_baselines.jsonl") + load("e1b_extra.jsonl")
+                  + load("e10_scale_trend.jsonl"))
 
 
 def _mean(rows, arch, scale, metric) -> Optional[float]:

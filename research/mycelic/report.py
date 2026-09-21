@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
-from .analysis import agg, boot_ci, load, md_table, paired
+from .analysis import agg, boot_ci, dedupe, load, md_table, paired
 from .findings import (critique, executive_summary, next_experiments,
                        questions_section, recommendation)
 from .runner import ART
@@ -84,7 +84,7 @@ def _fmt(rows, metrics, first=("arch", "architecture"), sort="average_precision"
 
 
 def section_baselines() -> str:
-    rows = load("e1_baselines.jsonl") + load("e1b_extra.jsonl")
+    rows = dedupe(load("e1_baselines.jsonl") + load("e1b_extra.jsonl"))
     if not rows:
         return "_(E1 not run)_"
     out = []
@@ -108,7 +108,7 @@ def section_baselines() -> str:
 
 
 def section_pairs() -> str:
-    rows = load("e1_baselines.jsonl") + load("e1b_extra.jsonl")
+    rows = dedupe(load("e1_baselines.jsonl") + load("e1b_extra.jsonl"))
     if not rows:
         return "_(E1 not run)_"
     pairs = [
@@ -389,8 +389,8 @@ def section_privacy() -> str:
 
 
 def section_scale_trend() -> str:
-    rows = load("e1_baselines.jsonl") + load("e1b_extra.jsonl") + \
-        load("e10_scale_trend.jsonl")
+    rows = dedupe(load("e1_baselines.jsonl") + load("e1b_extra.jsonl")
+                  + load("e10_scale_trend.jsonl"))
     if not rows:
         return "_(not run)_"
     archs = ["A_flat_rag", "A2_chunked_ctx", "B_long_context",

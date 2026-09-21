@@ -15,7 +15,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 
-from .analysis import agg, boot_ci, load  # noqa: E402
+from .analysis import agg, boot_ci, dedupe, load  # noqa: E402
 from .runner import ART  # noqa: E402
 
 FIG = os.path.join(ART, "figures")
@@ -42,8 +42,8 @@ def _style(ax, title, xlabel, ylabel):
 
 
 def fig_scale() -> Optional[str]:
-    rows = (load("e1_baselines.jsonl") + load("e1b_extra.jsonl")
-            + load("e10_scale_trend.jsonl"))
+    rows = dedupe(load("e1_baselines.jsonl") + load("e1b_extra.jsonl")
+                  + load("e10_scale_trend.jsonl"))
     if not rows:
         return None
     scales = sorted({r["scale"] for r in rows})
@@ -75,7 +75,7 @@ def fig_scale() -> Optional[str]:
 
 
 def fig_frontier() -> Optional[str]:
-    rows = (load("e1_baselines.jsonl") + load("e1b_extra.jsonl"))
+    rows = dedupe(load("e1_baselines.jsonl") + load("e1b_extra.jsonl"))
     fr = load("e6_frontier.jsonl")
     if not rows:
         return None
