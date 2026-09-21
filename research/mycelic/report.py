@@ -13,6 +13,8 @@ from typing import Dict, List, Optional, Sequence, Tuple
 import numpy as np
 
 from .analysis import agg, boot_ci, load, md_table, paired
+from .findings import (critique, executive_summary, next_experiments,
+                       questions_section, recommendation)
 from .runner import ART
 
 OUT = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
@@ -535,6 +537,11 @@ def build() -> str:
         "live": section_live(),
         "privacy": section_privacy(),
         "scale_trend": section_scale_trend(),
+        "summary": executive_summary(),
+        "recommendation": recommendation(),
+        "critique": critique(),
+        "next": next_experiments(),
+        "questions": questions_section(),
     })
 
 
