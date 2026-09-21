@@ -63,3 +63,6 @@
    10000/1 Y_oracle_retrieval     raw=0.0000 claims=0.8828 sketch=0.000e+00 found=0.25
    10000/1 Z_random_rank          raw=0.0000 claims=0.8828 sketch=0.000e+00 found=0.20
    10000/1 Z2_naive_enumerate     raw=0.0000 claims=0.8828 sketch=0.000e+00 found=0.10
+   50000/0 A_flat_rag             raw=0.0254 claims=0.0000 sketch=0.000e+00 found=0.51
+   50000/0 B_long_context         raw=0.0254 claims=0.0000 sketch=0.000e+00 found=0.09
+   50000/0 B2_map_reduce          raw=0.0000 claims=0.8849 sketch=0.000e+00 found=0.04

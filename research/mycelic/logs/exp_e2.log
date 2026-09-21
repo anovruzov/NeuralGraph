@@ -47,3 +47,6 @@
   2 -cross_links             AP=0.0127 found=0.38 rare=0.333 lin=0.49 indep=0.78 cu=1.12e+06
   2 -sketch_channel          AP=0.0021 found=0.12 rare=0.133 lin=0.40 indep=0.72 cu=1.19e+06
   2 -adaptive_abstraction    AP=0.0162 found=0.45 rare=0.400 lin=0.52 indep=0.74 cu=1.11e+06
+  2 -triage_prior            AP=0.0172 found=0.42 rare=0.267 lin=0.48 indep=0.77 cu=1.13e+06
+  2 +evidence_verification   AP=0.0192 found=0.42 rare=0.267 lin=0.48 indep=0.77 cu=1.14e+06
+  2 +source_dispersion       AP=0.0155 found=0.42 rare=0.333 lin=0.56 indep=0.77 cu=1.13e+06

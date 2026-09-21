@@ -140,3 +140,14 @@
    10000/3 H_mycelic_full       AP=0.0277 found=0.47 R@100=0.125 cu=1.17e+06
    10000/3 I_mycelic_completion AP=0.0437 found=0.50 R@100=0.125 cu=2.08e+06
    10000/3 J_mycelic_verified   AP=0.0354 found=0.47 R@100=0.175 cu=1.18e+06
+   10000/3 Y_oracle_retrieval   AP=0.0124 found=0.30 R@100=0.075 cu=4.88e+05
+   10000/3 Z_random_rank        AP=0.0088 found=0.30 R@100=0.050 cu=1.99e+05
+   10000/3 Z2_naive_enumerate   AP=0.0013 found=0.05 R@100=0.025 cu=1.85e+05
+   10000/4 A_flat_rag           AP=0.0612 found=0.75 R@100=0.200 cu=1.09e+06
+   10000/4 B_long_context       AP=0.0332 found=0.53 R@100=0.225 cu=1.09e+06
+   10000/4 B2_map_reduce        AP=0.0177 found=0.38 R@100=0.125 cu=1.99e+05
+   10000/4 A2_chunked_ctx       AP=0.0495 found=0.70 R@100=0.200 cu=2.06e+06
+   10000/4 B4_central_triage    AP=0.0044 found=0.28 R@100=0.000 cu=3.97e+05
+   10000/4 C_recursive_sum      AP=0.0000 found=0.00 R@100=0.000 cu=1.68e+05
+   10000/4 D_hier_nolineage     AP=0.0024 found=0.05 R@100=0.050 cu=1.93e+05
+   10000/4 E_hier_lineage       AP=0.0124 found=0.07 R@100=0.075 cu=2.22e+05
