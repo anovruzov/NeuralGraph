@@ -157,7 +157,7 @@ So the honest statement of what the hierarchy buys is narrow and specific: **the
 
 **2. The reason is measurable and is not a tuning artefact.** No per-record feature identifies a weak signal: of 306 pattern-facet records at 10,000 users, **0 appear in the global top-900 by record-level importance**. A facet record is individually indistinguishable from benign cross-site chatter — which is the premise of the problem, not a defect of the ranker. Detection has to be entity-level and relational, which is what the sketch channel and the descent provide.
 
-**3. At enterprise scale the binding constraint is discrimination, not retrieval.** A perfect-retrieval oracle — every extracted claim, no budget at all — holds the evidence for 100% of the hidden patterns and still reports only 20.5% of them. The hierarchy holds 29% and reports 23.2%. More undifferentiated evidence makes the kernel's ranking worse, so a propagation budget is a feature and not only a cost.
+**3. At enterprise scale the binding constraint is discrimination, not retrieval.** A perfect-retrieval oracle — every extracted claim, no budget at all — holds the evidence for 100% of the hidden patterns and still reports only 24.3% of them. The hierarchy holds 29% and reports 23.2%. More undifferentiated evidence makes the kernel's ranking worse, so a propagation budget is a feature and not only a cost.
 
 **4. Directly measured: at fixed evidence, model capability buys almost nothing here, changing what the evidence *contains* helps the strongest model a lot and is not reliable across models.** 3 real models ranked the same 56 candidates from a real run (2 independent runs per cell). Given the aggregate evidence statistics they scored AP 0.354–0.407, against 0.420 for a six-feature logistic and 0.313 for random — i.e. a large capability range lands within noise of a logistic. Given the **raw work notes** behind the same statistics the same models scored 0.319–0.617. Richer evidence helped 2 of 3 models (Δ -0.048 to +0.262); the largest run-to-run range within a single cell is 0.107, and 1 of the 3 moves by more than that (opus). The abstraction, not the reasoner, is the plausible ceiling — but see §23 before treating the size of the effect as established.
 
@@ -624,7 +624,7 @@ variance.
 | G_hier_questions | 0.693 | 0.398 | 0.336 | 0.235 |
 | H_mycelic_full | 0.715 | 0.385 | 0.336 | 0.232 |
 | J_mycelic_verified | 0.715 | 0.385 | 0.336 | 0.232 |
-| Y_oracle_retrieval | 0.685 | 0.232 | 0.284 | 0.205 |
+| Y_oracle_retrieval | 0.685 | 0.232 | 0.284 | 0.243 |
 
 Compute (cu) at the same points:
 

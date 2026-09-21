@@ -26,3 +26,4 @@
    100000/2 H_mycelic_full         AP=0.0081 found=0.245 cov2=0.315 rare=0.139 cu=4.69e+06 (53s)
    100000/2 J_mycelic_verified     AP=0.0081 found=0.245 cov2=0.315 rare=0.139 cu=4.70e+06 (47s)
    100000/2 Y_oracle_retrieval     AP=0.0037 found=0.320 cov2=1.000 rare=0.291 cu=4.86e+06 (30s)
+=== e10 done in 801s ===
