@@ -234,3 +234,6 @@
    50000/4 F_hier_retrieval     AP=0.0014 found=0.03 R@100=0.020 cu=1.16e+06
    50000/4 G_hier_questions     AP=0.0084 found=0.32 R@100=0.030 cu=2.89e+06
    50000/4 H_mycelic_full       AP=0.0108 found=0.32 R@100=0.030 cu=2.86e+06
+   50000/4 I_mycelic_completion AP=0.0056 found=0.30 R@100=0.020 cu=5.01e+06
+   50000/4 J_mycelic_verified   AP=0.0091 found=0.32 R@100=0.030 cu=2.87e+06
+   50000/4 Y_oracle_retrieval   AP=0.0062 found=0.32 R@100=0.020 cu=2.43e+06

@@ -502,8 +502,8 @@ Fitted on calibration seeds [500, 501, 502] at 10,000 users, objective `average_
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | A2_chunked_ctx | 0.051 <sub>[0.032, 0.082]</sub> | 0.686 <sub>[0.658, 0.716]</sub> | 0.112 | 0.608 | 1.000 | 0.977 | 0.368 | 0.594 | 0.641 | 0.003 | 1.02e+07 | 0.223 |
 | A_flat_rag | 0.013 <sub>[0.010, 0.017]</sub> | 0.424 <sub>[0.378, 0.474]</sub> | 0.038 | 0.109 | 0.662 | 0.973 | 0.148 | 0.655 | 0.693 | 0.446 | 1.24e+06 | 0.025 |
-| I_mycelic_completion | 0.013 <sub>[0.010, 0.016]</sub> | 0.337 <sub>[0.290, 0.385]</sub> | 0.045 | 0.197 | 0.407 | 0.988 | 0.220 | 0.740 | 0.490 | 0.581 | 5.11e+06 | 0.146 |
-| J_mycelic_verified | 0.012 <sub>[0.008, 0.017]</sub> | 0.340 <sub>[0.290, 0.390]</sub> | 0.043 | 0.205 | 0.425 | 0.988 | 0.220 | 0.751 | 0.512 | 0.567 | 2.96e+06 | 0.146 |
+| I_mycelic_completion | 0.012 <sub>[0.008, 0.015]</sub> | 0.330 <sub>[0.292, 0.370]</sub> | 0.040 | 0.182 | 0.404 | 0.988 | 0.202 | 0.751 | 0.491 | 0.586 | 5.09e+06 | 0.146 |
+| J_mycelic_verified | 0.011 <sub>[0.008, 0.015]</sub> | 0.336 <sub>[0.296, 0.376]</sub> | 0.040 | 0.189 | 0.420 | 0.988 | 0.204 | 0.751 | 0.511 | 0.574 | 2.94e+06 | 0.146 |
 | H_mycelic_full | 0.009 <sub>[0.008, 0.010]</sub> | 0.336 <sub>[0.296, 0.376]</sub> | 0.022 | 0.189 | 0.420 | 0.988 | 0.204 | 0.751 | 0.511 | 0.574 | 2.93e+06 | 0.146 |
 | B4_central_triage | 0.008 <sub>[0.007, 0.011]</sub> | 0.314 <sub>[0.302, 0.328]</sub> | 0.024 | 0.112 | 0.462 | 0.981 | 0.282 | 0.683 | 0.484 | 0.602 | 1.07e+06 | 0.885 |
 | G_hier_questions | 0.008 <sub>[0.008, 0.009]</sub> | 0.336 <sub>[0.296, 0.376]</sub> | 0.028 | 0.180 | 0.420 | 0.988 | 0.210 | 0.753 | 0.508 | 0.570 | 2.92e+06 | 0.138 |
@@ -562,7 +562,7 @@ variance.
 | E_hier_lineage | 0.120 | 0.040 | 0.008 |
 | G_hier_questions | 0.695 | 0.390 | 0.336 |
 | H_mycelic_full | 0.695 | 0.375 | 0.336 |
-| J_mycelic_verified | 0.695 | 0.375 | 0.340 |
+| J_mycelic_verified | 0.695 | 0.375 | 0.336 |
 | Y_oracle_retrieval | 0.715 | 0.240 | 0.275 |
 
 Compute (cu) at the same points:
@@ -577,7 +577,7 @@ Compute (cu) at the same points:
 | E_hier_lineage | 6.91e+04 | 2.25e+05 | 9.90e+05 |
 | G_hier_questions | 8.36e+05 | 1.08e+06 | 2.92e+06 |
 | H_mycelic_full | 8.38e+05 | 1.09e+06 | 2.93e+06 |
-| J_mycelic_verified | 8.48e+05 | 1.10e+06 | 2.96e+06 |
+| J_mycelic_verified | 8.48e+05 | 1.10e+06 | 2.94e+06 |
 | Y_oracle_retrieval | 1.44e+05 | 4.87e+05 | 2.43e+06 |
 
 ## 12. Ablations
@@ -1059,6 +1059,12 @@ invisible to every other metric here.
 | 50000 | E_hier_lineage | 0.109 | 0.038 | 0.860 | 0.250 | 0.007 |
 | 50000 | H_mycelic_full | 0.513 | 0.003 | 0.102 | 0.420 | 0.363 |
 | 50000 | J_mycelic_verified | 0.529 | 0.003 | 0.065 | 0.420 | 0.363 |
+
+**Verdict at 50,000 users.** The strongest attribution is `A2_chunked_ctx` — 85% of cited evidence names the entity the report is about, and 75% of its reports are fully attributable end to end.
+
+The hierarchy reaches 51% on the first measure and 0.2% on the second. **That second number is the uncomfortable one**, and it should be read before any claim that a lineage-carrying architecture is inherently more auditable: carrying a lineage *path* is not the same as being able to put an executive in front of the original note. The hierarchy knows which nodes a claim travelled through; the centralised options can still show you the text. For a regulator or an incident review, the second is what is being asked for.
+
+It goes the same way on unsupported assertions — reports made with no matching evidence behind them at all, where lower is better. The hierarchy is at 10.2% and `A2_chunked_ctx` at 0.1%, so the hierarchy is roughly 122x more likely to put something on the register it cannot back up. Across all three attribution measures, provenance is a place the hierarchy loses, not a place it wins. It should not be used as an argument for building one.
 
 ## 22. Capability-shape sensitivity
 

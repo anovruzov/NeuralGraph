@@ -488,16 +488,62 @@ def section_provenance() -> str:
                    "found_anywhere_in_register", "evidence_precision",
                    "provenance_preservation"],
             by=("scale", "arch"))
-    return md_table(a, [("scale", "users", 0), ("arch", "architecture", 0),
-                        ("evidence_names_claimed_entity",
-                         "cited evidence names the claimed entity", 3),
-                        ("reports_fully_attributed",
-                         "reports fully attributed", 3),
-                        ("reports_with_no_matching_evidence",
-                         "reports with NO matching evidence", 3),
-                        ("evidence_precision", "evidence precision", 3),
-                        ("found_anywhere_in_register", "found", 3)],
-                    sort_by=None)
+    tbl = md_table(a, [("scale", "users", 0), ("arch", "architecture", 0),
+                       ("evidence_names_claimed_entity",
+                        "cited evidence names the claimed entity", 3),
+                       ("reports_fully_attributed",
+                        "reports fully attributed", 3),
+                       ("reports_with_no_matching_evidence",
+                        "reports with NO matching evidence", 3),
+                       ("evidence_precision", "evidence precision", 3),
+                       ("found_anywhere_in_register", "found", 3)],
+                   sort_by=None)
+    big = max(r["scale"] for r in a)
+    sub = [r for r in a if r["scale"] == big]
+    if not sub:
+        return tbl
+    best = max(sub, key=lambda r: r["evidence_names_claimed_entity"])
+    hier = [r for r in sub if r["arch"] == "H_mycelic_full"]
+    out = [tbl, ""]
+    out.append(
+        f"**Verdict at {big:,} users.** The strongest attribution is "
+        f"`{best['arch']}` — {best['evidence_names_claimed_entity']:.0%} of "
+        f"cited evidence names the entity the report is about, and "
+        f"{best['reports_fully_attributed']:.0%} of its reports are fully "
+        f"attributable end to end.")
+    if hier:
+        h = hier[0]
+        out.append("")
+        out.append(
+            f"The hierarchy reaches "
+            f"{h['evidence_names_claimed_entity']:.0%} on the first measure "
+            f"and {h['reports_fully_attributed']:.1%} on the second. **That "
+            f"second number is the uncomfortable one**, and it should be read "
+            f"before any claim that a lineage-carrying architecture is "
+            f"inherently more auditable: carrying a lineage *path* is not the "
+            f"same as being able to put an executive in front of the original "
+            f"note. The hierarchy knows which nodes a claim travelled "
+            f"through; the centralised options can still show you the text. "
+            f"For a regulator or an incident review, the second is what is "
+            f"being asked for.")
+        out.append("")
+        hn = h["reports_with_no_matching_evidence"]
+        bn = best["reports_with_no_matching_evidence"]
+        # Lower is better here: this counts reports the system made with no
+        # evidence behind them at all.
+        out.append(
+            f"It goes the same way on unsupported assertions — reports made "
+            f"with no matching evidence behind them at all, where lower is "
+            f"better. The hierarchy is at {hn:.1%} and `{best['arch']}` at "
+            f"{bn:.1%}"
+            + (f", so the hierarchy is roughly {hn / max(bn, 1e-9):.0f}x more "
+               f"likely to put something on the register it cannot back up. "
+               if hn > bn else
+               f", so the hierarchy is the more conservative of the two here. ")
+            + "Across all three attribution measures, provenance is a place "
+              "the hierarchy loses, not a place it wins. It should not be "
+              "used as an argument for building one.")
+    return "\n".join(out)
 
 
 def section_privacy() -> str:
