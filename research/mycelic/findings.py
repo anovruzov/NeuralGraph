@@ -755,6 +755,18 @@ def questions_section() -> str:
             f"produced. Each returns {f['question_new_evidence']:.0f} new "
             f"knowledge objects on average, and "
             f"{f['question_targeting']:.0%} are well-targeted.\n")
+        out.append(
+            "**That last figure is not a measurement and should not be read "
+            "as one.** `question_targeting` is the fraction of questions the "
+            "kernel aimed at the entity it was actually reasoning about, and "
+            "in the simulator that is drawn directly from the kernel tier's "
+            "`question_quality` parameter — so with a frontier kernel it is "
+            "~100% *by construction*, and it would report ~100% even if "
+            "targeting were worthless. The informative test is the ablation "
+            "below that destroys targeting outright, and that one does not "
+            "reach significance. It is listed here because leaving a "
+            "parameter echoed back as a headline number would be the kind of "
+            "thing this report is supposed to catch.\n")
     for name, label in (("-questions", "removing questioning entirely"),
                         ("-question_targeting", "keeping questions but "
                          "destroying their targeting")):
@@ -763,7 +775,30 @@ def questions_section() -> str:
         pr_ = paired(ab, "full", name, "rare_signal_recall", group="ablation")
         pc = paired(ab, "full", name, "compute_units", group="ablation")
         if p.get("n"):
+            # _sig reports full MINUS ablated.  Written next to a label that
+            # names what was REMOVED, a positive number reads as if removal
+            # helped, so the deltas are flipped here to be deltas of the
+            # ablation itself and the direction is spelled out.
             out.append(
-                f"* {label}: discovery {_sig(p)}; rare-signal recall "
-                f"{_sig(pr_)}; compute Δ {-pc['mean_diff']:+.2e}.")
+                f"* **{label}**: discovery {_flip(p)}, rare-signal recall "
+                f"{_flip(pr_)}, compute {-pc['mean_diff']:+.2e} cu.")
+    if len(out) > 1:
+        out.append("")
+        out.append("Every Δ above is *the ablated system minus the full one*, "
+                   "so a negative number means removing the mechanism made "
+                   "things worse. The seed count is the number of paired "
+                   "seeds on which the ablation was the worse of the two.")
     return "\n".join(out)
+
+
+def _flip(p: Dict) -> str:
+    """_sig, with the sign of a paired(full, ablated) difference reversed."""
+    if not p.get("n"):
+        return "no paired runs"
+    # p['wins'] counts seeds where full > ablated, i.e. seeds on which the
+    # ablation was the worse of the pair.  That is the count the label
+    # promises, and it is deliberately NOT flipped along with the sign.
+    return (f"Δ {-p['mean_diff']:+.3f} "
+            f"(95% CI [{-p['ci_hi']:+.3f}, {-p['ci_lo']:+.3f}], "
+            f"worse on {p['wins']}/{p['n_nonzero']} seeds, "
+            f"sign p={p['sign_p']:.3f})")
