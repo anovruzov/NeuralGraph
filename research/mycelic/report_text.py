@@ -379,11 +379,16 @@ Architectures under test:
 
 ## 9. Ablations
 
+![ablations](../research/mycelic/artifacts/figures/ablations.png)
+
 {sec['ablations']}
 
 ---
 
 ## 10. Scale results
+
+![discovery and evidence coverage vs enterprise size](../research/mycelic/artifacts/figures/scale.png)
+
 
 Discovery (`found`) by architecture and scale — every cell is an executed run,
 none is extrapolated:
@@ -398,6 +403,8 @@ none is extrapolated:
 
 {sec['alloc']}
 
+![marginal value of capability per level](../research/mycelic/artifacts/figures/level_marginal.png)
+
 ### Marginal value of capability at each level
 
 Baseline: every level at `small-7b`. Then exactly one level is upgraded to
@@ -405,6 +412,8 @@ Baseline: every level at `small-7b`. Then exactly one level is upgraded to
 where compute should go.
 
 {sec['level_marginal']}
+
+![capability sweep](../research/mycelic/artifacts/figures/q_sweep.png)
 
 ### Uniform capability sweep
 
@@ -414,6 +423,8 @@ this study can actually make.
 {sec['qsweep']}
 
 ### Cost / quality frontier
+
+![cost vs quality](../research/mycelic/artifacts/figures/cost_quality.png)
 
 {sec['frontier']}
 
@@ -430,6 +441,8 @@ are separated here:
   user node.
 * **index entries out** — sketch metadata (entity id, predicate bitmask,
   counts) that left the node. No claim content.
+
+![discovery vs confidentiality cost](../research/mycelic/artifacts/figures/privacy.png)
 
 {sec['privacy']}
 
@@ -468,7 +481,32 @@ the `rare_only` condition in §17.
 
 ---
 
-## 17. Downward retrieval and adversarial conditions
+## 17. Downward retrieval, and adversarial conditions
+
+### Downward retrieval
+
+The downward path is the single largest contributor to the hierarchy's
+performance, and it works in two stages that are separable in the ablation
+table (§9):
+
+* **targeted descent** (`E → F`) — the kernel forms a hypothesis and routes a
+  query down the sketch index to the branches that hold the missing evidence.
+  Expansion is best-first with a per-parent quota, the entity's home branch is
+  down-weighted (the retrieval budget should be spent where the entity does
+  *not* belong), and the reached user agents re-read their own raw memory for
+  that entity only. A descent touches a few dozen of ~57,000 nodes and its leaf
+  count is capped, so it does not become a broadcast as the enterprise grows —
+  this is asserted by a test, not by construction.
+* **sketch-driven questioning** (`F → G`) — the kernel sweeps the complete
+  entity sketch for entities whose operational evidence repeats at sites where
+  they do not belong, and descends on those. This costs no model tokens to
+  find and is where most of the discovery comes from.
+
+Question utility, targeting and information gain are in §16; the compute these
+two stages consume, and what buying less of it costs, is the hierarchy curve
+in §11.
+
+### Adversarial conditions
 
 {sec['adversarial']}
 
@@ -494,6 +532,8 @@ capabilities scale with model quality, it is not a conclusion.
 ---
 
 ## 20. Direct model measurement
+
+![candidate discrimination, measured](../research/mycelic/artifacts/figures/discrimination.png)
 
 {sec['live']}
 
