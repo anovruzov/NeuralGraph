@@ -576,7 +576,7 @@ def recommendation() -> str:
                 f"and the smallest from the **{worst['upgraded_level']}** level "
                 f"(Δ found "
                 f"{worst['found_anywhere_in_register'] - base[0]['found_anywhere_in_register']:+.3f}). "
-                f"Full table and paired tests in §11.\n")
+                f"Full table and paired tests in §13.\n")
     if alloc:
         a = agg([r for r in alloc if r["arch"] == "H_mycelic_full"],
                 ["found_anywhere_in_register", "compute_units",
@@ -586,6 +586,9 @@ def recommendation() -> str:
             cheap = min(a, key=lambda x: x["compute_units"])
             eff = max(a, key=lambda x: x["found_anywhere_in_register"] /
                       max(1.0, x["compute_units"] / 1e6))
+            frac = (eff["found_anywhere_in_register"]
+                    / max(1e-9, best["found_anywhere_in_register"]))
+            ratio = eff["compute_units"] / max(1.0, best["compute_units"])
             out.append(
                 f"Best absolute allocation measured: **{best['alloc']}** "
                 f"(found {best['found_anywhere_in_register']:.3f}, "
@@ -595,6 +598,19 @@ def recommendation() -> str:
                 f"{eff['compute_units']:.2e} cu). Cheapest: "
                 f"**{cheap['alloc']}** "
                 f"(found {cheap['found_anywhere_in_register']:.3f}).\n")
+            out.append(
+                f"**The practical recommendation is `{eff['alloc']}`, not a "
+                f"graduated ladder.** It keeps {frac:.0%} of the best "
+                f"measured discovery for {ratio:.0%} of the compute. The "
+                f"reason is the same one that runs through the whole study: "
+                f"the edge is only extracting claims, which is cheap and "
+                f"mostly saturated, while the kernel is doing the "
+                f"discrimination, which is where the difficulty actually is. "
+                f"Spending on the middle levels buys the least of anything "
+                f"measured here. If the budget stretches further, put it in "
+                f"the kernel — re-reading original evidence per candidate — "
+                f"before putting it into a bigger model at any intermediate "
+                f"level.\n")
     if fan:
         a = agg([r for r in fan if r["arch"] == "H_mycelic_full"],
                 ["found_anywhere_in_register", "average_precision",

@@ -228,9 +228,11 @@ Discovery then happens by triaging the sketch channel for entities whose operati
 
 ### 4. Recommended models at each level
 
-Measured directly, by upgrading exactly one level from `small-7b` to `frontier` and holding everything else fixed: the largest gain comes from the **enterprise** level (Δ found +0.167) and the smallest from the **team** level (Δ found +0.008). Full table and paired tests in §11.
+Measured directly, by upgrading exactly one level from `small-7b` to `frontier` and holding everything else fixed: the largest gain comes from the **enterprise** level (Δ found +0.167) and the smallest from the **team** level (Δ found +0.008). Full table and paired tests in §13.
 
 Best absolute allocation measured: **flat-frontier** (found 0.642, 9.55e+06 cu). Best discovery per unit compute: **lexical-to-kernel** (found 0.408, 5.08e+05 cu). Cheapest: **flat-small** (found 0.233).
+
+**The practical recommendation is `lexical-to-kernel`, not a graduated ladder.** It keeps 64% of the best measured discovery for 5% of the compute. The reason is the same one that runs through the whole study: the edge is only extracting claims, which is cheap and mostly saturated, while the kernel is doing the discrimination, which is where the difficulty actually is. Spending on the middle levels buys the least of anything measured here. If the budget stretches further, put it in the kernel — re-reading original evidence per candidate — before putting it into a bigger model at any intermediate level.
 
 ### 5-6. Recommended fan-in, and why
 
@@ -619,7 +621,7 @@ variance.
 | E_hier_lineage | 0.088 | 0.035 | 0.008 | 0.007 |
 | G_hier_questions | 0.693 | 0.398 | 0.336 | 0.223 |
 | H_mycelic_full | 0.715 | 0.385 | 0.336 | 0.225 |
-| J_mycelic_verified | 0.715 | 0.385 | 0.336 | 0.255 |
+| J_mycelic_verified | 0.715 | 0.385 | 0.336 | 0.225 |
 | Y_oracle_retrieval | 0.685 | 0.232 | 0.284 | 0.190 |
 
 Compute (cu) at the same points:
@@ -634,7 +636,7 @@ Compute (cu) at the same points:
 | E_hier_lineage | 6.93e+04 | 2.27e+05 | 9.90e+05 | 1.93e+06 |
 | G_hier_questions | 8.37e+05 | 1.11e+06 | 2.92e+06 | 4.56e+06 |
 | H_mycelic_full | 8.43e+05 | 1.11e+06 | 2.93e+06 | 4.72e+06 |
-| J_mycelic_verified | 8.53e+05 | 1.12e+06 | 2.94e+06 | 4.72e+06 |
+| J_mycelic_verified | 8.53e+05 | 1.12e+06 | 2.94e+06 | 4.73e+06 |
 | Y_oracle_retrieval | 1.44e+05 | 4.87e+05 | 2.43e+06 | 4.86e+06 |
 
 ## 12. Ablations

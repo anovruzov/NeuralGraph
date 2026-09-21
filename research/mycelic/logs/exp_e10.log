@@ -16,3 +16,7 @@
    100000/1 G_hier_questions       AP=0.0041 found=0.200 cov2=0.230 rare=0.110 cu=4.59e+06 (45s)
    100000/1 H_mycelic_full         AP=0.0042 found=0.195 cov2=0.240 rare=0.121 cu=4.73e+06 (48s)
    100000/1 J_mycelic_verified     AP=0.0043 found=0.195 cov2=0.240 rare=0.121 cu=4.74e+06 (48s)
+   100000/1 Y_oracle_retrieval     AP=0.0028 found=0.220 cov2=1.000 rare=0.198 cu=4.86e+06 (32s)
+   100000/2 A_flat_rag             AP=0.0057 found=0.200 cov2=0.425 rare=0.063 cu=1.41e+06 (3s)
+   100000/2 B_long_context         AP=0.0002 found=0.025 cov2=0.045 rare=0.000 cu=1.11e+06 (2s)
+   100000/2 B2_map_reduce          AP=0.0001 found=0.010 cov2=0.030 rare=0.000 cu=1.49e+06 (9s)
