@@ -32,3 +32,4 @@
    50000/1 B2_map_reduce          evidence-names-entity=0.059 fully-attributed=0.000 none-attributed=0.736
    50000/1 B4_central_triage      evidence-names-entity=0.581 fully-attributed=0.022 none-attributed=0.015
    50000/1 E_hier_lineage         evidence-names-entity=0.141 fully-attributed=0.054 none-attributed=0.821
+   50000/1 H_mycelic_full         evidence-names-entity=0.517 fully-attributed=0.000 none-attributed=0.113

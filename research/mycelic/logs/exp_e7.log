@@ -83,3 +83,13 @@
   concave  0 two-step       B2_map_reduce    AP=0.0709 cu=2.00e+05
   concave  0 front-loaded   H_mycelic_full   AP=0.0195 cu=9.64e+05
   concave  0 front-loaded   B2_map_reduce    AP=0.0196 cu=3.04e+05
+  concave  1 flat-small     H_mycelic_full   AP=0.0097 cu=3.20e+05
+  concave  1 flat-small     B2_map_reduce    AP=0.0032 cu=1.46e+05
+  concave  1 naive-ladder   H_mycelic_full   AP=0.0290 cu=1.33e+06
+  concave  1 naive-ladder   B2_map_reduce    AP=0.0260 cu=1.99e+05
+  concave  1 back-loaded    H_mycelic_full   AP=0.0496 cu=1.08e+06
+  concave  1 back-loaded    B2_map_reduce    AP=0.0260 cu=1.99e+05
+  concave  1 kernel-only    H_mycelic_full   AP=0.0161 cu=6.72e+05
+  concave  1 kernel-only    B2_map_reduce    AP=0.0097 cu=1.21e+05
+  concave  1 two-step       H_mycelic_full   AP=0.0164 cu=1.09e+06
+  concave  1 two-step       B2_map_reduce    AP=0.0260 cu=1.99e+05

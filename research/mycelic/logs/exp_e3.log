@@ -89,3 +89,11 @@
   2 two-step       H_mycelic_full   AP=0.0185 found=0.42 cu=1.11e+06
   2 two-step       B2_map_reduce    AP=0.0233 found=0.40 cu=1.98e+05
   2 two-step       E_hier_lineage   AP=0.0051 found=0.05 cu=2.24e+05
+  2 edge-bottom    H_mycelic_full   AP=0.0061 found=0.25 cu=1.31e+06
+  2 edge-bottom    B2_map_reduce    AP=0.0073 found=0.23 cu=1.20e+05
+  2 edge-bottom    E_hier_lineage   AP=0.0010 found=0.05 cu=2.00e+05
+  2 lexical-bottom H_mycelic_full   AP=0.0043 found=0.25 cu=9.52e+05
+  2 lexical-bottom B2_map_reduce    AP=0.0462 found=0.38 cu=5.51e+04
+  2 lexical-bottom E_hier_lineage   AP=0.0051 found=0.05 cu=8.73e+04
+  2 lexical-to-kernel H_mycelic_full   AP=0.0125 found=0.33 cu=4.93e+05
+  2 lexical-to-kernel B2_map_reduce    AP=0.0462 found=0.38 cu=5.51e+04

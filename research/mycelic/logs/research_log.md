@@ -366,3 +366,67 @@ so far both came from the models being measured by it**, not from inspecting
 the code — the non-blind task file in iteration 12, and this. Giving a
 measurement subject room to report what is wrong with the measurement turned
 out to be worth more than another ablation.
+
+---
+
+## Iteration 19 — the headline mechanism claim did not replicate, and the fix
+## was repeats, not a better story
+
+The study's most quotable finding was that giving a model the **raw work
+notes** behind a set of evidence statistics beats giving the same statistics
+to a bigger model. On the pre-fix corpus it was clean: every model improved
+substantially in the richer condition.
+
+Re-run on the corpus with collision-free anchors, it was not:
+
+```
+                       statistics only     + raw notes
+  opus                      0.378             0.666
+  haiku                     0.354             0.436
+  sonnet                    0.361             0.334      <-- worse
+```
+
+One run per cell. A single measurement per cell cannot distinguish a mechanism
+from a sampling accident, and this one had been carrying a headline. So each
+cell was repeated with a fresh context on the identical task file:
+
+```
+  rich condition      run 1     run 2     range
+  opus                0.666     0.568     0.098
+  haiku               0.436     0.517     0.081
+  sonnet              0.334     0.305     0.029
+```
+
+The run-to-run range inside a single cell (up to 0.098) is of the same order
+as the gap the claim rests on for the weaker models. The ordering across
+models is stable — opus > haiku > sonnet under richer evidence — and opus's
+gain (+0.24) is comfortably larger than any observed within-cell range. But
+sonnet moves the *wrong way*, and the effect is therefore not a law about
+evidence richness; it is a property of a particular model's ability to use raw
+evidence at all.
+
+Three consequences, all now enforced in code rather than in prose:
+
+1. `live_rank.score()` aggregates `<model>-rN` repeat files into
+   `models_aggregated` reporting mean **and the full min/max range**, never a
+   bare mean.
+2. The discrimination figure's whiskers are the **full observed range** over
+   repeats, not a confidence interval — with 2–3 runs a CI would be invented
+   precision.
+3. Decision 3 and executive-summary item 4 are computed from those repeats.
+   They now state how many models moved, in which direction, and whether the
+   move exceeds the largest within-cell range; a cell still measured once is
+   labelled a single point rather than counted as separation. The earlier
+   hand-written sentence ("both improve sharply") would have been false.
+
+Also recorded as a caveat rather than a result: `w_dispersion`, the confidence
+term penalising evidence clustered in time, was **rejected twice** on the old
+corpus and **selected at 0.8** on the fixed one. Nothing about the mechanism
+changed; the corpus did. A knob whose sign flips with a corpus regeneration is
+fitted to the corpus, not to the problem, and should not be shipped without
+re-fitting on the deployment's own data.
+
+The general lesson, and the reason this iteration exists: the temptation when
+a headline fails to replicate is to find the run that agrees with it. The only
+defensible move is to report the spread and downgrade the claim to what the
+spread supports.
