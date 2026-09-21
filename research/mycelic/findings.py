@@ -128,6 +128,20 @@ def decision_summary() -> str:
 
     out.append(f"### Head to head at {big:,} users ({n_seeds} seeds)")
     out.append("")
+    bigger = [sc for sc in sorted({r["scale"] for r in rows}) if sc > big]
+    if bigger:
+        missing = sorted(need - {r["arch"] for r in rows
+                                 if r["scale"] == bigger[0]})
+        out.append(
+            f"*(Runs exist at {', '.join(f'{s:,}' for s in bigger)} users "
+            f"too, and §11 reports them. The head-to-head is stated at "
+            f"{big:,} because that is the largest scale where **every** "
+            f"architecture in the comparison was run — "
+            f"{', '.join('`' + m + '`' for m in missing)} "
+            f"{'was' if len(missing) == 1 else 'were'} not run at "
+            f"{bigger[0]:,}. Choosing the largest complete scale is a rule "
+            f"applied by the generator, not a choice made per result.)*")
+        out.append("")
     out.append("| | best centralised option | the hierarchy | hierarchy better? |")
     out.append("|---|---:|---:|---|")
     out.append(f"| approach | `{best_arch}` | `{HIER}` | |")

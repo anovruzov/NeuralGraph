@@ -88,6 +88,8 @@ We built a synthetic enterprise with known hidden problems planted in it, at 2,0
 
 ### Head to head at 50,000 users (5 seeds)
 
+*(Runs exist at 100,000 users too, and §11 reports them. The head-to-head is stated at 50,000 because that is the largest scale where **every** architecture in the comparison was run — `B4_central_triage`, `C_recursive_sum`, `F_hier_retrieval` were not run at 100,000. Choosing the largest complete scale is a rule applied by the generator, not a choice made per result.)*
+
 | | best centralised option | the hierarchy | hierarchy better? |
 |---|---:|---:|---|
 | approach | `A2_chunked_ctx` | `H_mycelic_full` | |
@@ -151,7 +153,7 @@ So the honest statement of what the hierarchy buys is narrow and specific: **the
 | 50,000 | `A2_chunked_ctx` | 0.686 | 1.02e+07 | 22.3% |
 | 100,000 | `A2_chunked_ctx` | 0.678 | 2.03e+07 | 22.3% |
 
-**1. Upward propagation alone does not work, at any scale, in any form.** At 100,000 users recursive summarisation finds 0.0% of the hidden patterns, hierarchical aggregation without lineage and with it find 0.0% and 0.8%. Adding targeted downward retrieval takes it to 0.0%; adding sketch-driven questioning takes it to 22.2%. The hierarchy's value is almost entirely in the *downward* path — no paired runs.
+**1. Upward propagation alone does not work, at any scale, in any form.** At 100,000 users recursive summarisation finds 0.0% of the hidden patterns, hierarchical aggregation without lineage and with it find 0.0% and 0.8%. Adding targeted downward retrieval takes it to 0.0%; adding sketch-driven questioning takes it to 23.5%. The hierarchy's value is almost entirely in the *downward* path — no paired runs.
 
 **2. The reason is measurable and is not a tuning artefact.** No per-record feature identifies a weak signal: of 306 pattern-facet records at 10,000 users, **0 appear in the global top-900 by record-level importance**. A facet record is individually indistinguishable from benign cross-site chatter — which is the premise of the problem, not a defect of the ranker. Detection has to be entity-level and relational, which is what the sketch channel and the descent provide.
 
@@ -619,7 +621,7 @@ variance.
 | B2_map_reduce | 0.575 | 0.315 | 0.056 | 0.018 |
 | B4_central_triage | 0.740 | 0.388 | 0.314 | — |
 | E_hier_lineage | 0.088 | 0.035 | 0.008 | 0.008 |
-| G_hier_questions | 0.693 | 0.398 | 0.336 | 0.223 |
+| G_hier_questions | 0.693 | 0.398 | 0.336 | 0.235 |
 | H_mycelic_full | 0.715 | 0.385 | 0.336 | 0.225 |
 | J_mycelic_verified | 0.715 | 0.385 | 0.336 | 0.225 |
 | Y_oracle_retrieval | 0.685 | 0.232 | 0.284 | 0.205 |
@@ -634,7 +636,7 @@ Compute (cu) at the same points:
 | B2_map_reduce | 7.97e+04 | 1.99e+05 | 7.78e+05 | 1.49e+06 |
 | B4_central_triage | 1.33e+05 | 3.98e+05 | 1.07e+06 | — |
 | E_hier_lineage | 6.93e+04 | 2.27e+05 | 9.90e+05 | 1.92e+06 |
-| G_hier_questions | 8.37e+05 | 1.11e+06 | 2.92e+06 | 4.56e+06 |
+| G_hier_questions | 8.37e+05 | 1.11e+06 | 2.92e+06 | 4.51e+06 |
 | H_mycelic_full | 8.43e+05 | 1.11e+06 | 2.93e+06 | 4.72e+06 |
 | J_mycelic_verified | 8.53e+05 | 1.12e+06 | 2.94e+06 | 4.73e+06 |
 | Y_oracle_retrieval | 1.44e+05 | 4.87e+05 | 2.43e+06 | 4.86e+06 |

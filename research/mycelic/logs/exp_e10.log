@@ -23,3 +23,4 @@
    100000/2 A2_chunked_ctx         AP=0.0356 found=0.675 cov2=1.000 rare=0.595 cu=2.03e+07 (25s)
    100000/2 E_hier_lineage         AP=0.0057 found=0.010 cov2=0.015 rare=0.000 cu=1.91e+06 (48s)
    100000/2 G_hier_questions       AP=0.0089 found=0.260 cov2=0.315 rare=0.165 cu=4.43e+06 (45s)
+   100000/2 H_mycelic_full         AP=0.0081 found=0.245 cov2=0.315 rare=0.139 cu=4.69e+06 (53s)
