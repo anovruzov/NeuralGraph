@@ -324,7 +324,61 @@ def section_level_marginal() -> str:
                 out.append(f"| {lvl} | {p['mean_diff']:+.4f} | "
                            f"[{p['ci_lo']:+.4f}, {p['ci_hi']:+.4f}] | "
                            f"{p['wins']}/{p['n_nonzero']} | {p['sign_p']:.3f} |")
-    return "\n".join(out)
+        out.append("")
+        out.append(_level_verdict(arch, a))
+    return "\n".join(x for x in out if x is not None)
+
+
+LEVEL_ORDER = ["user", "team", "dept", "site", "region", "enterprise"]
+
+
+def _level_verdict(arch: str, a: List[Dict]) -> str:
+    """Should capability increase as you go up? Answered from the deltas."""
+    d = {r["upgraded_level"]: r for r in a
+         if r["upgraded_level"] in LEVEL_ORDER}
+    if len(d) < len(LEVEL_ORDER):
+        return ""
+    gains = [(lv, d[lv].get("delta_found", 0.0),
+              d[lv].get("found_per_Mcu", 0.0)) for lv in LEVEL_ORDER]
+    best_abs = max(gains, key=lambda g: g[1])
+    best_eff = max(gains, key=lambda g: g[2])
+    worst = min(gains, key=lambda g: g[1])
+    # Is the gain monotone in level height, ignoring the user level?  The
+    # user level does extraction on raw text, which is a different job from
+    # the aggregation the middle levels do.
+    mid = [g[1] for g in gains[1:]]
+    monotone = all(mid[i] <= mid[i + 1] + 1e-9 for i in range(len(mid) - 1))
+    # "Monotone" is vacuous when every middle level is flat at zero and only
+    # the top moves.  That is a different statement and deserves its own one.
+    flat_middle = all(abs(v) < 1e-9 for v in mid[:-1])
+    user_gain = gains[0][1]
+    barbell = (not monotone) and user_gain > max(mid[:-1], default=0.0)
+    if flat_middle:
+        shape = ("**only the top level matters at all** — every intermediate "
+                 "level is flat at zero")
+    elif monotone:
+        shape = "**capability should increase monotonically upward**"
+    elif barbell:
+        shape = ("**a barbell: buy capability at the very bottom and the very "
+                 "top, and run the middle cheap**")
+    else:
+        shape = "**not a clean trend**"
+    order = " > ".join(f"{lv} {g:+.3f}"
+                       for lv, g, _ in sorted(gains, key=lambda x: -x[1]))
+    return (
+        f"**Where the model budget goes for `{arch}`.** Upgrading the "
+        f"**{best_abs[0]}** level buys the most discovery ({best_abs[1]:+.3f}) "
+        f"and upgrading **{best_eff[0]}** buys the most per unit of extra "
+        f"compute ({best_eff[2]:.3f} discovery per Mcu). The **{worst[0]}** "
+        f"level buys the least ({worst[1]:+.3f}). Ranked: {order}. The "
+        f"pattern is {shape} — and note that the user level is doing "
+        f"extraction from raw text, a different job from the aggregation the "
+        f"middle levels do, so its gain does not belong to the same trend as "
+        f"theirs."
+        + (f" Every interval here is from "
+           f"{d[best_abs[0]].get('n_runs', 0)} runs per cell, so the "
+           f"ordering is directional and the individual gaps are not "
+           f"separable." if d[best_abs[0]].get("n_runs", 0) < 5 else ""))
 
 
 def section_qsweep() -> str:
