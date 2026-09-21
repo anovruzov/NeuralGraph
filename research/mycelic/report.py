@@ -362,6 +362,7 @@ def section_crosslinks() -> str:
                           ("compute_units", "compute", 0)], sort_by=None),
              "", "| scale | Δ found (links on − off) | 95% CI | wins | sign p |",
              "|---|---:|---|---:|---:|"]
+    deltas = []
     for scale in sorted({r["scale"] for r in rows}):
         sub = [r for r in rows if r["scale"] == scale]
         p = paired(sub, True, False, "found_anywhere_in_register",
@@ -370,7 +371,50 @@ def section_crosslinks() -> str:
             lines.append(f"| {scale:,} | {p['mean_diff']:+.4f} | "
                          f"[{p['ci_lo']:+.4f}, {p['ci_hi']:+.4f}] | "
                          f"{p['wins']}/{p['n_nonzero']} | {p['sign_p']:.3f} |")
+            deltas.append((scale, p))
+    lines.append("")
+    lines.append(_crosslink_verdict(deltas))
     return "\n".join(lines)
+
+
+def _crosslink_verdict(deltas) -> str:
+    """State what the cross-link sweep found, including when it found nothing."""
+    if not deltas:
+        return ""
+    # A scale counts as supporting cross-links only if the whole bootstrap CI
+    # is on one side of zero; with 3 seeds the sign test cannot go below 0.25,
+    # so requiring significance there would reject everything by construction.
+    pos = [s for s, p in deltas if p["ci_lo"] > 0]
+    neg = [s for s, p in deltas if p["ci_hi"] < 0]
+    biggest = max(deltas, key=lambda x: abs(x[1]["mean_diff"]))
+    out = ("**Verdict.** Adding semantic cross-links to the organisational "
+           "tree ")
+    if pos and not neg and len(pos) == len(deltas):
+        out += "helps at every scale measured"
+    elif pos and max(pos) == max(s for s, _ in deltas):
+        out += "helps, and the effect holds at the largest scale measured"
+    elif pos:
+        out += (f"helps at {', '.join(f'{s:,}' for s in pos)} users but the "
+                f"effect does not survive to "
+                f"{max(s for s, _ in deltas):,}")
+    else:
+        out += "does not reliably change discovery at any scale measured"
+    out += (f". The largest effect anywhere is "
+            f"{biggest[1]['mean_diff']:+.3f} at {biggest[0]:,} users, on "
+            f"{biggest[1]['n']} paired seeds. ")
+    if not pos or max(pos, default=0) != max(s for s, _ in deltas):
+        out += ("The mechanism the links are supposed to supply — a path "
+                "between branches that the org chart does not provide — is "
+                "already supplied by the sketch channel, which is indexed by "
+                "entity rather than by branch and so crosses the tree for "
+                "free. On this evidence the cross-links are redundant with "
+                "it, not additive to it, and should not be built on the "
+                "strength of these numbers.")
+    else:
+        out += ("Note that the seed counts here are small enough that the "
+                "sign test cannot fall below 0.25, so the bootstrap interval "
+                "is doing the work; treat this as directional.")
+    return out
 
 
 

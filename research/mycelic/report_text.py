@@ -320,11 +320,12 @@ evidence. The full chronology is in `research/mycelic/logs/research_log.md`.
 15. **A headline stated from one run per cell.** The most quotable result in
     the study — richer evidence beating a bigger model — did not replicate
     cleanly when the corpus was regenerated: one of the three models moved the
-    *wrong way*. Repeating each cell showed within-cell run-to-run ranges as
-    large as 0.098 AP, comparable to the gap the claim rested on for the
-    weaker models. The claim is now stated only as strongly as the spread
-    supports, and §23 reports the range rather than a mean. What failed was
-    not the mechanism; it was the evidentiary standard applied to it.
+    *wrong way*. Repeating both conditions for every model showed within-cell
+    run-to-run ranges of the same order as the gap the claim rested on for two
+    of the three. The measured ranges are in §23; the claim is now computed
+    from them and stated only as strongly as they support. What failed was not
+    the mechanism — it survives for the strongest model, decisively — but the
+    evidentiary standard the claim had been asserted under.
 
 16. **`w_dispersion`, a knob whose sign flipped with the corpus.** The
     confidence term that penalises evidence clustered in time was rejected
@@ -404,7 +405,7 @@ stated before the results rather than after them.
 | wall-clock latency | **modelled** from the metered token counts (see assumption A4); not observed on real hardware |
 | model-tier behaviour: extraction quality, abstraction loss, verification accuracy, hallucination | **simulated** from a capability vector |
 | primitive operator accuracy of Haiku 4.5, Sonnet 5 and Opus 5 | **directly measured**, blind, 198 items |
-| candidate-discrimination accuracy of those three models | **directly measured**, blind, on candidates taken from a real run |
+| candidate-discrimination accuracy of those three models | **directly measured**, blind, on candidates taken from a real run, two independent runs per model per condition |
 | where named open-weight model classes sit on the capability axis | **assumed** — never measured here |
 | 50,000-user results | **executed**, not extrapolated: every cell is a real run of the full pipeline |
 

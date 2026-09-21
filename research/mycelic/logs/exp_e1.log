@@ -228,3 +228,7 @@
    50000/4 B2_map_reduce        AP=0.0245 found=0.10 R@100=0.060 cu=7.81e+05
    50000/4 A2_chunked_ctx       AP=0.0423 found=0.64 R@100=0.110 cu=1.02e+07
    50000/4 B4_central_triage    AP=0.0067 found=0.30 R@100=0.000 cu=1.07e+06
+   50000/4 C_recursive_sum      AP=0.0000 found=0.00 R@100=0.000 cu=8.09e+05
+   50000/4 D_hier_nolineage     AP=0.0000 found=0.00 R@100=0.000 cu=8.89e+05
+   50000/4 E_hier_lineage       AP=0.0002 found=0.01 R@100=0.010 cu=1.00e+06
+   50000/4 F_hier_retrieval     AP=0.0014 found=0.03 R@100=0.020 cu=1.16e+06

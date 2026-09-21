@@ -28,24 +28,24 @@ transcribed by hand.
 
 ### The one-paragraph version
 
-We built a synthetic enterprise with known hidden problems planted in it, at 2,000, 10,000 and 50,000 people, and tested sixteen ways of finding those problems, from pouring a filtered sample of the company's notes into one very large model, to a six-level hierarchy of agents mirroring the org chart. **The hierarchy is not the most accurate option.** The strongest single approach measured at 50,000 people is `A2_chunked_ctx`, which finds 70% of the hidden problems against the hierarchy's 34%. Whether the hierarchy is nonetheless worth building depends entirely on which of the secondary properties below we actually need; the table states which ones it delivers and which it does not.
+We built a synthetic enterprise with known hidden problems planted in it, at 2,000, 10,000 and 50,000 people, and tested sixteen ways of finding those problems, from pouring a filtered sample of the company's notes into one very large model, to a six-level hierarchy of agents mirroring the org chart. **The hierarchy is not the most accurate option.** The strongest single approach measured at 50,000 people is `A2_chunked_ctx`, which finds 69% of the hidden problems against the hierarchy's 34%. Whether the hierarchy is nonetheless worth building depends entirely on which of the secondary properties below we actually need; the table states which ones it delivers and which it does not.
 
 ### Head to head at 50,000 users (5 seeds)
 
 | | best centralised option | the hierarchy | hierarchy better? |
 |---|---:|---:|---|
 | approach | `A2_chunked_ctx` | `H_mycelic_full` | |
-| hidden problems found | 70% | 34% | no |
+| hidden problems found | 69% | 34% | no |
 | the hardest problems (1-2 witnesses company-wide) | 61% | 20% | no |
 | found within the top 100 of the register | 11% | 2% | no |
-| precision in the top 40 of the register | 13% | 1% | no |
+| precision in the top 40 of the register | 12% | 1% | no |
 | precision in the top 100 of the register | 11% | 2% | no |
-| ranking quality (AP) | 0.054 | 0.008 | no |
-| decoy traps accepted | 38% | 22% | **yes** |
+| ranking quality (AP) | 0.051 | 0.008 | no |
+| decoy traps accepted | 37% | 22% | **yes** |
 | evidence coverage (held it at all) | 100% | 43% | no |
-| independent-support accuracy | 60% | 75% | **yes** |
+| independent-support accuracy | 59% | 75% | **yes** |
 | lineage accuracy | 64% | 51% | no |
-| contradictions detected (F1) | 22% | 25% | **yes** |
+| contradictions detected (F1) | 21% | 25% | **yes** |
 | compute | 1.02e+07 | 2.95e+06 | **yes** |
 | model calls | 10 | 2.86e+05 | no |
 | employees' original notes read centrally | 22% | 0% | **yes** |
@@ -57,8 +57,8 @@ We built a synthetic enterprise with known hidden problems planted in it, at 2,0
 **Hold, on this evidence:**
 
 * confidentiality (no original notes leave the owning agent) — 0% vs 22% for the centralised option.
-* independent-support accuracy — 75% vs 60% for the centralised option.
-* resistance to planted traps — 22% vs 38% for the centralised option.
+* independent-support accuracy — 75% vs 59% for the centralised option.
+* resistance to planted traps — 22% vs 37% for the centralised option.
 
 **Do NOT hold, and should not be used to justify the build:**
 
@@ -69,7 +69,7 @@ We built a synthetic enterprise with known hidden problems planted in it, at 2,0
 
 `B4_central_triage` runs **exactly the hierarchy's own discovery algorithm**, centrally: one claim pool, no propagation budget, no routing error, no descent. It separates the value of the *algorithm* from the value of the *topology*.
 
-It finds 32% of the hidden problems against the hierarchy's 34%, at 1.06e+06 compute against 2.95e+06 — about 2.8x less.  Within noise, they are the same.
+It finds 31% of the hidden problems against the hierarchy's 34%, at 1.07e+06 compute against 2.95e+06 — about 2.8x less.  Within noise, they are the same.
 
 So the honest statement of what the hierarchy buys is narrow and specific: **the triage algorithm is what finds the problems; the hierarchy is how you run that algorithm without centralising the company's data.** The centralised version pools 88% of all extracted claims in one place; the hierarchy pools 14% and moves no original text at all. That privacy property costs roughly 2.8x the compute and tens of thousands of extra model calls. If we do not need it, we should run the algorithm centrally.
 
@@ -77,7 +77,7 @@ So the honest statement of what the hierarchy buys is narrow and specific: **the
 
 **1. Do not build progressive summarisation up the org chart.** This is the intuitive design — each layer summarises the layer below — and it is the clearest negative result in the study. At 50,000 users it finds 0% (plain summarisation), 0% (structured, no lineage) and 1% (structured with lineage) of the hidden problems. The reason is measurable rather than a matter of tuning, and is given in the executive summary.
 
-**2. If we build a hierarchy, the value is in the downward path, not the upward one.** Adding targeted downward retrieval takes discovery from 1% to 1%; adding sketch-driven questioning on top takes it to 34%. Budget accordingly: the upward channel should be cheap and statistical, and the downward channel is where the work — and the cost — actually is.
+**2. If we build a hierarchy, the value is in the downward path, not the upward one.** Adding targeted downward retrieval takes discovery from 1% to 2%; adding sketch-driven questioning on top takes it to 34%. Budget accordingly: the upward channel should be cheap and statistical, and the downward channel is where the work — and the cost — actually is.
 
 **3. Spend top-tier model budget on re-opening original evidence, not on bigger reasoning over summaries.** Measured directly on 3 real models, each run 2 times per condition: given the same summarised evidence, a large model and a small model land in the same band (AP 0.354–0.407) and no better than a six-feature statistical rule (0.420). Given the *original notes* behind that evidence, 2 of 3 improve, and for opus the richer condition's worst run still beats the summarised condition's best. It is **not** universal: sonnet did not improve, so this is a property of a model's ability to use raw evidence, not a law. Acting on it — having the kernel re-read a handful of source notes per candidate — was still the best return on compute found in the study, but size it against §23 rather than against the headline number.
 
@@ -92,9 +92,9 @@ So the honest statement of what the hierarchy buys is narrow and specific: **the
 |---|---|---:|---:|---:|
 | 2,000 | `A2_chunked_ctx` | 0.885 | 5.12e+05 | 25.2% |
 | 10,000 | `A2_chunked_ctx` | 0.685 | 2.08e+06 | 22.7% |
-| 50,000 | `A2_chunked_ctx` | 0.698 | 1.02e+07 | 22.3% |
+| 50,000 | `A2_chunked_ctx` | 0.686 | 1.02e+07 | 22.3% |
 
-**1. Upward propagation alone does not work, at any scale, in any form.** At 50,000 users recursive summarisation finds 0.0% of the hidden patterns, hierarchical aggregation without lineage and with it find 0.2% and 0.8%. Adding targeted downward retrieval takes it to 1.2%; adding sketch-driven questioning takes it to 34.0%. The hierarchy's value is almost entirely in the *downward* path — Δ +0.328 (95% CI [+0.270, +0.385], 4/4 seeds, sign p=0.125).
+**1. Upward propagation alone does not work, at any scale, in any form.** At 50,000 users recursive summarisation finds 0.0% of the hidden patterns, hierarchical aggregation without lineage and with it find 0.2% and 0.8%. Adding targeted downward retrieval takes it to 1.6%; adding sketch-driven questioning takes it to 34.0%. The hierarchy's value is almost entirely in the *downward* path — Δ +0.328 (95% CI [+0.270, +0.385], 4/4 seeds, sign p=0.125).
 
 **2. The reason is measurable and is not a tuning artefact.** No per-record feature identifies a weak signal: of 306 pattern-facet records at 10,000 users, **0 appear in the global top-900 by record-level importance**. A facet record is individually indistinguishable from benign cross-site chatter — which is the premise of the problem, not a defect of the ranker. Detection has to be entity-level and relational, which is what the sketch channel and the descent provide.
 
@@ -216,7 +216,7 @@ stated before the results rather than after them.
 | wall-clock latency | **modelled** from the metered token counts (see assumption A4); not observed on real hardware |
 | model-tier behaviour: extraction quality, abstraction loss, verification accuracy, hallucination | **simulated** from a capability vector |
 | primitive operator accuracy of Haiku 4.5, Sonnet 5 and Opus 5 | **directly measured**, blind, 198 items |
-| candidate-discrimination accuracy of those three models | **directly measured**, blind, on candidates taken from a real run |
+| candidate-discrimination accuracy of those three models | **directly measured**, blind, on candidates taken from a real run, two independent runs per model per condition |
 | where named open-weight model classes sit on the capability axis | **assumed** — never measured here |
 | 50,000-user results | **executed**, not extrapolated: every cell is a real run of the full pipeline |
 
@@ -500,22 +500,22 @@ Fitted on calibration seeds [500, 501, 502] at 10,000 users, objective `average_
 
 | architecture | AP | found | R@100 | rare recall | evidence cov. | FDR | decoy acc. | indep. acc. | lineage | info loss | compute (cu) | privacy exp. |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| A2_chunked_ctx | 0.054 <sub>[0.030, 0.091]</sub> | 0.698 <sub>[0.680, 0.725]</sub> | 0.112 | 0.614 | 1.000 | 0.977 | 0.382 | 0.599 | 0.643 | 0.003 | 1.02e+07 | 0.223 |
+| A2_chunked_ctx | 0.051 <sub>[0.032, 0.082]</sub> | 0.686 <sub>[0.658, 0.716]</sub> | 0.112 | 0.608 | 1.000 | 0.977 | 0.368 | 0.594 | 0.641 | 0.003 | 1.02e+07 | 0.223 |
 | A_flat_rag | 0.013 <sub>[0.010, 0.017]</sub> | 0.424 <sub>[0.378, 0.474]</sub> | 0.038 | 0.109 | 0.662 | 0.973 | 0.148 | 0.655 | 0.693 | 0.446 | 1.24e+06 | 0.025 |
 | I_mycelic_completion | 0.013 <sub>[0.010, 0.016]</sub> | 0.337 <sub>[0.290, 0.385]</sub> | 0.045 | 0.197 | 0.407 | 0.988 | 0.220 | 0.740 | 0.490 | 0.581 | 5.11e+06 | 0.146 |
 | J_mycelic_verified | 0.012 <sub>[0.008, 0.017]</sub> | 0.340 <sub>[0.290, 0.390]</sub> | 0.043 | 0.205 | 0.425 | 0.988 | 0.220 | 0.751 | 0.512 | 0.567 | 2.96e+06 | 0.146 |
-| B4_central_triage | 0.009 <sub>[0.007, 0.011]</sub> | 0.318 <sub>[0.305, 0.333]</sub> | 0.030 | 0.124 | 0.482 | 0.980 | 0.297 | 0.676 | 0.489 | 0.591 | 1.06e+06 | 0.885 |
+| B4_central_triage | 0.008 <sub>[0.007, 0.011]</sub> | 0.314 <sub>[0.302, 0.328]</sub> | 0.024 | 0.112 | 0.462 | 0.981 | 0.282 | 0.683 | 0.484 | 0.602 | 1.07e+06 | 0.885 |
 | G_hier_questions | 0.008 <sub>[0.008, 0.009]</sub> | 0.340 <sub>[0.290, 0.390]</sub> | 0.028 | 0.198 | 0.425 | 0.988 | 0.223 | 0.751 | 0.504 | 0.565 | 2.93e+06 | 0.139 |
 | H_mycelic_full | 0.008 <sub>[0.007, 0.009]</sub> | 0.340 <sub>[0.290, 0.390]</sub> | 0.020 | 0.205 | 0.425 | 0.988 | 0.220 | 0.751 | 0.512 | 0.567 | 2.95e+06 | 0.146 |
+| B2_map_reduce | 0.008 <sub>[0.001, 0.017]</sub> | 0.056 <sub>[0.030, 0.082]</sub> | 0.022 | 0.018 | 0.072 | 0.987 | 0.026 | 0.801 | 0.582 | 0.941 | 7.78e+05 | 0.885 |
 | Y_oracle_retrieval | 0.005 <sub>[0.002, 0.008]</sub> | 0.275 <sub>[0.195, 0.330]</sub> | 0.020 | 0.223 | 1.000 | 0.991 | 0.155 | 0.531 | 0.471 | 0.003 | 2.43e+06 | 0.885 |
-| B2_map_reduce | 0.004 <sub>[0.001, 0.008]</sub> | 0.045 <sub>[0.022, 0.065]</sub> | 0.013 | 0.006 | 0.065 | 0.989 | 0.028 | 0.823 | 0.597 | 0.948 | 7.77e+05 | 0.885 |
 | B_long_context | 0.002 <sub>[0.001, 0.003]</sub> | 0.076 <sub>[0.056, 0.098]</sub> | 0.018 | 0.007 | 0.186 | 0.984 | 0.022 | 0.606 | 0.615 | 0.808 | 1.12e+06 | 0.025 |
 | Z2_naive_enumerate | 0.001 <sub>[0.000, 0.001]</sub> | 0.118 <sub>[0.070, 0.168]</sub> | 0.007 | 0.126 | 0.000 | 0.996 | 0.147 | 0.000 | 0.000 | 1.000 | 9.21e+05 | 0.885 |
-| E_hier_lineage | 0.001 <sub>[0.000, 0.001]</sub> | 0.007 <sub>[0.003, 0.010]</sub> | 0.007 | 0.000 | 0.018 | 0.986 | 0.000 | 0.288 | 0.500 | 0.978 | 9.88e+05 | 0.139 |
+| F_hier_retrieval | 0.001 <sub>[0.000, 0.001]</sub> | 0.016 <sub>[0.008, 0.024]</sub> | 0.012 | 0.005 | 0.028 | 0.993 | 0.004 | 0.625 | 0.426 | 0.961 | 1.15e+06 | 0.138 |
 | Z_random_rank | 0.001 <sub>[0.000, 0.001]</sub> | 0.045 <sub>[0.022, 0.065]</sub> | 0.003 | 0.006 | 0.065 | 0.989 | 0.028 | 0.823 | 0.597 | 0.948 | 7.77e+05 | 0.885 |
-| F_hier_retrieval | 0.000 <sub>[0.000, 0.001]</sub> | 0.013 <sub>[0.005, 0.020]</sub> | 0.010 | 0.006 | 0.025 | 0.994 | 0.003 | 0.577 | 0.417 | 0.966 | 1.15e+06 | 0.139 |
-| D_hier_nolineage | 0.000 <sub>[0.000, 0.000]</sub> | 0.003 <sub>[0.000, 0.007]</sub> | 0.003 | 0.000 | 0.003 | 1.000 | 0.000 | 0.000 | 0.000 | 0.991 | 8.80e+05 | 0.139 |
-| C_recursive_sum | 0.000 <sub>[0.000, 0.000]</sub> | 0.000 <sub>[0.000, 0.000]</sub> | 0.000 | 0.000 | 0.003 | 1.000 | 0.000 | 0.000 | 0.000 | 0.997 | 8.04e+05 | 0.093 |
+| E_hier_lineage | 0.001 <sub>[0.000, 0.001]</sub> | 0.008 <sub>[0.004, 0.010]</sub> | 0.008 | 0.000 | 0.018 | 0.989 | 0.000 | 0.230 | 0.400 | 0.976 | 9.90e+05 | 0.138 |
+| D_hier_nolineage | 0.000 <sub>[0.000, 0.000]</sub> | 0.002 <sub>[0.000, 0.006]</sub> | 0.002 | 0.000 | 0.002 | 1.000 | 0.000 | 0.000 | 0.000 | 0.990 | 8.82e+05 | 0.138 |
+| C_recursive_sum | 0.000 <sub>[0.000, 0.000]</sub> | 0.000 <sub>[0.000, 0.000]</sub> | 0.000 | 0.000 | 0.002 | 1.000 | 0.000 | 0.000 | 0.000 | 0.996 | 8.05e+05 | 0.092 |
 
 ### Paired comparisons
 
@@ -535,7 +535,7 @@ variance.
 | H_mycelic_full vs Y_oracle_retrieval | found | 0.4793 | 0.4196 | +0.0596 | [-0.0007, +0.1193] | 10/13 | 0.092 |
 | B2_map_reduce vs Z_random_rank | found | 0.3307 | 0.3307 | +0.0000 | [+0.0000, +0.0000] | 0/0 | 1.000 |
 | G_hier_questions vs F_hier_retrieval | found | 0.4846 | 0.0982 | +0.3864 | [+0.3239, +0.4525] | 14/14 | 0.000 |
-| F_hier_retrieval vs E_hier_lineage | found | 0.0982 | 0.0593 | +0.0389 | [+0.0196, +0.0586] | 11/12 | 0.006 |
+| F_hier_retrieval vs E_hier_lineage | found | 0.0937 | 0.0560 | +0.0377 | [+0.0193, +0.0567] | 12/13 | 0.003 |
 | H_mycelic_full vs E_hier_lineage | AP | 0.0414 | 0.0075 | +0.0339 | [+0.0162, +0.0542] | 12/14 | 0.013 |
 | H_mycelic_full vs B2_map_reduce | AP | 0.0414 | 0.0485 | -0.0071 | [-0.0218, +0.0062] | 7/14 | 1.000 |
 | H_mycelic_full vs A_flat_rag | AP | 0.0414 | 0.1315 | -0.0901 | [-0.1447, -0.0432] | 0/14 | 0.000 |
@@ -546,7 +546,7 @@ variance.
 | H_mycelic_full vs Y_oracle_retrieval | AP | 0.0414 | 0.0269 | +0.0145 | [+0.0062, +0.0238] | 12/14 | 0.013 |
 | B2_map_reduce vs Z_random_rank | AP | 0.0485 | 0.0200 | +0.0286 | [+0.0149, +0.0435] | 14/14 | 0.000 |
 | G_hier_questions vs F_hier_retrieval | AP | 0.0382 | 0.0139 | +0.0244 | [+0.0128, +0.0365] | 13/14 | 0.002 |
-| F_hier_retrieval vs E_hier_lineage | AP | 0.0139 | 0.0075 | +0.0063 | [-0.0001, +0.0146] | 9/13 | 0.267 |
+| F_hier_retrieval vs E_hier_lineage | AP | 0.0130 | 0.0070 | +0.0060 | [-0.0000, +0.0136] | 10/14 | 0.180 |
 
 ## 11. Scale
 
@@ -555,11 +555,11 @@ variance.
 | architecture | 2,000 | 10,000 | 50,000 |
 |---|---:|---:|---:|
 | A_flat_rag | 0.875 | 0.675 | 0.424 |
-| A2_chunked_ctx | 0.885 | 0.685 | 0.698 |
+| A2_chunked_ctx | 0.885 | 0.685 | 0.686 |
 | B_long_context | 0.795 | 0.470 | 0.076 |
-| B2_map_reduce | 0.580 | 0.310 | 0.045 |
-| B4_central_triage | 0.770 | 0.370 | 0.318 |
-| E_hier_lineage | 0.120 | 0.040 | 0.007 |
+| B2_map_reduce | 0.580 | 0.310 | 0.056 |
+| B4_central_triage | 0.770 | 0.370 | 0.314 |
+| E_hier_lineage | 0.120 | 0.040 | 0.008 |
 | G_hier_questions | 0.695 | 0.390 | 0.340 |
 | H_mycelic_full | 0.695 | 0.375 | 0.340 |
 | J_mycelic_verified | 0.695 | 0.375 | 0.340 |
@@ -572,9 +572,9 @@ Compute (cu) at the same points:
 | A_flat_rag | 4.71e+05 | 1.09e+06 | 1.24e+06 |
 | A2_chunked_ctx | 5.12e+05 | 2.08e+06 | 1.02e+07 |
 | B_long_context | 1.09e+06 | 1.09e+06 | 1.12e+06 |
-| B2_map_reduce | 7.96e+04 | 1.99e+05 | 7.77e+05 |
-| B4_central_triage | 1.33e+05 | 3.98e+05 | 1.06e+06 |
-| E_hier_lineage | 6.91e+04 | 2.25e+05 | 9.88e+05 |
+| B2_map_reduce | 7.96e+04 | 1.99e+05 | 7.78e+05 |
+| B4_central_triage | 1.33e+05 | 3.98e+05 | 1.07e+06 |
+| E_hier_lineage | 6.91e+04 | 2.25e+05 | 9.90e+05 |
 | G_hier_questions | 8.36e+05 | 1.08e+06 | 2.93e+06 |
 | H_mycelic_full | 8.38e+05 | 1.09e+06 | 2.95e+06 |
 | J_mycelic_verified | 8.48e+05 | 1.10e+06 | 2.96e+06 |
@@ -741,27 +741,27 @@ positions on this axis rather than measured ones.
 
 | architecture | q | AP | found | rare | FDR | compute |
 |---|---:|---:|---:|---:|---:|---:|
-| B2_map_reduce | 0.10 | 0.0017 | 0.125 | 0.079 | 0.990 | 89400 |
-| B2_map_reduce | 0.28 | 0.0041 | 0.087 | 0.059 | 0.991 | 1.76e+05 |
-| B2_map_reduce | 0.44 | 0.0203 | 0.213 | 0.109 | 0.974 | 3.22e+05 |
-| B2_map_reduce | 0.58 | 0.0539 | 0.375 | 0.247 | 0.954 | 5.45e+05 |
-| B2_map_reduce | 0.72 | 0.0465 | 0.600 | 0.412 | 0.938 | 9.27e+05 |
-| B2_map_reduce | 0.88 | 0.1619 | 0.625 | 0.294 | 0.930 | 1.69e+06 |
-| B2_map_reduce | 1.00 | 0.0866 | 0.575 | 0.235 | 0.946 | 2.65e+06 |
+| B2_map_reduce | 0.10 | 0.0015 | 0.117 | 0.053 | 0.992 | 89103 |
+| B2_map_reduce | 0.28 | 0.0058 | 0.150 | 0.061 | 0.985 | 1.75e+05 |
+| B2_map_reduce | 0.44 | 0.0338 | 0.283 | 0.117 | 0.969 | 3.21e+05 |
+| B2_map_reduce | 0.58 | 0.0556 | 0.392 | 0.231 | 0.955 | 5.44e+05 |
+| B2_map_reduce | 0.72 | 0.0444 | 0.475 | 0.237 | 0.946 | 9.22e+05 |
+| B2_map_reduce | 0.88 | 0.1446 | 0.592 | 0.204 | 0.935 | 1.68e+06 |
+| B2_map_reduce | 1.00 | 0.1057 | 0.575 | 0.268 | 0.943 | 2.65e+06 |
 | E_hier_lineage | 0.10 | 0.0000 | 0.000 | 0.000 | 1.000 | 1.04e+05 |
-| E_hier_lineage | 0.28 | 0.0000 | 0.000 | 0.000 | 1.000 | 2.09e+05 |
-| E_hier_lineage | 0.44 | 0.0017 | 0.038 | 0.029 | 0.987 | 3.87e+05 |
-| E_hier_lineage | 0.58 | 0.0061 | 0.075 | 0.000 | 0.956 | 6.62e+05 |
-| E_hier_lineage | 0.72 | 0.0156 | 0.200 | 0.000 | 0.922 | 1.13e+06 |
-| E_hier_lineage | 0.88 | 0.0964 | 0.325 | 0.059 | 0.722 | 2.07e+06 |
-| E_hier_lineage | 1.00 | 0.3205 | 0.500 | 0.176 | 0.448 | 3.26e+06 |
-| H_mycelic_full | 0.10 | 0.0006 | 0.050 | 0.054 | 0.995 | 1.94e+05 |
-| H_mycelic_full | 0.28 | 0.0050 | 0.175 | 0.163 | 0.988 | 3.79e+05 |
-| H_mycelic_full | 0.44 | 0.0156 | 0.287 | 0.168 | 0.981 | 6.87e+05 |
-| H_mycelic_full | 0.58 | 0.0257 | 0.400 | 0.293 | 0.973 | 1.14e+06 |
-| H_mycelic_full | 0.72 | 0.0213 | 0.500 | 0.353 | 0.966 | 1.90e+06 |
-| H_mycelic_full | 0.88 | 0.0606 | 0.600 | 0.412 | 0.956 | 3.61e+06 |
-| H_mycelic_full | 1.00 | 0.0737 | 0.700 | 0.647 | 0.944 | 5.60e+06 |
+| E_hier_lineage | 0.28 | 0.0005 | 0.017 | 0.022 | 0.994 | 2.09e+05 |
+| E_hier_lineage | 0.44 | 0.0028 | 0.050 | 0.020 | 0.979 | 3.87e+05 |
+| E_hier_lineage | 0.58 | 0.0078 | 0.100 | 0.022 | 0.949 | 6.61e+05 |
+| E_hier_lineage | 0.72 | 0.0195 | 0.167 | 0.000 | 0.904 | 1.13e+06 |
+| E_hier_lineage | 0.88 | 0.0897 | 0.300 | 0.081 | 0.749 | 2.07e+06 |
+| E_hier_lineage | 1.00 | 0.2580 | 0.425 | 0.138 | 0.484 | 3.26e+06 |
+| H_mycelic_full | 0.10 | 0.0012 | 0.092 | 0.081 | 0.994 | 1.98e+05 |
+| H_mycelic_full | 0.28 | 0.0077 | 0.233 | 0.198 | 0.984 | 3.86e+05 |
+| H_mycelic_full | 0.44 | 0.0138 | 0.308 | 0.201 | 0.979 | 6.99e+05 |
+| H_mycelic_full | 0.58 | 0.0262 | 0.417 | 0.284 | 0.972 | 1.16e+06 |
+| H_mycelic_full | 0.72 | 0.0304 | 0.492 | 0.351 | 0.967 | 1.98e+06 |
+| H_mycelic_full | 0.88 | 0.0668 | 0.642 | 0.454 | 0.950 | 3.68e+06 |
+| H_mycelic_full | 1.00 | 0.0809 | 0.725 | 0.649 | 0.941 | 5.66e+06 |
 
 ## 14. Cost and quality
 
@@ -946,14 +946,16 @@ time.
 | 2000 | True | 0.0668 | 0.708 | 0.563 | 8.49e+05 |
 | 10000 | False | 0.0247 | 0.367 | 0.220 | 1.08e+06 |
 | 10000 | True | 0.0248 | 0.342 | 0.178 | 1.08e+06 |
-| 50000 | False | 0.0082 | 0.340 | 0.221 | 2.94e+06 |
-| 50000 | True | 0.0078 | 0.350 | 0.210 | 2.97e+06 |
+| 50000 | False | 0.0082 | 0.353 | 0.219 | 2.95e+06 |
+| 50000 | True | 0.0081 | 0.363 | 0.235 | 2.97e+06 |
 
 | scale | Δ found (links on − off) | 95% CI | wins | sign p |
 |---|---:|---|---:|---:|
 | 2,000 | +0.0500 | [+0.0250, +0.0750] | 3/3 | 0.250 |
 | 10,000 | -0.0250 | [-0.1000, +0.0500] | 1/3 | 1.000 |
-| 50,000 | +0.0100 | [-0.0100, +0.0300] | 1/2 | 1.000 |
+| 50,000 | +0.0100 | [-0.0100, +0.0300] | 2/3 | 1.000 |
+
+**Verdict.** Adding semantic cross-links to the organisational tree helps at 2,000 users but the effect does not survive to 50,000. The largest effect anywhere is +0.050 at 2,000 users, on 3 paired seeds. The mechanism the links are supposed to supply — a path between branches that the org chart does not provide — is already supplied by the sketch channel, which is indexed by entity rather than by branch and so crosses the tree for free. On this evidence the cross-links are redundant with it, not additive to it, and should not be built on the strength of these numbers.
 
 ## 20. Confidentiality and propagation volume
 
@@ -1342,11 +1344,12 @@ evidence. The full chronology is in `research/mycelic/logs/research_log.md`.
 15. **A headline stated from one run per cell.** The most quotable result in
     the study — richer evidence beating a bigger model — did not replicate
     cleanly when the corpus was regenerated: one of the three models moved the
-    *wrong way*. Repeating each cell showed within-cell run-to-run ranges as
-    large as 0.098 AP, comparable to the gap the claim rested on for the
-    weaker models. The claim is now stated only as strongly as the spread
-    supports, and §23 reports the range rather than a mean. What failed was
-    not the mechanism; it was the evidentiary standard applied to it.
+    *wrong way*. Repeating both conditions for every model showed within-cell
+    run-to-run ranges of the same order as the gap the claim rested on for two
+    of the three. The measured ranges are in §23; the claim is now computed
+    from them and stated only as strongly as they support. What failed was not
+    the mechanism — it survives for the strongest model, decisively — but the
+    evidentiary standard the claim had been asserted under.
 
 16. **`w_dispersion`, a knob whose sign flipped with the corpus.** The
     confidence term that penalises evidence clustered in time was rejected

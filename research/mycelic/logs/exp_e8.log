@@ -16,3 +16,5 @@
   50000 1 xlinks=False AP=0.0072 found=0.28 cu=2.91e+06
   50000 1 xlinks=True AP=0.0091 found=0.31 cu=2.94e+06
   50000 2 xlinks=False AP=0.0083 found=0.38 cu=2.96e+06
+  50000 2 xlinks=True AP=0.0087 found=0.39 cu=2.96e+06
+=== e8 done in 222s ===
