@@ -6,6 +6,14 @@ NeuralGraph gives AI assistants persistent, searchable memory across conversatio
 
 This README is focused on getting NeuralGraph running.
 
+> **Research track:** [`docs/MYCELIC_ENTERPRISE.md`](docs/MYCELIC_ENTERPRISE.md)
+> is a separate benchmark study on hierarchical enterprise intelligence — how
+> thousands of private user-level agents should abstract, route, question and
+> verify knowledge upward so an enterprise kernel can discover things no single
+> part of the organisation could. Code, raw per-run metrics and the full
+> research log (including everything that was measured and discarded) are in
+> [`research/mycelic/`](research/mycelic/).
+
 ## Requirements
 
 Before installing, make sure you have:
