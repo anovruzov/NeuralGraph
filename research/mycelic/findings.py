@@ -265,17 +265,73 @@ def decision_summary() -> str:
             "and the downward channel is where the work — and the cost — "
             "actually is.")
         out.append("")
-    out.append(
-        "**3. Spend top-tier model budget on re-opening original evidence, not "
-        "on bigger reasoning over summaries.** Measured directly on three real "
-        "models: given the same summarised evidence, a large model and a small "
-        "model perform the same, and no better than a six-feature statistical "
-        "rule. Given the *original notes* behind that evidence, both improve "
-        "sharply. Acting on this — having the kernel re-read a handful of "
-        "source notes per candidate — was the best return on compute found in "
-        "the study.")
+    out.append(_decision_evidence_vs_capability())
     out.append("")
     return "\n".join(out)
+
+
+def _decision_evidence_vs_capability() -> str:
+    """Decision 3, stated only as strongly as the repeats allow."""
+    import json as _json
+    p = os.path.join(ART, "live_rank_results.json")
+    pr = os.path.join(ART, "live_rank_results_rich.json")
+    head = ("**3. Spend top-tier model budget on re-opening original "
+            "evidence, not on bigger reasoning over summaries.** ")
+    if not (os.path.exists(p) and os.path.exists(pr)):
+        return head + "_(live measurement not run)_"
+    d, dr = _json.load(open(p)), _json.load(open(pr))
+
+    def _cells(dd):
+        ag = dd.get("models_aggregated")
+        if ag:
+            return {k: (v["ap_mean"], v["ap_min"], v["ap_max"], v["n_runs"])
+                    for k, v in ag.items()}
+        return {k: (v["ap"], v["ap"], v["ap"], 1)
+                for k, v in dd.get("models", {}).items()}
+
+    cs, cr = _cells(d), _cells(dr)
+    common = sorted(set(cs) & set(cr))
+    if not common:
+        return head + "_(live measurement not run)_"
+    helped = [m for m in common if cr[m][0] > cs[m][0]]
+    # A model counts as separated only if its two conditions' observed run
+    # ranges do not overlap AND the richer condition is the higher one.  With
+    # 2-3 runs that is the only claim the data supports; anything finer would
+    # be invented precision.  A cell with a single run has a degenerate
+    # "range", so separation there is not evidence and is excluded.
+    sep = [m for m in common
+           if cs[m][3] > 1 and cr[m][3] > 1 and cr[m][1] > cs[m][2]]
+    thin = [m for m in common if cs[m][3] < 2 or cr[m][3] < 2]
+    ap_stats = f"{min(c[0] for c in cs.values()):.3f}–" \
+               f"{max(c[0] for c in cs.values()):.3f}"
+    body = (f"Measured directly on {len(common)} real models, each run "
+            f"{max(c[3] for c in cr.values())} times per condition: given the "
+            f"same summarised evidence, a large model and a small model land "
+            f"in the same band (AP {ap_stats}) and no better than a "
+            f"six-feature statistical rule ({d['simulator_logistic_ap']:.3f}). "
+            f"Given the *original notes* behind that evidence, "
+            f"{len(helped)} of {len(common)} improve")
+    if sep:
+        body += (f", and for {', '.join(sorted(sep))} the richer condition's "
+                 f"worst run still beats the summarised condition's best")
+    losers = [m for m in common if cr[m][0] <= cs[m][0]]
+    if losers:
+        body += (f". It is **not** universal: {', '.join(sorted(losers))} did "
+                 f"not improve, so this is a property of a model's ability to "
+                 f"use raw evidence, not a law")
+    if thin:
+        _t = sorted(thin)
+        body += (f". {', '.join(_t)} still "
+                 f"{'has' if len(_t) == 1 else 'have'} a condition measured "
+                 f"only once, so "
+                 f"{'its' if len(_t) == 1 else 'those'} "
+                 f"{'direction is' if len(_t) == 1 else 'directions are'} "
+                 f"provisional")
+    body += (". Acting on it — having the kernel re-read a handful of source "
+             "notes per candidate — was still the best return on compute "
+             "found in the study, but size it against §23 rather than against "
+             "the headline number.")
+    return head + body
 
 
 def executive_summary() -> str:
@@ -348,24 +404,54 @@ def executive_summary() -> str:
     pr = os.path.join(ART, "live_rank_results_rich.json")
     if os.path.exists(p) and os.path.exists(pr):
         d, dr = json.load(open(p)), json.load(open(pr))
-        ms = d.get("models", {})
-        mr = dr.get("models", {})
+
+        def _means(dd):
+            """Per-model mean AP over repeats, and the largest run-to-run
+            range seen in any cell — which bounds how much of any difference
+            below could be sampling rather than mechanism."""
+            ag = dd.get("models_aggregated")
+            if ag:
+                return ({k: v["ap_mean"] for k, v in ag.items()},
+                        max((v["ap_max"] - v["ap_min"] for v in ag.values()),
+                            default=0.0),
+                        max((v["n_runs"] for v in ag.values()), default=1))
+            ms = dd.get("models", {})
+            return ({k: v["ap"] for k, v in ms.items()}, 0.0, 1)
+
+        ms, spread_s, n_s = _means(d)
+        mr, spread_r, n_r = _means(dr)
         if ms and mr:
+            common = sorted(set(ms) & set(mr))
+            helped = sum(1 for m in common if mr[m] > ms[m])
+            gaps = [mr[m] - ms[m] for m in common]
+            biggest_spread = max(spread_s, spread_r)
+            decisive = [m for m in common
+                        if abs(mr[m] - ms[m]) > biggest_spread]
             lines.append(
                 f"**4. Directly measured: at fixed evidence, model capability "
                 f"buys almost nothing here; changing what the evidence "
-                f"*contains* buys a lot.** Three real models ranked the same 60 "
-                f"candidates from a real run. Given the aggregate evidence "
-                f"statistics they scored AP "
-                f"{min(v['ap'] for v in ms.values()):.3f}–"
-                f"{max(v['ap'] for v in ms.values()):.3f}, against "
+                f"*contains* buys more, but not for every model.** "
+                f"{len(common)} real models ranked the same {d['n_items']} "
+                f"candidates from a real run "
+                f"({max(n_s, n_r)} independent runs per cell). Given the "
+                f"aggregate evidence statistics they scored AP "
+                f"{min(ms.values()):.3f}–{max(ms.values()):.3f}, against "
                 f"{d['simulator_logistic_ap']:.3f} for a six-feature logistic "
                 f"and {d['random_ap']:.3f} for random — i.e. a large capability "
                 f"range lands within noise of a logistic. Given the **raw work "
                 f"notes** behind the same statistics the same models scored "
-                f"{min(v['ap'] for v in mr.values()):.3f}–"
-                f"{max(v['ap'] for v in mr.values()):.3f}. The abstraction, "
-                f"not the reasoner, is the ceiling.\n")
+                f"{min(mr.values()):.3f}–{max(mr.values()):.3f}. Richer "
+                f"evidence helped {helped} of {len(common)} models "
+                f"(Δ {min(gaps):+.3f} to {max(gaps):+.3f}); the largest "
+                f"run-to-run range within a single cell is "
+                f"{biggest_spread:.3f}, and "
+                + (f"{len(decisive)} of {len(common)} models move by more "
+                   f"than that. " if decisive else
+                   "no model moves by more than that, so this comparison "
+                   "does not separate the two conditions. ")
+                + "The abstraction, not the reasoner, is the plausible "
+                  "ceiling — but see §23 before treating the size of the "
+                  "effect as established.\n")
 
     # 6. what that implies, measured
     ab = load("e2_ablations.jsonl")

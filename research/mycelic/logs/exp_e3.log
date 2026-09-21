@@ -58,3 +58,34 @@
   1 two-step       E_hier_lineage   AP=0.0007 found=0.03 cu=2.19e+05
   1 edge-bottom    H_mycelic_full   AP=0.0095 found=0.30 cu=1.24e+06
   1 edge-bottom    B2_map_reduce    AP=0.0097 found=0.33 cu=1.21e+05
+  1 edge-bottom    E_hier_lineage   AP=0.0000 found=0.00 cu=1.93e+05
+  1 lexical-bottom H_mycelic_full   AP=0.0400 found=0.42 cu=9.16e+05
+  1 lexical-bottom B2_map_reduce    AP=0.0358 found=0.17 cu=5.28e+04
+  1 lexical-bottom E_hier_lineage   AP=0.0034 found=0.05 cu=7.97e+04
+  1 lexical-to-kernel H_mycelic_full   AP=0.0727 found=0.55 cu=5.62e+05
+  1 lexical-to-kernel B2_map_reduce    AP=0.0358 found=0.17 cu=5.28e+04
+  1 lexical-to-kernel E_hier_lineage   AP=0.0326 found=0.07 cu=1.41e+04
+  2 flat-small     H_mycelic_full   AP=0.0131 found=0.35 cu=3.31e+05
+  2 flat-small     B2_map_reduce    AP=0.0091 found=0.28 cu=1.45e+05
+  2 flat-small     E_hier_lineage   AP=0.0014 found=0.05 cu=1.73e+05
+  2 flat-mid       H_mycelic_full   AP=0.0272 found=0.45 cu=1.52e+06
+  2 flat-mid       B2_map_reduce    AP=0.0589 found=0.42 cu=6.80e+05
+  2 flat-mid       E_hier_lineage   AP=0.0111 found=0.15 cu=8.29e+05
+  2 flat-frontier  H_mycelic_full   AP=0.0685 found=0.62 cu=9.90e+06
+  2 flat-frontier  B2_map_reduce    AP=0.1581 found=0.57 cu=4.34e+06
+  2 flat-frontier  E_hier_lineage   AP=0.1349 found=0.40 cu=5.37e+06
+  2 naive-ladder   H_mycelic_full   AP=0.0175 found=0.45 cu=1.40e+06
+  2 naive-ladder   B2_map_reduce    AP=0.0233 found=0.40 cu=1.98e+05
+  2 naive-ladder   E_hier_lineage   AP=0.0115 found=0.07 cu=2.83e+05
+  2 back-loaded    H_mycelic_full   AP=0.0172 found=0.42 cu=1.13e+06
+  2 back-loaded    B2_map_reduce    AP=0.0233 found=0.40 cu=1.98e+05
+  2 back-loaded    E_hier_lineage   AP=0.0053 found=0.05 cu=2.29e+05
+  2 front-loaded   H_mycelic_full   AP=0.0132 found=0.45 cu=1.06e+06
+  2 front-loaded   B2_map_reduce    AP=0.0945 found=0.42 cu=3.02e+05
+  2 front-loaded   E_hier_lineage   AP=0.0030 found=0.05 cu=4.37e+05
+  2 kernel-only    H_mycelic_full   AP=0.0037 found=0.17 cu=6.74e+05
+  2 kernel-only    B2_map_reduce    AP=0.0073 found=0.23 cu=1.20e+05
+  2 kernel-only    E_hier_lineage   AP=0.0000 found=0.00 cu=8.12e+04
+  2 two-step       H_mycelic_full   AP=0.0185 found=0.42 cu=1.11e+06
+  2 two-step       B2_map_reduce    AP=0.0233 found=0.40 cu=1.98e+05
+  2 two-step       E_hier_lineage   AP=0.0051 found=0.05 cu=2.24e+05

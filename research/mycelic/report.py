@@ -538,15 +538,24 @@ def _live_rich_delta() -> str:
     if not deltas:
         return ""
     pos = sum(1 for _, dv, _, _ in deltas if dv > 0)
-    worst_overlap = [m for m, dv, ca, cb in deltas if cb[1] <= ca[2]]
+    # True interval overlap, not a one-sided comparison: the conditions are
+    # separated only when one range lies entirely above the other.
+    overlap = [m for m, dv, ca, cb in deltas
+               if not (cb[1] > ca[2] or ca[1] > cb[2])]
+    thin = [m for m, dv, ca, cb in deltas if ca[3] < 2 or cb[3] < 2]
     lines.append("")
     lines.append(
         f"Richer evidence helped {pos} of {len(deltas)} models. "
-        + ("For " + ", ".join(worst_overlap) + " the two conditions' run "
+        + ("For " + ", ".join(sorted(overlap)) + " the two conditions' run "
            "ranges OVERLAP, so for those models this comparison does not "
            "separate the conditions at all. "
-           if worst_overlap else
-           "No model's two conditions overlap across runs. ")
+           if overlap else
+           "No model's two condition ranges overlap. ")
+        + (", ".join(sorted(thin))
+           + (" still has" if len(thin) == 1 else " still have")
+           + " a condition measured only once, so that range is a single "
+             "point and any separation there is not evidence. "
+           if thin else "")
         + "Read the size of the run-to-run spread before reading any Δ: "
           "where the spread is comparable to the gap, the gap is not a result.")
     return "\n".join(lines)
