@@ -385,8 +385,10 @@ Architectures under test:
 
 ## 10. Scale results
 
-See §8 — the same architectures at 2,000 / 10,000 / 50,000 users. The
-scale-dependence of the ordering is the main result and is discussed in §1.
+Discovery (`found`) by architecture and scale — every cell is an executed run,
+none is extrapolated:
+
+{sec['scale_trend']}
 
 ---
 
@@ -414,6 +416,22 @@ this study can actually make.
 ### Cost / quality frontier
 
 {sec['frontier']}
+
+---
+
+## 11b. Privacy and propagation volume
+
+Three different things are usually collapsed into one "privacy" number. They
+are separated here:
+
+* **raw text out** — fraction of records whose original text was read by
+  anything other than the owning user agent. This is the confidentiality cost.
+* **claims out** — extracted claims (structured, no surface text) that left the
+  user node.
+* **index entries out** — sketch metadata (entity id, predicate bitmask,
+  counts) that left the node. No claim content.
+
+{sec['privacy']}
 
 ---
 

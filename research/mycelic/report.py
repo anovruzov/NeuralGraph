@@ -370,6 +370,58 @@ def section_crosslinks() -> str:
     return "\n".join(lines)
 
 
+def section_privacy() -> str:
+    rows = load("e9_privacy.jsonl")
+    if not rows:
+        return "_(E9 not run)_"
+    a = agg(rows, ["raw_text_exposure_fraction", "claim_exposure_fraction",
+                   "sketch_entries_leaving_node", "privacy_exposure_fraction",
+                   "found_anywhere_in_register", "compute_units"],
+            by=("scale", "arch"))
+    return md_table(a, [("scale", "users", 0), ("arch", "architecture", 0),
+                        ("raw_text_exposure_fraction", "raw text out", 4),
+                        ("claim_exposure_fraction", "claims out", 4),
+                        ("sketch_entries_leaving_node", "index entries out", 0),
+                        ("found_anywhere_in_register", "found", 3),
+                        ("compute_units", "compute", 0)], sort_by=None)
+
+
+def section_scale_trend() -> str:
+    rows = load("e1_baselines.jsonl") + load("e1b_extra.jsonl") + \
+        load("e10_scale_trend.jsonl")
+    if not rows:
+        return "_(not run)_"
+    archs = ["A_flat_rag", "A2_chunked_ctx", "B_long_context",
+             "B2_map_reduce", "B4_central_triage", "E_hier_lineage",
+             "G_hier_questions", "H_mycelic_full", "J_mycelic_verified",
+             "Y_oracle_retrieval"]
+    scales = sorted({r["scale"] for r in rows})
+    lines = ["| architecture | " + " | ".join(f"{s:,}" for s in scales) + " |",
+             "|---|" + "---:|" * len(scales)]
+    for a in archs:
+        cells = []
+        for sc in scales:
+            sub = [r["found_anywhere_in_register"] for r in rows
+                   if r["arch"] == a and r["scale"] == sc]
+            cells.append(f"{np.mean(sub):.3f}" if sub else "—")
+        if any(c != "—" for c in cells):
+            lines.append(f"| {a} | " + " | ".join(cells) + " |")
+    lines.append("")
+    lines.append("Compute (cu) at the same points:")
+    lines.append("")
+    lines.append("| architecture | " + " | ".join(f"{s:,}" for s in scales) + " |")
+    lines.append("|---|" + "---:|" * len(scales))
+    for a in archs:
+        cells = []
+        for sc in scales:
+            sub = [r["compute_units"] for r in rows
+                   if r["arch"] == a and r["scale"] == sc]
+            cells.append(f"{np.mean(sub):.2e}" if sub else "—")
+        if any(c != "—" for c in cells):
+            lines.append(f"| {a} | " + " | ".join(cells) + " |")
+    return "\n".join(lines)
+
+
 def section_live() -> str:
     out = []
     p = os.path.join(ART, "live_calibration.json")
@@ -384,20 +436,24 @@ def section_live() -> str:
                        f"{v['entity_fidelity']:.3f} | {v['causal_check']:.3f} | "
                        f"{v['temporal_check']:.3f} | {v['entity_check']:.3f} | "
                        f"{v['dedup_check']:.3f} | {v['fitted_q']:.2f} |")
-    p = os.path.join(ART, "live_rank_results.json")
-    if os.path.exists(p):
+    for suffix, label in (("", "evidence STATISTICS only"),
+                          ("_rich", "statistics + the RAW WORK NOTES")):
+        p = os.path.join(ART, f"live_rank_results{suffix}.json")
+        if not os.path.exists(p):
+            continue
         d = json.load(open(p))
-        out.append(f"\n#### Candidate discrimination "
+        out.append(f"\n#### Candidate discrimination — {label} "
                    f"({d['n_items']} candidates from a real run, "
                    f"{d['n_real']} genuine)\n")
         out.append("| ranker | AP | selection precision | selection recall | "
                    "selection F1 | n selected |")
         out.append("|---|---:|---:|---:|---:|---:|")
         out.append(f"| random | {d['random_ap']:.4f} | — | — | — | — |")
-        out.append(f"| **simulator's calibrated logistic** | "
+        out.append(f"| simulator's calibrated logistic (statistics) | "
                    f"{d['simulator_logistic_ap']:.4f} | — | — | — | — |")
         for m, v in sorted(d.get("models", {}).items()):
-            out.append(f"| {m} | {v['ap']:.4f} | {v['selection_precision']:.3f} | "
+            out.append(f"| {m} | **{v['ap']:.4f}** | "
+                       f"{v['selection_precision']:.3f} | "
                        f"{v['selection_recall']:.3f} | {v['selection_f1']:.3f} | "
                        f"{v['n_selected']} |")
     return "\n".join(out) if out else "_(live measurements not run)_"
@@ -477,6 +533,8 @@ def build() -> str:
         "shape": section_shape(),
         "crosslinks": section_crosslinks(),
         "live": section_live(),
+        "privacy": section_privacy(),
+        "scale_trend": section_scale_trend(),
     })
 
 

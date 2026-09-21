@@ -25,3 +25,13 @@
    10000/2 B4_central_triage      AP=0.0073 found=0.33 cov2=0.93 cu=4.33e+05
    10000/2 I_mycelic_completion   AP=0.0226 found=0.38 cov2=0.60 cu=2.01e+06
    10000/3 A2_chunked_ctx         AP=0.0784 found=0.72 cov2=1.00 cu=2.08e+06
+   10000/3 B4_central_triage      AP=0.0466 found=0.50 cov2=0.97 cu=4.40e+05
+   10000/3 I_mycelic_completion   AP=0.1660 found=0.57 cov2=0.88 cu=2.09e+06
+   10000/4 A2_chunked_ctx         AP=0.0699 found=0.75 cov2=1.00 cu=2.07e+06
+   10000/4 B4_central_triage      AP=0.0189 found=0.30 cov2=1.00 cu=4.61e+05
+   10000/4 I_mycelic_completion   AP=0.0192 found=0.35 cov2=0.70 cu=1.75e+06
+   50000/0 A2_chunked_ctx         AP=0.0389 found=0.60 cov2=1.00 cu=1.02e+07
+   50000/0 B4_central_triage      AP=0.0070 found=0.38 cov2=0.82 cu=1.69e+06
+   50000/0 I_mycelic_completion   AP=0.0091 found=0.35 cov2=0.42 cu=5.20e+06
+   50000/1 A2_chunked_ctx         AP=0.0442 found=0.68 cov2=1.00 cu=1.02e+07
+   50000/1 B4_central_triage      AP=0.0072 found=0.35 cov2=0.77 cu=1.70e+06

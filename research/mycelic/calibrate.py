@@ -133,6 +133,36 @@ def calibrate(scale: int = CAL_SCALE, seeds=CAL_SEEDS,
     return out
 
 
+def calibrate_ct(scale: int = CAL_SCALE, seeds=CAL_SEEDS,
+                 alloc_name: str = "back-loaded") -> Dict[str, object]:
+    """Fit the centralised-triage control's evidence budget on the held-out
+    seeds and merge it in, without disturbing the other fitted knobs."""
+    worlds = {s: build_world(scale, s) for s in seeds}
+    alloc = allocation(alloc_name)
+    path = os.path.join(ART, "calibration.json")
+    cal = json.load(open(path)) if os.path.exists(path) else {}
+    ct, cb, cv = [], 0, -1.0
+    for b in (0, 2000, 6000, 20000, 60000):
+        vals = []
+        for s in seeds:
+            w = worlds[s]
+            r = central_triage(w.corpus, alloc, s,
+                               ul=w.user_layer(alloc[USER], s),
+                               near_miss=w.near_miss, kernel_ko_cap=b)
+            vals.append(evaluate(w.corpus, w.gold, r))
+        v = _mean(vals, OBJECTIVE)
+        ct.append({"kernel_ko_cap": b, OBJECTIVE: round(v, 5),
+                   "found": round(_mean(vals, "found_anywhere_in_register"), 4),
+                   "cu": float(np.mean([x["compute_units"] for x in vals]))})
+        if v > cv:
+            cv, cb = v, b
+    cal["ct_grid"] = ct
+    cal["ct_kernel_ko_cap"] = cb
+    with open(path, "w") as fh:
+        json.dump(cal, fh, indent=2)
+    return cal
+
+
 def calibrate_evidence(scale: int = CAL_SCALE, seeds=CAL_SEEDS,
                        alloc_name: str = "back-loaded") -> Dict[str, object]:
     """Second calibration stage, for the evidence-quality features that the
@@ -188,6 +218,12 @@ if __name__ == "__main__":
     import time
     import sys
     t0 = time.time()
+    if "ct" in sys.argv:
+        c = calibrate_ct()
+        print("ct_kernel_ko_cap =", c["ct_kernel_ko_cap"])
+        for row in c["ct_grid"]:
+            print("  ", row)
+        raise SystemExit(0)
     if "evidence" in sys.argv:
         c = calibrate_evidence()
         print(json.dumps({k: c[k] for k in ("w_dispersion", "w_synchrony",

@@ -551,6 +551,39 @@ def e8_crosslinks(scales=(2_000, 10_000, 50_000), seeds=(0, 1, 2),
     return rows
 
 
+def e1d_b4_capped(scales: Sequence[int] = SCALES, seeds=EVAL_SEEDS,
+                  alloc_name: str = "back-loaded",
+                  fname: str = "e1d_b4_capped.jsonl") -> List[Dict]:
+    """The centralised-triage control WITH its calibrated evidence budget.
+
+    Kept in a separate file from the uncapped run so the two are reported side
+    by side: the difference between them is exactly the value of the
+    evidence-selection discipline that the hierarchy gets for free from its
+    propagation budget.
+    """
+    rows = []
+    _st = _Stream(fname)
+    alloc = allocation(alloc_name)
+    cap = int(CAL.get("ct_kernel_ko_cap") or 0)
+    for scale in scales:
+        for seed in seeds:
+            w = build_world(scale, seed)
+            res = central_triage(w.corpus, alloc, seed,
+                                 ul=w.user_layer(alloc[USER], seed),
+                                 near_miss=w.near_miss, kernel_ko_cap=cap)
+            r = _row("B4_central_triage_capped", w, res,
+                     {"scale": scale, "seed": seed, "alloc": alloc_name,
+                      "kernel_ko_cap": cap})
+            rows.append(_st.add(r))
+            print(f"  {scale:6d}/{seed} B4_capped(cap={cap}) "
+                  f"AP={r['average_precision']:.4f} "
+                  f"found={r['found_anywhere_in_register']:.3f} "
+                  f"cu={r['compute_units']:.2e}", flush=True)
+            w.clear_cache()
+    _st.close()
+    return rows
+
+
 def e11_verified(scales: Sequence[int] = SCALES, seeds=EVAL_SEEDS,
                  archs=("J_mycelic_verified",),
                  alloc_name: str = "back-loaded",
@@ -639,7 +672,7 @@ ALL = {
     "e3b": e3b_level_marginal, "e3c": e3c_q_sweep, "e4": e4_fanin,
     "e4b": e4b_dept_fanin, "e5": e5_adversarial, "e6": e6_frontier,
     "e7": e7_shape, "e8": e8_crosslinks, "e9": e9_privacy, "e10": e10_scale_trend,
-    "e11": e11_verified,
+    "e11": e11_verified, "e1d": e1d_b4_capped,
 }
 
 

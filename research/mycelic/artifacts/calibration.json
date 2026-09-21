@@ -280,5 +280,38 @@
   "w_dispersion": 0.0,
   "w_synchrony": 0.0,
   "w_attribution": 2.5,
-  "verify_evidence": true
+  "verify_evidence": true,
+  "ct_grid": [
+    {
+      "kernel_ko_cap": 0,
+      "average_precision": 0.02824,
+      "found": 0.325,
+      "cu": 433282.09
+    },
+    {
+      "kernel_ko_cap": 2000,
+      "average_precision": 0.01505,
+      "found": 0.1,
+      "cu": 179007.68999999997
+    },
+    {
+      "kernel_ko_cap": 6000,
+      "average_precision": 0.01589,
+      "found": 0.325,
+      "cu": 238378.35666666666
+    },
+    {
+      "kernel_ko_cap": 20000,
+      "average_precision": 0.02139,
+      "found": 0.3667,
+      "cu": 397183.68999999994
+    },
+    {
+      "kernel_ko_cap": 60000,
+      "average_precision": 0.02824,
+      "found": 0.325,
+      "cu": 433282.09
+    }
+  ],
+  "ct_kernel_ko_cap": 0
 }
