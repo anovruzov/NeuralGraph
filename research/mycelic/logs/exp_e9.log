@@ -72,3 +72,4 @@
    50000/0 D_hier_nolineage       raw=0.0000 claims=0.1381 sketch=2.585e+06 found=0.00
    50000/0 E_hier_lineage         raw=0.0000 claims=0.1381 sketch=2.585e+06 found=0.01
    50000/0 F_hier_retrieval       raw=0.0000 claims=0.1381 sketch=2.585e+06 found=0.01
+   50000/0 G_hier_questions       raw=0.0000 claims=0.1381 sketch=2.585e+06 found=0.40

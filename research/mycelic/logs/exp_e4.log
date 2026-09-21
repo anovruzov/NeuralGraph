@@ -1,1 +1,5 @@
 === e4 ===
+  0 team= 6 H_mycelic_full   AP=0.0346 found=0.47 cu=1.15e+06
+  0 team= 6 E_hier_lineage   AP=0.0000 found=0.00 cu=2.42e+05
+  0 team= 6 B2_map_reduce    AP=0.0117 found=0.20 cu=2.00e+05
+  0 team= 8 H_mycelic_full   AP=0.0175 found=0.35 cu=1.19e+06

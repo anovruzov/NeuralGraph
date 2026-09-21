@@ -166,3 +166,4 @@
    50000/0 B4_central_triage    AP=0.0061 found=0.31 R@100=0.010 cu=1.07e+06
    50000/0 C_recursive_sum      AP=0.0000 found=0.00 R@100=0.000 cu=8.07e+05
    50000/0 D_hier_nolineage     AP=0.0000 found=0.00 R@100=0.000 cu=8.83e+05
+   50000/0 E_hier_lineage       AP=0.0014 found=0.01 R@100=0.010 cu=9.93e+05
