@@ -627,7 +627,45 @@ def synthesize(kos: List[KO], tier: Tier, rng: np.random.Generator,
         ev: List[int] = []
         for k in members:
             ev.extend(k.evidence[:3])
-        contra = sum(k.contra for k in members)
+        # Contradiction has to be recomputed HERE, from the polarities of the
+        # objects actually in front of the kernel.  Relying on the counters the
+        # objects carried up loses every conflict that only becomes visible
+        # once descent-recovered evidence joins the pool - which is most of
+        # them, because a descent returns one fresh object per user.
+        # A contradiction is a BALANCE of evidence, not the mere presence of a
+        # dissenting report: one sceptic among twenty is not a conflict, and
+        # treating it as one punishes whichever architecture gathered the most
+        # evidence, which is exactly backwards.
+        contra = 0
+        minority = []
+        for p in plist:
+            npos = nneg = flips = 0
+            for k in pred_kos[p]:
+                flips += k.contra          # conflicts seen INSIDE an object
+                if k.polarity < 0:
+                    nneg += max(1, k.n_raw)
+                else:
+                    npos += max(1, k.n_raw)
+            # Conflicts show up two ways depending on how far the evidence has
+            # already been merged: as opposite-polarity objects (hierarchy,
+            # one object per contributing agent) or as flip counts inside one
+            # merged object (any flat pool).  Both have to count, or the
+            # measure silently means different things for different systems.
+            nneg += flips
+            lo_, hi_ = min(npos, nneg), max(npos, nneg)
+            minority.append(lo_ / max(1.0, float(lo_ + hi_)))
+            flagged = lo_ >= 2 and lo_ >= 0.25 * hi_
+            if rng.random() < tier.contradiction_acc:
+                contra += 1 if flagged else 0
+            else:
+                contra += 0 if flagged else 1   # a weak tier misreads both ways
+        # Separately from the yes/no contradiction flag, the *volume* of
+        # conflicting polarity is a strong continuous cue: an entity that
+        # accumulates disagreement across its whole record is noisy background
+        # traffic, while a real propagating chain is coherent.  Keeping only
+        # the flag was measured to cost the centralised baselines most of
+        # their discovery, because the flag fires on almost nothing.
+        conflict = float(np.mean(minority)) if minority else 0.0
         if use_lineage:
             spread = len(regions)
             # The decisive structural feature: are the links of this chain
@@ -653,7 +691,8 @@ def synthesize(kos: List[KO], tier: Tier, rng: np.random.Generator,
              + 0.30 * min(3, max(0, spread - 1))
              + 0.95 * min(3, max(0, multi - 1))
              + (0.55 if verified else 0.0)
-             - 0.35 * min(4, contra)
+             - 0.30 * min(3, contra)
+             - 3.2 * conflict
              - 3.0 * penalty
              + w_dispersion * (mean_disp - 0.5)
              - w_synchrony * frac_sync)

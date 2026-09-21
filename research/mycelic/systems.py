@@ -854,6 +854,10 @@ class HierRunner:
         # ---- cross-region variant families ----
         fams = self._families(hyps, kernel_tier)
 
+        # the pool returned is the FINAL working set, after descent,
+        # questioning and completion have added to it - otherwise the
+        # information-loss and coverage metrics describe a stage of the
+        # pipeline that no answer was actually produced from
         retained = {(k.pred, k.anchor) for k in pool}
         claims_out = sum(len(h.kos_at.get(u, [])) for u in c.org.user_ids)
         return RunResult(name="hier", hypotheses=hyps, meter=h.meter,

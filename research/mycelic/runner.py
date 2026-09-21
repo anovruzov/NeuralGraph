@@ -68,8 +68,34 @@ def build_world(scale: int, seed: int, corpus_cfg: Optional[Dict] = None,
 BASE_BUDGETS = (6, 18, 42, 90, 130)
 
 
+def load_calibration() -> Dict[str, object]:
+    """Calibrated knobs, fitted on held-out seeds (see calibrate.py).
+
+    Lives here rather than in experiments.py so that every entry point -
+    runner, experiments, live_rank, ad-hoc analysis - uses the same operating
+    points.  Having two code paths with different defaults silently produced a
+    5x difference in one baseline's score during development.
+    """
+    p = os.path.join(ART, "calibration.json")
+    d = {"triage_prior_weight": 0.0, "question_frac": 0.25, "mr_budget": 900,
+         "flat_budget": 1_000_000, "ct_kernel_ko_cap": 0,
+         "w_dispersion": 0.0, "w_synchrony": 0.0, "w_attribution": 0.0}
+    if os.path.exists(p):
+        d.update({k: v for k, v in json.load(open(p)).items()
+                  if not k.endswith("grid")})
+    return d
+
+
+CAL = load_calibration()
+
+
 def hier_cfg(**kw) -> HierConfig:
     c = HierConfig(budgets=BASE_BUDGETS)
+    c.triage_prior_weight = float(CAL["triage_prior_weight"])
+    c.question_frac = float(CAL["question_frac"])
+    c.w_dispersion = float(CAL.get("w_dispersion", 0.0))
+    c.w_synchrony = float(CAL.get("w_synchrony", 0.0))
+    c.w_attribution = float(CAL.get("w_attribution", 0.0))
     for k, v in kw.items():
         setattr(c, k, v)
     return c
@@ -109,14 +135,16 @@ ARCHS: Dict[str, Dict] = {
 
 def run_arch(name: str, world: World, alloc: List[Tier], seed: int,
              flat_budget: Optional[int] = None,
-             mr_budget: int = 900,
+             mr_budget: Optional[int] = None,
              cfg_over: Optional[Dict] = None) -> RunResult:
     spec = ARCHS[name] if name in ARCHS else cfg_over or {}
     kind = spec.get("kind", "hier")
     c = world.corpus
     kt = alloc[ENT]
+    if mr_budget is None:
+        mr_budget = int(CAL["mr_budget"])
     if kind == "flat_rag":
-        budget = flat_budget if flat_budget is not None else min(kt.ctx, 120_000)
+        budget = flat_budget if flat_budget is not None else int(CAL["flat_budget"])
         return flat_rag(c, kt, seed, budget, near_miss=world.near_miss)
     if kind == "long_context":
         return long_context(c, kt, seed, near_miss=world.near_miss)
@@ -129,7 +157,8 @@ def run_arch(name: str, world: World, alloc: List[Tier], seed: int,
     if kind == "central_triage":
         return central_triage(c, alloc, seed,
                               ul=world.user_layer(alloc[USER], seed),
-                              near_miss=world.near_miss)
+                              near_miss=world.near_miss,
+                              kernel_ko_cap=int(CAL.get("ct_kernel_ko_cap") or 0))
     if kind == "oracle":
         return oracle_retrieval(c, alloc, seed,
                                 ul=world.user_layer(alloc[USER], seed),

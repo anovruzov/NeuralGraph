@@ -213,10 +213,19 @@ def evaluate(corpus: Corpus, gold: Gold, res: RunResult,
     c_f1 = 2 * c_prec * c_rec / max(1e-9, c_prec + c_rec)
 
     # --- strongest-independent-support question ---
+    # "Which strategic conclusion has the strongest independent support?" is a
+    # question about the conclusions the system actually reached, so it is
+    # scored over the reports that match a real pattern.  Scoring it over every
+    # candidate in the register just measures which background entity is
+    # noisiest, which is a different (and uninteresting) question.
     top_ok = 0.0
-    if hyps and gold.top_supported >= 0:
-        best_i = max(range(len(hyps)), key=lambda i: hyps[i].n_indep)
-        top_ok = 1.0 if best_i in set(m_real.get(gold.top_supported, [])) else 0.0
+    if m_real and gold.top_supported in m_real:
+        best_pid, best_val = -1, -1.0
+        for pid, idxs in m_real.items():
+            v = max(hyps[i].n_indep for i in idxs)
+            if v > best_val:
+                best_val, best_pid = v, pid
+        top_ok = 1.0 if best_pid == gold.top_supported else 0.0
 
     # --- cross-region variant families ---
     fam_ok = 0
@@ -240,10 +249,11 @@ def evaluate(corpus: Corpus, gold: Gold, res: RunResult,
     # --- evidence coverage: did the kernel ever HOLD the evidence? ---
     # This separates "could not get the evidence" from "had it and ranked it
     # badly", which turn out to be different bottlenecks at different scales.
+    # Coverage is a property of RETRIEVAL, so it is measured on the kernel's
+    # working pool only.  Measuring it on the reported hypotheses made it
+    # depend on the register truncation, i.e. on ranking - which is the very
+    # thing coverage is supposed to be separated from.
     held: Dict[int, Set[int]] = {}
-    for h in res.hypotheses:
-        for k in h.kos:
-            held.setdefault(int(k.anchor), set()).add(int(k.pred))
     for k in res.kernel_kos:
         held.setdefault(int(k.anchor), set()).add(int(k.pred))
     cov2 = cov3 = 0

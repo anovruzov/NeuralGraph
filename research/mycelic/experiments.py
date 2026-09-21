@@ -30,15 +30,7 @@ EVAL_SEEDS = (0, 1, 2, 3, 4)
 SCALES = (2_000, 10_000, 50_000)
 
 
-def _cal() -> Dict[str, object]:
-    p = os.path.join(ART, "calibration.json")
-    if os.path.exists(p):
-        return json.load(open(p))
-    return {"triage_prior_weight": 2.0, "question_frac": 0.55,
-            "mr_budget": 900, "flat_budget": 120_000}
-
-
-CAL = _cal()
+from .runner import CAL
 
 
 def _hier(**kw):
