@@ -1287,6 +1287,18 @@ def _toc(body: str) -> str:
     return "\n".join(lines)
 
 
+_NUM_WORDS = {10: "Ten", 11: "Eleven", 12: "Twelve", 13: "Thirteen",
+              14: "Fourteen", 15: "Fifteen", 16: "Sixteen", 17: "Seventeen",
+              18: "Eighteen", 19: "Nineteen", 20: "Twenty"}
+
+
+def _n_arch_word() -> str:
+    """How many architectures were actually run, spelled out."""
+    from .runner import ARCHS
+    n = len(ARCHS)
+    return _NUM_WORDS.get(n, str(n))
+
+
 def build() -> str:
     from .report_text import compose
     sections = {
@@ -1316,6 +1328,7 @@ def build() -> str:
         "next": next_experiments(),
         "questions": questions_section(),
         "headline": section_headline(),
+        "n_arch": _n_arch_word(),
     }
     # Render once with an empty contents list to learn the real headings,
     # then again with the list built from them.

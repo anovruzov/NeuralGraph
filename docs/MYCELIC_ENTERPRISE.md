@@ -8,7 +8,7 @@ that no individual employee, team, department, site or region could discover
 alone?
 
 **What this document is.** A mechanism study on a synthetic enterprise with
-known hidden ground truth. Fourteen architectures are compared under one
+known hidden ground truth. Sixteen architectures are compared under one
 shared implementation of every cognitive operation, at matched kernel context,
 with every tunable setting fitted on held-out data before the evaluation data
 was touched. It is not a deployment report, and it does not measure any
@@ -84,7 +84,7 @@ weaknesses are, stated by us rather than found by someone else.
 
 ### The one-paragraph version
 
-We built a synthetic enterprise with known hidden problems planted in it, at 2,000, 10,000 and 50,000 people, and tested sixteen ways of finding those problems, from pouring a filtered sample of the company's notes into one very large model, to a six-level hierarchy of agents mirroring the org chart. **The hierarchy is not the most accurate option.** The strongest single approach measured at 50,000 people is `A2_chunked_ctx`, which finds 69% of the hidden problems against the hierarchy's 34%. Whether the hierarchy is nonetheless worth building depends entirely on which of the secondary properties below we actually need; the table states which ones it delivers and which it does not.
+We built a synthetic enterprise with known hidden problems planted in it, at 2,000, 10,000, 50,000 and 100,000 people, and tested 16 ways of finding those problems, from pouring a filtered sample of the company's notes into one very large model, to a six-level hierarchy of agents mirroring the org chart. **The hierarchy is not the most accurate option.** The strongest single approach measured at 50,000 people is `A2_chunked_ctx`, which finds 69% of the hidden problems against the hierarchy's 34%. Whether the hierarchy is nonetheless worth building depends entirely on which of the secondary properties below we actually need; the table states which ones it delivers and which it does not.
 
 ### Head to head at 50,000 users (5 seeds)
 
@@ -618,7 +618,7 @@ variance.
 | B_long_context | 0.802 | 0.465 | 0.076 | 0.023 |
 | B2_map_reduce | 0.575 | 0.315 | 0.056 | 0.018 |
 | B4_central_triage | 0.740 | 0.388 | 0.314 | — |
-| E_hier_lineage | 0.088 | 0.035 | 0.008 | 0.007 |
+| E_hier_lineage | 0.088 | 0.035 | 0.008 | 0.008 |
 | G_hier_questions | 0.693 | 0.398 | 0.336 | 0.223 |
 | H_mycelic_full | 0.715 | 0.385 | 0.336 | 0.225 |
 | J_mycelic_verified | 0.715 | 0.385 | 0.336 | 0.225 |
@@ -633,7 +633,7 @@ Compute (cu) at the same points:
 | B_long_context | 1.09e+06 | 1.09e+06 | 1.12e+06 | 1.11e+06 |
 | B2_map_reduce | 7.97e+04 | 1.99e+05 | 7.78e+05 | 1.49e+06 |
 | B4_central_triage | 1.33e+05 | 3.98e+05 | 1.07e+06 | — |
-| E_hier_lineage | 6.93e+04 | 2.27e+05 | 9.90e+05 | 1.93e+06 |
+| E_hier_lineage | 6.93e+04 | 2.27e+05 | 9.90e+05 | 1.92e+06 |
 | G_hier_questions | 8.37e+05 | 1.11e+06 | 2.92e+06 | 4.56e+06 |
 | H_mycelic_full | 8.43e+05 | 1.11e+06 | 2.93e+06 | 4.72e+06 |
 | J_mycelic_verified | 8.53e+05 | 1.12e+06 | 2.94e+06 | 4.73e+06 |

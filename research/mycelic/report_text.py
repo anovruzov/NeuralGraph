@@ -350,7 +350,7 @@ that no individual employee, team, department, site or region could discover
 alone?
 
 **What this document is.** A mechanism study on a synthetic enterprise with
-known hidden ground truth. Fourteen architectures are compared under one
+known hidden ground truth. {sec['n_arch']} architectures are compared under one
 shared implementation of every cognitive operation, at matched kernel context,
 with every tunable setting fitted on held-out data before the evaluation data
 was touched. It is not a deployment report, and it does not measure any

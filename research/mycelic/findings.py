@@ -106,10 +106,15 @@ def decision_summary() -> str:
     out.append("")
     verdict = ("is not the most accurate option" if (h or 0) < (b or 0) - 1e-9
                else "is the most accurate option measured")
+    all_scales = sorted({r["scale"] for r in rows})
+    scale_list = (", ".join(f"{s:,}" for s in all_scales[:-1])
+                  + f" and {all_scales[-1]:,}") if len(all_scales) > 1 \
+        else f"{all_scales[0]:,}"
     out.append(
         f"We built a synthetic enterprise with known hidden "
-        "problems planted in it, at 2,000, 10,000 and 50,000 people, and "
-        "tested sixteen ways of finding those problems, from pouring a "
+        f"problems planted in it, at {scale_list} people, and "
+        f"tested {len({r['arch'] for r in rows})} ways of finding those "
+        "problems, from pouring a "
         "filtered sample of the company's notes into one very large model, to "
         "a six-level hierarchy of agents mirroring "
         f"the org chart. **The hierarchy {verdict}.** The strongest "
