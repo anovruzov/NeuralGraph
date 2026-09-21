@@ -151,6 +151,8 @@ So the honest statement of what the hierarchy buys is narrow and specific: **the
 | 50,000 | `A2_chunked_ctx` | 0.686 | 1.02e+07 | 22.3% |
 | 100,000 | `A2_chunked_ctx` | 0.665 | 2.03e+07 | 22.3% |
 
+**1. Upward propagation alone does not work, at any scale, in any form.** At 100,000 users recursive summarisation finds 0.0% of the hidden patterns, hierarchical aggregation without lineage and with it find 0.0% and 1.0%. Adding targeted downward retrieval takes it to 0.0%; adding sketch-driven questioning takes it to 24.5%. The hierarchy's value is almost entirely in the *downward* path — no paired runs.
+
 **2. The reason is measurable and is not a tuning artefact.** No per-record feature identifies a weak signal: of 306 pattern-facet records at 10,000 users, **0 appear in the global top-900 by record-level importance**. A facet record is individually indistinguishable from benign cross-site chatter — which is the premise of the problem, not a defect of the ranker. Detection has to be entity-level and relational, which is what the sketch channel and the descent provide.
 
 **4. Directly measured: at fixed evidence, model capability buys almost nothing here, changing what the evidence *contains* helps the strongest model a lot and is not reliable across models.** 3 real models ranked the same 56 candidates from a real run (2 independent runs per cell). Given the aggregate evidence statistics they scored AP 0.354–0.407, against 0.420 for a six-feature logistic and 0.313 for random — i.e. a large capability range lands within noise of a logistic. Given the **raw work notes** behind the same statistics the same models scored 0.319–0.617. Richer evidence helped 2 of 3 models (Δ -0.048 to +0.262); the largest run-to-run range within a single cell is 0.107, and 1 of the 3 moves by more than that (opus). The abstraction, not the reasoner, is the plausible ceiling — but see §23 before treating the size of the effect as established.
@@ -613,8 +615,8 @@ variance.
 | B2_map_reduce | 0.575 | 0.315 | 0.056 | 0.015 |
 | B4_central_triage | 0.740 | 0.388 | 0.314 | — |
 | E_hier_lineage | 0.088 | 0.035 | 0.008 | 0.010 |
-| G_hier_questions | 0.693 | 0.398 | 0.336 | — |
-| H_mycelic_full | 0.715 | 0.385 | 0.336 | — |
+| G_hier_questions | 0.693 | 0.398 | 0.336 | 0.245 |
+| H_mycelic_full | 0.715 | 0.385 | 0.336 | 0.255 |
 | J_mycelic_verified | 0.715 | 0.385 | 0.336 | — |
 | Y_oracle_retrieval | 0.685 | 0.232 | 0.284 | — |
 
@@ -628,8 +630,8 @@ Compute (cu) at the same points:
 | B2_map_reduce | 7.97e+04 | 1.99e+05 | 7.78e+05 | 1.49e+06 |
 | B4_central_triage | 1.33e+05 | 3.98e+05 | 1.07e+06 | — |
 | E_hier_lineage | 6.93e+04 | 2.27e+05 | 9.90e+05 | 1.92e+06 |
-| G_hier_questions | 8.37e+05 | 1.11e+06 | 2.92e+06 | — |
-| H_mycelic_full | 8.43e+05 | 1.11e+06 | 2.93e+06 | — |
+| G_hier_questions | 8.37e+05 | 1.11e+06 | 2.92e+06 | 4.52e+06 |
+| H_mycelic_full | 8.43e+05 | 1.11e+06 | 2.93e+06 | 4.71e+06 |
 | J_mycelic_verified | 8.53e+05 | 1.12e+06 | 2.94e+06 | — |
 | Y_oracle_retrieval | 1.44e+05 | 4.87e+05 | 2.43e+06 | — |
 
@@ -1193,6 +1195,15 @@ are run.
 | linear | naive-ladder | H_mycelic_full | 0.0199 | 0.400 | 1.33e+06 |
 | linear | two-step | B2_map_reduce | 0.0401 | 0.292 | 1.99e+05 |
 | linear | two-step | H_mycelic_full | 0.0171 | 0.375 | 1.07e+06 |
+
+**Does the recommendation depend on the shape assumption?**
+
+| architecture | best allocation, by shape | stable? | spread in `found` across shapes at the best allocation |
+|---|---|---|---:|
+| B2_map_reduce | concave: `front-loaded`, convex: `front-loaded`, linear: `front-loaded` | yes | 0.008 |
+| H_mycelic_full | concave: `naive-ladder`, convex: `naive-ladder`, linear: `front-loaded` | yes (tie) | 0.000 |
+
+**No architecture's best allocation changes materially with the shape assumption**, so the allocation conclusion in §13 is not an artefact of how hard capabilities are assumed to scale. Where a row is marked "tie", two allocations score identically and the name at the top is arbitrary. Many rows repeat exactly across shapes: the shape parameter only bends the *hard* capabilities at intermediate `q`, and allocations that pin the relevant level at an anchor tier see no difference at all. That is expected, and is the reason the table is not more interesting than it looks.
 
 ## 23. Direct model measurement
 

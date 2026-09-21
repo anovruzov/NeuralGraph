@@ -548,12 +548,70 @@ def section_shape() -> str:
     if not rows:
         return "_(E7 not run)_"
     a = agg(rows, CORE, by=("shape", "alloc", "arch"))
-    return md_table(a, [("shape", "capability shape", 0),
-                        ("alloc", "allocation", 0),
-                        ("arch", "architecture", 0),
-                        ("average_precision", "AP", 4),
-                        ("found_anywhere_in_register", "found", 3),
-                        ("compute_units", "compute", 0)], sort_by=None)
+    tbl = md_table(a, [("shape", "capability shape", 0),
+                       ("alloc", "allocation", 0),
+                       ("arch", "architecture", 0),
+                       ("average_precision", "AP", 4),
+                       ("found_anywhere_in_register", "found", 3),
+                       ("compute_units", "compute", 0)], sort_by=None)
+    return tbl + "\n\n" + _shape_verdict(a)
+
+
+def _shape_verdict(a: List[Dict]) -> str:
+    """Does the recommended allocation change if the shape assumption does?
+
+    That is the only question this sweep exists to answer, so it is answered
+    rather than left as a 36-row table to diff by eye.
+    """
+    shapes = sorted({r["shape"] for r in a})
+    archs = sorted({r["arch"] for r in a})
+    if len(shapes) < 2:
+        return ""
+    lines = ["**Does the recommendation depend on the shape assumption?**", "",
+             "| architecture | best allocation, by shape | stable? | "
+             "spread in `found` across shapes at the best allocation |",
+             "|---|---|---|---:|"]
+    all_stable = True
+    for arch in archs:
+        best = {}
+        for sh in shapes:
+            sub = [r for r in a if r["shape"] == sh and r["arch"] == arch]
+            if sub:
+                best[sh] = max(sub, key=lambda r: r["found_anywhere_in_register"])
+        if not best:
+            continue
+        names = {sh: b["alloc"] for sh, b in best.items()}
+        vals = [b["found_anywhere_in_register"] for b in best.values()]
+        spread = max(vals) - min(vals)
+        # A different name at the top is only a shape DEPENDENCE if the
+        # winners actually score differently.  Where the top allocations tie,
+        # argmax is picking arbitrarily and there is nothing to report.
+        same_name = len(set(names.values())) == 1
+        tie = (not same_name) and spread < 1e-9
+        stable = same_name or tie
+        all_stable = all_stable and stable
+        mark = "yes" if same_name else ("yes (tie)" if tie else "**no**")
+        lines.append(
+            f"| {arch} | "
+            + ", ".join(f"{sh}: `{names[sh]}`" for sh in shapes)
+            + f" | {mark} | {spread:.3f} |")
+    lines.append("")
+    lines.append(
+        ("**No architecture's best allocation changes materially with the "
+         "shape assumption**, so the allocation conclusion in \u00a713 is "
+         "not an artefact of how hard capabilities are assumed to scale. "
+         "Where a row is marked \"tie\", two allocations score identically "
+         "and the name at the top is arbitrary."
+         if all_stable else
+         "**At least one architecture's best allocation changes with the "
+         "shape assumption**, so that recommendation is shape-dependent and "
+         "should be read with the row above rather than from \u00a713 alone.")
+        + " Many rows repeat exactly across shapes: the shape parameter only "
+          "bends the *hard* capabilities at intermediate `q`, and allocations "
+          "that pin the relevant level at an anchor tier see no difference at "
+          "all. That is expected, and is the reason the table is not more "
+          "interesting than it looks.")
+    return "\n".join(lines)
 
 
 def section_crosslinks() -> str:

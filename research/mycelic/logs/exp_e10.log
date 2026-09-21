@@ -4,3 +4,5 @@
    100000/0 B2_map_reduce          AP=0.0021 found=0.015 cov2=0.025 rare=0.000 cu=1.49e+06 (10s)
    100000/0 A2_chunked_ctx         AP=0.0454 found=0.665 cov2=1.000 rare=0.553 cu=2.03e+07 (23s)
    100000/0 E_hier_lineage         AP=0.0050 found=0.010 cov2=0.015 rare=0.000 cu=1.92e+06 (46s)
+   100000/0 G_hier_questions       AP=0.0063 found=0.245 cov2=0.325 rare=0.118 cu=4.52e+06 (46s)
+   100000/0 H_mycelic_full         AP=0.0071 found=0.255 cov2=0.315 rare=0.145 cu=4.71e+06 (47s)
