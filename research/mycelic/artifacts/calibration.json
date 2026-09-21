@@ -11,307 +11,211 @@
     {
       "triage_prior_weight": 0.0,
       "question_frac": 0.25,
-      "average_precision": 0.03618,
-      "recall_at_100": 0.1667,
-      "found": 0.5833,
-      "cu": 1144188.5633333335
-    },
-    {
-      "triage_prior_weight": 0.0,
-      "question_frac": 0.55,
-      "average_precision": 0.03419,
-      "recall_at_100": 0.1167,
-      "found": 0.5667,
-      "cu": 1508384.0966666667
-    },
-    {
-      "triage_prior_weight": 0.0,
-      "question_frac": 1.0,
       "average_precision": 0.02752,
+      "recall_at_100": 0.1417,
+      "found": 0.4167,
+      "cu": 1115120.7766666666
+    },
+    {
+      "triage_prior_weight": 0.0,
+      "question_frac": 0.55,
+      "average_precision": 0.02981,
+      "recall_at_100": 0.1,
+      "found": 0.3833,
+      "cu": 1484126.4800000002
+    },
+    {
+      "triage_prior_weight": 0.0,
+      "question_frac": 1.0,
+      "average_precision": 0.02079,
+      "recall_at_100": 0.0833,
+      "found": 0.3667,
+      "cu": 2204712.0500000003
+    },
+    {
+      "triage_prior_weight": 1.2,
+      "question_frac": 0.25,
+      "average_precision": 0.0293,
+      "recall_at_100": 0.125,
+      "found": 0.4167,
+      "cu": 1115120.7766666666
+    },
+    {
+      "triage_prior_weight": 1.2,
+      "question_frac": 0.55,
+      "average_precision": 0.02648,
       "recall_at_100": 0.1333,
-      "found": 0.525,
-      "cu": 2233487.2
+      "found": 0.3833,
+      "cu": 1484126.4800000002
     },
     {
       "triage_prior_weight": 1.2,
+      "question_frac": 1.0,
+      "average_precision": 0.02356,
+      "recall_at_100": 0.1167,
+      "found": 0.3667,
+      "cu": 2204712.0500000003
+    },
+    {
+      "triage_prior_weight": 2.0,
       "question_frac": 0.25,
-      "average_precision": 0.03149,
-      "recall_at_100": 0.125,
-      "found": 0.5833,
-      "cu": 1144188.5633333335
-    },
-    {
-      "triage_prior_weight": 1.2,
-      "question_frac": 0.55,
-      "average_precision": 0.02915,
+      "average_precision": 0.02637,
       "recall_at_100": 0.1083,
-      "found": 0.5667,
-      "cu": 1508384.0966666667
-    },
-    {
-      "triage_prior_weight": 1.2,
-      "question_frac": 1.0,
-      "average_precision": 0.02931,
-      "recall_at_100": 0.125,
-      "found": 0.525,
-      "cu": 2233487.2
-    },
-    {
-      "triage_prior_weight": 2.0,
-      "question_frac": 0.25,
-      "average_precision": 0.02952,
-      "recall_at_100": 0.0917,
-      "found": 0.5833,
-      "cu": 1144188.5633333335
+      "found": 0.4167,
+      "cu": 1115120.7766666666
     },
     {
       "triage_prior_weight": 2.0,
       "question_frac": 0.55,
-      "average_precision": 0.02771,
-      "recall_at_100": 0.075,
-      "found": 0.5667,
-      "cu": 1508384.0966666667
+      "average_precision": 0.02516,
+      "recall_at_100": 0.1083,
+      "found": 0.3833,
+      "cu": 1484126.4800000002
     },
     {
       "triage_prior_weight": 2.0,
       "question_frac": 1.0,
-      "average_precision": 0.02821,
+      "average_precision": 0.0235,
       "recall_at_100": 0.1,
-      "found": 0.525,
-      "cu": 2233487.2
+      "found": 0.3667,
+      "cu": 2204712.0500000003
     },
     {
       "triage_prior_weight": 3.0,
       "question_frac": 0.25,
-      "average_precision": 0.02786,
-      "recall_at_100": 0.0833,
-      "found": 0.5833,
-      "cu": 1144188.5633333335
+      "average_precision": 0.02329,
+      "recall_at_100": 0.1083,
+      "found": 0.4167,
+      "cu": 1115120.7766666666
     },
     {
       "triage_prior_weight": 3.0,
       "question_frac": 0.55,
-      "average_precision": 0.02642,
-      "recall_at_100": 0.0833,
-      "found": 0.5667,
-      "cu": 1508384.0966666667
+      "average_precision": 0.02361,
+      "recall_at_100": 0.1083,
+      "found": 0.3833,
+      "cu": 1484126.4800000002
     },
     {
       "triage_prior_weight": 3.0,
       "question_frac": 1.0,
-      "average_precision": 0.02651,
+      "average_precision": 0.02109,
       "recall_at_100": 0.1,
-      "found": 0.525,
-      "cu": 2233487.2
+      "found": 0.3667,
+      "cu": 2204712.0500000003
     },
     {
       "triage_prior_weight": 4.0,
       "question_frac": 0.25,
-      "average_precision": 0.0253,
-      "recall_at_100": 0.0917,
-      "found": 0.5833,
-      "cu": 1144188.5633333335
+      "average_precision": 0.02518,
+      "recall_at_100": 0.1083,
+      "found": 0.4167,
+      "cu": 1115120.7766666666
     },
     {
       "triage_prior_weight": 4.0,
       "question_frac": 0.55,
-      "average_precision": 0.02441,
-      "recall_at_100": 0.0917,
-      "found": 0.5667,
-      "cu": 1508384.0966666667
+      "average_precision": 0.02543,
+      "recall_at_100": 0.1083,
+      "found": 0.3833,
+      "cu": 1484126.4800000002
     },
     {
       "triage_prior_weight": 4.0,
       "question_frac": 1.0,
-      "average_precision": 0.02425,
-      "recall_at_100": 0.0917,
-      "found": 0.525,
-      "cu": 2233487.2
+      "average_precision": 0.0193,
+      "recall_at_100": 0.1,
+      "found": 0.3667,
+      "cu": 2204712.0500000003
     }
   ],
   "triage_prior_weight": 0.0,
-  "question_frac": 0.25,
+  "question_frac": 0.55,
   "mr_grid": [
     {
       "kernel_ko_budget": 300,
-      "average_precision": 0.01321,
+      "average_precision": 0.0146,
       "found": 0.0333,
       "cu": 149985.68999999997
     },
     {
       "kernel_ko_budget": 900,
-      "average_precision": 0.03619,
+      "average_precision": 0.01734,
       "found": 0.1,
-      "cu": 163223.02333333332
+      "cu": 163009.68999999997
     },
     {
       "kernel_ko_budget": 2500,
-      "average_precision": 0.01762,
+      "average_precision": 0.01926,
       "found": 0.2583,
-      "cu": 198999.02333333332
+      "cu": 198935.02333333332
     },
     {
       "kernel_ko_budget": 8000,
-      "average_precision": 0.0109,
-      "found": 0.4083,
-      "cu": 291143.0233333333
+      "average_precision": 0.00833,
+      "found": 0.225,
+      "cu": 265543.0233333333
     }
   ],
-  "mr_budget": 900,
-  "rag_grid": [
-    {
-      "token_budget": 60000,
-      "average_precision": 0.00481,
-      "found": 0.125,
-      "cu": 83072.0
-    },
-    {
-      "token_budget": 120000,
-      "average_precision": 0.02596,
-      "found": 0.3167,
-      "cu": 169120.0
-    },
-    {
-      "token_budget": 400000,
-      "average_precision": 0.05951,
-      "found": 0.6083,
-      "cu": 484009.5999999999
-    },
-    {
-      "token_budget": 1000000,
-      "average_precision": 0.08091,
-      "found": 0.775,
-      "cu": 1114494.9333333333
-    }
-  ],
-  "flat_budget": 1000000,
-  "evidence_grid": [
-    {
-      "w_dispersion": 0.0,
-      "w_synchrony": 0.0,
-      "w_attribution": 0.0,
-      "average_precision": 0.04448,
-      "found": 0.4667,
-      "recall_at_100": 0.175,
-      "cu": 1124782.9833333334
-    },
-    {
-      "w_dispersion": 0.0,
-      "w_synchrony": 0.0,
-      "w_attribution": 2.5,
-      "average_precision": 0.05632,
-      "found": 0.4667,
-      "recall_at_100": 0.225,
-      "cu": 1135131.7833333332
-    },
-    {
-      "w_dispersion": 0.8,
-      "w_synchrony": 0.0,
-      "w_attribution": 0.0,
-      "average_precision": 0.04322,
-      "found": 0.475,
-      "recall_at_100": 0.1417,
-      "cu": 1127904.2066666668
-    },
-    {
-      "w_dispersion": 0.8,
-      "w_synchrony": 0.0,
-      "w_attribution": 2.5,
-      "average_precision": 0.05002,
-      "found": 0.475,
-      "recall_at_100": 0.1583,
-      "cu": 1138246.6066666667
-    },
-    {
-      "w_dispersion": 1.5,
-      "w_synchrony": 0.0,
-      "w_attribution": 0.0,
-      "average_precision": 0.01886,
-      "found": 0.4,
-      "recall_at_100": 0.1,
-      "cu": 1125648.2966666666
-    },
-    {
-      "w_dispersion": 1.5,
-      "w_synchrony": 0.0,
-      "w_attribution": 2.5,
-      "average_precision": 0.02541,
-      "found": 0.4,
-      "recall_at_100": 0.1167,
-      "cu": 1136009.8966666667
-    },
-    {
-      "w_dispersion": 2.5,
-      "w_synchrony": 0.0,
-      "w_attribution": 0.0,
-      "average_precision": 0.03058,
-      "found": 0.4333,
-      "recall_at_100": 0.1583,
-      "cu": 1122525.6433333333
-    },
-    {
-      "w_dispersion": 2.5,
-      "w_synchrony": 0.0,
-      "w_attribution": 2.5,
-      "average_precision": 0.04044,
-      "found": 0.4333,
-      "recall_at_100": 0.1667,
-      "cu": 1132871.2433333334
-    },
-    {
-      "w_dispersion": 1.5,
-      "w_synchrony": 1.5,
-      "w_attribution": 2.5,
-      "average_precision": 0.02847,
-      "found": 0.4,
-      "recall_at_100": 0.125,
-      "cu": 1137666.4100000001
-    },
-    {
-      "w_dispersion": 2.5,
-      "w_synchrony": 1.5,
-      "w_attribution": 0.0,
-      "average_precision": 0.03023,
-      "found": 0.4333,
-      "recall_at_100": 0.15,
-      "cu": 1122525.6433333333
-    }
-  ],
-  "w_dispersion": 0.0,
-  "w_synchrony": 0.0,
-  "w_attribution": 2.5,
-  "verify_evidence": true,
+  "mr_budget": 2500,
   "ct_grid": [
     {
       "kernel_ko_cap": 0,
-      "average_precision": 0.02824,
-      "found": 0.325,
+      "average_precision": 0.02135,
+      "found": 0.3417,
       "cu": 433282.09
     },
     {
       "kernel_ko_cap": 2000,
-      "average_precision": 0.01505,
+      "average_precision": 0.01474,
       "found": 0.1,
-      "cu": 179007.68999999997
+      "cu": 178815.68999999997
     },
     {
       "kernel_ko_cap": 6000,
-      "average_precision": 0.01589,
-      "found": 0.325,
-      "cu": 238378.35666666666
+      "average_precision": 0.01383,
+      "found": 0.3,
+      "cu": 238293.02333333332
     },
     {
       "kernel_ko_cap": 20000,
-      "average_precision": 0.02139,
-      "found": 0.3667,
+      "average_precision": 0.01531,
+      "found": 0.35,
       "cu": 397183.68999999994
     },
     {
       "kernel_ko_cap": 60000,
-      "average_precision": 0.02824,
-      "found": 0.325,
+      "average_precision": 0.02135,
+      "found": 0.3417,
       "cu": 433282.09
     }
   ],
-  "ct_kernel_ko_cap": 0
+  "ct_kernel_ko_cap": 0,
+  "rag_grid": [
+    {
+      "token_budget": 60000,
+      "average_precision": 0.00658,
+      "found": 0.125,
+      "cu": 83392.0
+    },
+    {
+      "token_budget": 120000,
+      "average_precision": 0.03167,
+      "found": 0.3,
+      "cu": 164554.66666666666
+    },
+    {
+      "token_budget": 400000,
+      "average_precision": 0.05311,
+      "found": 0.55,
+      "cu": 458409.5999999999
+    },
+    {
+      "token_budget": 1000000,
+      "average_precision": 0.06601,
+      "found": 0.6833,
+      "cu": 1088894.9333333333
+    }
+  ],
+  "flat_budget": 1000000
 }
