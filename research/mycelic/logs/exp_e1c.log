@@ -117,3 +117,10 @@
    10000/7 A2_chunked_ctx       AP=0.0230 found=0.60 R@100=0.025 cu=2.04e+06
    10000/7 B4_central_triage    AP=0.0047 found=0.28 R@100=0.025 cu=3.97e+05
    10000/7 C_recursive_sum      AP=0.0000 found=0.00 R@100=0.000 cu=1.67e+05
+   10000/7 D_hier_nolineage     AP=0.0004 found=0.03 R@100=0.025 cu=1.93e+05
+   10000/7 E_hier_lineage       AP=0.0011 found=0.03 R@100=0.025 cu=2.22e+05
+   10000/7 F_hier_retrieval     AP=0.0046 found=0.07 R@100=0.075 cu=3.71e+05
+   10000/7 G_hier_questions     AP=0.0043 found=0.28 R@100=0.000 cu=1.08e+06
+   10000/7 H_mycelic_full       AP=0.0043 found=0.25 R@100=0.025 cu=1.08e+06
+   10000/7 I_mycelic_completion AP=0.0040 found=0.28 R@100=0.000 cu=1.94e+06
+   10000/7 J_mycelic_verified   AP=0.0052 found=0.25 R@100=0.025 cu=1.09e+06

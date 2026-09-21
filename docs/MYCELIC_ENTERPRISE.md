@@ -147,7 +147,7 @@ So the honest statement of what the hierarchy buys is narrow and specific: **the
 | users | best architecture | discovery (`found`) | compute (cu) | raw records leaving their owner |
 |---|---|---:|---:|---:|
 | 2,000 | `A2_chunked_ctx` | 0.882 | 5.12e+05 | 25.2% |
-| 10,000 | `A2_chunked_ctx` | 0.668 | 2.08e+06 | 22.6% |
+| 10,000 | `A2_chunked_ctx` | 0.659 | 2.07e+06 | 22.6% |
 | 50,000 | `A2_chunked_ctx` | 0.686 | 1.02e+07 | 22.3% |
 
 **1. Upward propagation alone does not work, at any scale, in any form.** At 50,000 users recursive summarisation finds 0.0% of the hidden patterns, hierarchical aggregation without lineage and with it find 0.2% and 0.8%. Adding targeted downward retrieval takes it to 1.6%; adding sketch-driven questioning takes it to 33.6%. The hierarchy's value is almost entirely in the *downward* path — Δ +0.320 (95% CI [+0.276, +0.366], 5/5 seeds, sign p=0.062).
@@ -535,22 +535,22 @@ Fitted on calibration seeds [500, 501, 502] at 10,000 users, objective `average_
 
 | architecture | AP | found | R@100 | rare recall | evidence cov. | FDR | decoy acc. | indep. acc. | lineage | info loss | compute (cu) | privacy exp. |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| A2_chunked_ctx | 0.067 <sub>[0.053, 0.085]</sub> | 0.668 <sub>[0.625, 0.714]</sub> | 0.171 | 0.598 | 1.000 | 0.955 | 0.339 | 0.599 | 0.647 | 0.003 | 2.08e+06 | 0.226 |
+| A2_chunked_ctx | 0.061 <sub>[0.045, 0.079]</sub> | 0.659 <sub>[0.619, 0.703]</sub> | 0.153 | 0.574 | 1.000 | 0.956 | 0.353 | 0.599 | 0.650 | 0.003 | 2.07e+06 | 0.226 |
 | A_flat_rag | 0.060 <sub>[0.047, 0.074]</sub> | 0.634 <sub>[0.591, 0.678]</sub> | 0.166 | 0.459 | 0.981 | 0.957 | 0.359 | 0.721 | 0.660 | 0.047 | 1.09e+06 | 0.127 |
-| B2_map_reduce | 0.047 <sub>[0.029, 0.068]</sub> | 0.318 <sub>[0.264, 0.368]</sub> | 0.154 | 0.119 | 0.418 | 0.970 | 0.239 | 0.767 | 0.542 | 0.645 | 2.00e+05 | 0.884 |
+| B2_map_reduce | 0.046 <sub>[0.030, 0.064]</sub> | 0.306 <sub>[0.256, 0.356]</sub> | 0.153 | 0.110 | 0.409 | 0.971 | 0.247 | 0.759 | 0.545 | 0.652 | 1.99e+05 | 0.884 |
 | I_mycelic_completion | 0.030 <sub>[0.019, 0.040]</sub> | 0.389 <sub>[0.343, 0.439]</sub> | 0.114 | 0.205 | 0.650 | 0.974 | 0.200 | 0.754 | 0.492 | 0.347 | 1.99e+06 | 0.146 |
 | B_long_context | 0.029 <sub>[0.022, 0.036]</sub> | 0.475 <sub>[0.406, 0.556]</sub> | 0.159 | 0.156 | 0.722 | 0.947 | 0.134 | 0.673 | 0.703 | 0.380 | 1.09e+06 | 0.127 |
-| G_hier_questions | 0.027 <sub>[0.015, 0.039]</sub> | 0.407 <sub>[0.350, 0.475]</sub> | 0.129 | 0.231 | 0.721 | 0.973 | 0.204 | 0.763 | 0.510 | 0.292 | 1.10e+06 | 0.138 |
 | J_mycelic_verified | 0.027 <sub>[0.017, 0.037]</sub> | 0.386 <sub>[0.336, 0.436]</sub> | 0.132 | 0.219 | 0.704 | 0.974 | 0.196 | 0.735 | 0.503 | 0.313 | 1.12e+06 | 0.146 |
-| B4_central_triage | 0.026 <sub>[0.016, 0.035]</sub> | 0.364 <sub>[0.325, 0.400]</sub> | 0.114 | 0.226 | 0.954 | 0.976 | 0.168 | 0.719 | 0.474 | 0.112 | 3.98e+05 | 0.884 |
-| H_mycelic_full | 0.022 <sub>[0.014, 0.033]</sub> | 0.386 <sub>[0.336, 0.436]</sub> | 0.104 | 0.219 | 0.704 | 0.974 | 0.196 | 0.735 | 0.503 | 0.313 | 1.11e+06 | 0.146 |
+| G_hier_questions | 0.024 <sub>[0.013, 0.036]</sub> | 0.391 <sub>[0.331, 0.459]</sub> | 0.112 | 0.231 | 0.700 | 0.974 | 0.206 | 0.763 | 0.518 | 0.308 | 1.10e+06 | 0.138 |
+| B4_central_triage | 0.023 <sub>[0.014, 0.033]</sub> | 0.353 <sub>[0.316, 0.394]</sub> | 0.103 | 0.220 | 0.950 | 0.976 | 0.184 | 0.713 | 0.482 | 0.114 | 3.98e+05 | 0.884 |
+| H_mycelic_full | 0.020 <sub>[0.012, 0.030]</sub> | 0.369 <sub>[0.319, 0.425]</sub> | 0.094 | 0.214 | 0.678 | 0.975 | 0.191 | 0.729 | 0.508 | 0.333 | 1.10e+06 | 0.147 |
 | Z_random_rank | 0.013 <sub>[0.009, 0.017]</sub> | 0.318 <sub>[0.264, 0.368]</sub> | 0.064 | 0.119 | 0.418 | 0.970 | 0.239 | 0.767 | 0.542 | 0.645 | 2.00e+05 | 0.884 |
-| F_hier_retrieval | 0.011 <sub>[0.006, 0.016]</sub> | 0.111 <sub>[0.075, 0.146]</sub> | 0.071 | 0.099 | 0.132 | 0.980 | 0.032 | 0.760 | 0.502 | 0.856 | 3.74e+05 | 0.138 |
+| F_hier_retrieval | 0.010 <sub>[0.006, 0.015]</sub> | 0.106 <sub>[0.075, 0.141]</sub> | 0.072 | 0.098 | 0.134 | 0.981 | 0.038 | 0.748 | 0.506 | 0.852 | 3.74e+05 | 0.138 |
 | Y_oracle_retrieval | 0.009 <sub>[0.003, 0.017]</sub> | 0.232 <sub>[0.193, 0.271]</sub> | 0.043 | 0.152 | 1.000 | 0.984 | 0.125 | 0.514 | 0.454 | 0.006 | 4.88e+05 | 0.884 |
 | Z2_naive_enumerate | 0.005 <sub>[0.001, 0.010]</sub> | 0.157 <sub>[0.064, 0.254]</sub> | 0.054 | 0.153 | 0.000 | 0.989 | 0.139 | 0.000 | 0.000 | 1.000 | 1.85e+05 | 0.884 |
-| E_hier_lineage | 0.005 <sub>[0.001, 0.009]</sub> | 0.036 <sub>[0.021, 0.054]</sub> | 0.036 | 0.000 | 0.071 | 0.983 | 0.007 | 0.464 | 0.548 | 0.921 | 2.27e+05 | 0.138 |
-| D_hier_nolineage | 0.003 <sub>[0.001, 0.004]</sub> | 0.046 <sub>[0.036, 0.057]</sub> | 0.046 | 0.000 | 0.064 | 1.000 | 0.000 | 0.000 | 0.000 | 0.933 | 1.96e+05 | 0.138 |
-| C_recursive_sum | 0.000 <sub>[0.000, 0.000]</sub> | 0.000 <sub>[0.000, 0.000]</sub> | 0.000 | 0.000 | 0.004 | 1.000 | 0.000 | 0.000 | 0.000 | 0.988 | 1.69e+05 | 0.092 |
+| E_hier_lineage | 0.004 <sub>[0.001, 0.008]</sub> | 0.034 <sub>[0.019, 0.050]</sub> | 0.034 | 0.000 | 0.066 | 0.982 | 0.006 | 0.478 | 0.604 | 0.923 | 2.26e+05 | 0.138 |
+| D_hier_nolineage | 0.002 <sub>[0.001, 0.004]</sub> | 0.044 <sub>[0.034, 0.056]</sub> | 0.044 | 0.000 | 0.059 | 1.000 | 0.000 | 0.000 | 0.000 | 0.937 | 1.96e+05 | 0.138 |
+| C_recursive_sum | 0.000 <sub>[0.000, 0.000]</sub> | 0.000 <sub>[0.000, 0.000]</sub> | 0.000 | 0.000 | 0.003 | 1.000 | 0.000 | 0.000 | 0.000 | 0.989 | 1.69e+05 | 0.092 |
 
 #### 50,000 users (1,639,365 records, 100.0 hidden patterns, 5 seeds)
 
@@ -581,28 +581,28 @@ variance.
 
 | comparison | metric | mean A | mean B | Δ | 95% CI | wins | sign p |
 |---|---|---:|---:|---:|---|---:|---:|
-| H_mycelic_full vs E_hier_lineage | found | 0.5241 | 0.0530 | +0.4711 | [+0.4048, +0.5450] | 22/22 | 0.000 |
-| H_mycelic_full vs B2_map_reduce | found | 0.5241 | 0.3752 | +0.1489 | [+0.1045, +0.1945] | 19/20 | 0.000 |
-| H_mycelic_full vs A_flat_rag | found | 0.5241 | 0.6975 | -0.1734 | [-0.2214, -0.1268] | 1/22 | 0.000 |
-| H_mycelic_full vs B_long_context | found | 0.5241 | 0.5400 | -0.0159 | [-0.0791, +0.0523] | 6/21 | 0.078 |
-| H_mycelic_full vs C_recursive_sum | found | 0.5241 | 0.0170 | +0.5070 | [+0.4386, +0.5800] | 22/22 | 0.000 |
-| H_mycelic_full vs D_hier_nolineage | found | 0.5241 | 0.0493 | +0.4748 | [+0.4077, +0.5484] | 22/22 | 0.000 |
-| H_mycelic_full vs B4_central_triage | found | 0.5241 | 0.5236 | +0.0005 | [-0.0355, +0.0357] | 12/22 | 0.832 |
+| H_mycelic_full vs E_hier_lineage | found | 0.5122 | 0.0517 | +0.4604 | [+0.3911, +0.5333] | 23/23 | 0.000 |
+| H_mycelic_full vs B2_map_reduce | found | 0.5122 | 0.3687 | +0.1435 | [+0.0996, +0.1872] | 20/21 | 0.000 |
+| H_mycelic_full vs A_flat_rag | found | 0.5122 | 0.6900 | -0.1778 | [-0.2241, -0.1326] | 1/23 | 0.000 |
+| H_mycelic_full vs B_long_context | found | 0.5122 | 0.5307 | -0.0185 | [-0.0783, +0.0461] | 6/22 | 0.052 |
+| H_mycelic_full vs C_recursive_sum | found | 0.5122 | 0.0163 | +0.4959 | [+0.4248, +0.5691] | 23/23 | 0.000 |
+| H_mycelic_full vs D_hier_nolineage | found | 0.5122 | 0.0483 | +0.4639 | [+0.3937, +0.5367] | 23/23 | 0.000 |
+| H_mycelic_full vs B4_central_triage | found | 0.5122 | 0.5128 | -0.0007 | [-0.0350, +0.0324] | 12/23 | 1.000 |
 | H_mycelic_full vs Y_oracle_retrieval | found | 0.5241 | 0.4498 | +0.0743 | [+0.0284, +0.1200] | 16/20 | 0.012 |
 | B2_map_reduce vs Z_random_rank | found | 0.3752 | 0.3752 | +0.0000 | [+0.0000, +0.0000] | 0/0 | 1.000 |
-| G_hier_questions vs F_hier_retrieval | found | 0.5207 | 0.1127 | +0.4080 | [+0.3502, +0.4677] | 22/22 | 0.000 |
-| F_hier_retrieval vs E_hier_lineage | found | 0.1127 | 0.0530 | +0.0598 | [+0.0382, +0.0823] | 18/19 | 0.000 |
-| H_mycelic_full vs E_hier_lineage | AP | 0.0429 | 0.0058 | +0.0370 | [+0.0245, +0.0517] | 20/22 | 0.000 |
-| H_mycelic_full vs B2_map_reduce | AP | 0.0429 | 0.0527 | -0.0098 | [-0.0206, +0.0002] | 9/22 | 0.523 |
-| H_mycelic_full vs A_flat_rag | AP | 0.0429 | 0.1353 | -0.0924 | [-0.1331, -0.0584] | 1/22 | 0.000 |
-| H_mycelic_full vs B_long_context | AP | 0.0429 | 0.0911 | -0.0483 | [-0.0779, -0.0230] | 8/22 | 0.286 |
-| H_mycelic_full vs C_recursive_sum | AP | 0.0429 | 0.0038 | +0.0391 | [+0.0269, +0.0529] | 22/22 | 0.000 |
-| H_mycelic_full vs D_hier_nolineage | AP | 0.0429 | 0.0046 | +0.0382 | [+0.0257, +0.0526] | 22/22 | 0.000 |
-| H_mycelic_full vs B4_central_triage | AP | 0.0429 | 0.0519 | -0.0090 | [-0.0195, +0.0004] | 10/22 | 0.832 |
+| G_hier_questions vs F_hier_retrieval | found | 0.5100 | 0.1111 | +0.3989 | [+0.3407, +0.4572] | 23/23 | 0.000 |
+| F_hier_retrieval vs E_hier_lineage | found | 0.1111 | 0.0517 | +0.0593 | [+0.0383, +0.0817] | 19/20 | 0.000 |
+| H_mycelic_full vs E_hier_lineage | AP | 0.0412 | 0.0056 | +0.0356 | [+0.0232, +0.0495] | 21/23 | 0.000 |
+| H_mycelic_full vs B2_map_reduce | AP | 0.0412 | 0.0521 | -0.0109 | [-0.0217, -0.0014] | 9/23 | 0.405 |
+| H_mycelic_full vs A_flat_rag | AP | 0.0412 | 0.1306 | -0.0894 | [-0.1296, -0.0560] | 1/23 | 0.000 |
+| H_mycelic_full vs B_long_context | AP | 0.0412 | 0.0878 | -0.0466 | [-0.0751, -0.0216] | 8/23 | 0.210 |
+| H_mycelic_full vs C_recursive_sum | AP | 0.0412 | 0.0036 | +0.0376 | [+0.0255, +0.0513] | 23/23 | 0.000 |
+| H_mycelic_full vs D_hier_nolineage | AP | 0.0412 | 0.0045 | +0.0367 | [+0.0243, +0.0509] | 23/23 | 0.000 |
+| H_mycelic_full vs B4_central_triage | AP | 0.0412 | 0.0498 | -0.0086 | [-0.0192, +0.0003] | 10/23 | 0.678 |
 | H_mycelic_full vs Y_oracle_retrieval | AP | 0.0429 | 0.0287 | +0.0141 | [+0.0075, +0.0209] | 19/22 | 0.001 |
 | B2_map_reduce vs Z_random_rank | AP | 0.0527 | 0.0232 | +0.0294 | [+0.0194, +0.0401] | 22/22 | 0.000 |
-| G_hier_questions vs F_hier_retrieval | AP | 0.0391 | 0.0143 | +0.0248 | [+0.0164, +0.0337] | 21/22 | 0.000 |
-| F_hier_retrieval vs E_hier_lineage | AP | 0.0143 | 0.0058 | +0.0085 | [+0.0035, +0.0139] | 17/21 | 0.007 |
+| G_hier_questions vs F_hier_retrieval | AP | 0.0376 | 0.0139 | +0.0237 | [+0.0153, +0.0325] | 21/23 | 0.000 |
+| F_hier_retrieval vs E_hier_lineage | AP | 0.0139 | 0.0056 | +0.0083 | [+0.0037, +0.0137] | 18/22 | 0.004 |
 
 ## 11. Scale
 
@@ -611,13 +611,13 @@ variance.
 | architecture | 2,000 | 10,000 | 50,000 |
 |---|---:|---:|---:|
 | A_flat_rag | 0.867 | 0.634 | 0.424 |
-| A2_chunked_ctx | 0.882 | 0.668 | 0.686 |
+| A2_chunked_ctx | 0.882 | 0.659 | 0.686 |
 | B_long_context | 0.802 | 0.475 | 0.076 |
 | B2_map_reduce | 0.575 | 0.306 | 0.056 |
-| B4_central_triage | 0.740 | 0.364 | 0.314 |
-| E_hier_lineage | 0.088 | 0.036 | 0.008 |
-| G_hier_questions | 0.693 | 0.407 | 0.336 |
-| H_mycelic_full | 0.715 | 0.386 | 0.336 |
+| B4_central_triage | 0.740 | 0.353 | 0.314 |
+| E_hier_lineage | 0.088 | 0.034 | 0.008 |
+| G_hier_questions | 0.693 | 0.391 | 0.336 |
+| H_mycelic_full | 0.715 | 0.369 | 0.336 |
 | J_mycelic_verified | 0.715 | 0.386 | 0.336 |
 | Y_oracle_retrieval | 0.685 | 0.232 | 0.284 |
 
@@ -626,13 +626,13 @@ Compute (cu) at the same points:
 | architecture | 2,000 | 10,000 | 50,000 |
 |---|---:|---:|---:|
 | A_flat_rag | 4.71e+05 | 1.09e+06 | 1.24e+06 |
-| A2_chunked_ctx | 5.12e+05 | 2.08e+06 | 1.02e+07 |
+| A2_chunked_ctx | 5.12e+05 | 2.07e+06 | 1.02e+07 |
 | B_long_context | 1.09e+06 | 1.09e+06 | 1.12e+06 |
 | B2_map_reduce | 7.97e+04 | 1.99e+05 | 7.78e+05 |
 | B4_central_triage | 1.33e+05 | 3.98e+05 | 1.07e+06 |
-| E_hier_lineage | 6.93e+04 | 2.27e+05 | 9.90e+05 |
+| E_hier_lineage | 6.93e+04 | 2.26e+05 | 9.90e+05 |
 | G_hier_questions | 8.37e+05 | 1.10e+06 | 2.92e+06 |
-| H_mycelic_full | 8.43e+05 | 1.11e+06 | 2.93e+06 |
+| H_mycelic_full | 8.43e+05 | 1.10e+06 | 2.93e+06 |
 | J_mycelic_verified | 8.53e+05 | 1.12e+06 | 2.94e+06 |
 | Y_oracle_retrieval | 1.44e+05 | 4.88e+05 | 2.43e+06 |
 
@@ -1005,6 +1005,21 @@ time.
 | H_mycelic_full | 7 | 0.0248 | 0.342 | 0.334 | 1.08e+06 |
 | H_mycelic_full | 10 | 0.0245 | 0.408 | 0.315 | 1.19e+06 |
 | H_mycelic_full | 14 | 0.0243 | 0.367 | 0.365 | 1.14e+06 |
+
+**Is users per team a lever?**
+
+* `B2_map_reduce`: best at **10 users** (0.317), worst at 15 (0.233), total spread 0.083. The widest 95% interval on any single point is 0.225, so the whole spread fits inside one point's own uncertainty: **this curve is flat** and the apparent optimum is noise.
+* `E_hier_lineage`: best at **6 users** (0.017), worst at 15 (0.008), total spread 0.008. The widest 95% interval on any single point is 0.050, so the whole spread fits inside one point's own uncertainty: **this curve is flat** and the apparent optimum is noise.
+* `H_mycelic_full`: best at **6 users** (0.442), worst at 15 (0.383), total spread 0.058. The widest 95% interval on any single point is 0.200, so the whole spread fits inside one point's own uncertainty: **this curve is flat** and the apparent optimum is noise.
+
+Choose it for human reasons — span of control, meeting load, management overhead — because strategic discovery does not distinguish the options.
+
+**Is teams per department a lever?**
+
+* `E_hier_lineage`: best at **10 teams** (0.042), worst at 4 (0.008), total spread 0.033. The widest 95% interval on any single point is 0.075, so the whole spread fits inside one point's own uncertainty: **this curve is flat** and the apparent optimum is noise.
+* `H_mycelic_full`: best at **10 teams** (0.408), worst at 7 (0.342), total spread 0.067. The widest 95% interval on any single point is 0.125, so the whole spread fits inside one point's own uncertainty: **this curve is flat** and the apparent optimum is noise.
+
+Choose it for human reasons — span of control, meeting load, management overhead — because strategic discovery does not distinguish the options.
 
 ### Strict org tree versus org tree plus semantic cross-links
 

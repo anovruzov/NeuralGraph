@@ -343,7 +343,54 @@ def section_fanin() -> str:
                                 ("found_anywhere_in_register", "found", 3),
                                 ("information_loss", "info loss", 3),
                                 ("compute_units", "compute", 0)], sort_by=None))
-    return "\n".join(out) if out else "_(E4 not run)_"
+    if not out:
+        return "_(E4 not run)_"
+    out.append("")
+    out.append(_fanin_verdict(load("e4_fanin.jsonl"), "team_size",
+                              "users per team"))
+    out.append("")
+    out.append(_fanin_verdict(load("e4b_dept_fanin.jsonl"), "teams_per_dept",
+                              "teams per department"))
+    return "\n".join(x for x in out if x is not None)
+
+
+def _fanin_verdict(rows: List[Dict], key: str, label: str) -> str:
+    """Is fan-in a lever, or is the spread inside the seed noise?"""
+    if not rows:
+        return ""
+    lines = []
+    for arch in sorted({r["arch"] for r in rows}):
+        sub = [r for r in rows if r["arch"] == arch]
+        xs = sorted({r[key] for r in sub})
+        per = {}
+        for x in xs:
+            v = [r["found_anywhere_in_register"] for r in sub if r[key] == x]
+            per[x] = boot_ci(v)
+        best_x = max(per, key=lambda x: per[x][0])
+        worst_x = min(per, key=lambda x: per[x][0])
+        spread = per[best_x][0] - per[worst_x][0]
+        # Widest CI anywhere on the curve: if the whole spread fits inside a
+        # single point's own uncertainty, the curve is flat.
+        widest = max(hi - lo for _, lo, hi in per.values())
+        flat = spread <= widest
+        lines.append(
+            f"* `{arch}`: best at **{best_x} {label.split()[0]}** "
+            f"({per[best_x][0]:.3f}), worst at {worst_x} "
+            f"({per[worst_x][0]:.3f}), total spread {spread:.3f}. The widest "
+            f"95% interval on any single point is {widest:.3f}, so the whole "
+            + ("spread fits inside one point's own uncertainty: **this curve "
+               "is flat** and the apparent optimum is noise."
+               if flat else
+               "spread is larger than any single point's uncertainty, so "
+               "there is a real effect here."))
+    return (f"**Is {label} a lever?**\n\n" + "\n".join(lines) + "\n\n"
+            + ("Choose it for human reasons — span of control, meeting load, "
+               "management overhead — because strategic discovery does not "
+               "distinguish the options."
+               if all("is flat" in x for x in lines) else
+               "Where the curve is not flat, the table above gives the "
+               "direction; treat the optimum as indicative rather than "
+               "tuned, since the sweep is one dimension at a time."))
 
 
 def section_adversarial() -> str:
