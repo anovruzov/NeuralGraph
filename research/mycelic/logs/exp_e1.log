@@ -232,3 +232,5 @@
    50000/4 D_hier_nolineage     AP=0.0000 found=0.00 R@100=0.000 cu=8.89e+05
    50000/4 E_hier_lineage       AP=0.0002 found=0.01 R@100=0.010 cu=1.00e+06
    50000/4 F_hier_retrieval     AP=0.0014 found=0.03 R@100=0.020 cu=1.16e+06
+   50000/4 G_hier_questions     AP=0.0084 found=0.32 R@100=0.030 cu=2.89e+06
+   50000/4 H_mycelic_full       AP=0.0108 found=0.32 R@100=0.030 cu=2.86e+06

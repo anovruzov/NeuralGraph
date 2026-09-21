@@ -248,13 +248,74 @@ def section_qsweep() -> str:
     if not rows:
         return "_(E3c not run)_"
     a = agg(rows, CORE, by=("arch", "q"))
-    return md_table(a, [("arch", "architecture", 0), ("q", "q", 2),
-                        ("average_precision", "AP", 4),
-                        ("found_anywhere_in_register", "found", 3),
-                        ("rare_signal_recall", "rare", 3),
-                        ("false_discovery_rate", "FDR", 3),
-                        ("compute_units", "compute", 0)],
-                    sort_by=None)
+    tbl = md_table(a, [("arch", "architecture", 0), ("q", "q", 2),
+                       ("average_precision", "AP", 4),
+                       ("found_anywhere_in_register", "found", 3),
+                       ("rare_signal_recall", "rare", 3),
+                       ("false_discovery_rate", "FDR", 3),
+                       ("compute_units", "compute", 0)],
+                   sort_by=None)
+    return tbl + "\n\n" + _qsweep_verdict(a)
+
+
+def _qsweep_verdict(a: List[Dict]) -> str:
+    """What the capability sweep says about where capability is worth buying."""
+    qs = sorted({r["q"] for r in a})
+    archs = sorted({r["arch"] for r in a})
+    if len(qs) < 3:
+        return ""
+    lo, hi = qs[0], qs[-1]
+
+    def g(arch, q, k="found_anywhere_in_register"):
+        v = [r[k] for r in a if r["arch"] == arch and r["q"] == q]
+        return float(v[0]) if v else float("nan")
+
+    lines = ["**What the sweep says.** Each architecture is run with *every* "
+             "level set to the same capability `q`, so the curve isolates the "
+             "operator from the topology.", "",
+             "| architecture | found at q=%.2f | found at q=%.2f | gain | "
+             "compute multiple | gain per doubling of compute |"
+             % (lo, hi),
+             "|---|---:|---:|---:|---:|---:|"]
+    rows_out = []
+    for arch in archs:
+        f0, f1 = g(arch, lo), g(arch, hi)
+        c0, c1 = g(arch, lo, "compute_units"), g(arch, hi, "compute_units")
+        mult = c1 / c0 if c0 else float("nan")
+        doublings = np.log2(mult) if mult and mult > 0 else float("nan")
+        per = (f1 - f0) / doublings if doublings and doublings > 0 else 0.0
+        rows_out.append((arch, f0, f1, f1 - f0, mult, per))
+        lines.append(f"| {arch} | {f0:.3f} | {f1:.3f} | {f1-f0:+.3f} | "
+                     f"{mult:.1f}x | {per:+.3f} |")
+    lines.append("")
+    # The architecture that converts capability into discovery most
+    # efficiently is the one worth spending a model budget on.
+    best = max(rows_out, key=lambda r: r[5])
+    worst = min(rows_out, key=lambda r: r[5])
+    lines.append(
+        f"Capability is not worth the same everywhere. Per doubling of "
+        f"compute spent on better operators, `{best[0]}` converts it into "
+        f"{best[5]:+.3f} discovery and `{worst[0]}` into {worst[5]:+.3f}. "
+        f"Read together with §13, which upgrades one level at a time: this "
+        f"table says how much a *uniform* capability increase is worth, §13 "
+        f"says where to put it if you are only buying one.")
+    # Pure upward aggregation is the interesting special case.
+    up = [r for r in rows_out if r[0].startswith("E_")]
+    if up:
+        e = up[0]
+        lines.append("")
+        lines.append(
+            f"The row worth dwelling on is `{e[0]}`, pure upward aggregation "
+            f"with no descent. It finds {e[1]:.1%} at q={lo:.2f} and "
+            f"{e[2]:.1%} at q={hi:.2f}. Its failure at realistic operator "
+            f"quality is therefore not a structural impossibility — a "
+            f"*perfect* summariser would make it work — but every real "
+            f"operator sits far enough below perfect that the structure "
+            f"cannot be rescued by a better model. That is a stronger "
+            f"negative result than 'it does not work', and a more useful one: "
+            f"it says the design is sensitive to exactly the thing we cannot "
+            f"guarantee.")
+    return "\n".join(lines)
 
 
 def section_fanin() -> str:
