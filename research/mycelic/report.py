@@ -273,6 +273,7 @@ def section_alloc() -> str:
             t = [x for x in sub if x["alloc"] == r["alloc"]]
             r["tiers"] = t[0].get("tiers", "")
         out.append(f"\n#### {arch}\n")
+        out.append(_alloc_verdict(arch, a))
         out.append(md_table(a, [("alloc", "allocation", 0),
                                 ("tiers", "user→…→kernel", 0),
                                 ("average_precision", "AP", 4),
@@ -283,6 +284,53 @@ def section_alloc() -> str:
                                 ("wall_seconds", "wall s", 1)],
                             sort_by="found_anywhere_in_register"))
     return "\n".join(out)
+
+
+def _alloc_verdict(arch: str, a: List[Dict]) -> str:
+    """Answer the compute-allocation question: is a big ladder worth it?
+
+    The interesting comparison is not "which allocation scores highest" —
+    that is always the most expensive one — but what the quality/cost
+    frontier looks like, and whether a cheap edge with one strong kernel
+    keeps up.
+    """
+    rows = [r for r in a if r.get("cost_per_correct_discovery")]
+    if len(rows) < 3:
+        return ""
+    best = max(a, key=lambda r: r["found_anywhere_in_register"])
+    cheapest_per = min(rows, key=lambda r: r["cost_per_correct_discovery"])
+    floor = min(a, key=lambda r: r["compute_units"])
+    lines = [
+        f"Best discovery: **`{best['alloc']}`** "
+        f"({best['found_anywhere_in_register']:.3f} at "
+        f"{best['compute_units']:.2e} cu). Best value: "
+        f"**`{cheapest_per['alloc']}`** "
+        f"({cheapest_per['found_anywhere_in_register']:.3f} at "
+        f"{cheapest_per['compute_units']:.2e} cu — "
+        f"{cheapest_per['cost_per_correct_discovery']:.3g} cu per correct "
+        f"discovery, against {best['cost_per_correct_discovery']:.3g} for "
+        f"the best-discovery option)."]
+    if cheapest_per["alloc"] != best["alloc"]:
+        ratio = best["compute_units"] / max(1.0, cheapest_per["compute_units"])
+        frac = (cheapest_per["found_anywhere_in_register"]
+                / max(1e-9, best["found_anywhere_in_register"]))
+        lines.append(
+            f"`{cheapest_per['alloc']}` keeps {frac:.0%} of the discovery for "
+            f"{1/ratio:.0%} of the compute. Whether that trade is worth "
+            f"making is a budget question, not a research one — but it is the "
+            f"answer to \"should capability increase up the ladder?\": a "
+            f"*graduated* ladder is not what wins here. What wins is a cheap "
+            f"edge and a strong kernel, because the kernel is where the "
+            f"discrimination happens and the edge is only extracting.")
+    lines.append(
+        f"For reference the cheapest allocation of all, `{floor['alloc']}`, "
+        f"reaches {floor['found_anywhere_in_register']:.3f} at "
+        f"{floor['compute_units']:.2e} cu, so the spread between doing "
+        f"nothing clever and doing the most expensive thing is "
+        f"{best['found_anywhere_in_register'] - floor['found_anywhere_in_register']:+.3f} "
+        f"discovery for {best['compute_units']/max(1.0,floor['compute_units']):.0f}x "
+        f"the compute.")
+    return " ".join(lines) + "\n"
 
 
 def section_level_marginal() -> str:

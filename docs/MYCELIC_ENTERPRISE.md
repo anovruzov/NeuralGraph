@@ -155,7 +155,7 @@ So the honest statement of what the hierarchy buys is narrow and specific: **the
 
 **2. The reason is measurable and is not a tuning artefact.** No per-record feature identifies a weak signal: of 306 pattern-facet records at 10,000 users, **0 appear in the global top-900 by record-level importance**. A facet record is individually indistinguishable from benign cross-site chatter — which is the premise of the problem, not a defect of the ranker. Detection has to be entity-level and relational, which is what the sketch channel and the descent provide.
 
-**3. At enterprise scale the binding constraint is discrimination, not retrieval.** A perfect-retrieval oracle — every extracted claim, no budget at all — holds the evidence for 100% of the hidden patterns and still reports only 19.0% of them. The hierarchy holds 32% and reports 25.5%. More undifferentiated evidence makes the kernel's ranking worse, so a propagation budget is a feature and not only a cost.
+**3. At enterprise scale the binding constraint is discrimination, not retrieval.** A perfect-retrieval oracle — every extracted claim, no budget at all — holds the evidence for 100% of the hidden patterns and still reports only 19.0% of them. The hierarchy holds 28% and reports 22.5%. More undifferentiated evidence makes the kernel's ranking worse, so a propagation budget is a feature and not only a cost.
 
 **4. Directly measured: at fixed evidence, model capability buys almost nothing here, changing what the evidence *contains* helps the strongest model a lot and is not reliable across models.** 3 real models ranked the same 56 candidates from a real run (2 independent runs per cell). Given the aggregate evidence statistics they scored AP 0.354–0.407, against 0.420 for a six-feature logistic and 0.313 for random — i.e. a large capability range lands within noise of a logistic. Given the **raw work notes** behind the same statistics the same models scored 0.319–0.617. Richer evidence helped 2 of 3 models (Δ -0.048 to +0.262); the largest run-to-run range within a single cell is 0.107, and 1 of the 3 moves by more than that (opus). The abstraction, not the reasoner, is the plausible ceiling — but see §23 before treating the size of the effect as established.
 
@@ -618,7 +618,7 @@ variance.
 | B4_central_triage | 0.740 | 0.388 | 0.314 | — |
 | E_hier_lineage | 0.088 | 0.035 | 0.008 | 0.007 |
 | G_hier_questions | 0.693 | 0.398 | 0.336 | 0.223 |
-| H_mycelic_full | 0.715 | 0.385 | 0.336 | 0.255 |
+| H_mycelic_full | 0.715 | 0.385 | 0.336 | 0.225 |
 | J_mycelic_verified | 0.715 | 0.385 | 0.336 | 0.255 |
 | Y_oracle_retrieval | 0.685 | 0.232 | 0.284 | 0.190 |
 
@@ -633,7 +633,7 @@ Compute (cu) at the same points:
 | B4_central_triage | 1.33e+05 | 3.98e+05 | 1.07e+06 | — |
 | E_hier_lineage | 6.93e+04 | 2.27e+05 | 9.90e+05 | 1.93e+06 |
 | G_hier_questions | 8.37e+05 | 1.11e+06 | 2.92e+06 | 4.56e+06 |
-| H_mycelic_full | 8.43e+05 | 1.11e+06 | 2.93e+06 | 4.71e+06 |
+| H_mycelic_full | 8.43e+05 | 1.11e+06 | 2.93e+06 | 4.72e+06 |
 | J_mycelic_verified | 8.53e+05 | 1.12e+06 | 2.94e+06 | 4.72e+06 |
 | Y_oracle_retrieval | 1.44e+05 | 4.87e+05 | 2.43e+06 | 4.86e+06 |
 
@@ -757,6 +757,8 @@ experiment that decides where model budget should go.
 
 #### B2_map_reduce
 
+Best discovery: **`flat-frontier`** (0.592 at 4.37e+06 cu). Best value: **`lexical-bottom`** (0.300 at 5.39e+04 cu — 5.02e+03 cu per correct discovery, against 1.91e+05 for the best-discovery option). `lexical-bottom` keeps 51% of the discovery for 1% of the compute. Whether that trade is worth making is a budget question, not a research one — but it is the answer to "should capability increase up the ladder?": a *graduated* ladder is not what wins here. What wins is a cheap edge and a strong kernel, because the kernel is where the discrimination happens and the edge is only extracting. For reference the cheapest allocation of all, `lexical-bottom`, reaches 0.300 at 5.39e+04 cu, so the spread between doing nothing clever and doing the most expensive thing is +0.292 discovery for 81x the compute.
+
 | allocation | user→…→kernel | AP | found | rare | compute | cu/disc | wall s |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | flat-frontier | frontier->frontier->frontier->frontier->frontier->frontier | 0.1446 | 0.592 | 0.204 | 4.37e+06 | 1.91e+05 | 238.7 |
@@ -773,6 +775,8 @@ experiment that decides where model budget should go.
 
 #### E_hier_lineage
 
+Best discovery: **`flat-frontier`** (0.300 at 5.38e+06 cu). Best value: **`lexical-to-kernel`** (0.067 at 1.47e+04 cu — 9.92e+03 cu per correct discovery, against 6.76e+05 for the best-discovery option). `lexical-to-kernel` keeps 22% of the discovery for 0% of the compute. Whether that trade is worth making is a budget question, not a research one — but it is the answer to "should capability increase up the ladder?": a *graduated* ladder is not what wins here. What wins is a cheap edge and a strong kernel, because the kernel is where the discrimination happens and the edge is only extracting. For reference the cheapest allocation of all, `lexical-to-kernel`, reaches 0.067 at 1.47e+04 cu, so the spread between doing nothing clever and doing the most expensive thing is +0.233 discovery for 365x the compute.
+
 | allocation | user→…→kernel | AP | found | rare | compute | cu/disc | wall s |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | flat-frontier | frontier->frontier->frontier->frontier->frontier->frontier | 0.0897 | 0.300 | 0.081 | 5.38e+06 | 6.76e+05 | 260.2 |
@@ -788,6 +792,8 @@ experiment that decides where model budget should go.
 | kernel-only | edge-3b->edge-3b->edge-3b->edge-3b->edge-3b->frontier-plus | 0.0000 | 0.000 | 0.000 | 80415 | 80415 | 53.3 |
 
 #### H_mycelic_full
+
+Best discovery: **`flat-frontier`** (0.642 at 9.55e+06 cu). Best value: **`lexical-to-kernel`** (0.408 at 5.08e+05 cu — 3.24e+04 cu per correct discovery, against 3.83e+05 for the best-discovery option). `lexical-to-kernel` keeps 64% of the discovery for 5% of the compute. Whether that trade is worth making is a budget question, not a research one — but it is the answer to "should capability increase up the ladder?": a *graduated* ladder is not what wins here. What wins is a cheap edge and a strong kernel, because the kernel is where the discrimination happens and the edge is only extracting. For reference the cheapest allocation of all, `flat-small`, reaches 0.233 at 3.20e+05 cu, so the spread between doing nothing clever and doing the most expensive thing is +0.408 discovery for 30x the compute.
 
 | allocation | user→…→kernel | AP | found | rare | compute | cu/disc | wall s |
 |---|---:|---:|---:|---:|---:|---:|---:|
