@@ -362,6 +362,14 @@ numbers. Parts III to V are the benchmark, the results and the case against
 them. Every table and figure is generated from raw per-run records; nothing is
 transcribed by hand.
 
+**If you have ten minutes**, read §1 (the decision), the head-to-head table in
+it, and §28 (the findings that generalise beyond this project). **If you are
+going to be asked to defend this**, read §24 (the reviewer critique), §25
+(assumptions) and §26 (what we tried that failed) as well — they are where the
+weaknesses are, stated by us rather than found by someone else.
+
+{sec['toc']}
+
 ---
 
 # PART I — THE DECISION

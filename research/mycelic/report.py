@@ -868,10 +868,39 @@ def section_headline() -> str:
     return "\n".join(p for p in parts if p)
 
 
+def _toc(body: str) -> str:
+    """Build the contents list from the rendered document itself.
+
+    Generating it from the output rather than maintaining a list means a
+    renumbered or renamed section can never leave a stale entry behind.
+    """
+    import re
+    lines = ["<details>", "<summary><b>Contents</b></summary>", ""]
+    started = False
+    for ln in body.splitlines():
+        m = re.match(r"^(#{1,2}) (.+)$", ln)
+        if not m or ln.startswith("# Mycelic"):
+            continue
+        # The document's own subtitle is an h2 above the first PART divider;
+        # nothing before that divider belongs in the contents.
+        if m.group(1) == "#":
+            started = True
+        if not started:
+            continue
+        title = m.group(2).strip()
+        anchor = re.sub(r"[^a-z0-9\s-]", "", title.lower()).replace(" ", "-")
+        if m.group(1) == "#":            # a PART divider
+            lines.append(f"\n**{title}**\n")
+        else:
+            lines.append(f"* [{title}](#{anchor})")
+    lines += ["", "</details>"]
+    return "\n".join(lines)
+
+
 def build() -> str:
     from .report_text import compose
-    return compose({
-        "headline": section_headline(),
+    sections = {
+        "toc": "",
         "world": world_description(),
         "calibration": section_calibration(),
         "baselines": section_baselines(),
@@ -896,7 +925,12 @@ def build() -> str:
         "critique": critique(),
         "next": next_experiments(),
         "questions": questions_section(),
-    })
+        "headline": section_headline(),
+    }
+    # Render once with an empty contents list to learn the real headings,
+    # then again with the list built from them.
+    sections["toc"] = _toc(compose(sections))
+    return compose(sections)
 
 
 if __name__ == "__main__":

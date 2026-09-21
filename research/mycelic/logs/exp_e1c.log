@@ -92,3 +92,28 @@
    10000/5 H_mycelic_full       AP=0.0191 found=0.35 R@100=0.125 cu=1.17e+06
    10000/5 I_mycelic_completion AP=0.0492 found=0.35 R@100=0.075 cu=2.10e+06
    10000/5 J_mycelic_verified   AP=0.0272 found=0.35 R@100=0.175 cu=1.18e+06
+   10000/5 Y_oracle_retrieval   AP=0.0013 found=0.15 R@100=0.000 cu=4.90e+05
+   10000/5 Z_random_rank        AP=0.0084 found=0.28 R@100=0.025 cu=2.02e+05
+   10000/5 Z2_naive_enumerate   AP=0.0036 found=0.07 R@100=0.075 cu=1.86e+05
+   10000/6 A_flat_rag           AP=0.0648 found=0.62 R@100=0.200 cu=1.09e+06
+   10000/6 B_long_context       AP=0.0490 found=0.70 R@100=0.175 cu=1.09e+06
+   10000/6 B2_map_reduce        AP=0.0329 found=0.40 R@100=0.175 cu=2.00e+05
+   10000/6 A2_chunked_ctx       AP=0.0648 found=0.62 R@100=0.175 cu=2.06e+06
+   10000/6 B4_central_triage    AP=0.0396 found=0.33 R@100=0.225 cu=3.98e+05
+   10000/6 C_recursive_sum      AP=0.0000 found=0.00 R@100=0.000 cu=1.69e+05
+   10000/6 D_hier_nolineage     AP=0.0071 found=0.05 R@100=0.050 cu=1.97e+05
+   10000/6 E_hier_lineage       AP=0.0011 found=0.03 R@100=0.025 cu=2.29e+05
+   10000/6 F_hier_retrieval     AP=0.0216 found=0.17 R@100=0.125 cu=3.87e+05
+   10000/6 G_hier_questions     AP=0.0423 found=0.57 R@100=0.200 cu=1.15e+06
+   10000/6 H_mycelic_full       AP=0.0240 found=0.47 R@100=0.150 cu=1.14e+06
+   10000/6 I_mycelic_completion AP=0.0203 found=0.47 R@100=0.100 cu=2.07e+06
+   10000/6 J_mycelic_verified   AP=0.0271 found=0.47 R@100=0.225 cu=1.16e+06
+   10000/6 Y_oracle_retrieval   AP=0.0322 found=0.28 R@100=0.075 cu=4.87e+05
+   10000/6 Z_random_rank        AP=0.0241 found=0.40 R@100=0.125 cu=2.00e+05
+   10000/6 Z2_naive_enumerate   AP=0.0187 found=0.38 R@100=0.150 cu=1.84e+05
+   10000/7 A_flat_rag           AP=0.0274 found=0.53 R@100=0.075 cu=1.09e+06
+   10000/7 B_long_context       AP=0.0140 found=0.33 R@100=0.100 cu=1.09e+06
+   10000/7 B2_map_reduce        AP=0.0395 found=0.23 R@100=0.150 cu=1.98e+05
+   10000/7 A2_chunked_ctx       AP=0.0230 found=0.60 R@100=0.025 cu=2.04e+06
+   10000/7 B4_central_triage    AP=0.0047 found=0.28 R@100=0.025 cu=3.97e+05
+   10000/7 C_recursive_sum      AP=0.0000 found=0.00 R@100=0.000 cu=1.67e+05
