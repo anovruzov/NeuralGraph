@@ -66,3 +66,9 @@
    50000/0 A_flat_rag             raw=0.0254 claims=0.0000 sketch=0.000e+00 found=0.51
    50000/0 B_long_context         raw=0.0254 claims=0.0000 sketch=0.000e+00 found=0.09
    50000/0 B2_map_reduce          raw=0.0000 claims=0.8849 sketch=0.000e+00 found=0.04
+   50000/0 A2_chunked_ctx         raw=0.2231 claims=0.0000 sketch=0.000e+00 found=0.69
+   50000/0 B4_central_triage      raw=0.0000 claims=0.8849 sketch=0.000e+00 found=0.31
+   50000/0 C_recursive_sum        raw=0.0000 claims=0.0922 sketch=0.000e+00 found=0.00
+   50000/0 D_hier_nolineage       raw=0.0000 claims=0.1381 sketch=2.585e+06 found=0.00
+   50000/0 E_hier_lineage         raw=0.0000 claims=0.1381 sketch=2.585e+06 found=0.01
+   50000/0 F_hier_retrieval       raw=0.0000 claims=0.1381 sketch=2.585e+06 found=0.01

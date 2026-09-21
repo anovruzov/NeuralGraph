@@ -78,12 +78,25 @@ def decision_summary() -> str:
     rows = _rows()
     if not rows:
         return "_(no results yet)_"
-    scales = sorted({r["scale"] for r in rows})
-    big = scales[-1]
+    HIER = "H_mycelic_full"
+    # Use the largest scale at which the comparison is actually COMPLETE.
+    # Picking the largest scale present will, mid-run, put a half-finished
+    # column on the front page and report a missing architecture as 0%.
+    need = {HIER, "A_flat_rag", "A2_chunked_ctx", "B2_map_reduce",
+            "B4_central_triage", "C_recursive_sum", "E_hier_lineage",
+            "F_hier_retrieval", "G_hier_questions"}
+    complete = []
+    for sc in sorted({r["scale"] for r in rows}):
+        have = {r["arch"] for r in rows if r["scale"] == sc}
+        if need <= have:
+            complete.append(sc)
+    if not complete:
+        return "_(results incomplete: no scale yet has every architecture)_"
+    big = complete[-1]
+    n_seeds = len({r["seed"] for r in rows if r["scale"] == big})
     out = []
 
     best_arch, best_v = _best(rows, big)
-    HIER = "H_mycelic_full"
 
     def m(arch, k):
         return _mean(rows, arch, big, k)
@@ -94,12 +107,13 @@ def decision_summary() -> str:
     verdict = ("is not the most accurate option" if (h or 0) < (b or 0) - 1e-9
                else "is the most accurate option measured")
     out.append(
-        f"We built a synthetic {big:,}-person enterprise with known hidden "
-        "problems planted in it, and tested sixteen ways of finding those "
-        "problems, from pouring a filtered sample of the company's notes into "
-        "one very large model, to a six-level hierarchy of agents mirroring "
+        f"We built a synthetic enterprise with known hidden "
+        "problems planted in it, at 2,000, 10,000 and 50,000 people, and "
+        "tested sixteen ways of finding those problems, from pouring a "
+        "filtered sample of the company's notes into one very large model, to "
+        "a six-level hierarchy of agents mirroring "
         f"the org chart. **The hierarchy {verdict}.** The strongest "
-        f"single approach measured at this scale is `{best_arch}`, which finds "
+        f"single approach measured at {big:,} people is `{best_arch}`, which finds "
         f"{(b or 0):.0%} of the hidden problems against the hierarchy's "
         f"{(h or 0):.0%}. Whether the hierarchy is nonetheless worth building "
         "depends entirely on which of the secondary properties below we "
@@ -107,7 +121,7 @@ def decision_summary() -> str:
         "does not.")
     out.append("")
 
-    out.append("### Head to head, at full scale")
+    out.append(f"### Head to head at {big:,} users ({n_seeds} seeds)")
     out.append("")
     out.append("| | best centralised option | the hierarchy | hierarchy better? |")
     out.append("|---|---:|---:|---|")
@@ -187,6 +201,42 @@ def decision_summary() -> str:
                        f"* {label} — {hv:.3g} vs {bv:.3g}; centralised wins.")
         out.append("")
 
+    # The sharpest framing available: the centralised twin of the hierarchy's
+    # OWN algorithm, which isolates the algorithm from the topology.
+    b4f = m("B4_central_triage", "found_anywhere_in_register")
+    b4c = m("B4_central_triage", "compute_units")
+    b4p = m("B4_central_triage", "claim_exposure_fraction")
+    hp = m(HIER, "claim_exposure_fraction")
+    hc = m(HIER, "compute_units")
+    if b4f is not None and h is not None and b4c and hc:
+        out.append("### The control that reframes the decision")
+        out.append("")
+        gap = h - b4f
+        tie = abs(gap) < 0.05
+        out.append(
+            "`B4_central_triage` runs **exactly the hierarchy's own discovery "
+            "algorithm**, centrally: one claim pool, no propagation budget, no "
+            "routing error, no descent. It separates the value of the "
+            "*algorithm* from the value of the *topology*.")
+        out.append("")
+        out.append(
+            f"It finds {b4f:.0%} of the hidden problems against the "
+            f"hierarchy's {h:.0%}, at {b4c:.2e} compute against {hc:.2e} — "
+            f"about {hc/max(1.0,b4c):.1f}x less."
+            + ("  Within noise, they are the same." if tie else ""))
+        out.append("")
+        if b4p is not None and hp is not None:
+            out.append(
+                "So the honest statement of what the hierarchy buys is narrow "
+                "and specific: **the triage algorithm is what finds the "
+                "problems; the hierarchy is how you run that algorithm without "
+                "centralising the company's data.** The centralised version "
+                f"pools {b4p:.0%} of all extracted claims in one place; the "
+                f"hierarchy pools {hp:.0%} and moves no original text at all. "
+                f"That privacy property costs roughly {hc/max(1.0,b4c):.1f}x "
+                "the compute and tens of thousands of extra model calls. "
+                "If we do not need it, we should run the algorithm centrally.")
+            out.append("")
     out.append("### Three decisions this supports")
     out.append("")
     c = m("C_recursive_sum", "found_anywhere_in_register")
