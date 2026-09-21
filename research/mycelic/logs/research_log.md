@@ -289,3 +289,48 @@ calibration seeds:
 The architectural lesson is the inverse of the starting hypothesis: the useful
 way to spend frontier-tier compute at the kernel is not to reason harder over
 the same abstraction, it is to **re-open a few pieces of original evidence**.
+
+## Iteration 17 — three coupled metric defects, found by reading the outputs
+
+Inspecting the per-metric outputs of a single run (rather than only the
+headline) exposed three problems, each of which had been silently shaping
+results:
+
+1. **Contradiction F1 was identically zero for every architecture.** Conflicts
+   were read from counters the knowledge objects carried upward, but a descent
+   returns one fresh object per contributing user, so every conflict that only
+   becomes visible once recovered evidence joins the pool was invisible.
+   Contradiction is now recomputed at synthesis from the polarities actually
+   in front of the kernel.
+
+2. **The first fix then broke the baselines.** Flagging a contradiction on the
+   mere presence of a dissenting report punishes whichever architecture
+   gathered the most evidence — exactly backwards. It is now judged on the
+   BALANCE of evidence (a minority position needs at least two sources and at
+   least a quarter of the link's weight).
+
+3. **Removing the old behaviour cost the centralised baselines most of their
+   discovery** (flat retrieval fell from 0.73 to 0.15 `found` at 10k). The old
+   accidental accumulation of polarity flips had been doing real ranking work:
+   conflict *volume* separates noisy background entities from coherent
+   propagating chains. It is now an explicit continuous term, computed
+   identically whether conflicts appear as opposite-polarity objects (the
+   hierarchy, one object per agent) or as flip counts inside one merged object
+   (any flat pool) — otherwise the same metric silently means different things
+   for different architectures.
+
+A fourth, separate defect: **evidence coverage was being measured over the
+reported hypotheses**, so it depended on register truncation — i.e. on
+ranking, the very thing coverage exists to be separated from. It now reads the
+kernel's working pool, and the hierarchy returns its *final* pool rather than
+its pre-descent one.
+
+And a fifth, which cost an hour of confusion: `runner.run_arch` and
+`experiments._run_named` had **different default budgets**, so the same
+architecture scored 0.15 or 0.73 depending on which entry point was used.
+Calibration loading now lives in one place.
+
+Everything before this point was moved to `artifacts/stale_pre_metric_fix/`
+and the entire pipeline — calibration included — was re-run. Re-calibrating
+mattered: the map-reduce baseline's best kernel budget moved from 900 to 2500
+objects once the conflict term existed.
