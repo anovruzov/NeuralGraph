@@ -111,6 +111,14 @@ def evaluate(corpus: Corpus, gold: Gold, res: RunResult,
     m_real = _match_sets(hyps, real, stem, lenient)
     m_real_strict = _match_sets(hyps, real, stem, lenient, mode="strict")
     m_dec = _match_sets(hyps, decoys, stem, lenient)
+    # Belt and braces: even if an entity did host both a real pattern and a
+    # decoy, a report that correctly identifies the real chain is not also a
+    # decoy acceptance.
+    _real_hyp = {i for v in _match_sets(hyps, real, stem, lenient).values()
+                 for i in v}
+    m_dec = {pid: [i for i in idxs if i not in _real_hyp]
+             for pid, idxs in m_dec.items()}
+    m_dec = {pid: idxs for pid, idxs in m_dec.items() if idxs}
     m_dup = _match_sets(hyps, dup_infl, stem, lenient)
     dup_hyp: Set[int] = set()
     for v in m_dup.values():

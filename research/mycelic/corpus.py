@@ -502,6 +502,25 @@ def build_corpus(org: Org, seed: int = 0,
     # we need real record ids, so collect (rows, meta) then assign ids at the end
     pending: List[Tuple[np.ndarray, Pattern, int]] = []
 
+    # Anchors are drawn WITHOUT replacement across real patterns and decoys.
+    # Sharing an entity between a real pattern and a decoy is realistic, but it
+    # makes one reported hypothesis simultaneously a correct discovery and a
+    # decoy acceptance, which is a scoring ambiguity rather than an
+    # interesting phenomenon.  Measured at ~10% of real patterns before this
+    # change.
+    _used_anchors: set = set()
+
+    def _take_anchor() -> int:
+        for _ in range(500):
+            a = (int(private_pool[rng.integers(0, len(private_pool))])
+                 if rng.random() < 0.8 else int(rng.integers(0, n_global)))
+            if a not in _used_anchors:
+                _used_anchors.add(a)
+                return a
+        a = int(rng.integers(0, n_ent))
+        _used_anchors.add(a)
+        return a
+
     rare_flags = rng.random(n_pat) < float(c["rare_fraction"])
     fam_flags = rng.random(n_pat) < float(c["variant_family_fraction"])
     families: Dict[int, List[int]] = {}
@@ -525,8 +544,7 @@ def build_corpus(org: Org, seed: int = 0,
             fam_next += 1
             fam_open.append((fam, ci, sp))
         preds = [PRED_ID[chain[sp + j]] for j in range(L)]
-        anchor = (int(private_pool[rng.integers(0, len(private_pool))])
-                  if rng.random() < 0.8 else int(rng.integers(0, n_global)))
+        anchor = _take_anchor()
         # scatter facets across regions: at least 2 distinct regions
         k_reg = min(len(region_ids), 2 + int(rng.integers(0, 3)))
         regs = list(rng.choice(np.array(region_ids), size=k_reg, replace=False).astype(int))
@@ -588,8 +606,7 @@ def build_corpus(org: Org, seed: int = 0,
         chain = CAUSAL_CHAINS[ci]
         L = min(L, len(chain))
         sp = int(rng.integers(0, len(chain) - L + 1))
-        anchor = (int(private_pool[rng.integers(0, len(private_pool))])
-                  if rng.random() < 0.8 else int(rng.integers(0, n_global)))
+        anchor = _take_anchor()
         k_reg = min(len(region_ids), 2 + int(rng.integers(0, 3)))
         regs = list(rng.choice(np.array(region_ids), size=k_reg, replace=False).astype(int))
         t0 = int(rng.integers(0, max(1, n_days - 20 * L)))

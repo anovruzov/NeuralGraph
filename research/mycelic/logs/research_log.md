@@ -334,3 +334,35 @@ Everything before this point was moved to `artifacts/stale_pre_metric_fix/`
 and the entire pipeline — calibration included — was re-run. Re-calibrating
 mattered: the map-reduce baseline's best kernel budget moved from 900 to 2500
 objects once the conflict term existed.
+
+## Iteration 18 — a scoring ambiguity, found by a measurement subject
+
+A model doing the blind discrimination task reported, unprompted, that four
+entity names appeared twice in the candidate set — "each time as a clean
+correctly-ordered chain paired with a weaker or inverted-order variant" — and
+said it had used the pairing to separate them.
+
+That is a real defect, and it was in the generator, not the task: pattern and
+decoy anchor entities were drawn independently from the same pool, so roughly
+**10% of real patterns shared an entity with a decoy** (measured: 4 of ~40 at
+10k users, 3 of ~98 at 50k). One reported hypothesis on such an entity was
+being credited simultaneously as a correct discovery *and* as a decoy
+acceptance, inflating both metrics at once.
+
+Sharing an entity between a genuine risk and coincidental noise is realistic;
+the problem is purely that it makes the scoring ambiguous. Two changes:
+
+* anchors are now drawn **without replacement** across all real patterns and
+  decoys (measured after: 0 collisions at both scales);
+* and, belt and braces, a report that correctly identifies a real chain is
+  never also counted as a decoy acceptance.
+
+The bias was equal across architectures, so the comparative conclusions were
+not at risk — but `decoy_acceptance` is a headline metric and it was wrong by
+about a tenth. The whole pipeline was restarted again, calibration included.
+
+Worth recording separately: **the two most useful critiques of this benchmark
+so far both came from the models being measured by it**, not from inspecting
+the code — the non-blind task file in iteration 12, and this. Giving a
+measurement subject room to report what is wrong with the measurement turned
+out to be worth more than another ablation.
