@@ -1,195 +1,195 @@
 {
- "T1-54523": {
-  "predicate": "ticket_triage",
-  "entity": "pellucid"
+ "T1-55153": {
+  "predicate": "vendor_checkin",
+  "entity": "cinder-core"
  },
- "T1-12945": {
+ "T1-13313": {
+  "predicate": "cert_rotation",
+  "entity": "tessera-pay"
+ },
+ "T1-47171": {
   "predicate": "headcount_note",
-  "entity": "meridian"
- },
- "T1-46440": {
-  "predicate": "price_increase",
-  "entity": "meridian"
- },
- "T1-54554": {
-  "predicate": "manual_workaround",
-  "entity": "solace-core"
- },
- "T1-61233": {
-  "predicate": "revenue_miss",
-  "entity": "kestrel-edge"
- },
- "T1-38470": {
-  "predicate": "ticket_triage",
-  "entity": "wexford"
- },
- "T1-63856": {
-  "predicate": "release_note",
-  "entity": "meridian"
- },
- "T1-65958": {
-  "predicate": "audit_finding",
-  "entity": "kestrel"
- },
- "T1-11154": {
-  "predicate": "checkout_drop",
-  "entity": "lumen"
- },
- "T1-10958": {
-  "predicate": "ticket_triage",
-  "entity": "solace-pay"
- },
- "T1-48725": {
-  "predicate": "headcount_note",
-  "entity": "pellucid-pay"
- },
- "T1-58351": {
-  "predicate": "headcount_note",
-  "entity": "zephyr-pay"
- },
- "T1-28712": {
-  "predicate": "doc_review",
-  "entity": "tessera"
- },
- "T1-41243": {
-  "predicate": "budget_note",
-  "entity": "sable"
- },
- "T1-58229": {
-  "predicate": "headcount_note",
-  "entity": "nimbus"
- },
- "T1-22677": {
-  "predicate": "backup_completed",
-  "entity": "kestrel"
- },
- "T1-34199": {
-  "predicate": "tool_upgrade",
-  "entity": "cinder-pay"
- },
- "T1-30823": {
-  "predicate": "ticket_triage",
-  "entity": "orion"
- },
- "T1-61266": {
-  "predicate": "onboarding",
-  "entity": "umbrax"
- },
- "T1-26876": {
-  "predicate": "release_note",
-  "entity": "zephyr-edge"
- },
- "T1-30061": {
-  "predicate": "price_increase",
-  "entity": "veridian-ii"
- },
- "T1-53110": {
-  "predicate": "access_request",
-  "entity": "veridian"
- },
- "T1-40327": {
-  "predicate": "status_update",
-  "entity": "pellucid"
- },
- "T1-4669": {
-  "predicate": "doc_review",
-  "entity": "tesserax"
- },
- "T1-12189": {
-  "predicate": "doc_review",
-  "entity": "vantagex"
- },
- "T1-15624": {
-  "predicate": "ticket_triage",
-  "entity": "nimbus"
- },
- "T1-31731": {
-  "predicate": "travel_note",
-  "entity": "meridian"
- },
- "T1-29409": {
-  "predicate": "shipment_delay",
-  "entity": "orion"
- },
- "T1-34026": {
-  "predicate": "onboarding",
-  "entity": "orion-pay"
- },
- "T1-66336": {
-  "predicate": "access_request",
-  "entity": "nimbus"
- },
- "T1-56062": {
-  "predicate": "status_update",
-  "entity": "cobalt-ii"
- },
- "T1-33604": {
-  "predicate": "meeting_note",
-  "entity": "lumen-core"
- },
- "T1-4070": {
-  "predicate": "margin_compression",
-  "entity": "arbor-pay"
- },
- "T1-360": {
-  "predicate": "api_error_spike",
-  "entity": "marlin-pay"
- },
- "T1-40714": {
-  "predicate": "patch_window",
   "entity": "halcyon"
  },
- "T1-9211": {
-  "predicate": "close_delay",
-  "entity": "veridian"
+ "T1-55202": {
+  "predicate": "batch_job_overrun",
+  "entity": "meridian-pay"
  },
- "T1-35714": {
-  "predicate": "doc_review",
-  "entity": "wexford"
- },
- "T1-51602": {
-  "predicate": "audit_finding",
-  "entity": "tessera"
- },
- "T1-62439": {
-  "predicate": "data_exposure_risk",
-  "entity": "wisteria-edge"
- },
- "T1-59426": {
-  "predicate": "contract_penalty",
-  "entity": "basalt-core"
- },
- "T1-3001": {
-  "predicate": "checkout_drop",
-  "entity": "zephyrx"
- },
- "T1-806": {
-  "predicate": "patch_window",
-  "entity": "basalt"
- },
- "T1-13311": {
-  "predicate": "doc_review",
-  "entity": "veridian"
- },
- "T1-63268": {
-  "predicate": "sensor_drift",
-  "entity": "cinder-pay"
- },
- "T1-61211": {
-  "predicate": "ticket_triage",
+ "T1-61622": {
+  "predicate": "onboarding",
   "entity": "umbrax"
  },
- "T1-1919": {
-  "predicate": "patch_window",
-  "entity": "umbra-pay"
+ "T1-39170": {
+  "predicate": "vendor_checkin",
+  "entity": "pellucid"
  },
- "T1-64309": {
+ "T1-64073": {
+  "predicate": "headcount_note",
+  "entity": "veridian"
+ },
+ "T1-66020": {
+  "predicate": "budget_note",
+  "entity": "lumenx"
+ },
+ "T1-11471": {
+  "predicate": "release_note",
+  "entity": "pellucid"
+ },
+ "T1-11283": {
+  "predicate": "headcount_note",
+  "entity": "solace"
+ },
+ "T1-49426": {
+  "predicate": "batch_job_overrun",
+  "entity": "pellucid"
+ },
+ "T1-58847": {
+  "predicate": "doc_review",
+  "entity": "basalt-core"
+ },
+ "T1-29254": {
+  "predicate": "backup_completed",
+  "entity": "thistle-edge"
+ },
+ "T1-41984": {
+  "predicate": "doc_review",
+  "entity": "tessera"
+ },
+ "T1-58734": {
+  "predicate": "latency_regression",
+  "entity": "quarry-ii"
+ },
+ "T1-23047": {
+  "predicate": "headcount_note",
+  "entity": "orion"
+ },
+ "T1-34837": {
+  "predicate": "release_note",
+  "entity": "ospreyx"
+ },
+ "T1-31309": {
+  "predicate": "patch_window",
+  "entity": "quarryx"
+ },
+ "T1-61669": {
+  "predicate": "access_request",
+  "entity": "cobalt"
+ },
+ "T1-27371": {
+  "predicate": "false_alarm",
+  "entity": "vireo-pay"
+ },
+ "T1-30582": {
+  "predicate": "access_request",
+  "entity": "marlin-edge"
+ },
+ "T1-53789": {
+  "predicate": "vendor_checkin",
+  "entity": "meridian-edge"
+ },
+ "T1-41028": {
+  "predicate": "forecast_revision",
+  "entity": "cobalt-edge"
+ },
+ "T1-4759": {
+  "predicate": "vendor_checkin",
+  "entity": "peregrinex"
+ },
+ "T1-12516": {
+  "predicate": "headcount_note",
+  "entity": "quarry-ii"
+ },
+ "T1-15968": {
+  "predicate": "release_note",
+  "entity": "pellucid"
+ },
+ "T1-32245": {
+  "predicate": "backup_completed",
+  "entity": "quarryx"
+ },
+ "T1-29953": {
+  "predicate": "release_note",
+  "entity": "kestrel"
+ },
+ "T1-34641": {
+  "predicate": "auth_failure",
+  "entity": "cinder-pay"
+ },
+ "T1-66405": {
+  "predicate": "travel_note",
+  "entity": "pellucidx"
+ },
+ "T1-56637": {
+  "predicate": "api_error_spike",
+  "entity": "thistle"
+ },
+ "T1-34233": {
+  "predicate": "batch_job_overrun",
+  "entity": "vireo-core"
+ },
+ "T1-4143": {
+  "predicate": "patch_window",
+  "entity": "granitex"
+ },
+ "T1-340": {
+  "predicate": "tool_upgrade",
+  "entity": "tessera"
+ },
+ "T1-41425": {
+  "predicate": "status_update",
+  "entity": "sable"
+ },
+ "T1-9448": {
+  "predicate": "tool_upgrade",
+  "entity": "solace"
+ },
+ "T1-36384": {
+  "predicate": "batch_job_overrun",
+  "entity": "peregrine-edge"
+ },
+ "T1-52308": {
+  "predicate": "onboarding",
+  "entity": "halcyon-pay"
+ },
+ "T1-62765": {
+  "predicate": "regulatory_notice",
+  "entity": "tessera"
+ },
+ "T1-59909": {
+  "predicate": "patch_window",
+  "entity": "osprey-pay"
+ },
+ "T1-3051": {
+  "predicate": "vendor_checkin",
+  "entity": "vantage"
+ },
+ "T1-793": {
+  "predicate": "doc_review",
+  "entity": "veridian-ii"
+ },
+ "T1-13685": {
+  "predicate": "travel_note",
+  "entity": "vireox"
+ },
+ "T1-63554": {
   "predicate": "output_shortfall",
+  "entity": "orion"
+ },
+ "T1-61581": {
+  "predicate": "backup_completed",
+  "entity": "arbor"
+ },
+ "T1-1915": {
+  "predicate": "onboarding",
+  "entity": "veridian-ii"
+ },
+ "T1-64477": {
+  "predicate": "travel_note",
   "entity": "veridian-edge"
  },
- "T1-43789": {
-  "predicate": "release_note",
-  "entity": "osprey"
+ "T1-44519": {
+  "predicate": "inventory_count",
+  "entity": "umbra-pay"
  },
  "T2-0": {
   "answer": "no"
@@ -552,7 +552,7 @@
   "answer": "same"
  },
  "T5-0": {
-  "answer": 1
+  "answer": 3
  },
  "T5-1": {
   "answer": 4
@@ -564,55 +564,55 @@
   "answer": 1
  },
  "T5-4": {
-  "answer": 2
+  "answer": 3
  },
  "T5-5": {
-  "answer": 1
+  "answer": 3
  },
  "T5-6": {
-  "answer": 3
+  "answer": 4
  },
  "T5-7": {
-  "answer": 3
+  "answer": 4
  },
  "T5-8": {
   "answer": 4
  },
  "T5-9": {
-  "answer": 4
+  "answer": 1
  },
  "T5-10": {
-  "answer": 4
+  "answer": 1
  },
  "T5-11": {
   "answer": 1
  },
  "T5-12": {
-  "answer": 1
- },
- "T5-13": {
-  "answer": 1
- },
- "T5-14": {
   "answer": 4
  },
- "T5-15": {
+ "T5-13": {
   "answer": 2
+ },
+ "T5-14": {
+  "answer": 3
+ },
+ "T5-15": {
+  "answer": 3
  },
  "T5-16": {
   "answer": 3
  },
  "T5-17": {
-  "answer": 3
+  "answer": 4
  },
  "T5-18": {
   "answer": 3
  },
  "T5-19": {
-  "answer": 4
+  "answer": 3
  },
  "T5-20": {
-  "answer": 3
+  "answer": 2
  },
  "T5-21": {
   "answer": 3
@@ -621,24 +621,24 @@
   "answer": 2
  },
  "T5-23": {
-  "answer": 3
+  "answer": 2
  },
  "T5-24": {
-  "answer": 2
- },
- "T5-25": {
-  "answer": 2
- },
- "T5-26": {
   "answer": 4
  },
- "T5-27": {
+ "T5-25": {
   "answer": 1
+ },
+ "T5-26": {
+  "answer": 2
+ },
+ "T5-27": {
+  "answer": 4
  },
  "T5-28": {
   "answer": 2
  },
  "T5-29": {
-  "answer": 4
+  "answer": 3
  }
 }

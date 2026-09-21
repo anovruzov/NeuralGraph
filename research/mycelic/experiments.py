@@ -21,8 +21,9 @@ from .evalm import evaluate
 from .models import ALLOCATIONS, ANCHORS, allocation, tier_from_q
 from .org import DEFAULT_FANIN, ENT, REGION, SITE, TEAM, USER
 from .runner import ART, ARCHS, build_world, hier_cfg, run_arch
-from .systems import (HierRunner, flat_rag, long_context, map_reduce,
-                      oracle_retrieval, random_rank, recursive_summary)
+from .systems import (HierRunner, central_triage, flat_rag, long_context,
+                      map_reduce, oracle_retrieval, random_rank,
+                      recursive_summary)
 
 EVAL_SEEDS = (0, 1, 2, 3, 4)
 SCALES = (2_000, 10_000, 50_000)
@@ -97,6 +98,11 @@ def _run_named(name: str, world, alloc, seed: int, cfg_over=None):
         return recursive_summary(c, alloc, seed,
                                  ul=world.user_layer(alloc[USER], seed),
                                  near_miss=world.near_miss)
+    if kind == "central_triage":
+        return central_triage(c, alloc, seed,
+                              ul=world.user_layer(alloc[USER], seed),
+                              near_miss=world.near_miss,
+                              kernel_ko_cap=int(CAL.get("ct_kernel_ko_cap", 0)))
     if kind == "oracle":
         return oracle_retrieval(c, alloc, seed,
                                 ul=world.user_layer(alloc[USER], seed),
@@ -161,6 +167,7 @@ ABLATIONS: Dict[str, Dict] = {
     "-sketch_channel": dict(sketch_channel=False),
     "-adaptive_abstraction": dict(adaptive_abstraction=False),
     "-triage_prior": dict(triage_prior_weight=0.0),
+    "+chain_completion": dict(chain_completion=True),
     "-foreign_filter": dict(foreign_only_evidence=False),
     "-synthesis_restriction": dict(restrict_synthesis_to_triage=False),
 }

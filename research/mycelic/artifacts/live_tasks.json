@@ -143,217 +143,236 @@
  "tasks": {
   "T1": [
    {
-    "id": "T1-29409",
-    "text": "[d049] R01S00-DEPT-01-T04-U05 :: shipment slipped orion next impact assigned during pending thread attached the window up"
+    "id": "T1-41425",
+    "text": "[d121] R02S00-DEPT-04-T01-U02 :: status update sable blocking no review now see thread expected the action"
    },
    {
-    "id": "T1-40327",
-    "text": "[d179] R02S00-DEPT-03-T01-U04 :: status update pellucid week discussed up runbook"
+    "id": "T1-41984",
+    "text": "[d019] R02S00-DEPT-04-T03-U09 :: routine doc review tessera details context the action discussed team the"
    },
    {
-    "id": "T1-38470",
-    "text": "[d157] R02S00-DEPT-02-T00-U03 :: ticket triage wexford window pending owner see expected for thread context nothing the not"
+    "id": "T1-44519",
+    "text": "[d019] R03S00-DEPT-00-T02-U03 :: inventory count umbra-pay for thread during window further minor thread"
    },
    {
-    "id": "T1-59426",
-    "text": "[d154] R05S00-DEPT-01-T01-U10 :: penalty clause triggered basalt-core lumen-core review now for for discussed pending thread expected follow runbook"
+    "id": "T1-63554",
+    "text": "[d128] R06S00-DEPT-00-T01-U07 :: production short orion the review context for expected follow runbook window blocking per"
    },
    {
-    "id": "T1-62439",
-    "text": "[d168] R05S01-DEPT-00-T06-U02 :: unencrypted export observed wisteria-edge arbor the window further ticket action see not"
+    "id": "T1-11283",
+    "text": "[d060] R00S01-DEPT-02-T00-U06 :: headcount note solace blocking for context the so the further action discussed"
    },
    {
-    "id": "T1-9211",
-    "text": "[d146] R00S01-DEPT-00-T13-U05 :: financial close delayed veridian meridian-pay blocking follow see owner for far below no minor thread"
+    "id": "T1-58847",
+    "text": "[d148] R05S00-DEPT-01-T00-U04 :: doc review logged basalt-core nothing below assigned thread expected follow for minor"
    },
    {
-    "id": "T1-26876",
-    "text": "[d167] R01S00-DEPT-00-T11-U09 :: release note zephyr-edge zephyr minor expected nothing the window per pending for"
+    "id": "T1-41028",
+    "text": "[d046] R02S00-DEPT-03-T03-U04 :: forecast cut cobalt-edge pending during details now week discussed pending"
    },
    {
-    "id": "T1-58351",
-    "text": "[d153] R05S00-DEPT-00-T03-U08 :: routine headcount note zephyr-pay marlin-edge owner week see owner far"
+    "id": "T1-34233",
+    "text": "[d092] R01S01-DEPT-01-T06-U00 :: etl ran long vireo-core team next impact so"
    },
    {
-    "id": "T1-56062",
-    "text": "[d099] R04S00-DEPT-00-T14-U05 :: status update cobalt-ii granite-core thread owner impact nothing the blocking the blocking below"
+    "id": "T1-31309",
+    "text": "[d035] R01S01-DEPT-00-T00-U04 :: patch window quarryx the blocking assigned now details"
    },
    {
-    "id": "T1-1919",
-    "text": "[d077] R00S00-DEPT-00-T06-U07 :: patch window umbra-pay quarry pending thread owner reference next far"
+    "id": "T1-340",
+    "text": "[d058] R00S00-DEPT-00-T01-U00 :: tool upgrade tessera reference minor with action runbook per window"
    },
    {
-    "id": "T1-43789",
-    "text": "[d159] R02S00-DEPT-04-T10-U09 :: release note logged osprey below below nothing follow"
+    "id": "T1-12516",
+    "text": "[d041] R00S01-DEPT-02-T05-U08 :: headcount note quarry-ii team next week far no review context assigned during"
    },
    {
-    "id": "T1-806",
-    "text": "[d131] R00S00-DEPT-00-T03-U00 :: routine patch window basalt expected below assigned context for now far below no ticket"
+    "id": "T1-53789",
+    "text": "[d047] R04S00-DEPT-00-T07-U08 :: vendor checkin logged meridian-edge reference so nothing assigned window"
    },
    {
-    "id": "T1-54554",
-    "text": "[d013] R04S00-DEPT-00-T09-U08 :: shadow process adopted solace-core per up discussed further"
+    "id": "T1-34641",
+    "text": "[d080] R01S01-DEPT-01-T07-U03 :: auth failures spiked cinder-pay assigned context no review"
    },
    {
-    "id": "T1-51602",
-    "text": "[d017] R04S00-DEPT-00-T01-U04 :: control gap logged tessera kestrelx during blocking for nothing"
+    "id": "T1-39170",
+    "text": "[d047] R02S00-DEPT-02-T03-U03 :: routine vendor checkin pellucid action impact below below for during"
    },
    {
-    "id": "T1-10958",
-    "text": "[d069] R00S01-DEPT-01-T06-U02 :: routine ticket triage solace-pay solace-pay below the blocking assigned thread thread owner week discussed"
+    "id": "T1-27371",
+    "text": "[d098] R01S00-DEPT-00-T13-U07 :: spurious alarm vireo-pay for discussed details attached review expected context"
    },
    {
-    "id": "T1-65958",
-    "text": "[d139] R06S01-DEPT-00-T04-U03 :: control gap logged kestrel minor during pending during details thread"
+    "id": "T1-9448",
+    "text": "[d133] R00S01-DEPT-01-T00-U03 :: tool upgrade solace discussed per further so the pending details"
    },
    {
-    "id": "T1-12945",
-    "text": "[d025] R00S01-DEPT-02-T07-U08 :: headcount note meridian runbook team as pending context"
+    "id": "T1-1915",
+    "text": "[d077] R00S00-DEPT-00-T06-U07 :: routine onboarding veridian-ii attached minor with review now far"
    },
    {
-    "id": "T1-64309",
-    "text": "[d160] R06S00-DEPT-00-T04-U06 :: production short veridian-edge reference review with minor owner"
+    "id": "T1-62765",
+    "text": "[d163] R05S01-DEPT-00-T06-U10 :: regulator inquiry received tessera thread owner runbook up see owner"
    },
    {
-    "id": "T1-53110",
-    "text": "[d012] R04S00-DEPT-00-T06-U05 :: access request logged veridian solace pending with action reference minor during further the"
+    "id": "T1-23047",
+    "text": "[d033] R01S00-DEPT-00-T01-U10 :: headcount note logged orion runbook further so nothing the up"
    },
    {
-    "id": "T1-66336",
-    "text": "[d053] R06S01-DEPT-00-T04-U11 :: access request nimbus thread now see thread expected below"
+    "id": "T1-11471",
+    "text": "[d019] R00S01-DEPT-02-T02-U00 :: routine release note pellucid below nothing follow reference as pending attached"
    },
    {
-    "id": "T1-61233",
-    "text": "[d109] R05S01-DEPT-00-T02-U00 :: booked below plan kestrel-edge for reference minor owner far"
+    "id": "T1-29953",
+    "text": "[d162] R01S00-DEPT-02-T00-U04 :: release note kestrel discussed pending during see"
    },
    {
-    "id": "T1-15624",
-    "text": "[d056] R00S02-DEPT-01-T06-U03 :: routine ticket triage nimbus cinderx the further next runbook up for far for expected"
+    "id": "T1-52308",
+    "text": "[d005] R04S00-DEPT-00-T04-U01 :: routine onboarding halcyon-pay assigned with the window window up far ticket"
    },
    {
-    "id": "T1-28712",
-    "text": "[d029] R01S00-DEPT-01-T02-U04 :: doc review tessera the team action discussed blocking for now impact assigned with"
+    "id": "T1-3051",
+    "text": "[d104] R00S00-DEPT-01-T00-U08 :: vendor checkin logged vantage the as per details expected below the"
    },
    {
-    "id": "T1-33604",
-    "text": "[d157] R01S01-DEPT-01-T03-U05 :: meeting note logged lumen-core marlin-core owner runbook window per"
+    "id": "T1-58734",
+    "text": "[d083] R05S00-DEPT-01-T00-U01 :: p99 latency up quarry-ii next see expected below"
    },
    {
-    "id": "T1-54523",
-    "text": "[d111] R04S00-DEPT-00-T09-U07 :: ticket triage pellucid during further ticket action discussed team action for as"
+    "id": "T1-66405",
+    "text": "[d132] R06S01-DEPT-00-T05-U00 :: travel note pellucidx reference action week discussed blocking follow discussed during"
    },
    {
-    "id": "T1-4070",
-    "text": "[d162] R00S00-DEPT-01-T03-U11 :: gross margin down arbor-pay granite owner for discussed team ticket next so"
+    "id": "T1-29254",
+    "text": "[d065] R01S00-DEPT-01-T04-U01 :: backup completed logged thistle-edge the ticket the further as"
    },
    {
-    "id": "T1-61266",
-    "text": "[d033] R05S01-DEPT-00-T02-U01 :: routine onboarding umbrax orion assigned now week discussed window details owner far no assigned"
+    "id": "T1-66020",
+    "text": "[d038] R06S01-DEPT-00-T04-U04 :: budget note logged lumenx the action reference ticket so follow for discussed"
    },
    {
-    "id": "T1-40714",
-    "text": "[d079] R02S00-DEPT-03-T02-U03 :: patch window halcyon tessera-core context for owner far for attached review with thread"
+    "id": "T1-59909",
+    "text": "[d097] R05S00-DEPT-01-T03-U00 :: routine patch window osprey-pay expected follow runbook pending during"
    },
    {
-    "id": "T1-12189",
-    "text": "[d023] R00S01-DEPT-02-T05-U00 :: doc review logged vantagex thistle attached the team minor owner discussed blocking the as"
+    "id": "T1-56637",
+    "text": "[d088] R04S00-DEPT-00-T16-U04 :: api errors surged thistle the pending thread now"
    },
    {
-    "id": "T1-360",
-    "text": "[d142] R00S00-DEPT-00-T01-U00 :: api errors surged marlin-pay so the ticket ticket ticket see"
+    "id": "T1-4143",
+    "text": "[d011] R00S00-DEPT-01-T03-U11 :: patch window granitex blocking no so below below not"
    },
    {
-    "id": "T1-41243",
-    "text": "[d068] R02S00-DEPT-04-T00-U05 :: routine budget note sable arbor-core follow discussed up discussed details now"
+    "id": "T1-49426",
+    "text": "[d085] R03S01-DEPT-01-T00-U05 :: nightly job overran pellucid during up week week far no"
    },
    {
-    "id": "T1-31731",
-    "text": "[d050] R01S01-DEPT-00-T02-U01 :: travel note meridian thistle-core discussed further so for thread attached so no review"
+    "id": "T1-15968",
+    "text": "[d135] R00S02-DEPT-01-T07-U08 :: release note logged pellucid review attached minor expected for context assigned now"
    },
    {
-    "id": "T1-30061",
-    "text": "[d042] R01S00-DEPT-02-T00-U09 :: list price up veridian-ii thread thread with the details owner reference not"
+    "id": "T1-34837",
+    "text": "[d093] R01S01-DEPT-01-T07-U07 :: routine release note ospreyx minor with next impact"
    },
    {
-    "id": "T1-34199",
-    "text": "[d107] R01S01-DEPT-01-T05-U08 :: tool upgrade cinder-pay far nothing for attached no"
+    "id": "T1-47171",
+    "text": "[d116] R03S01-DEPT-00-T01-U07 :: headcount note halcyon the blocking below for expected for during further next"
    },
    {
-    "id": "T1-63856",
-    "text": "[d105] R06S00-DEPT-00-T02-U04 :: routine release note meridian nimbusx pending thread attached next runbook window details thread with"
+    "id": "T1-55202",
+    "text": "[d085] R04S00-DEPT-00-T11-U06 :: etl ran long meridian-pay so below for context for owner see"
    },
    {
-    "id": "T1-4669",
-    "text": "[d124] R00S01-DEPT-00-T00-U09 :: doc review tesserax with review thread during blocking the ticket"
+    "id": "T1-4759",
+    "text": "[d086] R00S01-DEPT-00-T00-U11 :: vendor checkin logged peregrinex thread now runbook pending blocking"
    },
    {
-    "id": "T1-34026",
-    "text": "[d119] R01S01-DEPT-01-T05-U04 :: onboarding logged orion-pay follow reference as further next far assigned far"
+    "id": "T1-13313",
+    "text": "[d032] R00S02-DEPT-00-T00-U04 :: tls cert rollover tessera-pay for now for discussed further so nothing below"
    },
    {
-    "id": "T1-30823",
-    "text": "[d067] R01S00-DEPT-02-T03-U03 :: routine ticket triage orion lumen thread now impact nothing follow far"
+    "id": "T1-13685",
+    "text": "[d013] R00S02-DEPT-00-T01-U07 :: travel note vireox no minor during per pending thread now during"
    },
    {
-    "id": "T1-11154",
-    "text": "[d170] R00S01-DEPT-02-T00-U02 :: checkout conversion fell lumen nothing no minor the"
+    "id": "T1-793",
+    "text": "[d086] R00S00-DEPT-00-T03-U00 :: doc review veridian-ii pending expected for context no action runbook details impact"
    },
    {
-    "id": "T1-22677",
-    "text": "[d032] R01S00-DEPT-00-T00-U07 :: routine backup completed kestrel attached next runbook details with as per"
+    "id": "T1-36384",
+    "text": "[d036] R02S00-DEPT-00-T03-U08 :: batch window exceeded peregrine-edge nothing no action far no next reference action"
    },
    {
-    "id": "T1-48725",
-    "text": "[d055] R03S01-DEPT-00-T07-U05 :: headcount note logged pellucid-pay vireo-pay window per further as up far nothing thread"
+    "id": "T1-61622",
+    "text": "[d147] R05S01-DEPT-00-T03-U09 :: onboarding logged umbrax per details attached as team the"
    },
    {
-    "id": "T1-63268",
-    "text": "[d065] R06S00-DEPT-00-T00-U10 :: sensor readings drifting cinder-pay context nothing follow week"
+    "id": "T1-61581",
+    "text": "[d059] R05S01-DEPT-00-T03-U08 :: routine backup completed arbor minor attached action up"
    },
    {
-    "id": "T1-3001",
-    "text": "[d115] R00S00-DEPT-01-T00-U07 :: payment success rate dipped zephyrx wisteria-edge no ticket so nothing nothing below assigned expected follow"
+    "id": "T1-64477",
+    "text": "[d053] R06S00-DEPT-00-T04-U09 :: travel note veridian-edge review now far below the per up see"
    },
    {
-    "id": "T1-46440",
-    "text": "[d041] R03S00-DEPT-00-T06-U04 :: price raised meridian review with as details attached review owner runbook team as"
+    "id": "T1-55153",
+    "text": "[d154] R04S00-DEPT-00-T11-U05 :: vendor checkin logged cinder-core action far assigned expected"
    },
    {
-    "id": "T1-35714",
-    "text": "[d010] R02S00-DEPT-00-T00-U07 :: doc review wexford granite-edge assigned with the pending context below nothing follow far review"
+    "id": "T1-30582",
+    "text": "[d137] R01S00-DEPT-02-T02-U02 :: routine access request marlin-edge below follow impact below nothing"
    },
    {
-    "id": "T1-61211",
-    "text": "[d072] R05S01-DEPT-00-T01-U03 :: ticket triage umbrax meridian-ii runbook details expected below assigned now reference no"
+    "id": "T1-32245",
+    "text": "[d139] R01S01-DEPT-00-T03-U02 :: routine backup completed quarryx further the further minor expected follow for reference so impact"
    },
    {
-    "id": "T1-13311",
-    "text": "[d145] R00S02-DEPT-00-T00-U04 :: doc review logged veridian now week impact follow for see context"
+    "id": "T1-61669",
+    "text": "[d026] R05S01-DEPT-00-T03-U10 :: access request cobalt follow discussed blocking below no so the ticket as"
    },
    {
-    "id": "T1-58229",
-    "text": "[d110] R05S00-DEPT-00-T03-U05 :: headcount note nimbus solace-core up reference as window"
+    "id": "T1-64073",
+    "text": "[d131] R06S00-DEPT-00-T04-U00 :: headcount note logged veridian assigned thread with review owner discussed further as window"
    }
   ],
   "T2": [
    {
-    "id": "T2-21",
+    "id": "T2-26",
     "claims": [
-     "day  10: network config change (marlinx)",
-     "day  22: response times regressed (marlinx)",
-     "day  34: etl ran long (marlinx)",
-     "day  46: report late (marlinx)"
+     "day  10: exposure risk flagged (kestrel-pay)",
+     "day  22: assessor noted issue (kestrel-pay)",
+     "day  34: supervisory letter (kestrel-pay)"
     ],
-    "entity": "marlinx"
+    "entity": "kestrel-pay"
    },
    {
-    "id": "T2-11",
+    "id": "T2-23",
     "claims": [
-     "day  10: defective lot found (nimbus)",
-     "day  22: cost of goods up (nimbus)",
-     "day  34: customer escalated (nimbus)"
+     "day  10: plan revised down (tundra-pay)",
+     "day  22: logo lost (tundra-pay)",
+     "day  34: payment success rate dipped (tundra-pay)",
+     "day  46: list price up (tundra-pay)"
     ],
-    "entity": "nimbus"
+    "entity": "tundra-pay"
+   },
+   {
+    "id": "T2-6",
+    "claims": [
+     "day  10: alt vendor substitution (umbra)",
+     "day  22: part failure rate up (umbra)",
+     "day  34: first pass yield down (umbra)",
+     "day  46: freight delayed (umbra)"
+    ],
+    "entity": "umbra"
+   },
+   {
+    "id": "T2-14",
+    "claims": [
+     "day  10: freight delayed (halcyon-edge)",
+     "day  22: account raised severity (halcyon-edge)",
+     "day  34: missed quarter target (halcyon-edge)"
+    ],
+    "entity": "halcyon-edge"
    },
    {
     "id": "T2-34",
@@ -367,34 +386,14 @@
     "entity": "kestrel-ii"
    },
    {
-    "id": "T2-43",
+    "id": "T2-13",
     "claims": [
-     "day  10: cost of goods up (tesserax)",
-     "day  22: discount approvals rising (tesserax)",
-     "day  34: guidance changed (tesserax)"
+     "day  10: controller flashed (ospreyx)",
+     "day  22: sensor readings drifting (ospreyx)",
+     "day  34: spurious alarm (ospreyx)",
+     "day  46: unplanned outage (ospreyx)"
     ],
-    "entity": "tesserax"
-   },
-   {
-    "id": "T2-6",
-    "claims": [
-     "day  10: alt vendor substitution (umbra)",
-     "day  22: part failure rate up (umbra)",
-     "day  34: first pass yield down (umbra)",
-     "day  46: freight delayed (umbra)"
-    ],
-    "entity": "umbra"
-   },
-   {
-    "id": "T2-36",
-    "claims": [
-     "day  10: delivery pushed out (wexfordx)",
-     "day  22: revenue shortfall (wexfordx)",
-     "day  34: margin squeezed (wexfordx)",
-     "day  46: forecast cut (wexfordx)",
-     "day  58: nightly job overran (wexfordx)"
-    ],
-    "entity": "wexfordx"
+    "entity": "ospreyx"
    },
    {
     "id": "T2-19",
@@ -406,40 +405,53 @@
     "entity": "meridian-pay"
    },
    {
-    "id": "T2-14",
+    "id": "T2-46",
     "claims": [
-     "day  10: freight delayed (halcyon-edge)",
-     "day  22: account raised severity (halcyon-edge)",
-     "day  34: missed quarter target (halcyon-edge)"
+     "day  10: cost of goods up (tessera-pay)",
+     "day  22: guidance changed (tessera-pay)",
+     "day  34: production short (tessera-pay)"
     ],
-    "entity": "halcyon-edge"
+    "entity": "tessera-pay"
    },
    {
-    "id": "T2-29",
+    "id": "T2-41",
     "claims": [
-     "day  10: firmware pushed (quarry-edge)",
-     "day  22: calibration off (quarry-edge)",
-     "day  34: nuisance trip (quarry-edge)"
+     "day  10: controller flashed (vantage-pay)",
+     "day  22: sensor readings drifting (vantage-pay)",
+     "day  34: spurious alarm (vantage-pay)",
+     "day  46: unplanned outage (vantage-pay)"
     ],
-    "entity": "quarry-edge"
+    "entity": "vantage-pay"
    },
    {
-    "id": "T2-0",
+    "id": "T2-27",
     "claims": [
-     "day  10: audit finding raised (halcyon)",
-     "day  22: unplanned outage (halcyon)",
-     "day  34: firmware pushed (halcyon)"
+     "day  10: routing updated (meridian-edge)",
+     "day  22: p99 latency up (meridian-edge)",
+     "day  34: etl ran long (meridian-edge)",
+     "day  46: dashboard stale (meridian-edge)",
+     "day  58: books closed late (meridian-edge)"
     ],
-    "entity": "halcyon"
+    "entity": "meridian-edge"
    },
    {
-    "id": "T2-9",
+    "id": "T2-2",
     "claims": [
-     "day  10: nuisance trip (osprey-pay)",
-     "day  22: line stopped unexpectedly (osprey-pay)",
-     "day  34: production short (osprey-pay)"
+     "day  10: routing updated (marlin-core)",
+     "day  22: p99 latency up (marlin-core)",
+     "day  34: nightly job overran (marlin-core)"
     ],
-    "entity": "osprey-pay"
+    "entity": "marlin-core"
+   },
+   {
+    "id": "T2-44",
+    "claims": [
+     "day  10: nightly job overran (tessera)",
+     "day  22: production short (tessera)",
+     "day  34: discount approvals rising (tessera)",
+     "day  46: calibration off (tessera)"
+    ],
+    "entity": "tessera"
    },
    {
     "id": "T2-32",
@@ -451,23 +463,60 @@
     "entity": "vantage-edge"
    },
    {
-    "id": "T2-47",
+    "id": "T2-37",
     "claims": [
-     "day  10: list price up (marlin)",
-     "day  22: gross margin down (marlin)",
-     "day  34: discount approvals rising (marlin)"
+     "day  10: work in progress piling up (nimbus-ii)",
+     "day  22: sla missed (nimbus-ii)",
+     "day  34: service credits owed (nimbus-ii)",
+     "day  46: account churned (nimbus-ii)"
     ],
-    "entity": "marlin"
+    "entity": "nimbus-ii"
    },
    {
-    "id": "T2-28",
+    "id": "T2-11",
     "claims": [
-     "day  10: shipment slipped (osprey-edge)",
-     "day  22: account churned (osprey-edge)",
-     "day  34: work in progress piling up (osprey-edge)",
-     "day  46: firewall rule change (osprey-edge)"
+     "day  10: defective lot found (nimbus)",
+     "day  22: cost of goods up (nimbus)",
+     "day  34: customer escalated (nimbus)"
     ],
-    "entity": "osprey-edge"
+    "entity": "nimbus"
+   },
+   {
+    "id": "T2-42",
+    "claims": [
+     "day  10: missed quarter target (sablex)",
+     "day  22: discount approvals rising (sablex)",
+     "day  34: report late (sablex)"
+    ],
+    "entity": "sablex"
+   },
+   {
+    "id": "T2-29",
+    "claims": [
+     "day  10: firmware pushed (quarry-edge)",
+     "day  22: calibration off (quarry-edge)",
+     "day  34: nuisance trip (quarry-edge)"
+    ],
+    "entity": "quarry-edge"
+   },
+   {
+    "id": "T2-20",
+    "claims": [
+     "day  10: surcharge applied (umbra-pay)",
+     "day  22: gross margin down (umbra-pay)",
+     "day  34: token validation errors (umbra-pay)",
+     "day  46: delivery pushed out (umbra-pay)"
+    ],
+    "entity": "umbra-pay"
+   },
+   {
+    "id": "T2-5",
+    "claims": [
+     "day  10: routing updated (quarry)",
+     "day  22: unplanned outage (quarry)",
+     "day  34: surcharge applied (quarry)"
+    ],
+    "entity": "quarry"
    },
    {
     "id": "T2-22",
@@ -481,51 +530,105 @@
     "entity": "wisteriax"
    },
    {
-    "id": "T2-5",
+    "id": "T2-38",
     "claims": [
-     "day  10: routing updated (quarry)",
-     "day  22: unplanned outage (quarry)",
-     "day  34: surcharge applied (quarry)"
+     "day  10: login rejections up (osprey)",
+     "day  22: api errors surged (osprey)",
+     "day  34: cart completion down (osprey)",
+     "day  46: missed quarter target (osprey)"
     ],
-    "entity": "quarry"
+    "entity": "osprey"
    },
    {
-    "id": "T2-31",
+    "id": "T2-36",
     "claims": [
-     "day  10: firmware pushed (kestrel-edge)",
-     "day  22: sensor readings drifting (kestrel-edge)",
-     "day  34: spurious alarm (kestrel-edge)"
+     "day  10: delivery pushed out (wexfordx)",
+     "day  22: revenue shortfall (wexfordx)",
+     "day  34: margin squeezed (wexfordx)",
+     "day  46: forecast cut (wexfordx)",
+     "day  58: nightly job overran (wexfordx)"
     ],
-    "entity": "kestrel-edge"
+    "entity": "wexfordx"
    },
    {
-    "id": "T2-46",
+    "id": "T2-24",
     "claims": [
-     "day  10: cost of goods up (tessera-pay)",
-     "day  22: guidance changed (tessera-pay)",
-     "day  34: production short (tessera-pay)"
+     "day  10: output below plan (zephyr)",
+     "day  22: slow queries (zephyr)",
+     "day  34: deeper discounting (zephyr)",
+     "day  46: alt vendor substitution (zephyr)",
+     "day  58: metrics delayed (zephyr)"
     ],
-    "entity": "tessera-pay"
+    "entity": "zephyr"
    },
    {
-    "id": "T2-23",
+    "id": "T2-1",
     "claims": [
-     "day  10: plan revised down (tundra-pay)",
-     "day  22: logo lost (tundra-pay)",
-     "day  34: payment success rate dipped (tundra-pay)",
-     "day  46: list price up (tundra-pay)"
+     "day  10: control tightened (cobalt)",
+     "day  22: shadow process adopted (cobalt)",
+     "day  34: exposure risk flagged (cobalt)",
+     "day  46: audit finding raised (cobalt)",
+     "day  58: compliance notice (cobalt)"
     ],
-    "entity": "tundra-pay"
+    "entity": "cobalt"
    },
    {
-    "id": "T2-37",
+    "id": "T2-47",
     "claims": [
-     "day  10: work in progress piling up (nimbus-ii)",
-     "day  22: sla missed (nimbus-ii)",
-     "day  34: service credits owed (nimbus-ii)",
-     "day  46: account churned (nimbus-ii)"
+     "day  10: list price up (marlin)",
+     "day  22: gross margin down (marlin)",
+     "day  34: discount approvals rising (marlin)"
     ],
-    "entity": "nimbus-ii"
+    "entity": "marlin"
+   },
+   {
+    "id": "T2-0",
+    "claims": [
+     "day  10: audit finding raised (halcyon)",
+     "day  22: unplanned outage (halcyon)",
+     "day  34: firmware pushed (halcyon)"
+    ],
+    "entity": "halcyon"
+   },
+   {
+    "id": "T2-12",
+    "claims": [
+     "day  10: contractual fine (solace-edge)",
+     "day  22: false positive alert (solace-edge)",
+     "day  34: deeper discounting (solace-edge)",
+     "day  46: first pass yield down (solace-edge)"
+    ],
+    "entity": "solace-edge"
+   },
+   {
+    "id": "T2-39",
+    "claims": [
+     "day  10: surcharge applied (meridianx)",
+     "day  22: report late (meridianx)",
+     "day  34: slow queries (meridianx)",
+     "day  46: payment success rate dipped (meridianx)"
+    ],
+    "entity": "meridianx"
+   },
+   {
+    "id": "T2-10",
+    "claims": [
+     "day  10: routing updated (tundrax)",
+     "day  22: slow queries (tundrax)",
+     "day  34: batch window exceeded (tundrax)",
+     "day  46: metrics delayed (tundrax)"
+    ],
+    "entity": "tundrax"
+   },
+   {
+    "id": "T2-15",
+    "claims": [
+     "day  10: sensor readings drifting (vantagex)",
+     "day  22: first pass yield down (vantagex)",
+     "day  34: month end close slipped (vantagex)",
+     "day  46: missed quarter target (vantagex)"
+    ],
+    "entity": "vantagex"
    },
    {
     "id": "T2-16",
@@ -537,24 +640,23 @@
     "entity": "ospreyx"
    },
    {
-    "id": "T2-38",
+    "id": "T2-28",
     "claims": [
-     "day  10: login rejections up (osprey)",
-     "day  22: api errors surged (osprey)",
-     "day  34: cart completion down (osprey)",
-     "day  46: missed quarter target (osprey)"
+     "day  10: shipment slipped (osprey-edge)",
+     "day  22: account churned (osprey-edge)",
+     "day  34: work in progress piling up (osprey-edge)",
+     "day  46: firewall rule change (osprey-edge)"
     ],
-    "entity": "osprey"
+    "entity": "osprey-edge"
    },
    {
-    "id": "T2-44",
+    "id": "T2-9",
     "claims": [
-     "day  10: nightly job overran (tessera)",
-     "day  22: production short (tessera)",
-     "day  34: discount approvals rising (tessera)",
-     "day  46: calibration off (tessera)"
+     "day  10: nuisance trip (osprey-pay)",
+     "day  22: line stopped unexpectedly (osprey-pay)",
+     "day  34: production short (osprey-pay)"
     ],
-    "entity": "tessera"
+    "entity": "osprey-pay"
    },
    {
     "id": "T2-35",
@@ -568,73 +670,24 @@
     "entity": "meridian-edge"
    },
    {
-    "id": "T2-42",
+    "id": "T2-33",
     "claims": [
-     "day  10: missed quarter target (sablex)",
-     "day  22: discount approvals rising (sablex)",
-     "day  34: report late (sablex)"
+     "day  10: response times regressed (zephyr-pay)",
+     "day  22: nightly job overran (zephyr-pay)",
+     "day  34: report late (zephyr-pay)",
+     "day  46: financial close delayed (zephyr-pay)"
     ],
-    "entity": "sablex"
+    "entity": "zephyr-pay"
    },
    {
-    "id": "T2-8",
+    "id": "T2-21",
     "claims": [
-     "day  10: exposure risk flagged (marlin-pay)",
-     "day  22: financial close delayed (marlin-pay)",
-     "day  34: exec escalation opened (marlin-pay)",
-     "day  46: scrap rate climbing (marlin-pay)",
-     "day  58: login rejections up (marlin-pay)"
+     "day  10: network config change (marlinx)",
+     "day  22: response times regressed (marlinx)",
+     "day  34: etl ran long (marlinx)",
+     "day  46: report late (marlinx)"
     ],
-    "entity": "marlin-pay"
-   },
-   {
-    "id": "T2-3",
-    "claims": [
-     "day  10: certificate rotated (meridian-ii)",
-     "day  22: auth failures spiked (meridian-ii)",
-     "day  34: 5xx rate elevated (meridian-ii)"
-    ],
-    "entity": "meridian-ii"
-   },
-   {
-    "id": "T2-2",
-    "claims": [
-     "day  10: routing updated (marlin-core)",
-     "day  22: p99 latency up (marlin-core)",
-     "day  34: nightly job overran (marlin-core)"
-    ],
-    "entity": "marlin-core"
-   },
-   {
-    "id": "T2-20",
-    "claims": [
-     "day  10: surcharge applied (umbra-pay)",
-     "day  22: gross margin down (umbra-pay)",
-     "day  34: token validation errors (umbra-pay)",
-     "day  46: delivery pushed out (umbra-pay)"
-    ],
-    "entity": "umbra-pay"
-   },
-   {
-    "id": "T2-41",
-    "claims": [
-     "day  10: controller flashed (vantage-pay)",
-     "day  22: sensor readings drifting (vantage-pay)",
-     "day  34: spurious alarm (vantage-pay)",
-     "day  46: unplanned outage (vantage-pay)"
-    ],
-    "entity": "vantage-pay"
-   },
-   {
-    "id": "T2-17",
-    "claims": [
-     "day  10: booked below plan (granite-core)",
-     "day  22: etl ran long (granite-core)",
-     "day  34: price raised (granite-core)",
-     "day  46: calibration off (granite-core)",
-     "day  58: missed quarter target (granite-core)"
-    ],
-    "entity": "granite-core"
+    "entity": "marlinx"
    },
    {
     "id": "T2-4",
@@ -658,42 +711,33 @@
     "entity": "wisteria-core"
    },
    {
-    "id": "T2-26",
+    "id": "T2-17",
     "claims": [
-     "day  10: exposure risk flagged (kestrel-pay)",
-     "day  22: assessor noted issue (kestrel-pay)",
-     "day  34: supervisory letter (kestrel-pay)"
+     "day  10: booked below plan (granite-core)",
+     "day  22: etl ran long (granite-core)",
+     "day  34: price raised (granite-core)",
+     "day  46: calibration off (granite-core)",
+     "day  58: missed quarter target (granite-core)"
     ],
-    "entity": "kestrel-pay"
+    "entity": "granite-core"
    },
    {
-    "id": "T2-13",
+    "id": "T2-31",
     "claims": [
-     "day  10: controller flashed (ospreyx)",
-     "day  22: sensor readings drifting (ospreyx)",
-     "day  34: spurious alarm (ospreyx)",
-     "day  46: unplanned outage (ospreyx)"
+     "day  10: firmware pushed (kestrel-edge)",
+     "day  22: sensor readings drifting (kestrel-edge)",
+     "day  34: spurious alarm (kestrel-edge)"
     ],
-    "entity": "ospreyx"
+    "entity": "kestrel-edge"
    },
    {
-    "id": "T2-25",
+    "id": "T2-43",
     "claims": [
-     "day  10: gross margin down (osprey)",
-     "day  22: penalty clause triggered (osprey)",
-     "day  34: checkout conversion fell (osprey)"
+     "day  10: cost of goods up (tesserax)",
+     "day  22: discount approvals rising (tesserax)",
+     "day  34: guidance changed (tesserax)"
     ],
-    "entity": "osprey"
-   },
-   {
-    "id": "T2-12",
-    "claims": [
-     "day  10: contractual fine (solace-edge)",
-     "day  22: false positive alert (solace-edge)",
-     "day  34: deeper discounting (solace-edge)",
-     "day  46: first pass yield down (solace-edge)"
-    ],
-    "entity": "solace-edge"
+    "entity": "tesserax"
    },
    {
     "id": "T2-18",
@@ -718,36 +762,32 @@
     "entity": "orion-ii"
    },
    {
-    "id": "T2-27",
+    "id": "T2-25",
     "claims": [
-     "day  10: routing updated (meridian-edge)",
-     "day  22: p99 latency up (meridian-edge)",
-     "day  34: etl ran long (meridian-edge)",
-     "day  46: dashboard stale (meridian-edge)",
-     "day  58: books closed late (meridian-edge)"
+     "day  10: gross margin down (osprey)",
+     "day  22: penalty clause triggered (osprey)",
+     "day  34: checkout conversion fell (osprey)"
     ],
-    "entity": "meridian-edge"
+    "entity": "osprey"
    },
    {
-    "id": "T2-24",
+    "id": "T2-3",
     "claims": [
-     "day  10: output below plan (zephyr)",
-     "day  22: slow queries (zephyr)",
-     "day  34: deeper discounting (zephyr)",
-     "day  46: alt vendor substitution (zephyr)",
-     "day  58: metrics delayed (zephyr)"
+     "day  10: certificate rotated (meridian-ii)",
+     "day  22: auth failures spiked (meridian-ii)",
+     "day  34: 5xx rate elevated (meridian-ii)"
     ],
-    "entity": "zephyr"
+    "entity": "meridian-ii"
    },
    {
-    "id": "T2-10",
+    "id": "T2-40",
     "claims": [
-     "day  10: routing updated (tundrax)",
-     "day  22: slow queries (tundrax)",
-     "day  34: batch window exceeded (tundrax)",
-     "day  46: metrics delayed (tundrax)"
+     "day  10: nuisance trip (solace-edge)",
+     "day  22: new approval rule (solace-edge)",
+     "day  34: deeper discounting (solace-edge)",
+     "day  46: exposure risk flagged (solace-edge)"
     ],
-    "entity": "tundrax"
+    "entity": "solace-edge"
    },
    {
     "id": "T2-30",
@@ -761,81 +801,37 @@
     "entity": "wisteria-edge"
    },
    {
-    "id": "T2-39",
+    "id": "T2-8",
     "claims": [
-     "day  10: surcharge applied (meridianx)",
-     "day  22: report late (meridianx)",
-     "day  34: slow queries (meridianx)",
-     "day  46: payment success rate dipped (meridianx)"
+     "day  10: exposure risk flagged (marlin-pay)",
+     "day  22: financial close delayed (marlin-pay)",
+     "day  34: exec escalation opened (marlin-pay)",
+     "day  46: scrap rate climbing (marlin-pay)",
+     "day  58: login rejections up (marlin-pay)"
     ],
-    "entity": "meridianx"
-   },
-   {
-    "id": "T2-33",
-    "claims": [
-     "day  10: response times regressed (zephyr-pay)",
-     "day  22: nightly job overran (zephyr-pay)",
-     "day  34: report late (zephyr-pay)",
-     "day  46: financial close delayed (zephyr-pay)"
-    ],
-    "entity": "zephyr-pay"
-   },
-   {
-    "id": "T2-15",
-    "claims": [
-     "day  10: sensor readings drifting (vantagex)",
-     "day  22: first pass yield down (vantagex)",
-     "day  34: month end close slipped (vantagex)",
-     "day  46: missed quarter target (vantagex)"
-    ],
-    "entity": "vantagex"
-   },
-   {
-    "id": "T2-40",
-    "claims": [
-     "day  10: nuisance trip (solace-edge)",
-     "day  22: new approval rule (solace-edge)",
-     "day  34: deeper discounting (solace-edge)",
-     "day  46: exposure risk flagged (solace-edge)"
-    ],
-    "entity": "solace-edge"
-   },
-   {
-    "id": "T2-1",
-    "claims": [
-     "day  10: control tightened (cobalt)",
-     "day  22: shadow process adopted (cobalt)",
-     "day  34: exposure risk flagged (cobalt)",
-     "day  46: audit finding raised (cobalt)",
-     "day  58: compliance notice (cobalt)"
-    ],
-    "entity": "cobalt"
+    "entity": "marlin-pay"
    }
   ],
   "T3": [
    {
-    "id": "T3-33",
+    "id": "T3-25",
     "claims": [
-     "day  46: surcharge applied (arbor-pay)",
-     "day  34: cost of goods up (arbor-pay)",
-     "day  22: deeper discounting (arbor-pay)",
-     "day  10: guidance changed (arbor-pay)"
+     "day  46: control tightened (pellucidx)",
+     "day  34: shadow process adopted (pellucidx)",
+     "day  22: unencrypted export observed (pellucidx)",
+     "day  10: audit finding raised (pellucidx)"
     ],
-    "entity": "arbor-pay"
+    "entity": "pellucidx"
    },
    {
-    "id": "T3-27",
+    "id": "T3-8",
     "claims": [
-     "day  10: several resignations (pellucid-pay)",
-     "day  22: backlog grew (pellucid-pay)",
-     "day  34: response time out of target (pellucid-pay)",
-     "day  46: contractual fine (pellucid-pay)",
-     "day  86: NOT several resignations - earlier report withdrawn (pellucid-pay)",
-     "day  87: NOT queue depth rising - earlier report withdrawn (pellucid-pay)",
-     "day  88: NOT sla missed - earlier report withdrawn (pellucid-pay)",
-     "day  89: NOT penalty clause triggered - earlier report withdrawn (pellucid-pay)"
+     "day  46: surcharge applied (cobalt-edge)",
+     "day  34: gross margin down (cobalt-edge)",
+     "day  22: deeper discounting (cobalt-edge)",
+     "day  10: guidance changed (cobalt-edge)"
     ],
-    "entity": "pellucid-pay"
+    "entity": "cobalt-edge"
    },
    {
     "id": "T3-28",
@@ -848,208 +844,6 @@
     "entity": "cobalt-core"
    },
    {
-    "id": "T3-24",
-    "claims": [
-     "day  10: list price up (vireo-core)",
-     "day  22: margin squeezed (vireo-core)",
-     "day  34: deeper discounting (vireo-core)",
-     "day  46: guidance changed (vireo-core)",
-     "day  86: NOT price raised - earlier report withdrawn (vireo-core)",
-     "day  87: NOT gross margin down - earlier report withdrawn (vireo-core)",
-     "day  88: NOT deeper discounting - earlier report withdrawn (vireo-core)",
-     "day  89: NOT forecast cut - earlier report withdrawn (vireo-core)"
-    ],
-    "entity": "vireo-core"
-   },
-   {
-    "id": "T3-4",
-    "claims": [
-     "day  10: telemetry bias observed (veridianx)",
-     "day  22: spurious alarm (veridianx)",
-     "day  34: line stopped unexpectedly (veridianx)",
-     "day  46: production short (veridianx)"
-    ],
-    "entity": "veridianx"
-   },
-   {
-    "id": "T3-26",
-    "claims": [
-     "day  10: work in progress piling up (basalt-pay)",
-     "day  22: breached service level (basalt-pay)",
-     "day  34: service credits owed (basalt-pay)",
-     "day  46: account churned (basalt-pay)",
-     "day  86: NOT queue depth rising - earlier report withdrawn (basalt-pay)",
-     "day  87: NOT sla missed - earlier report withdrawn (basalt-pay)",
-     "day  88: NOT penalty clause triggered - earlier report withdrawn (basalt-pay)",
-     "day  89: NOT customer did not renew - earlier report withdrawn (basalt-pay)"
-    ],
-    "entity": "basalt-pay"
-   },
-   {
-    "id": "T3-19",
-    "claims": [
-     "day  10: attrition above baseline (veridian)",
-     "day  22: backlog grew (veridian)",
-     "day  34: response time out of target (veridian)",
-     "day  46: penalty clause triggered (veridian)",
-     "day  86: NOT several resignations - earlier report withdrawn (veridian)",
-     "day  87: NOT queue depth rising - earlier report withdrawn (veridian)",
-     "day  88: NOT sla missed - earlier report withdrawn (veridian)",
-     "day  89: NOT penalty clause triggered - earlier report withdrawn (veridian)"
-    ],
-    "entity": "veridian"
-   },
-   {
-    "id": "T3-13",
-    "claims": [
-     "day  46: network config change (vireo-edge)",
-     "day  34: p99 latency up (vireo-edge)",
-     "day  22: batch window exceeded (vireo-edge)",
-     "day  10: dashboard stale (vireo-edge)"
-    ],
-    "entity": "vireo-edge"
-   },
-   {
-    "id": "T3-18",
-    "claims": [
-     "day  46: surcharge applied (cinder)",
-     "day  34: margin squeezed (cinder)",
-     "day  22: deeper discounting (cinder)",
-     "day  10: forecast cut (cinder)"
-    ],
-    "entity": "cinder"
-   },
-   {
-    "id": "T3-32",
-    "claims": [
-     "day  10: device image updated (wisteria-core)",
-     "day  22: calibration off (wisteria-core)",
-     "day  34: spurious alarm (wisteria-core)",
-     "day  46: line stopped unexpectedly (wisteria-core)",
-     "day  86: NOT firmware pushed - earlier report withdrawn (wisteria-core)",
-     "day  87: NOT sensor readings drifting - earlier report withdrawn (wisteria-core)",
-     "day  88: NOT spurious alarm - earlier report withdrawn (wisteria-core)",
-     "day  89: NOT line stopped unexpectedly - earlier report withdrawn (wisteria-core)"
-    ],
-    "entity": "wisteria-core"
-   },
-   {
-    "id": "T3-35",
-    "claims": [
-     "day  10: work in progress piling up (cinder)",
-     "day  22: response time out of target (cinder)",
-     "day  34: penalty clause triggered (cinder)",
-     "day  46: customer did not renew (cinder)",
-     "day  86: NOT queue depth rising - earlier report withdrawn (cinder)",
-     "day  87: NOT sla missed - earlier report withdrawn (cinder)",
-     "day  88: NOT penalty clause triggered - earlier report withdrawn (cinder)",
-     "day  89: NOT customer did not renew - earlier report withdrawn (cinder)"
-    ],
-    "entity": "cinder"
-   },
-   {
-    "id": "T3-6",
-    "claims": [
-     "day  46: alt vendor substitution (basalt-edge)",
-     "day  34: part failure rate up (basalt-edge)",
-     "day  22: scrap rate climbing (basalt-edge)",
-     "day  10: freight delayed (basalt-edge)"
-    ],
-    "entity": "basalt-edge"
-   },
-   {
-    "id": "T3-10",
-    "claims": [
-     "day  10: new approval rule (sable-pay)",
-     "day  22: team used a workaround (sable-pay)",
-     "day  34: unencrypted export observed (sable-pay)",
-     "day  46: audit finding raised (sable-pay)",
-     "day  86: NOT policy updated - earlier report withdrawn (sable-pay)",
-     "day  87: NOT team used a workaround - earlier report withdrawn (sable-pay)",
-     "day  88: NOT unencrypted export observed - earlier report withdrawn (sable-pay)",
-     "day  89: NOT audit finding raised - earlier report withdrawn (sable-pay)"
-    ],
-    "entity": "sable-pay"
-   },
-   {
-    "id": "T3-1",
-    "claims": [
-     "day  10: routing updated (veridian-edge)",
-     "day  22: response times regressed (veridian-edge)",
-     "day  34: etl ran long (veridian-edge)",
-     "day  46: report late (veridian-edge)"
-    ],
-    "entity": "veridian-edge"
-   },
-   {
-    "id": "T3-14",
-    "claims": [
-     "day  46: key rotation performed (marlin-core)",
-     "day  34: auth failures spiked (marlin-core)",
-     "day  22: error budget burned (marlin-core)",
-     "day  10: payment success rate dipped (marlin-core)"
-    ],
-    "entity": "marlin-core"
-   },
-   {
-    "id": "T3-12",
-    "claims": [
-     "day  10: price raised (orion-pay)",
-     "day  22: margin squeezed (orion-pay)",
-     "day  34: price concessions (orion-pay)",
-     "day  46: plan revised down (orion-pay)"
-    ],
-    "entity": "orion-pay"
-   },
-   {
-    "id": "T3-29",
-    "claims": [
-     "day  10: surcharge applied (peregrinex)",
-     "day  22: cost of goods up (peregrinex)",
-     "day  34: deeper discounting (peregrinex)",
-     "day  46: forecast cut (peregrinex)"
-    ],
-    "entity": "peregrinex"
-   },
-   {
-    "id": "T3-22",
-    "claims": [
-     "day  10: queue depth rising (lumenx)",
-     "day  22: sla missed (lumenx)",
-     "day  34: contractual fine (lumenx)",
-     "day  46: logo lost (lumenx)",
-     "day  86: NOT queue depth rising - earlier report withdrawn (lumenx)",
-     "day  87: NOT sla missed - earlier report withdrawn (lumenx)",
-     "day  88: NOT penalty clause triggered - earlier report withdrawn (lumenx)",
-     "day  89: NOT customer did not renew - earlier report withdrawn (lumenx)"
-    ],
-    "entity": "lumenx"
-   },
-   {
-    "id": "T3-34",
-    "claims": [
-     "day  10: work in progress piling up (orion-ii)",
-     "day  22: breached service level (orion-ii)",
-     "day  34: service credits owed (orion-ii)",
-     "day  46: customer did not renew (orion-ii)"
-    ],
-    "entity": "orion-ii"
-   },
-   {
-    "id": "T3-7",
-    "claims": [
-     "day  10: second source part swap (tessera-core)",
-     "day  22: defective lot found (tessera-core)",
-     "day  34: scrap rate climbing (tessera-core)",
-     "day  46: delivery pushed out (tessera-core)",
-     "day  86: NOT second source part swap - earlier report withdrawn (tessera-core)",
-     "day  87: NOT defective lot found - earlier report withdrawn (tessera-core)",
-     "day  88: NOT line yield fell - earlier report withdrawn (tessera-core)",
-     "day  89: NOT shipment slipped - earlier report withdrawn (tessera-core)"
-    ],
-    "entity": "tessera-core"
-   },
-   {
     "id": "T3-0",
     "claims": [
      "day  46: sensor readings drifting (cobalt-ii)",
@@ -1058,100 +852,6 @@
      "day  10: throughput miss (cobalt-ii)"
     ],
     "entity": "cobalt-ii"
-   },
-   {
-    "id": "T3-30",
-    "claims": [
-     "day  46: manual bypass in use (vantage-core)",
-     "day  34: data left the boundary (vantage-core)",
-     "day  22: control gap logged (vantage-core)",
-     "day  10: regulator inquiry received (vantage-core)"
-    ],
-    "entity": "vantage-core"
-   },
-   {
-    "id": "T3-31",
-    "claims": [
-     "day  46: team lost engineers (vantage-core)",
-     "day  34: work in progress piling up (vantage-core)",
-     "day  22: response time out of target (vantage-core)",
-     "day  10: penalty clause triggered (vantage-core)"
-    ],
-    "entity": "vantage-core"
-   },
-   {
-    "id": "T3-5",
-    "claims": [
-     "day  46: manual bypass in use (granitex)",
-     "day  34: unencrypted export observed (granitex)",
-     "day  22: assessor noted issue (granitex)",
-     "day  10: regulator inquiry received (granitex)"
-    ],
-    "entity": "granitex"
-   },
-   {
-    "id": "T3-25",
-    "claims": [
-     "day  46: control tightened (pellucidx)",
-     "day  34: shadow process adopted (pellucidx)",
-     "day  22: unencrypted export observed (pellucidx)",
-     "day  10: audit finding raised (pellucidx)"
-    ],
-    "entity": "pellucidx"
-   },
-   {
-    "id": "T3-2",
-    "claims": [
-     "day  46: sensor readings drifting (tessera-edge)",
-     "day  34: nuisance trip (tessera-edge)",
-     "day  22: asset went down (tessera-edge)",
-     "day  10: throughput miss (tessera-edge)"
-    ],
-    "entity": "tessera-edge"
-   },
-   {
-    "id": "T3-3",
-    "claims": [
-     "day  10: first pass yield down (osprey-core)",
-     "day  22: freight delayed (osprey-core)",
-     "day  34: customer escalated (osprey-core)",
-     "day  46: revenue shortfall (osprey-core)"
-    ],
-    "entity": "osprey-core"
-   },
-   {
-    "id": "T3-9",
-    "claims": [
-     "day  10: calibration off (vireo-edge)",
-     "day  22: false positive alert (vireo-edge)",
-     "day  34: asset went down (vireo-edge)",
-     "day  46: throughput miss (vireo-edge)"
-    ],
-    "entity": "vireo-edge"
-   },
-   {
-    "id": "T3-16",
-    "claims": [
-     "day  46: routing updated (veridian)",
-     "day  34: slow queries (veridian)",
-     "day  22: nightly job overran (veridian)",
-     "day  10: report late (veridian)"
-    ],
-    "entity": "veridian"
-   },
-   {
-    "id": "T3-11",
-    "claims": [
-     "day  10: list price up (marlin-pay)",
-     "day  22: margin squeezed (marlin-pay)",
-     "day  34: deeper discounting (marlin-pay)",
-     "day  46: guidance changed (marlin-pay)",
-     "day  86: NOT price raised - earlier report withdrawn (marlin-pay)",
-     "day  87: NOT gross margin down - earlier report withdrawn (marlin-pay)",
-     "day  88: NOT deeper discounting - earlier report withdrawn (marlin-pay)",
-     "day  89: NOT forecast cut - earlier report withdrawn (marlin-pay)"
-    ],
-    "entity": "marlin-pay"
    },
    {
     "id": "T3-23",
@@ -1168,24 +868,76 @@
     "entity": "peregrine-edge"
    },
    {
-    "id": "T3-15",
+    "id": "T3-22",
     "claims": [
-     "day  46: price raised (marlin-edge)",
-     "day  34: gross margin down (marlin-edge)",
-     "day  22: price concessions (marlin-edge)",
-     "day  10: forecast cut (marlin-edge)"
+     "day  10: queue depth rising (lumenx)",
+     "day  22: sla missed (lumenx)",
+     "day  34: contractual fine (lumenx)",
+     "day  46: logo lost (lumenx)",
+     "day  86: NOT queue depth rising - earlier report withdrawn (lumenx)",
+     "day  87: NOT sla missed - earlier report withdrawn (lumenx)",
+     "day  88: NOT penalty clause triggered - earlier report withdrawn (lumenx)",
+     "day  89: NOT customer did not renew - earlier report withdrawn (lumenx)"
     ],
-    "entity": "marlin-edge"
+    "entity": "lumenx"
    },
    {
-    "id": "T3-17",
+    "id": "T3-10",
     "claims": [
-     "day  10: list price up (wisteria-pay)",
-     "day  22: gross margin down (wisteria-pay)",
-     "day  34: deeper discounting (wisteria-pay)",
-     "day  46: plan revised down (wisteria-pay)"
+     "day  10: new approval rule (sable-pay)",
+     "day  22: team used a workaround (sable-pay)",
+     "day  34: unencrypted export observed (sable-pay)",
+     "day  46: audit finding raised (sable-pay)",
+     "day  86: NOT policy updated - earlier report withdrawn (sable-pay)",
+     "day  87: NOT team used a workaround - earlier report withdrawn (sable-pay)",
+     "day  88: NOT unencrypted export observed - earlier report withdrawn (sable-pay)",
+     "day  89: NOT audit finding raised - earlier report withdrawn (sable-pay)"
     ],
-    "entity": "wisteria-pay"
+    "entity": "sable-pay"
+   },
+   {
+    "id": "T3-6",
+    "claims": [
+     "day  46: alt vendor substitution (basalt-edge)",
+     "day  34: part failure rate up (basalt-edge)",
+     "day  22: scrap rate climbing (basalt-edge)",
+     "day  10: freight delayed (basalt-edge)"
+    ],
+    "entity": "basalt-edge"
+   },
+   {
+    "id": "T3-14",
+    "claims": [
+     "day  46: key rotation performed (marlin-core)",
+     "day  34: auth failures spiked (marlin-core)",
+     "day  22: error budget burned (marlin-core)",
+     "day  10: payment success rate dipped (marlin-core)"
+    ],
+    "entity": "marlin-core"
+   },
+   {
+    "id": "T3-2",
+    "claims": [
+     "day  46: sensor readings drifting (tessera-edge)",
+     "day  34: nuisance trip (tessera-edge)",
+     "day  22: asset went down (tessera-edge)",
+     "day  10: throughput miss (tessera-edge)"
+    ],
+    "entity": "tessera-edge"
+   },
+   {
+    "id": "T3-7",
+    "claims": [
+     "day  10: second source part swap (tessera-core)",
+     "day  22: defective lot found (tessera-core)",
+     "day  34: scrap rate climbing (tessera-core)",
+     "day  46: delivery pushed out (tessera-core)",
+     "day  86: NOT second source part swap - earlier report withdrawn (tessera-core)",
+     "day  87: NOT defective lot found - earlier report withdrawn (tessera-core)",
+     "day  88: NOT line yield fell - earlier report withdrawn (tessera-core)",
+     "day  89: NOT shipment slipped - earlier report withdrawn (tessera-core)"
+    ],
+    "entity": "tessera-core"
    },
    {
     "id": "T3-20",
@@ -1198,14 +950,232 @@
     "entity": "kestrelx"
    },
    {
-    "id": "T3-8",
+    "id": "T3-16",
     "claims": [
-     "day  46: surcharge applied (cobalt-edge)",
-     "day  34: gross margin down (cobalt-edge)",
-     "day  22: deeper discounting (cobalt-edge)",
-     "day  10: guidance changed (cobalt-edge)"
+     "day  46: routing updated (veridian)",
+     "day  34: slow queries (veridian)",
+     "day  22: nightly job overran (veridian)",
+     "day  10: report late (veridian)"
     ],
-    "entity": "cobalt-edge"
+    "entity": "veridian"
+   },
+   {
+    "id": "T3-31",
+    "claims": [
+     "day  46: team lost engineers (vantage-core)",
+     "day  34: work in progress piling up (vantage-core)",
+     "day  22: response time out of target (vantage-core)",
+     "day  10: penalty clause triggered (vantage-core)"
+    ],
+    "entity": "vantage-core"
+   },
+   {
+    "id": "T3-29",
+    "claims": [
+     "day  10: surcharge applied (peregrinex)",
+     "day  22: cost of goods up (peregrinex)",
+     "day  34: deeper discounting (peregrinex)",
+     "day  46: forecast cut (peregrinex)"
+    ],
+    "entity": "peregrinex"
+   },
+   {
+    "id": "T3-18",
+    "claims": [
+     "day  46: surcharge applied (cinder)",
+     "day  34: margin squeezed (cinder)",
+     "day  22: deeper discounting (cinder)",
+     "day  10: forecast cut (cinder)"
+    ],
+    "entity": "cinder"
+   },
+   {
+    "id": "T3-11",
+    "claims": [
+     "day  10: list price up (marlin-pay)",
+     "day  22: margin squeezed (marlin-pay)",
+     "day  34: deeper discounting (marlin-pay)",
+     "day  46: guidance changed (marlin-pay)",
+     "day  86: NOT price raised - earlier report withdrawn (marlin-pay)",
+     "day  87: NOT gross margin down - earlier report withdrawn (marlin-pay)",
+     "day  88: NOT deeper discounting - earlier report withdrawn (marlin-pay)",
+     "day  89: NOT forecast cut - earlier report withdrawn (marlin-pay)"
+    ],
+    "entity": "marlin-pay"
+   },
+   {
+    "id": "T3-33",
+    "claims": [
+     "day  46: surcharge applied (arbor-pay)",
+     "day  34: cost of goods up (arbor-pay)",
+     "day  22: deeper discounting (arbor-pay)",
+     "day  10: guidance changed (arbor-pay)"
+    ],
+    "entity": "arbor-pay"
+   },
+   {
+    "id": "T3-1",
+    "claims": [
+     "day  10: routing updated (veridian-edge)",
+     "day  22: response times regressed (veridian-edge)",
+     "day  34: etl ran long (veridian-edge)",
+     "day  46: report late (veridian-edge)"
+    ],
+    "entity": "veridian-edge"
+   },
+   {
+    "id": "T3-4",
+    "claims": [
+     "day  10: telemetry bias observed (veridianx)",
+     "day  22: spurious alarm (veridianx)",
+     "day  34: line stopped unexpectedly (veridianx)",
+     "day  46: production short (veridianx)"
+    ],
+    "entity": "veridianx"
+   },
+   {
+    "id": "T3-9",
+    "claims": [
+     "day  10: calibration off (vireo-edge)",
+     "day  22: false positive alert (vireo-edge)",
+     "day  34: asset went down (vireo-edge)",
+     "day  46: throughput miss (vireo-edge)"
+    ],
+    "entity": "vireo-edge"
+   },
+   {
+    "id": "T3-32",
+    "claims": [
+     "day  10: device image updated (wisteria-core)",
+     "day  22: calibration off (wisteria-core)",
+     "day  34: spurious alarm (wisteria-core)",
+     "day  46: line stopped unexpectedly (wisteria-core)",
+     "day  86: NOT firmware pushed - earlier report withdrawn (wisteria-core)",
+     "day  87: NOT sensor readings drifting - earlier report withdrawn (wisteria-core)",
+     "day  88: NOT spurious alarm - earlier report withdrawn (wisteria-core)",
+     "day  89: NOT line stopped unexpectedly - earlier report withdrawn (wisteria-core)"
+    ],
+    "entity": "wisteria-core"
+   },
+   {
+    "id": "T3-19",
+    "claims": [
+     "day  10: attrition above baseline (veridian)",
+     "day  22: backlog grew (veridian)",
+     "day  34: response time out of target (veridian)",
+     "day  46: penalty clause triggered (veridian)",
+     "day  86: NOT several resignations - earlier report withdrawn (veridian)",
+     "day  87: NOT queue depth rising - earlier report withdrawn (veridian)",
+     "day  88: NOT sla missed - earlier report withdrawn (veridian)",
+     "day  89: NOT penalty clause triggered - earlier report withdrawn (veridian)"
+    ],
+    "entity": "veridian"
+   },
+   {
+    "id": "T3-15",
+    "claims": [
+     "day  46: price raised (marlin-edge)",
+     "day  34: gross margin down (marlin-edge)",
+     "day  22: price concessions (marlin-edge)",
+     "day  10: forecast cut (marlin-edge)"
+    ],
+    "entity": "marlin-edge"
+   },
+   {
+    "id": "T3-3",
+    "claims": [
+     "day  10: first pass yield down (osprey-core)",
+     "day  22: freight delayed (osprey-core)",
+     "day  34: customer escalated (osprey-core)",
+     "day  46: revenue shortfall (osprey-core)"
+    ],
+    "entity": "osprey-core"
+   },
+   {
+    "id": "T3-26",
+    "claims": [
+     "day  10: work in progress piling up (basalt-pay)",
+     "day  22: breached service level (basalt-pay)",
+     "day  34: service credits owed (basalt-pay)",
+     "day  46: account churned (basalt-pay)",
+     "day  86: NOT queue depth rising - earlier report withdrawn (basalt-pay)",
+     "day  87: NOT sla missed - earlier report withdrawn (basalt-pay)",
+     "day  88: NOT penalty clause triggered - earlier report withdrawn (basalt-pay)",
+     "day  89: NOT customer did not renew - earlier report withdrawn (basalt-pay)"
+    ],
+    "entity": "basalt-pay"
+   },
+   {
+    "id": "T3-17",
+    "claims": [
+     "day  10: list price up (wisteria-pay)",
+     "day  22: gross margin down (wisteria-pay)",
+     "day  34: deeper discounting (wisteria-pay)",
+     "day  46: plan revised down (wisteria-pay)"
+    ],
+    "entity": "wisteria-pay"
+   },
+   {
+    "id": "T3-24",
+    "claims": [
+     "day  10: list price up (vireo-core)",
+     "day  22: margin squeezed (vireo-core)",
+     "day  34: deeper discounting (vireo-core)",
+     "day  46: guidance changed (vireo-core)",
+     "day  86: NOT price raised - earlier report withdrawn (vireo-core)",
+     "day  87: NOT gross margin down - earlier report withdrawn (vireo-core)",
+     "day  88: NOT deeper discounting - earlier report withdrawn (vireo-core)",
+     "day  89: NOT forecast cut - earlier report withdrawn (vireo-core)"
+    ],
+    "entity": "vireo-core"
+   },
+   {
+    "id": "T3-27",
+    "claims": [
+     "day  10: several resignations (pellucid-pay)",
+     "day  22: backlog grew (pellucid-pay)",
+     "day  34: response time out of target (pellucid-pay)",
+     "day  46: contractual fine (pellucid-pay)",
+     "day  86: NOT several resignations - earlier report withdrawn (pellucid-pay)",
+     "day  87: NOT queue depth rising - earlier report withdrawn (pellucid-pay)",
+     "day  88: NOT sla missed - earlier report withdrawn (pellucid-pay)",
+     "day  89: NOT penalty clause triggered - earlier report withdrawn (pellucid-pay)"
+    ],
+    "entity": "pellucid-pay"
+   },
+   {
+    "id": "T3-5",
+    "claims": [
+     "day  46: manual bypass in use (granitex)",
+     "day  34: unencrypted export observed (granitex)",
+     "day  22: assessor noted issue (granitex)",
+     "day  10: regulator inquiry received (granitex)"
+    ],
+    "entity": "granitex"
+   },
+   {
+    "id": "T3-35",
+    "claims": [
+     "day  10: work in progress piling up (cinder)",
+     "day  22: response time out of target (cinder)",
+     "day  34: penalty clause triggered (cinder)",
+     "day  46: customer did not renew (cinder)",
+     "day  86: NOT queue depth rising - earlier report withdrawn (cinder)",
+     "day  87: NOT sla missed - earlier report withdrawn (cinder)",
+     "day  88: NOT penalty clause triggered - earlier report withdrawn (cinder)",
+     "day  89: NOT customer did not renew - earlier report withdrawn (cinder)"
+    ],
+    "entity": "cinder"
+   },
+   {
+    "id": "T3-34",
+    "claims": [
+     "day  10: work in progress piling up (orion-ii)",
+     "day  22: breached service level (orion-ii)",
+     "day  34: service credits owed (orion-ii)",
+     "day  46: customer did not renew (orion-ii)"
+    ],
+    "entity": "orion-ii"
    },
    {
     "id": "T3-21",
@@ -1220,103 +1190,43 @@
      "day  89: NOT penalty clause triggered - earlier report withdrawn (basalt-edge)"
     ],
     "entity": "basalt-edge"
+   },
+   {
+    "id": "T3-13",
+    "claims": [
+     "day  46: network config change (vireo-edge)",
+     "day  34: p99 latency up (vireo-edge)",
+     "day  22: batch window exceeded (vireo-edge)",
+     "day  10: dashboard stale (vireo-edge)"
+    ],
+    "entity": "vireo-edge"
+   },
+   {
+    "id": "T3-30",
+    "claims": [
+     "day  46: manual bypass in use (vantage-core)",
+     "day  34: data left the boundary (vantage-core)",
+     "day  22: control gap logged (vantage-core)",
+     "day  10: regulator inquiry received (vantage-core)"
+    ],
+    "entity": "vantage-core"
+   },
+   {
+    "id": "T3-12",
+    "claims": [
+     "day  10: price raised (orion-pay)",
+     "day  22: margin squeezed (orion-pay)",
+     "day  34: price concessions (orion-pay)",
+     "day  46: plan revised down (orion-pay)"
+    ],
+    "entity": "orion-pay"
    }
   ],
   "T4": [
    {
-    "id": "T4-14",
-    "a": "nimbus",
-    "b": "nimbus-pay"
-   },
-   {
     "id": "T4-26",
-    "a": "wisteria-core",
-    "b": "the wisteria-core platform"
-   },
-   {
-    "id": "T4-25",
-    "a": "orion",
-    "b": "orion-pay"
-   },
-   {
-    "id": "T4-34",
-    "a": "vireo",
-    "b": "vireo-pay"
-   },
-   {
-    "id": "T4-15",
-    "a": "solace-pay",
-    "b": "the solace-pay platform"
-   },
-   {
-    "id": "T4-28",
-    "a": "meridian",
-    "b": "meridian-pay"
-   },
-   {
-    "id": "T4-7",
-    "a": "orion-ii",
-    "b": "ORION-II"
-   },
-   {
-    "id": "T4-4",
-    "a": "quarry",
-    "b": "quarry-pay"
-   },
-   {
-    "id": "T4-20",
-    "a": "orion",
-    "b": "orion-pay"
-   },
-   {
-    "id": "T4-16",
-    "a": "vantage-edge",
-    "b": "the vantage-edge platform"
-   },
-   {
-    "id": "T4-24",
-    "a": "veridianx",
-    "b": "VERIDIANX"
-   },
-   {
-    "id": "T4-8",
-    "a": "marlin-core",
-    "b": "MARLIN-CORE"
-   },
-   {
-    "id": "T4-3",
-    "a": "tundra",
-    "b": "TUNDRA"
-   },
-   {
-    "id": "T4-22",
-    "a": "quarry",
-    "b": "quarry-pay"
-   },
-   {
-    "id": "T4-18",
-    "a": "quarry",
-    "b": "QUARRY"
-   },
-   {
-    "id": "T4-30",
-    "a": "nimbus-ii",
-    "b": "the nimbus-ii platform"
-   },
-   {
-    "id": "T4-31",
-    "a": "pellucid-edge",
-    "b": "the pellucid-edge platform"
-   },
-   {
-    "id": "T4-0",
-    "a": "solace",
-    "b": "SOLACE"
-   },
-   {
-    "id": "T4-35",
-    "a": "wisteria-pay",
-    "b": "the wisteria-pay platform"
+    "a": "thistle-edge",
+    "b": "the thistle-edge platform"
    },
    {
     "id": "T4-6",
@@ -1324,69 +1234,49 @@
     "b": "VERIDIANX"
    },
    {
-    "id": "T4-12",
-    "a": "umbra-edge",
-    "b": "the umbra-edge platform"
-   },
-   {
-    "id": "T4-5",
-    "a": "zephyr-pay",
-    "b": "ZEPHYR-PAY"
-   },
-   {
-    "id": "T4-10",
-    "a": "sable-pay",
-    "b": "SABLE-PAY"
-   },
-   {
-    "id": "T4-2",
-    "a": "peregrine",
-    "b": "peregrine-pay"
-   },
-   {
-    "id": "T4-33",
-    "a": "peregrine",
-    "b": "peregrine-pay"
-   },
-   {
-    "id": "T4-23",
-    "a": "vireo-edge",
-    "b": "the vireo-edge platform"
-   },
-   {
     "id": "T4-9",
     "a": "zephyr",
     "b": "zephyr-pay"
    },
    {
-    "id": "T4-32",
-    "a": "orion-core",
-    "b": "the orion-core platform"
+    "id": "T4-16",
+    "a": "vantage-edge",
+    "b": "the vantage-edge platform"
    },
    {
-    "id": "T4-21",
-    "a": "zephyr",
-    "b": "zephyr-pay"
+    "id": "T4-33",
+    "a": "meridian",
+    "b": "meridian-pay"
    },
    {
-    "id": "T4-17",
-    "a": "basalt",
-    "b": "basalt-pay"
+    "id": "T4-23",
+    "a": "umbra",
+    "b": "the umbra platform"
    },
    {
-    "id": "T4-11",
-    "a": "cinder",
-    "b": "cinder-pay"
+    "id": "T4-1",
+    "a": "orionx",
+    "b": "ORIONX"
    },
    {
-    "id": "T4-29",
-    "a": "veridian-core",
-    "b": "the veridian-core platform"
+    "id": "T4-25",
+    "a": "vantage",
+    "b": "vantage-pay"
    },
    {
-    "id": "T4-27",
-    "a": "halcyon-ii",
-    "b": "the halcyon-ii platform"
+    "id": "T4-22",
+    "a": "sable",
+    "b": "sable-core"
+   },
+   {
+    "id": "T4-12",
+    "a": "umbra-edge",
+    "b": "the umbra-edge platform"
+   },
+   {
+    "id": "T4-35",
+    "a": "umbrax",
+    "b": "the umbrax platform"
    },
    {
     "id": "T4-13",
@@ -1394,29 +1284,470 @@
     "b": "WISTERIA-PAY"
    },
    {
+    "id": "T4-4",
+    "a": "quarry",
+    "b": "quarry-pay"
+   },
+   {
+    "id": "T4-29",
+    "a": "pellucid-edge",
+    "b": "the pellucid-edge platform"
+   },
+   {
+    "id": "T4-15",
+    "a": "solace-pay",
+    "b": "the solace-pay platform"
+   },
+   {
+    "id": "T4-2",
+    "a": "peregrine",
+    "b": "peregrine-pay"
+   },
+   {
+    "id": "T4-32",
+    "a": "wisteriax",
+    "b": "the wisteriax platform"
+   },
+   {
+    "id": "T4-21",
+    "a": "quarryx",
+    "b": "quarry-core"
+   },
+   {
+    "id": "T4-8",
+    "a": "marlin-core",
+    "b": "MARLIN-CORE"
+   },
+   {
+    "id": "T4-14",
+    "a": "nimbus",
+    "b": "nimbus-pay"
+   },
+   {
+    "id": "T4-5",
+    "a": "zephyr-pay",
+    "b": "ZEPHYR-PAY"
+   },
+   {
+    "id": "T4-20",
+    "a": "orion",
+    "b": "orion-pay"
+   },
+   {
+    "id": "T4-24",
+    "a": "wisteria-core",
+    "b": "WISTERIA-CORE"
+   },
+   {
+    "id": "T4-34",
+    "a": "pellucid",
+    "b": "pellucid-pay"
+   },
+   {
+    "id": "T4-11",
+    "a": "cinder",
+    "b": "cinder-pay"
+   },
+   {
+    "id": "T4-31",
+    "a": "vantagex",
+    "b": "VANTAGEX"
+   },
+   {
+    "id": "T4-18",
+    "a": "quarry",
+    "b": "QUARRY"
+   },
+   {
+    "id": "T4-7",
+    "a": "orion-ii",
+    "b": "ORION-II"
+   },
+   {
+    "id": "T4-27",
+    "a": "veridian-pay",
+    "b": "the veridian-pay platform"
+   },
+   {
+    "id": "T4-30",
+    "a": "orion-core",
+    "b": "the orion-core platform"
+   },
+   {
+    "id": "T4-28",
+    "a": "marlin",
+    "b": "marlin-pay"
+   },
+   {
     "id": "T4-19",
     "a": "wexfordx",
     "b": "WEXFORDX"
    },
    {
-    "id": "T4-1",
-    "a": "orionx",
-    "b": "ORIONX"
+    "id": "T4-0",
+    "a": "solace",
+    "b": "SOLACE"
+   },
+   {
+    "id": "T4-10",
+    "a": "sable-pay",
+    "b": "SABLE-PAY"
+   },
+   {
+    "id": "T4-3",
+    "a": "tundra",
+    "b": "TUNDRA"
+   },
+   {
+    "id": "T4-17",
+    "a": "basalt",
+    "b": "basalt-pay"
    }
   ],
   "T5": [
    {
+    "id": "T5-6",
+    "reports": [
+     "[team-1-relay-0] day 22: nuisance trip affecting umbra-pay; forwarded from owner 1",
+     "[team-2-relay-0] day 23: false positive alert affecting umbra-pay; forwarded from owner 2",
+     "[team-0] day 20: spurious alarm affecting umbra-pay; logged by owner 0",
+     "[team-3] day 23: spurious alarm affecting umbra-pay; logged by owner 3",
+     "[team-2-relay-1] day 23: false positive alert affecting umbra-pay; forwarded from owner 2",
+     "[team-1] day 21: nuisance trip affecting umbra-pay; logged by owner 1",
+     "[team-2] day 22: false positive alert affecting umbra-pay; logged by owner 2"
+    ],
+    "entity": "umbra-pay"
+   },
+   {
+    "id": "T5-5",
+    "reports": [
+     "[team-2] day 22: etl ran long affecting osprey-edge; logged by owner 2",
+     "[team-0-relay-0] day 21: nightly job overran affecting osprey-edge; forwarded from owner 0",
+     "[team-0-relay-1] day 21: nightly job overran affecting osprey-edge; forwarded from owner 0",
+     "[team-2-relay-1] day 23: etl ran long affecting osprey-edge; forwarded from owner 2",
+     "[team-0] day 20: nightly job overran affecting osprey-edge; logged by owner 0",
+     "[team-1] day 21: batch window exceeded affecting osprey-edge; logged by owner 1",
+     "[team-2-relay-0] day 23: etl ran long affecting osprey-edge; forwarded from owner 2"
+    ],
+    "entity": "osprey-edge"
+   },
+   {
+    "id": "T5-11",
+    "reports": [
+     "[team-0-relay-0] day 21: sensor readings drifting affecting cinder-edge; forwarded from owner 0",
+     "[team-0-relay-1] day 21: sensor readings drifting affecting cinder-edge; forwarded from owner 0",
+     "[team-0] day 20: sensor readings drifting affecting cinder-edge; logged by owner 0"
+    ],
+    "entity": "cinder-edge"
+   },
+   {
+    "id": "T5-10",
+    "reports": [
+     "[team-0] day 20: penalty clause triggered affecting halcyon; logged by owner 0"
+    ],
+    "entity": "halcyon"
+   },
+   {
+    "id": "T5-4",
+    "reports": [
+     "[team-0-relay-1] day 21: customer escalated affecting pellucid-pay; forwarded from owner 0",
+     "[team-2] day 22: account raised severity affecting pellucid-pay; logged by owner 2",
+     "[team-0] day 20: customer escalated affecting pellucid-pay; logged by owner 0",
+     "[team-1-relay-0] day 22: exec escalation opened affecting pellucid-pay; forwarded from owner 1",
+     "[team-1] day 21: exec escalation opened affecting pellucid-pay; logged by owner 1",
+     "[team-0-relay-0] day 21: customer escalated affecting pellucid-pay; forwarded from owner 0"
+    ],
+    "entity": "pellucid-pay"
+   },
+   {
+    "id": "T5-18",
+    "reports": [
+     "[team-0-relay-2] day 21: deeper discounting affecting kestrel-core; forwarded from owner 0",
+     "[team-0-relay-0] day 21: deeper discounting affecting kestrel-core; forwarded from owner 0",
+     "[team-0] day 20: deeper discounting affecting kestrel-core; logged by owner 0",
+     "[team-2] day 22: price concessions affecting kestrel-core; logged by owner 2",
+     "[team-2-relay-0] day 23: price concessions affecting kestrel-core; forwarded from owner 2",
+     "[team-2-relay-1] day 23: price concessions affecting kestrel-core; forwarded from owner 2",
+     "[team-1] day 21: discount approvals rising affecting kestrel-core; logged by owner 1",
+     "[team-0-relay-1] day 21: deeper discounting affecting kestrel-core; forwarded from owner 0"
+    ],
+    "entity": "kestrel-core"
+   },
+   {
     "id": "T5-2",
     "reports": [
-     "[team-1] day 21: plan revised down affecting wisteria-edge; logged by owner 1",
-     "[team-0-relay-0] day 21: forecast cut affecting wisteria-edge; forwarded from owner 0",
-     "[team-0] day 20: forecast cut affecting wisteria-edge; logged by owner 0",
-     "[team-1-relay-0] day 22: plan revised down affecting wisteria-edge; forwarded from owner 1"
+     "[team-1-relay-0] day 22: routing updated affecting vantage-pay; forwarded from owner 1",
+     "[team-1-relay-1] day 22: routing updated affecting vantage-pay; forwarded from owner 1",
+     "[team-0] day 20: network config change affecting vantage-pay; logged by owner 0",
+     "[team-1] day 21: routing updated affecting vantage-pay; logged by owner 1",
+     "[team-0-relay-0] day 21: network config change affecting vantage-pay; forwarded from owner 0"
+    ],
+    "entity": "vantage-pay"
+   },
+   {
+    "id": "T5-13",
+    "reports": [
+     "[team-0-relay-1] day 21: customer escalated affecting vireo; forwarded from owner 0",
+     "[team-1] day 21: exec escalation opened affecting vireo; logged by owner 1",
+     "[team-0-relay-0] day 21: customer escalated affecting vireo; forwarded from owner 0",
+     "[team-0] day 20: customer escalated affecting vireo; logged by owner 0"
+    ],
+    "entity": "vireo"
+   },
+   {
+    "id": "T5-16",
+    "reports": [
+     "[team-1-relay-2] day 22: alt vendor substitution affecting zephyrx; forwarded from owner 1",
+     "[team-1-relay-0] day 22: alt vendor substitution affecting zephyrx; forwarded from owner 1",
+     "[team-2] day 22: supplier switched affecting zephyrx; logged by owner 2",
+     "[team-1-relay-1] day 22: alt vendor substitution affecting zephyrx; forwarded from owner 1",
+     "[team-2-relay-0] day 23: supplier switched affecting zephyrx; forwarded from owner 2",
+     "[team-2-relay-1] day 23: supplier switched affecting zephyrx; forwarded from owner 2",
+     "[team-1] day 21: alt vendor substitution affecting zephyrx; logged by owner 1",
+     "[team-0-relay-1] day 21: second source part swap affecting zephyrx; forwarded from owner 0",
+     "[team-0-relay-0] day 21: second source part swap affecting zephyrx; forwarded from owner 0",
+     "[team-0] day 20: second source part swap affecting zephyrx; logged by owner 0"
+    ],
+    "entity": "zephyrx"
+   },
+   {
+    "id": "T5-29",
+    "reports": [
+     "[team-2] day 22: device image updated affecting zephyr-pay; logged by owner 2",
+     "[team-2-relay-1] day 23: device image updated affecting zephyr-pay; forwarded from owner 2",
+     "[team-1] day 21: controller flashed affecting zephyr-pay; logged by owner 1",
+     "[team-1-relay-0] day 22: controller flashed affecting zephyr-pay; forwarded from owner 1",
+     "[team-2-relay-0] day 23: device image updated affecting zephyr-pay; forwarded from owner 2",
+     "[team-0] day 20: firmware pushed affecting zephyr-pay; logged by owner 0",
+     "[team-2-relay-2] day 23: device image updated affecting zephyr-pay; forwarded from owner 2"
+    ],
+    "entity": "zephyr-pay"
+   },
+   {
+    "id": "T5-14",
+    "reports": [
+     "[team-1] day 21: first pass yield down affecting lumen-core; logged by owner 1",
+     "[team-0] day 20: line yield fell affecting lumen-core; logged by owner 0",
+     "[team-2] day 22: scrap rate climbing affecting lumen-core; logged by owner 2",
+     "[team-0-relay-0] day 21: line yield fell affecting lumen-core; forwarded from owner 0"
+    ],
+    "entity": "lumen-core"
+   },
+   {
+    "id": "T5-3",
+    "reports": [
+     "[team-0] day 20: line yield fell affecting wisteria-core; logged by owner 0",
+     "[team-0-relay-0] day 21: line yield fell affecting wisteria-core; forwarded from owner 0"
+    ],
+    "entity": "wisteria-core"
+   },
+   {
+    "id": "T5-20",
+    "reports": [
+     "[team-1-relay-2] day 22: list price up affecting arbor-edge; forwarded from owner 1",
+     "[team-0-relay-0] day 21: price raised affecting arbor-edge; forwarded from owner 0",
+     "[team-1] day 21: list price up affecting arbor-edge; logged by owner 1",
+     "[team-1-relay-0] day 22: list price up affecting arbor-edge; forwarded from owner 1",
+     "[team-1-relay-1] day 22: list price up affecting arbor-edge; forwarded from owner 1",
+     "[team-0] day 20: price raised affecting arbor-edge; logged by owner 0"
+    ],
+    "entity": "arbor-edge"
+   },
+   {
+    "id": "T5-0",
+    "reports": [
+     "[team-2] day 22: device image updated affecting umbrax; logged by owner 2",
+     "[team-0-relay-1] day 21: firmware pushed affecting umbrax; forwarded from owner 0",
+     "[team-2-relay-0] day 23: device image updated affecting umbrax; forwarded from owner 2",
+     "[team-0-relay-0] day 21: firmware pushed affecting umbrax; forwarded from owner 0",
+     "[team-0] day 20: firmware pushed affecting umbrax; logged by owner 0",
+     "[team-1] day 21: controller flashed affecting umbrax; logged by owner 1"
+    ],
+    "entity": "umbrax"
+   },
+   {
+    "id": "T5-15",
+    "reports": [
+     "[team-2-relay-1] day 23: missed quarter target affecting veridian-pay; forwarded from owner 2",
+     "[team-1] day 21: revenue shortfall affecting veridian-pay; logged by owner 1",
+     "[team-2-relay-0] day 23: missed quarter target affecting veridian-pay; forwarded from owner 2",
+     "[team-2] day 22: missed quarter target affecting veridian-pay; logged by owner 2",
+     "[team-0] day 20: booked below plan affecting veridian-pay; logged by owner 0"
+    ],
+    "entity": "veridian-pay"
+   },
+   {
+    "id": "T5-25",
+    "reports": [
+     "[team-0] day 20: policy updated affecting marlin-pay; logged by owner 0"
+    ],
+    "entity": "marlin-pay"
+   },
+   {
+    "id": "T5-1",
+    "reports": [
+     "[team-1] day 21: exec escalation opened affecting wisteria-edge; logged by owner 1",
+     "[team-0] day 20: customer escalated affecting wisteria-edge; logged by owner 0",
+     "[team-0-relay-0] day 21: customer escalated affecting wisteria-edge; forwarded from owner 0",
+     "[team-2] day 22: account raised severity affecting wisteria-edge; logged by owner 2",
+     "[team-2-relay-0] day 23: account raised severity affecting wisteria-edge; forwarded from owner 2",
+     "[team-3-relay-0] day 24: customer escalated affecting wisteria-edge; forwarded from owner 3",
+     "[team-1-relay-1] day 22: exec escalation opened affecting wisteria-edge; forwarded from owner 1",
+     "[team-3] day 23: customer escalated affecting wisteria-edge; logged by owner 3",
+     "[team-2-relay-2] day 23: account raised severity affecting wisteria-edge; forwarded from owner 2",
+     "[team-2-relay-1] day 23: account raised severity affecting wisteria-edge; forwarded from owner 2",
+     "[team-1-relay-0] day 22: exec escalation opened affecting wisteria-edge; forwarded from owner 1"
     ],
     "entity": "wisteria-edge"
    },
    {
+    "id": "T5-12",
+    "reports": [
+     "[team-0] day 20: sla missed affecting meridian; logged by owner 0",
+     "[team-1] day 21: response time out of target affecting meridian; logged by owner 1",
+     "[team-0-relay-0] day 21: sla missed affecting meridian; forwarded from owner 0",
+     "[team-1-relay-0] day 22: response time out of target affecting meridian; forwarded from owner 1",
+     "[team-2-relay-0] day 23: breached service level affecting meridian; forwarded from owner 2",
+     "[team-2] day 22: breached service level affecting meridian; logged by owner 2",
+     "[team-1-relay-1] day 22: response time out of target affecting meridian; forwarded from owner 1",
+     "[team-0-relay-1] day 21: sla missed affecting meridian; forwarded from owner 0",
+     "[team-2-relay-1] day 23: breached service level affecting meridian; forwarded from owner 2",
+     "[team-3] day 23: sla missed affecting meridian; logged by owner 3"
+    ],
+    "entity": "meridian"
+   },
+   {
+    "id": "T5-19",
+    "reports": [
+     "[team-2] day 22: shadow process adopted affecting zephyrx; logged by owner 2",
+     "[team-2-relay-0] day 23: shadow process adopted affecting zephyrx; forwarded from owner 2",
+     "[team-2-relay-1] day 23: shadow process adopted affecting zephyrx; forwarded from owner 2",
+     "[team-0] day 20: team used a workaround affecting zephyrx; logged by owner 0",
+     "[team-1-relay-0] day 22: manual bypass in use affecting zephyrx; forwarded from owner 1",
+     "[team-1] day 21: manual bypass in use affecting zephyrx; logged by owner 1"
+    ],
+    "entity": "zephyrx"
+   },
+   {
+    "id": "T5-17",
+    "reports": [
+     "[team-1-relay-1] day 22: control tightened affecting orion; forwarded from owner 1",
+     "[team-0] day 20: policy updated affecting orion; logged by owner 0",
+     "[team-1] day 21: control tightened affecting orion; logged by owner 1",
+     "[team-1-relay-0] day 22: control tightened affecting orion; forwarded from owner 1",
+     "[team-0-relay-0] day 21: policy updated affecting orion; forwarded from owner 0",
+     "[team-3] day 23: policy updated affecting orion; logged by owner 3",
+     "[team-3-relay-0] day 24: policy updated affecting orion; forwarded from owner 3",
+     "[team-2] day 22: new approval rule affecting orion; logged by owner 2"
+    ],
+    "entity": "orion"
+   },
+   {
+    "id": "T5-21",
+    "reports": [
+     "[team-2] day 22: new approval rule affecting meridian-edge; logged by owner 2",
+     "[team-1] day 21: control tightened affecting meridian-edge; logged by owner 1",
+     "[team-0-relay-2] day 21: policy updated affecting meridian-edge; forwarded from owner 0",
+     "[team-0] day 20: policy updated affecting meridian-edge; logged by owner 0",
+     "[team-2-relay-0] day 23: new approval rule affecting meridian-edge; forwarded from owner 2",
+     "[team-1-relay-0] day 22: control tightened affecting meridian-edge; forwarded from owner 1",
+     "[team-2-relay-1] day 23: new approval rule affecting meridian-edge; forwarded from owner 2",
+     "[team-0-relay-1] day 21: policy updated affecting meridian-edge; forwarded from owner 0",
+     "[team-2-relay-2] day 23: new approval rule affecting meridian-edge; forwarded from owner 2",
+     "[team-0-relay-0] day 21: policy updated affecting meridian-edge; forwarded from owner 0"
+    ],
+    "entity": "meridian-edge"
+   },
+   {
+    "id": "T5-22",
+    "reports": [
+     "[team-1] day 21: plan revised down affecting nimbus-core; logged by owner 1",
+     "[team-0-relay-0] day 21: forecast cut affecting nimbus-core; forwarded from owner 0",
+     "[team-0] day 20: forecast cut affecting nimbus-core; logged by owner 0",
+     "[team-1-relay-1] day 22: plan revised down affecting nimbus-core; forwarded from owner 1",
+     "[team-1-relay-0] day 22: plan revised down affecting nimbus-core; forwarded from owner 1"
+    ],
+    "entity": "nimbus-core"
+   },
+   {
+    "id": "T5-23",
+    "reports": [
+     "[team-1] day 21: control tightened affecting basalt-core; logged by owner 1",
+     "[team-0-relay-2] day 21: policy updated affecting basalt-core; forwarded from owner 0",
+     "[team-0-relay-0] day 21: policy updated affecting basalt-core; forwarded from owner 0",
+     "[team-0] day 20: policy updated affecting basalt-core; logged by owner 0",
+     "[team-0-relay-1] day 21: policy updated affecting basalt-core; forwarded from owner 0"
+    ],
+    "entity": "basalt-core"
+   },
+   {
+    "id": "T5-8",
+    "reports": [
+     "[team-0-relay-2] day 21: customer escalated affecting peregrine-edge; forwarded from owner 0",
+     "[team-0-relay-1] day 21: customer escalated affecting peregrine-edge; forwarded from owner 0",
+     "[team-3] day 23: customer escalated affecting peregrine-edge; logged by owner 3",
+     "[team-0] day 20: customer escalated affecting peregrine-edge; logged by owner 0",
+     "[team-3-relay-0] day 24: customer escalated affecting peregrine-edge; forwarded from owner 3",
+     "[team-1] day 21: exec escalation opened affecting peregrine-edge; logged by owner 1",
+     "[team-0-relay-0] day 21: customer escalated affecting peregrine-edge; forwarded from owner 0",
+     "[team-1-relay-0] day 22: exec escalation opened affecting peregrine-edge; forwarded from owner 1",
+     "[team-2] day 22: account raised severity affecting peregrine-edge; logged by owner 2"
+    ],
+    "entity": "peregrine-edge"
+   },
+   {
     "id": "T5-26",
+    "reports": [
+     "[team-1] day 21: discount approvals rising affecting thistle-core; logged by owner 1",
+     "[team-0] day 20: deeper discounting affecting thistle-core; logged by owner 0",
+     "[team-1-relay-0] day 22: discount approvals rising affecting thistle-core; forwarded from owner 1",
+     "[team-0-relay-1] day 21: deeper discounting affecting thistle-core; forwarded from owner 0",
+     "[team-1-relay-1] day 22: discount approvals rising affecting thistle-core; forwarded from owner 1",
+     "[team-0-relay-0] day 21: deeper discounting affecting thistle-core; forwarded from owner 0",
+     "[team-1-relay-2] day 22: discount approvals rising affecting thistle-core; forwarded from owner 1"
+    ],
+    "entity": "thistle-core"
+   },
+   {
+    "id": "T5-28",
+    "reports": [
+     "[team-1-relay-0] day 22: response times regressed affecting tessera; forwarded from owner 1",
+     "[team-0-relay-2] day 21: p99 latency up affecting tessera; forwarded from owner 0",
+     "[team-1-relay-1] day 22: response times regressed affecting tessera; forwarded from owner 1",
+     "[team-0] day 20: p99 latency up affecting tessera; logged by owner 0",
+     "[team-0-relay-0] day 21: p99 latency up affecting tessera; forwarded from owner 0",
+     "[team-1] day 21: response times regressed affecting tessera; logged by owner 1",
+     "[team-0-relay-1] day 21: p99 latency up affecting tessera; forwarded from owner 0"
+    ],
+    "entity": "tessera"
+   },
+   {
+    "id": "T5-9",
+    "reports": [
+     "[team-0-relay-0] day 21: report late affecting thistle-edge; forwarded from owner 0",
+     "[team-0] day 20: report late affecting thistle-edge; logged by owner 0"
+    ],
+    "entity": "thistle-edge"
+   },
+   {
+    "id": "T5-7",
+    "reports": [
+     "[team-2-relay-0] day 23: part failure rate up affecting veridian-pay; forwarded from owner 2",
+     "[team-2-relay-1] day 23: part failure rate up affecting veridian-pay; forwarded from owner 2",
+     "[team-3-relay-0] day 24: defective lot found affecting veridian-pay; forwarded from owner 3",
+     "[team-1-relay-0] day 22: component out of spec affecting veridian-pay; forwarded from owner 1",
+     "[team-1] day 21: component out of spec affecting veridian-pay; logged by owner 1",
+     "[team-2] day 22: part failure rate up affecting veridian-pay; logged by owner 2",
+     "[team-1-relay-1] day 22: component out of spec affecting veridian-pay; forwarded from owner 1",
+     "[team-0] day 20: defective lot found affecting veridian-pay; logged by owner 0",
+     "[team-2-relay-2] day 23: part failure rate up affecting veridian-pay; forwarded from owner 2",
+     "[team-3] day 23: defective lot found affecting veridian-pay; logged by owner 3",
+     "[team-0-relay-0] day 21: defective lot found affecting veridian-pay; forwarded from owner 0"
+    ],
+    "entity": "veridian-pay"
+   },
+   {
+    "id": "T5-24",
     "reports": [
      "[team-0] day 20: price raised affecting wisteria; logged by owner 0",
      "[team-1] day 21: list price up affecting wisteria; logged by owner 1",
@@ -1435,194 +1766,7 @@
     "entity": "wisteria"
    },
    {
-    "id": "T5-22",
-    "reports": [
-     "[team-1-relay-2] day 22: list price up affecting arbor-edge; forwarded from owner 1",
-     "[team-0-relay-0] day 21: price raised affecting arbor-edge; forwarded from owner 0",
-     "[team-1] day 21: list price up affecting arbor-edge; logged by owner 1",
-     "[team-1-relay-0] day 22: list price up affecting arbor-edge; forwarded from owner 1",
-     "[team-1-relay-1] day 22: list price up affecting arbor-edge; forwarded from owner 1",
-     "[team-0] day 20: price raised affecting arbor-edge; logged by owner 0"
-    ],
-    "entity": "arbor-edge"
-   },
-   {
-    "id": "T5-9",
-    "reports": [
-     "[team-2-relay-0] day 23: part failure rate up affecting veridian-pay; forwarded from owner 2",
-     "[team-2-relay-1] day 23: part failure rate up affecting veridian-pay; forwarded from owner 2",
-     "[team-3-relay-0] day 24: defective lot found affecting veridian-pay; forwarded from owner 3",
-     "[team-1-relay-0] day 22: component out of spec affecting veridian-pay; forwarded from owner 1",
-     "[team-1] day 21: component out of spec affecting veridian-pay; logged by owner 1",
-     "[team-2] day 22: part failure rate up affecting veridian-pay; logged by owner 2",
-     "[team-1-relay-1] day 22: component out of spec affecting veridian-pay; forwarded from owner 1",
-     "[team-0] day 20: defective lot found affecting veridian-pay; logged by owner 0",
-     "[team-2-relay-2] day 23: part failure rate up affecting veridian-pay; forwarded from owner 2",
-     "[team-3] day 23: defective lot found affecting veridian-pay; logged by owner 3",
-     "[team-0-relay-0] day 21: defective lot found affecting veridian-pay; forwarded from owner 0"
-    ],
-    "entity": "veridian-pay"
-   },
-   {
-    "id": "T5-10",
-    "reports": [
-     "[team-0-relay-2] day 21: customer escalated affecting peregrine-edge; forwarded from owner 0",
-     "[team-0-relay-1] day 21: customer escalated affecting peregrine-edge; forwarded from owner 0",
-     "[team-3] day 23: customer escalated affecting peregrine-edge; logged by owner 3",
-     "[team-0] day 20: customer escalated affecting peregrine-edge; logged by owner 0",
-     "[team-3-relay-0] day 24: customer escalated affecting peregrine-edge; forwarded from owner 3",
-     "[team-1] day 21: exec escalation opened affecting peregrine-edge; logged by owner 1",
-     "[team-0-relay-0] day 21: customer escalated affecting peregrine-edge; forwarded from owner 0",
-     "[team-1-relay-0] day 22: exec escalation opened affecting peregrine-edge; forwarded from owner 1",
-     "[team-2] day 22: account raised severity affecting peregrine-edge; logged by owner 2"
-    ],
-    "entity": "peregrine-edge"
-   },
-   {
-    "id": "T5-6",
-    "reports": [
-     "[team-0-relay-1] day 21: customer escalated affecting pellucid-pay; forwarded from owner 0",
-     "[team-2] day 22: account raised severity affecting pellucid-pay; logged by owner 2",
-     "[team-0] day 20: customer escalated affecting pellucid-pay; logged by owner 0",
-     "[team-1-relay-0] day 22: exec escalation opened affecting pellucid-pay; forwarded from owner 1",
-     "[team-1] day 21: exec escalation opened affecting pellucid-pay; logged by owner 1",
-     "[team-0-relay-0] day 21: customer escalated affecting pellucid-pay; forwarded from owner 0"
-    ],
-    "entity": "pellucid-pay"
-   },
-   {
-    "id": "T5-25",
-    "reports": [
-     "[team-1] day 21: control tightened affecting basalt-core; logged by owner 1",
-     "[team-0-relay-2] day 21: policy updated affecting basalt-core; forwarded from owner 0",
-     "[team-0-relay-0] day 21: policy updated affecting basalt-core; forwarded from owner 0",
-     "[team-0] day 20: policy updated affecting basalt-core; logged by owner 0",
-     "[team-0-relay-1] day 21: policy updated affecting basalt-core; forwarded from owner 0"
-    ],
-    "entity": "basalt-core"
-   },
-   {
     "id": "T5-27",
-    "reports": [
-     "[team-0] day 20: policy updated affecting marlin-pay; logged by owner 0"
-    ],
-    "entity": "marlin-pay"
-   },
-   {
-    "id": "T5-17",
-    "reports": [
-     "[team-2-relay-1] day 23: missed quarter target affecting veridian-pay; forwarded from owner 2",
-     "[team-1] day 21: revenue shortfall affecting veridian-pay; logged by owner 1",
-     "[team-2-relay-0] day 23: missed quarter target affecting veridian-pay; forwarded from owner 2",
-     "[team-2] day 22: missed quarter target affecting veridian-pay; logged by owner 2",
-     "[team-0] day 20: booked below plan affecting veridian-pay; logged by owner 0"
-    ],
-    "entity": "veridian-pay"
-   },
-   {
-    "id": "T5-1",
-    "reports": [
-     "[team-2-relay-0] day 23: contractual fine affecting cobalt-edge; forwarded from owner 2",
-     "[team-3-relay-1] day 24: penalty clause triggered affecting cobalt-edge; forwarded from owner 3",
-     "[team-1-relay-0] day 22: service credits owed affecting cobalt-edge; forwarded from owner 1",
-     "[team-2] day 22: contractual fine affecting cobalt-edge; logged by owner 2",
-     "[team-3] day 23: penalty clause triggered affecting cobalt-edge; logged by owner 3",
-     "[team-3-relay-0] day 24: penalty clause triggered affecting cobalt-edge; forwarded from owner 3",
-     "[team-1] day 21: service credits owed affecting cobalt-edge; logged by owner 1",
-     "[team-0] day 20: penalty clause triggered affecting cobalt-edge; logged by owner 0"
-    ],
-    "entity": "cobalt-edge"
-   },
-   {
-    "id": "T5-13",
-    "reports": [
-     "[team-0-relay-0] day 21: sensor readings drifting affecting cinder-edge; forwarded from owner 0",
-     "[team-0-relay-1] day 21: sensor readings drifting affecting cinder-edge; forwarded from owner 0",
-     "[team-0] day 20: sensor readings drifting affecting cinder-edge; logged by owner 0"
-    ],
-    "entity": "cinder-edge"
-   },
-   {
-    "id": "T5-4",
-    "reports": [
-     "[team-1-relay-0] day 22: routing updated affecting vantage-pay; forwarded from owner 1",
-     "[team-1-relay-1] day 22: routing updated affecting vantage-pay; forwarded from owner 1",
-     "[team-0] day 20: network config change affecting vantage-pay; logged by owner 0",
-     "[team-1] day 21: routing updated affecting vantage-pay; logged by owner 1",
-     "[team-0-relay-0] day 21: network config change affecting vantage-pay; forwarded from owner 0"
-    ],
-    "entity": "vantage-pay"
-   },
-   {
-    "id": "T5-21",
-    "reports": [
-     "[team-2] day 22: shadow process adopted affecting zephyrx; logged by owner 2",
-     "[team-2-relay-0] day 23: shadow process adopted affecting zephyrx; forwarded from owner 2",
-     "[team-2-relay-1] day 23: shadow process adopted affecting zephyrx; forwarded from owner 2",
-     "[team-0] day 20: team used a workaround affecting zephyrx; logged by owner 0",
-     "[team-1-relay-0] day 22: manual bypass in use affecting zephyrx; forwarded from owner 1",
-     "[team-1] day 21: manual bypass in use affecting zephyrx; logged by owner 1"
-    ],
-    "entity": "zephyrx"
-   },
-   {
-    "id": "T5-7",
-    "reports": [
-     "[team-2] day 22: etl ran long affecting osprey-edge; logged by owner 2",
-     "[team-0-relay-0] day 21: nightly job overran affecting osprey-edge; forwarded from owner 0",
-     "[team-0-relay-1] day 21: nightly job overran affecting osprey-edge; forwarded from owner 0",
-     "[team-2-relay-1] day 23: etl ran long affecting osprey-edge; forwarded from owner 2",
-     "[team-0] day 20: nightly job overran affecting osprey-edge; logged by owner 0",
-     "[team-1] day 21: batch window exceeded affecting osprey-edge; logged by owner 1",
-     "[team-2-relay-0] day 23: etl ran long affecting osprey-edge; forwarded from owner 2"
-    ],
-    "entity": "osprey-edge"
-   },
-   {
-    "id": "T5-16",
-    "reports": [
-     "[team-1] day 21: first pass yield down affecting lumen-core; logged by owner 1",
-     "[team-0] day 20: line yield fell affecting lumen-core; logged by owner 0",
-     "[team-2] day 22: scrap rate climbing affecting lumen-core; logged by owner 2",
-     "[team-0-relay-0] day 21: line yield fell affecting lumen-core; forwarded from owner 0"
-    ],
-    "entity": "lumen-core"
-   },
-   {
-    "id": "T5-12",
-    "reports": [
-     "[team-0] day 20: penalty clause triggered affecting halcyon; logged by owner 0"
-    ],
-    "entity": "halcyon"
-   },
-   {
-    "id": "T5-23",
-    "reports": [
-     "[team-2] day 22: new approval rule affecting meridian-edge; logged by owner 2",
-     "[team-1] day 21: control tightened affecting meridian-edge; logged by owner 1",
-     "[team-0-relay-2] day 21: policy updated affecting meridian-edge; forwarded from owner 0",
-     "[team-0] day 20: policy updated affecting meridian-edge; logged by owner 0",
-     "[team-2-relay-0] day 23: new approval rule affecting meridian-edge; forwarded from owner 2",
-     "[team-1-relay-0] day 22: control tightened affecting meridian-edge; forwarded from owner 1",
-     "[team-2-relay-1] day 23: new approval rule affecting meridian-edge; forwarded from owner 2",
-     "[team-0-relay-1] day 21: policy updated affecting meridian-edge; forwarded from owner 0",
-     "[team-2-relay-2] day 23: new approval rule affecting meridian-edge; forwarded from owner 2",
-     "[team-0-relay-0] day 21: policy updated affecting meridian-edge; forwarded from owner 0"
-    ],
-    "entity": "meridian-edge"
-   },
-   {
-    "id": "T5-15",
-    "reports": [
-     "[team-0-relay-1] day 21: customer escalated affecting vireo; forwarded from owner 0",
-     "[team-1] day 21: exec escalation opened affecting vireo; logged by owner 1",
-     "[team-0-relay-0] day 21: customer escalated affecting vireo; forwarded from owner 0",
-     "[team-0] day 20: customer escalated affecting vireo; logged by owner 0"
-    ],
-    "entity": "vireo"
-   },
-   {
-    "id": "T5-29",
     "reports": [
      "[team-0] day 20: forecast cut affecting arbor-core; logged by owner 0",
      "[team-2] day 22: guidance changed affecting arbor-core; logged by owner 2",
@@ -1636,139 +1780,6 @@
      "[team-0-relay-0] day 21: forecast cut affecting arbor-core; forwarded from owner 0"
     ],
     "entity": "arbor-core"
-   },
-   {
-    "id": "T5-18",
-    "reports": [
-     "[team-1-relay-2] day 22: alt vendor substitution affecting zephyrx; forwarded from owner 1",
-     "[team-1-relay-0] day 22: alt vendor substitution affecting zephyrx; forwarded from owner 1",
-     "[team-2] day 22: supplier switched affecting zephyrx; logged by owner 2",
-     "[team-1-relay-1] day 22: alt vendor substitution affecting zephyrx; forwarded from owner 1",
-     "[team-2-relay-0] day 23: supplier switched affecting zephyrx; forwarded from owner 2",
-     "[team-2-relay-1] day 23: supplier switched affecting zephyrx; forwarded from owner 2",
-     "[team-1] day 21: alt vendor substitution affecting zephyrx; logged by owner 1",
-     "[team-0-relay-1] day 21: second source part swap affecting zephyrx; forwarded from owner 0",
-     "[team-0-relay-0] day 21: second source part swap affecting zephyrx; forwarded from owner 0",
-     "[team-0] day 20: second source part swap affecting zephyrx; logged by owner 0"
-    ],
-    "entity": "zephyrx"
-   },
-   {
-    "id": "T5-0",
-    "reports": [
-     "[team-0] day 20: policy updated affecting lumen-pay; logged by owner 0",
-     "[team-0-relay-2] day 21: policy updated affecting lumen-pay; forwarded from owner 0",
-     "[team-0-relay-0] day 21: policy updated affecting lumen-pay; forwarded from owner 0",
-     "[team-0-relay-1] day 21: policy updated affecting lumen-pay; forwarded from owner 0"
-    ],
-    "entity": "lumen-pay"
-   },
-   {
-    "id": "T5-24",
-    "reports": [
-     "[team-1] day 21: plan revised down affecting nimbus-core; logged by owner 1",
-     "[team-0-relay-0] day 21: forecast cut affecting nimbus-core; forwarded from owner 0",
-     "[team-0] day 20: forecast cut affecting nimbus-core; logged by owner 0",
-     "[team-1-relay-1] day 22: plan revised down affecting nimbus-core; forwarded from owner 1",
-     "[team-1-relay-0] day 22: plan revised down affecting nimbus-core; forwarded from owner 1"
-    ],
-    "entity": "nimbus-core"
-   },
-   {
-    "id": "T5-8",
-    "reports": [
-     "[team-1-relay-0] day 22: nuisance trip affecting umbra-pay; forwarded from owner 1",
-     "[team-2-relay-0] day 23: false positive alert affecting umbra-pay; forwarded from owner 2",
-     "[team-0] day 20: spurious alarm affecting umbra-pay; logged by owner 0",
-     "[team-3] day 23: spurious alarm affecting umbra-pay; logged by owner 3",
-     "[team-2-relay-1] day 23: false positive alert affecting umbra-pay; forwarded from owner 2",
-     "[team-1] day 21: nuisance trip affecting umbra-pay; logged by owner 1",
-     "[team-2] day 22: false positive alert affecting umbra-pay; logged by owner 2"
-    ],
-    "entity": "umbra-pay"
-   },
-   {
-    "id": "T5-14",
-    "reports": [
-     "[team-0] day 20: sla missed affecting meridian; logged by owner 0",
-     "[team-1] day 21: response time out of target affecting meridian; logged by owner 1",
-     "[team-0-relay-0] day 21: sla missed affecting meridian; forwarded from owner 0",
-     "[team-1-relay-0] day 22: response time out of target affecting meridian; forwarded from owner 1",
-     "[team-2-relay-0] day 23: breached service level affecting meridian; forwarded from owner 2",
-     "[team-2] day 22: breached service level affecting meridian; logged by owner 2",
-     "[team-1-relay-1] day 22: response time out of target affecting meridian; forwarded from owner 1",
-     "[team-0-relay-1] day 21: sla missed affecting meridian; forwarded from owner 0",
-     "[team-2-relay-1] day 23: breached service level affecting meridian; forwarded from owner 2",
-     "[team-3] day 23: sla missed affecting meridian; logged by owner 3"
-    ],
-    "entity": "meridian"
-   },
-   {
-    "id": "T5-5",
-    "reports": [
-     "[team-0] day 20: line yield fell affecting wisteria-core; logged by owner 0",
-     "[team-0-relay-0] day 21: line yield fell affecting wisteria-core; forwarded from owner 0"
-    ],
-    "entity": "wisteria-core"
-   },
-   {
-    "id": "T5-20",
-    "reports": [
-     "[team-0-relay-2] day 21: deeper discounting affecting kestrel-core; forwarded from owner 0",
-     "[team-0-relay-0] day 21: deeper discounting affecting kestrel-core; forwarded from owner 0",
-     "[team-0] day 20: deeper discounting affecting kestrel-core; logged by owner 0",
-     "[team-2] day 22: price concessions affecting kestrel-core; logged by owner 2",
-     "[team-2-relay-0] day 23: price concessions affecting kestrel-core; forwarded from owner 2",
-     "[team-2-relay-1] day 23: price concessions affecting kestrel-core; forwarded from owner 2",
-     "[team-1] day 21: discount approvals rising affecting kestrel-core; logged by owner 1",
-     "[team-0-relay-1] day 21: deeper discounting affecting kestrel-core; forwarded from owner 0"
-    ],
-    "entity": "kestrel-core"
-   },
-   {
-    "id": "T5-28",
-    "reports": [
-     "[team-1] day 21: discount approvals rising affecting thistle-core; logged by owner 1",
-     "[team-0] day 20: deeper discounting affecting thistle-core; logged by owner 0",
-     "[team-1-relay-0] day 22: discount approvals rising affecting thistle-core; forwarded from owner 1",
-     "[team-0-relay-1] day 21: deeper discounting affecting thistle-core; forwarded from owner 0",
-     "[team-1-relay-1] day 22: discount approvals rising affecting thistle-core; forwarded from owner 1",
-     "[team-0-relay-0] day 21: deeper discounting affecting thistle-core; forwarded from owner 0",
-     "[team-1-relay-2] day 22: discount approvals rising affecting thistle-core; forwarded from owner 1"
-    ],
-    "entity": "thistle-core"
-   },
-   {
-    "id": "T5-3",
-    "reports": [
-     "[team-0-relay-1] day 21: policy updated affecting zephyr-pay; forwarded from owner 0",
-     "[team-0-relay-2] day 21: policy updated affecting zephyr-pay; forwarded from owner 0",
-     "[team-0-relay-0] day 21: policy updated affecting zephyr-pay; forwarded from owner 0",
-     "[team-0] day 20: policy updated affecting zephyr-pay; logged by owner 0"
-    ],
-    "entity": "zephyr-pay"
-   },
-   {
-    "id": "T5-11",
-    "reports": [
-     "[team-0-relay-0] day 21: report late affecting thistle-edge; forwarded from owner 0",
-     "[team-0] day 20: report late affecting thistle-edge; logged by owner 0"
-    ],
-    "entity": "thistle-edge"
-   },
-   {
-    "id": "T5-19",
-    "reports": [
-     "[team-1-relay-1] day 22: control tightened affecting orion; forwarded from owner 1",
-     "[team-0] day 20: policy updated affecting orion; logged by owner 0",
-     "[team-1] day 21: control tightened affecting orion; logged by owner 1",
-     "[team-1-relay-0] day 22: control tightened affecting orion; forwarded from owner 1",
-     "[team-0-relay-0] day 21: policy updated affecting orion; forwarded from owner 0",
-     "[team-3] day 23: policy updated affecting orion; logged by owner 3",
-     "[team-3-relay-0] day 24: policy updated affecting orion; forwarded from owner 3",
-     "[team-2] day 22: new approval rule affecting orion; logged by owner 2"
-    ],
-    "entity": "orion"
    }
   ]
  }

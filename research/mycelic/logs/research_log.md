@@ -180,3 +180,59 @@ All three runs were discarded. The harness now ships the key in a separate
 file the measured model is never pointed at, uses the full 50-predicate
 vocabulary, states T2 as pure chain membership (direction is T3's job), draws
 every label at random, and shuffles item order within each group.
+
+## Iteration 13 — the primitive operators are saturated (direct measurement)
+
+Three real models (Haiku 4.5, Sonnet 5, Opus 5) were run blind on 198 items
+built from the generator's own text: extraction, causal-chain membership,
+temporal order/retraction, entity linking, independent-source counting.
+
+**All three scored 1.000 on all five.**
+
+Two consequences, both important:
+
+1. The operator primitives this architecture is built on are not the
+   difficulty. Anything the study says about "stronger models higher up" cannot
+   be about these primitives for frontier-class models — there is no headroom.
+2. The test set therefore cannot discriminate between tiers, so it calibrates
+   only the top of the capability axis. Positions below it remain assumptions.
+   The simulated tier vectors are *upper-bounded* by this: at q=1.0 the
+   simulator predicts 0.96-0.99 on these operators, and the measurement says
+   1.00, so the simulator is if anything slightly pessimistic at the top.
+
+A further fairness defect surfaced during the run and was fixed: the task file
+was regenerated while a measurement was in flight, so one model answered a
+partly stale T1. The file is now checksummed
+(`artifacts/live_tasks.sha256`), the answer key was moved out of the served
+directory entirely (a measurement run flagged its presence as a leakage
+hazard even though it did not open it), and every answer file is verified
+id-by-id against the frozen task set before scoring.
+
+## Iteration 14 — measuring the operator that actually binds
+
+Since the primitives saturate, a second live measurement targets the operator
+that the end-to-end results say is the real bottleneck: **discrimination over
+a candidate list**. 60 candidates are taken from a real 10k-user run of the
+benchmark — 15 genuine, 45 artefacts sampled across the simulator's whole
+confidence range — each rendered as its evidence statistics. Models rank them
+and choose a report set. Their AP is compared against the simulator's own
+calibrated logistic and against random.
+
+This is the decisive check on the compute-allocation conclusion: if a frontier
+model discriminates materially better than the logistic, the simulator
+understates the value of kernel-level compute and every allocation result has
+to be revisited.
+
+## Iteration 15 — two controls the results needed
+
+* **B4 centralised triage.** The centralised twin of the hierarchy's own
+  algorithm: same entity-level relational triage, but one claim pool, no
+  propagation budget, no sketch cap, no routing error, no descent. It is
+  strictly better informed than the hierarchy at every step, and it separates
+  the value of the *triage algorithm* from the value of the *hierarchy*.
+  It also gets its own calibrated evidence budget, so the hierarchy is not
+  credited for a filtering discipline the control was never allowed to apply.
+* **A non-LLM `lexical` tier** (regex/gazetteer: copies strings well, cannot
+  link entities or reason about chains, compute cost ~0), so the question
+  "does the edge need a language model at all?" is answerable rather than
+  assumed.

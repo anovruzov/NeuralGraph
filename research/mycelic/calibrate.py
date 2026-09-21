@@ -22,8 +22,8 @@ from .evalm import evaluate
 from .models import allocation
 from .org import ENT, USER
 from .runner import ART, build_world, hier_cfg
-from .systems import (HierRunner, flat_rag, long_context, map_reduce,
-                      recursive_summary)
+from .systems import (HierRunner, central_triage, flat_rag, long_context,
+                      map_reduce, recursive_summary)
 
 CAL_SEEDS = (500, 501, 502)
 CAL_SCALE = 10_000
@@ -89,6 +89,26 @@ def calibrate(scale: int = CAL_SCALE, seeds=CAL_SEEDS,
     out["mr_grid"] = mr
     out["mr_budget"] = bb
 
+    # ---- centralised triage control: kernel evidence budget ----
+    ct = []
+    cb, cv = 0, -1.0
+    for b in (0, 2000, 6000, 20000, 60000):
+        vals = []
+        for s in seeds:
+            wd = worlds[s]
+            r = central_triage(wd.corpus, alloc, s,
+                               ul=wd.user_layer(alloc[USER], s),
+                               near_miss=wd.near_miss, kernel_ko_cap=b)
+            vals.append(evaluate(wd.corpus, wd.gold, r))
+        v = _mean(vals, OBJECTIVE)
+        ct.append({"kernel_ko_cap": b, OBJECTIVE: round(v, 5),
+                   "found": round(_mean(vals, "found_anywhere_in_register"), 4),
+                   "cu": float(np.mean([x["compute_units"] for x in vals]))})
+        if v > cv:
+            cv, cb = v, b
+    out["ct_grid"] = ct
+    out["ct_kernel_ko_cap"] = cb
+
     # ---- flat RAG: retrieval token budget ----
     fr = []
     fb, fv = 120_000, -1.0
@@ -121,6 +141,9 @@ if __name__ == "__main__":
                       if not k.endswith("grid")}, indent=2))
     print("\nhier grid (top 6 by objective):")
     for row in sorted(c["hier_grid"], key=lambda r: -r[OBJECTIVE])[:6]:
+        print("  ", row)
+    print("\ncentral-triage grid:")
+    for row in c["ct_grid"]:
         print("  ", row)
     print("\nmap-reduce grid:")
     for row in c["mr_grid"]:

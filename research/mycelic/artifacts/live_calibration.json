@@ -1,0 +1,80 @@
+{
+  "task_counts": {
+    "T1": 48,
+    "T2": 48,
+    "T3": 36,
+    "T4": 36,
+    "T5": 30
+  },
+  "measurements": {
+    "claude-haiku-4.5": {
+      "extract_recall": 1.0,
+      "entity_fidelity": 1.0,
+      "n_T1": 48,
+      "causal_check": 1.0,
+      "n_T2": 48,
+      "temporal_check": 1.0,
+      "n_T3": 36,
+      "entity_check": 1.0,
+      "n_T4": 36,
+      "dedup_check": 1.0,
+      "dedup_mae": 0.0,
+      "n_T5": 30,
+      "fitted_q": 1.0,
+      "simulated_at_fitted_q": {
+        "extract_recall": 0.96,
+        "entity_fidelity": 0.995,
+        "causal_check": 0.97,
+        "temporal_check": 0.99,
+        "entity_check": 0.96,
+        "dedup_check": 0.97
+      }
+    },
+    "claude-sonnet-5": {
+      "extract_recall": 1.0,
+      "entity_fidelity": 1.0,
+      "n_T1": 48,
+      "causal_check": 1.0,
+      "n_T2": 48,
+      "temporal_check": 1.0,
+      "n_T3": 36,
+      "entity_check": 1.0,
+      "n_T4": 36,
+      "dedup_check": 1.0,
+      "dedup_mae": 0.0,
+      "n_T5": 30,
+      "fitted_q": 1.0,
+      "simulated_at_fitted_q": {
+        "extract_recall": 0.96,
+        "entity_fidelity": 0.995,
+        "causal_check": 0.97,
+        "temporal_check": 0.99,
+        "entity_check": 0.96,
+        "dedup_check": 0.97
+      }
+    },
+    "claude-opus-5": {
+      "extract_recall": 1.0,
+      "entity_fidelity": 1.0,
+      "n_T1": 48,
+      "causal_check": 1.0,
+      "n_T2": 48,
+      "temporal_check": 1.0,
+      "n_T3": 36,
+      "entity_check": 1.0,
+      "n_T4": 36,
+      "dedup_check": 1.0,
+      "dedup_mae": 0.0,
+      "n_T5": 30,
+      "fitted_q": 1.0,
+      "simulated_at_fitted_q": {
+        "extract_recall": 0.96,
+        "entity_fidelity": 0.995,
+        "causal_check": 0.97,
+        "temporal_check": 0.99,
+        "entity_check": 0.96,
+        "dedup_check": 0.97
+      }
+    }
+  }
+}

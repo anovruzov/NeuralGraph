@@ -237,6 +237,23 @@ def evaluate(corpus: Corpus, gold: Gold, res: RunResult,
                 fam_ok += 1
     fam_rec = fam_ok / max(1, fam_n)
 
+    # --- evidence coverage: did the kernel ever HOLD the evidence? ---
+    # This separates "could not get the evidence" from "had it and ranked it
+    # badly", which turn out to be different bottlenecks at different scales.
+    held: Dict[int, Set[int]] = {}
+    for h in res.hypotheses:
+        for k in h.kos:
+            held.setdefault(int(k.anchor), set()).add(int(k.pred))
+    for k in res.kernel_kos:
+        held.setdefault(int(k.anchor), set()).add(int(k.pred))
+    cov2 = cov3 = 0
+    for p in real:
+        got = len(held.get(int(p.anchor), set()) & set(p.preds))
+        cov2 += got >= 2
+        cov3 += got >= 3
+    evidence_coverage2 = cov2 / max(1, len(real))
+    evidence_coverage3 = cov3 / max(1, len(real))
+
     # --- information loss / compression ---
     facet_types = set()
     for p in corpus.patterns:
@@ -297,6 +314,8 @@ def evaluate(corpus: Corpus, gold: Gold, res: RunResult,
         "contradiction_recall": c_rec,
         "top_support_accuracy": top_ok,
         "family_recall": fam_rec,
+        "evidence_coverage_2links": evidence_coverage2,
+        "evidence_coverage_3links": evidence_coverage3,
         "facet_type_survival": facet_survival,
         "information_loss": 1.0 - facet_survival,
         "claim_type_survival": type_survival,

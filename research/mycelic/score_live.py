@@ -16,6 +16,8 @@ import numpy as np
 from .models import tier_from_q
 from .runner import ART
 
+KEYDIR = os.path.join(os.path.dirname(__file__), "keys")
+
 FILES = {
     "claude-haiku-4.5": "live_answers_haiku.json",
     "claude-sonnet-5": "live_answers_sonnet.json",
@@ -135,7 +137,7 @@ def fit_q(meas: Dict[str, float], shape: str = "convex") -> float:
 
 def main() -> Dict[str, object]:
     tasks = json.load(open(os.path.join(ART, "live_tasks.json")))
-    key = json.load(open(os.path.join(ART, "live_key.json")))
+    key = json.load(open(os.path.join(KEYDIR, "live_key.json")))
     res: Dict[str, object] = {"task_counts": {k: len(v)
                                               for k, v in tasks["tasks"].items()}}
     per = {}

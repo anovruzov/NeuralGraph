@@ -308,6 +308,8 @@ class HierConfig:
     restrict_synthesis_to_triage: bool = True
     pin_importance: float = 3.0
     triage_prior_weight: float = 1.2
+    chain_completion: bool = False
+    completion_budget: int = 400
     # --- adversarial / robustness knobs ---
     malicious_frac: float = 0.0      # nodes that fabricate or corrupt KOs
     unavailable_frac: float = 0.0    # branches temporarily unreachable
@@ -316,7 +318,7 @@ class HierConfig:
     descent_leaf_cap: int = 140
     descent_frontier_cap: int = 400
     max_kernel_kos: int = 900
-    max_reports: int = 1000
+    max_reports: int = 0   # 0 -> scale with the entity namespace
 
 
 class Hierarchy:
@@ -342,6 +344,7 @@ class Hierarchy:
         self.triage_sites: Dict[int, List[int]] = {}
         self.triage_home: Dict[int, int] = {}
         self.triage_gain: Dict[int, float] = {}
+        self.completion_targets = 0
         self.index_entries = 0
         self.questions: List[Question] = []
         self.propagated = 0
@@ -796,6 +799,11 @@ class HierRunner:
                     len(pool) * (TOK_PER_KO if cfg.lineage else TOK_PER_KO_NOLIN)
                     + TOK_PROMPT_OVERHEAD, 0, calls=1)
 
+        if cfg.max_reports <= 0:
+            # A risk register holds roughly one entry per tracked entity; a
+            # constant 1000 was binding at 50k users and silently truncated
+            # most of the gold out of every system's output.
+            cfg.max_reports = int(min(6000, max(600, len(c.entities))))
         hyps = synthesize(pool, kernel_tier, self.rng, c.org,
                           use_lineage=cfg.lineage,
                           use_dedup=cfg.independence,
@@ -815,6 +823,10 @@ class HierRunner:
         # ---- continual questioning ----
         if cfg.questions:
             hyps, pool = self._question_round(hyps, pool, kernel_tier)
+
+        # ---- hypothesis-driven chain completion ----
+        if cfg.chain_completion:
+            hyps, pool = self._completion_round(hyps, pool, kernel_tier)
 
         # ---- cross-region variant families ----
         fams = self._families(hyps, kernel_tier)
@@ -1053,6 +1065,65 @@ class HierRunner:
                     q.resolved_contradiction = True
         return hyps2, merged
 
+    def _completion_round(self, hyps: List[Hypothesis], pool: List[KO],
+                          kernel_tier: Tier) -> Tuple[List[Hypothesis], List[KO]]:
+        """Once two links of a chain are established for an entity, go looking
+        for the MISSING links specifically.
+
+        The triage has to keep a high evidence bar (a predicate seen at least
+        `sketch_min_support` times at a foreign site) or the candidate list
+        explodes.  That bar is exactly what hides a rare facet carried by one
+        or two people.  Lowering it globally is unaffordable; lowering it for
+        the handful of entities that already show a partial chain is cheap,
+        and it is where the rare-signal recall lives.
+        """
+        cfg = self.cfg
+        h = self.h
+        targets: List[Tuple[int, List[int]]] = []
+        seen: Set[int] = set()
+        for hy in sorted(hyps, key=lambda x: -x.conf):
+            if hy.hallucinated or hy.chain < 0 or len(hy.preds) < 2:
+                continue
+            if hy.anchor in seen:
+                continue
+            ch = [PRED_ID[p] for p in CAUSAL_CHAINS[hy.chain]]
+            missing = [p for p in ch if p not in hy.preds]
+            if not missing:
+                continue
+            seen.add(hy.anchor)
+            targets.append((hy.anchor, missing))
+            if len(targets) >= cfg.completion_budget:
+                break
+        if not targets:
+            return hyps, pool
+        new_kos: List[KO] = []
+        for anchor, missing in targets:
+            got = h.descend(anchor, missing, budget_nodes=cfg.descent_fanout + 2,
+                            start_nodes=h.triage_sites.get(anchor),
+                            avoid=[h.triage_home[anchor]]
+                            if anchor in h.triage_home else None)
+            new_kos.extend(got)
+        if not new_kos:
+            return hyps, pool
+        merged = pool + new_kos
+        keep = {a for a, _ in targets} | {k.anchor for k in pool
+                                          if k.importance > cfg.pin_importance}
+        if cfg.restrict_synthesis_to_triage:
+            merged = [k for k in merged if k.anchor in keep or
+                      k.anchor in {x.anchor for x in hyps}]
+        h.meter.add("L5-kernel-complete", kernel_tier,
+                    len(merged) * TOK_PER_KO + TOK_PROMPT_OVERHEAD, 0, calls=1)
+        hyps2 = synthesize(merged, kernel_tier, self.rng, self.c.org,
+                           use_lineage=cfg.lineage, use_dedup=cfg.independence,
+                           use_temporal=cfg.temporal,
+                           n_entities=len(self.c.entities),
+                           max_reports=cfg.max_reports,
+                           stem_rep=self._stem)
+        h.meter.add("L5-kernel-complete", kernel_tier, 0,
+                    len(hyps2) * TOK_PER_HYP, calls=0)
+        h.completion_targets = len(targets)
+        return hyps2, merged
+
     @staticmethod
     def _hkey(h: Hypothesis) -> Tuple[int, Tuple[int, ...]]:
         return (h.anchor, tuple(sorted(h.preds)))
@@ -1119,7 +1190,8 @@ def flat_rag(corpus: Corpus, kernel_tier: Tier, seed: int,
     kos = _flat_kos(corpus, ex, keep_lineage=True)
     hyps = synthesize(kos, kernel_tier, rng, corpus.org,
                       n_entities=len(corpus.entities),
-                      stem_rep=stem_rep_map(corpus))
+                      stem_rep=stem_rep_map(corpus),
+                      max_reports=int(min(6000, max(600, len(corpus.entities)))))
     meter.add("L5-kernel", kernel_tier, 0, len(hyps) * TOK_PER_HYP, calls=0)
     return RunResult(name="flat_rag", hypotheses=hyps, meter=meter,
                      retained={(int(k.pred), int(k.anchor)) for k in kos},
@@ -1221,7 +1293,8 @@ def map_reduce(corpus: Corpus, alloc: List[Tier], seed: int,
               len(kos) * TOK_PER_KO + TOK_PROMPT_OVERHEAD, 0, calls=1)
     hyps = synthesize(kos, kernel_tier, rng, corpus.org,
                       use_lineage=keep_lineage, n_entities=len(corpus.entities),
-                      stem_rep=stem_rep_map(corpus))
+                      stem_rep=stem_rep_map(corpus),
+                      max_reports=int(min(6000, max(600, len(corpus.entities)))))
     meter.add("L5-kernel", kernel_tier, 0, len(hyps) * TOK_PER_HYP, calls=0)
     return RunResult(name="map_reduce", hypotheses=hyps, meter=meter,
                      retained={(k.pred, k.anchor) for k in kos},
@@ -1275,7 +1348,8 @@ def oracle_retrieval(corpus: Corpus, alloc: List[Tier], seed: int,
     meter.add("L5-kernel", kt, len(kos) * TOK_PER_KO + TOK_PROMPT_OVERHEAD, 0,
               calls=1)
     hyps = synthesize(kos, kt, rng, corpus.org, n_entities=len(corpus.entities),
-                      stem_rep=stem_rep_map(corpus))
+                      stem_rep=stem_rep_map(corpus),
+                      max_reports=int(min(6000, max(600, len(corpus.entities)))))
     meter.add("L5-kernel", kt, 0, len(hyps) * TOK_PER_HYP, calls=0)
     return RunResult(name="oracle_retrieval", hypotheses=hyps, meter=meter,
                      retained={(k.pred, k.anchor) for k in kos}, kernel_kos=kos,
@@ -1296,3 +1370,114 @@ def random_rank(res: RunResult, seed: int) -> RunResult:
                      families=res.families, notes=res.notes,
                      propagated_records=res.propagated_records,
                      exposed_raw_records=res.exposed_raw_records)
+
+
+def central_triage(corpus: Corpus, alloc: List[Tier], seed: int,
+                   ul: Optional[UserLayer] = None, near_miss=None,
+                   sketch_min_support: int = 2, foreign_share: float = 0.35,
+                   max_anchors: int = 6000,
+                   kernel_ko_cap: int = 0) -> RunResult:
+    """CONTROL B4 - the centralised twin of the hierarchy's own algorithm.
+
+    It runs EXACTLY the same entity-level relational triage the hierarchy runs,
+    but centrally: one claim pool, no propagation budget, no sketch cap, no
+    routing, no descent (it does not need one - every claim is already local
+    to it), no lineage compression.  It is therefore strictly better informed
+    than the hierarchy at every step.
+
+    The point of this control is to separate two things that are easy to
+    conflate: the value of the *triage algorithm* and the value of the
+    *hierarchy*.  Whatever the hierarchy scores above a pure-propagation
+    baseline but below this one is attributable to the algorithm, not to the
+    org structure.  What the hierarchy buys over this control has to be found
+    in cost, privacy, latency and robustness - not in accuracy.
+    """
+    rng = np.random.default_rng(55_000 + seed)
+    meter = Meter()
+    org = corpus.org
+    tier = alloc[USER]
+    ul = ul if ul is not None else user_extract(corpus, tier, rng,
+                                                near_miss=near_miss)
+    meter.add("L0-extract", tier,
+              int(len(corpus.recs) * TOK_PER_RECORD
+                  + len(org.user_ids) * TOK_PROMPT_OVERHEAD),
+              int(len(ul.ex) * 10), calls=len(org.user_ids))
+    ex = ul.ex
+    site_of = np.array([org.ancestor_at(int(u), SITE) or -1 for u in ex.uid],
+                       dtype=np.int64)
+    reg_of_site = {st: org.ancestor_at(st, REGION) for st in org.levels[SITE]}
+    n_ent = len(corpus.entities)
+
+    # per (site, entity): total mentions, and per-predicate counts for the
+    # operational predicates -> support-thresholded bitmask
+    key = site_of * (n_ent * 64) + ex.anchor.astype(np.int64) * 64 \
+        + np.minimum(ex.pred.astype(np.int64), 63)
+    uk, cnt = np.unique(key, return_counts=True)
+    sk_site = uk // (n_ent * 64)
+    sk_ent = (uk % (n_ent * 64)) // 64
+    sk_pred = uk % 64
+    mask: Dict[Tuple[int, int], int] = {}
+    tot: Dict[Tuple[int, int], int] = {}
+    ent_tot: Dict[int, int] = {}
+    for s_, e_, p_, c_ in zip(sk_site.tolist(), sk_ent.tolist(),
+                              sk_pred.tolist(), cnt.tolist()):
+        tot[(s_, e_)] = tot.get((s_, e_), 0) + c_
+        ent_tot[e_] = ent_tot.get(e_, 0) + c_
+        if p_ < 34 and c_ >= sketch_min_support:
+            mask[(s_, e_)] = mask.get((s_, e_), 0) | (1 << p_)
+    per_ent: Dict[int, List[Tuple[int, int, int]]] = {}
+    for (s_, e_), m_ in mask.items():
+        per_ent.setdefault(e_, []).append((s_, reg_of_site.get(s_, -1), m_))
+    kt = alloc[ENT]
+    meter.add("L5-triage", kt, len(mask) * 5 + TOK_PROMPT_OVERHEAD, 0, calls=1)
+
+    cands: List[Tuple[float, int, List[int]]] = []
+    for e_, rows in per_ent.items():
+        total = max(1, ent_tot.get(e_, 1))
+        foreign = [(s_, r_, m_) for s_, r_, m_ in rows
+                   if tot[(s_, e_)] / total <= foreign_share]
+        if len(foreign) < 2:
+            continue
+        regs = {r_ for _, r_, _ in foreign}
+        if len(regs) < 2:
+            continue
+        um = 0
+        for _, _, m_ in foreign:
+            um |= m_
+        span, _ = _chain_span(um)
+        if span < 2:
+            continue
+        gain = (0.6 * span + 0.35 * len(regs)) / (1.0 + 0.25 * math.log1p(total))
+        cands.append((gain, int(e_), [s_ for s_, _, _ in foreign]))
+    cands.sort(reverse=True)
+    cands = cands[:max_anchors]
+
+    keep_ent = {e for _, e, _ in cands}
+    home_of = {}
+    for _, e_, _ in cands:
+        rows = [(tot[(s_, e_)], s_) for s_, _, _ in per_ent[e_]]
+        home_of[e_] = max(rows)[1] if rows else -1
+    sel = np.nonzero(np.isin(ex.anchor, np.array(sorted(keep_ent) or [-1])))[0]
+    if len(sel):
+        home_arr = np.array([home_of.get(int(a), -1) for a in ex.anchor[sel]])
+        sel = sel[site_of[sel] != home_arr]
+    kos = _flat_kos(corpus, ex.take(sel), keep_lineage=True) if len(sel) else []
+    if kernel_ko_cap and len(kos) > kernel_ko_cap:
+        # Give this control the same evidence-selection discipline the
+        # hierarchy is forced into by its propagation budget.  Without it the
+        # comparison would credit the hierarchy for a filtering effect the
+        # centralised version was simply never allowed to apply.
+        kos.sort(key=lambda k: -(k.novelty + 0.35 * math.log1p(k.n_raw)))
+        kos = kos[:kernel_ko_cap]
+    meter.add("L5-kernel", kt, len(kos) * TOK_PER_KO + TOK_PROMPT_OVERHEAD, 0,
+              calls=1)
+    mr = int(min(6000, max(600, len(corpus.entities))))
+    hyps = synthesize(kos, kt, rng, org, n_entities=len(corpus.entities),
+                      max_reports=mr, stem_rep=stem_rep_map(corpus))
+    meter.add("L5-kernel", kt, 0, len(hyps) * TOK_PER_HYP, calls=0)
+    return RunResult(name="central_triage", hypotheses=hyps, meter=meter,
+                     retained={(k.pred, k.anchor) for k in kos}, kernel_kos=kos,
+                     propagated_records=int(len(ex)),
+                     exposed_raw_records=0,
+                     notes={"triage_candidates": len(cands),
+                            "sketch_entries": len(mask)})

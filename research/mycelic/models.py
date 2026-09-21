@@ -77,6 +77,7 @@ class Tier:
 # dollar column.  Self-hosted open-weight rates are rough GPU-amortised
 # estimates; the frontier rate is an API list-price order of magnitude.
 USD_PER_MTOK: Dict[str, float] = {
+    "lexical": 0.001,
     "edge-3b": 0.04, "small-7b": 0.08, "mid-14b": 0.16, "mid-32b": 0.35,
     "large-70b": 0.75, "frontier": 6.00, "frontier-plus": 15.00,
 }
@@ -150,6 +151,11 @@ def tier_from_q(q: float, name: Optional[str] = None,
 # Named anchors: positions on the q axis for common model classes.
 # ASSUMED unless a calibration artifact overrides them.
 ANCHOR_Q: Dict[str, float] = {
+    # Not a language model at all: a regex / gazetteer / NER pipeline.  It
+    # copies strings well, matches known surface forms adequately, and cannot
+    # link entities or reason about chains.  Its compute cost is ~0 next to any
+    # LLM, which is exactly why it has to be in the comparison.
+    "lexical": 0.0,
     "edge-3b": 0.10,
     "small-7b": 0.28,     # Qwen2.5-7B class
     "mid-14b": 0.44,
@@ -159,10 +165,12 @@ ANCHOR_Q: Dict[str, float] = {
     "frontier-plus": 1.00,
 }
 ANCHOR_PARAMS: Dict[str, float] = {
+    "lexical": 0.02,
     "edge-3b": 3.0, "small-7b": 7.0, "mid-14b": 14.0, "mid-32b": 32.0,
     "large-70b": 70.0, "frontier": 200.0, "frontier-plus": 400.0,
 }
 ANCHOR_CTX: Dict[str, int] = {
+    "lexical": 4_000,
     "edge-3b": 16_000, "small-7b": 32_000, "mid-14b": 64_000,
     "mid-32b": 128_000, "large-70b": 200_000, "frontier": 400_000,
     "frontier-plus": 1_000_000,
@@ -170,8 +178,22 @@ ANCHOR_CTX: Dict[str, int] = {
 
 
 def anchor(name: str) -> Tier:
-    return tier_from_q(ANCHOR_Q[name], name=name, params_b=ANCHOR_PARAMS[name],
-                       ctx=ANCHOR_CTX[name])
+    t = tier_from_q(ANCHOR_Q[name], name=name, params_b=ANCHOR_PARAMS[name],
+                    ctx=ANCHOR_CTX[name])
+    if name == "lexical":
+        # measured-style overrides for a non-LLM pipeline: good at copying
+        # strings, blind to meaning
+        t = replace(t, extract_recall=0.84, extract_precision=0.80,
+                    pred_confusion=0.12, entity_fidelity=0.97,
+                    entity_check=0.30, causal_check=0.50,
+                    temporal_check=0.60, dedup_check=0.55,
+                    contradiction_acc=0.50, hallucination=0.0,
+                    synth_depth=2, salience_noise=0.30,
+                    abstract_retention=0.95, abstract_distortion=0.02,
+                    question_quality=0.10, route_quality=0.40,
+                    prefill_tok_s=2_000_000.0, decode_tok_s=50_000.0,
+                    concurrency=100_000)
+    return t
 
 
 ANCHORS: Dict[str, Tier] = {k: anchor(k) for k in ANCHOR_Q}
@@ -204,6 +226,11 @@ ALLOCATIONS: Dict[str, List[str]] = {
                           "mid-32b", "frontier-plus"],
     "edge-bottom":       ["edge-3b", "mid-14b", "mid-32b", "large-70b",
                           "frontier", "frontier-plus"],
+    # no language model at the edge at all
+    "lexical-bottom":    ["lexical", "small-7b", "mid-14b", "mid-32b",
+                          "frontier", "frontier-plus"],
+    "lexical-to-kernel": ["lexical", "lexical", "lexical", "lexical",
+                          "lexical", "frontier-plus"],
 }
 
 

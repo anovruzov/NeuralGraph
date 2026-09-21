@@ -29,6 +29,8 @@ from .corpus import (CAUSAL_CHAINS, PREDICATES, PRED_ID, PRED_SURFACE,
 from .org import build_org
 from .runner import ART
 
+KEYDIR = os.path.join(os.path.dirname(__file__), "keys")
+
 N_T1 = 48
 N_T2 = 48
 N_T3 = 36
@@ -47,7 +49,12 @@ def build(seed: int = 900, scale: int = 2000) -> Dict[str, object]:
     key: Dict[str, Dict[str, object]] = {}
 
     # ---- T1 extraction ----
-    ids = rng.choice(len(recs), N_T1, replace=False)
+    # Only records with a single entity mention: in a two-mention note nothing
+    # grammatically attaches the predicate to either token, so half the items
+    # would be decided by a positional convention rather than by reading.
+    # (Flagged by the first blind measurement run.)
+    single = np.nonzero(recs["aux"] < 0)[0]
+    ids = rng.choice(single, N_T1, replace=False)
     for i in ids.tolist():
         r = recs[i]
         tasks["T1"].append({"id": f"T1-{i}", "text": cp.text(int(i))})
@@ -123,6 +130,7 @@ def build(seed: int = 900, scale: int = 2000) -> Dict[str, object]:
         stems.setdefault(e[:5], []).append(e)
     sibs = [v for v in stems.values() if len(v) >= 2]
     t4_lab = rng.random(N_T4) < 0.5
+    used_pairs = set()
     for k in range(N_T4):
         same = bool(t4_lab[k])
         if same:
@@ -134,6 +142,19 @@ def build(seed: int = 900, scale: int = 2000) -> Dict[str, object]:
             grp = sibs[int(rng.integers(0, len(sibs)))] if sibs else \
                 [cp.entities[0], cp.entities[1]]
             a, b = grp[0], grp[1]
+        tries = 0
+        while (a, b) in used_pairs and tries < 40:
+            tries += 1
+            if same:
+                e = cp.entities[int(rng.integers(0, len(cp.entities)))]
+                a = e
+                b = e.upper() if rng.random() < 0.5 else f"the {e} platform"
+            elif sibs:
+                grp = sibs[int(rng.integers(0, len(sibs)))]
+                i2 = int(rng.integers(0, len(grp)))
+                j2 = (i2 + 1 + int(rng.integers(0, len(grp) - 1))) % len(grp)
+                a, b = grp[i2], grp[j2]
+        used_pairs.add((a, b))
         tasks["T4"].append({"id": f"T4-{k}", "a": a, "b": b})
         key[f"T4-{k}"] = {"answer": "same" if same else "different"}
 
@@ -176,10 +197,12 @@ def build(seed: int = 900, scale: int = 2000) -> Dict[str, object]:
     path = os.path.join(ART, "live_tasks.json")
     with open(path, "w") as fh:
         json.dump(spec, fh, indent=1)
-    # the answer key lives in a SEPARATE file that the measured model is never
-    # pointed at; the first version inlined gold labels next to every item,
-    # which made the whole measurement non-blind
-    with open(os.path.join(ART, "live_key.json"), "w") as fh:
+    # The answer key lives OUTSIDE the directory the measured model is pointed
+    # at.  The first version inlined gold labels next to every item; the
+    # second put the key in the same folder, which a measurement run correctly
+    # called out as a leakage hazard even though it did not open it.
+    os.makedirs(KEYDIR, exist_ok=True)
+    with open(os.path.join(KEYDIR, "live_key.json"), "w") as fh:
         json.dump(key, fh, indent=1)
     return spec
 

@@ -513,7 +513,7 @@ def synthesize(kos: List[KO], tier: Tier, rng: np.random.Generator,
                use_temporal: bool = True,
                use_entity_check: bool = True,
                n_entities: int = 1000,
-               max_reports: int = 1000,
+               max_reports: int = 1200,
                min_link_support: int = 1,
                stem_rep: Optional[np.ndarray] = None,
                question_tag: int = -1) -> List[Hypothesis]:
