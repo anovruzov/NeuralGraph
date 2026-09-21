@@ -217,5 +217,101 @@
       "cu": 1088894.9333333333
     }
   ],
-  "flat_budget": 1000000
+  "flat_budget": 1000000,
+  "evidence_grid": [
+    {
+      "w_dispersion": 0.0,
+      "w_synchrony": 0.0,
+      "w_attribution": 0.0,
+      "average_precision": 0.02174,
+      "found": 0.375,
+      "recall_at_100": 0.125,
+      "cu": 1447746.7833333332
+    },
+    {
+      "w_dispersion": 0.0,
+      "w_synchrony": 0.0,
+      "w_attribution": 2.5,
+      "average_precision": 0.0574,
+      "found": 0.375,
+      "recall_at_100": 0.175,
+      "cu": 1458037.9833333334
+    },
+    {
+      "w_dispersion": 0.8,
+      "w_synchrony": 0.0,
+      "w_attribution": 0.0,
+      "average_precision": 0.01577,
+      "found": 0.3417,
+      "recall_at_100": 0.1083,
+      "cu": 1453836.8099999998
+    },
+    {
+      "w_dispersion": 0.8,
+      "w_synchrony": 0.0,
+      "w_attribution": 2.5,
+      "average_precision": 0.03932,
+      "found": 0.3417,
+      "recall_at_100": 0.2,
+      "cu": 1464108.8099999998
+    },
+    {
+      "w_dispersion": 1.5,
+      "w_synchrony": 0.0,
+      "w_attribution": 0.0,
+      "average_precision": 0.01473,
+      "found": 0.3417,
+      "recall_at_100": 0.1083,
+      "cu": 1461416.61
+    },
+    {
+      "w_dispersion": 1.5,
+      "w_synchrony": 0.0,
+      "w_attribution": 2.5,
+      "average_precision": 0.03401,
+      "found": 0.3417,
+      "recall_at_100": 0.15,
+      "cu": 1471691.8099999998
+    },
+    {
+      "w_dispersion": 2.5,
+      "w_synchrony": 0.0,
+      "w_attribution": 0.0,
+      "average_precision": 0.01201,
+      "found": 0.3333,
+      "recall_at_100": 0.075,
+      "cu": 1456215.04
+    },
+    {
+      "w_dispersion": 2.5,
+      "w_synchrony": 0.0,
+      "w_attribution": 2.5,
+      "average_precision": 0.02633,
+      "found": 0.3333,
+      "recall_at_100": 0.1417,
+      "cu": 1466487.04
+    },
+    {
+      "w_dispersion": 1.5,
+      "w_synchrony": 1.5,
+      "w_attribution": 2.5,
+      "average_precision": 0.02392,
+      "found": 0.3167,
+      "recall_at_100": 0.1333,
+      "cu": 1467481.8833333335
+    },
+    {
+      "w_dispersion": 2.5,
+      "w_synchrony": 1.5,
+      "w_attribution": 0.0,
+      "average_precision": 0.01137,
+      "found": 0.3333,
+      "recall_at_100": 0.0667,
+      "cu": 1456215.04
+    }
+  ],
+  "w_dispersion": 0.0,
+  "w_synchrony": 0.0,
+  "w_attribution": 2.5,
+  "verify_evidence": true
 }
