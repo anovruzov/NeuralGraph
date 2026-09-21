@@ -19,6 +19,7 @@ from .ops import _near_miss_map, stem_rep_map
 from .org import ENT, Org, USER, build_org
 from .systems import (HierConfig, HierRunner, RunResult, flat_rag, long_context,
                       central_triage, chunked_long_context, map_reduce,
+                      naive_enumerate,
                       oracle_retrieval,
                       random_rank,
                       recursive_summary, user_extract)
@@ -130,6 +131,7 @@ ARCHS: Dict[str, Dict] = {
     # --- reference controls, clearly not deployable systems ---
     "Y_oracle_retrieval": {"kind": "oracle"},
     "Z_random_rank":      {"kind": "randrank"},
+    "Z2_naive_enumerate": {"kind": "naive_enum"},
 }
 
 
@@ -163,6 +165,10 @@ def run_arch(name: str, world: World, alloc: List[Tier], seed: int,
         return oracle_retrieval(c, alloc, seed,
                                 ul=world.user_layer(alloc[USER], seed),
                                 near_miss=world.near_miss)
+    if kind == "naive_enum":
+        return naive_enumerate(c, alloc, seed,
+                               ul=world.user_layer(alloc[USER], seed),
+                               near_miss=world.near_miss)
     if kind == "randrank":
         base = map_reduce(c, alloc, seed, mr_budget,
                           ul=world.user_layer(alloc[USER], seed),

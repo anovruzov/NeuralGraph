@@ -1623,3 +1623,61 @@ def chunked_long_context(corpus: Corpus, alloc: List[Tier], seed: int,
                      kernel_kos=pool, propagated_records=read,
                      exposed_raw_records=read, claims_leaving_node=0,
                      notes={"chunks": n_chunks, "records_read": int(read)})
+
+
+def naive_enumerate(corpus: Corpus, alloc: List[Tier], seed: int,
+                    ul: Optional[UserLayer] = None, near_miss=None) -> RunResult:
+    """CONTROL Z2 - is `found` gameable by just enumerating everything?
+
+    For every entity, emit the best chain span its observed operational
+    predicates support, ranked by raw mention volume.  No causal check, no
+    temporal check, no independence, no lineage, no verification of any kind.
+
+    If this scored well, the discovery metric would be measuring nothing but
+    register size.  It is here so that claim can be checked rather than
+    asserted.
+    """
+    rng = np.random.default_rng(66_000 + seed)
+    meter = Meter()
+    tier = alloc[USER]
+    ul = ul if ul is not None else user_extract(corpus, tier, rng,
+                                                near_miss=near_miss)
+    meter.add("L0-extract", tier,
+              int(len(corpus.recs) * TOK_PER_RECORD
+                  + len(corpus.org.user_ids) * TOK_PROMPT_OVERHEAD),
+              int(len(ul.ex) * 10), calls=len(corpus.org.user_ids))
+    ex = ul.ex
+    n_ent = len(corpus.entities)
+    key = ex.anchor.astype(np.int64) * 64 + np.minimum(ex.pred.astype(np.int64), 63)
+    uk, cnt = np.unique(key, return_counts=True)
+    per_ent: Dict[int, Dict[int, int]] = {}
+    tot: Dict[int, int] = {}
+    for k_, c_ in zip(uk.tolist(), cnt.tolist()):
+        e_, p_ = k_ // 64, k_ % 64
+        per_ent.setdefault(e_, {})[p_] = c_
+        tot[e_] = tot.get(e_, 0) + c_
+    kt = alloc[ENT]
+    hyps: List[Hypothesis] = []
+    for e_, preds in per_ent.items():
+        mask = 0
+        for p_, c_ in preds.items():
+            if p_ < 34:
+                mask |= (1 << p_)
+        span, ci = _chain_span(mask)
+        if span < 2 or ci < 0:
+            continue
+        on = [PRED_ID[p] for p in CAUSAL_CHAINS[ci] if PRED_ID[p] in preds]
+        hyps.append(Hypothesis(
+            anchor=int(e_), preds=on, kos=[], evidence=[],
+            n_indep=int(tot.get(e_, 1)), n_branch_regions=1, n_branch_sites=1,
+            conf=float(math.log1p(tot.get(e_, 1))), contra=0, tspan=(0, 0),
+            chain=ci))
+    hyps.sort(key=lambda h: -h.conf)
+    mr = int(min(6000, max(600, len(corpus.entities))))
+    hyps = hyps[:mr]
+    meter.add("L5-kernel", kt, len(per_ent) * 6 + TOK_PROMPT_OVERHEAD,
+              len(hyps) * TOK_PER_HYP, calls=1)
+    return RunResult(name="naive_enumerate", hypotheses=hyps, meter=meter,
+                     retained=set(), kernel_kos=[],
+                     propagated_records=int(len(ex)), exposed_raw_records=0,
+                     claims_leaving_node=int(len(ex)))

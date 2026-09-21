@@ -22,6 +22,7 @@ from .models import ALLOCATIONS, ANCHORS, allocation, tier_from_q
 from .org import DEFAULT_FANIN, ENT, REGION, SITE, TEAM, USER
 from .runner import ART, ARCHS, build_world, hier_cfg, run_arch
 from .systems import (HierRunner, central_triage, chunked_long_context,
+                      naive_enumerate,
                       flat_rag, long_context,
                       map_reduce, oracle_retrieval, random_rank,
                       recursive_summary)
@@ -105,6 +106,10 @@ def _run_named(name: str, world, alloc, seed: int, cfg_over=None):
         return oracle_retrieval(c, alloc, seed,
                                 ul=world.user_layer(alloc[USER], seed),
                                 near_miss=world.near_miss)
+    if kind == "naive_enum":
+        return naive_enumerate(c, alloc, seed,
+                               ul=world.user_layer(alloc[USER], seed),
+                               near_miss=world.near_miss)
     if kind == "randrank":
         base = map_reduce(c, alloc, seed, int(CAL["mr_budget"]),
                           ul=world.user_layer(alloc[USER], seed),
@@ -164,7 +169,7 @@ def e1c_more_seeds(scales: Sequence[int] = (2_000, 10_000),
 
 def e1b_extra(scales: Sequence[int] = SCALES, seeds=EVAL_SEEDS,
               archs=("A2_chunked_ctx", "B4_central_triage",
-                     "I_mycelic_completion"),
+                     "I_mycelic_completion", "Z2_naive_enumerate"),
               alloc_name: str = "back-loaded",
               fname: str = "e1b_extra.jsonl") -> List[Dict]:
     """Architectures added after the first E1 run; same worlds, same seeds,
