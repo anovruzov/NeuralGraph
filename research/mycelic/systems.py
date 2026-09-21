@@ -153,8 +153,16 @@ class RunResult:
     families: List[List[int]] = field(default_factory=list)   # hyp index groups
     contradiction_calls: List[Tuple[int, int, bool]] = field(default_factory=list)
     notes: Dict[str, object] = field(default_factory=dict)
-    propagated_records: int = 0             # privacy exposure proxy
+    # --- privacy accounting, three distinct things ---
+    # raw record TEXT read by anything other than the owning user agent
     exposed_raw_records: int = 0
+    # extracted CLAIMS (abstracted, no surface text) that left the user node
+    claims_leaving_node: int = 0
+    # index/sketch METADATA entries that left the node (entity + predicate
+    # bitmask + counts; no claim content)
+    sketch_entries_leaving_node: int = 0
+    # underlying records represented by whatever left the node
+    propagated_records: int = 0
 
 
 # ---------------------------------------------------------------------------
@@ -832,12 +840,17 @@ class HierRunner:
         fams = self._families(hyps, kernel_tier)
 
         retained = {(k.pred, k.anchor) for k in pool}
+        claims_out = sum(len(h.kos_at.get(u, [])) for u in c.org.user_ids)
         return RunResult(name="hier", hypotheses=hyps, meter=h.meter,
                          retained=retained, kernel_kos=pool,
                          questions=h.questions, families=fams,
                          propagated_records=h.propagated,
                          exposed_raw_records=0,
-                         notes={"kernel_kos": len(pool)})
+                         claims_leaving_node=claims_out,
+                         sketch_entries_leaving_node=h.sketch_entries,
+                         notes={"kernel_kos": len(pool),
+                                "sketch_dropped": h.sketch_dropped,
+                                "raw_records_reread_locally": h.raw_reads})
 
     # ---- helpers --------------------------------------------------------
     def _weak_targets(self, hyps: List[Hypothesis]) -> List[Tuple[int, List[int], str]]:
@@ -1197,6 +1210,7 @@ def flat_rag(corpus: Corpus, kernel_tier: Tier, seed: int,
                      retained={(int(k.pred), int(k.anchor)) for k in kos},
                      kernel_kos=kos, propagated_records=n_read,
                      exposed_raw_records=n_read,
+                     claims_leaving_node=0,
                      notes={"records_read": int(n_read)})
 
 
@@ -1299,8 +1313,9 @@ def map_reduce(corpus: Corpus, alloc: List[Tier], seed: int,
     return RunResult(name="map_reduce", hypotheses=hyps, meter=meter,
                      retained={(k.pred, k.anchor) for k in kos},
                      kernel_kos=kos,
-                     propagated_records=int(sum(k.n_raw for k in kos)),
+                     propagated_records=int(len(ex)),
                      exposed_raw_records=0,
+                     claims_leaving_node=int(len(ex)),
                      notes={"pooled_claims": int(len(ex))})
 
 
@@ -1354,7 +1369,8 @@ def oracle_retrieval(corpus: Corpus, alloc: List[Tier], seed: int,
     return RunResult(name="oracle_retrieval", hypotheses=hyps, meter=meter,
                      retained={(k.pred, k.anchor) for k in kos}, kernel_kos=kos,
                      propagated_records=int(len(ul.ex)),
-                     exposed_raw_records=int(len(corpus.recs)))
+                     exposed_raw_records=0,
+                     claims_leaving_node=int(len(ul.ex)))
 
 
 def random_rank(res: RunResult, seed: int) -> RunResult:
@@ -1369,7 +1385,9 @@ def random_rank(res: RunResult, seed: int) -> RunResult:
                      kernel_kos=res.kernel_kos, questions=res.questions,
                      families=res.families, notes=res.notes,
                      propagated_records=res.propagated_records,
-                     exposed_raw_records=res.exposed_raw_records)
+                     exposed_raw_records=res.exposed_raw_records,
+                     claims_leaving_node=res.claims_leaving_node,
+                     sketch_entries_leaving_node=res.sketch_entries_leaving_node)
 
 
 def central_triage(corpus: Corpus, alloc: List[Tier], seed: int,
@@ -1479,5 +1497,6 @@ def central_triage(corpus: Corpus, alloc: List[Tier], seed: int,
                      retained={(k.pred, k.anchor) for k in kos}, kernel_kos=kos,
                      propagated_records=int(len(ex)),
                      exposed_raw_records=0,
+                     claims_leaving_node=int(len(ex)),
                      notes={"triage_candidates": len(cands),
                             "sketch_entries": len(mask)})

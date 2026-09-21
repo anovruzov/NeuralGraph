@@ -41,7 +41,7 @@ KEYDIR = os.path.join(os.path.dirname(__file__), "keys")
 N_ITEMS = 60
 
 
-def _render(h, corpus, rank: int) -> Dict[str, object]:
+def _render(h, corpus, rank: int, rich: bool = False) -> Dict[str, object]:
     by_pred: Dict[int, Dict[str, object]] = {}
     for k in h.kos:
         d = by_pred.setdefault(int(k.pred), {"sigs": set(), "sites": set(),
@@ -67,7 +67,7 @@ def _render(h, corpus, rank: int) -> Dict[str, object]:
             "distinct_regions": int(len(d["regions"])),
             "contradicting_reports": int(d["neg"]),
         })
-    return {
+    out = {
         "id": f"C-{rank}",
         "entity": corpus.entities[int(h.anchor)],
         "links": links,
@@ -76,9 +76,25 @@ def _render(h, corpus, rank: int) -> Dict[str, object]:
         "distinct_sites_total": int(h.n_branch_sites),
         "contradiction_count": int(h.contra),
     }
+    if rich:
+        # the actual work notes behind the statistics, so we can ask whether
+        # the ceiling is in the reasoner or in what the abstraction kept
+        ev = []
+        for k in h.kos:
+            for r in k.evidence[:3]:
+                ev.append(corpus.text(int(r)))
+        seen = set()
+        uniq = []
+        for t in ev:
+            if t not in seen:
+                seen.add(t)
+                uniq.append(t)
+        out["source_notes"] = uniq[:24]
+    return out
 
 
-def build(seed: int = 901, scale: int = 10_000) -> Dict[str, object]:
+def build(seed: int = 901, scale: int = 10_000,
+          rich: bool = False) -> Dict[str, object]:
     w = build_world(scale, seed)
     alloc = allocation("back-loaded")
     cfg = _hier(downward_retrieval=True, questions=True, cross_links=True)
@@ -109,7 +125,7 @@ def build(seed: int = 901, scale: int = 10_000) -> Dict[str, object]:
     order = rng.permutation(len(chosen))
     items, key = [], {}
     for rank, ci in enumerate([chosen[i] for i in order.tolist()]):
-        it = _render(hyps[ci], w.corpus, rank)
+        it = _render(hyps[ci], w.corpus, rank, rich=rich)
         items.append(it)
         key[it["id"]] = {
             "is_real": bool(ci in gold_idx),
@@ -125,10 +141,11 @@ def build(seed: int = 901, scale: int = 10_000) -> Dict[str, object]:
             "genuine emerging cross-organisational risks.",
         "candidates": items,
     }
-    with open(os.path.join(ART, "live_rank_tasks.json"), "w") as fh:
+    suffix = "_rich" if rich else ""
+    with open(os.path.join(ART, f"live_rank_tasks{suffix}.json"), "w") as fh:
         json.dump(spec, fh, indent=1)
     os.makedirs(KEYDIR, exist_ok=True)
-    with open(os.path.join(KEYDIR, "live_rank_key.json"), "w") as fh:
+    with open(os.path.join(KEYDIR, f"live_rank_key{suffix}.json"), "w") as fh:
         json.dump(key, fh, indent=1)
     return spec
 
@@ -145,9 +162,10 @@ def _ap(ranked_ids: List[str], key: Dict) -> float:
     return ap / len(gold)
 
 
-def score() -> Dict[str, object]:
-    spec = json.load(open(os.path.join(ART, "live_rank_tasks.json")))
-    key = json.load(open(os.path.join(KEYDIR, "live_rank_key.json")))
+def score(rich: bool = False) -> Dict[str, object]:
+    suffix = "_rich" if rich else ""
+    spec = json.load(open(os.path.join(ART, f"live_rank_tasks{suffix}.json")))
+    key = json.load(open(os.path.join(KEYDIR, f"live_rank_key{suffix}.json")))
     ids = [c["id"] for c in spec["candidates"]]
     n_gold = sum(1 for k in key.values() if k["is_real"])
     out: Dict[str, object] = {"n_items": len(ids), "n_real": n_gold}
@@ -166,9 +184,12 @@ def score() -> Dict[str, object]:
 
     models = {}
     for fn in sorted(os.listdir(ART)):
-        if not fn.startswith("live_rank_answers_"):
+        pref = f"live_rank{suffix}_answers_"
+        if not fn.startswith(pref):
             continue
-        name = fn[len("live_rank_answers_"):-len(".json")]
+        name = fn[len(pref):-len(".json")]
+        if (not rich) and "_rich" in fn:
+            continue
         a = json.load(open(os.path.join(ART, fn)))
         ranked = [str(x) for x in a.get("ranking", []) if str(x) in key]
         missing = [i for i in ids if i not in set(ranked)]
@@ -186,16 +207,17 @@ def score() -> Dict[str, object]:
             "n_ranked_returned": len(a.get("ranking", [])),
         }
     out["models"] = models
-    with open(os.path.join(ART, "live_rank_results.json"), "w") as fh:
+    with open(os.path.join(ART, f"live_rank_results{suffix}.json"), "w") as fh:
         json.dump(out, fh, indent=2)
     return out
 
 
 if __name__ == "__main__":
     import sys
-    if len(sys.argv) > 1 and sys.argv[1] == "score":
-        print(json.dumps(score(), indent=2))
+    rich = "rich" in sys.argv
+    if "score" in sys.argv:
+        print(json.dumps(score(rich=rich), indent=2))
     else:
-        s = build()
+        s = build(rich=rich)
         print("wrote live_rank_tasks.json with", s["n_items"], "candidates")
         print(json.dumps(s["candidates"][0], indent=1)[:900])

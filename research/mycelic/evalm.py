@@ -339,6 +339,10 @@ def evaluate(corpus: Corpus, gold: Gold, res: RunResult,
         "privacy_propagated_records": float(res.propagated_records),
         "privacy_exposure_fraction": res.propagated_records / max(1, len(corpus.recs)),
         "raw_records_leaving_node": float(res.exposed_raw_records),
+        "raw_text_exposure_fraction": res.exposed_raw_records / max(1, len(corpus.recs)),
+        "claims_leaving_node": float(res.claims_leaving_node),
+        "claim_exposure_fraction": res.claims_leaving_node / max(1, len(corpus.recs)),
+        "sketch_entries_leaving_node": float(res.sketch_entries_leaving_node),
     }
     rank_p = _ranked_metrics(ranked, real, stem, lenient, "primary")
     rank_s = _ranked_metrics(ranked, real, stem, lenient, "strict")

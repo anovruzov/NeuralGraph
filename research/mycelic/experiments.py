@@ -149,6 +149,50 @@ def e1_baselines(scales: Sequence[int] = SCALES, seeds=EVAL_SEEDS,
     return rows
 
 
+def e1c_more_seeds(scales: Sequence[int] = (2_000, 10_000),
+                   seeds=(5, 6, 7, 8, 9),
+                   alloc_name: str = "back-loaded",
+                   fname: str = "e1_baselines.jsonl") -> List[Dict]:
+    """A second block of seeds for the headline comparisons.
+
+    With five paired seeds an exact sign test cannot go below p = 0.0625 even
+    when the result is unanimous; that is a floor of the design, not of the
+    effect.  Ten seeds take a unanimous result to p = 0.002.  Rows go into the
+    same file so the analysis simply sees more seeds.
+    """
+    return e1_baselines(scales=scales, seeds=seeds, alloc_name=alloc_name,
+                        fname=fname)
+
+
+def e1b_extra(scales: Sequence[int] = SCALES, seeds=EVAL_SEEDS,
+              archs=("B4_central_triage", "I_mycelic_completion"),
+              alloc_name: str = "back-loaded",
+              fname: str = "e1b_extra.jsonl") -> List[Dict]:
+    """Architectures added after the first E1 run; same worlds, same seeds,
+    same calibrated knobs, so the rows are directly comparable."""
+    rows = []
+    _st = _Stream(fname)
+    alloc = allocation(alloc_name)
+    for scale in scales:
+        for seed in seeds:
+            w = build_world(scale, seed)
+            for a in archs:
+                t = time.time()
+                res = _run_named(a, w, alloc, seed)
+                r = _row(a, w, res, {"scale": scale, "seed": seed,
+                                     "alloc": alloc_name,
+                                     "runtime_s": round(time.time() - t, 2)})
+                rows.append(_st.add(r))
+                print(f"  {scale:6d}/{seed} {a:22s} "
+                      f"AP={r['average_precision']:.4f} "
+                      f"found={r['found_anywhere_in_register']:.2f} "
+                      f"cov2={r['evidence_coverage_2links']:.2f} "
+                      f"cu={r['compute_units']:.2e}", flush=True)
+            w.clear_cache()
+    _st.close()
+    return rows
+
+
 # ---------------------------------------------------------------------------
 # E2 - ablations (one feature removed at a time from the full system)
 # ---------------------------------------------------------------------------
@@ -498,11 +542,83 @@ def e8_crosslinks(scales=(2_000, 10_000, 50_000), seeds=(0, 1, 2),
     return rows
 
 
+def e10_scale_trend(scales: Sequence[int] = (100_000,), seeds=(0, 1, 2),
+                    archs=("A_flat_rag", "B_long_context", "B2_map_reduce",
+                           "E_hier_lineage", "G_hier_questions",
+                           "H_mycelic_full", "Y_oracle_retrieval"),
+                    alloc_name: str = "back-loaded",
+                    fname: str = "e10_scale_trend.jsonl") -> List[Dict]:
+    """One scale beyond the brief, to test whether the ordering at 50k is the
+    end of the story or a crossing point.
+
+    The centralised long-context baseline reads a fixed 1M tokens whatever the
+    enterprise size, so its coverage falls as 1/N by construction; the question
+    is whether the hierarchy's falls more slowly in practice.  Measured, not
+    extrapolated.
+    """
+    rows = []
+    _st = _Stream(fname)
+    alloc = allocation(alloc_name)
+    for scale in scales:
+        for seed in seeds:
+            w = build_world(scale, seed)
+            for a in archs:
+                t = time.time()
+                res = _run_named(a, w, alloc, seed)
+                r = _row(a, w, res, {"scale": scale, "seed": seed,
+                                     "alloc": alloc_name,
+                                     "runtime_s": round(time.time() - t, 2)})
+                rows.append(_st.add(r))
+                print(f"  {scale:7d}/{seed} {a:22s} "
+                      f"AP={r['average_precision']:.4f} "
+                      f"found={r['found_anywhere_in_register']:.3f} "
+                      f"cov2={r['evidence_coverage_2links']:.3f} "
+                      f"rare={r['rare_signal_recall']:.3f} "
+                      f"cu={r['compute_units']:.2e} "
+                      f"({time.time()-t:.0f}s)", flush=True)
+            w.clear_cache()
+    _st.close()
+    return rows
+
+
+def e9_privacy(scales: Sequence[int] = SCALES, seeds=(0, 1),
+               alloc_name: str = "back-loaded",
+               fname: str = "e9_privacy.jsonl") -> List[Dict]:
+    """Privacy / propagation-volume accounting, separated into three things
+    that are usually conflated:
+
+      raw text leaving the owning agent   - the actual confidentiality cost
+      extracted claims leaving the agent  - abstracted, no surface text
+      index/sketch metadata leaving it    - entity + predicate bitmask only
+
+    Deterministic enough that two seeds suffice.
+    """
+    rows = []
+    _st = _Stream(fname)
+    alloc = allocation(alloc_name)
+    for scale in scales:
+        for seed in seeds:
+            w = build_world(scale, seed)
+            for a in ARCHS:
+                res = _run_named(a, w, alloc, seed)
+                r = _row(a, w, res, {"scale": scale, "seed": seed,
+                                     "alloc": alloc_name})
+                rows.append(_st.add(r))
+                print(f"  {scale:6d}/{seed} {a:22s} "
+                      f"raw={r['raw_text_exposure_fraction']:.4f} "
+                      f"claims={r['claim_exposure_fraction']:.4f} "
+                      f"sketch={r['sketch_entries_leaving_node']:.3e} "
+                      f"found={r['found_anywhere_in_register']:.2f}", flush=True)
+            w.clear_cache()
+    _st.close()
+    return rows
+
+
 ALL = {
-    "e1": e1_baselines, "e2": e2_ablations, "e3": e3_allocation,
+    "e1": e1_baselines, "e1b": e1b_extra, "e1c": e1c_more_seeds, "e2": e2_ablations, "e3": e3_allocation,
     "e3b": e3b_level_marginal, "e3c": e3c_q_sweep, "e4": e4_fanin,
     "e4b": e4b_dept_fanin, "e5": e5_adversarial, "e6": e6_frontier,
-    "e7": e7_shape, "e8": e8_crosslinks,
+    "e7": e7_shape, "e8": e8_crosslinks, "e9": e9_privacy, "e10": e10_scale_trend,
 }
 
 

@@ -1,0 +1,3458 @@
+{
+ "seed": 901,
+ "scale": 10000,
+ "n_items": 60,
+ "causal_chains": [
+  [
+   "supplier_substitution",
+   "component_defect",
+   "yield_drop",
+   "shipment_delay",
+   "customer_escalation",
+   "revenue_miss"
+  ],
+  [
+   "cert_rotation",
+   "auth_failure",
+   "api_error_spike",
+   "checkout_drop",
+   "revenue_miss"
+  ],
+  [
+   "policy_change",
+   "manual_workaround",
+   "data_exposure_risk",
+   "audit_finding",
+   "regulatory_notice"
+  ],
+  [
+   "attrition_spike",
+   "backlog_growth",
+   "sla_breach",
+   "contract_penalty",
+   "account_churn"
+  ],
+  [
+   "firmware_update",
+   "sensor_drift",
+   "false_alarm",
+   "unplanned_downtime",
+   "output_shortfall"
+  ],
+  [
+   "price_increase",
+   "margin_compression",
+   "discount_escalation",
+   "forecast_revision"
+  ],
+  [
+   "network_change",
+   "latency_regression",
+   "batch_job_overrun",
+   "reporting_delay",
+   "close_delay"
+  ]
+ ],
+ "instructions_summary": "Each candidate is one entity plus the operational events reported about it across the enterprise. Decide which candidates are genuine emerging cross-organisational risks.",
+ "candidates": [
+  {
+   "id": "C-0",
+   "entity": "peregrine",
+   "links": [
+    {
+     "event": "policy_change",
+     "first_seen_day": 8,
+     "last_seen_day": 170,
+     "independent_sources": 2,
+     "total_reports": 3,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "audit_finding",
+     "first_seen_day": 9,
+     "last_seen_day": 137,
+     "independent_sources": 7,
+     "total_reports": 7,
+     "distinct_sites": 4,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "data_exposure_risk",
+     "first_seen_day": 12,
+     "last_seen_day": 138,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "regulatory_notice",
+     "first_seen_day": 21,
+     "last_seen_day": 179,
+     "independent_sources": 11,
+     "total_reports": 11,
+     "distinct_sites": 9,
+     "distinct_regions": 6,
+     "contradicting_reports": 1
+    }
+   ],
+   "n_links": 4,
+   "distinct_regions_total": 6,
+   "distinct_sites_total": 11,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d165] R04S00-DEPT-06-T06-U05 :: new approval rule peregrine basaltx542 owner week week for far assigned with per",
+    "[d170] R04S00-DEPT-06-T00-U03 :: new approval rule peregrine owner week week for far assigned with discussed",
+    "[d008] R02S01-DEPT-02-T06-U18 :: control tightened peregrine below the further next week see",
+    "[d012] R02S01-DEPT-00-T05-U08 :: unencrypted export observed peregrine details expected for owner",
+    "[d036] R01S02-DEPT-00-T07-U04 :: budget note logged veridian-v2 vantage-na window pending with minor",
+    "[d138] R01S01-DEPT-01-T02-U00 :: data left the boundary peregrine per pending thread with action impact follow",
+    "[d137] R01S00-DEPT-10-T00-U02 :: audit finding raised peregrine pending thread expected assigned with as window pending context",
+    "[d027] R06S00-DEPT-01-T03-U05 :: audit finding raised peregrine follow see during up for",
+    "[d051] R01S01-DEPT-00-T03-U05 :: control gap logged peregrine the details with next impact assigned attached so assigned thread",
+    "[d014] R06S00-DEPT-00-T01-U02 :: exposure risk flagged peregrine nothing the as team no",
+    "[d100] R02S01-DEPT-02-T06-U20 :: control gap logged peregrine thistle-apac the minor thread owner for discussed up runbook",
+    "[d113] R02S01-DEPT-00-T10-U07 :: data left the boundary peregrine nimbus-ii during further ticket action",
+    "[d009] R01S01-DEPT-00-T02-U06 :: audit finding raised peregrine runbook window details expected follow reference",
+    "[d150] R06S00-DEPT-00-T07-U07 :: compliance notice peregrine quarry-hub below for owner runbook details during team",
+    "[d090] R06S03-DEPT-00-T01-U01 :: compliance notice peregrine no review context assigned context the action for",
+    "[d118] R06S00-DEPT-00-T07-U00 :: compliance notice peregrine nimbus-mk3 details thread context follow for runbook window not",
+    "[d049] R05S00-DEPT-04-T08-U06 :: patch window logged basalt-pay runbook pending with as pending now discussed further minor",
+    "[d174] R05S00-DEPT-04-T03-U02 :: supervisory letter peregrine thistle-mk3 up discussed per window further per",
+    "[d021] R04S01-DEPT-04-T00-U03 :: supervisory letter peregrine basalt-eu nothing nothing follow reference",
+    "[d030] R04S00-DEPT-07-T00-U16 :: status update logged sable team the further ticket so week",
+    "[d179] R03S01-DEPT-09-T03-U09 :: supervisory letter peregrine blocking below the details",
+    "[d133] R02S01-DEPT-03-T01-U04 :: regulator inquiry received peregrine-ii583 expected below assigned expected the window pending attached minor owner",
+    "[d043] R02S00-DEPT-06-T07-U01 :: status update granite-core496 solace-ii attached as team the team next with",
+    "[d051] R01S00-DEPT-17-T05-U04 :: compliance notice peregrine the action impact below nothing follow week discussed up see"
+   ]
+  },
+  {
+   "id": "C-1",
+   "entity": "osprey-ii",
+   "links": [
+    {
+     "event": "manual_workaround",
+     "first_seen_day": 47,
+     "last_seen_day": 63,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "policy_change",
+     "first_seen_day": 50,
+     "last_seen_day": 158,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "audit_finding",
+     "first_seen_day": 118,
+     "last_seen_day": 118,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 4,
+   "distinct_sites_total": 4,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d158] R02S00-DEPT-05-T03-U03 :: routine onboarding sable-ii584 context the team the team ticket minor",
+    "[d050] R02S00-DEPT-01-T07-U02 :: routine backup completed cinder-pay team ticket the per details context the up far no",
+    "[d063] R06S01-DEPT-00-T04-U10 :: backup completed logged arbor-pay next impact nothing follow far for now far assigned attached",
+    "[d047] R01S00-DEPT-22-T00-U03 :: routine tool upgrade osprey-apac window blocking for context nothing below",
+    "[d118] R00S02-DEPT-05-T07-U08 :: onboarding peregrine below no ticket next week for impact the details up"
+   ]
+  },
+  {
+   "id": "C-2",
+   "entity": "pellucid",
+   "links": [
+    {
+     "event": "firmware_update",
+     "first_seen_day": 5,
+     "last_seen_day": 94,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "sensor_drift",
+     "first_seen_day": 15,
+     "last_seen_day": 169,
+     "independent_sources": 4,
+     "total_reports": 4,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "unplanned_downtime",
+     "first_seen_day": 33,
+     "last_seen_day": 129,
+     "independent_sources": 4,
+     "total_reports": 4,
+     "distinct_sites": 4,
+     "distinct_regions": 4,
+     "contradicting_reports": 1
+    },
+    {
+     "event": "output_shortfall",
+     "first_seen_day": 34,
+     "last_seen_day": 86,
+     "independent_sources": 4,
+     "total_reports": 4,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 4,
+   "distinct_regions_total": 6,
+   "distinct_sites_total": 9,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d005] R03S01-DEPT-01-T07-U01 :: controller flashed pellucid cinder433 discussed team next discussed further as",
+    "[d094] R02S01-DEPT-03-T00-U04 :: headcount note orion-pay owner reference as blocking follow for impact follow",
+    "[d047] R04S01-DEPT-03-T08-U04 :: travel note vireo-hub vireo-core502 far assigned now week far no",
+    "[d067] R04S01-DEPT-03-T01-U02 :: sensor readings drifting pellucid expected for with ticket action reference minor with next context",
+    "[d015] R04S01-DEPT-01-T07-U01 :: ticket triage marlin-lite wisteria-lite attached review with the pending expected the pending thread during not",
+    "[d169] R00S03-DEPT-02-T02-U04 :: routine release note quarry-edge tundra-hub the action week for runbook window window",
+    "[d074] R05S00-DEPT-08-T01-U01 :: spurious alarm pellucid cinder-na week discussed window further so so",
+    "[d129] R02S00-DEPT-03-T05-U01 :: line stopped unexpectedly pellucid window further minor owner not",
+    "[d033] R01S00-DEPT-12-T00-U05 :: unplanned outage pellucid action impact nothing the the see",
+    "[d052] R00S00-DEPT-05-T05-U06 :: routine release note nimbus-pay week see now week reference so",
+    "[d034] R04S00-DEPT-03-T08-U03 :: cost of goods up arbor-hub solacex546 for for discussed blocking the per window further ticket",
+    "[d086] R05S00-DEPT-06-T01-U06 :: output below plan pellucid so nothing below assigned during further as team further",
+    "[d081] R04S00-DEPT-03-T07-U01 :: production short pellucid solacex546 discussed up see attached next discussed",
+    "[d071] R04S00-DEPT-03-T01-U02 :: throughput miss pellucid the team ticket ticket the further action"
+   ]
+  },
+  {
+   "id": "C-3",
+   "entity": "wexford-lite",
+   "links": [
+    {
+     "event": "policy_change",
+     "first_seen_day": 33,
+     "last_seen_day": 92,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "data_exposure_risk",
+     "first_seen_day": 55,
+     "last_seen_day": 55,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "regulatory_notice",
+     "first_seen_day": 111,
+     "last_seen_day": 111,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 3,
+   "distinct_sites_total": 3,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d092] R03S01-DEPT-07-T01-U11 :: customer did not renew kestrel-mk3 veridian-hub details expected the next runbook the",
+    "[d033] R00S02-DEPT-00-T05-U03 :: patch window basalt-pay halcyon-hub week far nothing the pending attached review",
+    "[d055] R00S02-DEPT-19-T04-U06 :: data left the boundary cobalt pending thread during blocking pending",
+    "[d111] R02S00-DEPT-00-T03-U07 :: throughput miss umbrax review owner see owner runbook window blocking"
+   ]
+  },
+  {
+   "id": "C-4",
+   "entity": "kestrel",
+   "links": [
+    {
+     "event": "firmware_update",
+     "first_seen_day": 18,
+     "last_seen_day": 18,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "sensor_drift",
+     "first_seen_day": 29,
+     "last_seen_day": 115,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "false_alarm",
+     "first_seen_day": 69,
+     "last_seen_day": 69,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "output_shortfall",
+     "first_seen_day": 133,
+     "last_seen_day": 173,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 4,
+   "distinct_regions_total": 4,
+   "distinct_sites_total": 6,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d018] R06S00-DEPT-01-T04-U04 :: firmware pushed kestrel ticket minor during team",
+    "[d029] R06S01-DEPT-00-T09-U08 :: telemetry bias observed kestrel no as per further",
+    "[d115] R02S00-DEPT-03-T02-U00 :: spurious alarm kestrel now far follow for reference review with action see during",
+    "[d069] R03S00-DEPT-01-T07-U07 :: onboarding wexford-pay runbook up impact no",
+    "[d173] R02S01-DEPT-00-T12-U04 :: throughput miss kestrel orion-v2 review thread now runbook team the",
+    "[d133] R00S01-DEPT-02-T03-U01 :: output below plan kestrel sable-v2 follow impact assigned thread attached ticket as pending thread during"
+   ]
+  },
+  {
+   "id": "C-5",
+   "entity": "quarry-ii569",
+   "links": [
+    {
+     "event": "cert_rotation",
+     "first_seen_day": 9,
+     "last_seen_day": 9,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "api_error_spike",
+     "first_seen_day": 31,
+     "last_seen_day": 31,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "revenue_miss",
+     "first_seen_day": 152,
+     "last_seen_day": 152,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 3,
+   "distinct_sites_total": 3,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d009] R04S01-DEPT-03-T03-U12 :: training session peregrine-core below below nothing assigned expected nothing",
+    "[d031] R03S01-DEPT-10-T03-U05 :: 5xx rate elevated quarryx541 attached ticket the per pending attached per",
+    "[d152] R02S00-DEPT-00-T03-U06 :: backup completed logged pellucid-pay window further minor during further next the"
+   ]
+  },
+  {
+   "id": "C-6",
+   "entity": "solace-pay",
+   "links": [
+    {
+     "event": "supplier_substitution",
+     "first_seen_day": 6,
+     "last_seen_day": 107,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "component_defect",
+     "first_seen_day": 42,
+     "last_seen_day": 116,
+     "independent_sources": 4,
+     "total_reports": 4,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "yield_drop",
+     "first_seen_day": 53,
+     "last_seen_day": 104,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "revenue_miss",
+     "first_seen_day": 75,
+     "last_seen_day": 146,
+     "independent_sources": 5,
+     "total_reports": 5,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 4,
+   "distinct_regions_total": 5,
+   "distinct_sites_total": 8,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d006] R06S03-DEPT-02-T05-U00 :: second source part swap solace-pay vantage-pro now runbook pending expected the action reference action far",
+    "[d040] R02S01-DEPT-01-T03-U03 :: second source part swap solace wexford-hub for now discussed details during details with the blocking",
+    "[d107] R02S02-DEPT-01-T06-U00 :: alt vendor substitution solace below the minor during further minor now far",
+    "[d054] R00S02-DEPT-13-T07-U03 :: slow queries granite-edge no action reference so no next",
+    "[d116] R06S03-DEPT-02-T07-U08 :: part failure rate up solace-pay wexford-v2 review context the action for discussed up week reference so",
+    "[d042] R06S03-DEPT-02-T02-U00 :: onboarding logged tessera-pay assigned context nothing the action",
+    "[d061] R03S00-DEPT-01-T07-U03 :: component out of spec solace-pay for impact no as up see owner runbook",
+    "[d104] R06S03-DEPT-02-T09-U03 :: scrap rate climbing solace-pay pending attached minor expected the team so for the",
+    "[d053] R06S04-DEPT-00-T01-U05 :: scrap rate climbing solace-pay nimbus-core expected assigned expected follow runbook details expected the minor owner",
+    "[d086] R03S01-DEPT-04-T02-U04 :: line yield fell solace details during window further as details expected for with so",
+    "[d095] R05S00-DEPT-05-T03-U02 :: revenue shortfall solace-pay week impact follow thread",
+    "[d146] R03S00-DEPT-02-T06-U09 :: booked below plan solace-pay details expected below nothing for",
+    "[d120] R03S00-DEPT-02-T00-U03 :: headcount note logged vireox thread with the blocking next",
+    "[d095] R02S02-DEPT-01-T04-U06 :: revenue shortfall solace tessera-lite for week reference minor owner far follow impact assigned",
+    "[d075] R02S02-DEPT-00-T01-U01 :: doc review cobalt-net runbook pending owner for runbook further next"
+   ]
+  },
+  {
+   "id": "C-7",
+   "entity": "kestrel-pay",
+   "links": [
+    {
+     "event": "component_defect",
+     "first_seen_day": 1,
+     "last_seen_day": 179,
+     "independent_sources": 9,
+     "total_reports": 9,
+     "distinct_sites": 7,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "yield_drop",
+     "first_seen_day": 16,
+     "last_seen_day": 177,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "shipment_delay",
+     "first_seen_day": 37,
+     "last_seen_day": 37,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "customer_escalation",
+     "first_seen_day": 73,
+     "last_seen_day": 125,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 4,
+   "distinct_regions_total": 6,
+   "distinct_sites_total": 11,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d064] R04S01-DEPT-03-T10-U04 :: part failure rate up kestrel-pay wisteria-mk3 review with so nothing follow runbook further next discussed",
+    "[d179] R04S01-DEPT-01-T06-U05 :: component out of spec kestrel-pay tundra-hub nothing the review now for impact nothing nothing below",
+    "[d156] R04S01-DEPT-00-T06-U02 :: part failure rate up kestrel-pay now reference minor thread expected no ticket ticket",
+    "[d022] R06S04-DEPT-00-T01-U05 :: component out of spec kestrel-pay minor during up discussed pending during per pending owner reference",
+    "[d116] R06S03-DEPT-00-T04-U00 :: first pass yield down kestrel-pay thread thread thread attached next",
+    "[d022] R06S02-DEPT-00-T03-U00 :: component out of spec kestrel-pay the per blocking for during per per up far the",
+    "[d022] R06S01-DEPT-00-T14-U04 :: component out of spec kestrel-pay context assigned expected assigned expected follow see",
+    "[d022] R06S00-DEPT-01-T00-U03 :: component out of spec kestrel-pay minor owner discussed further as up discussed pending context",
+    "[d001] R02S00-DEPT-00-T00-U00 :: defective lot found kestrel nothing the blocking for with ticket",
+    "[d016] R00S00-DEPT-04-T02-U07 :: line yield fell kestrel-pay nothing the next review",
+    "[d177] R04S00-DEPT-05-T01-U03 :: travel note marlin-edge up see context the so nothing the action",
+    "[d037] R05S00-DEPT-07-T00-U04 :: delivery pushed out kestrel-pay osprey-hub assigned thread expected below",
+    "[d117] R04S01-DEPT-01-T05-U03 :: account raised severity kestrel-pay see with ticket action",
+    "[d073] R03S01-DEPT-08-T02-U00 :: exec escalation opened kestrel-pay thistle-net context for with next runbook team",
+    "[d125] R03S01-DEPT-00-T10-U01 :: account raised severity kestrel-pay the as further the minor"
+   ]
+  },
+  {
+   "id": "C-8",
+   "entity": "meridianx",
+   "links": [
+    {
+     "event": "component_defect",
+     "first_seen_day": 15,
+     "last_seen_day": 48,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "yield_drop",
+     "first_seen_day": 17,
+     "last_seen_day": 66,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "shipment_delay",
+     "first_seen_day": 49,
+     "last_seen_day": 111,
+     "independent_sources": 2,
+     "total_reports": 3,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "revenue_miss",
+     "first_seen_day": 81,
+     "last_seen_day": 81,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 4,
+   "distinct_regions_total": 7,
+   "distinct_sites_total": 7,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d048] R04S01-DEPT-02-T04-U05 :: component out of spec meridian-edge impact follow discussed pending now",
+    "[d015] R02S00-DEPT-06-T03-U00 :: routine training session kestrel-na zephyr-pay owner impact below nothing below assigned attached action far",
+    "[d066] R03S01-DEPT-11-T00-U02 :: vendor checkin logged pellucid-ii568 wisteria-mk3 the up impact no the details during up",
+    "[d028] R01S02-DEPT-00-T07-U01 :: price raised sable-edge veridian-lite blocking nothing the action see now impact no action for",
+    "[d017] R00S03-DEPT-02-T03-U03 :: patch window cinder-net review context for during team review expected below for not",
+    "[d049] R06S03-DEPT-02-T05-U00 :: shipment slipped meridian-edge details now runbook further",
+    "[d054] R06S03-DEPT-01-T04-U05 :: shipment slipped meridian-edge details now runbook further",
+    "[d111] R02S00-DEPT-03-T16-U00 :: routine tool upgrade lumen meridian-na ticket minor now discussed pending during pending expected the further",
+    "[d081] R05S00-DEPT-03-T03-U11 :: revenue shortfall cinder-eu runbook blocking follow runbook further"
+   ]
+  },
+  {
+   "id": "C-9",
+   "entity": "arbor-na",
+   "links": [
+    {
+     "event": "supplier_substitution",
+     "first_seen_day": 6,
+     "last_seen_day": 154,
+     "independent_sources": 4,
+     "total_reports": 5,
+     "distinct_sites": 4,
+     "distinct_regions": 4,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "component_defect",
+     "first_seen_day": 20,
+     "last_seen_day": 179,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "yield_drop",
+     "first_seen_day": 20,
+     "last_seen_day": 114,
+     "independent_sources": 5,
+     "total_reports": 5,
+     "distinct_sites": 5,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "shipment_delay",
+     "first_seen_day": 30,
+     "last_seen_day": 57,
+     "independent_sources": 6,
+     "total_reports": 6,
+     "distinct_sites": 4,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "customer_escalation",
+     "first_seen_day": 50,
+     "last_seen_day": 134,
+     "independent_sources": 6,
+     "total_reports": 6,
+     "distinct_sites": 5,
+     "distinct_regions": 4,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "revenue_miss",
+     "first_seen_day": 93,
+     "last_seen_day": 93,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 6,
+   "distinct_regions_total": 6,
+   "distinct_sites_total": 13,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d120] R05S00-DEPT-01-T02-U06 :: financial close delayed granite-mk3 expected the review now runbook",
+    "[d154] R04S00-DEPT-01-T07-U01 :: supplier switched arbor-eu ticket action see with",
+    "[d006] R06S02-DEPT-00-T03-U03 :: second source part swap arbor-na further minor during team review owner",
+    "[d131] R00S02-DEPT-19-T10-U05 :: routine release note cobalt-mk3 wisteria-ii587 window pending expected the details expected no minor expected so",
+    "[d179] R06S03-DEPT-00-T04-U01 :: headcount note solace-pay basalt-v2 see during further review owner far the",
+    "[d020] R04S00-DEPT-06-T03-U11 :: defective lot found arbor-na see during blocking assigned expected for owner below",
+    "[d020] R04S00-DEPT-02-T00-U06 :: defective lot found arbor-na expected nothing no the further ticket action far follow",
+    "[d045] R04S01-DEPT-00-T06-U01 :: routine training session meridian-edge cinder-pay attached as details attached review",
+    "[d020] R04S00-DEPT-06-T06-U05 :: component out of spec arbor-na assigned now reference minor expected the further",
+    "[d114] R03S01-DEPT-07-T01-U07 :: defective lot found zephyr-core context nothing below the minor owner far follow",
+    "[d030] R02S02-DEPT-00-T00-U04 :: line yield fell arbor-na up far the next reference review now impact",
+    "[d030] R02S00-DEPT-02-T05-U03 :: scrap rate climbing arbor-na per blocking no minor",
+    "[d057] R06S03-DEPT-02-T04-U12 :: delivery pushed out arbor-na now runbook team review owner impact the action",
+    "[d057] R06S03-DEPT-01-T02-U05 :: shipment slipped arbor-na far for now runbook blocking nothing impact",
+    "[d057] R06S01-DEPT-00-T03-U04 :: shipment slipped arbor-na no the blocking below the per up",
+    "[d057] R06S01-DEPT-00-T01-U02 :: freight delayed arbor-na discussed further minor attached action runbook up discussed",
+    "[d057] R06S00-DEPT-00-T07-U03 :: shipment slipped arbor-na further review context follow see far",
+    "[d030] R02S00-DEPT-04-T01-U00 :: scrap rate climbing arbor-na context for now see expected follow discussed team discussed",
+    "[d057] R06S03-DEPT-00-T02-U06 :: freight delayed arbor-na context for expected for review",
+    "[d050] R04S01-DEPT-03-T02-U02 :: customer escalated arbor-na so the per pending",
+    "[d050] R04S01-DEPT-02-T04-U05 :: account raised severity arbor-na the team so nothing the next",
+    "[d050] R04S00-DEPT-07-T03-U03 :: account raised severity arbor-na next reference review with so thread",
+    "[d134] R02S00-DEPT-02-T00-U01 :: routine headcount note pellucid-core runbook details now see during up week see",
+    "[d131] R00S00-DEPT-03-T02-U09 :: ticket triage veridian-eu lumen431 up week discussed pending attached action far"
+   ]
+  },
+  {
+   "id": "C-10",
+   "entity": "cobalt-core",
+   "links": [
+    {
+     "event": "price_increase",
+     "first_seen_day": 38,
+     "last_seen_day": 163,
+     "independent_sources": 4,
+     "total_reports": 4,
+     "distinct_sites": 4,
+     "distinct_regions": 4,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "margin_compression",
+     "first_seen_day": 110,
+     "last_seen_day": 110,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "discount_escalation",
+     "first_seen_day": 130,
+     "last_seen_day": 179,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 6,
+   "distinct_sites_total": 7,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d126] R04S01-DEPT-03-T00-U00 :: price raised cobalt-pay below the details context for context follow runbook blocking",
+    "[d163] R03S01-DEPT-09-T05-U07 :: surcharge applied cobalt-pay follow reference ticket so for thread attached action discussed",
+    "[d092] R01S00-DEPT-21-T02-U07 :: team lost engineers halcyon-ii566 tessera-edge window per blocking no ticket so for owner far",
+    "[d038] R00S02-DEPT-01-T02-U02 :: surcharge applied cobalt-pay the review owner runbook details context for",
+    "[d110] R00S01-DEPT-00-T02-U08 :: gross margin down cobalt-pay thistle-lite assigned with next runbook details owner reference ticket so",
+    "[d179] R06S00-DEPT-00-T08-U12 :: discount approvals rising cobalt-pay vireo-v2 below no review with so",
+    "[d130] R02S02-DEPT-00-T04-U01 :: routine budget note vantage-pay meridian-net review during per further as window up week week"
+   ]
+  },
+  {
+   "id": "C-11",
+   "entity": "vantage-hub",
+   "links": [
+    {
+     "event": "policy_change",
+     "first_seen_day": 11,
+     "last_seen_day": 11,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "manual_workaround",
+     "first_seen_day": 65,
+     "last_seen_day": 65,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "data_exposure_risk",
+     "first_seen_day": 90,
+     "last_seen_day": 144,
+     "independent_sources": 4,
+     "total_reports": 4,
+     "distinct_sites": 4,
+     "distinct_regions": 4,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "regulatory_notice",
+     "first_seen_day": 93,
+     "last_seen_day": 137,
+     "independent_sources": 4,
+     "total_reports": 4,
+     "distinct_sites": 4,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 4,
+   "distinct_regions_total": 5,
+   "distinct_sites_total": 8,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d011] R00S03-DEPT-01-T00-U00 :: policy updated halcyon with so below the the team the details context",
+    "[d065] R03S00-DEPT-01-T02-U13 :: release note logged vireo-ii586 sable-edge the pending context follow not",
+    "[d144] R05S00-DEPT-04-T00-U07 :: logo lost meridianx539 marlin-apac follow discussed up impact below for",
+    "[d090] R04S01-DEPT-03-T00-U01 :: exposure risk flagged vantage-hub during blocking nothing nothing below below for",
+    "[d119] R03S01-DEPT-00-T11-U00 :: onboarding logged umbra-ii577 osprey-hub the so the further action",
+    "[d135] R01S00-DEPT-08-T03-U08 :: compliance notice halcyonx review owner far for",
+    "[d113] R05S00-DEPT-09-T04-U01 :: supplier switched zephyr granite-ii attached review during window per blocking the as not",
+    "[d137] R04S01-DEPT-00-T07-U08 :: regulator inquiry received vantage-hub minor context assigned thread attached ticket",
+    "[d137] R04S00-DEPT-07-T04-U07 :: supervisory letter vantage-hub below below assigned thread thread attached the owner",
+    "[d093] R00S04-DEPT-00-T03-U02 :: breached service level halcyon-mk3 next for reference action week runbook team"
+   ]
+  },
+  {
+   "id": "C-12",
+   "entity": "basalt",
+   "links": [
+    {
+     "event": "attrition_spike",
+     "first_seen_day": 7,
+     "last_seen_day": 138,
+     "independent_sources": 6,
+     "total_reports": 6,
+     "distinct_sites": 5,
+     "distinct_regions": 5,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "backlog_growth",
+     "first_seen_day": 14,
+     "last_seen_day": 14,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "sla_breach",
+     "first_seen_day": 35,
+     "last_seen_day": 65,
+     "independent_sources": 4,
+     "total_reports": 4,
+     "distinct_sites": 4,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "contract_penalty",
+     "first_seen_day": 61,
+     "last_seen_day": 61,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "account_churn",
+     "first_seen_day": 121,
+     "last_seen_day": 121,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 5,
+   "distinct_regions_total": 6,
+   "distinct_sites_total": 10,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d030] R05S00-DEPT-04-T09-U08 :: team lost engineers basalt attached minor during blocking nothing expected",
+    "[d007] R06S02-DEPT-00-T00-U11 :: team lost engineers basalt up runbook pending owner",
+    "[d015] R03S01-DEPT-03-T01-U11 :: team lost engineers basalt the as per pending attached window",
+    "[d094] R01S00-DEPT-09-T05-U05 :: team lost engineers basalt review thread during window up",
+    "[d138] R00S00-DEPT-03-T02-U08 :: several resignations basalt halcyon-core482 expected no action see with review attached discussed",
+    "[d135] R00S00-DEPT-01-T03-U17 :: several resignations basalt per further so no action discussed details context follow no",
+    "[d014] R05S00-DEPT-05-T05-U00 :: queue depth rising basalt now see context for during",
+    "[d065] R06S04-DEPT-00-T03-U10 :: breached service level basalt-pro598 pending context assigned attached the window details",
+    "[d035] R06S03-DEPT-02-T00-U01 :: sla missed basalt reference ticket action see thread",
+    "[d035] R06S01-DEPT-01-T00-U06 :: response time out of target basalt impact no ticket next reference minor owner for week",
+    "[d056] R02S01-DEPT-04-T05-U11 :: response time out of target basalt meridian-na discussed window window details during blocking team",
+    "[d061] R01S00-DEPT-10-T12-U03 :: penalty clause triggered basalt tundrax557 window window team next see",
+    "[d121] R00S03-DEPT-01-T00-U19 :: logo lost basalt cinder-ii review thread attached review attached"
+   ]
+  },
+  {
+   "id": "C-13",
+   "entity": "vireo-pro",
+   "links": [
+    {
+     "event": "manual_workaround",
+     "first_seen_day": 24,
+     "last_seen_day": 167,
+     "independent_sources": 4,
+     "total_reports": 4,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "policy_change",
+     "first_seen_day": 27,
+     "last_seen_day": 27,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "regulatory_notice",
+     "first_seen_day": 71,
+     "last_seen_day": 71,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 5,
+   "distinct_sites_total": 5,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d027] R00S02-DEPT-02-T01-U01 :: routine patch window orion orion-lite owner runbook up far nothing nothing",
+    "[d037] R04S00-DEPT-03-T03-U05 :: access request logged meridian427 blocking follow week see thread attached action context",
+    "[d024] R03S01-DEPT-04-T01-U01 :: routine backup completed zephyr-core far below for attached ticket the",
+    "[d167] R01S00-DEPT-08-T13-U04 :: travel note thistle details thread context assigned expected the action",
+    "[d066] R01S00-DEPT-06-T08-U07 :: doc review nimbus-v2 granite-pay far the the pending during up",
+    "[d071] R02S02-DEPT-00-T02-U01 :: onboarding logged veridian-pay449 owner reference the up runbook details context the ticket as"
+   ]
+  },
+  {
+   "id": "C-14",
+   "entity": "wisteria",
+   "links": [
+    {
+     "event": "backlog_growth",
+     "first_seen_day": 36,
+     "last_seen_day": 144,
+     "independent_sources": 5,
+     "total_reports": 5,
+     "distinct_sites": 5,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "contract_penalty",
+     "first_seen_day": 104,
+     "last_seen_day": 167,
+     "independent_sources": 5,
+     "total_reports": 5,
+     "distinct_sites": 4,
+     "distinct_regions": 4,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 2,
+   "distinct_regions_total": 5,
+   "distinct_sites_total": 7,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d100] R06S05-DEPT-00-T01-U06 :: backlog grew wisteria minor thread owner see owner impact",
+    "[d100] R06S01-DEPT-00-T09-U00 :: queue depth rising wisteria review thread owner see attached next far nothing the",
+    "[d093] R05S00-DEPT-04-T07-U09 :: attrition above baseline wisteria week reference next discussed up",
+    "[d144] R04S01-DEPT-02-T05-U00 :: patch window logged tundrax wexford-lite follow discussed up impact no as window details owner",
+    "[d036] R04S00-DEPT-01-T08-U04 :: backlog grew wisteria runbook pending owner runbook blocking follow impact for with",
+    "[d136] R03S01-DEPT-03-T02-U12 :: contractual fine wisteria-ii587 minor during up for see",
+    "[d108] R05S00-DEPT-05-T07-U02 :: service credits owed wisteria owner for impact no next runbook window",
+    "[d167] R04S00-DEPT-01-T00-U01 :: penalty clause triggered wisteria up impact for attached so assigned ticket",
+    "[d104] R03S01-DEPT-00-T09-U11 :: penalty clause triggered wisteria minor during up reference review owner see attached so",
+    "[d158] R01S00-DEPT-12-T02-U04 :: service credits owed wisteria kestrel-mk3 the ticket next discussed pending expected below for action"
+   ]
+  },
+  {
+   "id": "C-15",
+   "entity": "pellucid-v2",
+   "links": [
+    {
+     "event": "sla_breach",
+     "first_seen_day": 14,
+     "last_seen_day": 84,
+     "independent_sources": 5,
+     "total_reports": 5,
+     "distinct_sites": 4,
+     "distinct_regions": 4,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "contract_penalty",
+     "first_seen_day": 46,
+     "last_seen_day": 100,
+     "independent_sources": 4,
+     "total_reports": 4,
+     "distinct_sites": 4,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 2,
+   "distinct_regions_total": 5,
+   "distinct_sites_total": 7,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d014] R05S00-DEPT-05-T05-U03 :: nightly job overran orion-na further next see attached review attached next",
+    "[d020] R05S00-DEPT-04-T05-U01 :: routine training session wexford-core494 umbra-ii the window details expected assigned context the up",
+    "[d073] R03S01-DEPT-00-T04-U13 :: supplier switched tundra-ii arbor-lite week see now runbook team so",
+    "[d014] R02S01-DEPT-05-T07-U04 :: routine vendor checkin basalt-pay solace-pay blocking the window blocking the runbook",
+    "[d084] R00S00-DEPT-00-T00-U05 :: routine meeting note halcyon impact the further the window up runbook details reference",
+    "[d054] R02S02-DEPT-01-T01-U04 :: penalty clause triggered pellucid-v2 halcyon-lite expected below the ticket",
+    "[d100] R06S01-DEPT-00-T09-U03 :: routine budget note veridian granite-edge team so assigned context follow reference",
+    "[d083] R02S01-DEPT-00-T09-U04 :: penalty clause triggered pellucid-v2 window blocking nothing below further",
+    "[d046] R02S00-DEPT-03-T06-U00 :: status update pellucid-pay veridianx533 assigned owner for see below"
+   ]
+  },
+  {
+   "id": "C-16",
+   "entity": "meridian-pay",
+   "links": [
+    {
+     "event": "margin_compression",
+     "first_seen_day": 2,
+     "last_seen_day": 80,
+     "independent_sources": 6,
+     "total_reports": 6,
+     "distinct_sites": 5,
+     "distinct_regions": 4,
+     "contradicting_reports": 1
+    },
+    {
+     "event": "forecast_revision",
+     "first_seen_day": 22,
+     "last_seen_day": 176,
+     "independent_sources": 6,
+     "total_reports": 6,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 2,
+   "distinct_regions_total": 6,
+   "distinct_sites_total": 7,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d002] R02S00-DEPT-02-T00-U07 :: margin squeezed meridian meridian-apac as per team ticket so the the action",
+    "[d050] R00S02-DEPT-05-T10-U07 :: cost of goods up meridian solace-hub window further ticket the further not",
+    "[d080] R06S04-DEPT-00-T02-U02 :: freight delayed pellucidx discussed window window blocking the",
+    "[d007] R02S00-DEPT-05-T05-U03 :: margin squeezed meridian-pay no next discussed team review expected assigned owner",
+    "[d078] R01S00-DEPT-08-T15-U04 :: cost of goods up meridian-pay reference next runbook per further",
+    "[d055] R00S01-DEPT-01-T06-U04 :: cost of goods up meridian-pay vireo-na expected follow see expected assigned context no",
+    "[d022] R05S00-DEPT-03-T05-U00 :: guidance changed meridian-pay meridian-v2 runbook team so follow far the team action week runbook",
+    "[d083] R04S01-DEPT-02-T04-U06 :: guidance changed meridian-pay pellucidx540 for reference ticket as window",
+    "[d176] R04S01-DEPT-00-T01-U02 :: forecast cut meridian-pay far assigned expected assigned attached so nothing nothing assigned",
+    "[d070] R00S02-DEPT-08-T07-U03 :: plan revised down meridian cobalt424 now week far for attached ticket so follow impact owner",
+    "[d166] R00S02-DEPT-08-T04-U08 :: guidance changed meridian-pay discussed team action see during",
+    "[d067] R00S02-DEPT-08-T03-U03 :: training session vantage-ii575 zephyr-net below follow impact for context the review with attached"
+   ]
+  },
+  {
+   "id": "C-17",
+   "entity": "nimbus-lite",
+   "links": [
+    {
+     "event": "policy_change",
+     "first_seen_day": 20,
+     "last_seen_day": 125,
+     "independent_sources": 4,
+     "total_reports": 6,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "data_exposure_risk",
+     "first_seen_day": 36,
+     "last_seen_day": 82,
+     "independent_sources": 9,
+     "total_reports": 17,
+     "distinct_sites": 7,
+     "distinct_regions": 5,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "audit_finding",
+     "first_seen_day": 128,
+     "last_seen_day": 128,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 6,
+   "distinct_sites_total": 9,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d125] R00S02-DEPT-11-T09-U02 :: control tightened nimbus-lite nimbus-lite review now far no so for context follow",
+    "[d122] R01S00-DEPT-15-T03-U04 :: new approval rule nimbus-lite up runbook team as blocking team",
+    "[d037] R00S02-DEPT-24-T10-U00 :: new approval rule nimbus-lite tundrax no as per team minor attached as details now week",
+    "[d020] R00S02-DEPT-19-T12-U03 :: new approval rule nimbus-lite wexford438 per window pending attached",
+    "[d082] R04S01-DEPT-00-T06-U05 :: data left the boundary nimbus-lite window per up up",
+    "[d082] R06S04-DEPT-00-T01-U10 :: unencrypted export observed nimbus-lite expected assigned owner far below",
+    "[d082] R06S01-DEPT-00-T03-U04 :: exposure risk flagged nimbus-lite far for owner see with minor owner runbook team",
+    "[d082] R03S01-DEPT-05-T07-U06 :: exposure risk flagged nimbus-lite the window further as pending now",
+    "[d082] R03S01-DEPT-05-T01-U05 :: unencrypted export observed nimbus-lite up impact follow impact below the details thread expected",
+    "[d082] R02S01-DEPT-01-T00-U02 :: data left the boundary nimbus-lite so no ticket ticket",
+    "[d082] R02S00-DEPT-07-T04-U05 :: data left the boundary nimbus-lite follow far assigned now discussed details owner impact no minor",
+    "[d036] R02S00-DEPT-01-T01-U04 :: onboarding kestrel veridianx week for runbook blocking follow",
+    "[d066] R00S04-DEPT-00-T05-U01 :: training session vireo-pro tessera-pro up impact below follow",
+    "[d128] R01S00-DEPT-22-T00-U00 :: budget note logged pellucid-apac no so nothing for expected nothing no so follow discussed"
+   ]
+  },
+  {
+   "id": "C-18",
+   "entity": "veridian-na",
+   "links": [
+    {
+     "event": "sla_breach",
+     "first_seen_day": 12,
+     "last_seen_day": 154,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "account_churn",
+     "first_seen_day": 80,
+     "last_seen_day": 146,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 2,
+   "distinct_regions_total": 4,
+   "distinct_sites_total": 5,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d154] R04S01-DEPT-02-T00-U01 :: vendor checkin logged umbra-apac veridian-pay the further next runbook further ticket",
+    "[d012] R01S02-DEPT-00-T06-U01 :: release note logged vantage-v2 window per pending thread with minor owner discussed per team",
+    "[d087] R00S03-DEPT-01-T06-U12 :: firewall rule change tessera-pay cinderx545 impact follow impact assigned during pending",
+    "[d118] R02S01-DEPT-06-T01-U11 :: price concessions tundra-ii585 wisteria-lite minor expected no ticket so follow",
+    "[d080] R00S04-DEPT-00-T04-U00 :: routine headcount note meridian-edge511 see thread with minor",
+    "[d146] R00S04-DEPT-00-T02-U03 :: guidance changed zephyrx551 runbook up for far follow impact the action per"
+   ]
+  },
+  {
+   "id": "C-19",
+   "entity": "basalt-hub",
+   "links": [
+    {
+     "event": "component_defect",
+     "first_seen_day": 15,
+     "last_seen_day": 150,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "yield_drop",
+     "first_seen_day": 40,
+     "last_seen_day": 148,
+     "independent_sources": 4,
+     "total_reports": 4,
+     "distinct_sites": 4,
+     "distinct_regions": 4,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "shipment_delay",
+     "first_seen_day": 153,
+     "last_seen_day": 153,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 6,
+   "distinct_sites_total": 7,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d088] R03S00-DEPT-02-T14-U02 :: status update sable-core ticket the blocking the the further",
+    "[d015] R01S00-DEPT-19-T12-U05 :: routine ticket triage quarry-pay ticket as further as pending with review expected",
+    "[d150] R00S02-DEPT-15-T00-U02 :: team lost engineers wexford-edge522 granite-net the so for owner runbook up far below",
+    "[d040] R06S00-DEPT-00-T09-U09 :: training session logged granite-pro umbrax action reference review thread with review",
+    "[d148] R04S01-DEPT-00-T02-U02 :: doc review logged zephyr attached ticket so for now the",
+    "[d125] R02S00-DEPT-01-T01-U05 :: tool upgrade kestrel-na attached action impact no action week week far the",
+    "[d144] R00S00-DEPT-05-T05-U10 :: routine backup completed basalt-pro per window details thread expected assigned context for thread context",
+    "[d153] R01S00-DEPT-02-T05-U10 :: headcount note tundra-lite far below below follow"
+   ]
+  },
+  {
+   "id": "C-20",
+   "entity": "sable",
+   "links": [
+    {
+     "event": "policy_change",
+     "first_seen_day": 3,
+     "last_seen_day": 172,
+     "independent_sources": 7,
+     "total_reports": 7,
+     "distinct_sites": 4,
+     "distinct_regions": 4,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "data_exposure_risk",
+     "first_seen_day": 17,
+     "last_seen_day": 176,
+     "independent_sources": 7,
+     "total_reports": 8,
+     "distinct_sites": 5,
+     "distinct_regions": 3,
+     "contradicting_reports": 1
+    },
+    {
+     "event": "audit_finding",
+     "first_seen_day": 19,
+     "last_seen_day": 143,
+     "independent_sources": 5,
+     "total_reports": 5,
+     "distinct_sites": 5,
+     "distinct_regions": 4,
+     "contradicting_reports": 1
+    },
+    {
+     "event": "regulatory_notice",
+     "first_seen_day": 55,
+     "last_seen_day": 88,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 4,
+   "distinct_regions_total": 7,
+   "distinct_sites_total": 10,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d008] R04S01-DEPT-02-T05-U03 :: team used a workaround sable for thread now discussed pending up",
+    "[d128] R02S01-DEPT-05-T04-U08 :: new approval rule sable zephyr-edge523 for context for with",
+    "[d077] R01S00-DEPT-22-T04-U05 :: access request logged zephyr zephyr per per pending thread",
+    "[d116] R01S00-DEPT-12-T00-U07 :: policy updated sable for thread with minor now per",
+    "[d172] R00S02-DEPT-02-T03-U04 :: release note nimbus-lite wisteria for impact for below",
+    "[d109] R00S02-DEPT-24-T04-U09 :: supervisory letter thistle-pro basaltx assigned thread owner far nothing attached",
+    "[d003] R00S02-DEPT-07-T05-U04 :: supervisory letter tundra wexford-mk3 as blocking nothing the next week for discussed further",
+    "[d132] R02S01-DEPT-06-T02-U04 :: exposure risk flagged sable ticket minor attached as blocking for attached minor owner week",
+    "[d157] R02S00-DEPT-05-T11-U07 :: data left the boundary sable arbor-pay460 pending context for during up owner",
+    "[d157] R02S00-DEPT-02-T04-U11 :: data left the boundary sable pending context for during up discussed",
+    "[d017] R02S00-DEPT-02-T01-U07 :: unencrypted export observed sable-ii584 basalt-na reference so follow see attached review attached ticket so",
+    "[d176] R00S03-DEPT-02-T01-U09 :: unencrypted export observed sable wexford-core pending attached the team next reference as blocking follow runbook",
+    "[d075] R00S02-DEPT-05-T06-U07 :: release note orion-pay no minor during blocking the pending thread now",
+    "[d055] R06S03-DEPT-02-T04-U00 :: data left the boundary sable-core500 discussed details owner runbook pending now reference ticket ticket as",
+    "[d109] R06S03-DEPT-00-T05-U01 :: exposure risk flagged sable-core500 during pending now reference the not",
+    "[d019] R02S00-DEPT-07-T03-U02 :: audit finding raised sable impact below assigned context the the blocking below the blocking",
+    "[d032] R06S03-DEPT-02-T01-U04 :: tool upgrade logged halcyon-lite wexford438 during further action reference as blocking for with the",
+    "[d057] R06S00-DEPT-00-T03-U19 :: control gap logged sable-core500 pending expected nothing no next impact the pending with team",
+    "[d116] R05S00-DEPT-06-T02-U00 :: audit finding raised sable-core500 assigned owner reference so for attached minor owner not",
+    "[d143] R01S00-DEPT-02-T05-U00 :: audit finding raised sable-core500 runbook details with next impact follow impact nothing for expected",
+    "[d055] R03S00-DEPT-01-T05-U05 :: asset went down halcyon-pay below the per per details expected for attached per",
+    "[d088] R01S00-DEPT-17-T13-U04 :: revenue shortfall veridian-hub marlin-ii581 owner see thread attached action reference no",
+    "[d075] R00S02-DEPT-24-T06-U02 :: supervisory letter sable-core500 up for far details"
+   ]
+  },
+  {
+   "id": "C-21",
+   "entity": "wexford-net",
+   "links": [
+    {
+     "event": "sensor_drift",
+     "first_seen_day": 3,
+     "last_seen_day": 119,
+     "independent_sources": 4,
+     "total_reports": 4,
+     "distinct_sites": 4,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "false_alarm",
+     "first_seen_day": 9,
+     "last_seen_day": 9,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "unplanned_downtime",
+     "first_seen_day": 68,
+     "last_seen_day": 68,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 4,
+   "distinct_sites_total": 6,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d043] R02S01-DEPT-04-T06-U08 :: financial close delayed tessera-edge see during blocking for context the as",
+    "[d003] R01S00-DEPT-09-T02-U08 :: unencrypted export observed osprey-apac tundra-pay next reference as team",
+    "[d119] R00S02-DEPT-19-T02-U04 :: routine status update basalt-v2 discussed details now discussed further so follow",
+    "[d020] R00S00-DEPT-06-T01-U05 :: booked below plan cobalt wexford-core with so below follow runbook per",
+    "[d009] R02S00-DEPT-03-T00-U04 :: policy updated vantagex547 umbra-lite the team minor context no context",
+    "[d068] R05S00-DEPT-04-T06-U04 :: freight delayed wexford-core expected below for owner week see thread during further action"
+   ]
+  },
+  {
+   "id": "C-22",
+   "entity": "lumen-hub",
+   "links": [
+    {
+     "event": "component_defect",
+     "first_seen_day": 21,
+     "last_seen_day": 151,
+     "independent_sources": 4,
+     "total_reports": 4,
+     "distinct_sites": 4,
+     "distinct_regions": 4,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "yield_drop",
+     "first_seen_day": 69,
+     "last_seen_day": 113,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "customer_escalation",
+     "first_seen_day": 95,
+     "last_seen_day": 95,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 6,
+   "distinct_sites_total": 6,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d071] R04S00-DEPT-07-T02-U00 :: patch window sablex556 context follow week far nothing below follow impact for thread",
+    "[d073] R02S00-DEPT-05-T07-U01 :: travel note cinder wexford438 window pending context the up week discussed",
+    "[d021] R01S00-DEPT-13-T00-U00 :: routine training session tundra-lite with so nothing the as pending see",
+    "[d151] R00S02-DEPT-24-T07-U03 :: routine backup completed tessera425 cobalt-pay for expected nothing below the blocking for expected the up",
+    "[d113] R03S00-DEPT-02-T03-U05 :: tool upgrade umbra-eu for week week see",
+    "[d069] R00S02-DEPT-02-T08-U02 :: audit finding raised tundra vireox558 week runbook pending attached ticket for",
+    "[d095] R06S00-DEPT-00-T09-U07 :: breached service level basalt-pay458 lumen-pro blocking follow reference review attached as team pending"
+   ]
+  },
+  {
+   "id": "C-23",
+   "entity": "vantage-edge",
+   "links": [
+    {
+     "event": "latency_regression",
+     "first_seen_day": 56,
+     "last_seen_day": 56,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "batch_job_overrun",
+     "first_seen_day": 111,
+     "last_seen_day": 129,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "reporting_delay",
+     "first_seen_day": 132,
+     "last_seen_day": 132,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 3,
+   "distinct_sites_total": 4,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d056] R01S00-DEPT-06-T02-U02 :: doc review halcyon-net solace-core490 for thread thread owner reference as",
+    "[d129] R03S01-DEPT-09-T05-U02 :: routine tool upgrade pellucid-ii568 runbook blocking below follow week impact the team minor attached",
+    "[d111] R01S01-DEPT-00-T08-U06 :: routine ticket triage zephyr-net minor attached review context the up",
+    "[d132] R00S04-DEPT-01-T01-U02 :: batch window exceeded vantage-core so the details now"
+   ]
+  },
+  {
+   "id": "C-24",
+   "entity": "orion",
+   "links": [
+    {
+     "event": "attrition_spike",
+     "first_seen_day": 12,
+     "last_seen_day": 136,
+     "independent_sources": 5,
+     "total_reports": 5,
+     "distinct_sites": 4,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "sla_breach",
+     "first_seen_day": 14,
+     "last_seen_day": 114,
+     "independent_sources": 7,
+     "total_reports": 7,
+     "distinct_sites": 6,
+     "distinct_regions": 5,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "contract_penalty",
+     "first_seen_day": 39,
+     "last_seen_day": 160,
+     "independent_sources": 7,
+     "total_reports": 7,
+     "distinct_sites": 6,
+     "distinct_regions": 5,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 7,
+   "distinct_sites_total": 11,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d133] R02S01-DEPT-03-T06-U05 :: false positive alert vireo-edge530 follow see now week far",
+    "[d136] R01S02-DEPT-00-T03-U04 :: several resignations orion see now week impact nothing for with",
+    "[d070] R00S03-DEPT-03-T00-U01 :: team lost engineers orion window window team the team",
+    "[d089] R00S03-DEPT-02-T04-U01 :: backup completed logged veridian-pay now impact follow reference the",
+    "[d012] R00S00-DEPT-02-T08-U03 :: team lost engineers orion runbook details now week impact for thread during team",
+    "[d103] R04S00-DEPT-02-T00-U06 :: contractual fine orion now reference minor with",
+    "[d014] R03S00-DEPT-02-T03-U05 :: response time out of target orion as per blocking below for during",
+    "[d114] R01S02-DEPT-00-T04-U05 :: routine release note nimbus-mk3 far below the window details during details context",
+    "[d020] R06S02-DEPT-00-T05-U03 :: breached service level orion osprey-v2 expected follow impact now",
+    "[d079] R06S02-DEPT-00-T02-U08 :: breached service level orion tessera-apac review context for expected follow far for",
+    "[d084] R05S00-DEPT-00-T02-U03 :: response time out of target orion solace-core490 further next week impact the so the",
+    "[d073] R01S00-DEPT-02-T06-U03 :: sla missed orion quarry-edge513 with review with the pending attached review per",
+    "[d041] R03S00-DEPT-02-T03-U00 :: service credits owed orion pellucid-core the per details during up for discussed with",
+    "[d102] R04S00-DEPT-06-T03-U00 :: contractual fine orion halcyon-pay454 now reference minor up",
+    "[d039] R05S00-DEPT-09-T08-U04 :: penalty clause triggered orion peregrine window blocking assigned context no far",
+    "[d108] R06S03-DEPT-00-T07-U02 :: penalty clause triggered orion see now far the follow",
+    "[d085] R05S00-DEPT-09-T02-U12 :: response time out of target orion further next week impact the so the",
+    "[d160] R03S01-DEPT-00-T06-U03 :: penalty clause triggered orion cobalt-hub now impact the details thread during further next for blocking",
+    "[d071] R01S00-DEPT-10-T09-U08 :: penalty clause triggered orion team as details expected follow"
+   ]
+  },
+  {
+   "id": "C-25",
+   "entity": "basalt-core",
+   "links": [
+    {
+     "event": "revenue_miss",
+     "first_seen_day": 26,
+     "last_seen_day": 135,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "yield_drop",
+     "first_seen_day": 29,
+     "last_seen_day": 103,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 2,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 2,
+   "distinct_regions_total": 4,
+   "distinct_sites_total": 5,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d029] R01S02-DEPT-00-T00-U02 :: freight delayed basalt-core pellucid-v2 no so no minor expected no ticket so",
+    "[d073] R01S00-DEPT-12-T03-U06 :: inventory count logged nimbus-v2 far assigned during pending owner reference action runbook blocking assigned",
+    "[d103] R01S00-DEPT-10-T00-U04 :: error budget burned cinder-core sable-core now reference minor owner see expected no the",
+    "[d026] R03S01-DEPT-04-T02-U08 :: missed quarter target basalt-pay osprey-na minor now see thread thread with next reference as details",
+    "[d068] R02S01-DEPT-05-T01-U14 :: booked below plan basalt-pay pellucid-pro review owner impact follow far",
+    "[d135] R00S00-DEPT-02-T06-U04 :: routine budget note zephyr-eu umbra-pay465 window details thread context the window up for for nothing"
+   ]
+  },
+  {
+   "id": "C-26",
+   "entity": "orion",
+   "links": [
+    {
+     "event": "supplier_substitution",
+     "first_seen_day": 49,
+     "last_seen_day": 100,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "yield_drop",
+     "first_seen_day": 131,
+     "last_seen_day": 131,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "customer_escalation",
+     "first_seen_day": 162,
+     "last_seen_day": 162,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 5,
+   "distinct_sites_total": 5,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d055] R03S00-DEPT-01-T04-U06 :: second source part swap orion veridian owner week see now see expected below nothing the",
+    "[d100] R05S00-DEPT-09-T02-U07 :: headcount note logged quarry-ii569 osprey-edge526 action runbook team as window details context the team ticket",
+    "[d049] R02S01-DEPT-03-T03-U01 :: routine patch window tessera-mk3 minor now far no review attached",
+    "[d131] R04S01-DEPT-00-T00-U01 :: line yield fell orion runbook team review expected below for owner",
+    "[d162] R01S00-DEPT-08-T03-U03 :: account raised severity orion the team minor nothing"
+   ]
+  },
+  {
+   "id": "C-27",
+   "entity": "meridian-eu",
+   "links": [
+    {
+     "event": "attrition_spike",
+     "first_seen_day": 31,
+     "last_seen_day": 170,
+     "independent_sources": 4,
+     "total_reports": 4,
+     "distinct_sites": 3,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "sla_breach",
+     "first_seen_day": 75,
+     "last_seen_day": 146,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "account_churn",
+     "first_seen_day": 94,
+     "last_seen_day": 94,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 5,
+   "distinct_sites_total": 6,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d164] R02S02-DEPT-00-T00-U06 :: attrition above baseline meridian-eu nimbus-mk3 for thread attached so assigned with action no",
+    "[d031] R02S00-DEPT-03-T09-U04 :: headcount note logged halcyon426 see thread expected below the per team minor",
+    "[d170] R00S02-DEPT-26-T01-U00 :: budget note basalt-v2 for expected for context follow reference minor with as further",
+    "[d069] R00S02-DEPT-19-T15-U05 :: vendor checkin logged granite-pay attached as details thread thread owner runbook",
+    "[d111] R06S00-DEPT-00-T09-U09 :: training session kestrel-core tundra-core next see during details during",
+    "[d075] R04S00-DEPT-00-T03-U04 :: routine tool upgrade umbrax549 umbra-apac so the per pending owner impact",
+    "[d146] R00S02-DEPT-25-T06-U05 :: routine onboarding osprey-hub cobalt-mk3 for attached minor now ticket",
+    "[d094] R03S01-DEPT-11-T02-U04 :: false positive alert zephyrx now reference as details with review during further next attached"
+   ]
+  },
+  {
+   "id": "C-28",
+   "entity": "tundrax",
+   "links": [
+    {
+     "event": "supplier_substitution",
+     "first_seen_day": 5,
+     "last_seen_day": 67,
+     "independent_sources": 9,
+     "total_reports": 9,
+     "distinct_sites": 5,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "component_defect",
+     "first_seen_day": 12,
+     "last_seen_day": 122,
+     "independent_sources": 4,
+     "total_reports": 4,
+     "distinct_sites": 4,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "yield_drop",
+     "first_seen_day": 26,
+     "last_seen_day": 103,
+     "independent_sources": 5,
+     "total_reports": 5,
+     "distinct_sites": 5,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "revenue_miss",
+     "first_seen_day": 77,
+     "last_seen_day": 171,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 4,
+   "distinct_regions_total": 7,
+   "distinct_sites_total": 12,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d067] R05S00-DEPT-02-T03-U07 :: vendor checkin logged basalt-mk3 basalt-na details attached as blocking follow far owner",
+    "[d008] R06S02-DEPT-00-T04-U08 :: alt vendor substitution tundrax next discussed team the",
+    "[d008] R06S02-DEPT-00-T01-U10 :: supplier switched tundrax details expected nothing the ticket no",
+    "[d008] R06S02-DEPT-00-T00-U07 :: second source part swap tundrax so the as blocking no",
+    "[d008] R06S01-DEPT-00-T09-U11 :: second source part swap tundrax details attached the team minor",
+    "[d008] R06S01-DEPT-00-T07-U08 :: supplier switched tundrax expected below follow week discussed",
+    "[d008] R06S00-DEPT-00-T03-U21 :: supplier switched tundrax owner far the up impact",
+    "[d008] R06S00-DEPT-00-T03-U20 :: second source part swap tundrax follow reference action runbook up far below for attached",
+    "[d005] R00S02-DEPT-01-T10-U14 :: travel note logged quarry-pay pending attached next impact",
+    "[d122] R02S00-DEPT-02-T04-U07 :: headcount note logged zephyr439 with the further ticket the",
+    "[d012] R01S02-DEPT-00-T00-U04 :: part failure rate up tundrax for thread owner runbook blocking nothing for next",
+    "[d012] R01S00-DEPT-16-T03-U05 :: part failure rate up tundrax no the blocking the action discussed",
+    "[d045] R00S01-DEPT-02-T03-U03 :: routine vendor checkin granite-lite veridian-apac nothing the team review expected the next",
+    "[d026] R06S04-DEPT-00-T02-U07 :: line yield fell tundrax blocking nothing below below follow discussed further next for",
+    "[d026] R06S02-DEPT-00-T03-U02 :: line yield fell tundrax so the window team the up impact follow discussed pending",
+    "[d026] R06S01-DEPT-00-T10-U04 :: line yield fell tundrax action week runbook up for impact the pending",
+    "[d026] R06S00-DEPT-00-T06-U04 :: first pass yield down tundrax so below nothing for context assigned week",
+    "[d103] R00S02-DEPT-20-T05-U07 :: headcount note logged umbra orion now reference next week week discussed window team minor context",
+    "[d077] R04S00-DEPT-03-T03-U02 :: status update tundra per pending with as pending expected the so",
+    "[d171] R03S00-DEPT-00-T03-U02 :: travel note arbor minor now runbook window team review",
+    "[d170] R01S00-DEPT-02-T03-U01 :: booked below plan tundra-edge basalt-na pending attached next discussed"
+   ]
+  },
+  {
+   "id": "C-29",
+   "entity": "osprey-pay470",
+   "links": [
+    {
+     "event": "policy_change",
+     "first_seen_day": 72,
+     "last_seen_day": 174,
+     "independent_sources": 6,
+     "total_reports": 11,
+     "distinct_sites": 10,
+     "distinct_regions": 6,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "manual_workaround",
+     "first_seen_day": 72,
+     "last_seen_day": 104,
+     "independent_sources": 4,
+     "total_reports": 11,
+     "distinct_sites": 8,
+     "distinct_regions": 4,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "data_exposure_risk",
+     "first_seen_day": 78,
+     "last_seen_day": 158,
+     "independent_sources": 4,
+     "total_reports": 9,
+     "distinct_sites": 7,
+     "distinct_regions": 5,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "regulatory_notice",
+     "first_seen_day": 87,
+     "last_seen_day": 163,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 4,
+   "distinct_regions_total": 7,
+   "distinct_sites_total": 14,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d072] R06S04-DEPT-00-T00-U02 :: new approval rule osprey-pay470 week far below nothing no",
+    "[d072] R06S03-DEPT-02-T00-U07 :: new approval rule osprey-pay470 week far below nothing no",
+    "[d072] R06S00-DEPT-00-T05-U01 :: new approval rule osprey-pay470 week far below nothing no",
+    "[d072] R05S00-DEPT-09-T02-U11 :: new approval rule osprey-pay470 week far below nothing far",
+    "[d072] R04S01-DEPT-03-T03-U07 :: new approval rule osprey-pay470 week far below nothing no",
+    "[d072] R04S01-DEPT-01-T03-U02 :: new approval rule osprey-pay470 week far below nothing the",
+    "[d078] R04S00-DEPT-01-T08-U03 :: team used a workaround osprey-pay470 further ticket next for for week see",
+    "[d137] R03S01-DEPT-01-T05-U01 :: vendor checkin meridian-v2 orion context follow see expected",
+    "[d072] R01S01-DEPT-00-T00-U06 :: new approval rule osprey-pay470 week far below nothing no",
+    "[d158] R00S04-DEPT-01-T02-U00 :: routine release note vantage-core far assigned now reference as further next",
+    "[d174] R00S02-DEPT-01-T10-U02 :: routine budget note peregrine lumenx per team ticket so",
+    "[d078] R06S05-DEPT-00-T00-U04 :: team used a workaround osprey-pay470 further ticket next for for week see",
+    "[d078] R06S03-DEPT-00-T02-U04 :: team used a workaround osprey-pay470 further ticket next for for week see",
+    "[d078] R06S01-DEPT-00-T08-U04 :: team used a workaround osprey-pay470 further ticket next for for week see",
+    "[d078] R06S00-DEPT-00-T06-U04 :: team used a workaround osprey-pay470 further ticket next for for week so",
+    "[d104] R05S00-DEPT-09-T00-U03 :: data left the boundary osprey-pay470 reference review attached so assigned now reference review during details",
+    "[d078] R05S00-DEPT-04-T11-U00 :: team used a workaround osprey-pay470 further ticket next for for week see",
+    "[d078] R05S00-DEPT-04-T09-U06 :: team used a workaround osprey-pay470 further ticket next for for week see",
+    "[d078] R04S01-DEPT-03-T03-U01 :: team used a workaround osprey-pay470 further ticket next for for week see",
+    "[d078] R04S00-DEPT-01-T05-U08 :: team used a workaround osprey-pay470 further ticket next for for week attached",
+    "[d078] R04S00-DEPT-00-T04-U11 :: team used a workaround osprey-pay470 further ticket next for for week see",
+    "[d072] R01S01-DEPT-01-T00-U07 :: new approval rule osprey-pay470 week far below nothing now",
+    "[d104] R06S03-DEPT-01-T02-U08 :: data left the boundary osprey-pay470 reference review attached so assigned now reference review during assigned",
+    "[d104] R06S01-DEPT-00-T12-U07 :: data left the boundary osprey-pay470 reference review attached so assigned now reference review during week"
+   ]
+  },
+  {
+   "id": "C-30",
+   "entity": "solace-core",
+   "links": [
+    {
+     "event": "sensor_drift",
+     "first_seen_day": 8,
+     "last_seen_day": 166,
+     "independent_sources": 4,
+     "total_reports": 4,
+     "distinct_sites": 3,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "unplanned_downtime",
+     "first_seen_day": 33,
+     "last_seen_day": 100,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "output_shortfall",
+     "first_seen_day": 48,
+     "last_seen_day": 142,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 4,
+   "distinct_sites_total": 5,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d073] R01S00-DEPT-03-T01-U02 :: doc review halcyon-core482 week runbook window blocking for now impact no no",
+    "[d127] R02S02-DEPT-00-T00-U10 :: patch window logged orion-pay per per further as blocking no the",
+    "[d166] R02S00-DEPT-01-T04-U04 :: telemetry bias observed solace-core veridian-edge blocking follow far the action week far no",
+    "[d008] R02S00-DEPT-00-T02-U06 :: spurious alarm solace-pay team minor attached as details context assigned expected ticket",
+    "[d033] R01S00-DEPT-25-T00-U04 :: routine travel note kestrel422 week reference ticket minor expected the as",
+    "[d100] R00S02-DEPT-19-T14-U04 :: onboarding logged meridian wisteria-ii during pending during up",
+    "[d048] R06S03-DEPT-00-T05-U04 :: supervisory letter zephyr-pay no minor context the up discussed details context context",
+    "[d142] R01S00-DEPT-10-T09-U09 :: onboarding logged wisteria-pro quarry-core485 see with minor thread now week impact nothing"
+   ]
+  },
+  {
+   "id": "C-31",
+   "entity": "granite-apac",
+   "links": [
+    {
+     "event": "sensor_drift",
+     "first_seen_day": 9,
+     "last_seen_day": 33,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "false_alarm",
+     "first_seen_day": 103,
+     "last_seen_day": 103,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "unplanned_downtime",
+     "first_seen_day": 177,
+     "last_seen_day": 177,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 4,
+   "distinct_sites_total": 4,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d033] R01S00-DEPT-17-T12-U03 :: meeting note logged osprey-apac attached action week impact follow",
+    "[d009] R00S02-DEPT-23-T03-U05 :: backup completed halcyon-edge umbra-ii the minor expected nothing no minor impact",
+    "[d103] R04S01-DEPT-00-T02-U11 :: routine meeting note lumen-v2 so for during team minor expected the details owner no",
+    "[d177] R05S00-DEPT-09-T07-U04 :: response times regressed tundra-net attached review with action"
+   ]
+  },
+  {
+   "id": "C-32",
+   "entity": "orion-v2",
+   "links": [
+    {
+     "event": "yield_drop",
+     "first_seen_day": 10,
+     "last_seen_day": 90,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "shipment_delay",
+     "first_seen_day": 41,
+     "last_seen_day": 166,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "customer_escalation",
+     "first_seen_day": 55,
+     "last_seen_day": 171,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "revenue_miss",
+     "first_seen_day": 91,
+     "last_seen_day": 91,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 4,
+   "distinct_regions_total": 5,
+   "distinct_sites_total": 7,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d010] R03S01-DEPT-01-T04-U02 :: inventory count logged tessera-pay sablex556 further minor thread with so the blocking nothing as",
+    "[d090] R00S02-DEPT-09-T00-U04 :: inventory count halcyon-edge follow discussed blocking follow see owner",
+    "[d014] R00S01-DEPT-02-T00-U01 :: doc review veridian details owner see owner far nothing assigned now see",
+    "[d041] R03S01-DEPT-11-T01-U03 :: token validation errors tundra-ii lumen-lite assigned owner far the blocking no so for",
+    "[d166] R00S00-DEPT-03-T03-U13 :: routine patch window wisteria-ii umbra thread expected nothing the window",
+    "[d055] R05S00-DEPT-06-T03-U02 :: routine release note meridianx539 quarry-lite context the so follow for week reference below",
+    "[d171] R02S02-DEPT-01-T05-U00 :: patch window veridian-core further ticket action reference",
+    "[d141] R00S02-DEPT-07-T00-U00 :: vendor checkin logged vantage-ii575 further action week week week reference as during",
+    "[d091] R01S00-DEPT-06-T03-U04 :: customer did not renew halcyon-net so the minor for"
+   ]
+  },
+  {
+   "id": "C-33",
+   "entity": "veridian-core",
+   "links": [
+    {
+     "event": "yield_drop",
+     "first_seen_day": 32,
+     "last_seen_day": 139,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 2,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "shipment_delay",
+     "first_seen_day": 62,
+     "last_seen_day": 125,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "revenue_miss",
+     "first_seen_day": 167,
+     "last_seen_day": 167,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 4,
+   "distinct_sites_total": 5,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d099] R00S03-DEPT-02-T01-U05 :: routine access request quarry-edge no as further the blocking for now reference minor thread",
+    "[d032] R00S02-DEPT-19-T10-U03 :: first pass yield down veridian-pay further as blocking no reference",
+    "[d139] R00S02-DEPT-01-T04-U06 :: budget note logged cobalt-mk3 thread during up see during blocking action",
+    "[d062] R03S01-DEPT-08-T02-U05 :: release note logged basalt-hub tessera-edge509 the team the team next for week",
+    "[d088] R01S00-DEPT-22-T01-U00 :: routine tool upgrade arbor cobalt-apac reference minor context for thread context the pending",
+    "[d125] R00S03-DEPT-00-T01-U04 :: routine vendor checkin lumen-edge515 during window window up discussed per window per",
+    "[d167] R05S00-DEPT-04-T06-U03 :: routine vendor checkin cobalt thread context the the team review owner week"
+   ]
+  },
+  {
+   "id": "C-34",
+   "entity": "zephyr-na",
+   "links": [
+    {
+     "event": "attrition_spike",
+     "first_seen_day": 30,
+     "last_seen_day": 142,
+     "independent_sources": 4,
+     "total_reports": 4,
+     "distinct_sites": 4,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "sla_breach",
+     "first_seen_day": 60,
+     "last_seen_day": 93,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "account_churn",
+     "first_seen_day": 61,
+     "last_seen_day": 163,
+     "independent_sources": 4,
+     "total_reports": 4,
+     "distinct_sites": 4,
+     "distinct_regions": 4,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 5,
+   "distinct_sites_total": 8,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d140] R05S00-DEPT-09-T02-U05 :: vendor checkin logged solace-apac details during up runbook expected",
+    "[d074] R03S01-DEPT-04-T01-U01 :: ticket triage logged zephyr-core runbook up week impact the blocking",
+    "[d142] R03S00-DEPT-01-T06-U04 :: routine access request zephyr-edge523 thread attached ticket ticket review thread attached",
+    "[d030] R02S01-DEPT-00-T06-U05 :: several resignations zephyr-na team action reference next week impact the so see",
+    "[d060] R02S00-DEPT-00-T01-U03 :: sla missed zephyr-na during further ticket the per the",
+    "[d093] R00S01-DEPT-01-T05-U03 :: routine vendor checkin solace-pay as blocking the team so week",
+    "[d061] R05S00-DEPT-08-T00-U05 :: logo lost zephyr-na impact no ticket minor",
+    "[d163] R04S00-DEPT-00-T03-U12 :: status update osprey-pro orionx impact below for with the details with as further",
+    "[d090] R02S00-DEPT-01-T06-U03 :: customer did not renew zephyr-na below the further minor attached review now now",
+    "[d091] R00S02-DEPT-00-T00-U03 :: routine backup completed zephyr-hub nimbus-pay448 below below the further"
+   ]
+  },
+  {
+   "id": "C-35",
+   "entity": "orion-core",
+   "links": [
+    {
+     "event": "component_defect",
+     "first_seen_day": 32,
+     "last_seen_day": 32,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "yield_drop",
+     "first_seen_day": 60,
+     "last_seen_day": 60,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "customer_escalation",
+     "first_seen_day": 76,
+     "last_seen_day": 113,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 4,
+   "distinct_sites_total": 4,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d032] R01S00-DEPT-08-T00-U00 :: routine patch window nimbus-eu cobalt-pay action see context for owner far assigned during window",
+    "[d060] R02S00-DEPT-03-T14-U04 :: routine vendor checkin wisteria-edge531 veridian-eu owner far nothing below attached",
+    "[d112] R06S01-DEPT-00-T04-U02 :: budget note logged arbor-ii nimbusx assigned owner reference review context below follow far the window",
+    "[d076] R00S01-DEPT-01-T01-U00 :: budget note logged sable further review owner reference as up next",
+    "[d113] R00S01-DEPT-00-T02-U07 :: doc review logged meridian-pay solace-edge blocking below the so no so below the per pending"
+   ]
+  },
+  {
+   "id": "C-36",
+   "entity": "orion-pay451",
+   "links": [
+    {
+     "event": "sensor_drift",
+     "first_seen_day": 5,
+     "last_seen_day": 175,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "false_alarm",
+     "first_seen_day": 9,
+     "last_seen_day": 158,
+     "independent_sources": 4,
+     "total_reports": 4,
+     "distinct_sites": 4,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "unplanned_downtime",
+     "first_seen_day": 16,
+     "last_seen_day": 114,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 4,
+   "distinct_sites_total": 7,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d005] R03S00-DEPT-00-T03-U00 :: inventory count lumen-edge cinder-pay461 week impact the minor during details",
+    "[d175] R00S02-DEPT-01-T00-U01 :: routine patch window arbor-pay per window details during",
+    "[d009] R03S01-DEPT-05-T05-U00 :: new approval rule umbra-ii577 per team the details with action reference minor",
+    "[d158] R02S00-DEPT-06-T00-U01 :: training session orion423 owner impact the per team",
+    "[d083] R01S01-DEPT-00-T03-U06 :: unplanned outage granite the review with review now",
+    "[d140] R01S00-DEPT-19-T04-U02 :: routine ticket triage basalt-ii570 thread now for for see",
+    "[d077] R02S00-DEPT-07-T01-U02 :: routine access request cobalt-ii veridianx533 assigned during blocking so",
+    "[d114] R01S01-DEPT-00-T10-U04 :: inventory count logged meridian-ii567 reference action for discussed window per pending expected for attached",
+    "[d016] R00S00-DEPT-02-T01-U11 :: doc review wisteria-edge granite-lite pending owner discussed further so the further"
+   ]
+  },
+  {
+   "id": "C-37",
+   "entity": "nimbusx532",
+   "links": [
+    {
+     "event": "backlog_growth",
+     "first_seen_day": 37,
+     "last_seen_day": 54,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "contract_penalty",
+     "first_seen_day": 49,
+     "last_seen_day": 49,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 2,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "sla_breach",
+     "first_seen_day": 50,
+     "last_seen_day": 50,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "account_churn",
+     "first_seen_day": 79,
+     "last_seen_day": 79,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 4,
+   "distinct_regions_total": 4,
+   "distinct_sites_total": 6,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d037] R06S05-DEPT-00-T01-U00 :: backlog grew nimbusx532 the per per window further action up",
+    "[d037] R06S03-DEPT-00-T03-U00 :: backlog grew nimbusx532 the window further next runbook further so the",
+    "[d054] R00S02-DEPT-23-T05-U01 :: new approval rule lumen review owner see owner week impact assigned during pending expected",
+    "[d050] R04S00-DEPT-03-T00-U01 :: response time out of target nimbusx532 impact follow far no minor now",
+    "[d049] R00S02-DEPT-19-T02-U06 :: penalty clause triggered nimbusx532 see thread expected below nothing below no minor context no",
+    "[d049] R00S00-DEPT-03-T09-U02 :: service credits owed nimbusx532 see thread context nothing assigned during window further ticket",
+    "[d049] R00S00-DEPT-01-T03-U17 :: penalty clause triggered nimbusx532 window team review during per for",
+    "[d079] R02S01-DEPT-04-T04-U10 :: customer did not renew nimbusx532 no next week far nothing no the up impact follow",
+    "[d079] R02S01-DEPT-04-T01-U06 :: account churned nimbusx532 details with ticket so the review expected",
+    "[d079] R02S01-DEPT-00-T01-U08 :: logo lost nimbusx532 per team action far follow for minor"
+   ]
+  },
+  {
+   "id": "C-38",
+   "entity": "zephyr-pay",
+   "links": [
+    {
+     "event": "manual_workaround",
+     "first_seen_day": 2,
+     "last_seen_day": 131,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 2,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "data_exposure_risk",
+     "first_seen_day": 18,
+     "last_seen_day": 122,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "audit_finding",
+     "first_seen_day": 89,
+     "last_seen_day": 157,
+     "independent_sources": 5,
+     "total_reports": 5,
+     "distinct_sites": 4,
+     "distinct_regions": 4,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 5,
+   "distinct_sites_total": 6,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d131] R01S01-DEPT-00-T11-U12 :: shadow process adopted zephyr-pay for attached action runbook further minor expected action",
+    "[d118] R01S00-DEPT-17-T05-U11 :: routine onboarding thistle-pay cobalt-core for expected follow discussed review",
+    "[d002] R01S00-DEPT-10-T00-U06 :: team used a workaround zephyr the the details owner details",
+    "[d122] R06S04-DEPT-00-T01-U04 :: data left the boundary zephyr-pay below the further next far",
+    "[d018] R03S01-DEPT-07-T01-U06 :: data left the boundary zephyr-pay pellucid-apac next impact the details during window per team as",
+    "[d089] R00S04-DEPT-00-T07-U13 :: assessor noted issue zephyr-pay basalt-ii570 assigned during per blocking assigned during further the blocking assigned",
+    "[d157] R04S00-DEPT-01-T06-U00 :: control gap logged zephyr-pay follow impact the review",
+    "[d136] R03S01-DEPT-07-T03-U03 :: supervisory letter zephyr-pay thread attached the window window team ticket reference",
+    "[d142] R01S00-DEPT-10-T01-U06 :: training session logged tundra-eu granite impact nothing for thread owner further",
+    "[d092] R00S04-DEPT-00-T08-U11 :: assessor noted issue zephyr-pay assigned during per blocking assigned during further the blocking below"
+   ]
+  },
+  {
+   "id": "C-39",
+   "entity": "nimbusx532",
+   "links": [
+    {
+     "event": "cert_rotation",
+     "first_seen_day": 52,
+     "last_seen_day": 169,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "auth_failure",
+     "first_seen_day": 60,
+     "last_seen_day": 107,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 2,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "api_error_spike",
+     "first_seen_day": 70,
+     "last_seen_day": 97,
+     "independent_sources": 5,
+     "total_reports": 6,
+     "distinct_sites": 4,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "checkout_drop",
+     "first_seen_day": 97,
+     "last_seen_day": 97,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "revenue_miss",
+     "first_seen_day": 120,
+     "last_seen_day": 120,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 5,
+   "distinct_regions_total": 6,
+   "distinct_sites_total": 10,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d169] R05S00-DEPT-06-T00-U00 :: batch window exceeded meridianx539 review now far below follow see expected below nothing",
+    "[d052] R01S00-DEPT-15-T01-U01 :: certificate rotated nimbusx532 runbook further action action",
+    "[d052] R01S00-DEPT-05-T01-U14 :: tls cert rollover nimbusx532 thread now see with review thread",
+    "[d060] R00S02-DEPT-05-T07-U02 :: token validation errors nimbusx532 reference so follow discussed per team review now reference",
+    "[d060] R00S02-DEPT-05-T01-U00 :: login rejections up nimbusx532 up impact the action reference ticket review",
+    "[d107] R00S00-DEPT-00-T05-U03 :: auth failures spiked nimbus-edge504 pending during pending expected the thread",
+    "[d097] R06S03-DEPT-02-T09-U00 :: cart completion down nimbusx532 the further review context below follow discussed per further ticket",
+    "[d093] R04S01-DEPT-02-T04-U04 :: routine travel note meridian-edge quarry-eu window details attached ticket review expected for context no",
+    "[d070] R04S01-DEPT-02-T02-U00 :: 5xx rate elevated nimbusx532 review with as blocking nothing for",
+    "[d070] R04S01-DEPT-01-T10-U01 :: 5xx rate elevated nimbusx532 so follow runbook per pending during window pending",
+    "[d070] R04S00-DEPT-01-T07-U08 :: 5xx rate elevated nimbusx532 minor now reference action",
+    "[d096] R02S01-DEPT-06-T03-U02 :: api errors surged nimbus-edge504 wisteria447 context the minor attached review now runbook window details during",
+    "[d097] R06S04-DEPT-00-T02-U04 :: cart completion down nimbusx532 action runbook per up week reference",
+    "[d097] R06S03-DEPT-01-T03-U01 :: payment success rate dipped nimbusx532 pending expected the blocking below for attached",
+    "[d097] R06S00-DEPT-00-T06-U04 :: cart completion down nimbusx532 reference next week week reference next impact the up discussed",
+    "[d120] R01S00-DEPT-15-T05-U06 :: revenue shortfall nimbusx532 owner see thread owner"
+   ]
+  },
+  {
+   "id": "C-40",
+   "entity": "lumen-pay",
+   "links": [
+    {
+     "event": "policy_change",
+     "first_seen_day": 6,
+     "last_seen_day": 174,
+     "independent_sources": 9,
+     "total_reports": 9,
+     "distinct_sites": 7,
+     "distinct_regions": 5,
+     "contradicting_reports": 1
+    },
+    {
+     "event": "audit_finding",
+     "first_seen_day": 9,
+     "last_seen_day": 146,
+     "independent_sources": 4,
+     "total_reports": 4,
+     "distinct_sites": 4,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "regulatory_notice",
+     "first_seen_day": 46,
+     "last_seen_day": 64,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 7,
+   "distinct_sites_total": 10,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d082] R04S00-DEPT-07-T02-U04 :: new approval rule lumen-pay further so no minor during pending during blocking",
+    "[d015] R04S00-DEPT-00-T03-U10 :: policy updated lumen-pay cinder-lite attached as further ticket next discussed blocking the per week",
+    "[d119] R03S01-DEPT-09-T05-U01 :: inventory count logged quarryx541 quarry-edge513 blocking for context for now see expected assigned",
+    "[d057] R03S01-DEPT-01-T00-U05 :: budget note logged umbra-ii577 vantage-ii575 context for now reference action for up",
+    "[d006] R02S00-DEPT-02-T07-U03 :: policy updated lumen-pay ticket minor thread with as window details",
+    "[d057] R01S02-DEPT-00-T04-U05 :: policy updated lumen-pay week far the ticket assigned",
+    "[d147] R01S01-DEPT-00-T10-U00 :: team used a workaround lumen-pay arbor-hub with as pending during blocking follow runbook not",
+    "[d125] R00S02-DEPT-05-T05-U04 :: policy updated lumen-pay the per up for",
+    "[d174] R00S00-DEPT-04-T03-U06 :: control tightened lumen-pay halcyon-core482 below nothing the details thread",
+    "[d014] R05S00-DEPT-04-T12-U03 :: key rotation performed meridianx539 follow see during per window further now",
+    "[d009] R03S01-DEPT-03-T03-U02 :: release note logged basaltx marlin-v2 with ticket action impact for during window",
+    "[d070] R02S02-DEPT-01-T05-U01 :: routine travel note osprey-ii582 halcyon-ii attached so no the per team per",
+    "[d146] R02S00-DEPT-04-T02-U07 :: control gap logged lumen-pay follow discussed window window pending with",
+    "[d048] R06S01-DEPT-00-T05-U10 :: compliance notice lumen lumenx543 attached action far assigned thread attached so the up up",
+    "[d064] R04S00-DEPT-01-T00-U02 :: p99 latency up meridian427 nimbus-lite the team next for week impact the",
+    "[d046] R00S02-DEPT-05-T03-U04 :: regulator inquiry received lumen-pay minor context the details thread now impact"
+   ]
+  },
+  {
+   "id": "C-41",
+   "entity": "umbra-pay",
+   "links": [
+    {
+     "event": "firmware_update",
+     "first_seen_day": 8,
+     "last_seen_day": 178,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "sensor_drift",
+     "first_seen_day": 12,
+     "last_seen_day": 175,
+     "independent_sources": 5,
+     "total_reports": 5,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "false_alarm",
+     "first_seen_day": 13,
+     "last_seen_day": 179,
+     "independent_sources": 7,
+     "total_reports": 7,
+     "distinct_sites": 6,
+     "distinct_regions": 5,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "output_shortfall",
+     "first_seen_day": 41,
+     "last_seen_day": 179,
+     "independent_sources": 8,
+     "total_reports": 8,
+     "distinct_sites": 6,
+     "distinct_regions": 4,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 4,
+   "distinct_regions_total": 7,
+   "distinct_sites_total": 9,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d008] R05S00-DEPT-03-T05-U00 :: sensor readings drifting umbra granite-edge524 thread attached action see thread attached ticket review",
+    "[d178] R02S00-DEPT-05-T06-U04 :: device image updated umbra nothing assigned with next week discussed blocking assigned",
+    "[d175] R06S03-DEPT-00-T06-U11 :: sensor readings drifting umbra-pay see context assigned attached so context",
+    "[d044] R06S03-DEPT-02-T01-U05 :: calibration off umbra-pay halcyon-v2 window pending owner discussed",
+    "[d012] R06S03-DEPT-02-T02-U05 :: sensor readings drifting umbra-pay vireo446 see owner impact nothing assigned thread expected follow week",
+    "[d033] R05S00-DEPT-04-T09-U06 :: doc review tundra-net halcyon-apac as team action week reference minor during window pending assigned",
+    "[d078] R04S00-DEPT-01-T04-U13 :: sensor readings drifting umbra-pay pellucid-ii568 during team review owner reference as up week see",
+    "[d114] R02S01-DEPT-00-T00-U00 :: telemetry bias observed umbra vireo-pay follow for far the next discussed pending owner week far",
+    "[d039] R02S01-DEPT-06-T01-U07 :: spurious alarm umbra team as window window up for impact the",
+    "[d049] R06S03-DEPT-02-T04-U10 :: nuisance trip umbra-pay no so for context the blocking nothing",
+    "[d013] R05S00-DEPT-05-T09-U00 :: telemetry bias observed umbra-pay up for runbook up for for team",
+    "[d122] R04S00-DEPT-00-T03-U00 :: routine inventory count veridian solace-edge team ticket as up reference per",
+    "[d013] R03S01-DEPT-03-T06-U09 :: nuisance trip umbra pellucid-mk3 follow discussed blocking no",
+    "[d179] R02S00-DEPT-06-T06-U06 :: routine tool upgrade umbrax orionx pending attached minor owner",
+    "[d041] R06S03-DEPT-02-T09-U04 :: output below plan umbra-pay vireox next for impact no the per further ticket ticket",
+    "[d100] R02S01-DEPT-00-T07-U11 :: plan revised down osprey-edge526 vireo-net review expected no ticket thread",
+    "[d049] R02S00-DEPT-03-T17-U02 :: throughput miss umbra per up see owner see thread expected nothing the",
+    "[d165] R00S03-DEPT-02-T01-U06 :: throughput miss umbra-pay veridian-edge the further action for reference review during up",
+    "[d179] R06S03-DEPT-01-T00-U03 :: output below plan umbra-pay pellucid-hub the as details expected nothing far",
+    "[d093] R01S02-DEPT-00-T07-U05 :: onboarding basalt-core ticket next for discussed team minor during window team as",
+    "[d175] R01S01-DEPT-00-T06-U09 :: throughput miss umbra-pay cinder-ii573 further minor thread with action",
+    "[d175] R01S01-DEPT-00-T05-U02 :: throughput miss umbra-pay further minor thread with context"
+   ]
+  },
+  {
+   "id": "C-42",
+   "entity": "umbra",
+   "links": [
+    {
+     "event": "cert_rotation",
+     "first_seen_day": 8,
+     "last_seen_day": 178,
+     "independent_sources": 12,
+     "total_reports": 12,
+     "distinct_sites": 5,
+     "distinct_regions": 4,
+     "contradicting_reports": 1
+    },
+    {
+     "event": "auth_failure",
+     "first_seen_day": 26,
+     "last_seen_day": 174,
+     "independent_sources": 5,
+     "total_reports": 5,
+     "distinct_sites": 5,
+     "distinct_regions": 4,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "api_error_spike",
+     "first_seen_day": 42,
+     "last_seen_day": 132,
+     "independent_sources": 7,
+     "total_reports": 7,
+     "distinct_sites": 5,
+     "distinct_regions": 4,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 6,
+   "distinct_sites_total": 11,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d102] R02S01-DEPT-03-T09-U04 :: certificate rotated umbra basalt-net impact the next discussed window up see",
+    "[d178] R02S01-DEPT-00-T10-U07 :: certificate rotated umbra peregrine-core owner for for far the next reference so up",
+    "[d008] R02S00-DEPT-00-T02-U01 :: certificate rotated umbra now reference as per per blocking no",
+    "[d112] R02S01-DEPT-03-T03-U02 :: tls cert rollover umbra action discussed pending expected nothing no so for reference",
+    "[d053] R02S00-DEPT-02-T04-U03 :: tls cert rollover umbra halcyon-hub thread attached minor expected for not",
+    "[d031] R03S01-DEPT-05-T02-U04 :: key rotation performed umbra arbor-mk3 thread attached ticket next far the minor now",
+    "[d085] R03S01-DEPT-03-T06-U07 :: key rotation performed umbra-ii577 window up runbook further next",
+    "[d076] R04S00-DEPT-07-T01-U00 :: backup completed logged wexford-pro follow far the minor",
+    "[d139] R02S01-DEPT-02-T01-U02 :: certificate rotated umbra-lite umbra-apac impact assigned now week for see thread",
+    "[d071] R00S02-DEPT-24-T00-U03 :: routine doc review zephyr-apac wexford-hub assigned now runbook pending attached next reference below not",
+    "[d160] R00S02-DEPT-20-T02-U05 :: assessor noted issue thistle-pro with so the blocking below",
+    "[d126] R00S02-DEPT-07-T00-U09 :: certificate rotated umbra-lite solace-lite discussed pending attached blocking",
+    "[d078] R02S00-DEPT-01-T03-U03 :: token validation errors umbra below the so below assigned",
+    "[d174] R02S01-DEPT-02-T00-U12 :: auth failures spiked umbra sable-edge runbook further review during blocking below follow reference ticket",
+    "[d091] R05S00-DEPT-09-T07-U07 :: login rejections up umbra context below assigned expected assigned during details",
+    "[d026] R04S01-DEPT-01-T09-U07 :: routine status update vireo-net arborx544 now discussed details with action not",
+    "[d153] R00S00-DEPT-02-T00-U05 :: login rejections up umbra-lite minor expected follow impact the as up see discussed",
+    "[d090] R06S04-DEPT-00-T01-U09 :: error budget burned umbra zephyr-eu assigned expected the pending owner far details",
+    "[d125] R06S03-DEPT-02-T02-U01 :: api errors surged umbra minor thread during pending with as pending",
+    "[d091] R06S03-DEPT-02-T00-U02 :: routine release note orion-eu cinderx545 nothing the window details now runbook team further",
+    "[d048] R05S00-DEPT-09-T03-U04 :: api errors surged umbra vantagex547 during per blocking for with minor with",
+    "[d122] R03S00-DEPT-02-T09-U04 :: api errors surged umbra reference as pending attached",
+    "[d132] R05S00-DEPT-02-T02-U06 :: onboarding logged tundrax557 marlin-apac impact the window blocking no so for with",
+    "[d042] R02S00-DEPT-03-T00-U01 :: routine budget note sable-ii584 tundra-lite the action impact follow week see with ticket so"
+   ]
+  },
+  {
+   "id": "C-43",
+   "entity": "arbor-hub",
+   "links": [
+    {
+     "event": "policy_change",
+     "first_seen_day": 19,
+     "last_seen_day": 155,
+     "independent_sources": 7,
+     "total_reports": 7,
+     "distinct_sites": 6,
+     "distinct_regions": 5,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "manual_workaround",
+     "first_seen_day": 19,
+     "last_seen_day": 29,
+     "independent_sources": 5,
+     "total_reports": 5,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "data_exposure_risk",
+     "first_seen_day": 47,
+     "last_seen_day": 47,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 6,
+   "distinct_sites_total": 8,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d029] R05S00-DEPT-09-T06-U04 :: team used a workaround arbor-hub expected follow runbook window blocking follow week impact assigned",
+    "[d152] R03S01-DEPT-02-T00-U00 :: release note veridian-net below assigned attached review attached minor",
+    "[d019] R02S01-DEPT-06-T01-U06 :: control tightened arbor-hub for during team as per window during",
+    "[d019] R02S00-DEPT-06-T03-U04 :: new approval rule arbor-hub during blocking no the pending now week for team",
+    "[d155] R01S00-DEPT-22-T02-U13 :: patch window logged pellucid osprey-apac for week week runbook pending owner impact no",
+    "[d103] R01S00-DEPT-19-T04-U06 :: travel note kestrel-v2 umbra-na see context the blocking nothing for expected nothing no as",
+    "[d127] R00S01-DEPT-00-T04-U00 :: budget note logged umbra-net veridian-eu per per details owner impact",
+    "[d029] R05S00-DEPT-10-T01-U11 :: team used a workaround arbor-hub window details with minor attached the further as",
+    "[d029] R05S00-DEPT-08-T03-U07 :: manual bypass in use arbor-hub attached ticket the details as",
+    "[d029] R05S00-DEPT-04-T11-U09 :: shadow process adopted arbor-hub far below nothing the next far follow so",
+    "[d029] R05S00-DEPT-03-T02-U05 :: team used a workaround arbor-hub reference action discussed blocking assigned during window details owner",
+    "[d019] R03S00-DEPT-00-T04-U01 :: report late wisteria-core503 impact no the up discussed per pending during per",
+    "[d047] R06S03-DEPT-00-T00-U01 :: data left the boundary arbor-hub see thread now see owner reference so follow discussed further"
+   ]
+  },
+  {
+   "id": "C-44",
+   "entity": "umbra",
+   "links": [
+    {
+     "event": "false_alarm",
+     "first_seen_day": 25,
+     "last_seen_day": 147,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "firmware_update",
+     "first_seen_day": 27,
+     "last_seen_day": 161,
+     "independent_sources": 4,
+     "total_reports": 4,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 2,
+   "distinct_regions_total": 4,
+   "distinct_sites_total": 5,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d161] R02S01-DEPT-05-T08-U05 :: controller flashed umbra next runbook further minor owner",
+    "[d127] R02S01-DEPT-00-T02-U05 :: firmware pushed umbra tundra-pro context no so follow reference so the",
+    "[d027] R04S01-DEPT-01-T04-U08 :: travel note umbra-pro vantage-eu review during further the details context assigned attached as window not",
+    "[d047] R00S00-DEPT-03-T07-U02 :: vendor checkin logged orionx for during up impact the details context for now discussed",
+    "[d025] R02S00-DEPT-01-T03-U03 :: nuisance trip umbra assigned expected below assigned",
+    "[d147] R03S01-DEPT-01-T05-U04 :: access request logged tessera-lite the minor owner impact the team ticket",
+    "[d118] R03S01-DEPT-01-T02-U04 :: routine travel note zephyr-core umbra-apac so follow far for with"
+   ]
+  },
+  {
+   "id": "C-45",
+   "entity": "veridian-hub",
+   "links": [
+    {
+     "event": "yield_drop",
+     "first_seen_day": 11,
+     "last_seen_day": 117,
+     "independent_sources": 5,
+     "total_reports": 7,
+     "distinct_sites": 4,
+     "distinct_regions": 4,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "shipment_delay",
+     "first_seen_day": 48,
+     "last_seen_day": 179,
+     "independent_sources": 6,
+     "total_reports": 6,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 2,
+   "distinct_regions_total": 5,
+   "distinct_sites_total": 5,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d117] R05S00-DEPT-05-T08-U07 :: budget note tundrax557 granite-hub with as per further action see thread runbook not",
+    "[d089] R04S01-DEPT-02-T01-U04 :: inventory count logged granite-v2 lumen-lite per details owner see expected no review reference",
+    "[d087] R01S00-DEPT-08-T01-U07 :: first pass yield down veridian-hub below the review with for",
+    "[d085] R01S00-DEPT-08-T04-U10 :: scrap rate climbing veridian-hub ticket action discussed team runbook",
+    "[d011] R00S03-DEPT-00-T01-U08 :: routine inventory count quarry-v2 tundrax as details thread expected no next reference minor below",
+    "[d179] R01S00-DEPT-19-T12-U01 :: delivery pushed out veridian-hub nimbus-ii560 below for with discussed",
+    "[d048] R01S00-DEPT-17-T06-U05 :: freight delayed veridian-hub halcyon-mk3 follow for see during window up reference so",
+    "[d049] R01S00-DEPT-06-T07-U06 :: shipment slipped veridian-hub week reference minor owner discussed team review expected assigned expected",
+    "[d082] R02S01-DEPT-03-T00-U10 :: doc review logged pellucid-pay peregrine-core499 below no ticket ticket review now week discussed",
+    "[d152] R01S00-DEPT-08-T03-U08 :: shipment slipped veridian-hub as further ticket ticket the per details now",
+    "[d179] R01S00-DEPT-06-T07-U01 :: delivery pushed out veridian-hub marlin-ii581 below for with so"
+   ]
+  },
+  {
+   "id": "C-46",
+   "entity": "solacex",
+   "links": [
+    {
+     "event": "customer_escalation",
+     "first_seen_day": 4,
+     "last_seen_day": 148,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "auth_failure",
+     "first_seen_day": 16,
+     "last_seen_day": 123,
+     "independent_sources": 5,
+     "total_reports": 5,
+     "distinct_sites": 5,
+     "distinct_regions": 4,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "unplanned_downtime",
+     "first_seen_day": 33,
+     "last_seen_day": 139,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "account_churn",
+     "first_seen_day": 36,
+     "last_seen_day": 140,
+     "independent_sources": 2,
+     "total_reports": 4,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "sensor_drift",
+     "first_seen_day": 102,
+     "last_seen_day": 150,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "data_exposure_risk",
+     "first_seen_day": 144,
+     "last_seen_day": 144,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "yield_drop",
+     "first_seen_day": 169,
+     "last_seen_day": 169,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 7,
+   "distinct_regions_total": 7,
+   "distinct_sites_total": 9,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d140] R03S01-DEPT-09-T01-U10 :: budget note logged veridian-net the minor expected the details thread with so",
+    "[d036] R03S01-DEPT-09-T03-U06 :: vendor checkin pellucid-na assigned now discussed up impact further",
+    "[d150] R06S00-DEPT-00-T08-U13 :: unplanned outage thistle further action discussed blocking no",
+    "[d102] R02S01-DEPT-00-T07-U12 :: ticket triage wisteria-ii nothing for during blocking no the pending expected for",
+    "[d169] R04S01-DEPT-01-T05-U06 :: routine headcount note vireo-net basalt-ii570 impact below assigned thread during team review now discussed",
+    "[d053] R06S03-DEPT-02-T07-U07 :: onboarding logged cobalt-pay solace-eu with so follow for see now discussed pending owner with",
+    "[d139] R02S01-DEPT-06-T01-U03 :: contractual fine arbor-v2 umbra-core493 for with ticket the pending now",
+    "[d033] R01S00-DEPT-22-T01-U00 :: nuisance trip veridian-hub discussed team next runbook pending now",
+    "[d144] R05S00-DEPT-05-T07-U06 :: control gap logged tundra-net arbor-mk3 impact assigned expected the further review expected the minor now",
+    "[d042] R05S00-DEPT-09-T06-U06 :: routine doc review quarry-eu ticket ticket review owner runbook team action reference ticket",
+    "[d108] R03S01-DEPT-07-T00-U04 :: tls cert rollover pellucid-ii pending owner reference so the pending now for reference during",
+    "[d123] R03S00-DEPT-02-T06-U07 :: routine travel note wisteria-core503 team so nothing the the up runbook impact",
+    "[d016] R01S00-DEPT-15-T03-U03 :: ticket triage kestrel422 osprey-core week week reference minor now attached",
+    "[d087] R00S02-DEPT-19-T07-U08 :: manual bypass in use kestrel-pro next impact the next week for week impact below no",
+    "[d015] R03S01-DEPT-03-T01-U09 :: routine headcount note lumen431 vantage-lite blocking for thread during pending far",
+    "[d004] R02S01-DEPT-06-T02-U04 :: headcount note osprey-edge526 cobalt-eu below below the action",
+    "[d148] R02S01-DEPT-01-T01-U05 :: status update logged peregrine-ii583 zephyr-core discussed further so during"
+   ]
+  },
+  {
+   "id": "C-47",
+   "entity": "pellucid-hub",
+   "links": [
+    {
+     "event": "manual_workaround",
+     "first_seen_day": 22,
+     "last_seen_day": 59,
+     "independent_sources": 2,
+     "total_reports": 3,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "data_exposure_risk",
+     "first_seen_day": 42,
+     "last_seen_day": 79,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "audit_finding",
+     "first_seen_day": 57,
+     "last_seen_day": 159,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 5,
+   "distinct_sites_total": 5,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d058] R04S01-DEPT-03-T02-U04 :: shadow process adopted pellucid-hub marlin-apac owner see expected assigned owner see expected the up",
+    "[d059] R04S01-DEPT-02-T06-U03 :: shadow process adopted pellucid-hub owner see expected assigned owner see expected the further",
+    "[d022] R01S00-DEPT-23-T03-U02 :: access request veridian-pay peregrinex no minor owner discussed per window further",
+    "[d079] R03S00-DEPT-02-T13-U05 :: asset went down solace-pay462 impact for expected the as",
+    "[d042] R03S00-DEPT-01-T01-U02 :: data left the boundary pellucid-hub runbook blocking below below nothing no the pending",
+    "[d057] R02S01-DEPT-00-T05-U09 :: routine backup completed peregrine-edge attached the pending expected",
+    "[d159] R00S00-DEPT-03-T02-U01 :: slow queries nimbus-apac marlin-edge525 runbook team action impact the up discussed per no"
+   ]
+  },
+  {
+   "id": "C-48",
+   "entity": "kestrel-v2",
+   "links": [
+    {
+     "event": "false_alarm",
+     "first_seen_day": 5,
+     "last_seen_day": 146,
+     "independent_sources": 7,
+     "total_reports": 19,
+     "distinct_sites": 4,
+     "distinct_regions": 4,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "unplanned_downtime",
+     "first_seen_day": 24,
+     "last_seen_day": 156,
+     "independent_sources": 5,
+     "total_reports": 15,
+     "distinct_sites": 3,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "output_shortfall",
+     "first_seen_day": 39,
+     "last_seen_day": 175,
+     "independent_sources": 6,
+     "total_reports": 12,
+     "distinct_sites": 5,
+     "distinct_regions": 4,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 7,
+   "distinct_sites_total": 9,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d005] R01S00-DEPT-12-T00-U12 :: false positive alert kestrel-v2 nothing no next see attached the per",
+    "[d018] R01S00-DEPT-17-T11-U04 :: false positive alert kestrel-v2 arbor-na the ticket as window per further",
+    "[d021] R01S00-DEPT-10-T00-U00 :: false positive alert kestrel-v2 the ticket as window per see",
+    "[d019] R00S02-DEPT-24-T09-U07 :: budget note logged vireo impact the action runbook team minor context runbook",
+    "[d125] R00S02-DEPT-05-T00-U07 :: access request logged granite-pay468 cobalt-ii564 discussed further the window team",
+    "[d027] R01S00-DEPT-12-T03-U05 :: false positive alert kestrel-v2 pending owner discussed further the per further minor expected below",
+    "[d146] R04S00-DEPT-06-T03-U08 :: budget note logged cobalt-pay zephyr-hub discussed blocking for expected nothing",
+    "[d121] R02S01-DEPT-02-T06-U19 :: tool upgrade logged wisteria-na with next reference so for expected nothing runbook",
+    "[d081] R03S00-DEPT-01-T03-U02 :: training session logged orion thistle-hub attached as further action for",
+    "[d024] R03S00-DEPT-02-T00-U03 :: inventory count logged sable-edge528 umbra-edge521 pending attached the pending with action week discussed",
+    "[d032] R03S01-DEPT-03-T00-U05 :: routine inventory count tessera-pay osprey-ii582 pending attached action owner",
+    "[d047] R01S00-DEPT-10-T10-U07 :: production short kestrel-apac wexford-ii the up reference review during details now expected",
+    "[d156] R01S00-DEPT-17-T06-U00 :: asset went down kestrel-v2 basalt-pro598 nothing assigned during up for discussed further ticket",
+    "[d085] R01S00-DEPT-10-T10-U08 :: production short kestrel-apac vantage-ii below follow impact assigned with pending",
+    "[d145] R06S01-DEPT-00-T01-U00 :: doc review lumen-core week discussed pending team",
+    "[d127] R05S00-DEPT-04-T00-U07 :: month end close slipped wisteria-lite further the further ticket the blocking",
+    "[d140] R04S00-DEPT-06-T05-U11 :: vendor checkin logged zephyr umbra-edge521 further as further as pending the",
+    "[d039] R01S00-DEPT-09-T02-U04 :: output below plan kestrel-v2 below assigned expected nothing the details expected for",
+    "[d175] R01S02-DEPT-00-T03-U01 :: routine onboarding cobalt now discussed up see context the further the blocking"
+   ]
+  },
+  {
+   "id": "C-49",
+   "entity": "thistle-pay",
+   "links": [
+    {
+     "event": "auth_failure",
+     "first_seen_day": 33,
+     "last_seen_day": 167,
+     "independent_sources": 4,
+     "total_reports": 4,
+     "distinct_sites": 4,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "checkout_drop",
+     "first_seen_day": 33,
+     "last_seen_day": 145,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "revenue_miss",
+     "first_seen_day": 70,
+     "last_seen_day": 126,
+     "independent_sources": 4,
+     "total_reports": 4,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 5,
+   "distinct_sites_total": 8,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d167] R01S02-DEPT-00-T04-U05 :: routine onboarding osprey-ii arbor-mk3 for runbook per per team next",
+    "[d106] R06S03-DEPT-02-T02-U01 :: token validation errors thistle-pay veridian-lite far nothing the next impact below follow far below",
+    "[d130] R06S02-DEPT-00-T01-U15 :: login rejections up thistle-pay the the team assigned",
+    "[d033] R02S01-DEPT-03-T04-U01 :: login rejections up thistle-pay meridian-mk3 further minor thread context for the",
+    "[d145] R00S00-DEPT-06-T05-U02 :: output below plan umbra cobalt-ii564 nothing no minor context follow week reference so for",
+    "[d101] R02S01-DEPT-04-T00-U06 :: error budget burned thistle-pay vantagex547 details now for impact the",
+    "[d033] R02S00-DEPT-05-T00-U04 :: booked below plan thistle quarry-core team the team the pending expected assigned attached",
+    "[d094] R06S00-DEPT-01-T02-U02 :: booked below plan thistle action impact the details",
+    "[d070] R06S00-DEPT-00-T09-U00 :: revenue shortfall thistle action see now runbook pending now assigned",
+    "[d106] R03S01-DEPT-03-T01-U12 :: release note logged marlin solace-mk3 with review expected follow discussed pending attached the",
+    "[d126] R02S00-DEPT-02-T05-U12 :: booked below plan thistle cinderx team the team the pending expected assigned attached"
+   ]
+  },
+  {
+   "id": "C-50",
+   "entity": "basalt-mk3",
+   "links": [
+    {
+     "event": "component_defect",
+     "first_seen_day": 15,
+     "last_seen_day": 159,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "shipment_delay",
+     "first_seen_day": 49,
+     "last_seen_day": 121,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "customer_escalation",
+     "first_seen_day": 65,
+     "last_seen_day": 139,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 4,
+   "distinct_sites_total": 5,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d034] R04S01-DEPT-03-T05-U00 :: doc review tundra-hub so follow discussed window further the window pending expected",
+    "[d015] R02S02-DEPT-00-T01-U01 :: meeting note granite for see expected for thread now runbook details thread expected",
+    "[d159] R00S02-DEPT-24-T12-U05 :: routine tool upgrade halcyon-edge team the team so assigned attached as further review",
+    "[d121] R03S01-DEPT-00-T09-U03 :: shipment slipped basalt-mk3 pellucid-core484 expected no as blocking the per window",
+    "[d049] R00S03-DEPT-00-T00-U02 :: access request logged meridian-ii thread context below the the details expected assigned",
+    "[d084] R00S02-DEPT-13-T03-U00 :: account raised severity basalt-v2 now reference as pending",
+    "[d065] R00S02-DEPT-07-T09-U04 :: budget note arbor far the so below",
+    "[d139] R00S02-DEPT-01-T09-U08 :: headcount note tessera-edge509 owner discussed blocking below for during"
+   ]
+  },
+  {
+   "id": "C-51",
+   "entity": "marlin-apac",
+   "links": [
+    {
+     "event": "cert_rotation",
+     "first_seen_day": 16,
+     "last_seen_day": 49,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 2,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "auth_failure",
+     "first_seen_day": 34,
+     "last_seen_day": 34,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "api_error_spike",
+     "first_seen_day": 70,
+     "last_seen_day": 70,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 3,
+   "distinct_sites_total": 4,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d045] R02S01-DEPT-00-T04-U01 :: account churned peregrine-edge granite440 impact below the ticket as per assigned",
+    "[d049] R02S00-DEPT-04-T01-U11 :: onboarding orion-edge507 impact nothing the per pending context for",
+    "[d016] R02S00-DEPT-02-T05-U09 :: ticket triage marlin-ii kestrel-edge506 reference action discussed team",
+    "[d034] R04S00-DEPT-01-T03-U09 :: meeting note quarry429 team minor attached so the window team minor during further",
+    "[d070] R01S00-DEPT-14-T03-U00 :: patch window thistle-pay the up for runbook up reference the the"
+   ]
+  },
+  {
+   "id": "C-52",
+   "entity": "lumen-core",
+   "links": [
+    {
+     "event": "network_change",
+     "first_seen_day": 79,
+     "last_seen_day": 175,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "latency_regression",
+     "first_seen_day": 80,
+     "last_seen_day": 148,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 2,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 2,
+   "distinct_regions_total": 4,
+   "distinct_sites_total": 5,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d175] R00S02-DEPT-03-T00-U05 :: tool upgrade granite-pay468 impact below the next week",
+    "[d079] R05S00-DEPT-04-T07-U06 :: routing updated lumen-core review attached ticket the",
+    "[d079] R03S01-DEPT-00-T00-U09 :: routing updated lumen-core impact for with as per details with minor minor",
+    "[d080] R02S01-DEPT-05-T04-U00 :: queue depth rising tessera-pay pellucid-lite reference the per pending with review context the",
+    "[d111] R02S01-DEPT-04-T03-U00 :: p99 latency up lumen-pay sable-net minor expected for with review now week see during up",
+    "[d148] R02S00-DEPT-00-T03-U05 :: slow queries lumen-pay further minor expected next"
+   ]
+  },
+  {
+   "id": "C-53",
+   "entity": "tundra",
+   "links": [
+    {
+     "event": "network_change",
+     "first_seen_day": 6,
+     "last_seen_day": 169,
+     "independent_sources": 6,
+     "total_reports": 6,
+     "distinct_sites": 4,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "latency_regression",
+     "first_seen_day": 30,
+     "last_seen_day": 78,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "batch_job_overrun",
+     "first_seen_day": 89,
+     "last_seen_day": 178,
+     "independent_sources": 5,
+     "total_reports": 5,
+     "distinct_sites": 4,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 6,
+   "distinct_sites_total": 9,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d167] R00S00-DEPT-00-T02-U04 :: routing updated tundra discussed window pending during up",
+    "[d169] R00S00-DEPT-00-T04-U05 :: routing updated tundra orion-v2 discussed window pending during up",
+    "[d006] R01S00-DEPT-08-T12-U04 :: network config change tundra marlin-pay below assigned context assigned context follow impact",
+    "[d090] R02S00-DEPT-06-T01-U02 :: routing updated tundra nothing no so below the pending during",
+    "[d056] R01S00-DEPT-16-T05-U04 :: ticket triage halcyon-ii566 tessera-ii context the next for week reference next",
+    "[d140] R00S03-DEPT-00-T00-U07 :: firewall rule change tundra pellucidx with the blocking no review the",
+    "[d078] R04S00-DEPT-02-T04-U03 :: slow queries tundra week week runbook details now for discussed further minor the",
+    "[d030] R03S01-DEPT-01-T08-U06 :: routine travel note veridian osprey-net action week see thread context follow far for expected below",
+    "[d169] R02S01-DEPT-05-T02-U07 :: customer escalated tessera-pay453 pending attached review owner runbook window window further next far",
+    "[d174] R05S00-DEPT-00-T06-U04 :: report late tundra osprey-ii582 no minor with the",
+    "[d090] R04S01-DEPT-03-T07-U02 :: etl ran long tundra ticket action see thread owner",
+    "[d178] R04S00-DEPT-06-T01-U00 :: nightly job overran tundra pellucid-pay reference review attached next impact below the",
+    "[d089] R02S01-DEPT-02-T06-U13 :: etl ran long tundra peregrine-pay471 per up see during blocking follow see with minor thread"
+   ]
+  },
+  {
+   "id": "C-54",
+   "entity": "tundra-mk3",
+   "links": [
+    {
+     "event": "price_increase",
+     "first_seen_day": 5,
+     "last_seen_day": 105,
+     "independent_sources": 4,
+     "total_reports": 4,
+     "distinct_sites": 4,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "margin_compression",
+     "first_seen_day": 12,
+     "last_seen_day": 122,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "forecast_revision",
+     "first_seen_day": 26,
+     "last_seen_day": 132,
+     "independent_sources": 7,
+     "total_reports": 8,
+     "distinct_sites": 6,
+     "distinct_regions": 5,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 6,
+   "distinct_sites_total": 8,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d034] R05S00-DEPT-07-T04-U03 :: training session logged arbor-pay halcyon-apac impact assigned with action far the",
+    "[d023] R04S00-DEPT-00-T03-U01 :: price raised tundra-v2 during per window window up see thread",
+    "[d005] R03S01-DEPT-03-T00-U04 :: 5xx rate elevated zephyr-core tundra-eu context follow impact no ticket so",
+    "[d105] R03S00-DEPT-01-T03-U04 :: list price up tundra-mk3 week see now week discussed",
+    "[d012] R03S00-DEPT-02-T15-U01 :: margin squeezed tundra-mk3 attached as window up reference next impact assigned now far",
+    "[d122] R01S00-DEPT-14-T04-U08 :: onboarding logged tundra-lite the pending attached the per up",
+    "[d056] R01S00-DEPT-02-T03-U02 :: routine budget note pellucid-apac arbor-core for impact follow thread",
+    "[d132] R06S00-DEPT-01-T00-U01 :: guidance changed tundra-mk3 window up see expected the so assigned expected nothing follow",
+    "[d132] R06S00-DEPT-01-T01-U02 :: plan revised down tundra-mk3 pending expected the team action week reference so ticket",
+    "[d132] R05S00-DEPT-07-T03-U06 :: plan revised down tundra-mk3 below for expected the window blocking assigned thread owner",
+    "[d132] R04S01-DEPT-01-T03-U06 :: forecast cut tundra-mk3 pending owner week week impact no the",
+    "[d132] R04S00-DEPT-06-T04-U04 :: plan revised down tundra-mk3 discussed blocking the next far below assigned with review",
+    "[d026] R01S00-DEPT-24-T03-U06 :: routine status update arbor orion-net as blocking for context for expected follow far follow",
+    "[d031] R00S00-DEPT-05-T06-U00 :: output below plan zephyr-eu zephyr-net nothing nothing assigned context follow impact no the per"
+   ]
+  },
+  {
+   "id": "C-55",
+   "entity": "vireo-eu",
+   "links": [
+    {
+     "event": "component_defect",
+     "first_seen_day": 3,
+     "last_seen_day": 94,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "yield_drop",
+     "first_seen_day": 36,
+     "last_seen_day": 119,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "shipment_delay",
+     "first_seen_day": 36,
+     "last_seen_day": 36,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "revenue_miss",
+     "first_seen_day": 38,
+     "last_seen_day": 82,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 4,
+   "distinct_regions_total": 5,
+   "distinct_sites_total": 5,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d094] R04S01-DEPT-01-T10-U00 :: routine headcount note thistle436 discussed blocking no so for expected the review owner so",
+    "[d003] R02S02-DEPT-01-T05-U01 :: access request umbra-na lumen-apac assigned now see now runbook team",
+    "[d036] R01S00-DEPT-18-T03-U00 :: vendor checkin halcyonx owner runbook window further the details now",
+    "[d119] R00S02-DEPT-13-T01-U02 :: routine meeting note tundra for now runbook pending now runbook team next runbook details",
+    "[d036] R03S01-DEPT-01-T05-U05 :: shadow process adopted tessera-core481 up discussed team minor attached next reference minor owner runbook",
+    "[d082] R04S01-DEPT-01-T10-U04 :: ticket triage quarry discussed team review thread during per per discussed",
+    "[d038] R03S01-DEPT-05-T06-U07 :: revenue shortfall vireo-eu wisteriax far nothing follow impact"
+   ]
+  },
+  {
+   "id": "C-56",
+   "entity": "quarry-pay",
+   "links": [
+    {
+     "event": "account_churn",
+     "first_seen_day": 10,
+     "last_seen_day": 94,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "sla_breach",
+     "first_seen_day": 11,
+     "last_seen_day": 115,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "backlog_growth",
+     "first_seen_day": 14,
+     "last_seen_day": 174,
+     "independent_sources": 5,
+     "total_reports": 6,
+     "distinct_sites": 5,
+     "distinct_regions": 5,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 6,
+   "distinct_sites_total": 7,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d074] R06S02-DEPT-00-T06-U00 :: work in progress piling up quarry-pay tundra-pay473 next reference action for for now",
+    "[d077] R06S02-DEPT-00-T02-U02 :: work in progress piling up quarry-pay zephyr-pay467 next reference action for for discussed",
+    "[d146] R05S00-DEPT-00-T04-U05 :: work in progress piling up quarry-pay sable-eu details thread attached next see thread",
+    "[d014] R02S00-DEPT-05-T06-U08 :: work in progress piling up quarry-pay so assigned owner impact the thread",
+    "[d053] R01S00-DEPT-05-T02-U02 :: work in progress piling up quarry-pay impact no so no action impact for attached so the",
+    "[d174] R00S02-DEPT-11-T02-U05 :: breached service level quarry-pay wisteria-ii context the per for",
+    "[d011] R01S00-DEPT-12-T06-U03 :: breached service level quarry-pay runbook further review attached next reference review expected assigned",
+    "[d115] R00S02-DEPT-24-T01-U02 :: queue depth rising quarry-pay the minor thread expected follow far nothing follow week",
+    "[d094] R03S01-DEPT-08-T02-U05 :: penalty clause triggered quarry-pay below nothing below below assigned owner runbook team next below",
+    "[d010] R03S01-DEPT-02-T04-U02 :: inventory count logged veridian-net peregrine-lite review expected follow see thread context context",
+    "[d039] R02S01-DEPT-02-T00-U06 :: customer did not renew quarry-pay the the details now now"
+   ]
+  },
+  {
+   "id": "C-57",
+   "entity": "quarry-core",
+   "links": [
+    {
+     "event": "sensor_drift",
+     "first_seen_day": 16,
+     "last_seen_day": 113,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "false_alarm",
+     "first_seen_day": 18,
+     "last_seen_day": 165,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "unplanned_downtime",
+     "first_seen_day": 60,
+     "last_seen_day": 164,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "output_shortfall",
+     "first_seen_day": 81,
+     "last_seen_day": 95,
+     "independent_sources": 2,
+     "total_reports": 2,
+     "distinct_sites": 2,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 4,
+   "distinct_regions_total": 4,
+   "distinct_sites_total": 6,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d113] R06S01-DEPT-00-T01-U05 :: calibration off quarry-core far the up for for runbook details attached minor",
+    "[d016] R02S01-DEPT-00-T07-U00 :: routine release note zephyr-pay467 as up reference review with",
+    "[d026] R00S02-DEPT-00-T04-U04 :: calibration off quarry-pay team minor owner discussed team action impact",
+    "[d165] R06S01-DEPT-00-T01-U05 :: nuisance trip quarry-core cinder for during further ticket minor",
+    "[d097] R02S01-DEPT-04-T05-U05 :: routine backup completed vireo-core peregrine-net attached ticket ticket the pending thread context",
+    "[d018] R01S00-DEPT-12-T06-U07 :: line stopped unexpectedly quarry-core wisteria447 nothing the team as team so",
+    "[d164] R01S00-DEPT-16-T05-U12 :: doc review osprey-net below the per window team minor with not",
+    "[d060] R00S03-DEPT-00-T02-U00 :: unplanned outage quarry-pay wexford-ii578 team as blocking the further next reference ticket ticket",
+    "[d095] R06S01-DEPT-00-T09-U03 :: throughput miss quarry-core umbrax discussed further action discussed",
+    "[d081] R06S03-DEPT-00-T02-U03 :: patch window logged tundra-edge529 the up for far the up runbook pending thread"
+   ]
+  },
+  {
+   "id": "C-58",
+   "entity": "zephyr-core495",
+   "links": [
+    {
+     "event": "attrition_spike",
+     "first_seen_day": 2,
+     "last_seen_day": 83,
+     "independent_sources": 3,
+     "total_reports": 3,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "backlog_growth",
+     "first_seen_day": 22,
+     "last_seen_day": 102,
+     "independent_sources": 5,
+     "total_reports": 5,
+     "distinct_sites": 4,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "sla_breach",
+     "first_seen_day": 26,
+     "last_seen_day": 141,
+     "independent_sources": 5,
+     "total_reports": 5,
+     "distinct_sites": 4,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "contract_penalty",
+     "first_seen_day": 83,
+     "last_seen_day": 155,
+     "independent_sources": 4,
+     "total_reports": 4,
+     "distinct_sites": 2,
+     "distinct_regions": 2,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "account_churn",
+     "first_seen_day": 118,
+     "last_seen_day": 118,
+     "independent_sources": 1,
+     "total_reports": 1,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 5,
+   "distinct_regions_total": 6,
+   "distinct_sites_total": 11,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d048] R03S00-DEPT-02-T07-U07 :: access request zephyr-edge523 so for attached as team next see",
+    "[d083] R01S01-DEPT-00-T01-U07 :: contractual fine tessera cobaltx536 impact nothing assigned attached action week week see far",
+    "[d002] R00S02-DEPT-05-T10-U07 :: several resignations zephyr-pay467 orion-net reference review context assigned now for reference minor attached minor",
+    "[d022] R03S01-DEPT-09-T04-U12 :: routine budget note tundra zephyrx impact the up week runbook",
+    "[d084] R02S02-DEPT-00-T00-U03 :: work in progress piling up zephyr-core495 ticket review attached the team the window",
+    "[d084] R02S00-DEPT-01-T06-U03 :: queue depth rising zephyr-core495 with so the so the blocking nothing",
+    "[d084] R02S00-DEPT-00-T01-U01 :: queue depth rising zephyr-core495 as pending context the review",
+    "[d102] R01S00-DEPT-06-T01-U00 :: routing updated veridian-hub granite-pro expected the pending thread now far action",
+    "[d141] R05S00-DEPT-06-T04-U04 :: ticket triage vantage expected assigned expected nothing the so for now for",
+    "[d096] R04S01-DEPT-03-T03-U03 :: response time out of target zephyr-core495 runbook pending during window pending attached action reference",
+    "[d096] R04S00-DEPT-05-T01-U04 :: sla missed zephyr-core495 review during per details thread now runbook details attached context",
+    "[d026] R04S00-DEPT-02-T02-U06 :: routine ticket triage wexford-pay466 tesserax537 blocking below assigned for",
+    "[d093] R03S01-DEPT-00-T10-U04 :: routine onboarding wexford attached the per details thread during further review attached runbook",
+    "[d104] R01S00-DEPT-08-T07-U08 :: contractual fine zephyr-core495 expected follow see with ticket",
+    "[d083] R01S00-DEPT-07-T02-U06 :: access request cinder-core as pending owner week see expected",
+    "[d104] R01S00-DEPT-06-T06-U05 :: contractual fine zephyr-core495 see thread during per team blocking",
+    "[d155] R00S00-DEPT-02-T07-U00 :: meeting note nimbusx quarry-edge impact nothing nothing below for expected no ticket not",
+    "[d118] R01S00-DEPT-10-T08-U00 :: vendor checkin logged thistle-core492 during details thread attached action far for now runbook window"
+   ]
+  },
+  {
+   "id": "C-59",
+   "entity": "thistle-pro",
+   "links": [
+    {
+     "event": "policy_change",
+     "first_seen_day": 54,
+     "last_seen_day": 126,
+     "independent_sources": 5,
+     "total_reports": 9,
+     "distinct_sites": 3,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "manual_workaround",
+     "first_seen_day": 87,
+     "last_seen_day": 139,
+     "independent_sources": 8,
+     "total_reports": 22,
+     "distinct_sites": 4,
+     "distinct_regions": 3,
+     "contradicting_reports": 0
+    },
+    {
+     "event": "audit_finding",
+     "first_seen_day": 122,
+     "last_seen_day": 160,
+     "independent_sources": 2,
+     "total_reports": 3,
+     "distinct_sites": 1,
+     "distinct_regions": 1,
+     "contradicting_reports": 0
+    }
+   ],
+   "n_links": 3,
+   "distinct_regions_total": 5,
+   "distinct_sites_total": 6,
+   "contradiction_count": 0,
+   "source_notes": [
+    "[d126] R01S00-DEPT-10-T01-U05 :: routine travel note lumen-pro vantage-edge519 review owner discussed blocking no nothing",
+    "[d113] R05S00-DEPT-06-T01-U08 :: control tightened thistle-pro per team as blocking follow reference action runbook further attached",
+    "[d113] R05S00-DEPT-04-T13-U02 :: policy updated thistle-pro expected the next reference action runbook",
+    "[d113] R05S00-DEPT-04-T11-U09 :: new approval rule thistle-pro ticket action reference minor owner discussed",
+    "[d054] R00S02-DEPT-11-T10-U05 :: new approval rule thistle-pro thread expected assigned during per details with review",
+    "[d121] R03S01-DEPT-08-T01-U03 :: manual bypass in use thistle-pro no the blocking assigned context below the details",
+    "[d139] R02S00-DEPT-06-T00-U04 :: routine inventory count osprey osprey-eu the blocking assigned now for reference minor expected the",
+    "[d126] R00S02-DEPT-13-T04-U14 :: data left the boundary thistle-pro wexford-core494 per pending context nothing follow reference so assigned with discussed",
+    "[d121] R03S01-DEPT-09-T03-U07 :: team used a workaround thistle-pro action see attached as",
+    "[d121] R03S01-DEPT-02-T03-U03 :: manual bypass in use thistle-pro so for with next far no next discussed up discussed",
+    "[d121] R03S00-DEPT-01-T02-U05 :: team used a workaround thistle-pro details expected follow runbook further next for see attached",
+    "[d087] R00S02-DEPT-20-T04-U07 :: team used a workaround thistle-pro wisteria-edge window blocking no minor thread attached as",
+    "[d121] R03S01-DEPT-00-T10-U02 :: shadow process adopted thistle-pro for now runbook blocking the the blocking below the action",
+    "[d122] R00S02-DEPT-13-T05-U01 :: vendor checkin logged cinder the team review with",
+    "[d160] R00S02-DEPT-20-T02-U05 :: assessor noted issue thistle-pro with so the blocking below"
+   ]
+  }
+ ]
+}

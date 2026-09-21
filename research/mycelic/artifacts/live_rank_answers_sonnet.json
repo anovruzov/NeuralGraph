@@ -1,0 +1,16 @@
+{
+  "model": "claude-sonnet-5",
+  "ranking": [
+    "C-9", "C-58", "C-39", "C-29", "C-42", "C-20", "C-41", "C-28", "C-24", "C-2",
+    "C-6", "C-54", "C-57", "C-7", "C-48", "C-32", "C-36", "C-53", "C-45", "C-15",
+    "C-49", "C-17", "C-59", "C-40", "C-8", "C-14", "C-16", "C-34", "C-27", "C-10",
+    "C-30", "C-38", "C-22", "C-18", "C-43", "C-11", "C-55", "C-47", "C-50", "C-19",
+    "C-26", "C-35", "C-33", "C-4", "C-12", "C-21", "C-31", "C-52", "C-51", "C-23",
+    "C-3", "C-37", "C-13", "C-1", "C-5", "C-0", "C-44", "C-25", "C-56", "C-46"
+  ],
+  "real": [
+    "C-9", "C-58", "C-39", "C-29", "C-42", "C-20", "C-41", "C-28", "C-24", "C-2",
+    "C-6", "C-54", "C-57", "C-7", "C-48", "C-32", "C-36", "C-53"
+  ],
+  "reasoning_notes": "I gated candidates first on two hard signals: (1) chain purity - do all reported events belong to a single causal chain, or are they scattered across several unrelated chains (e.g. C-46 mixes chain1/2/3/4/5 events on one entity - classic artefact); and (2) causal-order compliance - does first_seen_day increase in the chain's stated order, or is a downstream event reported before its supposed cause (e.g. C-25 shows revenue_miss before yield_drop, C-56 shows account_churn before backlog_growth, C-0/C-44/C-1/C-13/C-37 show similar smaller reversals). Anything failing either check was pushed to the bottom regardless of report volume. Among order-compliant single-chain candidates, I then ranked by chain length (more consecutive causally-ordered links = stronger corroboration), by how many links rested on only 1 independent_sources (a lone report standing in for a whole link is the classic 'artefact of routine traffic' pattern), and by cumulative distinct_sites/distinct_regions (true cross-organisational spread vs. one or two loud sites). Top picks like C-9, C-29, C-58, C-39, C-42 combine 4-6 links in strict causal order, most/all links backed by 3+ independent sources, and coverage across 5-7 regions and 9-14 sites - hard to explain as coincidence or local noise. The 'real' cutoff (18 of 60) was drawn where chains still had >=3 links, correct order, and at most one weak (single-source) link, typically the terminal outcome event."
+}
