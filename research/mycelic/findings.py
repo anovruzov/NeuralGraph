@@ -665,12 +665,22 @@ def critique() -> str:
         "propagation (global echoing smeared every entity across every region "
         "and destroyed the locality structure).\n")
     lines.append(_critique_improvements_real())
+    seeds_by_scale = {}
+    for r in _rows():
+        seeds_by_scale.setdefault(r["scale"], set()).add(r["seed"])
+    counts = ", ".join(f"{sc:,}: {len(v)} seeds"
+                       for sc, v in sorted(seeds_by_scale.items()))
+    thin = [sc for sc, v in seeds_by_scale.items() if len(v) < 6]
     lines.append(
-        f"**Is the statistics adequate?** No, not fully. {P_FLOOR_NOTE}. "
-        "Headline comparisons at 2k and 10k use ten seeds; 50k and 100k use "
-        "five and three, so several 50k differences are directionally "
-        "unanimous but cannot be given a p below 0.0625–0.25. Those are "
-        "labelled in the tables rather than described as significant.\n")
+        f"**Are the statistics adequate?** No, not fully. {P_FLOOR_NOTE.capitalize()}. "
+        f"Seeds actually run per scale — {counts}"
+        + (f" — so differences at "
+           f"{' and '.join(f'{s:,}' for s in sorted(thin))} users can be "
+           f"directionally unanimous and still not reach a conventional "
+           f"threshold. Those are labelled in the tables rather than "
+           f"described as significant.\n" if thin else
+           ". Every scale has enough seeds for a unanimous result to clear "
+           "p = 0.05.\n"))
     lines.append(
         "**The biggest unresolved weakness.** The causal predicate schema is "
         "given to every system. Real enterprises have no such schema, and "

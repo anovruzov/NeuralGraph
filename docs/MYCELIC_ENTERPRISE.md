@@ -149,13 +149,13 @@ So the honest statement of what the hierarchy buys is narrow and specific: **the
 | 2,000 | `A2_chunked_ctx` | 0.882 | 5.12e+05 | 25.2% |
 | 10,000 | `A2_chunked_ctx` | 0.663 | 2.07e+06 | 22.6% |
 | 50,000 | `A2_chunked_ctx` | 0.686 | 1.02e+07 | 22.3% |
-| 100,000 | `A2_chunked_ctx` | 0.680 | 2.04e+07 | 22.3% |
+| 100,000 | `A2_chunked_ctx` | 0.678 | 2.03e+07 | 22.3% |
 
 **1. Upward propagation alone does not work, at any scale, in any form.** At 100,000 users recursive summarisation finds 0.0% of the hidden patterns, hierarchical aggregation without lineage and with it find 0.0% and 0.8%. Adding targeted downward retrieval takes it to 0.0%; adding sketch-driven questioning takes it to 22.2%. The hierarchy's value is almost entirely in the *downward* path — no paired runs.
 
 **2. The reason is measurable and is not a tuning artefact.** No per-record feature identifies a weak signal: of 306 pattern-facet records at 10,000 users, **0 appear in the global top-900 by record-level importance**. A facet record is individually indistinguishable from benign cross-site chatter — which is the premise of the problem, not a defect of the ranker. Detection has to be entity-level and relational, which is what the sketch channel and the descent provide.
 
-**3. At enterprise scale the binding constraint is discrimination, not retrieval.** A perfect-retrieval oracle — every extracted claim, no budget at all — holds the evidence for 100% of the hidden patterns and still reports only 19.0% of them. The hierarchy holds 28% and reports 22.5%. More undifferentiated evidence makes the kernel's ranking worse, so a propagation budget is a feature and not only a cost.
+**3. At enterprise scale the binding constraint is discrimination, not retrieval.** A perfect-retrieval oracle — every extracted claim, no budget at all — holds the evidence for 100% of the hidden patterns and still reports only 20.5% of them. The hierarchy holds 28% and reports 22.5%. More undifferentiated evidence makes the kernel's ranking worse, so a propagation budget is a feature and not only a cost.
 
 **4. Directly measured: at fixed evidence, model capability buys almost nothing here, changing what the evidence *contains* helps the strongest model a lot and is not reliable across models.** 3 real models ranked the same 56 candidates from a real run (2 independent runs per cell). Given the aggregate evidence statistics they scored AP 0.354–0.407, against 0.420 for a six-feature logistic and 0.313 for random — i.e. a large capability range lands within noise of a logistic. Given the **raw work notes** behind the same statistics the same models scored 0.319–0.617. Richer evidence helped 2 of 3 models (Δ -0.048 to +0.262); the largest run-to-run range within a single cell is 0.107, and 1 of the 3 moves by more than that (opus). The abstraction, not the reasoner, is the plausible ceiling — but see §23 before treating the size of the effect as established.
 
@@ -613,23 +613,23 @@ variance.
 
 | architecture | 2,000 | 10,000 | 50,000 | 100,000 |
 |---|---:|---:|---:|---:|
-| A_flat_rag | 0.867 | 0.648 | 0.424 | 0.268 |
-| A2_chunked_ctx | 0.882 | 0.663 | 0.686 | 0.680 |
-| B_long_context | 0.802 | 0.465 | 0.076 | 0.022 |
-| B2_map_reduce | 0.575 | 0.315 | 0.056 | 0.022 |
+| A_flat_rag | 0.867 | 0.648 | 0.424 | 0.245 |
+| A2_chunked_ctx | 0.882 | 0.663 | 0.686 | 0.678 |
+| B_long_context | 0.802 | 0.465 | 0.076 | 0.023 |
+| B2_map_reduce | 0.575 | 0.315 | 0.056 | 0.018 |
 | B4_central_triage | 0.740 | 0.388 | 0.314 | — |
 | E_hier_lineage | 0.088 | 0.035 | 0.008 | 0.007 |
 | G_hier_questions | 0.693 | 0.398 | 0.336 | 0.223 |
 | H_mycelic_full | 0.715 | 0.385 | 0.336 | 0.225 |
 | J_mycelic_verified | 0.715 | 0.385 | 0.336 | 0.225 |
-| Y_oracle_retrieval | 0.685 | 0.232 | 0.284 | 0.190 |
+| Y_oracle_retrieval | 0.685 | 0.232 | 0.284 | 0.205 |
 
 Compute (cu) at the same points:
 
 | architecture | 2,000 | 10,000 | 50,000 | 100,000 |
 |---|---:|---:|---:|---:|
 | A_flat_rag | 4.71e+05 | 1.09e+06 | 1.24e+06 | 1.41e+06 |
-| A2_chunked_ctx | 5.12e+05 | 2.07e+06 | 1.02e+07 | 2.04e+07 |
+| A2_chunked_ctx | 5.12e+05 | 2.07e+06 | 1.02e+07 | 2.03e+07 |
 | B_long_context | 1.09e+06 | 1.09e+06 | 1.12e+06 | 1.11e+06 |
 | B2_map_reduce | 7.97e+04 | 1.99e+05 | 7.78e+05 | 1.49e+06 |
 | B4_central_triage | 1.33e+05 | 3.98e+05 | 1.07e+06 | — |
@@ -1342,7 +1342,7 @@ The reviewer questions, answered against the measurements rather than around the
 
 One caveat belongs here rather than in a footnote: `w_dispersion` was rejected twice on the pre-correction corpus and selected on the corrected one, with no change to the mechanism. A setting whose sign flips when the data is regenerated is fitted to that data, not to the problem. It should be re-fitted on real data before deployment and should not be treated as a transferable finding.
 
-**Is the statistics adequate?** No, not fully. an exact sign test on *n* paired seeds cannot report below 2^-(n-1); with 5 seeds the floor is p = 0.0625 and with 10 it is p = 0.002. Headline comparisons at 2k and 10k use ten seeds; 50k and 100k use five and three, so several 50k differences are directionally unanimous but cannot be given a p below 0.0625–0.25. Those are labelled in the tables rather than described as significant.
+**Are the statistics adequate?** No, not fully. An exact sign test on *n* paired seeds cannot report below 2^-(n-1); with 5 seeds the floor is p = 0.0625 and with 10 it is p = 0.002. Seeds actually run per scale — 2,000: 10 seeds, 10,000: 10 seeds, 50,000: 5 seeds, 100,000: 3 seeds — so differences at 50,000 and 100,000 users can be directionally unanimous and still not reach a conventional threshold. Those are labelled in the tables rather than described as significant.
 
 **The biggest unresolved weakness.** The causal predicate schema is given to every system. Real enterprises have no such schema, and inducing one is plausibly harder than using it. Everything here is therefore an upper bound on the *verification* half of the problem and says nothing about schema induction.
 
