@@ -18,7 +18,8 @@ from .models import ALLOCATIONS, ANCHORS, Tier, allocation, uniform_alloc
 from .ops import _near_miss_map, stem_rep_map
 from .org import ENT, Org, USER, build_org
 from .systems import (HierConfig, HierRunner, RunResult, flat_rag, long_context,
-                      map_reduce, recursive_summary, user_extract)
+                      map_reduce, oracle_retrieval, random_rank,
+                      recursive_summary, user_extract)
 
 ART = os.path.join(os.path.dirname(__file__), "artifacts")
 os.makedirs(ART, exist_ok=True)
@@ -90,6 +91,9 @@ ARCHS: Dict[str, Dict] = {
         downward_retrieval=True, questions=True, cross_links=False)},
     "H_mycelic_full":    {"kind": "hier", "cfg": dict(
         downward_retrieval=True, questions=True, cross_links=True)},
+    # --- reference controls, clearly not deployable systems ---
+    "Y_oracle_retrieval": {"kind": "oracle"},
+    "Z_random_rank":      {"kind": "randrank"},
 }
 
 
@@ -110,6 +114,15 @@ def run_arch(name: str, world: World, alloc: List[Tier], seed: int,
         return map_reduce(c, alloc, seed, mr_budget,
                           ul=world.user_layer(alloc[USER], seed),
                           near_miss=world.near_miss)
+    if kind == "oracle":
+        return oracle_retrieval(c, alloc, seed,
+                                ul=world.user_layer(alloc[USER], seed),
+                                near_miss=world.near_miss)
+    if kind == "randrank":
+        base = map_reduce(c, alloc, seed, mr_budget,
+                          ul=world.user_layer(alloc[USER], seed),
+                          near_miss=world.near_miss)
+        return random_rank(base, seed)
     if kind == "recursive":
         return recursive_summary(c, alloc, seed,
                                  ul=world.user_layer(alloc[USER], seed),
@@ -147,10 +160,12 @@ def run_matrix(scales: Sequence[int], seeds: Sequence[int],
                     fh.write(json.dumps(row) + "\n")
                     rows.append(row)
                     if verbose:
-                        print(f"  {a:20s} R={met['discovery_recall']:.3f} "
-                              f"P={met['discovery_precision']:.3f} "
+                        print(f"  {a:20s} AP={met['average_precision']:.4f} "
+                              f"Rp={met['r_precision']:.3f} "
+                              f"R@100={met['recall_at_100']:.3f} "
+                              f"found={met['found_anywhere_in_register']:.2f} "
                               f"rare={met['rare_signal_recall']:.3f} "
-                              f"cu={met['compute_units']:.0f} "
+                              f"cu={met['compute_units']:.2e} "
                               f"({time.time()-t1:.1f}s)", flush=True)
                 w.clear_cache()
                 if verbose:

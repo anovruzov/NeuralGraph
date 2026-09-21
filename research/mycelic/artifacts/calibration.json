@@ -1,0 +1,188 @@
+{
+  "scale": 10000,
+  "seeds": [
+    500,
+    501,
+    502
+  ],
+  "objective": "average_precision",
+  "alloc": "back-loaded",
+  "hier_grid": [
+    {
+      "triage_prior_weight": 0.0,
+      "question_frac": 0.25,
+      "average_precision": 0.03618,
+      "recall_at_100": 0.1667,
+      "found": 0.5833,
+      "cu": 1144188.5633333335
+    },
+    {
+      "triage_prior_weight": 0.0,
+      "question_frac": 0.55,
+      "average_precision": 0.03419,
+      "recall_at_100": 0.1167,
+      "found": 0.5667,
+      "cu": 1508384.0966666667
+    },
+    {
+      "triage_prior_weight": 0.0,
+      "question_frac": 1.0,
+      "average_precision": 0.02752,
+      "recall_at_100": 0.1333,
+      "found": 0.525,
+      "cu": 2233487.2
+    },
+    {
+      "triage_prior_weight": 1.2,
+      "question_frac": 0.25,
+      "average_precision": 0.03149,
+      "recall_at_100": 0.125,
+      "found": 0.5833,
+      "cu": 1144188.5633333335
+    },
+    {
+      "triage_prior_weight": 1.2,
+      "question_frac": 0.55,
+      "average_precision": 0.02915,
+      "recall_at_100": 0.1083,
+      "found": 0.5667,
+      "cu": 1508384.0966666667
+    },
+    {
+      "triage_prior_weight": 1.2,
+      "question_frac": 1.0,
+      "average_precision": 0.02931,
+      "recall_at_100": 0.125,
+      "found": 0.525,
+      "cu": 2233487.2
+    },
+    {
+      "triage_prior_weight": 2.0,
+      "question_frac": 0.25,
+      "average_precision": 0.02952,
+      "recall_at_100": 0.0917,
+      "found": 0.5833,
+      "cu": 1144188.5633333335
+    },
+    {
+      "triage_prior_weight": 2.0,
+      "question_frac": 0.55,
+      "average_precision": 0.02771,
+      "recall_at_100": 0.075,
+      "found": 0.5667,
+      "cu": 1508384.0966666667
+    },
+    {
+      "triage_prior_weight": 2.0,
+      "question_frac": 1.0,
+      "average_precision": 0.02821,
+      "recall_at_100": 0.1,
+      "found": 0.525,
+      "cu": 2233487.2
+    },
+    {
+      "triage_prior_weight": 3.0,
+      "question_frac": 0.25,
+      "average_precision": 0.02786,
+      "recall_at_100": 0.0833,
+      "found": 0.5833,
+      "cu": 1144188.5633333335
+    },
+    {
+      "triage_prior_weight": 3.0,
+      "question_frac": 0.55,
+      "average_precision": 0.02642,
+      "recall_at_100": 0.0833,
+      "found": 0.5667,
+      "cu": 1508384.0966666667
+    },
+    {
+      "triage_prior_weight": 3.0,
+      "question_frac": 1.0,
+      "average_precision": 0.02651,
+      "recall_at_100": 0.1,
+      "found": 0.525,
+      "cu": 2233487.2
+    },
+    {
+      "triage_prior_weight": 4.0,
+      "question_frac": 0.25,
+      "average_precision": 0.0253,
+      "recall_at_100": 0.0917,
+      "found": 0.5833,
+      "cu": 1144188.5633333335
+    },
+    {
+      "triage_prior_weight": 4.0,
+      "question_frac": 0.55,
+      "average_precision": 0.02441,
+      "recall_at_100": 0.0917,
+      "found": 0.5667,
+      "cu": 1508384.0966666667
+    },
+    {
+      "triage_prior_weight": 4.0,
+      "question_frac": 1.0,
+      "average_precision": 0.02425,
+      "recall_at_100": 0.0917,
+      "found": 0.525,
+      "cu": 2233487.2
+    }
+  ],
+  "triage_prior_weight": 0.0,
+  "question_frac": 0.25,
+  "mr_grid": [
+    {
+      "kernel_ko_budget": 300,
+      "average_precision": 0.01321,
+      "found": 0.0333,
+      "cu": 149985.68999999997
+    },
+    {
+      "kernel_ko_budget": 900,
+      "average_precision": 0.03619,
+      "found": 0.1,
+      "cu": 163223.02333333332
+    },
+    {
+      "kernel_ko_budget": 2500,
+      "average_precision": 0.01762,
+      "found": 0.2583,
+      "cu": 198999.02333333332
+    },
+    {
+      "kernel_ko_budget": 8000,
+      "average_precision": 0.0109,
+      "found": 0.4083,
+      "cu": 291143.0233333333
+    }
+  ],
+  "mr_budget": 900,
+  "rag_grid": [
+    {
+      "token_budget": 60000,
+      "average_precision": 0.00481,
+      "found": 0.125,
+      "cu": 83072.0
+    },
+    {
+      "token_budget": 120000,
+      "average_precision": 0.02596,
+      "found": 0.3167,
+      "cu": 169120.0
+    },
+    {
+      "token_budget": 400000,
+      "average_precision": 0.05951,
+      "found": 0.6083,
+      "cu": 484009.5999999999
+    },
+    {
+      "token_budget": 1000000,
+      "average_precision": 0.08091,
+      "found": 0.775,
+      "cu": 1114494.9333333333
+    }
+  ],
+  "flat_budget": 1000000
+}

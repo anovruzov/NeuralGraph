@@ -65,9 +65,39 @@ class Metrics:
         return self.d
 
 
+def _ranked_metrics(ranked, real, stem, lenient, mode="primary"):
+    """Average precision / recall@K over the kernel's ranked risk register.
+
+    A finite "top-40 briefing" metric has no dynamic range at 50k users, where
+    ordinary cross-site traffic throws up thousands of plausible-looking
+    causal chains.  AP is budget-free, is the standard way to score a ranked
+    retrieval of a known relevant set, and has a known random baseline
+    (|gold| / |candidates|), so a result can be stated as a multiple of chance.
+    """
+    m = _match_sets(ranked, real, stem, lenient, mode=mode)
+    first: Dict[int, int] = {}
+    for pid, idxs in m.items():
+        first[pid] = min(idxs)
+    order = sorted(first.items(), key=lambda kv: kv[1])
+    n_gold = max(1, len(real))
+    ap = 0.0
+    for rank_pos, (pid, idx) in enumerate(order, start=1):
+        ap += rank_pos / (idx + 1)
+    ap /= n_gold
+    out = {"ap": ap, "n_found": float(len(order))}
+    for K in (40, 100, 300):
+        hit = sum(1 for _, idx in order if idx < K)
+        out[f"recall_at_{K}"] = hit / n_gold
+        out[f"precision_at_{K}"] = hit / min(K, max(1, len(ranked)))
+    rp = sum(1 for _, idx in order if idx < n_gold) / n_gold
+    out["r_precision"] = rp
+    return out
+
+
 def evaluate(corpus: Corpus, gold: Gold, res: RunResult,
              lenient: bool = False, tau: float = 0.5) -> Dict[str, float]:
     stem = stem_rep_map(corpus)
+    ranked = list(res.hypotheses)          # already sorted by confidence
     hyps = [h for h in res.hypotheses if h.conf >= tau]
     pats = {p.pid: p for p in corpus.patterns}
     real = [pats[i] for i in gold.discoverable]
@@ -291,6 +321,19 @@ def evaluate(corpus: Corpus, gold: Gold, res: RunResult,
         "privacy_exposure_fraction": res.propagated_records / max(1, len(corpus.recs)),
         "raw_records_leaving_node": float(res.exposed_raw_records),
     }
+    rank_p = _ranked_metrics(ranked, real, stem, lenient, "primary")
+    rank_s = _ranked_metrics(ranked, real, stem, lenient, "strict")
+    out["average_precision"] = rank_p["ap"]
+    out["average_precision_strict"] = rank_s["ap"]
+    out["r_precision"] = rank_p["r_precision"]
+    out["n_candidates"] = float(len(ranked))
+    out["random_ap_baseline"] = len(real) / max(1, len(ranked))
+    out["ap_lift_over_random"] = (rank_p["ap"] /
+                                  max(1e-9, len(real) / max(1, len(ranked))))
+    for K in (40, 100, 300):
+        out[f"recall_at_{K}"] = rank_p[f"recall_at_{K}"]
+        out[f"precision_at_{K}"] = rank_p[f"precision_at_{K}"]
+    out["found_anywhere_in_register"] = rank_p["n_found"] / max(1, len(real))
     out["cost_per_correct_discovery"] = (out["compute_units"] /
                                          max(1, n_correct))
     out["usd_per_correct_discovery"] = out["usd_estimate"] / max(1, n_correct)

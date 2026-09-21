@@ -292,6 +292,8 @@ class HierConfig:
     confidence: bool = True
     adaptive_abstraction: bool = True
     n_questions: int = 220
+    question_frac: float = 0.55
+    max_questions: int = 4000
     n_descents: int = 40
     descent_fanout: int = 3
     cross_link_degree: int = 4
@@ -302,11 +304,19 @@ class HierConfig:
     sketch_cap: int = 4000
     sketch_min_support: int = 2
     foreign_share: float = 0.35
-    triage_budget: int = 220
+    foreign_only_evidence: bool = True
+    restrict_synthesis_to_triage: bool = True
+    pin_importance: float = 3.0
+    triage_prior_weight: float = 1.2
+    # --- adversarial / robustness knobs ---
+    malicious_frac: float = 0.0      # nodes that fabricate or corrupt KOs
+    unavailable_frac: float = 0.0    # branches temporarily unreachable
+    unavailable_level: int = SITE
+    triage_budget: int = 6000
     descent_leaf_cap: int = 140
     descent_frontier_cap: int = 400
     max_kernel_kos: int = 900
-    max_reports: int = 40
+    max_reports: int = 1000
 
 
 class Hierarchy:
@@ -331,12 +341,15 @@ class Hierarchy:
         self.triage_entries = 0
         self.triage_sites: Dict[int, List[int]] = {}
         self.triage_home: Dict[int, int] = {}
+        self.triage_gain: Dict[int, float] = {}
         self.index_entries = 0
         self.questions: List[Question] = []
         self.propagated = 0
         self.raw_reads = 0
         self._ul: Optional[UserLayer] = None
         self.watch: Set[int] = set()
+        self.unavailable: Set[int] = set()
+        self.malicious_nodes: Set[int] = set()
 
     # -- upward pass ------------------------------------------------------
     def build_user_layer(self, ul: UserLayer) -> None:
@@ -414,6 +427,17 @@ class Hierarchy:
         n_calls = 0
         tin = tout = 0
         for nid in nodes:
+            if cfg.unavailable_frac > 0.0 and level == cfg.unavailable_level \
+                    and self.rng.random() < cfg.unavailable_frac:
+                # a site/region is temporarily unreachable: nothing propagates
+                # from it and it cannot answer a descent either
+                self.kos_at[nid] = []
+                self.anchor_index[nid] = set()
+                self.anchor_count[nid] = {}
+                self.anchor_causal[nid] = {}
+                self.sketch[nid] = {}
+                self.unavailable.add(nid)
+                continue
             kids = org.nodes[nid].children
             pool: List[KO] = []
             aset: Set[int] = set()
@@ -512,6 +536,19 @@ class Hierarchy:
                 for k in kept:
                     if k.contra > 0 and self.rng.random() > tier.contradiction_acc:
                         k.contra = 0
+            if cfg.malicious_frac > 0.0 and self.rng.random() < cfg.malicious_frac:
+                # A compromised or simply broken aggregator: it forwards
+                # fabricated objects with inflated support and strips the
+                # contradictions it saw.
+                for k in kept:
+                    k.contra = 0
+                    k.sigs = set(range(-90_000_000 - 40 * nid,
+                                       -90_000_000 - 40 * nid + 12))
+                    k.n_raw = max(k.n_raw, 12)
+                    k.importance += 1.5
+                    if self.rng.random() < 0.5:
+                        k.pred = int(self.rng.integers(0, 34))
+                self.malicious_nodes.add(nid)
             self.kos_at[nid] = kept
             tout += len(kept) * (TOK_PER_KO if cfg.lineage else TOK_PER_KO_NOLIN)
         if n_calls:
@@ -656,6 +693,13 @@ class Hierarchy:
         leaf_tier = self.alloc[USER]
         ul = self._ul
         for nid in frontier[:cfg.descent_leaf_cap]:
+            if avoid_anc and cfg.foreign_only_evidence and \
+                    org.ancestor_at(nid, SITE) in avoid_set:
+                # Evidence from the entity's own home site is what the
+                # organisation already knows; pulling it in dilutes the
+                # cross-branch story the kernel is trying to verify.  Measured:
+                # an unfiltered pool is *worse* than a filtered sample.
+                continue
             if org.nodes[nid].level == USER and ul is not None:
                 st = ul.uid_start.get(nid)
                 if st is None:
@@ -668,9 +712,14 @@ class Hierarchy:
                     pm = np.isin(ul.ex.pred[st:st + n][sel], tp)
                     if pm.any():
                         sel = sel[pm]
+                # A queried user agent consults its OWN local index and reads
+                # only the matching records - sovereign local memory is the
+                # premise of the design, so charging it for a full re-read of
+                # everything it has ever seen would be wrong.  The index lookup
+                # itself is charged as a small fixed cost.
                 self.meter.add("descend-read", leaf_tier,
-                               n * TOK_PER_RECORD + TOK_PROMPT_OVERHEAD,
-                               len(sel) * TOK_PER_KO, calls=1)
+                               len(sel) * TOK_PER_RECORD + TOK_PROMPT_OVERHEAD
+                               + 12, len(sel) * TOK_PER_KO, calls=1)
                 if len(sel) == 0:
                     continue
                 kos = _kos_from_claims(self.c, ul, sel + st, nid, USER,
@@ -918,6 +967,7 @@ class HierRunner:
                     / (1.0 + 0.25 * math.log1p(total))
                 cands.append((gain, int(a2), len(regs), int(total), seen))
                 h.triage_sites[int(a2)] = [st for st, _, _, _, _ in foreign]
+                h.triage_gain[int(a2)] = float(gain)
                 h.triage_home[int(a2)] = max(site_tot, key=site_tot.get)
         cands.sort(reverse=True)
         for gain, a2, nreg, tot, seen in cands[:cfg.triage_budget]:
@@ -930,7 +980,13 @@ class HierRunner:
                 well_targeted=True))
             qid += 1
         qs.sort(key=lambda q: -(q.expected_gain / max(1.0, q.cost_est)))
-        qs = qs[:cfg.n_questions]
+        # The question budget scales with the number of entities the triage
+        # actually flags, not with a constant: a 50k-person enterprise has ~30x
+        # the candidate entities of a 2k one, and a fixed budget of 220 was
+        # measured to push every gold anchor out of the queue at 50k.
+        nq = min(cfg.max_questions,
+                 max(cfg.n_questions, int(cfg.question_frac * len(qs))))
+        qs = qs[:nq]
         h.meter.add("L5-questions", kernel_tier,
                     len(pool) * TOK_PER_KO + TOK_PROMPT_OVERHEAD,
                     len(qs) * TOK_PER_QUESTION, calls=1)
@@ -948,6 +1004,14 @@ class HierRunner:
         if not new_kos:
             return hyps, pool
         merged = pool + new_kos
+        if cfg.restrict_synthesis_to_triage:
+            # The triage is the candidate generator.  Proposing a causal chain
+            # for every entity the kernel happens to hold an object about
+            # produces thousands of candidates built out of one site's routine
+            # traffic, and buries the real ones in the ranking.
+            keep_anchors = {q.anchor for q in qs}
+            keep_anchors |= {k.anchor for k in pool if k.importance > cfg.pin_importance}
+            merged = [k for k in merged if k.anchor in keep_anchors]
         h.meter.add("L5-kernel-q", kernel_tier,
                     len(merged) * TOK_PER_KO + TOK_PROMPT_OVERHEAD, 0, calls=1)
         hyps2 = synthesize(merged, kernel_tier, self.rng, self.c.org,
@@ -958,6 +1022,22 @@ class HierRunner:
                            stem_rep=self._stem if hasattr(self,'_stem') else None)
         h.meter.add("L5-kernel-q", kernel_tier, 0, len(hyps2) * TOK_PER_HYP,
                     calls=0)
+        if cfg.triage_prior_weight > 0.0 and h.triage_gain:
+            # Combine the cheap structural prior (what the sketches say about
+            # this entity) with the expensive verification (what the kernel
+            # concluded from the evidence).  Neither alone ranks well: the
+            # prior cannot tell a real chain from a decoy, and the verifier
+            # cannot tell an entity worth looking at from one that is just
+            # noisy.
+            gs = np.array([h.triage_gain.get(x.anchor, 0.0) for x in hyps2])
+            if len(gs) > 2 and gs.std() > 1e-9:
+                z = (gs - gs.mean()) / gs.std()
+                for x, zz in zip(hyps2, z):
+                    x.prior = float(zz)
+                    lo = math.log(max(1e-6, x.conf) / max(1e-6, 1 - x.conf))
+                    x.conf = float(1.0 / (1.0 + math.exp(
+                        -(lo + cfg.triage_prior_weight * zz))))
+                hyps2.sort(key=lambda x: -x.conf)
         after = {self._hkey(x): x for x in hyps2}
         for q in qs:
             for key, hy in after.items():
@@ -1050,10 +1130,13 @@ def flat_rag(corpus: Corpus, kernel_tier: Tier, seed: int,
 
 def long_context(corpus: Corpus, kernel_tier: Tier, seed: int,
                  near_miss=None) -> RunResult:
-    """BASELINE B. Fill the kernel's entire context window with raw text."""
+    """BASELINE B. Fill the kernel's entire context window with raw records,
+    with NO retrieval step at all - an unfiltered sample of the enterprise.
+    The difference from baseline A is exactly the value of the cheap lexical
+    prefilter, which is what a RAG stage contributes."""
     budget = kernel_tier.ctx - TOK_PROMPT_OVERHEAD
     return _relabel(flat_rag(corpus, kernel_tier, seed, budget,
-                             near_miss=near_miss, expand_schema=True),
+                             near_miss=near_miss, expand_schema=False),
                     "long_context")
 
 
@@ -1164,3 +1247,52 @@ def recursive_summary(corpus: Corpus, alloc: List[Tier], seed: int,
                    near_miss=near_miss).run()
     r.name = "recursive_summary"
     return r
+
+
+# ---------------------------------------------------------------------------
+# Reference controls (not deployable systems - they bound the problem)
+# ---------------------------------------------------------------------------
+
+def oracle_retrieval(corpus: Corpus, alloc: List[Tier], seed: int,
+                     ul: Optional[UserLayer] = None, near_miss=None,
+                     extraction_tier: Optional[Tier] = None) -> RunResult:
+    """UPPER BOUND. Every extracted claim in the enterprise, no propagation
+    budget, no retrieval budget, same reasoning operators, strongest kernel.
+    Not a deployable architecture: it assumes the kernel can hold the entire
+    claim pool.  It exists to tell us whether a given result is limited by
+    retrieval or by reasoning."""
+    rng = np.random.default_rng(77_000 + seed)
+    meter = Meter()
+    tier = extraction_tier or alloc[USER]
+    ul = ul if ul is not None else user_extract(corpus, tier, rng,
+                                                near_miss=near_miss)
+    meter.add("L0-extract", tier,
+              int(len(corpus.recs) * TOK_PER_RECORD
+                  + len(corpus.org.user_ids) * TOK_PROMPT_OVERHEAD),
+              int(len(ul.ex) * 10), calls=len(corpus.org.user_ids))
+    kos = _flat_kos(corpus, ul.ex, keep_lineage=True)
+    kt = alloc[ENT]
+    meter.add("L5-kernel", kt, len(kos) * TOK_PER_KO + TOK_PROMPT_OVERHEAD, 0,
+              calls=1)
+    hyps = synthesize(kos, kt, rng, corpus.org, n_entities=len(corpus.entities),
+                      stem_rep=stem_rep_map(corpus))
+    meter.add("L5-kernel", kt, 0, len(hyps) * TOK_PER_HYP, calls=0)
+    return RunResult(name="oracle_retrieval", hypotheses=hyps, meter=meter,
+                     retained={(k.pred, k.anchor) for k in kos}, kernel_kos=kos,
+                     propagated_records=int(len(ul.ex)),
+                     exposed_raw_records=int(len(corpus.recs)))
+
+
+def random_rank(res: RunResult, seed: int) -> RunResult:
+    """CONTROL. The same candidate hypotheses, ranked at random.  The gap
+    between a system and its own random-rank control is the part of its score
+    that comes from judging evidence rather than from generating candidates."""
+    rng = np.random.default_rng(88_000 + seed)
+    hy = list(res.hypotheses)
+    rng.shuffle(hy)
+    return RunResult(name=res.name + "_randrank", hypotheses=hy,
+                     meter=res.meter, retained=res.retained,
+                     kernel_kos=res.kernel_kos, questions=res.questions,
+                     families=res.families, notes=res.notes,
+                     propagated_records=res.propagated_records,
+                     exposed_raw_records=res.exposed_raw_records)

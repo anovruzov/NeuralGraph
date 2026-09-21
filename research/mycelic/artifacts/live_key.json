@@ -1,0 +1,644 @@
+{
+ "T1-54523": {
+  "predicate": "ticket_triage",
+  "entity": "pellucid"
+ },
+ "T1-12945": {
+  "predicate": "headcount_note",
+  "entity": "meridian"
+ },
+ "T1-46440": {
+  "predicate": "price_increase",
+  "entity": "meridian"
+ },
+ "T1-54554": {
+  "predicate": "manual_workaround",
+  "entity": "solace-core"
+ },
+ "T1-61233": {
+  "predicate": "revenue_miss",
+  "entity": "kestrel-edge"
+ },
+ "T1-38470": {
+  "predicate": "ticket_triage",
+  "entity": "wexford"
+ },
+ "T1-63856": {
+  "predicate": "release_note",
+  "entity": "meridian"
+ },
+ "T1-65958": {
+  "predicate": "audit_finding",
+  "entity": "kestrel"
+ },
+ "T1-11154": {
+  "predicate": "checkout_drop",
+  "entity": "lumen"
+ },
+ "T1-10958": {
+  "predicate": "ticket_triage",
+  "entity": "solace-pay"
+ },
+ "T1-48725": {
+  "predicate": "headcount_note",
+  "entity": "pellucid-pay"
+ },
+ "T1-58351": {
+  "predicate": "headcount_note",
+  "entity": "zephyr-pay"
+ },
+ "T1-28712": {
+  "predicate": "doc_review",
+  "entity": "tessera"
+ },
+ "T1-41243": {
+  "predicate": "budget_note",
+  "entity": "sable"
+ },
+ "T1-58229": {
+  "predicate": "headcount_note",
+  "entity": "nimbus"
+ },
+ "T1-22677": {
+  "predicate": "backup_completed",
+  "entity": "kestrel"
+ },
+ "T1-34199": {
+  "predicate": "tool_upgrade",
+  "entity": "cinder-pay"
+ },
+ "T1-30823": {
+  "predicate": "ticket_triage",
+  "entity": "orion"
+ },
+ "T1-61266": {
+  "predicate": "onboarding",
+  "entity": "umbrax"
+ },
+ "T1-26876": {
+  "predicate": "release_note",
+  "entity": "zephyr-edge"
+ },
+ "T1-30061": {
+  "predicate": "price_increase",
+  "entity": "veridian-ii"
+ },
+ "T1-53110": {
+  "predicate": "access_request",
+  "entity": "veridian"
+ },
+ "T1-40327": {
+  "predicate": "status_update",
+  "entity": "pellucid"
+ },
+ "T1-4669": {
+  "predicate": "doc_review",
+  "entity": "tesserax"
+ },
+ "T1-12189": {
+  "predicate": "doc_review",
+  "entity": "vantagex"
+ },
+ "T1-15624": {
+  "predicate": "ticket_triage",
+  "entity": "nimbus"
+ },
+ "T1-31731": {
+  "predicate": "travel_note",
+  "entity": "meridian"
+ },
+ "T1-29409": {
+  "predicate": "shipment_delay",
+  "entity": "orion"
+ },
+ "T1-34026": {
+  "predicate": "onboarding",
+  "entity": "orion-pay"
+ },
+ "T1-66336": {
+  "predicate": "access_request",
+  "entity": "nimbus"
+ },
+ "T1-56062": {
+  "predicate": "status_update",
+  "entity": "cobalt-ii"
+ },
+ "T1-33604": {
+  "predicate": "meeting_note",
+  "entity": "lumen-core"
+ },
+ "T1-4070": {
+  "predicate": "margin_compression",
+  "entity": "arbor-pay"
+ },
+ "T1-360": {
+  "predicate": "api_error_spike",
+  "entity": "marlin-pay"
+ },
+ "T1-40714": {
+  "predicate": "patch_window",
+  "entity": "halcyon"
+ },
+ "T1-9211": {
+  "predicate": "close_delay",
+  "entity": "veridian"
+ },
+ "T1-35714": {
+  "predicate": "doc_review",
+  "entity": "wexford"
+ },
+ "T1-51602": {
+  "predicate": "audit_finding",
+  "entity": "tessera"
+ },
+ "T1-62439": {
+  "predicate": "data_exposure_risk",
+  "entity": "wisteria-edge"
+ },
+ "T1-59426": {
+  "predicate": "contract_penalty",
+  "entity": "basalt-core"
+ },
+ "T1-3001": {
+  "predicate": "checkout_drop",
+  "entity": "zephyrx"
+ },
+ "T1-806": {
+  "predicate": "patch_window",
+  "entity": "basalt"
+ },
+ "T1-13311": {
+  "predicate": "doc_review",
+  "entity": "veridian"
+ },
+ "T1-63268": {
+  "predicate": "sensor_drift",
+  "entity": "cinder-pay"
+ },
+ "T1-61211": {
+  "predicate": "ticket_triage",
+  "entity": "umbrax"
+ },
+ "T1-1919": {
+  "predicate": "patch_window",
+  "entity": "umbra-pay"
+ },
+ "T1-64309": {
+  "predicate": "output_shortfall",
+  "entity": "veridian-edge"
+ },
+ "T1-43789": {
+  "predicate": "release_note",
+  "entity": "osprey"
+ },
+ "T2-0": {
+  "answer": "no"
+ },
+ "T2-1": {
+  "answer": "yes"
+ },
+ "T2-2": {
+  "answer": "yes"
+ },
+ "T2-3": {
+  "answer": "yes"
+ },
+ "T2-4": {
+  "answer": "no"
+ },
+ "T2-5": {
+  "answer": "no"
+ },
+ "T2-6": {
+  "answer": "yes"
+ },
+ "T2-7": {
+  "answer": "yes"
+ },
+ "T2-8": {
+  "answer": "no"
+ },
+ "T2-9": {
+  "answer": "yes"
+ },
+ "T2-10": {
+  "answer": "yes"
+ },
+ "T2-11": {
+  "answer": "no"
+ },
+ "T2-12": {
+  "answer": "no"
+ },
+ "T2-13": {
+  "answer": "yes"
+ },
+ "T2-14": {
+  "answer": "yes"
+ },
+ "T2-15": {
+  "answer": "no"
+ },
+ "T2-16": {
+  "answer": "yes"
+ },
+ "T2-17": {
+  "answer": "no"
+ },
+ "T2-18": {
+  "answer": "yes"
+ },
+ "T2-19": {
+  "answer": "yes"
+ },
+ "T2-20": {
+  "answer": "no"
+ },
+ "T2-21": {
+  "answer": "yes"
+ },
+ "T2-22": {
+  "answer": "no"
+ },
+ "T2-23": {
+  "answer": "no"
+ },
+ "T2-24": {
+  "answer": "no"
+ },
+ "T2-25": {
+  "answer": "no"
+ },
+ "T2-26": {
+  "answer": "yes"
+ },
+ "T2-27": {
+  "answer": "yes"
+ },
+ "T2-28": {
+  "answer": "no"
+ },
+ "T2-29": {
+  "answer": "yes"
+ },
+ "T2-30": {
+  "answer": "no"
+ },
+ "T2-31": {
+  "answer": "yes"
+ },
+ "T2-32": {
+  "answer": "no"
+ },
+ "T2-33": {
+  "answer": "yes"
+ },
+ "T2-34": {
+  "answer": "yes"
+ },
+ "T2-35": {
+  "answer": "no"
+ },
+ "T2-36": {
+  "answer": "no"
+ },
+ "T2-37": {
+  "answer": "yes"
+ },
+ "T2-38": {
+  "answer": "yes"
+ },
+ "T2-39": {
+  "answer": "no"
+ },
+ "T2-40": {
+  "answer": "no"
+ },
+ "T2-41": {
+  "answer": "yes"
+ },
+ "T2-42": {
+  "answer": "no"
+ },
+ "T2-43": {
+  "answer": "yes"
+ },
+ "T2-44": {
+  "answer": "no"
+ },
+ "T2-45": {
+  "answer": "yes"
+ },
+ "T2-46": {
+  "answer": "no"
+ },
+ "T2-47": {
+  "answer": "yes"
+ },
+ "T3-0": {
+  "answer": "out_of_order"
+ },
+ "T3-1": {
+  "answer": "current"
+ },
+ "T3-2": {
+  "answer": "out_of_order"
+ },
+ "T3-3": {
+  "answer": "current"
+ },
+ "T3-4": {
+  "answer": "current"
+ },
+ "T3-5": {
+  "answer": "out_of_order"
+ },
+ "T3-6": {
+  "answer": "out_of_order"
+ },
+ "T3-7": {
+  "answer": "retracted"
+ },
+ "T3-8": {
+  "answer": "out_of_order"
+ },
+ "T3-9": {
+  "answer": "current"
+ },
+ "T3-10": {
+  "answer": "retracted"
+ },
+ "T3-11": {
+  "answer": "retracted"
+ },
+ "T3-12": {
+  "answer": "current"
+ },
+ "T3-13": {
+  "answer": "out_of_order"
+ },
+ "T3-14": {
+  "answer": "out_of_order"
+ },
+ "T3-15": {
+  "answer": "out_of_order"
+ },
+ "T3-16": {
+  "answer": "out_of_order"
+ },
+ "T3-17": {
+  "answer": "current"
+ },
+ "T3-18": {
+  "answer": "out_of_order"
+ },
+ "T3-19": {
+  "answer": "retracted"
+ },
+ "T3-20": {
+  "answer": "current"
+ },
+ "T3-21": {
+  "answer": "retracted"
+ },
+ "T3-22": {
+  "answer": "retracted"
+ },
+ "T3-23": {
+  "answer": "retracted"
+ },
+ "T3-24": {
+  "answer": "retracted"
+ },
+ "T3-25": {
+  "answer": "out_of_order"
+ },
+ "T3-26": {
+  "answer": "retracted"
+ },
+ "T3-27": {
+  "answer": "retracted"
+ },
+ "T3-28": {
+  "answer": "current"
+ },
+ "T3-29": {
+  "answer": "current"
+ },
+ "T3-30": {
+  "answer": "out_of_order"
+ },
+ "T3-31": {
+  "answer": "out_of_order"
+ },
+ "T3-32": {
+  "answer": "retracted"
+ },
+ "T3-33": {
+  "answer": "out_of_order"
+ },
+ "T3-34": {
+  "answer": "current"
+ },
+ "T3-35": {
+  "answer": "retracted"
+ },
+ "T4-0": {
+  "answer": "same"
+ },
+ "T4-1": {
+  "answer": "same"
+ },
+ "T4-2": {
+  "answer": "different"
+ },
+ "T4-3": {
+  "answer": "same"
+ },
+ "T4-4": {
+  "answer": "different"
+ },
+ "T4-5": {
+  "answer": "same"
+ },
+ "T4-6": {
+  "answer": "same"
+ },
+ "T4-7": {
+  "answer": "same"
+ },
+ "T4-8": {
+  "answer": "same"
+ },
+ "T4-9": {
+  "answer": "different"
+ },
+ "T4-10": {
+  "answer": "same"
+ },
+ "T4-11": {
+  "answer": "different"
+ },
+ "T4-12": {
+  "answer": "same"
+ },
+ "T4-13": {
+  "answer": "same"
+ },
+ "T4-14": {
+  "answer": "different"
+ },
+ "T4-15": {
+  "answer": "same"
+ },
+ "T4-16": {
+  "answer": "same"
+ },
+ "T4-17": {
+  "answer": "different"
+ },
+ "T4-18": {
+  "answer": "same"
+ },
+ "T4-19": {
+  "answer": "same"
+ },
+ "T4-20": {
+  "answer": "different"
+ },
+ "T4-21": {
+  "answer": "different"
+ },
+ "T4-22": {
+  "answer": "different"
+ },
+ "T4-23": {
+  "answer": "same"
+ },
+ "T4-24": {
+  "answer": "same"
+ },
+ "T4-25": {
+  "answer": "different"
+ },
+ "T4-26": {
+  "answer": "same"
+ },
+ "T4-27": {
+  "answer": "same"
+ },
+ "T4-28": {
+  "answer": "different"
+ },
+ "T4-29": {
+  "answer": "same"
+ },
+ "T4-30": {
+  "answer": "same"
+ },
+ "T4-31": {
+  "answer": "same"
+ },
+ "T4-32": {
+  "answer": "same"
+ },
+ "T4-33": {
+  "answer": "different"
+ },
+ "T4-34": {
+  "answer": "different"
+ },
+ "T4-35": {
+  "answer": "same"
+ },
+ "T5-0": {
+  "answer": 1
+ },
+ "T5-1": {
+  "answer": 4
+ },
+ "T5-2": {
+  "answer": 2
+ },
+ "T5-3": {
+  "answer": 1
+ },
+ "T5-4": {
+  "answer": 2
+ },
+ "T5-5": {
+  "answer": 1
+ },
+ "T5-6": {
+  "answer": 3
+ },
+ "T5-7": {
+  "answer": 3
+ },
+ "T5-8": {
+  "answer": 4
+ },
+ "T5-9": {
+  "answer": 4
+ },
+ "T5-10": {
+  "answer": 4
+ },
+ "T5-11": {
+  "answer": 1
+ },
+ "T5-12": {
+  "answer": 1
+ },
+ "T5-13": {
+  "answer": 1
+ },
+ "T5-14": {
+  "answer": 4
+ },
+ "T5-15": {
+  "answer": 2
+ },
+ "T5-16": {
+  "answer": 3
+ },
+ "T5-17": {
+  "answer": 3
+ },
+ "T5-18": {
+  "answer": 3
+ },
+ "T5-19": {
+  "answer": 4
+ },
+ "T5-20": {
+  "answer": 3
+ },
+ "T5-21": {
+  "answer": 3
+ },
+ "T5-22": {
+  "answer": 2
+ },
+ "T5-23": {
+  "answer": 3
+ },
+ "T5-24": {
+  "answer": 2
+ },
+ "T5-25": {
+  "answer": 2
+ },
+ "T5-26": {
+  "answer": 4
+ },
+ "T5-27": {
+  "answer": 1
+ },
+ "T5-28": {
+  "answer": 2
+ },
+ "T5-29": {
+  "answer": 4
+ }
+}

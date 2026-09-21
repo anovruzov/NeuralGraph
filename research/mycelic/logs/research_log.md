@@ -141,3 +141,42 @@ the original criterion scored it zero. Two criteria are now computed and
 **both are reported in every table**: `primary` (right entity, ≥2 gold links
 and ≥ half of them) and `strict` (≥ min(3, |gold links|)). No table ever drops
 the strict column.
+
+## Iteration 11 — calibration protocol, and why it mattered immediately
+
+All tunable knobs are now fitted on CALIBRATION seeds (500-502) disjoint from
+the evaluation seeds (0-4), by the same procedure for every architecture:
+hierarchy (triage prior weight x question budget fraction), map-reduce (kernel
+object budget), flat RAG (retrieval token budget).
+
+This paid for itself on the first run. The triage prior weight improved AP
+monotonically on seed 0 (0.027 -> 0.098 at weight 3.0) and would have been
+adopted on that evidence. On the held-out calibration seeds the best value is
+**0.0** — the prior does not generalise. It is frozen at 0 and reported as a
+non-result.
+
+Calibrated values: `triage_prior_weight=0.0`, `question_frac=0.25`,
+`mr_budget=900`, `flat_budget=1,000,000`.
+
+## Iteration 12 — the live measurement run audited the measurement
+
+The first direct-measurement task file was handed to three real models. The
+strongest one refused to treat it as a clean measurement and reported four
+defects in the harness, all of them real:
+
+1. **The answer key was inlined next to every item** (`gold_predicate`,
+   `gold`), so the run was not blind at all.
+2. **30 of 48 extraction items had out-of-vocabulary gold labels** — the
+   vocabulary shipped only the 34 operational predicates while the items were
+   sampled from all records, including routine ones.
+3. **The T2 criterion was under-specified**: at least one item had all
+   predicates on one chain but a "no" label because the times ran backwards,
+   so chain membership and chain direction were conflated.
+4. **The labels were positionally predictable** — T2 alternated yes/no by
+   index parity, T3 cycled with period 3, T4 alternated — so a model could
+   score well by noticing the periodicity instead of reasoning.
+
+All three runs were discarded. The harness now ships the key in a separate
+file the measured model is never pointed at, uses the full 50-predicate
+vocabulary, states T2 as pure chain membership (direction is T3's job), draws
+every label at random, and shuffles item order within each group.
