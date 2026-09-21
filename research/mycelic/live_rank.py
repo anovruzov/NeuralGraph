@@ -220,6 +220,27 @@ def score(rich: bool = False) -> Dict[str, object]:
             "n_ranked_returned": len(a.get("ranking", [])),
         }
     out["models"] = models
+    # Repeats are named "<model>-rN".  A single run per cell cannot carry a
+    # mechanism claim, so repeats are aggregated per model with their spread
+    # reported rather than averaged away.
+    byname: Dict[str, List[Dict]] = {}
+    for k, v in models.items():
+        base = k.split("-r")[0]
+        byname.setdefault(base, []).append(v)
+    agg_models = {}
+    for base, vs in byname.items():
+        aps = [v["ap"] for v in vs]
+        f1s = [v["selection_f1"] for v in vs]
+        agg_models[base] = {
+            "n_runs": len(vs),
+            "ap_mean": float(np.mean(aps)),
+            "ap_min": float(np.min(aps)),
+            "ap_max": float(np.max(aps)),
+            "selection_f1_mean": float(np.mean(f1s)),
+            "selection_f1_min": float(np.min(f1s)),
+            "selection_f1_max": float(np.max(f1s)),
+        }
+    out["models_aggregated"] = agg_models
     with open(os.path.join(ART, f"live_rank_results{suffix}.json"), "w") as fh:
         json.dump(out, fh, indent=2)
     return out

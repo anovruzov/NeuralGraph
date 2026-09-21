@@ -69,3 +69,24 @@
   3 +evidence_verification   AP=0.0354 found=0.47 rare=0.267 lin=0.47 indep=0.72 cu=1.18e+06
   3 +source_dispersion       AP=0.0211 found=0.42 rare=0.200 lin=0.50 indep=0.78 cu=1.17e+06
   3 +chain_completion        AP=0.0437 found=0.50 rare=0.200 lin=0.46 indep=0.79 cu=2.08e+06
+  3 -foreign_filter          AP=0.0439 found=0.53 rare=0.267 lin=0.43 indep=0.77 cu=1.32e+06
+  3 -synthesis_restriction   AP=0.0250 found=0.45 rare=0.200 lin=0.46 indep=0.76 cu=1.17e+06
+  4 full                     AP=0.0112 found=0.38 rare=0.273 lin=0.48 indep=0.75 cu=1.02e+06
+  4 -lineage                 AP=0.0222 found=0.42 rare=0.000 lin=0.00 indep=0.76 cu=9.84e+05
+  4 -independence            AP=0.0046 found=0.25 rare=0.364 lin=0.49 indep=0.76 cu=1.01e+06
+  4 -contradiction           AP=0.0092 found=0.38 rare=0.455 lin=0.52 indep=0.77 cu=1.01e+06
+  4 -temporal                AP=0.0037 found=0.23 rare=0.182 lin=0.53 indep=0.82 cu=1.01e+06
+  4 -adaptive_routing        AP=0.0095 found=0.33 rare=0.273 lin=0.53 indep=0.76 cu=1.02e+06
+  4 -questions               AP=0.0073 found=0.10 rare=0.000 lin=0.62 indep=0.77 cu=3.68e+05
+  4 -question_targeting      AP=0.0169 found=0.40 rare=0.273 lin=0.49 indep=0.78 cu=1.02e+06
+  4 -downward_retrieval      AP=0.0080 found=0.07 rare=0.000 lin=0.86 indep=0.60 cu=2.26e+05
+  4 -cross_links             AP=0.0240 found=0.35 rare=0.273 lin=0.50 indep=0.80 cu=1.00e+06
+  4 -sketch_channel          AP=0.0187 found=0.15 rare=0.091 lin=0.61 indep=0.83 cu=1.18e+06
+  4 -adaptive_abstraction    AP=0.0071 found=0.28 rare=0.182 lin=0.50 indep=0.75 cu=1.02e+06
+  4 -triage_prior            AP=0.0112 found=0.38 rare=0.273 lin=0.48 indep=0.75 cu=1.02e+06
+  4 +evidence_verification   AP=0.0171 found=0.38 rare=0.273 lin=0.48 indep=0.75 cu=1.03e+06
+  4 +source_dispersion       AP=0.0074 found=0.33 rare=0.455 lin=0.52 indep=0.77 cu=1.01e+06
+  4 +chain_completion        AP=0.0144 found=0.33 rare=0.273 lin=0.52 indep=0.67 cu=1.81e+06
+  4 -foreign_filter          AP=0.0098 found=0.40 rare=0.364 lin=0.49 indep=0.77 cu=1.13e+06
+  4 -synthesis_restriction   AP=0.0101 found=0.35 rare=0.273 lin=0.49 indep=0.75 cu=1.02e+06
+=== e2 done in 516s ===

@@ -1,0 +1,32 @@
+{
+  "n_items": 56,
+  "n_real": 15,
+  "simulator_logistic_ap": 0.42035168849060683,
+  "random_ap": 0.3134941379761509,
+  "models": {
+    "haiku": {
+      "ap": 0.43616409210915646,
+      "selection_precision": 0.3888888888888889,
+      "selection_recall": 0.4666666666666667,
+      "selection_f1": 0.42424242424242425,
+      "n_selected": 18,
+      "n_ranked_returned": 56
+    },
+    "opus": {
+      "ap": 0.6654806079061442,
+      "selection_precision": 0.5,
+      "selection_recall": 0.6,
+      "selection_f1": 0.5454545454545454,
+      "n_selected": 18,
+      "n_ranked_returned": 56
+    },
+    "sonnet": {
+      "ap": 0.3337754612140576,
+      "selection_precision": 0.2,
+      "selection_recall": 0.2,
+      "selection_f1": 0.20000000000000004,
+      "n_selected": 15,
+      "n_ranked_returned": 56
+    }
+  }
+}
