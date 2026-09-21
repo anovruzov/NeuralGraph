@@ -125,7 +125,7 @@ We built a synthetic enterprise with known hidden problems planted in it, at 2,0
 
 `B4_central_triage` runs **exactly the hierarchy's own discovery algorithm**, centrally: one claim pool, no propagation budget, no routing error, no descent. It separates the value of the *algorithm* from the value of the *topology*.
 
-It finds 31% of the hidden problems against the hierarchy's 34%, at 1.07e+06 compute against 2.93e+06 — about 2.8x less.  Within noise, they are the same.
+It finds 31% of the hidden problems against the hierarchy's 34%, at 1.07e+06 compute against 2.93e+06 — about 2.8x less.  Across all 25 paired (scale, seed) runs the difference is -0.007 (95% CI [-0.041, +0.025], 12/25 seeds, sign p=1.000), so **the two are statistically indistinguishable** — the interval spans zero and the wins split roughly evenly.
 
 So the honest statement of what the hierarchy buys is narrow and specific: **the triage algorithm is what finds the problems; the hierarchy is how you run that algorithm without centralising the company's data.** The centralised version pools 88% of all extracted claims in one place; the hierarchy pools 14% and moves no original text at all. That privacy property costs roughly 2.8x the compute and tens of thousands of extra model calls. If we do not need it, we should run the algorithm centrally.
 
@@ -612,7 +612,7 @@ variance.
 | B_long_context | 0.802 | 0.465 | 0.076 | 0.025 |
 | B2_map_reduce | 0.575 | 0.315 | 0.056 | 0.015 |
 | B4_central_triage | 0.740 | 0.388 | 0.314 | — |
-| E_hier_lineage | 0.088 | 0.035 | 0.008 | — |
+| E_hier_lineage | 0.088 | 0.035 | 0.008 | 0.010 |
 | G_hier_questions | 0.693 | 0.398 | 0.336 | — |
 | H_mycelic_full | 0.715 | 0.385 | 0.336 | — |
 | J_mycelic_verified | 0.715 | 0.385 | 0.336 | — |
@@ -627,7 +627,7 @@ Compute (cu) at the same points:
 | B_long_context | 1.09e+06 | 1.09e+06 | 1.12e+06 | 1.11e+06 |
 | B2_map_reduce | 7.97e+04 | 1.99e+05 | 7.78e+05 | 1.49e+06 |
 | B4_central_triage | 1.33e+05 | 3.98e+05 | 1.07e+06 | — |
-| E_hier_lineage | 6.93e+04 | 2.27e+05 | 9.90e+05 | — |
+| E_hier_lineage | 6.93e+04 | 2.27e+05 | 9.90e+05 | 1.92e+06 |
 | G_hier_questions | 8.37e+05 | 1.11e+06 | 2.92e+06 | — |
 | H_mycelic_full | 8.43e+05 | 1.11e+06 | 2.93e+06 | — |
 | J_mycelic_verified | 8.53e+05 | 1.12e+06 | 2.94e+06 | — |

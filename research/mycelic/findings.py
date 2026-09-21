@@ -211,19 +211,33 @@ def decision_summary() -> str:
     if b4f is not None and h is not None and b4c and hc:
         out.append("### The control that reframes the decision")
         out.append("")
-        gap = h - b4f
-        tie = abs(gap) < 0.05
         out.append(
             "`B4_central_triage` runs **exactly the hierarchy's own discovery "
             "algorithm**, centrally: one claim pool, no propagation budget, no "
             "routing error, no descent. It separates the value of the "
             "*algorithm* from the value of the *topology*.")
         out.append("")
+        # Assert the tie from the paired test over every (scale, seed), not
+        # from the size of the gap at one scale.
+        pt = paired(rows, HIER, "B4_central_triage",
+                    "found_anywhere_in_register")
+        verdict = ""
+        if pt.get("n"):
+            crosses = pt["ci_lo"] <= 0 <= pt["ci_hi"]
+            verdict = (
+                f"  Across all {pt['n']} paired (scale, seed) runs the "
+                f"difference is {pt['mean_diff']:+.3f} "
+                f"(95% CI [{pt['ci_lo']:+.3f}, {pt['ci_hi']:+.3f}], "
+                f"{pt['wins']}/{pt['n_nonzero']} seeds, sign p="
+                f"{pt['sign_p']:.3f}), so "
+                + ("**the two are statistically indistinguishable** — the "
+                   "interval spans zero and the wins split roughly evenly."
+                   if crosses else
+                   "the difference is real, and its sign is the one above."))
         out.append(
             f"It finds {b4f:.0%} of the hidden problems against the "
             f"hierarchy's {h:.0%}, at {b4c:.2e} compute against {hc:.2e} — "
-            f"about {hc/max(1.0,b4c):.1f}x less."
-            + ("  Within noise, they are the same." if tie else ""))
+            f"about {hc/max(1.0,b4c):.1f}x less." + verdict)
         out.append("")
         if b4p is not None and hp is not None:
             out.append(
