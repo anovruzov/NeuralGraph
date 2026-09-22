@@ -521,7 +521,8 @@ def synthesize(kos: List[KO], tier: Tier, rng: np.random.Generator,
                w_dispersion: float = 0.0,
                w_synchrony: float = 0.0,
                stem_rep: Optional[np.ndarray] = None,
-               question_tag: int = -1) -> List[Hypothesis]:
+               question_tag: int = -1,
+               full_out: Optional[List["Hypothesis"]] = None) -> List[Hypothesis]:
     """Enumerate candidate strategic patterns and verify them.
 
     For every anchor entity the kernel considers each causal chain separately
@@ -794,6 +795,10 @@ def synthesize(kos: List[KO], tier: Tier, rng: np.random.Generator,
             n_branch_sites=1, conf=float(0.3 + 0.4 * rng.random()), contra=0,
             tspan=(0, 0), chain=ci, hallucinated=True))
     out.sort(key=lambda h: -h.conf)
+    if full_out is not None:
+        # loss accounting only: the caller wants to know what was formed and
+        # then cut by the register budget, as distinct from never formed
+        full_out.extend(out)
     return out[:max_reports]
 
 

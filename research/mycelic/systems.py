@@ -366,6 +366,13 @@ class Hierarchy:
         self.questions: List[Question] = []
         self.propagated = 0
         self.raw_reads = 0
+        # --- loss-accounting hooks (no effect on behaviour) ---
+        # anchor -> user nodes a descent for that anchor actually queried
+        self.reached_users: Dict[int, Set[int]] = {}
+        # the question queue's anchor order BEFORE the budget cut
+        self.question_order: List[int] = []
+        # every hypothesis the last synthesis produced, before the register cut
+        self.full_hyps: List[Hypothesis] = []
         self._ul: Optional[UserLayer] = None
         self.watch: Set[int] = set()
         self.unavailable: Set[int] = set()
@@ -721,6 +728,7 @@ class Hierarchy:
                 # an unfiltered pool is *worse* than a filtered sample.
                 continue
             if org.nodes[nid].level == USER and ul is not None:
+                self.reached_users.setdefault(int(anchor), set()).add(int(nid))
                 st = ul.uid_start.get(nid)
                 if st is None:
                     continue
@@ -829,7 +837,8 @@ class HierRunner:
                           max_reports=cfg.max_reports,
                           stem_rep=self._stem if hasattr(self,'_stem') else None,
                           w_dispersion=cfg.w_dispersion,
-                          w_synchrony=cfg.w_synchrony)
+                          w_synchrony=cfg.w_synchrony,
+                          full_out=self._fresh_full())
         h.meter.add("L5-kernel", kernel_tier, 0, len(hyps) * TOK_PER_HYP, calls=0)
 
         # ---- downward retrieval ----
@@ -872,6 +881,16 @@ class HierRunner:
                                 "raw_records_reread_locally": h.raw_reads})
 
     # ---- helpers --------------------------------------------------------
+    def _fresh_full(self) -> List[Hypothesis]:
+        """A new list for synthesize() to fill with its PRE-truncation output.
+
+        The register cut and the confidence threshold are two separate loss
+        stages; without the pre-cut list they are indistinguishable from
+        "never formed a candidate" in the funnel.
+        """
+        self.h.full_hyps = []
+        return self.h.full_hyps
+
     def _weak_targets(self, hyps: List[Hypothesis]) -> List[Tuple[int, List[int], str]]:
         out = []
         for hy in hyps:
@@ -914,7 +933,8 @@ class HierRunner:
                            max_reports=self.cfg.max_reports,
                            stem_rep=self._stem if hasattr(self,'_stem') else None,
                           w_dispersion=self.cfg.w_dispersion,
-                          w_synchrony=self.cfg.w_synchrony)
+                          w_synchrony=self.cfg.w_synchrony,
+                          full_out=self._fresh_full())
         self.h.meter.add("L5-kernel-redo", kernel_tier, 0,
                          len(hyps2) * TOK_PER_HYP, calls=0)
         return hyps2, merged
@@ -1032,6 +1052,7 @@ class HierRunner:
         # measured to push every gold anchor out of the queue at 50k.
         nq = min(cfg.max_questions,
                  max(cfg.n_questions, int(cfg.question_frac * len(qs))))
+        h.question_order = [int(q.anchor) for q in qs]
         qs = qs[:nq]
         h.meter.add("L5-questions", kernel_tier,
                     len(pool) * TOK_PER_KO + TOK_PROMPT_OVERHEAD,
@@ -1067,7 +1088,8 @@ class HierRunner:
                            max_reports=cfg.max_reports,
                            stem_rep=self._stem if hasattr(self,'_stem') else None,
                           w_dispersion=cfg.w_dispersion,
-                          w_synchrony=cfg.w_synchrony)
+                          w_synchrony=cfg.w_synchrony,
+                          full_out=self._fresh_full())
         h.meter.add("L5-kernel-q", kernel_tier, 0, len(hyps2) * TOK_PER_HYP,
                     calls=0)
         if cfg.triage_prior_weight > 0.0 and h.triage_gain:
@@ -1154,7 +1176,10 @@ class HierRunner:
                            use_temporal=cfg.temporal,
                            n_entities=len(self.c.entities),
                            max_reports=cfg.max_reports,
-                           stem_rep=self._stem)
+                           stem_rep=self._stem,
+                           w_dispersion=cfg.w_dispersion,
+                           w_synchrony=cfg.w_synchrony,
+                           full_out=self._fresh_full())
         h.meter.add("L5-kernel-complete", kernel_tier, 0,
                     len(hyps2) * TOK_PER_HYP, calls=0)
         h.completion_targets = len(targets)
