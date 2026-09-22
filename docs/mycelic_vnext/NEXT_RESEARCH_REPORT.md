@@ -1,6 +1,6 @@
 # Mycelic vNext — research report
 
-_Generated 2026-09-22 11:09 UTC from `research/mycelic/artifacts/` (new) and `artifacts/v1/` (old) by `vnext_docs.py`. Every table is computed from those files._
+_Generated 2026-09-22 11:19 UTC from `research/mycelic/artifacts/` (new) and `artifacts/v1/` (old) by `vnext_docs.py`. Every table is computed from those files._
 
 ## 1. Result
 
@@ -18,7 +18,7 @@ _(old or new headline rows missing: run final_rerun.sh)_
 
 At 10k the hierarchy's found rate goes from 0.385 to n/a (evidence coverage 0.677 → n/a, rare recall 0.218 → n/a) for n/a compute and n/a model calls. At 50k it goes from 0.336 to n/a (coverage 0.420 → n/a) for n/a compute and n/a calls. The centralised chunked-context control A2 also improved, because it adopts the same learned ranker (its calibration said the ranker was not worse for it): 0.663 → n/a at 10k. The remaining gap to A2 is +nan found at 10k and +nan at 50k, at nan× and nan× of A2's compute respectively. Decoy acceptance rose with the ranker at 10k (0.205 → n/a) and is reported as a regression, not hidden; the one attempt to train it away (decoy-weighted selection) lost found and rare recall on the held-out seeds and was rejected.
 
-Targets from the brief: 10k found ≥ 0.70 (stretch 0.75), 50k ≥ 0.60 (stretch 0.70 while materially below A2 compute). Reached: 10k n/a, 50k n/a. Neither target is met; the 50k number is inside A2's compute by a wide margin, the 10k number is not the target. Section 5 says where the rest is.
+Targets from the brief: 10k found ≥ 0.70 (stretch 0.75), 50k ≥ 0.60 (stretch 0.70 while materially below A2 compute). Reached: 10k n/a (not met), 50k n/a (not met), the 50k figure at nan× of A2's compute. Section 5 says which stage holds the rest.
 
 ## 2. Against the centralised controls on the same NEW worlds
 
@@ -127,7 +127,7 @@ _(ranker_eval_final.json missing: run final_rerun.sh)_
 | `strict_targeting` | `False` | calibration seeds 500–502, confirmed on held-out 0–4 | `quick_cal_screen.jsonl` |
 | `triage_target_chains` | `none` | calibration seeds 500–502, confirmed on held-out 0–4 | `quick_cal_screen.jsonl` |
 | ranker | logistic, l2 0.3, interactions True, 23614 candidates | seeds [500, 501, 502] | `research/mycelic/artifacts/calibration.hyb.json` |
-| ranker adopted by | A2_chunked_ctx, B2_map_reduce, B4_central_triage, D_hier_nolineage, E_hier_lineage, F_hier_retrieval, G_hier_questions, H_mycelic_full, I_mycelic_completion, J_mycelic_verified, Y_oracle_retrieval | calibration seeds | ranker_arch_table |
+| ranker adopted by | A2_chunked_ctx, A_flat_rag, B2_map_reduce, B4_central_triage, D_hier_nolineage, E_hier_lineage, F_hier_retrieval, G_hier_questions, H_mycelic_full, H_mycelic_lean, I_mycelic_completion, J_mycelic_verified, Y_oracle_retrieval | calibration seeds | ranker_arch_table |
 
 ## 9. Ranked experiment queue (by information value, not size)
 

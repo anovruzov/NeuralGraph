@@ -597,8 +597,16 @@ def reviewer_attack() -> str:
          "- Kept: the three accepted changes and the lean arm as a labelled Pareto point.\n"
          "- Reworded: the single-seed screens; the decoy regression is stated in the first paragraph of the report.\n"
          "- Added to the queue: a fresh evaluation panel (seeds 5–9) before any of the reported deltas is quoted "
-         "outside this repository.\n",
-         "## What would change my mind\n", CHANGE_MY_MIND]
+         "outside this repository.\n"]
+    ind = os.path.join(ROOT, "research", "mycelic", "logs", "independent_review.md")
+    if os.path.exists(ind):
+        t.append("## Independent review\n")
+        t.append("_Three refuters were run as separate agents with read-only access to the repository, each "
+                 "told to falsify one group of claims (protocol and leakage; the hybrid DP and decoys; metrics, "
+                 "cap and funnel integrity). Their reports follow verbatim, each with the author's response._\n")
+        with open(ind) as fh:
+            t.append(fh.read())
+    t += ["## What would change my mind\n", CHANGE_MY_MIND]
     return "\n".join(t)
 
 
@@ -608,6 +616,7 @@ def build() -> None:
         fh.write(TOPOLOGY_SVG)
     with open(os.path.join(DOCS, "fig_loop.svg"), "w") as fh:
         fh.write(LOOP_SVG)
+    parts = []
     for name, fn in (("NEXT_RESEARCH_REPORT.md", next_research_report),
                      ("VNEXT_ARCHITECTURE.md", vnext_architecture),
                      ("EXPERIMENT_MATRIX.md", experiment_matrix),
@@ -617,6 +626,12 @@ def build() -> None:
         with open(os.path.join(DOCS, name), "w") as fh:
             fh.write(txt)
         print("wrote", os.path.join(DOCS, name), len(txt), "chars")
+        parts.append(txt)
+    # one file for the PDF: the five documents in order, page-broken
+    allp = os.path.join(DOCS, "ALL.md")
+    with open(allp, "w") as fh:
+        fh.write('\n\n<div style="page-break-after: always"></div>\n\n'.join(parts))
+    print("wrote", allp)
 
 
 if __name__ == "__main__":
