@@ -356,6 +356,17 @@ class HierConfig:
     # the node; only the resulting objects leave.  Charged as extra records
     # read at the local tier.
     local_reextract: bool = False
+    # Provisional support-1 sketch bits.  A site's bitmask only records a
+    # predicate seen >= sketch_min_support times, so a rare facet held by ONE
+    # person at a site sets no bit and the triage span test fails ("causal
+    # span < 2 across foreign sites" was 43 of 54 sketch losses at 50k).  With
+    # this on, a site also forwards a WEAK mask of predicates seen exactly
+    # once; the triage admits a weak bit only as corroboration - the entity
+    # must already have a strong bit at some other foreign site in a
+    # DIFFERENT region - and ranks such candidates below equally-strong ones.
+    # One extra integer per (site, entity); no claim content.
+    sketch_weak_bits: bool = False
+    weak_gain_factor: float = 0.7
     descent_leaf_cap: int = 140
     descent_frontier_cap: int = 400
     max_kernel_kos: int = 900
@@ -379,9 +390,11 @@ class Hierarchy:
         # node -> anchor -> [count, causal predicate bitmask, n_users, tmin, tmax]
         self.sketch: Dict[int, Dict[int, List[int]]] = {}
         self.site_sketch: Dict[int, Dict[int, Tuple[int, int, int, int]]] = {}
+        self.site_weak: Dict[int, Dict[int, int]] = {}      # site -> anchor -> weak mask
         self.sketch_entries = 0
         self.sketch_dropped = 0
         self.triage_entries = 0
+        self.triage_weak_used = 0
         self.triage_sites: Dict[int, List[int]] = {}
         self.triage_home: Dict[int, int] = {}
         self.triage_gain: Dict[int, float] = {}
@@ -540,13 +553,21 @@ class Hierarchy:
                     # SAME predicate, survives.  One int per entity from here up.
                     ms = cfg.sketch_min_support
                     ent: Dict[int, Tuple[int, int, int, int]] = {}
+                    weak: Dict[int, int] = {}
                     for a2, e2 in sk.items():
                         mask = 0
+                        wmask = 0
                         for pp, cc in e2[1].items():
                             if cc >= ms and pp < 63:
                                 mask |= (1 << pp)
+                            elif cfg.sketch_weak_bits and 0 < cc < ms and pp < 63:
+                                wmask |= (1 << pp)
                         ent[a2] = (e2[0], mask, e2[3], e2[4])
+                        if wmask:
+                            weak[a2] = wmask
                     self.site_sketch[nid] = ent
+                    if cfg.sketch_weak_bits:
+                        self.site_weak[nid] = weak
             if not pool:
                 self.kos_at[nid] = []
                 continue
@@ -1020,7 +1041,8 @@ class HierRunner:
                          notes={"kernel_kos": len(pool),
                                 "sketch_dropped": h.sketch_dropped,
                                 "raw_records_reread_locally": h.raw_reads,
-                                "records_reextracted": h.reextract_records})
+                                "records_reextracted": h.reextract_records,
+                                "triage_weak_candidates": h.triage_weak_used})
 
     # ---- helpers --------------------------------------------------------
     def _enrich(self, hyps: List[Hypothesis]) -> List[Hypothesis]:
@@ -1189,6 +1211,7 @@ class HierRunner:
             per_ent: Dict[int, List[Tuple[int, int, int, int, int]]] = {}
             tot_ent: Dict[int, int] = {}
             n_entries = 0
+            weak_ent: Dict[int, List[Tuple[int, int, int]]] = {}
             for st, ent in h.site_sketch.items():
                 reg = org.ancestor_at(st, REGION)
                 for a2, (tot, mask, t0, t1) in ent.items():
@@ -1196,10 +1219,16 @@ class HierRunner:
                     if mask:
                         per_ent.setdefault(a2, []).append((st, reg, mask, t0, t1))
                         n_entries += 1
+                if cfg.sketch_weak_bits:
+                    for a2, wm in h.site_weak.get(st, {}).items():
+                        weak_ent.setdefault(a2, []).append((st, reg, wm))
+            n_weak = sum(len(v) for v in weak_ent.values())
             h.meter.add("L5-triage", kernel_tier,
-                        n_entries * 5 + TOK_PROMPT_OVERHEAD, 0, calls=1)
+                        n_entries * 5 + n_weak * 1 + TOK_PROMPT_OVERHEAD, 0, calls=1)
             h.triage_entries = n_entries
-            for a2, rows in per_ent.items():
+            h.triage_weak_used = 0
+            for a2 in set(per_ent) | (set(weak_ent) if cfg.sketch_weak_bits else set()):
+                rows = per_ent.get(a2, [])
                 total = max(1, tot_ent.get(a2, 1))
                 # a site is "foreign" for this entity if it holds only a small
                 # share of the entity's enterprise-wide mentions
@@ -1208,6 +1237,19 @@ class HierRunner:
                     site_tot[st] = h.site_sketch[st][a2][0]
                 foreign = [(st, reg, mask, t0, t1) for st, reg, mask, t0, t1 in rows
                            if site_tot[st] / total <= cfg.foreign_share]
+                used_weak = False
+                if cfg.sketch_weak_bits and foreign:
+                    # corroboration: a weak bit counts only where the entity
+                    # already shows a STRONG foreign bit in another region
+                    strong_regs = {r for _, r, _, _, _ in foreign}
+                    for st, reg, wm in weak_ent.get(a2, []):
+                        stt = h.site_sketch.get(st, {}).get(a2, (0,))[0]
+                        if stt / total <= cfg.foreign_share and reg not in strong_regs \
+                                and st not in site_tot:
+                            e_ = h.site_sketch[st][a2]
+                            foreign.append((st, reg, wm, e_[2], e_[3]))
+                            site_tot[st] = stt
+                            used_weak = True
                 if len(foreign) < 2:
                     continue
                 regs = {r for _, r, _, _, _ in foreign}
@@ -1222,6 +1264,9 @@ class HierRunner:
                 seen = len(by_anchor.get(a2, ()))
                 gain = (0.6 * span + 0.35 * len(regs) + 0.3 * (seen < 2)) \
                     / (1.0 + 0.25 * math.log1p(total))
+                if used_weak:
+                    gain *= cfg.weak_gain_factor
+                    h.triage_weak_used += 1
                 cands.append((gain, int(a2), len(regs), int(total), seen))
                 h.triage_sites[int(a2)] = [st for st, _, _, _, _ in foreign]
                 h.triage_gain[int(a2)] = float(gain)
