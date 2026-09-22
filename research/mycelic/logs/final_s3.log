@@ -186,3 +186,8 @@
 === e4b start 2026-09-22T11:32:49+00:00
 === e4b ===
   0 t/dept= 4 H_mycelic_full   AP=0.1809
+  0 t/dept= 4 E_hier_lineage   AP=0.0000
+  0 t/dept= 7 H_mycelic_full   AP=0.1173
+  0 t/dept= 7 E_hier_lineage   AP=0.0036
+  0 t/dept=10 H_mycelic_full   AP=0.2173
+  0 t/dept=10 E_hier_lineage   AP=0.0298

@@ -1,1 +1,4 @@
   seed 500 hyb                      found=0.500 AP=0.1955 cov=0.900 rare=0.188 decoy=0.350 cu=1.40e+06 calls=2.74e+04 (7s)
+  seed 500 hyb_strong               found=0.500 AP=0.2145 cov=0.900 rare=0.188 decoy=0.300 cu=1.40e+06 calls=2.74e+04 (7s)
+  seed 501 hyb                      found=0.725 AP=0.2495 cov=0.950 rare=0.571 decoy=0.325 cu=1.39e+06 calls=2.69e+04 (8s)
+  seed 501 hyb_strong               found=0.825 AP=0.2370 cov=0.950 rare=0.571 decoy=0.325 cu=1.38e+06 calls=2.69e+04 (8s)
