@@ -34,3 +34,4 @@ scale=50000 seed=0 done in 700s
   A2_chunked_ctx         in_pool=1.00 candidat=0.89 matched_=0.85 matched_=0.80 in_regis=0.68  (13s)
 scale=50000 seed=1 done in 818s
   H_mycelic_full         extracte=1.00 sketch_v=0.80 in_triag=0.80 question=0.47 descent_=0.48 in_pool=0.49 candidat=0.44 matched_=0.39 matched_=0.39 in_regis=0.39  (259s)
+  B4_central_triage      extracte=1.00 in_pool=0.50 candidat=0.39 matched_=0.32 matched_=0.32 in_regis=0.32  (265s)

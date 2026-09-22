@@ -75,7 +75,9 @@ def _features(h) -> Dict[str, float]:
 
 
 def _design(rows: List[Dict], interactions: bool):
-    X = np.array([[r[f] for f in FEATURES] for r in rows], dtype=float)
+    # a dump written before a feature existed carries it as 0, which is what
+    # the runtime supplies when a system has no value for it either
+    X = np.array([[r.get(f, 0.0) for f in FEATURES] for r in rows], dtype=float)
     if interactions:
         idx = {f: i for i, f in enumerate(FEATURES)}
         extra = np.stack([X[:, idx[a]] * X[:, idx[b]] for a, b in INTERACTIONS], axis=1)
