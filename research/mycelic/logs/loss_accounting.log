@@ -4,3 +4,19 @@
   A2_chunked_ctx         in_pool=1.00 candidat=0.80 matched_=0.75 matched_=0.68 in_regis=0.57  (2s)
 scale=10000 seed=0 done in 61s
   H_mycelic_full         extracte=0.93 sketch_v=0.97 in_triag=0.97 question=0.60 descent_=0.60 in_pool=0.62 candidat=0.53 matched_=0.40 matched_=0.40 in_regis=0.30  (22s)
+  B4_central_triage      extracte=0.93 in_pool=0.95 candidat=0.88 matched_=0.72 matched_=0.72 in_regis=0.40  (21s)
+  Y_oracle_retrieval     extracte=0.93 in_pool=1.00 candidat=0.90 matched_=0.78 matched_=0.75 in_regis=0.25  (25s)
+  A2_chunked_ctx         in_pool=1.00 candidat=0.93 matched_=0.88 matched_=0.80 in_regis=0.70  (1s)
+scale=10000 seed=1 done in 69s
+  H_mycelic_full         extracte=0.97 sketch_v=0.97 in_triag=0.97 question=0.75 descent_=0.78 in_pool=0.78 candidat=0.65 matched_=0.68 matched_=0.68 in_regis=0.42  (25s)
+  B4_central_triage      extracte=0.97 in_pool=0.97 candidat=0.82 matched_=0.78 matched_=0.78 in_regis=0.38  (24s)
+  Y_oracle_retrieval     extracte=0.97 in_pool=1.00 candidat=0.85 matched_=0.82 matched_=0.80 in_regis=0.15  (26s)
+  A2_chunked_ctx         in_pool=1.00 candidat=0.90 matched_=0.88 matched_=0.88 in_regis=0.68  (2s)
+scale=10000 seed=2 done in 78s
+  H_mycelic_full         extracte=1.00 sketch_v=1.00 in_triag=1.00 question=0.68 descent_=0.72 in_pool=0.72 candidat=0.60 matched_=0.62 matched_=0.57 in_regis=0.47  (26s)
+  B4_central_triage      extracte=1.00 in_pool=1.00 candidat=0.90 matched_=0.80 matched_=0.80 in_regis=0.45  (26s)
+  Y_oracle_retrieval     extracte=1.00 in_pool=1.00 candidat=0.88 matched_=0.82 matched_=0.80 in_regis=0.30  (27s)
+  A2_chunked_ctx         in_pool=1.00 candidat=0.88 matched_=0.90 matched_=0.85 in_regis=0.78  (1s)
+scale=10000 seed=3 done in 81s
+  H_mycelic_full         extracte=1.00 sketch_v=0.97 in_triag=0.97 question=0.55 descent_=0.60 in_pool=0.70 candidat=0.68 matched_=0.55 matched_=0.47 in_regis=0.38  (26s)
+  B4_central_triage      extracte=1.00 in_pool=0.95 candidat=0.95 matched_=0.82 matched_=0.78 in_regis=0.28  (23s)

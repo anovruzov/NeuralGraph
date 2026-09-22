@@ -738,8 +738,14 @@ def synthesize(kos: List[KO], tier: Tier, rng: np.random.Generator,
         conf = float(1.0 / (1.0 + math.exp(-z)))
         tm = [min(k.tmin for k in pred_kos[p]) for p in plist]
         if RANKER is not None:
+            # The hand-set logistic keeps its one job - deciding whether this
+            # is a candidate at all (the >= 0.5 gate every metric applies) -
+            # and the fitted ranker decides the ORDER within the gate.  A
+            # class-weighted logistic's own 0.5 is not a calibrated gate, and
+            # letting it replace the gate was measured to cost the
+            # centralised baselines candidates they had correctly formed.
             lags = [tm[i + 1] - tm[i] for i in range(len(tm) - 1)] or [0]
-            conf = ranker_score({
+            p_rank = ranker_score({
                 "n_links": len(plist), "min_sup": min_sup,
                 "mean_sup": float(np.mean(link_sup)) if link_sup else 0.0,
                 "spread": spread, "multi": multi, "n_indep": min(50, n_indep),
@@ -755,6 +761,7 @@ def synthesize(kos: List[KO], tier: Tier, rng: np.random.Generator,
                 "attribution": -1.0,
                 "hand_conf": conf,
             }, RANKER)
+            conf = (0.5 + 0.5 * p_rank) if conf >= 0.5 else 0.5 * p_rank
         out.append(Hypothesis(
             anchor=anchor, preds=plist, kos=members, evidence=ev[:24],
             n_indep=n_indep, n_branch_regions=len(regions),
