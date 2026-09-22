@@ -397,7 +397,8 @@ def select_and_store(tags: Sequence[str] = ("", "_qf1"),
 def select_archs(archs: Sequence[str] = ("H_mycelic_full", "A2_chunked_ctx",
                                          "B4_central_triage", "Y_oracle_retrieval",
                                          "A_flat_rag", "B2_map_reduce",
-                                         "G_hier_questions", "J_mycelic_verified"),
+                                         "G_hier_questions", "J_mycelic_verified",
+                                         "H_mycelic_lean"),
                  scale: int = 10_000, seeds: Sequence[int] = CAL_SEEDS,
                  alloc_name: str = "back-loaded") -> Dict[str, object]:
     """Per architecture, on the CALIBRATION seeds only: found with the
@@ -426,8 +427,9 @@ def select_archs(archs: Sequence[str] = ("H_mycelic_full", "A2_chunked_ctx",
         if on >= off:
             chosen.append(a)
     # every hierarchy variant shares the hierarchy's decision
+    # (H_mycelic_prev is the v1 reference and keeps the hand-set ranker)
     hier = [k for k, v in __import__("research.mycelic.runner", fromlist=["ARCHS"]).ARCHS.items()
-            if v.get("kind", "hier") == "hier"]
+            if v.get("kind", "hier") == "hier" and k != "H_mycelic_prev"]
     if "H_mycelic_full" in chosen:
         chosen = sorted(set(chosen) | set(hier))
     cal_path = os.path.join(ART, "calibration.json")

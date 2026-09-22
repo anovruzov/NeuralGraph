@@ -177,6 +177,12 @@ ARCHS: Dict[str, Dict] = {
         downward_retrieval=True, questions=True, cross_links=True,
         verify_evidence=True)},
     "H_mycelic_prev":    {"kind": "hier", "cfg": dict(V1_HIER_CFG)},
+    # the compute-lean Pareto point: triage questions name the chains the
+    # sketch flagged and the descent reads nothing else (about half the
+    # compute of H at a cost in evidence coverage; every other knob frozen)
+    "H_mycelic_lean":    {"kind": "hier", "cfg": dict(
+        downward_retrieval=True, questions=True, cross_links=True,
+        strict_targeting=True, triage_target_chains="span2")},
     # --- reference controls, clearly not deployable systems ---
     "Y_oracle_retrieval": {"kind": "oracle"},
     "Z_random_rank":      {"kind": "randrank"},

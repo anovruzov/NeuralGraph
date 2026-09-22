@@ -658,3 +658,53 @@ reading nothing else halves compute at equal found but costs coverage
 anchors. Not the main configuration (the brief says not to trade evidence
 diversity for compute) but a legitimate Pareto point; measured on the
 evaluation seeds as the "lean" arm of each refit.
+
+**Held-out seeds 0–4 at 10k, ranker refitted on the calibration seeds under
+each pipeline** (quick_refit_hyb.jsonl, quick_refit_mod.jsonl):
+
+```
+  arm                      found   rare    cov     AP      decoy   compute   Δfound per seed
+  v3 (min timing)          0.585   0.390   0.970   0.157   0.330   1.36e6
+  hybrid, v3 ranker        0.630   0.415   0.980   0.173   0.320   1.36e6    +.025 +.15 -.10 +.125 +.025
+  hybrid, refitted ranker  0.625   0.375   0.980   0.185   0.360   1.37e6    0 +.125 0 +.075 0
+  hybrid + span2 (lean)    0.610   0.318   0.800   0.194   0.375   0.73e6
+  modal, v3 ranker         0.550   0.290   0.970   0.171   0.340   1.36e6    0 -.025 -.10 +.05 -.10
+  modal, refitted ranker   0.575   0.332   0.965   0.175   0.340   1.36e6
+```
+
+Modal timing did not replicate: +0.04 on the calibration seeds, −0.01 to
+−0.035 on the evaluation seeds (rejected). Hybrid timing holds: +0.04 with
+the refitted ranker on 2/5 seeds better and 3/5 equal (95% CI [0, +0.09]),
++0.045 with the old ranker on 4/5 seeds. The refitted ranker is the one
+that goes forward: it is the pre-registered procedure (fit on the
+calibration seeds under the pipeline it will be used in); choosing the old
+ranker because it scored better on rare recall and decoy acceptance on the
+evaluation seeds would be selection on the held-out data, so those two
+differences are reported, not acted on. Adopted: link_time = hybrid.
+
+**50k, seeds 0–2 (quick_v50_v3.jsonl), v3 ranker, budget and re-extraction:**
+
+```
+  arm             found   rare    cov     AP      decoy   compute   calls
+  H old config    0.363   0.235   0.450   0.008   0.197   2.97e6    289k
+  H v3 qf 0.65    0.527   0.335   0.723   0.078   0.333   3.92e6    114k
+  H v3 qf 0.80    0.533   0.303   0.770   0.074   0.367   4.39e6    116k
+  H v3 qf 1.00    0.533   0.294   0.787   0.035   0.360   5.15e6    118k
+  H v3 + local re-extraction (2 seeds)  0.525 (+0.04, −0.01)   0.705   3.93e6
+  A2 old / A2 with ranker (2 seeds)     0.685 / 0.765               10.2e6
+```
+
+The budget saturates at 0.65 at 50k too (0.80 buys +0.007 found for +12%
+compute and loses rare recall). Local re-extraction: no gain at 10k
+(quick_rx_reextract.jsonl), +0.04/−0.01 on two 50k seeds, six times the
+simulator wall time; rejected. The register is not the binding stage at
+50k (2,999 slots): coverage 0.72 is, i.e. the question budget and descent
+reach, which is where the 50k work has to go next.
+
+**Frozen for the final rerun:** question_frac 0.65, batched descent,
+hybrid link timing, ranker refitted under that pipeline on seeds 500–502,
+per-architecture adoption re-decided on the calibration seeds; local
+re-extraction, chain-scoped questions (kept as the separate H_mycelic_lean
+arm), sketch weak bits and descent-evidence merging all OFF.
+H_mycelic_prev (the v1 configuration, hand ranker) runs inside the same
+suite so the old-vs-new comparison is paired on identical worlds.
