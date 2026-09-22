@@ -273,3 +273,7 @@
   linear   1 two-step       B2_map_reduce    AP=0.0549 cu=1.99e+05
   linear   1 front-loaded   H_mycelic_full   AP=0.0749 cu=9.63e+05
   linear   1 front-loaded   B2_map_reduce    AP=0.0774 cu=3.03e+05
+  linear   2 flat-small     H_mycelic_full   AP=0.0215 cu=3.29e+05
+  linear   2 flat-small     B2_map_reduce    AP=0.0303 cu=1.45e+05
+  linear   2 naive-ladder   H_mycelic_full   AP=0.1538 cu=1.68e+06
+  linear   2 naive-ladder   B2_map_reduce    AP=0.1792 cu=1.98e+05

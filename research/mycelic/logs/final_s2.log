@@ -131,3 +131,5 @@
   3 -sketch_channel          AP=0.0007 found=0.05 rare=0.067 lin=0.55 indep=0.40 cu=1.19e+06
   3 -adaptive_abstraction    AP=0.1747 found=0.68 rare=0.333 lin=0.50 indep=0.78 cu=1.45e+06
   3 -triage_prior            AP=0.2607 found=0.72 rare=0.467 lin=0.49 indep=0.78 cu=1.48e+06
+  3 +evidence_verification   AP=0.2710 found=0.72 rare=0.467 lin=0.49 indep=0.78 cu=1.49e+06
+  3 +source_dispersion       AP=0.2354 found=0.70 rare=0.533 lin=0.50 indep=0.76 cu=1.44e+06
