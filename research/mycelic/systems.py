@@ -25,6 +25,7 @@ import numpy as np
 from .corpus import (CAUSAL_CHAINS, N_CAUSAL_PRED, PREDICATES, PRED_ID, Corpus)
 from .models import Tier, USD_PER_MTOK
 from .org import DEPT, ENT, Org, REGION, SITE, TEAM, USER
+from . import ops as _ops
 from .ops import (BaseRate, CAUSAL_MASK, ExtractResult, ForeignScore,
                   Hypothesis, KO,
                   stem_rep_map,
@@ -1380,11 +1381,19 @@ class HierRunner:
                 hy.attribution = 0.0
             else:
                 hy.attribution = float(np.mean(ex.anchor == hy.anchor))
+            if _ops.RANKER is not None and hy.feat is not None:
+                # with a fitted ranker active, attribution is a FEATURE the
+                # ranker was trained on (from verified runs), not a logit
+                # tweak layered on top of its score
+                hy.feat["attribution"] = hy.attribution
+                continue
             lo = math.log(max(1e-6, hy.conf) / max(1e-6, 1 - hy.conf))
             lo += cfg.w_attribution * (hy.attribution - 0.5)
             hy.conf = float(1.0 / (1.0 + math.exp(-lo)))
         if calls:
             self.h.meter.add("L5-verify", kernel_tier, tin, tout, calls=calls)
+        if _ops.RANKER is not None:
+            _ops.apply_ranker_to(hyps)          # re-gate and re-order with attribution known
         hyps.sort(key=lambda x: -x.conf)
         return hyps
 
