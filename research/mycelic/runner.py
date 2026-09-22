@@ -124,9 +124,30 @@ def hier_cfg(**kw) -> HierConfig:
     c.w_dispersion = float(CAL.get("w_dispersion", 0.0))
     c.w_synchrony = float(CAL.get("w_synchrony", 0.0))
     c.w_attribution = float(CAL.get("w_attribution", 0.0))
+    # vNext knobs: frozen in calibration.json once their paired experiments
+    # on the held-out seeds were read; absent keys leave the v1 behaviour
+    for k in ("batched_descent", "local_reextract", "strict_targeting",
+              "sketch_weak_bits", "merge_descent_evidence"):
+        if k in CAL:
+            setattr(c, k, bool(CAL[k]))
+    for k in ("link_time", "triage_target_chains"):
+        if k in CAL:
+            setattr(c, k, str(CAL[k]))
     for k, v in kw.items():
         setattr(c, k, v)
     return c
+
+
+# The hierarchy exactly as it was benchmarked before the vNext work: the
+# calibrated question budget of that time, unbatched metering, min link
+# timing, untargeted triage questions and the hand-set confidence as ranker
+# (it is deliberately absent from CAL["ranker_archs"]).  It runs inside the
+# new suite so the old-vs-new comparison is paired on identical worlds.
+V1_HIER_CFG = dict(downward_retrieval=True, questions=True, cross_links=True,
+                   question_frac=0.25, batched_descent=False,
+                   local_reextract=False, link_time="min",
+                   strict_targeting=False, triage_target_chains="none",
+                   sketch_weak_bits=False, merge_descent_evidence=False)
 
 
 ARCHS: Dict[str, Dict] = {
@@ -155,6 +176,7 @@ ARCHS: Dict[str, Dict] = {
     "J_mycelic_verified": {"kind": "hier", "cfg": dict(
         downward_retrieval=True, questions=True, cross_links=True,
         verify_evidence=True)},
+    "H_mycelic_prev":    {"kind": "hier", "cfg": dict(V1_HIER_CFG)},
     # --- reference controls, clearly not deployable systems ---
     "Y_oracle_retrieval": {"kind": "oracle"},
     "Z_random_rank":      {"kind": "randrank"},

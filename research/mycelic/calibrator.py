@@ -350,9 +350,17 @@ def _loso_found(rows_by_tag: Dict[str, List[Dict]], l2: float,
     return float(total)
 
 
-def select_and_store(tags: Sequence[str] = ("", "_qf1")) -> Dict[str, object]:
+def select_and_store(tags: Sequence[str] = ("", "_qf1"),
+                     decoy_weights: Sequence[float] = (1.0,),
+                     decoy_penalty: float = 0.0) -> Dict[str, object]:
     """Choose l2 and whether to use interactions by leave-one-seed-out found
-    on the calibration seeds, then fit on all three and store."""
+    on the calibration seeds, then fit on all three and store.
+
+    Decoy up-weighting and a decoy penalty in the objective are available
+    but OFF by default: the grid over (1, 3, 10) with penalty 0.5 chose
+    weight 10 on the calibration seeds and lost 0.06 found and 0.12 rare
+    recall on the held-out seeds (quick_seldw_H.jsonl), i.e. the objective
+    was fitting three seeds' worth of decoys."""
     rows_by_tag = {}
     for tag in tags:
         path = os.path.join(ART, f"hyp_features{tag}.jsonl")
@@ -362,14 +370,16 @@ def select_and_store(tags: Sequence[str] = ("", "_qf1")) -> Dict[str, object]:
     best, best_v = None, -1e9
     for l2 in (0.3, 1.0, 3.0):
         for inter in (False, True):
-            for dw in (1.0, 3.0, 10.0):
-                v = _loso_found(rows_by_tag, l2, inter, "logistic", decoy_weight=dw)
+            for dw in decoy_weights:
+                v = _loso_found(rows_by_tag, l2, inter, "logistic", decoy_weight=dw,
+                                decoy_penalty=decoy_penalty)
                 grid.append({"kind": "logistic", "l2": l2, "interactions": inter,
                              "decoy_weight": dw, "loso_objective": v})
                 if v > best_v:
                     best_v, best = v, ("logistic", l2, inter, dw)
-    for dw in (1.0, 3.0):
-        v = _loso_found(rows_by_tag, 1.0, False, "gbdt", decoy_weight=dw)
+    for dw in decoy_weights[:1]:
+        v = _loso_found(rows_by_tag, 1.0, False, "gbdt", decoy_weight=dw,
+                        decoy_penalty=decoy_penalty)
         grid.append({"kind": "gbdt", "decoy_weight": dw, "loso_objective": v})
         if v > best_v:
             best_v, best = v, ("gbdt", 1.0, False, dw)

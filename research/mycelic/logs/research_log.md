@@ -576,3 +576,85 @@ under the merge and it would need re-fitting on merged candidates.
 ranker v2: 0.350 → 0.475, rare 0.062 → 0.188, +0.7% compute, 7,980 records
 re-read locally. One seed; the paired evaluation-seed test is queued behind
 the question-budget sweep.
+
+## Iteration 22 — ranker v3 on the held-out seeds, the decoy-weighted
+## variant rejected, and the question budget saturating
+
+**Ranker v3** adds the evidence-shape features (origin users, single-witness
+fraction, echo ratio, lag dispersion, span per link, chain-length fraction),
+the anchor-context features from triage (sketch gain and totals, foreign
+sites, users reached, questions per anchor) and the kernel's own attribution
+verdict; 45 columns with the a-priori interactions. Selected leave-one-seed-
+out on seeds 500–502 (logistic, l2 3.0, interactions on; the depth-2 GBDT
+lost again), fitted on 23,020 candidates from the H, J and control dumps
+of those three seeds only, then read once on evaluation seeds 0–4 at 10k with
+question_frac 0.65 and batched descent (quick_v3_H.jsonl):
+
+```
+                        found            rare             cov            decoy acc.
+  H_mycelic_full        0.375 -> 0.585   0.215 -> 0.390   0.69 -> 0.97   0.18 -> 0.33
+  A2_chunked_ctx        0.685 -> 0.745   0.653 -> 0.649                  0.35 -> 0.45
+  B4_central_triage     0.370 -> 0.560                                   0.18 -> 0.35
+  Y_oracle_retrieval    0.240 -> 0.425                                   0.13 -> 0.27
+```
+
+Found improved on 5/5 seeds for every architecture; compute for H +25%
+(1.09e6 → 1.36e6), calls −71%. Decoy acceptance rose everywhere by the
+same ~+0.15, which is the ranker promoting entity-coincidence and scrambled
+decoys that carry more evidence than the hand score credited.
+
+**Decoy-weighted selection, rejected.** Up-weighting decoy rows in the fit
+(grid 1/3/10) with a decoy penalty in the LOSO objective picked weight 10
+on the calibration seeds (objective 69.03 vs 68.82 at weight 1). On the
+held-out seeds it took found 0.585 → 0.525 (1/5 seeds better), rare recall
+0.390 → 0.272 and decoy acceptance 0.33 → 0.28. The objective had fitted
+three seeds' worth of decoys. calibration.json was restored to v3; the
+selection defaults are back to plain leave-one-seed-out found, and the
+decoy weighting stays available as an explicit option (quick_seldw_H.jsonl).
+
+**Question budget, paired sweep with v3 (quick_qf_v3.jsonl, seeds 0–4):**
+
+```
+  qf     found   rare    cov     AP      decoy   compute   calls
+  0.50   0.555   0.356   0.875   0.157   0.320   1.20e6    26.2k
+  0.65   0.585   0.390   0.970   0.157   0.330   1.36e6    26.6k
+  0.80   0.565   0.368   0.985   0.054   0.345   1.54e6    26.7k
+  1.00   0.565   0.384   0.985   0.046   0.315   1.79e6    26.8k
+```
+
+Coverage saturates at 0.65; beyond it found does not move and AP collapses
+(the ranker was fitted on the 0.65 regime and the wider budget floods the
+600-entry register with more same-anchor chains than it has learned to
+demote). 0.65 is the budget; the remaining loss is ordering inside the
+register (coverage 0.97, found 0.585) and candidate formation.
+
+**Two hypotheses from the killed judge panel, screened on the calibration
+seeds** (quick_cal_screen.jsonl; seeds 500–502, v3 ranker not yet refitted,
+qf 0.65, batched):
+
+```
+  arm            found   rare    cov     AP      decoy   compute
+  base           0.542   0.187   0.925   0.211   0.467   1.39e6
+  modal timing   0.583   0.232   0.917   0.238   0.375   1.39e6
+  hybrid timing  0.625   0.367   0.917   0.194   0.367   1.37e6
+  span2 strict   0.550   0.121   0.750   0.218   0.458   0.73e6
+  span2+modal    0.583   0.197   0.750   0.234   0.367   0.73e6
+  span2+hybrid   0.600   0.285   0.758   0.221   0.425   0.73e6
+```
+
+*Link timing.* The temporal check dated every link at the earliest mention
+of its (predicate, entity) pair, and a descent that returns every mention
+of an entity drags that date to a stale or routine mention; the panel's
+replay found 20–22 of 25 in-pool gold patterns per seed with at least one
+link dated that way. Dating a link at its heaviest witness cluster (modal)
+or letting single-witness links float across their clusters in the DP
+(hybrid) is free, kernel-side, and lifts found, rare recall AND decoy
+resistance on the calibration seeds. Both go to the evaluation seeds with
+a refitted ranker (the candidate features change under the new timing).
+
+*Chain-scoped triage questions.* Naming the chains the sketch flagged and
+reading nothing else halves compute at equal found but costs coverage
+(0.92 → 0.75) and rare recall: the sketch's chain is wrong for ~16% of gold
+anchors. Not the main configuration (the brief says not to trade evidence
+diversity for compute) but a legitimate Pareto point; measured on the
+evaluation seeds as the "lean" arm of each refit.

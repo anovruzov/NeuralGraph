@@ -507,6 +507,43 @@ def _chain_span(mask: int) -> Tuple[int, int]:
     return best, bci
 
 
+def _chains_with_span(mask: int, k: int = 2) -> List[int]:
+    """Every causal chain with at least k of its predicates in the bitmask."""
+    out: List[int] = []
+    for ci, ch in enumerate(CAUSAL_CHAINS):
+        n = 0
+        for p in ch:
+            i = PRED_ID[p]
+            if i < 63 and (mask >> i) & 1:
+                n += 1
+        if n >= k:
+            out.append(ci)
+    return out
+
+
+def _time_clusters(ks: List["KO"], slack: int = 3) -> List[Tuple[int, int, int]]:
+    """Group a link's knowledge objects into time clusters no wider than
+    `slack` days: (earliest tmin, independent signatures, objects) per
+    cluster, earliest first."""
+    out: List[Tuple[int, int, int]] = []
+    cur_t, cur_sigs, cur_n = None, set(), 0
+    for k in sorted(ks, key=lambda x: x.tmin):
+        if cur_t is None or k.tmin > cur_t + slack:
+            if cur_t is not None:
+                out.append((cur_t, len(cur_sigs), cur_n))
+            cur_t, cur_sigs, cur_n = k.tmin, set(), 0
+        cur_sigs |= k.sigs
+        cur_n += 1
+    if cur_t is not None:
+        out.append((cur_t, len(cur_sigs), cur_n))
+    return out
+
+
+def _heaviest_cluster(cl: List[Tuple[int, int, int]]) -> Tuple[int, int, int]:
+    """Most independent signatures, then most objects, then earliest."""
+    return max(cl, key=lambda c: (c[1], c[2], -c[0]))
+
+
 def _valid_chain_path(preds: Sequence[int]) -> Tuple[bool, int]:
     """True iff preds form a set of >=2 distinct predicates lying on one chain."""
     best = (False, -1)
@@ -622,8 +659,20 @@ def synthesize(kos: List[KO], tier: Tier, rng: np.random.Generator,
                w_synchrony: float = 0.0,
                stem_rep: Optional[np.ndarray] = None,
                question_tag: int = -1,
-               full_out: Optional[List["Hypothesis"]] = None) -> List[Hypothesis]:
+               full_out: Optional[List["Hypothesis"]] = None,
+               link_time: str = "min") -> List[Hypothesis]:
     """Enumerate candidate strategic patterns and verify them.
+
+    link_time decides which time a link gets in the temporal check:
+      "min"    - the earliest mention of the (pred, anchor) pair, which a
+                 descent that returns every mention of the anchor drags to a
+                 random stale or routine mention (the loss-funnel replay found
+                 20-22 of 25 in-pool gold patterns per 10k seed with at least
+                 one link timed that way);
+      "modal"  - the earliest time of the link's heaviest time cluster, i.e.
+                 where its independent witnesses agree;
+      "hybrid" - modal for links with >= 2 independent witnesses in one
+                 cluster, otherwise every cluster is a state and the DP picks.
 
     For every anchor entity the kernel considers each causal chain separately
     and proposes the sub-path of predicates it can actually see.  Verification
@@ -897,26 +946,58 @@ def synthesize(kos: List[KO], tier: Tier, rng: np.random.Generator,
                 #     one unrelated mention is out of order.  A weak tier
                 #     cannot do this and keeps the raw set.
                 if use_temporal:
-                    tmins = [min(k.tmin for k in preds[p]) for p in on]
+                    if link_time in ("modal", "hybrid"):
+                        clusters = [_time_clusters(preds[p]) for p in on]
+                        tmins = [_heaviest_cluster(cl)[0] for cl in clusters]
+                    else:
+                        clusters = []
+                        tmins = [min(k.tmin for k in preds[p]) for p in on]
                     if rng.random() < tier.temporal_check:
                         # Heaviest chain-ordered, time-ordered sub-path, where
                         # a link's weight is its independent support.  Pure
                         # longest-path picks up thin background links and
                         # drops well-evidenced ones, which loses real patterns.
-                        wts = [math.log1p(_support(preds[p])) + 0.35 for p in on]
-                        best = list(wts)
-                        prev = [-1] * len(on)
-                        for i2 in range(len(on)):
-                            for j2 in range(i2):
-                                if tmins[j2] <= tmins[i2] + 3 and \
-                                        best[j2] + wts[i2] > best[i2]:
-                                    best[i2] = best[j2] + wts[i2]
-                                    prev[i2] = j2
-                        end = int(np.argmax(best))
-                        path = []
-                        while end >= 0:
-                            path.append(on[end])
-                            end = prev[end]
+                        if link_time == "hybrid":
+                            # one state per (link, time cluster) for links
+                            # whose witnesses do not agree on a time
+                            states: List[Tuple[int, int, float]] = []
+                            for i2, p in enumerate(on):
+                                heavy = _heaviest_cluster(clusters[i2])
+                                if heavy[1] >= 2:
+                                    states.append((i2, heavy[0],
+                                                   math.log1p(_support(preds[p])) + 0.35))
+                                else:
+                                    for t0, nsig, _nk in clusters[i2]:
+                                        states.append((i2, t0, math.log1p(nsig) + 0.35))
+                            sbest = [w for _, _, w in states]
+                            sprev = [-1] * len(states)
+                            for si, (li, ti, wi) in enumerate(states):
+                                for sj in range(si):
+                                    lj, tj, _wj = states[sj]
+                                    if lj < li and tj <= ti + 3 and \
+                                            sbest[sj] + wi > sbest[si]:
+                                        sbest[si] = sbest[sj] + wi
+                                        sprev[si] = sj
+                            end = int(np.argmax(sbest))
+                            path = []
+                            while end >= 0:
+                                path.append(on[states[end][0]])
+                                end = sprev[end]
+                        else:
+                            wts = [math.log1p(_support(preds[p])) + 0.35 for p in on]
+                            best = list(wts)
+                            prev = [-1] * len(on)
+                            for i2 in range(len(on)):
+                                for j2 in range(i2):
+                                    if tmins[j2] <= tmins[i2] + 3 and \
+                                            best[j2] + wts[i2] > best[i2]:
+                                        best[i2] = best[j2] + wts[i2]
+                                        prev[i2] = j2
+                            end = int(np.argmax(best))
+                            path = []
+                            while end >= 0:
+                                path.append(on[end])
+                                end = prev[end]
                         path.reverse()
                         if len(path) < min_preds:
                             continue

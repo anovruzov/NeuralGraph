@@ -33,7 +33,8 @@ from .ops import (BaseRate, CAUSAL_MASK, ExtractResult, ForeignScore,
                   MAX_EVIDENCE,
                   MAX_SIGS, MAX_USERS, TOK_PER_HYP, TOK_PER_KO,
                   TOK_PER_KO_NOLIN, TOK_PER_QUESTION, TOK_PER_RECORD,
-                  TOK_PROMPT_OVERHEAD, _chain_span, _merge_into, _valid_chain_path,
+                  TOK_PROMPT_OVERHEAD, _chain_span, _chains_with_span, _merge_into,
+                  _valid_chain_path,
                   _near_miss_map, detect_contradictions, extract,
                   importance_score, synthesize)
 
@@ -305,6 +306,10 @@ class HierConfig:
     max_questions: int = 4000
     n_descents: int = 40
     descent_fanout: int = 3
+    # vNext candidates (all off by default; each is a paired experiment)
+    link_time: str = "min"            # ops.synthesize link timing: min|modal|hybrid
+    strict_targeting: bool = False    # a targeted descent reads ONLY the target predicates
+    triage_target_chains: str = "none"  # none | span2: triage questions name the chains the sketch flagged
     cross_link_degree: int = 4
     cross_link_budget: int = 6
     bloom_fp: float = 0.0        # >0 -> approximate anchor index
@@ -791,7 +796,11 @@ class Hierarchy:
                 if target_preds is not None and len(target_preds):
                     tp = np.array(list(target_preds))
                     pm = np.isin(ul.ex.pred[st:st + n][sel], tp)
-                    if pm.any():
+                    # soft targeting falls back to everything the user holds
+                    # on the anchor when nothing matches; a strict read
+                    # returns nothing, so an untargeted chain never floods
+                    # the kernel with one candidate per chain per anchor
+                    if pm.any() or cfg.strict_targeting:
                         sel = sel[pm]
                 # A queried user agent consults its OWN local index and reads
                 # only the matching records - sovereign local memory is the
@@ -993,6 +1002,7 @@ class HierRunner:
                           use_lineage=cfg.lineage,
                           use_dedup=cfg.independence,
                           use_temporal=cfg.temporal,
+                          link_time=cfg.link_time,
                           n_entities=len(c.entities),
                           max_reports=cfg.max_reports,
                           stem_rep=self._stem if hasattr(self,'_stem') else None,
@@ -1140,6 +1150,7 @@ class HierRunner:
                            use_lineage=self.cfg.lineage,
                            use_dedup=self.cfg.independence,
                            use_temporal=self.cfg.temporal,
+                           link_time=self.cfg.link_time,
                            n_entities=len(self.c.entities),
                            max_reports=self.cfg.max_reports,
                            stem_rep=self._stem if hasattr(self,'_stem') else None,
@@ -1158,6 +1169,7 @@ class HierRunner:
         h = self.h
         qs: List[Question] = []
         qid = 0
+        triage_tp: Dict[int, List[int]] = {}
         before = {self._hkey(x): x for x in hyps}
         # 1. missing-link / weak-support / contradiction questions
         for hy in sorted(hyps, key=lambda x: -x.conf):
@@ -1271,10 +1283,16 @@ class HierRunner:
                 h.triage_sites[int(a2)] = [st for st, _, _, _, _ in foreign]
                 h.triage_gain[int(a2)] = float(gain)
                 h.triage_home[int(a2)] = max(site_tot, key=site_tot.get)
+                if cfg.triage_target_chains == "span2":
+                    # the question names the predicates of every chain the
+                    # foreign sketch bits flag, and nothing else
+                    triage_tp[int(a2)] = sorted({
+                        PRED_ID[p] for ci in _chains_with_span(umask, 2)
+                        for p in CAUSAL_CHAINS[ci]})
         cands.sort(reverse=True)
         for gain, a2, nreg, tot, seen in cands[:cfg.triage_budget]:
             qs.append(Question(
-                qid=qid, anchor=int(a2), target_preds=[],
+                qid=qid, anchor=int(a2), target_preds=triage_tp.get(int(a2), []),
                 why=f"sketch: causal span across {nreg} regions, {tot} mentions, "
                     f"{seen} facets already at kernel",
                 branch_hint=-1, expected_gain=float(gain),
@@ -1321,6 +1339,7 @@ class HierRunner:
         hyps2 = synthesize(merged, kernel_tier, self.rng, self.c.org,
                            use_lineage=cfg.lineage, use_dedup=cfg.independence,
                            use_temporal=cfg.temporal,
+                          link_time=cfg.link_time,
                            n_entities=len(self.c.entities),
                            max_reports=cfg.max_reports,
                            stem_rep=self._stem if hasattr(self,'_stem') else None,
@@ -1414,6 +1433,7 @@ class HierRunner:
         hyps2 = synthesize(merged, kernel_tier, self.rng, self.c.org,
                            use_lineage=cfg.lineage, use_dedup=cfg.independence,
                            use_temporal=cfg.temporal,
+                          link_time=cfg.link_time,
                            n_entities=len(self.c.entities),
                            max_reports=cfg.max_reports,
                            stem_rep=self._stem,
