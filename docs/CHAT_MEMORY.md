@@ -200,13 +200,13 @@ Resources `memory://status`, `memory://entities`, `memory://profile/{subject}`; 
 
 ```bash
 # Claude Code
-claude mcp add neuralgraph-memory -- /path/to/.venv/bin/python -m NeuralGraph.chat_memory mcp --db ~/.neuralgraph/chat_memory.db
+claude mcp add neuralgraph-memory -e PYTHONPATH=/path/to/NeuralGraph -- /path/to/.venv/bin/python -m NeuralGraph.chat_memory mcp --db ~/.neuralgraph/chat_memory.db
 ```
 ```json
 // Claude Desktop: claude_desktop_config.json
 {"mcpServers": {"neuralgraph-memory": {"command": "/path/to/.venv/bin/python",
   "args": ["-m", "NeuralGraph.chat_memory", "mcp", "--db", "/Users/you/.neuralgraph/chat_memory.db"],
-  "env": {"LLM_BASE_URL": "http://localhost:11434", "LLM_MODEL": "qwen2.5:7b-instruct", "EMBED_MODEL": "nomic-embed-text"}}}}
+  "env": {"PYTHONPATH": "/path/to/NeuralGraph", "LLM_BASE_URL": "http://localhost:11434", "LLM_MODEL": "qwen2.5:7b-instruct", "EMBED_MODEL": "nomic-embed-text"}}}}
 ```
 
 **Cloud / remote (Streamable HTTP)** – `serve` mounts the endpoint at `/mcp` next to the dashboard:

@@ -50,6 +50,7 @@ What makes it different from a vector store with a nice wrapper:
 git clone https://github.com/anovruzov/NeuralGraph.git
 cd NeuralGraph
 
+# python3 must be 3.11+ (macOS ships 3.9 — use python3.11/python3.12 if so)
 python3 -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 
@@ -104,6 +105,7 @@ clients and **Streamable HTTP** for everything else, negotiating protocol `2025-
       "command": "/absolute/path/to/NeuralGraph/.venv/bin/python",
       "args": ["-m", "NeuralGraph.chat_memory", "mcp", "--user-name", "Your Name"],
       "env": {
+        "PYTHONPATH": "/absolute/path/to/NeuralGraph",
         "LLM_BASE_URL": "http://localhost:11434",
         "LLM_MODEL": "qwen2.5:7b-instruct",
         "EMBED_MODEL": "nomic-embed-text"
@@ -114,11 +116,13 @@ clients and **Streamable HTTP** for everything else, negotiating protocol `2025-
 ```
 
 Use absolute paths — the client inherits neither your `PATH` nor your working directory.
+`PYTHONPATH` must point at the repository root; without it the server exits with
+`No module named 'NeuralGraph'`.
 
 ### Claude Code
 
 ```bash
-claude mcp add neuralgraph-memory \
+claude mcp add neuralgraph-memory -e PYTHONPATH=/absolute/path/to/NeuralGraph \
   -- /absolute/path/to/NeuralGraph/.venv/bin/python -m NeuralGraph.chat_memory mcp --user-name "Your Name"
 
 # ...or against an already-running HTTP server
