@@ -430,3 +430,79 @@ The general lesson, and the reason this iteration exists: the temptation when
 a headline fails to replicate is to find the run that agrees with it. The only
 defensible move is to report the spread and downgrade the claim to what the
 spread supports.
+
+---
+
+## Iteration 20 — loss accounting, and the gap is not where the handoff pack
+## said it was
+
+A research pack built from the report proposed seven candidate causes for
+the 35-point discovery gap to `A2_chunked_ctx` and led with "the sketch
+channel lacks the information to seed good hypotheses". Rather than argue,
+every gold pattern was traced through ten pipeline stages and the first
+stage it died at recorded (`loss_accounting.py`, `loss_report.py`).
+
+At 10,000 users (5 seeds, 200 patterns), for `H_mycelic_full`:
+
+```
+  extracted (>=2 correct facets)            92%
+  visible to sketch triage                  98.5%   <- NOT the bottleneck
+  on the triage list                        98.5%
+  inside the question budget                63.5%   <- largest first loss
+  descent reached a facet holder            66.5%
+  >=2 gold links in kernel pool             69%
+  candidate formed on right entity+chain    59.5%
+  matched at any confidence                 54%
+  matched at confidence >= 0.5              51.5%
+  survived the register cut                 37.5%   <- second largest
+```
+
+Of the 77 patterns A2 reports and the hierarchy does not, 47% were lost at
+the question budget and 12% of ALL patterns matched at confidence >= 0.5 and
+were then cut from the register by spurious candidates ranked above them.
+A2 loses zero at the register.
+
+Three paired diagnostics on the same worlds decomposed it (these are
+diagnostics, not designs — an unbounded register is a benchmark change):
+
+```
+                                    found    coverage   AP
+  H_mycelic_full (calibrated)       0.375    0.69       0.023
+  question_frac = 1.0               0.300    0.985      0.011   worse
+  unbounded register                0.540    0.69       0.026
+  both                              0.795    0.985      0.019   > A2's 0.685
+```
+
+Asking every triage candidate recovers evidence for 98.5% of patterns and
+the kernel forms a confident, correct candidate for ~80% of them — MORE
+than A2 — and then buries them. The calibrated `question_frac=0.25` was
+selected precisely because the full budget floods the register; the
+calibration was correct given the ranker, and the ranker is the fault.
+
+Why the hierarchy's ranker is worse than A2's on the same operator: the
+triage pre-selects anchors that already satisfy the confidence logistic's
+main terms (a causal span, several foreign regions), so among the
+candidates the kernel actually has to order, those terms carry almost no
+information. A2's pool holds every anchor, including thousands with no
+cross-org structure, for which the same terms are decisive. The
+hierarchy's discrimination problem is a conditioning problem.
+
+At 50,000 users (3 seeds) the sketch does start to lose patterns (18% first
+loss, 39 of 54 rare, mostly "causal span < 2 across foreign sites" — a
+single-witness facet cannot set a site bit under `sketch_min_support=2`),
+and the question budget is again the largest loss (33%, 51% of the gap).
+The register is at its cap (2,999 of 2,999) but not yet cutting gold.
+
+Two further measurements: (a) the 10% extraction loss is stochastic recall,
+not a capability ceiling — a fresh edge-tier re-read of the same records
+recovers 80–91% of the patterns lost there, a kernel-tier local re-read
+100%; (b) the entity name is in every record's surface text, so a user
+agent can find its own notes about an entity lexically, without the
+extraction having succeeded first.
+
+What this changes: the next architecture is not "richer sketches". It is
+(1) a calibrated ranker over kernel-side features fitted on held-out seeds
+so the full question budget can be spent, (2) a cheaper descent so that
+budget is affordable at 50k, (3) targeted local re-extraction on descent,
+(4) a support-1 sketch bit for rare facets IF the ranker can absorb the
+extra triage noise. Each is a paired experiment; none moves raw text.

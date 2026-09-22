@@ -475,6 +475,16 @@ class Hypothesis:
     attribution: float = -1.0      # fraction of evidence that names this entity
     from_question: int = -1
     label: str = "pattern"
+    # the remaining inputs to the confidence logistic, kept so that a
+    # calibrator fitted on held-out seeds can re-score without re-deriving
+    min_sup: int = 0               # weakest link's independent support
+    spread: int = 0                # regions carrying the whole chain
+    multi: int = 0                 # links dominated by DIFFERENT regions
+    conflict: float = 0.0          # mean minority-polarity share per link
+    verified: bool = False         # passed the causal check
+    penalty: float = 0.0
+    link_sup: Tuple[int, ...] = ()  # per-link independent support
+    link_lag: Tuple[int, ...] = ()  # days between consecutive links
 
 
 def _chain_span(mask: int) -> Tuple[int, int]:
@@ -698,13 +708,18 @@ def synthesize(kos: List[KO], tier: Tier, rng: np.random.Generator,
              + w_dispersion * (mean_disp - 0.5)
              - w_synchrony * frac_sync)
         conf = float(1.0 / (1.0 + math.exp(-z)))
+        tm = [min(k.tmin for k in pred_kos[p]) for p in plist]
         out.append(Hypothesis(
             anchor=anchor, preds=plist, kos=members, evidence=ev[:24],
             n_indep=n_indep, n_branch_regions=len(regions),
             n_branch_sites=len(sites), conf=conf, contra=contra,
             tspan=(min(k.tmin for k in members), max(k.tmax for k in members)),
             chain=chain, from_question=question_tag,
-            dispersion=mean_disp, synchrony=frac_sync))
+            dispersion=mean_disp, synchrony=frac_sync,
+            min_sup=int(min_sup), spread=int(spread), multi=int(multi),
+            conflict=float(conflict), verified=bool(verified),
+            penalty=float(penalty), link_sup=tuple(int(x) for x in link_sup),
+            link_lag=tuple(int(tm[i + 1] - tm[i]) for i in range(len(tm) - 1))))
 
     def _support(ks: List[KO]) -> int:
         sg: Set[int] = set()

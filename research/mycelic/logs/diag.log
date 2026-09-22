@@ -1,0 +1,117 @@
+  seed 0 H_mycelic_full           found=0.300 AP=0.0077 cov=0.625 rare=0.118 cu=1.04e+06 (7s)
+  seed 0 H_mycelic_full           found=0.225 AP=0.0074 cov=1.000 rare=0.176 cu=2.09e+06 (10s)
+  seed 1 H_mycelic_full           found=0.300 AP=0.0496 cov=0.625 rare=0.150 cu=1.08e+06 (5s)
+  seed 1 H_mycelic_full           found=0.375 AP=0.0203 cov=0.975 rare=0.350 cu=2.12e+06 (9s)
+  seed 2 H_mycelic_full           found=0.425 AP=0.0172 cov=0.775 rare=0.267 cu=1.13e+06 (5s)
+  seed 2 H_mycelic_full           found=0.225 AP=0.0062 cov=0.975 rare=0.067 cu=2.16e+06 (10s)
+  seed 3 H_mycelic_full           found=0.475 AP=0.0277 cov=0.725 rare=0.267 cu=1.17e+06 (6s)
+  seed 3 H_mycelic_full           found=0.425 AP=0.0172 cov=1.000 rare=0.400 cu=2.28e+06 (9s)
+  seed 4 H_mycelic_full           found=0.375 AP=0.0112 cov=0.700 rare=0.273 cu=1.02e+06 (5s)
+  seed 4 H_mycelic_full           found=0.250 AP=0.0057 cov=0.975 rare=0.364 cu=2.06e+06 (8s)
+
+**H_mycelic_full+diag_qf1 vs H_mycelic_full** — 5 paired seeds
+
+| metric | base | variant | Δ | 95% CI | better on | sign p | verdict |
+|---|---:|---:|---:|---|---:|---:|---|
+| found | 0.3750 | 0.3000 | -0.0750 | [-0.1550, +0.0050] | 1/5 | 0.375 | inside noise |
+| AP | 0.0227 | 0.0113 | -0.0114 | [-0.0208, -0.0035] | 0/5 | 0.062 | **worse** |
+| R@100 | 0.0900 | 0.0800 | -0.0100 | [-0.0350, +0.0200] | 1/4 | 0.625 | inside noise |
+| rare recall | 0.2147 | 0.2714 | +0.0566 | [-0.0816, +0.1515] | 4/5 | 0.375 | inside noise |
+| evidence cov. | 0.6900 | 0.9850 | +0.2950 | [+0.2450, +0.3450] | 5/5 | 0.062 | **better** |
+| FDR | 0.9747 | 0.9798 | +0.0051 | [-0.0002, +0.0105] | 1/5 | 0.375 | inside noise |
+| decoy acc. | 0.1800 | 0.1550 | -0.0250 | [-0.0750, +0.0450] | 3/4 | 0.625 | inside noise |
+| indep. acc. | 0.7330 | 0.7750 | +0.0419 | [-0.0356, +0.1136] | 4/5 | 0.375 | inside noise |
+| lineage | 0.4925 | 0.5135 | +0.0210 | [+0.0011, +0.0410] | 3/5 | 1.000 | **better** |
+| contra F1 | 0.1911 | 0.1600 | -0.0311 | [-0.2933, +0.2311] | 2/4 | 1.000 | inside noise |
+| compute | 1.09e+06 | 2.14e+06 | +1.05e+06 | [+1.03e+06, +1.08e+06] | 0/5 | 0.062 | **worse** |
+| calls | 9.10e+04 | 2.21e+05 | +1.30e+05 | [+1.25e+05, +1.34e+05] | 0/5 | 0.062 | **worse** |
+| raw text out | 0.0000 | 0.0000 | +0.0000 | [+0.0000, +0.0000] | 0/0 | 1.000 | same |
+| claims out | 0.1381 | 0.1381 | +0.0000 | [+0.0000, +0.0000] | 0/0 | 1.000 | same |
+  seed 0 H_mycelic_full           found=0.300 AP=0.0077 cov=0.625 rare=0.118 cu=1.04e+06 (5s)
+  seed 0 H_mycelic_full           found=0.450 AP=0.0102 cov=0.625 rare=0.176 cu=1.12e+06 (5s)
+  seed 1 H_mycelic_full           found=0.300 AP=0.0496 cov=0.625 rare=0.150 cu=1.08e+06 (6s)
+  seed 1 H_mycelic_full           found=0.400 AP=0.0513 cov=0.625 rare=0.300 cu=1.16e+06 (5s)
+  seed 2 H_mycelic_full           found=0.425 AP=0.0172 cov=0.775 rare=0.267 cu=1.13e+06 (6s)
+  seed 2 H_mycelic_full           found=0.675 AP=0.0236 cov=0.775 rare=0.533 cu=1.20e+06 (5s)
+  seed 3 H_mycelic_full           found=0.475 AP=0.0277 cov=0.725 rare=0.267 cu=1.17e+06 (6s)
+  seed 3 H_mycelic_full           found=0.625 AP=0.0310 cov=0.725 rare=0.333 cu=1.25e+06 (6s)
+  seed 4 H_mycelic_full           found=0.375 AP=0.0112 cov=0.700 rare=0.273 cu=1.02e+06 (5s)
+  seed 4 H_mycelic_full           found=0.550 AP=0.0146 cov=0.700 rare=0.364 cu=1.09e+06 (5s)
+
+**H_mycelic_full+diag_reg vs H_mycelic_full** — 5 paired seeds
+
+| metric | base | variant | Δ | 95% CI | better on | sign p | verdict |
+|---|---:|---:|---:|---|---:|---:|---|
+| found | 0.3750 | 0.5400 | +0.1650 | [+0.1250, +0.2100] | 5/5 | 0.062 | **better** |
+| AP | 0.0227 | 0.0261 | +0.0034 | [+0.0023, +0.0050] | 5/5 | 0.062 | **better** |
+| R@100 | 0.0900 | 0.0900 | +0.0000 | [+0.0000, +0.0000] | 0/0 | 1.000 | same |
+| rare recall | 0.2147 | 0.3414 | +0.1266 | [+0.0684, +0.1967] | 5/5 | 0.062 | **better** |
+| evidence cov. | 0.6900 | 0.6900 | +0.0000 | [+0.0000, +0.0000] | 0/0 | 1.000 | same |
+| FDR | 0.9747 | 0.9849 | +0.0102 | [+0.0081, +0.0130] | 0/5 | 0.062 | **worse** |
+| decoy acc. | 0.1800 | 0.3300 | +0.1500 | [+0.1300, +0.1750] | 0/5 | 0.062 | **worse** |
+| indep. acc. | 0.7330 | 0.7269 | -0.0061 | [-0.0270, +0.0121] | 2/5 | 1.000 | inside noise |
+| lineage | 0.4925 | 0.5073 | +0.0149 | [+0.0035, +0.0262] | 3/4 | 0.625 | **better** |
+| contra F1 | 0.1911 | 0.1627 | -0.0284 | [-0.0900, +0.0137] | 1/3 | 1.000 | inside noise |
+| compute | 1.09e+06 | 1.16e+06 | +7.61e+04 | [+7.41e+04, +7.76e+04] | 0/5 | 0.062 | **worse** |
+| calls | 9.10e+04 | 9.10e+04 | +0.00e+00 | [+0.00e+00, +0.00e+00] | 0/0 | 1.000 | same |
+| raw text out | 0.0000 | 0.0000 | +0.0000 | [+0.0000, +0.0000] | 0/0 | 1.000 | same |
+| claims out | 0.1381 | 0.1381 | +0.0000 | [+0.0000, +0.0000] | 0/0 | 1.000 | same |
+  seed 0 H_mycelic_full           found=0.300 AP=0.0077 cov=0.625 rare=0.118 cu=1.04e+06 (5s)
+  seed 0 H_mycelic_full           found=0.775 AP=0.0154 cov=1.000 rare=0.588 cu=2.32e+06 (10s)
+  seed 1 H_mycelic_full           found=0.300 AP=0.0496 cov=0.625 rare=0.150 cu=1.08e+06 (6s)
+  seed 1 H_mycelic_full           found=0.725 AP=0.0263 cov=0.975 rare=0.750 cu=2.33e+06 (9s)
+  seed 2 H_mycelic_full           found=0.425 AP=0.0172 cov=0.775 rare=0.267 cu=1.13e+06 (6s)
+  seed 2 H_mycelic_full           found=0.850 AP=0.0159 cov=0.975 rare=0.800 cu=2.37e+06 (8s)
+  seed 3 H_mycelic_full           found=0.475 AP=0.0277 cov=0.725 rare=0.267 cu=1.17e+06 (6s)
+  seed 3 H_mycelic_full           found=0.825 AP=0.0246 cov=1.000 rare=0.800 cu=2.49e+06 (9s)
+  seed 4 H_mycelic_full           found=0.375 AP=0.0112 cov=0.700 rare=0.273 cu=1.02e+06 (6s)
+  seed 4 H_mycelic_full           found=0.800 AP=0.0142 cov=0.975 rare=0.545 cu=2.27e+06 (8s)
+
+**H_mycelic_full+diag_both vs H_mycelic_full** — 5 paired seeds
+
+| metric | base | variant | Δ | 95% CI | better on | sign p | verdict |
+|---|---:|---:|---:|---|---:|---:|---|
+| found | 0.3750 | 0.7950 | +0.4200 | [+0.3800, +0.4550] | 5/5 | 0.062 | **better** |
+| AP | 0.0227 | 0.0193 | -0.0034 | [-0.0137, +0.0046] | 2/5 | 1.000 | inside noise |
+| R@100 | 0.0900 | 0.0800 | -0.0100 | [-0.0350, +0.0200] | 1/4 | 0.625 | inside noise |
+| rare recall | 0.2147 | 0.6967 | +0.4820 | [+0.3770, +0.5608] | 5/5 | 0.062 | **better** |
+| evidence cov. | 0.6900 | 0.9850 | +0.2950 | [+0.2450, +0.3450] | 5/5 | 0.062 | **better** |
+| FDR | 0.9747 | 0.9894 | +0.0147 | [+0.0114, +0.0181] | 0/5 | 0.062 | **worse** |
+| decoy acc. | 0.1800 | 0.4750 | +0.2950 | [+0.2450, +0.3450] | 0/5 | 0.062 | **worse** |
+| indep. acc. | 0.7330 | 0.7362 | +0.0032 | [-0.0395, +0.0457] | 3/5 | 1.000 | inside noise |
+| lineage | 0.4925 | 0.5161 | +0.0236 | [+0.0131, +0.0346] | 5/5 | 0.062 | **better** |
+| contra F1 | 0.1911 | 0.1257 | -0.0654 | [-0.2978, +0.1860] | 1/4 | 0.625 | inside noise |
+| compute | 1.09e+06 | 2.36e+06 | +1.27e+06 | [+1.25e+06, +1.30e+06] | 0/5 | 0.062 | **worse** |
+| calls | 9.10e+04 | 2.21e+05 | +1.30e+05 | [+1.25e+05, +1.34e+05] | 0/5 | 0.062 | **worse** |
+| raw text out | 0.0000 | 0.0000 | +0.0000 | [+0.0000, +0.0000] | 0/0 | 1.000 | same |
+| claims out | 0.1381 | 0.1381 | +0.0000 | [+0.0000, +0.0000] | 0/0 | 1.000 | same |
+  seed 0 H_mycelic_full           found=0.300 AP=0.0077 cov=0.625 rare=0.118 cu=1.04e+06 (5s)
+  seed 0 H_mycelic_full           found=0.275 AP=0.0138 cov=1.000 rare=0.059 cu=2.75e+06 (10s)
+  seed 1 H_mycelic_full           found=0.300 AP=0.0496 cov=0.625 rare=0.150 cu=1.08e+06 (5s)
+  seed 1 H_mycelic_full           found=0.450 AP=0.0348 cov=0.975 rare=0.350 cu=2.79e+06 (10s)
+  seed 2 H_mycelic_full           found=0.425 AP=0.0172 cov=0.775 rare=0.267 cu=1.13e+06 (6s)
+  seed 2 H_mycelic_full           found=0.350 AP=0.0172 cov=0.975 rare=0.267 cu=2.74e+06 (10s)
+  seed 3 H_mycelic_full           found=0.475 AP=0.0277 cov=0.725 rare=0.267 cu=1.17e+06 (6s)
+  seed 3 H_mycelic_full           found=0.475 AP=0.0300 cov=1.000 rare=0.333 cu=2.87e+06 (11s)
+  seed 4 H_mycelic_full           found=0.375 AP=0.0112 cov=0.700 rare=0.273 cu=1.02e+06 (5s)
+  seed 4 H_mycelic_full           found=0.250 AP=0.0089 cov=0.975 rare=0.364 cu=2.63e+06 (10s)
+
+**H_mycelic_full+diag_qf1_nofilter vs H_mycelic_full** — 5 paired seeds
+
+| metric | base | variant | Δ | 95% CI | better on | sign p | verdict |
+|---|---:|---:|---:|---|---:|---:|---|
+| found | 0.3750 | 0.3600 | -0.0150 | [-0.0850, +0.0750] | 1/4 | 0.625 | inside noise |
+| AP | 0.0227 | 0.0209 | -0.0018 | [-0.0084, +0.0033] | 3/5 | 1.000 | inside noise |
+| R@100 | 0.0900 | 0.1000 | +0.0100 | [-0.0250, +0.0600] | 2/5 | 1.000 | inside noise |
+| rare recall | 0.2147 | 0.2745 | +0.0598 | [-0.0102, +0.1345] | 3/4 | 0.625 | inside noise |
+| evidence cov. | 0.6900 | 0.9850 | +0.2950 | [+0.2450, +0.3450] | 5/5 | 0.062 | **better** |
+| FDR | 0.9747 | 0.9757 | +0.0011 | [-0.0050, +0.0058] | 1/5 | 0.375 | inside noise |
+| decoy acc. | 0.1800 | 0.1800 | -0.0000 | [-0.0550, +0.0600] | 3/5 | 1.000 | same |
+| indep. acc. | 0.7330 | 0.7469 | +0.0139 | [+0.0010, +0.0268] | 4/5 | 0.375 | **better** |
+| lineage | 0.4925 | 0.4839 | -0.0086 | [-0.0265, +0.0093] | 2/5 | 1.000 | inside noise |
+| contra F1 | 0.1911 | 0.1333 | -0.0578 | [-0.3378, +0.3200] | 1/4 | 0.625 | inside noise |
+| compute | 1.09e+06 | 2.76e+06 | +1.67e+06 | [+1.63e+06, +1.71e+06] | 0/5 | 0.062 | **worse** |
+| calls | 9.10e+04 | 2.56e+05 | +1.65e+05 | [+1.60e+05, +1.69e+05] | 0/5 | 0.062 | **worse** |
+| raw text out | 0.0000 | 0.0000 | +0.0000 | [+0.0000, +0.0000] | 0/0 | 1.000 | same |
+| claims out | 0.1381 | 0.1381 | +0.0000 | [+0.0000, +0.0000] | 0/0 | 1.000 | same |
+DIAG_DONE
