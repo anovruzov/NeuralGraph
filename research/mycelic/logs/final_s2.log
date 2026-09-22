@@ -390,3 +390,10 @@
   1 qfrac=0.15 AP=0.0954 found=0.53 cu=9.52e+05
   1 qfrac=0.35 AP=0.0868 found=0.55 cu=1.03e+06
   1 qfrac=0.55 AP=0.1122 found=0.62 cu=1.24e+06
+  1 qfrac=1.00 AP=0.0904 found=0.60 cu=1.75e+06
+  1 mr_budget=300 AP=0.0000 cu=1.51e+05
+  1 mr_budget=900 AP=0.0488 cu=1.64e+05
+  1 mr_budget=2500 AP=0.0549 cu=1.99e+05
+  1 mr_budget=8000 AP=0.0205 cu=2.66e+05
+  1 mr_budget=20000 AP=0.0270 cu=3.91e+05
+  2 qfrac=0.00 AP=0.0522 found=0.10 cu=3.66e+05
