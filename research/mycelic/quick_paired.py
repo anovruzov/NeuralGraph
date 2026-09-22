@@ -141,8 +141,7 @@ def main() -> None:
                          "ab (base without, variant with)")
     a = ap.parse_args()
     from .runner import apply_ranker
-    if a.ranker == "off":
-        apply_ranker(False)
+    apply_ranker({"off": False, "on": True}.get(a.ranker, None))
     over = json.loads(a.cfg) if a.cfg else None
     variant = a.variant_arch or a.base
     label = a.variant_arch or f"{a.base}+{a.tag}"

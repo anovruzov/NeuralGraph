@@ -269,6 +269,51 @@ def select_and_store(tags: Sequence[str] = ("", "_qf1")) -> Dict[str, object]:
     return r
 
 
+def select_archs(archs: Sequence[str] = ("H_mycelic_full", "A2_chunked_ctx",
+                                         "B4_central_triage", "Y_oracle_retrieval",
+                                         "A_flat_rag", "B2_map_reduce",
+                                         "G_hier_questions", "J_mycelic_verified"),
+                 scale: int = 10_000, seeds: Sequence[int] = CAL_SEEDS,
+                 alloc_name: str = "back-loaded") -> Dict[str, object]:
+    """Per architecture, on the CALIBRATION seeds only: found with the
+    fitted ranker vs found with the hand-set logistic, paired on the same
+    worlds.  An architecture adopts the ranker only if it is not worse.
+    Hierarchy variants share the hierarchy's decision."""
+    from .evalm import evaluate
+    from .runner import apply_ranker, build_world, run_arch
+    alloc = allocation(alloc_name)
+    res: Dict[str, Dict[str, List[float]]] = {a: {"on": [], "off": []} for a in archs}
+    for seed in seeds:
+        w = build_world(scale, seed)
+        for a in archs:
+            for mode in ("off", "on"):
+                apply_ranker(mode == "on")
+                r = run_arch(a, w, alloc, seed)
+                m = evaluate(w.corpus, w.gold, r)
+                res[a][mode].append(m["found_anywhere_in_register"])
+        w.clear_cache()
+    apply_ranker(None)
+    chosen = []
+    table = {}
+    for a in archs:
+        on, off = float(np.mean(res[a]["on"])), float(np.mean(res[a]["off"]))
+        table[a] = {"found_ranker": on, "found_hand": off, "adopt": on >= off}
+        if on >= off:
+            chosen.append(a)
+    # every hierarchy variant shares the hierarchy's decision
+    hier = [k for k, v in __import__("research.mycelic.runner", fromlist=["ARCHS"]).ARCHS.items()
+            if v.get("kind", "hier") == "hier"]
+    if "H_mycelic_full" in chosen:
+        chosen = sorted(set(chosen) | set(hier))
+    cal_path = os.path.join(ART, "calibration.json")
+    cal = json.load(open(cal_path))
+    cal["ranker_archs"] = chosen
+    cal["ranker_arch_table"] = table
+    with open(cal_path, "w") as fh:
+        json.dump(cal, fh, indent=1)
+    return {"chosen": chosen, "table": table}
+
+
 def evaluate_calibrator(tag: str = "", arch_filter: Optional[str] = None,
                         train_archs: Optional[Sequence[str]] = None) -> Dict:
     path = os.path.join(ART, f"hyp_features{tag}.jsonl")
@@ -384,6 +429,12 @@ def fit_and_store(tags: Sequence[str] = ("", "_qf1"),
 
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "fit"
+    if cmd == "archs":
+        r = select_archs()
+        for a, v in r["table"].items():
+            print(f"  {a:22s} hand={v['found_hand']:.3f} ranker={v['found_ranker']:.3f} adopt={v['adopt']}")
+        print("ranker_archs =", r["chosen"])
+        raise SystemExit(0)
     if cmd == "select":
         r = select_and_store()
         print("selection grid:", r["selection_grid"])

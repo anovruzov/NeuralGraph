@@ -89,18 +89,32 @@ def load_calibration() -> Dict[str, object]:
 
 CAL = load_calibration()
 
-# The fitted ranker (if calibrate.py has produced one) applies to every
-# architecture, not only the hierarchy; see ops.RANKER.  RANKER_ENABLED can be
-# flipped for paired experiments (quick_paired --no-ranker).
-RANKER_ENABLED = True
+# The fitted ranker (if calibrate.py has produced one) is offered to every
+# architecture; which ones use it is decided per architecture on the
+# calibration seeds (calibrator.select_archs) and stored as CAL["ranker_archs"].
+# The hand-set logistic is a ranker too, and a system for which it calibrates
+# better keeps it - the point is that nobody is compared at a ranker chosen
+# for somebody else.  FORCE_RANKER overrides the per-architecture choice for
+# paired experiments (quick_paired --ranker ab / off).
+FORCE_RANKER: Optional[bool] = None
 
 
-def apply_ranker(enabled: bool = True) -> None:
-    from . import ops as _ops
-    _ops.set_ranker(CAL.get("ranker") if enabled else None)
+def apply_ranker(enabled: Optional[bool] = True) -> None:
+    """None -> per-architecture calibration choice; True/False -> force."""
+    global FORCE_RANKER
+    FORCE_RANKER = enabled
 
 
-apply_ranker(RANKER_ENABLED and CAL.get("ranker") is not None)
+def ranker_for(arch: str):
+    r = CAL.get("ranker")
+    if r is None:
+        return None
+    if FORCE_RANKER is not None:
+        return r if FORCE_RANKER else None
+    sel = CAL.get("ranker_archs")
+    if sel is None:
+        return r
+    return r if arch in sel else None
 
 
 def hier_cfg(**kw) -> HierConfig:
@@ -152,6 +166,8 @@ def run_arch(name: str, world: World, alloc: List[Tier], seed: int,
              flat_budget: Optional[int] = None,
              mr_budget: Optional[int] = None,
              cfg_over: Optional[Dict] = None) -> RunResult:
+    from . import ops as _ops
+    _ops.set_ranker(ranker_for(name))
     spec = ARCHS[name] if name in ARCHS else cfg_over or {}
     kind = spec.get("kind", "hier")
     c = world.corpus
