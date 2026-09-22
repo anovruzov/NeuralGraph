@@ -541,7 +541,24 @@ def set_ranker(r: Optional[Dict[str, object]]) -> None:
     RANKER = r
 
 
+def _tree_score(node, x: List[float]) -> float:
+    while "leaf" not in node:
+        node = node["l"] if x[node["f"]] <= node["t"] else node["r"]
+    return float(node["leaf"])
+
+
 def ranker_score(feat: Dict[str, float], r: Dict[str, object]) -> float:
+    if r.get("kind") == "gbdt":
+        x = []
+        for f, mu, sd in zip(r["features"], r["mu"], r["sd"]):
+            if "*" in f:
+                a, b = f.split("*", 1)
+                v = float(feat.get(a, 0.0)) * float(feat.get(b, 0.0))
+            else:
+                v = float(feat.get(f, 0.0))
+            x.append((v - float(mu)) / float(sd))
+        z = sum(float(r["lr"]) * _tree_score(t, x) for t in r["trees"])
+        return float(1.0 / (1.0 + math.exp(-z)))
     z = float(r["bias"])
     for f, w, mu, sd in zip(r["features"], r["weights"], r["mu"], r["sd"]):
         if "*" in f:
@@ -805,6 +822,38 @@ def synthesize(kos: List[KO], tier: Tier, rng: np.random.Generator,
             # filled in once every candidate of this synthesis is known
             "n_same_anchor": 0.0, "rank_in_anchor": 0.0,
         }
+        # evidence-shape features: who reported it, and how independently
+        _users: Set[int] = set()
+        _nraw = 0
+        _sigs: Set[int] = set()
+        _link_users: List[int] = []
+        _link_raw: List[int] = []
+        for p in plist:
+            lu: Set[int] = set()
+            lr = 0
+            for k in pred_kos[p]:
+                lu |= k.origin_users
+                lr += k.n_raw
+                _sigs |= k.sigs
+            _users |= lu
+            _nraw += lr
+            _link_users.append(len(lu))
+            _link_raw.append(lr)
+        feat.update({
+            "n_origin_users": float(len(_users)),
+            "min_link_users": float(min(_link_users)) if _link_users else 0.0,
+            "echo_ratio": float(_nraw) / max(1.0, float(len(_sigs))),
+            "frac_single_witness": float(np.mean([1.0 if x <= 1 else 0.0
+                                                  for x in _link_raw])) if _link_raw else 0.0,
+            "lag_cv": (float(np.std(lags)) / max(1.0, abs(float(np.mean(lags))))
+                       if len(lags) > 1 else 0.0),
+            "span_per_link": feat["tspan"] / max(1.0, float(len(plist))),
+            "chain_len_frac": (float(len(plist)) / float(len(CAUSAL_CHAINS[chain]))
+                               if chain >= 0 else 0.0),
+            # anchor-level context the caller may fill in after synthesis
+            "triage_gain": 0.0, "sk_total": 0.0, "n_foreign_sites": 0.0,
+            "users_reached": 0.0, "n_questions_anchor": 0.0,
+        })
         out.append(Hypothesis(
             anchor=anchor, preds=plist, kos=members, evidence=ev[:24],
             n_indep=n_indep, n_branch_regions=len(regions),

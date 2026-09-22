@@ -53,6 +53,10 @@ FEATURES = [
     "verified", "penalty", "tspan", "max_lag", "min_lag", "mean_lag", "neg_lag",
     "log_n_kos", "from_question", "q_evidence_frac", "attribution", "hand_conf",
     "n_same_anchor", "rank_in_anchor",
+    "n_origin_users", "min_link_users", "echo_ratio", "frac_single_witness",
+    "lag_cv", "span_per_link", "chain_len_frac",
+    "triage_gain", "sk_total", "n_foreign_sites", "users_reached",
+    "n_questions_anchor",
 ]
 
 # a small, fixed set of interactions - chosen a priori from the mechanism,
@@ -177,6 +181,79 @@ def fit_logistic(X: np.ndarray, y: np.ndarray, l2: float = 1.0,
     return w
 
 
+# --------------------------------------------------------------------------
+# A small dependency-free gradient-boosted tree ensemble (depth-2 stumps on
+# histogram splits, logistic loss).  Justified only because the linear
+# ranker leaves a measured 26 points between "held evidence" and "reported";
+# it is selected against the logistic on the calibration seeds, never adopted
+# by default.
+# --------------------------------------------------------------------------
+
+def _best_split(X, g, h, lam):
+    n, d = X.shape
+    best = (0.0, -1, 0.0)
+    G, H = g.sum(), h.sum()
+    base = G * G / (H + lam)
+    for j in range(d):
+        col = X[:, j]
+        qs = np.unique(np.quantile(col, np.linspace(0.05, 0.95, 19)))
+        for t in qs:
+            m = col <= t
+            gl, hl = g[m].sum(), h[m].sum()
+            if hl < 1e-9 or (H - hl) < 1e-9:
+                continue
+            gain = gl * gl / (hl + lam) + (G - gl) ** 2 / (H - hl + lam) - base
+            if gain > best[0]:
+                best = (gain, j, float(t))
+    return best
+
+
+def _grow(X, g, h, depth, lam):
+    if depth == 0 or len(g) < 20:
+        return {"leaf": -g.sum() / (h.sum() + lam)}
+    gain, j, t = _best_split(X, g, h, lam)
+    if j < 0 or gain <= 0:
+        return {"leaf": -g.sum() / (h.sum() + lam)}
+    m = X[:, j] <= t
+    return {"f": int(j), "t": t, "l": _grow(X[m], g[m], h[m], depth - 1, lam),
+            "r": _grow(X[~m], g[~m], h[~m], depth - 1, lam)}
+
+
+def _tree_pred(node, X):
+    if "leaf" in node:
+        return np.full(len(X), node["leaf"])
+    m = X[:, node["f"]] <= node["t"]
+    out = np.empty(len(X))
+    out[m] = _tree_pred(node["l"], X[m])
+    out[~m] = _tree_pred(node["r"], X[~m])
+    return out
+
+
+def fit_gbdt(X: np.ndarray, y: np.ndarray, rounds: int = 150, lr: float = 0.1,
+             depth: int = 2, lam: float = 1.0, pos_weight: Optional[float] = None):
+    n = len(y)
+    pos = max(1, int(y.sum()))
+    wpos = pos_weight if pos_weight is not None else (n - pos) / pos
+    wt = np.where(y > 0, wpos, 1.0)
+    F = np.zeros(n)
+    trees = []
+    for _ in range(rounds):
+        p = 1.0 / (1.0 + np.exp(-F))
+        g = wt * (p - y)
+        h = wt * p * (1 - p)
+        t = _grow(X, g, h, depth, lam)
+        trees.append(t)
+        F += lr * _tree_pred(t, X)
+    return {"kind": "gbdt", "trees": trees, "lr": lr}
+
+
+def gbdt_predict(model, X: np.ndarray) -> np.ndarray:
+    F = np.zeros(len(X))
+    for t in model["trees"]:
+        F += model["lr"] * _tree_pred(t, X)
+    return 1.0 / (1.0 + np.exp(-F))
+
+
 def predict(X: np.ndarray, w: np.ndarray) -> np.ndarray:
     Xb = np.hstack([np.ones((len(X), 1)), X])
     return 1.0 / (1.0 + np.exp(-(Xb @ w)))
@@ -219,7 +296,7 @@ def _found_under_cap(rows: List[Dict], score: np.ndarray, thresh: float,
 
 
 def _loso_found(rows_by_tag: Dict[str, List[Dict]], l2: float,
-                interactions: bool) -> float:
+                interactions: bool, kind: str = "logistic") -> float:
     """Leave-one-seed-out over the CALIBRATION seeds only: fit on two, score
     found-under-cap (top-K by learned score, K = hand-gated count) on the
     third, for the hierarchy rows of every dump.  Sum of found over held-out
@@ -231,13 +308,13 @@ def _loso_found(rows_by_tag: Dict[str, List[Dict]], l2: float,
         X = _design(tr, interactions)
         y = np.array([1.0 if r["gold"] else 0.0 for r in tr])
         Xs, mu, sd = _standardise(X)
-        w = fit_logistic(Xs, y, l2=l2)
+        model = fit_gbdt(Xs, y) if kind == "gbdt" else fit_logistic(Xs, y, l2=l2)
         for rows in rows_by_tag.values():
             te = [r for r in rows if r["seed"] == held and r["arch"].startswith("H_")]
             if not te:
                 continue
             Xt, _, _ = _standardise(_design(te, interactions), mu, sd)
-            p = predict(Xt, w)
+            p = gbdt_predict(model, Xt) if kind == "gbdt" else predict(Xt, model)
             hand = np.array([r["hand_conf"] for r in te])
             k = int((hand >= 0.5).sum())
             order = np.argsort(-p)[:k]
@@ -262,11 +339,15 @@ def select_and_store(tags: Sequence[str] = ("", "_qf1")) -> Dict[str, object]:
     best, best_v = None, -1.0
     for l2 in (0.3, 1.0, 3.0, 10.0):
         for inter in (False, True):
-            v = _loso_found(rows_by_tag, l2, inter)
-            grid.append({"l2": l2, "interactions": inter, "loso_found": v})
+            v = _loso_found(rows_by_tag, l2, inter, "logistic")
+            grid.append({"kind": "logistic", "l2": l2, "interactions": inter, "loso_found": v})
             if v > best_v:
-                best_v, best = v, (l2, inter)
-    r = fit_and_store(tags=tags, l2=best[0], interactions=best[1])
+                best_v, best = v, ("logistic", l2, inter)
+    v = _loso_found(rows_by_tag, 1.0, False, "gbdt")
+    grid.append({"kind": "gbdt", "loso_found": v})
+    if v > best_v:
+        best_v, best = v, ("gbdt", 1.0, False)
+    r = fit_and_store(tags=tags, l2=best[1], interactions=best[2], kind=best[0])
     r["selection_grid"] = grid
     cal_path = os.path.join(ART, "calibration.json")
     cal = json.load(open(cal_path))
@@ -398,7 +479,8 @@ def evaluate_calibrator(tag: str = "", arch_filter: Optional[str] = None,
 
 def fit_and_store(tags: Sequence[str] = ("", "_qf1"),
                   train_archs: Optional[Sequence[str]] = None,
-                  l2: float = 1.0, interactions: bool = True) -> Dict[str, object]:
+                  l2: float = 1.0, interactions: bool = True,
+                  kind: str = "logistic") -> Dict[str, object]:
     """Fit the shared ranker on the CALIBRATION seeds only and write it into
     calibration.json, where runner.py picks it up for every architecture.
 
@@ -417,15 +499,25 @@ def fit_and_store(tags: Sequence[str] = ("", "_qf1"),
     X = _design(tr, interactions)
     y = np.array([1.0 if r["gold"] else 0.0 for r in tr])
     Xs, mu, sd = _standardise(X)
-    w = fit_logistic(Xs, y, l2=l2)
     names = list(FEATURES) + ([f"{a}*{b}" for a, b in INTERACTIONS] if interactions else [])
-    ranker = {"features": names, "bias": float(w[0]),
-              "weights": [float(x) for x in w[1:]],
-              "mu": [float(x) for x in mu], "sd": [float(x) for x in sd],
-              "l2": l2, "interactions": interactions,
+    if kind == "gbdt":
+        model = fit_gbdt(Xs, y)
+        ranker = {"kind": "gbdt", "features": names, "trees": model["trees"],
+                  "lr": model["lr"], "bias": 0.0, "weights": [0.0] * len(names),
+                  "mu": [float(x) for x in mu], "sd": [float(x) for x in sd],
+                  "l2": l2, "interactions": interactions,
               "n_train": len(tr), "seeds": list(CAL_SEEDS),
               "train_archs": list(train_archs) if train_archs else "all",
               "source_dumps": list(tags)}
+    else:
+        w = fit_logistic(Xs, y, l2=l2)
+        ranker = {"kind": "logistic", "features": names, "bias": float(w[0]),
+                  "weights": [float(x) for x in w[1:]],
+                  "mu": [float(x) for x in mu], "sd": [float(x) for x in sd],
+                  "l2": l2, "interactions": interactions,
+                  "n_train": len(tr), "seeds": list(CAL_SEEDS),
+                  "train_archs": list(train_archs) if train_archs else "all",
+                  "source_dumps": list(tags)}
     cal_path = os.path.join(ART, "calibration.json")
     cal = json.load(open(cal_path)) if os.path.exists(cal_path) else {}
     cal["ranker"] = ranker

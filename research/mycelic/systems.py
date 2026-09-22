@@ -979,6 +979,8 @@ class HierRunner:
                           w_synchrony=cfg.w_synchrony,
                           full_out=self._fresh_full())
         h.meter.add("L5-kernel", kernel_tier, 0, len(hyps) * TOK_PER_HYP, calls=0)
+        self._enrich(h.full_hyps)
+        hyps.sort(key=lambda x: -x.conf)
 
         # ---- downward retrieval ----
         # Evidence recovered by a descent is ACCUMULATED into the working pool;
@@ -1021,6 +1023,33 @@ class HierRunner:
                                 "records_reextracted": h.reextract_records})
 
     # ---- helpers --------------------------------------------------------
+    def _enrich(self, hyps: List[Hypothesis]) -> List[Hypothesis]:
+        """Attach anchor-level context the kernel already holds (sketch triage
+        gain, mention total, foreign-site count, users a descent reached,
+        questions asked) to every candidate's ranker features, then re-apply
+        the ranker if one is active.  Nothing here reads raw text."""
+        h = self.h
+        qcount: Dict[int, int] = {}
+        for q in h.questions:
+            qcount[int(q.anchor)] = qcount.get(int(q.anchor), 0) + 1
+        tot: Dict[int, int] = {}
+        for st, ent in h.site_sketch.items():
+            for a2, e in ent.items():
+                tot[a2] = tot.get(a2, 0) + e[0]
+        for hy in hyps:
+            if hy.feat is None:
+                continue
+            a = int(hy.anchor)
+            hy.feat["triage_gain"] = float(h.triage_gain.get(a, 0.0))
+            hy.feat["sk_total"] = float(math.log1p(tot.get(a, 0)))
+            hy.feat["n_foreign_sites"] = float(len(h.triage_sites.get(a, ())))
+            hy.feat["users_reached"] = float(math.log1p(len(h.reached_users.get(a, ()))))
+            hy.feat["n_questions_anchor"] = float(qcount.get(a, 0))
+        if _ops.RANKER is not None:
+            _ops.apply_ranker_to(hyps)
+            hyps.sort(key=lambda x: -x.conf)
+        return hyps
+
     def _fresh_full(self) -> List[Hypothesis]:
         """A new list for synthesize() to fill with its PRE-truncation output.
 
@@ -1097,6 +1126,8 @@ class HierRunner:
                           full_out=self._fresh_full())
         self.h.meter.add("L5-kernel-redo", kernel_tier, 0,
                          len(hyps2) * TOK_PER_HYP, calls=0)
+        self._enrich(self.h.full_hyps)
+        hyps2.sort(key=lambda x: -x.conf)
         return hyps2, merged
 
     def _question_round(self, hyps: List[Hypothesis], pool: List[KO],
@@ -1253,6 +1284,8 @@ class HierRunner:
                           full_out=self._fresh_full())
         h.meter.add("L5-kernel-q", kernel_tier, 0, len(hyps2) * TOK_PER_HYP,
                     calls=0)
+        self._enrich(h.full_hyps)
+        hyps2.sort(key=lambda x: -x.conf)
         if cfg.triage_prior_weight > 0.0 and h.triage_gain:
             # Combine the cheap structural prior (what the sketches say about
             # this entity) with the expensive verification (what the kernel
@@ -1344,6 +1377,8 @@ class HierRunner:
                            full_out=self._fresh_full())
         h.meter.add("L5-kernel-complete", kernel_tier, 0,
                     len(hyps2) * TOK_PER_HYP, calls=0)
+        self._enrich(h.full_hyps)
+        hyps2.sort(key=lambda x: -x.conf)
         h.completion_targets = len(targets)
         return hyps2, merged
 
@@ -1734,6 +1769,8 @@ def central_triage(corpus: Corpus, alloc: List[Tier], seed: int,
     cands = cands[:max_anchors]
 
     keep_ent = {e for _, e, _ in cands}
+    gain_of = {e: g for g, e, _ in cands}
+    nfor_of = {e: len(f) for _, e, f in cands}
     home_of = {}
     for _, e_, _ in cands:
         rows = [(tot[(s_, e_)], s_) for s_, _, _ in per_ent[e_]]
@@ -1757,6 +1794,16 @@ def central_triage(corpus: Corpus, alloc: List[Tier], seed: int,
     hyps = synthesize(kos, kt, rng, org, n_entities=len(corpus.entities),
                       max_reports=mr, stem_rep=stem_rep_map(corpus),
                       full_out=full)
+    for hy in full:
+        if hy.feat is not None:
+            a_ = int(hy.anchor)
+            hy.feat["triage_gain"] = float(gain_of.get(a_, 0.0))
+            hy.feat["sk_total"] = float(math.log1p(ent_tot.get(a_, 0)))
+            hy.feat["n_foreign_sites"] = float(nfor_of.get(a_, 0))
+    if _ops.RANKER is not None:
+        _ops.apply_ranker_to(full)
+        full.sort(key=lambda x: -x.conf)
+        hyps = full[:mr]
     meter.add("L5-kernel", kt, 0, len(hyps) * TOK_PER_HYP, calls=0)
     return RunResult(name="central_triage", hypotheses=hyps, meter=meter,
                      retained={(k.pred, k.anchor) for k in kos}, kernel_kos=kos,
