@@ -286,8 +286,18 @@ def next_research_report() -> str:
              "refitted under hybrid timing vs the previous one), the pre-registered rule — fit the ranker on the "
              "calibration seeds under the pipeline it will run in — decided, not the numbers.\n")
     t.append("A budget sweep on the calibration seeds under the frozen ranker and timing was run after the refuter's "
-             "report (quick_qf_cal.jsonl); its result is in the frozen-configuration table's evidence column, so the "
-             "reader can see whether the calibration seeds agree with the value the development panel chose.\n")
+             "report. The two sweeps are printed together so the reader can see whether the calibration seeds agree "
+             "with the value the development panel chose:\n")
+    t.append("**Calibration seeds (quick_qf_cal.jsonl, frozen ranker and hybrid timing)**\n")
+    t.append(D.sweep_table("qf_cal", "qf0.65"))
+    t.append("\n**Development panel (quick_qf_v3.jsonl, ranker v3, min timing)**\n")
+    t.append(D.sweep_table("qf_v3", "qf0.65"))
+    t.append("\nReading: on the calibration seeds the budget is flat between 0.50 and 0.80 (the per-seed spread is "
+             "larger than any difference between arms), rare recall and coverage rise from 0.50 to 0.65 and 1.00 "
+             "loses both found and rare recall. The calibration seeds neither single out 0.65 nor contradict it; the "
+             "honest description of the frozen value is \"inside the calibration-seed plateau, chosen on the "
+             "development panel\", and the budget's contribution is bounded by the confirmation panel, not by "
+             "either sweep.\n")
     t.append("## 7. Ranker evaluation on the final configuration\n")
     t.append(D.ranker_eval_table())
     t.append("\n## 8. Frozen configuration\n")

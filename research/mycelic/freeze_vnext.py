@@ -39,7 +39,9 @@ def main(args) -> None:
         except json.JSONDecodeError:
             v = lit
         cal[k] = v
-        prov[k] = {"value": v, "evidence": f"quick_{tag}.jsonl" if tag else "",
+        # several evidence files may be cited, comma-separated
+        ev = ", ".join(f"quick_{t.strip()}.jsonl" for t in tag.split(",") if t.strip())
+        prov[k] = {"value": v, "evidence": ev,
                    "frozen_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
         print(f"  {k} = {v!r}   ({prov[k]['evidence'] or 'no tag'})")
     cal["vnext"] = prov

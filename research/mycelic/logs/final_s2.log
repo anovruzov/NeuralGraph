@@ -42,3 +42,10 @@
    10000/4 Z2_naive_enumerate     AP=0.0004 found=0.05 cov2=0.00 cu=1.84e+05
    50000/0 A2_chunked_ctx         AP=0.1182 found=0.79 cov2=1.00 cu=1.02e+07
    50000/0 B4_central_triage      AP=0.0243 found=0.31 cov2=0.47 cu=1.07e+06
+   50000/0 I_mycelic_completion   AP=0.1375 found=0.64 cov2=0.70 cu=6.25e+06
+   50000/0 Z2_naive_enumerate     AP=0.0003 found=0.10 cov2=0.00 cu=9.23e+05
+   50000/1 A2_chunked_ctx         AP=0.0672 found=0.77 cov2=1.00 cu=1.02e+07
+   50000/1 B4_central_triage      AP=0.0468 found=0.34 cov2=0.51 cu=1.06e+06
+   50000/1 I_mycelic_completion   AP=0.1488 found=0.50 cov2=0.63 cu=6.13e+06
+   50000/1 Z2_naive_enumerate     AP=0.0009 found=0.13 cov2=0.00 cu=9.19e+05
+   50000/2 A2_chunked_ctx         AP=0.1494 found=0.83 cov2=1.00 cu=1.02e+07

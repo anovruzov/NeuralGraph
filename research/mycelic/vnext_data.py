@@ -275,6 +275,35 @@ def ledger_table() -> str:
     return "\n".join(lines)
 
 
+def sweep_table(tag: str, base_label: str) -> str:
+    """A multi-arm paired file as one row per arm (mean over its seeds, with
+    the paired delta against the base arm), used for the budget sweeps."""
+    rows = _quick(tag)
+    if not rows:
+        return "_(not run)_"
+    by: Dict[str, Dict[int, Dict]] = {}
+    for r in rows:
+        by.setdefault(r["arch"], {})[r["seed"]] = r
+    base = by.get(base_label, {})
+    seeds = sorted({r["seed"] for r in rows})
+    scale = sorted({r["scale"] for r in rows})
+    lines = [f"seeds {seeds[0]}–{seeds[-1]} at {', '.join(f'{s:,}' for s in scale)} "
+             f"({'calibration' if seeds[0] >= 500 else 'evaluation'} panel), paired Δ against {base_label}:", "",
+             "| arm | seeds | found | Δ found | rare recall | evidence cov. | AP | decoy acc. | compute | calls |",
+             "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|"]
+    for label, d in by.items():
+        s = sorted(d)
+        m = lambda k: float(np.mean([d[x][k] for x in s]))
+        common = sorted(set(s) & set(base))
+        dl = float(np.mean([d[x]["found_anywhere_in_register"] - base[x]["found_anywhere_in_register"]
+                            for x in common])) if common and label != base_label else 0.0
+        lines.append(f"| {label} | {len(s)} | {m('found_anywhere_in_register'):.3f} | {dl:+.3f} | "
+                     f"{m('rare_signal_recall'):.3f} | {m('evidence_coverage_2links'):.3f} | "
+                     f"{m('average_precision'):.3f} | {m('decoy_acceptance_all'):.3f} | "
+                     f"{m('compute_units'):.2e} | {m('inference_calls'):.2e} |")
+    return "\n".join(lines)
+
+
 def compute_per_accepted_change() -> str:
     """Compute cost per accepted change at 10k, in the order they were stacked."""
     steps = [
