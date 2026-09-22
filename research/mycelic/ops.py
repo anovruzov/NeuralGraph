@@ -485,6 +485,7 @@ class Hypothesis:
     penalty: float = 0.0
     link_sup: Tuple[int, ...] = ()  # per-link independent support
     link_lag: Tuple[int, ...] = ()  # days between consecutive links
+    feat: Optional[Dict[str, float]] = None   # the ranker's input features
 
 
 def _chain_span(mask: int) -> Tuple[int, int]:
@@ -543,8 +544,52 @@ def set_ranker(r: Optional[Dict[str, object]]) -> None:
 def ranker_score(feat: Dict[str, float], r: Dict[str, object]) -> float:
     z = float(r["bias"])
     for f, w, mu, sd in zip(r["features"], r["weights"], r["mu"], r["sd"]):
-        z += float(w) * (float(feat.get(f, 0.0)) - float(mu)) / float(sd)
+        if "*" in f:
+            a, b = f.split("*", 1)
+            v = float(feat.get(a, 0.0)) * float(feat.get(b, 0.0))
+        else:
+            v = float(feat.get(f, 0.0))
+        z += float(w) * (v - float(mu)) / float(sd)
     return float(1.0 / (1.0 + math.exp(-z)))
+
+
+def annotate_anchor_context(hyps: List["Hypothesis"]) -> None:
+    """Anchor-level context every candidate carries whether or not a ranker
+    is active: how many candidates share this entity, and where this one
+    sits among them by the hand score."""
+    by_anchor: Dict[int, List["Hypothesis"]] = {}
+    for h in hyps:
+        if not h.hallucinated and h.feat is not None:
+            by_anchor.setdefault(h.anchor, []).append(h)
+    for hs in by_anchor.values():
+        hs.sort(key=lambda h: -h.feat["hand_conf"])
+        for i, h in enumerate(hs):
+            h.feat["n_same_anchor"] = float(len(hs))
+            h.feat["rank_in_anchor"] = float(i)
+
+
+def apply_ranker_to(hyps: List["Hypothesis"]) -> None:
+    """Re-score a synthesis's candidates with the fitted ranker.
+
+    Two things happen here that cannot happen per candidate:
+
+    * anchor-level context - how many candidates share this entity and where
+      this one sits among them by the hand score - which is a strong cue for
+      a spurious chain assembled out of one noisy entity's traffic;
+    * the gate.  The number of candidates the hand logistic put at or above
+      0.5 is kept EXACTLY (so no system reports more than before), but WHICH
+      candidates fill those slots is decided by the learned score.  Measured
+      against keeping the hand gate and only re-ordering inside it, this is
+      what recovers the genuine candidates the hand score rated below 0.5.
+    """
+    if RANKER is None or not hyps:
+        return
+    real = [h for h in hyps if not h.hallucinated and h.feat is not None]
+    k = sum(1 for h in real if h.feat["hand_conf"] >= 0.5)
+    scored = [(ranker_score(h.feat, RANKER), h) for h in real]
+    scored.sort(key=lambda t: -t[0])
+    for i, (p, h) in enumerate(scored):
+        h.conf = (0.5 + 0.5 * p) if i < k else 0.5 * p
 
 
 def synthesize(kos: List[KO], tier: Tier, rng: np.random.Generator,
@@ -737,38 +782,36 @@ def synthesize(kos: List[KO], tier: Tier, rng: np.random.Generator,
              - w_synchrony * frac_sync)
         conf = float(1.0 / (1.0 + math.exp(-z)))
         tm = [min(k.tmin for k in pred_kos[p]) for p in plist]
-        if RANKER is not None:
-            # The hand-set logistic keeps its one job - deciding whether this
-            # is a candidate at all (the >= 0.5 gate every metric applies) -
-            # and the fitted ranker decides the ORDER within the gate.  A
-            # class-weighted logistic's own 0.5 is not a calibrated gate, and
-            # letting it replace the gate was measured to cost the
-            # centralised baselines candidates they had correctly formed.
-            lags = [tm[i + 1] - tm[i] for i in range(len(tm) - 1)] or [0]
-            p_rank = ranker_score({
-                "n_links": len(plist), "min_sup": min_sup,
-                "mean_sup": float(np.mean(link_sup)) if link_sup else 0.0,
-                "spread": spread, "multi": multi, "n_indep": min(50, n_indep),
-                "n_sites": len(sites), "n_regions": len(regions),
-                "contra": contra, "conflict": conflict,
-                "dispersion": mean_disp, "synchrony": frac_sync,
-                "verified": 1.0 if verified else 0.0, "penalty": penalty,
-                "tspan": max(k.tmax for k in members) - min(k.tmin for k in members),
-                "max_lag": max(lags), "min_lag": min(lags),
-                "neg_lag": 1.0 if min(lags) < 0 else 0.0,
-                "log_n_kos": math.log1p(len(members)),
-                "from_question": 1.0 if question_tag >= 0 else 0.0,
-                "attribution": -1.0,
-                "hand_conf": conf,
-            }, RANKER)
-            conf = (0.5 + 0.5 * p_rank) if conf >= 0.5 else 0.5 * p_rank
+        lags = [tm[i + 1] - tm[i] for i in range(len(tm) - 1)] or [0]
+        feat = {
+            "n_links": len(plist), "min_sup": min_sup,
+            "mean_sup": float(np.mean(link_sup)) if link_sup else 0.0,
+            "max_sup": float(max(link_sup)) if link_sup else 0.0,
+            "spread": spread, "multi": multi, "n_indep": min(50, n_indep),
+            "n_sites": len(sites), "n_regions": len(regions),
+            "contra": contra, "conflict": conflict,
+            "dispersion": mean_disp, "synchrony": frac_sync,
+            "verified": 1.0 if verified else 0.0, "penalty": penalty,
+            "tspan": max(k.tmax for k in members) - min(k.tmin for k in members),
+            "max_lag": max(lags), "min_lag": min(lags),
+            "mean_lag": float(np.mean(lags)),
+            "neg_lag": 1.0 if min(lags) < 0 else 0.0,
+            "log_n_kos": math.log1p(len(members)),
+            "from_question": 1.0 if question_tag >= 0 else 0.0,
+            "q_evidence_frac": float(np.mean([1.0 if k.q_tag >= 0 else 0.0
+                                              for k in members])),
+            "attribution": -1.0,
+            "hand_conf": conf,
+            # filled in once every candidate of this synthesis is known
+            "n_same_anchor": 0.0, "rank_in_anchor": 0.0,
+        }
         out.append(Hypothesis(
             anchor=anchor, preds=plist, kos=members, evidence=ev[:24],
             n_indep=n_indep, n_branch_regions=len(regions),
             n_branch_sites=len(sites), conf=conf, contra=contra,
             tspan=(min(k.tmin for k in members), max(k.tmax for k in members)),
             chain=chain, from_question=question_tag,
-            dispersion=mean_disp, synchrony=frac_sync,
+            dispersion=mean_disp, synchrony=frac_sync, feat=feat,
             min_sup=int(min_sup), spread=int(spread), multi=int(multi),
             conflict=float(conflict), verified=bool(verified),
             penalty=float(penalty), link_sup=tuple(int(x) for x in link_sup),
@@ -862,6 +905,9 @@ def synthesize(kos: List[KO], tier: Tier, rng: np.random.Generator,
             n_indep=int(rng.integers(1, 5)), n_branch_regions=1,
             n_branch_sites=1, conf=float(0.3 + 0.4 * rng.random()), contra=0,
             tspan=(0, 0), chain=ci, hallucinated=True))
+    annotate_anchor_context(out)
+    if RANKER is not None:
+        apply_ranker_to(out)
     out.sort(key=lambda h: -h.conf)
     if full_out is not None:
         # loss accounting only: the caller wants to know what was formed and

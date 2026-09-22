@@ -48,40 +48,35 @@ EVAL_SEEDS = (0, 1, 2, 3, 4)
 TAU = 0.5
 
 FEATURES = [
-    "n_links", "min_sup", "mean_sup", "spread", "multi", "n_indep",
+    "n_links", "min_sup", "mean_sup", "max_sup", "spread", "multi", "n_indep",
     "n_sites", "n_regions", "contra", "conflict", "dispersion", "synchrony",
-    "verified", "penalty", "tspan", "max_lag", "min_lag", "neg_lag",
-    "log_n_kos", "from_question", "attribution", "hand_conf",
+    "verified", "penalty", "tspan", "max_lag", "min_lag", "mean_lag", "neg_lag",
+    "log_n_kos", "from_question", "q_evidence_frac", "attribution", "hand_conf",
+    "n_same_anchor", "rank_in_anchor",
 ]
+
+# a small, fixed set of interactions - chosen a priori from the mechanism,
+# not searched over, so there is nothing to overfit with
+INTERACTIONS = [("verified", "min_sup"), ("dispersion", "n_sites"),
+                ("n_links", "min_sup"), ("tspan", "n_links"),
+                ("from_question", "n_sites"), ("rank_in_anchor", "n_same_anchor")]
 
 
 def _features(h) -> Dict[str, float]:
-    lags = list(h.link_lag) if h.link_lag else [0]
-    sup = list(h.link_sup) if h.link_sup else [h.n_indep]
-    return {
-        "n_links": float(len(h.preds)),
-        "min_sup": float(min(sup)),
-        "mean_sup": float(np.mean(sup)),
-        "spread": float(h.spread),
-        "multi": float(h.multi),
-        "n_indep": float(min(50, h.n_indep)),
-        "n_sites": float(h.n_branch_sites),
-        "n_regions": float(h.n_branch_regions),
-        "contra": float(h.contra),
-        "conflict": float(h.conflict),
-        "dispersion": float(h.dispersion),
-        "synchrony": float(h.synchrony),
-        "verified": 1.0 if h.verified else 0.0,
-        "penalty": float(h.penalty),
-        "tspan": float(h.tspan[1] - h.tspan[0]),
-        "max_lag": float(max(lags)),
-        "min_lag": float(min(lags)),
-        "neg_lag": 1.0 if min(lags) < 0 else 0.0,
-        "log_n_kos": float(math.log1p(len(h.kos))),
-        "from_question": 1.0 if h.from_question >= 0 else 0.0,
-        "attribution": float(h.attribution),
-        "hand_conf": float(h.conf),
-    }
+    f = dict(h.feat) if getattr(h, "feat", None) else {}
+    f.setdefault("hand_conf", float(h.conf))
+    for k in FEATURES:
+        f.setdefault(k, 0.0)
+    return {k: float(f[k]) for k in FEATURES}
+
+
+def _design(rows: List[Dict], interactions: bool):
+    X = np.array([[r[f] for f in FEATURES] for r in rows], dtype=float)
+    if interactions:
+        idx = {f: i for i, f in enumerate(FEATURES)}
+        extra = np.stack([X[:, idx[a]] * X[:, idx[b]] for a, b in INTERACTIONS], axis=1)
+        X = np.hstack([X, extra])
+    return X
 
 
 def dump(scale: int = 10_000, seeds: Sequence[int] = CAL_SEEDS + EVAL_SEEDS,
@@ -216,6 +211,64 @@ def _found_under_cap(rows: List[Dict], score: np.ndarray, thresh: float,
     return found, rare_found, n_kept
 
 
+def _loso_found(rows_by_tag: Dict[str, List[Dict]], l2: float,
+                interactions: bool) -> float:
+    """Leave-one-seed-out over the CALIBRATION seeds only: fit on two, score
+    found-under-cap (top-K by learned score, K = hand-gated count) on the
+    third, for the hierarchy rows of every dump.  Sum of found over held-out
+    cal seeds is the selection objective; evaluation seeds are never read."""
+    total = 0
+    for held in CAL_SEEDS:
+        tr = [r for rows in rows_by_tag.values() for r in rows
+              if r["seed"] in CAL_SEEDS and r["seed"] != held]
+        X = _design(tr, interactions)
+        y = np.array([1.0 if r["gold"] else 0.0 for r in tr])
+        Xs, mu, sd = _standardise(X)
+        w = fit_logistic(Xs, y, l2=l2)
+        for rows in rows_by_tag.values():
+            te = [r for r in rows if r["seed"] == held and r["arch"].startswith("H_")]
+            if not te:
+                continue
+            Xt, _, _ = _standardise(_design(te, interactions), mu, sd)
+            p = predict(Xt, w)
+            hand = np.array([r["hand_conf"] for r in te])
+            k = int((hand >= 0.5).sum())
+            order = np.argsort(-p)[:k]
+            cap = te[0]["cap"]
+            seen = set()
+            for i in order[:cap]:
+                if te[i]["gold"]:
+                    seen.add(te[i]["pid"])
+            total += len(seen)
+    return float(total)
+
+
+def select_and_store(tags: Sequence[str] = ("", "_qf1")) -> Dict[str, object]:
+    """Choose l2 and whether to use interactions by leave-one-seed-out found
+    on the calibration seeds, then fit on all three and store."""
+    rows_by_tag = {}
+    for tag in tags:
+        path = os.path.join(ART, f"hyp_features{tag}.jsonl")
+        if os.path.exists(path):
+            rows_by_tag[tag] = [json.loads(l) for l in open(path)]
+    grid = []
+    best, best_v = None, -1.0
+    for l2 in (0.3, 1.0, 3.0, 10.0):
+        for inter in (False, True):
+            v = _loso_found(rows_by_tag, l2, inter)
+            grid.append({"l2": l2, "interactions": inter, "loso_found": v})
+            if v > best_v:
+                best_v, best = v, (l2, inter)
+    r = fit_and_store(tags=tags, l2=best[0], interactions=best[1])
+    r["selection_grid"] = grid
+    cal_path = os.path.join(ART, "calibration.json")
+    cal = json.load(open(cal_path))
+    cal["ranker"] = r
+    with open(cal_path, "w") as fh:
+        json.dump(cal, fh, indent=1)
+    return r
+
+
 def evaluate_calibrator(tag: str = "", arch_filter: Optional[str] = None,
                         train_archs: Optional[Sequence[str]] = None) -> Dict:
     path = os.path.join(ART, f"hyp_features{tag}.jsonl")
@@ -227,13 +280,18 @@ def evaluate_calibrator(tag: str = "", arch_filter: Optional[str] = None,
     tr = [r for r in rows if r["seed"] in CAL_SEEDS
           and (train_archs is None or r["arch"] in train_archs)]
     te = [r for r in rows_eval if r["seed"] in EVAL_SEEDS]
-    Xtr = np.array([[r[f] for f in FEATURES] for r in tr])
+    cal_path = os.path.join(ART, "calibration.json")
+    stored = (json.load(open(cal_path)).get("ranker") if os.path.exists(cal_path)
+              else None) or {}
+    inter = bool(stored.get("interactions", False))
+    l2 = float(stored.get("l2", 1.0))
+    Xtr = _design(tr, inter)
     ytr = np.array([1.0 if r["gold"] else 0.0 for r in tr])
-    Xte = np.array([[r[f] for f in FEATURES] for r in te])
+    Xte = _design(te, inter)
     yte = np.array([1.0 if r["gold"] else 0.0 for r in te])
     Xtr_s, mu, sd = _standardise(Xtr)
     Xte_s, _, _ = _standardise(Xte, mu, sd)
-    w = fit_logistic(Xtr_s, ytr)
+    w = fit_logistic(Xtr_s, ytr, l2=l2)
     p_te = predict(Xte_s, w)
     conf_te = np.array([r["conf"] for r in te])
     # The denominator is EVERY discoverable gold pattern in the world, not the
@@ -254,7 +312,9 @@ def evaluate_calibrator(tag: str = "", arch_filter: Optional[str] = None,
            "n_train": len(tr), "n_test": len(te),
            "pos_rate_train": float(ytr.mean()),
            "auc_conf": auc(conf_te, yte), "auc_learned": auc(p_te, yte),
-           "weights": {f: float(x) for f, x in zip(["bias"] + FEATURES, w)}}
+           "weights": {f: float(x) for f, x in zip(
+               ["bias"] + FEATURES + ([f"{a}*{b}" for a, b in INTERACTIONS]
+                                      if inter else []), w)}}
     # discovery under the register cap, by architecture
     per_arch = {}
     for arch in sorted({r["arch"] for r in te}):
@@ -284,8 +344,9 @@ def evaluate_calibrator(tag: str = "", arch_filter: Optional[str] = None,
     return out
 
 
-def fit_and_store(tag: str = "", train_archs: Optional[Sequence[str]] = None,
-                  l2: float = 1.0) -> Dict[str, object]:
+def fit_and_store(tags: Sequence[str] = ("", "_qf1"),
+                  train_archs: Optional[Sequence[str]] = None,
+                  l2: float = 1.0, interactions: bool = True) -> Dict[str, object]:
     """Fit the shared ranker on the CALIBRATION seeds only and write it into
     calibration.json, where runner.py picks it up for every architecture.
 
@@ -293,20 +354,26 @@ def fit_and_store(tag: str = "", train_archs: Optional[Sequence[str]] = None,
     hand_conf feature is the hand-set logistic), which `dump` guarantees by
     disabling it for the duration of the run.
     """
-    path = os.path.join(ART, f"hyp_features{tag}.jsonl")
-    rows = [json.loads(l) for l in open(path)]
-    tr = [r for r in rows if r["seed"] in CAL_SEEDS
-          and (train_archs is None or r["arch"] in train_archs)]
-    X = np.array([[r[f] for f in FEATURES] for r in tr])
+    tr = []
+    for tag in tags:
+        path = os.path.join(ART, f"hyp_features{tag}.jsonl")
+        if not os.path.exists(path):
+            continue
+        rows = [json.loads(l) for l in open(path)]
+        tr += [r for r in rows if r["seed"] in CAL_SEEDS
+               and (train_archs is None or r["arch"] in train_archs)]
+    X = _design(tr, interactions)
     y = np.array([1.0 if r["gold"] else 0.0 for r in tr])
     Xs, mu, sd = _standardise(X)
     w = fit_logistic(Xs, y, l2=l2)
-    ranker = {"features": FEATURES, "bias": float(w[0]),
+    names = list(FEATURES) + ([f"{a}*{b}" for a, b in INTERACTIONS] if interactions else [])
+    ranker = {"features": names, "bias": float(w[0]),
               "weights": [float(x) for x in w[1:]],
               "mu": [float(x) for x in mu], "sd": [float(x) for x in sd],
+              "l2": l2, "interactions": interactions,
               "n_train": len(tr), "seeds": list(CAL_SEEDS),
               "train_archs": list(train_archs) if train_archs else "all",
-              "source_dump": os.path.basename(path)}
+              "source_dumps": list(tags)}
     cal_path = os.path.join(ART, "calibration.json")
     cal = json.load(open(cal_path)) if os.path.exists(cal_path) else {}
     cal["ranker"] = ranker
@@ -317,6 +384,12 @@ def fit_and_store(tag: str = "", train_archs: Optional[Sequence[str]] = None,
 
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "fit"
+    if cmd == "select":
+        r = select_and_store()
+        print("selection grid:", r["selection_grid"])
+        print("stored ranker: l2", r["l2"], "interactions", r["interactions"],
+              "n_train", r["n_train"])
+        raise SystemExit(0)
     if cmd == "store":
         r = fit_and_store(tag=sys.argv[2] if len(sys.argv) > 2 else "")
         print("stored ranker fitted on", r["n_train"], "candidates; largest weights:",
