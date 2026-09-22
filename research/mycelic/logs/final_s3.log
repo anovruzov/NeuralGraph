@@ -1,90 +1,49 @@
-=== e5 start 2026-09-22T11:12:02+00:00
+=== e5 start 2026-09-22T11:22:44+00:00
 === e5 ===
-  0 clean                    H_mycelic_full   AP=0.0080 FDR=0.981 decoy=0.150 dupErr=3.49
-  0 clean                    B2_map_reduce    AP=0.0709 FDR=0.974 decoy=0.325 dupErr=2.22
+  0 clean                    H_mycelic_full   AP=0.1173 FDR=0.968 decoy=0.400 dupErr=1.00
+  0 clean                    B2_map_reduce    AP=0.1340 FDR=0.975 decoy=0.325 dupErr=1.00
   0 clean                    B_long_context   AP=0.0274 FDR=0.946 decoy=0.150 dupErr=1.45
-  0 clean                    E_hier_lineage   AP=0.0250 FDR=0.984 decoy=0.000 dupErr=1.00
-  0 high_cross_site_noise    H_mycelic_full   AP=0.0048 FDR=0.988 decoy=0.350 dupErr=3.85
-  0 high_cross_site_noise    B2_map_reduce    AP=0.0357 FDR=0.979 decoy=0.300 dupErr=3.50
+  0 clean                    E_hier_lineage   AP=0.0036 FDR=0.984 decoy=0.025 dupErr=1.00
+  0 high_cross_site_noise    H_mycelic_full   AP=0.1471 FDR=0.955 decoy=0.475 dupErr=3.20
+  0 high_cross_site_noise    B2_map_reduce    AP=0.1102 FDR=0.977 decoy=0.275 dupErr=1.00
   0 high_cross_site_noise    B_long_context   AP=0.0318 FDR=0.950 decoy=0.225 dupErr=1.64
-  0 high_cross_site_noise    E_hier_lineage   AP=0.0016 FDR=0.974 decoy=0.000 dupErr=0.75
-  0 decoy_heavy              H_mycelic_full   AP=0.0078 FDR=0.978 decoy=0.094 dupErr=3.62
-  0 decoy_heavy              B2_map_reduce    AP=0.1190 FDR=0.965 decoy=0.146 dupErr=3.11
+  0 high_cross_site_noise    E_hier_lineage   AP=0.0077 FDR=0.974 decoy=0.000 dupErr=0.75
+  0 decoy_heavy              H_mycelic_full   AP=0.1347 FDR=0.960 decoy=0.375 dupErr=4.00
+  0 decoy_heavy              B2_map_reduce    AP=0.1230 FDR=0.966 decoy=0.146 dupErr=2.40
   0 decoy_heavy              B_long_context   AP=0.0188 FDR=0.956 decoy=0.146 dupErr=1.77
-  0 decoy_heavy              E_hier_lineage   AP=0.0032 FDR=0.986 decoy=0.010 dupErr=2.75
-  0 duplicate_flood          H_mycelic_full   AP=0.0228 FDR=0.978 decoy=0.175 dupErr=3.43
-  0 duplicate_flood          B2_map_reduce    AP=0.0871 FDR=0.969 decoy=0.200 dupErr=3.68
+  0 decoy_heavy              E_hier_lineage   AP=0.0080 FDR=0.971 decoy=0.021 dupErr=1.25
+  0 duplicate_flood          H_mycelic_full   AP=0.2032 FDR=0.953 decoy=0.350 dupErr=3.65
+  0 duplicate_flood          B2_map_reduce    AP=0.1279 FDR=0.972 decoy=0.200 dupErr=1.00
   0 duplicate_flood          B_long_context   AP=0.0583 FDR=0.933 decoy=0.225 dupErr=1.75
-  0 duplicate_flood          E_hier_lineage   AP=0.0053 FDR=0.967 decoy=0.000 dupErr=1.50
-  0 stale_flood              H_mycelic_full   AP=0.0154 FDR=0.975 decoy=0.150 dupErr=3.04
-  0 stale_flood              B2_map_reduce    AP=0.0671 FDR=0.971 decoy=0.200 dupErr=3.08
+  0 duplicate_flood          E_hier_lineage   AP=0.0175 FDR=0.951 decoy=0.000 dupErr=1.50
+  0 stale_flood              H_mycelic_full   AP=0.1460 FDR=0.960 decoy=0.325 dupErr=4.00
+  0 stale_flood              B2_map_reduce    AP=0.1493 FDR=0.971 decoy=0.200 dupErr=1.00
   0 stale_flood              B_long_context   AP=0.0215 FDR=0.973 decoy=0.175 dupErr=1.74
-  0 stale_flood              E_hier_lineage   AP=0.0003 FDR=1.000 decoy=0.000 dupErr=0.80
-  0 false_report_flood       H_mycelic_full   AP=0.0056 FDR=0.983 decoy=0.150 dupErr=3.07
-  0 false_report_flood       B2_map_reduce    AP=0.1134 FDR=0.971 decoy=0.150 dupErr=2.08
+  0 stale_flood              E_hier_lineage   AP=0.0004 FDR=1.000 decoy=0.025 dupErr=0.80
+  0 false_report_flood       H_mycelic_full   AP=0.2129 FDR=0.958 decoy=0.300 dupErr=1.00
+  0 false_report_flood       B2_map_reduce    AP=0.0901 FDR=0.971 decoy=0.150 dupErr=1.00
   0 false_report_flood       B_long_context   AP=0.0338 FDR=0.941 decoy=0.175 dupErr=1.55
   0 false_report_flood       E_hier_lineage   AP=0.0000 FDR=1.000 decoy=0.025 dupErr=1.00
-  0 rare_only                H_mycelic_full   AP=0.0083 FDR=0.982 decoy=0.100 dupErr=3.34
-  0 rare_only                B2_map_reduce    AP=0.0024 FDR=0.985 decoy=0.225 dupErr=3.12
+  0 rare_only                H_mycelic_full   AP=0.0157 FDR=0.973 decoy=0.400 dupErr=1.00
+  0 rare_only                B2_map_reduce    AP=0.0022 FDR=0.985 decoy=0.225 dupErr=1.00
   0 rare_only                B_long_context   AP=0.0071 FDR=0.980 decoy=0.175 dupErr=1.82
   0 rare_only                E_hier_lineage   AP=0.0000 FDR=1.000 decoy=0.025 dupErr=1.00
-  0 malicious_nodes_5pct     H_mycelic_full   AP=0.0721 FDR=0.971 decoy=0.025 dupErr=3.44
-  0 malicious_nodes_5pct     B2_map_reduce    AP=0.0709 FDR=0.974 decoy=0.325 dupErr=2.22
+  0 malicious_nodes_5pct     H_mycelic_full   AP=0.0810 FDR=0.965 decoy=0.275 dupErr=4.00
+  0 malicious_nodes_5pct     B2_map_reduce    AP=0.1340 FDR=0.975 decoy=0.325 dupErr=1.00
   0 malicious_nodes_5pct     B_long_context   AP=0.0274 FDR=0.946 decoy=0.150 dupErr=1.45
   0 malicious_nodes_5pct     E_hier_lineage   AP=0.0000 FDR=1.000 decoy=0.025 dupErr=1.00
-  0 unavailable_sites_20pct  H_mycelic_full   AP=0.0109 FDR=0.978 decoy=0.200 dupErr=2.97
-  0 unavailable_sites_20pct  B2_map_reduce    AP=0.0709 FDR=0.974 decoy=0.325 dupErr=2.22
+  0 unavailable_sites_20pct  H_mycelic_full   AP=0.1940 FDR=0.966 decoy=0.400 dupErr=2.99
+  0 unavailable_sites_20pct  B2_map_reduce    AP=0.1340 FDR=0.975 decoy=0.325 dupErr=1.00
   0 unavailable_sites_20pct  B_long_context   AP=0.0274 FDR=0.946 decoy=0.150 dupErr=1.45
-  0 unavailable_sites_20pct  E_hier_lineage   AP=0.0028 FDR=0.969 decoy=0.000 dupErr=1.75
-  0 approx_index_bloom       H_mycelic_full   AP=0.0111 FDR=0.980 decoy=0.150 dupErr=3.38
-  0 approx_index_bloom       B2_map_reduce    AP=0.0709 FDR=0.974 decoy=0.325 dupErr=2.22
+  0 unavailable_sites_20pct  E_hier_lineage   AP=0.0250 FDR=0.969 decoy=0.025 dupErr=1.75
+  0 approx_index_bloom       H_mycelic_full   AP=0.1546 FDR=0.970 decoy=0.325 dupErr=3.60
+  0 approx_index_bloom       B2_map_reduce    AP=0.1340 FDR=0.975 decoy=0.325 dupErr=1.00
   0 approx_index_bloom       B_long_context   AP=0.0274 FDR=0.946 decoy=0.150 dupErr=1.45
-  0 approx_index_bloom       E_hier_lineage   AP=0.0250 FDR=0.984 decoy=0.000 dupErr=1.00
-  0 extreme_imbalance        H_mycelic_full   AP=0.0388 FDR=0.968 decoy=0.175 dupErr=3.27
-  0 extreme_imbalance        B2_map_reduce    AP=0.1233 FDR=0.963 decoy=0.250 dupErr=3.27
+  0 approx_index_bloom       E_hier_lineage   AP=0.0036 FDR=0.984 decoy=0.025 dupErr=1.00
+  0 extreme_imbalance        H_mycelic_full   AP=0.2156 FDR=0.963 decoy=0.325 dupErr=1.00
+  0 extreme_imbalance        B2_map_reduce    AP=0.1715 FDR=0.961 decoy=0.250 dupErr=1.00
   0 extreme_imbalance        B_long_context   AP=0.0187 FDR=0.973 decoy=0.200 dupErr=1.87
-  0 extreme_imbalance        E_hier_lineage   AP=0.0156 FDR=0.917 decoy=0.000 dupErr=1.67
-  1 clean                    H_mycelic_full   AP=0.0687 FDR=0.960 decoy=0.200 dupErr=3.49
-  1 clean                    B2_map_reduce    AP=0.0260 FDR=0.980 decoy=0.250 dupErr=3.64
+  0 extreme_imbalance        E_hier_lineage   AP=0.0500 FDR=0.846 decoy=0.000 dupErr=1.00
+  1 clean                    H_mycelic_full   AP=0.1195 FDR=0.958 decoy=0.375 dupErr=1.00
+  1 clean                    B2_map_reduce    AP=0.0549 FDR=0.981 decoy=0.250 dupErr=3.75
   1 clean                    B_long_context   AP=0.0256 FDR=0.955 decoy=0.175 dupErr=1.94
-  1 clean                    E_hier_lineage   AP=0.0000 FDR=1.000 decoy=0.025 dupErr=0.67
-  1 high_cross_site_noise    H_mycelic_full   AP=0.0120 FDR=0.975 decoy=0.175 dupErr=3.20
-  1 high_cross_site_noise    B2_map_reduce    AP=0.0498 FDR=0.976 decoy=0.175 dupErr=2.50
-  1 high_cross_site_noise    B_long_context   AP=0.0323 FDR=0.968 decoy=0.150 dupErr=1.54
-  1 high_cross_site_noise    E_hier_lineage   AP=0.0000 FDR=1.000 decoy=0.000 dupErr=0.50
-  1 decoy_heavy              H_mycelic_full   AP=0.0270 FDR=0.976 decoy=0.156 dupErr=3.24
-  1 decoy_heavy              B2_map_reduce    AP=0.0303 FDR=0.982 decoy=0.250 dupErr=2.53
-  1 decoy_heavy              B_long_context   AP=0.0559 FDR=0.949 decoy=0.135 dupErr=1.90
-  1 decoy_heavy              E_hier_lineage   AP=0.0000 FDR=1.000 decoy=0.000 dupErr=0.67
-  1 duplicate_flood          H_mycelic_full   AP=0.0189 FDR=0.970 decoy=0.325 dupErr=2.87
-  1 duplicate_flood          B2_map_reduce    AP=0.0595 FDR=0.972 decoy=0.300 dupErr=3.27
-  1 duplicate_flood          B_long_context   AP=0.0533 FDR=0.954 decoy=0.150 dupErr=1.30
-  1 duplicate_flood          E_hier_lineage   AP=0.0021 FDR=0.979 decoy=0.025 dupErr=1.00
-  1 stale_flood              H_mycelic_full   AP=0.0181 FDR=0.972 decoy=0.075 dupErr=3.05
-  1 stale_flood              B2_map_reduce    AP=0.0623 FDR=0.963 decoy=0.125 dupErr=2.89
-  1 stale_flood              B_long_context   AP=0.0388 FDR=0.946 decoy=0.075 dupErr=0.97
-  1 stale_flood              E_hier_lineage   AP=0.0000 FDR=1.000 decoy=0.000 dupErr=1.00
-  1 false_report_flood       H_mycelic_full   AP=0.0087 FDR=0.978 decoy=0.275 dupErr=3.14
-  1 false_report_flood       B2_map_reduce    AP=0.0497 FDR=0.972 decoy=0.275 dupErr=3.36
-  1 false_report_flood       B_long_context   AP=0.0351 FDR=0.928 decoy=0.200 dupErr=1.44
-  1 false_report_flood       E_hier_lineage   AP=0.0095 FDR=0.952 decoy=0.000 dupErr=1.00
-  1 rare_only                H_mycelic_full   AP=0.0105 FDR=0.982 decoy=0.100 dupErr=3.11
-  1 rare_only                B2_map_reduce    AP=0.0050 FDR=0.983 decoy=0.150 dupErr=3.74
-  1 rare_only                B_long_context   AP=0.0138 FDR=0.963 decoy=0.100 dupErr=1.86
-  1 rare_only                E_hier_lineage   AP=0.0009 FDR=0.972 decoy=0.000 dupErr=1.00
-  1 malicious_nodes_5pct     H_mycelic_full   AP=0.0210 FDR=0.970 decoy=0.250 dupErr=3.56
-  1 malicious_nodes_5pct     B2_map_reduce    AP=0.0260 FDR=0.980 decoy=0.250 dupErr=3.64
-  1 malicious_nodes_5pct     B_long_context   AP=0.0256 FDR=0.955 decoy=0.175 dupErr=1.94
-  1 malicious_nodes_5pct     E_hier_lineage   AP=0.0013 FDR=0.952 decoy=0.000 dupErr=4.00
-  1 unavailable_sites_20pct  H_mycelic_full   AP=0.0552 FDR=0.971 decoy=0.175 dupErr=3.46
-  1 unavailable_sites_20pct  B2_map_reduce    AP=0.0260 FDR=0.980 decoy=0.250 dupErr=3.64
-  1 unavailable_sites_20pct  B_long_context   AP=0.0256 FDR=0.955 decoy=0.175 dupErr=1.94
-  1 unavailable_sites_20pct  E_hier_lineage   AP=0.0023 FDR=0.946 decoy=0.000 dupErr=1.00
-  1 approx_index_bloom       H_mycelic_full   AP=0.0207 FDR=0.970 decoy=0.200 dupErr=3.59
-  1 approx_index_bloom       B2_map_reduce    AP=0.0260 FDR=0.980 decoy=0.250 dupErr=3.64
-  1 approx_index_bloom       B_long_context   AP=0.0256 FDR=0.955 decoy=0.175 dupErr=1.94
-  1 approx_index_bloom       E_hier_lineage   AP=0.0000 FDR=1.000 decoy=0.025 dupErr=0.67
-  1 extreme_imbalance        H_mycelic_full   AP=0.0606 FDR=0.961 decoy=0.075 dupErr=3.23
-  1 extreme_imbalance        B2_map_reduce    AP=0.0299 FDR=0.964 decoy=0.250 dupErr=3.22
-  1 extreme_imbalance        B_long_context   AP=0.0611 FDR=0.918 decoy=0.150 dupErr=2.24
-  1 extreme_imbalance        E_hier_lineage   AP=0.0000 FDR=1.000 decoy=0.000 dupErr=1.00

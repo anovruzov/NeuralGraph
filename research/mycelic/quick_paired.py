@@ -78,8 +78,14 @@ def run_pair(base: str, variant: str, cfg_over: Optional[Dict], scale: int,
                 else:
                     res = run_arch(arch, w, alloc, seed)
                 met = evaluate(w.corpus, w.gold, res)
+                from . import runner as _rn
                 row = {"arch": label, "variant_of": arch, "cfg_over": over,
                        "scale": scale, "seed": seed, "tag": tag,
+                       # which ranker this row ran with, so ON/OFF is logged
+                       # rather than inferred from the metrics
+                       "ranker": ("forced-on" if _rn.FORCE_RANKER else "forced-off"
+                                  if _rn.FORCE_RANKER is not None else "cal"),
+                       "ranker_l2": (_rn.CAL.get("ranker") or {}).get("l2"),
                        "runtime_s": round(time.time() - t1, 1), **met}
                 fh.write(json.dumps(row) + "\n")
                 fh.flush()

@@ -151,12 +151,23 @@ def next_research_report() -> str:
              "evaluation worlds, the register cap or the calibration/evaluation seed split, and then for "
              "the whole benchmark to be rerun on the frozen configuration. This is the paired result on "
              "identical worlds (OLD = the archived v1 rows, NEW = the rerun).\n")
-    t.append("### 1.1 OLD vs NEW at 10,000 people\n")
-    t.append(D.old_new_table(10_000))
-    t.append("\n### 1.2 OLD vs NEW at 50,000 people\n")
+    t.append("### 1.1 OLD vs NEW at 10,000 people — development panel (seeds 0–4)\n")
+    t.append("These five worlds were read after every accepted and rejected change during the work "
+             "(about eleven decisions); their numbers are development-panel numbers and carry a "
+             "selection optimism of roughly +0.02 to +0.04 found on the small deltas (section 6).\n")
+    t.append(D.old_new_table(10_000, seeds=range(0, 5)))
+    t.append("\n### 1.2 OLD vs NEW at 10,000 people — confirmation panel (seeds 5–9, never read during development)\n")
+    t.append("No paired experiment, dump, funnel or decision touched these five worlds before the "
+             "final rerun; this is the number to quote.\n")
+    t.append(D.old_new_table(10_000, seeds=range(5, 10)))
+    t.append("\n### 1.3 OLD vs NEW at 50,000 people (seeds 0–4; seeds 0–2 were the development panel at this scale)\n")
     t.append(D.old_new_table(50_000))
-    t.append("\n### 1.3 In one paragraph\n")
-    t.append(f"At 10k the hierarchy's found rate goes from {_n(h['old_found_anywhere_in_register_10000'])} to "
+    t.append("\n### 1.4 In one paragraph\n")
+    t.append(f"On the confirmation panel (10k, seeds 5–9) the hierarchy's found rate goes from "
+             f"{_n(h['old_conf_found_anywhere_in_register_10000'])} to {_n(h['new_conf_found_anywhere_in_register_10000'])} "
+             f"(rare recall {_n(h['old_conf_rare_signal_recall_10000'])} → {_n(h['new_conf_rare_signal_recall_10000'])}, "
+             f"A2 {_n(h['a2_old_conf_found_anywhere_in_register_10000'])} → {_n(h['a2_conf_found_anywhere_in_register_10000'])}). "
+             f"On the development panel (seeds 0–4) it goes from {_n(h['old_found_anywhere_in_register_10000'])} to "
              f"{_n(h['new_found_anywhere_in_register_10000'])} (evidence coverage "
              f"{_n(h['old_evidence_coverage_2links_10000'])} → {_n(h['new_evidence_coverage_2links_10000'])}, "
              f"rare recall {_n(h['old_rare_signal_recall_10000'])} → {_n(h['new_rare_signal_recall_10000'])}) for "
@@ -255,14 +266,28 @@ def next_research_report() -> str:
              "the kernel pool, and the loss is ordering among the ~3,000 candidates that pass the gate for 600 slots. "
              "At 50k the register (2,999 slots) is not binding; coverage (~0.72) is, i.e. the question budget and the "
              "descent's reach. Those are different problems and the queue in section 8 treats them separately.\n")
-    t.append("## 6. Did the gains survive the held-out seeds?\n")
-    t.append("The protocol was: choose on seeds 500–502, read once on seeds 0–4 (10k) and 0–2 (50k). Two candidates that "
-             "looked good on the calibration seeds failed the held-out read and were dropped — modal link timing "
-             "(+0.04 → −0.01) and decoy-weighted ranker selection (objective +0.2 → found −0.06, rare −0.12). The "
-             "accepted changes all held: ranker v3 +0.21 on 5/5 seeds, budget/batching as part of that, hybrid timing "
-             "+0.04 with no seed worse. Where two legitimate arms differed only inside noise on the held-out seeds "
-             "(the ranker refitted under hybrid timing vs the previous one), the pre-registered rule — fit the ranker "
-             "on the calibration seeds under the pipeline it will run in — decided, not the held-out numbers.\n")
+    t.append("## 6. Did the gains survive held-out seeds? (the honest version)\n")
+    t.append("The intended protocol was: choose on seeds 500–502, read once on seeds 0–4 (10k) and 0–2 (50k). That is "
+             "not what happened, and the first independent refuter (REVIEWER_ATTACK.md) counted it: seeds 0–4 were "
+             "read after roughly eleven accept/reject decisions over some forty configurations, and two frozen knobs "
+             "were chosen on those seeds rather than on the calibration seeds — the question budget (both sweeps "
+             "under a learned ranker ran on 0–4; the only calibration-seed sweep was the v1 one with the hand ranker) "
+             "and the rejection of local re-extraction. The ranker fit and the per-architecture adoption are clean "
+             "(only calibration-seed rows enter them). Two candidates that won on the calibration seeds lost on 0–4 "
+             "and were dropped — modal link timing (+0.04 → −0.01) and decoy-weighted selection (found −0.06, rare "
+             "−0.12) — which is the panel doing its job, and also evidence that decisions were being made on it.\n")
+    t.append("What this costs: with a paired standard error of about 0.02 found on five seeds, picking the best of "
+             "four to eight arms inflates a null by +0.02 to +0.03. The small accepted deltas (budget 0.65 vs 0.50 "
+             "+0.03; hybrid timing +0.04) are therefore not established by the development panel alone; the large one "
+             "(ranker + budget + batching, +0.21 on every seed, more than ten standard errors) is. The cure is the "
+             "confirmation panel in section 1.2: seeds 5–9 at 10k were never read by any experiment, dump or funnel "
+             "before the final rerun, and the OLD rows for them exist in the archive, so that comparison is a clean "
+             "single read. Where two legitimate arms differed only inside noise on the development panel (the ranker "
+             "refitted under hybrid timing vs the previous one), the pre-registered rule — fit the ranker on the "
+             "calibration seeds under the pipeline it will run in — decided, not the numbers.\n")
+    t.append("A budget sweep on the calibration seeds under the frozen ranker and timing was run after the refuter's "
+             "report (quick_qf_cal.jsonl); its result is in the frozen-configuration table's evidence column, so the "
+             "reader can see whether the calibration seeds agree with the value the development panel chose.\n")
     t.append("## 7. Ranker evaluation on the final configuration\n")
     t.append(D.ranker_eval_table())
     t.append("\n## 8. Frozen configuration\n")

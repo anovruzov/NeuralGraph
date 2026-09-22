@@ -151,9 +151,13 @@ compute from its own subtree, and a calibrated retrieval budget.
 * **The risk register scales with the entity namespace** (~one entry per
   tracked entity, capped). A constant register was binding at 50k users and
   silently truncated most of the gold out of every system's output.
-* **Every knob is fitted on calibration seeds 500–502 and frozen** before the
+* **Every v1 knob is fitted on calibration seeds 500–502 and frozen** before the
   evaluation seeds are touched — for the hierarchy, for map-reduce, for the
-  centralised triage control and for flat RAG alike.
+  centralised triage control and for flat RAG alike. The vNext ranker and its
+  per-architecture adoption follow the same rule; the vNext question budget
+  was chosen on the development panel (seeds 0–4) and is confirmed on seeds
+  5–9, which no development decision read (see the old-vs-new block in the
+  executive summary and `docs/mycelic_vnext/NEXT_RESEARCH_REPORT.md` §6).
 
 ### Metrics
 

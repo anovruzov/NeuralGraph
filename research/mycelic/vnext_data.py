@@ -110,10 +110,16 @@ def old_new_table(scale: int,
                       ("A2 chunked long context", "A2_chunked_ctx", "A2_chunked_ctx"),
                       ("B4 central triage", "B4_central_triage", "B4_central_triage"),
                       ("Y oracle retrieval", "Y_oracle_retrieval", "Y_oracle_retrieval")),
-                  keys: Sequence[str] = CORE) -> str:
-    """OLD (artifacts/v1) against NEW (artifacts) on the same worlds."""
+                  keys: Sequence[str] = CORE,
+                  seeds: Optional[Sequence[int]] = None) -> str:
+    """OLD (artifacts/v1) against NEW (artifacts) on the same worlds.  `seeds`
+    restricts both sides, e.g. to the confirmation panel 5-9 that no
+    development decision ever read."""
     old = e1_rows(V1)
     new = e1_rows(ART)
+    if seeds is not None:
+        old = [r for r in old if r["seed"] in seeds]
+        new = [r for r in new if r["seed"] in seeds]
     if not old or not new:
         return "_(old or new headline rows missing: run final_rerun.sh)_"
     label = {k: l for k, l, _ in METRICS}
@@ -394,9 +400,24 @@ def frozen_config_table() -> str:
     cal = json.load(open(os.path.join(ART, "calibration.json")))
     prov = cal.get("vnext", {})
     r = cal.get("ranker", {})
-    lines = ["| knob | frozen value | chosen on | evidence |", "|---|---|---|---|"]
+    lines = ["| knob | frozen value | seeds the cited evidence was read on | evidence |", "|---|---|---|---|"]
     for k, v in prov.items():
-        lines.append(f"| `{k}` | `{v['value']}` | calibration seeds 500–502, confirmed on held-out 0–4 | `{v['evidence']}` |")
+        # the "chosen on" column is read from the evidence files themselves:
+        # a knob whose only evidence is on the evaluation panel says so
+        where = []
+        for ev in [e.strip() for e in str(v.get("evidence", "")).split(",") if e.strip()]:
+            rows = _rows(ev)
+            if not rows:
+                where.append(f"{ev}: (file missing)")
+                continue
+            sd = sorted({r["seed"] for r in rows})
+            sc = sorted({r["scale"] for r in rows})
+            panel = ("calibration" if all(x >= 500 for x in sd)
+                     else "evaluation (development panel)" if all(x < 5 for x in sd)
+                     else "mixed")
+            where.append(f"{ev}: seeds {sd[0]}–{sd[-1]} at {', '.join(f'{x:,}' for x in sc)} — {panel}")
+        lines.append(f"| `{k}` | `{v['value']}` | {'; '.join(where) or '—'} | "
+                     f"`{v.get('evidence', '')}` |")
     if r:
         lines.append(f"| ranker | {r.get('kind', 'logistic')}, l2 {r.get('l2')}, "
                      f"interactions {r.get('interactions')}, {r.get('n_train')} candidates | "
@@ -412,11 +433,18 @@ def headline_numbers() -> Dict[str, float]:
     out: Dict[str, float] = {}
     old = e1_rows(V1)
     new = e1_rows(ART)
+    conf = range(5, 10)
+    for tag, rows, arch in (("old_conf", old, "H_mycelic_full"), ("new_conf", new, "H_mycelic_full"),
+                            ("a2_conf", new, "A2_chunked_ctx"), ("a2_old_conf", old, "A2_chunked_ctx")):
+        d = {s: r for s, r in by_seed(rows, arch, 10_000).items() if s in conf}
+        for k in CORE + ["decoy_acceptance_all"]:
+            out[f"{tag}_{k}_10000"] = float(np.mean([r[k] for r in d.values()])) if d else float("nan")
+        out[f"{tag}_n_10000"] = len(d)
     for scale in (10_000, 50_000):
         for tag, rows, arch in (("old", old, "H_mycelic_full"), ("new", new, "H_mycelic_full"),
                                 ("a2", new, "A2_chunked_ctx"), ("a2_old", old, "A2_chunked_ctx"),
                                 ("lean", new, "H_mycelic_lean"), ("prev", new, "H_mycelic_prev")):
-            d = by_seed(rows, arch, scale)
+            d = {s: r for s, r in by_seed(rows, arch, scale).items() if s < 5}
             for k in CORE + ["decoy_acceptance_all", "common_signal_recall"]:
                 out[f"{tag}_{k}_{scale}"] = float(np.mean([r[k] for r in d.values()])) if d else float("nan")
             out[f"{tag}_n_{scale}"] = len(d)
