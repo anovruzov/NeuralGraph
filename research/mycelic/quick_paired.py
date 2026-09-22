@@ -64,12 +64,15 @@ def run_pair(base: str, variant: str, cfg_over: Optional[Dict], scale: int,
         for seed in seeds:
             t0 = time.time()
             w = build_world(scale, seed)
-            for label, arch, over in ((base, base, None),
-                                      (variant, variant, cfg_over)):
+            for side, (label, arch, over) in enumerate(((base, base, None),
+                                                        (variant, variant, cfg_over))):
                 t1 = time.time()
                 if ranker_ab:
+                    # the variant may be the base itself, so switch on the
+                    # SIDE, not the label (which is why the first batch of
+                    # A/B rows came back identical)
                     from .runner import apply_ranker
-                    apply_ranker(label != base)
+                    apply_ranker(side == 1)
                 if over is not None and arch in ARCHS:
                     res = run_arch(arch, w, alloc, seed, cfg_over={"cfg": over})
                 else:
@@ -149,11 +152,11 @@ def main() -> None:
     rows = run_pair(a.base, variant, over, a.scale, seeds, a.tag, a.alloc,
                     ranker_ab=(a.ranker == "ab"))
     # relabel the variant rows so the report can tell them apart
-    for r in rows:
-        if r["arch"] == variant and r["cfg_over"] is not None:
+    for i, r in enumerate(rows):
+        if i % 2 == 1:
             r["arch"] = label
     print()
-    print(report(rows, a.base, label if over else variant))
+    print(report(rows, a.base, label))
 
 
 if __name__ == "__main__":
