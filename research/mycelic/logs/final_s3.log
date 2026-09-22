@@ -500,3 +500,6 @@
    50000/2 B4_central_triage      evidence-names-entity=0.485 fully-attributed=0.022 none-attributed=0.133
    50000/2 E_hier_lineage         evidence-names-entity=0.091 fully-attributed=0.021 none-attributed=0.872
    50000/2 H_mycelic_full         evidence-names-entity=0.336 fully-attributed=0.000 none-attributed=0.220
+   50000/2 J_mycelic_verified     evidence-names-entity=0.336 fully-attributed=0.000 none-attributed=0.220
+=== e12 done in 416s ===
+=== e12 end 2026-09-22T12:07:22+00:00 rc=0

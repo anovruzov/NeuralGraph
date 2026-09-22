@@ -1,0 +1,5 @@
+=== e10 start 2026-09-22T12:07:22+00:00
+=== e10 ===
+   100000/0 A_flat_rag             AP=0.0107 found=0.305 cov2=0.465 rare=0.000 cu=1.41e+06 (3s)
+   100000/0 B_long_context         AP=0.0003 found=0.025 cov2=0.060 rare=0.000 cu=1.11e+06 (2s)
+   100000/0 B2_map_reduce          AP=0.0121 found=0.015 cov2=0.025 rare=0.000 cu=1.49e+06 (10s)

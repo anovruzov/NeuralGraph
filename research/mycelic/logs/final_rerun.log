@@ -20,3 +20,5 @@ wrote /home/user/NeuralGraph/research/mycelic/artifacts/calibration.json
   H_mycelic_lean         hand=0.450 ranker=0.642 adopt=True
 ranker_archs = ['A2_chunked_ctx', 'A_flat_rag', 'B2_map_reduce', 'B4_central_triage', 'D_hier_nolineage', 'E_hier_lineage', 'F_hier_retrieval', 'G_hier_questions', 'H_mycelic_full', 'H_mycelic_lean', 'I_mycelic_completion', 'J_mycelic_verified', 'Y_oracle_retrieval']
 === experiments 2026-09-22T11:22:44+00:00
+=== experiments done 2026-09-22T12:07:22+00:00
+=== scale trend + loss accounting 2026-09-22T12:07:22+00:00
