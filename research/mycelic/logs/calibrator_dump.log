@@ -2,3 +2,7 @@
   seed 500 A2_chunked_ctx       600 candidates, 30 gold-matching, 30 patterns matched (7s)
   seed 500 B4_central_triage    600 candidates, 15 gold-matching, 15 patterns matched (8s)
   seed 500 Y_oracle_retrieval   600 candidates, 11 gold-matching, 11 patterns matched (11s)
+  seed 501 H_mycelic_full       1559 candidates, 28 gold-matching, 28 patterns matched (7s)
+  seed 501 A2_chunked_ctx       600 candidates, 28 gold-matching, 28 patterns matched (8s)
+  seed 501 B4_central_triage    600 candidates, 15 gold-matching, 15 patterns matched (10s)
+  seed 501 Y_oracle_retrieval   600 candidates, 13 gold-matching, 13 patterns matched (13s)
