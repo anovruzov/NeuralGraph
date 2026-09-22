@@ -449,3 +449,5 @@
    50000/1 G_hier_questions       raw=0.0000 claims=0.1389 sketch=2.617e+06 found=0.48
    50000/1 H_mycelic_full         raw=0.0000 claims=0.1389 sketch=2.617e+06 found=0.52
    50000/1 I_mycelic_completion   raw=0.0000 claims=0.1389 sketch=2.617e+06 found=0.50
+   50000/1 J_mycelic_verified     raw=0.0000 claims=0.1389 sketch=2.617e+06 found=0.52
+   50000/1 H_mycelic_prev         raw=0.0000 claims=0.1389 sketch=2.617e+06 found=0.31
