@@ -190,3 +190,4 @@
    50000/0 E_hier_lineage       AP=0.0020 found=0.01 R@100=0.010 cu=9.93e+05
    50000/0 F_hier_retrieval     AP=0.0011 found=0.01 R@100=0.010 cu=1.13e+06
    50000/0 G_hier_questions     AP=0.0794 found=0.60 R@100=0.180 cu=3.87e+06
+   50000/0 H_mycelic_full       AP=0.0661 found=0.60 R@100=0.160 cu=3.96e+06

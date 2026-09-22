@@ -76,3 +76,9 @@
   0 -cross_links             AP=0.1640 found=0.53 rare=0.235 lin=0.51 indep=0.76 cu=1.31e+06
   0 -sketch_channel          AP=0.0014 found=0.10 rare=0.118 lin=0.67 indep=0.61 cu=1.05e+06
   0 -adaptive_abstraction    AP=0.1011 found=0.57 rare=0.353 lin=0.55 indep=0.74 cu=1.31e+06
+  0 -triage_prior            AP=0.1173 found=0.47 rare=0.176 lin=0.51 indep=0.75 cu=1.35e+06
+  0 +evidence_verification   AP=0.1296 found=0.47 rare=0.176 lin=0.51 indep=0.75 cu=1.36e+06
+  0 +source_dispersion       AP=0.1385 found=0.55 rare=0.353 lin=0.51 indep=0.76 cu=1.32e+06
+  0 +chain_completion        AP=0.1076 found=0.42 rare=0.118 lin=0.51 indep=0.80 cu=2.28e+06
+  0 -foreign_filter          AP=0.1016 found=0.55 rare=0.294 lin=0.51 indep=0.70 cu=1.73e+06
+  0 -synthesis_restriction   AP=0.1319 found=0.45 rare=0.176 lin=0.52 indep=0.74 cu=1.35e+06

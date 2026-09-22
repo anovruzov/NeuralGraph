@@ -308,6 +308,7 @@ class HierConfig:
     descent_fanout: int = 3
     # vNext candidates (all off by default; each is a paired experiment)
     link_time: str = "min"            # ops.synthesize link timing: min|modal|hybrid
+    stale_rule: str = "any"           # staleness gate: any positive | strong (>= 2 witnesses) positive
     strict_targeting: bool = False    # a targeted descent reads ONLY the target predicates
     triage_target_chains: str = "none"  # none | span2: triage questions name the chains the sketch flagged
     cross_link_degree: int = 4
@@ -1003,6 +1004,7 @@ class HierRunner:
                           use_dedup=cfg.independence,
                           use_temporal=cfg.temporal,
                           link_time=cfg.link_time,
+                          stale_rule=cfg.stale_rule,
                           n_entities=len(c.entities),
                           max_reports=cfg.max_reports,
                           stem_rep=self._stem if hasattr(self,'_stem') else None,
@@ -1151,6 +1153,7 @@ class HierRunner:
                            use_dedup=self.cfg.independence,
                            use_temporal=self.cfg.temporal,
                            link_time=self.cfg.link_time,
+                           stale_rule=self.cfg.stale_rule,
                            n_entities=len(self.c.entities),
                            max_reports=self.cfg.max_reports,
                            stem_rep=self._stem if hasattr(self,'_stem') else None,
@@ -1340,6 +1343,7 @@ class HierRunner:
                            use_lineage=cfg.lineage, use_dedup=cfg.independence,
                            use_temporal=cfg.temporal,
                           link_time=cfg.link_time,
+                          stale_rule=cfg.stale_rule,
                            n_entities=len(self.c.entities),
                            max_reports=cfg.max_reports,
                            stem_rep=self._stem if hasattr(self,'_stem') else None,
@@ -1434,6 +1438,7 @@ class HierRunner:
                            use_lineage=cfg.lineage, use_dedup=cfg.independence,
                            use_temporal=cfg.temporal,
                           link_time=cfg.link_time,
+                          stale_rule=cfg.stale_rule,
                            n_entities=len(self.c.entities),
                            max_reports=cfg.max_reports,
                            stem_rep=self._stem,

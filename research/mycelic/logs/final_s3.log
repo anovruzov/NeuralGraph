@@ -169,3 +169,20 @@
   2 team= 6 H_mycelic_full   AP=0.2910 found=0.82 cu=1.40e+06
   2 team= 6 E_hier_lineage   AP=0.0000 found=0.00 cu=2.44e+05
   2 team= 6 B2_map_reduce    AP=0.1632 found=0.30 cu=1.98e+05
+  2 team= 8 H_mycelic_full   AP=0.2774 found=0.75 cu=1.43e+06
+  2 team= 8 E_hier_lineage   AP=0.0031 found=0.03 cu=2.37e+05
+  2 team= 8 B2_map_reduce    AP=0.0959 found=0.20 cu=1.98e+05
+  2 team=10 H_mycelic_full   AP=0.2859 found=0.75 cu=1.42e+06
+  2 team=10 E_hier_lineage   AP=0.0000 found=0.00 cu=2.28e+05
+  2 team=10 B2_map_reduce    AP=0.1208 found=0.42 cu=1.95e+05
+  2 team=12 H_mycelic_full   AP=0.2464 found=0.65 cu=1.42e+06
+  2 team=12 E_hier_lineage   AP=0.0000 found=0.00 cu=2.31e+05
+  2 team=12 B2_map_reduce    AP=0.0490 found=0.17 cu=1.98e+05
+  2 team=15 H_mycelic_full   AP=0.2688 found=0.68 cu=1.46e+06
+  2 team=15 E_hier_lineage   AP=0.0087 found=0.05 cu=2.19e+05
+  2 team=15 B2_map_reduce    AP=0.1748 found=0.35 cu=1.98e+05
+=== e4 done in 181s ===
+=== e4 end 2026-09-22T11:32:49+00:00 rc=0
+=== e4b start 2026-09-22T11:32:49+00:00
+=== e4b ===
+  0 t/dept= 4 H_mycelic_full   AP=0.1809

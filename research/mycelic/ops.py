@@ -660,7 +660,8 @@ def synthesize(kos: List[KO], tier: Tier, rng: np.random.Generator,
                stem_rep: Optional[np.ndarray] = None,
                question_tag: int = -1,
                full_out: Optional[List["Hypothesis"]] = None,
-               link_time: str = "min") -> List[Hypothesis]:
+               link_time: str = "min",
+               stale_rule: str = "any") -> List[Hypothesis]:
     """Enumerate candidate strategic patterns and verify them.
 
     link_time decides which time a link gets in the temporal check:
@@ -1005,7 +1006,17 @@ def synthesize(kos: List[KO], tier: Tier, rng: np.random.Generator,
                     # staleness: the chain was retracted later than asserted
                     mem0 = [k for p in on for k in preds[p]]
                     neg = max((k.neg_tmax for k in mem0), default=-1)
-                    pos_t = max((k.pos_tmax for k in mem0), default=-1)
+                    if stale_rule == "strong":
+                        # one routine positive mention after the retraction
+                        # must not revive a retracted chain: only a positive
+                        # with >= 2 independent witnesses counts as the
+                        # chain's assertion time (fallback: any positive)
+                        pos_t = max((k.pos_tmax for k in mem0
+                                     if k.pos_tmax >= 0 and len(k.sigs) >= 2), default=-1)
+                        if pos_t < 0:
+                            pos_t = max((k.pos_tmax for k in mem0), default=-1)
+                    else:
+                        pos_t = max((k.pos_tmax for k in mem0), default=-1)
                     if neg > pos_t >= 0 and rng.random() < tier.temporal_check:
                         continue
                 on = on[:max(2, tier.synth_depth)]
