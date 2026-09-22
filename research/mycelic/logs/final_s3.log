@@ -447,3 +447,5 @@
    50000/1 E_hier_lineage         raw=0.0000 claims=0.1389 sketch=2.617e+06 found=0.01
    50000/1 F_hier_retrieval       raw=0.0000 claims=0.1389 sketch=2.617e+06 found=0.03
    50000/1 G_hier_questions       raw=0.0000 claims=0.1389 sketch=2.617e+06 found=0.48
+   50000/1 H_mycelic_full         raw=0.0000 claims=0.1389 sketch=2.617e+06 found=0.52
+   50000/1 I_mycelic_completion   raw=0.0000 claims=0.1389 sketch=2.617e+06 found=0.50

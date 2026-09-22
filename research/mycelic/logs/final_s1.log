@@ -286,3 +286,5 @@
    10000/4 J_mycelic_verified     AP=0.2428 found=0.65 cov2=0.97 cu=1.30e+06
    50000/0 J_mycelic_verified     AP=0.0739 found=0.60 cov2=0.74 cu=3.97e+06
    50000/1 J_mycelic_verified     AP=0.1088 found=0.52 cov2=0.69 cu=3.88e+06
+   50000/2 J_mycelic_verified     AP=0.1423 found=0.64 cov2=0.75 cu=3.93e+06
+   50000/3 J_mycelic_verified     AP=0.1770 found=0.56 cov2=0.68 cu=3.82e+06
