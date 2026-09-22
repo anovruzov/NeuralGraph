@@ -444,3 +444,6 @@
    50000/1 B4_central_triage      raw=0.0000 claims=0.8847 sketch=0.000e+00 found=0.34
    50000/1 C_recursive_sum        raw=0.0000 claims=0.0927 sketch=0.000e+00 found=0.00
    50000/1 D_hier_nolineage       raw=0.0000 claims=0.1389 sketch=2.617e+06 found=0.00
+   50000/1 E_hier_lineage         raw=0.0000 claims=0.1389 sketch=2.617e+06 found=0.01
+   50000/1 F_hier_retrieval       raw=0.0000 claims=0.1389 sketch=2.617e+06 found=0.03
+   50000/1 G_hier_questions       raw=0.0000 claims=0.1389 sketch=2.617e+06 found=0.48

@@ -397,3 +397,29 @@
   1 mr_budget=8000 AP=0.0205 cu=2.66e+05
   1 mr_budget=20000 AP=0.0270 cu=3.91e+05
   2 qfrac=0.00 AP=0.0522 found=0.10 cu=3.66e+05
+  2 qfrac=0.05 AP=0.2014 found=0.57 cu=9.74e+05
+  2 qfrac=0.15 AP=0.2014 found=0.57 cu=9.74e+05
+  2 qfrac=0.35 AP=0.2002 found=0.60 cu=1.04e+06
+  2 qfrac=0.55 AP=0.1933 found=0.62 cu=1.28e+06
+  2 qfrac=1.00 AP=0.1495 found=0.60 cu=1.81e+06
+  2 mr_budget=300 AP=0.0425 cu=1.50e+05
+  2 mr_budget=900 AP=0.0703 cu=1.63e+05
+  2 mr_budget=2500 AP=0.1792 cu=1.98e+05
+  2 mr_budget=8000 AP=0.0272 cu=2.66e+05
+  2 mr_budget=20000 AP=0.0217 cu=3.90e+05
+=== e6 done in 135s ===
+=== e6 end 2026-09-22T11:57:00+00:00 rc=0
+=== e1d start 2026-09-22T11:57:00+00:00
+=== e1d ===
+    2000/0 B4_capped(cap=20000) AP=0.0714 found=0.775 cu=1.35e+05
+    2000/1 B4_capped(cap=20000) AP=0.1030 found=0.825 cu=1.36e+05
+    2000/2 B4_capped(cap=20000) AP=0.1252 found=0.575 cu=1.32e+05
+    2000/3 B4_capped(cap=20000) AP=0.1192 found=0.800 cu=1.31e+05
+    2000/4 B4_capped(cap=20000) AP=0.0760 found=0.875 cu=1.30e+05
+   10000/0 B4_capped(cap=20000) AP=0.0412 found=0.350 cu=3.99e+05
+   10000/1 B4_capped(cap=20000) AP=0.0146 found=0.400 cu=3.98e+05
+   10000/2 B4_capped(cap=20000) AP=0.0147 found=0.375 cu=3.98e+05
+   10000/3 B4_capped(cap=20000) AP=0.0348 found=0.450 cu=3.98e+05
+   10000/4 B4_capped(cap=20000) AP=0.0044 found=0.275 cu=3.97e+05
+   50000/0 B4_capped(cap=20000) AP=0.0061 found=0.310 cu=1.07e+06
+   50000/1 B4_capped(cap=20000) AP=0.0126 found=0.340 cu=1.06e+06
