@@ -795,3 +795,36 @@ trades found for D5; it does not fix the mechanism. Rejected; the frozen
 configuration stands and no second rerun is started. The base arm of that
 test is also the frozen configuration's one clean read on a fresh panel:
 found 0.650, rare 0.364, coverage 0.93 on seeds 10–14 (quick_strong_fresh).
+
+## Iteration 24 — the final rerun on the frozen configuration
+
+Every experiment, control, funnel and dump rerun on the frozen vNext
+configuration (final_rerun.sh, 11:18–12:55 UTC), v1 artifacts archived
+under artifacts/v1/, every document and PDF regenerated from the new rows.
+`H_mycelic_prev` (the v1 configuration inside the new suite) reproduces
+the archived rows to the last digit on every metric and seed.
+
+Headline, paired on identical worlds (OLD = archived v1, NEW = frozen vNext):
+
+```
+                                  found          coverage       rare           decoy all      D5 stale       compute (as run / like-for-like)
+  10k confirmation panel 5–9     0.395 → 0.570  0.665 → 0.930  0.220 → 0.348  0.23 → 0.43    0.30 → 0.82    +23% / ≈+40%
+  10k development panel 0–4      0.375 → 0.625  0.690 → 0.980  0.215 → 0.375  0.18 → 0.36    0.26 → 0.78    +26% / +43%
+  50k seeds 0–4                  0.336 → 0.566  0.420 → 0.708  0.189 → 0.315  0.20 → 0.38    0.36 → 0.74    +32% / ≈+48%
+  A2 with the same ranker        10k 0.685 → 0.740 (conf. panel 0.640 → 0.725); 50k 0.686 → 0.784
+```
+
+The confirmation panel is the number to quote: +0.175 found, 5/5 seeds,
+95% CI [+0.125, +0.210], smaller than the development panel's +0.25 by
+about the winner's curse the refuter predicted. Targets (0.70 / 0.60) not
+met. Gap to A2 at 50k: 0.218 found at 0.38× its compute.
+
+Loss accounting on the new configuration: at 10k the question-budget
+loss went from 29% of gold patterns to 0% and the register cut is now the
+largest terminal loss (52 of 200, 38 rare); at 50k the budget loss fell
+from 33% to 6% and the largest remaining loss is sketch visibility (58 of
+300, 41 rare), unchanged from v1 — the next lever at scale is the sketch's
+support threshold for rare facets, which the rejected weak-bit mechanism
+was aimed at. Ranker evaluation on the final dumps, held-out seeds: the
+hierarchy's candidates go from AUC 0.69 (hand score) to 0.85 (learned),
+found under the cap 0.365 → 0.620 at the same kept count; A2 0.74 → 0.74.

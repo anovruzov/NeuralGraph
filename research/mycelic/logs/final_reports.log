@@ -1,0 +1,20 @@
+  fig_scale: research/mycelic/artifacts/figures/scale.png
+  fig_frontier: research/mycelic/artifacts/figures/cost_quality.png
+  fig_level_marginal: research/mycelic/artifacts/figures/level_marginal.png
+  fig_qsweep: research/mycelic/artifacts/figures/q_sweep.png
+  fig_discrimination: research/mycelic/artifacts/figures/discrimination.png
+  fig_ablation: research/mycelic/artifacts/figures/ablations.png
+  fig_privacy: research/mycelic/artifacts/figures/privacy.png
+  fig_adversarial: research/mycelic/artifacts/figures/adversarial.png
+  fig_fanin: research/mycelic/artifacts/figures/fanin.png
+  fig_old_new: research/mycelic/artifacts/figures/old_new.png
+wrote /home/user/NeuralGraph/docs/MYCELIC_ENTERPRISE.md 131848 chars
+wrote /home/user/NeuralGraph/docs/MYCELIC_LOSS_ACCOUNTING.md 59377 chars
+wrote /home/user/NeuralGraph/docs/mycelic_vnext/NEXT_RESEARCH_REPORT.md 49306 chars
+wrote /home/user/NeuralGraph/docs/mycelic_vnext/VNEXT_ARCHITECTURE.md 10282 chars
+wrote /home/user/NeuralGraph/docs/mycelic_vnext/EXPERIMENT_MATRIX.md 16600 chars
+wrote /home/user/NeuralGraph/docs/mycelic_vnext/LOSS_ACCOUNTING.md 5082 chars
+wrote /home/user/NeuralGraph/docs/mycelic_vnext/REVIEWER_ATTACK.md 29040 chars
+wrote /home/user/NeuralGraph/docs/mycelic_vnext/ALL.md
+wrote /home/user/NeuralGraph/docs/MYCELIC_ENTERPRISE.pdf 1.29 MB
+wrote /home/user/NeuralGraph/docs/MYCELIC_LOSS_ACCOUNTING.pdf 0.28 MB

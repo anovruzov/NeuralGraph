@@ -1,7 +1,7 @@
 # Mycelic: where the hidden patterns go
 ## Loss accounting and gap decomposition
 
-**What this is.** The v1 benchmark said the hierarchy found 34% of the hidden patterns at 50,000 users and the strongest centralised system found 69%. This document says *where the other patterns went*. Every discoverable
+**What this is.** The v1 benchmark said the hierarchy found 34% of the hidden patterns at 50,000 users and the strongest centralised system found 69%; after the vNext work (section 9) the rerun gives 57% and 78%. This document says *where the other patterns went*. Every discoverable
 gold pattern is traced through the pipeline and the first stage at which it
 is lost is recorded, for the hierarchy (`H_mycelic_full`), its centralised
 twin (`B4_central_triage`), the perfect-retrieval oracle (`Y_oracle_retrieval`)
@@ -48,13 +48,13 @@ systems have no sketch, triage, question or descent stage.
 | extracted (>=2 facets, right entity+predicate) | — | 0.960 <sub>[0.93, 0.99]</sub> | 0.960 <sub>[0.93, 0.99]</sub> | 0.960 <sub>[0.93, 0.99]</sub> |
 | visible to sketch triage (>=2 foreign sites, >=2 regions, span>=2) | — | — | 0.985 <sub>[0.97, 0.99]</sub> | — |
 | on the triage candidate list | — | — | 0.985 <sub>[0.97, 0.99]</sub> | — |
-| inside the question budget | — | — | 0.635 <sub>[0.58, 0.70]</sub> | — |
-| descent reached a facet holder | — | — | 0.665 <sub>[0.61, 0.73]</sub> | — |
-| >=2 gold links in kernel pool (= evidence coverage) | 1.000 <sub>[1.00, 1.00]</sub> | 0.970 <sub>[0.95, 0.99]</sub> | 0.690 <sub>[0.64, 0.74]</sub> | 1.000 <sub>[1.00, 1.00]</sub> |
-| candidate formed on right entity + chain | 0.885 <sub>[0.84, 0.92]</sub> | 0.870 <sub>[0.82, 0.92]</sub> | 0.595 <sub>[0.54, 0.65]</sub> | 0.865 <sub>[0.85, 0.89]</sub> |
-| matched primary rule at ANY confidence | 0.855 <sub>[0.80, 0.89]</sub> | 0.770 <sub>[0.74, 0.81]</sub> | 0.540 <sub>[0.45, 0.63]</sub> | 0.770 <sub>[0.72, 0.82]</sub> |
-| matched with confidence >= 0.5 | 0.810 <sub>[0.74, 0.86]</sub> | 0.760 <sub>[0.73, 0.79]</sub> | 0.515 <sub>[0.44, 0.61]</sub> | 0.745 <sub>[0.70, 0.79]</sub> |
-| survived the register cut (= reported) | 0.685 <sub>[0.62, 0.74]</sub> | 0.370 <sub>[0.32, 0.42]</sub> | 0.375 <sub>[0.32, 0.43]</sub> | 0.240 <sub>[0.19, 0.28]</sub> |
+| inside the question budget | — | — | 0.975 <sub>[0.96, 0.99]</sub> | — |
+| descent reached a facet holder | — | — | 0.940 <sub>[0.92, 0.97]</sub> | — |
+| >=2 gold links in kernel pool (= evidence coverage) | 1.000 <sub>[1.00, 1.00]</sub> | 0.970 <sub>[0.95, 0.99]</sub> | 0.980 <sub>[0.96, 0.99]</sub> | 1.000 <sub>[1.00, 1.00]</sub> |
+| candidate formed on right entity + chain | 0.885 <sub>[0.84, 0.92]</sub> | 0.870 <sub>[0.82, 0.92]</sub> | 0.900 <sub>[0.88, 0.93]</sub> | 0.865 <sub>[0.85, 0.89]</sub> |
+| matched primary rule at ANY confidence | 0.855 <sub>[0.80, 0.89]</sub> | 0.770 <sub>[0.74, 0.81]</sub> | 0.890 <sub>[0.86, 0.92]</sub> | 0.770 <sub>[0.72, 0.82]</sub> |
+| matched with confidence >= 0.5 | 0.830 <sub>[0.76, 0.87]</sub> | 0.750 <sub>[0.72, 0.78]</sub> | 0.885 <sub>[0.86, 0.91]</sub> | 0.760 <sub>[0.72, 0.80]</sub> |
+| survived the register cut (= reported) | 0.740 <sub>[0.65, 0.81]</sub> | 0.540 <sub>[0.49, 0.59]</sub> | 0.625 <sub>[0.55, 0.69]</sub> | 0.415 <sub>[0.37, 0.47]</sub> |
 
 patterns counted: A2_chunked_ctx: 200, B4_central_triage: 200, H_mycelic_full: 200, Y_oracle_retrieval: 200
 
@@ -65,13 +65,13 @@ patterns counted: A2_chunked_ctx: 200, B4_central_triage: 200, H_mycelic_full: 2
 | extracted (>=2 facets, right entity+predicate) | — | 0.910 <sub>[0.83, 0.99]</sub> | 0.910 <sub>[0.83, 0.99]</sub> | 0.910 <sub>[0.83, 0.99]</sub> |
 | visible to sketch triage (>=2 foreign sites, >=2 regions, span>=2) | — | — | 0.977 <sub>[0.95, 1.00]</sub> | — |
 | on the triage candidate list | — | — | 0.977 <sub>[0.95, 1.00]</sub> | — |
-| inside the question budget | — | — | 0.446 <sub>[0.36, 0.54]</sub> | — |
-| descent reached a facet holder | — | — | 0.463 <sub>[0.41, 0.53]</sub> | — |
-| >=2 gold links in kernel pool (= evidence coverage) | 1.000 <sub>[1.00, 1.00]</sub> | 0.955 <sub>[0.92, 0.99]</sub> | 0.500 <sub>[0.42, 0.58]</sub> | 1.000 <sub>[1.00, 1.00]</sub> |
-| candidate formed on right entity + chain | 0.875 <sub>[0.82, 0.92]</sub> | 0.801 <sub>[0.76, 0.86]</sub> | 0.416 <sub>[0.30, 0.54]</sub> | 0.853 <sub>[0.82, 0.89]</sub> |
-| matched primary rule at ANY confidence | 0.851 <sub>[0.75, 0.92]</sub> | 0.703 <sub>[0.65, 0.77]</sub> | 0.360 <sub>[0.26, 0.46]</sub> | 0.772 <sub>[0.69, 0.85]</sub> |
-| matched with confidence >= 0.5 | 0.773 <sub>[0.62, 0.90]</sub> | 0.703 <sub>[0.65, 0.77]</sub> | 0.341 <sub>[0.25, 0.45]</sub> | 0.737 <sub>[0.67, 0.80]</sub> |
-| survived the register cut (= reported) | 0.653 <sub>[0.55, 0.75]</sub> | 0.258 <sub>[0.19, 0.33]</sub> | 0.215 <sub>[0.16, 0.27]</sub> | 0.143 <sub>[0.10, 0.18]</sub> |
+| inside the question budget | — | — | 0.963 <sub>[0.94, 0.99]</sub> | — |
+| descent reached a facet holder | — | — | 0.890 <sub>[0.85, 0.93]</sub> | — |
+| >=2 gold links in kernel pool (= evidence coverage) | 1.000 <sub>[1.00, 1.00]</sub> | 0.955 <sub>[0.92, 0.99]</sub> | 0.967 <sub>[0.93, 1.00]</sub> | 1.000 <sub>[1.00, 1.00]</sub> |
+| candidate formed on right entity + chain | 0.875 <sub>[0.82, 0.92]</sub> | 0.801 <sub>[0.76, 0.86]</sub> | 0.867 <sub>[0.84, 0.89]</sub> | 0.853 <sub>[0.82, 0.89]</sub> |
+| matched primary rule at ANY confidence | 0.851 <sub>[0.75, 0.92]</sub> | 0.703 <sub>[0.65, 0.77]</sub> | 0.873 <sub>[0.85, 0.90]</sub> | 0.772 <sub>[0.69, 0.85]</sub> |
+| matched with confidence >= 0.5 | 0.804 <sub>[0.66, 0.91]</sub> | 0.662 <sub>[0.61, 0.71]</sub> | 0.860 <sub>[0.82, 0.90]</sub> | 0.748 <sub>[0.68, 0.80]</sub> |
+| survived the register cut (= reported) | 0.669 <sub>[0.51, 0.79]</sub> | 0.283 <sub>[0.22, 0.35]</sub> | 0.375 <sub>[0.27, 0.45]</sub> | 0.120 <sub>[0.05, 0.20]</sub> |
 
 patterns counted: A2_chunked_ctx: 78, B4_central_triage: 78, H_mycelic_full: 78, Y_oracle_retrieval: 78
 
@@ -82,13 +82,13 @@ patterns counted: A2_chunked_ctx: 78, B4_central_triage: 78, H_mycelic_full: 78,
 | extracted (>=2 facets, right entity+predicate) | — | 1.000 <sub>[1.00, 1.00]</sub> | 1.000 <sub>[1.00, 1.00]</sub> | 1.000 <sub>[1.00, 1.00]</sub> |
 | visible to sketch triage (>=2 foreign sites, >=2 regions, span>=2) | — | — | 0.993 <sub>[0.98, 1.00]</sub> | — |
 | on the triage candidate list | — | — | 0.993 <sub>[0.98, 1.00]</sub> | — |
-| inside the question budget | — | — | 0.771 <sub>[0.66, 0.85]</sub> | — |
-| descent reached a facet holder | — | — | 0.798 <sub>[0.72, 0.88]</sub> | — |
-| >=2 gold links in kernel pool (= evidence coverage) | 1.000 <sub>[1.00, 1.00]</sub> | 0.986 <sub>[0.96, 1.00]</sub> | 0.821 <sub>[0.76, 0.88]</sub> | 1.000 <sub>[1.00, 1.00]</sub> |
-| candidate formed on right entity + chain | 0.893 <sub>[0.86, 0.93]</sub> | 0.916 <sub>[0.86, 0.98]</sub> | 0.721 <sub>[0.69, 0.76]</sub> | 0.870 <sub>[0.84, 0.90]</sub> |
-| matched primary rule at ANY confidence | 0.860 <sub>[0.84, 0.89]</sub> | 0.818 <sub>[0.79, 0.85]</sub> | 0.660 <sub>[0.56, 0.75]</sub> | 0.761 <sub>[0.72, 0.81]</sub> |
-| matched with confidence >= 0.5 | 0.845 <sub>[0.83, 0.86]</sub> | 0.804 <sub>[0.77, 0.84]</sub> | 0.630 <sub>[0.54, 0.72]</sub> | 0.746 <sub>[0.70, 0.79]</sub> |
-| survived the register cut (= reported) | 0.716 <sub>[0.67, 0.76]</sub> | 0.450 <sub>[0.34, 0.55]</sub> | 0.484 <sub>[0.43, 0.55]</sub> | 0.307 <sub>[0.25, 0.35]</sub> |
+| inside the question budget | — | — | 0.986 <sub>[0.96, 1.00]</sub> | — |
+| descent reached a facet holder | — | — | 0.976 <sub>[0.95, 1.00]</sub> | — |
+| >=2 gold links in kernel pool (= evidence coverage) | 1.000 <sub>[1.00, 1.00]</sub> | 0.986 <sub>[0.96, 1.00]</sub> | 0.993 <sub>[0.98, 1.00]</sub> | 1.000 <sub>[1.00, 1.00]</sub> |
+| candidate formed on right entity + chain | 0.893 <sub>[0.86, 0.93]</sub> | 0.916 <sub>[0.86, 0.98]</sub> | 0.919 <sub>[0.88, 0.97]</sub> | 0.870 <sub>[0.84, 0.90]</sub> |
+| matched primary rule at ANY confidence | 0.860 <sub>[0.84, 0.89]</sub> | 0.818 <sub>[0.79, 0.85]</sub> | 0.904 <sub>[0.87, 0.94]</sub> | 0.761 <sub>[0.72, 0.81]</sub> |
+| matched with confidence >= 0.5 | 0.853 <sub>[0.83, 0.89]</sub> | 0.811 <sub>[0.79, 0.85]</sub> | 0.904 <sub>[0.87, 0.94]</sub> | 0.761 <sub>[0.72, 0.81]</sub> |
+| survived the register cut (= reported) | 0.789 <sub>[0.75, 0.83]</sub> | 0.702 <sub>[0.67, 0.72]</sub> | 0.789 <sub>[0.73, 0.85]</sub> | 0.599 <sub>[0.55, 0.65]</sub> |
 
 patterns counted: A2_chunked_ctx: 122, B4_central_triage: 122, H_mycelic_full: 122, Y_oracle_retrieval: 122
 
@@ -99,14 +99,14 @@ patterns counted: A2_chunked_ctx: 122, B4_central_triage: 122, H_mycelic_full: 1
 | extracted (>=2 facets, right entity+predicate) | 0 (0%) | 0 | 0 |
 | visible to sketch triage (>=2 foreign sites, >=2 regions, span>=2) | 3 (2%) | 2 | 1 |
 | on the triage candidate list | 0 (0%) | 0 | 0 |
-| inside the question budget | 58 (29%) | 37 | 21 |
-| descent reached a facet holder | 0 (0%) | 0 | 0 |
+| inside the question budget | 0 (0%) | 0 | 0 |
+| descent reached a facet holder | 1 (0%) | 1 | 0 |
 | >=2 gold links in kernel pool (= evidence coverage) | 0 (0%) | 0 | 0 |
-| candidate formed on right entity + chain | 17 (8%) | 7 | 10 |
-| matched primary rule at ANY confidence | 14 (7%) | 5 | 9 |
-| matched, but confidence < 0.5 | 5 (2%) | 1 | 4 |
-| cut from the register (matched at >= 0.5, out-ranked) | 28 (14%) | 10 | 18 |
-| **reported** | 75 (38%) | 16 | 59 |
+| candidate formed on right entity + chain | 15 (8%) | 6 | 9 |
+| matched primary rule at ANY confidence | 3 (2%) | 1 | 2 |
+| matched, but confidence < 0.5 | 1 (0%) | 1 | 0 |
+| cut from the register (matched at >= 0.5, out-ranked) | 52 (26%) | 38 | 14 |
+| **reported** | 125 (62%) | 29 | 96 |
 | total | 200 | 78 | 122 |
 
 ### Why the sketch could not see the invisible ones
@@ -119,75 +119,70 @@ patterns counted: A2_chunked_ctx: 122, B4_central_triage: 122, H_mycelic_full: 1
 
 | witnesses (records) | n | visible to sketch | in pool | reported |
 |---|---:|---:|---:|---:|
-| 0–4 | 12 | 1.00 | 0.75 | 0.25 |
-| 5–7 | 52 | 0.96 | 0.46 | 0.21 |
-| 8–11 | 16 | 1.00 | 0.44 | 0.12 |
-| 12–16 | 13 | 1.00 | 0.62 | 0.15 |
-| 17–25 | 65 | 0.98 | 0.78 | 0.45 |
-| 26–∞ | 42 | 1.00 | 0.93 | 0.67 |
+| 0–4 | 12 | 1.00 | 1.00 | 0.50 |
+| 5–7 | 52 | 0.96 | 0.94 | 0.35 |
+| 8–11 | 16 | 1.00 | 1.00 | 0.38 |
+| 12–16 | 13 | 1.00 | 1.00 | 0.54 |
+| 17–25 | 65 | 0.98 | 0.98 | 0.77 |
+| 26–∞ | 42 | 1.00 | 1.00 | 0.90 |
 
 ### Discovery by number of witnesses (A2_chunked_ctx)
 
 | witnesses (records) | n | visible to sketch | in pool | reported |
 |---|---:|---:|---:|---:|
-| 0–4 | 12 | — | 1.00 | 0.67 |
-| 5–7 | 52 | — | 1.00 | 0.56 |
-| 8–11 | 16 | — | 1.00 | 0.81 |
-| 12–16 | 13 | — | 1.00 | 0.77 |
-| 17–25 | 65 | — | 1.00 | 0.74 |
-| 26–∞ | 42 | — | 1.00 | 0.69 |
+| 0–4 | 12 | — | 1.00 | 0.58 |
+| 5–7 | 52 | — | 1.00 | 0.65 |
+| 8–11 | 16 | — | 1.00 | 0.69 |
+| 12–16 | 13 | — | 1.00 | 0.85 |
+| 17–25 | 65 | — | 1.00 | 0.77 |
+| 26–∞ | 42 | — | 1.00 | 0.83 |
 
 ### Where the reported patterns sit in the register
 
 | architecture | reported | median rank (0-based, confidence-sorted register) | within top 40 | within top 100 | median confidence |
 |---|---:|---:|---:|---:|---:|
-| A2_chunked_ctx | 137 | 197 | 19 | 37 | 0.85 |
-| B4_central_triage | 74 | 263 | 9 | 16 | 0.88 |
-| H_mycelic_full | 75 | 255 | 8 | 18 | 0.89 |
-| Y_oracle_retrieval | 48 | 279 | 3 | 9 | 0.91 |
+| A2_chunked_ctx | 148 | 92 | 47 | 77 | 0.87 |
+| B4_central_triage | 108 | 107 | 36 | 53 | 0.85 |
+| H_mycelic_full | 125 | 86 | 46 | 68 | 0.90 |
+| Y_oracle_retrieval | 83 | 230 | 10 | 21 | 0.84 |
 
 ### Decomposing the gap to the strongest centralised system
 
-Paired on 200 (seed, pattern) pairs at 10,000 users: `A2_chunked_ctx` reports 137 (68.5%), `H_mycelic_full` reports 75 (37.5%). `A2_chunked_ctx` finds 77 that `H_mycelic_full` misses; `H_mycelic_full` finds 15 that `A2_chunked_ctx` misses.
+Paired on 200 (seed, pattern) pairs at 10,000 users: `A2_chunked_ctx` reports 148 (74.0%), `H_mycelic_full` reports 125 (62.5%). `A2_chunked_ctx` finds 45 that `H_mycelic_full` misses; `H_mycelic_full` finds 22 that `A2_chunked_ctx` misses.
 
-**Of the 77 patterns `A2_chunked_ctx` reports and `H_mycelic_full` does not, the first stage `H_mycelic_full` lost them at:**
+**Of the 45 patterns `A2_chunked_ctx` reports and `H_mycelic_full` does not, the first stage `H_mycelic_full` lost them at:**
 
 | stage it died at | patterns | share of the gap | of which rare |
 |---|---:|---:|---:|
-| visible to sketch triage (>=2 foreign sites, >=2 regions, span>=2) | 1 | 1% | 1 |
-| inside the question budget | 36 | 47% | 24 |
-| candidate formed on right entity + chain | 7 | 9% | 3 |
-| matched primary rule at ANY confidence | 7 | 9% | 3 |
-| matched, but confidence < 0.5 | 3 | 4% | 0 |
-| cut from the register (matched at >= 0.5, out-ranked) | 23 | 30% | 7 |
+| visible to sketch triage (>=2 foreign sites, >=2 regions, span>=2) | 2 | 4% | 2 |
+| descent reached a facet holder | 1 | 2% | 1 |
+| candidate formed on right entity + chain | 3 | 7% | 1 |
+| matched primary rule at ANY confidence | 2 | 4% | 1 |
+| cut from the register (matched at >= 0.5, out-ranked) | 37 | 82% | 26 |
 
 ### Decomposing the gap to the centralised twin (same algorithm)
 
-Paired on 200 (seed, pattern) pairs at 10,000 users: `B4_central_triage` reports 74 (37.0%), `H_mycelic_full` reports 75 (37.5%). `B4_central_triage` finds 34 that `H_mycelic_full` misses; `H_mycelic_full` finds 35 that `B4_central_triage` misses.
+Paired on 200 (seed, pattern) pairs at 10,000 users: `B4_central_triage` reports 108 (54.0%), `H_mycelic_full` reports 125 (62.5%). `B4_central_triage` finds 22 that `H_mycelic_full` misses; `H_mycelic_full` finds 39 that `B4_central_triage` misses.
 
-**Of the 34 patterns `B4_central_triage` reports and `H_mycelic_full` does not, the first stage `H_mycelic_full` lost them at:**
+**Of the 22 patterns `B4_central_triage` reports and `H_mycelic_full` does not, the first stage `H_mycelic_full` lost them at:**
 
 | stage it died at | patterns | share of the gap | of which rare |
 |---|---:|---:|---:|
-| inside the question budget | 16 | 47% | 6 |
-| candidate formed on right entity + chain | 4 | 12% | 1 |
-| matched primary rule at ANY confidence | 3 | 9% | 1 |
-| matched, but confidence < 0.5 | 3 | 9% | 1 |
-| cut from the register (matched at >= 0.5, out-ranked) | 8 | 24% | 1 |
+| candidate formed on right entity + chain | 1 | 5% | 0 |
+| matched primary rule at ANY confidence | 1 | 5% | 0 |
+| cut from the register (matched at >= 0.5, out-ranked) | 20 | 91% | 12 |
 
 ### Decomposing the gap to the perfect-retrieval oracle
 
-Paired on 200 (seed, pattern) pairs at 10,000 users: `Y_oracle_retrieval` reports 48 (24.0%), `H_mycelic_full` reports 75 (37.5%). `Y_oracle_retrieval` finds 16 that `H_mycelic_full` misses; `H_mycelic_full` finds 43 that `Y_oracle_retrieval` misses.
+Paired on 200 (seed, pattern) pairs at 10,000 users: `Y_oracle_retrieval` reports 83 (41.5%), `H_mycelic_full` reports 125 (62.5%). `Y_oracle_retrieval` finds 17 that `H_mycelic_full` misses; `H_mycelic_full` finds 59 that `Y_oracle_retrieval` misses.
 
-**Of the 16 patterns `Y_oracle_retrieval` reports and `H_mycelic_full` does not, the first stage `H_mycelic_full` lost them at:**
+**Of the 17 patterns `Y_oracle_retrieval` reports and `H_mycelic_full` does not, the first stage `H_mycelic_full` lost them at:**
 
 | stage it died at | patterns | share of the gap | of which rare |
 |---|---:|---:|---:|
-| inside the question budget | 10 | 62% | 6 |
-| candidate formed on right entity + chain | 1 | 6% | 0 |
-| matched primary rule at ANY confidence | 2 | 12% | 1 |
-| matched, but confidence < 0.5 | 1 | 6% | 0 |
-| cut from the register (matched at >= 0.5, out-ranked) | 2 | 12% | 0 |
+| candidate formed on right entity + chain | 2 | 12% | 0 |
+| matched primary rule at ANY confidence | 2 | 12% | 0 |
+| cut from the register (matched at >= 0.5, out-ranked) | 13 | 76% | 7 |
 
 ## 50,000 users (3 seeds)
 
@@ -198,13 +193,13 @@ Paired on 200 (seed, pattern) pairs at 10,000 users: `Y_oracle_retrieval` report
 | extracted (>=2 facets, right entity+predicate) | — | 0.960 <sub>[0.93, 1.00]</sub> | 0.960 <sub>[0.93, 1.00]</sub> | 0.960 <sub>[0.93, 1.00]</sub> |
 | visible to sketch triage (>=2 foreign sites, >=2 regions, span>=2) | — | — | 0.780 <sub>[0.74, 0.80]</sub> | — |
 | on the triage candidate list | — | — | 0.780 <sub>[0.74, 0.80]</sub> | — |
-| inside the question budget | — | — | 0.427 <sub>[0.36, 0.47]</sub> | — |
-| descent reached a facet holder | — | — | 0.427 <sub>[0.35, 0.48]</sub> | — |
-| >=2 gold links in kernel pool (= evidence coverage) | 1.000 <sub>[1.00, 1.00]</sub> | 0.493 <sub>[0.47, 0.51]</sub> | 0.450 <sub>[0.38, 0.49]</sub> | 1.000 <sub>[1.00, 1.00]</sub> |
-| candidate formed on right entity + chain | 0.890 <sub>[0.87, 0.91]</sub> | 0.380 <sub>[0.34, 0.41]</sub> | 0.397 <sub>[0.34, 0.44]</sub> | 0.917 <sub>[0.87, 0.97]</sub> |
-| matched primary rule at ANY confidence | 0.853 <sub>[0.84, 0.87]</sub> | 0.323 <sub>[0.31, 0.34]</sub> | 0.363 <sub>[0.31, 0.39]</sub> | 0.797 <sub>[0.74, 0.86]</sub> |
-| matched with confidence >= 0.5 | 0.803 <sub>[0.79, 0.82]</sub> | 0.323 <sub>[0.31, 0.34]</sub> | 0.363 <sub>[0.31, 0.39]</sub> | 0.780 <sub>[0.72, 0.84]</sub> |
-| survived the register cut (= reported) | 0.703 <sub>[0.68, 0.74]</sub> | 0.323 <sub>[0.31, 0.34]</sub> | 0.363 <sub>[0.31, 0.39]</sub> | 0.267 <sub>[0.16, 0.34]</sub> |
+| inside the question budget | — | — | 0.710 <sub>[0.66, 0.75]</sub> | — |
+| descent reached a facet holder | — | — | 0.703 <sub>[0.66, 0.74]</sub> | — |
+| >=2 gold links in kernel pool (= evidence coverage) | 1.000 <sub>[1.00, 1.00]</sub> | 0.493 <sub>[0.47, 0.51]</sub> | 0.727 <sub>[0.69, 0.75]</sub> | 1.000 <sub>[1.00, 1.00]</sub> |
+| candidate formed on right entity + chain | 0.890 <sub>[0.87, 0.91]</sub> | 0.380 <sub>[0.34, 0.41]</sub> | 0.677 <sub>[0.61, 0.73]</sub> | 0.917 <sub>[0.87, 0.97]</sub> |
+| matched primary rule at ANY confidence | 0.853 <sub>[0.84, 0.87]</sub> | 0.323 <sub>[0.31, 0.34]</sub> | 0.657 <sub>[0.59, 0.69]</sub> | 0.797 <sub>[0.74, 0.86]</sub> |
+| matched with confidence >= 0.5 | 0.833 <sub>[0.81, 0.87]</sub> | 0.323 <sub>[0.31, 0.34]</sub> | 0.657 <sub>[0.59, 0.69]</sub> | 0.797 <sub>[0.74, 0.86]</sub> |
+| survived the register cut (= reported) | 0.797 <sub>[0.77, 0.83]</sub> | 0.323 <sub>[0.31, 0.34]</sub> | 0.587 <sub>[0.52, 0.64]</sub> | 0.447 <sub>[0.39, 0.54]</sub> |
 
 patterns counted: A2_chunked_ctx: 300, B4_central_triage: 300, H_mycelic_full: 300, Y_oracle_retrieval: 300
 
@@ -215,13 +210,13 @@ patterns counted: A2_chunked_ctx: 300, B4_central_triage: 300, H_mycelic_full: 3
 | extracted (>=2 facets, right entity+predicate) | — | 0.905 <sub>[0.84, 1.00]</sub> | 0.905 <sub>[0.84, 1.00]</sub> | 0.905 <sub>[0.84, 1.00]</sub> |
 | visible to sketch triage (>=2 foreign sites, >=2 regions, span>=2) | — | — | 0.558 <sub>[0.44, 0.67]</sub> | — |
 | on the triage candidate list | — | — | 0.558 <sub>[0.44, 0.67]</sub> | — |
-| inside the question budget | — | — | 0.307 <sub>[0.23, 0.36]</sub> | — |
-| descent reached a facet holder | — | — | 0.274 <sub>[0.15, 0.36]</sub> | — |
-| >=2 gold links in kernel pool (= evidence coverage) | 1.000 <sub>[1.00, 1.00]</sub> | 0.213 <sub>[0.18, 0.24]</sub> | 0.314 <sub>[0.23, 0.36]</sub> | 1.000 <sub>[1.00, 1.00]</sub> |
-| candidate formed on right entity + chain | 0.893 <sub>[0.89, 0.90]</sub> | 0.178 <sub>[0.13, 0.25]</sub> | 0.263 <sub>[0.18, 0.32]</sub> | 0.895 <sub>[0.82, 0.96]</sub> |
-| matched primary rule at ANY confidence | 0.857 <sub>[0.85, 0.87]</sub> | 0.157 <sub>[0.10, 0.21]</sub> | 0.235 <sub>[0.15, 0.29]</sub> | 0.779 <sub>[0.67, 0.89]</sub> |
-| matched with confidence >= 0.5 | 0.781 <sub>[0.74, 0.82]</sub> | 0.157 <sub>[0.10, 0.21]</sub> | 0.235 <sub>[0.15, 0.29]</sub> | 0.762 <sub>[0.62, 0.89]</sub> |
-| survived the register cut (= reported) | 0.622 <sub>[0.56, 0.68]</sub> | 0.157 <sub>[0.10, 0.21]</sub> | 0.235 <sub>[0.15, 0.29]</sub> | 0.230 <sub>[0.11, 0.32]</sub> |
+| inside the question budget | — | — | 0.501 <sub>[0.41, 0.56]</sub> | — |
+| descent reached a facet holder | — | — | 0.486 <sub>[0.41, 0.54]</sub> | — |
+| >=2 gold links in kernel pool (= evidence coverage) | 1.000 <sub>[1.00, 1.00]</sub> | 0.213 <sub>[0.18, 0.24]</sub> | 0.525 <sub>[0.46, 0.58]</sub> | 1.000 <sub>[1.00, 1.00]</sub> |
+| candidate formed on right entity + chain | 0.893 <sub>[0.89, 0.90]</sub> | 0.178 <sub>[0.13, 0.25]</sub> | 0.506 <sub>[0.46, 0.56]</sub> | 0.895 <sub>[0.82, 0.96]</sub> |
+| matched primary rule at ANY confidence | 0.857 <sub>[0.85, 0.87]</sub> | 0.157 <sub>[0.10, 0.21]</sub> | 0.489 <sub>[0.41, 0.56]</sub> | 0.779 <sub>[0.67, 0.89]</sub> |
+| matched with confidence >= 0.5 | 0.808 <sub>[0.74, 0.86]</sub> | 0.157 <sub>[0.10, 0.21]</sub> | 0.489 <sub>[0.41, 0.56]</sub> | 0.779 <sub>[0.67, 0.89]</sub> |
+| survived the register cut (= reported) | 0.712 <sub>[0.67, 0.76]</sub> | 0.157 <sub>[0.10, 0.21]</sub> | 0.343 <sub>[0.28, 0.39]</sub> | 0.241 <sub>[0.18, 0.32]</sub> |
 
 patterns counted: A2_chunked_ctx: 112, B4_central_triage: 112, H_mycelic_full: 112, Y_oracle_retrieval: 112
 
@@ -232,13 +227,13 @@ patterns counted: A2_chunked_ctx: 112, B4_central_triage: 112, H_mycelic_full: 1
 | extracted (>=2 facets, right entity+predicate) | — | 1.000 <sub>[1.00, 1.00]</sub> | 1.000 <sub>[1.00, 1.00]</sub> | 1.000 <sub>[1.00, 1.00]</sub> |
 | visible to sketch triage (>=2 foreign sites, >=2 regions, span>=2) | — | — | 0.911 <sub>[0.89, 0.93]</sub> | — |
 | on the triage candidate list | — | — | 0.911 <sub>[0.89, 0.93]</sub> | — |
-| inside the question budget | — | — | 0.501 <sub>[0.44, 0.55]</sub> | — |
-| descent reached a facet holder | — | — | 0.522 <sub>[0.48, 0.56]</sub> | — |
-| >=2 gold links in kernel pool (= evidence coverage) | 1.000 <sub>[1.00, 1.00]</sub> | 0.662 <sub>[0.61, 0.72]</sub> | 0.533 <sub>[0.48, 0.58]</sub> | 1.000 <sub>[1.00, 1.00]</sub> |
-| candidate formed on right entity + chain | 0.885 <sub>[0.85, 0.92]</sub> | 0.509 <sub>[0.44, 0.59]</sub> | 0.479 <sub>[0.44, 0.51]</sub> | 0.933 <sub>[0.91, 0.97]</sub> |
-| matched primary rule at ANY confidence | 0.849 <sub>[0.82, 0.88]</sub> | 0.430 <sub>[0.36, 0.49]</sub> | 0.444 <sub>[0.41, 0.49]</sub> | 0.811 <sub>[0.79, 0.85]</sub> |
-| matched with confidence >= 0.5 | 0.819 <sub>[0.80, 0.84]</sub> | 0.430 <sub>[0.36, 0.49]</sub> | 0.444 <sub>[0.41, 0.49]</sub> | 0.796 <sub>[0.78, 0.82]</sub> |
-| survived the register cut (= reported) | 0.754 <sub>[0.75, 0.76]</sub> | 0.430 <sub>[0.36, 0.49]</sub> | 0.444 <sub>[0.41, 0.49]</sub> | 0.292 <sub>[0.20, 0.35]</sub> |
+| inside the question budget | — | — | 0.836 <sub>[0.82, 0.85]</sub> | — |
+| descent reached a facet holder | — | — | 0.837 <sub>[0.82, 0.87]</sub> | — |
+| >=2 gold links in kernel pool (= evidence coverage) | 1.000 <sub>[1.00, 1.00]</sub> | 0.662 <sub>[0.61, 0.72]</sub> | 0.847 <sub>[0.83, 0.87]</sub> | 1.000 <sub>[1.00, 1.00]</sub> |
+| candidate formed on right entity + chain | 0.885 <sub>[0.85, 0.92]</sub> | 0.509 <sub>[0.44, 0.59]</sub> | 0.775 <sub>[0.70, 0.82]</sub> | 0.933 <sub>[0.91, 0.97]</sub> |
+| matched primary rule at ANY confidence | 0.849 <sub>[0.82, 0.88]</sub> | 0.430 <sub>[0.36, 0.49]</sub> | 0.756 <sub>[0.70, 0.80]</sub> | 0.811 <sub>[0.79, 0.85]</sub> |
+| matched with confidence >= 0.5 | 0.849 <sub>[0.82, 0.88]</sub> | 0.430 <sub>[0.36, 0.49]</sub> | 0.756 <sub>[0.70, 0.80]</sub> | 0.811 <sub>[0.79, 0.85]</sub> |
+| survived the register cut (= reported) | 0.843 <sub>[0.82, 0.88]</sub> | 0.430 <sub>[0.36, 0.49]</sub> | 0.736 <sub>[0.67, 0.80]</sub> | 0.570 <sub>[0.53, 0.62]</sub> |
 
 patterns counted: A2_chunked_ctx: 188, B4_central_triage: 188, H_mycelic_full: 188, Y_oracle_retrieval: 188
 
@@ -247,16 +242,16 @@ patterns counted: A2_chunked_ctx: 188, B4_central_triage: 188, H_mycelic_full: 1
 | stage the pattern died at | all | rare | common |
 |---|---:|---:|---:|
 | extracted (>=2 facets, right entity+predicate) | 5 (2%) | 5 | 0 |
-| visible to sketch triage (>=2 foreign sites, >=2 regions, span>=2) | 60 (20%) | 43 | 17 |
+| visible to sketch triage (>=2 foreign sites, >=2 regions, span>=2) | 58 (19%) | 41 | 17 |
 | on the triage candidate list | 0 (0%) | 0 | 0 |
-| inside the question budget | 100 (33%) | 29 | 71 |
+| inside the question budget | 17 (6%) | 6 | 11 |
 | descent reached a facet holder | 0 (0%) | 0 | 0 |
 | >=2 gold links in kernel pool (= evidence coverage) | 0 (0%) | 0 | 0 |
-| candidate formed on right entity + chain | 15 (5%) | 6 | 9 |
-| matched primary rule at ANY confidence | 11 (4%) | 3 | 8 |
+| candidate formed on right entity + chain | 17 (6%) | 3 | 14 |
+| matched primary rule at ANY confidence | 6 (2%) | 2 | 4 |
 | matched, but confidence < 0.5 | 0 (0%) | 0 | 0 |
-| cut from the register (matched at >= 0.5, out-ranked) | 0 (0%) | 0 | 0 |
-| **reported** | 109 (36%) | 26 | 83 |
+| cut from the register (matched at >= 0.5, out-ranked) | 21 (7%) | 17 | 4 |
+| **reported** | 176 (59%) | 38 | 138 |
 | total | 300 | 112 | 188 |
 
 ### Why the sketch could not see the invisible ones
@@ -271,71 +266,74 @@ patterns counted: A2_chunked_ctx: 188, B4_central_triage: 188, H_mycelic_full: 1
 
 | witnesses (records) | n | visible to sketch | in pool | reported |
 |---|---:|---:|---:|---:|
-| 0–4 | 16 | 0.56 | 0.44 | 0.31 |
-| 5–7 | 75 | 0.55 | 0.28 | 0.20 |
-| 8–11 | 22 | 0.59 | 0.32 | 0.27 |
-| 12–16 | 25 | 0.80 | 0.32 | 0.20 |
-| 17–25 | 104 | 0.91 | 0.49 | 0.41 |
-| 26–∞ | 58 | 0.97 | 0.71 | 0.60 |
+| 0–4 | 16 | 0.56 | 0.56 | 0.38 |
+| 5–7 | 75 | 0.55 | 0.49 | 0.28 |
+| 8–11 | 22 | 0.59 | 0.59 | 0.50 |
+| 12–16 | 25 | 0.80 | 0.68 | 0.48 |
+| 17–25 | 104 | 0.91 | 0.83 | 0.73 |
+| 26–∞ | 58 | 0.97 | 0.97 | 0.86 |
 
 ### Discovery by number of witnesses (A2_chunked_ctx)
 
 | witnesses (records) | n | visible to sketch | in pool | reported |
 |---|---:|---:|---:|---:|
-| 0–4 | 16 | — | 1.00 | 0.44 |
-| 5–7 | 75 | — | 1.00 | 0.61 |
+| 0–4 | 16 | — | 1.00 | 0.56 |
+| 5–7 | 75 | — | 1.00 | 0.73 |
 | 8–11 | 22 | — | 1.00 | 0.77 |
 | 12–16 | 25 | — | 1.00 | 0.84 |
-| 17–25 | 104 | — | 1.00 | 0.70 |
-| 26–∞ | 58 | — | 1.00 | 0.81 |
+| 17–25 | 104 | — | 1.00 | 0.85 |
+| 26–∞ | 58 | — | 1.00 | 0.84 |
 
 ### Where the reported patterns sit in the register
 
 | architecture | reported | median rank (0-based, confidence-sorted register) | within top 40 | within top 100 | median confidence |
 |---|---:|---:|---:|---:|---:|
-| A2_chunked_ctx | 211 | 851 | 17 | 34 | 0.85 |
-| B4_central_triage | 97 | 667 | 3 | 9 | 0.84 |
-| H_mycelic_full | 109 | 886 | 1 | 5 | 0.88 |
-| Y_oracle_retrieval | 80 | 1268 | 1 | 6 | 0.92 |
+| A2_chunked_ctx | 239 | 396 | 27 | 54 | 0.96 |
+| B4_central_triage | 97 | 155 | 13 | 38 | 0.90 |
+| H_mycelic_full | 176 | 268 | 37 | 65 | 0.89 |
+| Y_oracle_retrieval | 134 | 876 | 3 | 6 | 0.92 |
 
 ### Decomposing the gap to the strongest centralised system
 
-Paired on 300 (seed, pattern) pairs at 50,000 users: `A2_chunked_ctx` reports 211 (70.3%), `H_mycelic_full` reports 109 (36.3%). `A2_chunked_ctx` finds 125 that `H_mycelic_full` misses; `H_mycelic_full` finds 23 that `A2_chunked_ctx` misses.
+Paired on 300 (seed, pattern) pairs at 50,000 users: `A2_chunked_ctx` reports 239 (79.7%), `H_mycelic_full` reports 176 (58.7%). `A2_chunked_ctx` finds 88 that `H_mycelic_full` misses; `H_mycelic_full` finds 25 that `A2_chunked_ctx` misses.
 
-**Of the 125 patterns `A2_chunked_ctx` reports and `H_mycelic_full` does not, the first stage `H_mycelic_full` lost them at:**
+**Of the 88 patterns `A2_chunked_ctx` reports and `H_mycelic_full` does not, the first stage `H_mycelic_full` lost them at:**
 
 | stage it died at | patterns | share of the gap | of which rare |
 |---|---:|---:|---:|
 | extracted (>=2 facets, right entity+predicate) | 1 | 1% | 1 |
-| visible to sketch triage (>=2 foreign sites, >=2 regions, span>=2) | 43 | 34% | 29 |
-| inside the question budget | 67 | 54% | 18 |
-| candidate formed on right entity + chain | 7 | 6% | 2 |
-| matched primary rule at ANY confidence | 7 | 6% | 1 |
+| visible to sketch triage (>=2 foreign sites, >=2 regions, span>=2) | 48 | 55% | 32 |
+| inside the question budget | 12 | 14% | 5 |
+| candidate formed on right entity + chain | 5 | 6% | 0 |
+| matched primary rule at ANY confidence | 4 | 5% | 2 |
+| cut from the register (matched at >= 0.5, out-ranked) | 18 | 20% | 14 |
 
 ### Decomposing the gap to the centralised twin (same algorithm)
 
-Paired on 300 (seed, pattern) pairs at 50,000 users: `B4_central_triage` reports 97 (32.3%), `H_mycelic_full` reports 109 (36.3%). `B4_central_triage` finds 32 that `H_mycelic_full` misses; `H_mycelic_full` finds 44 that `B4_central_triage` misses.
+Paired on 300 (seed, pattern) pairs at 50,000 users: `B4_central_triage` reports 97 (32.3%), `H_mycelic_full` reports 176 (58.7%). `B4_central_triage` finds 15 that `H_mycelic_full` misses; `H_mycelic_full` finds 94 that `B4_central_triage` misses.
 
-**Of the 32 patterns `B4_central_triage` reports and `H_mycelic_full` does not, the first stage `H_mycelic_full` lost them at:**
+**Of the 15 patterns `B4_central_triage` reports and `H_mycelic_full` does not, the first stage `H_mycelic_full` lost them at:**
 
 | stage it died at | patterns | share of the gap | of which rare |
 |---|---:|---:|---:|
-| inside the question budget | 26 | 81% | 1 |
-| candidate formed on right entity + chain | 2 | 6% | 0 |
-| matched primary rule at ANY confidence | 4 | 12% | 1 |
+| inside the question budget | 4 | 27% | 0 |
+| candidate formed on right entity + chain | 4 | 27% | 0 |
+| matched primary rule at ANY confidence | 1 | 7% | 0 |
+| cut from the register (matched at >= 0.5, out-ranked) | 6 | 40% | 4 |
 
 ### Decomposing the gap to the perfect-retrieval oracle
 
-Paired on 300 (seed, pattern) pairs at 50,000 users: `Y_oracle_retrieval` reports 80 (26.7%), `H_mycelic_full` reports 109 (36.3%). `Y_oracle_retrieval` finds 46 that `H_mycelic_full` misses; `H_mycelic_full` finds 75 that `Y_oracle_retrieval` misses.
+Paired on 300 (seed, pattern) pairs at 50,000 users: `Y_oracle_retrieval` reports 134 (44.7%), `H_mycelic_full` reports 176 (58.7%). `Y_oracle_retrieval` finds 30 that `H_mycelic_full` misses; `H_mycelic_full` finds 72 that `Y_oracle_retrieval` misses.
 
-**Of the 46 patterns `Y_oracle_retrieval` reports and `H_mycelic_full` does not, the first stage `H_mycelic_full` lost them at:**
+**Of the 30 patterns `Y_oracle_retrieval` reports and `H_mycelic_full` does not, the first stage `H_mycelic_full` lost them at:**
 
 | stage it died at | patterns | share of the gap | of which rare |
 |---|---:|---:|---:|
-| visible to sketch triage (>=2 foreign sites, >=2 regions, span>=2) | 17 | 37% | 11 |
-| inside the question budget | 21 | 46% | 3 |
-| candidate formed on right entity + chain | 3 | 7% | 0 |
-| matched primary rule at ANY confidence | 5 | 11% | 1 |
+| visible to sketch triage (>=2 foreign sites, >=2 regions, span>=2) | 13 | 43% | 6 |
+| inside the question budget | 5 | 17% | 0 |
+| candidate formed on right entity + chain | 3 | 10% | 0 |
+| matched primary rule at ANY confidence | 3 | 10% | 0 |
+| cut from the register (matched at >= 0.5, out-ranked) | 6 | 20% | 4 |
 
 
 ## 3. Paired decomposition on identical worlds
@@ -414,7 +412,24 @@ calibration seeds (500–502) and evaluated on the evaluation seeds (0–4) by
 re-ranking each run's candidates under its own register cap. No feature reads
 raw text; the privacy accounting is unchanged.
 
-_(calibrator evaluation failed: too many indices for array: array is 1-dimensional, but 2 were indexed)_
+**Dump `_finalH`** — 9,404 training candidates (seeds 500–502), 15,894 evaluation candidates (seeds 0–4), positive rate 1.1%. Pooled AUC gold-vs-spurious: hand-set confidence 0.690, learned 0.848.
+
+| architecture | gold patterns | with any candidate | found (current ranker) | found (learned rank, same #kept) | found (learned, p≥0.5) | AUC current | AUC learned |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| H_mycelic_full | 200 | 172 | 0.365 | 0.620 | 0.585 | 0.690 | 0.848 |
+
+Largest standardised weights: `log_n_kos` +3.53, `dispersion*n_sites` -2.07, `n_sites` +2.04, `q_evidence_frac` +1.60, `echo_ratio` -1.39, `attribution` +1.23, `n_origin_users` -1.19.
+
+**Dump `_finalC`** — 5,400 training candidates (seeds 500–502), 9,000 evaluation candidates (seeds 0–4), positive rate 4.2%. Pooled AUC gold-vs-spurious: hand-set confidence 0.714, learned 0.744.
+
+| architecture | gold patterns | with any candidate | found (current ranker) | found (learned rank, same #kept) | found (learned, p≥0.5) | AUC current | AUC learned |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| A2_chunked_ctx | 200 | 148 | 0.740 | 0.740 | 0.480 | 0.779 | 0.813 |
+| B4_central_triage | 200 | 108 | 0.540 | 0.540 | 0.290 | 0.727 | 0.724 |
+| Y_oracle_retrieval | 200 | 83 | 0.415 | 0.415 | 0.165 | 0.609 | 0.648 |
+
+Largest standardised weights: `n_sites` +2.82, `n_links` +2.31, `n_links*min_sup` -1.86, `tspan*n_links` -1.67, `dispersion*n_sites` -1.65, `rank_in_anchor` -1.47, `rank_in_anchor*n_same_anchor` +1.07, `min_sup` +0.94.
+
 
 ## 7. What this changed about the next architecture
 
@@ -642,7 +657,14 @@ are NOT evaluation-seed numbers):
 | modal, refitted ranker | 5 | 0.575 <sub>-0.010</sub> | 0.332 <sub>-0.058</sub> | 0.965 <sub>-0.005</sub> | 0.1748 <sub>+0.0178</sub> | 0.962 <sub>+0.001</sub> | 0.340 <sub>+0.010</sub> | 1.36e+06 <sub>+3.48e+03</sub> | 2.66e+04 <sub>-4.00e-01</sub> |
 
 Modal did not replicate (+0.04 on the calibration seeds, −0.01 on the
-evaluation seeds); hybrid did (+0.04, no seed worse). The refitted ranker
+evaluation seeds); hybrid did (+0.04, no seed worse). The calibration-seed
+"decoy resistance" did not replicate either: on the evaluation seeds the
+stale-chain family D5 rises under hybrid with the refitted ranker (+0.12
+at 10k, +0.13 at 50k, up on 7 of 8 seeds) while D1–D3 are flat, so the
+honest statement is "found +0.04/+0.06, D5 +0.12/+0.13". The independent
+review traced it to a staleness gate that one routine positive mention
+after a retraction defeats, which min timing had been masking by accident;
+the per-family numbers are in 9.7 and the gate fix is queued. The refitted ranker
 goes forward because that is the pre-registered procedure; the previous
 ranker's better rare recall and decoy acceptance under hybrid timing are
 reported, not acted on, because acting on them would be selection on the
@@ -674,51 +696,66 @@ hybrid timing adds +0.06 on 3/3 seeds at equal compute. The hierarchy ends
 at about 0.59 against A2's 0.77 with the same ranker, at 38% of A2's
 compute; that gap is the question budget's reach, not the register.
 
+Two accounting caveats from the independent review apply to every 50k row
+above: the "calls" column compares unbatched v1 metering with batched vNext
+metering (batching alone is −84% calls at identical decisions; the v1 base
+re-metered batched is in 9.7), and the kernel's single read of its pool is
+3.2–3.4M tokens at 50k (1.3–1.5M at 10k) against the modelled tier's 1M
+context, which the simulator enforces only for the flat controls.
+
 ### 9.7 The ledger, the cost of each accepted change, and what is frozen
 
 
-| change | scale | seeds | Δ found | Δ rare | Δ cov. | Δ decoy | compute | calls | status |
-|---|---:|---|---:|---:|---:|---:|---:|---:|---|
-| ranker v1: learned order inside the hand gate | 10,000 | eval 0-4 | +0.065 (5/5 better) | -0.048 | -0.005 | +0.065 | -1% | -0% | superseded |
-| ranker v2: learned top-K, anchor-context features | 10,000 | eval 0-4 | +0.105 (5/5 better) | +0.038 | +0.000 | +0.095 | -1% | -0% | superseded |
-| ranker v3 + question_frac 0.65 + batched descent | 10,000 | eval 0-4 | +0.210 (5/5 better) | +0.175 | +0.280 | +0.150 | +25% | -71% | ACCEPTED |
-| decoy-weighted ranker selection | 10,000 | eval 0-4 | -0.060 (1/5 better) | -0.118 | +0.000 | -0.050 | -0% | -0% | rejected |
-| question_frac 0.80 (vs 0.65) | 10,000 | eval 0-4 | -0.020 (1/4 better) | -0.022 | +0.015 | +0.015 | +13% | +1% | rejected |
-| question_frac 1.00 (vs 0.65) | 10,000 | eval 0-4 | -0.020 (1/3 better) | -0.005 | +0.015 | -0.015 | +31% | +1% | rejected |
-| local re-extraction at the user (vs qf 0.65 batched) | 10,000 | eval 0-4 | -0.005 (3/5 better) | -0.042 | +0.000 | -0.020 | +1% | +0% | rejected |
-| batched descent metering alone (ranker v2, qf 0.65; same decisions) | 10,000 | eval 0-4 | +0.000 (0/0 better) | +0.000 | +0.000 | +0.000 | -17% | -84% | ACCEPTED |
-| modal link timing (+ refitted ranker) | 10,000 | eval 0-4 | -0.010 (2/5 better) | -0.058 | -0.005 | +0.010 | +0% | -0% | rejected |
-| hybrid link timing (+ refitted ranker) | 10,000 | eval 0-4 | +0.040 (2/2 better) | -0.015 | +0.010 | +0.030 | +1% | +1% | ACCEPTED |
-| hybrid + chain-scoped questions (H_mycelic_lean) | 10,000 | eval 0-4 | +0.025 (3/4 better) | -0.071 | -0.170 | +0.045 | -47% | -1% | Pareto arm |
-| ranker v3 + qf 0.65 + batched, 50k | 50,000 | eval 0-2 | +0.163 (3/3 better) | +0.100 | +0.273 | +0.137 | +32% | -61% | ACCEPTED |
-| question_frac 0.80 at 50k | 50,000 | eval 0-2 | +0.007 (2/3 better) | -0.032 | +0.047 | +0.033 | +12% | +2% | rejected |
-| local re-extraction at 50k | 50,000 | eval 0-1 | +0.007 (1/3 better) | -0.025 | -0.003 | +0.040 | +1% | -0% | rejected |
-| hybrid link timing at 50k (+ refitted ranker) | 50,000 | eval 0-2 | +0.060 (3/3 better) | +0.009 | +0.003 | +0.040 | -0% | -0% | validation |
-| hybrid + chain-scoped questions at 50k | 50,000 | eval 0-2 | -0.003 (1/3 better) | -0.072 | -0.143 | +0.007 | -31% | -1% | Pareto arm |
-| unbounded register (DIAGNOSTIC ONLY, not a fix) | 10,000 | eval 0-4 | +0.165 (5/5 better) | +0.127 | +0.000 | +0.150 | +7% | +0% | diagnostic |
-| unbounded register + full question budget (DIAGNOSTIC) | 10,000 | eval 0-4 | +0.420 (5/5 better) | +0.482 | +0.295 | +0.295 | +117% | +143% | diagnostic |
-| chain-scoped questions alone (calibration seeds) | 10,000 | cal 500-502 | +0.008 (2/3 better) | -0.066 | -0.175 | -0.008 | -48% | -1% | screen |
+| change | scale | seeds | Δ found | Δ rare | Δ cov. | Δ decoy all | Δ D1 | Δ D2 | Δ D3 | Δ D5 stale | compute | calls (metering) | status |
+|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| ranker v1: learned order inside the hand gate | 10,000 | eval 0-4 | +0.065 (5/5 better) | -0.048 | -0.005 | +0.065 | +0.000 | +0.060 | +0.120 | +0.080 | -1% | -0% | superseded |
+| ranker v2: learned top-K, anchor-context features | 10,000 | eval 0-4 | +0.105 (5/5 better) | +0.038 | +0.000 | +0.095 | +0.000 | +0.040 | +0.100 | +0.240 | -1% | -0% | superseded |
+| ranker v3 + question_frac 0.65 + batched descent | 10,000 | eval 0-4 | +0.210 (5/5 better) | +0.175 | +0.280 | +0.150 | +0.000 | +0.000 | +0.200 | +0.400 | +25% | -71% | ACCEPTED |
+| decoy-weighted ranker selection | 10,000 | eval 0-4 | -0.060 (1/5 better) | -0.118 | +0.000 | -0.050 | +0.020 | -0.040 | +0.020 | -0.200 | -0% | -0% | rejected |
+| question_frac 0.80 (vs 0.65) | 10,000 | eval 0-4 | -0.020 (1/4 better) | -0.022 | +0.015 | +0.015 | +0.000 | +0.020 | +0.000 | +0.040 | +13% | +1% | rejected |
+| question_frac 1.00 (vs 0.65) | 10,000 | eval 0-4 | -0.020 (1/3 better) | -0.005 | +0.015 | -0.015 | +0.000 | +0.020 | -0.020 | -0.060 | +31% | +1% | rejected |
+| local re-extraction at the user (vs qf 0.65 batched) | 10,000 | eval 0-4 | -0.005 (3/5 better) | -0.042 | +0.000 | -0.020 | +0.020 | +0.040 | -0.020 | -0.120 | +1% | +0% | rejected |
+| batched descent metering alone (ranker v2, qf 0.65; same decisions) | 10,000 | eval 0-4 | +0.000 (0/0 better) | +0.000 | +0.000 | +0.000 | +0.000 | +0.000 | +0.000 | +0.000 | -17% | -84% | ACCEPTED |
+| modal link timing (+ refitted ranker) | 10,000 | eval 0-4 | -0.010 (2/5 better) | -0.058 | -0.005 | +0.010 | +0.020 | -0.040 | -0.000 | +0.060 | +0% | -0% | rejected |
+| hybrid link timing (+ refitted ranker) | 10,000 | eval 0-4 | +0.040 (2/2 better) | -0.015 | +0.010 | +0.030 | -0.020 | +0.020 | +0.000 | +0.120 | +1% | +1% | ACCEPTED |
+| hybrid + chain-scoped questions (H_mycelic_lean) | 10,000 | eval 0-4 | +0.025 (3/4 better) | -0.071 | -0.170 | +0.045 | +0.020 | +0.200 | -0.100 | +0.060 | -47% | -1% | Pareto arm |
+| ranker v3 + qf 0.65 + batched, 50k | 50,000 | eval 0-2 | +0.163 (3/3 better) | +0.100 | +0.273 | +0.137 | +0.053 | +0.107 | +0.093 | +0.293 | +32% | -61% | ACCEPTED |
+| question_frac 0.80 at 50k | 50,000 | eval 0-2 | +0.007 (2/3 better) | -0.032 | +0.047 | +0.033 | +0.013 | +0.093 | +0.027 | -0.000 | +12% | +2% | rejected |
+| local re-extraction at 50k | 50,000 | eval 0-1 | +0.007 (1/3 better) | -0.025 | -0.003 | +0.040 | +0.013 | +0.067 | +0.027 | +0.053 | +1% | -0% | rejected |
+| hybrid link timing at 50k (+ refitted ranker) | 50,000 | eval 0-2 | +0.060 (3/3 better) | +0.009 | +0.003 | +0.040 | +0.013 | +0.013 | +0.000 | +0.133 | -0% | -0% | validation |
+| hybrid + chain-scoped questions at 50k | 50,000 | eval 0-2 | -0.003 (1/3 better) | -0.072 | -0.143 | +0.007 | +0.000 | +0.013 | -0.013 | +0.027 | -31% | -1% | Pareto arm |
+| v1 hierarchy re-metered with batched descent (identical decisions) | 10,000 | eval 0-4 | +0.000 (0/0 better) | +0.000 | +0.000 | +0.000 | +0.000 | +0.000 | +0.000 | +0.000 | -12% | -73% | metering control |
+| v1 hierarchy re-metered with batched descent at 50k | 50,000 | eval 0-2 | +0.000 (0/0 better) | +0.000 | +0.000 | +0.000 | +0.000 | +0.000 | +0.000 | +0.000 | -12% | -65% | metering control |
+| unbounded register (DIAGNOSTIC ONLY, not a fix) | 10,000 | eval 0-4 | +0.165 (5/5 better) | +0.127 | +0.000 | +0.150 | +0.040 | +0.180 | +0.100 | +0.280 | +7% | +0% | diagnostic |
+| unbounded register + full question budget (DIAGNOSTIC) | 10,000 | eval 0-4 | +0.420 (5/5 better) | +0.482 | +0.295 | +0.295 | +0.120 | +0.200 | +0.440 | +0.420 | +117% | +143% | diagnostic |
+| chain-scoped questions alone (calibration seeds) | 10,000 | cal 500-502 | +0.008 (2/3 better) | -0.066 | -0.175 | -0.008 | +0.067 | +0.033 | -0.100 | -0.033 | -48% | -1% | screen |
+| cluster-aware staleness gate (strong positives only), calibration seeds | 10,000 | cal 500-502 | +0.058 (2/2 better) | +0.019 | -0.008 | -0.042 | +0.000 | -0.033 | -0.067 | -0.067 | -0% | +0% | screen |
+| strong staleness gate, frozen ranker, FRESH panel | 10,000 | eval 10-14 | -0.035 (0/3 better) | -0.039 | +0.000 | -0.040 | -0.040 | -0.020 | +0.020 | -0.120 | +0% | +0% | fresh-panel read |
+| strong staleness gate + refitted ranker, FRESH panel | 10,000 | eval 10-14 | +0.020 (2/4 better) | +0.017 | +0.010 | -0.020 | -0.060 | -0.080 | +0.040 | +0.020 | +0% | +0% | fresh-panel read |
 
 **Compute per accepted change, 10k evaluation seeds:**
 
-| configuration | found | rare recall | compute | calls | Δ found per +10% compute |
-|---|---:|---:|---:|---:|---:|
-| v1 hierarchy (hand ranker, qf 0.25) | 0.375 | 0.215 | 1.09e+06 | 9.10e+04 | — |
-| + ranker v3, qf 0.65, batched descent | 0.585 | 0.390 | 1.36e+06 | 2.66e+04 | +0.084 |
-| + hybrid link timing (refitted ranker) | 0.625 | 0.375 | 1.37e+06 | 2.67e+04 | +0.040 at +0.5% compute |
+| configuration | found | rare recall | compute | calls (metering) | kernel prompt tokens | Δ found per +10% compute (vs previous row) |
+|---|---:|---:|---:|---:|---:|---:|
+| v1 hierarchy (hand ranker, qf 0.25), metered unbatched as benchmarked | 0.375 | 0.215 | 1.09e+06 | 9.10e+04 | 7.88e+05 | — |
+| v1 hierarchy re-metered with batched descent (identical decisions) — the like-for-like base | 0.375 | 0.215 | 9.53e+05 | 2.46e+04 | 7.88e+05 | +0.000 at -12.4% compute |
+| + ranker v3, qf 0.65, batched descent | 0.585 | 0.390 | 1.36e+06 | 2.66e+04 | 1.39e+06 | +0.049 |
+| + hybrid link timing (refitted ranker) | 0.625 | 0.375 | 1.37e+06 | 2.67e+04 | 1.40e+06 | +0.040 at +0.5% compute |
+
+The first row is the v1 base as it was benchmarked (unbatched metering); the second is the same decisions re-metered with batched descent, which is the base every later row should be read against. Batching is a metering convention: it changes no decision and no per-record token.
 
 **Frozen configuration** (`calibration.json`, with the file that justified each value):
 
-| knob | frozen value | chosen on | evidence |
+| knob | frozen value | seeds the cited evidence was read on | evidence |
 |---|---|---|---|
-| `question_frac` | `0.65` | calibration seeds 500–502, confirmed on held-out 0–4 | `quick_qf_v3.jsonl` |
-| `batched_descent` | `True` | calibration seeds 500–502, confirmed on held-out 0–4 | `quick_v3_H.jsonl` |
-| `link_time` | `hybrid` | calibration seeds 500–502, confirmed on held-out 0–4 | `quick_refit_hyb.jsonl` |
-| `local_reextract` | `False` | calibration seeds 500–502, confirmed on held-out 0–4 | `quick_rx_reextract.jsonl` |
-| `strict_targeting` | `False` | calibration seeds 500–502, confirmed on held-out 0–4 | `quick_cal_screen.jsonl` |
-| `triage_target_chains` | `none` | calibration seeds 500–502, confirmed on held-out 0–4 | `quick_cal_screen.jsonl` |
+| `question_frac` | `0.65` | quick_qf_v3.jsonl: seeds 0–4 at 10,000 — evaluation (development panel) | `quick_qf_v3.jsonl` |
+| `batched_descent` | `True` | quick_v3_H.jsonl: seeds 0–4 at 10,000 — evaluation (development panel) | `quick_v3_H.jsonl` |
+| `link_time` | `hybrid` | quick_refit_hyb.jsonl: seeds 0–4 at 10,000 — evaluation (development panel) | `quick_refit_hyb.jsonl` |
+| `local_reextract` | `False` | quick_rx_reextract.jsonl: seeds 0–4 at 10,000 — evaluation (development panel) | `quick_rx_reextract.jsonl` |
+| `strict_targeting` | `False` | quick_cal_screen.jsonl: seeds 500–502 at 10,000 — calibration | `quick_cal_screen.jsonl` |
+| `triage_target_chains` | `none` | quick_cal_screen.jsonl: seeds 500–502 at 10,000 — calibration | `quick_cal_screen.jsonl` |
 | ranker | logistic, l2 0.3, interactions True, 23614 candidates | seeds [500, 501, 502] | `research/mycelic/artifacts/calibration.hyb.json` |
-| ranker adopted by | A2_chunked_ctx, B2_map_reduce, B4_central_triage, D_hier_nolineage, E_hier_lineage, F_hier_retrieval, G_hier_questions, H_mycelic_full, I_mycelic_completion, J_mycelic_verified, Y_oracle_retrieval | calibration seeds | ranker_arch_table |
+| ranker adopted by | A2_chunked_ctx, A_flat_rag, B2_map_reduce, B4_central_triage, D_hier_nolineage, E_hier_lineage, F_hier_retrieval, G_hier_questions, H_mycelic_full, H_mycelic_lean, I_mycelic_completion, J_mycelic_verified, Y_oracle_retrieval | calibration seeds | ranker_arch_table |
 
 The full benchmark is rerun on this configuration by `final_rerun.sh`
 (every experiment, the controls on identical worlds, the loss accounting at

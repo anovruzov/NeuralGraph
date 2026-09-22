@@ -1,6 +1,6 @@
 # Mycelic vNext — research report
 
-_Generated 2026-09-22 11:39 UTC from `research/mycelic/artifacts/` (new) and `artifacts/v1/` (old) by `vnext_docs.py`. Every table is computed from those files._
+_Generated 2026-09-22 12:55 UTC from `research/mycelic/artifacts/` (new) and `artifacts/v1/` (old) by `vnext_docs.py`. Every table is computed from those files._
 
 ## 1. Result
 
@@ -57,29 +57,76 @@ These five worlds were read after every accepted and rejected change during the 
 | Y oracle retrieval | calls (metering) | 1.00e+04 | 1.00e+04 | +0% | [+0.000, +0.000] | 0/0 | same |
 | Y oracle retrieval | kernel prompt tokens (max) | 7.60e+05 | 7.60e+05 | +0% | [+0.000, +0.000] | 0/0 | same |
 
-paired seeds at 10,000: 5 (old rows 5, new rows 5); the register cap is 1000 entries in both.
+paired seeds at 10,000: 5 (old rows 5, new rows 5); register entries kept: OLD [600], NEW [600] (the cap is min(6000, max(600, n_entities)) in both).
 
 ### 1.2 OLD vs NEW at 10,000 people — confirmation panel (seeds 5–9, never read during development)
 
 No paired experiment, dump, funnel or decision touched these five worlds before the final rerun; this is the number to quote.
 
-_(old or new headline rows missing: run final_rerun.sh)_
+| system | metric | OLD | NEW | Δ | 95% CI | better on | verdict |
+|---|---|---:|---:|---:|---|---:|---|
+| Mycelic hierarchy | found | 0.395 | 0.570 | +0.175 | [+0.125, +0.210] | 5/5 | **better** |
+| Mycelic hierarchy | evidence cov. | 0.665 | 0.930 | +0.265 | [+0.185, +0.340] | 5/5 | **better** |
+| Mycelic hierarchy | rare recall | 0.220 | 0.348 | +0.128 | [+0.068, +0.199] | 5/5 | **better** |
+| Mycelic hierarchy | AP | 0.036 | 0.176 | +0.140 | [+0.097, +0.173] | 5/5 | **better** |
+| Mycelic hierarchy | FDR | 0.973 | 0.962 | -0.012 | [-0.014, -0.008] | 5/5 | **better** |
+| Mycelic hierarchy | decoy acc. (all) | 0.230 | 0.430 | +0.200 | [+0.115, +0.290] | 0/5 | **worse** |
+| Mycelic hierarchy | decoy D5 stale | 0.300 | 0.820 | +0.520 | [+0.380, +0.660] | 0/5 | **worse** |
+| Mycelic hierarchy | decoy D2 scramble | 0.260 | 0.420 | +0.160 | [-0.020, +0.340] | 1/4 | inside noise |
+| Mycelic hierarchy | compute | 1.14e+06 | 1.40e+06 | +23% | [+246201.718, +272994.984] | 0/5 | **worse** |
+| Mycelic hierarchy | calls (metering) | 9.70e+04 | 2.70e+04 | -72% | [-73601.200, -66326.800] | 5/5 | **better** |
+| Mycelic hierarchy | kernel prompt tokens (max) | 8.40e+05 | 1.43e+06 | +71% | [+571386.400, +616543.200] | 0/5 | **worse** |
+| A2 chunked long context | found | 0.640 | 0.725 | +0.085 | [+0.045, +0.125] | 5/5 | **better** |
+| A2 chunked long context | evidence cov. | 1.000 | 1.000 | +0.000 | [+0.000, +0.000] | 0/0 | same |
+| A2 chunked long context | rare recall | 0.509 | 0.575 | +0.065 | [+0.007, +0.113] | 4/5 | **better** |
+| A2 chunked long context | AP | 0.070 | 0.225 | +0.155 | [+0.102, +0.206] | 5/5 | **better** |
+| A2 chunked long context | FDR | 0.957 | 0.951 | -0.005 | [-0.008, -0.003] | 5/5 | **better** |
+| A2 chunked long context | decoy acc. (all) | 0.380 | 0.490 | +0.110 | [+0.070, +0.150] | 0/5 | **worse** |
+| A2 chunked long context | decoy D5 stale | 0.540 | 0.700 | +0.160 | [+0.060, +0.280] | 0/4 | **worse** |
+| A2 chunked long context | decoy D2 scramble | 0.460 | 0.620 | +0.160 | [+0.060, +0.280] | 0/4 | **worse** |
+| A2 chunked long context | compute | 2.07e+06 | 2.07e+06 | +0% | [+0.000, +0.000] | 0/0 | same |
+| A2 chunked long context | calls (metering) | 3.00e+00 | 3.00e+00 | +0% | [+0.000, +0.000] | 0/0 | same |
+| A2 chunked long context | kernel prompt tokens (max) | 1.00e+06 | 1.00e+06 | +0% | [+0.000, +0.000] | 0/0 | same |
+| B4 central triage | found | 0.405 | 0.615 | +0.210 | [+0.180, +0.255] | 5/5 | **better** |
+| B4 central triage | evidence cov. | 0.930 | 0.930 | +0.000 | [+0.000, +0.000] | 0/0 | same |
+| B4 central triage | rare recall | 0.256 | 0.368 | +0.113 | [+0.044, +0.178] | 4/4 | **better** |
+| B4 central triage | AP | 0.026 | 0.129 | +0.103 | [+0.041, +0.177] | 5/5 | **better** |
+| B4 central triage | FDR | 0.973 | 0.959 | -0.014 | [-0.017, -0.012] | 5/5 | **better** |
+| B4 central triage | decoy acc. (all) | 0.225 | 0.430 | +0.205 | [+0.120, +0.285] | 0/5 | **worse** |
+| B4 central triage | decoy D5 stale | 0.360 | 0.800 | +0.440 | [+0.240, +0.640] | 0/5 | **worse** |
+| B4 central triage | decoy D2 scramble | 0.260 | 0.460 | +0.200 | [+0.120, +0.300] | 0/5 | **worse** |
+| B4 central triage | compute | 3.98e+05 | 3.98e+05 | +0% | [+0.000, +0.000] | 0/0 | same |
+| B4 central triage | calls (metering) | 1.00e+04 | 1.00e+04 | +0% | [+0.000, +0.000] | 0/0 | same |
+| B4 central triage | kernel prompt tokens (max) | 5.20e+05 | 5.20e+05 | +0% | [+0.000, +0.000] | 0/0 | same |
+| Y oracle retrieval | found | 0.225 | 0.420 | +0.195 | [+0.145, +0.275] | 5/5 | **better** |
+| Y oracle retrieval | evidence cov. | 1.000 | 1.000 | +0.000 | [+0.000, +0.000] | 0/0 | same |
+| Y oracle retrieval | rare recall | 0.153 | 0.221 | +0.068 | [-0.011, +0.149] | 3/4 | inside noise |
+| Y oracle retrieval | AP | 0.011 | 0.023 | +0.012 | [-0.001, +0.021] | 4/5 | inside noise |
+| Y oracle retrieval | FDR | 0.985 | 0.972 | -0.013 | [-0.018, -0.010] | 5/5 | **better** |
+| Y oracle retrieval | decoy acc. (all) | 0.140 | 0.315 | +0.175 | [+0.125, +0.230] | 0/5 | **worse** |
+| Y oracle retrieval | decoy D5 stale | 0.180 | 0.520 | +0.340 | [+0.200, +0.480] | 0/5 | **worse** |
+| Y oracle retrieval | decoy D2 scramble | 0.200 | 0.320 | +0.120 | [-0.040, +0.240] | 1/5 | inside noise |
+| Y oracle retrieval | compute | 4.88e+05 | 4.88e+05 | +0% | [+0.000, +0.000] | 0/0 | same |
+| Y oracle retrieval | calls (metering) | 1.00e+04 | 1.00e+04 | +0% | [+0.000, +0.000] | 0/0 | same |
+| Y oracle retrieval | kernel prompt tokens (max) | 7.61e+05 | 7.61e+05 | +0% | [+0.000, +0.000] | 0/0 | same |
+
+paired seeds at 10,000: 5 (old rows 5, new rows 5); register entries kept: OLD [600], NEW [600] (the cap is min(6000, max(600, n_entities)) in both).
 
 ### 1.3 OLD vs NEW at 50,000 people (seeds 0–4; seeds 0–2 were the development panel at this scale)
 
 | system | metric | OLD | NEW | Δ | 95% CI | better on | verdict |
 |---|---|---:|---:|---:|---|---:|---|
-| Mycelic hierarchy | found | 0.350 | 0.560 | +0.210 | [+0.210, +0.210] (range) | 2/2 | **better** |
-| Mycelic hierarchy | evidence cov. | 0.430 | 0.715 | +0.285 | [+0.260, +0.310] (range) | 2/2 | **better** |
-| Mycelic hierarchy | rare recall | 0.210 | 0.319 | +0.109 | [+0.089, +0.128] (range) | 2/2 | **better** |
-| Mycelic hierarchy | AP | 0.008 | 0.082 | +0.074 | [+0.059, +0.089] (range) | 2/2 | **better** |
-| Mycelic hierarchy | FDR | 0.988 | 0.981 | -0.007 | [-0.007, -0.006] (range) | 2/2 | **better** |
-| Mycelic hierarchy | decoy acc. (all) | 0.195 | 0.370 | +0.175 | [+0.170, +0.180] (range) | 0/2 | **worse** |
-| Mycelic hierarchy | decoy D5 stale | 0.320 | 0.800 | +0.480 | [+0.480, +0.480] (range) | 0/2 | **worse** |
-| Mycelic hierarchy | decoy D2 scramble | 0.180 | 0.260 | +0.080 | [+0.040, +0.120] (range) | 0/2 | **worse** |
-| Mycelic hierarchy | compute | 2.97e+06 | 3.91e+06 | +32% | [+930375.330, +949296.790] (range) | 0/2 | **worse** |
-| Mycelic hierarchy | calls (metering) | 2.90e+05 | 1.14e+05 | -61% | [-181039.000, -171837.000] (range) | 2/2 | **better** |
-| Mycelic hierarchy | kernel prompt tokens (max) | 1.57e+06 | 3.29e+06 | +109% | [+1700088.000, +1742442.000] (range) | 0/2 | **worse** |
+| Mycelic hierarchy | found | 0.336 | 0.566 | +0.230 | [+0.202, +0.266] | 5/5 | **better** |
+| Mycelic hierarchy | evidence cov. | 0.420 | 0.708 | +0.288 | [+0.264, +0.312] | 5/5 | **better** |
+| Mycelic hierarchy | rare recall | 0.189 | 0.315 | +0.126 | [+0.104, +0.148] | 5/5 | **better** |
+| Mycelic hierarchy | AP | 0.009 | 0.108 | +0.099 | [+0.072, +0.130] | 5/5 | **better** |
+| Mycelic hierarchy | FDR | 0.988 | 0.981 | -0.007 | [-0.008, -0.006] | 5/5 | **better** |
+| Mycelic hierarchy | decoy acc. (all) | 0.204 | 0.378 | +0.174 | [+0.150, +0.196] | 0/5 | **worse** |
+| Mycelic hierarchy | decoy D5 stale | 0.360 | 0.744 | +0.384 | [+0.304, +0.464] | 0/5 | **worse** |
+| Mycelic hierarchy | decoy D2 scramble | 0.224 | 0.384 | +0.160 | [+0.088, +0.248] | 0/5 | **worse** |
+| Mycelic hierarchy | compute | 2.93e+06 | 3.86e+06 | +32% | [+907151.612, +948522.898] | 0/5 | **worse** |
+| Mycelic hierarchy | calls (metering) | 2.84e+05 | 1.14e+05 | -60% | [-175966.200, -163911.000] | 5/5 | **better** |
+| Mycelic hierarchy | kernel prompt tokens (max) | 1.54e+06 | 3.23e+06 | +109% | [+1623429.600, +1730196.000] | 0/5 | **worse** |
 | A2 chunked long context | found | 0.686 | 0.784 | +0.098 | [+0.092, +0.104] | 5/5 | **better** |
 | A2 chunked long context | evidence cov. | 1.000 | 1.000 | +0.000 | [+0.000, +0.000] | 0/0 | same |
 | A2 chunked long context | rare recall | 0.608 | 0.692 | +0.085 | [+0.056, +0.113] | 5/5 | **better** |
@@ -102,25 +149,25 @@ _(old or new headline rows missing: run final_rerun.sh)_
 | B4 central triage | compute | 1.07e+06 | 1.07e+06 | +0% | [+0.000, +0.000] | 0/0 | same |
 | B4 central triage | calls (metering) | 5.00e+04 | 5.00e+04 | +0% | [+0.000, +0.000] | 0/0 | same |
 | B4 central triage | kernel prompt tokens (max) | 5.20e+05 | 5.20e+05 | +0% | [+0.000, +0.000] | 0/0 | same |
-| Y oracle retrieval | found | 0.160 | 0.390 | +0.230 | [+0.230, +0.230] (range) | 1/1 | **better** |
-| Y oracle retrieval | evidence cov. | 1.000 | 1.000 | +0.000 | [+0.000, +0.000] (range) | 0/0 | same |
-| Y oracle retrieval | rare recall | 0.111 | 0.222 | +0.111 | [+0.111, +0.111] (range) | 1/1 | **better** |
-| Y oracle retrieval | AP | 0.001 | 0.014 | +0.012 | [+0.012, +0.012] (range) | 1/1 | **better** |
-| Y oracle retrieval | FDR | 0.995 | 0.987 | -0.008 | [-0.008, -0.008] (range) | 1/1 | **better** |
-| Y oracle retrieval | decoy acc. (all) | 0.140 | 0.290 | +0.150 | [+0.150, +0.150] (range) | 0/1 | **worse** |
-| Y oracle retrieval | decoy D5 stale | 0.080 | 0.480 | +0.400 | [+0.400, +0.400] (range) | 0/1 | **worse** |
-| Y oracle retrieval | decoy D2 scramble | 0.360 | 0.400 | +0.040 | [+0.040, +0.040] (range) | 0/1 | **worse** |
-| Y oracle retrieval | compute | 2.43e+06 | 2.43e+06 | +0% | [+0.000, +0.000] (range) | 0/0 | same |
-| Y oracle retrieval | calls (metering) | 5.00e+04 | 5.00e+04 | +0% | [+0.000, +0.000] (range) | 0/0 | same |
-| Y oracle retrieval | kernel prompt tokens (max) | 3.79e+06 | 3.79e+06 | +0% | [+0.000, +0.000] (range) | 0/0 | same |
+| Y oracle retrieval | found | 0.284 | 0.424 | +0.140 | [+0.084, +0.196] | 5/5 | **better** |
+| Y oracle retrieval | evidence cov. | 1.000 | 1.000 | +0.000 | [+0.000, +0.000] | 0/0 | same |
+| Y oracle retrieval | rare recall | 0.220 | 0.210 | -0.010 | [-0.060, +0.054] | 1/4 | inside noise |
+| Y oracle retrieval | AP | 0.005 | 0.012 | +0.007 | [+0.004, +0.010] | 5/5 | **better** |
+| Y oracle retrieval | FDR | 0.991 | 0.986 | -0.005 | [-0.007, -0.003] | 5/5 | **better** |
+| Y oracle retrieval | decoy acc. (all) | 0.148 | 0.284 | +0.136 | [+0.124, +0.148] | 0/5 | **worse** |
+| Y oracle retrieval | decoy D5 stale | 0.176 | 0.576 | +0.400 | [+0.352, +0.448] | 0/5 | **worse** |
+| Y oracle retrieval | decoy D2 scramble | 0.192 | 0.280 | +0.088 | [+0.032, +0.136] | 0/4 | **worse** |
+| Y oracle retrieval | compute | 2.43e+06 | 2.43e+06 | +0% | [+0.000, +0.000] | 0/0 | same |
+| Y oracle retrieval | calls (metering) | 5.00e+04 | 5.00e+04 | +0% | [+0.000, +0.000] | 0/0 | same |
+| Y oracle retrieval | kernel prompt tokens (max) | 3.79e+06 | 3.79e+06 | +0% | [+0.000, +0.000] | 0/0 | same |
 
-paired seeds at 50,000: 2 (old rows 5, new rows 2); the register cap is 5000 entries in both.
+paired seeds at 50,000: 5 (old rows 5, new rows 5); register entries kept: OLD [2776, 2999], NEW [2999] (the cap is min(6000, max(600, n_entities)) in both).
 
 ### 1.4 In one paragraph
 
-On the confirmation panel (10k, seeds 5–9) the hierarchy's found rate goes from 0.395 to n/a (rare recall 0.220 → n/a, A2 0.640 → n/a). On the development panel (seeds 0–4) it goes from 0.375 to 0.625 (evidence coverage 0.690 → 0.980, rare recall 0.215 → 0.375). Compute: +26% against the v1 base as it was benchmarked (unbatched metering) and +44% against the same v1 decisions re-metered with batched descent, which is the like-for-like figure; the model-call reduction (-71%) is a metering convention, not fewer decisions. At 50k it goes from 0.336 to 0.560 (coverage 0.420 → 0.715) for +34% compute as benchmarked and +50% like-for-like. The centralised chunked-context control A2 also improved, because it adopts the same learned ranker (its calibration said the ranker was not worse for it): 0.685 → 0.740 at 10k. The remaining gap to A2 is +0.115 found at 10k and +0.224 at 50k, at 0.66× and 0.38× of A2's compute respectively. Decoy acceptance rose with the ranker at 10k (0.180 → 0.360), and the stale-chain family D5 in particular (0.260 → 0.780); both are reported as regressions, not hidden. The one attempt to train the ranker away from decoys lost found and rare recall on the held-out seeds and was rejected; the D5 mechanism (a staleness gate one late routine mention defeats) is understood and its fix is queued. The frozen configuration also requires a kernel prompt of 1.4M tokens at 10k and 3.3M at 50k, above the modelled tier's 1M context (section 5b).
+On the confirmation panel (10k, seeds 5–9) the hierarchy's found rate goes from 0.395 to 0.570 (rare recall 0.220 → 0.348, A2 0.640 → 0.725). On the development panel (seeds 0–4) it goes from 0.375 to 0.625 (evidence coverage 0.690 → 0.980, rare recall 0.215 → 0.375). Compute: +26% against the v1 base as it was benchmarked (unbatched metering) and +44% against the same v1 decisions re-metered with batched descent, which is the like-for-like figure; the model-call reduction (-71%) is a metering convention, not fewer decisions. At 50k it goes from 0.336 to 0.566 (coverage 0.420 → 0.708) for +32% compute as benchmarked and +48% like-for-like. The centralised chunked-context control A2 also improved, because it adopts the same learned ranker (its calibration said the ranker was not worse for it): 0.685 → 0.740 at 10k. The remaining gap to A2 is +0.115 found at 10k and +0.218 at 50k, at 0.66× and 0.38× of A2's compute respectively. Decoy acceptance rose with the ranker at 10k (0.180 → 0.360), and the stale-chain family D5 in particular (0.260 → 0.780); both are reported as regressions, not hidden. The one attempt to train the ranker away from decoys lost found and rare recall on the held-out seeds and was rejected; the D5 mechanism (a staleness gate one late routine mention defeats) is understood and its fix is queued. The frozen configuration also requires a kernel prompt of 1.4M tokens at 10k and 3.2M at 50k, above the modelled tier's 1M context (section 5b).
 
-Targets from the brief: 10k found ≥ 0.70 (stretch 0.75), 50k ≥ 0.60 (stretch 0.70 while materially below A2 compute). Reached: 10k 0.625 (not met), 50k 0.560 (not met), the 50k figure at 0.38× of A2's compute. Section 5 says which stage holds the rest.
+Targets from the brief: 10k found ≥ 0.70 (stretch 0.75), 50k ≥ 0.60 (stretch 0.70 while materially below A2 compute). Reached: 10k 0.625 (not met), 50k 0.566 (not met), the 50k figure at 0.38× of A2's compute. Section 5 says which stage holds the rest.
 
 ## 2. Against the centralised controls on the same NEW worlds
 
@@ -128,23 +175,23 @@ Targets from the brief: 10k found ≥ 0.70 (stretch 0.75), 50k ≥ 0.60 (stretch
 
 | system | found | evidence cov. | rare recall | AP | decoy acc. | D5 stale | compute | calls | kernel prompt (max tokens) | found gap to H | compute ratio to H |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| H_mycelic_full | 0.625 | 0.980 | 0.375 | 0.185 | 0.360 | 0.780 | 1.37e+06 | 2.67e+04 | 1.40e+06 | +0.000 | 1.00x |
-| A2_chunked_ctx | 0.740 | 1.000 | 0.669 | 0.202 | 0.460 | 0.700 | 2.08e+06 | 3.00e+00 | 1.00e+06 | +0.115 | 1.52x |
-| B4_central_triage | 0.540 | 0.970 | 0.283 | 0.130 | 0.350 | 0.680 | 3.98e+05 | 1.00e+04 | 5.20e+05 | -0.085 | 0.29x |
-| Y_oracle_retrieval | 0.415 | 1.000 | 0.120 | 0.023 | 0.275 | 0.520 | 4.87e+05 | 1.00e+04 | 7.60e+05 | -0.210 | 0.36x |
-| H_mycelic_lean | 0.610 | 0.800 | 0.318 | 0.194 | 0.375 | 0.720 | 7.26e+05 | 2.64e+04 | 3.91e+05 | -0.015 | 0.53x |
-| H_mycelic_prev | 0.375 | 0.690 | 0.215 | 0.023 | 0.180 | 0.260 | 1.09e+06 | 9.10e+04 | 7.88e+05 | -0.250 | 0.80x |
+| H_mycelic_full | 0.597 | 0.955 | 0.361 | 0.180 | 0.395 | 0.800 | 1.38e+06 | 2.69e+04 | 1.41e+06 | +0.000 | 1.00x |
+| A2_chunked_ctx | 0.733 | 1.000 | 0.622 | 0.214 | 0.475 | 0.700 | 2.07e+06 | 3.00e+00 | 1.00e+06 | +0.135 | 1.50x |
+| B4_central_triage | 0.577 | 0.950 | 0.326 | 0.129 | 0.390 | 0.740 | 3.98e+05 | 1.00e+04 | 5.20e+05 | -0.020 | 0.29x |
+| Y_oracle_retrieval | 0.417 | 1.000 | 0.171 | 0.023 | 0.295 | 0.520 | 4.87e+05 | 1.00e+04 | 7.61e+05 | -0.180 | 0.35x |
+| H_mycelic_lean | 0.600 | 0.780 | 0.306 | 0.207 | 0.417 | 0.780 | 7.27e+05 | 2.65e+04 | 3.85e+05 | +0.003 | 0.52x |
+| H_mycelic_prev | 0.385 | 0.677 | 0.218 | 0.029 | 0.205 | 0.280 | 1.11e+06 | 9.40e+04 | 8.14e+05 | -0.212 | 0.81x |
 
 ### 2.2 50,000
 
 | system | found | evidence cov. | rare recall | AP | decoy acc. | D5 stale | compute | calls | kernel prompt (max tokens) | found gap to H | compute ratio to H |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| H_mycelic_full | 0.560 | 0.715 | 0.319 | 0.082 | 0.370 | 0.800 | 3.91e+06 | 1.14e+05 | 3.29e+06 | +0.000 | 1.00x |
-| A2_chunked_ctx | 0.784 | 1.000 | 0.692 | 0.098 | 0.466 | 0.688 | 1.02e+07 | 1.00e+01 | 1.98e+06 | +0.220 | 2.60x |
-| B4_central_triage | 0.314 | 0.462 | 0.116 | 0.034 | 0.306 | 0.672 | 1.07e+06 | 5.00e+04 | 5.20e+05 | -0.235 | 0.27x |
-| Y_oracle_retrieval | 0.390 | 1.000 | 0.222 | 0.014 | 0.290 | 0.480 | 2.43e+06 | 5.00e+04 | 3.79e+06 | -0.210 | 0.61x |
-| H_mycelic_lean | 0.480 | 0.530 | 0.289 | 0.107 | 0.400 | 0.720 | 2.74e+06 | 1.13e+05 | 1.11e+06 | -0.120 | 0.69x |
-| H_mycelic_prev | 0.350 | 0.430 | 0.210 | 0.008 | 0.195 | 0.320 | 2.97e+06 | 2.90e+05 | 1.57e+06 | -0.210 | 0.76x |
+| H_mycelic_full | 0.566 | 0.708 | 0.315 | 0.108 | 0.378 | 0.744 | 3.86e+06 | 1.14e+05 | 3.23e+06 | +0.000 | 1.00x |
+| A2_chunked_ctx | 0.784 | 1.000 | 0.692 | 0.098 | 0.466 | 0.688 | 1.02e+07 | 1.00e+01 | 1.98e+06 | +0.218 | 2.64x |
+| B4_central_triage | 0.314 | 0.462 | 0.116 | 0.034 | 0.306 | 0.672 | 1.07e+06 | 5.00e+04 | 5.20e+05 | -0.252 | 0.28x |
+| Y_oracle_retrieval | 0.424 | 1.000 | 0.210 | 0.012 | 0.284 | 0.576 | 2.43e+06 | 5.00e+04 | 3.79e+06 | -0.142 | 0.63x |
+| H_mycelic_lean | 0.502 | 0.556 | 0.245 | 0.155 | 0.356 | 0.688 | 2.68e+06 | 1.12e+05 | 1.06e+06 | -0.064 | 0.69x |
+| H_mycelic_prev | 0.336 | 0.420 | 0.189 | 0.009 | 0.204 | 0.360 | 2.93e+06 | 2.84e+05 | 1.54e+06 | -0.230 | 0.76x |
 
 `H_mycelic_prev` is the v1 hierarchy (question budget 0.25, unbatched metering, earliest-mention link timing, hand-set ranker) run inside the new suite; it is there to show the old configuration reproduces on the new worlds. `H_mycelic_lean` is the compute-lean Pareto point (chain-scoped triage questions; about half the compute, less evidence coverage).
 
@@ -152,17 +199,17 @@ Targets from the brief: 10k found ≥ 0.70 (stretch 0.75), 50k ≥ 0.60 (stretch
 
 | metric | OLD H_mycelic_full | NEW H_mycelic_prev | max abs. Δ over seeds |
 |---|---:|---:|---:|
-| found | 0.375 | 0.375 | 0.000 |
-| evidence cov. | 0.690 | 0.690 | 0.000 |
-| rare recall | 0.215 | 0.215 | 0.000 |
-| AP | 0.023 | 0.023 | 0.000 |
-| FDR | 0.975 | 0.975 | 0.000 |
-| decoy acc. (all) | 0.180 | 0.180 | 0.000 |
-| decoy D5 stale | 0.260 | 0.260 | 0.000 |
+| found | 0.385 | 0.385 | 0.000 |
+| evidence cov. | 0.677 | 0.677 | 0.000 |
+| rare recall | 0.218 | 0.218 | 0.000 |
+| AP | 0.029 | 0.029 | 0.000 |
+| FDR | 0.974 | 0.974 | 0.000 |
+| decoy acc. (all) | 0.205 | 0.205 | 0.000 |
+| decoy D5 stale | 0.280 | 0.280 | 0.000 |
 | decoy D2 scramble | 0.260 | 0.260 | 0.000 |
-| compute | 1.09e+06 | 1.09e+06 | 0.00e+00 |
-| calls (metering) | 9.10e+04 | 9.10e+04 | 0.00e+00 |
-| kernel prompt tokens (max) | 7.88e+05 | 7.88e+05 | 0.00e+00 |
+| compute | 1.11e+06 | 1.11e+06 | 0.00e+00 |
+| calls (metering) | 9.40e+04 | 9.40e+04 | 0.00e+00 |
+| kernel prompt tokens (max) | 8.14e+05 | 8.14e+05 | 0.00e+00 |
 
 A non-zero difference here would mean a code change altered v1 behaviour; the intended reading is "the same to the third decimal" for discovery and "identical" for compute.
 
@@ -180,17 +227,65 @@ The loss accounting (`docs/MYCELIC_LOSS_ACCOUNTING.md`) showed the 35-point gap 
 
 #### 10,000
 
-_(funnel rows missing for one side)_
+| stage | OLD all | NEW all | OLD rare | NEW rare | OLD common | NEW common |
+|---|---:|---:|---:|---:|---:|---:|
+| extracted (>=2 facets, right entity+predicate) | 0.960 | 0.960 | 0.897 | 0.897 | 1.000 | 1.000 |
+| visible to sketch triage (>=2 foreign sites, >=2 regions, span>=2) | 0.985 | 0.985 | 0.974 | 0.974 | 0.992 | 0.992 |
+| on the triage candidate list | 0.985 | 0.985 | 0.974 | 0.974 | 0.992 | 0.992 |
+| inside the question budget | 0.635 | 0.975 | 0.436 | 0.962 | 0.762 | 0.984 |
+| descent reached a facet holder | 0.665 | 0.940 | 0.462 | 0.885 | 0.795 | 0.975 |
+| >=2 gold links in kernel pool (= evidence coverage) | 0.690 | 0.980 | 0.487 | 0.962 | 0.820 | 0.992 |
+| candidate formed on right entity + chain | 0.595 | 0.900 | 0.397 | 0.872 | 0.721 | 0.918 |
+| matched primary rule at ANY confidence | 0.540 | 0.890 | 0.346 | 0.872 | 0.664 | 0.902 |
+| matched with confidence >= 0.5 | 0.515 | 0.885 | 0.333 | 0.859 | 0.631 | 0.902 |
+| survived the register cut (= reported) | 0.375 | 0.625 | 0.205 | 0.372 | 0.484 | 0.787 |
+| patterns | 200 | 200 | 78 | 78 | 122 | 122 |
 
 
-_(funnel rows missing for one side)_
+| the pattern died at | OLD | NEW | OLD rare | NEW rare |
+|---|---:|---:|---:|---:|
+| extracted (>=2 facets, right entity+predicate) | 0 (0%) | 0 (0%) | 0 | 0 |
+| visible to sketch triage (>=2 foreign sites, >=2 regions, span>=2) | 3 (2%) | 3 (2%) | 2 | 2 |
+| on the triage candidate list | 0 (0%) | 0 (0%) | 0 | 0 |
+| inside the question budget | 58 (29%) | 0 (0%) | 37 | 0 |
+| descent reached a facet holder | 0 (0%) | 1 (0%) | 0 | 1 |
+| >=2 gold links in kernel pool (= evidence coverage) | 0 (0%) | 0 (0%) | 0 | 0 |
+| candidate formed on right entity + chain | 17 (8%) | 15 (8%) | 7 | 6 |
+| matched primary rule at ANY confidence | 14 (7%) | 3 (2%) | 5 | 1 |
+| matched, but confidence < 0.5 | 5 (2%) | 1 (0%) | 1 | 1 |
+| cut from the register (matched at >= 0.5, out-ranked) | 28 (14%) | 52 (26%) | 10 | 38 |
+| **reported** | 75 (38%) | 125 (62%) | 16 | 29 |
 
 #### 50,000
 
-_(funnel rows missing for one side)_
+| stage | OLD all | NEW all | OLD rare | NEW rare | OLD common | NEW common |
+|---|---:|---:|---:|---:|---:|---:|
+| extracted (>=2 facets, right entity+predicate) | 0.960 | 0.960 | 0.893 | 0.893 | 1.000 | 1.000 |
+| visible to sketch triage (>=2 foreign sites, >=2 regions, span>=2) | 0.780 | 0.780 | 0.562 | 0.562 | 0.910 | 0.910 |
+| on the triage candidate list | 0.780 | 0.780 | 0.562 | 0.562 | 0.910 | 0.910 |
+| inside the question budget | 0.427 | 0.710 | 0.304 | 0.500 | 0.500 | 0.835 |
+| descent reached a facet holder | 0.427 | 0.703 | 0.268 | 0.482 | 0.521 | 0.835 |
+| >=2 gold links in kernel pool (= evidence coverage) | 0.450 | 0.727 | 0.312 | 0.527 | 0.532 | 0.846 |
+| candidate formed on right entity + chain | 0.397 | 0.677 | 0.259 | 0.509 | 0.479 | 0.777 |
+| matched primary rule at ANY confidence | 0.363 | 0.657 | 0.232 | 0.491 | 0.441 | 0.755 |
+| matched with confidence >= 0.5 | 0.363 | 0.657 | 0.232 | 0.491 | 0.441 | 0.755 |
+| survived the register cut (= reported) | 0.363 | 0.587 | 0.232 | 0.339 | 0.441 | 0.734 |
+| patterns | 300 | 300 | 112 | 112 | 188 | 188 |
 
 
-_(funnel rows missing for one side)_
+| the pattern died at | OLD | NEW | OLD rare | NEW rare |
+|---|---:|---:|---:|---:|
+| extracted (>=2 facets, right entity+predicate) | 5 (2%) | 5 (2%) | 5 | 5 |
+| visible to sketch triage (>=2 foreign sites, >=2 regions, span>=2) | 60 (20%) | 58 (19%) | 43 | 41 |
+| on the triage candidate list | 0 (0%) | 0 (0%) | 0 | 0 |
+| inside the question budget | 100 (33%) | 17 (6%) | 29 | 6 |
+| descent reached a facet holder | 0 (0%) | 0 (0%) | 0 | 0 |
+| >=2 gold links in kernel pool (= evidence coverage) | 0 (0%) | 0 (0%) | 0 | 0 |
+| candidate formed on right entity + chain | 15 (5%) | 17 (6%) | 6 | 3 |
+| matched primary rule at ANY confidence | 11 (4%) | 6 (2%) | 3 | 2 |
+| matched, but confidence < 0.5 | 0 (0%) | 0 (0%) | 0 | 0 |
+| cut from the register (matched at >= 0.5, out-ranked) | 0 (0%) | 21 (7%) | 0 | 17 |
+| **reported** | 109 (36%) | 176 (59%) | 26 | 38 |
 
 ## 4. The change ledger: everything tried, with its cost
 
@@ -240,13 +335,13 @@ The biggest single gain is the ranker (with the budget it unlocked): +0.21 found
 
 ## 5. Largest remaining loss stage
 
-In the new funnel the most common terminal loss for the hierarchy is **—** at 10k (0 of 0 gold patterns) and **—** at 50k (0 of 0).
+In the new funnel the most common terminal loss for the hierarchy is **cut from the register (matched at >= 0.5, out-ranked)** at 10k (52 of 200 gold patterns) and **visible to sketch triage (>=2 foreign sites, >=2 regions, span>=2)** at 50k (58 of 300).
 
 At 10k the register is still the binding stage: coverage is near 0.97, so almost every gold pattern is in the kernel pool, and the loss is ordering among the ~3,000 candidates that pass the gate for 600 slots. At 50k the register (2,999 slots) is not binding; coverage (~0.72) is, i.e. the question budget and the descent's reach. Those are different problems and the queue in section 8 treats them separately.
 
 ## 5b. Limitations the independent review established
 
-- **Kernel context.** The kernel reads its whole pool in one call: 1.40M tokens at 10k and 3.29M at 50k in the frozen configuration (v1: 0.79M and 1.54M), against the modelled frontier tier's 1M-token context, which the simulator enforces only for the flat controls (A2 is chunked at 1M). No degradation is modelled for the hierarchy's kernel. v1 already exceeded the limit at 50k; vNext pushes 10k over it. Any deployment claim needs the kernel read chunked at the context limit (queue).
+- **Kernel context.** The kernel reads its whole pool in one call: 1.40M tokens at 10k and 3.23M at 50k in the frozen configuration (v1: 0.79M and 1.54M), against the modelled frontier tier's 1M-token context, which the simulator enforces only for the flat controls (A2 is chunked at 1M). No degradation is modelled for the hierarchy's kernel. v1 already exceeded the limit at 50k; vNext pushes 10k over it. Any deployment claim needs the kernel read chunked at the context limit (queue).
 - **Compute conventions.** Batched metering changes no decision and no per-record token, but it was applied to the new arm only; the like-for-like compute increase is the second convention in section 4.1 and the call reduction is entirely metering.
 - **Claims at the kernel.** The exposure counters see only the upward pass; descent returns per-user claim objects to the kernel and the budget change roughly doubles them (about 30k → 53k objects at 10k, 61k → 127k at 50k). Raw text stays at 0. The counter is to be extended; `J_mycelic_verified`'s raw-record count is hard-coded to 0 although its verification round reads raw records at the kernel.
 - **Ranker hygiene.** The register cut happens before the five triage-context features are filled (they are constant at cut time, so membership is decided by the other 40 features; the ranker was fitted on post-enrichment dumps); the controls' dumps contain only their post-cut candidates; under hybrid timing the lag features still use min timing; the J dump duplicates the min-timing hierarchy candidates. None changes found, all are fixes for the next refit.
@@ -289,7 +384,14 @@ Reading: on the calibration seeds the budget is flat between 0.50 and 0.80 (the 
 
 ## 7. Ranker evaluation on the final configuration
 
-_(ranker_eval_final.json missing: run final_rerun.sh)_
+| dump | system | gold patterns | matchable | found, hand ranker | found, learned (same count) | AUC hand | AUC learned |
+|---|---|---:|---:|---:|---:|---:|---:|
+| _finalH | H_mycelic_full | 200 | 172 | 0.365 | 0.620 | 0.690 | 0.848 |
+| _finalC | A2_chunked_ctx | 200 | 148 | 0.740 | 0.740 | 0.779 | 0.813 |
+| _finalC | B4_central_triage | 200 | 108 | 0.540 | 0.540 | 0.727 | 0.724 |
+| _finalC | Y_oracle_retrieval | 200 | 83 | 0.415 | 0.415 | 0.609 | 0.648 |
+
+Evaluation rows are the held-out seeds 0–4 only; the logistic is refitted on the calibration seeds of the same dump with the stored l2 and interaction choice, so the AUC and found columns are out-of-sample.
 
 ## 8. Frozen configuration
 

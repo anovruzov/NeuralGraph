@@ -103,7 +103,6 @@ for tag in ("_finalH", "_finalC"):
     print(tag, json.dumps({k: v for k, v in out[tag].items() if k != "weights"}, default=float))
 json.dump(out, open("research/mycelic/artifacts/ranker_eval_final.json", "w"), indent=1, default=float)
 PY
-PY
 
 echo "=== reports $(date -Is)"
 python3 -m research.mycelic.plots > "$L/final_reports.log" 2>&1
@@ -111,5 +110,10 @@ python3 -m research.mycelic.report >> "$L/final_reports.log" 2>&1
 python3 -m research.mycelic.loss_doc >> "$L/final_reports.log" 2>&1
 python3 -m research.mycelic.vnext_docs >> "$L/final_reports.log" 2>&1
 python3 -m research.mycelic.make_pdf docs/MYCELIC_ENTERPRISE.md docs/MYCELIC_ENTERPRISE.pdf >> "$L/final_reports.log" 2>&1
-python3 -m research.mycelic.make_pdf docs/MYCELIC_LOSS_ACCOUNTING.md docs/MYCELIC_LOSS_ACCOUNTING.pdf >> "$L/final_reports.log" 2>&1
+python3 -m research.mycelic.make_pdf docs/MYCELIC_LOSS_ACCOUNTING.md docs/MYCELIC_LOSS_ACCOUNTING.pdf \
+  "Mycelic: where the hidden patterns go" \
+  "Loss accounting, gap decomposition and the vNext results on the frozen configuration" >> "$L/final_reports.log" 2>&1
+python3 -m research.mycelic.make_pdf docs/mycelic_vnext/ALL.md docs/MYCELIC_VNEXT.pdf \
+  "Mycelic vNext" \
+  "Research report, architecture, experiment matrix, loss accounting and adversarial review" >> "$L/final_reports.log" 2>&1
 echo "=== FINAL_RERUN_DONE $(date -Is)"

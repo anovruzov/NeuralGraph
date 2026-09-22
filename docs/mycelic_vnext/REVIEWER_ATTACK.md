@@ -28,7 +28,7 @@ It is not: decoy acceptance at 10k went from 0.180 to 0.360 and the one fix trie
 
 ## Attack 7 — the hierarchy still loses to centralised discovery
 
-Yes: 0.560 vs 0.784 at 50k, at 0.38× of A2's compute. The brief's targets (0.70 / 0.60) were not met. The report says which stage holds the rest (ordering at 10k, coverage at 50k) and what would test it. **Lands.**
+Yes: 0.566 vs 0.784 at 50k, at 0.38× of A2's compute. The brief's targets (0.70 / 0.60) were not met. The report says which stage holds the rest (ordering at 10k, coverage at 50k) and what would test it. **Lands.**
 
 ## Attack 8 — single-seed screens are being cited
 
