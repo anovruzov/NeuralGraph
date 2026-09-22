@@ -170,13 +170,16 @@ def next_research_report() -> str:
              f"On the development panel (seeds 0–4) it goes from {_n(h['old_found_anywhere_in_register_10000'])} to "
              f"{_n(h['new_found_anywhere_in_register_10000'])} (evidence coverage "
              f"{_n(h['old_evidence_coverage_2links_10000'])} → {_n(h['new_evidence_coverage_2links_10000'])}, "
-             f"rare recall {_n(h['old_rare_signal_recall_10000'])} → {_n(h['new_rare_signal_recall_10000'])}) for "
-             f"{_pct(h['old_compute_units_10000'], h['new_compute_units_10000'])} compute and "
-             f"{_pct(h['old_inference_calls_10000'], h['new_inference_calls_10000'])} model calls. At 50k it goes from "
+             f"rare recall {_n(h['old_rare_signal_recall_10000'])} → {_n(h['new_rare_signal_recall_10000'])}). Compute: "
+             f"{_pct(h['old_compute_units_10000'], h['new_compute_units_10000'])} against the v1 base as it was "
+             f"benchmarked (unbatched metering) and {_pct(h['prevb_compute_units_10000'], h['new_compute_units_10000'])} "
+             f"against the same v1 decisions re-metered with batched descent, which is the like-for-like figure; the "
+             f"model-call reduction ({_pct(h['old_inference_calls_10000'], h['new_inference_calls_10000'])}) is a "
+             f"metering convention, not fewer decisions. At 50k it goes from "
              f"{_n(h['old_found_anywhere_in_register_50000'])} to {_n(h['new_found_anywhere_in_register_50000'])} "
              f"(coverage {_n(h['old_evidence_coverage_2links_50000'])} → {_n(h['new_evidence_coverage_2links_50000'])}) for "
-             f"{_pct(h['old_compute_units_50000'], h['new_compute_units_50000'])} compute and "
-             f"{_pct(h['old_inference_calls_50000'], h['new_inference_calls_50000'])} calls. "
+             f"{_pct(h['old_compute_units_50000'], h['new_compute_units_50000'])} compute as benchmarked and "
+             f"{_pct(h['prevb50_compute_units_50000'], h['new_compute_units_50000'])} like-for-like. "
              f"The centralised chunked-context control A2 also improved, because it adopts the same learned ranker "
              f"(its calibration said the ranker was not worse for it): {_n(h['a2_old_found_anywhere_in_register_10000'])} → "
              f"{_n(h['a2_found_anywhere_in_register_10000'])} at 10k. The remaining gap to A2 is "
@@ -184,9 +187,13 @@ def next_research_report() -> str:
              f"{h['new_compute_units_10000'] / max(1e-9, h['a2_compute_units_10000']):.2f}× and "
              f"{h['new_compute_units_50000'] / max(1e-9, h['a2_compute_units_50000']):.2f}× of A2's compute respectively. "
              f"Decoy acceptance rose with the ranker at 10k "
-             f"({_n(h['old_decoy_acceptance_all_10000'])} → {_n(h['new_decoy_acceptance_all_10000'])}) and is reported as a "
-             f"regression, not hidden; the one attempt to train it away (decoy-weighted selection) lost found and rare "
-             f"recall on the held-out seeds and was rejected.\n")
+             f"({_n(h['old_decoy_acceptance_all_10000'])} → {_n(h['new_decoy_acceptance_all_10000'])}), and the stale-chain "
+             f"family D5 in particular ({_n(h['old_decoy_D5_stale_chain_10000'])} → {_n(h['new_decoy_D5_stale_chain_10000'])}); "
+             f"both are reported as regressions, not hidden. The one attempt to train the ranker away from decoys lost found "
+             f"and rare recall on the held-out seeds and was rejected; the D5 mechanism (a staleness gate one late routine "
+             f"mention defeats) is understood and its fix is queued. The frozen configuration also requires a kernel prompt "
+             f"of {h['new_max_context_tokens_10000'] / 1e6:.1f}M tokens at 10k and {h['new_max_context_tokens_50000'] / 1e6:.1f}M "
+             f"at 50k, above the modelled tier's 1M context (section 5b).\n")
     f10 = h["new_found_anywhere_in_register_10000"]
     f50 = h["new_found_anywhere_in_register_50000"]
     met10 = "met" if f10 >= 0.70 else "not met"
@@ -228,12 +235,20 @@ def next_research_report() -> str:
              "routing call per node and one read per queried user per round, with identical decisions and "
              "per-record tokens, which is why calls fall by about two thirds while compute rises.\n")
     t.append("3. **Hybrid link timing in the temporal DP** (`ops.py`). A link was dated at the earliest mention of its "
-             "(predicate, entity) pair; a descent that returns every mention of an entity drags that date to a stale "
-             "or routine mention, and the chain-order test then fails. A link is now dated at its heaviest witness "
-             "cluster, and a link whose witnesses disagree becomes several DP states. This is free (no calls, no new "
-             "candidates) and lifted found, rare recall and decoy resistance on the calibration seeds; it survived the "
-             "held-out seeds (+0.04, never worse) while its cousin (modal timing) did not (+0.04 on calibration, "
-             "−0.01 held-out — rejected).\n")
+             "(predicate, entity) pair. Background mentions are not earlier than gold on average (the independent review "
+             "measured mean day 86 against 65); there are simply several of them per pair, and the earliest of three to "
+             "nine draws precedes the previous link about half the time for private entities and three quarters of the "
+             "time for global ones, so the chain-order test fails. Under hybrid timing a link is dated at its heaviest "
+             "witness cluster and a single-witness link becomes one DP state per cluster: tighter for strong links, looser "
+             "only for single-witness links. It is free (no calls, no new candidates) and held on the held-out seeds "
+             "(+0.04 at 10k with no seed worse, +0.06 at 50k on 3/3) while its cousin modal timing did not (+0.04 on "
+             "calibration, −0.01 held-out — rejected). Two things the review established are withdrawn or flagged: the "
+             "calibration-seed 'improved decoy resistance' did not replicate — the stale-chain family D5 rises under the "
+             "adopted arm (+0.12 at 10k, +0.13 at 50k, seven of eight held-out seeds), because a staleness gate that one "
+             "routine positive mention after a retraction defeats was being masked by min timing by accident; and the lag "
+             "features the ranker reads are still computed from min timing, which the refit learned around and which is "
+             "to be fixed before the next refit. The in-pool magnitude quoted by the panel (20–22 of 25 patterns) comes "
+             "from its own replay, whose code is not in the repository.\n")
     t.append("### 3.1 The funnel, old and new (Mycelic hierarchy)\n")
     t.append("#### 10,000\n")
     t.append(D.funnel_compare(10_000))
@@ -266,6 +281,30 @@ def next_research_report() -> str:
              "the kernel pool, and the loss is ordering among the ~3,000 candidates that pass the gate for 600 slots. "
              "At 50k the register (2,999 slots) is not binding; coverage (~0.72) is, i.e. the question budget and the "
              "descent's reach. Those are different problems and the queue in section 8 treats them separately.\n")
+    t.append("## 5b. Limitations the independent review established\n")
+    t.append("- **Kernel context.** The kernel reads its whole pool in one call: "
+             f"{h['new_max_context_tokens_10000'] / 1e6:.2f}M tokens at 10k and {h['new_max_context_tokens_50000'] / 1e6:.2f}M at 50k "
+             "in the frozen configuration (v1: "
+             f"{h['old_max_context_tokens_10000'] / 1e6:.2f}M and {h['old_max_context_tokens_50000'] / 1e6:.2f}M), against the "
+             "modelled frontier tier's 1M-token context, which the simulator enforces only for the flat controls (A2 is "
+             "chunked at 1M). No degradation is modelled for the hierarchy's kernel. v1 already exceeded the limit at 50k; "
+             "vNext pushes 10k over it. Any deployment claim needs the kernel read chunked at the context limit (queue).\n"
+             "- **Compute conventions.** Batched metering changes no decision and no per-record token, but it was applied "
+             "to the new arm only; the like-for-like compute increase is the second convention in section 4.1 and the "
+             "call reduction is entirely metering.\n"
+             "- **Claims at the kernel.** The exposure counters see only the upward pass; descent returns per-user claim "
+             "objects to the kernel and the budget change roughly doubles them (about 30k → 53k objects at 10k, 61k → 127k "
+             "at 50k). Raw text stays at 0. The counter is to be extended; `J_mycelic_verified`'s raw-record count is "
+             "hard-coded to 0 although its verification round reads raw records at the kernel.\n"
+             "- **Ranker hygiene.** The register cut happens before the five triage-context features are filled (they are "
+             "constant at cut time, so membership is decided by the other 40 features; the ranker was fitted on "
+             "post-enrichment dumps); the controls' dumps contain only their post-cut candidates; under hybrid timing the "
+             "lag features still use min timing; the J dump duplicates the min-timing hierarchy candidates. None changes "
+             "found, all are fixes for the next refit.\n"
+             "- **Fairness of link timing.** The flat controls collapse each (predicate, entity) to one object, on which "
+             "hybrid timing is a no-op by construction; a fair test gives them per-user objects and charges the context "
+             "(queue).\n"
+             "- **Panel reuse.** Section 6.\n")
     t.append("## 6. Did the gains survive held-out seeds? (the honest version)\n")
     t.append("The intended protocol was: choose on seeds 500–502, read once on seeds 0–4 (10k) and 0–2 (50k). That is "
              "not what happened, and the first independent refuter (REVIEWER_ATTACK.md) counted it: seeds 0–4 were "
@@ -319,13 +358,17 @@ def next_research_report() -> str:
 RANKED_QUEUE = """| rank | experiment | what it distinguishes | expected information | cost | status |
 |---:|---|---|---|---|---|
 | 1 | Register-forecast question budget at 50k (ask in gain order by distinct anchor until the forecast candidate count reaches α × cap) with descent fan-out 1 | whether 50k coverage is limited by the number of anchors asked (breadth) or by reach per anchor (depth) | high: coverage is the binding 50k stage and the two explanations imply opposite spending | ~10 paired 50k runs | not run |
-| 2 | Sketch-corroboration feature for the ranker (foreign-site bit for each link's (entity, predicate)) | whether the ranker's remaining 10k ordering loss is missing information or missing capacity | high: offline AUC 0.74–0.77 for the feature; a null result says capacity | dump + refit + 5 paired runs | not run |
-| 3 | Pairwise / top-K ranking objective on the same features | same question from the objective side | medium | refit only | not run |
-| 4 | Budget-aware support-1 sketch bits (admit weak bits only into unused question budget) | whether rare patterns are lost at the sketch or at the budget | medium: rare recall is 0.33–0.42 and the weak-bit screen flooded triage | 5 paired runs | screen failed as implemented |
-| 5 | Chain-scoped questions with a second untargeted round for thin answers | whether the lean arm's coverage loss can be bought back for less than the 47% compute it saves | medium | 5 paired runs | not run |
-| 6 | Modal-cluster timing for flat systems (A2, Y) | whether the flat pools (one KO per pair) can benefit at all — a null result is the topology's advantage | medium | cheap | not run |
-| 7 | Descent-evidence merge per polarity with a refitted ranker | compute −54% claim vs the found loss seen on one seed | medium | dump + refit + paired | one-seed screen only |
-| 8 | Live model discrimination on kernel-side candidates (frontier vs small model) | whether the simulated kernel tier understates or overstates what a real model does with the same evidence | high for external validity, no effect on the simulator numbers | API budget | live harness exists |
+| 2 | Cluster-aware staleness gate (compare the retraction against the link's assertion cluster, or require the late positive to have ≥ 2 independent witnesses) | whether the D5 rise under hybrid timing is the gate (predicted) or the timing itself | high: D5 rose 0.26 → 0.78 across the accepted changes; a fix that holds found is the difference between "decoy-neutral" and not | cal screen + refit + 5 paired runs | not run |
+| 3 | Kernel read chunked at the tier's context limit (as A2 already is), or an explicit degradation model | whether the vNext gain survives a kernel that cannot read a 1.4M/3.3M-token pool in one call | high: precondition of any deployment claim | code + paired runs at both scales | not run |
+| 4 | Fresh evaluation panel (seeds 10–14 at 10k, 5–7 at 50k) read once | whether the development-panel deltas hold; this rerun's seeds 5–9 at 10k are the first such read | high for the small deltas | one suite run | seeds 5–9 done in this rerun |
+| 5 | Sketch-corroboration feature for the ranker (foreign-site bit for each link's (entity, predicate)) | whether the ranker's remaining 10k ordering loss is missing information or missing capacity | high: offline AUC 0.74–0.77 for the feature; a null result says capacity | dump + refit + 5 paired runs | not run |
+| 6 | Per-user object pools for A2/B4/Y with hybrid timing, context charged | whether the timing gain is the topology's or the controls' object builder's | medium: the panel's item was a null by construction | code + paired runs | not run |
+| 7 | Lag features from the DP's chosen times; ranker applied once after enrichment; full-list dumps for the controls; then refit | whether the ranker hygiene defects cost anything | medium | refit + 5 paired runs | not run |
+| 8 | Pairwise / top-K ranking objective on the same features | same question as 5 from the objective side | medium | refit only | not run |
+| 9 | Budget-aware support-1 sketch bits (admit weak bits only into unused question budget) | whether rare patterns are lost at the sketch or at the budget | medium: rare recall is 0.33–0.42 and the weak-bit screen flooded triage | 5 paired runs | screen failed as implemented |
+| 10 | Chain-scoped questions with a second untargeted round for thin answers | whether the lean arm's coverage loss can be bought back for less than the 47% compute it saves | medium | 5 paired runs | not run |
+| 11 | Descent-evidence merge per polarity with a refitted ranker | compute −54% claim vs the found loss seen on one seed | medium | dump + refit + paired | one-seed screen only |
+| 12 | Live model discrimination on kernel-side candidates (frontier vs small model) | whether the simulated kernel tier understates or overstates what a real model does with the same evidence | high for external validity, no effect on the simulator numbers | API budget | live harness exists |
 """
 
 CHANGE_MY_MIND = """- If `H_mycelic_prev` inside the new suite does not reproduce the archived v1 rows to the third decimal, the old-vs-new comparison is contaminated by a code change and every Δ in section 1 is suspect.
@@ -334,6 +377,9 @@ CHANGE_MY_MIND = """- If `H_mycelic_prev` inside the new suite does not reproduc
 - If A2 with the ranker beats the hierarchy at 50k at equal compute (it does not today: 10.2e6 vs 3.9e6 units), the compute argument for the hierarchy is gone and only the privacy argument remains.
 - If queue item 1 shows 50k coverage is depth-limited, the lean arm's mechanism is the wrong direction and breadth spending should be reverted.
 - If the live discrimination harness shows a frontier model extracting a signal from raw notes that no kernel-side feature carries, the ranker's ceiling is a property of the simulator, not of the design.
+- If the stale-chain decoy family D5 keeps rising on a fresh panel after the staleness gate is made cluster-aware, hybrid timing is a relaxation of the temporal check and is withdrawn.
+- If chunking the kernel read at the tier's 1M-token context removes the vNext gain, the gain was bought with an unmodelled context and the frozen configuration is not deployable as described.
+- If counting descent-returned objects in the exposure metric moves the hierarchy's claim exposure to the level of the centralised triage control, the privacy argument for the hierarchy is the raw-text line alone.
 """
 
 
@@ -372,9 +418,11 @@ def vnext_architecture() -> str:
     t.append("## 3. Messages\n")
     t.append("**Upward.** Claims (KOs) carry a predicate, an entity, a polarity, a time interval, the set of witness "
              "signatures and the branch lineage — never the record text. Sketch entries carry counts and bits. The "
-             "benchmark's privacy metrics are computed on exactly these messages: raw text leaving a node is 0.0 and "
-             "the fraction of claims leaving their node is unchanged by vNext (0.138 at 10k), because no change touched "
-             "what moves up.\n")
+             "benchmark's exposure metrics count the upward pass: raw text leaving a node is 0.0 and the fraction of "
+             "claims leaving their node on that pass is unchanged by vNext (0.138 at 10k), because no change touched "
+             "what moves up. Descent returns are a second channel the counters do not observe: a queried user answers "
+             "with per-user claim objects, and the wider budget roughly doubles the objects the kernel holds (about "
+             "30k → 53k at 10k, 61k → 127k at 50k). Extending the counter to that channel is queued.\n")
     t.append("**Downward.** A question names an entity and, optionally, target predicates; it is routed by the "
              "kernel's triage (foreign sites for the entity, home site avoided), then by each node's anchor index, "
              "with per-parent quotas (descent fan-out 3; 5/5/5/8 children per level). A strict read (the lean arm) "
@@ -444,14 +492,19 @@ def vnext_architecture() -> str:
              "no entity text beyond the entity id the enterprise already shares.\n- Ranker features: every feature is a "
              "function of the claims and sketch the kernel already holds; the anchor-context features are kernel "
              "aggregates (how many candidates share the entity, its triage gain), not per-user data.\n- No "
-             "centralisation is hidden in vNext: the controls that centralise (A2, B4, Y) are run as such and labelled.\n")
+             "centralisation is hidden in vNext: the controls that centralise (A2, B4, Y) are run as such and labelled. "
+             "What the kernel does hold is per-user claim objects returned by descents, and vNext doubles them; the "
+             "exposure counters do not yet count that channel (section 3).\n")
     t.append("## 9. Model allocation, caching, complexity, failure handling\n")
     t.append("- **Allocation**: back-loaded tiers (small models at USER/TEAM extraction, frontier at the kernel) as in v1; "
              "E3 in the main report is the ablation.\n- **Caching / batching**: routing and user reads are metered once "
              "per node per round (the ledgers); the kernel re-reads its pool once per synthesis. Decisions and per-record "
              "tokens are identical to unbatched metering — that is why calls fall ~65–70% while compute rises with the budget.\n"
              "- **Complexity**: triage is O(entities in sketch) integer work; questions O(nq × fan-out × levels) routing "
-             "calls; synthesis O(pool + Σ states²) with ≤ ~15 states per (entity, chain); ranking O(candidates × 45).\n"
+             "calls; synthesis O(pool + Σ states²) with ≤ ~15 states per (entity, chain); ranking O(candidates × 45). "
+             "The kernel reads its whole pool in one call — 1.3–1.5M tokens at 10k and 3.2–3.4M at 50k in the frozen "
+             "configuration, above the modelled tier's 1M context, which the simulator enforces only for the flat "
+             "controls; a chunked kernel read is queued before any deployment claim.\n"
              "- **Failure handling**: unavailable branches and malicious nodes are E5 in the main report (unchanged by "
              "vNext); the lean arm's failure mode — the sketch names the wrong chain for ~16% of gold entities and a strict "
              "read then returns nothing — is why it is a separate arm and not the default.\n")
@@ -604,10 +657,13 @@ def reviewer_attack() -> str:
          "independent refuters before the work started, and the corrections it needed are in the research log). "
          "Question budget: a fraction of the triage queue, not of the number of gold patterns. **Does not land.**\n",
          "## Attack 5 — hidden centralisation\n",
-         "Nothing new moves up: raw text leaving a node is 0.0 and the claim exposure fraction is identical before and "
-         "after (the paired tables show `claims out` as *same*). The ranker's anchor-context features are counts over "
-         "candidates the kernel already holds. Re-extraction, the one change that touched raw records, stayed local "
-         "and was rejected anyway. **Does not land.**\n",
+         "Nothing new moves up and raw text leaving a node is 0.0. But the claim-exposure fraction that reads *same* "
+         "in the paired tables counts only the upward pass: descent returns per-user claim objects to the kernel and "
+         "the wider budget roughly doubles them (about 30k → 53k objects at 10k, 61k → 127k at 50k), which is also "
+         "where most of the extra compute goes. The ranker's anchor-context features are counts over candidates the "
+         "kernel already holds; re-extraction, the one change that touched raw records, stayed local and was rejected. "
+         "**Lands partly**: the counter is blind to the channel the accepted change widened, and the privacy sections "
+         "now say so.\n",
          "## Attack 6 — the decoy regression is being minimised\n",
          f"It is not: decoy acceptance at 10k went from {_n(h['old_decoy_acceptance_all_10000'])} to "
          f"{_n(h['new_decoy_acceptance_all_10000'])} and the one fix tried (decoy-weighted selection) was rejected "
@@ -623,11 +679,21 @@ def reviewer_attack() -> str:
          "Two negative results (weak sketch bits, descent-evidence merge) rest on one calibration seed. They are cited "
          "as screens that stopped further spending, not as findings, and they are not in the ledger table. "
          "**Lands on wording, addressed.**\n",
-         "## Attack 9 — the hybrid DP could leak scrambled-time decoys\n",
-         "Letting a link float across its clusters relaxes the order test for single-witness links. The paired runs "
-         "show decoy acceptance +0.03 for the hybrid arm with the refitted ranker (inside noise) and −0.01 with the "
-         "previous ranker; the D2 (temporal scramble) family is in `decoy_D2_temporal_scramble` in every row for "
-         "anyone who wants to check the family separately. **Not resolved with five seeds**; watch it on the fresh panel.\n",
+         "## Attack 9 — the hybrid DP leaks decoys\n",
+         "Letting a link float across its clusters relaxes the order test for single-witness links. The scrambled-time "
+         "family D2 is flat (+0.02 at 10k, +0.01 at 50k), but the stale-chain family D5 rises under the adopted arm on "
+         "seven of eight held-out seeds (+0.12 at 10k, +0.13 at 50k; 0.26 → 0.78 across all the accepted changes at 10k). "
+         "The independent review traced it to the staleness gate, which one routine positive mention after a retraction "
+         "defeats and which min timing was masking by accident. **Lands**: the 'improved decoy resistance' claim is "
+         "withdrawn, all four families are in every table, and a cluster-aware gate is queue item 2.\n",
+         "## Attack 10 — the compute comparison mixes metering conventions\n",
+         "It did: the v1 base was metered unbatched and the new arm batched; batching alone is −17% compute and −84% "
+         "calls at identical decisions. **Lands**: the v1 base was re-metered batched on the same worlds and the report "
+         "gives both conventions; the call reduction is labelled as metering.\n",
+         "## Attack 11 — the kernel prompt exceeds the modelled context\n",
+         "1.3–1.5M tokens at 10k and 3.2–3.4M at 50k in one call against a 1M context that the simulator enforces "
+         "only for the flat controls; the report's kernel-context metric showed the first stage only. **Lands**: stated "
+         "in section 5b of the report, printed in the tables, chunking queued as a precondition of any deployment claim.\n",
          "## Revision after the review\n",
          "- Kept: the three accepted changes and the lean arm as a labelled Pareto point.\n"
          "- Reworded: the single-seed screens; the decoy regression is stated in the first paragraph of the report.\n"

@@ -34,7 +34,7 @@ Ledgers (batched metering)= route_ledger[node] -> #questions routed this round;
 
 ## 3. Messages
 
-**Upward.** Claims (KOs) carry a predicate, an entity, a polarity, a time interval, the set of witness signatures and the branch lineage — never the record text. Sketch entries carry counts and bits. The benchmark's privacy metrics are computed on exactly these messages: raw text leaving a node is 0.0 and the fraction of claims leaving their node is unchanged by vNext (0.138 at 10k), because no change touched what moves up.
+**Upward.** Claims (KOs) carry a predicate, an entity, a polarity, a time interval, the set of witness signatures and the branch lineage — never the record text. Sketch entries carry counts and bits. The benchmark's exposure metrics count the upward pass: raw text leaving a node is 0.0 and the fraction of claims leaving their node on that pass is unchanged by vNext (0.138 at 10k), because no change touched what moves up. Descent returns are a second channel the counters do not observe: a queried user answers with per-user claim objects, and the wider budget roughly doubles the objects the kernel holds (about 30k → 53k at 10k, 61k → 127k at 50k). Extending the counter to that channel is queued.
 
 **Downward.** A question names an entity and, optionally, target predicates; it is routed by the kernel's triage (foreign sites for the entity, home site avoided), then by each node's anchor index, with per-parent quotas (descent fan-out 3; 5/5/5/8 children per level). A strict read (the lean arm) returns only the target predicates; the default soft read falls back to every record on the entity when nothing matches.
 
@@ -103,13 +103,13 @@ Four checks with tier-dependent pass probabilities (causal, temporal, dedup, ent
 - Claims: leave the user node as (predicate, entity, polarity, interval, witness signatures, lineage). This is the benchmark's `claim_exposure_fraction`.
 - Sketch entries: counts and bits; no entity text beyond the entity id the enterprise already shares.
 - Ranker features: every feature is a function of the claims and sketch the kernel already holds; the anchor-context features are kernel aggregates (how many candidates share the entity, its triage gain), not per-user data.
-- No centralisation is hidden in vNext: the controls that centralise (A2, B4, Y) are run as such and labelled.
+- No centralisation is hidden in vNext: the controls that centralise (A2, B4, Y) are run as such and labelled. What the kernel does hold is per-user claim objects returned by descents, and vNext doubles them; the exposure counters do not yet count that channel (section 3).
 
 ## 9. Model allocation, caching, complexity, failure handling
 
 - **Allocation**: back-loaded tiers (small models at USER/TEAM extraction, frontier at the kernel) as in v1; E3 in the main report is the ablation.
 - **Caching / batching**: routing and user reads are metered once per node per round (the ledgers); the kernel re-reads its pool once per synthesis. Decisions and per-record tokens are identical to unbatched metering — that is why calls fall ~65–70% while compute rises with the budget.
-- **Complexity**: triage is O(entities in sketch) integer work; questions O(nq × fan-out × levels) routing calls; synthesis O(pool + Σ states²) with ≤ ~15 states per (entity, chain); ranking O(candidates × 45).
+- **Complexity**: triage is O(entities in sketch) integer work; questions O(nq × fan-out × levels) routing calls; synthesis O(pool + Σ states²) with ≤ ~15 states per (entity, chain); ranking O(candidates × 45). The kernel reads its whole pool in one call — 1.3–1.5M tokens at 10k and 3.2–3.4M at 50k in the frozen configuration, above the modelled tier's 1M context, which the simulator enforces only for the flat controls; a chunked kernel read is queued before any deployment claim.
 - **Failure handling**: unavailable branches and malicious nodes are E5 in the main report (unchanged by vNext); the lean arm's failure mode — the sketch names the wrong chain for ~16% of gold entities and a strict read then returns nothing — is why it is a separate arm and not the default.
 
 ![loop](fig_loop.svg)

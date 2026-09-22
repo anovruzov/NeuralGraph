@@ -319,7 +319,14 @@ are NOT evaluation-seed numbers):
                                            ("mod_refit", "modal, refitted ranker")]))
     t.append("""
 Modal did not replicate (+0.04 on the calibration seeds, −0.01 on the
-evaluation seeds); hybrid did (+0.04, no seed worse). The refitted ranker
+evaluation seeds); hybrid did (+0.04, no seed worse). The calibration-seed
+"decoy resistance" did not replicate either: on the evaluation seeds the
+stale-chain family D5 rises under hybrid with the refitted ranker (+0.12
+at 10k, +0.13 at 50k, up on 7 of 8 seeds) while D1–D3 are flat, so the
+honest statement is "found +0.04/+0.06, D5 +0.12/+0.13". The independent
+review traced it to a staleness gate that one routine positive mention
+after a retraction defeats, which min timing had been masking by accident;
+the per-family numbers are in 9.7 and the gate fix is queued. The refitted ranker
 goes forward because that is the pre-registered procedure; the previous
 ranker's better rare recall and decoy acceptance under hybrid timing are
 reported, not acted on, because acting on them would be selection on the
@@ -345,6 +352,13 @@ is. The budget saturates at 0.65 here too, re-extraction does not pay, and
 hybrid timing adds +0.06 on 3/3 seeds at equal compute. The hierarchy ends
 at about 0.59 against A2's 0.77 with the same ranker, at 38% of A2's
 compute; that gap is the question budget's reach, not the register.
+
+Two accounting caveats from the independent review apply to every 50k row
+above: the "calls" column compares unbatched v1 metering with batched vNext
+metering (batching alone is −84% calls at identical decisions; the v1 base
+re-metered batched is in 9.7), and the kernel's single read of its pool is
+3.2–3.4M tokens at 50k (1.3–1.5M at 10k) against the modelled tier's 1M
+context, which the simulator enforces only for the flat controls.
 
 ### 9.7 The ledger, the cost of each accepted change, and what is frozen
 

@@ -731,3 +731,54 @@ the loss accounting built its hierarchy runner the same way. `H_mycelic_prev`
 reproduced the archived v1 row exactly (0.300, 220 questions, 1.043e6
 units), which is what made the discrepancy attributable. Fixed in both
 files, partial artifacts deleted, rerun relaunched from the archive step.
+
+## Iteration 23 — three independent refuters, and what they took away
+
+Three read-only refuter agents were run against the vNext claims while
+the final rerun computed (reports verbatim, with responses, in
+logs/independent_review.md and docs/mycelic_vnext/REVIEWER_ATTACK.md).
+What survived: the ranker fit and per-architecture adoption use only
+calibration-seed rows (23,614 reproduced exactly); the register cap is
+identical in every accepted row; the hand gate never binds, so found is
+gate-independent; batching changes no decision (identical on 5/5 seeds,
+exactly 120 tokens per call saved); the hybrid DP is correct (0 of 400
+fuzz cases wrong); the matching rule is timing-blind; no raw text moves.
+
+What did not survive, in order of consequence:
+
+1. **Compute framing.** The headline "+25% compute, −71% calls" compared the
+   v1 base metered unbatched against the new arm metered batched. Batching
+   alone is −17% compute / −84% calls at identical decisions, so the
+   like-for-like increase is ≈+45–50% at 10k, and the calls figure is a
+   metering convention. The v1 base was re-metered batched
+   (quick_prev_batched*.jsonl) and both conventions are now reported.
+2. **Kernel context.** The frozen kernel's single read is 1.3–1.5M tokens at
+   10k and 3.2–3.4M at 50k against the tier's 1M context, which the
+   simulator enforces only for the flat controls; the report's
+   kernel_context_tokens showed the first stage only (≈20k). v1 already
+   exceeded it at 50k; vNext pushes 10k over. Stated as a requirement now;
+   chunking the kernel read is queued as a precondition of any deployment claim.
+3. **D5 stale-chain decoys.** Their acceptance rises with every accepted
+   step (0.26 → 0.66 with the ranker bundle, → 0.78 with hybrid at 10k;
+   0.63 → 0.76 at 50k; 7 of 8 held-out seeds up). The docs had pointed
+   readers at D2, which is flat. Mechanism (refuter 2): the staleness gate
+   is defeated by one routine positive mention after the retraction, and min
+   timing was masking it by accident. All four families are now in every
+   table; a cluster-aware staleness gate is queued.
+4. **Protocol.** question_frac 0.65 and the re-extraction rejection were
+   decided on the evaluation seeds; seeds 0–4 were read after ~11
+   decisions (winner's curse ≈ +0.02–0.04 on the small deltas, negligible
+   on the +0.21). The provenance table now derives "chosen on" from the
+   evidence files; seeds 5–9 at 10k, never read, are the confirmation
+   panel; a calibration-seed budget sweep under the frozen ranker is flat
+   between 0.50 and 0.80.
+5. **Claims at the kernel.** The exposure counters see only the upward pass;
+   descent returns roughly double the claim objects at the kernel (30k →
+   53k at 10k, 61k → 127k at 50k). Raw text stays at 0. Reworded.
+6. **Feature/timing consistency.** Under hybrid timing the lag features are
+   still computed from min timing (50–58% of verified candidates carry
+   min_lag < −3); the refit learned around it. Fix queued for the next refit.
+7. **Fairness of link timing.** The flat controls collapse each (predicate,
+   entity) to one object, on which hybrid is a no-op by construction; a
+   fair test gives them per-user objects and charges the context. Queue
+   item rewritten.

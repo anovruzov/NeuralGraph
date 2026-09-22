@@ -29,12 +29,21 @@ METRICS = [
     ("common_signal_recall", "common recall", True),
     ("average_precision", "AP", True),
     ("false_discovery_rate", "FDR", False),
-    ("decoy_acceptance_all", "decoy acc.", False),
+    ("decoy_acceptance_all", "decoy acc. (all)", False),
+    ("decoy_D1_entity_coincidence", "decoy D1 entity", False),
+    ("decoy_D2_temporal_scramble", "decoy D2 scramble", False),
+    ("decoy_D3_near_miss_entity", "decoy D3 near-miss", False),
+    ("decoy_D5_stale_chain", "decoy D5 stale", False),
     ("compute_units", "compute", False),
-    ("inference_calls", "calls", False),
+    ("inference_calls", "calls (metering)", False),
+    ("max_context_tokens", "kernel prompt tokens (max)", False),
 ]
 CORE = ["found_anywhere_in_register", "evidence_coverage_2links", "rare_signal_recall",
-        "average_precision", "false_discovery_rate", "compute_units", "inference_calls"]
+        "average_precision", "false_discovery_rate", "decoy_acceptance_all",
+        "decoy_D5_stale_chain", "decoy_D2_temporal_scramble",
+        "compute_units", "inference_calls", "max_context_tokens"]
+DECOYS = ["decoy_D1_entity_coincidence", "decoy_D2_temporal_scramble",
+          "decoy_D3_near_miss_entity", "decoy_D5_stale_chain"]
 
 
 # ---------------------------------------------------------------------------
@@ -59,7 +68,7 @@ def by_seed(rows: List[Dict], arch: str, scale: int) -> Dict[int, Dict]:
 
 
 def _fmt(key: str, v: float) -> str:
-    if key in ("compute_units", "inference_calls"):
+    if key in ("compute_units", "inference_calls", "max_context_tokens"):
         return f"{v:.2e}"
     return f"{v:.3f}"
 
@@ -136,7 +145,7 @@ def old_new_table(scale: int,
         for k in keys:
             ma, mb, d = pr[k]
             dm, ci, wins, v = _verdict(d, hb[k])
-            if k in ("compute_units", "inference_calls"):
+            if k in ("compute_units", "inference_calls", "max_context_tokens"):
                 dm = f"{(mb / ma - 1) * 100:+.0f}%" if ma else "—"
             lines.append(f"| {name} | {label[k]} | {_fmt(k, ma)} | {_fmt(k, mb)} | "
                          f"{dm} | {ci} | {wins} | {v} |")
@@ -177,8 +186,8 @@ def gap_table(scale: int, hier: str = "H_mycelic_full",
     h = by_seed(new, hier, scale)
     if not h:
         return "_(no new rows yet)_"
-    lines = ["| system | found | evidence cov. | rare recall | AP | decoy acc. | compute | calls | found gap to H | compute ratio to H |",
-             "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|"]
+    lines = ["| system | found | evidence cov. | rare recall | AP | decoy acc. | D5 stale | compute | calls | kernel prompt (max tokens) | found gap to H | compute ratio to H |",
+             "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|"]
 
     def row(name, d):
         seeds = sorted(d)
@@ -190,7 +199,8 @@ def gap_table(scale: int, hier: str = "H_mycelic_full",
             if any(s in h for s in seeds) else float("nan")
         lines.append(f"| {name} | {m('found_anywhere_in_register'):.3f} | {m('evidence_coverage_2links'):.3f} | "
                      f"{m('rare_signal_recall'):.3f} | {m('average_precision'):.3f} | {m('decoy_acceptance_all'):.3f} | "
-                     f"{m('compute_units'):.2e} | {m('inference_calls'):.2e} | {gap:+.3f} | {cr:.2f}x |")
+                     f"{m('decoy_D5_stale_chain'):.3f} | {m('compute_units'):.2e} | {m('inference_calls'):.2e} | "
+                     f"{m('max_context_tokens'):.2e} | {gap:+.3f} | {cr:.2f}x |")
     row(hier, h)
     for c in controls:
         d = by_seed(new, c, scale)
@@ -245,6 +255,8 @@ LEDGER: List[Tuple] = [
     ("v50_v3", "H_v3_qf0.65", "H_v3_qf0.65_rx", 50_000, "local re-extraction at 50k", "rejected", "eval 0-1"),
     ("v50_hyb", "v3", "hyb", 50_000, "hybrid link timing at 50k (+ refitted ranker)", "validation", "eval 0-2"),
     ("v50_hyb", "v3", "hyb_lean", 50_000, "hybrid + chain-scoped questions at 50k", "Pareto arm", "eval 0-2"),
+    ("prev_batched", "prev", "prev_batched", 10_000, "v1 hierarchy re-metered with batched descent (identical decisions)", "metering control", "eval 0-4"),
+    ("prev_batched50", "prev", "prev_batched", 50_000, "v1 hierarchy re-metered with batched descent at 50k", "metering control", "eval 0-2"),
     ("diag_reg", None, None, 10_000, "unbounded register (DIAGNOSTIC ONLY, not a fix)", "diagnostic", "eval 0-4"),
     ("diag_both", None, None, 10_000, "unbounded register + full question budget (DIAGNOSTIC)", "diagnostic", "eval 0-4"),
     ("cal_screen", "base", "span2", 10_000, "chain-scoped questions alone (calibration seeds)", "screen", "cal 500-502"),
@@ -252,17 +264,17 @@ LEDGER: List[Tuple] = [
 
 
 def ledger_table() -> str:
-    lines = ["| change | scale | seeds | Δ found | Δ rare | Δ cov. | Δ decoy | compute | calls | status |",
-             "|---|---:|---|---:|---:|---:|---:|---:|---:|---|"]
+    lines = ["| change | scale | seeds | Δ found | Δ rare | Δ cov. | Δ decoy all | Δ D1 | Δ D2 | Δ D3 | Δ D5 stale | compute | calls (metering) | status |",
+             "|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|"]
     for tag, base, variant, scale, what, status, seeds in LEDGER:
         a, b = _arms(tag, base, variant)
         common = sorted(set(a) & set(b))
         if not common:
-            lines.append(f"| {what} | {scale:,} | {seeds} | — | — | — | — | — | — | {status} (no rows) |")
+            lines.append(f"| {what} | {scale:,} | {seeds} | — | — | — | — | — | — | — | — | — | — | {status} (no rows) |")
             continue
         pr = paired_rows(a, b, ["found_anywhere_in_register", "rare_signal_recall",
                                 "evidence_coverage_2links", "decoy_acceptance_all",
-                                "compute_units", "inference_calls"])
+                                "compute_units", "inference_calls"] + DECOYS)
         f = pr["found_anywhere_in_register"]
         k, n, _ = sign_test(f[2].tolist())
         cu = pr["compute_units"]
@@ -270,7 +282,9 @@ def ledger_table() -> str:
         lines.append(
             f"| {what} | {scale:,} | {seeds} | {f[2].mean():+.3f} ({k}/{n} better) | "
             f"{pr['rare_signal_recall'][2].mean():+.3f} | {pr['evidence_coverage_2links'][2].mean():+.3f} | "
-            f"{pr['decoy_acceptance_all'][2].mean():+.3f} | {(cu[1] / cu[0] - 1) * 100:+.0f}% | "
+            f"{pr['decoy_acceptance_all'][2].mean():+.3f} | "
+            + " | ".join(f"{pr[d][2].mean():+.3f}" for d in DECOYS) + " | "
+            f"{(cu[1] / cu[0] - 1) * 100:+.0f}% | "
             f"{(ca[1] / ca[0] - 1) * 100:+.0f}% | {status} |")
     return "\n".join(lines)
 
@@ -307,31 +321,36 @@ def sweep_table(tag: str, base_label: str) -> str:
 def compute_per_accepted_change() -> str:
     """Compute cost per accepted change at 10k, in the order they were stacked."""
     steps = [
-        ("v1 hierarchy (hand ranker, qf 0.25)", "v3_H", None, 0),
-        ("+ ranker v3, qf 0.65, batched descent", "v3_H", None, 1),
-        ("+ hybrid link timing (refitted ranker)", "refit_hyb", "hyb_refit", None),
+        ("v1 hierarchy (hand ranker, qf 0.25), metered unbatched as benchmarked", "v3_H", None, 0, False),
+        ("v1 hierarchy re-metered with batched descent (identical decisions) — the like-for-like base", "prev_batched", "prev_batched", None, True),
+        ("+ ranker v3, qf 0.65, batched descent", "v3_H", None, 1, True),
+        ("+ hybrid link timing (refitted ranker)", "refit_hyb", "hyb_refit", None, True),
     ]
-    lines = ["| configuration | found | rare recall | compute | calls | Δ found per +10% compute |",
-             "|---|---:|---:|---:|---:|---:|"]
+    lines = ["| configuration | found | rare recall | compute | calls (metering) | kernel prompt tokens | Δ found per +10% compute (vs previous row) |",
+             "|---|---:|---:|---:|---:|---:|---:|"]
     prev = None
-    for name, tag, label, parity in steps:
+    for name, tag, label, parity, chain in steps:
         rows = _quick(tag)
         if label is None:
             sel = [r for i, r in enumerate(rows) if i % 2 == parity]
         else:
             sel = [r for r in rows if r["arch"] == label]
         if not sel:
-            lines.append(f"| {name} | — | — | — | — | — |")
+            lines.append(f"| {name} | — | — | — | — | — | — |")
             continue
         m = lambda k: float(np.mean([r[k] for r in sel]))
         eff = "—"
-        if prev is not None and m("compute_units") > prev[1] * 1.02:
+        if chain and prev is not None and m("compute_units") > prev[1] * 1.02:
             eff = f"{(m('found_anywhere_in_register') - prev[0]) / ((m('compute_units') / prev[1] - 1) * 10):+.3f}"
-        elif prev is not None:
+        elif chain and prev is not None:
             eff = f"{m('found_anywhere_in_register') - prev[0]:+.3f} at {(m('compute_units') / prev[1] - 1) * 100:+.1f}% compute"
         lines.append(f"| {name} | {m('found_anywhere_in_register'):.3f} | {m('rare_signal_recall'):.3f} | "
-                     f"{m('compute_units'):.2e} | {m('inference_calls'):.2e} | {eff} |")
+                     f"{m('compute_units'):.2e} | {m('inference_calls'):.2e} | {m('max_context_tokens'):.2e} | {eff} |")
         prev = (m("found_anywhere_in_register"), m("compute_units"))
+    lines.append("")
+    lines.append("The first row is the v1 base as it was benchmarked (unbatched metering); the second is the same "
+                 "decisions re-metered with batched descent, which is the base every later row should be read "
+                 "against. Batching is a metering convention: it changes no decision and no per-record token.")
     return "\n".join(lines)
 
 
@@ -462,6 +481,11 @@ def headline_numbers() -> Dict[str, float]:
     out: Dict[str, float] = {}
     old = e1_rows(V1)
     new = e1_rows(ART)
+    for tag, f in (("prevb", "prev_batched"), ("prevb50", "prev_batched50")):
+        rows = [r for r in _quick(f) if r["arch"] == "prev_batched"]
+        sc = 50_000 if tag.endswith("50") else 10_000
+        for k in CORE:
+            out[f"{tag}_{k}_{sc}"] = float(np.mean([r[k] for r in rows])) if rows else float("nan")
     conf = range(5, 10)
     for tag, rows, arch in (("old_conf", old, "H_mycelic_full"), ("new_conf", new, "H_mycelic_full"),
                             ("a2_conf", new, "A2_chunked_ctx"), ("a2_old_conf", old, "A2_chunked_ctx")):
