@@ -22,3 +22,5 @@
    100000/2 B_long_context         AP=0.0002 found=0.025 cov2=0.045 rare=0.000 cu=1.11e+06 (2s)
    100000/2 B2_map_reduce          AP=0.0006 found=0.010 cov2=0.030 rare=0.000 cu=1.49e+06 (10s)
    100000/2 A2_chunked_ctx         AP=0.0778 found=0.765 cov2=1.000 rare=0.722 cu=2.03e+07 (28s)
+   100000/2 E_hier_lineage         AP=0.0100 found=0.010 cov2=0.015 rare=0.000 cu=1.91e+06 (51s)
+   100000/2 G_hier_questions       AP=0.0745 found=0.495 cov2=0.595 rare=0.241 cu=5.89e+06 (58s)
