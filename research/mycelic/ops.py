@@ -519,6 +519,34 @@ def _valid_chain_path(preds: Sequence[int]) -> Tuple[bool, int]:
     return best
 
 
+# --------------------------------------------------------------------------
+# Shared calibrated ranker.
+#
+# The hand-set confidence logistic below is the same for every architecture.
+# The loss accounting showed that among the candidates the hierarchy actually
+# has to order, its main terms carry almost no information (the triage has
+# already selected for them), and that a logistic over the same kernel-side
+# statistics fitted on the calibration seeds separates genuine from spurious
+# candidates far better (AUC 0.67 -> 0.83).  When a fitted ranker is active it
+# REPLACES the hand-set confidence for every system alike - it is a shared
+# operator, fitted once on seeds 500-502 and frozen, exactly like every other
+# calibrated knob.  No feature reads raw text.
+# --------------------------------------------------------------------------
+RANKER: Optional[Dict[str, object]] = None
+
+
+def set_ranker(r: Optional[Dict[str, object]]) -> None:
+    global RANKER
+    RANKER = r
+
+
+def ranker_score(feat: Dict[str, float], r: Dict[str, object]) -> float:
+    z = float(r["bias"])
+    for f, w, mu, sd in zip(r["features"], r["weights"], r["mu"], r["sd"]):
+        z += float(w) * (float(feat.get(f, 0.0)) - float(mu)) / float(sd)
+    return float(1.0 / (1.0 + math.exp(-z)))
+
+
 def synthesize(kos: List[KO], tier: Tier, rng: np.random.Generator,
                org, min_preds: int = 2,
                use_lineage: bool = True,
@@ -709,6 +737,24 @@ def synthesize(kos: List[KO], tier: Tier, rng: np.random.Generator,
              - w_synchrony * frac_sync)
         conf = float(1.0 / (1.0 + math.exp(-z)))
         tm = [min(k.tmin for k in pred_kos[p]) for p in plist]
+        if RANKER is not None:
+            lags = [tm[i + 1] - tm[i] for i in range(len(tm) - 1)] or [0]
+            conf = ranker_score({
+                "n_links": len(plist), "min_sup": min_sup,
+                "mean_sup": float(np.mean(link_sup)) if link_sup else 0.0,
+                "spread": spread, "multi": multi, "n_indep": min(50, n_indep),
+                "n_sites": len(sites), "n_regions": len(regions),
+                "contra": contra, "conflict": conflict,
+                "dispersion": mean_disp, "synchrony": frac_sync,
+                "verified": 1.0 if verified else 0.0, "penalty": penalty,
+                "tspan": max(k.tmax for k in members) - min(k.tmin for k in members),
+                "max_lag": max(lags), "min_lag": min(lags),
+                "neg_lag": 1.0 if min(lags) < 0 else 0.0,
+                "log_n_kos": math.log1p(len(members)),
+                "from_question": 1.0 if question_tag >= 0 else 0.0,
+                "attribution": -1.0,
+                "hand_conf": conf,
+            }, RANKER)
         out.append(Hypothesis(
             anchor=anchor, preds=plist, kos=members, evidence=ev[:24],
             n_indep=n_indep, n_branch_regions=len(regions),

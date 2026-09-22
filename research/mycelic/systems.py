@@ -1452,15 +1452,18 @@ def oracle_retrieval(corpus: Corpus, alloc: List[Tier], seed: int,
     kt = alloc[ENT]
     meter.add("L5-kernel", kt, len(kos) * TOK_PER_KO + TOK_PROMPT_OVERHEAD, 0,
               calls=1)
+    full: List[Hypothesis] = []
     hyps = synthesize(kos, kt, rng, corpus.org, n_entities=len(corpus.entities),
                       stem_rep=stem_rep_map(corpus),
-                      max_reports=int(min(6000, max(600, len(corpus.entities)))))
+                      max_reports=int(min(6000, max(600, len(corpus.entities)))),
+                      full_out=full)
     meter.add("L5-kernel", kt, 0, len(hyps) * TOK_PER_HYP, calls=0)
     return RunResult(name="oracle_retrieval", hypotheses=hyps, meter=meter,
                      retained={(k.pred, k.anchor) for k in kos}, kernel_kos=kos,
                      propagated_records=int(len(ul.ex)),
                      exposed_raw_records=0,
-                     claims_leaving_node=int(len(ul.ex)))
+                     claims_leaving_node=int(len(ul.ex)),
+                     notes={"full_hyps": full})
 
 
 def random_rank(res: RunResult, seed: int) -> RunResult:
@@ -1580,8 +1583,10 @@ def central_triage(corpus: Corpus, alloc: List[Tier], seed: int,
     meter.add("L5-kernel", kt, len(kos) * TOK_PER_KO + TOK_PROMPT_OVERHEAD, 0,
               calls=1)
     mr = int(min(6000, max(600, len(corpus.entities))))
+    full: List[Hypothesis] = []
     hyps = synthesize(kos, kt, rng, org, n_entities=len(corpus.entities),
-                      max_reports=mr, stem_rep=stem_rep_map(corpus))
+                      max_reports=mr, stem_rep=stem_rep_map(corpus),
+                      full_out=full)
     meter.add("L5-kernel", kt, 0, len(hyps) * TOK_PER_HYP, calls=0)
     return RunResult(name="central_triage", hypotheses=hyps, meter=meter,
                      retained={(k.pred, k.anchor) for k in kos}, kernel_kos=kos,
@@ -1589,7 +1594,8 @@ def central_triage(corpus: Corpus, alloc: List[Tier], seed: int,
                      exposed_raw_records=0,
                      claims_leaving_node=int(len(ex)),
                      notes={"triage_candidates": len(cands),
-                            "sketch_entries": len(mask)})
+                            "sketch_entries": len(mask), "full_hyps": full,
+                            "triage_anchors": [e for _, e, _ in cands]})
 
 
 def chunked_long_context(corpus: Corpus, alloc: List[Tier], seed: int,
@@ -1640,14 +1646,17 @@ def chunked_long_context(corpus: Corpus, alloc: List[Tier], seed: int,
     meter.add("L5-kernel", kt, len(pool) * TOK_PER_KO + TOK_PROMPT_OVERHEAD, 0,
               calls=1)
     mr = int(min(6000, max(600, len(corpus.entities))))
+    full: List[Hypothesis] = []
     hyps = synthesize(pool, kt, rng, corpus.org, n_entities=len(corpus.entities),
-                      max_reports=mr, stem_rep=stem_rep_map(corpus))
+                      max_reports=mr, stem_rep=stem_rep_map(corpus),
+                      full_out=full)
     meter.add("L5-kernel", kt, 0, len(hyps) * TOK_PER_HYP, calls=0)
     return RunResult(name="chunked_long_context", hypotheses=hyps, meter=meter,
                      retained={(k.pred, k.anchor) for k in pool},
                      kernel_kos=pool, propagated_records=read,
                      exposed_raw_records=read, claims_leaving_node=0,
-                     notes={"chunks": n_chunks, "records_read": int(read)})
+                     notes={"chunks": n_chunks, "records_read": int(read),
+                            "full_hyps": full})
 
 
 def naive_enumerate(corpus: Corpus, alloc: List[Tier], seed: int,

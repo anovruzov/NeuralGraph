@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Dict, List, Sequence
+from typing import Dict, List, Optional, Sequence
 
 import numpy as np
 
@@ -29,6 +29,13 @@ STAGE_LABEL = {
     "in_register": "survived the register cut (= reported)",
 }
 
+# labels for the loss tables, where the row means "died HERE"
+LOSS_LABEL = {
+    "in_register": "cut from the register (matched at >= 0.5, out-ranked)",
+    "matched_tau": "matched, but confidence < 0.5",
+    "reported": "**reported**",
+}
+
 SKETCH_FAIL_LABEL = {
     "no_site_bit": "no site set a predicate bit (support threshold)",
     "foreign_lt2": "fewer than 2 foreign sites",
@@ -44,7 +51,13 @@ def load(path: str = FUNNEL) -> List[Dict]:
         return [json.loads(l) for l in fh if l.strip()]
 
 
-def stages_for(arch: str) -> List[str]:
+def stages_for(arch: str, rows: Optional[List[Dict]] = None) -> List[str]:
+    if rows:
+        r0 = next((r for r in rows if r["arch"] == arch and not r.get("summary")), None)
+        if r0 is not None:
+            if "sketch_visible" in r0:
+                return HIER_STAGES
+            return FLAT_STAGES if r0.get("extracted") is not None else FLAT_STAGES[1:]
     return HIER_STAGES if arch.startswith(("H_", "G_", "F_", "E_", "J_", "I_", "V")) \
         else FLAT_STAGES
 
@@ -67,17 +80,25 @@ def survival_table(rows: List[Dict], scale: int, subset: str = "all") -> str:
     for s in all_stages:
         cells = []
         for a in archs:
-            if s not in stages_for(a):
+            if s not in stages_for(a, pr):
                 cells.append("—")
                 continue
-            # per-seed fraction, then bootstrap over seeds
+            # per-seed fraction (unweighted mean over seeds); with fewer than
+            # 5 seeds a bootstrap interval is not meaningful, so the seed
+            # range is printed instead
             seeds = sorted({r["seed"] for r in pr if r["arch"] == a})
             fr = []
             for sd in seeds:
-                sub = [r for r in pr if r["arch"] == a and r["seed"] == sd]
+                sub = [r for r in pr if r["arch"] == a and r["seed"] == sd
+                       and r.get(s) is not None]
                 if sub:
                     fr.append(sum(1 for r in sub if r[s]) / len(sub))
+            if not fr:
+                cells.append("—")
+                continue
             m, lo, hi = boot_ci(fr)
+            if len(fr) < 5:
+                lo, hi = min(fr), max(fr)
             cells.append(f"{m:.3f} <sub>[{lo:.2f}, {hi:.2f}]</sub>")
         lines.append(f"| {STAGE_LABEL[s]} | " + " | ".join(cells) + " |")
     n = {a: len({(r['seed'], r['pid']) for r in pr if r['arch'] == a}) for a in archs}
@@ -92,14 +113,15 @@ def first_loss_table(rows: List[Dict], scale: int, arch: str) -> str:
           and r["arch"] == arch]
     if not pr:
         return "_(no rows)_"
-    stages = stages_for(arch) + ["reported"]
-    lines = ["| first stage lost | all | rare | common |", "|---|---:|---:|---:|"]
+    stages = stages_for(arch, pr) + ["reported"]
+    lines = ["| stage the pattern died at | all | rare | common |",
+             "|---|---:|---:|---:|"]
     for s in stages:
         key = "" if s == "reported" else s
-        allc = sum(1 for r in pr if r["first_loss"] == key)
-        rc = sum(1 for r in pr if r["first_loss"] == key and r["rare"])
+        allc = sum(1 for r in pr if r["loss_stage"] == key)
+        rc = sum(1 for r in pr if r["loss_stage"] == key and r["rare"])
         cc = allc - rc
-        lab = STAGE_LABEL.get(s, "**reported (survived every stage)**")
+        lab = LOSS_LABEL.get(s, STAGE_LABEL.get(s, "**reported**"))
         lines.append(f"| {lab} | {allc} ({allc / len(pr):.0%}) | {rc} | {cc} |")
     lines.append(f"| total | {len(pr)} | {sum(1 for r in pr if r['rare'])} | "
                  f"{sum(1 for r in pr if not r['rare'])} |")
@@ -150,8 +172,9 @@ def rank_table(rows: List[Dict], scale: int) -> str:
     pr = [r for r in rows if not r.get("summary") and r["scale"] == scale
           and r["in_register"]]
     archs = sorted({r["arch"] for r in pr})
-    lines = ["| architecture | reported | median rank | within top 40 | "
-             "within top 100 | median confidence |", "|---|---:|---:|---:|---:|---:|"]
+    lines = ["| architecture | reported | median rank (0-based, confidence-sorted register) | "
+             "within top 40 | within top 100 | median confidence |",
+             "|---|---:|---:|---:|---:|---:|"]
     for a in archs:
         sub = [r for r in pr if r["arch"] == a]
         rk = [r["rank"] for r in sub if r["rank"] >= 0]
@@ -181,21 +204,22 @@ def gap_decomposition(rows: List[Dict], scale: int,
     won = [k for k in keys if pa[k]["in_register"] and not pb[k]["in_register"]]
     st: Dict[str, int] = {}
     for r in lost:
-        st[r["first_loss"]] = st.get(r["first_loss"], 0) + 1
+        st[r["loss_stage"]] = st.get(r["loss_stage"], 0) + 1
     lines = [f"Paired on {n} (seed, pattern) pairs at {scale:,} users: "
              f"`{b}` reports {b_rep} ({b_rep / n:.1%}), `{a}` reports {a_rep} "
              f"({a_rep / n:.1%}). `{b}` finds {len(lost)} that `{a}` misses; "
              f"`{a}` finds {len(won)} that `{b}` misses.", "",
              f"**Of the {len(lost)} patterns `{b}` reports and `{a}` does not, "
              f"the first stage `{a}` lost them at:**", "",
-             "| stage | patterns | share of the gap | of which rare |",
+             "| stage it died at | patterns | share of the gap | of which rare |",
              "|---|---:|---:|---:|"]
-    for s in stages_for(a):
+    for s in stages_for(a, [pa[k] for k in keys]):
         c = st.get(s, 0)
         if c == 0:
             continue
-        rc = sum(1 for r in lost if r["first_loss"] == s and r["rare"])
-        lines.append(f"| {STAGE_LABEL[s]} | {c} | {c / max(1, len(lost)):.0%} | {rc} |")
+        rc = sum(1 for r in lost if r["loss_stage"] == s and r["rare"])
+        lines.append(f"| {LOSS_LABEL.get(s, STAGE_LABEL[s])} | {c} | "
+                     f"{c / max(1, len(lost)):.0%} | {rc} |")
     return "\n".join(lines)
 
 
@@ -215,7 +239,7 @@ def build(scales: Sequence[int] = (10_000, 50_000)) -> str:
         out.append(survival_table(rows, sc, "rare"))
         out.append("\n### Stage survival, common patterns only\n")
         out.append(survival_table(rows, sc, "common"))
-        out.append("\n### Where the hierarchy loses each pattern FIRST\n")
+        out.append("\n### Where the hierarchy loses each pattern (terminal stage)\n")
         out.append(first_loss_table(rows, sc, "H_mycelic_full"))
         out.append("\n### Why the sketch could not see the invisible ones\n")
         out.append(sketch_fail_table(rows, sc))

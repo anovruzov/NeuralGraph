@@ -31,6 +31,15 @@ Stages, in pipeline order, for the hierarchy:
                    count.  The gap between these two is the calibration loss.
   in_register      the matching hypothesis survived the register cut.
 
+Two readings of "where it was lost" are recorded because the stages are not
+strictly nested: `first_loss` (first failing stage in order, diagnostic) and
+`loss_stage` (the first failing stage after the last passing one, '' for a
+reported pattern) - the tables use `loss_stage`.  Confidences of candidates
+cut from the register are the raw synthesis confidences (any later prior or
+verification adjustment is applied to the kept list only).  `in_register`
+applies the 0.5 confidence threshold; the report's `found` does not, and the
+two agreed on every run measured.
+
 The centralised systems have no sketch, triage, question or descent stage;
 their funnel is extracted -> in_pool -> candidate -> matched -> register.
 
@@ -77,19 +86,27 @@ def _facets_extracted(world: World, ul, p: Pattern) -> Tuple[int, int]:
     a predicate slip is a loss here, not later.
     """
     ex = ul.ex
-    rid_to_i = {int(r): i for i, r in enumerate(ex.rid.tolist())}
+    # A record can yield several rows (a genuine claim plus a spurious one
+    # that reuses its id), so keep every row per record and skip the
+    # spurious ones; a dict keyed on rid would let a spurious row shadow
+    # the genuine claim that the hierarchy actually propagates.
+    rid_rows: Dict[int, List[int]] = {}
+    spur = ex.spurious
+    for i, r in enumerate(ex.rid.tolist()):
+        if not spur[i]:
+            rid_rows.setdefault(int(r), []).append(i)
     ok = anyk = 0
     for j, fr in enumerate(p.facet_records):
         want = p.preds[j]
         hit = False
         seen = False
         for r in fr:
-            i = rid_to_i.get(int(r))
-            if i is None:
-                continue
-            seen = True
-            if int(ex.anchor[i]) == p.anchor and int(ex.pred[i]) == want:
-                hit = True
+            for i in rid_rows.get(int(r), ()):
+                seen = True
+                if int(ex.anchor[i]) == p.anchor and int(ex.pred[i]) == want:
+                    hit = True
+                    break
+            if hit:
                 break
         ok += int(hit)
         anyk += int(seen)
@@ -162,7 +179,9 @@ def _hier_rows(arch: str, world: World, res: RunResult, runner: HierRunner,
     ranked_tau = [x for x in ranked if x.conf >= TAU]
     rank_of = {id(x): i for i, x in enumerate(ranked)}
     q_anchors = {int(q.anchor) for q in h.questions}
-    q_order = {a: i for i, a in enumerate(h.question_order)}
+    q_order: Dict[int, int] = {}
+    for i, a in enumerate(h.question_order):      # first occurrence: an anchor
+        q_order.setdefault(a, i)                  # can be queued twice
     triage_rank = {a: i for i, (g, a) in enumerate(
         sorted(((g, a) for a, g in h.triage_gain.items()), reverse=True))}
     rows = []
@@ -214,19 +233,44 @@ def _hier_rows(arch: str, world: World, res: RunResult, runner: HierRunner,
         bi2, _ = _best_match(ranked_tau, p, stem)
         r["in_register"] = bi2 is not None
         r["rank"] = rank_of.get(id(ranked_tau[bi2]), -1) if bi2 is not None else -1
-        r["first_loss"] = next((s for s in HIER_STAGES if not r[s]), "")
+        _loss_fields(r, HIER_STAGES)
         rows.append(r)
     return rows
 
 
+def _loss_fields(r: Dict, stages: List[str]) -> None:
+    """Two readings of "where it was lost", because the stages are not nested.
+
+    first_loss : the first stage in pipeline order that failed (diagnostic;
+                 may be non-empty for a pattern that was still reported,
+                 because e.g. the sketch can see an anchor whose own facets
+                 failed extraction).
+    loss_stage : the stage the pattern TERMINALLY died at - the first failing
+                 stage after the last passing one - and '' if it was reported.
+                 This is what the loss tables and the gap decomposition use.
+    """
+    r["first_loss"] = next((s for s in stages if not r[s]), "")
+    if r["in_register"]:
+        r["loss_stage"] = ""
+        return
+    last_pass = -1
+    for i, s in enumerate(stages):
+        if r[s]:
+            last_pass = i
+    r["loss_stage"] = next((s for s in stages[last_pass + 1:] if not r[s]),
+                           stages[-1])
+
+
 def _flat_rows(arch: str, world: World, res: RunResult, scale: int,
-               seed: int) -> List[Dict]:
+               seed: int, ul=None) -> List[Dict]:
     c = world.corpus
     stem = stem_rep_map(c)
     pats = {p.pid: p for p in c.patterns}
     ranked = list(res.hypotheses)
     ranked_tau = [x for x in ranked if x.conf >= TAU]
     rank_of = {id(x): i for i, x in enumerate(ranked)}
+    # the pre-register-cut list, if the system recorded one (all do now)
+    full = list(res.notes.get("full_hyps") or ranked)
     # the flat systems' pools carry evidence ids per KO, so "extracted" is
     # read off the pool: a facet whose record ids appear in a KO with the
     # right (pred, anchor) was extracted correctly
@@ -253,13 +297,20 @@ def _flat_rows(arch: str, world: World, res: RunResult, scale: int,
         }
         links = {(int(pr), a) for pr in p.preds}
         r["links_in_pool"] = len(links & res.retained)
-        r["extracted"] = r["links_in_pool"] >= 2   # best available proxy
+        if ul is not None:
+            # B4 and the oracle consume the same edge extraction as the
+            # hierarchy, so the same facet-level test applies
+            ok2, anyk = _facets_extracted(world, ul, p)
+            r["facets_extracted"], r["facets_seen"] = ok2, anyk
+            r["extracted"] = ok2 >= 2
+        else:
+            # A2 extracts per chunk with the kernel tier and keeps no
+            # ExtractResult; its extraction stage is NOT measured, and the
+            # tables print it as such rather than as a proxy
+            r["extracted"] = None
         r["in_pool"] = r["links_in_pool"] >= 2
-        # no pre-cut list for the flat systems: candidate == matched at any
-        # confidence in the returned list (the register cut is rarely binding
-        # for them, and this is stated in the summary)
-        bi, shared = _best_match(ranked, p, stem)
-        cand = [x for x in ranked if int(x.anchor) == a and x.chain == p.chain
+        bi, shared = _best_match(full, p, stem)
+        cand = [x for x in full if int(x.anchor) == a and x.chain == p.chain
                 and set(x.preds) & set(p.preds)]
         r["candidate"] = bool(cand)
         r["candidate_links"] = max((len(set(x.preds) & set(p.preds))
@@ -267,40 +318,38 @@ def _flat_rows(arch: str, world: World, res: RunResult, scale: int,
         r["candidate_conf"] = max((float(x.conf) for x in cand), default=-1.0)
         r["matched_any"] = bi is not None
         r["match_links"] = shared
-        r["match_conf"] = float(ranked[bi].conf) if bi is not None else -1.0
-        r["matched_tau"] = bi is not None and ranked[bi].conf >= TAU
+        r["match_conf"] = float(full[bi].conf) if bi is not None else -1.0
+        r["matched_tau"] = bi is not None and full[bi].conf >= TAU
         bi2, _ = _best_match(ranked_tau, p, stem)
         r["in_register"] = bi2 is not None
         r["rank"] = rank_of.get(id(ranked_tau[bi2]), -1) if bi2 is not None else -1
-        r["first_loss"] = next((s for s in FLAT_STAGES if not r[s]), "")
+        stages = FLAT_STAGES if r["extracted"] is not None else FLAT_STAGES[1:]
+        _loss_fields(r, stages)
         rows.append(r)
     return rows
 
 
 def _summary(arch: str, rows: List[Dict], scale: int, seed: int,
              res: RunResult) -> Dict:
-    stages = HIER_STAGES if arch.startswith(("H_", "G_", "F_", "E_", "J_",
-                                            "I_", "V")) else FLAT_STAGES
+    stages = HIER_STAGES if "sketch_visible" in rows[0] else (
+        FLAT_STAGES if rows[0].get("extracted") is not None else FLAT_STAGES[1:])
     n = len(rows)
     out: Dict[str, object] = {"arch": arch, "scale": scale, "seed": seed,
                               "summary": True, "n_gold": n,
                               "n_rare": sum(1 for r in rows if r["rare"]),
                               "stages": stages}
-    prev = None
     for s in stages:
-        k = sum(1 for r in rows if r[s])
+        vals = [r[s] for r in rows if r.get(s) is not None]
+        k = sum(1 for v in vals if v)
         out[f"surv_{s}"] = k
-        out[f"frac_{s}"] = k / max(1, n)
-        kr = sum(1 for r in rows if r[s] and r["rare"])
-        out[f"rare_surv_{s}"] = kr
-        if prev is not None:
-            pk = sum(1 for r in rows if r[prev])
-            out[f"cond_{s}"] = k / max(1, pk)
-        prev = s
+        out[f"frac_{s}"] = k / max(1, len(vals)) if vals else None
+        out[f"rare_surv_{s}"] = sum(1 for r in rows if r.get(s) and r["rare"])
     fl: Dict[str, int] = {}
     for r in rows:
-        fl[r["first_loss"] or "reported"] = fl.get(r["first_loss"] or "reported", 0) + 1
-    out["first_loss_counts"] = fl
+        key = r["loss_stage"] or "reported"
+        fl[key] = fl.get(key, 0) + 1
+    out["loss_stage_counts"] = fl
+    out["n_reported"] = sum(1 for r in rows if r["in_register"])
     if "sketch_fail" in rows[0]:
         sf: Dict[str, int] = {}
         for r in rows:
@@ -330,9 +379,8 @@ def run(scales: Sequence[int], seeds: Sequence[int],
                 for arch in archs:
                     t1 = time.time()
                     name = arch + tag
-                    if arch.startswith(("H_", "G_", "F_", "E_", "J_", "I_")) \
-                            or arch == "V":
-                        from .runner import ARCHS
+                    from .runner import ARCHS
+                    if ARCHS.get(arch, {}).get("kind", "hier") == "hier":
                         over = dict(ARCHS.get(arch, {}).get("cfg", {}))
                         if cfg_over:
                             over.update(cfg_over)
@@ -344,7 +392,11 @@ def run(scales: Sequence[int], seeds: Sequence[int],
                         rows = _hier_rows(name, w, res, runner, ul, scale, seed)
                     else:
                         res = run_arch(arch, w, alloc, seed)
-                        rows = _flat_rows(name, w, res, scale, seed)
+                        ul = (w.user_layer(alloc[USER], seed)
+                              if ARCHS[arch]["kind"] in ("central_triage", "oracle",
+                                                         "map_reduce", "naive_enum")
+                              else None)
+                        rows = _flat_rows(name, w, res, scale, seed, ul=ul)
                     summ = _summary(name, rows, scale, seed, res)
                     for r in rows:
                         fh.write(json.dumps(r) + "\n")
@@ -354,7 +406,8 @@ def run(scales: Sequence[int], seeds: Sequence[int],
                     all_rows.append(summ)
                     st = summ["stages"]
                     print(f"  {name:22s} " + " ".join(
-                        f"{s[:8]}={summ['frac_' + s]:.2f}" for s in st)
+                        f"{s[:8]}={summ['frac_' + s]:.2f}" for s in st
+                        if summ.get('frac_' + s) is not None)
                         + f"  ({time.time() - t1:.0f}s)", flush=True)
                 w.clear_cache()
                 print(f"scale={scale} seed={seed} done in {time.time() - t0:.0f}s",

@@ -56,7 +56,7 @@ METRICS = [
 
 def run_pair(base: str, variant: str, cfg_over: Optional[Dict], scale: int,
              seeds: Sequence[int], tag: str, alloc_name: str = "back-loaded",
-             verbose: bool = True) -> List[Dict]:
+             verbose: bool = True, ranker_ab: bool = False) -> List[Dict]:
     rows: List[Dict] = []
     path = os.path.join(ART, f"quick_{tag}.jsonl")
     alloc = allocation(alloc_name)
@@ -67,6 +67,9 @@ def run_pair(base: str, variant: str, cfg_over: Optional[Dict], scale: int,
             for label, arch, over in ((base, base, None),
                                       (variant, variant, cfg_over)):
                 t1 = time.time()
+                if ranker_ab:
+                    from .runner import apply_ranker
+                    apply_ranker(label != base)
                 if over is not None and arch in ARCHS:
                     res = run_arch(arch, w, alloc, seed, cfg_over={"cfg": over})
                 else:
@@ -130,12 +133,21 @@ def main() -> None:
     ap.add_argument("--scale", type=int, default=10_000)
     ap.add_argument("--seeds", default="0,1,2")
     ap.add_argument("--alloc", default="back-loaded")
+    ap.add_argument("--ranker", default="cal",
+                    help="cal (use calibration.json's ranker if present) | off | "
+                         "ab (base without, variant with)")
     a = ap.parse_args()
+    from .runner import apply_ranker
+    if a.ranker == "off":
+        apply_ranker(False)
     over = json.loads(a.cfg) if a.cfg else None
     variant = a.variant_arch or a.base
     label = a.variant_arch or f"{a.base}+{a.tag}"
+    if a.ranker == "ab" and over is None:
+        over = {}      # same config; the ranker is the only difference
     seeds = [int(x) for x in a.seeds.split(",")]
-    rows = run_pair(a.base, variant, over, a.scale, seeds, a.tag, a.alloc)
+    rows = run_pair(a.base, variant, over, a.scale, seeds, a.tag, a.alloc,
+                    ranker_ab=(a.ranker == "ab"))
     # relabel the variant rows so the report can tell them apart
     for r in rows:
         if r["arch"] == variant and r["cfg_over"] is not None:

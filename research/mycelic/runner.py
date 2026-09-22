@@ -89,6 +89,19 @@ def load_calibration() -> Dict[str, object]:
 
 CAL = load_calibration()
 
+# The fitted ranker (if calibrate.py has produced one) applies to every
+# architecture, not only the hierarchy; see ops.RANKER.  RANKER_ENABLED can be
+# flipped for paired experiments (quick_paired --no-ranker).
+RANKER_ENABLED = True
+
+
+def apply_ranker(enabled: bool = True) -> None:
+    from . import ops as _ops
+    _ops.set_ranker(CAL.get("ranker") if enabled else None)
+
+
+apply_ranker(RANKER_ENABLED and CAL.get("ranker") is not None)
+
 
 def hier_cfg(**kw) -> HierConfig:
     c = HierConfig(budgets=BASE_BUDGETS)

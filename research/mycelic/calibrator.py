@@ -51,7 +51,7 @@ FEATURES = [
     "n_links", "min_sup", "mean_sup", "spread", "multi", "n_indep",
     "n_sites", "n_regions", "contra", "conflict", "dispersion", "synchrony",
     "verified", "penalty", "tspan", "max_lag", "min_lag", "neg_lag",
-    "log_n_kos", "from_question", "attribution",
+    "log_n_kos", "from_question", "attribution", "hand_conf",
 ]
 
 
@@ -80,6 +80,7 @@ def _features(h) -> Dict[str, float]:
         "log_n_kos": float(math.log1p(len(h.kos))),
         "from_question": 1.0 if h.from_question >= 0 else 0.0,
         "attribution": float(h.attribution),
+        "hand_conf": float(h.conf),
     }
 
 
@@ -91,6 +92,8 @@ def dump(scale: int = 10_000, seeds: Sequence[int] = CAL_SEEDS + EVAL_SEEDS,
     """One row per candidate hypothesis, labelled against gold."""
     path = os.path.join(ART, f"hyp_features{tag}.jsonl")
     alloc = allocation(alloc_name)
+    from . import ops as _ops
+    _ops.set_ranker(None)          # features must be the un-ranked ones
     with open(path, "w") as fh:
         for seed in seeds:
             t0 = time.time()
@@ -281,8 +284,44 @@ def evaluate_calibrator(tag: str = "", arch_filter: Optional[str] = None,
     return out
 
 
+def fit_and_store(tag: str = "", train_archs: Optional[Sequence[str]] = None,
+                  l2: float = 1.0) -> Dict[str, object]:
+    """Fit the shared ranker on the CALIBRATION seeds only and write it into
+    calibration.json, where runner.py picks it up for every architecture.
+
+    The dump it trains on must have been produced with the ranker OFF (the
+    hand_conf feature is the hand-set logistic), which `dump` guarantees by
+    disabling it for the duration of the run.
+    """
+    path = os.path.join(ART, f"hyp_features{tag}.jsonl")
+    rows = [json.loads(l) for l in open(path)]
+    tr = [r for r in rows if r["seed"] in CAL_SEEDS
+          and (train_archs is None or r["arch"] in train_archs)]
+    X = np.array([[r[f] for f in FEATURES] for r in tr])
+    y = np.array([1.0 if r["gold"] else 0.0 for r in tr])
+    Xs, mu, sd = _standardise(X)
+    w = fit_logistic(Xs, y, l2=l2)
+    ranker = {"features": FEATURES, "bias": float(w[0]),
+              "weights": [float(x) for x in w[1:]],
+              "mu": [float(x) for x in mu], "sd": [float(x) for x in sd],
+              "n_train": len(tr), "seeds": list(CAL_SEEDS),
+              "train_archs": list(train_archs) if train_archs else "all",
+              "source_dump": os.path.basename(path)}
+    cal_path = os.path.join(ART, "calibration.json")
+    cal = json.load(open(cal_path)) if os.path.exists(cal_path) else {}
+    cal["ranker"] = ranker
+    with open(cal_path, "w") as fh:
+        json.dump(cal, fh, indent=1)
+    return ranker
+
+
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "fit"
+    if cmd == "store":
+        r = fit_and_store(tag=sys.argv[2] if len(sys.argv) > 2 else "")
+        print("stored ranker fitted on", r["n_train"], "candidates; largest weights:",
+              sorted(zip(r["features"], r["weights"]), key=lambda t: -abs(t[1]))[:6])
+        raise SystemExit(0)
     if cmd == "dump":
         # default budget for every system, and the full-budget hierarchy that
         # the loss accounting says is the regime where ranking binds
