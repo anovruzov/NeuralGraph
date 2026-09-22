@@ -191,3 +191,19 @@
   0 t/dept= 7 E_hier_lineage   AP=0.0036
   0 t/dept=10 H_mycelic_full   AP=0.2173
   0 t/dept=10 E_hier_lineage   AP=0.0298
+  0 t/dept=14 H_mycelic_full   AP=0.1782
+  0 t/dept=14 E_hier_lineage   AP=0.0000
+  1 t/dept= 4 H_mycelic_full   AP=0.1797
+  1 t/dept= 4 E_hier_lineage   AP=0.0004
+  1 t/dept= 7 H_mycelic_full   AP=0.1195
+  1 t/dept= 7 E_hier_lineage   AP=0.0000
+  1 t/dept=10 H_mycelic_full   AP=0.1930
+  1 t/dept=10 E_hier_lineage   AP=0.0000
+  1 t/dept=14 H_mycelic_full   AP=0.1669
+  1 t/dept=14 E_hier_lineage   AP=0.0250
+  2 t/dept= 4 H_mycelic_full   AP=0.2167
+  2 t/dept= 4 E_hier_lineage   AP=0.0000
+  2 t/dept= 7 H_mycelic_full   AP=0.2040
+  2 t/dept= 7 E_hier_lineage   AP=0.0500
+  2 t/dept=10 H_mycelic_full   AP=0.1173
+  2 t/dept=10 E_hier_lineage   AP=0.0265

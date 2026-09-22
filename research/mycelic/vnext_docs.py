@@ -358,7 +358,7 @@ def next_research_report() -> str:
 RANKED_QUEUE = """| rank | experiment | what it distinguishes | expected information | cost | status |
 |---:|---|---|---|---|---|
 | 1 | Register-forecast question budget at 50k (ask in gain order by distinct anchor until the forecast candidate count reaches α × cap) with descent fan-out 1 | whether 50k coverage is limited by the number of anchors asked (breadth) or by reach per anchor (depth) | high: coverage is the binding 50k stage and the two explanations imply opposite spending | ~10 paired 50k runs | not run |
-| 2 | Cluster-aware staleness gate (compare the retraction against the link's assertion cluster, or require the late positive to have ≥ 2 independent witnesses) | whether the D5 rise under hybrid timing is the gate (predicted) or the timing itself | high: D5 rose 0.26 → 0.78 across the accepted changes; a fix that holds found is the difference between "decoy-neutral" and not | cal screen + refit + 5 paired runs | not run |
+| 2 | Cluster-aware staleness gate (a late positive counts only with ≥ 2 independent witnesses) | whether the D5 rise under hybrid timing is the gate (predicted) or the timing itself | high: D5 rose 0.26 → 0.78 across the accepted changes; a fix that holds found is the difference between "decoy-neutral" and not | cal screen + refit + 5 paired runs | screened on calibration seeds (found +0.058, D5 −0.07); read once on a fresh panel (seeds 10–14): see the ledger |
 | 3 | Kernel read chunked at the tier's context limit (as A2 already is), or an explicit degradation model | whether the vNext gain survives a kernel that cannot read a 1.4M/3.3M-token pool in one call | high: precondition of any deployment claim | code + paired runs at both scales | not run |
 | 4 | Fresh evaluation panel (seeds 10–14 at 10k, 5–7 at 50k) read once | whether the development-panel deltas hold; this rerun's seeds 5–9 at 10k are the first such read | high for the small deltas | one suite run | seeds 5–9 done in this rerun |
 | 5 | Sketch-corroboration feature for the ranker (foreign-site bit for each link's (entity, predicate)) | whether the ranker's remaining 10k ordering loss is missing information or missing capacity | high: offline AUC 0.74–0.77 for the feature; a null result says capacity | dump + refit + 5 paired runs | not run |
@@ -565,8 +565,12 @@ HYPOTHESES = [
      "≤ +0.01", "none", "negligible", "more junk", "paired", "NOT RUN (low information)"),
     ("H19", "topology changes", "Remove a hierarchy level", "route from SITE directly to USER", "compute −; precision −",
      "none", "negative", "routing precision", "E3b in the main report", "MEASURED in v1: each level carries routing precision"),
-    ("H20", "evidence reconstruction", "Modal timing for flat pools (A2, Y)", "same DP change for the controls",
-     "0 (one KO per pair: nothing to cluster)", "none", "zero", "—", "paired on A2", "NOT RUN (queue #6; a null is the topology's advantage)"),
+    ("H20", "evidence reconstruction", "Hybrid timing for the flat controls with per-user object pools", "keep per-user objects in A2/B4/Y, charge the context, pass hybrid timing",
+     "unknown (on the current one-object-per-pair pools hybrid is a no-op by construction)", "none", "+context", "—", "paired on A2/B4/Y", "NOT RUN (queue #6, rewritten after review)"),
+    ("H21", "temporal/causal reasoning", "Cluster-aware staleness gate: only a positive with ≥ 2 independent witnesses counts as the chain's assertion time",
+     "ops.synthesize stale_rule='strong'; one routine positive after a retraction no longer revives a stale chain", "D5 down, found ±0", "none", "zero",
+     "a genuinely re-asserted chain with single-witness positives is dropped", "quick_stale_cal (cal), quick_strong_fresh (seeds 10-14)",
+     "SCREENED on cal seeds: found +0.058, D5 −0.07, decoy all −0.04; fresh-panel read in the ledger"),
 ]
 
 

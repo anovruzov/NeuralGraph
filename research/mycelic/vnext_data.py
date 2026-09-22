@@ -260,6 +260,9 @@ LEDGER: List[Tuple] = [
     ("diag_reg", None, None, 10_000, "unbounded register (DIAGNOSTIC ONLY, not a fix)", "diagnostic", "eval 0-4"),
     ("diag_both", None, None, 10_000, "unbounded register + full question budget (DIAGNOSTIC)", "diagnostic", "eval 0-4"),
     ("cal_screen", "base", "span2", 10_000, "chain-scoped questions alone (calibration seeds)", "screen", "cal 500-502"),
+    ("stale_cal", "hyb", "hyb_strong", 10_000, "cluster-aware staleness gate (strong positives only), calibration seeds", "screen", "cal 500-502"),
+    ("strong_fresh", "hyb", "strong_hybrk", 10_000, "strong staleness gate, frozen ranker, FRESH panel", "fresh-panel read", "eval 10-14"),
+    ("strong_fresh", "hyb", "strong_refit", 10_000, "strong staleness gate + refitted ranker, FRESH panel", "fresh-panel read", "eval 10-14"),
 ]
 
 
