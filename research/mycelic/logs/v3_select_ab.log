@@ -1,0 +1,6 @@
+selection grid: [{'kind': 'logistic', 'l2': 0.3, 'interactions': False, 'loso_found': 68.0}, {'kind': 'logistic', 'l2': 0.3, 'interactions': True, 'loso_found': 68.0}, {'kind': 'logistic', 'l2': 1.0, 'interactions': False, 'loso_found': 68.0}, {'kind': 'logistic', 'l2': 1.0, 'interactions': True, 'loso_found': 68.0}, {'kind': 'logistic', 'l2': 3.0, 'interactions': False, 'loso_found': 68.0}, {'kind': 'logistic', 'l2': 3.0, 'interactions': True, 'loso_found': 70.0}, {'kind': 'logistic', 'l2': 10.0, 'interactions': False, 'loso_found': 69.0}, {'kind': 'logistic', 'l2': 10.0, 'interactions': True, 'loso_found': 70.0}, {'kind': 'gbdt', 'loso_found': 65.0}]
+stored ranker v3: kind logistic l2 3.0 interactions True n_train 23020
+  seed 0 H_mycelic_full           found=0.300 AP=0.0077 cov=0.625 rare=0.118 cu=1.04e+06 (6s)
+  seed 0 H_mycelic_full           found=0.475 AP=0.1888 cov=0.950 rare=0.176 cu=1.32e+06 (7s)
+  seed 1 H_mycelic_full           found=0.300 AP=0.0496 cov=0.625 rare=0.150 cu=1.08e+06 (6s)
+  seed 1 H_mycelic_full           found=0.500 AP=0.0751 cov=0.975 rare=0.250 cu=1.36e+06 (7s)

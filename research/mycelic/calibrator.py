@@ -161,7 +161,7 @@ def _standardise(X: np.ndarray, mu=None, sd=None):
 
 
 def fit_logistic(X: np.ndarray, y: np.ndarray, l2: float = 1.0,
-                 iters: int = 60) -> np.ndarray:
+                 iters: int = 60, row_weight: Optional[np.ndarray] = None) -> np.ndarray:
     n, d = X.shape
     Xb = np.hstack([np.ones((n, 1)), X])
     w = np.zeros(d + 1)
@@ -170,6 +170,8 @@ def fit_logistic(X: np.ndarray, y: np.ndarray, l2: float = 1.0,
     # class weights so a 5% positive rate does not collapse to "always no"
     pos = max(1, int(y.sum()))
     wt = np.where(y > 0, (n - pos) / pos, 1.0)
+    if row_weight is not None:
+        wt = wt * row_weight
     for _ in range(iters):
         z = Xb @ w
         p = 1.0 / (1.0 + np.exp(-z))
@@ -232,11 +234,14 @@ def _tree_pred(node, X):
 
 
 def fit_gbdt(X: np.ndarray, y: np.ndarray, rounds: int = 150, lr: float = 0.1,
-             depth: int = 2, lam: float = 1.0, pos_weight: Optional[float] = None):
+             depth: int = 2, lam: float = 1.0, pos_weight: Optional[float] = None,
+             row_weight: Optional[np.ndarray] = None):
     n = len(y)
     pos = max(1, int(y.sum()))
     wpos = pos_weight if pos_weight is not None else (n - pos) / pos
     wt = np.where(y > 0, wpos, 1.0)
+    if row_weight is not None:
+        wt = wt * row_weight
     F = np.zeros(n)
     trees = []
     for _ in range(rounds):
@@ -297,8 +302,16 @@ def _found_under_cap(rows: List[Dict], score: np.ndarray, thresh: float,
     return found, rare_found, n_kept
 
 
+def _row_weight(rows: List[Dict], decoy_weight: float) -> np.ndarray:
+    """Planted traps are a small share of the negatives, so a plain fit does
+    not learn to reject them specifically; weighting them up in training is a
+    hyper-parameter chosen on the calibration seeds like any other."""
+    return np.array([decoy_weight if r.get("decoy") else 1.0 for r in rows])
+
+
 def _loso_found(rows_by_tag: Dict[str, List[Dict]], l2: float,
-                interactions: bool, kind: str = "logistic") -> float:
+                interactions: bool, kind: str = "logistic",
+                decoy_weight: float = 1.0, decoy_penalty: float = 0.5) -> float:
     """Leave-one-seed-out over the CALIBRATION seeds only: fit on two, score
     found-under-cap (top-K by learned score, K = hand-gated count) on the
     third, for the hierarchy rows of every dump.  Sum of found over held-out
@@ -310,7 +323,9 @@ def _loso_found(rows_by_tag: Dict[str, List[Dict]], l2: float,
         X = _design(tr, interactions)
         y = np.array([1.0 if r["gold"] else 0.0 for r in tr])
         Xs, mu, sd = _standardise(X)
-        model = fit_gbdt(Xs, y) if kind == "gbdt" else fit_logistic(Xs, y, l2=l2)
+        rw = _row_weight(tr, decoy_weight)
+        model = (fit_gbdt(Xs, y, row_weight=rw) if kind == "gbdt"
+                 else fit_logistic(Xs, y, l2=l2, row_weight=rw))
         for rows in rows_by_tag.values():
             te = [r for r in rows if r["seed"] == held and r["arch"].startswith("H_")]
             if not te:
@@ -322,10 +337,16 @@ def _loso_found(rows_by_tag: Dict[str, List[Dict]], l2: float,
             order = np.argsort(-p)[:k]
             cap = te[0]["cap"]
             seen = set()
+            dec = 0
             for i in order[:cap]:
                 if te[i]["gold"]:
                     seen.add(te[i]["pid"])
-            total += len(seen)
+                elif te[i].get("decoy"):
+                    dec += 1
+            # the objective is discovery under the real cap, less a charge for
+            # every planted trap the ranking admits - decoy acceptance is a
+            # headline metric, not a footnote
+            total += len(seen) - decoy_penalty * dec / max(1, len(seen))
     return float(total)
 
 
@@ -338,18 +359,22 @@ def select_and_store(tags: Sequence[str] = ("", "_qf1")) -> Dict[str, object]:
         if os.path.exists(path):
             rows_by_tag[tag] = [json.loads(l) for l in open(path)]
     grid = []
-    best, best_v = None, -1.0
-    for l2 in (0.3, 1.0, 3.0, 10.0):
+    best, best_v = None, -1e9
+    for l2 in (0.3, 1.0, 3.0):
         for inter in (False, True):
-            v = _loso_found(rows_by_tag, l2, inter, "logistic")
-            grid.append({"kind": "logistic", "l2": l2, "interactions": inter, "loso_found": v})
-            if v > best_v:
-                best_v, best = v, ("logistic", l2, inter)
-    v = _loso_found(rows_by_tag, 1.0, False, "gbdt")
-    grid.append({"kind": "gbdt", "loso_found": v})
-    if v > best_v:
-        best_v, best = v, ("gbdt", 1.0, False)
-    r = fit_and_store(tags=tags, l2=best[1], interactions=best[2], kind=best[0])
+            for dw in (1.0, 3.0, 10.0):
+                v = _loso_found(rows_by_tag, l2, inter, "logistic", decoy_weight=dw)
+                grid.append({"kind": "logistic", "l2": l2, "interactions": inter,
+                             "decoy_weight": dw, "loso_objective": v})
+                if v > best_v:
+                    best_v, best = v, ("logistic", l2, inter, dw)
+    for dw in (1.0, 3.0):
+        v = _loso_found(rows_by_tag, 1.0, False, "gbdt", decoy_weight=dw)
+        grid.append({"kind": "gbdt", "decoy_weight": dw, "loso_objective": v})
+        if v > best_v:
+            best_v, best = v, ("gbdt", 1.0, False, dw)
+    r = fit_and_store(tags=tags, l2=best[1], interactions=best[2], kind=best[0],
+                      decoy_weight=best[3])
     r["selection_grid"] = grid
     cal_path = os.path.join(ART, "calibration.json")
     cal = json.load(open(cal_path))
@@ -482,7 +507,7 @@ def evaluate_calibrator(tag: str = "", arch_filter: Optional[str] = None,
 def fit_and_store(tags: Sequence[str] = ("", "_qf1"),
                   train_archs: Optional[Sequence[str]] = None,
                   l2: float = 1.0, interactions: bool = True,
-                  kind: str = "logistic") -> Dict[str, object]:
+                  kind: str = "logistic", decoy_weight: float = 1.0) -> Dict[str, object]:
     """Fit the shared ranker on the CALIBRATION seeds only and write it into
     calibration.json, where runner.py picks it up for every architecture.
 
@@ -501,9 +526,10 @@ def fit_and_store(tags: Sequence[str] = ("", "_qf1"),
     X = _design(tr, interactions)
     y = np.array([1.0 if r["gold"] else 0.0 for r in tr])
     Xs, mu, sd = _standardise(X)
+    rw = _row_weight(tr, decoy_weight)
     names = list(FEATURES) + ([f"{a}*{b}" for a, b in INTERACTIONS] if interactions else [])
     if kind == "gbdt":
-        model = fit_gbdt(Xs, y)
+        model = fit_gbdt(Xs, y, row_weight=rw)
         ranker = {"kind": "gbdt", "features": names, "trees": model["trees"],
                   "lr": model["lr"], "bias": 0.0, "weights": [0.0] * len(names),
                   "mu": [float(x) for x in mu], "sd": [float(x) for x in sd],
@@ -512,11 +538,11 @@ def fit_and_store(tags: Sequence[str] = ("", "_qf1"),
               "train_archs": list(train_archs) if train_archs else "all",
               "source_dumps": list(tags)}
     else:
-        w = fit_logistic(Xs, y, l2=l2)
+        w = fit_logistic(Xs, y, l2=l2, row_weight=rw)
         ranker = {"kind": "logistic", "features": names, "bias": float(w[0]),
                   "weights": [float(x) for x in w[1:]],
                   "mu": [float(x) for x in mu], "sd": [float(x) for x in sd],
-                  "l2": l2, "interactions": interactions,
+                  "l2": l2, "interactions": interactions, "decoy_weight": decoy_weight,
                   "n_train": len(tr), "seeds": list(CAL_SEEDS),
                   "train_archs": list(train_archs) if train_archs else "all",
                   "source_dumps": list(tags)}
