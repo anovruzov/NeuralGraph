@@ -24,3 +24,8 @@
    100000/2 A2_chunked_ctx         AP=0.0778 found=0.765 cov2=1.000 rare=0.722 cu=2.03e+07 (28s)
    100000/2 E_hier_lineage         AP=0.0100 found=0.010 cov2=0.015 rare=0.000 cu=1.91e+06 (51s)
    100000/2 G_hier_questions       AP=0.0745 found=0.495 cov2=0.595 rare=0.241 cu=5.89e+06 (58s)
+   100000/2 H_mycelic_full         AP=0.0625 found=0.515 cov2=0.600 rare=0.241 cu=6.21e+06 (61s)
+   100000/2 J_mycelic_verified     AP=0.0657 found=0.515 cov2=0.600 rare=0.241 cu=6.22e+06 (69s)
+   100000/2 Y_oracle_retrieval     AP=0.0088 found=0.450 cov2=1.000 rare=0.253 cu=4.86e+06 (32s)
+=== e10 done in 927s ===
+=== e10 end 2026-09-22T12:22:49+00:00 rc=0
