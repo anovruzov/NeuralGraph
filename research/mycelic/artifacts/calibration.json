@@ -642,32 +642,32 @@
   "question_frac": {
    "value": 0.65,
    "evidence": "quick_qf_v3.jsonl",
-   "frozen_at": "2026-09-22T11:08:08Z"
+   "frozen_at": "2026-09-22T11:18:28Z"
   },
   "batched_descent": {
    "value": true,
    "evidence": "quick_v3_H.jsonl",
-   "frozen_at": "2026-09-22T11:08:08Z"
+   "frozen_at": "2026-09-22T11:18:28Z"
   },
   "link_time": {
    "value": "hybrid",
    "evidence": "quick_refit_hyb.jsonl",
-   "frozen_at": "2026-09-22T11:08:08Z"
+   "frozen_at": "2026-09-22T11:18:28Z"
   },
   "local_reextract": {
    "value": false,
    "evidence": "quick_rx_reextract.jsonl",
-   "frozen_at": "2026-09-22T11:08:08Z"
+   "frozen_at": "2026-09-22T11:18:28Z"
   },
   "strict_targeting": {
    "value": false,
    "evidence": "quick_cal_screen.jsonl",
-   "frozen_at": "2026-09-22T11:08:08Z"
+   "frozen_at": "2026-09-22T11:18:28Z"
   },
   "triage_target_chains": {
    "value": "none",
    "evidence": "quick_cal_screen.jsonl",
-   "frozen_at": "2026-09-22T11:08:08Z"
+   "frozen_at": "2026-09-22T11:18:28Z"
   }
  }
 }

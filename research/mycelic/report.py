@@ -1357,6 +1357,32 @@ def _n_arch_word() -> str:
     return _NUM_WORDS.get(n, str(n))
 
 
+def section_vnext() -> str:
+    """OLD (artifacts/v1) against NEW (artifacts) on identical worlds, for the
+    executive summary; every table comes from vnext_data."""
+    from . import vnext_data as D
+    fig = os.path.join(ART, "figures", "old_new.png")
+    parts = ["### What the vNext work changed, on identical worlds",
+             "",
+             "OLD is the benchmark as archived before the vNext work (`artifacts/v1/`: hand-set "
+             "ranker, question budget 0.25 of the triage queue, unbatched metering, earliest-mention "
+             "link timing); NEW is this rerun (learned ranker fitted on the calibration seeds and "
+             "adopted per architecture, budget 0.65, batched metering, hybrid link timing). Every "
+             "other setting, the worlds, the seeds, the gold labels, the metrics and the register "
+             "cap are identical. `H_mycelic_prev` runs the OLD configuration inside the NEW suite as "
+             "the reproduction check. The full account is `docs/mycelic_vnext/NEXT_RESEARCH_REPORT.md`.",
+             ""]
+    if os.path.exists(fig):
+        parts += [f"![old vs new]({os.path.relpath(fig, os.path.dirname(OUT))})", ""]
+    for sc in (10_000, 50_000):
+        parts += [f"**{sc:,} users**", "", D.old_new_table(sc), ""]
+    parts += ["**Reproduction of the v1 configuration inside the new suite (10,000 users)**", "",
+              D.prev_reproduction_table(10_000), "",
+              "**Frozen configuration and the paired file that justified each value**", "",
+              D.frozen_config_table(), ""]
+    return "\n".join(parts)
+
+
 def build() -> str:
     from .report_text import compose
     sections = {
@@ -1378,7 +1404,7 @@ def build() -> str:
         "privacy": section_privacy(),
         "scale_trend": section_scale_trend(),
         "provenance": section_provenance(),
-        "summary": executive_summary(),
+        "summary": executive_summary() + "\n\n" + section_vnext(),
         "decision": decision_summary(),
         "glossary": GLOSSARY,
         "recommendation": recommendation(),

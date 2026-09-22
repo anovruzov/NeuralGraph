@@ -386,6 +386,10 @@ def run(scales: Sequence[int], seeds: Sequence[int],
                             over.update(cfg_over)
                         cfg = hier_cfg(**over)
                         ul = w.user_layer(alloc[USER], seed)
+                        # the same per-architecture ranker choice run_arch makes
+                        from . import ops as _ops
+                        from .runner import ranker_for
+                        _ops.set_ranker(ranker_for(arch))
                         runner = HierRunner(w.corpus, alloc, cfg, seed=seed,
                                             ul=ul, near_miss=w.near_miss)
                         res = runner.run()

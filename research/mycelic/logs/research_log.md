@@ -719,3 +719,15 @@ written with provenance, per-architecture adoption re-decided on the
 calibration seeds, then every experiment, the loss accounting at both
 scales, the candidate dump with the out-of-sample ranker evaluation, and
 every document and PDF.
+
+**The first final rerun was wrong, and how it was caught.** Twenty minutes
+into the rerun the new `e1_baselines.jsonl` rows for `H_mycelic_full` at 10k
+were compared with the paired rows for the same seeds: seed 0 read 0.275
+found with 510 questions where the paired run had 0.475 with 540. The
+experiment runner (`experiments._run_named` and three direct `HierRunner`
+constructions) never set the per-architecture ranker — only `runner.run_arch`
+did — so every system in the suite was running with the hand-set score, and
+the loss accounting built its hierarchy runner the same way. `H_mycelic_prev`
+reproduced the archived v1 row exactly (0.300, 220 questions, 1.043e6
+units), which is what made the discrepancy attributable. Fixed in both
+files, partial artifacts deleted, rerun relaunched from the archive step.

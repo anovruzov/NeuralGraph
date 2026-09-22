@@ -20,7 +20,8 @@ from . import models as M
 from .evalm import evaluate
 from .models import ALLOCATIONS, ANCHORS, allocation, tier_from_q
 from .org import DEFAULT_FANIN, ENT, REGION, SITE, TEAM, USER
-from .runner import ART, ARCHS, build_world, hier_cfg, run_arch
+from . import ops as _ops
+from .runner import ART, ARCHS, build_world, hier_cfg, ranker_for, run_arch
 from .systems import (HierRunner, central_triage, chunked_long_context,
                       naive_enumerate,
                       flat_rag, long_context,
@@ -80,6 +81,10 @@ class _Stream:
 def _run_named(name: str, world, alloc, seed: int, cfg_over=None):
     spec = ARCHS.get(name, {})
     kind = spec.get("kind", "hier")
+    # the per-architecture ranker choice, exactly as runner.run_arch makes
+    # it (the first vNext rerun ran every system without it - caught by
+    # comparing the suite rows with the paired rows on the same seeds)
+    _ops.set_ranker(ranker_for(name if name in ARCHS else "H_mycelic_full"))
     c = world.corpus
     kt = alloc[ENT]
     if kind == "flat_rag":
@@ -236,6 +241,7 @@ def e2_ablations(scale: int = 10_000, seeds=EVAL_SEEDS,
                        cross_links=True)
             cfg.update(over)
             t = time.time()
+            _ops.set_ranker(ranker_for("H_mycelic_full"))
             res = HierRunner(w.corpus, alloc, _hier(**cfg), seed=seed,
                              ul=w.user_layer(alloc[USER], seed),
                              near_miss=w.near_miss).run()
@@ -462,6 +468,7 @@ def e6_frontier(scale: int = 10_000, seeds=(0, 1, 2),
         for qf in (0.0, 0.05, 0.15, 0.35, 0.55, 1.0):
             cfg = dict(downward_retrieval=True, questions=qf > 0.0,
                        cross_links=True, question_frac=max(qf, 1e-6))
+            _ops.set_ranker(ranker_for("H_mycelic_full"))
             res = HierRunner(w.corpus, alloc, _hier(**cfg), seed=seed,
                              ul=w.user_layer(alloc[USER], seed),
                              near_miss=w.near_miss).run()
@@ -532,6 +539,7 @@ def e8_crosslinks(scales=(2_000, 10_000, 50_000), seeds=(0, 1, 2),
                 for deg in ((4,) if xl else (0,)):
                     cfg = dict(downward_retrieval=True, questions=True,
                                cross_links=xl, cross_link_degree=max(1, deg))
+                    _ops.set_ranker(ranker_for("H_mycelic_full"))
                     res = HierRunner(w.corpus, alloc, _hier(**cfg), seed=seed,
                                      ul=w.user_layer(alloc[USER], seed),
                                      near_miss=w.near_miss).run()

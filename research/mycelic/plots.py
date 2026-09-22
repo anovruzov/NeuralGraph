@@ -25,7 +25,8 @@ ORDER = ["A_flat_rag", "A2_chunked_ctx", "B_long_context", "B2_map_reduce",
          "B4_central_triage", "C_recursive_sum", "D_hier_nolineage",
          "E_hier_lineage", "F_hier_retrieval", "G_hier_questions",
          "H_mycelic_full", "I_mycelic_completion", "J_mycelic_verified",
-         "Y_oracle_retrieval", "Z_random_rank", "Z2_naive_enumerate"]
+         "Y_oracle_retrieval", "Z_random_rank", "Z2_naive_enumerate",
+         "H_mycelic_prev", "H_mycelic_lean"]
 COLORS = plt.get_cmap("tab20")
 
 
@@ -363,9 +364,57 @@ def fig_fanin() -> Optional[str]:
     return p
 
 
+
+
+def fig_old_new() -> Optional[str]:
+    """OLD (artifacts/v1) vs NEW (artifacts) for the hierarchy and A2, at every
+    scale both hold: found, evidence coverage, rare recall, and compute."""
+    from .vnext_data import V1, by_seed, e1_rows
+    old, new = e1_rows(V1), e1_rows()
+    if not old or not new:
+        return None
+    scales = sorted({r["scale"] for r in new} & {r["scale"] for r in old})
+    if not scales:
+        return None
+    metrics = [("found_anywhere_in_register", "found"),
+               ("evidence_coverage_2links", "evidence coverage"),
+               ("rare_signal_recall", "rare recall"),
+               ("compute_units", "compute units")]
+    fig, axes = plt.subplots(1, len(metrics), figsize=(3.6 * len(metrics), 3.8))
+    systems = [("H_mycelic_full", "Mycelic"), ("A2_chunked_ctx", "A2 chunked ctx")]
+    width = 0.18
+    for ax, (key, lab) in zip(axes, metrics):
+        xs = np.arange(len(scales))
+        for j, (arch, name) in enumerate(systems):
+            for k, (rows, tag, alpha) in enumerate(((old, "old", 0.45), (new, "new", 1.0))):
+                ys, err = [], []
+                for s in scales:
+                    d = by_seed(rows, arch, s)
+                    v = [r[key] for r in d.values()]
+                    if v:
+                        m, lo, hi = boot_ci(v)
+                        ys.append(m); err.append([m - lo, hi - m])
+                    else:
+                        ys.append(np.nan); err.append([0, 0])
+                off = (j * 2 + k - 1.5) * width
+                ax.bar(xs + off, ys, width, yerr=np.array(err).T, capsize=2,
+                       color=_color(arch), alpha=alpha, label=f"{name} {tag}")
+        ax.set_xticks(xs)
+        ax.set_xticklabels([f"{s:,}" for s in scales], fontsize=8)
+        if key == "compute_units":
+            ax.set_yscale("log")
+        _style(ax, lab, "users", lab)
+    axes[0].legend(fontsize=6.5)
+    fig.tight_layout()
+    p = os.path.join(FIG, "old_new.png")
+    fig.savefig(p, dpi=150)
+    plt.close(fig)
+    return p
+
+
 ALL = [fig_scale, fig_frontier, fig_level_marginal, fig_qsweep,
        fig_discrimination, fig_ablation, fig_privacy, fig_adversarial,
-       fig_fanin]
+       fig_fanin, fig_old_new]
 
 
 def build() -> List[str]:
