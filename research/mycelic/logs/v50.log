@@ -49,3 +49,4 @@
 | raw text out | 0.0000 | 0.0000 | +0.0000 | [+0.0000, +0.0000] | 0/0 | 1.000 | same |
 | claims out | 0.1386 | 0.1386 | +0.0000 | [+0.0000, +0.0000] | 0/0 | 1.000 | same |
   seed 0 A2_chunked_ctx           found=0.690 AP=0.0430 cov=1.000 rare=0.622 cu=1.02e+07 (10s)
+  seed 0 A2_chunked_ctx           found=0.710 AP=0.0734 cov=1.000 rare=0.600 cu=1.02e+07 (13s)

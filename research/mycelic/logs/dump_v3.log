@@ -28,3 +28,6 @@
   seed 3 B4_central_triage    600 candidates, 26 gold-matching, 26 patterns matched (5s)
   seed 3 Y_oracle_retrieval   600 candidates, 19 gold-matching, 19 patterns matched (9s)
   seed 4 A2_chunked_ctx       600 candidates, 25 gold-matching, 25 patterns matched (2s)
+  seed 4 B4_central_triage    600 candidates, 21 gold-matching, 21 patterns matched (5s)
+  seed 4 Y_oracle_retrieval   600 candidates, 16 gold-matching, 16 patterns matched (9s)
+DUMPV3_DONE
