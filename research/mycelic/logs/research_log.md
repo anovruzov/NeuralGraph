@@ -506,3 +506,73 @@ so the full question budget can be spent, (2) a cheaper descent so that
 budget is affordable at 50k, (3) targeted local re-extraction on descent,
 (4) a support-1 sketch bit for rare facets IF the ranker can absorb the
 extra triage noise. Each is a paired experiment; none moves raw text.
+
+---
+
+## Iteration 21 — the ranker, and what it took to make it fair
+
+The loss accounting said the hierarchy's binding stage was the register:
+genuine candidates rated as confidently as spurious ones. So the first
+change was the ranker, and the record of getting it right matters more than
+the number.
+
+**Attempt 1 — order within the hand gate.** A logistic over the kernel-side
+features (fitted on seeds 500–502, pooled over four architectures) replaced
+the hand-set confidence only for ORDERING; the hand logistic's >= 0.5 gate
+stayed. Paired on evaluation seeds 0–4 at 10k:
+
+```
+                       found            AP
+  H_mycelic_full       0.375 -> 0.440   0.023 -> 0.132
+  B4_central_triage    0.370 -> 0.505
+  Y_oracle             0.240 -> 0.360
+  A2_chunked_ctx       0.685 -> 0.650   (worse)
+  H at full budget     0.300 -> 0.450   (ceiling from the diagnostic: 0.795)
+```
+
+The first batch of these came back IDENTICAL on every metric because the
+A/B switch toggled on the row label, and the variant shares the base's
+label. Worth recording: a "no effect" result that is really a "switch never
+flipped" result looks exactly like a null.
+
+**Attempt 2 — the gate was the problem.** Offline, ranking ALL candidates by
+the learned score and keeping the same number the hand gate kept gave 0.55
+at full budget; keeping the hand gate and re-ordering inside it gave 0.45.
+The genuine candidates the hand score put below 0.5 were being excluded
+before the ranker saw them. v2 keeps the hand-gated COUNT and lets the
+learned score choose which candidates fill it; adds anchor-level context
+(how many candidates share the entity, and where this one ranks among them
+by the hand score), the fraction of evidence that came from a question, lag
+and support statistics; l2 and an a-priori interaction set are chosen
+leave-one-seed-out on the calibration seeds by found under the real cap.
+
+```
+                       found            AP               rare
+  H_mycelic_full       0.375 -> 0.480   0.023 -> 0.133   0.215 -> 0.253 (noise)
+  B4_central_triage    0.370 -> 0.540
+  Y_oracle             0.240 -> 0.360
+  A2_chunked_ctx       0.685 -> 0.645   rare 0.653 -> 0.566  (worse, both)
+```
+
+**The fairness problem the A2 row exposes.** A ranker fitted on pooled
+candidates helps three systems and hurts the fourth. Imposing it on A2
+would make the comparison a comparison against a handicapped A2. So the
+adoption decision is now per architecture, made on the calibration seeds
+(each system keeps whichever of the two rankers is not worse there), and
+stored in calibration.json. The hand logistic is a ranker too.
+
+**Cost, profiled.** At a full question budget on one calibration seed the
+kernel re-read is 42% of compute, routing 31% across 145,823 frontier-tier
+calls, and user reads 6% across 69,549 calls; 8,361 of the 9,491 users
+reached were queried more than once. Batching the metering per routed node
+and per queried user — identical decisions, identical per-record tokens —
+takes compute −17% and calls −88% with discovery unchanged. Merging a
+round's returns per (predicate, entity) before the kernel reads them takes
+compute −54% but discovery 0.400 → 0.275; merging per polarity as well,
+0.325 (rare 0.125 → 0.312). Rejected for now: the ranker's features change
+under the merge and it would need re-fitting on merged candidates.
+
+**Local re-extraction.** On the same calibration seed at full budget with
+ranker v2: 0.350 → 0.475, rare 0.062 → 0.188, +0.7% compute, 7,980 records
+re-read locally. One seed; the paired evaluation-seed test is queued behind
+the question-budget sweep.

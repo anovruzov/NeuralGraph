@@ -152,3 +152,26 @@
   seed 3 H_mycelic_full           found=0.575 AP=0.1367 cov=0.725 rare=0.200 cu=1.16e+06 (7s)
   seed 3 H_mycelic_full           found=0.650 AP=0.1382 cov=1.000 rare=0.533 cu=1.76e+06 (7s)
   seed 4 H_mycelic_full           found=0.500 AP=0.0995 cov=0.700 rare=0.273 cu=9.99e+05 (6s)
+  seed 4 H_mycelic_full           found=0.500 AP=0.1358 cov=0.950 rare=0.273 cu=1.53e+06 (7s)
+
+**H_mycelic_full+rk2_qf0.65 vs H_mycelic_full** — 5 paired seeds
+
+| metric | base | variant | Δ | 95% CI | better on | sign p | verdict |
+|---|---:|---:|---:|---|---:|---:|---|
+| found | 0.4800 | 0.5200 | +0.0400 | [-0.0000, +0.0750] | 3/4 | 0.625 | inside noise |
+| AP | 0.1334 | 0.1336 | +0.0002 | [-0.0197, +0.0212] | 3/5 | 1.000 | inside noise |
+| R@100 | 0.2650 | 0.2750 | +0.0100 | [-0.0400, +0.0600] | 2/4 | 1.000 | inside noise |
+| rare recall | 0.2532 | 0.3181 | +0.0649 | [-0.0253, +0.2000] | 2/3 | 1.000 | inside noise |
+| evidence cov. | 0.6900 | 0.9700 | +0.2800 | [+0.2250, +0.3350] | 5/5 | 0.062 | **better** |
+| FDR | 0.9678 | 0.9652 | -0.0026 | [-0.0050, +0.0001] | 3/5 | 1.000 | inside noise |
+| decoy acc. | 0.2750 | 0.3000 | +0.0250 | [-0.0150, +0.0650] | 2/5 | 1.000 | inside noise |
+| indep. acc. | 0.7615 | 0.7540 | -0.0075 | [-0.0250, +0.0073] | 2/5 | 1.000 | inside noise |
+| lineage | 0.5309 | 0.5442 | +0.0133 | [-0.0059, +0.0315] | 3/4 | 0.625 | inside noise |
+| contra F1 | 0.1071 | 0.1299 | +0.0227 | [-0.2071, +0.2597] | 2/4 | 1.000 | inside noise |
+| compute | 1.08e+06 | 1.63e+06 | +5.55e+05 | [+5.29e+05, +5.82e+05] | 0/5 | 0.062 | **worse** |
+| calls | 9.07e+04 | 1.61e+05 | +7.05e+04 | [+6.58e+04, +7.53e+04] | 0/5 | 0.062 | **worse** |
+| raw text out | 0.0000 | 0.0000 | +0.0000 | [+0.0000, +0.0000] | 0/0 | 1.000 | same |
+| claims out | 0.1381 | 0.1381 | +0.0000 | [+0.0000, +0.0000] | 0/0 | 1.000 | same |
+  seed 0 H_mycelic_full           found=0.450 AP=0.1841 cov=0.600 rare=0.176 cu=1.03e+06 (6s)
+  seed 0 H_mycelic_full           found=0.425 AP=0.1455 cov=1.000 rare=0.118 cu=1.80e+06 (7s)
+  seed 1 H_mycelic_full           found=0.350 AP=0.1086 cov=0.625 rare=0.150 cu=1.07e+06 (6s)
