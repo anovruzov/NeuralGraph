@@ -93,3 +93,26 @@
   seed 2 Y_oracle_retrieval       found=0.300 AP=0.0156 cov=1.000 rare=0.133 cu=4.87e+05 (3s)
   seed 3 Y_oracle_retrieval       found=0.300 AP=0.0124 cov=1.000 rare=0.200 cu=4.88e+05 (4s)
   seed 3 Y_oracle_retrieval       found=0.475 AP=0.0278 cov=1.000 rare=0.267 cu=4.88e+05 (4s)
+  seed 4 Y_oracle_retrieval       found=0.250 AP=0.0072 cov=1.000 rare=0.182 cu=4.86e+05 (4s)
+  seed 4 Y_oracle_retrieval       found=0.400 AP=0.0251 cov=1.000 rare=0.000 cu=4.86e+05 (3s)
+
+**Y_oracle_retrieval+rk2_Y vs Y_oracle_retrieval** — 5 paired seeds
+
+| metric | base | variant | Δ | 95% CI | better on | sign p | verdict |
+|---|---:|---:|---:|---|---:|---:|---|
+| found | 0.2400 | 0.3600 | +0.1200 | [+0.0450, +0.1650] | 4/5 | 0.375 | **better** |
+| AP | 0.0061 | 0.0210 | +0.0150 | [+0.0086, +0.0213] | 5/5 | 0.062 | **better** |
+| R@100 | 0.0450 | 0.1350 | +0.0900 | [+0.0550, +0.1200] | 5/5 | 0.062 | **better** |
+| rare recall | 0.1432 | 0.1035 | -0.0397 | [-0.1327, +0.0533] | 2/4 | 1.000 | inside noise |
+| evidence cov. | 1.0000 | 1.0000 | +0.0000 | [+0.0000, +0.0000] | 0/0 | 1.000 | same |
+| FDR | 0.9840 | 0.9760 | -0.0080 | [-0.0110, -0.0030] | 4/5 | 0.375 | **better** |
+| decoy acc. | 0.1250 | 0.2300 | +0.1050 | [+0.0500, +0.1500] | 0/4 | 0.125 | **worse** |
+| indep. acc. | 0.5612 | 0.6475 | +0.0863 | [+0.0124, +0.1602] | 4/5 | 0.375 | **better** |
+| lineage | 0.4550 | 0.4653 | +0.0103 | [-0.0134, +0.0340] | 3/5 | 1.000 | inside noise |
+| contra F1 | 0.1333 | 0.1571 | +0.0238 | [-0.2286, +0.3000] | 1/2 | 1.000 | inside noise |
+| compute | 4.87e+05 | 4.87e+05 | +0.00e+00 | [+0.00e+00, +0.00e+00] | 0/0 | 1.000 | same |
+| calls | 1.00e+04 | 1.00e+04 | +0.00e+00 | [+0.00e+00, +0.00e+00] | 0/0 | 1.000 | same |
+| raw text out | 0.0000 | 0.0000 | +0.0000 | [+0.0000, +0.0000] | 0/0 | 1.000 | same |
+| claims out | 0.8839 | 0.8839 | +0.0000 | [+0.0000, +0.0000] | 0/0 | 1.000 | same |
+  seed 0 H_mycelic_full           found=0.450 AP=0.1841 cov=0.600 rare=0.176 cu=1.03e+06 (6s)
+  seed 0 H_mycelic_full           found=0.425 AP=0.1781 cov=0.775 rare=0.059 cu=1.37e+06 (7s)
