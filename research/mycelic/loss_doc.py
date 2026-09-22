@@ -79,6 +79,178 @@ def diag_table(specs, scale: int) -> str:
     return "\n".join(lines)
 
 
+PAIR_KEYS = [("found_anywhere_in_register", "found", 3),
+             ("rare_signal_recall", "rare recall", 3),
+             ("evidence_coverage_2links", "evidence cov.", 3),
+             ("average_precision", "AP", 4),
+             ("false_discovery_rate", "FDR", 3),
+             ("decoy_acceptance_all", "decoy acc.", 3),
+             ("compute_units", "compute", 0),
+             ("inference_calls", "calls", 0)]
+
+
+def paired_table(specs, scale: int = 10_000, base_label: str = "base") -> str:
+    """One row per experiment: the variant's mean, with the paired Δ against
+    its own base on the same seeds and a mark when the 95% bootstrap interval
+    of the Δ is entirely on one side of zero.  Reads quick_<tag>.jsonl."""
+    lines = ["| experiment | seeds | " + " | ".join(h for _, h, _ in PAIR_KEYS) + " |",
+             "|---|---:|" + "---:|" * len(PAIR_KEYS)]
+    for tag, label in specs:
+        rows = [r for r in _quick(tag) if r["scale"] == scale]
+        if not rows:
+            continue
+        # rows alternate base, variant per seed (quick_paired writes them so)
+        base = {}
+        var = {}
+        for i, r in enumerate(rows):
+            (base if i % 2 == 0 else var)[r["seed"]] = r
+        seeds = sorted(set(base) & set(var))
+        if not seeds:
+            continue
+        bcells, vcells = [], []
+        for k, _, d in PAIR_KEYS:
+            b = np.array([base[s][k] for s in seeds], dtype=float)
+            v = np.array([var[s][k] for s in seeds], dtype=float)
+            m, lo, hi = boot_ci(v - b)
+            mark = ""
+            if len(seeds) > 1 and (lo > 0 or hi < 0):
+                mark = " **" + ("↑" if m > 0 else "↓") + "**"
+            fmt = (lambda x: f"{x:.{d}f}") if d else (lambda x: f"{x:.2e}")
+            bcells.append(fmt(b.mean()))
+            vcells.append(f"{fmt(v.mean())} <sub>{'+' if m >= 0 else ''}{fmt(m)}</sub>{mark}")
+        lines.append(f"| {label}: {base_label} | {len(seeds)} | " + " | ".join(bcells) + " |")
+        lines.append(f"| {label}: variant | {len(seeds)} | " + " | ".join(vcells) + " |")
+    return "\n".join(lines) if len(lines) > 2 else "_(not run)_"
+
+
+RANKER_V1 = [("rk_H", "hierarchy, calibrated budget"),
+             ("rk_Hqf1", "hierarchy, full question budget"),
+             ("rk_A2", "A2_chunked_ctx"), ("rk_B4", "B4_central_triage"),
+             ("rk_Y", "Y_oracle_retrieval")]
+RANKER_V2 = [("rk2_H", "hierarchy, calibrated budget"),
+             ("rk2_A2", "A2_chunked_ctx"), ("rk2_B4", "B4_central_triage"),
+             ("rk2_Y", "Y_oracle_retrieval")]
+QF_SWEEP = [("rk2_qf0.50", "question_frac 0.50"), ("rk2_qf0.65", "question_frac 0.65"),
+            ("rk2_qf0.80", "question_frac 0.80"), ("rk2_qf1.00", "question_frac 1.00")]
+
+
+def vnext_section() -> str:
+    return f"""## 9. vNext, measured so far
+
+Everything in this section is a **paired** experiment on the evaluation
+seeds (0–4 at 10,000 users): the variant and its base run on identical
+worlds, and the Δ shown under each variant value is the paired mean with an
+arrow when its 95% bootstrap interval excludes zero. Every knob in every
+variant was fitted on the calibration seeds (500–502) and frozen before
+these seeds were touched. Nothing here changes the register, the threshold,
+the gold labels or the matching rule.
+
+### 9.1 A ranker fitted on kernel-side features
+
+The confidence logistic is replaced as a *ranker* only. Version 1 kept the
+hand-set ≥ 0.5 gate and re-ordered inside it; version 2 keeps the hand-gated
+**count** and lets the learned score choose which candidates fill those
+slots, with anchor-level context features (how many candidates share the
+entity, where this one ranks among them). Fitted once on the pooled
+candidates of all four systems on seeds 500–502; l2 and the interaction set
+chosen leave-one-seed-out on those seeds only.
+
+**Version 1 — order within the hand gate** (base = same system, hand-set ranker)
+
+{paired_table(RANKER_V1, base_label="hand ranker")}
+
+**Version 2 — learned top-K gate + anchor context**
+
+{paired_table(RANKER_V2, base_label="hand ranker")}
+
+**What it says.** The same ranker lifts the hierarchy, its centralised
+twin and the perfect-retrieval oracle by 10–17 points of discovery and
+multiplies AP by four to six, and it makes `A2_chunked_ctx` *worse* on both
+found and rare recall. A ranker chosen on one system's candidates must not
+be imposed on another, so adoption is now decided per architecture on the
+calibration seeds — each system keeps whichever ranker is not worse there —
+and stored with the other calibrated settings. Rare recall on the
+hierarchy moves inside noise in both versions: the ranker recovers common
+patterns first.
+
+**Two regressions, not hidden.** Decoy acceptance rises with the ranker on
+every system that adopts it (hierarchy 0.180 → 0.275, B4 0.175 → 0.295,
+oracle 0.125 → 0.230): the planted traps share the features that make a
+genuine chain look genuine, and the ranker promotes them alongside. FDR
+falls slightly at the same time, so the register is cleaner overall but
+more of what it contains is a trap rather than noise. This is the next
+thing the ranker has to be taught, and it is the reason decoy acceptance
+stays a headline metric rather than a footnote.
+
+### 9.2 Spending the question budget, with the ranker on
+
+Base = the hierarchy with ranker v2 at its calibrated budget
+(question_frac = 0.25). The earlier sweep without the ranker turned over at
+0.35 and *lost* discovery at 1.0; the question is whether a better ranker
+lets the recovered evidence be reported.
+
+{paired_table(QF_SWEEP, base_label="qf 0.25")}
+
+**What the sweep says.** With the ranker on, every budget above 0.25 recovers
+evidence (coverage 0.69 → 0.87–0.985) and reports a little more of it
+(found +0.03 to +0.04, rare +0.065 to +0.077 — the rare gain is where the
+extra evidence goes), at +31% to +104% compute. The budget no longer *hurts*
+discovery as it did without the ranker, but it is not converting either:
+at question_frac 1.0 the kernel holds evidence for 98.5% of patterns and
+reports 51.5%, against a measured ranking ceiling of 79.5%. The remaining
+loss is inside the kernel's ordering of candidates it already has, which
+is where the next iteration goes.
+
+### 9.3 Where a full budget spends its compute, and what batching returns
+
+Profiled on one calibration seed (500) at 10,000 users with the full
+question budget, single runs, **not** evaluation-seed measurements:
+
+| stage | share of compute | calls | note |
+|---|---:|---:|---|
+| kernel re-read of the merged pool | 42% | 1 | 89,525 objects × 26 tokens in one frontier call |
+| descent routing | 31% | 145,823 | one frontier-tier call per (parent node, anchor) |
+| user reads | 6% | 69,549 | 8,361 of 9,491 reached users queried more than once |
+| edge extraction | 6% | 9,999 | unchanged by any of this |
+
+Three cost changes, same seed, full budget, ranker off:
+
+| change | found | AP | rare | pool | compute | calls | kept? |
+|---|---:|---:|---:|---:|---:|---:|---|
+| none | 0.400 | 0.0123 | 0.125 | 89,525 | 2.31e+06 | 227,524 | — |
+| batched routing + reads (one call per node / per user; identical decisions and per-record tokens) | 0.400 | 0.0123 | 0.125 | 89,525 | 1.91e+06 | 27,127 | **yes** — pure cost |
+| + merge descent returns per (predicate, entity) before the kernel reads them | 0.275 | 0.0052 | — | 22,225 | 1.07e+06 | 27,128 | no |
+| + merge per (predicate, entity, **polarity**) | 0.325 | 0.0075 | 0.312 | 23,210 | 1.08e+06 | 27,128 | not yet — needs the ranker re-fitted on merged candidates |
+
+### 9.4 Targeted local re-extraction
+
+When a descent reaches a user, that user re-reads its *own* notes that name
+the entity but produced no claim on the first pass (the edge model's recall
+is a per-record coin; §5 measured that a fresh read recovers 80–91% of the
+patterns lost there). Raw text stays on the node; only objects leave. One
+calibration seed, full budget, ranker v2, batched:
+
+| | found | AP | rare | evidence cov. | compute | records re-read locally |
+|---|---:|---:|---:|---:|---:|---:|
+| without | 0.350 | 0.0818 | 0.062 | 0.925 | 1.97e+06 | 0 |
+| with | 0.475 | 0.0385 | 0.188 | 0.925 | 1.99e+06 | 7,980 |
+
+The paired evaluation-seed test of this is queued behind the budget sweep;
+it is reported here as a single-seed signal, not a result.
+
+### 9.5 What is accepted so far, and at what cost
+
+| change | status | Δ found (10k, paired, 5 seeds) | Δ compute |
+|---|---|---:|---:|
+| ranker v2, per-architecture adoption | **accepted** | +0.105 on the hierarchy | −1% |
+| batched descent metering | **accepted** (cost only) | 0 | −17% at full budget, −88% calls |
+| question budget above 0.25 | under test | see 9.2 | +31% at 0.50 |
+| kernel-side evidence merge | rejected for now | −0.075 (one cal seed) | −44% |
+| local re-extraction | promising, untested on eval seeds | +0.125 (one cal seed) | +0.7% |
+| support-1 sketch bits for rare facets | not started | — | — |
+"""
+
+
 def calibrator_section() -> str:
     p = os.path.join(ART, "hyp_features.jsonl")
     if not os.path.exists(p):
@@ -233,6 +405,8 @@ re-ranking each run's candidates under its own register cap. No feature reads
 raw text; the privacy accounting is unchanged.
 
 {calibrator_section()}
+
+{vnext_section()}
 
 ## 7. What this changes about the next architecture
 

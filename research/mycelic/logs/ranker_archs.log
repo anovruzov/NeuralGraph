@@ -1,0 +1,9 @@
+  H_mycelic_full         hand=0.433 ranker=0.483 adopt=True
+  A2_chunked_ctx         hand=0.733 ranker=0.742 adopt=True
+  B4_central_triage      hand=0.408 ranker=0.533 adopt=True
+  Y_oracle_retrieval     hand=0.275 ranker=0.433 adopt=True
+  A_flat_rag             hand=0.717 ranker=0.708 adopt=False
+  B2_map_reduce          hand=0.292 ranker=0.292 adopt=True
+  G_hier_questions       hand=0.408 ranker=0.483 adopt=True
+  J_mycelic_verified     hand=0.433 ranker=0.483 adopt=True
+ranker_archs = ['A2_chunked_ctx', 'B2_map_reduce', 'B4_central_triage', 'D_hier_nolineage', 'E_hier_lineage', 'F_hier_retrieval', 'G_hier_questions', 'H_mycelic_full', 'I_mycelic_completion', 'J_mycelic_verified', 'Y_oracle_retrieval']

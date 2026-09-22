@@ -487,5 +487,60 @@
     "loso_found": 129.0
    }
   ]
+ },
+ "ranker_archs": [
+  "A2_chunked_ctx",
+  "B2_map_reduce",
+  "B4_central_triage",
+  "D_hier_nolineage",
+  "E_hier_lineage",
+  "F_hier_retrieval",
+  "G_hier_questions",
+  "H_mycelic_full",
+  "I_mycelic_completion",
+  "J_mycelic_verified",
+  "Y_oracle_retrieval"
+ ],
+ "ranker_arch_table": {
+  "H_mycelic_full": {
+   "found_ranker": 0.48333333333333334,
+   "found_hand": 0.43333333333333335,
+   "adopt": true
+  },
+  "A2_chunked_ctx": {
+   "found_ranker": 0.7416666666666667,
+   "found_hand": 0.7333333333333334,
+   "adopt": true
+  },
+  "B4_central_triage": {
+   "found_ranker": 0.5333333333333333,
+   "found_hand": 0.4083333333333334,
+   "adopt": true
+  },
+  "Y_oracle_retrieval": {
+   "found_ranker": 0.43333333333333335,
+   "found_hand": 0.275,
+   "adopt": true
+  },
+  "A_flat_rag": {
+   "found_ranker": 0.7083333333333334,
+   "found_hand": 0.7166666666666667,
+   "adopt": false
+  },
+  "B2_map_reduce": {
+   "found_ranker": 0.2916666666666667,
+   "found_hand": 0.2916666666666667,
+   "adopt": true
+  },
+  "G_hier_questions": {
+   "found_ranker": 0.48333333333333334,
+   "found_hand": 0.4083333333333334,
+   "adopt": true
+  },
+  "J_mycelic_verified": {
+   "found_ranker": 0.48333333333333334,
+   "found_hand": 0.43333333333333335,
+   "adopt": true
+  }
  }
 }
