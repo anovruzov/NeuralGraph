@@ -248,3 +248,16 @@
   2 two-step       H_mycelic_full   AP=0.1253 found=0.53 cu=1.37e+06
   2 two-step       B2_map_reduce    AP=0.1792 found=0.40 cu=1.98e+05
   2 two-step       E_hier_lineage   AP=0.0500 found=0.05 cu=2.24e+05
+  2 edge-bottom    H_mycelic_full   AP=0.0806 found=0.33 cu=1.73e+06
+  2 edge-bottom    B2_map_reduce    AP=0.0944 found=0.23 cu=1.20e+05
+  2 edge-bottom    E_hier_lineage   AP=0.0073 found=0.05 cu=2.01e+05
+  2 lexical-bottom H_mycelic_full   AP=0.2900 found=0.72 cu=1.19e+06
+  2 lexical-bottom B2_map_reduce    AP=0.2397 found=0.38 cu=5.51e+04
+  2 lexical-bottom E_hier_lineage   AP=0.0429 found=0.07 cu=8.76e+04
+  2 lexical-to-kernel H_mycelic_full   AP=0.2083 found=0.60 cu=6.57e+05
+  2 lexical-to-kernel B2_map_reduce    AP=0.2397 found=0.38 cu=5.51e+04
+  2 lexical-to-kernel E_hier_lineage   AP=0.0267 found=0.05 cu=1.52e+04
+=== e3 done in 388s ===
+=== e3 end 2026-09-22T11:48:44+00:00 rc=0
+=== e3b start 2026-09-22T11:48:44+00:00
+=== e3b ===
