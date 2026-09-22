@@ -10,3 +10,6 @@ scale=50000 seed=0 done in 752s
 scale=50000 seed=1 done in 947s
   H_mycelic_full         extracte=1.00 sketch_v=0.80 in_triag=0.80 question=0.75 descent_=0.74 in_pool=0.75 candidat=0.73 matched_=0.69 matched_=0.69 in_regis=0.64  (326s)
   B4_central_triage      extracte=1.00 in_pool=0.50 candidat=0.39 matched_=0.32 matched_=0.32 in_regis=0.32  (313s)
+  Y_oracle_retrieval     extracte=1.00 in_pool=1.00 candidat=0.97 matched_=0.86 matched_=0.86 in_regis=0.54  (360s)
+  A2_chunked_ctx         in_pool=1.00 candidat=0.91 matched_=0.87 matched_=0.87 in_regis=0.83  (20s)
+scale=50000 seed=2 done in 1022s
