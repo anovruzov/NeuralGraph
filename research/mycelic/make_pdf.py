@@ -24,7 +24,7 @@ import html
 import os
 import re
 from datetime import date
-from typing import List
+from typing import List, Optional
 
 import markdown
 
@@ -365,7 +365,14 @@ async def _render(html_path: str, pdf_path: str) -> None:
         await browser.close()
 
 
-def build() -> str:
+def build(src: str = SRC, out: str = OUT, title: Optional[str] = None,
+          subtitle: Optional[str] = None) -> str:
+    global SRC, OUT, TITLE, SUBTITLE
+    SRC, OUT = os.path.abspath(src), os.path.abspath(out)
+    if title:
+        TITLE = title
+    if subtitle:
+        SUBTITLE = subtitle
     doc = build_html()
     tmp = os.path.join(os.path.dirname(SRC), ".report.tmp.html")
     with open(tmp, "w") as fh:
@@ -378,5 +385,11 @@ def build() -> str:
 
 
 if __name__ == "__main__":
-    p = build()
+    import sys
+    if len(sys.argv) >= 3:
+        p = build(sys.argv[1], sys.argv[2],
+                  title=sys.argv[3] if len(sys.argv) > 3 else None,
+                  subtitle=sys.argv[4] if len(sys.argv) > 4 else None)
+    else:
+        p = build()
     print("wrote", p, f"{os.path.getsize(p) / 1e6:.2f} MB")

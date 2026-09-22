@@ -233,7 +233,16 @@ def evaluate_calibrator(tag: str = "", arch_filter: Optional[str] = None,
     w = fit_logistic(Xtr_s, ytr)
     p_te = predict(Xte_s, w)
     conf_te = np.array([r["conf"] for r in te])
-    # gold patterns per (arch, seed) for the denominators
+    # The denominator is EVERY discoverable gold pattern in the world, not the
+    # ones that happened to have a matching candidate - "found" means found.
+    # The funnel summary rows carry the count per (scale, seed).
+    n_gold_world: Dict[int, int] = {}
+    fp = os.path.join(ART, "loss_funnel.jsonl")
+    if os.path.exists(fp):
+        for line in open(fp):
+            rr = json.loads(line)
+            if rr.get("summary") and rr["scale"] == te[0]["scale"]:
+                n_gold_world[rr["seed"]] = rr["n_gold"]
     n_gold = {}
     for r in te:
         if r["gold"]:
@@ -248,7 +257,10 @@ def evaluate_calibrator(tag: str = "", arch_filter: Optional[str] = None,
     for arch in sorted({r["arch"] for r in te}):
         idx = [i for i, r in enumerate(te) if r["arch"] == arch]
         sub = [te[i] for i in idx]
-        gold_total = sum(len(v) for k, v in n_gold.items() if k[0] == arch)
+        seeds_here = sorted({r["seed"] for r in sub})
+        gold_total = sum(n_gold_world.get(sd, 0) for sd in seeds_here) or \
+            sum(len(v) for k, v in n_gold.items() if k[0] == arch)
+        matchable = sum(len(v) for k, v in n_gold.items() if k[0] == arch)
         base = _found_under_cap(sub, conf_te[idx], TAU, {})
         # learned score: keep the same NUMBER of candidates the baseline kept
         # (so the comparison is at equal register pressure), ranked by p
@@ -257,6 +269,7 @@ def evaluate_calibrator(tag: str = "", arch_filter: Optional[str] = None,
         cal_t = _found_under_cap(sub, p_te[idx], TAU, {})
         per_arch[arch] = {
             "gold_patterns": gold_total,
+            "matchable_patterns": matchable,
             "found_baseline": base[0] / max(1, gold_total),
             "found_learned_rank_only": cal[0] / max(1, gold_total),
             "found_learned_thresholded": cal_t[0] / max(1, gold_total),
