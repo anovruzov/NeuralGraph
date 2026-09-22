@@ -348,6 +348,13 @@ class HierConfig:
     # answering users.  Measured: the kernel re-read was 42% of full-budget
     # compute.
     merge_descent_evidence: bool = False
+    # Targeted local re-extraction: a user agent asked about an entity
+    # re-reads its OWN notes that name that entity but yielded no claim on
+    # the first pass (the edge model's recall is a per-record coin; a fresh
+    # read recovers 80-91% of the facets lost that way).  Raw text stays on
+    # the node; only the resulting objects leave.  Charged as extra records
+    # read at the local tier.
+    local_reextract: bool = False
     descent_leaf_cap: int = 140
     descent_frontier_cap: int = 400
     max_kernel_kos: int = 900
@@ -383,6 +390,8 @@ class Hierarchy:
         self.propagated = 0
         self.raw_reads = 0
         # batched-descent ledgers: node -> [(n_kids, anchor)], user -> [(n_sel, n_kos, anchor)]
+        self.reextract_records = 0
+        self._near_miss_arr = None
         self._route_ledger: Dict[int, List[Tuple[int, int]]] = {}
         self._read_ledger: Dict[int, List[Tuple[int, int, int]]] = {}
         # --- loss-accounting hooks (no effect on behaviour) ---
@@ -778,6 +787,9 @@ class Hierarchy:
                     continue
                 kos = _kos_from_claims(self.c, ul, sel + st, nid, USER,
                                        cfg.lineage, org)
+                if cfg.local_reextract:
+                    kos.extend(self._reextract(nid, anchor, target_preds,
+                                               ul, st, n))
                 for k in kos:
                     k.importance += 1.2
                     k.q_tag = 2
@@ -796,6 +808,74 @@ class Hierarchy:
                                    len(hit) * TOK_PER_KO, calls=1)
                 found.extend(hit)
         return found
+
+    def _reextract(self, uid: int, anchor: int, target_preds, ul, st: int,
+                   n: int) -> List[KO]:
+        """Re-read this user's own notes about `anchor` that produced no claim
+        on the first pass, with the local tier, and return objects for any
+        claim recovered.  Nothing but the objects leaves the node."""
+        c = self.c
+        org = self.org
+        ui = int(np.searchsorted(np.asarray(org.user_ids), uid))
+        if ui >= len(org.user_ids) or org.user_ids[ui] != uid:
+            return []
+        a, b = int(c.user_slices[ui]), int(c.user_slices[ui + 1])
+        if b <= a:
+            return []
+        # the entity name is in every note's surface text, so "notes that
+        # name this entity" is a lexical lookup the agent can do locally;
+        # the record's anchor field is the simulator's stand-in for it
+        rec_a = c.recs["anchor"][a:b]
+        cand = np.nonzero(rec_a == anchor)[0] + a
+        if len(cand) == 0:
+            return []
+        already = set(ul.ex.rid[st:st + n].tolist())
+        rids = np.array([r for r in cand.tolist() if r not in already], dtype=np.int64)
+        if len(rids) == 0:
+            return []
+        tier = self.alloc[USER]
+        ex = extract(c, rids, tier, self.rng, near_miss=self._near_miss_arr)
+        self.reextract_records += int(len(rids))
+        if self.cfg.batched_descent:
+            self._read_ledger.setdefault(uid, []).append((int(len(rids)), int(len(ex)), int(anchor)))
+        else:
+            self.meter.add("descend-reread", tier, int(len(rids)) * TOK_PER_RECORD,
+                           int(len(ex)) * TOK_PER_KO, calls=1)
+        out: Dict[Tuple[int, int], KO] = {}
+        for i in range(len(ex)):
+            if int(ex.anchor[i]) != anchor:
+                continue
+            if target_preds is not None and len(target_preds) and \
+                    int(ex.pred[i]) not in set(int(x) for x in target_preds):
+                continue
+            key = (int(ex.pred[i]), anchor)
+            k = out.get(key)
+            if k is None:
+                br: Dict[int, Set[int]] = {}
+                if self.cfg.lineage:
+                    for lvl in (TEAM, DEPT, SITE, REGION):
+                        an = org.ancestor_at(uid, lvl)
+                        if an is not None:
+                            br[lvl] = {an}
+                out[key] = KO(
+                    pred=key[0], anchor=anchor, tmin=int(ex.t[i]), tmax=int(ex.t[i]),
+                    polarity=int(ex.polarity[i]), n_raw=1, sigs={int(ex.sig[i])},
+                    evidence=[int(ex.rid[i])], branches=br,
+                    lineage=(uid,) if self.cfg.lineage else (), owner=uid, level=USER,
+                    conf=0.55, importance=0.5, novelty=0.5, contra=0, revisions=0,
+                    q_tag=3, origin_users={uid} if self.cfg.lineage else set(),
+                    pos_tmax=int(ex.t[i]) if ex.polarity[i] > 0 else -1,
+                    neg_tmax=int(ex.t[i]) if ex.polarity[i] < 0 else -1)
+            else:
+                k.tmin = min(k.tmin, int(ex.t[i])); k.tmax = max(k.tmax, int(ex.t[i]))
+                k.n_raw += 1
+                if len(k.sigs) < MAX_SIGS:
+                    k.sigs.add(int(ex.sig[i]))
+                if len(k.evidence) < MAX_EVIDENCE:
+                    k.evidence.append(int(ex.rid[i]))
+                if k.polarity != int(ex.polarity[i]):
+                    k.contra += 1
+        return list(out.values())
 
     def flush_descent_ledger(self) -> None:
         """Meter the batched descent: one call per routed node (all anchors
@@ -850,6 +930,7 @@ class HierRunner:
         self.h = Hierarchy(corpus, alloc, cfg, self.rng)
         self._ul = ul
         self._near_miss = near_miss
+        self.h._near_miss_arr = near_miss
         self._stem = stem_rep_map(corpus)
 
     def run(self) -> RunResult:
@@ -935,7 +1016,8 @@ class HierRunner:
                          sketch_entries_leaving_node=h.sketch_entries,
                          notes={"kernel_kos": len(pool),
                                 "sketch_dropped": h.sketch_dropped,
-                                "raw_records_reread_locally": h.raw_reads})
+                                "raw_records_reread_locally": h.raw_reads,
+                                "records_reextracted": h.reextract_records})
 
     # ---- helpers --------------------------------------------------------
     def _fresh_full(self) -> List[Hypothesis]:
