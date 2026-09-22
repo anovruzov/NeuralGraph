@@ -3,3 +3,8 @@
   Y_oracle_retrieval     extracte=0.93 in_pool=1.00 candidat=0.87 matched_=0.79 matched_=0.79 in_regis=0.39  (278s)
   A2_chunked_ctx         in_pool=1.00 candidat=0.87 matched_=0.84 matched_=0.82 in_regis=0.79  (14s)
 scale=50000 seed=0 done in 752s
+  H_mycelic_full         extracte=0.95 sketch_v=0.74 in_triag=0.74 question=0.66 descent_=0.66 in_pool=0.69 candidat=0.61 matched_=0.59 matched_=0.59 in_regis=0.52  (294s)
+  B4_central_triage      extracte=0.95 in_pool=0.51 candidat=0.41 matched_=0.34 matched_=0.34 in_regis=0.34  (285s)
+  Y_oracle_retrieval     extracte=0.95 in_pool=1.00 candidat=0.91 matched_=0.74 matched_=0.74 in_regis=0.41  (349s)
+  A2_chunked_ctx         in_pool=1.00 candidat=0.89 matched_=0.85 matched_=0.81 in_regis=0.77  (15s)
+scale=50000 seed=1 done in 947s
