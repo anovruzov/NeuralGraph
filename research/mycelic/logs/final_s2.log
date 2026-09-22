@@ -277,3 +277,42 @@
   0 upgrade=enterprise  B2_map_reduce    AP=0.1495 found=0.30 cu=1.72e+05
   1 upgrade=none        H_mycelic_full   AP=0.0036 found=0.20 cu=3.20e+05
   1 upgrade=none        B2_map_reduce    AP=0.0086 found=0.07 cu=1.46e+05
+  1 upgrade=user        H_mycelic_full   AP=0.0346 found=0.23 cu=5.31e+06
+  1 upgrade=user        B2_map_reduce    AP=0.0574 found=0.38 cu=4.35e+06
+  1 upgrade=team        H_mycelic_full   AP=0.0081 found=0.25 cu=2.28e+06
+  1 upgrade=team        B2_map_reduce    AP=0.0086 found=0.07 cu=1.46e+05
+  1 upgrade=dept        H_mycelic_full   AP=0.0150 found=0.25 cu=1.15e+06
+  1 upgrade=dept        B2_map_reduce    AP=0.0086 found=0.07 cu=1.46e+05
+  1 upgrade=site        H_mycelic_full   AP=0.0089 found=0.20 cu=5.51e+05
+  1 upgrade=site        B2_map_reduce    AP=0.0086 found=0.07 cu=1.46e+05
+  1 upgrade=region      H_mycelic_full   AP=0.0067 found=0.20 cu=4.11e+05
+  1 upgrade=region      B2_map_reduce    AP=0.0086 found=0.07 cu=1.46e+05
+  1 upgrade=enterprise  H_mycelic_full   AP=0.0740 found=0.42 cu=6.88e+05
+  1 upgrade=enterprise  B2_map_reduce    AP=0.0517 found=0.17 cu=1.72e+05
+  2 upgrade=none        H_mycelic_full   AP=0.0329 found=0.45 cu=3.24e+05
+  2 upgrade=none        B2_map_reduce    AP=0.0246 found=0.28 cu=1.45e+05
+  2 upgrade=user        H_mycelic_full   AP=0.2525 found=0.42 cu=5.32e+06
+  2 upgrade=user        B2_map_reduce    AP=0.1840 found=0.55 cu=4.32e+06
+  2 upgrade=team        H_mycelic_full   AP=0.0222 found=0.40 cu=2.45e+06
+  2 upgrade=team        B2_map_reduce    AP=0.0246 found=0.28 cu=1.45e+05
+  2 upgrade=dept        H_mycelic_full   AP=0.0257 found=0.47 cu=1.25e+06
+  2 upgrade=dept        B2_map_reduce    AP=0.0246 found=0.28 cu=1.45e+05
+  2 upgrade=site        H_mycelic_full   AP=0.0223 found=0.40 cu=6.21e+05
+  2 upgrade=site        B2_map_reduce    AP=0.0246 found=0.28 cu=1.45e+05
+  2 upgrade=region      H_mycelic_full   AP=0.0204 found=0.45 cu=4.28e+05
+  2 upgrade=region      B2_map_reduce    AP=0.0246 found=0.28 cu=1.45e+05
+  2 upgrade=enterprise  H_mycelic_full   AP=0.1388 found=0.57 cu=7.00e+05
+  2 upgrade=enterprise  B2_map_reduce    AP=0.1692 found=0.35 cu=1.72e+05
+=== e3b done in 150s ===
+=== e3b end 2026-09-22T11:51:14+00:00 rc=0
+=== e3c start 2026-09-22T11:51:14+00:00
+=== e3c ===
+  0 q=0.10 H_mycelic_full   AP=0.0000 found=0.03 cu=1.99e+05
+  0 q=0.10 B2_map_reduce    AP=0.0021 found=0.07 cu=8.96e+04
+  0 q=0.10 E_hier_lineage   AP=0.0000 found=0.00 cu=1.05e+05
+  0 q=0.28 H_mycelic_full   AP=0.0053 found=0.23 cu=3.83e+05
+  0 q=0.28 B2_map_reduce    AP=0.0047 found=0.10 cu=1.76e+05
+  0 q=0.28 E_hier_lineage   AP=0.0000 found=0.00 cu=2.09e+05
+  0 q=0.44 H_mycelic_full   AP=0.0408 found=0.28 cu=6.57e+05
+  0 q=0.44 B2_map_reduce    AP=0.0436 found=0.20 cu=3.22e+05
+  0 q=0.44 E_hier_lineage   AP=0.0044 found=0.05 cu=3.87e+05
