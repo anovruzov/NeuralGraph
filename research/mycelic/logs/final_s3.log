@@ -465,3 +465,38 @@
    10000/0 B4_central_triage      evidence-names-entity=0.227 fully-attributed=0.005 none-attributed=0.430
    10000/0 E_hier_lineage         evidence-names-entity=0.106 fully-attributed=0.000 none-attributed=0.916
    10000/0 H_mycelic_full         evidence-names-entity=0.346 fully-attributed=0.000 none-attributed=0.280
+   10000/0 J_mycelic_verified     evidence-names-entity=0.346 fully-attributed=0.000 none-attributed=0.280
+   10000/1 A_flat_rag             evidence-names-entity=0.901 fully-attributed=0.763 none-attributed=0.000
+   10000/1 A2_chunked_ctx         evidence-names-entity=0.898 fully-attributed=0.775 none-attributed=0.000
+   10000/1 B2_map_reduce          evidence-names-entity=0.148 fully-attributed=0.008 none-attributed=0.588
+   10000/1 B4_central_triage      evidence-names-entity=0.281 fully-attributed=0.007 none-attributed=0.343
+   10000/1 E_hier_lineage         evidence-names-entity=0.114 fully-attributed=0.030 none-attributed=0.788
+   10000/1 H_mycelic_full         evidence-names-entity=0.338 fully-attributed=0.000 none-attributed=0.292
+   10000/1 J_mycelic_verified     evidence-names-entity=0.338 fully-attributed=0.000 none-attributed=0.292
+   10000/2 A_flat_rag             evidence-names-entity=0.897 fully-attributed=0.778 none-attributed=0.000
+   10000/2 A2_chunked_ctx         evidence-names-entity=0.867 fully-attributed=0.740 none-attributed=0.000
+   10000/2 B2_map_reduce          evidence-names-entity=0.146 fully-attributed=0.003 none-attributed=0.589
+   10000/2 B4_central_triage      evidence-names-entity=0.265 fully-attributed=0.005 none-attributed=0.396
+   10000/2 E_hier_lineage         evidence-names-entity=0.160 fully-attributed=0.024 none-attributed=0.800
+   10000/2 H_mycelic_full         evidence-names-entity=0.350 fully-attributed=0.003 none-attributed=0.287
+   10000/2 J_mycelic_verified     evidence-names-entity=0.350 fully-attributed=0.003 none-attributed=0.287
+   50000/0 A_flat_rag             evidence-names-entity=0.813 fully-attributed=0.778 none-attributed=0.005
+   50000/0 A2_chunked_ctx         evidence-names-entity=0.641 fully-attributed=0.627 none-attributed=0.000
+   50000/0 B2_map_reduce          evidence-names-entity=0.053 fully-attributed=0.000 none-attributed=0.747
+   50000/0 B4_central_triage      evidence-names-entity=0.504 fully-attributed=0.010 none-attributed=0.170
+   50000/0 E_hier_lineage         evidence-names-entity=0.095 fully-attributed=0.038 none-attributed=0.887
+   50000/0 H_mycelic_full         evidence-names-entity=0.334 fully-attributed=0.000 none-attributed=0.233
+   50000/0 J_mycelic_verified     evidence-names-entity=0.334 fully-attributed=0.000 none-attributed=0.233
+   50000/1 A_flat_rag             evidence-names-entity=0.767 fully-attributed=0.751 none-attributed=0.006
+   50000/1 A2_chunked_ctx         evidence-names-entity=0.624 fully-attributed=0.605 none-attributed=0.000
+   50000/1 B2_map_reduce          evidence-names-entity=0.059 fully-attributed=0.000 none-attributed=0.730
+   50000/1 B4_central_triage      evidence-names-entity=0.490 fully-attributed=0.022 none-attributed=0.182
+   50000/1 E_hier_lineage         evidence-names-entity=0.148 fully-attributed=0.054 none-attributed=0.804
+   50000/1 H_mycelic_full         evidence-names-entity=0.369 fully-attributed=0.000 none-attributed=0.247
+   50000/1 J_mycelic_verified     evidence-names-entity=0.369 fully-attributed=0.000 none-attributed=0.247
+   50000/2 A_flat_rag             evidence-names-entity=0.774 fully-attributed=0.745 none-attributed=0.005
+   50000/2 A2_chunked_ctx         evidence-names-entity=0.634 fully-attributed=0.613 none-attributed=0.000
+   50000/2 B2_map_reduce          evidence-names-entity=0.058 fully-attributed=0.000 none-attributed=0.738
+   50000/2 B4_central_triage      evidence-names-entity=0.485 fully-attributed=0.022 none-attributed=0.133
+   50000/2 E_hier_lineage         evidence-names-entity=0.091 fully-attributed=0.021 none-attributed=0.872
+   50000/2 H_mycelic_full         evidence-names-entity=0.336 fully-attributed=0.000 none-attributed=0.220
