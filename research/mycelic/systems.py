@@ -332,6 +332,22 @@ class HierConfig:
     unavailable_frac: float = 0.0    # branches temporarily unreachable
     unavailable_level: int = SITE
     triage_budget: int = 6000
+    # Batch the descent's routing and reading calls: one call per routed
+    # node per round (scoring every anchor that reaches it) and one call
+    # per queried user (answering every anchor that reached it), instead of
+    # one call per (node, anchor).  Same decisions, same records read, same
+    # per-record tokens; only the duplicated per-call prompt overhead and the
+    # call count change.  Measured: at a full question budget 8,361 of 9,491
+    # reached users were being queried more than once.
+    batched_descent: bool = False
+    # Merge the objects a round of descents returns into one object per
+    # (predicate, entity) before the kernel reads them.  A descent returns one
+    # object per answering user; the kernel's features (independent-source
+    # sketch, branch sets, time span, polarity flips, evidence pointers) all
+    # survive the merge, and the kernel prompt shrinks by the number of
+    # answering users.  Measured: the kernel re-read was 42% of full-budget
+    # compute.
+    merge_descent_evidence: bool = False
     descent_leaf_cap: int = 140
     descent_frontier_cap: int = 400
     max_kernel_kos: int = 900
@@ -366,6 +382,9 @@ class Hierarchy:
         self.questions: List[Question] = []
         self.propagated = 0
         self.raw_reads = 0
+        # batched-descent ledgers: node -> [(n_kids, anchor)], user -> [(n_sel, n_kos, anchor)]
+        self._route_ledger: Dict[int, List[Tuple[int, int]]] = {}
+        self._read_ledger: Dict[int, List[Tuple[int, int, int]]] = {}
         # --- loss-accounting hooks (no effect on behaviour) ---
         # anchor -> user nodes a descent for that anchor actually queried
         self.reached_users: Dict[int, Set[int]] = {}
@@ -704,8 +723,11 @@ class Hierarchy:
                     self.rng.shuffle(scored)
                     chosen = scored[:k]
                 nxt.extend(chosen)
-                self.meter.add("descend-route", tier,
-                               len(kids) * 6 + TOK_PROMPT_OVERHEAD, 20, calls=1)
+                if cfg.batched_descent:
+                    self._route_ledger.setdefault(nid, []).append((len(kids), int(anchor)))
+                else:
+                    self.meter.add("descend-route", tier,
+                                   len(kids) * 6 + TOK_PROMPT_OVERHEAD, 20, calls=1)
             # per-parent quota has already guaranteed breadth; a global sort
             # on top of it keeps the best candidates when the frontier is cut
             nxt.sort(reverse=True)
@@ -745,9 +767,13 @@ class Hierarchy:
                 # premise of the design, so charging it for a full re-read of
                 # everything it has ever seen would be wrong.  The index lookup
                 # itself is charged as a small fixed cost.
-                self.meter.add("descend-read", leaf_tier,
-                               len(sel) * TOK_PER_RECORD + TOK_PROMPT_OVERHEAD
-                               + 12, len(sel) * TOK_PER_KO, calls=1)
+                if cfg.batched_descent:
+                    self._read_ledger.setdefault(nid, []).append(
+                        (int(len(sel)), int(len(sel)), int(anchor)))
+                else:
+                    self.meter.add("descend-read", leaf_tier,
+                                   len(sel) * TOK_PER_RECORD + TOK_PROMPT_OVERHEAD
+                                   + 12, len(sel) * TOK_PER_KO, calls=1)
                 if len(sel) == 0:
                     continue
                 kos = _kos_from_claims(self.c, ul, sel + st, nid, USER,
@@ -761,11 +787,42 @@ class Hierarchy:
                 kos = self.kos_at.get(nid, [])
                 hit = [k for k in kos if k.anchor == anchor
                        and (not target_preds or k.pred in target_preds)]
-                self.meter.add("descend-read", leaf_tier,
-                               len(kos) * TOK_PER_KO + TOK_PROMPT_OVERHEAD,
-                               len(hit) * TOK_PER_KO, calls=1)
+                if cfg.batched_descent:
+                    self._read_ledger.setdefault(nid, []).append(
+                        (int(len(kos)), int(len(hit)), int(anchor)))
+                else:
+                    self.meter.add("descend-read", leaf_tier,
+                                   len(kos) * TOK_PER_KO + TOK_PROMPT_OVERHEAD,
+                                   len(hit) * TOK_PER_KO, calls=1)
                 found.extend(hit)
         return found
+
+    def flush_descent_ledger(self) -> None:
+        """Meter the batched descent: one call per routed node (all anchors
+        that reached it scored in one prompt) and one call per queried user
+        (all anchors answered from one local read).  Per-record and
+        per-object tokens are charged exactly as in the unbatched form; only
+        the per-call prompt overhead is paid once per node/user."""
+        org = self.org
+        for nid, entries in self._route_ledger.items():
+            tier = self.alloc[max(1, org.nodes[nid].level)]
+            tok_in = TOK_PROMPT_OVERHEAD + sum(k * 6 for k, _ in entries)
+            self.meter.add("descend-route", tier, tok_in, 20 * len(entries), calls=1)
+        leaf_tier = self.alloc[USER]
+        for nid, entries in self._read_ledger.items():
+            level = org.nodes[nid].level
+            if level == USER:
+                tok_in = (TOK_PROMPT_OVERHEAD + 12 * len(entries)
+                          + sum(n * TOK_PER_RECORD for n, _, _ in entries))
+                tok_out = sum(n * TOK_PER_KO for _, n, _ in entries)
+            else:
+                # a non-leaf node's object store is read once, whatever the
+                # number of anchors asked about
+                tok_in = TOK_PROMPT_OVERHEAD + max(n for n, _, _ in entries) * TOK_PER_KO
+                tok_out = sum(h * TOK_PER_KO for _, h, _ in entries)
+            self.meter.add("descend-read", leaf_tier, tok_in, tok_out, calls=1)
+        self._route_ledger = {}
+        self._read_ledger = {}
 
     def deep_descend(self, anchor: int, target_preds: Sequence[int]) -> List[KO]:
         """Descend all the way to raw user records for the matching anchor.
@@ -891,6 +948,25 @@ class HierRunner:
         self.h.full_hyps = []
         return self.h.full_hyps
 
+    def _merge_new(self, new_kos: List[KO]) -> List[KO]:
+        """Collapse a round's descent returns to one object per (pred, anchor)
+        when cfg.merge_descent_evidence is set; otherwise pass them through."""
+        if not self.cfg.merge_descent_evidence:
+            return new_kos
+        # merged per polarity as well, so the kernel's contradiction balance
+        # (positive vs negative report volume) is exactly what it was; merging
+        # across polarity was measured to cost a quarter of discovery because
+        # a merged object then counts its dissenters twice
+        merged: Dict[Tuple[int, int, int], KO] = {}
+        for k in new_kos:
+            key = (k.pred, k.anchor, int(k.polarity))
+            m = merged.get(key)
+            if m is None:
+                merged[key] = k
+            else:
+                _merge_into(m, k, keep_lineage=self.cfg.lineage)
+        return list(merged.values())
+
     def _weak_targets(self, hyps: List[Hypothesis]) -> List[Tuple[int, List[int], str]]:
         out = []
         for hy in hyps:
@@ -919,9 +995,10 @@ class HierRunner:
             got = self.h.descend(anchor, missing,
                                  budget_nodes=self.cfg.descent_fanout)
             new_kos.extend(got)
+        self.h.flush_descent_ledger()
         if not new_kos:
             return hyps, pool
-        merged = pool + new_kos
+        merged = pool + self._merge_new(new_kos)
         self.h.meter.add("L5-kernel-redo", kernel_tier,
                          len(merged) * TOK_PER_KO + TOK_PROMPT_OVERHEAD, 0,
                          calls=1)
@@ -1067,10 +1144,11 @@ class HierRunner:
             q.answered = True
             q.n_new_evidence = len(got)
             new_kos.extend(got)
+        h.flush_descent_ledger()
         h.questions = qs
         if not new_kos:
             return hyps, pool
-        merged = pool + new_kos
+        merged = pool + self._merge_new(new_kos)
         if cfg.restrict_synthesis_to_triage:
             # The triage is the candidate generator.  Proposing a causal chain
             # for every entity the kernel happens to hold an object about
@@ -1161,9 +1239,10 @@ class HierRunner:
                             avoid=[h.triage_home[anchor]]
                             if anchor in h.triage_home else None)
             new_kos.extend(got)
+        h.flush_descent_ledger()
         if not new_kos:
             return hyps, pool
-        merged = pool + new_kos
+        merged = pool + self._merge_new(new_kos)
         keep = {a for a, _ in targets} | {k.anchor for k in pool
                                           if k.importance > cfg.pin_importance}
         if cfg.restrict_synthesis_to_triage:
