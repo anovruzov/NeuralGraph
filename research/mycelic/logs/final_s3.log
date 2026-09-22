@@ -394,3 +394,19 @@
    10000/0 F_hier_retrieval       raw=0.0000 claims=0.1375 sketch=4.503e+05 found=0.05
    10000/0 G_hier_questions       raw=0.0000 claims=0.1375 sketch=4.503e+05 found=0.53
    10000/0 H_mycelic_full         raw=0.0000 claims=0.1375 sketch=4.503e+05 found=0.47
+   10000/0 I_mycelic_completion   raw=0.0000 claims=0.1375 sketch=4.503e+05 found=0.42
+   10000/0 J_mycelic_verified     raw=0.0000 claims=0.1375 sketch=4.503e+05 found=0.47
+   10000/0 H_mycelic_prev         raw=0.0000 claims=0.1375 sketch=4.503e+05 found=0.30
+   10000/0 H_mycelic_lean         raw=0.0000 claims=0.1375 sketch=4.503e+05 found=0.53
+   10000/0 Y_oracle_retrieval     raw=0.0000 claims=0.8841 sketch=0.000e+00 found=0.42
+   10000/0 Z_random_rank          raw=0.0000 claims=0.8841 sketch=0.000e+00 found=0.28
+   10000/0 Z2_naive_enumerate     raw=0.0000 claims=0.8841 sketch=0.000e+00 found=0.38
+   10000/1 A_flat_rag             raw=0.1268 claims=0.0000 sketch=0.000e+00 found=0.62
+   10000/1 B_long_context         raw=0.1268 claims=0.0000 sketch=0.000e+00 found=0.40
+   10000/1 B2_map_reduce          raw=0.0000 claims=0.8828 sketch=0.000e+00 found=0.20
+   10000/1 A2_chunked_ctx         raw=0.2264 claims=0.0000 sketch=0.000e+00 found=0.80
+   10000/1 B4_central_triage      raw=0.0000 claims=0.8828 sketch=0.000e+00 found=0.47
+   10000/1 C_recursive_sum        raw=0.0000 claims=0.0919 sketch=0.000e+00 found=0.00
+   10000/1 D_hier_nolineage       raw=0.0000 claims=0.1376 sketch=4.289e+05 found=0.05
+   10000/1 E_hier_lineage         raw=0.0000 claims=0.1376 sketch=4.289e+05 found=0.00
+   10000/1 F_hier_retrieval       raw=0.0000 claims=0.1376 sketch=4.289e+05 found=0.05

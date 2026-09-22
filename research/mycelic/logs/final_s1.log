@@ -246,3 +246,5 @@
    50000/3 G_hier_questions     AP=0.1297 found=0.54 R@100=0.230 cu=3.75e+06
    50000/3 H_mycelic_full       AP=0.1581 found=0.56 R@100=0.260 cu=3.81e+06
    50000/3 I_mycelic_completion AP=0.1627 found=0.52 R@100=0.230 cu=6.02e+06
+   50000/3 J_mycelic_verified   AP=0.1770 found=0.56 R@100=0.270 cu=3.82e+06
+   50000/3 H_mycelic_prev       AP=0.0084 found=0.27 R@100=0.030 cu=2.88e+06
