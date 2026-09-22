@@ -696,9 +696,9 @@ Compute (cu) at the same points:
 * **Not distinguishable from noise at this seed count**: `-adaptive_abstraction`, `-adaptive_routing`, `-contradiction`, `-cross_links`, `-foreign_filter`, `-independence`, `-lineage`, `-question_targeting`, `-synthesis_restriction`, `-triage_prior`. These are not shown to be useless; they are shown to be unmeasured, which is a different statement and the honest one.
 * **Variants tested on top of the full system.** These are not "the feature off vs on" — the full system already carries whatever calibration selected — so each is shown with the setting it actually changes:
 
-  * `+chain_completion = chain_completion=True` → Δ +0.005 [-0.030, +0.035] — inconclusive at this seed count
-  * `+evidence_verification = verify_evidence=True` → Δ -0.000 [-0.000, -0.000] — inconclusive at this seed count
-  * `+source_dispersion = w_dispersion=1.5` → Δ -0.030 [-0.050, -0.010] — **do not adopt**
+    * `+chain_completion = chain_completion=True` → Δ +0.005 [-0.030, +0.035] — inconclusive at this seed count
+    * `+evidence_verification = verify_evidence=True` → Δ -0.000 [-0.000, -0.000] — inconclusive at this seed count
+    * `+source_dispersion = w_dispersion=1.5` → Δ -0.030 [-0.050, -0.010] — **do not adopt**
 
 
 ## 13. Where compute should go
@@ -1566,6 +1566,7 @@ python3 -m research.mycelic.experiments e1            # baselines x scales x see
 sh research/mycelic/run_suite.sh                      # everything else
 python3 -m research.mycelic.plots                     # figures
 python3 -m research.mycelic.report                    # regenerate this document
+python3 -m research.mycelic.make_pdf                  # and the paginated PDF
 ```
 
 Raw per-run metrics live in `research/mycelic/artifacts/*.jsonl`, one JSON
@@ -1576,5 +1577,5 @@ measured models were pointed at. The chronological research log — including
 every design that was measured and discarded, and the measurement that killed
 it — is in `research/mycelic/logs/research_log.md`.
 
-_Generated 2026-09-21 by `research/mycelic/report.py` from the
+_Generated 2026-09-22 by `research/mycelic/report.py` from the
 raw artifacts._

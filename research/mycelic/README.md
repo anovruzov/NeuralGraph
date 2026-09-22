@@ -25,6 +25,7 @@ thrown away — is in [`logs/research_log.md`](logs/research_log.md).
 | `analysis.py` | bootstrap CIs, paired exact sign tests |
 | `findings.py` | headline claims, computed from the rows |
 | `report.py` / `report_text.py` | the report generator |
+| `make_pdf.py` | renders the generated report to a paginated PDF |
 | `live_tasks.py` / `score_live.py` | blind primitive-operator measurement on real models |
 | `live_rank.py` | blind candidate-discrimination measurement on real models |
 | `test_mycelic.py` | determinism, leakage, fairness and generator invariants |

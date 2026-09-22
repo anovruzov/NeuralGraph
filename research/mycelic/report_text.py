@@ -706,6 +706,7 @@ python3 -m research.mycelic.experiments e1            # baselines x scales x see
 sh research/mycelic/run_suite.sh                      # everything else
 python3 -m research.mycelic.plots                     # figures
 python3 -m research.mycelic.report                    # regenerate this document
+python3 -m research.mycelic.make_pdf                  # and the paginated PDF
 ```
 
 Raw per-run metrics live in `research/mycelic/artifacts/*.jsonl`, one JSON

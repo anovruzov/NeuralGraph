@@ -240,7 +240,10 @@ def _ablation_verdict(rows) -> str:
             call = ("**adopt**" if r[2] > EPS else
                     "**do not adopt**" if r[3] < -EPS else
                     "inconclusive at this seed count")
-            out.append(f"  * `{_ablation_meaning(r[0])}` → Δ {r[1]:+.3f} "
+            # Four spaces, not two: two-space indentation nests on GitHub
+            # but is a flat list to a strict Markdown parser, which is what
+            # the PDF renderer uses.
+            out.append(f"    * `{_ablation_meaning(r[0])}` → Δ {r[1]:+.3f} "
                        f"[{r[2]:+.3f}, {r[3]:+.3f}] — {call}")
         out.append("")
     if gainful:
