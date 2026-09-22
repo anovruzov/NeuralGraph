@@ -451,3 +451,17 @@
    50000/1 I_mycelic_completion   raw=0.0000 claims=0.1389 sketch=2.617e+06 found=0.50
    50000/1 J_mycelic_verified     raw=0.0000 claims=0.1389 sketch=2.617e+06 found=0.52
    50000/1 H_mycelic_prev         raw=0.0000 claims=0.1389 sketch=2.617e+06 found=0.31
+   50000/1 H_mycelic_lean         raw=0.0000 claims=0.1389 sketch=2.617e+06 found=0.48
+   50000/1 Y_oracle_retrieval     raw=0.0000 claims=0.8847 sketch=0.000e+00 found=0.41
+   50000/1 Z_random_rank          raw=0.0000 claims=0.8847 sketch=0.000e+00 found=0.07
+   50000/1 Z2_naive_enumerate     raw=0.0000 claims=0.8847 sketch=0.000e+00 found=0.13
+=== e9 done in 773s ===
+=== e9 end 2026-09-22T12:00:25+00:00 rc=0
+=== e12 start 2026-09-22T12:00:25+00:00
+=== e12 ===
+   10000/0 A_flat_rag             evidence-names-entity=0.906 fully-attributed=0.760 none-attributed=0.000
+   10000/0 A2_chunked_ctx         evidence-names-entity=0.878 fully-attributed=0.693 none-attributed=0.000
+   10000/0 B2_map_reduce          evidence-names-entity=0.150 fully-attributed=0.015 none-attributed=0.632
+   10000/0 B4_central_triage      evidence-names-entity=0.227 fully-attributed=0.005 none-attributed=0.430
+   10000/0 E_hier_lineage         evidence-names-entity=0.106 fully-attributed=0.000 none-attributed=0.916
+   10000/0 H_mycelic_full         evidence-names-entity=0.346 fully-attributed=0.000 none-attributed=0.280
