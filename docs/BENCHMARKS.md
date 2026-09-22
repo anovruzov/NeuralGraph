@@ -15,7 +15,7 @@ Compiled 2026-09-06 during the repository audit.
 
 ## Track A — Coordination: capability survival (Anar)
 
-Source: `NeuralGraph/coordination/artifacts/` at `13a1729`
+Source: `NeuralGraph/research/coordination/artifacts/` at `13a1729`
 (branch `claude/session-analysis-continuation-sm1a1t`).
 Deterministic simulator, seed 20260813, 30-seed sweep, 5-node fixture.
 **Evidence class: bitwise reproducible** — all SHA256SUMS verify and all
@@ -65,7 +65,7 @@ one of six cells (node_failure, I=1).
 
 ## Track B — Retrieval: the LoCoMo campaign (Nurman)
 
-Source: `docs/research/RESULTS_ALL.md` + `demo/results/*.json` at
+Source: `research/reports/RESULTS_ALL.md` + `research/results/*.json` at
 `e054178` (merged as PR #3, 2026-09-06). LoCoMo, 10 conversations,
 1,540 questions. Models: gemma-4-e4b (answer/rerank/campaign judge),
 nomic-embed-text v1.5, qwen3.6-35b (independent judge). Leakage-free
@@ -146,9 +146,13 @@ leniency ~30 points. Kappa vs campaign judge: Qwen lenient 0.72, strict
 
 ## Track C — The December baseline (superseded, leaky)
 
-Source: `demo/maximal.json` (December 2025, GPT-4o lenient judge, gold
-answer used as acceptance gate and gold category for routing —
-superseded by Track B's leakage-free harness).
+**The artifact for this track is not published in this repository.**
+`maximal.json` (December 2025, GPT-4o lenient judge) used the gold answer as
+an acceptance gate and the gold category label for routing. Those numbers are
+leaked, so shipping them invites exactly the comparison they cannot support.
+The table is kept only so the record of what was superseded is complete; it is
+not a baseline anyone should cite or reproduce against. Every result in
+`research/results/` comes from the leakage-free harness.
 
 | measure | value | note |
 |---|---:|---|

@@ -29,14 +29,14 @@ import unittest
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from NeuralGraph.coordination.adapters import NeuralGraphMemoryAdapter
-from NeuralGraph.coordination.contracts import (
+from NeuralGraph.research.coordination.adapters import NeuralGraphMemoryAdapter
+from NeuralGraph.research.coordination.contracts import (
     AuthorizationContext,
     Availability,
     CapabilityDescriptor,
     PolicyStatus,
 )
-from NeuralGraph.coordination.core import (
+from NeuralGraph.research.coordination.core import (
     CapabilityRegistry,
     ClaimNormalizer,
     LineageAnalyzer,
@@ -45,17 +45,17 @@ from NeuralGraph.coordination.core import (
     TesseractCoordinator,
     canonical_json,
 )
-from NeuralGraph.coordination.fixture import REQUIRED_SCOPE, REQUIRED_SLOTS, build_runtime
-from NeuralGraph.coordination.storage_adapter import StorageLineageResolver
-from NeuralGraph.data_types import (
+from NeuralGraph.research.coordination.fixture import REQUIRED_SCOPE, REQUIRED_SLOTS, build_runtime
+from NeuralGraph.research.coordination.storage_adapter import StorageLineageResolver
+from NeuralGraph.research.retrieval.data_types import (
     ConsolidationState,
     EdgeType,
     NeuralEdge,
     NeuralNode,
     NodeLayer,
 )
-from NeuralGraph.sqlite_storage import SQLiteNeuralGraphStorage
-from NeuralGraph.storage import InMemoryNeuralGraphStorage
+from NeuralGraph.research.retrieval.sqlite_storage import SQLiteNeuralGraphStorage
+from NeuralGraph.research.retrieval.storage import InMemoryNeuralGraphStorage
 
 SESSION_KEY = "coordination-lineage-session"
 REAL_NODE_ID = "real-node"

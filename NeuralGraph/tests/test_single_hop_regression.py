@@ -353,8 +353,8 @@ class TestSingleHopIntegration:
     async def graph_service(self):
         """Create and configure NeuralGraph service."""
         # Import here to avoid loading at module level
-        from ..service import NeuralGraphService, NeuralGraphServiceConfig
-        from ..storage import InMemoryNeuralGraphStorage
+        from ..research.retrieval.service import NeuralGraphService, NeuralGraphServiceConfig
+        from ..research.retrieval.storage import InMemoryNeuralGraphStorage
 
         storage = InMemoryNeuralGraphStorage()
         config = NeuralGraphServiceConfig(

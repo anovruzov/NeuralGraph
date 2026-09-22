@@ -30,8 +30,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from NeuralGraph.coordination.adapters import NeuralGraphMemoryAdapter
-from NeuralGraph.coordination.contracts import (
+from NeuralGraph.research.coordination.adapters import NeuralGraphMemoryAdapter
+from NeuralGraph.research.coordination.contracts import (
     AuthorizationContext,
     Availability,
     CapabilityDescriptor,
@@ -39,7 +39,7 @@ from NeuralGraph.coordination.contracts import (
     QueryBudget,
     QueryRequest,
 )
-from NeuralGraph.coordination.core import (
+from NeuralGraph.research.coordination.core import (
     CapabilityRegistry,
     ClaimNormalizer,
     FailureInjector,
@@ -50,9 +50,9 @@ from NeuralGraph.coordination.core import (
     TesseractCoordinator,
     TraceLogger,
 )
-from NeuralGraph.coordination.storage_adapter import StorageLineageResolver
-from NeuralGraph.data_types import EdgeType, NeuralEdge, NeuralNode, NodeLayer
-from NeuralGraph.sqlite_storage import SQLiteNeuralGraphStorage
+from NeuralGraph.research.coordination.storage_adapter import StorageLineageResolver
+from NeuralGraph.research.retrieval.data_types import EdgeType, NeuralEdge, NeuralNode, NodeLayer
+from NeuralGraph.research.retrieval.sqlite_storage import SQLiteNeuralGraphStorage
 
 CAPABILITY_ID = "restart_pair_reconstruction"
 REQUIRED_SCOPE = "capability:restart-pair"

@@ -19,9 +19,9 @@ import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 
-from NeuralGraph.data_types import NeuralNode, NodeLayer
-from NeuralGraph.sqlite_storage import SQLiteNeuralGraphStorage
-from NeuralGraph.storage import InMemoryNeuralGraphStorage
+from NeuralGraph.research.retrieval.data_types import NeuralNode, NodeLayer
+from NeuralGraph.research.retrieval.sqlite_storage import SQLiteNeuralGraphStorage
+from NeuralGraph.research.retrieval.storage import InMemoryNeuralGraphStorage
 
 SESSION_KEY = "coordination-storage-session"
 SOURCE_MEMORY_IDS = ["memory-root-1", "memory-root-2", "memory-root-3"]

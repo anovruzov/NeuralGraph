@@ -6,12 +6,12 @@ import json
 import unittest
 from dataclasses import replace
 
-from NeuralGraph.coordination.adapters import (
+from NeuralGraph.research.coordination.adapters import (
     MockMemoryNodeAdapter,
     NeuralGraphMemoryAdapter,
     PrivateMemoryRecord,
 )
-from NeuralGraph.coordination.contracts import (
+from NeuralGraph.research.coordination.contracts import (
     AuthorizationContext,
     Availability,
     CapabilityDescriptor,
@@ -23,7 +23,7 @@ from NeuralGraph.coordination.contracts import (
     QueryRequest,
     TraceEventType,
 )
-from NeuralGraph.coordination.core import (
+from NeuralGraph.research.coordination.core import (
     CapabilityRegistry,
     ClaimNormalizer,
     LineageAnalyzer,
@@ -33,8 +33,8 @@ from NeuralGraph.coordination.core import (
     TesseractCoordinator,
     canonical_json,
 )
-from NeuralGraph.coordination.experiment import run_experiment, run_strategy
-from NeuralGraph.coordination.fixture import (
+from NeuralGraph.research.coordination.experiment import run_experiment, run_strategy
+from NeuralGraph.research.coordination.fixture import (
     REQUIRED_SCOPE,
     REQUIRED_SLOTS,
     build_runtime,

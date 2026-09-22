@@ -206,8 +206,10 @@ The **+8.9 point** gain survives all four graders (+11.3 Qwen lenient, +9.6 Qwen
 | open_domain | 46 | 56.5% |
 | **overall** | **744** | **72.2%** |
 
-Gemma lenient judge, conversations 1–5 of LoCoMo. The prior leaky baseline scored 66.9% on
-the same questions under a different judge, so treat that delta as indicative.
+Gemma lenient judge, conversations 1–5 of LoCoMo. The December 2025 baseline is deliberately
+not quoted as a comparison: that run used the gold answer as an acceptance gate and the gold
+category label for routing, so its numbers are leaked and it is not published here. Every
+result above comes from the leakage-free harness.
 
 ### The result everyone else omits
 
@@ -217,7 +219,7 @@ names its judge, because a memory benchmark without one is a press release.**
 
 We also publish what did not work — graph-neighbour expansion, listwise reranking, wider
 context, an LLM router, mega search, an LLM-built entity graph: 18 experiments, verdicts and
-all, in [docs/BENCHMARKS.md](docs/BENCHMARKS.md) and [docs/research/](docs/research/).
+all, in [docs/BENCHMARKS.md](docs/BENCHMARKS.md) and [research/reports/](research/reports/).
 
 ### Coordination track
 
@@ -279,6 +281,43 @@ memories is the optimum; speaker names are embedding-level pointers to the *wron
 
 ---
 
+## Repository layout
+
+The assistant and the research live in separate folders, on purpose. If you only want
+local memory in Claude, everything you need is in the first row and nothing in the
+research tree is imported at runtime.
+
+```text
+NeuralGraph/
+├── chat_memory/            THE ASSISTANT — memory server, MCP, worker, store, dashboard
+├── research/
+│   ├── retrieval/          research engine: Tesseract retrieval, rerank, entity graph
+│   └── coordination/       research: multi-agent capability-survival simulator
+├── llm_backend.py          shared: one shim over Ollama and LM Studio
+├── temporal_utils.py       shared: date parsing, relative-date resolution
+└── tests/                  222 tests, no GPU and no network required
+
+demo/                       runnable assistant demos (work with --fake-llm)
+deploy/                     Docker, compose and systemd units for the assistant
+docs/                       assistant docs: design, benchmarks, architecture
+research/                   THE RESEARCH TRACK — harnesses, datasets, reports, results
+```
+
+`import NeuralGraph.chat_memory` pulls in ten modules and no research code. The
+separation is enforced by the import graph, not just by folder names — the assistant
+never reaches into `NeuralGraph.research`, and the two only share the LLM shim and the
+date utilities.
+
+| I want to… | Start here |
+|---|---|
+| Give Claude persistent memory | [`NeuralGraph/chat_memory/README.md`](NeuralGraph/chat_memory/README.md) |
+| See it work in 60 seconds | [`demo/README.md`](demo/README.md) |
+| Reproduce a benchmark number | [`research/README.md`](research/README.md) |
+| Read what did and did not work | [`research/reports/README.md`](research/reports/README.md) |
+| Deploy it somewhere | [`deploy/`](deploy/) |
+
+---
+
 ## CLI
 
 Everything the server does, available from a terminal. All commands are
@@ -322,6 +361,14 @@ The dashboard polls `/api/status` every two seconds and shows an avatar that pul
 the worker is busy, the **tokens saved** figure (raw chat tokens digested minus the tokens
 of the memories that replace them), and a **pentagon grade** across five axes — coverage,
 compression, connectivity, freshness and reliability.
+
+<div align="center">
+  <img src="docs/images/dashboard.png" alt="The NeuralGraph memory dashboard: tokens saved, pentagon grade, live memory stream and entity graph" width="820">
+</div>
+
+The live memory stream shows each memory as it is extracted, with its kind, subject,
+source chat, date and importance; the entity graph beside it shows what has been linked
+to what. You can search memory and feed it a chat turn straight from the page.
 
 ---
 
@@ -380,9 +427,7 @@ file, no other services.
 ## Tests
 
 ```bash
-python -m unittest NeuralGraph.tests.test_chat_memory_store \
-  NeuralGraph.tests.test_chat_memory_extraction NeuralGraph.tests.test_chat_memory_worker \
-  NeuralGraph.tests.test_chat_memory_retrieval NeuralGraph.tests.test_chat_memory_mcp
+python -m pytest NeuralGraph/tests -q        # 222 tests, ~4 s
 ```
 
 Every test uses a temporary database and a deterministic fake model, so the suite needs no
@@ -392,8 +437,11 @@ commits, reconciliation and the "older observation never wins" rule, grounding r
 embedding outages, retrieval channels and filters, superseded handling, the token ledger
 and grade, and the MCP protocol over both stdio and HTTP.
 
-> `pytest` cannot collect from the repository root because of a stale root `__init__.py`;
-> use `unittest` as above.
+`unittest` works too, if you want a single module:
+
+```bash
+python -m unittest NeuralGraph.tests.test_chat_memory_mcp
+```
 
 ---
 
@@ -420,9 +468,10 @@ More, client by client, in the
 | **[Chat Memory User Guide](NeuralGraph/chat_memory/README.md)** | Install, transports, every tool, every flag |
 | **[Chat Memory Design](docs/CHAT_MEMORY.md)** | Why extraction is gated, how channels fuse, how commits are fenced |
 | **[Benchmarks](docs/BENCHMARKS.md)** | Every number across all three research tracks, with evidence classes |
-| **[Research Reports](docs/research/)** | 18 experiments, including the ones that failed |
-| **[System Architecture](NeuralGraph_System_Architecture.md)** | The full system design |
-| **[Query Routing](QUERY_ROUTING_IMPROVEMENTS.md)** | How questions are routed to the right memories |
+| **[Research](research/README.md)** | The research track: how to reproduce every number |
+| **[Experiment Reports](research/reports/README.md)** | 18 experiments, including the ones that failed |
+| **[System Architecture](docs/ARCHITECTURE.md)** | The v1 research engine design (December 2025) |
+| **[Contributing](CONTRIBUTING.md)** | Setup, tests, and the one rule for benchmark changes |
 
 ---
 
