@@ -1,1 +1,8 @@
   seed 0 H_mycelic_full           found=0.450 AP=0.1841 cov=0.600 rare=0.176 cu=1.03e+06 (6s)
+  seed 0 H_mycelic_full           found=0.425 AP=0.1678 cov=0.950 rare=0.118 cu=1.31e+06 (7s)
+  seed 1 H_mycelic_full           found=0.350 AP=0.1086 cov=0.625 rare=0.150 cu=1.07e+06 (7s)
+  seed 1 H_mycelic_full           found=0.425 AP=0.1219 cov=0.975 rare=0.200 cu=1.32e+06 (8s)
+  seed 2 H_mycelic_full           found=0.525 AP=0.1380 cov=0.800 rare=0.467 cu=1.13e+06 (6s)
+  seed 2 H_mycelic_full           found=0.600 AP=0.1044 cov=0.975 rare=0.467 cu=1.41e+06 (8s)
+  seed 3 H_mycelic_full           found=0.575 AP=0.1367 cov=0.725 rare=0.200 cu=1.16e+06 (6s)
+  seed 3 H_mycelic_full           found=0.650 AP=0.1382 cov=1.000 rare=0.533 cu=1.45e+06 (8s)

@@ -143,7 +143,14 @@ def dump(scale: int = 10_000, seeds: Sequence[int] = CAL_SEEDS + EVAL_SEEDS,
 def _standardise(X: np.ndarray, mu=None, sd=None):
     if mu is None:
         mu = X.mean(axis=0)
-        sd = X.std(axis=0) + 1e-9
+        sd = X.std(axis=0)
+        # A feature that is constant on the training dump (attribution is -1
+        # everywhere unless verification ran) gets sd = 1, not 1e-9: with a
+        # near-zero sd a different value at run time would be scaled by 1e9
+        # and one stray weight would dominate the score.  Its weight is
+        # exactly zero after fitting anyway; this keeps it harmless if a
+        # later run supplies the feature.
+        sd = np.where(sd < 1e-6, 1.0, sd)
     return (X - mu) / sd, mu, sd
 
 
