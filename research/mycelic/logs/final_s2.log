@@ -1,0 +1,8 @@
+=== e1b start 2026-09-22T11:12:02+00:00
+=== e1b ===
+    2000/0 A2_chunked_ctx         AP=0.1904 found=0.80 cov2=1.00 cu=5.18e+05
+    2000/0 B4_central_triage      AP=0.0714 found=0.78 cov2=0.95 cu=1.35e+05
+    2000/0 I_mycelic_completion   AP=0.1004 found=0.80 cov2=0.90 cu=1.25e+06
+    2000/0 Z2_naive_enumerate     AP=0.0048 found=0.05 cov2=0.00 cu=4.01e+04
+    2000/1 A2_chunked_ctx         AP=0.3116 found=0.95 cov2=1.00 cu=5.19e+05
+    2000/1 B4_central_triage      AP=0.1030 found=0.82 cov2=1.00 cu=1.36e+05

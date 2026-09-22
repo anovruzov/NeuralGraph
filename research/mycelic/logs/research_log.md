@@ -708,3 +708,14 @@ re-extraction, chain-scoped questions (kept as the separate H_mycelic_lean
 arm), sketch weak bits and descent-evidence merging all OFF.
 H_mycelic_prev (the v1 configuration, hand ranker) runs inside the same
 suite so the old-vs-new comparison is paired on identical worlds.
+
+**Hybrid timing at 50k (quick_v50_hyb.jsonl, seeds 0–2, ranker refitted):**
+found 0.527 → 0.587 (+0.06, 3/3 seeds, 95% CI [+0.03, +0.08]), rare 0.335 →
+0.343, coverage 0.72 → 0.73, decoy 0.33 → 0.37, compute unchanged. The lean
+arm at 50k: found −0.003, rare −0.07, coverage 0.72 → 0.58, compute −31%.
+Frozen and the final rerun launched (final_rerun.sh): v1 artifacts archived
+under artifacts/v1/, ranker installed from calibration.hyb.json, knobs
+written with provenance, per-architecture adoption re-decided on the
+calibration seeds, then every experiment, the loss accounting at both
+scales, the candidate dump with the out-of-sample ranker evaluation, and
+every document and PDF.

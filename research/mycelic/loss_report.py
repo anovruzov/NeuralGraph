@@ -45,8 +45,14 @@ SKETCH_FAIL_LABEL = {
 
 
 def load(path: str = FUNNEL) -> List[Dict]:
+    # while a rerun is rebuilding the funnel the archived v1 funnel stands in,
+    # so an interim document never shows empty tables
     if not os.path.exists(path):
-        return []
+        alt = os.path.join(os.path.dirname(path), "v1", os.path.basename(path))
+        if os.path.exists(alt):
+            path = alt
+        else:
+            return []
     with open(path) as fh:
         return [json.loads(l) for l in fh if l.strip()]
 
