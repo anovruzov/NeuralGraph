@@ -277,3 +277,58 @@
   linear   2 flat-small     B2_map_reduce    AP=0.0303 cu=1.45e+05
   linear   2 naive-ladder   H_mycelic_full   AP=0.1538 cu=1.68e+06
   linear   2 naive-ladder   B2_map_reduce    AP=0.1792 cu=1.98e+05
+  linear   2 back-loaded    H_mycelic_full   AP=0.2040 cu=1.38e+06
+  linear   2 back-loaded    B2_map_reduce    AP=0.1792 cu=1.98e+05
+  linear   2 kernel-only    H_mycelic_full   AP=0.1076 cu=9.40e+05
+  linear   2 kernel-only    B2_map_reduce    AP=0.0944 cu=1.20e+05
+  linear   2 two-step       H_mycelic_full   AP=0.1253 cu=1.37e+06
+  linear   2 two-step       B2_map_reduce    AP=0.1792 cu=1.98e+05
+  linear   2 front-loaded   H_mycelic_full   AP=0.0974 cu=1.01e+06
+  linear   2 front-loaded   B2_map_reduce    AP=0.2349 cu=3.02e+05
+  concave  0 flat-small     H_mycelic_full   AP=0.0090 cu=3.14e+05
+  concave  0 flat-small     B2_map_reduce    AP=0.0049 cu=1.46e+05
+  concave  0 naive-ladder   H_mycelic_full   AP=0.1453 cu=1.56e+06
+  concave  0 naive-ladder   B2_map_reduce    AP=0.1340 cu=2.00e+05
+  concave  0 back-loaded    H_mycelic_full   AP=0.1173 cu=1.35e+06
+  concave  0 back-loaded    B2_map_reduce    AP=0.1340 cu=2.00e+05
+  concave  0 kernel-only    H_mycelic_full   AP=0.0696 cu=8.95e+05
+  concave  0 kernel-only    B2_map_reduce    AP=0.0531 cu=1.20e+05
+  concave  0 two-step       H_mycelic_full   AP=0.1228 cu=1.29e+06
+  concave  0 two-step       B2_map_reduce    AP=0.1340 cu=2.00e+05
+  concave  0 front-loaded   H_mycelic_full   AP=0.1529 cu=9.37e+05
+  concave  0 front-loaded   B2_map_reduce    AP=0.0722 cu=3.04e+05
+  concave  1 flat-small     H_mycelic_full   AP=0.0209 cu=3.24e+05
+  concave  1 flat-small     B2_map_reduce    AP=0.0104 cu=1.46e+05
+  concave  1 naive-ladder   H_mycelic_full   AP=0.1208 cu=1.60e+06
+  concave  1 naive-ladder   B2_map_reduce    AP=0.0549 cu=1.99e+05
+  concave  1 back-loaded    H_mycelic_full   AP=0.1195 cu=1.34e+06
+  concave  1 back-loaded    B2_map_reduce    AP=0.0549 cu=1.99e+05
+  concave  1 kernel-only    H_mycelic_full   AP=0.0280 cu=9.28e+05
+  concave  1 kernel-only    B2_map_reduce    AP=0.0411 cu=1.21e+05
+  concave  1 two-step       H_mycelic_full   AP=0.1341 cu=1.34e+06
+  concave  1 two-step       B2_map_reduce    AP=0.0549 cu=1.99e+05
+  concave  1 front-loaded   H_mycelic_full   AP=0.1425 cu=9.65e+05
+  concave  1 front-loaded   B2_map_reduce    AP=0.0600 cu=3.03e+05
+  concave  2 flat-small     H_mycelic_full   AP=0.0258 cu=3.27e+05
+  concave  2 flat-small     B2_map_reduce    AP=0.0399 cu=1.45e+05
+  concave  2 naive-ladder   H_mycelic_full   AP=0.1538 cu=1.68e+06
+  concave  2 naive-ladder   B2_map_reduce    AP=0.1792 cu=1.98e+05
+  concave  2 back-loaded    H_mycelic_full   AP=0.2040 cu=1.38e+06
+  concave  2 back-loaded    B2_map_reduce    AP=0.1792 cu=1.98e+05
+  concave  2 kernel-only    H_mycelic_full   AP=0.1076 cu=9.40e+05
+  concave  2 kernel-only    B2_map_reduce    AP=0.0944 cu=1.20e+05
+  concave  2 two-step       H_mycelic_full   AP=0.1253 cu=1.37e+06
+  concave  2 two-step       B2_map_reduce    AP=0.1792 cu=1.98e+05
+  concave  2 front-loaded   H_mycelic_full   AP=0.1320 cu=1.01e+06
+  concave  2 front-loaded   B2_map_reduce    AP=0.1952 cu=3.02e+05
+=== e7 done in 449s ===
+=== e7 end 2026-09-22T11:42:39+00:00 rc=0
+=== e8 start 2026-09-22T11:42:39+00:00
+=== e8 ===
+  2000 0 xlinks=False AP=0.2960 found=0.75 cu=7.44e+05
+  2000 0 xlinks=True AP=0.2025 found=0.80 cu=7.33e+05
+  2000 1 xlinks=False AP=0.3727 found=0.88 cu=7.45e+05
+  2000 1 xlinks=True AP=0.3652 found=0.95 cu=7.62e+05
+  2000 2 xlinks=False AP=0.2307 found=0.78 cu=7.72e+05
+  2000 2 xlinks=True AP=0.2504 found=0.82 cu=7.67e+05
+  10000 0 xlinks=False AP=0.1640 found=0.53 cu=1.31e+06

@@ -133,3 +133,42 @@
   3 -triage_prior            AP=0.2607 found=0.72 rare=0.467 lin=0.49 indep=0.78 cu=1.48e+06
   3 +evidence_verification   AP=0.2710 found=0.72 rare=0.467 lin=0.49 indep=0.78 cu=1.49e+06
   3 +source_dispersion       AP=0.2354 found=0.70 rare=0.533 lin=0.50 indep=0.76 cu=1.44e+06
+  3 +chain_completion        AP=0.3582 found=0.70 rare=0.333 lin=0.48 indep=0.79 cu=2.48e+06
+  3 -foreign_filter          AP=0.2749 found=0.78 rare=0.533 lin=0.48 indep=0.74 cu=1.88e+06
+  3 -synthesis_restriction   AP=0.2730 found=0.75 rare=0.467 lin=0.48 indep=0.78 cu=1.48e+06
+  4 full                     AP=0.2230 found=0.65 rare=0.364 lin=0.53 indep=0.78 cu=1.29e+06
+  4 -lineage                 AP=0.2155 found=0.60 rare=0.273 lin=0.00 indep=0.79 cu=1.27e+06
+  4 -independence            AP=0.2549 found=0.62 rare=0.364 lin=0.53 indep=0.78 cu=1.29e+06
+  4 -contradiction           AP=0.2037 found=0.57 rare=0.364 lin=0.50 indep=0.79 cu=1.27e+06
+  4 -temporal                AP=0.1833 found=0.75 rare=0.636 lin=0.52 indep=0.78 cu=1.27e+06
+  4 -adaptive_routing        AP=0.2668 found=0.68 rare=0.545 lin=0.55 indep=0.76 cu=1.33e+06
+  4 -questions               AP=0.0782 found=0.10 rare=0.000 lin=0.57 indep=0.82 cu=3.53e+05
+  4 -question_targeting      AP=0.2689 found=0.62 rare=0.364 lin=0.51 indep=0.80 cu=1.28e+06
+  4 -downward_retrieval      AP=0.0375 found=0.05 rare=0.000 lin=1.00 indep=0.61 cu=2.27e+05
+  4 -cross_links             AP=0.2054 found=0.68 rare=0.364 lin=0.53 indep=0.78 cu=1.29e+06
+  4 -sketch_channel          AP=0.0331 found=0.17 rare=0.091 lin=0.63 indep=0.74 cu=1.06e+06
+  4 -adaptive_abstraction    AP=0.2471 found=0.65 rare=0.273 lin=0.53 indep=0.79 cu=1.30e+06
+  4 -triage_prior            AP=0.2230 found=0.65 rare=0.364 lin=0.53 indep=0.78 cu=1.29e+06
+  4 +evidence_verification   AP=0.2428 found=0.65 rare=0.364 lin=0.53 indep=0.78 cu=1.30e+06
+  4 +source_dispersion       AP=0.2443 found=0.65 rare=0.273 lin=0.50 indep=0.78 cu=1.29e+06
+  4 +chain_completion        AP=0.2695 found=0.68 rare=0.455 lin=0.53 indep=0.77 cu=2.14e+06
+  4 -foreign_filter          AP=0.2690 found=0.70 rare=0.455 lin=0.52 indep=0.79 cu=1.62e+06
+  4 -synthesis_restriction   AP=0.2578 found=0.68 rare=0.364 lin=0.53 indep=0.78 cu=1.29e+06
+=== e2 done in 687s ===
+=== e2 end 2026-09-22T11:42:16+00:00 rc=0
+=== e3 start 2026-09-22T11:42:16+00:00
+=== e3 ===
+  0 flat-small     H_mycelic_full   AP=0.0053 found=0.23 cu=3.18e+05
+  0 flat-small     B2_map_reduce    AP=0.0047 found=0.10 cu=1.46e+05
+  0 flat-small     E_hier_lineage   AP=0.0000 found=0.00 cu=1.74e+05
+  0 flat-mid       H_mycelic_full   AP=0.1638 found=0.53 cu=1.31e+06
+  0 flat-mid       B2_map_reduce    AP=0.1831 found=0.38 cu=6.86e+05
+  0 flat-mid       E_hier_lineage   AP=0.0080 found=0.05 cu=8.31e+05
+  0 flat-frontier  H_mycelic_full   AP=0.3435 found=0.62 cu=8.18e+06
+  0 flat-frontier  B2_map_reduce    AP=0.3733 found=0.62 cu=4.39e+06
+  0 flat-frontier  E_hier_lineage   AP=0.2479 found=0.33 cu=5.38e+06
+  0 naive-ladder   H_mycelic_full   AP=0.1453 found=0.55 cu=1.56e+06
+  0 naive-ladder   B2_map_reduce    AP=0.1340 found=0.28 cu=2.00e+05
+  0 naive-ladder   E_hier_lineage   AP=0.0000 found=0.00 cu=2.75e+05
+  0 back-loaded    H_mycelic_full   AP=0.1173 found=0.47 cu=1.35e+06
+  0 back-loaded    B2_map_reduce    AP=0.1340 found=0.28 cu=2.00e+05
