@@ -64,7 +64,7 @@ async with ChatMemory("~/.neuralgraph/chat_memory.db") as cm:        # worker st
 No model server? `--fake-llm` (CLI) or `llm=scripted_fake_llm()` (Python) runs a deterministic stand-in.
 
 **Live demo:** `.venv/bin/python demo/chat_memory_live_demo.py --fake-llm` starts everything, replays
-`evaluation/chats/sample_chats.jsonl` with human pacing, calls `memory_context`/`memory_search` over the
+`demo/data/sample_chats.jsonl` with human pacing, calls `memory_context`/`memory_search` over the
 MCP endpoint the way Claude would, prints what the worker learned after each chat, and keeps serving at the
 end (`--screenshots` saves a storyboard, `--locomo 0` adds a 400-message chat for volume, `--no-serve` exits
 when the story ends; drop `--fake-llm` to use your local model).
@@ -232,7 +232,7 @@ python -m NeuralGraph.chat_memory serve|mcp|ingest|process|search|context|profil
   --debounce SECONDS  --user-name NAME  --extract-assistant  --fake-llm  -v
 serve --host --port --mcp-token --api-token --allowed-origin --cors-origin --allowed-host
 ingest FILE.jsonl [--chat-id ID] [--process]        # {"chat_id","speaker","text","sent_at"?,"role"?} per line
-ingest evaluation/locomo/locomo10.json --locomo --only 0,1 --process
+ingest research/datasets/locomo10.json --locomo --only 0,1 --process
 ```
 
 `--parallel` bounds concurrent model calls (match `OLLAMA_NUM_PARALLEL`); `--workers` bounds chats in flight
@@ -262,7 +262,8 @@ embeddings); they cover idempotent ingestion, per-chat ordering with cross-chat 
 dead-lettering, restart recovery of expired leases, lease-fenced commits, reconciliation decisions and the
 "older observation never wins" rule, grounding rejections, embedding outages, retrieval channels and filters,
 superseded handling, the token ledger and grade, and the MCP protocol over stdio and HTTP.
-(`pytest` cannot collect from the repo root because of the stale root `__init__.py`; use `unittest`.)
+Both runners work: `python -m pytest NeuralGraph/tests` collects the whole suite, or run the
+modules individually with `unittest` as above.
 
 ## Deployment
 

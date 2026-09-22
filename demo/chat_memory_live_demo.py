@@ -3,7 +3,7 @@
 What it does
 ------------
 1. Starts the memory system: background worker + dashboard + REST + MCP (Streamable HTTP) on one port.
-2. Replays five sample chats (`evaluation/chats/sample_chats.jsonl`) with human pacing, so the dashboard
+2. Replays five sample chats (`demo/data/sample_chats.jsonl`) with human pacing, so the dashboard
    animates: the avatar "learns", memories appear in the stream, entities and relations grow, the pentagon
    grade moves.
 3. Before each new chat it does what Claude would do through MCP: calls ``memory_context`` over the HTTP
@@ -46,8 +46,8 @@ from NeuralGraph.chat_memory import ChatMemory, ChatMemoryConfig  # noqa: E402
 from NeuralGraph.chat_memory.ui.server import run_server  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
-SAMPLE = ROOT / "evaluation" / "chats" / "sample_chats.jsonl"
-LOCOMO = ROOT / "evaluation" / "locomo" / "locomo10.json"
+SAMPLE = Path(__file__).resolve().parent / "data" / "sample_chats.jsonl"
+LOCOMO = ROOT / "research" / "datasets" / "locomo10.json"
 OUT_DIR = ROOT / "demo" / "results" / "chat_memory_demo"
 
 QUESTIONS = [
