@@ -321,6 +321,18 @@ def sweep_table(tag: str, base_label: str) -> str:
     return "\n".join(lines)
 
 
+def fresh_panel_numbers(tag: str = "strong_fresh", arm: str = "hyb") -> Dict[str, float]:
+    """The frozen configuration's one read on seeds 10-14 (the base arm of the
+    staleness-gate test), as levels."""
+    rows = [r for r in _quick(tag) if r["arch"] == arm]
+    if not rows:
+        return {}
+    m = lambda k: float(np.mean([r[k] for r in rows]))
+    return {"found": m("found_anywhere_in_register"), "rare": m("rare_signal_recall"),
+            "cov": m("evidence_coverage_2links"), "decoy": m("decoy_acceptance_all"),
+            "d5": m("decoy_D5_stale_chain"), "cu": m("compute_units"), "n": len(rows)}
+
+
 def compute_per_accepted_change() -> str:
     """Compute cost per accepted change at 10k, in the order they were stacked."""
     steps = [

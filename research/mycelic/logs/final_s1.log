@@ -205,3 +205,10 @@
    50000/1 B4_central_triage    AP=0.0468 found=0.34 R@100=0.180 cu=1.06e+06
    50000/1 C_recursive_sum      AP=0.0000 found=0.00 R@100=0.000 cu=8.03e+05
    50000/1 D_hier_nolineage     AP=0.0000 found=0.00 R@100=0.000 cu=8.80e+05
+   50000/1 E_hier_lineage       AP=0.0033 found=0.01 R@100=0.010 cu=9.87e+05
+   50000/1 F_hier_retrieval     AP=0.0086 found=0.03 R@100=0.020 cu=1.12e+06
+   50000/1 G_hier_questions     AP=0.0991 found=0.48 R@100=0.190 cu=3.78e+06
+   50000/1 H_mycelic_full       AP=0.0977 found=0.52 R@100=0.220 cu=3.87e+06
+   50000/1 I_mycelic_completion AP=0.1488 found=0.50 R@100=0.230 cu=6.13e+06
+   50000/1 J_mycelic_verified   AP=0.1088 found=0.52 R@100=0.240 cu=3.88e+06
+   50000/1 H_mycelic_prev       AP=0.0091 found=0.31 R@100=0.030 cu=2.94e+06

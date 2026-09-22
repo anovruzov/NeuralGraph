@@ -1,6 +1,6 @@
 # Mycelic vNext — research report
 
-_Generated 2026-09-22 11:31 UTC from `research/mycelic/artifacts/` (new) and `artifacts/v1/` (old) by `vnext_docs.py`. Every table is computed from those files._
+_Generated 2026-09-22 11:39 UTC from `research/mycelic/artifacts/` (new) and `artifacts/v1/` (old) by `vnext_docs.py`. Every table is computed from those files._
 
 ## 1. Result
 
@@ -69,7 +69,17 @@ _(old or new headline rows missing: run final_rerun.sh)_
 
 | system | metric | OLD | NEW | Δ | 95% CI | better on | verdict |
 |---|---|---:|---:|---:|---|---:|---|
-| Mycelic hierarchy | — | — | — | — | — | — | no rows |
+| Mycelic hierarchy | found | 0.350 | 0.560 | +0.210 | [+0.210, +0.210] (range) | 2/2 | **better** |
+| Mycelic hierarchy | evidence cov. | 0.430 | 0.715 | +0.285 | [+0.260, +0.310] (range) | 2/2 | **better** |
+| Mycelic hierarchy | rare recall | 0.210 | 0.319 | +0.109 | [+0.089, +0.128] (range) | 2/2 | **better** |
+| Mycelic hierarchy | AP | 0.008 | 0.082 | +0.074 | [+0.059, +0.089] (range) | 2/2 | **better** |
+| Mycelic hierarchy | FDR | 0.988 | 0.981 | -0.007 | [-0.007, -0.006] (range) | 2/2 | **better** |
+| Mycelic hierarchy | decoy acc. (all) | 0.195 | 0.370 | +0.175 | [+0.170, +0.180] (range) | 0/2 | **worse** |
+| Mycelic hierarchy | decoy D5 stale | 0.320 | 0.800 | +0.480 | [+0.480, +0.480] (range) | 0/2 | **worse** |
+| Mycelic hierarchy | decoy D2 scramble | 0.180 | 0.260 | +0.080 | [+0.040, +0.120] (range) | 0/2 | **worse** |
+| Mycelic hierarchy | compute | 2.97e+06 | 3.91e+06 | +32% | [+930375.330, +949296.790] (range) | 0/2 | **worse** |
+| Mycelic hierarchy | calls (metering) | 2.90e+05 | 1.14e+05 | -61% | [-181039.000, -171837.000] (range) | 2/2 | **better** |
+| Mycelic hierarchy | kernel prompt tokens (max) | 1.57e+06 | 3.29e+06 | +109% | [+1700088.000, +1742442.000] (range) | 0/2 | **worse** |
 | A2 chunked long context | found | 0.686 | 0.784 | +0.098 | [+0.092, +0.104] | 5/5 | **better** |
 | A2 chunked long context | evidence cov. | 1.000 | 1.000 | +0.000 | [+0.000, +0.000] | 0/0 | same |
 | A2 chunked long context | rare recall | 0.608 | 0.692 | +0.085 | [+0.056, +0.113] | 5/5 | **better** |
@@ -92,15 +102,25 @@ _(old or new headline rows missing: run final_rerun.sh)_
 | B4 central triage | compute | 1.07e+06 | 1.07e+06 | +0% | [+0.000, +0.000] | 0/0 | same |
 | B4 central triage | calls (metering) | 5.00e+04 | 5.00e+04 | +0% | [+0.000, +0.000] | 0/0 | same |
 | B4 central triage | kernel prompt tokens (max) | 5.20e+05 | 5.20e+05 | +0% | [+0.000, +0.000] | 0/0 | same |
-| Y oracle retrieval | — | — | — | — | — | — | no rows |
+| Y oracle retrieval | found | 0.160 | 0.390 | +0.230 | [+0.230, +0.230] (range) | 1/1 | **better** |
+| Y oracle retrieval | evidence cov. | 1.000 | 1.000 | +0.000 | [+0.000, +0.000] (range) | 0/0 | same |
+| Y oracle retrieval | rare recall | 0.111 | 0.222 | +0.111 | [+0.111, +0.111] (range) | 1/1 | **better** |
+| Y oracle retrieval | AP | 0.001 | 0.014 | +0.012 | [+0.012, +0.012] (range) | 1/1 | **better** |
+| Y oracle retrieval | FDR | 0.995 | 0.987 | -0.008 | [-0.008, -0.008] (range) | 1/1 | **better** |
+| Y oracle retrieval | decoy acc. (all) | 0.140 | 0.290 | +0.150 | [+0.150, +0.150] (range) | 0/1 | **worse** |
+| Y oracle retrieval | decoy D5 stale | 0.080 | 0.480 | +0.400 | [+0.400, +0.400] (range) | 0/1 | **worse** |
+| Y oracle retrieval | decoy D2 scramble | 0.360 | 0.400 | +0.040 | [+0.040, +0.040] (range) | 0/1 | **worse** |
+| Y oracle retrieval | compute | 2.43e+06 | 2.43e+06 | +0% | [+0.000, +0.000] (range) | 0/0 | same |
+| Y oracle retrieval | calls (metering) | 5.00e+04 | 5.00e+04 | +0% | [+0.000, +0.000] (range) | 0/0 | same |
+| Y oracle retrieval | kernel prompt tokens (max) | 3.79e+06 | 3.79e+06 | +0% | [+0.000, +0.000] (range) | 0/0 | same |
 
-paired seeds at 50,000: 0 (old rows 5, new rows 0); the register cap is 5000 entries in both.
+paired seeds at 50,000: 2 (old rows 5, new rows 2); the register cap is 5000 entries in both.
 
 ### 1.4 In one paragraph
 
-On the confirmation panel (10k, seeds 5–9) the hierarchy's found rate goes from 0.395 to n/a (rare recall 0.220 → n/a, A2 0.640 → n/a). On the development panel (seeds 0–4) it goes from 0.375 to 0.625 (evidence coverage 0.690 → 0.980, rare recall 0.215 → 0.375). Compute: +26% against the v1 base as it was benchmarked (unbatched metering) and +44% against the same v1 decisions re-metered with batched descent, which is the like-for-like figure; the model-call reduction (-71%) is a metering convention, not fewer decisions. At 50k it goes from 0.336 to n/a (coverage 0.420 → n/a) for n/a compute as benchmarked and n/a like-for-like. The centralised chunked-context control A2 also improved, because it adopts the same learned ranker (its calibration said the ranker was not worse for it): 0.685 → 0.740 at 10k. The remaining gap to A2 is +0.115 found at 10k and +nan at 50k, at 0.66× and nan× of A2's compute respectively. Decoy acceptance rose with the ranker at 10k (0.180 → 0.360), and the stale-chain family D5 in particular (0.260 → 0.780); both are reported as regressions, not hidden. The one attempt to train the ranker away from decoys lost found and rare recall on the held-out seeds and was rejected; the D5 mechanism (a staleness gate one late routine mention defeats) is understood and its fix is queued. The frozen configuration also requires a kernel prompt of 1.4M tokens at 10k and nanM at 50k, above the modelled tier's 1M context (section 5b).
+On the confirmation panel (10k, seeds 5–9) the hierarchy's found rate goes from 0.395 to n/a (rare recall 0.220 → n/a, A2 0.640 → n/a). On the development panel (seeds 0–4) it goes from 0.375 to 0.625 (evidence coverage 0.690 → 0.980, rare recall 0.215 → 0.375). Compute: +26% against the v1 base as it was benchmarked (unbatched metering) and +44% against the same v1 decisions re-metered with batched descent, which is the like-for-like figure; the model-call reduction (-71%) is a metering convention, not fewer decisions. At 50k it goes from 0.336 to 0.560 (coverage 0.420 → 0.715) for +34% compute as benchmarked and +50% like-for-like. The centralised chunked-context control A2 also improved, because it adopts the same learned ranker (its calibration said the ranker was not worse for it): 0.685 → 0.740 at 10k. The remaining gap to A2 is +0.115 found at 10k and +0.224 at 50k, at 0.66× and 0.38× of A2's compute respectively. Decoy acceptance rose with the ranker at 10k (0.180 → 0.360), and the stale-chain family D5 in particular (0.260 → 0.780); both are reported as regressions, not hidden. The one attempt to train the ranker away from decoys lost found and rare recall on the held-out seeds and was rejected; the D5 mechanism (a staleness gate one late routine mention defeats) is understood and its fix is queued. The frozen configuration also requires a kernel prompt of 1.4M tokens at 10k and 3.3M at 50k, above the modelled tier's 1M context (section 5b).
 
-Targets from the brief: 10k found ≥ 0.70 (stretch 0.75), 50k ≥ 0.60 (stretch 0.70 while materially below A2 compute). Reached: 10k 0.625 (not met), 50k n/a (not met), the 50k figure at nan× of A2's compute. Section 5 says which stage holds the rest.
+Targets from the brief: 10k found ≥ 0.70 (stretch 0.75), 50k ≥ 0.60 (stretch 0.70 while materially below A2 compute). Reached: 10k 0.625 (not met), 50k 0.560 (not met), the 50k figure at 0.38× of A2's compute. Section 5 says which stage holds the rest.
 
 ## 2. Against the centralised controls on the same NEW worlds
 
@@ -117,7 +137,14 @@ Targets from the brief: 10k found ≥ 0.70 (stretch 0.75), 50k ≥ 0.60 (stretch
 
 ### 2.2 50,000
 
-_(no new rows yet)_
+| system | found | evidence cov. | rare recall | AP | decoy acc. | D5 stale | compute | calls | kernel prompt (max tokens) | found gap to H | compute ratio to H |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| H_mycelic_full | 0.560 | 0.715 | 0.319 | 0.082 | 0.370 | 0.800 | 3.91e+06 | 1.14e+05 | 3.29e+06 | +0.000 | 1.00x |
+| A2_chunked_ctx | 0.784 | 1.000 | 0.692 | 0.098 | 0.466 | 0.688 | 1.02e+07 | 1.00e+01 | 1.98e+06 | +0.220 | 2.60x |
+| B4_central_triage | 0.314 | 0.462 | 0.116 | 0.034 | 0.306 | 0.672 | 1.07e+06 | 5.00e+04 | 5.20e+05 | -0.235 | 0.27x |
+| Y_oracle_retrieval | 0.390 | 1.000 | 0.222 | 0.014 | 0.290 | 0.480 | 2.43e+06 | 5.00e+04 | 3.79e+06 | -0.210 | 0.61x |
+| H_mycelic_lean | 0.480 | 0.530 | 0.289 | 0.107 | 0.400 | 0.720 | 2.74e+06 | 1.13e+05 | 1.11e+06 | -0.120 | 0.69x |
+| H_mycelic_prev | 0.350 | 0.430 | 0.210 | 0.008 | 0.195 | 0.320 | 2.97e+06 | 2.90e+05 | 1.57e+06 | -0.210 | 0.76x |
 
 `H_mycelic_prev` is the v1 hierarchy (question budget 0.25, unbatched metering, earliest-mention link timing, hand-set ranker) run inside the new suite; it is there to show the old configuration reproduces on the new worlds. `H_mycelic_lean` is the compute-lean Pareto point (chain-scoped triage questions; about half the compute, less evidence coverage).
 
@@ -192,6 +219,9 @@ Every row is a paired run on identical worlds; Δ columns are variant minus base
 | unbounded register (DIAGNOSTIC ONLY, not a fix) | 10,000 | eval 0-4 | +0.165 (5/5 better) | +0.127 | +0.000 | +0.150 | +0.040 | +0.180 | +0.100 | +0.280 | +7% | +0% | diagnostic |
 | unbounded register + full question budget (DIAGNOSTIC) | 10,000 | eval 0-4 | +0.420 (5/5 better) | +0.482 | +0.295 | +0.295 | +0.120 | +0.200 | +0.440 | +0.420 | +117% | +143% | diagnostic |
 | chain-scoped questions alone (calibration seeds) | 10,000 | cal 500-502 | +0.008 (2/3 better) | -0.066 | -0.175 | -0.008 | +0.067 | +0.033 | -0.100 | -0.033 | -48% | -1% | screen |
+| cluster-aware staleness gate (strong positives only), calibration seeds | 10,000 | cal 500-502 | +0.058 (2/2 better) | +0.019 | -0.008 | -0.042 | +0.000 | -0.033 | -0.067 | -0.067 | -0% | +0% | screen |
+| strong staleness gate, frozen ranker, FRESH panel | 10,000 | eval 10-14 | -0.035 (0/3 better) | -0.039 | +0.000 | -0.040 | -0.040 | -0.020 | +0.020 | -0.120 | +0% | +0% | fresh-panel read |
+| strong staleness gate + refitted ranker, FRESH panel | 10,000 | eval 10-14 | +0.020 (2/4 better) | +0.017 | +0.010 | -0.020 | -0.060 | -0.080 | +0.040 | +0.020 | +0% | +0% | fresh-panel read |
 
 Not in the table because they were single calibration-seed screens (logs/research_log.md, iteration 21): merging descent returns per (predicate, entity) before the kernel reads them (compute −54%, found 0.400 → 0.275; per polarity 0.325) and support-1 sketch bits admitted with cross-region corroboration (found 0.400 → 0.225: 547 weak candidates flood the triage list). Both stay off; the weak-bit mechanism needs budget-aware admission before it is worth a paired run, and merging needs the ranker refitted on merged candidates.
 
@@ -216,7 +246,7 @@ At 10k the register is still the binding stage: coverage is near 0.97, so almost
 
 ## 5b. Limitations the independent review established
 
-- **Kernel context.** The kernel reads its whole pool in one call: 1.40M tokens at 10k and nanM at 50k in the frozen configuration (v1: 0.79M and 1.54M), against the modelled frontier tier's 1M-token context, which the simulator enforces only for the flat controls (A2 is chunked at 1M). No degradation is modelled for the hierarchy's kernel. v1 already exceeded the limit at 50k; vNext pushes 10k over it. Any deployment claim needs the kernel read chunked at the context limit (queue).
+- **Kernel context.** The kernel reads its whole pool in one call: 1.40M tokens at 10k and 3.29M at 50k in the frozen configuration (v1: 0.79M and 1.54M), against the modelled frontier tier's 1M-token context, which the simulator enforces only for the flat controls (A2 is chunked at 1M). No degradation is modelled for the hierarchy's kernel. v1 already exceeded the limit at 50k; vNext pushes 10k over it. Any deployment claim needs the kernel read chunked at the context limit (queue).
 - **Compute conventions.** Batched metering changes no decision and no per-record token, but it was applied to the new arm only; the like-for-like compute increase is the second convention in section 4.1 and the call reduction is entirely metering.
 - **Claims at the kernel.** The exposure counters see only the upward pass; descent returns per-user claim objects to the kernel and the budget change roughly doubles them (about 30k → 53k objects at 10k, 61k → 127k at 50k). Raw text stays at 0. The counter is to be extended; `J_mycelic_verified`'s raw-record count is hard-coded to 0 although its verification round reads raw records at the kernel.
 - **Ranker hygiene.** The register cut happens before the five triage-context features are filled (they are constant at cut time, so membership is decided by the other 40 features; the ranker was fitted on post-enrichment dumps); the controls' dumps contain only their post-cut candidates; under hybrid timing the lag features still use min timing; the J dump duplicates the min-timing hierarchy candidates. None changes found, all are fixes for the next refit.
@@ -228,6 +258,8 @@ At 10k the register is still the binding stage: coverage is near 0.97, so almost
 The intended protocol was: choose on seeds 500–502, read once on seeds 0–4 (10k) and 0–2 (50k). That is not what happened, and the first independent refuter (REVIEWER_ATTACK.md) counted it: seeds 0–4 were read after roughly eleven accept/reject decisions over some forty configurations, and two frozen knobs were chosen on those seeds rather than on the calibration seeds — the question budget (both sweeps under a learned ranker ran on 0–4; the only calibration-seed sweep was the v1 one with the hand ranker) and the rejection of local re-extraction. The ranker fit and the per-architecture adoption are clean (only calibration-seed rows enter them). Two candidates that won on the calibration seeds lost on 0–4 and were dropped — modal link timing (+0.04 → −0.01) and decoy-weighted selection (found −0.06, rare −0.12) — which is the panel doing its job, and also evidence that decisions were being made on it.
 
 What this costs: with a paired standard error of about 0.02 found on five seeds, picking the best of four to eight arms inflates a null by +0.02 to +0.03. The small accepted deltas (budget 0.65 vs 0.50 +0.03; hybrid timing +0.04) are therefore not established by the development panel alone; the large one (ranker + budget + batching, +0.21 on every seed, more than ten standard errors) is. The cure is the confirmation panel in section 1.2: seeds 5–9 at 10k were never read by any experiment, dump or funnel before the final rerun, and the OLD rows for them exist in the archive, so that comparison is a clean single read. Where two legitimate arms differed only inside noise on the development panel (the ranker refitted under hybrid timing vs the previous one), the pre-registered rule — fit the ranker on the calibration seeds under the pipeline it will run in — decided, not the numbers.
+
+One clean read of the frozen configuration on a panel nothing else ever touched exists as a by-product of the staleness-gate test: seeds 10–14 at 10k, found 0.650, rare recall 0.364, evidence coverage 0.930, decoy acceptance 0.365 (D5 0.740), compute 1.39e+06 (`quick_strong_fresh.jsonl`, arm `hyb`). It has no OLD counterpart, so it is a level, not a delta; it sits between the development-panel and confirmation-panel levels in section 1.
 
 A budget sweep on the calibration seeds under the frozen ranker and timing was run after the refuter's report. The two sweeps are printed together so the reader can see whether the calibration seeds agree with the value the development panel chose:
 
@@ -277,7 +309,7 @@ _(ranker_eval_final.json missing: run final_rerun.sh)_
 | rank | experiment | what it distinguishes | expected information | cost | status |
 |---:|---|---|---|---|---|
 | 1 | Register-forecast question budget at 50k (ask in gain order by distinct anchor until the forecast candidate count reaches α × cap) with descent fan-out 1 | whether 50k coverage is limited by the number of anchors asked (breadth) or by reach per anchor (depth) | high: coverage is the binding 50k stage and the two explanations imply opposite spending | ~10 paired 50k runs | not run |
-| 2 | Cluster-aware staleness gate (compare the retraction against the link's assertion cluster, or require the late positive to have ≥ 2 independent witnesses) | whether the D5 rise under hybrid timing is the gate (predicted) or the timing itself | high: D5 rose 0.26 → 0.78 across the accepted changes; a fix that holds found is the difference between "decoy-neutral" and not | cal screen + refit + 5 paired runs | not run |
+| 2 | D5 stale-chain mechanism: a staleness gate that compares the retraction against the link's assertion cluster (not just "strong positives only", which was tried) | whether the D5 rise under hybrid timing is the gate or the timing itself | high: D5 rose 0.26 → 0.78 across the accepted changes | cal screen + refit + fresh-panel read | the "strong positives only" variant was screened (+0.058 found on calibration seeds) and REJECTED on the fresh panel (found −0.035 with the frozen ranker, D5 −0.12; refit +0.02 / +0.02): it trades found for D5. The cluster-aware variant is still open |
 | 3 | Kernel read chunked at the tier's context limit (as A2 already is), or an explicit degradation model | whether the vNext gain survives a kernel that cannot read a 1.4M/3.3M-token pool in one call | high: precondition of any deployment claim | code + paired runs at both scales | not run |
 | 4 | Fresh evaluation panel (seeds 10–14 at 10k, 5–7 at 50k) read once | whether the development-panel deltas hold; this rerun's seeds 5–9 at 10k are the first such read | high for the small deltas | one suite run | seeds 5–9 done in this rerun |
 | 5 | Sketch-corroboration feature for the ranker (foreign-site bit for each link's (entity, predicate)) | whether the ranker's remaining 10k ordering loss is missing information or missing capacity | high: offline AUC 0.74–0.77 for the feature; a null result says capacity | dump + refit + 5 paired runs | not run |

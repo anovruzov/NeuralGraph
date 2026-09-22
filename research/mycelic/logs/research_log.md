@@ -782,3 +782,16 @@ What did not survive, in order of consequence:
    entity) to one object, on which hybrid is a no-op by construction; a
    fair test gives them per-user objects and charges the context. Queue
    item rewritten.
+
+**The staleness-gate fix, screened and rejected the same hour.** The
+"strong positives only" gate (a retracted chain is revived only by a later
+positive with ≥ 2 independent witnesses) screened at found +0.058 and D5
+−0.07 on the calibration seeds. Refitted in a scratch copy of the
+artifacts (so the frozen calibration.json the rerun reads was never
+touched) and read once on seeds 10–14 at 10k, a panel nothing had used:
+with the frozen ranker found −0.035 (0/3 seeds better) and D5 −0.12; with
+the refitted ranker found +0.02 (inside noise) and D5 +0.02. The gate
+trades found for D5; it does not fix the mechanism. Rejected; the frozen
+configuration stands and no second rerun is started. The base arm of that
+test is also the frozen configuration's one clean read on a fresh panel:
+found 0.650, rare 0.364, coverage 0.93 on seeds 10–14 (quick_strong_fresh).

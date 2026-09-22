@@ -28,7 +28,7 @@ It is not: decoy acceptance at 10k went from 0.180 to 0.360 and the one fix trie
 
 ## Attack 7 — the hierarchy still loses to centralised discovery
 
-Yes: n/a vs 0.784 at 50k, at nan× of A2's compute. The brief's targets (0.70 / 0.60) were not met. The report says which stage holds the rest (ordering at 10k, coverage at 50k) and what would test it. **Lands.**
+Yes: 0.560 vs 0.784 at 50k, at 0.38× of A2's compute. The brief's targets (0.70 / 0.60) were not met. The report says which stage holds the rest (ordering at 10k, coverage at 50k) and what would test it. **Lands.**
 
 ## Attack 8 — single-seed screens are being cited
 
@@ -103,6 +103,8 @@ _Three refuters were run as separate agents with read-only access to the reposit
 **Attack 6 — funnel and matching under hybrid timing.** `_match_sets` matches on entity equality and predicate overlap; time is never consulted; the loss accounting uses the same function; hybrid only changes which sub-path the DP keeps, one candidate per (entity, chain) as before. Hybrid admits more paths (calibration dumps: +4–9% candidates, gold-matching rows 33/36/33 vs 26/31/29). D2 is flat; **D5 stale-chain acceptance rises with every accepted step: 0.26 → 0.66 (v3 bundle, 10k, 5/5 seeds), 0.66 → 0.78 (hybrid refit, 4/5 worse), 0.63 → 0.76 (hybrid at 50k, 3/3 worse)**; the review watches D2 and does not mention D5. **Verdict: REFUTED** on leniency; **UNRESOLVED** on D5. Fix: add the four decoy families to the ledger; trace D5 through the funnel under min vs hybrid before quoting hybrid as decoy-neutral.
 
 **Author's response.** Accepted. (1) The v1 hierarchy was re-metered with batched descent on the same worlds (`quick_prev_batched.jsonl`, `quick_prev_batched50.jsonl`; identical decisions) and the compute comparison is now given on both conventions, with the like-for-like figure quoted in the report; the "calls" reduction is labelled as a metering convention. (2) The kernel prompt size (`max_context_tokens`) is printed in the old-vs-new and gap tables and the report states that the frozen configuration requires a 1.4M-token (10k) / 3.3M-token (50k) kernel context that the modelled tier does not have, enforced only for the flat controls; chunking the kernel read is added to the queue as a required experiment before any deployment claim. (3) The privacy sections now say: upward messages unchanged, raw text 0, but descent-returned claim objects at the kernel roughly double and the exposure counters do not observe them; the counter fix and J's raw-record count are listed as defects. (4) D5 and the other families are in every table. (5) The enrich-before-cut skew and the controls' post-cut dumps are listed as fixes for the next refit.
+
+**Follow-up to refuter 2's D5 finding.** The "strong positives only" staleness gate was implemented (`stale_rule="strong"`), screened on the calibration seeds (found +0.058, D5 −0.07) and read once on a fresh panel (seeds 10–14): found −0.035 with the frozen ranker (D5 −0.12) and +0.02 inside noise with a refitted ranker (D5 +0.02). Rejected; the cluster-aware variant the refuter proposed (compare the retraction against the link's assertion cluster) remains open in the queue.
 
 
 ## What would change my mind

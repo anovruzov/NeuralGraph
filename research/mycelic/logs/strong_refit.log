@@ -1,3 +1,58 @@
   seed 500 H_mycelic_full       2986 candidates, 31 gold-matching, 31 patterns matched (7s)
   seed 501 H_mycelic_full       3167 candidates, 38 gold-matching, 38 patterns matched (9s)
   seed 502 H_mycelic_full       3176 candidates, 29 gold-matching, 29 patterns matched (8s)
+stored ranker strong (scratch): logistic l2 3.0 inter True n_train 23539 (90s)
+  seed 10 hyb                      found=0.675 AP=0.1637 cov=0.900 rare=0.444 decoy=0.225 cu=1.34e+06 calls=2.70e+04 (7s)
+  seed 10 strong_hybrk             found=0.675 AP=0.1639 cov=0.900 rare=0.444 decoy=0.225 cu=1.34e+06 calls=2.70e+04 (8s)
+  seed 10 strong_refit             found=0.675 AP=0.0980 cov=0.900 rare=0.444 decoy=0.300 cu=1.34e+06 calls=2.70e+04 (8s)
+  seed 11 hyb                      found=0.625 AP=0.2371 cov=0.925 rare=0.429 decoy=0.400 cu=1.45e+06 calls=2.72e+04 (8s)
+  seed 11 strong_hybrk             found=0.625 AP=0.2377 cov=0.925 rare=0.429 decoy=0.325 cu=1.45e+06 calls=2.72e+04 (8s)
+  seed 11 strong_refit             found=0.650 AP=0.1451 cov=0.925 rare=0.357 decoy=0.475 cu=1.47e+06 calls=2.73e+04 (8s)
+  seed 12 hyb                      found=0.725 AP=0.3467 cov=0.925 rare=0.412 decoy=0.400 cu=1.41e+06 calls=2.74e+04 (8s)
+  seed 12 strong_hybrk             found=0.675 AP=0.2661 cov=0.925 rare=0.294 decoy=0.325 cu=1.41e+06 calls=2.74e+04 (8s)
+  seed 12 strong_refit             found=0.700 AP=0.2477 cov=0.925 rare=0.294 decoy=0.325 cu=1.39e+06 calls=2.73e+04 (8s)
+  seed 13 hyb                      found=0.700 AP=0.3126 cov=0.975 rare=0.462 decoy=0.425 cu=1.36e+06 calls=2.60e+04 (8s)
+  seed 13 strong_hybrk             found=0.625 AP=0.3172 cov=0.975 rare=0.385 decoy=0.400 cu=1.37e+06 calls=2.60e+04 (8s)
+  seed 13 strong_refit             found=0.625 AP=0.2512 cov=1.000 rare=0.308 decoy=0.325 cu=1.37e+06 calls=2.60e+04 (8s)
+  seed 14 hyb                      found=0.525 AP=0.2988 cov=0.925 rare=0.071 decoy=0.375 cu=1.39e+06 calls=2.70e+04 (9s)
+  seed 14 strong_hybrk             found=0.475 AP=0.2022 cov=0.925 rare=0.071 decoy=0.350 cu=1.39e+06 calls=2.70e+04 (8s)
+  seed 14 strong_refit             found=0.700 AP=0.2224 cov=0.950 rare=0.500 decoy=0.300 cu=1.41e+06 calls=2.73e+04 (8s)
+
+**strong_hybrk vs hyb** — 5 paired seeds
+
+| metric | base | variant | Δ | 95% CI | better on | sign p | verdict |
+|---|---:|---:|---:|---|---:|---:|---|
+| found | 0.6500 | 0.6150 | -0.0350 | [-0.0600, -0.0100] | 0/3 | 0.250 | **worse** |
+| AP | 0.2718 | 0.2374 | -0.0343 | [-0.0739, +0.0021] | 3/5 | 1.000 | inside noise |
+| R@100 | 0.4200 | 0.3900 | -0.0300 | [-0.0550, -0.0050] | 0/3 | 0.250 | **worse** |
+| rare recall | 0.3635 | 0.3246 | -0.0389 | [-0.0860, +0.0000] | 0/2 | 0.500 | inside noise |
+| evidence cov. | 0.9300 | 0.9300 | +0.0000 | [+0.0000, +0.0000] | 0/0 | 1.000 | same |
+| FDR | 0.9567 | 0.9586 | +0.0020 | [+0.0006, +0.0033] | 1/4 | 0.625 | **worse** |
+| decoy acc. | 0.3650 | 0.3250 | -0.0400 | [-0.0650, -0.0150] | 4/4 | 0.125 | **better** |
+| indep. acc. | 0.7452 | 0.7606 | +0.0154 | [-0.0038, +0.0350] | 3/4 | 0.625 | inside noise |
+| lineage | 0.5187 | 0.5246 | +0.0059 | [+0.0001, +0.0123] | 3/3 | 0.250 | **better** |
+| contra F1 | 0.2869 | 0.1564 | -0.1305 | [-0.3438, +0.0667] | 1/3 | 1.000 | inside noise |
+| compute | 1.39e+06 | 1.39e+06 | +1.95e+03 | [-2.38e+02, +5.42e+03] | 1/4 | 0.625 | inside noise |
+| calls | 2.69e+04 | 2.69e+04 | +1.42e+01 | [-5.20e+00, +4.88e+01] | 2/3 | 1.000 | inside noise |
+| raw text out | 0.0000 | 0.0000 | +0.0000 | [+0.0000, +0.0000] | 0/0 | 1.000 | same |
+| claims out | 0.1378 | 0.1378 | +0.0000 | [+0.0000, +0.0000] | 0/0 | 1.000 | same |
+
+**strong_refit vs hyb** — 5 paired seeds
+
+| metric | base | variant | Δ | 95% CI | better on | sign p | verdict |
+|---|---:|---:|---:|---|---:|---:|---|
+| found | 0.6500 | 0.6700 | +0.0200 | [-0.0450, +0.1050] | 2/4 | 1.000 | inside noise |
+| AP | 0.2718 | 0.1929 | -0.0789 | [-0.0917, -0.0661] | 0/5 | 0.062 | **worse** |
+| R@100 | 0.4200 | 0.3650 | -0.0550 | [-0.1250, +0.0100] | 2/5 | 1.000 | inside noise |
+| rare recall | 0.3635 | 0.3807 | +0.0171 | [-0.1229, +0.2286] | 1/4 | 0.625 | inside noise |
+| evidence cov. | 0.9300 | 0.9400 | +0.0100 | [+0.0000, +0.0200] | 2/2 | 0.500 | inside noise |
+| FDR | 0.9567 | 0.9553 | -0.0013 | [-0.0070, +0.0030] | 2/4 | 1.000 | inside noise |
+| decoy acc. | 0.3650 | 0.3450 | -0.0200 | [-0.0850, +0.0450] | 3/5 | 1.000 | inside noise |
+| indep. acc. | 0.7452 | 0.7641 | +0.0189 | [-0.0368, +0.0629] | 3/5 | 1.000 | inside noise |
+| lineage | 0.5187 | 0.5272 | +0.0086 | [+0.0025, +0.0144] | 4/5 | 0.375 | **better** |
+| contra F1 | 0.2869 | 0.2176 | -0.0693 | [-0.2151, +0.0657] | 1/4 | 0.625 | inside noise |
+| compute | 1.39e+06 | 1.40e+06 | +3.79e+03 | [-1.11e+04, +1.44e+04] | 1/5 | 0.375 | inside noise |
+| calls | 2.69e+04 | 2.70e+04 | +5.04e+01 | [-7.40e+01, +1.88e+02] | 1/5 | 0.375 | inside noise |
+| raw text out | 0.0000 | 0.0000 | +0.0000 | [+0.0000, +0.0000] | 0/0 | 1.000 | same |
+| claims out | 0.1378 | 0.1378 | +0.0000 | [+0.0000, +0.0000] | 0/0 | 1.000 | same |
+STRONG_DONE

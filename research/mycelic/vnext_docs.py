@@ -324,6 +324,13 @@ def next_research_report() -> str:
              "single read. Where two legitimate arms differed only inside noise on the development panel (the ranker "
              "refitted under hybrid timing vs the previous one), the pre-registered rule — fit the ranker on the "
              "calibration seeds under the pipeline it will run in — decided, not the numbers.\n")
+    fp = D.fresh_panel_numbers()
+    if fp:
+        t.append(f"One clean read of the frozen configuration on a panel nothing else ever touched exists as a by-product "
+                 f"of the staleness-gate test: seeds 10–14 at 10k, found {fp['found']:.3f}, rare recall {fp['rare']:.3f}, "
+                 f"evidence coverage {fp['cov']:.3f}, decoy acceptance {fp['decoy']:.3f} (D5 {fp['d5']:.3f}), compute "
+                 f"{fp['cu']:.2e} (`quick_strong_fresh.jsonl`, arm `hyb`). It has no OLD counterpart, so it is a level, "
+                 f"not a delta; it sits between the development-panel and confirmation-panel levels in section 1.\n")
     t.append("A budget sweep on the calibration seeds under the frozen ranker and timing was run after the refuter's "
              "report. The two sweeps are printed together so the reader can see whether the calibration seeds agree "
              "with the value the development panel chose:\n")
@@ -358,7 +365,7 @@ def next_research_report() -> str:
 RANKED_QUEUE = """| rank | experiment | what it distinguishes | expected information | cost | status |
 |---:|---|---|---|---|---|
 | 1 | Register-forecast question budget at 50k (ask in gain order by distinct anchor until the forecast candidate count reaches α × cap) with descent fan-out 1 | whether 50k coverage is limited by the number of anchors asked (breadth) or by reach per anchor (depth) | high: coverage is the binding 50k stage and the two explanations imply opposite spending | ~10 paired 50k runs | not run |
-| 2 | Cluster-aware staleness gate (a late positive counts only with ≥ 2 independent witnesses) | whether the D5 rise under hybrid timing is the gate (predicted) or the timing itself | high: D5 rose 0.26 → 0.78 across the accepted changes; a fix that holds found is the difference between "decoy-neutral" and not | cal screen + refit + 5 paired runs | screened on calibration seeds (found +0.058, D5 −0.07); read once on a fresh panel (seeds 10–14): see the ledger |
+| 2 | D5 stale-chain mechanism: a staleness gate that compares the retraction against the link's assertion cluster (not just "strong positives only", which was tried) | whether the D5 rise under hybrid timing is the gate or the timing itself | high: D5 rose 0.26 → 0.78 across the accepted changes | cal screen + refit + fresh-panel read | the "strong positives only" variant was screened (+0.058 found on calibration seeds) and REJECTED on the fresh panel (found −0.035 with the frozen ranker, D5 −0.12; refit +0.02 / +0.02): it trades found for D5. The cluster-aware variant is still open |
 | 3 | Kernel read chunked at the tier's context limit (as A2 already is), or an explicit degradation model | whether the vNext gain survives a kernel that cannot read a 1.4M/3.3M-token pool in one call | high: precondition of any deployment claim | code + paired runs at both scales | not run |
 | 4 | Fresh evaluation panel (seeds 10–14 at 10k, 5–7 at 50k) read once | whether the development-panel deltas hold; this rerun's seeds 5–9 at 10k are the first such read | high for the small deltas | one suite run | seeds 5–9 done in this rerun |
 | 5 | Sketch-corroboration feature for the ranker (foreign-site bit for each link's (entity, predicate)) | whether the ranker's remaining 10k ordering loss is missing information or missing capacity | high: offline AUC 0.74–0.77 for the feature; a null result says capacity | dump + refit + 5 paired runs | not run |
@@ -570,7 +577,7 @@ HYPOTHESES = [
     ("H21", "temporal/causal reasoning", "Cluster-aware staleness gate: only a positive with ≥ 2 independent witnesses counts as the chain's assertion time",
      "ops.synthesize stale_rule='strong'; one routine positive after a retraction no longer revives a stale chain", "D5 down, found ±0", "none", "zero",
      "a genuinely re-asserted chain with single-witness positives is dropped", "quick_stale_cal (cal), quick_strong_fresh (seeds 10-14)",
-     "SCREENED on cal seeds: found +0.058, D5 −0.07, decoy all −0.04; fresh-panel read in the ledger"),
+     "REJECTED: cal seeds +0.058 found / D5 −0.07 did not replicate on the fresh panel (seeds 10–14): frozen ranker found −0.035 (0/3 better) with D5 −0.12; refitted ranker found +0.02 (noise) with D5 +0.02 — it trades found for D5 rather than fixing the mechanism"),
 ]
 
 
