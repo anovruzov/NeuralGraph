@@ -151,11 +151,13 @@ def old_new_table(scale: int,
                          f"{dm} | {ci} | {wins} | {v} |")
     n_old = len(set(by_seed(old, archs[0][1], scale)))
     n_new = len(set(by_seed(new, archs[0][2], scale)))
+    # the register size is read from the rows (n_candidates = entries kept), not typed
+    caps_old = sorted({int(r["n_candidates"]) for r in by_seed(old, archs[0][1], scale).values()})
+    caps_new = sorted({int(r["n_candidates"]) for r in by_seed(new, archs[0][2], scale).values()})
     lines.append("")
     lines.append(f"paired seeds at {scale:,}: {min(n_old, n_new)} "
-                 f"(old rows {n_old}, new rows {n_new}); the register cap is "
-                 f"{min(6000, max(600, scale // 10 if scale >= 10_000 else 600))} entries "
-                 f"in both.")
+                 f"(old rows {n_old}, new rows {n_new}); register entries kept: OLD {caps_old}, NEW {caps_new} "
+                 f"(the cap is min(6000, max(600, n_entities)) in both).")
     return "\n".join(lines)
 
 

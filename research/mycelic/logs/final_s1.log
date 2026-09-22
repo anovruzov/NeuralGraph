@@ -260,3 +260,27 @@
    50000/4 C_recursive_sum      AP=0.0000 found=0.00 R@100=0.000 cu=8.09e+05
    50000/4 D_hier_nolineage     AP=0.0000 found=0.00 R@100=0.000 cu=8.89e+05
    50000/4 E_hier_lineage       AP=0.0003 found=0.01 R@100=0.010 cu=1.00e+06
+   50000/4 F_hier_retrieval     AP=0.0023 found=0.03 R@100=0.030 cu=1.14e+06
+   50000/4 G_hier_questions     AP=0.1250 found=0.56 R@100=0.180 cu=3.70e+06
+   50000/4 H_mycelic_full       AP=0.0880 found=0.51 R@100=0.200 cu=3.75e+06
+   50000/4 I_mycelic_completion AP=0.1577 found=0.49 R@100=0.230 cu=5.96e+06
+   50000/4 J_mycelic_verified   AP=0.1003 found=0.51 R@100=0.220 cu=3.76e+06
+   50000/4 H_mycelic_prev       AP=0.0108 found=0.32 R@100=0.030 cu=2.86e+06
+   50000/4 H_mycelic_lean       AP=0.1552 found=0.47 R@100=0.190 cu=2.62e+06
+   50000/4 Y_oracle_retrieval   AP=0.0087 found=0.36 R@100=0.030 cu=2.43e+06
+   50000/4 Z_random_rank        AP=0.0034 found=0.10 R@100=0.040 cu=7.81e+05
+   50000/4 Z2_naive_enumerate   AP=0.0024 found=0.22 R@100=0.000 cu=9.22e+05
+=== e1 done in 1948s ===
+=== e1 end 2026-09-22T11:55:13+00:00 rc=0
+=== e11 start 2026-09-22T11:55:13+00:00
+=== e11 ===
+    2000/0 J_mycelic_verified     AP=0.2181 found=0.80 cov2=0.95 cu=7.43e+05
+    2000/1 J_mycelic_verified     AP=0.3808 found=0.95 cov2=1.00 cu=7.72e+05
+    2000/2 J_mycelic_verified     AP=0.2564 found=0.82 cov2=0.95 cu=7.77e+05
+    2000/3 J_mycelic_verified     AP=0.4204 found=0.93 cov2=0.97 cu=7.58e+05
+    2000/4 J_mycelic_verified     AP=0.2369 found=0.80 cov2=0.97 cu=7.08e+05
+   10000/0 J_mycelic_verified     AP=0.1296 found=0.47 cov2=1.00 cu=1.36e+06
+   10000/1 J_mycelic_verified     AP=0.1335 found=0.62 cov2=0.95 cu=1.35e+06
+   10000/2 J_mycelic_verified     AP=0.2135 found=0.65 cov2=0.97 cu=1.39e+06
+   10000/3 J_mycelic_verified     AP=0.2710 found=0.72 cov2=1.00 cu=1.49e+06
+   10000/4 J_mycelic_verified     AP=0.2428 found=0.65 cov2=0.97 cu=1.30e+06
