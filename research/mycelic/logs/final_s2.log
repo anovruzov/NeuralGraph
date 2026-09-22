@@ -100,3 +100,10 @@
   1 +chain_completion        AP=0.1751 found=0.60 rare=0.350 lin=0.48 indep=0.67 cu=2.29e+06
   1 -foreign_filter          AP=0.0982 found=0.60 rare=0.350 lin=0.48 indep=0.65 cu=1.72e+06
   1 -synthesis_restriction   AP=0.1077 found=0.60 rare=0.400 lin=0.51 indep=0.69 cu=1.34e+06
+  2 full                     AP=0.2040 found=0.65 rare=0.467 lin=0.49 indep=0.74 cu=1.38e+06
+  2 -lineage                 AP=0.1618 found=0.65 rare=0.533 lin=0.00 indep=0.73 cu=1.38e+06
+  2 -independence            AP=0.1482 found=0.60 rare=0.333 lin=0.50 indep=0.72 cu=1.39e+06
+  2 -contradiction           AP=0.1310 found=0.65 rare=0.467 lin=0.50 indep=0.74 cu=1.39e+06
+  2 -temporal                AP=0.1416 found=0.57 rare=0.333 lin=0.47 indep=0.77 cu=1.35e+06
+  2 -adaptive_routing        AP=0.2205 found=0.65 rare=0.333 lin=0.47 indep=0.74 cu=1.46e+06
+  2 -questions               AP=0.0522 found=0.10 rare=0.067 lin=0.50 indep=0.83 cu=3.66e+05

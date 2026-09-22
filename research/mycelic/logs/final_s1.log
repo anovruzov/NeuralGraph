@@ -201,3 +201,7 @@
    50000/1 A_flat_rag           AP=0.0518 found=0.31 R@100=0.090 cu=1.24e+06
    50000/1 B_long_context       AP=0.0020 found=0.07 R@100=0.020 cu=1.12e+06
    50000/1 B2_map_reduce        AP=0.0073 found=0.07 R@100=0.040 cu=7.78e+05
+   50000/1 A2_chunked_ctx       AP=0.0672 found=0.77 R@100=0.120 cu=1.02e+07
+   50000/1 B4_central_triage    AP=0.0468 found=0.34 R@100=0.180 cu=1.06e+06
+   50000/1 C_recursive_sum      AP=0.0000 found=0.00 R@100=0.000 cu=8.03e+05
+   50000/1 D_hier_nolineage     AP=0.0000 found=0.00 R@100=0.000 cu=8.80e+05

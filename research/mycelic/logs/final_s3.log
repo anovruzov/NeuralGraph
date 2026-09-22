@@ -213,3 +213,17 @@
 === e4b end 2026-09-22T11:35:09+00:00 rc=0
 === e7 start 2026-09-22T11:35:09+00:00
 === e7 ===
+  convex   0 flat-small     H_mycelic_full   AP=0.0053 cu=3.18e+05
+  convex   0 flat-small     B2_map_reduce    AP=0.0047 cu=1.46e+05
+  convex   0 naive-ladder   H_mycelic_full   AP=0.1453 cu=1.56e+06
+  convex   0 naive-ladder   B2_map_reduce    AP=0.1340 cu=2.00e+05
+  convex   0 back-loaded    H_mycelic_full   AP=0.1173 cu=1.35e+06
+  convex   0 back-loaded    B2_map_reduce    AP=0.1340 cu=2.00e+05
+  convex   0 kernel-only    H_mycelic_full   AP=0.0696 cu=8.95e+05
+  convex   0 kernel-only    B2_map_reduce    AP=0.0531 cu=1.20e+05
+  convex   0 two-step       H_mycelic_full   AP=0.1228 cu=1.29e+06
+  convex   0 two-step       B2_map_reduce    AP=0.1340 cu=2.00e+05
+  convex   0 front-loaded   H_mycelic_full   AP=0.1687 cu=9.51e+05
+  convex   0 front-loaded   B2_map_reduce    AP=0.0537 cu=3.04e+05
+  convex   1 flat-small     H_mycelic_full   AP=0.0036 cu=3.20e+05
+  convex   1 flat-small     B2_map_reduce    AP=0.0086 cu=1.46e+05
