@@ -198,3 +198,6 @@
    50000/0 Y_oracle_retrieval   AP=0.0138 found=0.39 R@100=0.020 cu=2.43e+06
    50000/0 Z_random_rank        AP=0.0005 found=0.04 R@100=0.010 cu=7.80e+05
    50000/0 Z2_naive_enumerate   AP=0.0003 found=0.10 R@100=0.000 cu=9.23e+05
+   50000/1 A_flat_rag           AP=0.0518 found=0.31 R@100=0.090 cu=1.24e+06
+   50000/1 B_long_context       AP=0.0020 found=0.07 R@100=0.020 cu=1.12e+06
+   50000/1 B2_map_reduce        AP=0.0073 found=0.07 R@100=0.040 cu=7.78e+05

@@ -207,3 +207,9 @@
   2 t/dept= 7 E_hier_lineage   AP=0.0500
   2 t/dept=10 H_mycelic_full   AP=0.1173
   2 t/dept=10 E_hier_lineage   AP=0.0265
+  2 t/dept=14 H_mycelic_full   AP=0.2324
+  2 t/dept=14 E_hier_lineage   AP=0.0250
+=== e4b done in 140s ===
+=== e4b end 2026-09-22T11:35:09+00:00 rc=0
+=== e7 start 2026-09-22T11:35:09+00:00
+=== e7 ===

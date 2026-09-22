@@ -98,3 +98,5 @@
   1 +evidence_verification   AP=0.1335 found=0.62 rare=0.400 lin=0.50 indep=0.69 cu=1.35e+06
   1 +source_dispersion       AP=0.1013 found=0.60 rare=0.400 lin=0.52 indep=0.69 cu=1.35e+06
   1 +chain_completion        AP=0.1751 found=0.60 rare=0.350 lin=0.48 indep=0.67 cu=2.29e+06
+  1 -foreign_filter          AP=0.0982 found=0.60 rare=0.350 lin=0.48 indep=0.65 cu=1.72e+06
+  1 -synthesis_restriction   AP=0.1077 found=0.60 rare=0.400 lin=0.51 indep=0.69 cu=1.34e+06
