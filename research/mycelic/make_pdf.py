@@ -210,8 +210,8 @@ details > summary::-webkit-details-marker { display: none; }
 HEADER = """
 <div style="font-family:Helvetica,Arial,sans-serif;font-size:6.5pt;color:#8b919c;
             width:100%;padding:0 14mm;display:flex;justify-content:space-between;">
-  <span>Mycelic — hierarchical enterprise intelligence</span>
-  <span>Benchmark report</span>
+  <span>__TITLE__</span>
+  <span>__SUBTITLE__</span>
 </div>
 """
 
@@ -357,7 +357,8 @@ async def _render(html_path: str, pdf_path: str) -> None:
             format="A4",
             print_background=True,
             display_header_footer=True,
-            header_template=HEADER,
+            header_template=HEADER.replace("__TITLE__", TITLE).replace(
+                "__SUBTITLE__", SUBTITLE.split(",")[0].split(" and ")[0][:48]),
             footer_template=FOOTER,
             margin={"top": "17mm", "bottom": "16mm",
                     "left": "14mm", "right": "14mm"},

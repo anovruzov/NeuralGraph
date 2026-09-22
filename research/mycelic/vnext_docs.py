@@ -59,17 +59,17 @@ TOPOLOGY_SVG = """<svg xmlns="http://www.w3.org/2000/svg" width="900" height="56
 <path d="M 300 280 L 170 212"/><path d="M 450 280 L 450 212"/><path d="M 600 280 L 730 212"/>
 <path d="M 170 160 L 330 122"/><path d="M 450 160 L 450 122"/><path d="M 730 160 L 570 122"/>
 </g>
-<text x="120" y="250" fill="#333">claims up (no raw text)</text>
-<text x="600" y="145" fill="#333">sketch bits + counts up</text>
+<text x="300" y="262" fill="#333">claims up (no raw text)</text>
+<text x="560" y="145" fill="#333">sketch bits + counts up</text>
 <!-- downward flow -->
 <g stroke="#b5451b" stroke-width="1.5" fill="none" stroke-dasharray="6 4" marker-end="url(#b)">
 <path d="M 600 100 C 760 120, 800 200, 760 280"/>
 <path d="M 300 100 C 140 120, 100 200, 140 280"/>
 </g>
-<text x="690" y="255" fill="#b5451b">targeted questions down:</text>
-<text x="690" y="271" fill="#b5451b">(entity, predicates, fan-out)</text>
-<text x="20" y="255" fill="#b5451b">routed by sketch + index;</text>
-<text x="20" y="271" fill="#b5451b">metered per node, not per record</text>
+<text x="640" y="232" fill="#b5451b">targeted questions down:</text>
+<text x="640" y="246" fill="#b5451b">(entity, predicates, fan-out)</text>
+<text x="20" y="232" fill="#b5451b">routed by sketch + index;</text>
+<text x="20" y="246" fill="#b5451b">metered per node, not per record</text>
 <!-- register -->
 <rect x="640" y="46" width="230" height="74" rx="8" fill="#fff" stroke="#2b4c7e" stroke-dasharray="4 3"/>
 <text x="755" y="70" text-anchor="middle" font-weight="bold">risk register (fixed cap)</text>
