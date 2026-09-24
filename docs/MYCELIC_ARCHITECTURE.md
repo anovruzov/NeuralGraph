@@ -51,7 +51,7 @@ customer; they never talk to the broker.
 |---|---|
 | `mycelic/hierarchy.py` | Layers `agent → team → department → subsidiary → region → enterprise`; unit paths; ancestor/subtree relations |
 | `mycelic/config.py` | `MYCELIC_*` environment variables, validated at start (secrets never in source; placeholder values refused) |
-| `mycelic/store.py` | SQLite schema and transactions (`BEGIN IMMEDIATE`, one writer, `synchronous=FULL`) |
+| `mycelic/store.py` | SQLite schema (version 2, additive migrations) and transactions (`BEGIN IMMEDIATE`, one writer, `synchronous=FULL`) |
 | `mycelic/transport.py` | `JetStreamTransport` (nats-py) and `InProcessTransport` (unit tests) |
 | `mycelic/aggregation.py` | Topic consolidation and slot-composition rules; deterministic derived ids; supersession |
 | `mycelic/lineage.py` | Lineage graph reconstruction with per-principal redaction |
@@ -123,6 +123,14 @@ then `term`.
   slot is covered for the same entity inside the target unit; slot selection is `RuleBasedSynthesizer`
   (highest confidence per slot), confidence is the minimum over selected slots, and `LineageAnalyzer`
   fragility metrics (unique roots, independent failure domains = teams, minimal cut) are stored with it.
+* **Composition (strategic synthesis).** A rule's ``sources`` may include other rules' conclusions and
+  consolidations; a conclusion carries ``emits_slot``/``emits_topic`` so a higher rule can consume it;
+  ``min_units`` demands per-slot corroboration across units (``{"supply_risk": {"region": 2}}``) and
+  ``corroborate`` keeps every memory filling a slot as evidence. Derivations cascade upward (bounded depth),
+  a rule never consumes its own output, and finer-grained evidence is preferred over a consolidation that
+  restates it. After a retraction, dependents are retired and re-evaluated on the remaining evidence
+  (`Aggregator.reevaluate`). Verified by `tests/mycelic/test_strategic.py` and
+  `demo/mycelic_strategic_demo.py` (run under pytest by `tests/mycelic/test_strategic_demo_process.py`).
 * **Determinism.** A derived memory's id is `sha256(operator, unit, key, sorted parent ids)`. Recomputing
   the parent set from currently active evidence either leaves the active memory as is, supersedes it with
   a new version (old one readable as `previous_versions`), reactivates an earlier version whose exact

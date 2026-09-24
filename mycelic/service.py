@@ -38,7 +38,7 @@ from .hierarchy import AgentPath, HierarchyError, LAYERS, layer_index, split_pat
 from .lineage import LineageNotFound, reconstruct
 from .metrics import Metrics
 from .models import (
-    ALL_SCOPES, DEFAULT_AGENT_SCOPES, MEMORY_KINDS, VISIBILITY, Agent, EventRecord, LineageEdge, Memory, Rule,
+    ALL_SCOPES, DEFAULT_AGENT_SCOPES, MEMORY_KINDS, OPERATORS, VISIBILITY, Agent, EventRecord, LineageEdge, Memory, Rule,
     content_hash, new_id, now_iso, parse_iso,
 )
 from .retrieval import Retriever
@@ -51,7 +51,8 @@ VERSION = "0.1.0"
 #: metadata keys the aggregator owns; an agent may not set them on a raw observation
 RESERVED_METADATA_KEYS = frozenset({"agg_key", "promoted_from", "version_of", "contributing_agents", "contributing_teams",
                                     "children", "child_layer", "parent_count", "fragility", "slots", "candidates",
-                                    "effective_min_support", "registered_child_units", "status_reason", "reactivated_at"})
+                                    "effective_min_support", "registered_child_units", "status_reason", "reactivated_at",
+                                    "roots", "evidence", "corroborated_units"})
 _SLOT_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,100}$")
 _ID_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,200}$")
 
@@ -485,7 +486,8 @@ class MycelicService:
         meta = d.get("metadata") or {}
         d["metadata"] = {k: v for k, v in meta.items() if k in ("agg_key", "child_layer", "parent_count", "version_of",
                                                                 "fragility", "contributing_teams", "children",
-                                                                "promoted_from", "effective_min_support")}
+                                                                "promoted_from", "effective_min_support",
+                                                                "corroborated_units", "roots")}
         d["local_ref"] = None
         return d
 
@@ -703,8 +705,10 @@ class MycelicService:
                 m = self.store.get_memory(mid) if isinstance(mid, str) else None
                 if m is not None and m.status == "active" and m.operator == "agent_observation":
                     tx.set_memory_status(mid, "retracted", reason=str(payload.get("reason") or "retracted"))
-                    self.aggregator.retire_dependents(tx, mid, "evidence retracted")
+                    retired = self.aggregator.retire_dependents(tx, mid, "evidence retracted")
                     derivations = self.aggregator.derive_for(tx, m)
+                    # a conclusion that lost one piece of evidence may still hold on the rest: re-evaluate it
+                    derivations += self.aggregator.reevaluate(tx, retired)
                 else:
                     # derived memories are a function of their evidence: they can only go away with it
                     tx.audit("mycelic", "event.ignored", event_id, {"reason": "retraction target is not an active raw observation"})
@@ -966,10 +970,26 @@ class MycelicService:
         for name, v in (("min_agents", min_agents), ("min_teams", min_teams)):
             if isinstance(v, bool) or not isinstance(v, int) or v < 1:
                 raise ValidationError(f"'{name}' must be a positive integer")
+        sources = body.get("sources", ["agent_observation"])
+        if not isinstance(sources, list) or not sources or any(s not in OPERATORS for s in sources):
+            raise ValidationError(f"'sources' must be a non-empty subset of {OPERATORS}")
+        emits_slot = _s(body, "emits_slot", max_len=100, pattern=_SLOT_RE)
+        if emits_slot and emits_slot in slots:
+            raise ValidationError("'emits_slot' must not be one of the rule's own required slots")
+        min_units = body.get("min_units") or {}
+        ok = isinstance(min_units, dict) and all(
+            slot in slots and isinstance(per, dict) and per and all(
+                layer in LAYERS[1:] and not isinstance(n, bool) and isinstance(n, int) and n >= 1 for layer, n in per.items())
+            for slot, per in min_units.items())
+        if not ok:
+            raise ValidationError(f"'min_units' must map required slots to {{layer: positive integer}} with layers in {LAYERS[1:]}")
         return Rule(rule_id=rule_id, target_layer=target, required_slots=list(dict.fromkeys(slots)), conclusion=conclusion,
                     topic_prefix=_s(body, "topic_prefix", max_len=200), min_agents=min_agents, min_teams=min_teams, kind=kind,
                     org_id=_s(body, "org_id", max_len=64), enabled=bool(body.get("enabled", True)),
-                    metadata=_small_dict(body, "metadata", 2048))
+                    metadata=_small_dict(body, "metadata", 2048), sources=list(dict.fromkeys(sources)), emits_slot=emits_slot,
+                    emits_topic=_s(body, "emits_topic", max_len=200),
+                    min_units={slot: {layer: int(n) for layer, n in per.items()} for slot, per in min_units.items()},
+                    corroborate=bool(body.get("corroborate", False)))
 
     async def upsert_rule(self, body: dict[str, Any], *, remote: str | None = None) -> Rule:
         rule = self._rule_from_body(body)

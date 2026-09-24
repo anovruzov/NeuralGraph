@@ -30,7 +30,7 @@ from .models import Agent, EventRecord, LineageEdge, Memory, Rule, now_iso, utcn
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 _DDL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -137,7 +137,12 @@ CREATE TABLE IF NOT EXISTS rules (
     kind           TEXT NOT NULL DEFAULT 'risk',
     enabled        INTEGER NOT NULL DEFAULT 1,
     metadata       TEXT NOT NULL DEFAULT '{}',
-    updated_at     TEXT NOT NULL
+    updated_at     TEXT NOT NULL,
+    sources        TEXT NOT NULL DEFAULT '["agent_observation"]',
+    emits_slot     TEXT,
+    emits_topic    TEXT,
+    min_units      TEXT NOT NULL DEFAULT '{}',
+    corroborate    INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS audit_log (
@@ -198,7 +203,11 @@ def row_rule(r: sqlite3.Row) -> Rule:
         rule_id=r["rule_id"], org_id=r["org_id"], target_layer=r["target_layer"],
         required_slots=_jl(r["required_slots"], []), conclusion=r["conclusion"], topic_prefix=r["topic_prefix"],
         min_agents=int(r["min_agents"]), min_teams=int(r["min_teams"]), kind=r["kind"], enabled=bool(r["enabled"]),
-        metadata=_jl(r["metadata"], {}),
+        metadata=_jl(r["metadata"], {}), sources=_jl(r["sources"], ["agent_observation"]), emits_slot=r["emits_slot"],
+        emits_topic=r["emits_topic"],
+        min_units={slot: {layer: int(n) for layer, n in per.items()} for slot, per in _jl(r["min_units"], {}).items()
+                   if isinstance(per, dict)},
+        corroborate=bool(r["corroborate"]),
     )
 
 
@@ -328,14 +337,18 @@ class Tx:
     def upsert_rule(self, rule: Rule) -> None:
         self.c.execute(
             """INSERT INTO rules(rule_id, org_id, target_layer, required_slots, conclusion, topic_prefix, min_agents,
-                                 min_teams, kind, enabled, metadata, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                 min_teams, kind, enabled, metadata, updated_at, sources, emits_slot, emits_topic,
+                                 min_units, corroborate)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(rule_id) DO UPDATE SET org_id=excluded.org_id, target_layer=excluded.target_layer,
                  required_slots=excluded.required_slots, conclusion=excluded.conclusion, topic_prefix=excluded.topic_prefix,
                  min_agents=excluded.min_agents, min_teams=excluded.min_teams, kind=excluded.kind, enabled=excluded.enabled,
-                 metadata=excluded.metadata, updated_at=excluded.updated_at""",
+                 metadata=excluded.metadata, updated_at=excluded.updated_at, sources=excluded.sources,
+                 emits_slot=excluded.emits_slot, emits_topic=excluded.emits_topic, min_units=excluded.min_units,
+                 corroborate=excluded.corroborate""",
             (rule.rule_id, rule.org_id, rule.target_layer, _j(rule.required_slots), rule.conclusion, rule.topic_prefix,
-             rule.min_agents, rule.min_teams, rule.kind, 1 if rule.enabled else 0, _j(rule.metadata), now_iso()),
+             rule.min_agents, rule.min_teams, rule.kind, 1 if rule.enabled else 0, _j(rule.metadata), now_iso(),
+             _j(rule.sources), rule.emits_slot, rule.emits_topic, _j(rule.min_units), 1 if rule.corroborate else 0),
         )
 
     def delete_rule(self, rule_id: str) -> bool:
@@ -385,6 +398,27 @@ class MycelicStore:
             c.execute("INSERT INTO meta(key, value) VALUES ('schema_version', ?)", (str(SCHEMA_VERSION),))
         elif int(row["value"]) > SCHEMA_VERSION:
             raise RuntimeError(f"database schema {row['value']} is newer than this code ({SCHEMA_VERSION})")
+        elif int(row["value"]) < SCHEMA_VERSION:
+            self._migrate(int(row["value"]))
+
+    def _migrate(self, from_version: int) -> None:
+        """Forward-only, additive migrations (columns with defaults), applied in one transaction."""
+        c = self._conn
+        c.execute("BEGIN IMMEDIATE")
+        try:
+            if from_version < 2:
+                have = {r["name"] for r in c.execute("PRAGMA table_info(rules)").fetchall()}
+                for name, ddl in (("sources", "TEXT NOT NULL DEFAULT '[\"agent_observation\"]'"), ("emits_slot", "TEXT"),
+                                  ("emits_topic", "TEXT"), ("min_units", "TEXT NOT NULL DEFAULT '{}'"),
+                                  ("corroborate", "INTEGER NOT NULL DEFAULT 0")):
+                    if name not in have:
+                        c.execute(f"ALTER TABLE rules ADD COLUMN {name} {ddl}")
+            c.execute("UPDATE meta SET value=? WHERE key='schema_version'", (str(SCHEMA_VERSION),))
+        except BaseException:
+            c.execute("ROLLBACK")
+            raise
+        c.execute("COMMIT")
+        logger.info("migrated database schema %d -> %d", from_version, SCHEMA_VERSION)
 
     async def close(self) -> None:
         async with self._lock:
@@ -473,8 +507,11 @@ class MycelicStore:
                       status: str | None = "active", topic: str | None = None, entity: str | None = None,
                       slot: str | None = None, operator: str | None = None, producer_id: str | None = None,
                       since: str | None = None, limit: int = 200, newest_first: bool = True,
-                      applied_only: bool = False) -> list[Memory]:
+                      applied_only: bool = False, operators: Iterable[str] | None = None) -> list[Memory]:
         sql, args = "SELECT * FROM memories WHERE org_id=?", [org_id]
+        if operators:
+            ops = list(operators)
+            sql += f" AND operator IN ({','.join('?' * len(ops))})"; args += ops
         if applied_only:                       # only what the consumer has applied: aggregation must not see ahead
             sql += " AND applied_at IS NOT NULL"
         if scope:

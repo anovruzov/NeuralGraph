@@ -166,8 +166,32 @@ All variables have the `MYCELIC_` prefix. Validation runs at start and fails fas
 | `MAX_BODY_BYTES`, `MAX_TEXT_CHARS`, `MAX_BATCH`, `MAX_EVENT_BYTES` | `1 MiB`, `4000`, `100`, `256 KiB` | input limits |
 | `AUDIT_RETENTION_DAYS` | `90` | audit rows older than this are pruned at start |
 | `MIN_SUPPORT` | `2` | distinct child units needed for a consolidated memory |
-| `RULES_FILE` | | JSON file of slot-composition rules re-applied at every start (`deploy/mycelic/rules.json`); a file rule overrides an API edit to the same `rule_id`, and the override is appended to the event log so a rebuild ends with the same rules |
+| `RULES_FILE` | | JSON file of slot-composition rules re-applied at every start (`deploy/mycelic/rules.json`); a file rule overrides an API edit to the same `rule_id`, and the override is appended to the event log so a rebuild ends with the same rules. Rule fields are listed in section 3a |
 | `PUBLIC_URL` | | informational |
+
+### 3a. Rules
+
+A rule (`deploy/mycelic/rules.json`, or `POST /admin/rules`) is a conclusion that exists only once every
+required slot is covered inside its target unit:
+
+| Field | Meaning |
+|---|---|
+| `rule_id`, `target_layer` | identity; the layer of the unit the conclusion belongs to (`team` … `enterprise`) |
+| `required_slots` | slots that must all be filled for the same `entity` |
+| `conclusion` | template with `{entity}` and `{slot:<name>}` placeholders |
+| `topic_prefix` | only evidence whose topic starts with it counts |
+| `min_agents`, `min_teams` | distinct agents / teams behind the evidence |
+| `sources` | operators that may fill a slot: `agent_observation` (default), `slot_composition` (other rules' conclusions), `topic_consolidation` |
+| `emits_slot`, `emits_topic` | what the conclusion carries, so a higher rule can consume it |
+| `min_units` | corroboration per slot, e.g. `{"supply_risk": {"region": 2}}`: that slot must be filled by evidence from two regions |
+| `corroborate` | every memory filling a required slot becomes evidence (lineage and support include all of them); confidence per slot is the noisy-OR over the units filling it |
+| `kind`, `org_id`, `enabled`, `metadata` | memory kind of the conclusion; restrict to one organization; switch off; free-form |
+
+Rules compose and cascade: a conclusion is offered to the rules and consolidations above it as soon as it
+is derived, a rule never feeds on its own conclusions, and finer-grained evidence wins over a consolidation
+that merely restates it. When an observation is retracted, every dependent conclusion is withdrawn and then
+re-evaluated on the evidence that remains (a conclusion corroborated by three regions survives losing one).
+`demo/mycelic_strategic_demo.py` and `tests/mycelic/test_strategic.py` exercise exactly this.
 
 ## 4. Operations
 

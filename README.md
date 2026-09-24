@@ -58,6 +58,22 @@ still reconstructable. The demo then SIGKILLs the service, kills the broker whil
 and deletes the service database; each time the same conclusion and lineage come back. Private notes never
 leave the agents. The same scenario with 99 agent processes passes in about twenty seconds.
 
+### Strategic synthesis
+
+```bash
+python demo/mycelic_strategic_demo.py --driver compose
+```
+
+Two regions independently run into the same supply problem; each region's agents share their notes and
+Mycelic composes a *regional* supply-risk conclusion in each. Head office knows two other things: order
+intake is up 40% and there is a single qualified supplier. Nobody holds all of it. Once supply risk is
+corroborated in at least two regions, the rule `strategic_second_source` composes an enterprise
+recommendation, "qualify a second source", whose lineage runs three hops deep: strategy ← regional
+conclusions ← agents' observations, across 14 agents in 8 teams. Rules compose: a conclusion carries a slot
+that higher rules consume, corroboration requirements span organizational units, and when evidence is
+retracted every dependent conclusion is withdrawn and re-evaluated on what remains. The demo shows all of
+that, then rebuilds the whole chain from the event log after deleting the database.
+
 Under the hood Mycelic reuses this repository's coordination research (`ClaimEnvelope`,
 `RuleBasedSynthesizer`, `LineageAnalyzer`) and the chat-memory MCP server; the NeuralGraph assistant below
 remains available as a richer per-agent local memory.

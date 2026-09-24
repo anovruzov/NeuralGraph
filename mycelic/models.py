@@ -148,7 +148,16 @@ class EventRecord:
 
 @dataclass
 class Rule:
-    """A slot-composition rule: a conclusion that only exists once every required slot is covered."""
+    """A slot-composition rule: a conclusion that only exists once every required slot is covered.
+
+    Rules compose.  A rule whose ``emits_slot`` is set produces conclusions that carry that slot, so a higher
+    rule can list it among its ``required_slots`` and take conclusions as evidence (``sources`` names the
+    operators whose memories may fill a slot).  ``min_units`` demands corroboration of a slot across
+    organizational units (``{"supply_risk": {"region": 2}}``: supply risk reported by at least two regions);
+    with ``corroborate`` every memory that fills a required slot becomes evidence, not only the strongest one
+    per slot.  That is what strategic synthesis is: a
+    conclusion whose parents are other units' conclusions.
+    """
 
     rule_id: str
     target_layer: str
@@ -161,6 +170,11 @@ class Rule:
     org_id: str | None = None       # None = every organization on this deployment
     enabled: bool = True
     metadata: dict[str, Any] = field(default_factory=dict)
+    sources: list[str] = field(default_factory=lambda: ["agent_observation"])   # operators that may fill a slot
+    emits_slot: str | None = None   # the slot the conclusion carries, so higher rules can consume it
+    emits_topic: str | None = None  # the topic the conclusion carries (default: topic_prefix or rule_id)
+    min_units: dict[str, dict[str, int]] = field(default_factory=dict)          # slot -> layer -> distinct units
+    corroborate: bool = False       # every memory filling a required slot is evidence, not just the strongest
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

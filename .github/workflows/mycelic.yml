@@ -52,6 +52,8 @@ jobs:
             echo "compose must refuse to start without secrets"; exit 1; fi
       - name: build image and run the smoke test against the compose stack
         run: python tests/smoke/mycelic_smoke.py --driver compose --report smoke-compose.json
+      - name: strategic synthesis demo against the compose stack
+        run: python demo/mycelic_strategic_demo.py --driver compose --no-build --pace 0
       - uses: actions/upload-artifact@v4
         if: always()
         with:
