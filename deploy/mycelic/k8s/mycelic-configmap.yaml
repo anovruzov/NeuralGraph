@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mycelic-config
+data:
+  MYCELIC_HOST: "0.0.0.0"
+  MYCELIC_PORT: "8080"
+  MYCELIC_DB_PATH: /data/mycelic.db
+  MYCELIC_NATS_URL: nats://nats.mycelic.svc:4222
+  MYCELIC_RULES_FILE: /etc/mycelic/rules.json
+  MYCELIC_LOG_LEVEL: INFO
+  MYCELIC_MIN_SUPPORT: "2"
+  MYCELIC_ALLOWED_HOSTS: ""                 # set to the Ingress host, e.g. mycelic.example.com
+  MYCELIC_TRUST_PROXY_HEADERS: "true"       # the Ingress terminates TLS and forwards X-Forwarded-For
+  rules.json: |
+    {"rules": [
+      {"rule_id": "component_supply_risk", "target_layer": "enterprise", "topic_prefix": "supply:",
+       "required_slots": ["transport_disruption", "supplier_buffer_low", "demand_commitment"],
+       "min_agents": 3, "min_teams": 2, "kind": "risk",
+       "conclusion": "Supply risk for {entity}: inbound transport is disrupted ({slot:transport_disruption}); the supplier buffer is thin ({slot:supplier_buffer_low}); demand is committed ({slot:demand_commitment})."}
+    ]}

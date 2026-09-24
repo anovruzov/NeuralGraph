@@ -21,9 +21,8 @@ from pathlib import Path
 
 from mycelic.metrics import Metrics
 from mycelic.service import MycelicService
-from mycelic.store import MycelicStore
 
-from .helpers import ADMIN_TOKEN, DEMO_RULE, settings
+from .helpers import DEMO_RULE, settings
 
 NATS_BIN = os.environ.get("MYCELIC_NATS_SERVER_BIN") or shutil.which("nats-server")
 NATS_USER, NATS_PASSWORD = "mycelic", "nats-test-password-0123456789abcdef"
@@ -46,7 +45,7 @@ class NatsServer:
 port: {port}
 http_port: -1
 jetstream {{ store_dir: "{store_dir / 'js'}" }}
-authorization {{ user: {NATS_USER}, password: {NATS_PASSWORD} }}
+authorization {{ user: "{NATS_USER}", password: "{NATS_PASSWORD}" }}
 """)
         self.proc: subprocess.Popen | None = None
 
@@ -204,7 +203,7 @@ class JetStreamTests(unittest.IsolatedAsyncioTestCase):
         import sqlite3
 
         s1 = await self.new_service()
-        keys = await self.seed(s1)
+        await self.seed(s1)
         await s1.close()
         self.services.remove(s1)
         backup = self.root / "backup.db"          # a quiescent copy, like a volume snapshot

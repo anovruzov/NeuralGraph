@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Any, AsyncIterator, Iterable
 
 from .hierarchy import LAYERS
-from .models import Agent, EventRecord, LineageEdge, Memory, Rule, new_id, now_iso, parse_iso, utcnow
+from .models import Agent, EventRecord, LineageEdge, Memory, Rule, now_iso, utcnow
 
 logger = logging.getLogger(__name__)
 

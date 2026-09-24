@@ -1,0 +1,15 @@
+{
+  "rules": [
+    {
+      "rule_id": "component_supply_risk",
+      "target_layer": "enterprise",
+      "topic_prefix": "supply:",
+      "required_slots": ["transport_disruption", "supplier_buffer_low", "demand_commitment"],
+      "min_agents": 3,
+      "min_teams": 2,
+      "kind": "risk",
+      "conclusion": "Supply risk for {entity}: inbound transport is disrupted ({slot:transport_disruption}); the supplier buffer is thin ({slot:supplier_buffer_low}); demand is committed ({slot:demand_commitment}).",
+      "metadata": {"owner": "operations", "review": "weekly"}
+    }
+  ]
+}

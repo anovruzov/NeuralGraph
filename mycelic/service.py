@@ -32,9 +32,9 @@ from pathlib import Path
 from typing import Any
 
 from .aggregation import Aggregator, Derivation
-from .auth import AuthError, Authenticator, Principal, RateLimiter, generate_api_key
+from .auth import Authenticator, Principal, RateLimiter, generate_api_key
 from .config import Settings
-from .hierarchy import AgentPath, HierarchyError, LAYERS, layer_index, layer_of_path, split_path
+from .hierarchy import AgentPath, HierarchyError, LAYERS, layer_index, split_path
 from .lineage import LineageNotFound, reconstruct
 from .metrics import Metrics
 from .models import (

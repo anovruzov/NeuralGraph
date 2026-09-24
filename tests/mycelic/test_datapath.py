@@ -182,7 +182,7 @@ class DataPathTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(g["evidence"]["reconstructable"])
 
     async def test_rebuild_from_the_event_log_reproduces_state_agents_and_rules(self) -> None:
-        ids = await self.seed()
+        await self.seed()
         s1 = self.h.service
         before = {m.memory_id: (m.layer, m.status, m.support) for m in s1.store.list_memories("northwind", status=None, limit=1000)}
         active_before = {mid for mid, (_, st, _) in before.items() if st == "active"}

@@ -1,0 +1,87 @@
+# Mycelic: one-command local deployment.
+#   cp deploy/mycelic/.env.example deploy/mycelic/.env   # fill in the secrets
+#   docker compose -f deploy/mycelic/docker-compose.yml up -d --build
+#   docker compose -f deploy/mycelic/docker-compose.yml --profile observability up -d   # + Prometheus
+#
+# Topology: `nats` (JetStream, file store on the nats-data volume, not published) and `mycelic` (API on
+# ${MYCELIC_PORT}, SQLite on the mycelic-data volume). Everything else is optional.
+name: mycelic
+
+services:
+  nats:
+    image: ${NATS_IMAGE:-nats:2.10.29-alpine}
+    command: ["-c", "/etc/nats/nats.conf"]
+    environment:
+      NATS_USER: ${NATS_USER:?set NATS_USER in deploy/mycelic/.env}
+      NATS_PASSWORD: ${NATS_PASSWORD:?set NATS_PASSWORD in deploy/mycelic/.env (openssl rand -hex 32)}
+      NATS_STORE_DIR: /data
+    volumes:
+      - ./nats/nats.conf:/etc/nats/nats.conf:ro
+      - nats-data:/data
+    expose:
+      - "4222"
+    healthcheck:
+      # busybox wget is in the alpine image; /healthz reports ok only once JetStream is up
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8222/healthz?js-enabled-only=true"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    restart: unless-stopped
+
+  mycelic:
+    build:
+      context: ../..
+      dockerfile: deploy/mycelic/Dockerfile
+      secrets:
+        - ca_bundle            # only used when CA_BUNDLE_FILE points at a corporate CA (see .env.example)
+    image: mycelic:local
+    depends_on:
+      nats:
+        condition: service_healthy
+    environment:
+      MYCELIC_HOST: 0.0.0.0
+      MYCELIC_PORT: "8080"
+      MYCELIC_DB_PATH: /data/mycelic.db
+      MYCELIC_NATS_URL: nats://nats:4222
+      MYCELIC_NATS_USER: ${NATS_USER:?set NATS_USER in deploy/mycelic/.env}
+      MYCELIC_NATS_PASSWORD: ${NATS_PASSWORD:?set NATS_PASSWORD in deploy/mycelic/.env}
+      MYCELIC_ADMIN_TOKEN: ${MYCELIC_ADMIN_TOKEN:?set MYCELIC_ADMIN_TOKEN in deploy/mycelic/.env (openssl rand -hex 32)}
+      MYCELIC_EVENT_SIGNING_KEY: ${MYCELIC_EVENT_SIGNING_KEY:?set MYCELIC_EVENT_SIGNING_KEY in deploy/mycelic/.env (openssl rand -hex 32)}
+      MYCELIC_METRICS_TOKEN: ${MYCELIC_METRICS_TOKEN:-}
+      MYCELIC_RULES_FILE: /etc/mycelic/rules.json
+      MYCELIC_ALLOWED_HOSTS: ${MYCELIC_ALLOWED_HOSTS:-}
+      MYCELIC_TRUST_PROXY_HEADERS: ${MYCELIC_TRUST_PROXY_HEADERS:-false}
+      MYCELIC_MIN_SUPPORT: ${MYCELIC_MIN_SUPPORT:-2}
+      MYCELIC_LOG_LEVEL: ${MYCELIC_LOG_LEVEL:-INFO}
+      MYCELIC_PUBLIC_URL: ${MYCELIC_PUBLIC_URL:-http://localhost:8080}
+    ports:
+      - "${MYCELIC_PORT:-8080}:8080"
+    volumes:
+      - mycelic-data:/data
+      - ./rules.json:/etc/mycelic/rules.json:ro
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    profiles: ["observability"]
+    depends_on: [mycelic]
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    secrets:
+      - metrics_token
+    ports:
+      - "127.0.0.1:9090:9090"
+    restart: unless-stopped
+
+secrets:
+  metrics_token:
+    environment: MYCELIC_METRICS_TOKEN
+  ca_bundle:
+    file: ${CA_BUNDLE_FILE:-/dev/null}
+
+volumes:
+  nats-data:
+  mycelic-data:
+  prometheus-data:

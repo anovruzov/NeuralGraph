@@ -2,7 +2,6 @@
 memory/query/lineage routes, admin routes and the per-request MCP identity."""
 from __future__ import annotations
 
-import json
 import unittest
 
 from aiohttp.test_utils import TestClient, TestServer
