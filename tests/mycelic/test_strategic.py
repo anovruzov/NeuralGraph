@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 from mycelic.metrics import Metrics
-from mycelic.service import MycelicService
+from mycelic.service import MycelicService, ValidationError
 from mycelic.store import MycelicStore
 
 from .helpers import ServiceHarness, settings
@@ -15,6 +15,13 @@ from .helpers import ServiceHarness, settings
 RULES = json.loads((Path(__file__).resolve().parent.parent.parent / "deploy" / "mycelic" / "rules.json").read_text())["rules"]
 REGIONAL = next(r for r in RULES if r["rule_id"] == "regional_supply_risk")
 STRATEGIC = next(r for r in RULES if r["rule_id"] == "strategic_second_source")
+
+def histogram_mean(hist) -> float:
+    """Mean observed value of a prometheus Histogram, read through its public samples."""
+    samples = {smp.name.rsplit("_", 1)[-1]: smp.value for smp in hist.collect()[0].samples
+               if not smp.name.endswith("_bucket")}
+    return samples["sum"] / max(1.0, samples["count"])
+
 ENTITY = "sd-9"
 
 
@@ -139,7 +146,124 @@ class StrategicSynthesisTests(unittest.IsolatedAsyncioTestCase):
         two = self.strategic()
         self.assertEqual(len(two), 1, "still corroborated by two regions after re-evaluation")
         self.assertEqual(two[0].memory_id, again[0].memory_id, "the exact earlier coalition is reactivated")
+        self.assertNotIn("status_reason", two[0].metadata)
         self.assertEqual(s.store.get_memory(three.memory_id).status, "retracted")
+
+    async def test_corroboration_needs_corroborate_unless_one_memory_spans_the_units(self) -> None:
+        s = self.h.service
+        await s.upsert_rule({**STRATEGIC, "corroborate": False})
+        await self.observe_region("emea")
+        await self.observe_region("apac")
+        await self.observe_hq()
+        await self.h.settle()
+        self.assertEqual(self.strategic(), [], "without corroborate only the strongest regional conclusion is a parent")
+        await s.upsert_rule(STRATEGIC)
+        await self.h.observe("hq-analytics-1", "Second demand datapoint: backlog doubled.", topic="strategy:demand",
+                             slot="demand_growth", entity=ENTITY, confidence=0.7)
+        await self.h.settle()
+        self.assertEqual(len(self.strategic()), 1)
+
+    async def test_withdrawal_for_lost_support_cascades(self) -> None:
+        """A stronger note can change the per-slot selection so that distinct agents drop below the threshold;
+        the regional conclusion is withdrawn, and so is everything built on it."""
+        s = self.h.service
+        await self.observe_region("emea")
+        await self.observe_region("apac")
+        await self.observe_hq()
+        await self.h.settle()
+        self.assertEqual(len(self.strategic()), 1)
+        emea_before = self.regional()["northwind/emea"]
+        # emea-logistics-1 already supplies the strongest transport note; a supplier note from the same agent
+        # becomes the strongest supplier claim, so the selection rests on only 2 distinct agents (< min_agents 3)
+        await self.h.observe("emea-logistics-1", "Kessler told us there are two weeks of SD-9 inventory left.",
+                             topic="supply:sd-9/supplier", slot="supplier_buffer_low", entity=ENTITY, confidence=0.95)
+        await self.h.settle()
+        self.assertEqual(set(self.regional()), {"northwind/apac"})
+        self.assertEqual(s.store.get_memory(emea_before.memory_id).status, "retracted")
+        self.assertEqual(self.strategic(), [], "the strategy rested on the withdrawn regional conclusion")
+        res = s.query(self.h.principal("hq-sourcing-1"), {"query": "second source sd-9", "scope": "northwind", "min_layer": "enterprise"})
+        self.assertTrue(res["answer"] is None or res["answer"]["rule_id"] != "strategic_second_source")
+        # an even stronger note from another agent restores three distinct agents: both come back
+        await self.h.observe("emea-procurement-2", "Recount: two weeks of SD-9 inventory, no second source.",
+                             topic="supply:sd-9/supplier", slot="supplier_buffer_low", entity=ENTITY, confidence=0.97)
+        await self.h.settle()
+        self.assertEqual(set(self.regional()), {"northwind/emea", "northwind/apac"})
+        self.assertEqual(len(self.strategic()), 1)
+        for m in s.store.list_memories("northwind", status="active", limit=1000):
+            for e in s.store.parents_of(m.memory_id):
+                parent = s.store.get_memory(e.parent_id)
+                self.assertEqual(parent.status, "active", f"active {m.memory_id} rests on {parent.status} {e.parent_id}")
+
+    async def test_stale_dependents_of_a_superseded_consolidation_are_retired(self) -> None:
+        s = self.h.service
+        await s.upsert_rule({"rule_id": "r", "target_layer": "department", "required_slots": ["transport_disruption", "supplier_buffer_low"],
+                             "sources": ["topic_consolidation"], "min_agents": 2, "min_teams": 2, "conclusion": "R for {entity}"})
+        for a, slot, topic in (("emea-logistics-1", "transport_disruption", "supply:sd-9/transport"),
+                               ("emea-logistics-2", "transport_disruption", "supply:sd-9/transport"),
+                               ("emea-procurement-1", "supplier_buffer_low", "supply:sd-9/supplier"),
+                               ("emea-procurement-2", "supplier_buffer_low", "supply:sd-9/supplier")):
+            await self.h.observe(a, f"note by {a}", topic=topic, slot=slot, entity="sd-9", confidence=0.8)
+        await self.h.settle()
+        conclusions = [m for m in s.store.list_memories("northwind", layers=["department"]) if m.rule_id == "r"]
+        self.assertEqual([m.entity for m in conclusions], ["sd-9"])
+        # a transport note about another entity joins the logistics consolidation: its entity becomes None,
+        # the old 'r:sd-9' conclusion rests on a superseded parent and must go
+        await self.h.observe("emea-logistics-1", "Rail slot for RX-2 frames also affected by the strike.",
+                             topic="supply:sd-9/transport", slot="transport_disruption", entity="rx-2", confidence=0.6)
+        await self.h.settle()
+        active = [m for m in s.store.list_memories("northwind", layers=["department"]) if m.rule_id == "r"]
+        self.assertEqual([m.entity for m in active], [None])
+        self.assertEqual(s.store.get_memory(conclusions[0].memory_id).status, "retracted")
+        for m in s.store.list_memories("northwind", status="active", limit=1000):
+            for e in s.store.parents_of(m.memory_id):
+                self.assertEqual(s.store.get_memory(e.parent_id).status, "active")
+
+    async def test_consolidation_requires_unanimous_slot_and_entity(self) -> None:
+        s = self.h.service
+        await s.upsert_rule({"rule_id": "r2", "target_layer": "region", "required_slots": ["transport_disruption", "supplier_buffer_low"],
+                             "sources": ["agent_observation", "topic_consolidation"], "min_agents": 3, "conclusion": "R2 {entity}"})
+        await self.h.observe("emea-logistics-1", "strike", topic="supply:sd-9/transport", slot="transport_disruption", entity="sd-9", confidence=0.9)
+        await self.h.observe("emea-procurement-1", "low stock", topic="supply:sd-9/supplier", slot="supplier_buffer_low", entity="sd-9", confidence=0.8)
+        await self.h.observe("emea-logistics-2", "Port congestion note without a slot.", topic="supply:sd-9/transport")
+        await self.h.settle()
+        team = [m for m in s.store.list_memories("northwind", layers=["team"]) if m.topic == "supply:sd-9/transport"]
+        self.assertEqual(len(team), 1)
+        self.assertIsNone(team[0].slot)
+        self.assertIsNone(team[0].entity)
+        self.assertEqual([m for m in s.store.list_memories("northwind", layers=["region"]) if m.rule_id == "r2"], [],
+                         "a slotless note must not lend its agent to a rule's support")
+
+    async def test_cyclic_rules_are_refused_but_cross_layer_chains_are_not(self) -> None:
+        s = self.h.service
+        await s.upsert_rule({"rule_id": "a", "target_layer": "team", "required_slots": ["x"], "emits_slot": "y", "conclusion": "A",
+                             "sources": ["agent_observation", "slot_composition"]})
+        with self.assertRaises(ValidationError):
+            await s.upsert_rule({"rule_id": "b", "target_layer": "team", "required_slots": ["y"], "emits_slot": "x", "conclusion": "B",
+                                 "sources": ["slot_composition", "agent_observation"]})
+        await s.upsert_rule({"rule_id": "c", "target_layer": "enterprise", "required_slots": ["y"], "emits_slot": "z", "conclusion": "C",
+                             "sources": ["slot_composition"]})
+        with self.assertRaises(ValidationError):
+            await s.upsert_rule({"rule_id": "too-many", "target_layer": "team", "required_slots": list("abcdefg"), "conclusion": "x"})
+        self.assertEqual(len(s.store.list_rules("northwind")), 2 + 2)   # regional, strategic, a, c
+
+    async def test_fragility_scoring_is_bounded(self) -> None:
+        s = self.h.service
+        # every note is strictly stronger than the one before, so the last one always changes the coalition and
+        # the surviving conclusion was derived with all 72 candidates in view
+        for i in range(12):
+            for j in (1, 2):
+                c = 0.5 + (2 * i + j) / 100
+                await self.h.observe(f"emea-logistics-{j}", f"transport note {i}-{j}", topic="supply:sd-9/transport",
+                                     slot="transport_disruption", entity=ENTITY, confidence=c)
+                await self.h.observe(f"emea-procurement-{j}", f"supplier note {i}-{j}", topic="supply:sd-9/supplier",
+                                     slot="supplier_buffer_low", entity=ENTITY, confidence=c)
+                await self.h.observe(f"emea-field-sales-{j}", f"demand note {i}-{j}", topic="supply:sd-9/demand",
+                                     slot="demand_commitment", entity=ENTITY, confidence=c)
+        await self.h.settle(timeout=60)
+        m = self.regional()["northwind/emea"]
+        self.assertEqual(m.metadata["candidates"], 72)
+        self.assertEqual(m.metadata["fragility_scored_candidates"], 18)
+        self.assertLess(histogram_mean(s.metrics.aggregation_latency), 0.2)
 
     async def test_rebuild_reproduces_the_strategic_lineage(self) -> None:
         s1 = self.h.service

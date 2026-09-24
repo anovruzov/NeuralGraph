@@ -217,6 +217,21 @@ class DataPathTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ValidationError):
             await s.ingest_memory(self.h.principal("log-1"), {"text": "x", "source_event_ids": [out[0]["event_id"]]})
 
+    async def test_reserved_producer_id_and_metadata_visibility(self) -> None:
+        s = self.h.service
+        with self.assertRaises(ValidationError):
+            await s.register_agent({"enterprise": "northwind", "agent_id": "mycelic"})
+        await self.seed()
+        conclusion = s.store.list_memories("northwind", layers=["enterprise"])[0]
+        default = self.h.principal("sales-2")
+        self.assertIn("roots", s.public_view(conclusion, default)["metadata"])
+        self.assertNotIn("evidence", s.public_view(conclusion, default)["metadata"])
+        await self.h.register("reader", team="field-sales", department="commercial", scopes=["memory:read"])
+        reader = self.h.principal("reader")
+        self.assertNotIn("roots", s.public_view(conclusion, reader)["metadata"])
+        self.assertFalse(reader.owns(conclusion))
+        self.assertFalse(self.h.principal("log-1").owns(conclusion), "derived memories have no owner but the organization")
+
     async def test_local_reference_is_private_to_the_producer(self) -> None:
         s = self.h.service
         mid = await self.h.observe("log-1", "Terminal 3 strike.", topic=TRANSPORT, local_ref="note-42")

@@ -183,15 +183,19 @@ required slot is covered inside its target unit:
 | `min_agents`, `min_teams` | distinct agents / teams behind the evidence |
 | `sources` | operators that may fill a slot: `agent_observation` (default), `slot_composition` (other rules' conclusions), `topic_consolidation` |
 | `emits_slot`, `emits_topic` | what the conclusion carries, so a higher rule can consume it |
-| `min_units` | corroboration per slot, e.g. `{"supply_risk": {"region": 2}}`: that slot must be filled by evidence from two regions |
+| `min_units` | corroboration per slot, e.g. `{"supply_risk": {"region": 2}}`: the units behind the evidence filling that slot must include two regions. The count is taken over the memories that become parents, so without `corroborate` it is the units behind the single strongest memory per slot; a count above 1 therefore needs `corroborate: true` unless that one memory itself spans the units (a consolidation or an already corroborated conclusion) |
 | `corroborate` | every memory filling a required slot becomes evidence (lineage and support include all of them); confidence per slot is the noisy-OR over the units filling it |
 | `kind`, `org_id`, `enabled`, `metadata` | memory kind of the conclusion; restrict to one organization; switch off; free-form |
 
 Rules compose and cascade: a conclusion is offered to the rules and consolidations above it as soon as it
-is derived, a rule never feeds on its own conclusions, and finer-grained evidence wins over a consolidation
-that merely restates it. When an observation is retracted, every dependent conclusion is withdrawn and then
-re-evaluated on the evidence that remains (a conclusion corroborated by three regions survives losing one).
-`demo/mycelic_strategic_demo.py` and `tests/mycelic/test_strategic.py` exercise exactly this.
+is derived, a rule never feeds on its own conclusions (directly or through other rules; a rule set that would
+form a cycle is refused at `POST /admin/rules` and in the rules file), and finer-grained evidence wins over a
+consolidation that merely restates it. A rule names at most 6 slots. When an observation is retracted, or a
+conclusion loses its support, every dependent conclusion is withdrawn and then re-evaluated on the evidence
+that remains: a conclusion corroborated by three regions survives losing one, and an exact earlier coalition
+is reactivated (`tests/mycelic/test_strategic.py::test_strategy_follows_evidence`).
+`demo/mycelic_strategic_demo.py` shows the two-region case: retracting APAC's supplier notes withdraws the
+regional conclusion and the strategy, and fresh evidence brings both back as a new version.
 
 ## 4. Operations
 

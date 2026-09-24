@@ -154,8 +154,10 @@ class Rule:
     rule can list it among its ``required_slots`` and take conclusions as evidence (``sources`` names the
     operators whose memories may fill a slot).  ``min_units`` demands corroboration of a slot across
     organizational units (``{"supply_risk": {"region": 2}}``: supply risk reported by at least two regions);
-    with ``corroborate`` every memory that fills a required slot becomes evidence, not only the strongest one
-    per slot.  That is what strategic synthesis is: a
+    the units are counted over the memories that become parents, which without ``corroborate`` is the single
+    strongest memory per slot, so a count above one needs ``corroborate`` unless that one memory itself spans
+    the units (a consolidation, or an already corroborated conclusion).  With ``corroborate`` every memory that
+    fills a required slot becomes evidence, not only the strongest one per slot.  That is what strategic synthesis is: a
     conclusion whose parents are other units' conclusions.
     """
 

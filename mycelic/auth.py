@@ -84,7 +84,8 @@ class Principal:
         return memory_visible(m, agent_path=self.path, team_path=self.team_path)
 
     def owns(self, m: Memory) -> bool:
-        return self.is_admin or m.producer_id == self.id
+        """Only a raw observation has an owner; derived memories belong to the organization."""
+        return self.is_admin or (m.layer == "agent" and m.producer_id == self.id)
 
     def can_query_scope(self, scope: str) -> bool:
         if self.is_admin:

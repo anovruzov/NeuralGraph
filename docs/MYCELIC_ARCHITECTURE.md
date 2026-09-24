@@ -125,11 +125,14 @@ then `term`.
   fragility metrics (unique roots, independent failure domains = teams, minimal cut) are stored with it.
 * **Composition (strategic synthesis).** A rule's ``sources`` may include other rules' conclusions and
   consolidations; a conclusion carries ``emits_slot``/``emits_topic`` so a higher rule can consume it;
-  ``min_units`` demands per-slot corroboration across units (``{"supply_risk": {"region": 2}}``) and
-  ``corroborate`` keeps every memory filling a slot as evidence. Derivations cascade upward (bounded depth),
-  a rule never consumes its own output, and finer-grained evidence is preferred over a consolidation that
-  restates it. After a retraction, dependents are retired and re-evaluated on the remaining evidence
-  (`Aggregator.reevaluate`). Verified by `tests/mycelic/test_strategic.py` and
+  ``min_units`` demands per-slot corroboration across units (``{"supply_risk": {"region": 2}}``), counted
+  over the memories that become parents (only the strongest per slot unless ``corroborate`` is set), and
+  ``corroborate`` keeps every memory filling a slot as evidence. Derivations cascade upward (bounded depth,
+  truncation logged), a rule never consumes its own output even transitively (`rule_chain` metadata; cyclic
+  rule sets are refused at the admin entry points), and finer-grained evidence is preferred over a
+  consolidation that restates it. Fragility metrics score at most six claims per slot. After a retraction,
+  a withdrawal for lost support, or a supersession that leaves a dependent behind, dependents are retired and
+  re-evaluated on the remaining evidence (`Aggregator.reevaluate`). Verified by `tests/mycelic/test_strategic.py` and
   `demo/mycelic_strategic_demo.py` (run under pytest by `tests/mycelic/test_strategic_demo_process.py`).
 * **Determinism.** A derived memory's id is `sha256(operator, unit, key, sorted parent ids)`. Recomputing
   the parent set from currently active evidence either leaves the active memory as is, supersedes it with

@@ -31,7 +31,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from .aggregation import Aggregator, Derivation
+from .aggregation import MYCELIC_PRODUCER, Aggregator, Derivation
 from .auth import Authenticator, Principal, RateLimiter, generate_api_key
 from .config import Settings
 from .hierarchy import AgentPath, HierarchyError, LAYERS, layer_index, split_path
@@ -52,7 +52,7 @@ VERSION = "0.1.0"
 RESERVED_METADATA_KEYS = frozenset({"agg_key", "promoted_from", "version_of", "contributing_agents", "contributing_teams",
                                     "children", "child_layer", "parent_count", "fragility", "slots", "candidates",
                                     "effective_min_support", "registered_child_units", "status_reason", "reactivated_at",
-                                    "roots", "evidence", "corroborated_units"})
+                                    "roots", "evidence", "corroborated_units", "rule_chain", "fragility_scored_candidates"})
 _SLOT_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,100}$")
 _ID_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,200}$")
 
@@ -267,6 +267,7 @@ class MycelicService:
         n = 0
         for item in rules:
             rule = self._rule_from_body(item)
+            self._check_rule_cycles(rule)
             existing = self.store.get_rule(rule.rule_id)
             if existing is not None and existing.to_dict() == rule.to_dict():
                 continue
@@ -481,13 +482,14 @@ class MycelicService:
     def public_view(self, m: Memory | dict[str, Any], principal: Principal) -> dict[str, Any]:
         """What a caller may see of a memory: metadata that names other teams' agents is reserved for admins."""
         d = m.to_dict() if isinstance(m, Memory) else dict(m)
-        if principal.is_admin or d.get("producer_id") == principal.id:
+        if principal.is_admin or (d.get("layer") == "agent" and d.get("producer_id") == principal.id):
             return d
         meta = d.get("metadata") or {}
-        d["metadata"] = {k: v for k, v in meta.items() if k in ("agg_key", "child_layer", "parent_count", "version_of",
-                                                                "fragility", "contributing_teams", "children",
-                                                                "promoted_from", "effective_min_support",
-                                                                "corroborated_units", "roots")}
+        allowed = {"agg_key", "child_layer", "parent_count", "version_of", "fragility", "contributing_teams", "children",
+                   "promoted_from", "effective_min_support", "corroborated_units", "rule_chain"}
+        if principal.has("lineage:read"):        # the root ids are exactly what GET /lineage/{id} shows this caller
+            allowed.add("roots")
+        d["metadata"] = {k: v for k, v in meta.items() if k in allowed}
         d["local_ref"] = None
         return d
 
@@ -757,6 +759,8 @@ class MycelicService:
             if not isinstance(p.get(k), str) or not p[k]:
                 raise ValidationError(f"agent payload lacks '{k}'")
         AgentPath.parse(p["path"])
+        if p["agent_id"] == MYCELIC_PRODUCER:
+            raise ValidationError(f"agent_id '{MYCELIC_PRODUCER}' is reserved for derived memories")
         raw_scopes = p.get("scopes")
         return Agent(agent_id=p["agent_id"], org_id=p["org_id"], display_name=p.get("display_name") or p["agent_id"],
                      path=p["path"], scopes=list(DEFAULT_AGENT_SCOPES) if raw_scopes is None else list(raw_scopes),
@@ -907,6 +911,8 @@ class MycelicService:
                 agent_id=_s(body, "agent_id", required=True, max_len=64) or "")
         except HierarchyError as exc:
             raise ValidationError(str(exc)) from exc
+        if ap.agent_id == MYCELIC_PRODUCER:
+            raise ValidationError(f"agent_id '{MYCELIC_PRODUCER}' is reserved for derived memories")
         scopes = body.get("scopes")
         if scopes is None:
             scopes = list(DEFAULT_AGENT_SCOPES)
@@ -961,6 +967,8 @@ class MycelicService:
         slots = body.get("required_slots")
         if not isinstance(slots, list) or not slots or any(not isinstance(s, str) or not _SLOT_RE.match(s) for s in slots):
             raise ValidationError("'required_slots' must be a non-empty list of slot names")
+        if len(dict.fromkeys(slots)) > 6:
+            raise ValidationError("'required_slots' may name at most 6 slots")
         conclusion = _s(body, "conclusion", required=True, max_len=2000) or ""
         kind = _s(body, "kind", max_len=40) or "risk"
         if kind not in MEMORY_KINDS:
@@ -991,8 +999,40 @@ class MycelicService:
                     min_units={slot: {layer: int(n) for layer, n in per.items()} for slot, per in min_units.items()},
                     corroborate=bool(body.get("corroborate", False)))
 
+    @staticmethod
+    def _rule_feeds(p: Rule, c: Rule) -> bool:
+        """Could a conclusion of ``p`` be evidence for ``c``?"""
+        if not p.emits_slot or p.emits_slot not in c.required_slots:
+            return False
+        if not ({"slot_composition", "topic_consolidation"} & set(c.sources)):
+            return False
+        if LAYERS.index(p.target_layer) > LAYERS.index(c.target_layer):
+            return False
+        if p.org_id and c.org_id and p.org_id != c.org_id:
+            return False
+        topic = p.emits_topic or p.topic_prefix or p.rule_id
+        return not c.topic_prefix or topic.startswith(c.topic_prefix)
+
+    def _check_rule_cycles(self, new: Rule) -> None:
+        """Refuse a rule that would (transitively) feed on its own conclusions; the aggregator also guards at apply time."""
+        if not new.enabled:
+            return
+        graph = {r.rule_id: r for r in self.store.list_rules(new.org_id, enabled_only=False) if r.enabled and r.rule_id != new.rule_id}
+        graph[new.rule_id] = new
+        stack, seen = [new.rule_id], set()
+        while stack:
+            rid = stack.pop()
+            for other in graph.values():
+                if self._rule_feeds(graph[rid], other):
+                    if other.rule_id == new.rule_id:
+                        raise ValidationError(f"rule '{new.rule_id}' would form a cycle through slot '{graph[rid].emits_slot}' with '{rid}'")
+                    if other.rule_id not in seen:
+                        seen.add(other.rule_id)
+                        stack.append(other.rule_id)
+
     async def upsert_rule(self, body: dict[str, Any], *, remote: str | None = None) -> Rule:
         rule = self._rule_from_body(body)
+        self._check_rule_cycles(rule)
         async with self.store.transaction() as tx:
             tx.upsert_rule(rule)
             tx.insert_event(self._admin_event("rule.upserted", rule.org_id or "_", rule.to_dict()))

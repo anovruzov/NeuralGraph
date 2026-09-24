@@ -68,11 +68,15 @@ Two regions independently run into the same supply problem; each region's agents
 Mycelic composes a *regional* supply-risk conclusion in each. Head office knows two other things: order
 intake is up 40% and there is a single qualified supplier. Nobody holds all of it. Once supply risk is
 corroborated in at least two regions, the rule `strategic_second_source` composes an enterprise
-recommendation, "qualify a second source", whose lineage runs three hops deep: strategy ← regional
-conclusions ← agents' observations, across 14 agents in 8 teams. Rules compose: a conclusion carries a slot
-that higher rules consume, corroboration requirements span organizational units, and when evidence is
-retracted every dependent conclusion is withdrawn and re-evaluated on what remains. The demo shows all of
-that, then rebuilds the whole chain from the event log after deleting the database.
+recommendation, "qualify a second source", whose lineage spans three layers in two derivation steps:
+strategy ← regional conclusions ← agents' observations, resting on 8 of the 14 agents (the strongest note per
+slot in each region plus the two head-office notes) in 8 teams across 3 regions. Rules compose: a conclusion
+carries a slot that higher rules consume, corroboration requirements span organizational units, and when
+evidence is retracted every dependent conclusion is withdrawn and re-evaluated on what remains. The demo
+shows composition, corroboration across the two regions, per-region visibility with redaction, the strategy
+being withdrawn when APAC retracts its evidence and returning as a new version with fresh evidence, and a
+rebuild of the whole chain from the event log after deleting the database (the three-region survival case is
+in `tests/mycelic/test_strategic.py`).
 
 Under the hood Mycelic reuses this repository's coordination research (`ClaimEnvelope`,
 `RuleBasedSynthesizer`, `LineageAnalyzer`) and the chat-memory MCP server; the NeuralGraph assistant below

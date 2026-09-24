@@ -51,6 +51,7 @@ MYCELIC_PRODUCER = "mycelic"
 _SLOT_RE = re.compile(r"\{slot:([a-zA-Z0-9_.-]+)\}")
 CONSOLIDATABLE = ("agent_observation", "topic_consolidation", "slot_composition")
 MAX_CASCADE = 8
+FRAGILITY_TOP_K = 6        # per-slot claims scored for fragility (the analyzer enumerates their product)
 
 
 @dataclass
@@ -112,6 +113,16 @@ def lineage_roots(m: Memory) -> list[str]:
     return list(m.metadata.get("roots", [m.memory_id]))
 
 
+def rule_chain(m: Memory) -> set[str]:
+    """Rules whose conclusions a memory (transitively) rests on; empty for a raw observation."""
+    if m.layer == "agent":
+        return set()
+    chain = set(m.metadata.get("rule_chain", []))
+    if m.rule_id:
+        chain.add(m.rule_id)
+    return chain
+
+
 def render_consolidation(unit: str, topic: str, contributions: dict[str, list[Memory]], support: int) -> str:
     layer = layer_of_path(unit)
     leaf = unit.rsplit("/", 1)[-1]
@@ -164,6 +175,15 @@ class Aggregator:
             # of conclusions across sibling units, and so on up to the enterprise
             for d in list(out):
                 out.extend(self._derive(tx, d.memory, depth=depth + 1))
+                if d.supersedes:
+                    # whatever still rests on the superseded version and was not itself replaced by the cascade (a
+                    # conclusion keyed by an entity the new version no longer carries) is stale: retire it and
+                    # re-evaluate it on active evidence
+                    stale = self.retire_dependents(tx, d.supersedes, "evidence superseded")
+                    out.extend(self.reevaluate(tx, stale, depth=depth + 1))
+        elif out:
+            logger.warning("cascade truncated at depth %d after %s; not re-offered: %s (rules may form a cycle)",
+                           depth, memory.memory_id, [d.memory.memory_id for d in out])
         return out
 
     def retire_dependents(self, tx: Tx, memory_id: str, reason: str) -> list[str]:
@@ -176,7 +196,14 @@ class Aggregator:
                 retired.append(dep)
         return retired
 
-    def reevaluate(self, tx: Tx, retired_ids: list[str]) -> list[Derivation]:
+    def _withdraw(self, tx: Tx, current: Memory) -> list[Derivation]:
+        """Support fell below the threshold (a stronger note changed the selection, a child unit appeared, evidence
+        went away): retract it, retire everything built on it and re-evaluate those on what remains."""
+        tx.set_memory_status(current.memory_id, "retracted", reason="support below threshold")
+        retired = self.retire_dependents(tx, current.memory_id, "evidence withdrawn")
+        return self.reevaluate(tx, retired) if retired else []
+
+    def reevaluate(self, tx: Tx, retired_ids: list[str], *, depth: int = 1) -> list[Derivation]:
         """Re-run the operator of each retired derived memory on the evidence that is still active.
 
         A conclusion that lost one piece of evidence may still hold on the rest (three regions minus one is still
@@ -194,11 +221,9 @@ class Aggregator:
             elif m.operator == "slot_composition" and m.rule_id:
                 rule = self.store.get_rule(m.rule_id)
                 if rule is not None and rule.enabled:
-                    d = self._compose_rule(tx, rule, m.org_id, m.scope, m.entity)
-                    if d is not None:
-                        out.append(d)
+                    out.extend(self._compose_rule(tx, rule, m.org_id, m.scope, m.entity))
         for d in list(out):
-            out.extend(self._derive(tx, d.memory, depth=1))
+            out.extend(self._derive(tx, d.memory, depth=depth))
         return out
 
     # ------------------------------------------------------------------ topic consolidation
@@ -221,7 +246,7 @@ class Aggregator:
             current = self.store.current_derived(org_id, "topic_consolidation", unit, topic)
             if len(contributions) < self.min_support and not promotion:
                 if current is not None:      # support fell below the threshold (retraction): the memory no longer holds
-                    tx.set_memory_status(current.memory_id, "retracted", reason="support below threshold")
+                    results.extend(self._withdraw(tx, current))
                 continue
             effective = 1 if promotion else self.min_support
             parents = [m for group in contributions.values() for m in group]
@@ -247,6 +272,7 @@ class Aggregator:
                     "effective_min_support": effective, "registered_child_units": len(registered_children),
                     "promoted_from": parents[0].memory_id if promotion else None,
                     "roots": sorted({r for m in parents for r in lineage_roots(m)}),
+                    "rule_chain": sorted({r for m in parents for r in rule_chain(m)}),
                 },
             )
             results.append(self._persist(tx, memory, parents, current))
@@ -291,24 +317,23 @@ class Aggregator:
         for rule in self.store.list_rules(memory.org_id):
             if memory.slot not in rule.required_slots or memory.operator not in rule.sources:
                 continue
-            if memory.rule_id == rule.rule_id:
-                continue                                   # a rule never feeds on its own conclusions
+            if rule.rule_id in rule_chain(memory):
+                continue                                   # a rule never feeds on its own conclusions, however indirectly
             if rule.topic_prefix and not (memory.topic or "").startswith(rule.topic_prefix):
                 continue
             target_unit = unit_at_layer(memory.scope, rule.target_layer)
             if target_unit is None:
                 continue
-            derivation = self._compose_rule(tx, rule, memory.org_id, target_unit, memory.entity)
-            if derivation is not None:
-                results.append(derivation)
+            results.extend(self._compose_rule(tx, rule, memory.org_id, target_unit, memory.entity))
         return results
 
-    def _compose_rule(self, tx: Tx, rule: Rule, org_id: str, target_unit: str, entity: str | None) -> Derivation | None:
+    def _compose_rule(self, tx: Tx, rule: Rule, org_id: str, target_unit: str, entity: str | None) -> list[Derivation]:
+        """Evaluate one rule at one unit: the new conclusion (possibly with what its withdrawal re-derived), or []."""
         candidates = self.store.list_memories(org_id, scope=target_unit, status="active", entity=entity,
                                               operators=rule.sources, limit=self.max_candidates, newest_first=False,
                                               applied_only=True)
         candidates = [m for m in candidates if m.slot in rule.required_slots
-                      and m.rule_id != rule.rule_id
+                      and rule.rule_id not in rule_chain(m)
                       and (not rule.topic_prefix or (m.topic or "").startswith(rule.topic_prefix))
                       and (entity is None or m.entity == entity)]
         # finer-grained evidence wins: a consolidation whose own parents are already candidates would only
@@ -321,6 +346,14 @@ class Aggregator:
         claims = tuple(self._claim(m, rule) for m in candidates)
         slots = tuple(rule.required_slots)
         synthesis = RuleBasedSynthesizer(slots).synthesize(claims)
+        # fragility enumerates the product of per-slot candidates: score only the K strongest per slot, in the
+        # synthesizer's own order so the selection is always inside the scored set
+        scored: list[ClaimEnvelope] = []
+        for slot in slots:
+            per = sorted((c for c in claims if c.content.get("slot") == slot),
+                         key=lambda c: (-c.confidence, c.producer_node_id, c.claim_id))
+            scored.extend(per[:FRAGILITY_TOP_K])
+        scored_claims = tuple(scored)
         by_id = {m.memory_id: m for m in candidates}
         selected = [by_id[cid] for cid in synthesis.selected_claim_ids] if synthesis.success else []
         # with corroboration every memory that fills a required slot is evidence, not only the strongest per slot
@@ -332,14 +365,12 @@ class Aggregator:
                         for layer in per} for slot, per in rule.min_units.items()}
         enough_units = all(len(units[slot][layer]) >= n for slot, per in rule.min_units.items() for layer, n in per.items())
         if not synthesis.success or len(agents) < rule.min_agents or len(teams) < rule.min_teams or not enough_units:
-            if current is not None:
-                tx.set_memory_status(current.memory_id, "retracted", reason="support below threshold")
-            return None
+            return self._withdraw(tx, current) if current is not None else []
         parent_ids = sorted(m.memory_id for m in evidence)
         new_id = derived_memory_id(operator="slot_composition", scope=target_unit, key=key, parent_ids=parent_ids)
         if current is not None and current.memory_id == new_id:
-            return None
-        metrics = LineageAnalyzer().score(claims, slots, synthesis)
+            return []
+        metrics = LineageAnalyzer().score(scored_claims, slots, synthesis)
         slot_texts = {m.slot: m.text for m in selected if m.slot}
         if rule.corroborate:
             # confidence per slot rises with independent corroboration (noisy-OR over the units filling it);
@@ -366,13 +397,15 @@ class Aggregator:
             metadata={
                 "agg_key": key, "contributing_agents": agents, "contributing_teams": teams,
                 "slots": {m.slot: m.memory_id for m in selected if m.slot}, "candidates": len(candidates),
+                "fragility_scored_candidates": len(scored_claims),
                 "evidence": {m.memory_id: {"slot": m.slot, "layer": m.layer, "scope": m.scope, "operator": m.operator}
                              for m in evidence},
                 "corroborated_units": units, "roots": sorted({r for m in evidence for r in lineage_roots(m)}),
+                "rule_chain": sorted({rule.rule_id} | {r for m in evidence for r in rule_chain(m)}),
                 "fragility": to_jsonable(metrics), "version_of": current.memory_id if current else None,
             },
         )
-        return self._persist(tx, memory, evidence, current)
+        return [self._persist(tx, memory, evidence, current)]
 
     @staticmethod
     def _claim(m: Memory, rule: Rule) -> ClaimEnvelope:
@@ -403,8 +436,9 @@ class Aggregator:
             # the exact earlier coalition is back (evidence was retracted, or a retraction was undone by new
             # evidence): the earlier derived memory becomes current again, keeping its id and its lineage edges
             version_of = current.memory_id if current is not None else existing.metadata.get("version_of")
-            tx.reactivate_memory(memory.memory_id, applied_at=now, metadata={**existing.metadata, **memory.metadata,
-                                                                            "version_of": version_of, "reactivated_at": now})
+            meta = {**existing.metadata, **memory.metadata, "version_of": version_of, "reactivated_at": now}
+            meta.pop("status_reason", None)          # the reason it was retired does not describe an active memory
+            tx.reactivate_memory(memory.memory_id, applied_at=now, metadata=meta)
             memory = self.store.get_memory(memory.memory_id) or memory
         else:
             raise RuntimeError(f"derived memory id collision for {memory.memory_id}; refusing to attach lineage")
@@ -415,5 +449,7 @@ class Aggregator:
 
 
 def _common(mems: list[Memory], attr: str) -> str | None:
-    values = {getattr(m, attr) for m in mems if getattr(m, attr)}
+    """The one value every parent carries, or None: a parent without it (None) blocks it, so a consolidation never
+    claims a slot or entity that only some of its evidence supports."""
+    values = {getattr(m, attr) for m in mems}
     return values.pop() if len(values) == 1 else None

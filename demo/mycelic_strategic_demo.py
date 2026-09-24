@@ -10,12 +10,14 @@ servo drive: a port strike, slipping carrier ETAs, a supplier with two weeks of 
 orders.  Each region's agents share their notes; Mycelic composes a *regional* supply-risk conclusion in each
 region.  Head office knows two other things: order intake is up 40% and Kessler is the only qualified source.
 Nobody holds all of it.  The rule ``strategic_second_source`` fires at the enterprise once supply risk is
-corroborated in at least two regions: "qualify a second source".  Its lineage runs three hops deep:
-enterprise strategy <- regional conclusions <- team observations, across 14 agents in 8 teams and 3 regions.
+corroborated in at least two regions: "qualify a second source".  Its lineage spans three layers in two
+derivation steps: enterprise strategy <- regional conclusions <- agents' observations, resting on 8 of the 14
+agents (the strongest note per slot in each region plus the two head-office notes) in 8 teams across 3 regions.
 
-The demo then shows that strategy follows evidence (retract APAC's supplier note: the regional conclusion and
-the strategy are withdrawn; new evidence brings them back), that a region sees only its own conclusion while
-the strategy is visible to everyone, and that a rebuild from the event log reproduces the whole chain.
+The demo then shows that strategy follows evidence (retract APAC's supplier notes: the regional conclusion and
+the strategy are withdrawn; new evidence brings them back as a new version), that an agent sees its own
+region's conclusion and its own team's notes while everything else in the lineage is redacted rather than
+dropped, and that a rebuild from the event log reproduces the whole chain.
 Every number printed is read from the live deployment.
 """
 from __future__ import annotations
@@ -176,7 +178,7 @@ def main(argv: list[str] | None = None) -> int:
         g = admin.lineage(strat["memory_id"])
         regions = strat["metadata"].get("corroborated_units", {}).get("supply_risk", {}).get("region", [])
         verdict(len(regions) >= 2, f"corroborated across regions: {[leaf(r) for r in regions]}")
-        verdict(g["layers"] == ["agent", "region", "enterprise"], f"lineage crosses layers {g['layers']}: three hops from agents' notes to strategy")
+        verdict(g["layers"] == ["agent", "region", "enterprise"], f"lineage crosses layers {g['layers']}: two derivation steps from agents' notes to strategy")
         parents = sorted(e["parent"] for e in g["edges"] if e["child"] == strat["memory_id"])
         by_layer: dict[str, int] = {}
         for pid in parents:
@@ -194,8 +196,19 @@ def main(argv: list[str] | None = None) -> int:
         (args.out / "lineage.mmd").write_text(mermaid(g), encoding="utf-8")
         say(f"written {args.out / 'lineage.json'} and {args.out / 'lineage.mmd'}", "ok")
         emea_view = emea_agent.lineage(strat["memory_id"])
-        verdict(emea_view["redacted_contributions"] > 0 and emea_view["nodes"][regional[f'{ENTERPRISE}/apac']['memory_id']]["text"] is None,
-                f"the same lineage for an EMEA agent: {emea_view['redacted_contributions']} contributions redacted (APAC's evidence), shape intact")
+        redacted_by_region: dict[str, int] = {}
+        for n in emea_view["nodes"].values():
+            if n["redacted"]:
+                r = n["scope"].split("/")[1] if "/" in n["scope"] else n["scope"]
+                redacted_by_region[r] = redacted_by_region.get(r, 0) + 1
+        hq_note_ids = [m["memory_id"] for a in sc.by_region("hq") for m in admin.list_memories(scope=a.path, layer="agent", limit=5)]
+        verdict(emea_view["redacted_contributions"] == sum(redacted_by_region.values()) > 0
+                and emea_view["nodes"][regional[f"{ENTERPRISE}/apac"]["memory_id"]]["text"] is None
+                and not emea_view["nodes"][regional[f"{ENTERPRISE}/emea"]["memory_id"]]["redacted"]
+                and all(emea_view["nodes"][mid]["redacted"] for mid in hq_note_ids if mid in emea_view["nodes"]),
+                f"the same lineage for an EMEA field-sales agent: {emea_view['redacted_contributions']} of {len(emea_view['nodes'])} contributions redacted "
+                f"({', '.join(f'{v} {k}' for k, v in sorted(redacted_by_region.items()))}: APAC's conclusion and notes, HQ's notes, other EMEA teams' notes); "
+                f"EMEA's conclusion and its own note readable, shape intact")
         pause()
 
         head("Strategy follows evidence: APAC retracts its supplier notes")
@@ -205,10 +218,12 @@ def main(argv: list[str] | None = None) -> int:
             say(f"{m['producer_id']} retracted: {clip(m['text'], 80)}", "warn")
         wait_idle(admin)
         regional_now = {m["scope"] for m in admin.list_memories(scope=ENTERPRISE, layer="region", limit=50) if m.get("rule_id") == "regional_supply_risk"}
-        gone = strategic_answer(hq)["hit"] is None
+        active_strategies = [m for m in admin.list_memories(scope=ENTERPRISE, layer="enterprise", limit=50) if m.get("rule_id") == "strategic_second_source"]
+        gone = strategic_answer(hq)["hit"] is None and not active_strategies
         verdict(regional_now == {f"{ENTERPRISE}/emea"} and gone,
                 f"APAC's regional conclusion is withdrawn and so is the strategy (regions with a conclusion now: {[leaf(r) for r in sorted(regional_now)]})")
-        say(f"the withdrawn strategy is kept as history: status {admin.get_memory(strat['memory_id'])['status']}", "warn")
+        strat_now = admin.get_memory(strat["memory_id"])
+        verdict(strat_now["status"] == "retracted", f"the withdrawn strategy is kept as history: status {strat_now['status']}")
         apac_proc2 = sc.agent("apac-procurement-2")
         MycelicClient(driver.base_url, apac_proc2.api_key).remember(
             "Physical count confirms roughly two weeks of SD-9 inventory in the APAC warehouse.", topic="supply:sd-9/supplier",
@@ -222,13 +237,16 @@ def main(argv: list[str] | None = None) -> int:
 
         head("Failure: the service is killed and its database deleted — rebuild from the event log")
         before = {m["memory_id"] for m in admin.list_memories(scope=ENTERPRISE, limit=500)}
+        lineage_before = admin.lineage(strat["memory_id"])
         driver.kill("mycelic")
         driver.wipe_database()
         driver.start("mycelic")
         st = wait_idle(admin, timeout=180)
         after = {m["memory_id"] for m in admin.list_memories(scope=ENTERPRISE, limit=500)}
         g2 = admin.lineage(strat["memory_id"])
-        verdict(after == before and sorted(g2["roots"]) == sorted(admin.lineage(strat["memory_id"])["roots"]) and g2["layers"] == ["agent", "region", "enterprise"],
+        edge_set = lambda g: {(e["child"], e["parent"]) for e in g["edges"]}  # noqa: E731
+        verdict(after == before and g2["roots"] == lineage_before["roots"] and edge_set(g2) == edge_set(lineage_before)
+                and g2["layers"] == lineage_before["layers"],
                 f"rebuilt {len(after)} active memories from {st['checks']['transport'].get('stream_messages')} events; the strategic lineage is identical")
         pause()
 
