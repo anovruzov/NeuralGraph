@@ -229,6 +229,8 @@ class ComposeDriver(Driver):
         return subprocess.run(cmd, check=check, capture_output=capture, text=True)
 
     def up(self) -> None:
+        # a smoke run means a fresh deployment: whatever a previous run of this project left behind goes first
+        self._compose("down", "-v", "--remove-orphans", check=False, capture=True)
         args = ["up", "-d", "--wait", "--wait-timeout", "180"]
         if self.build:
             args.insert(1, "--build")

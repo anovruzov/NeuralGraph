@@ -25,9 +25,9 @@ services:
       # busybox wget is in the alpine image; /healthz reports ok only once JetStream is up
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8222/healthz?js-enabled-only=true"]
       interval: 5s
-      timeout: 3s
-      retries: 12
-      start_period: 5s
+      timeout: 5s
+      retries: 24              # two minutes: a loaded host (image build in parallel) must not fail the start
+      start_period: 10s
     restart: unless-stopped
 
   mycelic:
