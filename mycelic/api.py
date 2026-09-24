@@ -9,11 +9,11 @@ GET  /metrics                  Prometheus text format (token: MYCELIC_METRICS_TO
 GET  /whoami                   the authenticated principal
 POST /memory                   memory:write   store one memory (202 Accepted; aggregation is asynchronous)
 GET  /memory/{id}              memory:read
-POST /memory/{id}/retract      producer or admin
+POST /memory/{id}/retract      producer or admin, raw observations only (derived memories follow their evidence)
 GET  /memories                 memory:read    ?scope=&layer=&limit=
 POST /events                   events:write   {"events": [...]} (each may embed a "memory")
 POST /query                    memory:read    {"query", "scope"?, "min_layer"?, "k"?, "include_lineage"?}
-GET  /lineage/{id}             lineage:read
+GET  /lineage/{id}             lineage:read   (POST /query embeds the lineage only for callers holding it)
 POST /admin/agents             admin          register an agent (the key is returned once)
 GET  /admin/agents             admin
 DELETE /admin/agents/{id}      admin          revoke
@@ -64,11 +64,15 @@ def _suppressed_log(reason: str, remote: str, message: str) -> None:
         logger.warning("%s from %s: %s", reason, remote, message)
 
 
-def _remote(request: web.Request, trust_proxy: bool) -> str:
+def _remote(request: web.Request, trust_proxy: bool, trusted_hops: int = 1) -> str:
+    """The client address as the proxy saw it: the Nth entry from the right of X-Forwarded-For, never the leftmost
+    (which the client itself can set). Only used when the deployment says the proxy is the only path in."""
     if trust_proxy:
         fwd = request.headers.get("X-Forwarded-For")
         if fwd:
-            return fwd.split(",")[0].strip()
+            parts = [p.strip() for p in fwd.split(",") if p.strip()]
+            if len(parts) >= trusted_hops:
+                return parts[-trusted_hops]
     return request.remote or "unknown"
 
 
@@ -109,8 +113,9 @@ def create_app(service: MycelicService) -> web.Application:
     @web.middleware
     async def middleware(request: web.Request, handler: Callable[[web.Request], Awaitable[web.StreamResponse]]) -> web.StreamResponse:
         route = _route_label(request)
-        remote = _remote(request, s.trust_proxy_headers)
-        if not host_ok(request):
+        remote = _remote(request, s.trust_proxy_headers, s.trusted_proxy_hops)
+        # probes (kubelet, Docker HEALTHCHECK) send the pod/container address as Host: only the public paths skip the check
+        if request.path not in PUBLIC_PATHS and not host_ok(request):
             m.http_requests.labels(route, "421").inc()
             return _error("host not allowed", 421)
         if request.method == "OPTIONS":
@@ -198,7 +203,9 @@ def create_app(service: MycelicService) -> web.Application:
         if auth:
             try:
                 p = service.authenticate(auth)
-            except AuthError:
+            except AuthError as exc:
+                m.auth_failures.labels(exc.reason.replace(" ", "_")).inc()
+                _suppressed_log("auth failure", request["remote"], exc.reason)
                 p = None
             if p is not None and p.is_admin:
                 return _json(h, status)
@@ -212,6 +219,9 @@ def create_app(service: MycelicService) -> web.Application:
 
     async def metrics(request: web.Request) -> web.Response:
         m.refresh_from_stats(service.store.stats())
+        info = await service.transport.info()
+        if "consumer_pending" in info:
+            m.consumer_pending.set(int(info["consumer_pending"]))
         body, content_type = m.render()
         return web.Response(body=body, content_type=content_type.split(";")[0], charset="utf-8")
 

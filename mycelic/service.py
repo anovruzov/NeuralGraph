@@ -48,6 +48,10 @@ from .transport import Transport, build_transport, subject_for
 logger = logging.getLogger(__name__)
 
 VERSION = "0.1.0"
+#: metadata keys the aggregator owns; an agent may not set them on a raw observation
+RESERVED_METADATA_KEYS = frozenset({"agg_key", "promoted_from", "version_of", "contributing_agents", "contributing_teams",
+                                    "children", "child_layer", "parent_count", "fragility", "slots", "candidates",
+                                    "effective_min_support", "registered_child_units", "status_reason", "reactivated_at"})
 _SLOT_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,100}$")
 _ID_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,200}$")
 
@@ -186,34 +190,74 @@ class MycelicService:
         await self._recover_if_needed()
         return True
 
+    async def _set_replay_target(self, target: int | None) -> None:
+        """Remember how far a replay must go, in memory and in the database, so a crash mid-rebuild resumes it."""
+        self._replay_target = target
+        async with self.store.transaction() as tx:
+            if target is None:
+                tx.delete_meta("replay_target_seq")
+            else:
+                tx.set_meta("replay_target_seq", str(target))
+
     async def _recover_if_needed(self) -> None:
-        """Bring a database that is behind the stream back in sync.
+        """Bring a database that is out of step with the stream back in sync.
 
         * never applied anything while the stream has events (fresh volume, lost database): replay the whole log;
-        * applied less than the durable consumer has acknowledged (database restored from a backup): recreate the
-          consumer at ``last_applied_seq + 1`` so the events since the backup are delivered again.  Applying is
-          idempotent by event id, so overlap is harmless.
+        * applied less than the durable consumer has acknowledged (database restored from a backup), or the
+          durable consumer is brand new while the database is not (consumer lost): recreate the consumer at
+          ``last_applied_seq + 1`` so the events since then are delivered again (applying is idempotent);
+        * the stream is shorter than what the database applied (stream purged or recreated): keep serving from
+          the database, start counting from the new stream, and say so loudly;
+        * a replay recorded in the database that did not finish (crash mid-rebuild): keep reporting not-ready
+          until it completes.
         """
         last = self.store.get_meta("last_applied_seq")
         info = await self.transport.info()
         count = info.get("stream_messages") or 0
+        last_seq = int(info.get("last_seq") or count or 0)
         if last is None:
             if count:
                 logger.warning("fresh database but the stream holds %d events: replaying the full log to rebuild state", count)
                 await self.transport.reset_consumer()
-                self._replay_target = info.get("last_seq") or count
+                await self._set_replay_target(last_seq)
                 self.metrics.recoveries.labels("replay_fresh_db").inc()
+            return
+        applied = int(last)
+        if last_seq < applied and info.get("connected"):
+            logger.error("the stream ends at seq %d but this database applied up to %d: the stream was purged or recreated; "
+                         "serving from the database, replay is impossible until events accumulate again", last_seq, applied)
+            self.metrics.recoveries.labels("stream_behind_database").inc()
+            async with self.store.transaction() as tx:
+                tx.set_meta("last_applied_seq", "0")
+                tx.delete_meta("replay_target_seq")
+                tx.audit("mycelic", "recovery.stream_behind_database", None, {"stream_last_seq": last_seq, "applied": applied})
+            self._replay_target = None
             return
         floor_getter = getattr(self.transport, "consumer_ack_floor", None)
         floor = await floor_getter() if floor_getter else None
-        if floor is not None and int(last) < floor:
-            logger.warning("database applied up to seq %s but the consumer acknowledged up to %s (restored backup?): "
-                           "re-delivering from %s", last, floor, int(last) + 1)
-            await self.transport.reset_consumer(start_seq=int(last) + 1)
-            self._replay_target = info.get("last_seq") or None
-            self.metrics.recoveries.labels("replay_restored_backup").inc()
+        delivered = int(info.get("consumer_delivered_seq") or 0)
+        behind = floor is not None and applied < floor
+        fresh_consumer = floor is not None and floor == 0 and delivered == 0 and applied > 0
+        if behind or fresh_consumer:
+            kind = "replay_restored_backup" if behind else "consumer_recreated"
+            logger.warning("database applied up to seq %d but the consumer %s: re-delivering from %d", applied,
+                           f"acknowledged up to {floor} (restored backup?)" if behind else "is new (consumer lost?)", applied + 1)
+            await self.transport.reset_consumer(start_seq=applied + 1)
+            await self._set_replay_target(last_seq if last_seq > applied else None)
+            self.metrics.recoveries.labels(kind).inc()
+            return
+        pending = self.store.get_meta("replay_target_seq")
+        if pending is not None:
+            if applied < int(pending):
+                logger.warning("resuming an unfinished replay to seq %s (applied %d)", pending, applied)
+                self._replay_target = int(pending)
+                self.metrics.recoveries.labels("replay_resumed").inc()
+            else:
+                await self._set_replay_target(None)
 
     def load_rules_file(self) -> int:
+        """Apply the rules file at start. A rule that differs from what is stored is upserted *and* appended to the
+        event log, so a rebuild from the stream ends with the same rules as this node; identical rules are skipped."""
         path = self.settings.rules_file
         if not path:
             return 0
@@ -222,20 +266,25 @@ class MycelicService:
         n = 0
         for item in rules:
             rule = self._rule_from_body(item)
-            self._upsert_rule_sync(rule)
+            existing = self.store.get_rule(rule.rule_id)
+            if existing is not None and existing.to_dict() == rule.to_dict():
+                continue
+            c = self.store._conn
+            c.execute("BEGIN IMMEDIATE")
+            try:
+                tx = Tx(self.store, c)
+                tx.upsert_rule(rule)
+                tx.insert_event(self._admin_event("rule.upserted", rule.org_id or "_", rule.to_dict()))
+                tx.audit("rules_file", "rule.upsert", rule.rule_id, {"source": path, "target_layer": rule.target_layer})
+            except BaseException:
+                c.execute("ROLLBACK")
+                raise
+            c.execute("COMMIT")
             n += 1
-        logger.info("loaded %d rules from %s", n, path)
+        if n:
+            logger.info("loaded %d changed rules from %s", n, path)
+            self._outbox_wake.set()
         return n
-
-    def _upsert_rule_sync(self, rule: Rule) -> None:
-        c = self.store._conn
-        c.execute("BEGIN IMMEDIATE")
-        try:
-            Tx(self.store, c).upsert_rule(rule)
-        except BaseException:
-            c.execute("ROLLBACK")
-            raise
-        c.execute("COMMIT")
 
     # ------------------------------------------------------------------ background loops
     async def _transport_keeper(self) -> None:
@@ -332,9 +381,11 @@ class MycelicService:
             # not ours: whoever published it did not hold the signing key.  Drop it loudly and permanently.
             self.metrics.events_failed.labels("signature").inc()
             logger.error("event at seq %s has a missing or invalid signature; terminated", d.seq)
+            await d.term()
             async with self.store.transaction() as tx:
                 tx.audit("mycelic", "event.rejected", None, {"reason": "invalid signature", "seq": d.seq, "subject": d.subject})
-            await d.term()
+                self._progress_in_tx(tx, d.seq)
+            self._note_progress(d.seq)
             return
         try:
             event = json.loads(d.data.decode("utf-8"))
@@ -350,11 +401,13 @@ class MycelicService:
                     eid = json.loads(d.data.decode("utf-8")).get("event_id")
                 except Exception:
                     eid = None
-                if isinstance(eid, str):
-                    async with self.store.transaction() as tx:
-                        if tx.event_status(eid) is not None:
-                            tx.mark_failed(eid, f"{type(exc).__name__}: {exc}")
-                        tx.audit("mycelic", "event.failed", eid, {"error": f"{type(exc).__name__}: {exc}", "seq": d.seq})
+                async with self.store.transaction() as tx:
+                    if isinstance(eid, str) and tx.event_status(eid) is not None:
+                        tx.mark_failed(eid, f"{type(exc).__name__}: {exc}")
+                    tx.audit("mycelic", "event.failed", eid if isinstance(eid, str) else None,
+                             {"error": f"{type(exc).__name__}: {exc}", "seq": d.seq})
+                    self._progress_in_tx(tx, d.seq)
+                self._note_progress(d.seq)
             else:
                 logger.warning("event at seq %s failed (attempt %d): %s: %s", d.seq, d.num_delivered, type(exc).__name__, exc)
                 # back off *before* the nak so the message stays in flight and nothing overtakes it
@@ -364,11 +417,23 @@ class MycelicService:
         await d.ack()
         self.metrics.aggregation_latency.observe(time.perf_counter() - t0)
         self.metrics.events_applied.labels(event.get("kind", "?"), result).inc()
-        if self._replay_target is not None:
-            self.metrics.replay_events.inc()
-            if d.seq is not None and d.seq >= self._replay_target:
-                logger.info("replay complete at seq %s", d.seq)
-                self._replay_target = None
+        self._note_progress(d.seq)
+
+    def _progress_in_tx(self, tx: Tx, seq: int | None) -> None:
+        """Record the stream position inside the transaction that consumed it (applied, rejected or terminated)."""
+        if seq is None:
+            return
+        tx.set_meta("last_applied_seq", str(seq))
+        if self._replay_target is not None and seq >= self._replay_target:
+            tx.delete_meta("replay_target_seq")
+
+    def _note_progress(self, seq: int | None) -> None:
+        if self._replay_target is None:
+            return
+        self.metrics.replay_events.inc()
+        if seq is not None and seq >= self._replay_target:
+            logger.info("replay complete at seq %s", seq)
+            self._replay_target = None
 
     async def _sleep(self, seconds: float) -> None:
         try:
@@ -454,7 +519,13 @@ class MycelicService:
         srcs = body.get("source_event_ids") or []
         if not isinstance(srcs, list) or len(srcs) > 50 or any(not isinstance(x, str) or not _ID_RE.match(x) for x in srcs):
             raise ValidationError("'source_event_ids' must be a list of at most 50 ids")
+        if srcs:
+            found = self.store.get_events(srcs)
+            # one message for unknown and foreign ids alike, so the check is not an oracle for other organizations
+            if any(eid not in found or found[eid].org_id != principal.org_id for eid in srcs):
+                raise ValidationError("'source_event_ids' must reference events recorded by your organization")
         srcs = list(dict.fromkeys([*srcs, *(source_event_ids or [])]))
+        meta = {k: v for k, v in _small_dict(body, "metadata", 4096).items() if k not in RESERVED_METADATA_KEYS}
         observed_at = _iso(body, "observed_at") or now_iso()
         idem = _s(body, "idempotency_key", max_len=200)
         memory_id = f"mem_{content_hash(principal.id, idem)[:22]}" if idem else new_id("mem")
@@ -464,7 +535,7 @@ class MycelicService:
             entity=_s(body, "entity", max_len=200), kind=kind, confidence=_f(body, "confidence", 0.8), support=1,
             independent_teams=1, producer_id=principal.id, operator="agent_observation", rule_id=None, event_id=None,
             visibility=visibility, status="active", created_at=observed_at, applied_at=None, source_event_ids=srcs,
-            local_ref=_s(body, "local_ref", max_len=200), metadata=_small_dict(body, "metadata", 4096),
+            local_ref=_s(body, "local_ref", max_len=200), metadata=meta,
         )
 
     async def ingest_memory(self, principal: Principal, body: dict[str, Any], *, remote: str | None = None) -> tuple[Memory, bool]:
@@ -516,6 +587,9 @@ class MycelicService:
                 if not isinstance(item["memory"], dict):
                     raise ValidationError(f"events[{i}].memory must be an object")
                 mem = self._validate_memory_body(principal, item["memory"], source_event_ids=[event_id])
+                if idem and not item["memory"].get("idempotency_key"):
+                    # the event's idempotency key also makes its embedded memory idempotent (domain-separated)
+                    mem.memory_id = f"mem_{content_hash(principal.id, 'event-memory', idem)[:22]}"
             self._check_event_size(record)
             prepared.append((record, mem))
         results = []
@@ -554,6 +628,9 @@ class MycelicService:
             raise NotFound(memory_id)
         if not principal.is_admin and m.producer_id != principal.id:
             raise Forbidden("only the producing agent or an administrator can retract a memory")
+        if m.operator != "agent_observation":
+            raise ValidationError("derived memories are recomputed from their evidence and cannot be retracted directly; "
+                                  "retract the contributing observations (the roots in GET /lineage/{id}) instead")
         event = EventRecord(event_id=new_id("evt"), kind="memory.retracted", org_id=m.org_id, agent_id=principal.id,
                             subject=subject_for(m.org_id, "memory.retracted"),
                             payload={"memory_id": memory_id, "reason": reason[:200], "by": principal.id}, created_at=now_iso())
@@ -576,7 +653,7 @@ class MycelicService:
             if status == "applied":
                 if seq is not None:
                     tx.mark_applied(event_id, seq, now)
-                    tx.set_meta("last_applied_seq", str(seq))
+                    self._progress_in_tx(tx, seq)
                 return "duplicate"
             if status is None:
                 # Not in this database: the event came from the stream (rebuild after data loss, or another writer).
@@ -595,8 +672,7 @@ class MycelicService:
                     tx.audit("mycelic", "event.rejected", event_id, {"reason": "producer not registered for this scope",
                                                                     "producer_id": m.producer_id, "scope": m.scope})
                     tx.mark_applied(event_id, seq, now)
-                    if seq is not None:
-                        tx.set_meta("last_applied_seq", str(seq))
+                    self._progress_in_tx(tx, seq)
                     self.metrics.events_failed.labels("validate").inc()
                     return "rejected"
                 if tx.insert_memory(m):
@@ -625,11 +701,13 @@ class MycelicService:
             elif kind == "memory.retracted":
                 mid = payload.get("memory_id")
                 m = self.store.get_memory(mid) if isinstance(mid, str) else None
-                if m is not None and m.status == "active":
+                if m is not None and m.status == "active" and m.operator == "agent_observation":
                     tx.set_memory_status(mid, "retracted", reason=str(payload.get("reason") or "retracted"))
                     self.aggregator.retire_dependents(tx, mid, "evidence retracted")
                     derivations = self.aggregator.derive_for(tx, m)
                 else:
+                    # derived memories are a function of their evidence: they can only go away with it
+                    tx.audit("mycelic", "event.ignored", event_id, {"reason": "retraction target is not an active raw observation"})
                     result = "ignored"
             elif kind == "agent.event":
                 pass
@@ -664,10 +742,7 @@ class MycelicService:
                 tx.insert_event(dev)
                 self.metrics.derived.labels(d.memory.layer, d.memory.operator).inc()
             tx.mark_applied(event_id, seq, now)
-            if seq is not None:
-                tx.set_meta("last_applied_seq", str(seq))
-            else:
-                tx.set_meta("last_applied_seq", self.store.get_meta("last_applied_seq") or "0")
+            self._progress_in_tx(tx, seq)
         if derivations:
             self._outbox_wake.set()
         return result
@@ -678,8 +753,10 @@ class MycelicService:
             if not isinstance(p.get(k), str) or not p[k]:
                 raise ValidationError(f"agent payload lacks '{k}'")
         AgentPath.parse(p["path"])
+        raw_scopes = p.get("scopes")
         return Agent(agent_id=p["agent_id"], org_id=p["org_id"], display_name=p.get("display_name") or p["agent_id"],
-                     path=p["path"], scopes=list(p.get("scopes") or DEFAULT_AGENT_SCOPES), key_prefix=p.get("key_prefix") or "",
+                     path=p["path"], scopes=list(DEFAULT_AGENT_SCOPES) if raw_scopes is None else list(raw_scopes),
+                     key_prefix=p.get("key_prefix") or "",
                      status=p.get("status") or "active", created_at=p.get("created_at") or now_iso(),
                      metadata=dict(p.get("metadata") or {}))
 
@@ -706,6 +783,8 @@ class MycelicService:
 
     # ------------------------------------------------------------------ reads
     def get_memory(self, principal: Principal, memory_id: str) -> Memory:
+        if not principal.has("memory:read"):
+            raise Forbidden("missing scope memory:read")
         m = self.store.get_memory(memory_id)
         if m is None or not principal.can_read(m):
             raise NotFound(memory_id)
@@ -741,7 +820,7 @@ class MycelicService:
         k = body.get("k", 10)
         if isinstance(k, bool) or not isinstance(k, int) or not 1 <= k <= 100:
             raise ValidationError("'k' must be an integer between 1 and 100")
-        include_lineage = bool(body.get("include_lineage", True))
+        include_lineage = bool(body.get("include_lineage", True)) and principal.has("lineage:read")
         hits = self.retriever.search(org_id or "", text, visible=principal.can_read, scope=scope, min_layer=min_layer, k=k,
                                      topic=_s(body, "topic", max_len=200), entity=_s(body, "entity", max_len=200))
         answer = None
@@ -761,7 +840,7 @@ class MycelicService:
 
     def _lineage_summary(self, principal: Principal, m: Memory) -> dict[str, Any]:
         try:
-            g = reconstruct(self.store, m.memory_id, visible=principal.can_read)
+            g = reconstruct(self.store, m.memory_id, visible=principal.can_read, full=principal.owns)
         except LineageNotFound:
             return {"available": False}
         return {"available": True, "contributing_agents": len(g["contributing_agents"]) + g["redacted_contributions"],
@@ -769,7 +848,7 @@ class MycelicService:
                 "reconstructable": g["evidence"]["reconstructable"], "first_observed_at": g["timeline"]["first_observed_at"]}
 
     def lineage(self, principal: Principal, memory_id: str) -> dict[str, Any]:
-        if not principal.has("lineage:read") and not principal.has("memory:read"):
+        if not principal.has("lineage:read"):
             raise Forbidden("missing scope lineage:read")
         m = self.store.get_memory(memory_id)
         if m is None or not principal.can_read(m):
@@ -777,7 +856,7 @@ class MycelicService:
             raise NotFound(memory_id)
         t0 = time.perf_counter()
         try:
-            g = reconstruct(self.store, memory_id, visible=principal.can_read)
+            g = reconstruct(self.store, memory_id, visible=principal.can_read, full=principal.owns)
         except Exception:
             self.metrics.lineage_results.labels("failure").inc()
             raise
@@ -787,6 +866,8 @@ class MycelicService:
 
     def list_memories(self, principal: Principal, *, scope: str | None = None, layers: list[str] | None = None,
                       limit: int = 50, status: str = "active") -> list[Memory]:
+        if not principal.has("memory:read"):
+            raise Forbidden("missing scope memory:read")
         org_id = principal.org_id
         if scope:
             split_path(scope)
@@ -822,7 +903,9 @@ class MycelicService:
                 agent_id=_s(body, "agent_id", required=True, max_len=64) or "")
         except HierarchyError as exc:
             raise ValidationError(str(exc)) from exc
-        scopes = body.get("scopes") or list(DEFAULT_AGENT_SCOPES)
+        scopes = body.get("scopes")
+        if scopes is None:
+            scopes = list(DEFAULT_AGENT_SCOPES)
         if not isinstance(scopes, list) or any(s not in ALL_SCOPES or s == "admin" for s in scopes):
             raise ValidationError(f"'scopes' must be a subset of {[s for s in ALL_SCOPES if s != 'admin']}")
         display = _s(body, "display_name", max_len=120) or ap.agent_id
@@ -913,7 +996,7 @@ class MycelicService:
         """Re-deliver the whole log to this instance. Applying is idempotent; missing derived state is rebuilt."""
         info = await self.transport.info()
         await self.transport.reset_consumer()
-        self._replay_target = info.get("last_seq") or info.get("stream_messages") or None
+        await self._set_replay_target(info.get("last_seq") or info.get("stream_messages") or None)
         self.metrics.recoveries.labels("replay_requested").inc()
         await self.store.audit("admin", "replay", None, {"target_seq": self._replay_target}, remote)
         return {"replaying": True, "target_seq": self._replay_target}

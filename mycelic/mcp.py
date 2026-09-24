@@ -19,7 +19,9 @@ import contextvars
 import json
 from typing import Any
 
-from NeuralGraph.chat_memory.mcp_server import MCPProtocol, StreamableHTTPTransport, ToolError
+from aiohttp import web
+
+from NeuralGraph.chat_memory.mcp_server import JSONRPC_INVALID_REQUEST, MCPProtocol, StreamableHTTPTransport, ToolError
 
 from .auth import Principal
 from .service import Forbidden, MycelicService, NotFound, ValidationError
@@ -156,8 +158,10 @@ class MycelicTools:
         return self.service.public_view(self.service.get_memory(p, memory_id), p)
 
     async def tool_mycelic_status(self) -> dict[str, Any]:
+        p = self._principal()
         h = await self.service.health()
-        return {"status": h["status"], "version": h["version"], "memories_by_layer": h["stats"].get("memories_by_layer"),
+        by_layer = h["stats"].get("memories_by_layer") if p.is_admin else self.service.store.memories_by_layer(p.org_id)
+        return {"status": h["status"], "version": h["version"], "memories_by_layer": by_layer,
                 "transport_connected": bool(h["checks"]["transport"].get("connected"))}
 
 
@@ -170,8 +174,24 @@ class MycelicMCPTransport(StreamableHTTPTransport):
 
     def __init__(self, service: MycelicService, *, allowed_origins: list[str] | None = None) -> None:
         super().__init__(None, token=None, allowed_origins=allowed_origins, protocol=build_protocol(service))
+        self.service = service
 
     async def handle(self, request):  # type: ignore[override]
+        if request.method == "POST":
+            # a JSON-RPC batch is as many requests as it carries: cap it like POST /events and charge the limiter for it
+            try:
+                payload = await request.json()
+            except Exception:
+                payload = None
+            if isinstance(payload, list):
+                settings = self.service.settings
+                if len(payload) > settings.max_batch:
+                    return web.json_response(MCPProtocol._error(None, JSONRPC_INVALID_REQUEST, f"batch too large (max {settings.max_batch})"), status=400)
+                extra = len(payload) - 1
+                principal = request.get("principal")
+                if extra > 0 and (not self.service.limiter.allow(f"ip:{request.get('remote', 'unknown')}", cost=extra) or
+                                  (principal is not None and not self.service.limiter.allow(f"principal:{principal.kind}:{principal.id}", cost=extra))):
+                    return web.json_response({"error": "rate limit exceeded"}, status=429)
         token = _principal.set(request.get("principal"))
         try:
             return await super().handle(request)

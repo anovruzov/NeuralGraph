@@ -24,8 +24,9 @@ USER mycelic
 EXPOSE 8080
 
 # python:3.11-slim has no curl/wget: probe with the standard library. /health answers 200 while the database is open.
+# The probe speaks HTTPS (without verifying the certificate) when the service is configured to serve TLS itself.
 HEALTHCHECK --interval=15s --timeout=5s --start-period=15s --retries=4 \
-  CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=4).status == 200 else 1)"
+  CMD python -c "import os,ssl,sys,urllib.request; tls=bool(os.environ.get('MYCELIC_TLS_CERT_FILE')); ctx=ssl.create_default_context(); ctx.check_hostname=False; ctx.verify_mode=ssl.CERT_NONE; sys.exit(0 if urllib.request.urlopen(('https' if tls else 'http')+'://127.0.0.1:8080/health', timeout=4, context=ctx if tls else None).status == 200 else 1)"
 
 ENTRYPOINT ["python", "-m", "mycelic"]
 CMD ["serve"]

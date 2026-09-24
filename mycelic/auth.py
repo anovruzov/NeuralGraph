@@ -83,6 +83,9 @@ class Principal:
             return False
         return memory_visible(m, agent_path=self.path, team_path=self.team_path)
 
+    def owns(self, m: Memory) -> bool:
+        return self.is_admin or m.producer_id == self.id
+
     def can_query_scope(self, scope: str) -> bool:
         if self.is_admin:
             return True
@@ -165,8 +168,9 @@ class RateLimiter:
     max_keys: int = 20_000
     _buckets: dict[str, _Bucket] = field(default_factory=dict)
 
-    def allow(self, key: str, now: float | None = None) -> bool:
-        if self.rps <= 0:
+    def allow(self, key: str, now: float | None = None, cost: int = 1) -> bool:
+        """Take ``cost`` tokens from the bucket (a batch request costs as many as the requests it carries)."""
+        if self.rps <= 0 or cost <= 0:
             return True
         now = time.monotonic() if now is None else now
         b = self._buckets.get(key)
@@ -176,8 +180,8 @@ class RateLimiter:
             b = self._buckets[key] = _Bucket(tokens=float(self.burst), updated=now)
         b.tokens = min(float(self.burst), b.tokens + (now - b.updated) * self.rps)
         b.updated = now
-        if b.tokens >= 1.0:
-            b.tokens -= 1.0
+        if b.tokens >= float(cost):
+            b.tokens -= float(cost)
             return True
         return False
 

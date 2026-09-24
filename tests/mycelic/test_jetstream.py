@@ -234,6 +234,88 @@ class JetStreamTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(s3.store.list_memories("northwind", layers=["team"])[0].support, 3)
         self.assertEqual(s3.authenticate(f"Bearer {key3}").id, "log-3")
 
+    async def test_lost_consumer_is_recreated_after_the_last_applied_event(self) -> None:
+        s1 = await self.new_service()
+        await self.seed(s1)
+        before = self.snapshot(s1)
+        stream_before = (await s1.transport.info())["stream_messages"]
+        await s1.transport._js.delete_consumer(s1.settings.nats_stream, s1.settings.nats_consumer)
+        await s1.close()
+        self.services.remove(s1)
+        s2 = await self.new_service()
+        self.assertTrue(await s2.wait_idle(20))
+        self.assertGreater(s2.metrics.recoveries.labels("consumer_recreated")._value.get(), 0)
+        self.assertEqual(self.snapshot(s2), before)
+        self.assertEqual((await s2.transport.info())["stream_messages"], stream_before, "nothing was re-published")
+        self.assertEqual(s2.store.stats()["outbox_pending"], 0)
+
+    async def test_forced_replay_is_idempotent(self) -> None:
+        s = await self.new_service()
+        await self.seed(s)
+        before = self.snapshot(s)
+        stream_before = (await s.transport.info())["stream_messages"]
+        res = await s.replay()
+        self.assertTrue(res["replaying"])
+        self.assertFalse((await s.ready())[0], "not ready while replaying")
+        self.assertTrue(await s.wait_idle(30))
+        self.assertTrue((await s.ready())[0])
+        self.assertEqual(self.snapshot(s), before)
+        self.assertEqual((await s.transport.info())["stream_messages"], stream_before)
+        self.assertGreater(s.metrics.recoveries.labels("replay_requested")._value.get(), 0)
+        self.assertIsNone(s.store.get_meta("replay_target_seq"))
+
+    async def test_poison_event_is_terminated_and_replay_completes(self) -> None:
+        import json
+        s = await self.new_service(nats_max_deliver=2)
+        await self.seed(s)
+        bad = {"event_id": "evt_poison", "kind": "memory.observed", "org_id": "northwind", "agent_id": "log-1",
+               "created_at": "2026-01-01T00:00:00+00:00", "payload": {"memory_id": "mem_poison"}, "schema": 1}
+        wire = json.dumps(bad).encode()
+        await s.transport.publish("mycelic.northwind.memory-observed", wire, "evt_poison", headers=s._sign(wire))
+        self.assertTrue(await s.wait_idle(30))
+        self.assertGreater(s.metrics.events_failed.labels("apply")._value.get(), 0)
+        self.assertIsNone(s.store.get_memory("mem_poison"))
+        self.assertIn("event.failed", {row["action"] for row in s.store.recent_audit(20)})
+        # an unsigned event as the very last stream entry must not leave a rebuild stuck in 'replaying'
+        await s.transport.publish("mycelic.northwind.memory-observed", b'{"event_id": "evt_unsigned", "kind": "agent.event", "payload": {}}', "evt_unsigned")
+        self.assertTrue(await s.wait_idle(20))
+        await s.close()
+        self.services.remove(s)
+        for f in self.root.glob("mycelic.db*"):
+            f.unlink()
+        s2 = await self.new_service(nats_max_deliver=2)
+        self.assertTrue(await s2.wait_idle(30))
+        self.assertTrue((await s2.ready())[0], "terminated events count as consumed for replay completion")
+        self.assertEqual(s2.store.stats()["memories_by_layer"]["enterprise"], 1)
+
+    async def test_unfinished_replay_resumes_after_a_crash(self) -> None:
+        s1 = await self.new_service()
+        await self.seed(s1)
+        before = self.snapshot(s1)
+        stream_before = (await s1.transport.info())["stream_messages"]
+        await s1.close()
+        self.services.remove(s1)
+        for f in self.root.glob("mycelic.db*"):
+            f.unlink()
+        # a rebuild that dies after a few events: no background loops, three deliveries applied by hand
+        s2 = MycelicService(self.make_settings(), metrics=Metrics())
+        await s2.start(background=False)
+        self.assertIsNotNone(s2._replay_target)
+        for _ in range(3):
+            for d in await s2.transport.fetch(1, 2.0):
+                await s2._handle_delivery(d)
+        self.assertEqual(s2.store.get_meta("last_applied_seq"), "3")
+        self.assertIsNotNone(s2.store.get_meta("replay_target_seq"))
+        await s2.transport.close()
+        await s2.store.close()
+        s3 = await self.new_service()
+        self.assertFalse((await s3.ready())[0], "still replaying after the crash")
+        self.assertGreater(s3.metrics.recoveries.labels("replay_resumed")._value.get(), 0)
+        self.assertTrue(await s3.wait_idle(30))
+        self.assertTrue((await s3.ready())[0])
+        self.assertEqual(self.snapshot(s3), before)
+        self.assertEqual((await s3.transport.info())["stream_messages"], stream_before, "no duplicates were appended")
+
     async def test_unsigned_events_are_rejected(self) -> None:
         s = await self.new_service()
         await self.seed(s)

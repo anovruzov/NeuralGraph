@@ -3,8 +3,9 @@
 #   docker compose -f deploy/mycelic/docker-compose.yml up -d --build
 #   docker compose -f deploy/mycelic/docker-compose.yml --profile observability up -d   # + Prometheus
 #
-# Topology: `nats` (JetStream, file store on the nats-data volume, not published) and `mycelic` (API on
-# ${MYCELIC_PORT}, SQLite on the mycelic-data volume). Everything else is optional.
+# Topology: `nats` (JetStream, file store on the nats-data volume, not published) and `mycelic` (plain-HTTP API
+# published on ${MYCELIC_BIND_ADDRESS:-127.0.0.1}:${MYCELIC_PORT}, SQLite on the mycelic-data volume). Put a
+# TLS-terminating proxy in front before binding to 0.0.0.0. Everything else is optional.
 name: mycelic
 
 services:
@@ -56,7 +57,7 @@ services:
       MYCELIC_LOG_LEVEL: ${MYCELIC_LOG_LEVEL:-INFO}
       MYCELIC_PUBLIC_URL: ${MYCELIC_PUBLIC_URL:-http://localhost:8080}
     ports:
-      - "${MYCELIC_PORT:-8080}:8080"
+      - "${MYCELIC_BIND_ADDRESS:-127.0.0.1}:${MYCELIC_PORT:-8080}:8080"
     volumes:
       - mycelic-data:/data
       - ./rules.json:/etc/mycelic/rules.json:ro

@@ -20,6 +20,7 @@ import sys
 from pathlib import Path
 
 from .config import ConfigError, Settings
+from .sdk import MycelicError
 
 
 def _admin_client(args: argparse.Namespace):
@@ -200,6 +201,9 @@ def main(argv: list[str] | None = None) -> int:
         if getattr(args, "is_async", False):
             return asyncio.run(args.fn(args))
         return args.fn(args)
+    except MycelicError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
     except KeyboardInterrupt:
         return 130
 

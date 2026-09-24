@@ -76,9 +76,11 @@ class BM25:
 
 
 class _OrgIndex:
+    """Tokens of every active memory of an organization; the BM25 statistics are computed per caller view."""
+
     def __init__(self, rows: list[Memory]) -> None:
         self.rows = rows
-        self.bm25 = BM25([_doc_tokens(m) for m in rows]) if rows else None
+        self.docs = [_doc_tokens(m) for m in rows]
 
 
 class Retriever:
@@ -105,9 +107,15 @@ class Retriever:
             return []
         min_idx = LAYERS.index(min_layer)
         q = tokenize(query or "")
-        scores = index.bm25.get_scores(q) if q and index.bm25 is not None else [0.0] * len(index.rows)
+        # BM25 statistics (IDF, average length) are computed over the caller's view only, so memories the caller
+        # cannot read never influence its ranking, not even through term statistics
+        view = [i for i, m in enumerate(index.rows) if visible(m)]
+        if not view:
+            return []
+        scores = BM25([index.docs[i] for i in view]).get_scores(q) if q else [0.0] * len(view)
         hits: list[Hit] = []
-        for m, s in zip(index.rows, scores):
+        for i, s in zip(view, scores):
+            m = index.rows[i]
             if scope and not (m.scope == scope or m.scope.startswith(scope + "/")):
                 continue
             if LAYERS.index(m.layer) < min_idx:
@@ -116,8 +124,6 @@ class Retriever:
                 continue
             if entity and m.entity != entity:
                 continue
-            if not visible(m):
-                continue
             if q and s <= 0.0:
                 continue
             boost = 1.0 + LAYER_BOOST * LAYERS.index(m.layer)
@@ -125,7 +131,8 @@ class Retriever:
             why = f"bm25={float(s):.3f} × layer boost {boost:.2f} ({m.layer})" if q else f"no query terms: ranked by layer and confidence ({m.layer})"
             hits.append(Hit(memory=m, score=score, bm25=float(s), explanation=why))
         # a memory promoted unchanged to a single-child parent unit is the same knowledge: keep the highest copy only
-        promoted_away = {h.memory.metadata.get("promoted_from") for h in hits if h.memory.metadata.get("promoted_from")}
+        promoted_away = {h.memory.metadata.get("promoted_from") for h in hits
+                         if h.memory.layer != "agent" and h.memory.metadata.get("promoted_from")}
         hits = [h for h in hits if h.memory.memory_id not in promoted_away]
         hits.sort(key=lambda h: (-h.score, -LAYERS.index(h.memory.layer), h.memory.created_at, h.memory.memory_id))
         return hits[: max(1, int(k))]

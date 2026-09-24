@@ -42,7 +42,7 @@ customer; they never talk to the broker.
 | Deployment | Definition | Verified how |
 |---|---|---|
 | Docker Compose | `deploy/mycelic/docker-compose.yml` (services `nats`, `mycelic`, optional `prometheus`) | `tests/smoke/mycelic_smoke.py --driver compose` built the image and passed all nine steps in this repository's CI sandbox |
-| Local processes | `mycelic/harness.py` `ProcessDriver` (nats-server binary + `python -m mycelic serve`) | `tests/smoke/mycelic_smoke.py --driver process`, `tests/mycelic/test_jetstream.py` |
+| Local processes | `mycelic/harness.py` `ProcessDriver` (nats-server binary + `python -m mycelic serve`) | `tests/smoke/mycelic_smoke.py --driver process` (also run under pytest by `tests/mycelic/test_smoke_process.py`); the service itself against a real broker: `tests/mycelic/test_jetstream.py` |
 | Kubernetes | `deploy/mycelic/k8s/` (kustomize: two StatefulSets, Service, Ingress, ConfigMaps, Secret template) | `kubectl kustomize` renders; **not applied to a cluster in this repository** |
 
 ## 2. Modules
@@ -156,8 +156,10 @@ entity are withheld, the unit (team) path, layer, timestamps and confidence rema
 | service crash / restart | durable consumer resumes at its ack floor; SQLite is the read model | `test_publish_consume_and_survive_service_restart`, smoke step 5 |
 | broker outage | writes go to the outbox (`events.status='pending'`), `/health` reports `degraded`, `/ready` stays 200 by default; publisher flushes on reconnect | `test_broker_outage_is_absorbed_by_the_outbox`, smoke step 6 |
 | broker restart | JetStream file store keeps the stream and the consumer | same tests (the broker is SIGKILLed) |
-| lost service database | fresh database + non-empty stream ⇒ consumer reset to sequence 1, full replay rebuilds memories, lineage, derived state, agent registry (key hashes) and rules; replay never re-publishes derived events | `test_lost_database_is_rebuilt_from_the_stream`, smoke step 7 |
+| lost service database | fresh database + non-empty stream ⇒ consumer reset to sequence 1, full replay rebuilds memories, lineage, derived state, agent registry (key hashes) and rules; replay never re-publishes derived events; the replay target is persisted so a crash mid-rebuild resumes it | `test_lost_database_is_rebuilt_from_the_stream`, `test_unfinished_replay_resumes_after_a_crash`, smoke step 7 |
 | database restored from backup | `last_applied_seq` behind the consumer's ack floor ⇒ consumer recreated at `last_applied_seq + 1` | `test_restored_backup_receives_the_events_it_missed` |
+| durable consumer lost | a brand-new consumer facing a database that applied events ⇒ recreated at `last_applied_seq + 1` | `test_lost_consumer_is_recreated_after_the_last_applied_event` |
+| forced replay, poison events | `POST /admin/replay` re-delivers everything idempotently; an event that fails `max_deliver` times, or fails the signature check, is terminated, recorded and counted as consumed so the replay still completes | `test_forced_replay_is_idempotent`, `test_poison_event_is_terminated_and_replay_completes` |
 | agent restart | local notes persist; re-sending uses the local id as idempotency key | smoke step 8 |
 | forged / unsigned events on the stream | HMAC-SHA256 signature checked before apply; producer must match the registry | `test_unsigned_events_are_rejected` |
 | lost NATS volume with intact database | **not covered**: the database keeps serving, but the log cannot be replayed until new events accumulate (see DEPLOYMENT.md, backups) | — |
@@ -172,7 +174,7 @@ entity are withheld, the unit (team) path, layer, timestamps and confidence rema
 `mycelic_lineage_reconstruction_total{result}`, `mycelic_http_requests_total{route,status}`,
 `mycelic_auth_failures_total{reason}`, `mycelic_active_agents`, `mycelic_registered_agents`,
 `mycelic_memories{layer}`, `mycelic_outbox_pending`, `mycelic_transport_connected`,
-`mycelic_consumer_pending`, `mycelic_build_info{version}`.
+`mycelic_consumer_pending` (read from the broker at scrape time), `mycelic_build_info{version}`.
 
 `GET /health` (public: status, version, transport connected, consumer running), `GET /ready`,
 `GET /admin/status` (full checks, stream/consumer positions, masked settings), `GET /admin/audit`,

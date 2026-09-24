@@ -28,15 +28,17 @@ to its organization; a deployment may host several.
 |---|---|
 | `POST /memory`, `POST /events` | agents only, scope `memory:write` / `events:write`; the memory is written **as the caller** at the caller's path; a body naming another agent is refused; the admin token cannot write memories |
 | `GET /memory/{id}`, `POST /query`, `GET /memories` | scope `memory:read`; an agent sees agent-layer memories of **its own team** (or ones the producer marked `visibility: org`) and derived memories of **every unit it belongs to** (the memory's unit is an ancestor-or-self of the agent's path); a query `scope` must be the caller's team or an ancestor unit (403 otherwise); results are filtered by the same rule, so a query never reveals the existence of a memory outside the caller's view, and a `GET` of one returns 404, not 403 |
-| `GET /lineage/{id}` | scope `lineage:read` on a readable memory; contributions the caller may not read are **redacted** (text, agent id, event ids, entity withheld; unit path, layer, timestamps, confidence kept) |
-| `POST /memory/{id}/retract` | the producing agent or the administrator |
+| `GET /lineage/{id}` | scope `lineage:read` on a readable memory (`POST /query` embeds the lineage graph only for callers holding it); contributions the caller may not read are **redacted** (text, agent id, event ids, entity and the producer's local reference withheld; unit path, layer, timestamps, confidence kept). A producer's local reference is shown only to that producer and to administrators |
+| `POST /memory/{id}/retract` | the producing agent or the administrator, raw observations only: a derived memory is a function of its evidence and disappears when that evidence is retracted |
 | `/admin/*`, `POST /admin/replay` | administrator token only; the `admin` scope cannot be granted to an agent key |
 | `/metrics` | `MYCELIC_METRICS_TOKEN` if set, otherwise an admin token or any valid agent key; unauthenticated only on a loopback bind |
 | `/health`, `/ready`, `/` | public, minimal (status, version, transport connected); details need the admin token |
 | `/mcp` | same bearer authentication as the REST routes; the MCP identity is the agent whose key is presented, per request |
 
-The visibility rule is written once in SQL (`MycelicStore.visible_rows`) and once in Python
-(`auth.memory_visible`), and `tests/mycelic/test_hierarchy_and_auth.py` and `test_api.py` check both.
+The visibility rule is written once in SQL (`MycelicStore.visible_rows`, behind `GET /memories`) and once in
+Python (`auth.memory_visible`, behind every other read); `tests/mycelic/test_hierarchy_and_auth.py` checks
+the Python rule and `test_api.py` checks both through the API. Retrieval computes its BM25 statistics over
+the caller's view only, so memories outside it influence neither the results nor their order.
 
 ## 3. Transport and integrity
 
@@ -45,7 +47,11 @@ The visibility rule is written once in SQL (`MycelicStore.visible_rows`) and onc
 * Every event the service publishes carries `Mycelic-Signature: v1=<HMAC-SHA256(key, bytes)>`. With
   `MYCELIC_EVENT_SIGNING_KEY` set, the consumer terminates and counts (`mycelic_events_failed_total{stage="signature"}`)
   any message without a valid signature. Additionally a `memory.observed` event is only applied when its
-  producer is a registered, active agent whose path equals the event's scope.
+  producer is a registered agent of the event's organization whose path equals the event's scope
+  (`MycelicService.apply_event`). Revocation is enforced at authentication (a revoked key gets 403), not at
+  apply time: an event the agent published before revocation is still applied, and its memories stay active
+  until retracted (see §7, item 2). Inside the broker boundary an injected event may name any registered
+  agent id, including a revoked one.
 * Duplicate deliveries are harmless: `event_id` is the JetStream `Nats-Msg-Id` and the apply step is
   idempotent by event id and memory id.
 * TLS: `MYCELIC_TLS_CERT_FILE/KEY_FILE` (direct) or a TLS-terminating proxy with `MYCELIC_ALLOWED_HOSTS`;
@@ -58,9 +64,15 @@ JSON only (415 otherwise); body ≤ `MYCELIC_MAX_BODY_BYTES` (1 MiB, 413); memor
 topic/entity/local reference ≤ 200; slot names `[A-Za-z0-9_.:-]{1,100}`; metadata ≤ 4 KiB; event payload
 ≤ 16 KiB; ≤ 100 events per request; serialized event ≤ `MYCELIC_MAX_EVENT_BYTES` (256 KiB) so an accepted
 event is always publishable; paths are `[a-z0-9][a-z0-9_-]{0,63}` segments; timestamps must parse as
-ISO-8601; kinds and visibility are enumerated. Rate limiting is a token bucket per peer address before
-authentication and per principal after it (a bad token spends the address bucket, never the claimed
-agent's); when full, the least recently used tenth of buckets is evicted, never everyone.
+ISO-8601; kinds and visibility are enumerated; metadata keys the aggregator owns (`agg_key`,
+`promoted_from`, `version_of`, `contributing_agents`, …) are stripped from agent input; cited
+`source_event_ids` must be events of the caller's own organization (unknown and foreign ids get the same
+error). Rate limiting is a token bucket per peer address before authentication and per principal after it (a
+bad token spends the address bucket, never the claimed agent's); a JSON-RPC batch on `/mcp` is capped at
+`MYCELIC_MAX_BATCH` messages and charged one token per message; when full, the least recently used tenth of
+buckets is evicted, never everyone. Behind a proxy (`MYCELIC_TRUST_PROXY_HEADERS=true`) the client address
+is the Nth entry from the right of `X-Forwarded-For` (`MYCELIC_TRUSTED_PROXY_HOPS`), never the leftmost one
+the client can forge.
 
 ## 5. Audit and logs
 
@@ -74,9 +86,10 @@ refused at start, and placeholder-looking secrets are refused too.
 
 ## 6. What is verified
 
-`tests/mycelic/test_api.py`: 401/403/404/413/415/429 behaviour, non-ASCII tokens, admin cannot write,
-agents cannot administer, rotate/revoke, metadata that names other teams' agents never leaves through
-`/query`, MCP identity. `tests/mycelic/test_datapath.py`: write-as-self, visibility and lineage redaction,
+`tests/mycelic/test_api.py`: 401/403/404/413/415/421/429 behaviour, non-ASCII tokens, admin cannot write,
+agents cannot administer, rotate/revoke, per-scope refusals, metadata that names other teams' agents never
+leaves through `/query`, the SQL visibility rule behind `GET /memories`, `X-Forwarded-For` handling, MCP
+identity, MCP batch limits and per-organization MCP status. `tests/mycelic/test_datapath.py`: write-as-self, visibility and lineage redaction,
 idempotent re-sends. `tests/mycelic/test_jetstream.py`: forged/unsigned events on the real broker are
 rejected. `tests/smoke/mycelic_smoke.py`: a sales agent cannot read a logistics raw note (404) while an
 administrator sees every contributor.

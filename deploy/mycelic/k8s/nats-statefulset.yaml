@@ -9,8 +9,6 @@ spec:
   ports:
     - name: client
       port: 4222
-    - name: monitor
-      port: 8222
 ---
 apiVersion: apps/v1
 kind: StatefulSet
@@ -45,14 +43,17 @@ spec:
             - name: NATS_PASSWORD
               valueFrom:
                 secretKeyRef: {name: mycelic-secrets, key: NATS_PASSWORD}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
           ports:
             - {name: client, containerPort: 4222}
-            - {name: monitor, containerPort: 8222}
+          # the monitor listens on loopback only; probe it from inside the container (busybox wget is in the image)
           readinessProbe:
-            httpGet: {path: "/healthz?js-enabled-only=true", port: monitor}
+            exec: {command: ["wget", "-q", "--spider", "http://127.0.0.1:8222/healthz?js-enabled-only=true"]}
             periodSeconds: 5
           livenessProbe:
-            httpGet: {path: /healthz, port: monitor}
+            exec: {command: ["wget", "-q", "--spider", "http://127.0.0.1:8222/healthz"]}
             periodSeconds: 10
           resources:
             requests: {cpu: 100m, memory: 256Mi}

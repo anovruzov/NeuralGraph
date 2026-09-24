@@ -85,6 +85,12 @@ class AuthAndLimitsTests(ApiTestCase):
         text = await r.text()
         self.assertIn("mycelic_memories{layer=\"agent\"}", text)
         self.assertIn("mycelic_http_requests_total", text)
+        self.assertIn("mycelic_consumer_pending 0.0", text)
+        # a wrong token on the public /health still yields the public view and is counted
+        before = self.h.service.metrics.auth_failures.labels("invalid_token")._value.get()
+        r = await self.client.get("/health", headers=bearer("mk_nobody.wrong"))
+        self.assertEqual(set(await r.json()), {"status", "version", "transport_connected", "consumer_running"})
+        self.assertEqual(self.h.service.metrics.auth_failures.labels("invalid_token")._value.get(), before + 1)
 
     async def test_rotate_and_revoke(self) -> None:
         key = await self.register("log-1")
@@ -98,11 +104,76 @@ class AuthAndLimitsTests(ApiTestCase):
 
 
 class RateLimitTests(ApiTestCase):
-    harness_overrides = {"rate_limit_rps": 1.0, "rate_limit_burst": 3}
+    harness_overrides = {"rate_limit_rps": 1.0, "rate_limit_burst": 3, "trust_proxy_headers": True}
 
     async def test_per_principal_and_per_peer_buckets(self) -> None:
         statuses = [(await self.client.get("/whoami", headers=self.admin)).status for _ in range(5)]
         self.assertIn(429, statuses)
+
+    async def test_forwarded_for_uses_the_proxy_observed_entry(self) -> None:
+        # the leftmost entry is client-chosen; rotating it must not buy a fresh bucket
+        statuses = []
+        for i in range(6):
+            h = {**bearer("mk_nobody.x"), "X-Forwarded-For": f"10.0.0.{i}, 203.0.113.9"}
+            statuses.append((await self.client.get("/whoami", headers=h)).status)
+        self.assertIn(429, statuses)
+        self.assertEqual(statuses[:3], [401, 401, 401])
+
+    async def test_mcp_batch_is_capped_and_charged(self) -> None:
+        key = await self.register("log-1")
+        big = [{"jsonrpc": "2.0", "id": i, "method": "ping"} for i in range(self.h.settings.max_batch + 1)]
+        r = await self.client.post("/mcp", json=big, headers={**bearer(key), "Accept": "application/json"})
+        self.assertEqual(r.status, 400)
+        self.assertEqual((await r.json())["error"]["code"], -32600)
+        # a fresh principal (each request from a different proxy-observed address so the address buckets do not
+        # interfere): burst 3 covers a 2-message batch plus one request, the next request is refused
+        key2 = await self.register("log-2")
+        xff = lambda n: {"X-Forwarded-For": f"198.51.100.{n}"}  # noqa: E731
+        r = await self.client.post("/mcp", json=[{"jsonrpc": "2.0", "id": 1, "method": "ping"}, {"jsonrpc": "2.0", "id": 2, "method": "ping"}],
+                                   headers={**bearer(key2), "Accept": "application/json", **xff(1)})
+        self.assertEqual(r.status, 200)
+        self.assertEqual((await self.client.get("/whoami", headers={**bearer(key2), **xff(2)})).status, 200)
+        self.assertEqual((await self.client.get("/whoami", headers={**bearer(key2), **xff(3)})).status, 429)
+
+
+class HostAllowListTests(ApiTestCase):
+    harness_overrides = {"allowed_hosts": ["mycelic.example.com"]}
+
+    async def test_probes_bypass_the_host_allow_list_but_api_routes_do_not(self) -> None:
+        probe = {"Host": "127.0.0.1:8080"}
+        self.assertEqual((await self.client.get("/health", headers=probe)).status, 200)
+        self.assertEqual((await self.client.get("/ready", headers=probe)).status, 200)
+        self.assertEqual((await self.client.get("/whoami", headers={**probe, **self.admin})).status, 421)
+        self.assertEqual((await self.client.get("/whoami", headers={"Host": "mycelic.example.com", **self.admin})).status, 200)
+
+
+class ScopeTests(ApiTestCase):
+    async def test_scopes_are_enforced_per_route(self) -> None:
+        writer = await self.register("w-1")
+        r = await self.client.post("/memory", json={"text": "note", "topic": "t"}, headers=bearer(writer))
+        mid = (await r.json())["memory_id"]
+        r = await self.client.post("/admin/agents", json={"enterprise": "northwind", "region": "emea", "subsidiary": "nw-gmbh",
+                                                         "department": "ops", "team": "logistics", "agent_id": "events-only",
+                                                         "scopes": ["events:write"]}, headers=self.admin)
+        eo = (await r.json())["api_key"]
+        self.assertEqual((await self.client.get(f"/memory/{mid}", headers=bearer(eo))).status, 403)
+        self.assertEqual((await self.client.get("/memories?scope=northwind", headers=bearer(eo))).status, 403)
+        self.assertEqual((await self.client.post("/query", json={"query": "note"}, headers=bearer(eo))).status, 403)
+        r = await self.client.post("/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "mycelic_get_memory", "arguments": {"memory_id": mid}}},
+                                   headers={**bearer(eo), "Accept": "application/json"})
+        self.assertTrue((await r.json())["result"]["isError"])
+        r = await self.client.post("/admin/agents", json={"enterprise": "northwind", "region": "emea", "subsidiary": "nw-gmbh",
+                                                         "department": "ops", "team": "logistics", "agent_id": "read-only",
+                                                         "scopes": ["memory:read"]}, headers=self.admin)
+        ro = (await r.json())["api_key"]
+        self.assertEqual((await self.client.get(f"/lineage/{mid}", headers=bearer(ro))).status, 403)
+        r = await self.client.post("/query", json={"query": "note"}, headers=bearer(ro))
+        self.assertEqual(r.status, 200)
+        self.assertIsNone((await r.json())["lineage"], "no lineage graph without lineage:read")
+        r = await self.client.post("/admin/agents", json={"enterprise": "northwind", "agent_id": "no-scopes", "scopes": []}, headers=self.admin)
+        self.assertEqual(r.status, 201)
+        self.assertEqual((await r.json())["agent"]["scopes"], [])
+        self.assertEqual((await self.client.post("/memory", json={"text": "x"}, headers=bearer((await r.json())["api_key"]))).status, 403)
 
 
 class MemoryRoutesTests(ApiTestCase):
@@ -158,6 +229,13 @@ class MemoryRoutesTests(ApiTestCase):
         self.assertEqual(r.status, 404)
         r = await self.client.get("/memories?scope=northwind&layer=enterprise", headers=bearer(self.sales2))
         self.assertEqual(len((await r.json())["memories"]), 1)
+        r = await self.client.get("/memories?scope=northwind&limit=500", headers=bearer(self.sales2))
+        scopes = {mm["scope"] for mm in (await r.json())["memories"]}
+        self.assertIn("northwind", scopes)
+        self.assertIn("northwind/emea/nw-gmbh/commercial/field-sales/sales-1", scopes)
+        self.assertFalse({sc for sc in scopes if "/ops/" in sc}, "the SQL visibility rule must hide other teams' notes and consolidations")
+        r = await self.client.get("/memories?scope=northwind&limit=500", headers=self.admin)
+        self.assertTrue({sc for sc in {mm["scope"] for mm in (await r.json())["memories"]} if "/ops/" in sc})
 
         # retract through the API: only the producer (or admin)
         r = await self.client.post(f"/memory/{a['memory_id']}/retract", json={"reason": "strike called off"}, headers=bearer(self.log2))
@@ -230,7 +308,12 @@ class MCPTests(ApiTestCase):
         r = await self.rpc(key, "tools/call", {"name": "mycelic_lineage", "arguments": {"memory_id": mid}})
         self.assertEqual((await r.json())["result"]["structuredContent"]["roots"], [mid])
         r = await self.rpc(key, "tools/call", {"name": "mycelic_status", "arguments": {}})
-        self.assertIn("memories_by_layer", (await r.json())["result"]["structuredContent"])
+        self.assertEqual((await r.json())["result"]["structuredContent"]["memories_by_layer"]["agent"], 1)
+        # another organization sees its own counts only
+        r = await self.client.post("/admin/agents", json={"enterprise": "acme", "agent_id": "acme-1"}, headers=self.admin)
+        acme = (await r.json())["api_key"]
+        r = await self.rpc(acme, "tools/call", {"name": "mycelic_status", "arguments": {}})
+        self.assertEqual((await r.json())["result"]["structuredContent"]["memories_by_layer"]["agent"], 0)
 
 
 if __name__ == "__main__":

@@ -252,7 +252,8 @@ class Tx:
                                     local_ref, metadata)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (m.memory_id, m.org_id, m.layer, m.scope, m.text, m.topic, m.slot, m.entity, m.kind, m.confidence,
-             m.support, m.independent_teams, m.producer_id, m.operator, m.rule_id, m.metadata.get("agg_key"),
+             m.support, m.independent_teams, m.producer_id, m.operator, m.rule_id,
+             m.metadata.get("agg_key") if m.operator != "agent_observation" else None,
              m.event_id, m.visibility, m.status, m.superseded_by, m.created_at, m.applied_at,
              _j(m.source_event_ids), m.local_ref, _j(m.metadata)),
         )
@@ -344,6 +345,9 @@ class Tx:
     def set_meta(self, key: str, value: str) -> None:
         self.c.execute("INSERT INTO meta(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                        (key, value))
+
+    def delete_meta(self, key: str) -> None:
+        self.c.execute("DELETE FROM meta WHERE key=?", (key,))
 
     def audit(self, principal: str, action: str, target: str | None = None, detail: dict[str, Any] | None = None,
               remote: str | None = None) -> None:
@@ -468,8 +472,11 @@ class MycelicStore:
     def list_memories(self, org_id: str, *, scope: str | None = None, layers: Iterable[str] | None = None,
                       status: str | None = "active", topic: str | None = None, entity: str | None = None,
                       slot: str | None = None, operator: str | None = None, producer_id: str | None = None,
-                      since: str | None = None, limit: int = 200, newest_first: bool = True) -> list[Memory]:
+                      since: str | None = None, limit: int = 200, newest_first: bool = True,
+                      applied_only: bool = False) -> list[Memory]:
         sql, args = "SELECT * FROM memories WHERE org_id=?", [org_id]
+        if applied_only:                       # only what the consumer has applied: aggregation must not see ahead
+            sql += " AND applied_at IS NOT NULL"
         if scope:
             sql += " AND (scope=? OR substr(scope, 1, ?)=?)"; args += [scope, len(scope) + 1, scope + "/"]
         if layers:
@@ -621,11 +628,18 @@ class MycelicStore:
                 out.append(d)
         return out
 
+    def memories_by_layer(self, org_id: str | None = None) -> dict[str, int]:
+        by_layer = {layer: 0 for layer in LAYERS}
+        sql, args = "SELECT layer, COUNT(*) AS n FROM memories WHERE status='active'", []
+        if org_id is not None:
+            sql += " AND org_id=?"; args.append(org_id)
+        for r in self._conn.execute(sql + " GROUP BY layer", args).fetchall():
+            by_layer[r["layer"]] = int(r["n"])
+        return by_layer
+
     def stats(self) -> dict[str, Any]:
         c = self._conn
-        by_layer = {layer: 0 for layer in LAYERS}
-        for r in c.execute("SELECT layer, COUNT(*) AS n FROM memories WHERE status='active' GROUP BY layer").fetchall():
-            by_layer[r["layer"]] = int(r["n"])
+        by_layer = self.memories_by_layer()
         by_status = {r["status"]: int(r["n"]) for r in c.execute("SELECT status, COUNT(*) AS n FROM memories GROUP BY status").fetchall()}
         cutoff = (utcnow() - timedelta(minutes=15)).isoformat(timespec="seconds")
         active_agents = int(c.execute("SELECT COUNT(*) AS n FROM agents WHERE status='active' AND last_seen_at>=?", (cutoff,)).fetchone()["n"])

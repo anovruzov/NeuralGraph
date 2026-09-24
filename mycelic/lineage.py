@@ -30,7 +30,7 @@ class LineageNotFound(KeyError):
     pass
 
 
-def _node_view(m: Memory, redacted: bool, *, shared_entity: str | None = None) -> dict[str, Any]:
+def _node_view(m: Memory, redacted: bool, *, shared_entity: str | None = None, full: bool = False) -> dict[str, Any]:
     if redacted:
         return {
             "memory_id": m.memory_id, "layer": m.layer,
@@ -48,12 +48,13 @@ def _node_view(m: Memory, redacted: bool, *, shared_entity: str | None = None) -
         "independent_teams": m.independent_teams, "producer_id": m.producer_id, "operator": m.operator,
         "rule_id": m.rule_id, "status": m.status, "superseded_by": m.superseded_by, "created_at": m.created_at,
         "applied_at": m.applied_at, "event_id": m.event_id, "source_event_ids": list(m.source_event_ids),
-        "local_ref": m.local_ref, "fragility": m.metadata.get("fragility"), "redacted": False,
+        "local_ref": m.local_ref if full else None, "fragility": m.metadata.get("fragility"), "redacted": False,
     }
 
 
 def reconstruct(store: MycelicStore, memory_id: str, *, visible: Callable[[Memory], bool],
-                max_nodes: int = 2000) -> dict[str, Any]:
+                full: Callable[[Memory], bool] = lambda m: False, max_nodes: int = 2000) -> dict[str, Any]:
+    """``visible`` decides redaction; ``full`` (owner or administrator) additionally reveals the producer's local reference."""
     root_memory = store.get_memory(memory_id)
     if root_memory is None:
         raise LineageNotFound(memory_id)
@@ -90,7 +91,7 @@ def reconstruct(store: MycelicStore, memory_id: str, *, visible: Callable[[Memor
         frontier = nxt
 
     for mid, m in memories.items():
-        nodes[mid] = _node_view(m, redacted=not visible(m), shared_entity=root_memory.entity)
+        nodes[mid] = _node_view(m, redacted=not visible(m), shared_entity=root_memory.entity, full=full(m))
 
     has_parent = {e["child"] for e in edges}
     roots = sorted(mid for mid in memories if mid not in has_parent)

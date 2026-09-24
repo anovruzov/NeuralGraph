@@ -96,6 +96,7 @@ class Settings:
     max_batch: int = 100
     max_event_bytes: int = 256 * 1024                 # serialized event; must stay below the broker's max_payload
     trust_proxy_headers: bool = False                 # use X-Forwarded-For for rate limiting (behind a trusted proxy only)
+    trusted_proxy_hops: int = 1                       # how many proxies append to X-Forwarded-For (take the Nth from the right)
     audit_retention_days: int = 90
     event_signing_key: str | None = None              # HMAC key: consumer rejects events the publisher did not sign
     # aggregation
@@ -149,6 +150,7 @@ class Settings:
             max_batch=_int("MYCELIC_MAX_BATCH", 100, minimum=1),
             max_event_bytes=_int("MYCELIC_MAX_EVENT_BYTES", 256 * 1024, minimum=4096),
             trust_proxy_headers=_bool("MYCELIC_TRUST_PROXY_HEADERS", False),
+            trusted_proxy_hops=_int("MYCELIC_TRUSTED_PROXY_HOPS", 1, minimum=1),
             audit_retention_days=_int("MYCELIC_AUDIT_RETENTION_DAYS", 90, minimum=1),
             event_signing_key=_str("MYCELIC_EVENT_SIGNING_KEY"),
             min_support=_int("MYCELIC_MIN_SUPPORT", 2, minimum=1),

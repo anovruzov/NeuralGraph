@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 
 from mycelic.metrics import Metrics
-from mycelic.service import Forbidden, MycelicService, NotFound
+from mycelic.service import Forbidden, MycelicService, NotFound, ValidationError
 from mycelic.store import MycelicStore
 
 from .helpers import DEMO_RULE, ServiceHarness, settings
@@ -139,6 +139,17 @@ class DataPathTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(s.store.list_memories("northwind", layers=["enterprise"]), [])
         res = s.query(self.h.principal("sales-2"), {"query": "supply risk sd-9", "scope": "northwind", "min_layer": "enterprise"})
         self.assertIsNone(res["answer"])
+        # derived memories cannot be retracted directly: they follow their evidence
+        team = s.store.list_memories("northwind", layers=["team"])[0]
+        with self.assertRaises(ValidationError):
+            await s.retract(self.h.admin, team.memory_id)
+        for agent in ("log-1", "log-2"):
+            await s.retract(self.h.principal(agent), ids[agent], "withdrawn")
+        await self.h.settle()
+        self.assertEqual(s.store.list_memories("northwind", layers=["team"]), [])
+        await self.h.observe("proc-1", "Unrelated note about pallets.", topic="ops:pallets")
+        await self.h.settle()
+        self.assertEqual(s.store.list_memories("northwind", layers=["team"]), [], "retracted evidence does not come back")
         with self.assertRaises(NotFound):           # another team's raw note: not even its existence is revealed
             await s.retract(self.h.principal("sales-2"), ids["log-1"])
         with self.assertRaises(Forbidden):          # visible (enterprise-level) but not the producer
@@ -163,6 +174,58 @@ class DataPathTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(set(g["contributing_agents"]), {"log-1", "log-2"})
         self.assertTrue(g["evidence"]["reconstructable"])
 
+    async def test_reactivated_version_keeps_its_history(self) -> None:
+        await self.seed()
+        s = self.h.service
+        t1 = s.store.list_memories("northwind", layers=["team"])[0]
+        await self.h.register("log-3", team="logistics")
+        await self.h.observe("log-3", "Customs backlog for SD-9 containers.", topic=TRANSPORT, slot="transport_disruption", entity="sd-9", confidence=0.6)
+        await self.h.settle()
+        t2 = s.store.list_memories("northwind", layers=["team"])[0]
+        await self.h.register("log-4", team="logistics")
+        third = await self.h.observe("log-4", "Rail alternative for SD-9 is fully booked.", topic=TRANSPORT, slot="transport_disruption", entity="sd-9", confidence=0.5)
+        await self.h.settle()
+        t3 = s.store.list_memories("northwind", layers=["team"])[0]
+        self.assertEqual(len({t1.memory_id, t2.memory_id, t3.memory_id}), 3)
+        await s.retract(self.h.principal("log-4"), third, "mistaken")
+        await self.h.settle()
+        active = s.store.list_memories("northwind", layers=["team"])
+        self.assertEqual([m.memory_id for m in active], [t2.memory_id])
+        self.assertEqual(s.lineage(self.h.admin, t2.memory_id)["previous_versions"], [t1.memory_id])
+
+    async def test_agent_input_cannot_impersonate_aggregator_metadata(self) -> None:
+        await self.seed()
+        s = self.h.service
+        conclusion = s.store.list_memories("northwind", layers=["enterprise"])[0]
+        await self.h.observe("sales-2", "Nothing to see here.", topic="misc", visibility="org",
+                             metadata={"promoted_from": conclusion.memory_id, "agg_key": "k", "version_of": "x", "note": "kept"})
+        await self.h.observe("sales-2", "Second note.", topic="misc", metadata={"agg_key": "k"})
+        await self.h.settle()
+        mine = s.store.list_memories("northwind", layers=["agent"], producer_id="sales-2")
+        self.assertEqual(len(mine), 2)
+        self.assertNotIn("promoted_from", mine[0].metadata)
+        self.assertIn("note", {k for m in mine for k in m.metadata})
+        res = s.query(self.h.principal("log-1"), {"query": "supply risk sd-9", "scope": "northwind", "min_layer": "enterprise"})
+        self.assertEqual(res["answer"]["memory_id"], conclusion.memory_id, "an org-visible note cannot hide a conclusion")
+
+    async def test_source_events_must_belong_to_the_organization(self) -> None:
+        s = self.h.service
+        with self.assertRaises(ValidationError):
+            await s.ingest_memory(self.h.principal("log-1"), {"text": "x", "source_event_ids": ["evt_doesnotexist"]})
+        await self.h.register("acme-1", team="acme", department="acme", subsidiary="acme", region="acme", enterprise="acme")
+        out = await s.ingest_events(self.h.principal("acme-1"), [{"type": "x"}])
+        with self.assertRaises(ValidationError):
+            await s.ingest_memory(self.h.principal("log-1"), {"text": "x", "source_event_ids": [out[0]["event_id"]]})
+
+    async def test_local_reference_is_private_to_the_producer(self) -> None:
+        s = self.h.service
+        mid = await self.h.observe("log-1", "Terminal 3 strike.", topic=TRANSPORT, local_ref="note-42")
+        await self.h.settle()
+        self.assertEqual(s.lineage(self.h.principal("log-1"), mid)["nodes"][mid]["local_ref"], "note-42")
+        self.assertEqual(s.lineage(self.h.admin, mid)["nodes"][mid]["local_ref"], "note-42")
+        self.assertIsNone(s.lineage(self.h.principal("log-2"), mid)["nodes"][mid]["local_ref"])
+        self.assertIsNone(s.public_view(s.get_memory(self.h.principal("log-2"), mid), self.h.principal("log-2"))["local_ref"])
+
     async def test_events_with_embedded_memories_and_evidence(self) -> None:
         s = self.h.service
         out = await s.ingest_events(self.h.principal("proc-1"), [
@@ -176,6 +239,14 @@ class DataPathTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(mem.source_event_ids, [out[0]["event_id"]])
         again = await s.ingest_events(self.h.principal("proc-1"), [{"type": "supplier.call", "idempotency_key": "call-1"}])
         self.assertFalse(again[0]["created"])
+        # re-sending the full item (memory included) is idempotent for the embedded memory too
+        for _ in range(2):
+            rep = await s.ingest_events(self.h.principal("proc-1"), [
+                {"type": "supplier.call", "payload": {"supplier": "Kessler"}, "idempotency_key": "call-1",
+                 "memory": {"text": "Kessler has two weeks of SD-9 stock.", "topic": "supply:sd-9/supplier", "slot": "supplier_buffer_low", "entity": "sd-9"}}])
+            self.assertEqual(rep[0]["memory_id"], out[0]["memory_id"])
+            self.assertFalse(rep[0].get("memory_created", True))
+        self.assertEqual(len(s.store.list_memories("northwind", layers=["agent"], producer_id="proc-1")), 1)
         await self.h.settle()
         g = s.lineage(self.h.principal("proc-1"), mem.memory_id)
         self.assertIn(out[0]["event_id"], g["evidence"]["source_event_ids"])
@@ -184,6 +255,14 @@ class DataPathTests(unittest.IsolatedAsyncioTestCase):
     async def test_rebuild_from_the_event_log_reproduces_state_agents_and_rules(self) -> None:
         await self.seed()
         s1 = self.h.service
+        # a burst: the API writes land before the consumer applies them; aggregation must only see applied ones
+        # so that a rebuild derives exactly the same history (every version, not only the active set)
+        for i, agent in enumerate(("log-1", "log-2", "proc-1")):
+            await self.h.observe(agent, f"Burst note {i} about the SD-9 servo drive delay.", topic="supply:sd-9/burst", confidence=0.5)
+        await self.h.settle()
+        full_before = {m.memory_id: (m.layer, m.status, m.support, m.metadata.get("version_of"))
+                       for m in s1.store.list_memories("northwind", status=None, limit=1000)}
+        events_before = s1.store.event_counts()
         before = {m.memory_id: (m.layer, m.status, m.support) for m in s1.store.list_memories("northwind", status=None, limit=1000)}
         active_before = {mid for mid, (_, st, _) in before.items() if st == "active"}
         transport = s1.transport
@@ -206,6 +285,11 @@ class DataPathTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(res["answer"]["lineage"]["reconstructable"])
             self.assertEqual(s2.store.stats()["outbox_pending"], 0, "replay must not re-publish derived events")
             self.assertGreater(s2.metrics.replay_events._value.get(), 0)
+            full_after = {m.memory_id: (m.layer, m.status, m.support, m.metadata.get("version_of"))
+                          for m in s2.store.list_memories("northwind", status=None, limit=1000)}
+            self.assertEqual(full_after, full_before, "the whole history, superseded versions included, is reproduced")
+            self.assertEqual(s2.store.event_counts(), events_before)
+            self.assertFalse([e for e in s2.store.list_events("northwind", kind="memory.derived", limit=1000) if e.js_seq is None])
         finally:
             await s2.close()
 

@@ -10,6 +10,7 @@ resources:
   - mycelic-statefulset.yaml
   - mycelic-service.yaml
   - ingress.yaml
+  - networkpolicy.yaml
 images:
   - name: mycelic
     newName: ghcr.io/your-org/mycelic   # replace with the registry you pushed the image to

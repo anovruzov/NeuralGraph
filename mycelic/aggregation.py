@@ -144,7 +144,7 @@ class Aggregator:
         results: list[Derivation] = []
         for unit in reversed(ancestors(scope, include_self=False)):          # team first, enterprise last
             mems = self.store.list_memories(org_id, scope=unit, topic=topic, status="active", limit=self.max_candidates,
-                                            newest_first=False)
+                                            newest_first=False, applied_only=True)
             mems = [m for m in mems if m.operator in ("agent_observation", "topic_consolidation")]
             contributions = self._contributions(unit, mems)
             # A unit with fewer registered child units than min_support (a subsidiary with one department, an
@@ -232,7 +232,8 @@ class Aggregator:
 
     def _compose_rule(self, tx: Tx, rule: Rule, org_id: str, target_unit: str, entity: str | None) -> Derivation | None:
         candidates = self.store.list_memories(org_id, scope=target_unit, status="active", entity=entity,
-                                              operator="agent_observation", limit=self.max_candidates, newest_first=False)
+                                              operator="agent_observation", limit=self.max_candidates, newest_first=False,
+                                              applied_only=True)
         candidates = [m for m in candidates if m.slot in rule.required_slots
                       and (not rule.topic_prefix or (m.topic or "").startswith(rule.topic_prefix))
                       and (entity is None or m.entity == entity)]
@@ -297,8 +298,9 @@ class Aggregator:
         elif existing.status != "active" and existing.operator == memory.operator and existing.scope == memory.scope:
             # the exact earlier coalition is back (evidence was retracted, or a retraction was undone by new
             # evidence): the earlier derived memory becomes current again, keeping its id and its lineage edges
+            version_of = current.memory_id if current is not None else existing.metadata.get("version_of")
             tx.reactivate_memory(memory.memory_id, applied_at=now, metadata={**existing.metadata, **memory.metadata,
-                                                                            "reactivated_at": now})
+                                                                            "version_of": version_of, "reactivated_at": now})
             memory = self.store.get_memory(memory.memory_id) or memory
         else:
             raise RuntimeError(f"derived memory id collision for {memory.memory_id}; refusing to attach lineage")

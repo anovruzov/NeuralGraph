@@ -1,0 +1,20 @@
+# Optional: Prometheus Operator scrape of /metrics with the metrics token. Not part of the kustomization;
+# apply it once the Operator's CRDs exist (kubectl apply -f deploy/mycelic/k8s/servicemonitor.example.yaml).
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: mycelic
+  namespace: mycelic
+spec:
+  selector:
+    matchLabels:
+      app: mycelic
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      authorization:
+        type: Bearer
+        credentials:
+          name: mycelic-secrets
+          key: MYCELIC_METRICS_TOKEN

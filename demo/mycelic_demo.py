@@ -159,7 +159,9 @@ def main(argv: list[str] | None = None) -> int:
         for m in team_mems:
             print(f"   [team {m['scope'].rsplit('/', 1)[-1]:<12}] {m['topic']:<26} support {m['support']}  ← {m['metadata'].get('parent_count')} observations  {C['d']}{clip(m['text'], 70)}{C['x']}")
         for m in admin.list_memories(scope=ENTERPRISE, layer="department", limit=50):
-            print(f"   [dept {m['scope'].rsplit('/', 1)[-1]:<12}] {m['topic']:<26} promoted from a single team's consolidation")
+            pf = m["metadata"].get("promoted_from")
+            how = f"promoted unchanged from team memory {pf} (single registered team)" if pf else f"consolidated from {m['metadata'].get('parent_count')} team memories"
+            print(f"   [dept {m['scope'].rsplit('/', 1)[-1]:<12}] {m['topic']:<26} {how}")
         for t in ga["transformations"]:
             print(f"   {' + '.join(t['from_layers'])} → {t['to_layer']:<11} via {t['operator']}{' rule ' + t['rule_id'] if t['rule_id'] else ''}  at {t['at']}")
         pause()
@@ -198,6 +200,7 @@ def main(argv: list[str] | None = None) -> int:
         pause()
 
         head("Failure 2: the message broker is killed while an agent keeps working")
+        team_before = [m for m in admin.list_memories(scope=ENTERPRISE, layer="team", limit=50) if m["topic"] == "supply:sd-9/transport"][0]
         driver.kill("nats")
         writer = sc.by_team("logistics")[0]
         late = MycelicClient(driver.base_url, writer.api_key, retries=0).remember(
@@ -208,8 +211,15 @@ def main(argv: list[str] | None = None) -> int:
             f"outbox pending={admin.status()['checks']['publisher']['outbox_pending']}", "warn")
         driver.start("nats")
         st = wait_idle(admin, timeout=120)
+        applied_at = admin.get_memory(late["memory_id"])["applied_at"]
         team = [m for m in admin.list_memories(scope=ENTERPRISE, layer="team", limit=50) if m["topic"] == "supply:sd-9/transport"][0]
-        say(f"broker back: outbox flushed, observation applied, logistics team memory re-derived from {team['metadata'].get('parent_count')} observations", "ok")
+        absorbed = applied_at is not None and team["memory_id"] != team_before["memory_id"]
+        if absorbed:
+            say(f"broker back: outbox flushed, observation applied at {applied_at}, logistics team memory re-derived "
+                f"({team_before['metadata'].get('parent_count')} -> {team['metadata'].get('parent_count')} observations)", "ok")
+        else:
+            say(f"broker back but the outage-time observation was not absorbed (applied_at={applied_at}, team memory "
+                f"{'unchanged' if team['memory_id'] == team_before['memory_id'] else 'changed'})", "bad")
         pause()
 
         head("Failure 3: the service is killed and its database deleted — rebuild from the event log")
@@ -241,7 +251,7 @@ def main(argv: list[str] | None = None) -> int:
                     time.sleep(3600)
             except KeyboardInterrupt:
                 pass
-        return 0 if ok else 1
+        return 0 if ok and absorbed else 1
     finally:
         driver.down()
 

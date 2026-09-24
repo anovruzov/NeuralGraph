@@ -38,8 +38,8 @@ anything starts. The stack is two containers and two named volumes:
 
 | Service | Image | Data | Ports |
 |---|---|---|---|
-| `nats` | `nats:2.10.29-alpine` (pinned in `.env`) | volume `nats-data` (JetStream file store) | 4222 internal only; 8222 (monitoring) never published |
-| `mycelic` | built from `deploy/mycelic/Dockerfile`, runs as uid 10001 | volume `mycelic-data` (`/data/mycelic.db`) | `${MYCELIC_PORT}` → 8080 |
+| `nats` | `nats:2.10.29-alpine` (pinned in `.env`); runs as root, as the official image ships (the Kubernetes StatefulSet runs it as uid 1000) | volume `nats-data` (JetStream file store) | 4222 internal only; the monitor (8222) listens on the container's loopback |
+| `mycelic` | built from `deploy/mycelic/Dockerfile`, runs as uid 10001 | volume `mycelic-data` (`/data/mycelic.db`) | `${MYCELIC_BIND_ADDRESS:-127.0.0.1}:${MYCELIC_PORT}` → 8080, plain HTTP; set `MYCELIC_BIND_ADDRESS=0.0.0.0` only behind the TLS proxy of section 2 |
 
 Optional Prometheus (`--profile observability`) scrapes `/metrics` with `MYCELIC_METRICS_TOKEN`
 (set it in `.env`; it is passed as a compose secret) and listens on `127.0.0.1:9090`.
@@ -126,8 +126,13 @@ this repository's CI sandbox with both drivers (6 agents: 8 s process / 25 s com
 * **One NATS server** with a file-backed JetStream store. A 3-node JetStream cluster is a drop-in change on
   the broker side (`num_replicas` is a stream setting; Mycelic sets 1) and is not covered by this release.
 * **TLS.** Terminate at a reverse proxy or Ingress and set `MYCELIC_ALLOWED_HOSTS` to its hostname and
-  `MYCELIC_TRUST_PROXY_HEADERS=true` so rate limiting sees client addresses. Alternatively let Mycelic serve
-  TLS itself with `MYCELIC_TLS_CERT_FILE` / `MYCELIC_TLS_KEY_FILE`. For the broker, `tls://` in
+  `MYCELIC_TRUST_PROXY_HEADERS=true` (with `MYCELIC_TRUSTED_PROXY_HOPS` = the number of proxies that append
+  to `X-Forwarded-For`, default 1) so rate limiting sees client addresses; only do this when the proxy is the
+  only thing that can reach the service. Alternatively let Mycelic serve TLS itself with
+  `MYCELIC_TLS_CERT_FILE` / `MYCELIC_TLS_KEY_FILE`; this is not wired into the shipped compose file or
+  manifests: pass the two variables and mount the certificate and key (compose: `environment` + `volumes`;
+  Kubernetes: a Secret volume on the StatefulSet) and set `scheme: HTTPS` on the three probes in
+  `mycelic-statefulset.yaml`, otherwise the pod never becomes Ready. For the broker, `tls://` in
   `MYCELIC_NATS_URL` plus `MYCELIC_NATS_CA_FILE` enables verified TLS (configure `tls {}` in `nats.conf`).
 * **Secrets** come only from the environment (`.env`, Kubernetes Secret). Values that look like
   placeholders are refused at start. `MYCELIC_ADMIN_TOKEN` is mandatory on any non-loopback bind.
@@ -156,12 +161,12 @@ All variables have the `MYCELIC_` prefix. Validation runs at start and fails fas
 | `READY_REQUIRES_NATS` | `false` | `/ready` fails during a broker outage when true |
 | `TLS_CERT_FILE`, `TLS_KEY_FILE` | | serve HTTPS directly |
 | `ALLOWED_HOSTS`, `CORS_ORIGINS` | | Host allow-list; browser origins (off by default) |
-| `TRUST_PROXY_HEADERS` | `false` | use `X-Forwarded-For` for rate limiting |
+| `TRUST_PROXY_HEADERS`, `TRUSTED_PROXY_HOPS` | `false`, `1` | use the Nth-from-the-right `X-Forwarded-For` entry for rate limiting and audit (only behind a proxy that is the sole path in) |
 | `RATE_LIMIT_RPS`, `RATE_LIMIT_BURST` | `50`, `100` | per peer address before auth and per principal after |
 | `MAX_BODY_BYTES`, `MAX_TEXT_CHARS`, `MAX_BATCH`, `MAX_EVENT_BYTES` | `1 MiB`, `4000`, `100`, `256 KiB` | input limits |
 | `AUDIT_RETENTION_DAYS` | `90` | audit rows older than this are pruned at start |
 | `MIN_SUPPORT` | `2` | distinct child units needed for a consolidated memory |
-| `RULES_FILE` | | JSON file of slot-composition rules loaded at start (`deploy/mycelic/rules.json`) |
+| `RULES_FILE` | | JSON file of slot-composition rules re-applied at every start (`deploy/mycelic/rules.json`); a file rule overrides an API edit to the same `rule_id`, and the override is appended to the event log so a rebuild ends with the same rules |
 | `PUBLIC_URL` | | informational |
 
 ## 4. Operations
@@ -185,18 +190,21 @@ missing database is rebuilt in full from the stream. A missing stream with an in
 serving, but nothing can be replayed until new events accumulate; restore the stream from its backup
 before restoring an older database.
 
-**Recovery procedures** (each is exercised by `tests/smoke/mycelic_smoke.py`):
+**Recovery procedures** (service crash, broker outage and database loss are exercised by
+`tests/smoke/mycelic_smoke.py` steps 5–7; the other rows by the named tests in `tests/mycelic/test_jetstream.py`):
 
 | Situation | What to do |
 |---|---|
-| service crashed | `docker compose start mycelic` (or let `restart: unless-stopped` do it); it resumes from the durable consumer |
+| service crashed | `docker compose -f deploy/mycelic/docker-compose.yml start mycelic` (or let `restart: unless-stopped` do it); it resumes from the durable consumer |
 | broker down | nothing: writes are accepted and queued in the outbox; `/health` reports `degraded`; the queue flushes on reconnect. `mycelic_outbox_pending` shows the depth |
-| database lost or corrupt | stop the service, remove `/data/mycelic.db*`, start it: it logs "fresh database but the stream holds N events: replaying" and rebuilds memories, lineage, agents (their keys keep working) and rules. `mycelic_replay_events_total` counts progress; `/ready` is 503 until the replay finishes |
-| stale database restored from backup | just start it: missing events are re-delivered (`mycelic_recovery_total{kind="replay_restored_backup"}`) |
-| force a replay | `python -m mycelic replay` or `POST /admin/replay` |
-| poison event | after `NATS_MAX_DELIVER` attempts it is terminated and recorded (`GET /admin/events?org=…&status=failed`, audit `event.failed`); the log continues |
+| database lost or corrupt | stop the service, remove `/data/mycelic.db*`, start it: it logs "fresh database but the stream holds N events: replaying" and rebuilds memories, lineage, agents (their keys keep working) and rules. `mycelic_replay_events_total` counts progress; `/ready` is 503 until the replay finishes, and the target is stored in the database so a crash mid-rebuild resumes it (`test_lost_database_is_rebuilt_from_the_stream`, `test_unfinished_replay_resumes_after_a_crash`) |
+| stale database restored from backup | just start it: missing events are re-delivered (`mycelic_recovery_total{kind="replay_restored_backup"}`; `test_restored_backup_receives_the_events_it_missed`) |
+| durable consumer lost (broker state reset) | just start it: the consumer is recreated after the last applied sequence (`kind="consumer_recreated"`; `test_lost_consumer_is_recreated_after_the_last_applied_event`) |
+| stream shorter than the database (purged or recreated) | the database keeps serving; the log restarts from the new sequence and `kind="stream_behind_database"` is counted; restore the stream backup first when you can |
+| force a replay | `python -m mycelic replay` or `POST /admin/replay` (`test_forced_replay_is_idempotent`) |
+| poison or rejected event | after `NATS_MAX_DELIVER` attempts it is terminated and recorded (`GET /admin/events?org=…&status=failed`, audit `event.failed`); a terminated or unsigned event counts as consumed, so a replay still completes (`test_poison_event_is_terminated_and_replay_completes`) |
 
-**Upgrades.** Build the new image, `docker compose up -d --build`. The schema version is stored in the
+**Upgrades.** Build the new image, `docker compose -f deploy/mycelic/docker-compose.yml up -d --build`. The schema version is stored in the
 database; a newer schema than the code refuses to start. Replays are idempotent across versions as long as
 the aggregation rules are unchanged; changing rules changes future derivations only.
 
@@ -248,7 +256,15 @@ kubectl -n mycelic rollout status statefulset/mycelic
 Storage classes must be block storage (`ReadWriteOnce`): SQLite in WAL mode and the JetStream file store
 are not safe on NFS. Requests are 10Gi (Mycelic) and 20Gi (NATS); adjust to your retention. The Ingress
 terminates TLS; the Mycelic pod trusts `X-Forwarded-For` (`MYCELIC_TRUST_PROXY_HEADERS=true` in the
-ConfigMap) because only the Ingress can reach it.
+ConfigMap) because `networkpolicy.yaml` lets only the ingress controller's namespace (and optionally the
+monitoring namespace) reach it, and lets only the Mycelic pod reach the broker; edit the namespace names in
+that file to match your cluster, and note that it needs a CNI that enforces NetworkPolicy. The NATS monitor
+listens on the container's loopback and is probed with `exec`.
+
+**Metrics in Kubernetes.** `/metrics` needs a bearer token, so annotation-driven scraping does not work.
+Use the Prometheus Operator: `kubectl apply -f deploy/mycelic/k8s/servicemonitor.example.yaml` (it reads
+`MYCELIC_METRICS_TOKEN` from the `mycelic-secrets` Secret), or a plain scrape job with
+`authorization: {type: Bearer, credentials_file: …}` like `deploy/mycelic/prometheus/prometheus.yml`.
 
 The manifests were validated by rendering (`kubectl kustomize deploy/mycelic/k8s`), not by a deployment to
 a cluster: expect to adjust storage class, ingress class and resource requests.
