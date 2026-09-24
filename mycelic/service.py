@@ -239,9 +239,10 @@ class MycelicService:
 
     # ------------------------------------------------------------------ background loops
     async def _transport_keeper(self) -> None:
+        """Establish the transport when there is no live client; a client that is reconnecting is left alone."""
         delay = 1.0
         while not self._stop.is_set():
-            if not self.transport.connected:
+            if getattr(self.transport, "needs_connect", not self.transport.connected):
                 ok = await self._connect_with_retry(first=False)
                 delay = 1.0 if ok else min(15.0, delay * 2)
                 if ok:

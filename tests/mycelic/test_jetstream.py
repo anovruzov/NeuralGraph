@@ -169,6 +169,8 @@ class JetStreamTests(unittest.IsolatedAsyncioTestCase):
         self.nats.start()
         self.assertTrue(await s.wait_idle(30), "outbox flushed and applied after the broker returned")
         self.assertEqual(s.store.stats()["outbox_pending"], 0)
+        self.assertEqual(s.transport.reconnects, 1, "the existing client reconnected; no second client was opened")
+        self.assertEqual(s.metrics.recoveries.labels("transport_reconnect")._value.get(), 0)
         self.assertEqual(s.store.get_memory(m.memory_id).applied_at is not None, True)
         team = s.store.list_memories("northwind", layers=["team"])[0]
         self.assertEqual(team.support, 3)

@@ -57,6 +57,8 @@ class Transport(Protocol):
 
     @property
     def connected(self) -> bool: ...
+    @property
+    def needs_connect(self) -> bool: ...
     async def connect(self) -> None: ...
     async def close(self) -> None: ...
     async def publish(self, subject: str, payload: bytes, msg_id: str, headers: dict[str, str] | None = None) -> int | None: ...
@@ -113,6 +115,10 @@ class InProcessTransport:
     @property
     def connected(self) -> bool:
         return self._connected
+
+    @property
+    def needs_connect(self) -> bool:
+        return not self._connected
 
     async def connect(self) -> None:
         self._connected = True
@@ -214,6 +220,11 @@ class JetStreamTransport:
     def connected(self) -> bool:
         return self._connected and self._nc is not None and self._nc.is_connected
 
+    @property
+    def needs_connect(self) -> bool:
+        """True only when there is no live client. A client that is reconnecting on its own is left alone."""
+        return self._nc is None or self._nc.is_closed
+
     def _set_connected(self, value: bool) -> None:
         self._connected = value
         if self._on_state:
@@ -225,8 +236,8 @@ class JetStreamTransport:
     async def connect(self) -> None:
         import nats
 
-        if self._nc is not None and self._nc.is_connected:
-            return
+        if self._nc is not None and not self._nc.is_closed:
+            return          # connected, or reconnecting in the background: the callbacks flip ``connected``
         options: dict[str, Any] = {
             "servers": [self.s.nats_url],
             "name": self.s.instance_id,
