@@ -1,0 +1,14 @@
+.git
+.venv
+**/__pycache__
+**/*.pyc
+.pytest_cache
+research/
+docs/
+demo/results/
+tests/
+deploy/mycelic/.env
+*.db
+*.db-wal
+*.db-shm
+NeuralGraph/research/retrieval/en_thesaurus.jsonl

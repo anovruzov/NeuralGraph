@@ -246,8 +246,15 @@ class MemoryTools:
 
 
 class MCPProtocol:
-    def __init__(self, cm: ChatMemory, *, instructions: str | None = None) -> None:
-        self.tools = MemoryTools(cm)
+    """JSON-RPC/MCP core. Bound to :class:`ChatMemory` by default; another product can reuse it by passing its own
+    ``tool_defs`` (the ``tools/list`` payload) and ``tools`` (an object with ``async call(name, args)``), plus
+    ``server_info``/``instructions``; resources and prompts then answer empty unless ``cm`` is given."""
+
+    def __init__(self, cm: ChatMemory | None, *, instructions: str | None = None, tool_defs: list[dict[str, Any]] | None = None,
+                 tools: Any | None = None, server_info: dict[str, str] | None = None) -> None:
+        self.tools = tools or MemoryTools(cm)
+        self.tool_defs = tool_defs or TOOLS
+        self.server_info = server_info or SERVER_INFO
         self.cm = cm
         self.instructions = instructions or (
             "Long-term memory across chats. Call memory_context or memory_search before answering questions about the "
@@ -288,7 +295,7 @@ class MCPProtocol:
             elif method == "ping":
                 result = {}
             elif method == "tools/list":
-                result = {"tools": TOOLS}
+                result = {"tools": self.tool_defs}
             elif method == "tools/call":
                 result = await self._tools_call(params)
             elif method == "resources/list":
@@ -296,16 +303,18 @@ class MCPProtocol:
                     {"uri": "memory://status", "name": "Memory system status", "mimeType": "application/json",
                      "description": "Counts, queue, tokens saved and grade."},
                     {"uri": "memory://entities", "name": "Top entities", "mimeType": "application/json"},
-                ]}
+                ] if self.cm is not None else []}
             elif method == "resources/read":
                 result = await self._resources_read(params)
             elif method == "resources/templates/list":
                 result = {"resourceTemplates": [
-                    {"uriTemplate": "memory://profile/{subject}", "name": "Subject profile", "mimeType": "application/json"}]}
+                    {"uriTemplate": "memory://profile/{subject}", "name": "Subject profile", "mimeType": "application/json"}] if self.cm is not None else []}
             elif method == "prompts/list":
                 result = {"prompts": [{"name": "recall", "description": "Recall what is known about a topic before answering.",
-                                       "arguments": [{"name": "topic", "required": True}]}]}
+                                       "arguments": [{"name": "topic", "required": True}]}] if self.cm is not None else []}
             elif method == "prompts/get":
+                if self.cm is None:
+                    raise ToolError("no prompts")
                 topic = (params.get("arguments") or {}).get("topic", "")
                 block = await self.cm.context_for(topic) if topic else ""
                 result = {"messages": [{"role": "user", "content": {"type": "text", "text":
@@ -334,14 +343,14 @@ class MCPProtocol:
             "protocolVersion": version,
             "capabilities": {"tools": {"listChanged": False}, "resources": {"subscribe": False, "listChanged": False},
                              "prompts": {"listChanged": False}, "logging": {}},
-            "serverInfo": SERVER_INFO,
+            "serverInfo": self.server_info,
             "instructions": self.instructions,
         }
 
     async def _tools_call(self, params: dict[str, Any]) -> dict[str, Any]:
         name = params.get("name")
         args = params.get("arguments") or {}
-        if not isinstance(name, str) or not any(t["name"] == name for t in TOOLS):
+        if not isinstance(name, str) or not any(t["name"] == name for t in self.tool_defs):
             raise ToolError(f"unknown tool: {name}")
         if not isinstance(args, dict):
             raise ToolError("arguments must be an object")
@@ -359,6 +368,8 @@ class MCPProtocol:
 
     async def _resources_read(self, params: dict[str, Any]) -> dict[str, Any]:
         uri = str(params.get("uri") or "")
+        if self.cm is None:
+            raise ToolError(f"unknown resource: {uri}")
         if uri == "memory://status":
             data = await self.tools.tool_memory_status()
         elif uri == "memory://entities":
@@ -468,8 +479,9 @@ class StreamableHTTPTransport:
       (DNS-rebinding protection for local deployments).
     """
 
-    def __init__(self, cm: ChatMemory, *, token: str | None = None, allowed_origins: list[str] | None = None) -> None:
-        self.proto = MCPProtocol(cm)
+    def __init__(self, cm: ChatMemory | None, *, token: str | None = None, allowed_origins: list[str] | None = None,
+                 protocol: MCPProtocol | None = None) -> None:
+        self.proto = protocol or MCPProtocol(cm)
         self.token = token or None
         self.allowed_origins = allowed_origins
         self.sessions: "OrderedDict[str, dict[str, Any]]" = OrderedDict()
@@ -478,7 +490,7 @@ class StreamableHTTPTransport:
         if not self.token:
             return True
         auth = request.headers.get("Authorization", "")
-        return auth.startswith("Bearer ") and hmac.compare_digest(auth[7:].strip(), self.token)
+        return auth.startswith("Bearer ") and hmac.compare_digest(auth[7:].strip().encode("utf-8"), self.token.encode("utf-8"))
 
     def _origin_ok(self, request) -> bool:
         origin = request.headers.get("Origin")
