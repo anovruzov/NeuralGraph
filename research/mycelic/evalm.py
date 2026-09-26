@@ -1,9 +1,13 @@
 """Metrics.  Raw measurements first; composites only as a convenience.
 
-Matching rule (strict, used for every headline number):
-    a reported hypothesis matches gold pattern p iff
-        hyp.anchor == p.anchor
-    and |set(hyp.preds) & set(p.preds)| >= min(3, len(p.preds))
+Matching rules.  A reported hypothesis matches gold pattern p iff
+    hyp.anchor == p.anchor, and
+    primary (every headline number: discovery_recall, found_anywhere_in_register,
+             the ranked metrics):
+        |set(hyp.preds) & set(p.preds)| >= max(2, ceil(len(p.preds) / 2))
+    strict  (reported alongside as discovery_recall_strict and the *_strict
+             ranked metrics):
+        |set(hyp.preds) & set(p.preds)| >= min(3, len(p.preds))
 A "lenient" variant that also accepts a lexical-stem-equal anchor is reported
 alongside as a sensitivity check, never as the headline.
 """

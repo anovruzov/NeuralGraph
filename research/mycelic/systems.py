@@ -1893,7 +1893,9 @@ def chunked_long_context(corpus: Corpus, alloc: List[Tier], seed: int,
     Partition the corpus into chunks that fill the kernel tier's whole context
     window, run the kernel over every chunk, pool the resulting knowledge
     objects and synthesise once at the end.  Unlike single-shot long context
-    this covers the ENTIRE enterprise, at a cost that grows linearly with it.
+    this covers every record in the enterprise that mentions a causal-schema
+    predicate (every record when expand_schema is False), at a cost that grows
+    linearly with it.
 
     This is the obvious scaling answer and the one a reviewer will reach for
     first, so it has to be in the comparison rather than argued away.  It is

@@ -16,14 +16,15 @@
 <g font-size="11" fill="#b5451b">
 <text x="370" y="140" text-anchor="middle">v1: largest first loss</text>
 <text x="370" y="154" text-anchor="middle">(budget 0.25 × queue)</text>
-<text x="515" y="140" text-anchor="middle">descent reach; 50k binding</text>
+<text x="515" y="140" text-anchor="middle">coverage; 50k binding</text>
+<text x="515" y="154" text-anchor="middle">(lost mostly at the sketch)</text>
 <text x="660" y="140" text-anchor="middle">link timing (hybrid DP)</text>
 <text x="810" y="140" text-anchor="middle">v1: ordering under the cap;</text>
 <text x="810" y="154" text-anchor="middle">learned ranker</text>
 </g>
 <g font-size="12">
 <text x="20" y="200" font-weight="bold">vNext changes, by stage:</text>
-<text x="20" y="220">questioned — budget 0.25 → 0.65 of the triage queue (saturates there at 10k and 50k); metering batched per node so calls fall while decisions are identical.</text>
+<text x="20" y="220">questioned — budget 0.25 → 0.65 of the triage queue (chosen on development seeds 0–4); metering batched per node so calls fall while decisions are identical.</text>
 <text x="20" y="240">matched — a link is dated at its heaviest witness cluster, or floats across clusters in the DP when its witnesses disagree (hybrid), instead of its earliest mention.</text>
 <text x="20" y="260">in_register — the hand-set logistic decides HOW MANY candidates pass; a ranker fitted on calibration seeds over kernel-side features decides WHICH.</text>
 <text x="20" y="280">untouched — gold labels, evaluation worlds, register cap, metrics, sketch support threshold.</text>

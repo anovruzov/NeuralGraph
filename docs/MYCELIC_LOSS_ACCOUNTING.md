@@ -14,21 +14,25 @@ Every number is computed from `research/mycelic/artifacts/loss_funnel.jsonl`
 and `quick_diag*.jsonl` at generation time. 5 seeds at 10,000 users,
 3 at 50,000.
 
-## 1. The finding in one paragraph
+## 1. The finding
 
-The handoff pack's leading hypothesis was that the sketch channel is too poor
+**After the rerun** (the tables in section 2). The question budget is no longer the largest loss: it asks 97.5% of gold anchors at 10,000 users and 71.0% of gold anchors at 50,000 users. At 10k the largest terminal loss is the **register**: 52 of 200 patterns (26%, 38 of them rare) are lost there after being matched at confidence ≥ 0.5; A2 loses 18 at the register (0.830 matched at ≥ 0.5, 0.740 reported). At 50k the largest terminal loss is **sketch visibility**: 58 of 300 patterns (19%, 41 of them rare) are lost there, against 21 cut at the register and 17 lost to the question budget.
+
+**The v1 finding** (before the vNext work; `artifacts/v1/loss_funnel.jsonl`,
+same seeds). The handoff pack's leading hypothesis was that the sketch channel is too poor
 to seed good hypotheses. It is not: at 10,000 users the sketch triage sees
 98.5% of gold anchors. The pattern dies later, at two places. First, the
 **question budget**: the calibrated budget asks only 63.5% of gold anchors at
 10k and 43% at 50k, and that is the single largest first-loss stage at both
-scales (47% and 51% of the gap to A2). Second, the **register**: at 10k, 12%
+scales (47% and 54% of the gap to A2). Second, the **register**: at 10k, 14%
 of all patterns are matched at confidence ≥ 0.5 and then cut, because the
 hierarchy rates spurious candidates as highly as genuine ones and the
-register holds one entry per entity. A2 loses nothing at the register. Asking
+register holds one entry per entity. A2 loses 25 there, 15% of its
+confident matches against the hierarchy's 27%. Asking
 every triage candidate recovers evidence for 98.5% of patterns and the kernel
-forms a correct confident candidate for ~80% — more than A2 — and then buries
+forms a correct confident candidate for ~80% — more than A2 reports (0.685) — and then buries
 them. The calibrated small budget was the right choice *given the ranker*; the
-ranker is the fault. At 50,000 users the sketch additionally loses 18% of
+ranker is the fault. At 50,000 users the sketch additionally loses 22% of
 patterns (mostly rare: a single-witness facet cannot set a site bit under the
 support threshold), so scale adds a third, smaller stage.
 
@@ -338,7 +342,8 @@ Paired on 300 (seed, pattern) pairs at 50,000 users: `Y_oracle_retrieval` report
 
 ## 3. Paired decomposition on identical worlds
 
-Each row is the calibrated hierarchy with one setting changed, run on the
+Each row is the calibrated **v1** hierarchy (hand-set ranker, question_frac
+0.25; not the vNext configuration of section 9) with one setting changed, run on the
 same (scale, seed) worlds as the base. **An unbounded register is a
 benchmark change, not a design**; it appears here only to measure how much
 discovery is being lost to ranking rather than to retrieval or judgement.
@@ -348,7 +353,7 @@ Arrows mark a 95% bootstrap interval entirely on one side of zero.
 
 | variant | found | evidence cov. | rare recall | AP | FDR | compute | calls |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| H_mycelic_full (calibrated) | 0.375 | 0.690 | 0.215 | 0.0227 | 0.975 | 1.09e+06 | 9.10e+04 |
+| H_mycelic_full, v1 (hand ranker, qf 0.25) | 0.375 | 0.690 | 0.215 | 0.0227 | 0.975 | 1.09e+06 | 9.10e+04 |
 | ask every triage candidate (question_frac = 1.0) (5 seeds) | 0.300 | 0.985 **↑** | 0.271 | 0.0113 **↓** | 0.980 | 2.14e+06 **↑** | 2.21e+05 **↑** |
 | unbounded register (diagnostic only) (5 seeds) | 0.540 **↑** | 0.690 | 0.341 **↑** | 0.0261 **↑** | 0.985 **↑** | 1.16e+06 **↑** | 9.10e+04 |
 | both (5 seeds) | 0.795 **↑** | 0.985 **↑** | 0.697 **↑** | 0.0193 | 0.989 **↑** | 2.36e+06 **↑** | 2.21e+05 **↑** |
@@ -358,7 +363,7 @@ Arrows mark a 95% bootstrap interval entirely on one side of zero.
 
 | variant | found | evidence cov. | rare recall | AP | FDR | compute | calls |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| H_mycelic_full (calibrated) | 0.363 | 0.450 | 0.235 | 0.0081 | 0.987 | 2.97e+06 | 2.89e+05 |
+| H_mycelic_full, v1 (hand ranker, qf 0.25) | 0.363 | 0.450 | 0.235 | 0.0081 | 0.987 | 2.97e+06 | 2.89e+05 |
 | ask every triage candidate (question_frac = 1.0) (3 seeds) | 0.407 **↑** | 0.787 **↑** | 0.248 | 0.0085 | 0.986 **↓** | 6.27e+06 **↑** | 6.99e+05 **↑** |
 | unbounded register (diagnostic only) (3 seeds) | 0.363 | 0.450 | 0.235 | 0.0081 | 0.987 | 2.98e+06 **↑** | 2.89e+05 |
 | both (3 seeds) | 0.643 **↑** | 0.787 **↑** | 0.417 **↑** | 0.0112 **↑** | 0.993 **↑** | 6.83e+06 **↑** | 6.99e+05 **↑** |
@@ -366,8 +371,8 @@ Arrows mark a 95% bootstrap interval entirely on one side of zero.
 **Reading it.** Asking every triage candidate raises evidence coverage from
 0.69 to 0.985 at 10k (0.45 to 0.79 at 50k) and *lowers* discovery at 10k:
 the recovered evidence produces candidates the register cannot hold. Remove
-the register pressure and the same runs report 0.795 at 10k — above A2's
-0.685 — and 0.643 at 50k against A2's 0.703, at two-thirds of A2's compute.
+the register pressure and the same runs report 0.795 at 10k — above v1 A2's
+0.685 — and 0.643 at 50k against v1 A2's 0.703, at two-thirds of A2's compute at 50k.
 Allowing home-site evidence back in does not help, so the flood is not the
 foreign-only filter. The residual at 50k is the sketch loss, which no
 question budget can recover because the anchor never reaches the triage list.
@@ -388,16 +393,19 @@ per-link independent support, inter-link lags, conflict volume, dispersion,
 whether the candidate came from a question — should separate genuine from
 spurious candidates among the triage survivors. Section 6 measures that.
 
-## 5. Two smaller losses, measured
+## 5. Two further losses, measured
 
-**Extraction (10% at 50k, 24% of rare patterns).** This is stochastic recall,
-not a capability ceiling: a fresh edge-tier re-read of the same records
-recovers 80–91% of the patterns lost there, a kernel-tier *local* re-read
-100%. A user agent asked a targeted question about an entity can re-read its
-own notes about it — the entity name is in every record's surface text — so
-the loss is recoverable without moving any text.
+**Extraction (4% at 50k, 11% of rare patterns).** This is stochastic recall,
+not a capability ceiling: in an earlier funnel, with a 10% extraction loss
+(research log, iteration 20), a fresh edge-tier re-read of the same records
+recovered 80–91% of the patterns lost there and a kernel-tier *local* re-read
+100%; the rerun funnel's figure was not re-measured. A user agent asked a
+targeted question about an entity can re-read its own notes about it — the
+entity name is in every record's surface text — so the loss is recoverable
+without moving any text. The paired tests of targeted local re-extraction did
+not pay, though (9.4), and it is off in the frozen configuration.
 
-**Sketch (18% at 50k, 39 of 54 rare).** 43 of the 54 fail on "causal span < 2
+**Sketch (22% at 50k, 49 of 66 rare).** 43 of the 66 fail on "causal span < 2
 across foreign sites": a facet with one witness at a site sets no bit under
 `sketch_min_support = 2`. Lowering the threshold lets benign single mentions
 set bits and lengthens the triage list, which only pays if the ranker can
@@ -437,11 +445,11 @@ Not "richer sketches". In order of the loss they addressed, with the
 measured outcome (section 9 has every paired table):
 
 1. **A calibrated ranker** over kernel-side features, fitted on the
-   calibration seeds by the same protocol as every other knob, so the
+   calibration seeds by the same protocol as every v1 knob, so the
    question budget could be spent without flooding the register. Done:
    +0.21 found at 10k, +0.16 at 50k, together with the budget it unlocked.
 2. **A cheaper descent**, so the budget is affordable at 50k. Done as
-   batched metering (calls −61% to −71% at identical decisions); the
+   batched metering (calls −65% to −84% at identical decisions); the
    chain-scoped variant that halves compute is kept as a separate arm
    because it costs evidence coverage.
 3. **Link timing in the kernel's temporal check**, which the loss replay
@@ -466,7 +474,7 @@ python3 -m research.mycelic.loss_doc             # this document
 python3 -m research.mycelic.make_pdf docs/MYCELIC_LOSS_ACCOUNTING.md docs/MYCELIC_LOSS_ACCOUNTING.pdf
 ```
 
-_Generated 2026-09-22 by `research/mycelic/loss_doc.py` from the
+_Generated 2026-09-26 by `research/mycelic/loss_doc.py` from the
 raw artifacts._
 
 ## 9. vNext, measured
@@ -474,10 +482,12 @@ raw artifacts._
 Everything in this section is a **paired** experiment: the variant and its
 base run on identical worlds, and the Δ shown under each variant value is
 the paired mean with an arrow when its 95% bootstrap interval excludes zero.
-Evaluation seeds are 0–4 at 10,000 users and 0–2 at 50,000; every knob and
-every ranker was fitted on the calibration seeds (500–502) before the
-evaluation seeds were read, and the two tables that use calibration seeds
-say so. Nothing here changes the register cap, the threshold, the gold
+Evaluation seeds are 0–4 at 10,000 users and 0–2 at 50,000; every ranker's
+weights and every v1 knob were fitted on calibration-seed rows (500–502), and
+the two tables that use calibration seeds say so. Several vNext decisions were
+made on these evaluation seeds (the question budget, and the rejection of local
+re-extraction, decoy-weighted ranker selection and modal link timing); the
+ledger in 9.7 cites the paired file behind each. Nothing here changes the register cap, the threshold, the gold
 labels, the worlds or the matching rule; the unbounded register appears
 only as a diagnostic.
 
@@ -613,7 +623,7 @@ node. One calibration seed promised +0.125. Paired on the evaluation seeds
 | same + local re-extraction: v1 hierarchy | 5 | 0.480 | 0.253 | 0.690 | 0.1334 | 0.968 | 0.275 | 1.08e+06 | 9.07e+04 |
 | same + local re-extraction: variant | 5 | 0.515 <sub>+0.035</sub> | 0.277 <sub>+0.023</sub> | 0.970 <sub>+0.280</sub> **↑** | 0.1490 <sub>+0.0156</sub> | 0.966 <sub>-0.002</sub> | 0.280 <sub>+0.005</sub> | 1.37e+06 <sub>+2.93e+05</sub> **↑** | 2.66e+04 <sub>-6.41e+04</sub> **↓** |
 
-No gain at 10k, +0.04/−0.01 on two 50k seeds (9.6), six times the simulator
+No gain at 10k, +0.04/−0.01/−0.01 on three 50k seeds (9.6), six times the simulator
 wall time. Off in the frozen configuration.
 
 ### 9.5 Link timing in the temporal check
@@ -693,14 +703,18 @@ coverage and rare recall and is kept as a separate arm (`H_mycelic_lean`).
 At 50k the register (2,999 slots) is not the binding stage; coverage (0.72)
 is. The budget saturates at 0.65 here too, re-extraction does not pay, and
 hybrid timing adds +0.06 on 3/3 seeds at equal compute. The hierarchy ends
-at about 0.59 against A2's 0.77 with the same ranker, at 38% of A2's
-compute; that gap is the question budget's reach, not the register.
+at about 0.59 against A2's 0.78 with the same ranker, at 38% of A2's
+compute; the coverage it lacks is lost mainly at sketch visibility
+(58 of 300 patterns in the section 2 funnel,
+41 of them rare), then the question budget (17) and extraction (5); descent
+loses none.
 
 Two accounting caveats from the independent review apply to every 50k row
 above: the "calls" column compares unbatched v1 metering with batched vNext
 metering (batching alone is −84% calls at identical decisions; the v1 base
 re-metered batched is in 9.7), and the kernel's single read of its pool is
-3.2–3.4M tokens at 50k (1.3–1.5M at 10k) against the modelled tier's 1M
+3.0–3.3M tokens at 50k (1.3–1.5M at 10k; final rerun,
+`e1_baselines.jsonl`) against the modelled tier's 1M
 context, which the simulator enforces only for the flat controls.
 
 ### 9.7 The ledger, the cost of each accepted change, and what is frozen
@@ -721,7 +735,7 @@ context, which the simulator enforces only for the flat controls.
 | hybrid + chain-scoped questions (H_mycelic_lean) | 10,000 | eval 0-4 | +0.025 (3/4 better) | -0.071 | -0.170 | +0.045 | +0.020 | +0.200 | -0.100 | +0.060 | -47% | -1% | Pareto arm |
 | ranker v3 + qf 0.65 + batched, 50k | 50,000 | eval 0-2 | +0.163 (3/3 better) | +0.100 | +0.273 | +0.137 | +0.053 | +0.107 | +0.093 | +0.293 | +32% | -61% | ACCEPTED |
 | question_frac 0.80 at 50k | 50,000 | eval 0-2 | +0.007 (2/3 better) | -0.032 | +0.047 | +0.033 | +0.013 | +0.093 | +0.027 | -0.000 | +12% | +2% | rejected |
-| local re-extraction at 50k | 50,000 | eval 0-1 | +0.007 (1/3 better) | -0.025 | -0.003 | +0.040 | +0.013 | +0.067 | +0.027 | +0.053 | +1% | -0% | rejected |
+| local re-extraction at 50k | 50,000 | eval 0-2 | +0.007 (1/3 better) | -0.025 | -0.003 | +0.040 | +0.013 | +0.067 | +0.027 | +0.053 | +1% | -0% | rejected |
 | hybrid link timing at 50k (+ refitted ranker) | 50,000 | eval 0-2 | +0.060 (3/3 better) | +0.009 | +0.003 | +0.040 | +0.013 | +0.013 | +0.000 | +0.133 | -0% | -0% | validation |
 | hybrid + chain-scoped questions at 50k | 50,000 | eval 0-2 | -0.003 (1/3 better) | -0.072 | -0.143 | +0.007 | +0.000 | +0.013 | -0.013 | +0.027 | -31% | -1% | Pareto arm |
 | v1 hierarchy re-metered with batched descent (identical decisions) | 10,000 | eval 0-4 | +0.000 (0/0 better) | +0.000 | +0.000 | +0.000 | +0.000 | +0.000 | +0.000 | +0.000 | -12% | -73% | metering control |

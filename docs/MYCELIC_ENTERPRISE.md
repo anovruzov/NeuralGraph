@@ -9,9 +9,13 @@ alone?
 
 **What this document is.** A mechanism study on a synthetic enterprise with
 known hidden ground truth. Eighteen architectures are compared under one
-shared implementation of every cognitive operation, at matched kernel context,
-with every tunable setting fitted on held-out data before the evaluation data
-was touched. It is not a deployment report, and it does not measure any
+shared implementation of every cognitive operation, on a matched kernel model
+tier (kernel prompt sizes are not matched; §2). The v1 settings and the learned
+ranker's weights were fitted on calibration-seed rows; several vNext decisions
+(the question budget, and the rejection of local re-extraction, decoy-weighted
+ranker selection and modal link timing) were made on evaluation seeds 0–4 at
+10,000 users and 0–2 at 50,000, and §2 names the evidence behind every frozen
+value. It is not a deployment report, and it does not measure any
 specific model end to end. Part II states exactly what was measured on real
 models and what was simulated.
 
@@ -84,11 +88,13 @@ weaknesses are, stated by us rather than found by someone else.
 
 ### The one-paragraph version
 
-We built a synthetic enterprise with known hidden problems planted in it, at 2,000, 10,000, 50,000 and 100,000 people, and tested 18 ways of finding those problems, from pouring a filtered sample of the company's notes into one very large model, to a six-level hierarchy of agents mirroring the org chart. **The hierarchy is not the most accurate option.** The strongest single approach measured at 50,000 people is `A2_chunked_ctx`, which finds 78% of the hidden problems against the hierarchy's 57%. Whether the hierarchy is nonetheless worth building depends entirely on which of the secondary properties below we actually need; the table states which ones it delivers and which it does not.
+We built a synthetic enterprise with known hidden problems planted in it, at 2,000, 10,000, 50,000 and 100,000 people, and tested 18 ways of finding those problems, from reading a filtered subset of the company's notes with one very large model, to a six-level hierarchy of agents mirroring the org chart. **The hierarchy is not the most accurate option.** The strongest single approach measured at 50,000 people is `A2_chunked_ctx`, which finds 78% of the hidden problems against the hierarchy's 57%. Whether the hierarchy is nonetheless worth building depends entirely on which of the secondary properties below we actually need; the table states which ones it delivers and which it does not.
 
 ### Head to head at 50,000 users (5 seeds)
 
-*(Runs exist at 100,000 users too, and §11 reports them. The head-to-head is stated at 50,000 because that is the largest scale where **every** architecture in the comparison was run — `B4_central_triage`, `C_recursive_sum`, `F_hier_retrieval` were not run at 100,000. Choosing the largest complete scale is a rule applied by the generator, not a choice made per result.)*
+*(Runs exist at 100,000 users too, and §11 reports them. The head-to-head is stated at 50,000 because that is the largest scale where **every** architecture in the comparison was run — `B4_central_triage`, `C_recursive_sum`, `D_hier_nolineage`, `F_hier_retrieval` were not run at 100,000. Choosing the largest complete scale is a rule applied by the generator, not a choice made per result.)*
+
+*Seeds 0–2 at 50,000 users were also the development panel on which several vNext decisions were read (§6); the held-out panel is seeds 5–9 at 10,000 users.*
 
 | | best centralised option | the hierarchy | hierarchy better? |
 |---|---:|---:|---|
@@ -129,7 +135,7 @@ We built a synthetic enterprise with known hidden problems planted in it, at 2,0
 
 It finds 31% of the hidden problems against the hierarchy's 57%, at 1.07e+06 compute against 3.86e+06 — about 3.6x less.  Across all 25 paired (scale, seed) runs the difference is +0.080 (95% CI [+0.036, +0.127], 18/22 seeds, sign p=0.004), so the difference is real, and its sign is the one above.
 
-So the honest statement of what the hierarchy buys is narrow and specific: **the triage algorithm is what finds the problems; the hierarchy is how you run that algorithm without centralising the company's data.** The centralised version pools 88% of all extracted claims in one place; the hierarchy pools 14% and moves no original text at all. That privacy property costs roughly 3.6x the compute and tens of thousands of extra model calls. If we do not need it, we should run the algorithm centrally.
+So the algorithm alone does not explain the result: **run centrally, the same triage finds fewer of the hidden problems than the hierarchy does.** The topology — propagation budgets, routing and the descent — adds discovery on these worlds, at roughly 3.6x the compute and tens of thousands of extra model calls. Per scale, the paired difference is +0.055 at 2,000, +0.020 at 10,000 and +0.252 at 50,000 users. The centralised version pools 88% of all extracted claims in one place; the hierarchy pools 14% and moves no original text at all.
 
 ### Three decisions this supports
 
@@ -153,7 +159,7 @@ So the honest statement of what the hierarchy buys is narrow and specific: **the
 | 50,000 | `A2_chunked_ctx` | 0.784 | 1.02e+07 | 22.3% |
 | 100,000 | `A2_chunked_ctx` | 0.758 | 2.03e+07 | 22.3% |
 
-**1. Upward propagation alone does not work, at any scale, in any form.** At 100,000 users recursive summarisation finds 0.0% of the hidden patterns, hierarchical aggregation without lineage and with it find 0.0% and 0.8%. Adding targeted downward retrieval takes it to 0.0%; adding sketch-driven questioning takes it to 48.8%. The hierarchy's value is almost entirely in the *downward* path — no paired runs.
+**1. Upward propagation alone does not work, at any scale, in any form.** At 50,000 users (the largest scale where all five were run) recursive summarisation finds 0.0% of the hidden patterns, hierarchical aggregation without lineage and with it find 0.2% and 0.8%. Adding targeted downward retrieval takes it to 2.0%; adding sketch-driven questioning takes it to 56.6%. The hierarchy's value is almost entirely in the *downward* path — Δ +0.546 (95% CI [+0.494, +0.606], 5/5 seeds, sign p=0.062).
 
 **2. The reason is measurable and is not a tuning artefact.** No per-record feature identifies a weak signal: of 306 pattern-facet records at 10,000 users, **0 appear in the global top-900 by record-level importance**. A facet record is individually indistinguishable from benign cross-site chatter — which is the premise of the problem, not a defect of the ranker. Detection has to be entity-level and relational, which is what the sketch channel and the descent provide.
 
@@ -165,7 +171,7 @@ So the honest statement of what the hierarchy buys is narrow and specific: **the
 
 **6. The hierarchy's defensible advantage is confidentiality, and it is categorical rather than marginal.** No raw record text ever leaves the agent that owns it (0.0%); the retrieval baseline centralises 2.5% of all records as original text and the chunked-context baseline 22.3%. What leaves a node in the hierarchy is structured claims and an entity/predicate sketch.
 
-**7. The honest bottom line.** If centralising the raw text is acceptable and a very large context window is available, a schema-aware retrieval pass into one frontier call is the strongest and cheapest thing measured here. The hierarchy earns its cost only where sovereign local memory is a requirement, where rare signals matter more than common ones, or where independent-support and provenance have to be defensible. Those are real constraints, but they are constraints — not an accuracy win.
+**7. The honest bottom line.** If centralising raw text is acceptable, the strongest thing measured here is `A2_chunked_ctx`, which reads 22% of all records centrally and finds 78% of the hidden problems at 50,000 users against the hierarchy's 57% — ahead of it at every scale measured, at 2.6x the hierarchy's compute. The hierarchy earns its cost where sovereign local memory is a requirement; that is a real constraint, but a constraint — not an accuracy win. On this evidence it also delivers confidentiality, independent-support accuracy and resistance to planted traps. It does not deliver weak-signal sensitivity or lineage / provenance, and those should not be used to justify it.
 
 _Statistical note: an exact sign test on *n* paired seeds cannot report below 2^-(n-1); with 5 seeds the floor is p = 0.0625 and with 10 it is p = 0.002._
 
@@ -506,18 +512,28 @@ compute from its own subtree, and a calibrated retrieval budget.
 
 ### Matched conditions
 
-* **Kernel context is equalised.** Every architecture delivers a comparable
-  number of knowledge objects to the kernel.
+* **The kernel model tier is matched; kernel prompt size is not.** Every
+  architecture's kernel runs on the same tier, but its largest single prompt
+  at 50,000 users ranges from under 0.01M tokens (recursive summarisation) to
+  4.1M (`I_mycelic_completion`); the hierarchy's is 3.2M, the retrieval
+  oracle's 3.8M and A2's 2.0M (`max_context_tokens` in
+  `artifacts/e1_baselines.jsonl`; the old-vs-new tables in §2 show four).
 * **The risk register scales with the entity namespace** (~one entry per
   tracked entity, capped). A constant register was binding at 50k users and
   silently truncated most of the gold out of every system's output.
 * **Every v1 knob is fitted on calibration seeds 500–502 and frozen** before the
   evaluation seeds are touched — for the hierarchy, for map-reduce, for the
   centralised triage control and for flat RAG alike. The vNext ranker and its
-  per-architecture adoption follow the same rule; the vNext question budget
-  was chosen on the development panel (seeds 0–4) and is confirmed on seeds
-  5–9, which no development decision read (see the old-vs-new block in the
-  executive summary and `docs/mycelic_vnext/NEXT_RESEARCH_REPORT.md` §6).
+  per-architecture adoption were fitted on calibration-seed rows only. Several
+  vNext decisions were made on evaluation seeds instead, the development panel
+  (seeds 0–4 at 10,000 users and 0–2 at 50,000): the question budget, and the
+  rejection of local re-extraction, of decoy-weighted ranker selection and of
+  modal link timing (the frozen hybrid timing first won on the calibration
+  seeds; batched descent changes only how calls are metered). The 50,000-user
+  head-to-head (seeds 0–4) therefore includes three development seeds. Seeds
+  5–9 at 10,000 users, which no development decision read, give one read of
+  the frozen configuration as a whole against v1 (see the old-vs-new block in
+  the executive summary and `docs/mycelic_vnext/NEXT_RESEARCH_REPORT.md` §6).
 
 ### Metrics
 
@@ -566,9 +582,17 @@ of this design and is stated wherever it matters.
 
 ## 8. Calibration
 
-Every tunable setting was fitted on calibration seeds disjoint from the
+Every v1 setting was fitted on calibration seeds disjoint from the
 evaluation seeds, by the same procedure for every architecture, and then
-frozen. This is not a formality: it rejected two changes that looked like
+frozen; so were the learned ranker's weights and each architecture's
+decision to adopt it. Several vNext decisions were not: the question budget,
+and the rejection of local re-extraction, decoy-weighted ranker selection and
+modal link timing, were made from paired runs on evaluation seeds 0–4 at 10,000
+users and 0–2 at 50,000 (the frozen-configuration table in §2 cites the
+evidence for the frozen values, and the paired-run ledger in
+`docs/mycelic_vnext/NEXT_RESEARCH_REPORT.md` §4 cites the file behind each
+rejection; §6 there counts the reads).
+The v1 protocol is not a formality: it rejected two changes that looked like
 large improvements on a single evaluation seed and did not generalise.
 
 Fitted on calibration seeds [500, 501, 502] at 10,000 users, objective `average_precision`, then frozen:
@@ -638,7 +662,7 @@ Fitted on calibration seeds [500, 501, 502] at 10,000 users, objective `average_
 | id | architecture |
 |---|---|
 | `A_flat_rag` | cheap lexical, schema-aware retrieval over raw text, into one kernel call |
-| `A2_chunked_ctx` | frontier context tiled over the **entire** corpus — the "just use more context" answer |
+| `A2_chunked_ctx` | frontier context tiled over every record that mentions a causal-schema predicate (22–25% of the corpus; the 64-chunk cap never binds) — the "just use more context" answer |
 | `B_long_context` | an unfiltered raw-record sample filling the kernel's context |
 | `B2_map_reduce` | cheap extraction over every record, global importance ranking, one strong kernel call |
 | `B4_central_triage` | **control**: the hierarchy's own triage algorithm run centrally, with no propagation budget, no routing error and no descent |
@@ -1492,11 +1516,11 @@ Richer evidence helped 2 of 3 models. For haiku the two conditions' run ranges O
 
 The reviewer questions, answered against the measurements rather than around them.
 
-**Is the benchmark fair?** Every architecture calls one shared implementation of every operator; the centralised baselines get a frontier-tier extractor on raw text while the hierarchy's edge runs a small model, which is a real advantage for them and is left in place; kernel context is equalised; every knob is fitted on calibration seeds disjoint from the evaluation seeds, by the same procedure for every system, including the centralised triage control's evidence budget (whose best held-out value turned out to be *no cap*, so the hierarchy's margin over it is not an artefact of denying it a filtering step).
+**Is the benchmark fair?** Every architecture calls one shared implementation of every operator; the centralised baselines get a frontier-tier extractor on raw text while the hierarchy's edge runs a small model, which is a real advantage for them and is left in place; the kernel model tier is matched, though kernel prompt sizes are not (§2); every v1 knob is fitted on calibration seeds disjoint from the evaluation seeds, by the same procedure for every system, including the centralised triage control's evidence budget (whose best held-out value turned out to be *no cap*, so the hierarchy's margin over it is not an artefact of denying it a filtering step). Several vNext decisions — the question budget, and the rejection of local re-extraction, decoy-weighted ranker selection and modal link timing — were made on evaluation seeds 0–4 at 10,000 users and 0–2 at 50,000; seeds 5–9 at 10,000 users are the panel no development decision read.
 
 **Did we design data that favours the hierarchy?** The opposite is closer to true. A pattern is equally visible to any system that gets its facet records into one context, and the headline result is that a centralised retrieval baseline does so more effectively than the hierarchy at every scale measured. Three generator properties were specifically added to remove hierarchy-favouring artefacts: benign cross-site entity traffic (so multi-region presence is a weak signal rather than a giveaway — index triage alone yields ~4% precision at 10k users), echoes that repeat the original wording (so duplicate detection is a text problem everyone faces), and site-local echo propagation (global echoing smeared every entity across every region and destroyed the locality structure).
 
-**Are the improvements real?** Every knob was fitted on calibration seeds [500, 501, 502], disjoint from the evaluation seeds, and then frozen. The protocol **rejected** a triage prior (held-out weight 0); a reporting-synchrony feature (held-out weight 0) — each of which had looked like a clear win on a single seed. They are reported as non-results rather than quietly dropped. It **selected** a source-dispersion feature (held-out weight 0.8); an entity-attribution penalty (held-out weight 2.5). The one that matters most, kernel-side evidence verification, was selected on held-out seeds and is reported with its paired test in §12.
+**Are the improvements real?** Every v1 knob was fitted on calibration seeds [500, 501, 502], disjoint from the evaluation seeds, and then frozen. The protocol **rejected** a triage prior (held-out weight 0); a reporting-synchrony feature (held-out weight 0) — each of which had looked like a clear win on a single seed. They are reported as non-results rather than quietly dropped. It **selected** a source-dispersion feature (held-out weight 0.8); an entity-attribution penalty (held-out weight 2.5). The one that matters most, kernel-side evidence verification, was selected on held-out seeds and is reported with its paired test in §12.
 
 One caveat belongs here rather than in a footnote: `w_dispersion` was rejected twice on the pre-correction corpus and selected on the corrected one, with no change to the mechanism. A setting whose sign flips when the data is regenerated is fitted to that data, not to the problem. It should be re-fitted on real data before deployment and should not be treated as a transferable finding.
 
@@ -1664,9 +1688,8 @@ In rough order of expected information per unit compute:
 1. **Withhold the causal schema.** The single largest unexamined assumption.
    Require each architecture to induce the predicate chains from the corpus.
    This is the experiment most likely to change the ordering.
-2. **Richer propagated objects, guided by the live measurement.** Models given
-   the raw notes gained 0.15-0.20 AP over the same statistics and named three
-   specific cues. Source dispersion and synchrony were implemented and did not
+2. **Richer propagated objects, guided by the live measurement.** Models given the raw notes changed AP by haiku +0.069, opus +0.262, sonnet -0.048 over the same statistics (2 of 3 improved)
+   and named three specific cues. Source dispersion and synchrony were implemented and did not
    generalise; kernel-side re-reading did. The remaining move is to propagate a
    small, structured *sample* of verbatim evidence with each object and
    measure whether that closes more of the gap than re-reading does.
@@ -1711,17 +1734,39 @@ with the measurement that supports it and the reason it might not transfer.
 
 ## 29. Reproducing this
 
+The simulator and every generator need only numpy; figures and PDFs also
+need `research/mycelic/requirements.txt`.
+
+**Regenerate every document from the committed artifacts** (minutes; changes
+nothing but the generation dates):
+
 ```sh
-python3 -m unittest research.mycelic.test_mycelic     # 27 tests
-python3 -m research.mycelic.calibrate                 # fit on held-out seeds
-python3 -m research.mycelic.calibrate ct
-python3 -m research.mycelic.calibrate evidence
-python3 -m research.mycelic.experiments e1            # baselines x scales x seeds
-sh research/mycelic/run_suite.sh                      # everything else
+python3 -m unittest research.mycelic.test_mycelic     # 30 tests
+python3 -m research.mycelic.report                    # this document
+python3 -m research.mycelic.loss_doc                  # MYCELIC_LOSS_ACCOUNTING.md
+python3 -m research.mycelic.vnext_docs                # docs/mycelic_vnext/*
 python3 -m research.mycelic.plots                     # figures
-python3 -m research.mycelic.report                    # regenerate this document
 python3 -m research.mycelic.make_pdf                  # and the paginated PDF
 ```
+
+**Rerun the benchmark from scratch** (hours) on the frozen vNext
+configuration, with the arguments the final rerun used:
+
+```sh
+sh research/mycelic/final_rerun.sh question_frac=0.65:qf_v3 batched_descent=true:v3_H \
+   link_time=hybrid:refit_hyb local_reextract=false:rx_reextract \
+   strict_targeting=false:cal_screen triage_target_chains=none:cal_screen
+```
+
+Experiments append to their JSONL files. The headline E1/E1b/E10 tables
+keep the first row per architecture, scale and seed, but every other table,
+figure and finding pools every row, so a rerun must start from empty files
+(`final_rerun.sh` sets the committed rows aside first) and a run by hand on top
+of the committed files changes published numbers. `python3 -m
+research.mycelic.calibrate` fits the **v1** knobs and rewrites
+`calibration.json` from scratch, so it reproduces `artifacts/v1/`, not this
+document. `research/mycelic/README.md` has the details, including the live
+measurements.
 
 Raw per-run metrics live in `research/mycelic/artifacts/*.jsonl`, one JSON
 object per run, never aggregated in place. Calibration settings are in
@@ -1731,5 +1776,5 @@ measured models were pointed at. The chronological research log — including
 every design that was measured and discarded, and the measurement that killed
 it — is in `research/mycelic/logs/research_log.md`.
 
-_Generated 2026-09-22 by `research/mycelic/report.py` from the
+_Generated 2026-09-26 by `research/mycelic/report.py` from the
 raw artifacts._

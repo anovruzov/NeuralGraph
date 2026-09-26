@@ -4,7 +4,7 @@ _Written to falsify the claims in `NEXT_RESEARCH_REPORT.md`. Each attack is foll
 
 ## Attack 1 — the gains are tuned on the evaluation seeds
 
-The calibration seeds are 500–502; the evaluation seeds are 0–4 (10k) and 0–2 (50k). Every knob in the frozen configuration carries the tag of the paired file that confirmed it (`frozen_config_table` in the report). Two candidates that won on the calibration seeds lost on the evaluation seeds and were dropped, which is the protocol working, not a coincidence. **Where it lands**: the evaluation seeds were read more than once during this work (each accepted change was read on them). That is sequential testing on a fixed panel; the report's numbers are therefore optimistic by an amount five paired seeds cannot bound. Mitigation offered: the first item under *What would change my mind* is a fresh seed panel.
+The calibration seeds are 500–502; the evaluation seeds are 0–9 at 10k (development 0–4, confirmation 5–9) and 0–4 at 50k (0–2 for the sweeps). Every knob in the frozen configuration carries the tag of the paired file that confirmed it (`frozen_config_table` in the report). Two candidates that won on the calibration seeds lost on the evaluation seeds and were dropped, which is the protocol working, not a coincidence. **Where it lands**: the evaluation seeds were read more than once during this work (each accepted change was read on them). That is sequential testing on a fixed panel; the report's numbers are therefore optimistic by an amount five paired seeds cannot bound. Mitigation offered: the third item under *What would change my mind* is a fresh seed panel.
 
 ## Attack 2 — the ranker is a simulator artefact
 
@@ -12,7 +12,7 @@ Its features are exact quantities the simulator hands the kernel (witness signat
 
 ## Attack 3 — the baselines were handicapped
 
-The centralised controls adopt the ranker only where their own calibration says it is not worse; A2 adopted it and went from 0.685 to 0.740 at 10k. A_flat_rag kept the hand score by the same rule. The old A2 rows are in the OLD column of the same tables. **Does not land** on the comparison; it does mean the "gap to A2" moved less than the hierarchy's own gain.
+The centralised controls adopt the ranker only where their own calibration says it is not worse; A2 adopted it and went from 0.685 to 0.740 at 10k. A_flat_rag adopted it by the same rule (calibration seeds: found 0.758 with the ranker vs 0.717 with the hand score), and its AP at 10k (seeds 0–4) went from 0.069 to 0.215. The old A2 rows are in the OLD column of the same tables. **Does not land** on the comparison; it does mean the "gap to A2" moved less than the hierarchy's own gain.
 
 ## Attack 4 — metric gaming
 
@@ -28,7 +28,7 @@ It is not: decoy acceptance at 10k went from 0.180 to 0.360 and the one fix trie
 
 ## Attack 7 — the hierarchy still loses to centralised discovery
 
-Yes: 0.566 vs 0.784 at 50k, at 0.38× of A2's compute. The brief's targets (0.70 / 0.60) were not met. The report says which stage holds the rest (ordering at 10k, coverage at 50k) and what would test it. **Lands.**
+Yes: 0.566 vs 0.784 at 50k, at 0.38× of A2's compute. The brief's targets (0.70 / 0.60) were not met. The report says which stage holds the rest (ordering at 10k; coverage at 50k, lost mainly at sketch visibility: 58 of 300 gold patterns) and what would test it. **Lands.**
 
 ## Attack 8 — single-seed screens are being cited
 
@@ -44,13 +44,13 @@ It did: the v1 base was metered unbatched and the new arm batched; batching alon
 
 ## Attack 11 — the kernel prompt exceeds the modelled context
 
-1.3–1.5M tokens at 10k and 3.2–3.4M at 50k in one call against a 1M context that the simulator enforces only for the flat controls; the report's kernel-context metric showed the first stage only. **Lands**: stated in section 5b of the report, printed in the tables, chunking queued as a precondition of any deployment claim.
+1.3–1.5M tokens at 10k and 3.0–3.3M at 50k in one call against a 1M context that the simulator enforces only for the flat controls; the report's kernel-context metric showed the first stage only. **Lands**: stated in section 5b of the report, printed in the tables, chunking queued as a precondition of any deployment claim.
 
 ## Revision after the review
 
 - Kept: the three accepted changes and the lean arm as a labelled Pareto point.
 - Reworded: the single-seed screens; the decoy regression is stated in the first paragraph of the report.
-- Added to the queue: a fresh evaluation panel (seeds 5–9) before any of the reported deltas is quoted outside this repository.
+- Added to the queue, and read once in the final rerun (report section 1.2): a fresh evaluation panel (seeds 5–9 at 10k) before any of the reported deltas is quoted outside this repository.
 
 ## Independent review
 
@@ -106,6 +106,8 @@ _Three refuters were run as separate agents with read-only access to the reposit
 
 **Follow-up to refuter 2's D5 finding.** The "strong positives only" staleness gate was implemented (`stale_rule="strong"`), screened on the calibration seeds (found +0.058, D5 −0.07) and read once on a fresh panel (seeds 10–14): found −0.035 with the frozen ranker (D5 −0.12) and +0.02 inside noise with a refitted ranker (D5 +0.02). Rejected; the cluster-aware variant the refuter proposed (compare the retraction against the link's assertion cluster) remains open in the queue.
 
+
+**Editor's note (added after the final rerun).** The feature dumps this review cites were committed during development and deleted in commit 9713789, when `hyp_features_*.jsonl` became gitignored (10–25 MB each). `hyp_features_v3C.jsonl`, `hyp_features_J.jsonl` and `hyp_features_v3H.jsonl` can be restored with `git show 9713789^:research/mycelic/artifacts/<file>`. `hyp_features_hybH.jsonl` was only ever committed as an in-flight version (6,128 rows, seeds 500–501, against the 9,404 the ranker was fitted on), so the stored ranker (`artifacts/calibration.hyb.json`: `source_dumps` `_hybH`, `_v3C`, `_J`; 23,614 training candidates) can be reused but not refitted exactly from this repository. Its evaluation on the final dumps is `artifacts/ranker_eval_final.json`.
 
 ## What would change my mind
 

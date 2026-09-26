@@ -4,7 +4,7 @@ _The full per-pattern accounting, with the stage definitions, the sketch-failure
 
 Stages (each row is a gold pattern; a stage is passed only if every earlier stage was): extracted → sketch_visible → in_triage → questioned → descent_reached → in_pool → candidate → matched_any → matched_tau → in_register. `loss_stage` is the terminal loss (first failing stage after the last passing one).
 
-## 10,000
+## 10,000 (seeds 0–4)
 
 | stage | OLD all | NEW all | OLD rare | NEW rare | OLD common | NEW common |
 |---|---:|---:|---:|---:|---:|---:|
@@ -36,7 +36,7 @@ Stages (each row is a gold pattern; a stage is passed only if every earlier stag
 | cut from the register (matched at >= 0.5, out-ranked) | 28 (14%) | 52 (26%) | 10 | 38 |
 | **reported** | 75 (38%) | 125 (62%) | 16 | 29 |
 
-## 50,000
+## 50,000 (seeds 0–2)
 
 | stage | OLD all | NEW all | OLD rare | NEW rare | OLD common | NEW common |
 |---|---:|---:|---:|---:|---:|---:|

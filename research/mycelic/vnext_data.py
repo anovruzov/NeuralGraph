@@ -254,7 +254,7 @@ LEDGER: List[Tuple] = [
     ("refit_hyb", "v3", "hyb_refit_lean", 10_000, "hybrid + chain-scoped questions (H_mycelic_lean)", "Pareto arm", "eval 0-4"),
     ("v50_v3", "H_old", "H_v3_qf0.65", 50_000, "ranker v3 + qf 0.65 + batched, 50k", "ACCEPTED", "eval 0-2"),
     ("v50_v3", "H_v3_qf0.65", "H_v3_qf0.80", 50_000, "question_frac 0.80 at 50k", "rejected", "eval 0-2"),
-    ("v50_v3", "H_v3_qf0.65", "H_v3_qf0.65_rx", 50_000, "local re-extraction at 50k", "rejected", "eval 0-1"),
+    ("v50_v3", "H_v3_qf0.65", "H_v3_qf0.65_rx", 50_000, "local re-extraction at 50k", "rejected", "eval 0-2"),
     ("v50_hyb", "v3", "hyb", 50_000, "hybrid link timing at 50k (+ refitted ranker)", "validation", "eval 0-2"),
     ("v50_hyb", "v3", "hyb_lean", 50_000, "hybrid + chain-scoped questions at 50k", "Pareto arm", "eval 0-2"),
     ("prev_batched", "prev", "prev_batched", 10_000, "v1 hierarchy re-metered with batched descent (identical decisions)", "metering control", "eval 0-4"),

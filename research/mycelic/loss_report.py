@@ -46,8 +46,9 @@ SKETCH_FAIL_LABEL = {
 
 def load(path: str = FUNNEL) -> List[Dict]:
     # while a rerun is rebuilding the funnel the archived v1 funnel stands in,
-    # so an interim document never shows empty tables
-    if not os.path.exists(path):
+    # so an interim document never shows empty tables (loss_accounting creates
+    # the file as soon as it starts, so an empty file counts as missing)
+    if not os.path.exists(path) or os.path.getsize(path) == 0:
         alt = os.path.join(os.path.dirname(path), "v1", os.path.basename(path))
         if os.path.exists(alt):
             path = alt

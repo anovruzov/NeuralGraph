@@ -74,7 +74,7 @@ question_round(hyps, pool):
     flush_descent_ledger()
     hyps = synthesize(pool, link_time='hybrid'); annotate_anchor_context(hyps); apply_ranker(hyps)
 ```
-The budget is a fraction of the triage queue so it scales with the number of entities the sketch flags (about 30× more at 50k than at 2k). 0.65 was chosen because the paired sweep saturates there.
+The budget is a fraction of the triage queue so it scales with the number of entities the sketch flags (about 30× more at 50k than at 2k). 0.65 was chosen on the development panel (seeds 0–4 at 10k), where the paired sweep saturates; on the calibration seeds found is flat from 0.50 to 0.80.
 
 ## 6. Candidate generation (kernel)
 
@@ -108,8 +108,8 @@ Four checks with tier-dependent pass probabilities (causal, temporal, dedup, ent
 ## 9. Model allocation, caching, complexity, failure handling
 
 - **Allocation**: back-loaded tiers (small models at USER/TEAM extraction, frontier at the kernel) as in v1; E3 in the main report is the ablation.
-- **Caching / batching**: routing and user reads are metered once per node per round (the ledgers); the kernel re-reads its pool once per synthesis. Decisions and per-record tokens are identical to unbatched metering — that is why calls fall ~65–70% while compute rises with the budget.
-- **Complexity**: triage is O(entities in sketch) integer work; questions O(nq × fan-out × levels) routing calls; synthesis O(pool + Σ states²) with ≤ ~15 states per (entity, chain); ranking O(candidates × 45). The kernel reads its whole pool in one call — 1.3–1.5M tokens at 10k and 3.2–3.4M at 50k in the frozen configuration, above the modelled tier's 1M context, which the simulator enforces only for the flat controls; a chunked kernel read is queued before any deployment claim.
+- **Caching / batching**: routing and user reads are metered once per node per round (the ledgers); the kernel re-reads its pool once per synthesis. Decisions and per-record tokens are identical to unbatched metering — that is why calls fall 71% at 10k and 60% at 50k against v1 while compute rises with the budget.
+- **Complexity**: triage is O(entities in sketch) integer work; questions O(nq × fan-out × levels) routing calls; synthesis O(pool + Σ states²) with ≤ ~15 states per (entity, chain); ranking O(candidates × 45). The kernel reads its whole pool in one call — 1.3–1.5M tokens at 10k and 3.0–3.3M at 50k in the frozen configuration, above the modelled tier's 1M context, which the simulator enforces only for the flat controls; a chunked kernel read is queued before any deployment claim.
 - **Failure handling**: unavailable branches and malicious nodes are E5 in the main report (unchanged by vNext); the lean arm's failure mode — the sketch names the wrong chain for ~16% of gold entities and a strict read then returns nothing — is why it is a separate arm and not the default.
 
 ![loop](fig_loop.svg)

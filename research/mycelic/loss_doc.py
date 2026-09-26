@@ -14,7 +14,7 @@ from typing import Dict, List
 import numpy as np
 
 from .analysis import boot_ci, sign_test
-from .loss_report import build as loss_tables, load
+from .loss_report import FUNNEL, build as loss_tables, load
 from .runner import ART
 
 OUT = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
@@ -63,7 +63,7 @@ def diag_table(specs, scale: int) -> str:
             for k, _, d in KEYS:
                 v = np.mean([base[s][k] for s in seeds])
                 cells.append(f"{v:.{d}f}" if d else f"{v:.2e}")
-            lines.append(f"| H_mycelic_full (calibrated) | " + " | ".join(cells) + " |")
+            lines.append("| H_mycelic_full, v1 (hand ranker, qf 0.25) | " + " | ".join(cells) + " |")
             base_done = True
         cells = []
         for k, _, d in KEYS:
@@ -191,10 +191,12 @@ def vnext_section() -> str:
 Everything in this section is a **paired** experiment: the variant and its
 base run on identical worlds, and the Δ shown under each variant value is
 the paired mean with an arrow when its 95% bootstrap interval excludes zero.
-Evaluation seeds are 0–4 at 10,000 users and 0–2 at 50,000; every knob and
-every ranker was fitted on the calibration seeds (500–502) before the
-evaluation seeds were read, and the two tables that use calibration seeds
-say so. Nothing here changes the register cap, the threshold, the gold
+Evaluation seeds are 0–4 at 10,000 users and 0–2 at 50,000; every ranker's
+weights and every v1 knob were fitted on calibration-seed rows (500–502), and
+the two tables that use calibration seeds say so. Several vNext decisions were
+made on these evaluation seeds (the question budget, and the rejection of local
+re-extraction, decoy-weighted ranker selection and modal link timing); the
+ledger in 9.7 cites the paired file behind each. Nothing here changes the register cap, the threshold, the gold
 labels, the worlds or the matching rule; the unbounded register appears
 only as a diagnostic.
 
@@ -285,8 +287,15 @@ node. One calibration seed promised +0.125. Paired on the evaluation seeds
 """)
     t.append(paired_table([("rx_base065", "ranker v2, qf 0.65, batched"),
                            ("rx_reextract", "same + local re-extraction")], base_label="v1 hierarchy"))
-    t.append("""
-No gain at 10k, +0.04/−0.01 on two 50k seeds (9.6), six times the simulator
+    # the 50k re-extraction arm, per seed, from the 9.6 file
+    v50 = {(r["arch"], r["seed"]): r["found_anywhere_in_register"]
+           for r in _quick("v50_v3") if r["scale"] == 50_000}
+    rx = [v50[("H_v3_qf0.65_rx", s)] - v50[("H_v3_qf0.65", s)]
+          for s in sorted({s for _, s in v50}) if ("H_v3_qf0.65_rx", s) in v50 and ("H_v3_qf0.65", s) in v50]
+    rx_txt = "/".join(f"{d:+.2f}".replace("-", "−") for d in rx)
+    rx_n = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five"}.get(len(rx), str(len(rx)))
+    t.append(f"""
+No gain at 10k, {rx_txt} on {rx_n} 50k seeds (9.6), six times the simulator
 wall time. Off in the frozen configuration.
 
 ### 9.5 Link timing in the temporal check
@@ -346,18 +355,37 @@ coverage and rare recall and is kept as a separate arm (`H_mycelic_lean`).
     t.append("")
     t.append(arm_table("v50_hyb", "v3", [("v3", "ranker v3, qf 0.65, batched"), ("hyb", "hybrid timing, refitted ranker"),
                                          ("hyb_lean", "hybrid + chain-scoped questions")], scale=50_000))
-    t.append("""
+    from .vnext_data import e1_rows
+    a2_v3 = np.mean([r["found_anywhere_in_register"] for r in _quick("v50_v3")
+                     if r["arch"] == "A2_v3" and r["scale"] == 50_000])
+    h50 = _arch_rows(_rerun_funnel(), 50_000)
+    if h50:
+        order = sorted((("sketch_visible", "sketch visibility"), ("questioned", "the question budget"),
+                        ("extracted", "extraction")), key=lambda t: -_died(h50, t[0]))
+        (k0, lab0), rest = order[0], order[1:]
+        cov = (f"the coverage it lacks is lost mainly at {lab0}\n({_died(h50, k0)} of {len(h50)} patterns in the "
+               f"section 2 funnel,\n{_died(h50, k0, True)} of them rare), then "
+               + " and ".join(f"{lab} ({_died(h50, k)})" for k, lab in rest)
+               + f"; descent\nloses {_died(h50, 'descent_reached') or 'none'}")
+    else:
+        cov = ("where the coverage it lacks is lost is attributed in section 2 once\n"
+               "the rerun's 50k funnel is available")
+    ctx = {sc: [r["max_context_tokens"] for r in e1_rows()
+                if r["arch"] == "H_mycelic_full" and r["scale"] == sc] for sc in (10_000, 50_000)}
+    rng = {sc: (f"{min(v) / 1e6:.1f}–{max(v) / 1e6:.1f}M" if v else "n/a") for sc, v in ctx.items()}
+    t.append(f"""
 At 50k the register (2,999 slots) is not the binding stage; coverage (0.72)
 is. The budget saturates at 0.65 here too, re-extraction does not pay, and
 hybrid timing adds +0.06 on 3/3 seeds at equal compute. The hierarchy ends
-at about 0.59 against A2's 0.77 with the same ranker, at 38% of A2's
-compute; that gap is the question budget's reach, not the register.
+at about 0.59 against A2's {a2_v3:.2f} with the same ranker, at 38% of A2's
+compute; {cov}.
 
 Two accounting caveats from the independent review apply to every 50k row
 above: the "calls" column compares unbatched v1 metering with batched vNext
 metering (batching alone is −84% calls at identical decisions; the v1 base
 re-metered batched is in 9.7), and the kernel's single read of its pool is
-3.2–3.4M tokens at 50k (1.3–1.5M at 10k) against the modelled tier's 1M
+{rng[50_000]} tokens at 50k ({rng[10_000]} at 10k; final rerun,
+`e1_baselines.jsonl`) against the modelled tier's 1M
 context, which the simulator enforces only for the flat controls.
 
 ### 9.7 The ledger, the cost of each accepted change, and what is frozen
@@ -378,12 +406,53 @@ the adversarial review are in `docs/mycelic_vnext/`.
     return "\n".join(t)
 
 
+def _format_ranker_eval(tag: str, r: dict) -> List[str]:
+    """One dump's ranker evaluation as the report prints it."""
+    out = [f"**Dump `{tag or 'default budget'}`** — {r['n_train']:,} "
+           f"training candidates (seeds 500–502), {r['n_test']:,} "
+           f"evaluation candidates (seeds 0–4), positive rate "
+           f"{r['pos_rate_train']:.1%}. Pooled AUC gold-vs-spurious: "
+           f"hand-set confidence {r['auc_conf']:.3f}, learned "
+           f"{r['auc_learned']:.3f}.\n"]
+    out.append("| architecture | gold patterns | with any candidate | "
+               "found (current ranker) | found (learned rank, same "
+               "#kept) | found (learned, p≥0.5) | AUC current | AUC "
+               "learned |")
+    out.append("|---|---:|---:|---:|---:|---:|---:|---:|")
+    for a, v in r["per_arch"].items():
+        out.append(f"| {a} | {v['gold_patterns']} | "
+                   f"{v['matchable_patterns']} | {v['found_baseline']:.3f} | "
+                   f"{v['found_learned_rank_only']:.3f} | "
+                   f"{v['found_learned_thresholded']:.3f} | "
+                   f"{v['auc_conf']:.3f} | {v['auc_learned']:.3f} |")
+    out.append("")
+    top = sorted(r["weights"].items(), key=lambda kv: -abs(kv[1]))[:8]
+    out.append("Largest standardised weights: " +
+               ", ".join(f"`{k}` {v:+.2f}" for k, v in top if k != "bias") + ".")
+    out.append("")
+    return out
+
+
 def calibrator_section() -> str:
     tags = [t for t in ("_finalH", "_finalC", "_hybH", "_v3H", "_v3C")
             if os.path.exists(os.path.join(ART, f"hyp_features{t}.jsonl"))]
     # the final dumps supersede the interim ones
     if "_finalH" in tags:
         tags = [t for t in tags if t.startswith("_final")]
+    else:
+        # The feature dumps are 10-25 MB each and gitignored, so a fresh clone
+        # has none of them. The final rerun stored its evaluation of the final
+        # dumps in ranker_eval_final.json; that is the published section, and a
+        # stale interim dump lying around must not replace it.
+        final = os.path.join(ART, "ranker_eval_final.json")
+        if os.path.exists(final):
+            with open(final) as fh:
+                stored = json.load(fh)
+            out: List[str] = []
+            for tag, r in stored.items():
+                out.extend(_format_ranker_eval(tag, r))
+            if out:
+                return "\n".join(out)
     if not tags:
         return "_(feature dump not yet complete)_"
     try:
@@ -393,29 +462,7 @@ def calibrator_section() -> str:
             pp = os.path.join(ART, f"hyp_features{tag}.jsonl")
             if not os.path.exists(pp) or os.path.getsize(pp) == 0:
                 continue
-            r = evaluate_calibrator(tag)
-            out.append(f"**Dump `{tag or 'default budget'}`** — {r['n_train']:,} "
-                       f"training candidates (seeds 500–502), {r['n_test']:,} "
-                       f"evaluation candidates (seeds 0–4), positive rate "
-                       f"{r['pos_rate_train']:.1%}. Pooled AUC gold-vs-spurious: "
-                       f"hand-set confidence {r['auc_conf']:.3f}, learned "
-                       f"{r['auc_learned']:.3f}.\n")
-            out.append("| architecture | gold patterns | with any candidate | "
-                       "found (current ranker) | found (learned rank, same "
-                       "#kept) | found (learned, p≥0.5) | AUC current | AUC "
-                       "learned |")
-            out.append("|---|---:|---:|---:|---:|---:|---:|---:|")
-            for a, v in r["per_arch"].items():
-                out.append(f"| {a} | {v['gold_patterns']} | "
-                           f"{v['matchable_patterns']} | {v['found_baseline']:.3f} | "
-                           f"{v['found_learned_rank_only']:.3f} | "
-                           f"{v['found_learned_thresholded']:.3f} | "
-                           f"{v['auc_conf']:.3f} | {v['auc_learned']:.3f} |")
-            out.append("")
-            top = sorted(r["weights"].items(), key=lambda kv: -abs(kv[1]))[:8]
-            out.append("Largest standardised weights: " +
-                       ", ".join(f"`{k}` {v:+.2f}" for k, v in top if k != "bias") + ".")
-            out.append("")
+            out.extend(_format_ranker_eval(tag, evaluate_calibrator(tag)))
         return "\n".join(out) if out else "_(feature dump not yet complete)_"
     except Exception as e:  # pragma: no cover
         return f"_(calibrator evaluation failed: {e})_"
@@ -442,8 +489,153 @@ def _intro_numbers() -> str:
     return lead + "."
 
 
+def _arch_rows(rows: List[Dict], scale: int, arch: str = "H_mycelic_full") -> List[Dict]:
+    return [r for r in rows if not r.get("summary") and r["scale"] == scale and r["arch"] == arch]
+
+
+def _died(pr: List[Dict], stage: str, rare=None) -> int:
+    """Patterns whose terminal (loss) stage is `stage`."""
+    return sum(1 for r in pr if r["loss_stage"] == stage and (rare is None or r["rare"] == rare))
+
+
+def _surv(pr: List[Dict], stage: str) -> float:
+    v = [r[stage] for r in pr if r.get(stage) is not None]
+    return sum(v) / len(v) if v else float("nan")
+
+
+def _gap_share(rows: List[Dict], scale: int, stage: str) -> float:
+    """Share of the patterns A2 reports and the hierarchy misses that the
+    hierarchy lost at `stage` (as in the gap decomposition tables)."""
+    pa = {(r["seed"], r["pid"]): r for r in _arch_rows(rows, scale)}
+    pb = {(r["seed"], r["pid"]): r for r in _arch_rows(rows, scale, "A2_chunked_ctx")}
+    lost = [pa[k] for k in pa if k in pb and pb[k]["in_register"] and not pa[k]["in_register"]]
+    return _died(lost, stage) / max(1, len(lost))
+
+
+_STAGE_NAME = {"in_register": "the **register**", "sketch_visible": "**sketch visibility**",
+               "questioned": "the **question budget**", "extracted": "**extraction**",
+               "descent_reached": "the **descent**", "in_triage": "**triage**", "in_pool": "the **pool**",
+               "candidate": "**candidate formation**", "matched_any": "**matching**", "matched_tau": "**matching**"}
+
+
+def _largest_loss(pr: List[Dict]):
+    """The terminal stage that loses the most patterns ('' marks a found pattern)."""
+    from collections import Counter
+    c = Counter(r.get("loss_stage") for r in pr if r.get("loss_stage"))
+    return c.most_common(1)[0][0] if c else None
+
+
+def _finding(rows: List[Dict], old: List[Dict], interim: bool = False) -> str:
+    """Section 1: the current funnel, then the v1 funnel it replaced.
+
+    `interim` is set while a rerun is rebuilding loss_funnel.jsonl and load()
+    has substituted the v1 rows: only the v1 paragraph is printed then, since
+    those are the rows on the page."""
+    h10, h50 = _arch_rows(rows, 10_000), _arch_rows(rows, 50_000)
+    a10 = _arch_rows(rows, 10_000, "A2_chunked_ctx")
+    out: List[str] = []
+    if interim:
+        out.append("**Interim:** loss_funnel.jsonl is being rebuilt, so this section "
+                   "shows the archived v1 funnel only.")
+    elif h10 or h50:
+        big = {sc: _largest_loss(pr) for sc, pr in ((10_000, h10), (50_000, h50)) if pr}
+        parts = ["**After the rerun** (the tables in section 2)."]
+        if "questioned" not in big.values():
+            parts.append("The question budget is no longer the largest loss: it asks "
+                         + " and ".join(f"{_surv(pr, 'questioned'):.1%} of gold anchors at {sc:,} users"
+                                        for sc, pr in ((10_000, h10), (50_000, h50)) if pr) + ".")
+        for sc, pr in ((10_000, h10), (50_000, h50)):
+            st = big.get(sc)
+            if not pr or st is None:
+                continue
+            n = _died(pr, st)
+            sent = (f"At {sc // 1000}k the largest terminal loss is {_STAGE_NAME.get(st, st)}: {n} of "
+                    f"{len(pr)} patterns ({n / len(pr):.0%}, {_died(pr, st, True)} of them rare) are lost there")
+            if st == "in_register":
+                sent += " after being matched at confidence ≥ 0.5"
+            if sc == 10_000 and a10:
+                sent += (f"; A2 loses {_died(a10, 'in_register')} at the register "
+                         f"({_surv(a10, 'matched_tau'):.3f} matched at ≥ 0.5, "
+                         f"{_surv(a10, 'in_register'):.3f} reported)")
+            others = [f"{_died(pr, o)} {lab}" for o, lab in (("in_register", "cut at the register"),
+                                                             ("questioned", "lost to the question budget"))
+                      if o != st]
+            parts.append(sent + (", against " + " and ".join(others) if sc == 50_000 else "") + ".")
+        out.append(" ".join(parts))
+    o10, o50 = _arch_rows(old, 10_000), _arch_rows(old, 50_000)
+    oa10 = _arch_rows(old, 10_000, "A2_chunked_ctx")
+    if not (o10 and o50 and oa10):
+        return "\n\n".join(out) if out else "_(loss funnel not yet available)_"
+    inv50 = [r for r in o50 if not r["sketch_visible"]]
+    out.append(f"""**The v1 finding** (before the vNext work; `artifacts/v1/loss_funnel.jsonl`,
+same seeds). The handoff pack's leading hypothesis was that the sketch channel is too poor
+to seed good hypotheses. It is not: at 10,000 users the sketch triage sees
+{_surv(o10, 'sketch_visible'):.1%} of gold anchors. The pattern dies later, at two places. First, the
+**question budget**: the calibrated budget asks only {_surv(o10, 'questioned'):.1%} of gold anchors at
+10k and {_surv(o50, 'questioned'):.0%} at 50k, and that is the single largest first-loss stage at both
+scales ({_gap_share(old, 10_000, 'questioned'):.0%} and {_gap_share(old, 50_000, 'questioned'):.0%} of the gap to A2). Second, the **register**: at 10k, {_died(o10, 'in_register') / len(o10):.0%}
+of all patterns are matched at confidence ≥ 0.5 and then cut, because the
+hierarchy rates spurious candidates as highly as genuine ones and the
+register holds one entry per entity. A2 loses {_died(oa10, 'in_register')} there, {_died(oa10, 'in_register') / sum(r['matched_tau'] for r in oa10):.0%} of its
+confident matches against the hierarchy's {_died(o10, 'in_register') / sum(r['matched_tau'] for r in o10):.0%}. Asking
+every triage candidate recovers evidence for 98.5% of patterns and the kernel
+forms a correct confident candidate for ~80% — more than A2 reports (0.685) — and then buries
+them. The calibrated small budget was the right choice *given the ranker*; the
+ranker is the fault. At 50,000 users the sketch additionally loses {len(inv50) / len(o50):.0%} of
+patterns (mostly rare: a single-witness facet cannot set a site bit under the
+support threshold), so scale adds a third, smaller stage.""")
+    return "\n\n".join(out)
+
+
+def _batching_call_cuts() -> List[float]:
+    """Calls change from batched metering alone, at identical decisions: the
+    three metering rows of the 9.7 ledger (variant mean / base mean - 1)."""
+    from .vnext_data import _arms
+    cuts = []
+    for tag, base, var in (("rk2_qf0.65|rx_base065", 1, 1), ("prev_batched", "prev", "prev_batched"),
+                           ("prev_batched50", "prev", "prev_batched")):
+        a, b = _arms(tag, base, var)
+        s = sorted(set(a) & set(b))
+        if s:
+            cuts.append(np.mean([b[x]["inference_calls"] for x in s]) /
+                        np.mean([a[x]["inference_calls"] for x in s]) - 1)
+    return cuts
+
+
+def _rerun_funnel() -> List[Dict]:
+    """The rerun's own funnel rows; empty while it is being rebuilt (load()
+    would substitute the v1 rows, which must not be described as the rerun's)."""
+    if not os.path.exists(FUNNEL) or os.path.getsize(FUNNEL) == 0:
+        return []
+    return load(FUNNEL)
+
+
+def _v1_a2(old: List[Dict], scale: int) -> str:
+    """v1 A2's reported share at `scale`, or a marker when the v1 archive is absent."""
+    rows = _arch_rows(old, scale, "A2_chunked_ctx")
+    return f"{_surv(rows, 'in_register'):.3f}" if rows else "(v1 archive absent)"
+
+
 def compose() -> str:
     rows = load()
+    interim = not os.path.exists(FUNNEL) or os.path.getsize(FUNNEL) == 0
+    from .vnext_data import V1
+    old = load(os.path.join(V1, "loss_funnel.jsonl"))
+    h50 = _arch_rows(_rerun_funnel(), 50_000)
+    nx50 = [r for r in h50 if r.get("extracted") is False]
+    inv50 = [r for r in h50 if r.get("sketch_visible") is False]
+    if h50:
+        ext_head = (f"Extraction ({len(nx50) / len(h50):.0%} at 50k, "
+                    f"{sum(r['rare'] for r in nx50) / max(1, sum(r['rare'] for r in h50)):.0%} of rare patterns)")
+        sk_head = f"Sketch ({len(inv50) / len(h50):.0%} at 50k, {sum(r['rare'] for r in inv50)} of {len(inv50)} rare)"
+        sk_fail = (f"{sum(r.get('sketch_fail') == 'span_lt2' for r in inv50)} of the {len(inv50)} fail on "
+                   '"causal span < 2')
+    else:
+        ext_head = "Extraction (the rerun's 50k funnel is not yet available)"
+        sk_head = "Sketch (the rerun's 50k funnel is not yet available)"
+        sk_fail = 'Sketch losses fail mostly on "causal span < 2'
+    cuts = _batching_call_cuts()
+    cut_txt = (f"−{-max(cuts) * 100:.0f}% to −{-min(cuts) * 100:.0f}%" if cuts else "—")
     n10 = len({r["seed"] for r in rows if r["scale"] == 10_000})
     n50 = len({r["seed"] for r in rows if r["scale"] == 50_000})
     return f"""# Mycelic: where the hidden patterns go
@@ -462,23 +654,9 @@ Every number is computed from `research/mycelic/artifacts/loss_funnel.jsonl`
 and `quick_diag*.jsonl` at generation time. {n10} seeds at 10,000 users,
 {n50} at 50,000.
 
-## 1. The finding in one paragraph
+## 1. The finding
 
-The handoff pack's leading hypothesis was that the sketch channel is too poor
-to seed good hypotheses. It is not: at 10,000 users the sketch triage sees
-98.5% of gold anchors. The pattern dies later, at two places. First, the
-**question budget**: the calibrated budget asks only 63.5% of gold anchors at
-10k and 43% at 50k, and that is the single largest first-loss stage at both
-scales (47% and 51% of the gap to A2). Second, the **register**: at 10k, 12%
-of all patterns are matched at confidence ≥ 0.5 and then cut, because the
-hierarchy rates spurious candidates as highly as genuine ones and the
-register holds one entry per entity. A2 loses nothing at the register. Asking
-every triage candidate recovers evidence for 98.5% of patterns and the kernel
-forms a correct confident candidate for ~80% — more than A2 — and then buries
-them. The calibrated small budget was the right choice *given the ranker*; the
-ranker is the fault. At 50,000 users the sketch additionally loses 18% of
-patterns (mostly rare: a single-witness facet cannot set a site bit under the
-support threshold), so scale adds a third, smaller stage.
+{_finding(rows, old, interim)}
 
 ## 2. Stage-by-stage survival
 
@@ -491,7 +669,8 @@ systems have no sketch, triage, question or descent stage.
 
 ## 3. Paired decomposition on identical worlds
 
-Each row is the calibrated hierarchy with one setting changed, run on the
+Each row is the calibrated **v1** hierarchy (hand-set ranker, question_frac
+0.25; not the vNext configuration of section 9) with one setting changed, run on the
 same (scale, seed) worlds as the base. **An unbounded register is a
 benchmark change, not a design**; it appears here only to measure how much
 discovery is being lost to ranking rather than to retrieval or judgement.
@@ -508,8 +687,8 @@ Arrows mark a 95% bootstrap interval entirely on one side of zero.
 **Reading it.** Asking every triage candidate raises evidence coverage from
 0.69 to 0.985 at 10k (0.45 to 0.79 at 50k) and *lowers* discovery at 10k:
 the recovered evidence produces candidates the register cannot hold. Remove
-the register pressure and the same runs report 0.795 at 10k — above A2's
-0.685 — and 0.643 at 50k against A2's 0.703, at two-thirds of A2's compute.
+the register pressure and the same runs report 0.795 at 10k — above v1 A2's
+{_v1_a2(old, 10_000)} — and 0.643 at 50k against v1 A2's {_v1_a2(old, 50_000)}, at two-thirds of A2's compute at 50k.
 Allowing home-site evidence back in does not help, so the flood is not the
 foreign-only filter. The residual at 50k is the sketch loss, which no
 question budget can recover because the anchor never reaches the triage list.
@@ -530,16 +709,19 @@ per-link independent support, inter-link lags, conflict volume, dispersion,
 whether the candidate came from a question — should separate genuine from
 spurious candidates among the triage survivors. Section 6 measures that.
 
-## 5. Two smaller losses, measured
+## 5. Two further losses, measured
 
-**Extraction (10% at 50k, 24% of rare patterns).** This is stochastic recall,
-not a capability ceiling: a fresh edge-tier re-read of the same records
-recovers 80–91% of the patterns lost there, a kernel-tier *local* re-read
-100%. A user agent asked a targeted question about an entity can re-read its
-own notes about it — the entity name is in every record's surface text — so
-the loss is recoverable without moving any text.
+**{ext_head}.** This is stochastic recall,
+not a capability ceiling: in an earlier funnel, with a 10% extraction loss
+(research log, iteration 20), a fresh edge-tier re-read of the same records
+recovered 80–91% of the patterns lost there and a kernel-tier *local* re-read
+100%; the rerun funnel's figure was not re-measured. A user agent asked a
+targeted question about an entity can re-read its own notes about it — the
+entity name is in every record's surface text — so the loss is recoverable
+without moving any text. The paired tests of targeted local re-extraction did
+not pay, though (9.4), and it is off in the frozen configuration.
 
-**Sketch (18% at 50k, 39 of 54 rare).** 43 of the 54 fail on "causal span < 2
+**{sk_head}.** {sk_fail}
 across foreign sites": a facet with one witness at a site sets no bit under
 `sketch_min_support = 2`. Lowering the threshold lets benign single mentions
 set bits and lengthens the triage list, which only pays if the ranker can
@@ -562,11 +744,11 @@ Not "richer sketches". In order of the loss they addressed, with the
 measured outcome (section 9 has every paired table):
 
 1. **A calibrated ranker** over kernel-side features, fitted on the
-   calibration seeds by the same protocol as every other knob, so the
+   calibration seeds by the same protocol as every v1 knob, so the
    question budget could be spent without flooding the register. Done:
    +0.21 found at 10k, +0.16 at 50k, together with the budget it unlocked.
 2. **A cheaper descent**, so the budget is affordable at 50k. Done as
-   batched metering (calls −61% to −71% at identical decisions); the
+   batched metering (calls {cut_txt} at identical decisions); the
    chain-scoped variant that halves compute is kept as a separate arm
    because it costs evidence coverage.
 3. **Link timing in the kernel's temporal check**, which the loss replay

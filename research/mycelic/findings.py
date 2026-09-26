@@ -40,6 +40,44 @@ def _best(rows, scale, metric="found_anywhere_in_register",
     return (b["arch"], b[metric])
 
 
+HIER = "H_mycelic_full"
+# The architectures the front-page comparison and its three decisions cite.
+COMPARISON = {HIER, "A_flat_rag", "A2_chunked_ctx", "B2_map_reduce",
+              "B4_central_triage", "C_recursive_sum", "D_hier_nolineage",
+              "E_hier_lineage", "F_hier_retrieval", "G_hier_questions"}
+# The usual arguments for a hierarchy: (label, metric, higher is better).
+GROUNDS = [
+    ("confidentiality (no original notes leave the owning agent)",
+     "raw_text_exposure_fraction", False),
+    ("weak-signal sensitivity", "rare_signal_recall", True),
+    ("independent-support accuracy", "independent_evidence_accuracy", True),
+    ("lineage / provenance", "lineage_accuracy", True),
+    ("resistance to planted traps", "decoy_acceptance_all", False),
+]
+
+
+def _largest_complete_scale(rows, need) -> Optional[int]:
+    """The largest scale at which every architecture in `need` was run.
+
+    Picking the largest scale present would, mid-run or where a scale was
+    run for a subset only, report a missing architecture as 0%."""
+    complete = [sc for sc in sorted({r["scale"] for r in rows})
+                if set(need) <= {r["arch"] for r in rows if r["scale"] == sc}]
+    return complete[-1] if complete else None
+
+
+def _grounds(rows, scale, best_arch, hier=HIER):
+    """Which of GROUNDS the hierarchy wins against `best_arch` at `scale`."""
+    wins, losses = [], []
+    for label, key, hib in GROUNDS:
+        bv, hv = _mean(rows, best_arch, scale, key), _mean(rows, hier, scale, key)
+        if bv is None or hv is None:
+            continue
+        better = (hv > bv + 1e-9) if hib else (hv < bv - 1e-9)
+        (wins if better else losses).append((label, bv, hv))
+    return wins, losses
+
+
 def _sig(p: Dict) -> str:
     if not p.get("n"):
         return "no paired runs"
@@ -78,21 +116,11 @@ def decision_summary() -> str:
     rows = _rows()
     if not rows:
         return "_(no results yet)_"
-    HIER = "H_mycelic_full"
     # Use the largest scale at which the comparison is actually COMPLETE.
-    # Picking the largest scale present will, mid-run, put a half-finished
-    # column on the front page and report a missing architecture as 0%.
-    need = {HIER, "A_flat_rag", "A2_chunked_ctx", "B2_map_reduce",
-            "B4_central_triage", "C_recursive_sum", "E_hier_lineage",
-            "F_hier_retrieval", "G_hier_questions"}
-    complete = []
-    for sc in sorted({r["scale"] for r in rows}):
-        have = {r["arch"] for r in rows if r["scale"] == sc}
-        if need <= have:
-            complete.append(sc)
-    if not complete:
+    need = COMPARISON
+    big = _largest_complete_scale(rows, need)
+    if big is None:
         return "_(results incomplete: no scale yet has every architecture)_"
-    big = complete[-1]
     n_seeds = len({r["seed"] for r in rows if r["scale"] == big})
     out = []
 
@@ -114,8 +142,8 @@ def decision_summary() -> str:
         f"We built a synthetic enterprise with known hidden "
         f"problems planted in it, at {scale_list} people, and "
         f"tested {len({r['arch'] for r in rows})} ways of finding those "
-        "problems, from pouring a "
-        "filtered sample of the company's notes into one very large model, to "
+        "problems, from reading a "
+        "filtered subset of the company's notes with one very large model, to "
         "a six-level hierarchy of agents mirroring "
         f"the org chart. **The hierarchy {verdict}.** The strongest "
         f"single approach measured at {big:,} people is `{best_arch}`, which finds "
@@ -141,6 +169,11 @@ def decision_summary() -> str:
             f"{'was' if len(missing) == 1 else 'were'} not run at "
             f"{bigger[0]:,}. Choosing the largest complete scale is a rule "
             f"applied by the generator, not a choice made per result.)*")
+        out.append("")
+    if big == 50_000:
+        out.append("*Seeds 0–2 at 50,000 users were also the development panel "
+                   "on which several vNext decisions were read (§6); the held-out "
+                   "panel is seeds 5–9 at 10,000 users.*")
         out.append("")
     out.append("| | best centralised option | the hierarchy | hierarchy better? |")
     out.append("|---|---:|---:|---|")
@@ -184,21 +217,7 @@ def decision_summary() -> str:
     out.append("")
 
     # which grounds actually hold
-    wins, losses = [], []
-    checks = [
-        ("confidentiality (no original notes leave the owning agent)",
-         "raw_text_exposure_fraction", False),
-        ("weak-signal sensitivity", "rare_signal_recall", True),
-        ("independent-support accuracy", "independent_evidence_accuracy", True),
-        ("lineage / provenance", "lineage_accuracy", True),
-        ("resistance to planted traps", "decoy_acceptance_all", False),
-    ]
-    for label, key, hib in checks:
-        bv, hv = m(best_arch, key), m(HIER, key)
-        if bv is None or hv is None:
-            continue
-        better = (hv > bv + 1e-9) if hib else (hv < bv - 1e-9)
-        (wins if better else losses).append((label, bv, hv))
+    wins, losses = _grounds(rows, big, best_arch)
 
     out.append("### Which of the usual arguments for a hierarchy actually hold")
     out.append("")
@@ -241,6 +260,7 @@ def decision_summary() -> str:
         pt = paired(rows, HIER, "B4_central_triage",
                     "found_anywhere_in_register")
         verdict = ""
+        crosses = None
         if pt.get("n"):
             crosses = pt["ci_lo"] <= 0 <= pt["ci_hi"]
             verdict = (
@@ -259,16 +279,44 @@ def decision_summary() -> str:
             f"about {hc/max(1.0,b4c):.1f}x less." + verdict)
         out.append("")
         if b4p is not None and hp is not None:
-            out.append(
-                "So the honest statement of what the hierarchy buys is narrow "
-                "and specific: **the triage algorithm is what finds the "
-                "problems; the hierarchy is how you run that algorithm without "
-                "centralising the company's data.** The centralised version "
-                f"pools {b4p:.0%} of all extracted claims in one place; the "
-                f"hierarchy pools {hp:.0%} and moves no original text at all. "
-                f"That privacy property costs roughly {hc/max(1.0,b4c):.1f}x "
-                "the compute and tens of thousands of extra model calls. "
-                "If we do not need it, we should run the algorithm centrally.")
+            pools = (f"The centralised version pools {b4p:.0%} of all extracted "
+                     f"claims in one place; the hierarchy pools {hp:.0%} and "
+                     "moves no original text at all.")
+            cost = (f"roughly {hc/max(1.0,b4c):.1f}x the compute and tens of "
+                    "thousands of extra model calls")
+            if crosses is None or crosses:
+                out.append(
+                    "So the honest statement of what the hierarchy buys is narrow "
+                    "and specific: **the triage algorithm is what finds the "
+                    "problems; the hierarchy is how you run that algorithm without "
+                    f"centralising the company's data.** {pools} That privacy "
+                    f"property costs {cost}. If we do not need it, we should run "
+                    "the algorithm centrally.")
+            elif pt["mean_diff"] > 0:
+                per = []
+                for sc in sorted({r["scale"] for r in rows}):
+                    hs = {r["seed"]: r["found_anywhere_in_register"] for r in rows
+                          if r["arch"] == HIER and r["scale"] == sc}
+                    bs = {r["seed"]: r["found_anywhere_in_register"] for r in rows
+                          if r["arch"] == "B4_central_triage" and r["scale"] == sc}
+                    common = sorted(set(hs) & set(bs))
+                    if common:
+                        per.append(f"{np.mean([hs[k] - bs[k] for k in common]):+.3f} "
+                                   f"at {sc:,}")
+                out.append(
+                    "So the algorithm alone does not explain the result: **run "
+                    "centrally, the same triage finds fewer of the hidden problems "
+                    "than the hierarchy does.** The topology — propagation budgets, "
+                    "routing and the descent — adds discovery on these worlds, at "
+                    f"{cost}. Per scale, the paired difference is "
+                    f"{_join(per, 'and')} users. {pools}")
+            else:
+                out.append(
+                    "So the topology costs discovery as well as compute: **run "
+                    "centrally, the same triage finds more of the hidden problems "
+                    "than the hierarchy does.** What the hierarchy buys is "
+                    f"confidentiality alone. {pools} That property costs {cost}. "
+                    "If we do not need it, we should run the algorithm centrally.")
             out.append("")
     out.append("### Three decisions this supports")
     out.append("")
@@ -387,23 +435,26 @@ def executive_summary() -> str:
                      f"{(raw if raw is not None else float('nan')):.1%} |")
     lines.append("")
 
-    # 2. the central negative result
+    # 2. the central negative result, at the largest scale where every rung of
+    # the ladder was run (a missing architecture is not a 0%)
     big = scales[-1]
-    e = _mean(rows, "E_hier_lineage", big, "found_anywhere_in_register")
-    g = _mean(rows, "G_hier_questions", big, "found_anywhere_in_register")
-    f_ = _mean(rows, "F_hier_retrieval", big, "found_anywhere_in_register")
-    c = _mean(rows, "C_recursive_sum", big, "found_anywhere_in_register")
-    if e is not None and g is not None:
+    ladder = ("C_recursive_sum", "D_hier_nolineage", "E_hier_lineage",
+              "F_hier_retrieval", "G_hier_questions")
+    lad = _largest_complete_scale(rows, ladder)
+    if lad is not None:
+        c, d_, e, f_, g = (_mean(rows, a, lad, "found_anywhere_in_register")
+                           for a in ladder)
         lines.append(
             f"**1. Upward propagation alone does not work, at any scale, in any "
-            f"form.** At {big:,} users recursive summarisation finds "
-            f"{(c or 0):.1%} of the hidden patterns, hierarchical aggregation "
-            f"without lineage and with it find {(_mean(rows,'D_hier_nolineage',big,'found_anywhere_in_register') or 0):.1%} "
+            f"form.** At {lad:,} users (the largest scale where all five were "
+            f"run) recursive summarisation finds "
+            f"{c:.1%} of the hidden patterns, hierarchical aggregation "
+            f"without lineage and with it find {d_:.1%} "
             f"and {e:.1%}. Adding targeted downward retrieval takes it to "
-            f"{(f_ or 0):.1%}; adding sketch-driven questioning takes it to "
+            f"{f_:.1%}; adding sketch-driven questioning takes it to "
             f"{g:.1%}. The hierarchy's value is almost entirely in the "
             f"*downward* path — "
-            f"{_sig(paired([r for r in rows if r['scale']==big], 'G_hier_questions', 'F_hier_retrieval', 'found_anywhere_in_register'))}.\n")
+            f"{_sig(paired([r for r in rows if r['scale']==lad], 'G_hier_questions', 'F_hier_retrieval', 'found_anywhere_in_register'))}.\n")
 
     # 3. the measured reason
     lines.append(
@@ -536,17 +587,56 @@ def executive_summary() -> str:
                 f"What leaves a node in the hierarchy is structured claims and "
                 f"an entity/predicate sketch.\n")
 
-    lines.append(
-        "**7. The honest bottom line.** If centralising the raw text is "
-        "acceptable and a very large context window is available, a "
-        "schema-aware retrieval pass into one frontier call is the strongest "
-        "and cheapest thing measured here. The hierarchy earns its cost only "
-        "where sovereign local memory is a requirement, where rare signals "
-        "matter more than common ones, or where independent-support and "
-        "provenance have to be defensible. Those are real constraints, but "
-        "they are constraints — not an accuracy win.\n")
+    lines.append(_bottom_line(rows))
     lines.append(f"_Statistical note: {P_FLOOR_NOTE}._")
     return "\n".join(lines)
+
+
+def _join(items, conj: str) -> str:
+    """'a', 'a and b', 'a, b and c'."""
+    items = list(items)
+    if len(items) <= 1:
+        return "".join(items)
+    return ", ".join(items[:-1]) + f" {conj} " + items[-1]
+
+
+def _bottom_line(rows) -> str:
+    """Item 7, from the same computed comparison as the decision summary."""
+    sc = _largest_complete_scale(rows, COMPARISON)
+    if sc is None:
+        return "**7. The honest bottom line.** _(comparison incomplete)_\n"
+    best, bv = _best(rows, sc)
+    hv = _mean(rows, HIER, sc, "found_anywhere_in_register") or 0.0
+    raw = _mean(rows, best, sc, "raw_text_exposure_fraction")
+    cu_b = _mean(rows, best, sc, "compute_units") or 0.0
+    cu_h = _mean(rows, HIER, sc, "compute_units") or 0.0
+    wins, losses = _grounds(rows, sc, best)
+    # the NAMED architecture must lead the hierarchy at every scale, and both
+    # must have been run there
+    key = "found_anywhere_in_register"
+    scales = sorted({r["scale"] for r in rows})
+    every = bool(scales) and all(
+        _mean(rows, best, s, key) is not None and _mean(rows, HIER, s, key) is not None
+        and _mean(rows, best, s, key) > _mean(rows, HIER, s, key) + 1e-9 for s in scales)
+    text = ("**7. The honest bottom line.** If centralising raw text is "
+            f"acceptable, the strongest thing measured here is `{best}`, which "
+            + (f"reads {raw:.0%} of all records centrally and " if raw else "")
+            + f"finds {bv:.0%} of the hidden problems at {sc:,} users against the "
+            f"hierarchy's {hv:.0%}"
+            + (" — ahead of it at every scale measured" if every else "")
+            + (f", at {cu_b/max(1.0, cu_h):.1f}x the hierarchy's compute. "
+               if cu_b > cu_h else ". "))
+    text += ("The hierarchy earns its cost where sovereign local memory is a "
+             "requirement; that is a real constraint, but a constraint — not an "
+             "accuracy win. ")
+    if wins:
+        text += ("On this evidence it also delivers "
+                 + _join([w[0].split(" (")[0] for w in wins], "and") + ". ")
+    if losses:
+        text += ("It does not deliver "
+                 + _join([l[0].split(" (")[0] for l in losses], "or")
+                 + ", and those should not be used to justify it.")
+    return text.rstrip() + "\n"
 
 
 def recommendation() -> str:
@@ -664,12 +754,17 @@ def critique() -> str:
         "implementation of every operator; the centralised baselines get a "
         "frontier-tier extractor on raw text while the hierarchy's edge runs a "
         "small model, which is a real advantage for them and is left in place; "
-        "kernel context is equalised; every knob is fitted on calibration "
+        "the kernel model tier is matched, though kernel prompt sizes are not "
+        "(§2); every v1 knob is fitted on calibration "
         "seeds disjoint from the evaluation seeds, by the same procedure for "
         "every system, including the centralised triage control's evidence "
         "budget (whose best held-out value turned out to be *no cap*, so the "
         "hierarchy's margin over it is not an artefact of denying it a "
-        "filtering step).\n")
+        "filtering step). Several vNext decisions — the question budget, and "
+        "the rejection of local re-extraction, decoy-weighted ranker selection "
+        "and modal link timing — were made on evaluation seeds 0–4 at 10,000 "
+        "users and 0–2 at 50,000; seeds 5–9 at 10,000 users are the panel no "
+        "development decision read.\n")
     lines.append(
         "**Did we design data that favours the hierarchy?** The opposite is "
         "closer to true. A pattern is equally visible to any system that gets "
@@ -739,7 +834,7 @@ def _critique_improvements_real() -> str:
             continue
         (kept if float(d[knob]) > 0 else rejected).append(
             f"{label} (held-out weight {float(d[knob]):g})")
-    body = (f"Every knob was fitted on calibration seeds {d['seeds']}, "
+    body = (f"Every v1 knob was fitted on calibration seeds {d['seeds']}, "
             f"disjoint from the evaluation seeds, and then frozen. ")
     if rejected:
         body += ("The protocol **rejected** " + "; ".join(rejected) +
@@ -761,6 +856,21 @@ def _critique_improvements_real() -> str:
     return head + body
 
 
+def _live_rich_gain() -> str:
+    """The AP change from giving models the raw notes, per model, from the live results."""
+    p = os.path.join(ART, "live_rank_results.json")
+    pr = os.path.join(ART, "live_rank_results_rich.json")
+    if not (os.path.exists(p) and os.path.exists(pr)):
+        return "Models given the raw notes changed AP by an amount not yet measured"
+    a = json.load(open(p))["models_aggregated"]
+    b = json.load(open(pr))["models_aggregated"]
+    d = {m: b[m]["ap_mean"] - a[m]["ap_mean"] for m in a if m in b}
+    parts = ", ".join(f"{m} {v:+.3f}" for m, v in sorted(d.items()))
+    up = sum(1 for v in d.values() if v > 0)
+    return (f"Models given the raw notes changed AP by {parts} over the same "
+            f"statistics ({up} of {len(d)} improved)")
+
+
 def next_experiments() -> str:
     return """
 In rough order of expected information per unit compute:
@@ -768,9 +878,8 @@ In rough order of expected information per unit compute:
 1. **Withhold the causal schema.** The single largest unexamined assumption.
    Require each architecture to induce the predicate chains from the corpus.
    This is the experiment most likely to change the ordering.
-2. **Richer propagated objects, guided by the live measurement.** Models given
-   the raw notes gained 0.15-0.20 AP over the same statistics and named three
-   specific cues. Source dispersion and synchrony were implemented and did not
+2. **Richer propagated objects, guided by the live measurement.** @LIVE_RICH_GAIN@
+   and named three specific cues. Source dispersion and synchrony were implemented and did not
    generalise; kernel-side re-reading did. The remaining move is to propagate a
    small, structured *sample* of verbatim evidence with each object and
    measure whether that closes more of the gap than re-reading does.
@@ -791,7 +900,7 @@ In rough order of expected information per unit compute:
    180-day window. A standing system re-runs continuously, and the interesting
    questions — when does a pattern become detectable, how much does keeping
    state save — are invisible to a batch benchmark.
-"""
+""".replace("@LIVE_RICH_GAIN@", _live_rich_gain())
 
 
 def questions_section() -> str:

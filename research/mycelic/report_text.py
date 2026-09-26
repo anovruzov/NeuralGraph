@@ -61,11 +61,11 @@ no individual employee, team, department, site or region could discover alone?
 
 **Scope of the answer.** This is a mechanism study on a synthetic enterprise
 with known hidden ground truth. It compares architectures under one shared
-implementation of every cognitive operator, at matched kernel context and with
-every tunable knob fitted on held-out seeds. It is not a deployment report and
-it does not measure any specific model checkpoint end to end; see
-§21 *Direct measurement vs simulation* for exactly what was measured on real
-models and what was simulated.
+implementation of every cognitive operator, on a matched kernel model tier,
+with the v1 knobs and the learned ranker's weights fitted on calibration seeds. It is
+not a deployment report and it does not measure any specific model checkpoint
+end to end; see §23 *Direct model measurement* for exactly what was measured on
+real models and what was simulated.
 """
 
 METHOD = """
@@ -146,18 +146,28 @@ compute from its own subtree, and a calibrated retrieval budget.
 
 ### Matched conditions
 
-* **Kernel context is equalised.** Every architecture delivers a comparable
-  number of knowledge objects to the kernel.
+* **The kernel model tier is matched; kernel prompt size is not.** Every
+  architecture's kernel runs on the same tier, but its largest single prompt
+  at 50,000 users ranges from under 0.01M tokens (recursive summarisation) to
+  4.1M (`I_mycelic_completion`); the hierarchy's is 3.2M, the retrieval
+  oracle's 3.8M and A2's 2.0M (`max_context_tokens` in
+  `artifacts/e1_baselines.jsonl`; the old-vs-new tables in §2 show four).
 * **The risk register scales with the entity namespace** (~one entry per
   tracked entity, capped). A constant register was binding at 50k users and
   silently truncated most of the gold out of every system's output.
 * **Every v1 knob is fitted on calibration seeds 500–502 and frozen** before the
   evaluation seeds are touched — for the hierarchy, for map-reduce, for the
   centralised triage control and for flat RAG alike. The vNext ranker and its
-  per-architecture adoption follow the same rule; the vNext question budget
-  was chosen on the development panel (seeds 0–4) and is confirmed on seeds
-  5–9, which no development decision read (see the old-vs-new block in the
-  executive summary and `docs/mycelic_vnext/NEXT_RESEARCH_REPORT.md` §6).
+  per-architecture adoption were fitted on calibration-seed rows only. Several
+  vNext decisions were made on evaluation seeds instead, the development panel
+  (seeds 0–4 at 10,000 users and 0–2 at 50,000): the question budget, and the
+  rejection of local re-extraction, of decoy-weighted ranker selection and of
+  modal link timing (the frozen hybrid timing first won on the calibration
+  seeds; batched descent changes only how calls are metered). The 50,000-user
+  head-to-head (seeds 0–4) therefore includes three development seeds. Seeds
+  5–9 at 10,000 users, which no development decision read, give one read of
+  the frozen configuration as a whole against v1 (see the old-vs-new block in
+  the executive summary and `docs/mycelic_vnext/NEXT_RESEARCH_REPORT.md` §6).
 
 ### Metrics
 
@@ -355,9 +365,13 @@ alone?
 
 **What this document is.** A mechanism study on a synthetic enterprise with
 known hidden ground truth. {sec['n_arch']} architectures are compared under one
-shared implementation of every cognitive operation, at matched kernel context,
-with every tunable setting fitted on held-out data before the evaluation data
-was touched. It is not a deployment report, and it does not measure any
+shared implementation of every cognitive operation, on a matched kernel model
+tier (kernel prompt sizes are not matched; §2). The v1 settings and the learned
+ranker's weights were fitted on calibration-seed rows; several vNext decisions
+(the question budget, and the rejection of local re-extraction, decoy-weighted
+ranker selection and modal link timing) were made on evaluation seeds 0–4 at
+10,000 users and 0–2 at 50,000, and §2 names the evidence behind every frozen
+value. It is not a deployment report, and it does not measure any
 specific model end to end. Part II states exactly what was measured on real
 models and what was simulated.
 
@@ -438,9 +452,17 @@ modelled rather than observed, the row above says so.
 
 ## 8. Calibration
 
-Every tunable setting was fitted on calibration seeds disjoint from the
+Every v1 setting was fitted on calibration seeds disjoint from the
 evaluation seeds, by the same procedure for every architecture, and then
-frozen. This is not a formality: it rejected two changes that looked like
+frozen; so were the learned ranker's weights and each architecture's
+decision to adopt it. Several vNext decisions were not: the question budget,
+and the rejection of local re-extraction, decoy-weighted ranker selection and
+modal link timing, were made from paired runs on evaluation seeds 0–4 at 10,000
+users and 0–2 at 50,000 (the frozen-configuration table in §2 cites the
+evidence for the frozen values, and the paired-run ledger in
+`docs/mycelic_vnext/NEXT_RESEARCH_REPORT.md` §4 cites the file behind each
+rejection; §6 there counts the reads).
+The v1 protocol is not a formality: it rejected two changes that looked like
 large improvements on a single evaluation seed and did not generalise.
 
 {sec['calibration']}
@@ -454,7 +476,7 @@ large improvements on a single evaluation seed and did not generalise.
 | id | architecture |
 |---|---|
 | `A_flat_rag` | cheap lexical, schema-aware retrieval over raw text, into one kernel call |
-| `A2_chunked_ctx` | frontier context tiled over the **entire** corpus — the "just use more context" answer |
+| `A2_chunked_ctx` | frontier context tiled over every record that mentions a causal-schema predicate (22–25% of the corpus; the 64-chunk cap never binds) — the "just use more context" answer |
 | `B_long_context` | an unfiltered raw-record sample filling the kernel's context |
 | `B2_map_reduce` | cheap extraction over every record, global importance ranking, one strong kernel call |
 | `B4_central_triage` | **control**: the hierarchy's own triage algorithm run centrally, with no propagation budget, no routing error and no descent |
@@ -701,17 +723,39 @@ with the measurement that supports it and the reason it might not transfer.
 
 ## 29. Reproducing this
 
+The simulator and every generator need only numpy; figures and PDFs also
+need `research/mycelic/requirements.txt`.
+
+**Regenerate every document from the committed artifacts** (minutes; changes
+nothing but the generation dates):
+
 ```sh
-python3 -m unittest research.mycelic.test_mycelic     # 27 tests
-python3 -m research.mycelic.calibrate                 # fit on held-out seeds
-python3 -m research.mycelic.calibrate ct
-python3 -m research.mycelic.calibrate evidence
-python3 -m research.mycelic.experiments e1            # baselines x scales x seeds
-sh research/mycelic/run_suite.sh                      # everything else
+python3 -m unittest research.mycelic.test_mycelic     # 30 tests
+python3 -m research.mycelic.report                    # this document
+python3 -m research.mycelic.loss_doc                  # MYCELIC_LOSS_ACCOUNTING.md
+python3 -m research.mycelic.vnext_docs                # docs/mycelic_vnext/*
 python3 -m research.mycelic.plots                     # figures
-python3 -m research.mycelic.report                    # regenerate this document
 python3 -m research.mycelic.make_pdf                  # and the paginated PDF
 ```
+
+**Rerun the benchmark from scratch** (hours) on the frozen vNext
+configuration, with the arguments the final rerun used:
+
+```sh
+sh research/mycelic/final_rerun.sh question_frac=0.65:qf_v3 batched_descent=true:v3_H \\
+   link_time=hybrid:refit_hyb local_reextract=false:rx_reextract \\
+   strict_targeting=false:cal_screen triage_target_chains=none:cal_screen
+```
+
+Experiments append to their JSONL files. The headline E1/E1b/E10 tables
+keep the first row per architecture, scale and seed, but every other table,
+figure and finding pools every row, so a rerun must start from empty files
+(`final_rerun.sh` sets the committed rows aside first) and a run by hand on top
+of the committed files changes published numbers. `python3 -m
+research.mycelic.calibrate` fits the **v1** knobs and rewrites
+`calibration.json` from scratch, so it reproduces `artifacts/v1/`, not this
+document. `research/mycelic/README.md` has the details, including the live
+measurements.
 
 Raw per-run metrics live in `research/mycelic/artifacts/*.jsonl`, one JSON
 object per run, never aggregated in place. Calibration settings are in

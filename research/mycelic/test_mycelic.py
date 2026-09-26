@@ -319,5 +319,55 @@ class TestMetrics(unittest.TestCase):
                                     m["recall_at_100"], a)
 
 
+
+class TestReportGenerators(unittest.TestCase):
+    """The committed documents must regenerate from the committed artifacts."""
+
+    def test_missing_architecture_is_never_reported_as_zero(self):
+        from . import findings
+        rows = findings._rows()
+        ladder = ("C_recursive_sum", "D_hier_nolineage", "E_hier_lineage",
+                  "F_hier_retrieval", "G_hier_questions")
+        sc = findings._largest_complete_scale(rows, ladder)
+        self.assertIsNotNone(sc)
+        for a in ladder:
+            self.assertTrue(any(r["arch"] == a and r["scale"] == sc for r in rows), a)
+        text = findings.executive_summary()
+        for s in sorted({r["scale"] for r in rows}):
+            missing = [a for a in ladder
+                       if not any(r["arch"] == a and r["scale"] == s for r in rows)]
+            if missing:
+                self.assertNotIn(f"At {s:,} users", text.split("**2.")[0])
+
+    def test_loss_doc_ranker_section_survives_a_fresh_clone(self):
+        import glob
+        import os
+        from . import loss_doc
+        from .runner import ART
+        if glob.glob(os.path.join(ART, "hyp_features_final*.jsonl")):
+            self.skipTest("final feature dumps present; the fallback is not exercised")
+        sec = loss_doc.calibrator_section()
+        self.assertNotIn("not yet complete", sec)
+        self.assertIn("_finalH", sec)
+        self.assertIn("_finalC", sec)
+
+    def test_calibrator_cli_passes_dump_tags(self):
+        # drives the real command-line paths (a `store` that passed tag= once
+        # crashed with a TypeError), with the fitting itself mocked out
+        from unittest import mock
+        from . import calibrator
+        fitted = {"n_train": 0, "features": [], "weights": []}
+        selected = {"selection_grid": [], "l2": 1.0, "interactions": True, "n_train": 0}
+        with mock.patch.object(calibrator, "fit_and_store", return_value=fitted) as fit, \
+                mock.patch.object(calibrator, "select_and_store", return_value=selected) as sel, \
+                mock.patch("builtins.print"):
+            self.assertEqual(calibrator.main(["calibrator", "store", "_a,_b"]), 0)
+            fit.assert_called_once_with(tags=("_a", "_b"))
+            self.assertEqual(calibrator.main(["calibrator", "store"]), 0)
+            self.assertEqual(fit.call_args, mock.call(tags=("",)))
+            self.assertEqual(calibrator.main(["calibrator", "select", "_hybH,_v3C,_J"]), 0)
+            sel.assert_called_once_with(tags=("_hybH", "_v3C", "_J"))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

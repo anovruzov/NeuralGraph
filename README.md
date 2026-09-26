@@ -311,8 +311,8 @@ NeuralGraph/
 
 demo/                       runnable assistant demos (work with --fake-llm)
 deploy/                     Docker, compose and systemd units for the assistant
-docs/                       assistant docs: design, benchmarks, architecture
-research/                   THE RESEARCH TRACK — harnesses, datasets, reports, results
+docs/                       assistant docs: design, benchmarks, architecture; Mycelic reports
+research/                   THE RESEARCH TRACK — harnesses, datasets, reports, results, mycelic/
 ```
 
 `import NeuralGraph.chat_memory` pulls in ten modules and no research code. The
@@ -479,7 +479,8 @@ More, client by client, in the
 |---|---|
 | **[Chat Memory User Guide](NeuralGraph/chat_memory/README.md)** | Install, transports, every tool, every flag |
 | **[Chat Memory Design](docs/CHAT_MEMORY.md)** | Why extraction is gated, how channels fuse, how commits are fenced |
-| **[Benchmarks](docs/BENCHMARKS.md)** | Every number across all three research tracks, with evidence classes |
+| **[Benchmarks](docs/BENCHMARKS.md)** | Every number across the coordination, retrieval and baseline tracks, with evidence classes |
+| **[Enterprise Hierarchy (Mycelic)](docs/MYCELIC_ENTERPRISE.md)** | The enterprise-hierarchy benchmark report; code and raw runs in [research/mycelic/](research/mycelic/) |
 | **[Research](research/README.md)** | The research track: how to reproduce every number |
 | **[Experiment Reports](research/reports/README.md)** | 18 experiments, including the ones that failed |
 | **[System Architecture](docs/ARCHITECTURE.md)** | The v1 research engine design (December 2025) |

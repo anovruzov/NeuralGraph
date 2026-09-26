@@ -4,7 +4,8 @@
 #   research/mycelic/final_rerun.sh <freeze args for freeze_vnext.py...>
 #
 # 1. archives every v1 artifact under artifacts/v1/ (the report reads the
-#    FIRST row per world, so a rerun has to start from empty files);
+#    FIRST row per world, so a rerun has to start from empty files); when the
+#    v1 archive already exists, the current rows move to artifacts/previous/;
 # 2. freezes the vNext knobs into calibration.json with their provenance;
 # 3. reruns every experiment in three parallel streams, then the 100k scale
 #    trend, the loss accounting and the candidate dump + ranker evaluation;
@@ -12,17 +13,22 @@
 # Each stage appends to its own log under logs/final_*.log and leaves a
 # marker line so an interrupted run can be resumed by hand.
 set -u
-cd /home/user/NeuralGraph
+cd "$(dirname "$0")/../.." || exit 1   # the repository root, wherever it is checked out
 A=research/mycelic/artifacts
 L=research/mycelic/logs
 mkdir -p "$A/v1" "$L"
 
-echo "=== archive v1 $(date -Is)"
+# v1/calibration.json is written right after this loop, so it marks an archive
+# that already exists (a fresh clone, or a second run): then the current rows
+# are set aside in previous/ and v1/ is never touched again.
+if [ -f "$A/v1/calibration.json" ]; then ARCHIVE="$A/previous"; else ARCHIVE="$A/v1"; fi
+mkdir -p "$ARCHIVE"
+echo "=== archive to $ARCHIVE $(date -Is)"
 for f in e1_baselines e1b_extra e2_ablations e3_allocation e3b_level_marginal \
          e3c_q_sweep e4_fanin e4b_dept_fanin e5_adversarial e6_frontier e7_shape \
          e8_crosslinks e9_privacy e10_scale_trend e12_provenance e1d_b4_capped \
          loss_funnel; do
-  if [ -f "$A/$f.jsonl" ] && [ ! -f "$A/v1/$f.jsonl" ]; then mv "$A/$f.jsonl" "$A/v1/$f.jsonl"; fi
+  if [ -f "$A/$f.jsonl" ]; then mv "$A/$f.jsonl" "$ARCHIVE/$f.jsonl"; fi
 done
 if [ ! -f "$A/v1/calibration.json" ]; then
   python3 - <<'PY'
@@ -60,7 +66,8 @@ run() {  # run <log> <experiment...>
   for e in "$@"; do
     echo "=== $e start $(date -Is)" >> "$L/$log"
     timeout 7200 python3 -m research.mycelic.experiments "$e" >> "$L/$log" 2>&1
-    echo "=== $e end $(date -Is) rc=$?" >> "$L/$log"
+    rc=$?   # before any command substitution: under bash $(date) would reset $?
+    echo "=== $e end $(date -Is) rc=$rc" >> "$L/$log"
   done
 }
 
@@ -87,6 +94,9 @@ wait $P4 $P5 $P6
 echo "=== scale trend + loss accounting done $(date -Is)"
 
 echo "=== candidate dump + ranker evaluation $(date -Is)"
+# The previous run's evaluation and dumps go first: if this step fails, the loss
+# document then says the dump is incomplete instead of printing stale numbers.
+rm -f "$A/ranker_eval_final.json" "$A"/hyp_features_final*.jsonl
 python3 - > "$L/final_ranker_eval.log" 2>&1 <<'PY'
 import json
 from research.mycelic.calibrator import dump, evaluate_calibrator

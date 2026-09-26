@@ -566,25 +566,31 @@ def fit_and_store(tags: Sequence[str] = ("", "_qf1"),
     return ranker
 
 
-if __name__ == "__main__":
-    cmd = sys.argv[1] if len(sys.argv) > 1 else "fit"
+def _tags_arg(argv: Sequence[str], default: Sequence[str]) -> Tuple[str, ...]:
+    """Dump tags from argv[2] as a comma-separated list ("_hybH,_v3C,_J"); "" names the untagged dump."""
+    return tuple(argv[2].split(",")) if len(argv) > 2 else tuple(default)
+
+
+def main(argv: Optional[Sequence[str]] = None) -> int:
+    argv = list(sys.argv if argv is None else argv)
+    cmd = argv[1] if len(argv) > 1 else "fit"
     if cmd == "archs":
         r = select_archs()
         for a, v in r["table"].items():
             print(f"  {a:22s} hand={v['found_hand']:.3f} ranker={v['found_ranker']:.3f} adopt={v['adopt']}")
         print("ranker_archs =", r["chosen"])
-        raise SystemExit(0)
+        return 0
     if cmd == "select":
-        r = select_and_store()
+        r = select_and_store(tags=_tags_arg(argv, ("", "_qf1")))
         print("selection grid:", r["selection_grid"])
         print("stored ranker: l2", r["l2"], "interactions", r["interactions"],
               "n_train", r["n_train"])
-        raise SystemExit(0)
+        return 0
     if cmd == "store":
-        r = fit_and_store(tag=sys.argv[2] if len(sys.argv) > 2 else "")
+        r = fit_and_store(tags=_tags_arg(argv, ("",)))
         print("stored ranker fitted on", r["n_train"], "candidates; largest weights:",
               sorted(zip(r["features"], r["weights"]), key=lambda t: -abs(t[1]))[:6])
-        raise SystemExit(0)
+        return 0
     if cmd == "dump":
         # default budget for every system, and the full-budget hierarchy that
         # the loss accounting says is the regime where ranking binds
@@ -600,3 +606,8 @@ if __name__ == "__main__":
             print(json.dumps({k: v for k, v in r.items() if k != "weights"},
                              indent=1))
             print("weights:", json.dumps(r["weights"], indent=1))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,0 +1,16 @@
+# The simulator, every experiment, the calibrators and every document generator
+# need only numpy (in the repository's requirements.txt). The figures and PDFs
+# need these as well:
+#
+#   pip install -r requirements.txt -r research/mycelic/requirements.txt
+#   python3 -m playwright install chromium    # make_pdf renders through Chromium
+#
+# matplotlib is pinned to the version recorded in the committed figures' PNG
+# metadata: with it, `python3 -m research.mycelic.plots` reproduces every figure
+# byte for byte. The committed PDFs were rendered by Chromium 141 (Playwright
+# browser revision 1194); playwright 1.56.0 is the release whose
+# `playwright install chromium` fetches that build, and make_pdf.py prefers
+# /opt/pw-browsers/chromium when present. A newer Chromium can change layout.
+matplotlib==3.11.2
+Markdown==3.11
+playwright==1.56.0
