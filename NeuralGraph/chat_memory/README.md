@@ -190,6 +190,7 @@ Edit the MCP config file:
       "command": "/absolute/path/to/repo/.venv/bin/python",
       "args": ["-m", "NeuralGraph.chat_memory", "mcp", "--user-name", "Your Name"],
       "env": {
+        "PYTHONPATH": "/absolute/path/to/repo",
         "LLM_BASE_URL": "http://localhost:11434",
         "LLM_MODEL": "qwen2.5:7b-instruct",
         "EMBED_MODEL": "nomic-embed-text"
@@ -200,12 +201,12 @@ Edit the MCP config file:
 ```
 
 Use absolute paths — the client does not inherit your shell's `PATH` or working
-directory. Restart Claude Desktop; the tools appear under the server name.
+directory, so `PYTHONPATH` must point at the repository root. Restart Claude Desktop; the tools appear under the server name.
 
 ### Claude Code
 
 ```bash
-claude mcp add neuralgraph-memory \
+claude mcp add neuralgraph-memory -e PYTHONPATH=/absolute/path/to/repo \
   -- /absolute/path/to/repo/.venv/bin/python -m NeuralGraph.chat_memory mcp
 ```
 

@@ -1,6 +1,6 @@
 """Cross-chat memory demo.
 
-Feeds evaluation/chats/sample_chats.jsonl (five chats, one person, several months) into the memory system,
+Feeds demo/data/sample_chats.jsonl (five chats, one person, several months) into the memory system,
 lets the background Qwen worker digest them, then asks questions that span chats.
 
     # with a real local model (LM Studio or Ollama; see NeuralGraph/llm_backend.py env vars)
@@ -60,7 +60,7 @@ async def main() -> int:
     cm = ChatMemory(db, llm=llm, config=cfg)
     await cm.start()
 
-    path = Path(__file__).resolve().parent.parent / "evaluation" / "chats" / "sample_chats.jsonl"
+    path = Path(__file__).resolve().parent / "data" / "sample_chats.jsonl"
     t0 = time.perf_counter()
     n = 0
     for line in path.read_text(encoding="utf-8").splitlines():
