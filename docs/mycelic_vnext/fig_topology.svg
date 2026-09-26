@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="560" viewBox="0 0 900 560" font-family="Helvetica, Arial, sans-serif" font-size="13">
+<defs><marker id="a" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#333"/></marker>
+<marker id="b" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#b5451b"/></marker></defs>
+<rect x="0" y="0" width="900" height="560" fill="#fff"/>
+<text x="450" y="24" text-anchor="middle" font-size="16" font-weight="bold">Mycelic vNext: what moves up, what moves down, and where the model calls are</text>
+<!-- levels -->
+<g>
+<rect x="300" y="46" width="300" height="74" rx="8" fill="#e8eef7" stroke="#2b4c7e" stroke-width="1.5"/>
+<text x="450" y="66" text-anchor="middle" font-weight="bold">ENTERPRISE KERNEL (frontier tier)</text>
+<text x="450" y="84" text-anchor="middle">sketch triage · question policy · candidate synthesis</text>
+<text x="450" y="101" text-anchor="middle">hybrid temporal DP · learned ranker · fixed-size risk register</text>
+<rect x="60" y="160" width="220" height="50" rx="8" fill="#f3f3f3" stroke="#666"/><text x="170" y="181" text-anchor="middle" font-weight="bold">REGION nodes</text><text x="170" y="198" text-anchor="middle">merge site sketches, route down</text>
+<rect x="340" y="160" width="220" height="50" rx="8" fill="#f3f3f3" stroke="#666"/><text x="450" y="181" text-anchor="middle" font-weight="bold">SITE nodes</text><text x="450" y="198" text-anchor="middle">build the (entity, predicate) sketch</text>
+<rect x="620" y="160" width="220" height="50" rx="8" fill="#f3f3f3" stroke="#666"/><text x="730" y="181" text-anchor="middle" font-weight="bold">DEPT / TEAM nodes</text><text x="730" y="198" text-anchor="middle">hold knowledge objects, index anchors</text>
+<rect x="150" y="280" width="600" height="60" rx="8" fill="#fbf1e6" stroke="#b5451b" stroke-width="1.5"/>
+<text x="450" y="302" text-anchor="middle" font-weight="bold">USER nodes (sovereign memory; raw records never leave)</text>
+<text x="450" y="322" text-anchor="middle">local extraction → claims (knowledge objects) with lineage; answer targeted reads from their own index</text>
+</g>
+<!-- upward flow -->
+<g stroke="#333" stroke-width="1.5" fill="none" marker-end="url(#a)">
+<path d="M 300 280 L 170 212"/><path d="M 450 280 L 450 212"/><path d="M 600 280 L 730 212"/>
+<path d="M 170 160 L 330 122"/><path d="M 450 160 L 450 122"/><path d="M 730 160 L 570 122"/>
+</g>
+<text x="300" y="262" fill="#333">claims up (no raw text)</text>
+<text x="560" y="145" fill="#333">sketch bits + counts up</text>
+<!-- downward flow -->
+<g stroke="#b5451b" stroke-width="1.5" fill="none" stroke-dasharray="6 4" marker-end="url(#b)">
+<path d="M 600 100 C 760 120, 800 200, 760 280"/>
+<path d="M 300 100 C 140 120, 100 200, 140 280"/>
+</g>
+<text x="640" y="232" fill="#b5451b">targeted questions down:</text>
+<text x="640" y="246" fill="#b5451b">(entity, predicates, fan-out)</text>
+<text x="20" y="232" fill="#b5451b">routed by sketch + index;</text>
+<text x="20" y="246" fill="#b5451b">metered per node, not per record</text>
+<!-- register -->
+<rect x="640" y="46" width="230" height="74" rx="8" fill="#fff" stroke="#2b4c7e" stroke-dasharray="4 3"/>
+<text x="755" y="70" text-anchor="middle" font-weight="bold">risk register (fixed cap)</text>
+<text x="755" y="88" text-anchor="middle">min(6000, max(600, n_entities))</text>
+<text x="755" y="106" text-anchor="middle">ranked by the learned score</text>
+<!-- privacy boundary -->
+<line x1="40" y1="265" x2="860" y2="265" stroke="#b5451b" stroke-width="1" stroke-dasharray="2 4"/>
+<text x="860" y="262" text-anchor="end" fill="#b5451b" font-size="11">privacy boundary: raw text stays below this line</text>
+<!-- legend -->
+<g transform="translate(60,380)">
+<text x="0" y="0" font-weight="bold">Per round, the kernel</text>
+<text x="0" y="20">1. reads the merged sketch and ranks entities by foreign-site causal span (no model call);</text>
+<text x="0" y="40">2. spends the question budget (max(220, 0.65 × queue)) on the top entities, one routed descent each;</text>
+<text x="0" y="60">3. receives claims, forms one candidate per (entity, chain) with the hybrid temporal DP;</text>
+<text x="0" y="80">4. scores candidates with the learned ranker (kernel-side features only) and keeps the register cap;</text>
+<text x="0" y="100">5. asks follow-up questions for missing links / weak support / contradictions, then repeats.</text>
+<text x="0" y="135" font-weight="bold">Model calls</text>
+<text x="0" y="155">routing and user reads are metered once per node per round (batched); the kernel re-reads its pool once per round.</text>
+</g>
+</svg>

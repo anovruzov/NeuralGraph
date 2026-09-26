@@ -8,6 +8,7 @@ assistant — if you came for local memory in Claude, you want
 |---|---|
 | [`benchmarks/`](benchmarks/) | The harnesses. End-to-end LoCoMo runner, retrieval-only evaluators, judge rescorer. |
 | [`datasets/`](datasets/) | Inputs: LoCoMo (10 conversations, 1,540 questions) and the call-centre set. |
+| [`mycelic/`](mycelic/) | The enterprise-hierarchy benchmark: simulator, experiments, raw per-run artifacts and research log. Report: [`docs/MYCELIC_ENTERPRISE.md`](../docs/MYCELIC_ENTERPRISE.md); how to reproduce it: [`mycelic/README.md`](mycelic/README.md). |
 | [`reports/`](reports/) | One write-up per experiment, plus the campaign report and the repository audit. |
 | [`results/`](results/) | Per-question output for every run cited in [`docs/BENCHMARKS.md`](../docs/BENCHMARKS.md). |
 

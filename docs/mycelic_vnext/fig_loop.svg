@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="300" viewBox="0 0 900 300" font-family="Helvetica, Arial, sans-serif" font-size="12">
+<defs><marker id="c" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#333"/></marker></defs>
+<rect x="0" y="0" width="900" height="300" fill="#fff"/>
+<text x="450" y="22" text-anchor="middle" font-size="15" font-weight="bold">The discovery loop as the loss funnel sees it (stage names = loss_funnel.jsonl columns)</text>
+<g font-size="12">
+<rect x="20" y="60" width="120" height="56" rx="6" fill="#f3f3f3" stroke="#666"/><text x="80" y="82" text-anchor="middle" font-weight="bold">extracted</text><text x="80" y="100" text-anchor="middle">local claims</text>
+<rect x="165" y="60" width="120" height="56" rx="6" fill="#f3f3f3" stroke="#666"/><text x="225" y="82" text-anchor="middle" font-weight="bold">sketch_visible</text><text x="225" y="100" text-anchor="middle">≥2 foreign sites</text>
+<rect x="310" y="60" width="120" height="56" rx="6" fill="#f3f3f3" stroke="#666"/><text x="370" y="82" text-anchor="middle" font-weight="bold">questioned</text><text x="370" y="100" text-anchor="middle">inside budget</text>
+<rect x="455" y="60" width="120" height="56" rx="6" fill="#f3f3f3" stroke="#666"/><text x="515" y="82" text-anchor="middle" font-weight="bold">in_pool</text><text x="515" y="100" text-anchor="middle">≥2 links at kernel</text>
+<rect x="600" y="60" width="120" height="56" rx="6" fill="#f3f3f3" stroke="#666"/><text x="660" y="82" text-anchor="middle" font-weight="bold">matched_tau</text><text x="660" y="100" text-anchor="middle">candidate ≥ 0.5</text>
+<rect x="745" y="60" width="130" height="56" rx="6" fill="#e8eef7" stroke="#2b4c7e" stroke-width="1.5"/><text x="810" y="82" text-anchor="middle" font-weight="bold">in_register</text><text x="810" y="100" text-anchor="middle">= reported</text>
+</g>
+<g stroke="#333" stroke-width="1.5" fill="none" marker-end="url(#c)">
+<path d="M140 88 L163 88"/><path d="M285 88 L308 88"/><path d="M430 88 L453 88"/><path d="M575 88 L598 88"/><path d="M720 88 L743 88"/>
+</g>
+<g font-size="11" fill="#b5451b">
+<text x="370" y="140" text-anchor="middle">v1: largest first loss</text>
+<text x="370" y="154" text-anchor="middle">(budget 0.25 × queue)</text>
+<text x="515" y="140" text-anchor="middle">coverage; 50k binding</text>
+<text x="515" y="154" text-anchor="middle">(lost mostly at the sketch)</text>
+<text x="660" y="140" text-anchor="middle">link timing (hybrid DP)</text>
+<text x="810" y="140" text-anchor="middle">v1: ordering under the cap;</text>
+<text x="810" y="154" text-anchor="middle">learned ranker</text>
+</g>
+<g font-size="12">
+<text x="20" y="200" font-weight="bold">vNext changes, by stage:</text>
+<text x="20" y="220">questioned — budget 0.25 → 0.65 of the triage queue (chosen on development seeds 0–4); metering batched per node so calls fall while decisions are identical.</text>
+<text x="20" y="240">matched — a link is dated at its heaviest witness cluster, or floats across clusters in the DP when its witnesses disagree (hybrid), instead of its earliest mention.</text>
+<text x="20" y="260">in_register — the hand-set logistic decides HOW MANY candidates pass; a ranker fitted on calibration seeds over kernel-side features decides WHICH.</text>
+<text x="20" y="280">untouched — gold labels, evaluation worlds, register cap, metrics, sketch support threshold.</text>
+</g>
+</svg>

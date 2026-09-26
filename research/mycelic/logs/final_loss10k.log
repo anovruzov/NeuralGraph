@@ -1,0 +1,25 @@
+  H_mycelic_full         extracte=0.90 sketch_v=1.00 in_triag=1.00 question=1.00 descent_=0.93 in_pool=1.00 candidat=0.88 matched_=0.85 matched_=0.85 in_regis=0.47  (25s)
+  B4_central_triage      extracte=0.90 in_pool=0.97 candidat=0.80 matched_=0.72 matched_=0.72 in_regis=0.47  (22s)
+  Y_oracle_retrieval     extracte=0.90 in_pool=1.00 candidat=0.85 matched_=0.72 matched_=0.72 in_regis=0.42  (23s)
+  A2_chunked_ctx         in_pool=1.00 candidat=0.80 matched_=0.75 matched_=0.70 in_regis=0.57  (2s)
+scale=10000 seed=0 done in 72s
+  H_mycelic_full         extracte=0.93 sketch_v=0.97 in_triag=0.97 question=0.97 descent_=0.90 in_pool=0.95 candidat=0.93 matched_=0.93 matched_=0.93 in_regis=0.62  (27s)
+  B4_central_triage      extracte=0.93 in_pool=0.95 candidat=0.88 matched_=0.72 matched_=0.70 in_regis=0.47  (24s)
+  Y_oracle_retrieval     extracte=0.93 in_pool=1.00 candidat=0.90 matched_=0.78 matched_=0.75 in_regis=0.35  (25s)
+  A2_chunked_ctx         in_pool=1.00 candidat=0.93 matched_=0.88 matched_=0.85 in_regis=0.80  (2s)
+scale=10000 seed=1 done in 79s
+  H_mycelic_full         extracte=0.97 sketch_v=0.97 in_triag=0.97 question=0.97 descent_=0.97 in_pool=0.97 candidat=0.88 matched_=0.88 matched_=0.88 in_regis=0.65  (29s)
+  B4_central_triage      extracte=0.97 in_pool=0.97 candidat=0.82 matched_=0.78 matched_=0.78 in_regis=0.60  (25s)
+  Y_oracle_retrieval     extracte=0.97 in_pool=1.00 candidat=0.85 matched_=0.82 matched_=0.80 in_regis=0.38  (26s)
+  A2_chunked_ctx         in_pool=1.00 candidat=0.90 matched_=0.88 matched_=0.88 in_regis=0.82  (2s)
+scale=10000 seed=2 done in 82s
+  H_mycelic_full         extracte=1.00 sketch_v=1.00 in_triag=1.00 question=0.97 descent_=0.97 in_pool=1.00 candidat=0.95 matched_=0.93 matched_=0.90 in_regis=0.72  (29s)
+  B4_central_triage      extracte=1.00 in_pool=1.00 candidat=0.90 matched_=0.80 matched_=0.78 in_regis=0.55  (27s)
+  Y_oracle_retrieval     extracte=1.00 in_pool=1.00 candidat=0.88 matched_=0.82 matched_=0.82 in_regis=0.53  (28s)
+  A2_chunked_ctx         in_pool=1.00 candidat=0.88 matched_=0.90 matched_=0.88 in_regis=0.78  (2s)
+scale=10000 seed=3 done in 86s
+  H_mycelic_full         extracte=1.00 sketch_v=0.97 in_triag=0.97 question=0.95 descent_=0.93 in_pool=0.97 candidat=0.88 matched_=0.88 matched_=0.88 in_regis=0.65  (31s)
+  B4_central_triage      extracte=1.00 in_pool=0.95 candidat=0.95 matched_=0.82 matched_=0.78 in_regis=0.60  (25s)
+  Y_oracle_retrieval     extracte=1.00 in_pool=1.00 candidat=0.85 matched_=0.70 matched_=0.70 in_regis=0.40  (28s)
+  A2_chunked_ctx         in_pool=1.00 candidat=0.93 matched_=0.88 matched_=0.85 in_regis=0.72  (1s)
+scale=10000 seed=4 done in 85s
