@@ -19,7 +19,12 @@ deterministic stand-in everywhere, and every test uses it.
 
 ```bash
 python -m pytest NeuralGraph/tests -q        # 222 tests, ~4 s, no GPU, no network
+python -m pytest tests/mycelic -q            # Mycelic: unit, API, MCP; JetStream + smoke need nats-server (see below)
 ```
+
+The Mycelic integration tests run a real `nats-server` when `MYCELIC_NATS_SERVER_BIN` (or `nats-server`
+on `PATH`) is available and skip themselves otherwise. `python tests/smoke/mycelic_smoke.py --driver
+compose` is the deployment test; run it before changing anything under `deploy/mycelic/`.
 
 Tests must stay offline and deterministic. If a change needs a model, it needs a fake
 in [`NeuralGraph/chat_memory/testing.py`](NeuralGraph/chat_memory/testing.py) too.
@@ -33,6 +38,9 @@ The assistant and the research are kept apart, and the import graph enforces it:
 - **`NeuralGraph/research/`** — the retrieval engine and the coordination simulator.
   Free to depend on each other; must never be imported by the assistant.
 - **Shared** — `llm_backend.py` and `temporal_utils.py` only. Think before adding a third.
+- **`mycelic/`** — the deployable organizational-memory service. It may import
+  `NeuralGraph.research.coordination` (the contracts it productizes) and
+  `NeuralGraph.chat_memory.mcp_server` / `textutil`; nothing in `NeuralGraph/` imports `mycelic`.
 
 A quick check that the separation still holds:
 

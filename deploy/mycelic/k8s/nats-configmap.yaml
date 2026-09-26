@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nats-config
+data:
+  nats.conf: |
+    server_name: mycelic-nats
+    port: 4222
+    http: 127.0.0.1:8222
+    jetstream {
+      store_dir: $NATS_STORE_DIR
+      max_file_store: 20GB
+      max_memory_store: 256MB
+    }
+    authorization {
+      user: $NATS_USER
+      password: $NATS_PASSWORD
+    }

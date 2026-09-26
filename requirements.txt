@@ -1,7 +1,9 @@
-# Runtime dependencies for NeuralGraph (benchmark harness + chat memory). Python >= 3.11.
+# Runtime dependencies for NeuralGraph (benchmark harness + chat memory) and Mycelic. Python >= 3.11.
 aiohttp>=3.9
 numpy>=1.26
 rank-bm25>=0.2.2
+nats-py>=2.9
+prometheus-client>=0.20
 # tests
 pytest>=8
 pytest-asyncio>=0.23

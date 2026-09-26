@@ -1,0 +1,6 @@
+# What the Mycelic container installs: runtime only, no test tooling.
+aiohttp>=3.9
+numpy>=1.26
+rank-bm25>=0.2.2
+nats-py>=2.9
+prometheus-client>=0.20

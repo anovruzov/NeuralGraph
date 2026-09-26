@@ -121,7 +121,7 @@ def create_app(cm: ChatMemory, *, mcp_token: str | None = None, api_token: str |
                 return _bad("Content-Type must be application/json", 415)
         if api_token and request.path.startswith("/api/"):
             auth = request.headers.get("Authorization", "")
-            if not (auth.startswith("Bearer ") and hmac.compare_digest(auth[7:].strip(), api_token)):
+            if not (auth.startswith("Bearer ") and hmac.compare_digest(auth[7:].strip().encode("utf-8"), api_token.encode("utf-8"))):
                 return _bad("unauthorized", 401)
         resp = await handler(request)
         for k, v in cors_for(request).items():

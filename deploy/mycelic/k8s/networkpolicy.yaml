@@ -1,0 +1,39 @@
+# Only the Mycelic pod may reach the broker, and only the ingress controller (and, optionally, Prometheus)
+# may reach Mycelic. This is what makes MYCELIC_TRUST_PROXY_HEADERS=true in the ConfigMap sound: nothing but the
+# ingress can put a request in front of the service. Requires a CNI that enforces NetworkPolicy.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: nats
+spec:
+  podSelector:
+    matchLabels:
+      app: nats
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: mycelic
+      ports:
+        - {protocol: TCP, port: 4222}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mycelic
+spec:
+  podSelector:
+    matchLabels:
+      app: mycelic
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx      # your ingress controller's namespace
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring         # remove if Prometheus does not scrape directly
+      ports:
+        - {protocol: TCP, port: 8080}

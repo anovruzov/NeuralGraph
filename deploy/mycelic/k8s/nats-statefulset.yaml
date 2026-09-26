@@ -1,0 +1,75 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: nats
+spec:
+  clusterIP: None            # headless: stable DNS name nats.mycelic.svc for the single broker
+  selector:
+    app: nats
+  ports:
+    - name: client
+      port: 4222
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: nats
+spec:
+  serviceName: nats
+  replicas: 1                # single broker with a file-backed JetStream store; see DEPLOYMENT.md for clustering
+  selector:
+    matchLabels:
+      app: nats
+  template:
+    metadata:
+      labels:
+        app: nats
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000        # the kubelet chowns the PVC so a non-root nats can write /data
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: nats
+          image: nats:2.10.29-alpine
+          args: ["-c", "/etc/nats/nats.conf"]
+          env:
+            - name: NATS_STORE_DIR
+              value: /data
+            - name: NATS_USER
+              valueFrom:
+                secretKeyRef: {name: mycelic-secrets, key: NATS_USER}
+            - name: NATS_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: mycelic-secrets, key: NATS_PASSWORD}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+          ports:
+            - {name: client, containerPort: 4222}
+          # the monitor listens on loopback only; probe it from inside the container (busybox wget is in the image)
+          readinessProbe:
+            exec: {command: ["wget", "-q", "--spider", "http://127.0.0.1:8222/healthz?js-enabled-only=true"]}
+            periodSeconds: 5
+          livenessProbe:
+            exec: {command: ["wget", "-q", "--spider", "http://127.0.0.1:8222/healthz"]}
+            periodSeconds: 10
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {memory: 1Gi}
+          volumeMounts:
+            - {name: config, mountPath: /etc/nats, readOnly: true}
+            - {name: data, mountPath: /data}
+      volumes:
+        - name: config
+          configMap: {name: nats-config}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        # storageClassName: <a block storage class>; JetStream's file store needs a real filesystem, not NFS
+        resources:
+          requests:
+            storage: 20Gi

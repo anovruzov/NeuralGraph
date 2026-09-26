@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mycelic
+spec:
+  serviceName: mycelic
+  replicas: 1                # SQLite: exactly one writer. Never scale this; see DEPLOYMENT.md for the scale-out path.
+  selector:
+    matchLabels:
+      app: mycelic
+  template:
+    metadata:
+      labels:
+        app: mycelic
+      # no prometheus.io annotations: /metrics needs a bearer token; see servicemonitor.example.yaml
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: mycelic
+          image: mycelic:0.1.0
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+          envFrom:
+            - configMapRef: {name: mycelic-config}
+          env:
+            - name: MYCELIC_ADMIN_TOKEN
+              valueFrom: {secretKeyRef: {name: mycelic-secrets, key: MYCELIC_ADMIN_TOKEN}}
+            - name: MYCELIC_EVENT_SIGNING_KEY
+              valueFrom: {secretKeyRef: {name: mycelic-secrets, key: MYCELIC_EVENT_SIGNING_KEY}}
+            - name: MYCELIC_NATS_USER
+              valueFrom: {secretKeyRef: {name: mycelic-secrets, key: NATS_USER}}
+            - name: MYCELIC_NATS_PASSWORD
+              valueFrom: {secretKeyRef: {name: mycelic-secrets, key: NATS_PASSWORD}}
+            - name: MYCELIC_METRICS_TOKEN
+              valueFrom: {secretKeyRef: {name: mycelic-secrets, key: MYCELIC_METRICS_TOKEN, optional: true}}
+          ports:
+            - {name: http, containerPort: 8080}
+          startupProbe:                      # a rebuild from the event log can take a while: do not kill it
+            httpGet: {path: /ready, port: http}
+            periodSeconds: 5
+            failureThreshold: 120
+          readinessProbe:
+            httpGet: {path: /ready, port: http}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 15
+          resources:
+            requests: {cpu: 250m, memory: 256Mi}
+            limits: {memory: 1Gi}
+          volumeMounts:
+            - {name: data, mountPath: /data}
+            - {name: rules, mountPath: /etc/mycelic, readOnly: true}
+      volumes:
+        - name: rules
+          configMap:
+            name: mycelic-config
+            items:
+              - {key: rules.json, path: rules.json}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        # storageClassName: <a block storage class>; SQLite in WAL mode must not live on NFS/RWX storage
+        resources:
+          requests:
+            storage: 10Gi
