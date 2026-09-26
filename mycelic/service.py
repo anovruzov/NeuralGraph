@@ -44,10 +44,10 @@ from .models import (
 from .retrieval import Retriever
 from .store import MycelicStore, Tx
 from .transport import Transport, build_transport, subject_for
+from .version import VERSION
 
 logger = logging.getLogger(__name__)
 
-VERSION = "0.1.0"
 #: metadata keys the aggregator owns; an agent may not set them on a raw observation
 RESERVED_METADATA_KEYS = frozenset({"agg_key", "promoted_from", "version_of", "contributing_agents", "contributing_teams",
                                     "children", "child_layer", "parent_count", "fragility", "slots", "candidates",

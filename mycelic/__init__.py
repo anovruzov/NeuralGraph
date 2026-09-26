@@ -6,7 +6,7 @@ full lineage, and makes them retrievable through an HTTP API, a Python SDK and M
 
 See ``DEPLOYMENT.md`` for running it and ``docs/MYCELIC_ARCHITECTURE.md`` for what actually runs.
 """
-from .service import VERSION
+from .version import VERSION
 
 __version__ = VERSION
 __all__ = ["__version__"]
