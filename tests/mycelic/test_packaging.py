@@ -22,6 +22,8 @@ STDLIB_ONLY_MODULES = (
     "tests.smoke.scenario",
     "tests.smoke.scenario_strategic",
     "tests.smoke.mycelic_smoke",
+    "demo.live.scenario",
+    "demo.live.mycelic_live",
 )
 
 
@@ -42,7 +44,8 @@ class StdlibOnlyTests(unittest.TestCase):
         self.assertNotEqual(r.returncode, 0, "aiohttp importable without site-packages; the check above proves nothing")
 
     def test_smoke_and_demo_entry_points_start_without_site_packages(self) -> None:
-        for script in ("tests/smoke/mycelic_smoke.py", "demo/mycelic_strategic_demo.py", "demo/mycelic_demo.py"):
+        for script in ("tests/smoke/mycelic_smoke.py", "demo/mycelic_strategic_demo.py", "demo/mycelic_demo.py",
+                       "demo/live/mycelic_live.py"):
             with self.subTest(script=script):
                 r = _run_without_site_packages(script, "--help")
                 self.assertEqual(r.returncode, 0, r.stderr)
