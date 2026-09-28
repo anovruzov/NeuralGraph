@@ -1,0 +1,36 @@
+# Mycelic, single-process topology: one container, one volume, no NATS.
+#
+#   docker compose -f docker-compose.local.yml up --build      (or ./up.sh local)
+#   open http://localhost:8780
+#
+# The API runs the discovery worker in-process (MYCELIC_RUN_WORKER_IN_API=1) and the holders embedded
+# (MYCELIC_EMBEDDED_HOLDERS=1) over the SQLite transport, so coord.db and every holders/<id>/evidence.db live
+# on the same volume. This is the laptop / single-VM deployment; the same image later runs the distributed
+# topology in docker-compose.yml without rebuilding.
+
+services:
+  api:
+    image: ${MYCELIC_IMAGE:-mycelic:local}
+    build:
+      context: ../..
+      dockerfile: deploy/mycelic/Dockerfile
+      args:
+        BUILD_SHA: ${BUILD_SHA:-dev}
+    command: ["serve"]
+    env_file: .env
+    environment:
+      MYCELIC_SERVICE: api
+      MYCELIC_DATA_DIR: /data
+      MYCELIC_HOST: 0.0.0.0
+      MYCELIC_PORT: "8780"
+      MYCELIC_TRANSPORT: sqlite
+      MYCELIC_RUN_WORKER_IN_API: "1"
+      MYCELIC_EMBEDDED_HOLDERS: "1"
+    volumes:
+      - mycelic-data:/data
+    ports:
+      - "${MYCELIC_BIND:-127.0.0.1}:8780:8780"
+    restart: unless-stopped
+
+volumes:
+  mycelic-data:

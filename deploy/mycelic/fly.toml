@@ -1,0 +1,104 @@
+# Fly.io configuration for Mycelic.
+#
+# Default: ONE machine running `serve` with the discovery worker in-process (MYCELIC_RUN_WORKER_IN_API=1) and
+# embedded holders, on one volume. The coordination database is SQLite with a single writer node, and a Fly
+# volume is attached to exactly one machine, so a separate `worker` process group would get its own, empty
+# volume and never see the API's coord.db. The two-process variant at the bottom is therefore only for a NATS
+# deployment where the worker talks to holders over NATS and shares the volume by running on the SAME machine
+# (fly.toml cannot express "same machine" for two groups; see docs/mycelic/RUNBOOK.md, Scaling limits).
+#
+# Deploy from the repository root so the Docker build context contains NeuralGraph/, mycelic/ and frontend/:
+#   fly apps create mycelic                               # once; pick your own name and change `app` below
+#   fly volumes create mycelic_data --size 10 --region ams  # once
+#   fly secrets set MYCELIC_SECRET_KEY="$(python -c 'import secrets;print(secrets.token_urlsafe(32))')" \
+#                   ANTHROPIC_API_KEY=... OPENAI_API_KEY=... MYCELIC_ERROR_WEBHOOK=...
+#   fly deploy . --config deploy/mycelic/fly.toml --dockerfile deploy/mycelic/Dockerfile
+#   fly ssh console -C "python -m mycelic migrate --status"
+# Migrations: do NOT use a [deploy] release_command for `migrate`; release commands run on a temporary machine
+# without the volume. Every process applies pending migrations when it opens coord.db; back up first
+# (`fly ssh console -C "python -m mycelic backup --out /data/backups/pre-deploy.tar.gz"`).
+
+app = "mycelic"                    # VERIFY: your app name
+primary_region = "ams"             # VERIFY: the region of the volume
+
+[build]
+  dockerfile = "deploy/mycelic/Dockerfile"   # VERIFY: resolved relative to the deploy working directory (repo root); the --dockerfile flag above makes it explicit
+
+[env]
+  MYCELIC_DATA_DIR = "/data"
+  MYCELIC_HOST = "0.0.0.0"
+  MYCELIC_PORT = "8780"
+  MYCELIC_SERVICE = "api"
+  MYCELIC_TRANSPORT = "sqlite"
+  MYCELIC_RUN_WORKER_IN_API = "1"
+  MYCELIC_EMBEDDED_HOLDERS = "1"
+  MYCELIC_DEMO_MODE = "0"
+  MYCELIC_SECURE_COOKIES = "1"
+  MYCELIC_LOG_JSON = "1"
+  MYCELIC_LOG_LEVEL = "INFO"
+  MYCELIC_PUBLIC_URL = "https://mycelic.fly.dev"       # VERIFY: <app>.fly.dev or your custom domain
+  MYCELIC_ALLOWED_HOSTS = "mycelic.fly.dev"            # VERIFY: same host as above
+  # secrets (never here): MYCELIC_SECRET_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY, MYCELIC_ERROR_WEBHOOK -> `fly secrets set`
+  # models: MYCELIC_MODEL_LIGHT / _STANDARD / _HEAVY, MYCELIC_EMBED_PROVIDER / _MODEL may go here (not secrets)
+
+[processes]
+  app = "serve"                    # the image ENTRYPOINT is `python -m mycelic`; the process command supplies the subcommand
+
+[[mounts]]
+  source = "mycelic_data"
+  destination = "/data"
+  processes = ["app"]
+  initial_size = "10gb"            # VERIFY: only used when `fly deploy` has to create the volume itself
+
+[http_service]
+  internal_port = 8780
+  force_https = true
+  auto_stop_machines = false       # the discovery loop runs in this process; never stop it
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 200
+    hard_limit = 250
+
+  [[http_service.checks]]
+    grace_period = "20s"
+    interval = "30s"
+    method = "GET"
+    timeout = "5s"
+    path = "/healthz"
+
+[[vm]]
+  memory = "1gb"
+  cpu_kind = "shared"
+  cpus = 1
+  processes = ["app"]
+
+# ---------------------------------------------------------------- two-process variant (NATS transport)
+# Use only with MYCELIC_TRANSPORT=nats and a NATS server reachable from both groups; the worker group must
+# still read the same coord.db, which on Fly means the same machine, so in practice this variant needs an
+# external coordination DB (not yet supported: see docs/mycelic/DECISIONS.md D2). Kept for reference.
+#
+# [processes]
+#   app = "serve"
+#   worker = "worker"
+#
+# [env]
+#   MYCELIC_RUN_WORKER_IN_API = "0"
+#   MYCELIC_EMBEDDED_HOLDERS = "0"
+#   MYCELIC_TRANSPORT = "nats"
+#   MYCELIC_NATS_URL = "nats://<nats-app>.internal:4222"
+#
+# [[mounts]]
+#   source = "mycelic_data"
+#   destination = "/data"
+#   processes = ["app", "worker"]     # two volumes named mycelic_data would be needed, one per machine: NOT shared
+#
+# [http_service]
+#   processes = ["app"]               # only the API serves HTTP
+#
+# [[vm]]
+#   processes = ["worker"]
+#   memory = "512mb"

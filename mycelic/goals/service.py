@@ -461,6 +461,24 @@ class GoalService:
             c.execute("UPDATE goals SET budget_spent=?, updated_at=? WHERE goal_id=?", (j(spent), now_iso(), goal_id))
         return self.budget_status(goal_id)
 
+    async def charge_usage(self, goal_id: str) -> dict[str, Any]:
+        """Charge model usage recorded for this goal since the last charge (cursor on ``model_usage.id``: exact and idempotent,
+        whatever the clock resolution or how many jobs ran in the same second)."""
+        g = self.get_goal(goal_id)
+        if g is None:
+            raise KeyError(goal_id)
+        spent = dict(g.get("budget_spent") or {})
+        cursor = int(spent.get("usage_cursor", 0))
+        r = self.db.one("SELECT COALESCE(MAX(id), 0) AS m, COALESCE(SUM(input_tokens + output_tokens), 0) AS t, COALESCE(SUM(cost_usd), 0) AS c "
+                        "FROM model_usage WHERE goal_id=? AND id > ?", (goal_id, cursor))
+        if r is not None and int(r["m"]) > cursor:
+            spent["tokens"] = int(spent.get("tokens", 0)) + int(r["t"])
+            spent["usd"] = round(float(spent.get("usd", 0.0)) + float(r["c"]), 6)
+            spent["usage_cursor"] = int(r["m"])
+            async with self.db.tx() as c:
+                c.execute("UPDATE goals SET budget_spent=?, updated_at=? WHERE goal_id=?", (j(spent), now_iso(), goal_id))
+        return self.budget_status(goal_id)
+
     def budget_status(self, goal_id: str) -> dict[str, Any]:
         g = self.get_goal(goal_id) or {}
         budget, spent = g.get("budget") or {}, g.get("budget_spent") or {}

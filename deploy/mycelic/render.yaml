@@ -1,0 +1,77 @@
+# Render blueprint for Mycelic: one Docker web service with a persistent disk, running `serve` with the
+# discovery worker in-process and embedded holders (the same single-node shape as fly.toml).
+#
+# Why one service: a Render disk attaches to a single instance, and coord.db (SQLite) has one writer node,
+# so the service is pinned to numInstances: 1 and does not autoscale. Holders on other machines connect over
+# NATS (run NATS elsewhere, set MYCELIC_TRANSPORT=nats and the MYCELIC_NATS_* variables here).
+#
+# Use: Render dashboard -> Blueprints -> New Blueprint Instance -> point at this repository; Render reads
+# render.yaml from the repository ROOT, so either copy/symlink this file there or set the blueprint path
+# (VERIFY: current Render UI lets you choose the file path). Secrets marked `sync: false` are prompted for
+# in the dashboard and never stored in git.
+#
+# Field names follow the Render blueprint spec (services[].type/name/runtime/plan/region/dockerfilePath/
+# dockerContext/healthCheckPath/numInstances/autoDeploy/disk/envVars). Items marked VERIFY were written from
+# memory of the spec and should be checked against https://render.com/docs/blueprint-spec before first use.
+
+services:
+  - type: web
+    name: mycelic
+    runtime: docker                       # VERIFY: older blueprints used `env: docker`
+    plan: starter                         # VERIFY: any paid plan; disks are not available on the free plan
+    region: frankfurt                     # VERIFY: oregon | ohio | virginia | frankfurt | singapore
+    dockerfilePath: ./deploy/mycelic/Dockerfile
+    dockerContext: .
+    # No dockerCommand: the image ENTRYPOINT `python -m mycelic` + CMD `serve` apply.
+    healthCheckPath: /healthz
+    numInstances: 1
+    autoDeploy: false                     # deploy on purpose (back up first: docs/mycelic/RUNBOOK.md)
+    disk:
+      name: mycelic-data
+      mountPath: /data
+      sizeGB: 10
+    envVars:
+      - key: MYCELIC_DATA_DIR
+        value: /data
+      - key: MYCELIC_HOST
+        value: 0.0.0.0
+      - key: MYCELIC_PORT
+        value: "10000"                    # Render routes to the port the service listens on; 10000 is its default (VERIFY)
+      - key: PORT
+        value: "10000"
+      - key: MYCELIC_SERVICE
+        value: api
+      - key: MYCELIC_TRANSPORT
+        value: sqlite
+      - key: MYCELIC_RUN_WORKER_IN_API
+        value: "1"
+      - key: MYCELIC_EMBEDDED_HOLDERS
+        value: "1"
+      - key: MYCELIC_DEMO_MODE
+        value: "0"
+      - key: MYCELIC_SECURE_COOKIES
+        value: "1"
+      - key: MYCELIC_LOG_JSON
+        value: "1"
+      - key: MYCELIC_LOG_LEVEL
+        value: INFO
+      - key: MYCELIC_PUBLIC_URL
+        value: https://mycelic.onrender.com   # VERIFY: your service URL or custom domain
+      - key: MYCELIC_ALLOWED_HOSTS
+        value: mycelic.onrender.com           # VERIFY: same host as above
+      - key: MYCELIC_MODEL_LIGHT
+        value: fake:mycelic-fake-light        # e.g. anthropic:claude-haiku-4-5
+      - key: MYCELIC_MODEL_STANDARD
+        value: fake:mycelic-fake-standard     # e.g. anthropic:claude-opus-5
+      - key: MYCELIC_MODEL_HEAVY
+        value: fake:mycelic-fake-heavy        # e.g. anthropic:claude-opus-5
+      - key: MYCELIC_EMBED_PROVIDER
+        value: hash                           # openai for a real embedding endpoint
+      - key: MYCELIC_SECRET_KEY
+        generateValue: true                   # Render generates a random value once and keeps it
+      - key: ANTHROPIC_API_KEY
+        sync: false                           # entered in the dashboard, never in git
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: MYCELIC_ERROR_WEBHOOK
+        sync: false

@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from typing import Any, Iterable
 
 from .db.coord import CoordDB, row_to_dict, rows_to_dicts
-from .util import iso, j, now_iso, plus_seconds, utcnow
+from .util import iso, j, now_iso, now_precise, plus_seconds, utcnow
 
 
 @dataclass
@@ -106,7 +106,7 @@ class JobQueue:
         kind_list = list(kinds) if kinds else None
         async with self.db.tx() as c:
             sql = "SELECT * FROM jobs WHERE status='queued' AND available_at <= ?"
-            args: list[Any] = [now]
+            args: list[Any] = [now_precise()]
             if kind_list:
                 sql += f" AND kind IN ({','.join('?' * len(kind_list))})"; args.extend(kind_list)
             if tenant_id:
@@ -183,13 +183,14 @@ class JobQueue:
 
     async def requeue_expired(self) -> int:
         now = now_iso()
+        precise = now_precise()
         async with self.db.tx() as c:
-            rows = c.execute("SELECT job_id, worker_id FROM jobs WHERE status='leased' AND leased_until < ?", (now,)).fetchall()
+            rows = c.execute("SELECT job_id, worker_id FROM jobs WHERE status='leased' AND leased_until < ?", (precise,)).fetchall()
             for r in rows:
                 c.execute("UPDATE job_attempts SET finished_at=?, outcome='lost_lease', error='lease expired' WHERE job_id=? AND worker_id=? AND finished_at IS NULL",
                           (now, r["job_id"], r["worker_id"]))
             cur = c.execute("UPDATE jobs SET status='queued', leased_until=NULL, worker_id=NULL, updated_at=?, "
-                            "last_error=COALESCE(last_error, 'lease expired') WHERE status='leased' AND leased_until < ?", (now, now))
+                            "last_error=COALESCE(last_error, 'lease expired') WHERE status='leased' AND leased_until < ?", (now, precise))
             return cur.rowcount
 
     async def retry_dead(self, job_ids: Iterable[int] | None = None, *, tenant_id: str | None = None) -> int:

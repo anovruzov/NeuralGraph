@@ -1,0 +1,155 @@
+# Mycelic, distributed topology: NATS JetStream transport, API, discovery worker and two standalone holders.
+#
+#   cp .env.example .env   (or run ./up.sh, which does this and fills in the secrets)
+#   docker compose up --build
+#   open http://localhost:8780
+#
+# What this demonstrates: the API and the worker share ONE coordination database (the mycelic-data volume:
+# SQLite has a single writer node, see docs/mycelic/RUNBOOK.md "Scaling limits"), while each holder has its
+# OWN volume and its OWN credentials. Evidence never leaves a holder's volume; only bounded artifacts cross
+# NATS. holder-a and holder-b can be moved to other machines by changing MYCELIC_NATS_URL / MYCELIC_CORE_URL.
+#
+# The holder ids and keys must exist in the coordination DB: `python -m mycelic seed` registers the demo
+# holders with the ids/keys from .env (MYCELIC_HOLDER_ID_A/B, MYCELIC_HOLDER_KEY_A/B); for a real
+# organization create holders in the UI (Admin > Integrations) or POST /api/holders and put the key shown
+# once into .env. nats.conf (maintained separately) defines the NATS users `core`, `holder-a`, `holder-b`
+# with the passwords passed below and confines each holder to its own subjects.
+
+x-mycelic-image: &mycelic-image
+  image: ${MYCELIC_IMAGE:-mycelic:local}
+  build:
+    context: ../..
+    dockerfile: deploy/mycelic/Dockerfile
+    args:
+      BUILD_SHA: ${BUILD_SHA:-dev}
+
+x-nats-client: &nats-client
+  MYCELIC_TRANSPORT: nats
+  MYCELIC_NATS_URL: nats://nats:4222
+  MYCELIC_NATS_STREAM: ${MYCELIC_NATS_STREAM:-MYCELIC}
+
+services:
+  nats:
+    image: nats:2.11-alpine
+    # -js enables JetStream, -sd puts the stream on the volume, -m exposes the monitoring port for the healthcheck.
+    command: ["-c", "/etc/nats/nats.conf", "-js", "-sd", "/data/jetstream", "-m", "8222"]
+    environment:
+      # nats.conf references these as $NATS_CORE_PASSWORD etc.
+      NATS_CORE_PASSWORD: ${NATS_CORE_PASSWORD:?set NATS_CORE_PASSWORD in .env}
+      NATS_HOLDER_A_PASSWORD: ${NATS_HOLDER_A_PASSWORD:?set NATS_HOLDER_A_PASSWORD in .env}
+      NATS_HOLDER_B_PASSWORD: ${NATS_HOLDER_B_PASSWORD:?set NATS_HOLDER_B_PASSWORD in .env}
+    volumes:
+      - nats-data:/data
+      - ./nats.conf:/etc/nats/nats.conf:ro
+    ports:
+      - "127.0.0.1:4222:4222"     # holders running outside compose (another laptop over a tunnel/VPN)
+      - "127.0.0.1:8222:8222"     # monitoring: http://127.0.0.1:8222/jsz
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8222/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+    restart: unless-stopped
+
+  api:
+    <<: *mycelic-image
+    command: ["serve"]
+    env_file: .env
+    environment:
+      <<: *nats-client
+      MYCELIC_SERVICE: api
+      MYCELIC_DATA_DIR: /data
+      MYCELIC_HOST: 0.0.0.0
+      MYCELIC_PORT: "8780"
+      MYCELIC_RUN_WORKER_IN_API: "0"
+      MYCELIC_EMBEDDED_HOLDERS: "0"
+      MYCELIC_NATS_USER: core
+      MYCELIC_NATS_PASSWORD: ${NATS_CORE_PASSWORD}
+    volumes:
+      - mycelic-data:/data
+    ports:
+      - "${MYCELIC_BIND:-127.0.0.1}:8780:8780"
+    depends_on:
+      nats:
+        condition: service_healthy
+    # the image HEALTHCHECK (GET /healthz) applies
+    restart: unless-stopped
+
+  worker:
+    <<: *mycelic-image
+    command: ["worker"]
+    env_file: .env
+    environment:
+      <<: *nats-client
+      MYCELIC_SERVICE: worker
+      MYCELIC_DATA_DIR: /data
+      MYCELIC_EMBEDDED_HOLDERS: "0"
+      MYCELIC_NATS_USER: core
+      MYCELIC_NATS_PASSWORD: ${NATS_CORE_PASSWORD}
+    volumes:
+      - mycelic-data:/data       # the same coord.db as the API: jobs, leases and events live there
+    depends_on:
+      nats:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    healthcheck:
+      disable: true              # no HTTP port; liveness is the worker heartbeat (mycelic_worker_heartbeat_age_seconds)
+    restart: unless-stopped
+
+  holder-a:
+    <<: *mycelic-image
+    # The holder CLI reads --holder-id / --key / --core-url from MYCELIC_HOLDER_ID / _KEY / MYCELIC_CORE_URL.
+    # --data-dir /data/holders puts the store at /data/holders/<holder_id>/evidence.db: the same layout as
+    # embedded holders, so `MYCELIC_DATA_DIR=/data python -m mycelic backup --holders-only` works on this volume.
+    command: ["holder", "--data-dir", "/data/holders"]
+    env_file: .env
+    environment:
+      <<: *nats-client
+      MYCELIC_SERVICE: holder
+      MYCELIC_DATA_DIR: /data
+      MYCELIC_HOLDER_ID: ${MYCELIC_HOLDER_ID_A:-hold_demo_a}
+      MYCELIC_HOLDER_KEY: ${MYCELIC_HOLDER_KEY_A:?set MYCELIC_HOLDER_KEY_A in .env}
+      MYCELIC_CORE_URL: http://api:8780
+      MYCELIC_NATS_USER: holder-a
+      MYCELIC_NATS_PASSWORD: ${NATS_HOLDER_A_PASSWORD}
+    volumes:
+      - holder-a-data:/data      # this holder's evidence store only; never shared with api/worker
+    depends_on:
+      nats:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+    restart: unless-stopped
+
+  holder-b:
+    <<: *mycelic-image
+    command: ["holder", "--data-dir", "/data/holders"]
+    env_file: .env
+    environment:
+      <<: *nats-client
+      MYCELIC_SERVICE: holder
+      MYCELIC_DATA_DIR: /data
+      MYCELIC_HOLDER_ID: ${MYCELIC_HOLDER_ID_B:-hold_demo_b}
+      MYCELIC_HOLDER_KEY: ${MYCELIC_HOLDER_KEY_B:?set MYCELIC_HOLDER_KEY_B in .env}
+      MYCELIC_CORE_URL: http://api:8780
+      MYCELIC_NATS_USER: holder-b
+      MYCELIC_NATS_PASSWORD: ${NATS_HOLDER_B_PASSWORD}
+    volumes:
+      - holder-b-data:/data
+    depends_on:
+      nats:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+    restart: unless-stopped
+
+volumes:
+  nats-data:
+  mycelic-data:
+  holder-a-data:
+  holder-b-data:

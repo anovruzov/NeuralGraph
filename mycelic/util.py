@@ -10,12 +10,24 @@ from typing import Any
 
 from NeuralGraph.chat_memory.models import iso, new_id, now_iso, parse_iso, utcnow  # noqa: F401  (re-export)
 
-__all__ = ["iso", "new_id", "now_iso", "parse_iso", "utcnow", "plus_seconds", "j", "jl", "sha256", "token",
+__all__ = ["iso", "new_id", "now_iso", "parse_iso", "utcnow", "plus_seconds", "now_precise", "precise_iso", "j", "jl", "sha256", "token",
            "token_hash", "hmac_sign", "hmac_verify", "canonical_json", "fingerprint"]
 
 
+def precise_iso(dt: datetime) -> str:
+    """Microsecond ISO timestamp (sorts correctly against second-precision strings of the same convention)."""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).isoformat(timespec="microseconds")
+
+
+def now_precise() -> str:
+    return precise_iso(utcnow())
+
+
 def plus_seconds(seconds: float, *, start: datetime | None = None) -> str:
-    return iso((start or utcnow()) + timedelta(seconds=seconds))  # type: ignore[return-value]
+    """Deadline strings (leases, backoffs, cooldowns) keep microseconds so short delays are honoured exactly."""
+    return precise_iso((start or utcnow()) + timedelta(seconds=seconds))
 
 
 def j(value: Any) -> str:
