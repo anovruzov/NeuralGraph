@@ -36,6 +36,33 @@ What makes it different from a vector store with a nice wrapper:
 
 ---
 
+## Mycelic — organizational intelligence on NeuralGraph
+
+**Mycelic** turns NeuralGraph's private memory graphs into a local-first, distributed intelligence
+system for organizations: every employee or evidence holder keeps their own store, agents exchange
+authorized, bounded artifacts (questions, responses, claims, discoveries), and a durable
+continual-discovery loop pursues goals in the background. It lives in [`mycelic/`](mycelic/) with a
+React application in [`frontend/`](frontend/).
+
+```bash
+pip install -r requirements-mycelic.txt
+python -m mycelic migrate && python -m mycelic seed      # fictional demo organization + demonstration goal
+python -m mycelic serve                                  # http://127.0.0.1:8780  (fake model by default)
+```
+
+| Document | What is in it |
+|---|---|
+| [`docs/mycelic/ARCHITECTURE.md`](docs/mycelic/ARCHITECTURE.md) | Components, the discovery loop, lineage and independent support, security model |
+| [`docs/mycelic/DECISIONS.md`](docs/mycelic/DECISIONS.md) | Engineering decisions and their reasons |
+| [`docs/mycelic/API.md`](docs/mycelic/API.md) | The HTTP/SSE contract |
+| [`docs/mycelic/SETUP.md`](docs/mycelic/SETUP.md) | Local setup, model providers, NATS, standalone holders |
+| [`docs/mycelic/RUNBOOK.md`](docs/mycelic/RUNBOOK.md) | Operations: health, metrics, backups, migrations, rollback |
+| [`docs/mycelic/VERIFICATION.md`](docs/mycelic/VERIFICATION.md) | What the deterministic tests, the demonstration scenario and live integration establish |
+
+The memory engine below is unchanged and still usable on its own.
+
+---
+
 ## Quick Start
 
 ### Prerequisites
