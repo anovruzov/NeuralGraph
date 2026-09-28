@@ -119,7 +119,7 @@ def build_runtime(settings: Settings | None = None, *, with_transport: bool = Tr
     s = settings or load_settings()
     ensure_secret_key(s)
     db = CoordDB(s.coord_db)
-    org = OrgService(db)
+    org = OrgService(db, secret_key=s.secret_key)
     auth = AuthService(db, org, session_ttl_seconds=s.session_ttl_seconds)
     authz = Authorizer(db, org)
     jobs = JobQueue(db)

@@ -1,0 +1,13 @@
+.git
+.venv
+__pycache__
+*.pyc
+*.db
+*.db-wal
+*.db-shm
+research/results
+research/datasets
+frontend/node_modules
+frontend/dist
+deploy/mycelic/.env
+docs/images

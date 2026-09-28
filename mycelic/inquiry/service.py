@@ -301,12 +301,10 @@ class QuestionService:
         # publish after the DB commit; delivery failures are recorded per route and retried by the job's next attempt
         failed = 0
         for h in holders:
-            row = self.org.holder_secret_row(h["holder_id"])
             env = Envelope.new(Subjects.holder_inbox(q["tenant_id"], h["holder_id"]), "question", q["tenant_id"],
                                {**payload_base, "holder_id": h["holder_id"], "route_id": self.db.scalar("SELECT route_id FROM question_routes WHERE question_id=? AND holder_id=?", (question_id, h["holder_id"]))},
                                msg_id=f"q:{question_id}:{h['holder_id']}")
-            if row is not None:
-                env.sign(row["route_key"])
+            env.sign(self.org.route_key(h["holder_id"]))
             try:
                 if self.transport is not None:
                     await self.transport.publish(env)

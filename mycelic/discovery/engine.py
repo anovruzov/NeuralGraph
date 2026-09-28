@@ -613,8 +613,7 @@ class LoopEngine:
         if holder is None or holder.get("tenant_id") != env.tenant_id:
             await self.db.audit(env.tenant_id, "holder", hid, f"transport.{kind}", outcome="deny", detail={"reason": "unknown holder", "msg_id": env.msg_id})
             return
-        secret = self.org.holder_secret_row(hid)
-        if secret is not None and env.signature and not env.verify(secret["route_key"]):
+        if not env.signature or not env.verify(self.org.route_key(hid)):
             await self.db.audit(env.tenant_id, "holder", hid, f"transport.{kind}", outcome="deny", detail={"reason": "bad signature", "msg_id": env.msg_id})
             return
         if kind == "response":

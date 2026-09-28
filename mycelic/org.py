@@ -10,7 +10,7 @@ import sqlite3
 from typing import Any, Iterable
 
 from .db.coord import CoordDB, row_to_dict, rows_to_dicts
-from .util import j, jl, new_id, now_iso, plus_seconds, token, token_hash
+from .util import hmac_sign, j, jl, new_id, now_iso, plus_seconds, token, token_hash
 
 UNIT_TYPES = ("executive", "region", "subsidiary", "department", "team", "project")
 HIERARCHY = ("executive", "region", "subsidiary", "department", "team")   # top -> bottom; any level may be omitted
@@ -43,8 +43,21 @@ def _public_user(r: sqlite3.Row | dict | None) -> dict[str, Any] | None:
 
 
 class OrgService:
-    def __init__(self, db: CoordDB) -> None:
+    def __init__(self, db: CoordDB, *, secret_key: str = "") -> None:
         self.db = db
+        self.secret_key = secret_key
+
+    def route_key(self, holder_id: str) -> str:
+        """The HMAC key that signs core -> holder envelopes (and holder -> core replies).
+
+        Derived from the server secret (``MYCELIC_SECRET_KEY``) so a copy of the coordination database alone
+        cannot forge envelopes; a holder receives it once, over its authenticated bootstrap call. Without a server
+        secret (tests, throwaway dev runs) the random per-holder value stored at registration is used instead.
+        """
+        if self.secret_key:
+            return hmac_sign(self.secret_key, f"mycelic:route:{holder_id}")
+        r = self.db.one("SELECT route_key FROM holders WHERE holder_id=?", (holder_id,))
+        return r["route_key"] if r else ""
 
     # ------------------------------------------------------------------ tenants
     async def create_tenant(self, name: str, slug: str, *, is_demo: bool = False, settings: dict | None = None,

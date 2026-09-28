@@ -106,7 +106,7 @@ class EmbeddedHolders:
         async def heartbeat(stats: dict[str, Any]) -> None:
             await self.org.holder_heartbeat(holder_id, stats=_heartbeat_stats(stats))
 
-        svc = HolderService(store, self.transport, holder_id=holder_id, tenant_id=tenant_id, route_key=row["route_key"],
+        svc = HolderService(store, self.transport, holder_id=holder_id, tenant_id=tenant_id, route_key=self.org.route_key(holder_id),
                             heartbeat=heartbeat, heartbeat_interval=self.heartbeat_interval,
                             policy_loader=lambda: self.current_policy(holder_id))
         self._stores[holder_id] = store

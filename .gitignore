@@ -11,3 +11,9 @@ research/results/emb_cache/
 research/results/kg_cache/
 research/results/scratch/
 research/results/smoke*.json
+
+# Mycelic
+deploy/mycelic/.env
+frontend/node_modules/
+frontend/dist/
+.mycelic/

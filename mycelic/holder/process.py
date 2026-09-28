@@ -286,8 +286,13 @@ def main(argv: list[str] | None = None) -> int:
 
     settings = load_settings()
     data_dir = args.data_dir or str(Path(settings.holders_dir))
-    logging.basicConfig(level=getattr(logging, str(settings.log_level).upper(), logging.INFO),
-                        format="%(asctime)s %(levelname)s %(name)s: %(message)s", stream=sys.stderr)
+    try:
+        from ..observability import configure_logging
+        settings.service_name = f"holder:{args.holder_id}"
+        configure_logging(settings)
+    except Exception:  # observability module unavailable: plain logging
+        logging.basicConfig(level=getattr(logging, str(settings.log_level).upper(), logging.INFO),
+                            format="%(asctime)s %(levelname)s %(name)s: %(message)s", stream=sys.stderr)
     try:
         asyncio.run(run_holder(settings, holder_id=args.holder_id, key=args.key, core_url=args.core_url, data_dir=data_dir,
                                local_port=args.local_port or None, local_host=args.local_host, heartbeat_seconds=args.heartbeat_seconds))
