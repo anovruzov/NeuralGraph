@@ -18,7 +18,7 @@ import pytest
 from mycelic.db import CoordDB
 from mycelic.transport import Envelope, Subjects, TransportError
 from mycelic.transport.sqlite_transport import SqliteTransport, subject_matches
-from mycelic.util import new_id, plus_seconds, token
+from mycelic.util import plus_seconds, token
 
 TENANT = "t1"
 POLL = 0.02
@@ -388,11 +388,12 @@ async def test_nats_publish_subscribe_request_round_trip() -> None:
 
 
 @nats_only
-async def test_nats_durable_consumer_survives_reconnect() -> None:
+async def test_nats_durable_consumer_is_shared_across_processes() -> None:
     from mycelic.transport.nats_transport import NatsTransport
 
     stream = "MYCELIC_TEST_" + token(6).replace("-", "_").replace("_", "").upper()[:10]
     first = NatsTransport(NATS_URL, stream=stream, retention_seconds=600, fetch_timeout=0.3)
+    second = NatsTransport(NATS_URL, stream=stream, retention_seconds=600, manage_stream=False, fetch_timeout=0.3)
     await first.start()
     try:
         rec1 = Recorder()
@@ -403,7 +404,6 @@ async def test_nats_durable_consumer_survives_reconnect() -> None:
         await wait_until(lambda: rec1.msg_ids == [a.msg_id], timeout=10)
         await first.close()
         # a second process binding the same durable only sees what was published after the ack
-        second = NatsTransport(NATS_URL, stream=stream, retention_seconds=600, manage_stream=False, fetch_timeout=0.3)
         await second.start()
         b = response(n=2)
         await second.publish(b)
@@ -413,11 +413,11 @@ async def test_nats_durable_consumer_survives_reconnect() -> None:
         await settle(0.5)
         assert rec2.msg_ids == [b.msg_id]
         with pytest.raises(TransportError):
-            missing = NatsTransport(NATS_URL, stream=stream + "X", retention_seconds=600, manage_stream=False)
-            await missing.start()
-    finally:
-        cleanup = NatsTransport(NATS_URL, stream=stream, retention_seconds=600, manage_stream=False)
-        await cleanup.start()
+            await NatsTransport(NATS_URL, stream=stream + "X", retention_seconds=600, manage_stream=False).start()
+        with pytest.raises(TransportError):
+            await NatsTransport("nats://127.0.0.1:1", retention_seconds=600, connect_timeout=1).start()   # nothing listens
         with contextlib.suppress(Exception):
-            await cleanup.delete_stream()
-        await cleanup.close()
+            await second.delete_stream()
+    finally:
+        await second.close()
+        await first.close()

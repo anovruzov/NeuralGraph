@@ -84,7 +84,7 @@ class HolderService:
         self.heartbeat_interval = float(heartbeat_interval)
         self.policy_loader = policy_loader
         self.transport_heartbeat = bool(transport_heartbeat)
-        self.consumer = f"holder-{holder_id}"
+        self.consumer = holder_id            # durable consumer name == holder id (see deploy/mycelic/nats.conf)
         self._subs: list[Subscription] = []
         self._hb_task: asyncio.Task | None = None
         self.running = False
@@ -94,8 +94,9 @@ class HolderService:
     # ------------------------------------------------------------------ lifecycle
     @property
     def subjects(self) -> list[str]:
-        t, h = self.tenant_id, self.holder_id
-        return [Subjects.holder_inbox(t, h), Subjects.holder_ingest(t, h), Subjects.holder_raw(t, h), Subjects.holder_control(t, h)]
+        """One wildcard subscription covers inbox, ingest, raw and control: a single durable consumer per holder is
+        what the NATS permissions in deploy/mycelic/nats.conf confine a holder user to."""
+        return [f"mycelic.{self.tenant_id}.holder.{self.holder_id}.>"]
 
     async def start(self) -> None:
         if self.running:

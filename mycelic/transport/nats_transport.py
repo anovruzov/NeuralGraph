@@ -129,15 +129,27 @@ class NatsTransport:
         async def on_reconnected() -> None:
             logger.info("nats reconnected to %s", self.url)
 
+        # Reconnects after a successful connection are unbounded (a long-running process must ride out a server
+        # restart), but nats-py applies the same policy to the *first* connection, so a wrong password or a dead
+        # address would retry forever. The first connection therefore gets a deadline of two attempts.
+        nc = nats.NATS()
+        per_attempt = max(1, int(round(self.connect_timeout)))
         try:
-            self._nc = await nats.connect(
-                self.url, user=self.user, password=self.password, name=self.client_name,
-                connect_timeout=int(self.connect_timeout), max_reconnect_attempts=-1,
-                error_cb=on_error, disconnected_cb=on_disconnected, reconnected_cb=on_reconnected,
+            await asyncio.wait_for(
+                nc.connect(
+                    self.url, user=self.user, password=self.password, name=self.client_name,
+                    connect_timeout=per_attempt, max_reconnect_attempts=-1, reconnect_time_wait=2,
+                    error_cb=on_error, disconnected_cb=on_disconnected, reconnected_cb=on_reconnected,
+                ),
+                timeout=2 * per_attempt + 2,
             )
-        except Exception as e:
-            raise TransportError(f"cannot connect to NATS at {self.url}: {e}") from e
-        self._js = self._nc.jetstream(timeout=self.api_timeout)
+        except (Exception, asyncio.TimeoutError) as e:
+            last = getattr(nc, "last_error", None) or e
+            with contextlib.suppress(Exception):
+                await nc.close()
+            raise TransportError(f"cannot connect to NATS at {self.url}: {last}") from e
+        self._nc = nc
+        self._js = nc.jetstream(timeout=self.api_timeout)
         cfg = api.StreamConfig(
             name=self.stream, description="Mycelic artifact transport", subjects=list(self.subjects),
             retention=api.RetentionPolicy.LIMITS, storage=api.StorageType.FILE, discard=api.DiscardPolicy.OLD,
@@ -245,7 +257,10 @@ class NatsTransport:
     async def _consume(self, sub: _NatsSubscription, psub: Any, handler: Handler, ack_wait: float) -> None:
         nats = _require_nats()
         retry_delay = 1.0
-        while not sub.closing:
+        task = asyncio.current_task()
+        # ``cancelling()`` stays raised when a cancellation was swallowed inside a library ``wait_for`` (gh-86296),
+        # so a loop cancelled without ``close`` (interpreter shutdown) still ends
+        while not sub.closing and not (task is not None and task.cancelling()):
             try:
                 msgs = await psub.fetch(self.fetch_batch, timeout=self.fetch_timeout)
             except (nats.errors.TimeoutError, asyncio.TimeoutError):

@@ -605,7 +605,19 @@ class LoopEngine:
 
     # ================================================================== transport intake
     async def on_transport(self, env: Envelope) -> None:
-        """Everything holders send back: responses, ingest results, evidence events. Idempotent per msg_id."""
+        """Everything holders send back: responses, ingest results, evidence events. Idempotent per msg_id.
+
+        A malformed envelope (bad types, unknown ids) is dropped with an audit row so it cannot block the durable
+        consumer forever; transient failures (database busy, model outage) propagate so the transport redelivers.
+        """
+        try:
+            await self._on_transport(env)
+        except (KeyError, ValueError, TypeError) as exc:
+            logger.warning("dropping malformed %s envelope %s: %s", env.kind, env.msg_id, exc)
+            await self.db.audit(env.tenant_id, "holder", (env.payload or {}).get("holder_id"), f"transport.{env.kind}", outcome="error",
+                                detail={"msg_id": env.msg_id, "error": f"{type(exc).__name__}: {exc}"[:300], "dropped": True})
+
+    async def _on_transport(self, env: Envelope) -> None:
         kind = env.kind
         payload = env.payload or {}
         hid = payload.get("holder_id")

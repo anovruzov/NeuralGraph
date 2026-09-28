@@ -97,7 +97,7 @@ class DiscoveryWorker:
             logger.info("requeued %d expired leases from a previous run", n)
         self.db.add_waker(self._wake)
         if self.transport is not None:
-            sub = await self.transport.subscribe(Subjects.all_core_inbound(), consumer="core", handler=self._on_transport, ack_wait=60.0)
+            sub = await self.transport.subscribe(Subjects.all_core_inbound(), consumer="core-inbound", handler=self._on_transport, ack_wait=60.0)
             self._subs.append(sub)
         self._tasks = [asyncio.create_task(self._loop(i), name=f"mycelic-worker-{i}") for i in range(self.concurrency)]
         self._tasks.append(asyncio.create_task(self._scheduler(), name="mycelic-scheduler"))

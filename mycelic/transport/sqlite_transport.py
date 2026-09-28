@@ -190,8 +190,11 @@ class SqliteTransport:
         wake = asyncio.Event()
         self.db.add_waker(wake)
         where, args = _sql_subject_filter(sub.subject)
+        task = asyncio.current_task()
         try:
-            while not sub.closing:
+            # ``cancelling()`` stays raised if a cancellation was ever swallowed by a ``wait_for`` in a handler, so a
+            # loop cancelled without ``close`` (interpreter shutdown) still ends
+            while not sub.closing and not (task is not None and task.cancelling()):
                 # cleared *before* reading, so a commit that lands while we work makes the next wait return at once
                 wake.clear()
                 try:
