@@ -698,7 +698,9 @@ button { font: inherit; color: inherit; }
         const delay = anim ? flipDelay(ev, m) : 0;
         if (delay > 0) {
           m.pendingFlip = flip; m.flipAt = clock.now + delay; m.flipTo = ev.to;
-          V.holdUntil = Math.max(V.holdUntil, m.flipAt);
+          // only a withdrawal holds back what follows; a superseded version waiting for its replacement does not
+          // (act 2's consolidations supersede each other all the time)
+          if (ev.to === "retracted") V.holdUntil = Math.max(V.holdUntil, m.flipAt);
           later(delay, () => { if (m.pendingFlip === flip) flip(); }, true);
         } else flip();
         break;
