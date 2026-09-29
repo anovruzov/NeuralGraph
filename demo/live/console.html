@@ -58,6 +58,7 @@ button { font: inherit; color: inherit; }
 .pill.reconnecting b { color: var(--warn); }
 .pill.down .dot { background: var(--withdrawn); }
 .pill.replay .dot { background: transparent; border: 1.5px solid var(--bone-2); }
+.pill.ended b { color: var(--bone-2); }
 .pill span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 @keyframes beat { 70% { box-shadow: 0 0 0 7px rgba(169, 209, 139, 0); } 100% { box-shadow: 0 0 0 0 rgba(169, 209, 139, 0); } }
 .checkcount { font: 500 12.5px var(--f-mono); color: var(--bone-2); white-space: nowrap; }
@@ -169,15 +170,17 @@ button { font: inherit; color: inherit; }
 .stage.narrow .banner .b-main { font-size: 26px; }
 .stage.narrow .banner .b-sub { font-size: 13px; }
 
-.bcard { position: absolute; width: max-content; max-width: 250px; padding: 8px 11px 9px; background: rgba(23, 18, 14, 0.9);
+.bcard { position: absolute; width: max-content; padding: 8px 11px 9px; background: rgba(23, 18, 14, 0.9);
   border: 1px solid rgba(138, 217, 207, 0.45); border-radius: 4px; pointer-events: auto; cursor: pointer;
   transition: opacity 0.5s, transform 0.5s; backdrop-filter: blur(2px); z-index: 2; }
+/* kicker, meta and history never wrap (the card widens instead); only the title wraps, at the card's width limit */
+.bcard .k, .bcard .m, .bcard .hist { white-space: nowrap; }
 .bcard .k { font: 500 10px/1.2 var(--f-mono); letter-spacing: 0.06em; color: var(--foxfire); }
 .bcard .t { font-family: var(--f-display); font-size: 17px; line-height: 1.12; margin-top: 3px; color: var(--bone);
-  font-variation-settings: "SOFT" 100, "opsz" 30; }
+  font-variation-settings: "SOFT" 100, "opsz" 30; max-width: 226px; }
 .bcard .m { font: 11.5px/1.3 var(--f-mono); color: var(--bone-2); margin-top: 4px; font-variant-numeric: tabular-nums; }
-.bcard.ent { max-width: 360px; border-color: rgba(138, 217, 207, 0.7); box-shadow: 0 0 36px rgba(138, 217, 207, 0.14); }
-.bcard.ent .t { font-size: 22px; }
+.bcard.ent { border-color: rgba(138, 217, 207, 0.7); box-shadow: 0 0 36px rgba(138, 217, 207, 0.14); }
+.bcard.ent .t { font-size: 22px; max-width: 336px; }
 @media (min-width: 1280px) { .bcard.ent .t { font-size: 28px; } }
 .bcard .hist { font: 10.5px/1.3 var(--f-mono); color: var(--withdrawn); margin-top: 4px; }
 .bcard.withdrawn { border-color: rgba(224, 122, 100, 0.6); }
@@ -188,10 +191,14 @@ button { font: inherit; color: inherit; }
 .bcard.redacted .k { color: var(--bone-2); }
 .bcard.redacted .t { color: var(--bone-2); }
 .bcard.sel { border-color: var(--spore-hi); }
-.stage.narrow .bcard { max-width: 172px; padding: 5px 8px 6px; }
+/* compact: a laptop-sized stage with no clear spot for the full-size card */
+.bcard.compact .t { font-size: 15px; } .bcard.compact.ent .t { font-size: 22px; }
+.bcard.compact { padding: 5px 9px 6px; } .bcard.compact .t, .bcard.compact .m, .bcard.compact .hist { margin-top: 2px; }
+.bcard.compact .m { font-size: 10px; } .bcard.compact .k, .bcard.compact .hist { font-size: 9.5px; }
+.stage.narrow .bcard { padding: 5px 8px 6px; }
 .stage.narrow.bannered .bcard { opacity: 0; }
 .stage.narrow .bcard .k { font-size: 9px; }
-.stage.narrow .bcard .t, .stage.narrow .bcard.ent .t { font-size: 14px; }
+.stage.narrow .bcard .t, .stage.narrow .bcard.ent .t { font-size: 14px; max-width: 154px; }
 .stage.narrow .bcard .m { font-size: 10px; margin-top: 2px; }
 
 .tooltip { position: absolute; z-index: 6; pointer-events: none; max-width: 280px; padding: 7px 10px; font-size: 12.5px;
@@ -450,7 +457,7 @@ button { font: inherit; color: inherit; }
   .quote { font-size: clamp(16px, 1.25vw, 24px); }
 }
 @media (min-width: 1600px) {
-  .bcard { max-width: 330px; } .bcard.ent { max-width: 430px; }
+  .bcard .t { max-width: 306px; } .bcard.ent .t { max-width: 406px; }
   .bcard .t { font-size: 20px; } .bcard .m { font-size: 13px; } .bcard .k { font-size: 11.5px; } .bcard .hist { font-size: 11.5px; }
   .legend { font-size: 13px; }
   .checks li { font-size: 15px; }
@@ -1536,46 +1543,78 @@ button { font: inherit; color: inherit; }
       if (!st || b.scale < 0.3 || V.reveal < 0.9) continue;
       items.push({ n: b.n, st, b });
     }
-    items.sort((a, b) => LAYERS.indexOf(a.n.layer) - LAYERS.indexOf(b.n.layer));
+    // the enterprise's card first (it is the result; it keeps its place), then the regions', left to right
+    items.sort((a, b) => LAYERS.indexOf(a.n.layer) - LAYERS.indexOf(b.n.layer) || a.n.x - b.n.x);
     const key = items.map((i) => i.n.path + i.st.state + i.st.m.memory_id + (i.st.restored ? "r" : "")).join("|") + NARROW + "|" + (ui.sel || "") + "|" + (lineageView() ? lineageView().viewer + lineageView().graph.memory_id : "") + W + "x" + H;
     if (key === ui.cardsKey) return;
     ui.cardsKey = key;
     overlay.querySelectorAll(".bcard").forEach((e) => e.remove());
     const placed = [];
     // obstacles: every bloom, the card's own included (a candidate pushed back on stage by the edge clamp must not
-    // land on its own conclusion), and the enterprise and region names
+    // land on its own conclusion), and every name drawn on the network (enterprise, regions, subsidiaries,
+    // departments, teams)
     const obstacles = [];
-    for (const n of [ORG.root, ...ORG.root.kids]) { const r = (EL.blooms.get(n.path) || { R0: 20 }).R0 + 4; obstacles.push({ x: n.x - r, y: n.y - r, w: 2 * r, h: 2 * r }); }
-    for (const t of EL.labels) {
+    // (a scope with no rule conclusion never blooms: only its knot is in the way)
+    for (const n of [ORG.root, ...ORG.root.kids]) {
+      const r = bloomState(n.path) ? (EL.blooms.get(n.path) || { R0: 20 }).R0 + 4 : 6;
+      obstacles.push({ x: n.x - r, y: n.y - r, w: 2 * r, h: 2 * r });
+    }
+    for (const t of svg.querySelectorAll("text.t-ent, text.t-region, text.t-sub, text.t-dept, text.t-team")) {
       try { const bb = t.getBBox(); if (bb.width) obstacles.push({ x: bb.x - 2, y: bb.y - 2, w: bb.width + 4, h: bb.height + 4 }); } catch (err) { /* not rendered yet */ }
     }
     const M = 6;                                              // breathing room around a card
     const overlapArea = (a, p) => Math.max(0, Math.min(a.x + a.w, p.x + p.w) + M - Math.max(a.x, p.x)) * Math.max(0, Math.min(a.y + a.h, p.y + p.h) + M - Math.max(a.y, p.y));
+    const costOf = (box) => {
+      let cost = 0;
+      for (const p of placed) cost += 4 * overlapArea(box, p);            // a card on a card is worst
+      for (const o of obstacles) cost += overlapArea(box, o);
+      return cost;
+    };
     for (const it of items) {
       const el = cardFor(it.n, it.st);
       el.style.visibility = "hidden";
       overlay.appendChild(el);
-      const w = el.offsetWidth, hh = el.offsetHeight, R0 = it.b.R0 + 6;
-      const n = it.n;
-      // candidates in order of preference; each is judged where it really lands, after the clamp to the stage
-      const cands = n.layer === "enterprise"
-        ? (NARROW ? [[n.x - w / 2, n.y + R0 + 8], [n.x + R0 + 10, n.y - hh / 2], [n.x - R0 - 10 - w, n.y - hh / 2]]
-          : [[n.x + R0 + 10, n.y - hh / 2], [n.x - R0 - 10 - w, n.y - hh / 2], [n.x - w / 2, n.y + R0 + 6]])
-        : [[n.x - w / 2, n.y - R0 - 8 - hh],                                   // above
-          [n.x + R0 + 6, n.y - R0 - hh + 6], [n.x - R0 - 6 - w, n.y - R0 - hh + 6],   // above, to either side
-          [n.x + R0 + 6, n.y - hh / 2], [n.x - R0 - 6 - w, n.y - hh / 2],           // beside
-          [n.x + R0 + 6, n.y - 10], [n.x - R0 - 6 - w, n.y - 10],                   // beside, hanging down
-          [n.x + 8, n.y + R0 + 8], [n.x - w - 8, n.y + R0 + 8],                     // below, clear of the name
-          [n.x - w / 2, n.y + R0 + 30]];
-      let best = null, bestCost = Infinity;
-      for (const [cx, cy] of cands) {
-        const box = { x: clamp(cx, 6, W - w - 6), y: clamp(cy, 6, H - hh - 6), w, h: hh };
-        let cost = 0;
-        for (const p of placed) cost += 4 * overlapArea(box, p);          // a card on a card is worst
-        for (const o of obstacles) cost += overlapArea(box, o);
-        if (cost < bestCost) { best = box; bestCost = cost; }
-        if (cost === 0) break;
+      const n = it.n, R0 = it.b.R0 + 6;
+      // the card as it is, then (wide layouts) compact: smaller type, same lines; the first clear spot wins
+      let best = null, bestCost = Infinity, compact = false;
+      for (const variant of NARROW ? [false] : [false, true]) {
+        el.classList.toggle("compact", variant);
+        const w = el.offsetWidth, hh = el.offsetHeight;
+        // candidates in order of preference; each is judged where it really lands, after the clamp to the stage
+        const cands = n.layer === "enterprise"
+          ? (NARROW ? [[n.x - w / 2, n.y + R0 + 8], [n.x + R0 + 10, n.y - hh / 2], [n.x - R0 - 10 - w, n.y - hh / 2]]
+            : [[n.x + R0 + 10, n.y - hh / 2], [n.x - R0 - 10 - w, n.y - hh / 2], [n.x - w / 2, n.y + R0 + 6]])
+          : [[n.x - w / 2, n.y - R0 - 8 - hh],                                   // above
+            [n.x + R0 + 6, n.y - R0 - hh + 6], [n.x - R0 - 6 - w, n.y - R0 - hh + 6],   // above, to either side
+            [n.x + R0 + 6, n.y - hh / 2], [n.x - R0 - 6 - w, n.y - hh / 2],           // beside
+            [n.x + R0 + 6, n.y - 10], [n.x - R0 - 6 - w, n.y - 10],                   // beside, hanging down
+            // below, clear of the name: narrow only (on a wide stage the tree below is full of names; if nothing
+            // above or beside is clear, the search below looks above first)
+            ...(NARROW ? [[n.x + 8, n.y + R0 + 8], [n.x - w - 8, n.y + R0 + 8], [n.x - w / 2, n.y + R0 + 30]] : [])];
+        for (const [cx, cy] of cands) {
+          const box = { x: clamp(cx, 6, W - w - 6), y: clamp(cy, 6, H - hh - 6), w, h: hh };
+          const cost = costOf(box);
+          if (cost < bestCost) { best = box; bestCost = cost; compact = variant; }
+          if (cost === 0) break;
+        }
+        if (bestCost === 0) break;
       }
+      if (bestCost > 0) {
+        // no preferred spot is clear: the clear spot nearest the bloom, anywhere on the stage (or the least covered
+        // one); a spot below the bloom counts as twice as far, since the tree below it is dense with names and knots
+        const w = el.offsetWidth, hh = el.offsetHeight;
+        const cur = el.classList.contains("compact");
+        const dist = (b) => { const dy = b.y + hh / 2 - n.y; return Math.hypot(b.x + w / 2 - n.x, dy > 0 ? 2 * dy : dy); };
+        let bestD = Infinity;
+        for (let y = 6; y <= H - hh - 6; y += 4) {
+          for (let x = 6; x <= W - w - 6; x += 4) {
+            const box = { x, y, w, h: hh };
+            const cost = costOf(box), d = dist(box);
+            if (cost < bestCost || (cost === bestCost && d < bestD)) { best = box; bestCost = cost; bestD = d; compact = cur; }
+          }
+        }
+      }
+      el.classList.toggle("compact", compact);
       placed.push(best);
       el.style.left = best.x + "px"; el.style.top = best.y + "px"; el.style.visibility = "";
     }
@@ -1710,7 +1749,7 @@ button { font: inherit; color: inherit; }
     }
   }
   function sec(txt) { return h("div", { class: "sec", text: txt }); }
-  function svcClass(st) { return st === "healthy" || st === "ready" ? "ok" : st === "killed" || st === "db_wiped" ? "bad" : "warn"; }
+  function svcClass(st) { return st === "healthy" || st === "ready" ? "ok" : st === "killed" || st === "db_wiped" ? "bad" : st === "stopped" ? "off" : "warn"; }
   const story = () => ((TR && TR.meta && TR.meta.story) || {});
   const storyTag = () => (story().entity || "sd-9").toUpperCase();
   function firstClause(text) { return String(text || "").split(/;|\.(?:\s|$)/)[0].trim(); }
@@ -1915,7 +1954,10 @@ button { font: inherit; color: inherit; }
       card.append(h("div", { class: "strat" }, h("div", { class: "k", text: `${strat.rule_id} · ${shortId(strat.memory_id)}` }), h("div", { class: "head", text: headline(strat) }),
         h("div", { class: "m", text: `${plural(strat.support, "agent")} · ${plural(strat.independent_teams, "team")} · ${regions.join(" + ")} · conf ${conf(strat.confidence)}` })));
     }
-    card.append(h("div", { class: "passed", style: failed ? "color:var(--withdrawn)" : null }, `${passed} of ${total}`, h("span", { text: " checks passed on this run" })));
+    // the close act's own checks land a moment after the card is drawn: say "so far" until every check is in
+    const pending = total > S.checks.length && !failed;
+    card.append(h("div", { class: "passed", style: failed ? "color:var(--withdrawn)" : null }, `${passed} of ${total}`,
+      h("span", { text: pending ? " checks passed so far" : " checks passed on this run" })));
     if (ui.allChecks) {
       card.append(h("ul", { class: "checks allchecks" }, S.checks.map(tickLi)));
       card.append(h("button", { class: "linkbtn", onclick: () => toggleAllChecks(false) }, "Back to the totals (C)"));
@@ -2082,7 +2124,7 @@ button { font: inherit; color: inherit; }
     }
   }
   const FEED = {
-    service: (e) => ["service", svcClass(e.state) === "ok" ? "ok" : svcClass(e.state) === "bad" ? "bad" : "warn", `${e.state} · ${e.detail || ""}`],
+    service: (e) => ["service", svcClass(e.state) === "ok" ? "ok" : svcClass(e.state) === "bad" ? "bad" : svcClass(e.state) === "off" ? "" : "warn", `${e.state} · ${e.detail || ""}`],
     agent_registered: (e) => ["register", "", `${e.agent_id} · ${e.role}`],
     note_shared: (e) => ["note", isSignal(e) ? "gold" : "", `${e.agent_id} · ${e.slot} · ${e.memory_id}`],
     note_private: (e) => ["private", "", `${e.agent_id} · kept on its own disk, never sent`],
@@ -2111,15 +2153,18 @@ button { font: inherit; color: inherit; }
       if (S.error) { pill.className = "pill down"; mode.textContent = "LIVE"; txt.textContent = "run stopped · switch to the replay"; }
       else if (ui.live.state === "reconnecting") { pill.className = "pill reconnecting"; mode.textContent = "RECONNECTING"; txt.textContent = "to the demo server"; }
       else if (ui.live.state === "connecting") { pill.className = "pill reconnecting"; mode.textContent = "CONNECTING"; txt.textContent = ""; }
-      else if (ui.live.state === "complete" && S.done) { pill.className = "pill live"; mode.textContent = "LIVE"; txt.textContent = `run complete · service ${st ? st.replace("_", " ") : ""}`; }
-      else { pill.className = "pill live" + (st === "killed" || st === "db_wiped" ? " down" : ""); mode.textContent = ui.paused ? "LIVE · DISPLAY PAUSED" : "LIVE"; txt.textContent = st ? `service ${st.replace("_", " ")}` : "stack starting"; }
+      else if (ui.live.state === "complete" && S.done) {
+        pill.className = st === "stopped" ? "pill ended" : "pill live"; mode.textContent = "LIVE";
+        txt.textContent = st === "stopped" ? "run complete · stack stopped" : `run complete · service ${st ? st.replace("_", " ") : ""}`;
+      }
+      else { pill.className = (st === "stopped" ? "pill ended" : "pill live") + (st === "killed" || st === "db_wiped" ? " down" : ""); mode.textContent = ui.paused ? "LIVE · DISPLAY PAUSED" : "LIVE"; txt.textContent = st ? `service ${st.replace("_", " ")}` : "stack starting"; }
     }
     const cc = $("checkcount");
     const passed = S.checks.filter((c) => c.ok).length, failed = S.checks.length - passed;
     const total = MODE === "replay" ? (TR.checks || []).length : null;
     cc.hidden = !S.checks.length;
     cc.textContent = "";
-    cc.append(h("span", {}, h("b", { text: String(passed) }), total ? ` / ${total} checks` : " checks passed", failed ? h("span", { style: "color:var(--withdrawn)", text: ` · ${failed} failed` }) : null));
+    cc.append(h("span", {}, h("b", { text: String(passed) }), total ? ` / ${total} checks` : passed === 1 ? " check passed" : " checks passed", failed ? h("span", { style: "color:var(--withdrawn)", text: ` · ${failed} failed` }) : null));
     renderStepper();
     renderControls();
   }

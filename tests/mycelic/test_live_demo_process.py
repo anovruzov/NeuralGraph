@@ -29,6 +29,17 @@ EVENT_TYPES = {"service", "agent_registered", "note_shared", "note_private", "de
                "lineage", "rebuild_progress", "metric", "check", "act_start", "act_end", "done"}
 
 
+def assert_ends_stopped_then_done(tc: unittest.TestCase, events: list[dict[str, Any]]) -> None:
+    """A completed run: the close act ends, the engine stops the stack and says so once, and ``done`` comes last."""
+    tail = [(e["type"], e.get("act"), e.get("state")) for e in events[-3:]]
+    tc.assertEqual(tail, [("act_end", "close", None), ("service", "close", "stopped"), ("done", "close", None)])
+    stopped = [e for e in events if e["type"] == "service" and e["state"] == "stopped"]
+    tc.assertEqual(len(stopped), 1, "the stack is stopped once, after the run")
+    tc.assertTrue(stopped[0]["detail"])
+    tc.assertEqual(sum(e["type"] == "done" for e in events), 1)
+    tc.assertNotIn("error", {e["type"] for e in events})
+
+
 def embedded_trace(page: str) -> dict:
     m = re.search(r'<script id="mycelic-trace" type="application/json">(.*?)</script>', page, re.DOTALL)
     assert m is not None, "no embedded trace"
@@ -73,6 +84,7 @@ class TracePageTests(unittest.TestCase):
         self.assertLessEqual({e["type"] for e in tr["events"]}, EVENT_TYPES)
         times = [e["t"] for e in tr["events"]]
         self.assertEqual(times, sorted(times))
+        assert_ends_stopped_then_done(self, tr["events"])
 
     def test_fragment_has_no_skeleton_and_starts_with_the_title(self) -> None:
         out = self.tmp / "fragment.html"
@@ -100,8 +112,8 @@ class TracePageTests(unittest.TestCase):
 class _SSE:
     """A minimal Server-Sent Events reader over http.client."""
 
-    def __init__(self, port: int, last_event_id: int | None = None) -> None:
-        self.conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+    def __init__(self, port: int, last_event_id: int | None = None, timeout: float = 10) -> None:
+        self.conn = http.client.HTTPConnection("127.0.0.1", port, timeout=timeout)
         headers = {"Accept": "text/event-stream"}
         if last_event_id is not None:
             headers["Last-Event-ID"] = str(last_event_id)
@@ -292,6 +304,7 @@ class LiveRecordProcessTests(unittest.TestCase):
         types = {e["type"] for e in tr["events"]}
         self.assertLessEqual(types, EVENT_TYPES)
         self.assertLessEqual({"note_shared", "note_private", "derived", "lineage", "retracted", "rebuild_progress", "done"}, types)
+        assert_ends_stopped_then_done(self, tr["events"])
         s = tr["summary"]
         self.assertEqual(s["background_rule_conclusions"], 0)
         self.assertGreater(s["notes_private"], 0)
@@ -307,6 +320,43 @@ class LiveRecordProcessTests(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(embedded_trace(page.read_text(encoding="utf-8"))["summary"], s)
 
+
+    @unittest.skipUnless(Path("/proc").is_dir(), "needs /proc to list child processes")
+    def test_auto_run_tells_the_console_the_stack_stopped(self) -> None:
+        """--auto: an SSE client sees the stack stop after the close act, then ``done``; the stack is really gone."""
+        env = {**os.environ, "PYTHONUNBUFFERED": "1"}
+        proc = subprocess.Popen([sys.executable, str(SCRIPT), "--auto", "--dwell", "0", "--spread", "1", "--no-browser",
+                                 "--port", "0", "--exit-after", "20"], cwd=ROOT, env=env,
+                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        self.addCleanup(lambda: proc.poll() is None and proc.kill())
+        port = None
+        deadline = time.monotonic() + 60
+        while port is None and time.monotonic() < deadline:
+            m = re.search(r"http://127\.0\.0\.1:(\d+)/", proc.stdout.readline())
+            port = int(m.group(1)) if m else None
+        self.assertIsNotNone(port, "the console URL was not printed")
+        sse = _SSE(port, timeout=60)
+        self.addCleanup(sse.close)
+        events: list[dict[str, Any]] = []
+        kids: set[int] = set()
+        deadline = time.monotonic() + 240
+        while not events or events[-1]["type"] != "done":
+            self.assertLess(time.monotonic(), deadline, "the run never finished")
+            (msg,) = sse.messages(1)
+            if msg.get("event") == "snapshot":
+                continue
+            events.append(msg["data"])
+            if msg["data"]["type"] == "act_start" and msg["data"]["act"] == "close":
+                kids = _children(proc.pid)                 # the stack is still up during the close act
+        self.assertTrue(kids, "no nats-server/service processes found during the close act")
+        assert_ends_stopped_then_done(self, events)
+        self.assertEqual([k for k in kids if _alive(k)], [], "the stack still runs after the stopped event")
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)   # the console is still up, with the same end
+        self.addCleanup(conn.close)
+        conn.request("GET", "/trace")
+        assert_ends_stopped_then_done(self, json.loads(conn.getresponse().read())["events"])
+        proc.send_signal(signal.SIGTERM)                   # a finished run stopped early keeps its result
+        self.assertEqual(proc.wait(timeout=60), 0)
 
     @unittest.skipUnless(Path("/proc").is_dir(), "needs /proc to list child processes")
     def test_sigterm_mid_act_leaves_no_process_behind(self) -> None:

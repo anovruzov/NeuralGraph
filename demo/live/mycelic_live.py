@@ -17,8 +17,9 @@ the Mycelic service (``--driver process``, or ``--driver compose``), serves the 
 stack: agents are processes with their own keys and local memory files; the conclusions are Mycelic's.
 Nothing shown is hard-coded: the engine polls the admin read API (memories by status, lineage, status) and
 records what changed, with the time it saw it, plus the actions it takes itself.  If the stack cannot run,
-``--replay`` (default: ``demo/live/trace.json``) serves a recorded run instead.  If a live run fails, the console
-stays up with the error and the replay command, until Ctrl-C.
+``--replay`` (default: ``demo/live/trace.json``) serves a recorded run instead.  After the close act the engine
+stops the stack and says so (a ``service`` event, state ``stopped``); the console stays up showing it, until Ctrl-C.
+If a live run fails, the console stays up with the error and the replay command, until Ctrl-C.
 
 Acts: 0 cold open (service comes up) · 1 the organisation (agents register) · 2 agents observe (34 agents
 share, everyone keeps private notes) · 3 each region concludes (procurement shares; ``regional_supply_risk``
@@ -81,8 +82,9 @@ of a ``note_shared`` or ``derived`` event is when it became readable, not when t
 
 Event types and payloads:
 
-* ``service`` {state: starting|healthy|killed|db_wiped|rebuilding|ready, detail} (``ready`` in act 7 also carries
-  rebuild_s and rebuild_events; it is stamped when the restarted service answered ``/ready``, i.e. replay done)
+* ``service`` {state: starting|healthy|killed|db_wiped|rebuilding|ready|stopped, detail} (``ready`` in act 7 also
+  carries rebuild_s and rebuild_events; it is stamped when the restarted service answered ``/ready``, i.e. replay
+  done; ``stopped`` is emitted once, after the close act, when the engine has torn the stack down, in every mode)
 * ``agent_registered`` {agent_id, path, team_path, region, role, label}
 * ``note_shared`` {agent_id, memory_id, team_path, region, role, topic, slot, entity, text, confidence, status}
   -- seen when the service accepted it (before it is applied)
@@ -100,6 +102,11 @@ Event types and payloads:
 * ``check`` {id, text, ok}
 * ``act_start`` / ``act_end`` (``act`` names it), ``done`` {} at the end, and ``error`` {message, hint} if a live run
   failed (one line; ``hint`` is the replay command)
+
+A completed run ends ``act_end`` (close), ``service`` (stopped), ``done``: the stopped event carries the close act's
+id and ``done`` is always the last event, so a live console sees the stack go down before the run is marked
+complete, and a replay shows the same end state.  ``meta.duration_s`` runs to ``done`` (teardown included).  A
+failed run ends with ``error`` instead, and an interrupted one where it was cut off (neither has ``done``).
 
 ``summary`` holds real counts from the run: agents, agents_core, agents_background, teams, notes_shared,
 notes_private, memories_by_layer, memories_by_status, lineage_edges, stream_messages (at the end), rebuild_s
@@ -156,6 +163,7 @@ DEMO_RULES = ("regional_supply_risk", "strategic_second_source")
 STATUSES = ("active", "superseded", "retracted")
 REPLAY_COMMAND = f"python {Path(__file__).resolve()} --replay --port 8766"
 REPLAY_HINT = f"or, if you cannot run the stack, serve the recorded run: {REPLAY_COMMAND}"
+STOPPED_DETAIL = "demo finished; stack stopped (nats-server and the Mycelic service)"
 
 
 def acts_for(sc: LiveScenario) -> list[dict[str, Any]]:
@@ -1148,11 +1156,12 @@ def run_live(args: argparse.Namespace) -> int:
     control: queue.Queue[str] = queue.Queue()
     busy = threading.Event()
     failed = threading.Event()
+    acts_over = threading.Event()
 
     def refuse() -> str | None:
         if args.auto:
             return "auto mode: the acts advance by themselves"
-        if rec.done:
+        if rec.done or acts_over.is_set():
             return "the run is complete"
         if failed.is_set():
             return "the run stopped"
@@ -1203,6 +1212,11 @@ def run_live(args: argparse.Namespace) -> int:
                     print("the console stays up with the error: Ctrl-C to stop", file=sys.stderr)
                     wait_or_interrupt(args.exit_after)
                 return 2
+            acts_over.set()
+            with interrupts_ignored():                   # the stack is not needed any more; say so once it is down
+                demo.shutdown()
+                driver.down()
+            rec.emit("service", state="stopped", detail=STOPPED_DETAIL)
             rec.finish()
             checks = rec.trace["checks"]
             ok = bool(checks) and all(c["ok"] for c in checks)
@@ -1218,10 +1232,7 @@ def run_live(args: argparse.Namespace) -> int:
                 args.record.parent.mkdir(parents=True, exist_ok=True)
                 args.record.write_text(text + "\n", encoding="utf-8")
                 print(f"trace written to {args.record} ({len(text) // 1024} KiB, {len(snap['events'])} events)")
-            else:
-                with interrupts_ignored():               # the stack is not needed any more; the console stays up
-                    demo.shutdown()
-                    driver.down()
+            else:                                        # the console stays up, showing the stopped stack
                 until = f" for {args.exit_after} s" if args.exit_after is not None else ": Ctrl-C to stop"
                 print("the run is complete and the stack is stopped; the console stays up" + until)
                 wait_or_interrupt(args.exit_after)
