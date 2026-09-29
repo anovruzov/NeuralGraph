@@ -23,7 +23,7 @@ cd NeuralGraph
 cp deploy/mycelic/.env.example deploy/mycelic/.env
 sed -i "s|^MYCELIC_ADMIN_TOKEN=.*|MYCELIC_ADMIN_TOKEN=$(openssl rand -hex 32)|" deploy/mycelic/.env
 sed -i "s|^MYCELIC_EVENT_SIGNING_KEY=.*|MYCELIC_EVENT_SIGNING_KEY=$(openssl rand -hex 32)|" deploy/mycelic/.env
-sed -i "s|^NATS_PASSWORD=.*|NATS_PASSWORD=$(openssl rand -hex 32)|" deploy/mycelic/.env
+sed -i "s|^NATS_PASSWORD=.*|NATS_PASSWORD=n$(openssl rand -hex 32)|" deploy/mycelic/.env   # must start with a letter
 
 # 2. run
 docker compose -f deploy/mycelic/docker-compose.yml up -d --build
@@ -273,7 +273,7 @@ kubectl create namespace mycelic
 kubectl -n mycelic create secret generic mycelic-secrets \
   --from-literal=MYCELIC_ADMIN_TOKEN=$(openssl rand -hex 32) \
   --from-literal=MYCELIC_EVENT_SIGNING_KEY=$(openssl rand -hex 32) \
-  --from-literal=NATS_USER=mycelic --from-literal=NATS_PASSWORD=$(openssl rand -hex 32) \
+  --from-literal=NATS_USER=mycelic --from-literal=NATS_PASSWORD=n$(openssl rand -hex 32) \
   --from-literal=MYCELIC_METRICS_TOKEN=$(openssl rand -hex 32)
 # 3. host names: edit ingress.yaml (host, ingressClassName, cert-manager issuer) and MYCELIC_ALLOWED_HOSTS in mycelic-configmap.yaml
 # 4. apply

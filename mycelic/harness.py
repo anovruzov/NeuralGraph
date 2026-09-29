@@ -20,7 +20,6 @@ import json
 import os
 import secrets
 import shutil
-import string
 import socket
 import subprocess
 import sys
@@ -37,9 +36,9 @@ RULES_FILE = REPO_ROOT / "deploy" / "mycelic" / "rules.json"
 
 
 def secret_hex(nbytes: int) -> str:
-    """A hex secret that always contains a letter: nats-server's config parser reads an all-digit value as a number."""
-    value = secrets.token_hex(nbytes)
-    return value if any(c in string.ascii_letters for c in value) else "a" + value[1:]
+    """A hex secret that starts with a letter.  nats-server substitutes ``$NATS_PASSWORD`` into its config unquoted,
+    so a value that starts with a digit is read as a number (``1e5…`` is a float) and the broker refuses to start."""
+    return secrets.choice("abcdef") + secrets.token_hex(nbytes)
 
 
 def free_port() -> int:

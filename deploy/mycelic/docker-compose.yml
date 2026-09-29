@@ -14,7 +14,7 @@ services:
     command: ["-c", "/etc/nats/nats.conf"]
     environment:
       NATS_USER: ${NATS_USER:?set NATS_USER in deploy/mycelic/.env}
-      NATS_PASSWORD: ${NATS_PASSWORD:?set NATS_PASSWORD in deploy/mycelic/.env (openssl rand -hex 32)}
+      NATS_PASSWORD: ${NATS_PASSWORD:?set NATS_PASSWORD in deploy/mycelic/.env (a letter, then openssl rand -hex 32)}
       NATS_STORE_DIR: /data
     volumes:
       - ./nats/nats.conf:/etc/nats/nats.conf:ro

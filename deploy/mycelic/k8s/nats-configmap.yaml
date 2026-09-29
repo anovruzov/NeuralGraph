@@ -14,5 +14,6 @@ data:
     }
     authorization {
       user: $NATS_USER
+      # substituted unquoted: the password must start with a letter, or nats-server reads it as a number
       password: $NATS_PASSWORD
     }
