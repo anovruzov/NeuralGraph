@@ -1945,7 +1945,9 @@ button { font: inherit; color: inherit; }
   function endCard() {
     const s = Object.keys(TR.summary || {}).length ? TR.summary : {};
     const passed = S.checks.filter((c) => c.ok).length;
-    const total = s.checks_total || S.checks.length;
+    // live: the summary (and with it the total) arrives with the close act's last check, after this card is drawn
+    const known = s.checks_total != null;
+    const total = known ? s.checks_total : S.checks.length;
     const failed = S.checks.length - passed;
     const card = h("div", { class: "endcard" });
     const strat = strategyMems().filter((m) => m.status === "active").pop();
@@ -1954,10 +1956,11 @@ button { font: inherit; color: inherit; }
       card.append(h("div", { class: "strat" }, h("div", { class: "k", text: `${strat.rule_id} · ${shortId(strat.memory_id)}` }), h("div", { class: "head", text: headline(strat) }),
         h("div", { class: "m", text: `${plural(strat.support, "agent")} · ${plural(strat.independent_teams, "team")} · ${regions.join(" + ")} · conf ${conf(strat.confidence)}` })));
     }
-    // the close act's own checks land a moment after the card is drawn: say "so far" until every check is in
-    const pending = total > S.checks.length && !failed;
-    card.append(h("div", { class: "passed", style: failed ? "color:var(--withdrawn)" : null }, `${passed} of ${total}`,
-      h("span", { text: pending ? " checks passed so far" : " checks passed on this run" })));
+    // the close act's own checks land a moment after the card is drawn: say "so far" until every check is in,
+    // and give no total before the engine has sent it
+    const pending = !failed && (known ? total > S.checks.length : MODE !== "replay" && !S.done);
+    card.append(h("div", { class: "passed", style: failed ? "color:var(--withdrawn)" : null }, pending && !known ? String(passed) : `${passed} of ${total}`,
+      h("span", { text: pending ? (passed === 1 ? " check passed so far" : " checks passed so far") : " checks passed on this run" })));
     if (ui.allChecks) {
       card.append(h("ul", { class: "checks allchecks" }, S.checks.map(tickLi)));
       card.append(h("button", { class: "linkbtn", onclick: () => toggleAllChecks(false) }, "Back to the totals (C)"));
