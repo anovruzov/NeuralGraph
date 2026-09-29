@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mycelic
+  labels:
+    app: mycelic
+spec:
+  selector:
+    app: mycelic
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

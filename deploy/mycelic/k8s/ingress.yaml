@@ -1,0 +1,24 @@
+# TLS terminates at the Ingress; set MYCELIC_ALLOWED_HOSTS in the ConfigMap to the same host.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mycelic
+  annotations:
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: 2m
+spec:
+  # ingressClassName: nginx
+  tls:
+    - hosts: [mycelic.example.com]
+      secretName: mycelic-tls
+  rules:
+    - host: mycelic.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: mycelic
+                port:
+                  name: http

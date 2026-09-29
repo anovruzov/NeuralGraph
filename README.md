@@ -1,5 +1,91 @@
 <div align="center">
 
+# Mycelic
+
+### Distributed memory for organizations of agents — local notes stay local, useful knowledge propagates with lineage.
+
+**[Deploy](#deploy-mycelic-in-five-minutes)** · **[How it works](docs/MYCELIC_ARCHITECTURE.md)** · **[Operations](DEPLOYMENT.md)** · **[Security](SECURITY.md)** · **[Demo](#demonstration)**
+
+</div>
+
+Mycelic is infrastructure for distributed agent memory. Agents keep their knowledge on their own disk and
+share only what is worth propagating. Mycelic moves shared memories through the organization
+(`agent → team → department → subsidiary → region → enterprise`), aggregates them into higher-level
+memories, keeps the full lineage behind every derived memory, and makes the result retrievable through an
+HTTP API, a dependency-free Python SDK and MCP (so Claude Code can use it as persistent organizational
+memory). Nothing in the data path needs a model server.
+
+What runs: one `mycelic` service (aiohttp API + outbox publisher + JetStream consumer/aggregator, SQLite on
+a volume) and one `nats-server` with a file-backed JetStream stream that is the durable event log. Lose the
+service database and it rebuilds itself from the stream; lose the broker for a while and agents keep
+writing through the outbox. Both are exercised by an automated smoke test, not asserted in prose.
+
+## Deploy Mycelic in five minutes
+
+```bash
+git clone https://github.com/anovruzov/NeuralGraph.git && cd NeuralGraph
+cp deploy/mycelic/.env.example deploy/mycelic/.env
+# fill the three secrets (openssl rand -hex 32): MYCELIC_ADMIN_TOKEN, MYCELIC_EVENT_SIGNING_KEY, NATS_PASSWORD
+docker compose -f deploy/mycelic/docker-compose.yml up -d --build
+curl -s http://localhost:8080/health          # {"status":"ok", ...}
+
+# register an agent (key printed once) and ask a question
+export MYCELIC_ADMIN_TOKEN=...                # from .env
+python -m mycelic register-agent --enterprise northwind --department ops --team logistics --agent-id logistics-1
+export MYCELIC_API_KEY=mk_logistics-1....
+python -m mycelic query "delivery risk sd-9" --scope northwind --lineage
+```
+
+Connect Claude Code: `claude mcp add --transport http mycelic http://localhost:8080/mcp --header "Authorization: Bearer $MYCELIC_API_KEY"`.
+Everything else — configuration, Kubernetes, backups, recovery, TLS — is in [DEPLOYMENT.md](DEPLOYMENT.md).
+
+**API**: `POST /memory`, `POST /events`, `POST /query`, `GET /memory/{id}`, `GET /lineage/{id}`,
+`GET /health`, `GET /ready`, `GET /metrics`, `/admin/*`, `/mcp`. **SDK**: `mycelic.sdk.MycelicClient` and
+`LocalMemory`; reference agent `python -m mycelic.sdk.agent`.
+
+## Demonstration
+
+```bash
+python tests/smoke/mycelic_smoke.py --driver compose    # the canonical deployment test (exit 0 = every step held)
+python demo/mycelic_demo.py --driver compose            # the narrated end-to-end demo
+```
+
+Six agents in three teams each learn something routine: a port strike, a slipping carrier ETA, a supplier
+with two weeks of stock, a large order. No single agent, team or department can see the problem. Mycelic
+consolidates the logistics observations into a team memory and composes an enterprise-level supply-risk
+conclusion whose lineage names every contributing observation, agent, team and layer, and whose evidence is
+still reconstructable. The demo then SIGKILLs the service, kills the broker while an agent keeps writing,
+and deletes the service database; each time the same conclusion and lineage come back. Private notes never
+leave the agents. The same scenario with 99 agent processes passes in about twenty seconds.
+
+### Strategic synthesis
+
+```bash
+python demo/mycelic_strategic_demo.py --driver compose
+```
+
+Two regions independently run into the same supply problem; each region's agents share their notes and
+Mycelic composes a *regional* supply-risk conclusion in each. Head office knows two other things: order
+intake is up 40% and there is a single qualified supplier. Nobody holds all of it. Once supply risk is
+corroborated in at least two regions, the rule `strategic_second_source` composes an enterprise
+recommendation, "qualify a second source", whose lineage spans three layers in two derivation steps:
+strategy ← regional conclusions ← agents' observations, resting on 8 of the 14 agents (the strongest note per
+slot in each region plus the two head-office notes) in 8 teams across 3 regions. Rules compose: a conclusion
+carries a slot that higher rules consume, corroboration requirements span organizational units, and when
+evidence is retracted every dependent conclusion is withdrawn and re-evaluated on what remains. The demo
+shows composition, corroboration across the two regions, per-region visibility with redaction, the strategy
+being withdrawn when APAC retracts its evidence and returning as a new version with fresh evidence, and a
+rebuild of the whole chain from the event log after deleting the database (the three-region survival case is
+in `tests/mycelic/test_strategic.py`).
+
+Under the hood Mycelic reuses this repository's coordination research (`ClaimEnvelope`,
+`RuleBasedSynthesizer`, `LineageAnalyzer`) and the chat-memory MCP server; the NeuralGraph assistant below
+remains available as a richer per-agent local memory.
+
+---
+
+<div align="center">
+
 # NeuralGraph
 
 ### Persistent graph memory for Claude and AI agents — local-first, benchmarked, yours.
