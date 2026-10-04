@@ -227,31 +227,64 @@ class Applicant:
 
 # --------------------------------------------------------------- resume text
 
+def _pdftotext(path: Path) -> str:
+    out = subprocess.run(["pdftotext", "-layout", str(path), "-"],
+                         capture_output=True, timeout=30)
+    if out.returncode != 0:
+        return ""
+    return out.stdout.decode("utf-8", errors="ignore")
+
+
+def _pypdf(path: Path) -> str:
+    from pypdf import PdfReader
+    reader = PdfReader(str(path))
+    return "\n".join((page.extract_text() or "") for page in reader.pages)
+
+
+def _pdfminer(path: Path) -> str:
+    from pdfminer.high_level import extract_text
+    return extract_text(str(path))
+
+
 def extract_resume_text(path: Path) -> str:
     """Extract text from a resume. Falls back through pdftotext, pypdf, plain read."""
     suffix = path.suffix.lower()
     if suffix in (".txt", ".md"):
         return path.read_text(errors="ignore")
     if suffix == ".pdf":
-        try:
-            out = subprocess.run(["pdftotext", "-layout", str(path), "-"],
-                                 capture_output=True, timeout=30)
-            if out.returncode == 0 and out.stdout.strip():
-                return out.stdout.decode("utf-8", errors="ignore")
-        except (FileNotFoundError, subprocess.SubprocessError):
-            pass
-        try:
-            from pypdf import PdfReader  # optional dependency
-            reader = PdfReader(str(path))
-            return "\n".join((page.extract_text() or "") for page in reader.pages)
-        except BaseException as exc:
-            # BaseException, not Exception: a broken native extension (pypdf's
-            # cryptography backend, for one) can raise outside the Exception
-            # hierarchy, and a missing résumé extractor must never end the run.
-            log.warning("pdf text extraction unavailable",
-                        extra={"error": f"{type(exc).__name__}: {exc}"[:200],
-                               "hint": "install poppler-utils, or fix/remove pypdf"})
-            return ""
+        for name, extractor in (("pdftotext", _pdftotext),
+                                ("pypdf", _pypdf),
+                                ("pdfminer", _pdfminer)):
+            try:
+                text = extractor(path)
+            except BaseException as exc:
+                # BaseException: a broken native extension (pypdf's cryptography
+                # backend, for one) can raise outside the Exception hierarchy.
+                log.debug("pdf extractor unavailable",
+                          extra={"extractor": name,
+                                 "error": f"{type(exc).__name__}: {exc}"[:160]})
+                continue
+            if text and text.strip():
+                log.info("extracted resume text",
+                         extra={"extractor": name, "chars": len(text)})
+                return text
+
+        # Last resort: the bundled dependency-free reader. It gets the words but
+        # can drop ligatures, so say so -- this text is the grounding corpus, and
+        # degraded text makes the harness refuse true answers rather than invent
+        # false ones.
+        from .pdf_text import extract as builtin_extract
+        text = builtin_extract(path)
+        if text.strip():
+            log.warning(
+                "using the built-in PDF reader; text may be imperfect. Install "
+                "poppler-utils (pdftotext) or pdfminer.six for better fidelity",
+                extra={"chars": len(text)})
+            return text
+        log.warning("no PDF text could be extracted; Qwen will rely on "
+                    "applicant.json alone", extra={"path": str(path)})
+        return ""
+
     if suffix == ".docx":
         try:
             import zipfile

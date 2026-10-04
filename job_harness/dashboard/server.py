@@ -49,6 +49,7 @@ class DashboardState:
             "remote_only": self.config.discovery.remote_only,
             "target_roles": self.config.discovery.target_roles,
             "allow_senior_roles": self.config.scoring.allow_senior_roles,
+            "allow_internships": self.config.scoring.allow_internships,
         }
         return data
 
@@ -92,6 +93,9 @@ class DashboardState:
         if "allow_senior_roles" in payload:
             scoring.allow_senior_roles = bool(payload["allow_senior_roles"])
             applied["allow_senior_roles"] = scoring.allow_senior_roles
+        if "allow_internships" in payload:
+            scoring.allow_internships = bool(payload["allow_internships"])
+            applied["allow_internships"] = scoring.allow_internships
         if "target_roles" in payload:
             roles = payload["target_roles"]
             if isinstance(roles, str):

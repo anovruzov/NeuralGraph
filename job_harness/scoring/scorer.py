@@ -137,6 +137,13 @@ class Scorer:
                 breakdown={"role_family": classification.role_family,
                            "seniority": classification.seniority},
             )
+        if (not self.config.scoring.allow_internships
+                and classification.seniority == "intern"):
+            return ScoreDecision(
+                job_id=job.job_id, score=0, decision="SKIP", status=JobStatus.SKIPPED,
+                reason="classified as an internship; set allow_internships to include these",
+                breakdown={"seniority": classification.seniority},
+            )
         if (not self.config.scoring.allow_senior_roles
                 and classification.seniority in ("staff_plus", "management")):
             return ScoreDecision(

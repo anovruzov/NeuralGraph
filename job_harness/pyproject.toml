@@ -1,0 +1,79 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "job-harness"
+version = "1.0.0"
+description = "Autonomous job search and application harness, grounded in a résumé it will not embellish"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+authors = [{ name = "Ali Novruzov" }]
+keywords = ["job-search", "automation", "playwright", "llm", "qwen", "ats"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Internet :: WWW/HTTP :: Browsers",
+    "Topic :: Office/Business",
+]
+dependencies = [
+    "playwright>=1.48",
+    "httpx>=0.27",
+    "pydantic>=2.7",
+]
+
+[project.optional-dependencies]
+# Résumé text extraction. The harness falls back to a bundled dependency-free
+# reader, but these give better fidelity (ligatures, layout).
+pdf = ["pdfminer.six>=20231228"]
+dev = [
+    "pytest>=8.0",
+    "pdfminer.six>=20231228",
+]
+
+[project.urls]
+Homepage = "https://github.com/anovruzov/job-harness"
+Repository = "https://github.com/anovruzov/job-harness"
+Issues = "https://github.com/anovruzov/job-harness/issues"
+
+[project.scripts]
+job-harness = "job_harness.run:main"
+
+[tool.setuptools]
+# job_harness is deliberately a namespace package: see pytest.ini.
+packages = [
+    "job_harness",
+    "job_harness.application",
+    "job_harness.ats",
+    "job_harness.browser",
+    "job_harness.config",
+    "job_harness.dashboard",
+    "job_harness.database",
+    "job_harness.discovery",
+    "job_harness.fixtures",
+    "job_harness.profile",
+    "job_harness.qwen",
+    "job_harness.scoring",
+    "job_harness.verification",
+]
+
+[tool.setuptools.package-data]
+"job_harness.database" = ["schema.sql"]
+"job_harness.dashboard" = ["index.html"]
+"job_harness.config" = ["default_config.json"]
+"job_harness.profile" = ["applicant.example.json"]
+"job_harness.fixtures" = ["forms/*.html"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+markers = [
+    "browser: requires a real Chromium browser",
+    "slow: end-to-end test that drives the full pipeline",
+]

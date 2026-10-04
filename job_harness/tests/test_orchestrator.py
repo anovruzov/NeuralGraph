@@ -5,6 +5,7 @@ import json
 import threading
 import time
 import urllib.request
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -16,11 +17,16 @@ from job_harness.orchestrator import (
 )
 
 
+def recent(days_ago: int = 2) -> str:
+    """A posting date inside the freshness window, whenever the tests are run."""
+    return (datetime.now(timezone.utc) - timedelta(days=days_ago)).date().isoformat()
+
+
 def make_job(index: int, **kw) -> Job:
     base = dict(company=f"Company {index}", title="AI Engineer",
                 canonical_apply_url=f"https://boards.greenhouse.io/c{index}/jobs/1",
                 ats_type="greenhouse", ats_job_key=f"greenhouse:c{index}:1",
-                posted_date="2026-09-04", location="Remote - US",
+                posted_date=recent(), location="Remote - US",
                 description="Build LLM agents in Python. 2+ years of experience. " * 20)
     base.update(kw)
     return Job(**base)

@@ -1,5 +1,9 @@
 # Job Harness
 
+[![CI](https://github.com/anovruzov/job-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/anovruzov/job-harness/actions/workflows/ci.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
+
 An autonomous job-search and application system. It discovers openings on
 public job boards, scores them against your résumé, opens the application form
 in a real browser, understands the form, fills it **only** with facts you have
@@ -158,6 +162,10 @@ python run.py --dry-run \
   --url https://example.com/careers
 ```
 
+**Still a student?** Internships are rejected by default. Add
+`--allow-internships` (or `"allow_internships": true` under `scoring`, or the
+toggle on the dashboard) to include them alongside new-grad roles.
+
 A board token is the slug in the board URL —
 `https://boards.greenhouse.io/**acme**/jobs/1` → `acme`. Full URLs work too.
 Workday targets are `tenant/SiteName`, or paste any career-site URL.
@@ -239,6 +247,7 @@ Every flag:
 | `--freshness-days N` | only postings newer than N days |
 | `--remote-only` | remote positions only |
 | `--allow-senior` | do not reject staff/principal/manager titles |
+| `--allow-internships` | include internship postings (for students) |
 | `--roles "A,B"` | override target roles |
 | `--board SRC:TOKEN`, `--url URL` | discovery targets (repeatable) |
 | `--headful` | show the browser |
@@ -451,7 +460,7 @@ estimated cost. `--status` reports cost per verified application.
 ## 12. Testing
 
 ```bash
-python -m pytest                       # 268 tests
+python -m pytest                       # 270 tests
 python -m pytest -m "not browser"      # skip the Chromium end-to-end tests
 python -m pytest tests/test_grounding.py -v
 ```
@@ -492,11 +501,40 @@ job_harness/
 ├── verification/           submission evidence
 ├── dashboard/              control server, stats, UI
 ├── fixtures/forms/         ATS-shaped HTML used by the tests
-├── tests/                  268 tests
+├── scripts/                make_standalone.sh
+├── tests/                  270 tests
 └── logs/                   database, JSONL logs, screenshots, browser profile
 ```
 
-## 14. Troubleshooting
+## 14. License and contributing
+
+Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE). Apache-2.0 was chosen
+over MIT for its explicit patent grant and defensive termination clause.
+
+Contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). The rule
+that matters: a change must never let the harness assert a fact about the
+applicant that is not in `profile/applicant.json` or the résumé, and must never
+add a way around a site's protections. New ATS adapters are the most useful
+contribution, and the guide explains the shape.
+
+### Splitting this out into its own repository
+
+In this tree `job_harness/` is both the project root and the Python package. A
+standalone repo needs them separated, which this script does:
+
+```bash
+scripts/make_standalone.sh ../job-harness
+cd ../job-harness
+git init && git add . && git commit -m "Initial commit"
+pip install -e '.[dev]' && python -m pytest
+```
+
+It writes the repo root (`pyproject.toml`, `LICENSE`, `NOTICE`, `README.md`,
+`tests/`, `.github/`) with the package beneath it as `job_harness/`, adds the
+real `__init__.py` a standalone package needs, and leaves your profile, résumé
+and logs behind — only the example profile is copied.
+
+## 15. Troubleshooting
 
 | Symptom | Fix |
 |---|---|
@@ -509,7 +547,7 @@ job_harness/
 | Dashboard refuses to start | non-loopback bind requires `DASHBOARD_TOKEN` |
 | Chromium crashes in Docker | raise `shm_size` |
 
-## 15. Operating notes
+## 16. Operating notes
 
 - Run a dry run against a new board before applying: ATS layouts vary.
 - Keep `max_applications_per_hour` modest. Volume is not the goal, and boards

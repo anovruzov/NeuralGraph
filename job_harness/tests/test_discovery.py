@@ -394,3 +394,38 @@ def test_title_gate_works_without_a_model(config, db):
     engine = DiscoveryEngine(config, db, qwen=None, run_id="test-run")
     assert engine.title_gate() == config.discovery.target_roles
     engine.close()
+
+
+# ------------------------------------------------- time-independence guard
+
+def test_fixtures_are_served_with_a_fresh_posted_date(fixture_server):
+    """Fixture postings must stay inside the freshness window forever.
+
+    A hardcoded datePosted silently rots: once it falls outside
+    discovery.freshness_days, every fixture-based test starts skipping jobs and
+    the suite fails for a reason that has nothing to do with the code.
+    """
+    import re
+    import urllib.request
+    from datetime import datetime, timezone
+
+    from job_harness.scoring.prefilter import parse_posted_date
+
+    html = urllib.request.urlopen(
+        fixture_server.url_for("greenhouse_like.html"), timeout=5).read().decode()
+    served = re.search(r'"datePosted"\s*:\s*"([^"]*)"', html).group(1)
+    age = (datetime.now(timezone.utc).date() - parse_posted_date(served)).days
+    assert 0 <= age <= 7, f"served datePosted {served} is {age} days old"
+
+
+def test_fixture_postings_pass_the_default_freshness_filter(config, fixture_server):
+    """The end-to-end path this protects: discovery must still queue them."""
+    from job_harness.discovery.generic_url import GenericUrlAdapter
+    from job_harness.scoring.prefilter import prefilter
+
+    adapter = GenericUrlAdapter(config.discovery)
+    jobs = list(adapter.discover(fixture_server.url_for("greenhouse_like.html")))
+    adapter.close()
+    assert jobs, "fixture should yield a JobPosting"
+    result = prefilter(jobs[0], config.scoring, config.discovery)
+    assert result.passed, result.reason

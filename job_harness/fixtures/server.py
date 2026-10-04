@@ -5,11 +5,23 @@ discovery over HTTP, navigation, form submission -- exercises the real paths.
 """
 from __future__ import annotations
 
+import re
 import threading
+from datetime import datetime, timedelta, timezone
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Optional
+
+# The fixtures carry a fixed datePosted. Rewriting it on the way out keeps every
+# fixture-based test independent of the wall clock: a posting checked in last
+# year would otherwise start failing the freshness filter.
+_DATE_POSTED = re.compile(rb'("datePosted"\s*:\s*")[^"]*(")')
+
+
+def _fresh_date(days_ago: int = 2) -> bytes:
+    return (datetime.now(timezone.utc) - timedelta(days=days_ago)) \
+        .date().isoformat().encode()
 
 FIXTURE_DIR = Path(__file__).resolve().parent / "forms"
 
@@ -22,19 +34,27 @@ class QuietHandler(SimpleHTTPRequestHandler):
     def log_message(self, *args: Any) -> None:
         pass
 
+    def _send_html(self, body: bytes) -> None:
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def do_GET(self) -> None:                              # noqa: N802
+        name = self.path.lstrip("/").split("?")[0]
+        if name.endswith(".html") and "/" not in name:
+            source = FIXTURE_DIR / name
+            if source.is_file():
+                body = _DATE_POSTED.sub(rb"\g<1>" + _fresh_date() + rb"\g<2>",
+                                        source.read_bytes())
+                return self._send_html(body)
         if self.path in ("/", "/index.html", "/board"):
             items = "".join(
                 f'<li><a href="/{p.name}">{p.stem}</a></li>'
                 for p in sorted(FIXTURE_DIR.glob("*.html"))
             )
-            body = BOARD_TEMPLATE.format(items=items).encode()
-            self.send_response(200)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
-            return
+            return self._send_html(BOARD_TEMPLATE.format(items=items).encode())
         super().do_GET()
 
 

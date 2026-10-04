@@ -97,6 +97,9 @@ class ScoringConfig:
         "application_friction": 5,
     })
     allow_senior_roles: bool = False
+    # Internships are rejected by default. Turn this on if you are still a
+    # student targeting a summer internship alongside new-grad roles.
+    allow_internships: bool = False
     senior_title_markers: list[str] = field(default_factory=lambda: list(SENIOR_TITLE_MARKERS))
     max_years_experience_required: int = 5
     require_us_work_location: bool = True
@@ -232,6 +235,7 @@ class Config:
         s = self.scoring
         s.apply_threshold = _env("APPLY_THRESHOLD", s.apply_threshold, int)
         s.allow_senior_roles = _env("ALLOW_SENIOR_ROLES", s.allow_senior_roles, bool)
+        s.allow_internships = _env("ALLOW_INTERNSHIPS", s.allow_internships, bool)
 
         b = self.browser
         b.headless = _env("BROWSER_HEADLESS", b.headless, bool)

@@ -64,6 +64,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--remote-only", action="store_true", help="remote positions only")
     p.add_argument("--allow-senior", action="store_true",
                    help="do not reject staff/principal/manager titles")
+    p.add_argument("--allow-internships", action="store_true",
+                   help="include internship postings (for students)")
     p.add_argument("--roles", help="comma-separated target roles (overrides config)")
 
     p.add_argument("--board", action="append", default=[], metavar="SOURCE:TOKEN",
@@ -118,6 +120,8 @@ def apply_overrides(config: Config, args: argparse.Namespace) -> None:
         config.discovery.remote_only = True
     if args.allow_senior:
         config.scoring.allow_senior_roles = True
+    if args.allow_internships:
+        config.scoring.allow_internships = True
     if args.roles:
         config.discovery.target_roles = [r.strip() for r in args.roles.split(",") if r.strip()]
     if args.profile:

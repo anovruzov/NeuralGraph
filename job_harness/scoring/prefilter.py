@@ -158,8 +158,9 @@ def prefilter(job: Job, scoring: ScoringConfig, discovery: DiscoveryConfig,
             return PrefilterResult(False, f"seniority '{seniority}' blocked by config",
                                    "senior_title", detected_seniority=seniority)
 
-    if any(m in padded_title for m in INTERN_MARKERS):
-        return PrefilterResult(False, "internship posting", "internship",
+    if any(m in padded_title for m in INTERN_MARKERS) and not scoring.allow_internships:
+        return PrefilterResult(False, "internship posting (set allow_internships "
+                                      "to include these)", "internship",
                                detected_seniority=seniority)
 
     posted = parse_posted_date(job.posted_date)

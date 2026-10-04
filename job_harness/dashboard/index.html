@@ -136,6 +136,7 @@ input[type=number],input[type=text]{width:100%;padding:9px;border-radius:8px;bor
         <input type="number" id="freshness_days" min="0" max="365"></div>
       <div class="chk"><input type="checkbox" id="remote_only"><label for="remote_only" style="margin:0">Remote only</label></div>
       <div class="chk"><input type="checkbox" id="allow_senior_roles"><label for="allow_senior_roles" style="margin:0">Allow senior roles</label></div>
+      <div class="chk"><input type="checkbox" id="allow_internships"><label for="allow_internships" style="margin:0">Include internships</label></div>
       <div class="full"><label for="target_roles">Target roles (comma separated)</label>
         <input type="text" id="target_roles"></div>
       <div class="full"><button type="submit">Save settings</button></div>
@@ -247,6 +248,7 @@ async function refresh(){
     }
     document.getElementById('remote_only').checked = !!d.config.remote_only;
     document.getElementById('allow_senior_roles').checked = !!d.config.allow_senior_roles;
+    document.getElementById('allow_internships').checked = !!d.config.allow_internships;
     document.getElementById('target_roles').value = (d.config.target_roles||[]).join(', ');
   }
 }
@@ -269,6 +271,7 @@ async function saveCfg(ev){
     freshness_days: +document.getElementById('freshness_days').value,
     remote_only: document.getElementById('remote_only').checked,
     allow_senior_roles: document.getElementById('allow_senior_roles').checked,
+    allow_internships: document.getElementById('allow_internships').checked,
     target_roles: document.getElementById('target_roles').value,
   };
   const r = await fetch('/api/config', {method:'POST', headers, body: JSON.stringify(body)});
