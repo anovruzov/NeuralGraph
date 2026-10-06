@@ -1,0 +1,43 @@
+{
+  "rules": [
+    {
+      "rule_id": "component_supply_risk",
+      "target_layer": "enterprise",
+      "topic_prefix": "supply:",
+      "required_slots": ["transport_disruption", "supplier_buffer_low", "demand_commitment"],
+      "min_agents": 3,
+      "min_teams": 2,
+      "kind": "risk",
+      "conclusion": "Supply risk for {entity}: inbound transport is disrupted ({slot:transport_disruption}); the supplier buffer is thin ({slot:supplier_buffer_low}); demand is committed ({slot:demand_commitment}).",
+      "metadata": {"owner": "operations", "review": "weekly"}
+    },
+    {
+      "rule_id": "regional_supply_risk",
+      "target_layer": "region",
+      "topic_prefix": "supply:",
+      "required_slots": ["transport_disruption", "supplier_buffer_low", "demand_commitment"],
+      "min_agents": 3,
+      "min_teams": 2,
+      "kind": "risk",
+      "emits_slot": "supply_risk",
+      "emits_topic": "strategy:supply-risk",
+      "conclusion": "Regional supply risk for {entity}: transport is disrupted ({slot:transport_disruption}); the supplier buffer is thin ({slot:supplier_buffer_low}); demand is committed ({slot:demand_commitment}).",
+      "metadata": {"owner": "regional operations", "feeds": "strategic_second_source"}
+    },
+    {
+      "rule_id": "strategic_second_source",
+      "target_layer": "enterprise",
+      "required_slots": ["supply_risk", "demand_growth", "supplier_concentration"],
+      "sources": ["slot_composition", "topic_consolidation", "agent_observation"],
+      "min_units": {"supply_risk": {"region": 2}},
+      "min_agents": 4,
+      "min_teams": 3,
+      "corroborate": true,
+      "kind": "decision",
+      "emits_slot": "sourcing_decision",
+      "emits_topic": "strategy:sourcing",
+      "conclusion": "Strategic recommendation for {entity}: qualify a second source. The supply risk is corroborated in more than one region ({slot:supply_risk}); demand is growing ({slot:demand_growth}); the supply base is concentrated ({slot:supplier_concentration}).",
+      "metadata": {"owner": "strategy office", "decision_forum": "quarterly sourcing review"}
+    }
+  ]
+}

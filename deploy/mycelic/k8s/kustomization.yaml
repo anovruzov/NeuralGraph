@@ -1,0 +1,17 @@
+# kubectl apply -k deploy/mycelic/k8s   (after creating the secret, see DEPLOYMENT.md)
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: mycelic
+resources:
+  - namespace.yaml
+  - nats-configmap.yaml
+  - nats-statefulset.yaml
+  - mycelic-configmap.yaml
+  - mycelic-statefulset.yaml
+  - mycelic-service.yaml
+  - ingress.yaml
+  - networkpolicy.yaml
+images:
+  - name: mycelic
+    newName: ghcr.io/your-org/mycelic   # replace with the registry you pushed the image to
+    newTag: "0.1.0"

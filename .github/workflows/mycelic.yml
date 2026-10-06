@@ -1,0 +1,68 @@
+name: mycelic
+
+on:
+  push:
+    branches: [main]
+    paths: ["mycelic/**", "tests/**", "deploy/mycelic/**", "NeuralGraph/**", "requirements*.txt", ".github/workflows/mycelic.yml"]
+  pull_request:
+
+jobs:
+  tests:
+    name: unit, API, MCP, JetStream integration and process smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NATS_VERSION: v2.10.22
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: install nats-server
+        run: |
+          curl -sSL -o nats.tgz "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz"
+          tar xzf nats.tgz && sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
+          nats-server --version
+      - name: validate nats.conf
+        run: NATS_STORE_DIR=/tmp/js NATS_USER=ci NATS_PASSWORD=ci-password-with-letters nats-server -t -c deploy/mycelic/nats/nats.conf
+      - run: python -m pytest NeuralGraph/tests -q -p no:warnings
+      - run: python -m pytest tests/mycelic -q -p no:warnings
+      - name: production smoke test (process driver, 6 agents)
+        run: python tests/smoke/mycelic_smoke.py --driver process --report smoke-process.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-process-report
+          path: smoke-process.json
+
+  compose:
+    name: docker compose deployment smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: compose config fails loudly without secrets
+        run: |
+          if docker compose -f deploy/mycelic/docker-compose.yml config >/dev/null 2>&1; then
+            echo "compose must refuse to start without secrets"; exit 1; fi
+      - name: build image and run the smoke test against the compose stack
+        run: python tests/smoke/mycelic_smoke.py --driver compose --report smoke-compose.json
+      - name: strategic synthesis demo against the compose stack
+        run: python demo/mycelic_strategic_demo.py --driver compose --no-build --pace 0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-compose-report
+          path: smoke-compose.json
+
+  kubernetes-manifests:
+    name: render kubernetes manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: kubectl kustomize deploy/mycelic/k8s > /dev/null && echo "manifests render"
