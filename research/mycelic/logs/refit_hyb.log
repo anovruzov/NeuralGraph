@@ -1,0 +1,89 @@
+  seed 500 H_mycelic_full       2963 candidates, 33 gold-matching, 32 patterns matched (7s)
+  seed 501 H_mycelic_full       3166 candidates, 36 gold-matching, 36 patterns matched (8s)
+  seed 502 H_mycelic_full       3275 candidates, 33 gold-matching, 33 patterns matched (8s)
+grid {'kind': 'logistic', 'l2': 0.3, 'interactions': False, 'decoy_weight': 1.0, 'loso_objective': 79.0}
+grid {'kind': 'logistic', 'l2': 0.3, 'interactions': True, 'decoy_weight': 1.0, 'loso_objective': 80.0}
+grid {'kind': 'logistic', 'l2': 1.0, 'interactions': False, 'decoy_weight': 1.0, 'loso_objective': 79.0}
+grid {'kind': 'logistic', 'l2': 1.0, 'interactions': True, 'decoy_weight': 1.0, 'loso_objective': 80.0}
+grid {'kind': 'logistic', 'l2': 3.0, 'interactions': False, 'decoy_weight': 1.0, 'loso_objective': 79.0}
+grid {'kind': 'logistic', 'l2': 3.0, 'interactions': True, 'decoy_weight': 1.0, 'loso_objective': 80.0}
+grid {'kind': 'gbdt', 'decoy_weight': 1.0, 'loso_objective': 76.0}
+stored ranker hyb: logistic l2 0.3 inter True n_train 23614 (97s)
+  seed 0 v3                       found=0.475 AP=0.1888 cov=0.950 rare=0.176 decoy=0.325 cu=1.32e+06 calls=2.64e+04 (7s)
+  seed 0 hyb_v3rk                 found=0.500 AP=0.1107 cov=1.000 rare=0.235 decoy=0.275 cu=1.33e+06 calls=2.66e+04 (7s)
+  seed 0 hyb_refit                found=0.475 AP=0.1173 cov=1.000 rare=0.176 decoy=0.400 cu=1.35e+06 calls=2.67e+04 (7s)
+  seed 0 hyb_refit_lean           found=0.525 AP=0.1451 cov=0.800 rare=0.235 decoy=0.425 cu=7.27e+05 calls=2.64e+04 (6s)
+  seed 1 v3                       found=0.500 AP=0.0751 cov=0.975 rare=0.250 decoy=0.300 cu=1.36e+06 calls=2.70e+04 (7s)
+  seed 1 hyb_v3rk                 found=0.650 AP=0.1670 cov=0.975 rare=0.450 decoy=0.300 cu=1.35e+06 calls=2.70e+04 (7s)
+  seed 1 hyb_refit                found=0.625 AP=0.1195 cov=0.950 rare=0.400 decoy=0.375 cu=1.34e+06 calls=2.69e+04 (8s)
+  seed 1 hyb_refit_lean           found=0.575 AP=0.1246 cov=0.775 rare=0.350 decoy=0.425 cu=7.03e+05 calls=2.65e+04 (6s)
+  seed 2 v3                       found=0.650 AP=0.1517 cov=0.975 rare=0.600 decoy=0.375 cu=1.39e+06 calls=2.69e+04 (8s)
+  seed 2 hyb_v3rk                 found=0.550 AP=0.1428 cov=0.975 rare=0.400 decoy=0.350 cu=1.39e+06 calls=2.71e+04 (7s)
+  seed 2 hyb_refit                found=0.650 AP=0.2040 cov=0.975 rare=0.467 decoy=0.350 cu=1.38e+06 calls=2.72e+04 (8s)
+  seed 2 hyb_refit_lean           found=0.675 AP=0.2082 cov=0.775 rare=0.400 decoy=0.300 cu=7.37e+05 calls=2.69e+04 (6s)
+  seed 3 v3                       found=0.650 AP=0.1444 cov=1.000 rare=0.467 decoy=0.275 cu=1.43e+06 calls=2.69e+04 (7s)
+  seed 3 hyb_v3rk                 found=0.775 AP=0.2018 cov=1.000 rare=0.533 decoy=0.300 cu=1.43e+06 calls=2.68e+04 (8s)
+  seed 3 hyb_refit                found=0.725 AP=0.2607 cov=1.000 rare=0.467 decoy=0.300 cu=1.48e+06 calls=2.72e+04 (7s)
+  seed 3 hyb_refit_lean           found=0.650 AP=0.2703 cov=0.850 rare=0.333 decoy=0.325 cu=7.62e+05 calls=2.69e+04 (6s)
+  seed 4 v3                       found=0.650 AP=0.2251 cov=0.950 rare=0.455 decoy=0.375 cu=1.30e+06 calls=2.57e+04 (7s)
+  seed 4 hyb_v3rk                 found=0.675 AP=0.2446 cov=0.950 rare=0.455 decoy=0.375 cu=1.28e+06 calls=2.55e+04 (7s)
+  seed 4 hyb_refit                found=0.650 AP=0.2230 cov=0.975 rare=0.364 decoy=0.375 cu=1.29e+06 calls=2.56e+04 (6s)
+  seed 4 hyb_refit_lean           found=0.625 AP=0.2235 cov=0.800 rare=0.273 decoy=0.400 cu=7.01e+05 calls=2.52e+04 (6s)
+
+**hyb_v3rk vs v3** — 5 paired seeds
+
+| metric | base | variant | Δ | 95% CI | better on | sign p | verdict |
+|---|---:|---:|---:|---|---:|---:|---|
+| found | 0.5850 | 0.6300 | +0.0450 | [-0.0300, +0.1150] | 4/5 | 0.375 | inside noise |
+| AP | 0.1570 | 0.1734 | +0.0164 | [-0.0372, +0.0636] | 3/5 | 1.000 | inside noise |
+| R@100 | 0.2850 | 0.3300 | +0.0450 | [-0.0100, +0.1100] | 3/5 | 1.000 | inside noise |
+| rare recall | 0.3895 | 0.4146 | +0.0251 | [-0.0965, +0.1318] | 3/4 | 0.625 | inside noise |
+| evidence cov. | 0.9700 | 0.9800 | +0.0100 | [+0.0000, +0.0300] | 1/1 | 1.000 | inside noise |
+| FDR | 0.9609 | 0.9580 | -0.0029 | [-0.0075, +0.0020] | 4/5 | 0.375 | inside noise |
+| decoy acc. | 0.3300 | 0.3200 | -0.0100 | [-0.0350, +0.0100] | 2/3 | 1.000 | inside noise |
+| indep. acc. | 0.7650 | 0.7542 | -0.0108 | [-0.0388, +0.0148] | 2/5 | 1.000 | inside noise |
+| lineage | 0.5246 | 0.5132 | -0.0114 | [-0.0240, +0.0012] | 1/5 | 0.375 | inside noise |
+| contra F1 | 0.1602 | 0.1699 | +0.0097 | [-0.1165, +0.1359] | 2/5 | 1.000 | inside noise |
+| compute | 1.36e+06 | 1.36e+06 | -5.70e+03 | [-1.48e+04, +3.40e+03] | 3/5 | 1.000 | inside noise |
+| calls | 2.66e+04 | 2.66e+04 | +6.20e+00 | [-1.15e+02, +1.27e+02] | 3/5 | 1.000 | inside noise |
+| raw text out | 0.0000 | 0.0000 | +0.0000 | [+0.0000, +0.0000] | 0/0 | 1.000 | same |
+| claims out | 0.1381 | 0.1381 | +0.0000 | [+0.0000, +0.0000] | 0/0 | 1.000 | same |
+
+**hyb_refit vs v3** — 5 paired seeds
+
+| metric | base | variant | Δ | 95% CI | better on | sign p | verdict |
+|---|---:|---:|---:|---|---:|---:|---|
+| found | 0.5850 | 0.6250 | +0.0400 | [+0.0000, +0.0900] | 2/2 | 0.500 | inside noise |
+| AP | 0.1570 | 0.1849 | +0.0279 | [-0.0329, +0.0782] | 3/5 | 1.000 | inside noise |
+| R@100 | 0.2850 | 0.3400 | +0.0550 | [-0.0100, +0.1350] | 4/5 | 0.375 | inside noise |
+| rare recall | 0.3895 | 0.3747 | -0.0148 | [-0.0982, +0.0718] | 1/3 | 1.000 | inside noise |
+| evidence cov. | 0.9700 | 0.9800 | +0.0100 | [-0.0100, +0.0350] | 2/3 | 1.000 | inside noise |
+| FDR | 0.9609 | 0.9583 | -0.0026 | [-0.0058, +0.0000] | 2/3 | 1.000 | inside noise |
+| decoy acc. | 0.3300 | 0.3600 | +0.0300 | [-0.0050, +0.0650] | 1/4 | 0.625 | inside noise |
+| indep. acc. | 0.7650 | 0.7481 | -0.0169 | [-0.0450, +0.0038] | 2/5 | 1.000 | inside noise |
+| lineage | 0.5246 | 0.5060 | -0.0186 | [-0.0276, -0.0103] | 0/5 | 0.062 | **worse** |
+| contra F1 | 0.1602 | 0.1475 | -0.0127 | [-0.1633, +0.1333] | 2/4 | 1.000 | inside noise |
+| compute | 1.36e+06 | 1.37e+06 | +7.28e+03 | [-1.27e+04, +2.97e+04] | 3/5 | 1.000 | inside noise |
+| calls | 2.66e+04 | 2.67e+04 | +1.34e+02 | [-2.48e+01, +2.94e+02] | 2/5 | 1.000 | inside noise |
+| raw text out | 0.0000 | 0.0000 | +0.0000 | [+0.0000, +0.0000] | 0/0 | 1.000 | same |
+| claims out | 0.1381 | 0.1381 | +0.0000 | [+0.0000, +0.0000] | 0/0 | 1.000 | same |
+
+**hyb_refit_lean vs v3** — 5 paired seeds
+
+| metric | base | variant | Δ | 95% CI | better on | sign p | verdict |
+|---|---:|---:|---:|---|---:|---:|---|
+| found | 0.5850 | 0.6100 | +0.0250 | [-0.0050, +0.0550] | 3/4 | 0.625 | inside noise |
+| AP | 0.1570 | 0.1944 | +0.0373 | [-0.0152, +0.0851] | 3/5 | 1.000 | inside noise |
+| R@100 | 0.2850 | 0.3600 | +0.0750 | [+0.0200, +0.1200] | 4/5 | 0.375 | **better** |
+| rare recall | 0.3895 | 0.3183 | -0.0713 | [-0.1794, +0.0369] | 2/5 | 1.000 | inside noise |
+| evidence cov. | 0.9700 | 0.8000 | -0.1700 | [-0.1900, -0.1500] | 0/5 | 0.062 | **worse** |
+| FDR | 0.9609 | 0.9589 | -0.0020 | [-0.0039, +0.0000] | 4/5 | 0.375 | inside noise |
+| decoy acc. | 0.3300 | 0.3750 | +0.0450 | [-0.0200, +0.1000] | 1/5 | 0.375 | inside noise |
+| indep. acc. | 0.7650 | 0.7846 | +0.0196 | [+0.0121, +0.0291] | 5/5 | 0.062 | **better** |
+| lineage | 0.5246 | 0.5109 | -0.0137 | [-0.0334, +0.0059] | 2/5 | 1.000 | inside noise |
+| contra F1 | 0.1602 | 0.3364 | +0.1762 | [+0.0606, +0.3170] | 5/5 | 0.062 | **better** |
+| compute | 1.36e+06 | 7.26e+05 | -6.35e+05 | [-6.62e+05, -6.08e+05] | 5/5 | 0.062 | **better** |
+| calls | 2.66e+04 | 2.64e+04 | -1.81e+02 | [-3.70e+02, +1.16e+01] | 3/5 | 1.000 | inside noise |
+| raw text out | 0.0000 | 0.0000 | +0.0000 | [+0.0000, +0.0000] | 0/0 | 1.000 | same |
+| claims out | 0.1381 | 0.1381 | +0.0000 | [+0.0000, +0.0000] | 0/0 | 1.000 | same |
+REFIT_DONE

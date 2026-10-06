@@ -1,0 +1,17 @@
+{
+  "model": "claude-sonnet-5",
+  "ranking": [
+    "C-26", "C-54", "C-15", "C-12", "C-5", "C-17", "C-20", "C-28", "C-49", "C-24",
+    "C-6", "C-27", "C-31", "C-25", "C-36", "C-7", "C-42", "C-34", "C-48", "C-50",
+    "C-55", "C-18", "C-13", "C-10", "C-41", "C-46", "C-32", "C-19", "C-8", "C-0",
+    "C-2", "C-14", "C-44", "C-51", "C-53", "C-35", "C-33", "C-1", "C-52", "C-23",
+    "C-45", "C-47", "C-29", "C-30", "C-21", "C-39", "C-40", "C-3", "C-37", "C-11",
+    "C-4", "C-22", "C-38", "C-43", "C-9", "C-16"
+  ],
+  "real": [
+    "C-26", "C-54", "C-15", "C-12", "C-5", "C-17", "C-20", "C-28", "C-49", "C-24",
+    "C-6", "C-27", "C-31", "C-25", "C-36", "C-7", "C-42", "C-34", "C-48", "C-50",
+    "C-55", "C-18", "C-13", "C-10"
+  ],
+  "reasoning_notes": "Scored each candidate against the seven causal chains on four axes: (1) causal-order fidelity -- for events matched to a single chain, first_seen_day had to be non-decreasing in chain order; clear inversions (e.g. C-4 regulatory_notice before audit_finding, C-9 customer_escalation before shipment_delay/yield_drop, C-22 checkout_drop before api_error_spike, C-38 forecast_revision before margin_compression, C-43 unplanned_downtime before sensor_drift) were pushed to the bottom regardless of volume. (2) chain purity -- events had to belong to one coherent chain; C-16 scattered 7 links across 5 unrelated chains (classic loud-entity background noise) and was ranked last-but-one. (3) per-link corroboration strength -- the weakest link in the chain set the ceiling: links backed by independent_sources=1 and distinct_sites=1 ('resting on a single report') were heavily penalized even when order was perfect (e.g. C-37 has correct 4-link order but 3 of 4 links are single-source, so it was demoted to artifact territory); conversely candidates where every link had >=2 independent sources across multiple sites/regions (C-26, C-54, C-12, C-15, C-5, C-17, C-20) ranked highest. (4) breadth of organisational spread and contradiction rate -- high distinct_sites/distinct_regions per link and low contradicting_reports indicated genuine cross-org propagation rather than one site's routine traffic; a high total_reports-to-independent_sources ratio combined with low regional diversity (e.g. C-52: sla_breach had 3 sources but only 1 region, 7 raw reports) flagged likely single-site/region noise dressed up as a multi-link chain. The 'real' set (24 of 56) comprises candidates with a mostly/fully intact causal sequence, no order violations, no link resting on a single reporter, and reports spread across several distinct sites and regions."
+}

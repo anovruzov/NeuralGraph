@@ -1,0 +1,26 @@
+=== e4b ===
+  0 t/dept= 4 H_mycelic_full   AP=0.0140
+  0 t/dept= 4 E_hier_lineage   AP=0.0000
+  0 t/dept= 7 H_mycelic_full   AP=0.0077
+  0 t/dept= 7 E_hier_lineage   AP=0.0125
+  0 t/dept=10 H_mycelic_full   AP=0.0176
+  0 t/dept=10 E_hier_lineage   AP=0.0176
+  0 t/dept=14 H_mycelic_full   AP=0.0427
+  0 t/dept=14 E_hier_lineage   AP=0.0000
+  1 t/dept= 4 H_mycelic_full   AP=0.0589
+  1 t/dept= 4 E_hier_lineage   AP=0.0007
+  1 t/dept= 7 H_mycelic_full   AP=0.0496
+  1 t/dept= 7 E_hier_lineage   AP=0.0000
+  1 t/dept=10 H_mycelic_full   AP=0.0320
+  1 t/dept=10 E_hier_lineage   AP=0.0000
+  1 t/dept=14 H_mycelic_full   AP=0.0154
+  1 t/dept=14 E_hier_lineage   AP=0.0042
+  2 t/dept= 4 H_mycelic_full   AP=0.0133
+  2 t/dept= 4 E_hier_lineage   AP=0.0000
+  2 t/dept= 7 H_mycelic_full   AP=0.0172
+  2 t/dept= 7 E_hier_lineage   AP=0.0053
+  2 t/dept=10 H_mycelic_full   AP=0.0238
+  2 t/dept=10 E_hier_lineage   AP=0.0022
+  2 t/dept=14 H_mycelic_full   AP=0.0147
+  2 t/dept=14 E_hier_lineage   AP=0.0025
+=== e4b done in 122s ===

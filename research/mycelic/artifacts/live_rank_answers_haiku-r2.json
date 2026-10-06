@@ -1,0 +1,16 @@
+{
+  "ranking": [
+    "C-15", "C-12", "C-54", "C-28", "C-20", "C-17", "C-25", "C-27", "C-31", "C-6",
+    "C-19", "C-5", "C-24", "C-49", "C-32", "C-16", "C-14", "C-39", "C-35", "C-52",
+    "C-0", "C-8", "C-55", "C-10", "C-34", "C-48", "C-50", "C-53", "C-7", "C-44",
+    "C-46", "C-36", "C-41", "C-23", "C-37", "C-51", "C-33", "C-2", "C-29", "C-42",
+    "C-40", "C-3", "C-1", "C-45", "C-13", "C-21", "C-30", "C-47", "C-18", "C-26",
+    "C-4", "C-9", "C-11", "C-22", "C-38", "C-43"
+  ],
+  "real": [
+    "C-15", "C-12", "C-54", "C-28", "C-20", "C-17", "C-25", "C-27", "C-31", "C-6",
+    "C-19", "C-5", "C-24", "C-49", "C-32", "C-14", "C-35", "C-52", "C-0", "C-8",
+    "C-55"
+  ],
+  "reasoning": "Genuine emerging cross-organizational risks are distinguished from artifacts by three critical signals: (1) events follow the known causal chains in proper temporal sequence (no effects before causes), (2) multiple independent sources corroborate each event across distinct geographic sites and regions, and (3) sustained duration suggests systemic issue not temporary blip. C-15 (lumen) exhibits exceptional corroboration with 13 independent sources reporting backlog growth across 7 regions, triggering the attrition→backlog→sla progression. C-28 (basalt-pay458) is a textbook genuine case with all 5 firmware-update chain events in perfect temporal order (firmware at day 21 through output_shortfall at day 161). C-12 (granite-core) shows 4-of-5 attrition chain events in proper sequence with strong sources. Candidates C-26, C-9, C-4, C-11, C-22, C-38, C-43 rank lowest because events appear out of causal order (e.g., customer_escalation before supplier_substitution in C-9), indicating scrambled data or coincidence rather than genuine progression. Candidates scoring 75 or below have either incomplete chains with weak corroboration, contradicting reports, or narrow geographic spread suggesting localized incident rather than enterprise-wide risk."
+}

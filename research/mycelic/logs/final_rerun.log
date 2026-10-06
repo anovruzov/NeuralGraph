@@ -1,0 +1,29 @@
+=== archive v1 2026-09-22T11:18:27+00:00
+=== freeze 2026-09-22T11:18:27+00:00
+ranker installed from research/mycelic/artifacts/calibration.hyb.json l2 0.3 interactions True n_train 23614
+  question_frac = 0.65   (quick_qf_v3.jsonl)
+  batched_descent = True   (quick_v3_H.jsonl)
+  link_time = 'hybrid'   (quick_refit_hyb.jsonl)
+  local_reextract = False   (quick_rx_reextract.jsonl)
+  strict_targeting = False   (quick_cal_screen.jsonl)
+  triage_target_chains = 'none'   (quick_cal_screen.jsonl)
+wrote /home/user/NeuralGraph/research/mycelic/artifacts/calibration.json
+=== ranker adoption 2026-09-22T11:18:28+00:00
+  H_mycelic_full         hand=0.458 ranker=0.600 adopt=True
+  A2_chunked_ctx         hand=0.733 ranker=0.842 adopt=True
+  B4_central_triage      hand=0.408 ranker=0.583 adopt=True
+  Y_oracle_retrieval     hand=0.275 ranker=0.483 adopt=True
+  A_flat_rag             hand=0.717 ranker=0.758 adopt=True
+  B2_map_reduce          hand=0.292 ranker=0.292 adopt=True
+  G_hier_questions       hand=0.358 ranker=0.650 adopt=True
+  J_mycelic_verified     hand=0.458 ranker=0.600 adopt=True
+  H_mycelic_lean         hand=0.450 ranker=0.642 adopt=True
+ranker_archs = ['A2_chunked_ctx', 'A_flat_rag', 'B2_map_reduce', 'B4_central_triage', 'D_hier_nolineage', 'E_hier_lineage', 'F_hier_retrieval', 'G_hier_questions', 'H_mycelic_full', 'H_mycelic_lean', 'I_mycelic_completion', 'J_mycelic_verified', 'Y_oracle_retrieval']
+=== experiments 2026-09-22T11:22:44+00:00
+=== experiments done 2026-09-22T12:07:22+00:00
+=== scale trend + loss accounting 2026-09-22T12:07:22+00:00
+=== scale trend + loss accounting done 2026-09-22T12:52:44+00:00
+=== candidate dump + ranker evaluation 2026-09-22T12:52:44+00:00
+research/mycelic/final_rerun.sh: 106: PY: not found
+=== reports 2026-09-22T12:55:14+00:00
+=== FINAL_RERUN_DONE 2026-09-22T12:55:31+00:00

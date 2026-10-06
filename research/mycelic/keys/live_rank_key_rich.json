@@ -1,0 +1,226 @@
+{
+ "C-0": {
+  "is_real": false,
+  "simulator_confidence": 0.8807970779778823
+ },
+ "C-1": {
+  "is_real": false,
+  "simulator_confidence": 0.8332570661075799
+ },
+ "C-2": {
+  "is_real": false,
+  "simulator_confidence": 0.8807970779778823
+ },
+ "C-3": {
+  "is_real": false,
+  "simulator_confidence": 0.8859476187202091
+ },
+ "C-4": {
+  "is_real": false,
+  "simulator_confidence": 0.9525741268224331
+ },
+ "C-5": {
+  "is_real": true,
+  "simulator_confidence": 0.8643878062697044
+ },
+ "C-6": {
+  "is_real": false,
+  "simulator_confidence": 0.8601656725479504
+ },
+ "C-7": {
+  "is_real": false,
+  "simulator_confidence": 0.8320183851339245
+ },
+ "C-8": {
+  "is_real": true,
+  "simulator_confidence": 0.9563393953770942
+ },
+ "C-9": {
+  "is_real": true,
+  "simulator_confidence": 0.9578001396623531
+ },
+ "C-10": {
+  "is_real": false,
+  "simulator_confidence": 0.8011238576729482
+ },
+ "C-11": {
+  "is_real": true,
+  "simulator_confidence": 0.935030830871336
+ },
+ "C-12": {
+  "is_real": true,
+  "simulator_confidence": 0.9570887421640593
+ },
+ "C-13": {
+  "is_real": false,
+  "simulator_confidence": 0.8125502070042588
+ },
+ "C-14": {
+  "is_real": false,
+  "simulator_confidence": 0.8807970779778823
+ },
+ "C-15": {
+  "is_real": false,
+  "simulator_confidence": 0.8513048173104324
+ },
+ "C-16": {
+  "is_real": false,
+  "simulator_confidence": 0.9230328213978385
+ },
+ "C-17": {
+  "is_real": false,
+  "simulator_confidence": 0.963070328676546
+ },
+ "C-18": {
+  "is_real": false,
+  "simulator_confidence": 0.8039411358762539
+ },
+ "C-19": {
+  "is_real": false,
+  "simulator_confidence": 0.8807970779778823
+ },
+ "C-20": {
+  "is_real": false,
+  "simulator_confidence": 0.8754466418125836
+ },
+ "C-21": {
+  "is_real": false,
+  "simulator_confidence": 0.8455347349164652
+ },
+ "C-22": {
+  "is_real": false,
+  "simulator_confidence": 0.9102479908544576
+ },
+ "C-23": {
+  "is_real": false,
+  "simulator_confidence": 0.8711439239493773
+ },
+ "C-24": {
+  "is_real": false,
+  "simulator_confidence": 0.9594308895003293
+ },
+ "C-25": {
+  "is_real": true,
+  "simulator_confidence": 0.9129342275597286
+ },
+ "C-26": {
+  "is_real": false,
+  "simulator_confidence": 0.9835183537965121
+ },
+ "C-27": {
+  "is_real": true,
+  "simulator_confidence": 0.9329762889271641
+ },
+ "C-28": {
+  "is_real": true,
+  "simulator_confidence": 0.9097018552970803
+ },
+ "C-29": {
+  "is_real": false,
+  "simulator_confidence": 0.8736179106419871
+ },
+ "C-30": {
+  "is_real": false,
+  "simulator_confidence": 0.8455347349164652
+ },
+ "C-31": {
+  "is_real": false,
+  "simulator_confidence": 0.9478464369215823
+ },
+ "C-32": {
+  "is_real": false,
+  "simulator_confidence": 0.9074872743246397
+ },
+ "C-33": {
+  "is_real": true,
+  "simulator_confidence": 0.9397248193948963
+ },
+ "C-34": {
+  "is_real": false,
+  "simulator_confidence": 0.9138133552020657
+ },
+ "C-35": {
+  "is_real": true,
+  "simulator_confidence": 0.9508898891031866
+ },
+ "C-36": {
+  "is_real": false,
+  "simulator_confidence": 0.938965148927008
+ },
+ "C-37": {
+  "is_real": false,
+  "simulator_confidence": 0.9644288107273639
+ },
+ "C-38": {
+  "is_real": false,
+  "simulator_confidence": 0.8956687768809987
+ },
+ "C-39": {
+  "is_real": true,
+  "simulator_confidence": 0.8623468716579512
+ },
+ "C-40": {
+  "is_real": false,
+  "simulator_confidence": 0.8384400318340028
+ },
+ "C-41": {
+  "is_real": false,
+  "simulator_confidence": 0.8807970779778823
+ },
+ "C-42": {
+  "is_real": false,
+  "simulator_confidence": 0.9205614508160216
+ },
+ "C-43": {
+  "is_real": true,
+  "simulator_confidence": 0.8956687768809987
+ },
+ "C-44": {
+  "is_real": false,
+  "simulator_confidence": 0.9046505351008906
+ },
+ "C-45": {
+  "is_real": false,
+  "simulator_confidence": 0.8455347349164652
+ },
+ "C-46": {
+  "is_real": false,
+  "simulator_confidence": 0.9129342275597286
+ },
+ "C-47": {
+  "is_real": false,
+  "simulator_confidence": 0.8273078959170554
+ },
+ "C-48": {
+  "is_real": false,
+  "simulator_confidence": 0.8175744761936437
+ },
+ "C-49": {
+  "is_real": false,
+  "simulator_confidence": 0.919334075010081
+ },
+ "C-50": {
+  "is_real": false,
+  "simulator_confidence": 0.9432733026812842
+ },
+ "C-51": {
+  "is_real": false,
+  "simulator_confidence": 0.8807970779778823
+ },
+ "C-52": {
+  "is_real": true,
+  "simulator_confidence": 0.9116003227929417
+ },
+ "C-53": {
+  "is_real": false,
+  "simulator_confidence": 0.8205384805926733
+ },
+ "C-54": {
+  "is_real": true,
+  "simulator_confidence": 0.9525956348819028
+ },
+ "C-55": {
+  "is_real": true,
+  "simulator_confidence": 0.9124028645832724
+ }
+}

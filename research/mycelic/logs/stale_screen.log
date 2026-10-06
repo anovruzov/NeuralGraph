@@ -1,0 +1,26 @@
+  seed 500 hyb                      found=0.500 AP=0.1955 cov=0.900 rare=0.188 decoy=0.350 cu=1.40e+06 calls=2.74e+04 (7s)
+  seed 500 hyb_strong               found=0.500 AP=0.2145 cov=0.900 rare=0.188 decoy=0.300 cu=1.40e+06 calls=2.74e+04 (7s)
+  seed 501 hyb                      found=0.725 AP=0.2495 cov=0.950 rare=0.571 decoy=0.325 cu=1.39e+06 calls=2.69e+04 (8s)
+  seed 501 hyb_strong               found=0.825 AP=0.2370 cov=0.950 rare=0.571 decoy=0.325 cu=1.38e+06 calls=2.69e+04 (8s)
+  seed 502 hyb                      found=0.575 AP=0.2295 cov=0.925 rare=0.333 decoy=0.525 cu=1.35e+06 calls=2.60e+04 (8s)
+  seed 502 hyb_strong               found=0.650 AP=0.2044 cov=0.900 rare=0.389 decoy=0.450 cu=1.35e+06 calls=2.61e+04 (8s)
+
+**hyb_strong vs hyb** — 3 paired seeds
+
+| metric | base | variant | Δ | 95% CI | better on | sign p | verdict |
+|---|---:|---:|---:|---|---:|---:|---|
+| found | 0.6000 | 0.6583 | +0.0583 | [+0.0000, +0.1000] | 2/2 | 0.500 | inside noise |
+| AP | 0.2248 | 0.2187 | -0.0062 | [-0.0251, +0.0190] | 1/3 | 1.000 | inside noise |
+| R@100 | 0.4167 | 0.4167 | -0.0000 | [-0.0250, +0.0250] | 1/2 | 1.000 | same |
+| rare recall | 0.3641 | 0.3826 | +0.0185 | [+0.0000, +0.0556] | 1/1 | 1.000 | inside noise |
+| evidence cov. | 0.9250 | 0.9167 | -0.0083 | [-0.0250, +0.0000] | 0/1 | 1.000 | inside noise |
+| FDR | 0.9600 | 0.9561 | -0.0039 | [-0.0067, +0.0000] | 2/2 | 0.500 | inside noise |
+| decoy acc. | 0.4000 | 0.3583 | -0.0417 | [-0.0750, +0.0000] | 2/2 | 0.500 | inside noise |
+| indep. acc. | 0.7416 | 0.7371 | -0.0046 | [-0.0135, +0.0010] | 1/3 | 1.000 | inside noise |
+| lineage | 0.5087 | 0.5087 | -0.0000 | [-0.0159, +0.0159] | 1/2 | 1.000 | inside noise |
+| contra F1 | 0.2063 | 0.0556 | -0.1508 | [-0.3333, +0.1667] | 1/3 | 1.000 | inside noise |
+| compute | 1.38e+06 | 1.38e+06 | -1.18e+03 | [-8.93e+03, +5.39e+03] | 1/2 | 1.000 | inside noise |
+| calls | 2.68e+04 | 2.68e+04 | +2.63e+01 | [-1.90e+01, +9.80e+01] | 1/2 | 1.000 | inside noise |
+| raw text out | 0.0000 | 0.0000 | +0.0000 | [+0.0000, +0.0000] | 0/0 | 1.000 | same |
+| claims out | 0.1393 | 0.1393 | +0.0000 | [+0.0000, +0.0000] | 0/0 | 1.000 | same |
+STALE_DONE

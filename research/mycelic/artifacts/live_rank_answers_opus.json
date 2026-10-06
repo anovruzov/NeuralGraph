@@ -1,0 +1,17 @@
+{
+  "model": "claude-opus-5",
+  "ranking": [
+    "C-26", "C-12", "C-15", "C-17", "C-24", "C-31", "C-5", "C-6", "C-20",
+    "C-49", "C-54", "C-50", "C-25", "C-27", "C-55", "C-10", "C-52", "C-35",
+    "C-28", "C-11", "C-1", "C-34", "C-48", "C-32", "C-51", "C-14", "C-8",
+    "C-46", "C-53", "C-7", "C-36", "C-33", "C-13", "C-0", "C-41", "C-19",
+    "C-18", "C-42", "C-40", "C-2", "C-44", "C-39", "C-29", "C-9", "C-23",
+    "C-22", "C-16", "C-30", "C-38", "C-43", "C-47", "C-3", "C-37", "C-45",
+    "C-21", "C-4"
+  ],
+  "real": [
+    "C-26", "C-12", "C-15", "C-17", "C-24", "C-31", "C-5", "C-6", "C-20",
+    "C-49", "C-54", "C-50", "C-25", "C-27", "C-55", "C-10", "C-52"
+  ],
+  "reasoning_notes": "For each candidate I mapped every event to its causal chain (7 chains given), kept only the single best chain per candidate, and scored the longest subsequence of that chain's events whose first_seen_day order matches the chain's causal position order. Primary discriminators, in order of weight: (1) chain purity - how many of the candidate's links sit on ONE chain vs scattered across unrelated chains (C-16 with 7 links spanning 5 different chains is the archetypal artefact, likewise C-9 whose six chain-1 events all fire within days 1-5 in scrambled causal order); (2) causal ordering - strict monotonic first_seen_day along chain position, with a real time lag between links; violations demoted hard (C-4 regulatory_notice before audit_finding, C-38 forecast_revision before margin_compression, C-43 unplanned_downtime before sensor_drift, C-22 checkout_drop before api_error_spike, C-11 yield_drop before component_defect); (3) per-link independent corroboration - every link in the sequence needs independent_sources >= 2-3 spread over >= 2 distinct_sites and ideally >= 2 distinct_regions. A chain whose links rest on independent_sources == 1 is not a chain no matter how long (C-3, C-37, C-45, C-21, C-30, C-47, and the single-source tails of C-0, C-2, C-19, C-29, C-41). (4) Loud-site suppression: high total_reports relative to independent_sources combined with low distinct_sites/distinct_regions reads as one site's routine traffic rather than cross-organisational signal - this held back C-33 (five perfectly ordered chain-1 links but nearly all inside a single region), C-35, C-54's firmware link and C-52's attrition/sla links. Chain length alone was explicitly NOT rewarded: n_links and distinct_sites_total correlate with noise volume, and several 5-7 link candidates rank near the bottom. The 17 I put forward all show >= 3 links on one chain, strictly in causal order with meaningful lags, each link carried by >= 2 (usually 3-9) independent sources across multiple sites and regions; C-26 (cobalt, chain 1 supplier_substitution -> component_defect -> yield_drop -> customer_escalation, 5-9 sources per link across 5 regions) and C-12 (granite-core, chain 4 attrition -> backlog -> sla_breach -> account_churn) are the cleanest. Contradiction counts were low everywhere and only used as a mild tiebreak."
+}
