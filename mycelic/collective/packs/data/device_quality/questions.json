@@ -21,5 +21,12 @@
         "leak"
       ]
     }
+  },
+  "pushdown": {
+    "min_confirming_sites": 2,
+    "min_independent_roots": 3,
+    "min_independent_reporters": 3,
+    "freshness_days": 42,
+    "max_sibling_sites": 2
   }
 }

@@ -11,10 +11,20 @@ N records and keep the first N; plant canaries (``leakage.plant_canaries``) and 
 stages say crossed, with the site ledgers as a separate hygiene class; scan the first site's database as a positive
 control (the scanner must find canaries and narrative text there, or the run fails); write ``DIR/leakage.json``.
 
-Modes: ``fake`` (default) extracts through an in-process fake model at each site, so a ledger and a usage summary
-exist; ``lexical`` uses no model; ``routing`` uses a routing file whose extraction endpoints are all
-``any-simulated`` (one machine plays every simulated site). Everything is synthetic, and nothing here measures a
-model.
+Stages: ``edge`` (each site ingests, extracts and emits its cells and usage) and ``pushdown`` (G6): HQ's collective
+store at ``DIR/hqdb/collective.sqlite3`` (outside ``hq/``, so the edge stage's ``hq`` artifact still covers only the
+transport logs) ingests the receive log, detects (run X, tie salt ``g0``) and verifies up to
+:data:`G0_MAX_CANDIDATES` detector candidates by ``(-score, key)``, topped up to :data:`G0_MIN_CANDIDATES` with
+constructed candidates for the keys with cells at the most sites, all at the run's ``as_of`` (every site emits once,
+there, so no cell is visible earlier); every site answers with a ``SiteVerifier`` under a
+seeded demo secret. Its crossing artifacts are every question (``hq/questions.jsonl``), every verdict row of the
+receive log, the HQ database and its ``-wal`` (read while the store is open) and each site's ingress log;
+``leakage.json`` gains ``pushdown_totals``.
+
+Modes: ``fake`` (default) extracts and judges through an in-process fake model at each site, so a ledger and a usage
+summary exist; ``lexical`` uses no model (no ledger); ``routing`` uses a routing file whose extraction and judge
+endpoints are all ``any-simulated`` (one machine plays every simulated site). Everything is synthetic, and nothing
+here measures a model.
 
 Exit 0 when no canary and no narrative shingle crossed, the site ledgers are clean and the positive control found
 both; 1 otherwise; 2 on a usage or configuration error. ``known_limitation`` entries (class-c ids leaving as cell
@@ -33,9 +43,13 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
+from ..detect.detectors import detect
+from ..detect.store import CollectiveStore
 from ..edge.egress import read_log
 from ..edge.extract import TASK_NAME, lexical_handler
 from ..edge.site import EdgeSite
+from ..edge.verify import JUDGE_TASK, SiteVerifier, lexical_judge
+from ..evaluate.baselines import org_for_sites
 from ..inference.fake import FakeProvider
 from ..inference.routing import ConfigError, RoutingConfig, load_routing, missing_env, parse_routing
 from ..inference.runtime import Runtime
@@ -44,6 +58,8 @@ from ..leakage import Artifact, LeakageError, plant_canaries, scan, write_manife
 from ..packs.canonical import Canonicaliser
 from ..packs.generator import GeneratorError, generate, world_digest
 from ..packs.loader import FrozenPack, PackError, is_builtin_ref, load_pack
+from ..pushdown.gate import STATUSES
+from ..pushdown.orchestrator import Orchestrator, constructed_candidate
 from .common import DryRun, UsageError, code_stamps, fail, utc_clock, write_json_atomic
 
 CLI = "experiments.g0_canary"
@@ -52,7 +68,13 @@ MAX_RECORDS = 100000
 MAX_SEED = 10 ** 12
 MAX_WEEKS = 520
 DAY_TIME = "T08:00:00.000Z"
-CROSSING_CLASSES = ("cells", "hq_receive_log", "site_egress_log", "usage_summary")
+CROSSING_CLASSES = ("cells", "hq_receive_log", "site_egress_log", "usage_summary", "questions", "verdicts",
+                    "collective_sqlite3", "site_ingress_log")
+ROUTED_TASKS = (TASK_NAME, JUDGE_TASK)
+G0_MAX_CANDIDATES = 20
+G0_MIN_CANDIDATES = 5
+G0_TIE_SALT = "g0"
+G0_ENTERPRISE = "g0"
 TOTAL_KEYS = ("records_ingested", "rejected", "duplicates", "forwarded_in", "late", "extracted", "claims", "cells",
               "cells_n_ge_k", "suppressed_fields", "not_master_data", "non_egress_type", "usage_groups")
 
@@ -85,6 +107,7 @@ class G0Context:
     sites: tuple[str, ...]
     runtimes: dict[str, Runtime] = field(default_factory=dict)
     totals: dict[str, int] = field(default_factory=lambda: dict.fromkeys(TOTAL_KEYS, 0))
+    pushdown_totals: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -105,9 +128,11 @@ def _runtime(ctx: G0Context, site_id: str) -> Runtime | None:
                        data_label="synthetic", simulation=True, environ=os.environ)
     config = parse_routing({"schema_version": 1,
                             "endpoints": {"site-fake": {"provider": "fake", "boundary": boundary}},
-                            "routes": {TASK_NAME: {"endpoint": "site-fake"}}}, allow_fake=True)
+                            "routes": {task: {"endpoint": "site-fake"} for task in ROUTED_TASKS}}, allow_fake=True)
     provider = FakeProvider()
-    provider.register(TASK_NAME, lexical_handler(ctx.pack, Canonicaliser(ctx.pack, known=ctx.master_data[site_id])))
+    canonicaliser = Canonicaliser(ctx.pack, known=ctx.master_data[site_id])
+    provider.register(TASK_NAME, lexical_handler(ctx.pack, canonicaliser))
+    provider.register(JUDGE_TASK, lexical_judge(ctx.pack, canonicaliser))
     return Runtime(config, boundary=boundary, ledger_path=ledger, run_id=f"g0-{ctx.seed}", clock=ctx.clock,
                    data_label="synthetic", allow_fake=True, fake=provider, sleep=lambda s: None, environ={})
 
@@ -159,7 +184,87 @@ def edge_stage(ctx: G0Context) -> tuple[list[Artifact], list[Artifact]]:
     return crossing, hygiene
 
 
-STAGES: tuple[Stage, ...] = (Stage("edge", edge_stage),)
+def _constructed_keys(store: CollectiveStore, as_of: str, skip: set[str]) -> list[tuple[str, str, str]]:
+    """Keys with visible X cells, by (-sites, -lower-bound volume, key), the verified ones left out."""
+    _, cells = store.detection_inputs(as_of, "X")
+    sites: dict[tuple[str, str, str], set[str]] = {}
+    volume: dict[tuple[str, str, str], int] = {}
+    for c in cells:
+        key = (c.entity_type, c.entity_id, c.predicate)
+        sites.setdefault(key, set()).add(c.site)
+        volume[key] = volume.get(key, 0) + (c.n if c.n is not None else 1)
+    ranked = sorted(sites, key=lambda key: (-len(sites[key]), -volume[key], ":".join(key)))
+    return [key for key in ranked if ":".join(key) not in skip]
+
+
+def pushdown_stage(ctx: G0Context) -> tuple[list[Artifact], list[Artifact]]:
+    """HQ detects over what the edge stage sent, then asks the sites about its candidates (G6)."""
+    edge, hq, hqdb = ctx.out / "edge", ctx.out / "hq", ctx.out / "hqdb"
+    hqdb.mkdir(parents=True, exist_ok=True)
+    store = CollectiveStore(hqdb / "collective.sqlite3", ctx.pack, org_for_sites(ctx.sites, G0_ENTERPRISE),
+                            clock=ctx.clock)
+    sites: list[EdgeSite] = []
+    runtimes: list[Runtime] = []
+    crossing: list[Artifact] = []
+    try:
+        store.ingest_log(hq / "receive.jsonl")
+        result = detect(store, as_of=ctx.as_of, run_channel="X", tie_salt=G0_TIE_SALT)
+        store.save_run(result)
+        handlers = {}
+        for site_id in ctx.sites:
+            runtime = _runtime(ctx, site_id)
+            if runtime is not None:
+                runtimes.append(runtime)
+            site = EdgeSite(ctx.pack, site_id, edge, runtime=None, clock=ctx.clock,
+                            master_data=ctx.master_data[site_id], hq_dir=hq)
+            sites.append(site)
+            handlers[site_id] = SiteVerifier(site, runtime=runtime, clock=ctx.clock, demo_seed=ctx.seed).answer
+        orchestrator = Orchestrator(store, handlers=handlers, clock=ctx.clock)
+        detected = sorted((c for c in result["candidates"] if c["snapshot"] is not None),
+                          key=lambda c: (-c["snapshot"]["score"], c["key"]))[:G0_MAX_CANDIDATES]
+        # every site emits once, at ctx.as_of, so a cell is visible from there on: verify at the run's as_of
+        conclusions = [orchestrator.verify_stored(result["run_id"], c["key"], as_of=ctx.as_of) for c in detected]
+        constructed = 0
+        for t, eid, predicate in _constructed_keys(store, ctx.as_of, {c["key"] for c in detected}):
+            if len(conclusions) >= G0_MIN_CANDIDATES:
+                break
+            candidate = constructed_candidate(store, entity_type=t, entity_id=eid, predicate=predicate,
+                                              as_of=ctx.as_of)
+            conclusions.append(orchestrator.verify_candidate(candidate, as_of=ctx.as_of))
+            constructed += 1
+        verdict_rows = [row for row in read_log(hq / "receive.jsonl") if row["artifact_type"] == "verdict"]
+        question_rows = read_log(hq / "questions.jsonl")
+        question_ids = sorted({c.question_id for c in conclusions})
+        verdicts = dict.fromkeys(("confirm", "refute", "unknown"), 0)
+        for row in verdict_rows:
+            verdicts[row["body"]["verdict"]] += 1
+        statuses = dict.fromkeys(STATUSES, 0)
+        for c in conclusions:
+            statuses[c.status] += 1
+        ctx.pushdown_totals.update({
+            "judge": ctx.mode, "secret_mode": "seeded-demo", "candidates": len(detected),
+            "constructed_candidates": constructed, "questions": len(question_ids),
+            "routes": sum(len(store.routes(q)) for q in question_ids), "verdicts": verdicts, "statuses": statuses})
+        crossing += [Artifact("questions", f"hq/questions.jsonl#{number}", data=canonical_bytes(row["body"]))
+                     for number, row in enumerate(question_rows, start=1)]
+        crossing += [Artifact("verdicts", f"hq/receive.jsonl#verdict-{number}", data=canonical_bytes(row["body"]))
+                     for number, row in enumerate(verdict_rows, start=1)]
+        db = hqdb / "collective.sqlite3"
+        for path in (db, db.with_name(db.name + "-wal")):
+            if path.exists():
+                crossing.append(Artifact("collective_sqlite3", f"hqdb/{path.name}", data=path.read_bytes()))
+    finally:
+        for site in sites:
+            site.close()
+        for runtime in runtimes:
+            runtime.close()
+        store.close()
+    crossing += [Artifact("site_ingress_log", f"edge/site-{s}.ingress.jsonl", path=edge / f"site-{s}.ingress.jsonl")
+                 for s in ctx.sites if (edge / f"site-{s}.ingress.jsonl").exists()]
+    return crossing, []
+
+
+STAGES: tuple[Stage, ...] = (Stage("edge", edge_stage), Stage("pushdown", pushdown_stage))
 
 
 # --------------------------------------------------------------------------------------------------- arguments
@@ -192,12 +297,18 @@ def _check_args(args: argparse.Namespace) -> None:
         raise UsageError(f"--out must be absent or an empty directory: {out}") from None
 
 
+def _routed_names(config: RoutingConfig) -> list[str]:
+    """Every endpoint the extraction and judge routes name (escalations included), sorted."""
+    names = set()
+    for task in ROUTED_TASKS:
+        route = config.routes[task]
+        names.update(n for n in (route.endpoint, route.escalate_to) if n is not None)
+    return sorted(names)
+
+
 def _routing(path: str, *, check_env: bool) -> RoutingConfig:
-    config = load_routing(path, tasks=[TASK_NAME], check_env=check_env)
-    route = config.routes[TASK_NAME]
-    for name in (route.endpoint, route.escalate_to):
-        if name is None:
-            continue
+    config = load_routing(path, tasks=list(ROUTED_TASKS), check_env=check_env)
+    for name in _routed_names(config):
         endpoint = config.endpoints[name]
         if endpoint.boundary != "any-simulated":
             raise ConfigError(f"$.endpoints.{name}.boundary",
@@ -218,15 +329,15 @@ def _dry_run(args: argparse.Namespace) -> int:
             dry.need(f"routing file {args.routing}")
         else:
             config = _routing(args.routing, check_env=False)
-            route = config.routes[TASK_NAME]
-            names = [n for n in (route.endpoint, route.escalate_to) if n is not None]
+            names = _routed_names(config)
             for var in missing_env(config, names):
                 dry.need(f"env {var}")
             for name in names:
                 dry.need(f"network {config.endpoints[name].host_label} (endpoint {name}, a running server)")
     out = Path(args.out)
-    for line in ("leakage.json", "private/manifest.json", "edge/site-<id>.{sqlite3,egress.jsonl,ledger.jsonl}",
-                 "hq/receive.jsonl"):
+    for line in ("leakage.json", "private/manifest.json",
+                 "edge/site-<id>.{sqlite3,egress.jsonl,ingress.jsonl,ledger.jsonl}", "hq/receive.jsonl",
+                 "hq/questions.jsonl", "hqdb/collective.sqlite3"):
         dry.write(str(out / line))
     if args.require_master_data is not None:
         dry.write(f"{out / 'pack'} (only when --require-master-data differs from the pack)")
@@ -316,7 +427,7 @@ def run(args: argparse.Namespace) -> int:
         "models_fake": None if args.mode == "lexical" else args.mode == "fake",
         "as_of": ctx.as_of, "clock": {"ingest": ingest_day.isoformat() + DAY_TIME, "emit": ctx.emit_at},
         "stages": [stage.name for stage in STAGES], "positive_control": positive,
-        "edge_totals": dict(ctx.totals), "passed": passed,
+        "edge_totals": dict(ctx.totals), "pushdown_totals": dict(ctx.pushdown_totals), "passed": passed,
         **report, **code_stamps(), "created_at": utc_clock(),
     }
     write_json_atomic(out / "leakage.json", result)

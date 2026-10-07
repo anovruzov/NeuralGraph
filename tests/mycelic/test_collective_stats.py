@@ -502,5 +502,137 @@ class ClusterBootstrapTests(unittest.TestCase):
                 stats.cluster_bootstrap_mean([[1]], **kwargs)
 
 
+
+class PairedRankingBootstrapTests(unittest.TestCase):
+    """G6 (E2): AP and precision@k per condition, one shared resampling stream, and an AP ratio."""
+
+    def test_hand_computed_point_estimates(self) -> None:
+        out = stats.paired_ranking_bootstrap({"a": [3, 2, 1], "b": [1, 2, 3]}, [True, False, True], k=2, B=10, seed=1)
+        self.assertEqual((out["n"], out["n_relevant"], out["B"], out["seed"], out["k"], out["method"]),
+                         (3, 2, 10, 1, 2, "paired percentile"))
+        a, b = out["conditions"]["a"], out["conditions"]["b"]
+        self.assertAlmostEqual(a["ap"], (1 + 2 / 3) / 2)               # hits at ranks 1 and 3
+        self.assertAlmostEqual(b["ap"], (1 + 2 / 3) / 2)
+        self.assertEqual((a["precision_at_k"], b["precision_at_k"]), (0.5, 0.5))
+        out = stats.paired_ranking_bootstrap({"a": [3, 2, 1]}, [False, True, True], k=1, B=10, seed=1)
+        self.assertAlmostEqual(out["conditions"]["a"]["ap"], (1 / 2 + 2 / 3) / 2)
+        self.assertEqual(out["conditions"]["a"]["precision_at_k"], 0.0)
+        tied = stats.paired_ranking_bootstrap({"a": [1, 1, 0]}, [True, False, False], k=1, B=10, seed=1)
+        self.assertEqual(tied["conditions"]["a"]["ap"], stats.tie_averaged_ap([1, 1, 0], [True, False, False]))
+        self.assertEqual(tied["conditions"]["a"]["precision_at_k"], 0.5)          # tie-averaged over the tie
+        self.assertIsNone(out["ratio"])
+
+    def test_identical_conditions_give_a_ratio_of_one_with_a_degenerate_interval(self) -> None:
+        rng = random.Random(4)
+        scores = [rng.random() for _ in range(30)]
+        relevant = [rng.random() < 0.3 for _ in range(30)]
+        out = stats.paired_ranking_bootstrap({"x": scores, "y": list(scores)}, relevant, k=5, B=300, seed=2,
+                                             ratio=("x", "y"))
+        self.assertEqual({k: out["ratio"][k] for k in ("numerator", "denominator", "estimate", "ci_low", "ci_high")},
+                         {"numerator": "x", "denominator": "y", "estimate": 1.0, "ci_low": 1.0, "ci_high": 1.0})
+        self.assertEqual(out["conditions"]["x"], out["conditions"]["y"])
+        self.assertEqual(out["ratio"]["undefined"], out["conditions"]["x"]["ap_undefined"])
+
+    def test_the_replicates_are_paired_draws_of_items(self) -> None:
+        scores = {"a": [0.9, 0.8, 0.3, 0.2, 0.1], "b": [0.1, 0.7, 0.8, 0.9, 0.2]}
+        relevant = [True, False, True, False, False]
+        out = stats.paired_ranking_bootstrap(scores, relevant, k=2, B=200, seed="e2", ratio=("a", "b"))
+        rng = random.Random("e2")
+        reps: dict[str, list[float]] = {"a": [], "b": []}
+        p_reps: dict[str, list[float]] = {"a": [], "b": []}
+        ratios: list[float] = []
+        undefined = 0
+        for _ in range(200):
+            drawn = [rng.randrange(5) for _ in range(5)]
+            marks = [relevant[i] for i in drawn]
+            for name in ("a", "b"):
+                p_reps[name].append(stats.tie_averaged_precision_at_k([scores[name][i] for i in drawn], marks, 2))
+            if not any(marks):
+                undefined += 1
+                continue
+            aps = {name: stats.tie_averaged_ap([scores[name][i] for i in drawn], marks) for name in ("a", "b")}
+            for name in ("a", "b"):
+                reps[name].append(aps[name])
+            if aps["b"] >= 0.01:
+                ratios.append(aps["a"] / aps["b"])
+        self.assertGreater(undefined, 0)
+        for name in ("a", "b"):
+            c = out["conditions"][name]
+            self.assertEqual((c["ap_ci_low"], c["ap_ci_high"], c["ap_undefined"]),
+                             (stats.percentile(reps[name], 2.5), stats.percentile(reps[name], 97.5), undefined))
+            self.assertEqual((c["p_ci_low"], c["p_ci_high"]),
+                             (stats.percentile(p_reps[name], 2.5), stats.percentile(p_reps[name], 97.5)))
+        self.assertEqual((out["ratio"]["ci_low"], out["ratio"]["ci_high"], out["ratio"]["undefined"]),
+                         (stats.percentile(ratios, 2.5), stats.percentile(ratios, 97.5), 200 - len(ratios)))
+        self.assertEqual(out["ratio"]["estimate"], out["conditions"]["a"]["ap"] / out["conditions"]["b"]["ap"])
+
+    def test_a_denominator_below_epsilon_gives_no_ratio(self) -> None:
+        n = 200
+        relevant = [False] * (n - 1) + [True]
+        good, bad = [float(i == n - 1) for i in range(n)], [float(n - i) for i in range(n)]
+        out = stats.paired_ranking_bootstrap({"good": good, "bad": bad}, relevant, k=10, B=50, seed=3,
+                                             ratio=("good", "bad"))
+        self.assertEqual(out["conditions"]["good"]["ap"], 1.0)
+        self.assertAlmostEqual(out["conditions"]["bad"]["ap"], 1 / n)
+        self.assertIsNone(out["ratio"]["estimate"])
+        self.assertEqual(out["ratio"]["epsilon"], 0.01)
+        # a replicate's ratio is undefined when it drew no relevant item or its denominator AP is below epsilon
+        rng, undefined = random.Random(3), 0
+        for _ in range(50):
+            drawn = [rng.randrange(n) for _ in range(n)]
+            marks = [relevant[i] for i in drawn]
+            den = stats.tie_averaged_ap([bad[i] for i in drawn], marks) if any(marks) else None
+            undefined += int(den is None or den < 0.01)
+        self.assertGreater(undefined, 0)
+        self.assertEqual(out["ratio"]["undefined"], undefined)
+        looser = stats.paired_ranking_bootstrap({"good": good, "bad": bad}, relevant, k=10, B=50, seed=3,
+                                                ratio=("good", "bad"), epsilon=0.001)
+        self.assertAlmostEqual(looser["ratio"]["estimate"], float(n))
+
+    def test_zero_positives_leave_every_ap_and_the_ratio_undefined(self) -> None:
+        out = stats.paired_ranking_bootstrap({"a": [1, 2, 3], "b": [3, 2, 1]}, [False] * 3, k=2, B=40, seed=1,
+                                             ratio=("a", "b"))
+        self.assertEqual(out["n_relevant"], 0)
+        for name in ("a", "b"):
+            self.assertEqual(out["conditions"][name], {"ap": None, "ap_ci_low": None, "ap_ci_high": None,
+                                                       "ap_undefined": 40, "precision_at_k": 0.0, "p_ci_low": 0.0,
+                                                       "p_ci_high": 0.0})
+        self.assertEqual((out["ratio"]["estimate"], out["ratio"]["ci_low"], out["ratio"]["undefined"]),
+                         (None, None, 40))
+
+    def test_reproducible_for_a_seed_and_different_for_another(self) -> None:
+        rng = random.Random(9)
+        scores = {"a": [rng.random() for _ in range(40)], "b": [rng.random() for _ in range(40)]}
+        relevant = [rng.random() < 0.4 for _ in range(40)]
+        one = stats.paired_ranking_bootstrap(scores, relevant, k=10, B=200, seed=1, ratio=("a", "b"))
+        self.assertEqual(one, stats.paired_ranking_bootstrap(scores, relevant, k=10, B=200, seed=1, ratio=("a", "b")))
+        two = stats.paired_ranking_bootstrap(scores, relevant, k=10, B=200, seed=2, ratio=("a", "b"))
+        self.assertNotEqual((one["ratio"]["ci_low"], one["ratio"]["ci_high"]),
+                            (two["ratio"]["ci_low"], two["ratio"]["ci_high"]))
+        self.assertEqual(one["conditions"]["a"]["ap"], two["conditions"]["a"]["ap"])
+
+    def test_input_validation(self) -> None:
+        good = {"a": [1.0, 2.0]}
+        cases = [
+            ({}, [True, False], {}), ({1: [1.0, 2.0]}, [True, False], {}), ([[1.0, 2.0]], [True, False], {}),
+            (good, [1, 0], {}), (good, [], {}), (good, (True,), {}), ({"a": [1.0]}, [True, False], {}),
+            ({"a": [1.0, float("nan")]}, [True, False], {}), ({"a": [1.0, float("inf")]}, [True, False], {}),
+            ({"a": [1.0, True]}, [True, False], {}), ({"a": [1.0, "2"]}, [True, False], {}),
+            ({"a": (1.0, 2.0), "b": [1.0]}, [True, False], {}),
+            (good, [True, False], {"k": 0}), (good, [True, False], {"k": True}), (good, [True, False], {"k": 1.5}),
+            (good, [True, False], {"B": 0}), (good, [True, False], {"B": True}),
+            (good, [True, False], {"alpha": 0}), (good, [True, False], {"alpha": 1}),
+            (good, [True, False], {"seed": 1.5}), (good, [True, False], {"seed": True}),
+            (good, [True, False], {"ratio": ("a", "z")}), (good, [True, False], {"ratio": ("a",)}),
+            (good, [True, False], {"epsilon": 0}), (good, [True, False], {"epsilon": -1}),
+            (good, [True, False], {"epsilon": float("nan")}), (good, [True, False], {"epsilon": True}),
+        ]
+        for scores, relevant, kwargs in cases:
+            args = {"k": 1, "B": 5, "seed": 1, **kwargs}
+            with self.subTest(scores=scores, relevant=relevant, kwargs=kwargs), self.assertRaises(ValueError):
+                stats.paired_ranking_bootstrap(scores, relevant, **args)
+        self.assertEqual(stats.paired_ranking_bootstrap(good, (True, False), k=1, B=5, seed=1)["n"], 2)
+
+
 if __name__ == "__main__":
     unittest.main()

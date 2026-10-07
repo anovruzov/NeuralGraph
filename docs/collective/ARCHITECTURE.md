@@ -1,10 +1,11 @@
-# Mycelic collective: architecture (gates G1 to G5)
+# Mycelic collective: architecture (gates G1 to G6)
 
-This document describes what gates G1 to G5 build under `mycelic/collective/`. It also places them in the loop
+This document describes what gates G1 to G6 build under `mycelic/collective/`. It also places them in the loop
 that later gates complete (STRATEGY section 4.1). Sections 1 to 10 describe G1; section 11 describes G2 (domain
 packs and the sense step); section 12 describes G3 (the site boundary and the G0 text-leakage scan); section 13
 describes G4 (detection at HQ over the cells that left the sites); section 14 describes G5 (measuring that detection
-on planted synthetic worlds against its baselines, and the openFDA public replay).
+on planted synthetic worlds against its baselines, and the openFDA public replay); section 15 describes G6 (pushdown
+verification: narrow questions answered inside each site, bucketed verdicts, the commit gate, and the E2 harness).
 
 **No real-model number is produced in this sandbox.** Model weights and the openFDA API cannot be reached from it, so
 every test runs against a deterministic in-process fake or a local fake HTTP server. Every harness output says so in
@@ -27,8 +28,8 @@ its `measurement` flag. The figures STRATEGY needs come from the founder's runs 
 | Founder tools | `experiments/e3_latency.py`, `connectors/openfda.py`, `experiments/n1_narratives.py` | E3, the openFDA cache, N1 sample and score |
 
 Everything is standard library only and runs under `python -S`. No fabric file changed (`INTEGRATION.md`). After
-G5 the layer has 44 modules on the stdlib-only list and seventeen CLIs (section 7; G4 added no CLI, G5 adds six);
-sections 11 to 14 list what G2 to G5 added.
+G6 the layer has 50 modules on the stdlib-only list and eighteen CLIs (section 7; G4 added no CLI, G5 added six, G6
+adds one); sections 11 to 15 list what G2 to G6 added.
 
 ## 2. The boundary guard
 
@@ -156,24 +157,24 @@ Replies are validated locally against the full schema, even when the wire carrie
 | Guard | What it enforces |
 |---|---|
 | Import guard | `mycelic/{service,aggregation,store,transport,lineage}.py` import no model client and nothing from `mycelic.collective`. An AST check covers plain, relative and dynamic imports; a fresh-interpreter check confirms it. A missing core file fails loudly. |
-| Stdlib only | All 44 collective modules import, and the seventeen CLIs (G2 adds the five E1 subcommands and `packs.loader check`; G3 adds `experiments.g0_canary`; G4 adds none; G5 adds `evaluate.harness` `prereg`, `check-plant` and `run` and `experiments.openfda_replay` `prereg`, `signals` and `score`) answer `--help`, under `python -S` |
+| Stdlib only | All 50 collective modules import, and the eighteen CLIs (G2 adds the five E1 subcommands and `packs.loader check`; G3 adds `experiments.g0_canary`; G4 adds none; G5 adds `evaluate.harness` `prereg`, `check-plant` and `run` and `experiments.openfda_replay` `prereg`, `signals` and `score`; G6 adds `experiments.e2_pushdown run`) answer `--help`, under `python -S` |
 | No model names | No model-family name in collective code, docs or tests. The matcher holds sha256 digests only. Example tags live only in `docs/collective/examples/`. |
-| Determinism | No wall clock or unseeded randomness in `jsonio`, `schemacheck`, `stats`, the runtime modules, the pack modules, `edge/{extract,weeks,records,egress,site}.py`, `leakage.py`, every `detect/*.py` (`ClockEntropyTests` checks by glob that each detect module is listed), every `evaluate/*.py` and `experiments/openfda_replay.py` (the harnesses stamp `created_at` through `common.utc_clock` and time with `time.perf_counter`, both allowed) |
+| Determinism | No wall clock or unseeded randomness in `jsonio`, `schemacheck`, `stats`, the runtime modules, the pack modules, `edge/{extract,weeks,records,egress,site,verify}.py`, `leakage.py`, every `detect/*.py` and every `pushdown/*.py` (`ClockEntropyTests` checks by glob that each detect and pushdown module is listed), every `evaluate/*.py`, `experiments/openfda_replay.py` and `experiments/e2_pushdown.py` (the harnesses stamp `created_at` through `common.utc_clock` and time with `time.perf_counter`, both allowed) |
 | Domain literals (G2) | No pack term (entity type, predicate, code, rule, template, follow-up type or role id of either built-in pack) is an identifier or a whole string constant in generic collective code, no string constant there contains `ILL-`, and no openFDA field name is a string constant in the pack, extraction or E1 code (one documented exemption: `text`, the payload key the brief fixes) |
 | Runbook | Every RUNBOOK command runs with `--dry-run`, with the network blocked, and creates nothing |
-| HQ imports (G4) | No `detect/*.py` imports `edge.records`, `edge.site`, `edge.extract`, `packs.generator`, `evaluate`, `leakage`, `experiments`, any `inference` module or a model client (AST check with relative imports resolved); a fresh interpreter importing every detect module loads none of them except `inference` and `inference.errors`, which the Boundary's validator pulls in |
+| HQ imports (G4, G6) | No `detect/*.py` and no `pushdown/*.py` imports `edge.records`, `edge.site`, `edge.extract`, `edge.verify` (the site verifier, G6), `packs.generator`, `evaluate`, `leakage`, `experiments`, any `inference` module or a model client (AST check with relative imports resolved); a fresh interpreter importing every detect and pushdown module loads none of them except `inference` and `inference.errors`, which the Boundary's validator pulls in. `test_collective_pushdown.py::PushdownImportGuardTests` repeats it for pushdown and pins `detect/{detectors,rules,org}.py` to their G5 bytes |
 | Evaluation imports (G5) | No `evaluate/*.py` and not `experiments/openfda_replay.py` imports any `mycelic.collective.inference` module or a model client (`EvaluateImportGuardTests`, the same AST check; `edge.site` pulls in `inference.ledger` transitively, which is allowed). G5 makes no model call: X uses the lexical extractor |
 
 Each later gate extends the lists at the top of that module.
 
 ## 8. Where G1 sits in the loop (STRATEGY section 4.1)
 
-| Stage | What it needs | Status after G4 |
+| Stage | What it needs | Status after G6 |
 |---|---|---|
 | Sense | records become typed claims and per-site counts; structured codes (no model) and in-boundary extraction | **G1:** runtime (boundary-bound model calls, schema validation, ledger). **G2:** packs, the canonicaliser, the record connector, claim extraction from codes (S) and narratives (X), and the E1 harness. **G3:** each site's own record store, k-suppressed weekly count cells and windowed usage summaries that leave only through the Boundary, and the G0 text-leakage scan. The HQ counts store is G4 |
 | Detect | statistical detectors over counts; rules as a second channel | **G4:** HQ's collective store of immutable cells, the model-free detectors D2 to D7 over the k-suppressed weekly cells, the rules channel over the same cells, run X (codes and text-derived cells) and baseline S (codes only); section 13. **G5 measures it** without changing it: planted patterns and decoys, the baselines S, R (model-free), U and single-site, the pre-registered X1/X2 harness and scorecard, and the openFDA replay; section 14 |
 | Decide | candidate decided at the lowest unit spanning the evidence | **G4:** each candidate carries the decision unit of its supporting sites (their lowest common ancestor in the current org config); the fabric's rule conclusions are unchanged |
-| Verify (pushdown) | narrow questions answered by each site's in-boundary model from its own records | Later; it will call `Runtime.run` at each site, where the guard keeps raw text inside |
+| Verify (pushdown) | narrow questions answered by each site's in-boundary model from its own records | **G6:** structured questions from pack templates routed to the contributing sites and up to two siblings; each site answers from its own raw records with its in-boundary model through `Runtime.run` (the boundary guard keeps raw text inside) or the lexical judge, and sends a bucketed verdict through the same Boundary as its cells; the commit gate ported from vr034p assigns `supported`, `hypothesis`, `contested`, `stale` or `rejected` and HQ keeps versioned conclusions with their lineage; E2 measures it against central reading; section 15 |
 | Follow up | approval-routed T0/T1 tasks | Later |
 | Check the outcome | did the failure mode recur | Later |
 
@@ -930,3 +931,370 @@ artificial partitioning, not a confidentiality demonstration"** and the caches' 
   synthetic cache served by a local stub.
 
 Nothing is ported from `origin/claude/mycelic-implementation-vr034p` in G5 (`INTEGRATION.md`).
+
+## 15. G6: pushdown verification
+
+G6 closes the Verify step of the loop (STRATEGY section 6.3). For each candidate HQ wants checked it asks one narrow
+structured question of the sites that contributed cells and of up to `max_sibling_sites` siblings. Each site answers
+from its own raw records, inside its boundary, with its in-boundary model or, when none is configured, the lexical
+judge. What leaves is a verdict (`confirm`, `refute` or `unknown`), count buckets and one opaque `evidence_ref` that
+only that site's auditor can resolve: no text, no exact count and no per-record handle. Questions go in and verdicts
+come out through the same Boundary as the cells, and G0 scans both. A deterministic commit gate, ported from vr034p,
+turns the verdicts into a status, and HQ keeps versioned, append-only conclusions with the lineage candidate -> cells ->
+question -> verdicts. E2 is the experiment that gates the architecture.
+
+**Nothing in G6 is a measurement and no real-model number is produced.** Model weights cannot be downloaded in the
+sandbox, so every test and rehearsal ran with the lexical judge, a scripted fake or a local fake server. Detection
+(`detect/detectors.py`, `rules.py`, `org.py`) is byte-identical to G5.
+
+| Part | Module | Purpose |
+|---|---|---|
+| Questions | `pushdown/questions.py` | the question window, the template choice, the params check, the body (`build_question`) and HQ's display text (`render_text`, never sent); `PushdownError(path, problem)` |
+| Gate | `pushdown/gate.py` | the commit gate over bucketed verdicts: pure, deterministic, every reason a fixed sentence (section 15.6) |
+| Orchestrator | `pushdown/orchestrator.py` | routing (D3), delivery on worker threads with a deadline, verdict intake, late verdicts, versioned conclusions |
+| Site verify | `edge/verify.py` | `SiteVerifier`: secrets, the question budget, retrieval, the judge (`judge_record` task or `lexical_judge`), the verdict rules, `evidence_ref`, `resolve` and `audit` |
+| Boundary | `edge/egress.py` | the `question` (in) and `verdict` (out) artifacts, `ARTIFACT_DIRECTION`, the bucket helpers, `question_id`, `verdict_id_of`, `Boundary.accept` |
+| Site store | `edge/records.py` | `question_log`, `verdict_log` and the window reads (additive; `SCHEMA_VERSION` stays 1) |
+| HQ store | `detect/store.py` | `pd_questions`, `pd_routes`, `pd_verdicts`, `pd_verdict_rejections`, `pd_conclusions` and the routing reads (additive; `SCHEMA_VERSION` stays 1) |
+| Packs | `packs/loader.py`, both packs' `egress.json` and `questions.json` | the required `pushdown` block (`PushdownConfig`), template coverage, verdict buckets `[k, 10, 50]` (`PACKS.md` section 1.2) |
+| Statistics | `stats.py` | `paired_ranking_bootstrap` |
+| G0 | `experiments/g0_canary.py` | the `pushdown` stage |
+| E2 | `experiments/e2_pushdown.py` | `python -m mycelic.collective.experiments.e2_pushdown run` (section 15.7) |
+| Fixture | `packs/data/device_quality/fixtures/plant_e2_smoke.json` | the E2 smoke spec: same-author, not blind, never a result |
+
+**Import graph (no cycles).** `questions` imports `detect.rules.series_key`, `edge.egress` and `edge.weeks`; `gate`
+imports `edge.egress`, `edge.weeks` and `jsonio`; `orchestrator` imports `questions`, `gate`, `detect.{store,org,
+rules}`, `edge.{egress,weeks}`, `jsonio` and `threading`. No `pushdown/*.py`
+and no `detect/*.py` imports `edge.records`, `edge.site`, `edge.extract`, `edge.verify`, `packs.generator`,
+`evaluate`, `leakage`, `experiments` or an inference module (`edge.egress` pulls in only `inference.errors`); the HQ
+import guard checks it statically and in a fresh interpreter (section 7). `edge/verify.py` imports `edge.{egress,
+extract,records,weeks}`, `packs.canonical`, `schemacheck`, `jsonio` and `inference.{errors,tasks}`; it names
+`EdgeSite` and `Runtime` only for type checking, and `edge/site.py` imports only `JUDGE_TASK` from it, so there is no
+cycle. `e2_pushdown` imports `evaluate.{baselines,harness,plant}`, `detect`, `edge.verify`, `pushdown`, `leakage`,
+`stats` and the inference runtime.
+
+### 15.1 Data flow
+
+```
+ HQ   candidate: a stored detection candidate (verify_stored) or one built from HQ's cells (verify_candidate)
+        |  question_window(as_of), select_template, build_question                     (pushdown/questions.py)
+        v
+      pd_questions + pd_routes   (contributing per D3; siblings by entity volume, then type volume; the cap)
+        |  one routed site at a time, in sorted site order, on a daemon thread joined against the deadline
+        v
+ site Boundary.accept("in", "question")      -> hq/questions.jsonl, then edge/site-<id>.ingress.jsonl
+      SiteVerifier.answer (its own RecordStore connection, one lock):
+        no secret? -> answered before? -> budget? -> retrieve -> judge each record -> rules -> buckets, evidence_ref
+        -> verdict_log + question_log (one transaction)
+      Boundary.send("out", "verdict")        -> hq/receive.jsonl, then edge/site-<id>.egress.jsonl
+        |  the returned body (or an exception, or nothing by the deadline)
+        v
+ HQ   receive_verdict: the Boundary's validator, then unknown_question, unrouted, pack_hash, window
+        -> pd_verdicts (seq = last + 1; an identical latest body is a duplicate) | pd_verdict_rejections
+      timeout or error -> an HQ record in pd_verdicts
+        v
+      regate: gate.evaluate over the verdicts received at or before as_of -> pd_conclusions (a new version on change)
+```
+
+### 15.2 The question and the verdict
+
+Both are closed specs in `edge/egress.py`, checked by `check_artifact` at the Boundary and again at HQ; `LEAKAGE.md`
+section 9 lists what each may and may not hold.
+
+**Question** (direction `in`): `schema_version` 1, `pack`, `pack_hash` (the pack's `config_hash`), `question_id`,
+`candidate_key` (`<type>:<id>:<predicate>`), `template_id` (one of the pack's templates), `params {entity_type,
+entity_id, predicate}`, `window {start_week, end_week}` and `as_of`. Cross-field checks, in order: `template` (the
+type is among the template's types; the predicate among its predicates unless they are null), `id_format`,
+`consistency` (the key is `series_key(params)`), `question_id` (it equals `sha256(canonical {candidate_key, params,
+template_id, window})`, so `as_of` and the pack hash are not in it and re-asking later has the same id) and `range`
+(start before end, at least `min_window_weeks` ISO weeks counted on Mondays, the end closed at `as_of`).
+
+**Verdict** (direction `out`): `schema_version`, `pack`, `pack_hash`, `site` (the Boundary's own), `question_id`,
+`verdict_id`, `verdict`, `reason` (null, `budget` or `no_secret`), `window`, `support_bucket`, `roots_bucket`,
+`reporters_bucket`, `entity_records_bucket` (each null or a label of `verdict_buckets(pack)`), `newest_week`,
+`evidence_ref` (null or 16 hex), `truncated`, `quality` (`ok`, `degraded`) and `secret_mode` (`file`,
+`seeded-demo`, `none`). A confirm has support, roots and reporters buckets, no entity bucket, a newest week inside
+the window, a reference, no reason, quality `ok`, and roots and reporters no larger than support; a refute has only
+the entity-records bucket and a reference; an unknown has no bucket, week or reference. A wire reason implies
+`truncated` false, `secret_mode` is `none` exactly when the reason is `no_secret`, and `verdict_id` is the sha256 of
+the canonical body without `verdict_id` and `evidence_ref`.
+
+**Buckets.** `verdict_buckets(pack)` is `('<k', 'k-9', '10-49', '50+')` for both built-in packs (`k` is 3 or 5),
+`bucket_of(n)` maps an int `n >= 1` (a bool, a float or 0 is a `ValueError`) and `bucket_lower` gives 1 for `'<k'`
+and the low end otherwise.
+
+**The Boundary.** `send("out", "verdict")` appends one line to HQ's receive log and then to the site's egress log;
+an identical verdict already sent is a no-op. `accept("in", "question")` refuses a window ending after the last week
+closed by the site's own clock (`range`), appends one line to HQ's `questions.jsonl` and then to the site's
+`site-<id>.ingress.jsonl`, and is a no-op for an identical question. A row's direction must be its type's
+(`log_row_problem`); `cells_bundle` and `usage_summary` keep G3's `after` sequence byte for byte.
+
+### 15.3 Routing, delivery, deadlines and versions
+
+**Contributing sites (D3)** are computed at HQ from the visible cells: a site of the current org with a cell of the
+key, visible at the verification `as_of`, in the run channel's cell channels (X: codes and text_only; S: codes),
+inside the question window. Verified at the snapshot's own `as_of`, this is the snapshot's `contributing_sites`; G4
+also drops late sites, so on a late site the two can differ. The candidate's own lineage is kept for the lineage
+only, which makes re-verification at a later `as_of`, and `verify_candidate` on hand-made candidates, well defined.
+
+**Siblings** come from the span `[window start - baseline_weeks, window end]`, contributing sites excluded: first the
+sites with any cell of the entity (any predicate), by lower-bound volume descending and then site id; then the sites
+with cells of the entity type, by type volume and site id; the first `max_sibling_sites` are kept. A volume is the
+sum of the cells' `n`, a `'<k'` cell counting 1.
+
+**The question window** ends at the last week closed at `as_of` and starts at the earlier of the candidate's window
+start and the week `min_window_weeks - 1` weeks before the end (week 53 handled: an `as_of` closing 2026-W53 gives
+2026-W48..2026-W53, one closing 2027-W01 gives 2026-W49..2027-W01 for the device pack).
+
+**Entry points.** `verify_stored(run_id, key, as_of=None)` verifies a stored candidate; `as_of` defaults to the
+snapshot's, or for a rule-only candidate to `min(run as_of, rule.first_week's Sunday + close_lag_days + 6)`, and an
+earlier `as_of` is refused ("before the candidate existed"). `verify_candidate(candidate, as_of)` is the documented
+test path for any well-formed candidate, and `constructed_candidate` builds one from HQ's cells (score null,
+`constructed` true). A malformed candidate raises `PushdownError` naming its path and writes nothing. A question id
+already stored is reused with its stored body and routes, so re-asking is idempotent: the sites return their stored
+verdicts byte for byte, the Boundary writes nothing, and no conclusion version is added.
+
+**Delivery.** The routed sites are asked one at a time, in sorted site order: each handler runs on a daemon thread
+joined against the deadline (`deadline_seconds`, in (0, 3600], default 600), so the sites' log lines (the question
+and verdict lines of HQ's shared logs) and HQ's rows come in a fixed order, and a hung site delays the others by at
+most the deadline; only a site that timed out can write later. A missing handler or an exception is an HQ
+record `{question_id, site, verdict: unknown, reason: error, source: hq}` (nothing of the exception is kept); a
+handler still running at the deadline is an HQ record with reason `timeout`, and its thread is registered as late; a
+returned body goes through intake, and a refused one also gets an HQ `error` record. No SQLite object is used off
+the calling thread (the site verifier opens its own connection) and the clock is read only for `received_at`.
+
+**Intake** (`receive_verdict`): non-canonical JSON raises `PushdownError`; then the first failing check decides,
+written as one `pd_verdict_rejections` row (the sha256, the site only when it is a valid site id, the question id
+only when it is 64 hex, the reason, and the validator's path and keyword; never a value): `invalid`,
+`unknown_question`, `unrouted`, `pack_hash`, `window`. A body whose sha256 equals the site's latest for the question
+is a `duplicate` (a Boundary re-send after a crash between its two writes is one); any other body is appended with
+the next `seq` and supersedes the earlier one.
+
+**Late verdicts and versions.** `collect_late(as_of)` takes in the body of every late thread that has finished,
+received at that `as_of`, and re-gates those questions there. `regate(question_id, as_of)` evaluates the gate over
+every verdict received at or before `as_of`, so a late verdict never reaches back: gating again at the original
+`as_of` gives the original result. A version is appended only when `{status, reasons, used}` changed; an `as_of`
+before the latest version's is refused. `pd_questions`, `pd_routes`, `pd_verdicts` and `pd_conclusions` are
+append-only (triggers abort `UPDATE` and `DELETE`). A conclusion is `c-` plus the first 32 hex of the question id;
+its body holds `schema_version`, `conclusion_id`, `version`, `question_id`, `candidate_key`, `as_of`, `status`,
+`reasons`, the gate result, `pack_hash`, the gate parameters, the `decision_unit` (`OrgConfig.decision_unit` of the
+counted confirming sites, else the contributing ones; null when both are empty) and the lineage `{candidate: {run_id,
+key, constructed}, cells, question_id, verdicts: [{site, seq, sha256}]}`.
+
+### 15.4 Site verify (`edge/verify.py`)
+
+`SiteVerifier(site, runtime=..., clock=..., secret_file=... | demo_seed=...)` refuses a runtime bound to another
+boundary than `site:<id>`, anything but exactly one of `secret_file` and `demo_seed`, a negative or non-int seed and
+a malformed secret file (`VerifyError`, no value in its text). `answer(question)`, in order:
+
+1. under the verifier's lock, `boundary.accept` (an `EgressError` propagates);
+2. a new `RecordStore` connection on the site's file, opened in the calling thread and closed afterwards;
+3. no secret (a missing secret file) gives `unknown`, reason `no_secret`, before any read or budget check;
+4. a question answered before re-sends its stored bytes and uses no budget;
+5. `answered_count(type, id, day) >= question_budget_per_entity_per_day` gives `unknown`, reason `budget`, not stored,
+   so a later day answers it;
+6. **retrieval** (`retrieve`, shared with E2's central_raw): the union of the site's own records (forwarded-in
+   excluded) received in the window that hold any stored claim on the entity, whose structured values of the type
+   resolve exactly to it, or whose narrative names it (the canonicaliser's scan, which also finds extraction misses);
+   newest first, the first `verify_max_records` kept (`truncated` when cut);
+7. **the judge**, per record: the task `judge_record` (data class `raw`, 256 tokens, schema `{mentions_entity,
+   describes_predicate}`, each `yes`, `no` or `unclear`) through the site's runtime with ledger ref
+   `j:<question id prefix>:<index>` (never a record ref), or `lexical_judge`. The payload holds the question's
+   entity type and label, id, alias phrases, predicate and label, and the record's language, codes, structured entity
+   values (D7: inside the boundary, and without them a codes-only record could never confirm) and narrative cut at
+   `max_input_chars`; never persons, the reporter or a record ref. A boundary refusal propagates and nothing is stored
+   or sent; any other inference error counts the record as a failure;
+8. **the rules**, in order: nothing retrieved, `unknown` (local reason `no_records`); failures on more than half,
+   `unknown` with quality `degraded`; any yes/yes, `confirm` (support = yes/yes records, roots = their distinct
+   roots, reporters = their distinct reporters with every unknown reporter one shared reporter, newest week);
+   a record that mentions the entity, none that describes the predicate and fewer than half unclear, `refute` (the
+   mentioning records); otherwise `unknown` (`unclear`). Only `budget` and `no_secret` cross as reasons (D8);
+9. counts leave only as buckets; `evidence_ref = HMAC-SHA256(secret, verdict_id)[:16]` for a confirm or a refute;
+   the verdict and its `answered` question_log row are stored in one transaction, then sent.
+
+**The lexical judge** rebuilds the record from the payload (no persons, no reporter) and runs the codes channel, the
+lexical extractor and `pair`: `mentions_entity` is yes when the entity is a codes-channel entity or in any text claim
+(negated and entity-only claims included), `describes_predicate` when the triple is a paired claim; for a language
+the pack does not cover, every answer that is not yes is `unclear`. Every claim a site stored for a record makes it
+answer yes/yes on that record (tested on both packs' fixtures and a generated world). A narrative that writes a JSON
+answer without the predicate stays at no; with a real model that is an E5 item (prompt injection through record
+text).
+
+**Secrets.** A secret file holds exactly 64 lowercase hex characters (one trailing newline allowed): `secret_mode`
+`file`; a missing file is `none` and fails closed. A demo seed gives `sha256("mycelic-seeded-demo-secret:<seed>:<site
+id>")`, `seeded-demo`. `resolve(evidence_ref)` (a method only; there is no module-level resolve) looks the reference
+up in `verdict_log` and recomputes the HMAC with the current secret, so a rotated secret or none gives None; it
+returns the question id, verdict id, verdict, window and the local record refs (the confirming records of a confirm,
+the mentioning records of a refute). `audit(verdict_id)` returns the judged, failure, unclear, entity, confirming and
+extraction-miss counts, the local reason and `truncated`, for the site only.
+
+**The evidence_ref deviation.** STRATEGY section 6.3 has a verdict carry `record_ids_local[]`. A list's length is an
+exact count, and per-record identifiers let HQ link records across questions; G6 sends one HMAC reference per verdict
+instead, which the site's auditor resolves to the same local ids and nobody else can.
+
+### 15.5 Decisions that refine the brief (D1 to D10)
+
+- **D1. Weak confirms are not counted.** A confirm counts toward support only when its support bucket is not `'<k'`
+  (at least k yes/yes records); a weaker one is noted. Background noise puts single records of decoy keys at other
+  sites inside a window, and counting them would carry decoys to `supported`. Contributing and sibling confirms are
+  treated alike. This mirrors G4's conservative imputation of `'<k'`.
+- **D2.** An echo's copies are forwarded-in and never retrieved, so only the origin confirms with k records: its
+  reason names confirming sites, not roots. Same-site duplicates are one root (`'<k'` counts 1), so they name roots
+  too, when the window holds no other record of the key at that site (section 15.8).
+- **D3.** Contributing sites are computed from the visible cells (section 15.3).
+- **D4.** Verdict buckets are `[k, 10, 50]` in both packs; only `config_hash` changed.
+- **D5.** The gate's thresholds are pack data (`questions.json`'s `pushdown` block), in `config_hash` only.
+- **D6.** HQ tables are prefixed `pd_`, so a later fabric table cannot collide with them.
+- **D7.** The judge payload carries the record's structured entity values (inside the boundary).
+- **D8.** Only `budget` and `no_secret` cross as unknown reasons; `timeout` and `error` are HQ's records.
+- **D9.** With no runtime a site judges with the lexical judge, which the fake provider also wraps; G0's lexical mode
+  writes no ledger.
+- **D10.** G0 keeps HQ's store at `<out>/hqdb/collective.sqlite3`, outside `hq/`, so the edge stage's whole-directory
+  artifact still covers only the transport logs.
+
+### 15.6 The gate (`pushdown/gate.py`)
+
+**Ported (adapted, not merged) from `origin/claude/mycelic-implementation-vr034p@388aa30`,
+`mycelic/knowledge/gate.py` and `support.py`.** Kept: the five checks (authorization, schema, provenance, temporal
+validity, support), each readable in `checks`; the precedence contested, then hypothesis without evidence, then
+stale, then the support checks, with `rejected` when a question-level check fails; `age > freshness_days` for stale;
+every reason a readable sentence. Deviations: no Authorizer or OrgService (authorisation is "routed for this question
+id and the pack hash matches"); `as_of` is injected where vr034p's `freshness()` defaults to `utcnow()`; the inputs
+are bucketed verdicts, not excerpts or evidence refs; a `'<k'` roots or reporters bucket counts its lower bound 1,
+where vr034p never counts unknown independence (every bucket here has a known lower bound); weak confirms are not
+counted (D1); a per-verdict failure excludes that verdict rather than rejecting the claim; contested comes only from
+a contributing site's refute (a sibling's refute is scoped negative evidence).
+
+`evaluate(pack, question, routes, records, as_of)` is pure: no clock, no I/O, every iteration sorted, byte-identical
+`to_dict()` under any record order and `PYTHONHASHSEED`. `GateParams.from_pack` reads `k`, the labels, the four
+thresholds and `close_lag_days`; `STATUS_RANK` is supported 4, hypothesis 3, stale 2, contested 1, rejected 0 (E2's
+pushdown score). **The reasons, exactly:**
+
+| When | Reason |
+|---|---|
+| question under another pack hash | `rejected: the question was made under another pack hash` |
+| question fails the spec | `rejected: the question fails the schema at <path> (<keyword>)` |
+| `as_of` before the question's, or its window not closed at `as_of` | `rejected: the question window ends after the last week closed at as_of (look-ahead)` |
+| per verdict, first match: received after `as_of`; not routed; another pack hash; another question; fails the spec; another window | `excluded: <site> verdict arrived after as_of`, `excluded: <site> was not routed this question`, `excluded: <site> answered under another pack hash`, `excluded: <site> answered another question`, `excluded: <site> verdict fails the schema at <path> (<keyword>)`, `excluded: <site> answered for another window` (an HQ record gets only the first two) |
+| a contributing site's used verdict refutes | `contested: contributing site <site> refutes` (one per site) |
+| no confirm at all | `hypothesis: no evidence (no site confirms)` |
+| the newest counted confirming week ended more than `freshness_days` before `as_of` | `stale: the newest confirming week <week> ended more than <freshness_days> days before <as_of>` |
+| too few counted confirming sites | `hypothesis: <n> confirming site(s) with at least <k> records; min_confirming_sites is <m>` |
+| too few roots | `hypothesis: independent roots, lower bound <r>; min_independent_roots is <m>` |
+| too few reporters | `hypothesis: independent reporters, lower bound <p>; min_independent_reporters is <m>` |
+| all three checks pass | `supported: <n> confirming sites; independent roots, lower bound <r>; independent reporters, lower bound <p>` |
+
+The list is the exclusions (by site, then seq), then the status reasons, then the notes in this order of groups, each
+sorted by site: `<site> answered again; the latest verdict is used` (valid records with more than one sha256; the
+highest seq is used), `not observed at <site> (sibling refutes; scoped negative evidence)`, `sibling <site> confirms
+(counted as support)`, `<site> confirms with fewer than <k> records (not counted)`, `<site> judged a truncated
+subset (verify_max_records)`, and `<site> unknown (<reason>)` for timeout, error, budget or no_secret, `<site>
+unknown (degraded)`, or `<site> unknown`. `GateResult` also carries `support` (confirming, weak, refuting and unknown
+sites, the lower bounds, the newest week, truncated sites), `freshness`, `excluded` and `used`.
+
+**Resolvability** (STRATEGY section 6.3 targets at least 95%): a supported conclusion is resolvable when every
+counted confirm's `evidence_ref` resolves at its site, through that site's `SiteVerifier.resolve`, to records of that
+site that are not forwarded-in, were received in the window and are judged yes/yes. On the device `plant_smoke`
+world (seed 11; synthetic, same-author, lexical judge) all 7 supported conclusions are resolvable, with 0
+extraction-miss confirmations (the lexical extractor and judge share their machinery; a test covers a miss with a
+fake extractor).
+
+### 15.7 E2 (`experiments/e2_pushdown.py`)
+
+```
+python -m mycelic.collective.experiments.e2_pushdown run --x1-prereg FILE --plant FILE --run-id ID
+    [--top-n 60] [--min-candidates N] [--site-routing DIR] [--central-routing FILE] [--allow-external-raw synthetic]
+    [--data-label synthetic] [--deadline-seconds 600] [--bootstrap-b 10000] [--bootstrap-seed 1] [--runs-dir runs]
+    [--allow-dirty] [--dry-run]
+```
+
+**Refusals** (exit 2, nothing written): an existing run id; the prereg and its pack (the four hashes and G5's
+evaluation code hash, as X1 pins them); the pack's `central_allowed_fields` without `site` and `received_date`; dirty
+code under the evaluation paths, `pushdown/` and E2 without `--allow-dirty` (stamped); the world and the plant spec
+with its binding; `--allow-external-raw` and `--data-label` both required and both `synthetic` ("central_raw sends raw
+record text across site boundaries: ..."); a site routing directory without a file per prereg site, or whose judge
+route or escalation names a boundary other than `site:<id>` or `any-simulated`, or the fake provider ("the judge route
+of site <sid> may leave the site"); a central routing on a site boundary or the fake provider; `--bootstrap-b` below
+1000. Without `--site-routing` every site judges with an in-process fake (the lexical judge); without
+`--central-routing` the central conditions use fake handlers, rehearsal only: a record counts when the site's lexical
+judge says yes/yes (raw) or a structured value resolves to the entity and a code maps to the predicate (allowed), and
+`score = min(100, 30 * min(3, confirming sites) + min(10, confirming records))`.
+
+**Per seed**, in prereg order: generate and plant the world, run G5's pipeline, detect run X at its `as_of` with the
+prereg tie salt, and take the detector candidates whose first candidate week is an evaluation week, by `(-snapshot
+score, sha256(tie_salt|key))`, the first `--top-n`. A candidate is `true` when its key is a pattern key and its
+snapshot week lies in the pattern's found window, `decoy` for a decoy key, else `background`. Fewer than 300
+candidates or 5 seeds exits 2 (the partial run directory is left) unless `--min-candidates` allows it, stamped
+`below_protocol_minimum`.
+
+**Scoring**, in `(as_of, seed, key)` order with the site clock at the item's `as_of` (the budget's day):
+`stats_only` is the snapshot score; `central_raw` retrieves with the sites' own `retrieve` across all sites (forwarded
+copies excluded) in the question window, at most 400 records (truncation recorded), and sends their codes, entities,
+language and text to `judge_candidate_raw` (raw) at a `central` runtime with `allow_external_raw=synthetic`;
+`central_allowed` reads only the allowed fields, by subscript (`allowed_view`), of every record, forwarded copies
+included (origin fields are not allowed), whose allowed structured values resolve to the entity and whose received
+week is in the window, and sends them to `judge_candidate_allowed` (structured); `pushdown` is
+`verify_stored(run_id, key)` at the snapshot's `as_of`, scored `STATUS_RANK[status] * 1,000,000 + support lower
+bound`.
+
+**Statistics.** `stats.paired_ranking_bootstrap` over every item pooled: AP (tie-averaged, null without positives)
+and precision@40 per condition with paired percentile intervals (one resampling stream for all conditions), and the
+ratio pushdown AP / central_raw AP (null when central_raw's AP is null or below 0.01).
+
+**Raw text.** `central_raw` reports the UTF-8 bytes of every text it sent; the in-memory payloads are also scanned
+(their overlap must be above 0, a positive control); `central_allowed` reports the shingle overlap of its payloads (0
+by construction); `pushdown` reports the overlap of every crossing transport artifact of each seed (the questions, the
+verdict rows of the receive log, the site ingress and egress logs), from `leakage.scan` with an empty canary manifest
+against that seed's narratives; it must be 0.
+
+**Resolvability** as in section 15.6, and `extraction_miss_confirmations` from each counted confirm's `audit`.
+
+**The bar.** `measurement` is `common.measurement_flag` over every site and central endpoint and every ledger row, so
+any fake makes it false. The 0.90 bar (`{bar, ratio, ratio_at_least_bar, ci_low_at_least_bar,
+pushdown_raw_text_bytes_zero, pass}`) is filled only when `measurement` is true and the ratio is defined; otherwise
+`verdict` is null, `verdicts_withheld` true and `withheld_reason` says why.
+
+**The run file.** `e2.json` is validated against `E2_SCHEMA` (every object closed) before it is written: `kind`,
+`schema_version`, `run_id`, `created_at`, `stamps` (`synthetic` and `internal_only` true, `measurement`,
+`same_author_pack`, `below_protocol_minimum`, `allow_dirty`, `secret_mode: seeded-demo`, `data_label: synthetic`),
+the four pack hashes, the E2 code hash, the prereg and plant sha256, `code`, `endpoints`, `settings`, `candidates`,
+`condition_labels` (each says what the condition is: `central_allowed` is "STRATEGY's R for this task", `central_raw`
+says raw text crosses and the data is synthetic only), `bootstrap`, `conditions`, `ratio`, `raw_text_bytes`,
+`raw_text_scan`, `pushdown` (statuses, verdicts by kind and reason, routes, budget unknowns, timeouts, errors,
+resolvability), `verdict`, `verdicts_withheld`, `withheld_reason`, `items`, `notes`, `paths`, `timings`,
+`content_hash_excludes` and `content_hash` (without `content_hash`, `created_at`, `run_id`, `paths` and `timings`;
+two runs under other run ids and `PYTHONHASHSEED` values give the same hash, tested). No record text, record ref or
+narrative is written to `e2.json` or to `central.ledger.jsonl` beside it (ledger refs are `e2:<n>:raw|allowed`); the
+site ledgers stay in the work directories.
+
+**The smoke fixture.** `plant_e2_smoke.json` (85 narrative-only patterns at 2 or 3 sites, rate 2, 4 to 6 weeks inside
+the evaluation weeks, ids in each counted site's master data, plus 10 decoys of the single-reporter, unmarked-copies
+and high-base-rate classes) yields at least 60 candidates per seed under an X1 prereg of 6 sites, 52 weeks,
+evaluation weeks 20 to 51 and seeds 1 to 5. Its recipe is in `INTEGRATION.md` (G6); no generator script is
+committed. A rehearsal over it (fakes everywhere; synthetic, same-author, **not a measurement**) gave 300 candidates
+over 5 seeds, raw-text bytes of 2,487,381 for central_raw and 0 for central_allowed and pushdown, 265 of 265 supported
+conclusions resolvable, and a withheld verdict. Its AP figures are not quoted here: the fake site judge and the fake
+central judge are the same deterministic reader of the pack's own templates, so their ratio says nothing about any
+model.
+
+### 15.8 What G6 does not show
+
+- **No model was measured.** Every judge was the lexical judge, a scripted fake or a local fake server. E2's bar can
+  only be judged on the founder's runs (RUNBOOK section 13) with `measurement: true`.
+- **Synthetic, same-author worlds.** The lexical judge reads the pack's own templates perfectly, so a fake rehearsal's
+  resolvability and ratio are plumbing checks, not results.
+- **Known hard cases reach `supported`.** Cross-site copies without an origin marker count as independent roots at
+  each site, and a predicate common everywhere confirms everywhere (on the device `plant_smoke` world both decoy
+  classes reach `supported`; the tests record this and assert only well-formedness). Background records add roots: on
+  that world every 6-week window over the same-site-duplicate span also holds one or two background records of the
+  key at that site, so the roots check passes there and only the sites check keeps the decoy a hypothesis; the roots
+  reason appears in the window that holds only the duplicates.
+- **Few reporters at k = 5.** A `'<k'` reporters bucket counts 1, so in `claims_integrity` (k = 5) a pattern planted at
+  two sites with fewer than 5 reporters each stays a hypothesis on reporters until a third site confirms (seen on its
+  `plant_smoke` world; the three-site pattern is supported).
+- **Residual disclosure (X5).** A refute versus an unknown reveals presence in the window (the daily budget limits,
+  not prevents, it), bucket transitions between overlapping windows narrow a count, and verdict buckets can be
+  differenced against weekly cells (`LEAKAGE.md` sections 7 and 9).
+- **No follow-up and no fabric wiring.** Only `supported` conclusions will propose follow-ups (a later gate);
+  fabric events and JetStream subjects for questions, verdicts and conclusions are integration notes
+  (`INTEGRATION.md`, G6), not code.

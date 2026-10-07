@@ -288,12 +288,12 @@ class PlantSpecTests(PlantCase):
                     self.assertEqual((cm.exception.file, cm.exception.problem), (f"fixtures/{name}", "unexpected file"))
                     (fixtures / name).unlink()
         self.assertEqual(DQ.hashes(), {
-            "config_hash": "83c094ffee1f157203f7265a59bdbfc35b7d8f8ed07c35304743377dd301d723",
+            "config_hash": "b9e03c14d88100dac6849ba37525059dfb65e681397c15e59000f5cfbdeeb56f",
             "vocabulary_hash": "e46f521154ce94f42136319ade62cebb5c65515ab90a057470495a606f225901",
             "detector_hash": "c9462f62aa90245f2c7cee50078d337554bded58c4630cda7becbf7a8048c7ec",
             "fixtures_hash": "dc4b70b7044b1094baaa669fb5a3582eeae91af290213e13b94180791db5656d"})
         self.assertEqual(CI.hashes(), {
-            "config_hash": "130b8396eb92e5af060f0dc7b645fb80f00be1e041c1f0d224bcb49566f0cb01",
+            "config_hash": "aa422ef844b583d7d7c0f78afac9147400c0b378b6e193a2347a031330fa329d",
             "vocabulary_hash": "028b7603f2b6ef3bba203dee299ea8b001880ef89cd4b276de8513d2a1a301f3",
             "detector_hash": "2041fe9b3e141a5603836d893c97d5671eb21cbb3da611969efbd0c2c4514b84",
             "fixtures_hash": "a2e8936b4be26683f0860c8c8799e701f9aedfb78ea167d5420ac891111b8d80"})
@@ -322,6 +322,9 @@ class PlantSpecTests(PlantCase):
                 "label": "Fastener", "id_format": None, "separator": None, "case": "upper",
                 "strip_leading_zeros": False, "exact_match_metric": False, "egress": True, "ids": ["HINGE-PIN"]},
               ("egress.json", "egress_entity_types"): [*DQ.egress.egress_entity_types, "fastener"],
+              # G6: every egress entity type needs a question template with predicates null
+              ("questions.json", "templates", "count_predicate_on_entity", "entity_types"):
+                  [*DQ.questions["count_predicate_on_entity"].entity_types, "fastener"],
               ("aliases.json", "fastener"): {"hinge pin": "HINGE-PIN"},
               ("generator.json", "universe", "fastener"): ["HINGE-PIN"]},
              {"entity_type": "fastener", "entity_id": "HINGE-PIN", "predicate": "crack", "visibility": "codes_only"},

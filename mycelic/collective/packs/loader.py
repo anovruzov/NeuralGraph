@@ -21,7 +21,8 @@ mappings, egress, generator, fixtures), then computes the four hashes over the p
 result into a :class:`FrozenPack`, which holds only frozen dataclasses, ``MappingProxyType`` (built in sorted key
 order), tuples, frozensets, scalars and compiled patterns. The four hashes (:data:`HASH_SCOPES`):
 
-* ``config_hash``: every file but ``generator.json`` and the fixtures, plus the version;
+* ``config_hash``: every file but ``generator.json`` and the fixtures, plus the version (so ``questions.json``'s
+  ``pushdown`` block and egress's ``verdict_count_buckets`` are in it, and in no other scope);
 * ``vocabulary_hash``: vocabulary, aliases, codes and the mappings, plus the version (what E1 pins);
 * ``detector_hash``: detectors and rules, plus the egress fields detectors read (:data:`DETECTOR_EGRESS_FIELDS`);
 * ``fixtures_hash``: ``generator.json`` and the fixture lines.
@@ -127,6 +128,9 @@ _DETECTOR_NESTED_KEYS = ("alpha_site", "lambda_floor", "p_min", "p_max", "min_si
                          *_RANKER_WEIGHTS)
 _RULE_KEYS = ("label", "entity_type", "predicate", "min_sites", "min_count_per_site", "window_weeks")
 _TEMPLATE_KEYS = ("text", "entity_types", "predicates")
+_QUESTIONS_KEYS = ("templates", "pushdown")
+_PUSHDOWN_KEYS = ("min_confirming_sites", "min_independent_roots", "min_independent_reporters", "freshness_days",
+                  "max_sibling_sites")
 _FOLLOWUP_KEYS = ("label", "tier", "enabled", "executor", "args_schema", "draft_schema", "owner_role", "daily_cap",
                   "ack_days", "escalate_to_role")
 _ARG_KEYS = MappingProxyType({"entity_id": ("kind", "entity_type"), "predicate": ("kind",), "conclusion_id": ("kind",),
@@ -159,9 +163,9 @@ def _reserved() -> frozenset[str]:
     words: set[str] = set(_ENUM_WORDS) | set(RECORD_KEYS) | set(_CLAIM_FIELDS) | set(SEGMENT_KINDS) | set(_FORMAT_WORDS)
     for keys in (_PACK_KEYS, _VOCAB_KEYS, _ET_KEYS, _PRED_KEYS, _NEG_KEYS, _EXTRACTION_KEYS, _CONF_KEYS, _CODE_KEYS,
                  _MAPPING_KEYS, _DATE_KEYS, _CODESPEC_KEYS, _NARRATIVE_KEYS, _WHERE_KEYS, _EGRESS_KEYS, _DETECTOR_KEYS,
-                 _DETECTOR_NESTED_KEYS, _RULE_KEYS, _TEMPLATE_KEYS, _FOLLOWUP_KEYS, _GENERATOR_KEYS, _SITE_KEYS,
-                 _GEN_CODES_KEYS, _LINK_KEYS, _NARRATIVE_TEMPLATE_KEYS, _FIXTURE_KEYS, _GOLD_KEYS, PLACEHOLDERS,
-                 SURFACES, GEN_KINDS, ARG_KINDS, SEP_VALUES, CASES, METHODS, UNRESOLVED_KEYS,
+                 _DETECTOR_NESTED_KEYS, _RULE_KEYS, _TEMPLATE_KEYS, _QUESTIONS_KEYS, _PUSHDOWN_KEYS, _FOLLOWUP_KEYS,
+                 _GENERATOR_KEYS, _SITE_KEYS, _GEN_CODES_KEYS, _LINK_KEYS, _NARRATIVE_TEMPLATE_KEYS, _FIXTURE_KEYS,
+                 _GOLD_KEYS, PLACEHOLDERS, SURFACES, GEN_KINDS, ARG_KINDS, SEP_VALUES, CASES, METHODS, UNRESOLVED_KEYS,
                  tuple(EXECUTOR_FOR_TIER.values()), tuple(schemacheck.ALLOWED_KEYWORDS), schemacheck.TYPES,
                  ("entity_sentences", "filler", "universe", "links", "surface", "narratives", "master_data",
                   "fill_rates", "predicate_weights", "sites", "start", "label")):
@@ -289,6 +293,17 @@ class QuestionTemplate:
 
 
 @dataclass(frozen=True)
+class PushdownConfig:
+    """``questions.json``'s ``pushdown`` block: the commit gate's thresholds and the sibling cap (G6)."""
+
+    min_confirming_sites: int
+    min_independent_roots: int
+    min_independent_reporters: int
+    freshness_days: int
+    max_sibling_sites: int
+
+
+@dataclass(frozen=True)
 class Role:
     id: str
     label: str
@@ -359,6 +374,7 @@ class FrozenPack:
     detectors: Mapping[str, Any]
     rules: Mapping[str, Rule]
     questions: Mapping[str, QuestionTemplate]
+    pushdown: PushdownConfig
     roles: Mapping[str, Role]
     followups: Mapping[str, FollowupType]
     generator: Mapping[str, Any]
@@ -537,6 +553,9 @@ S_TEMPLATE = _schema(_closed({"text": _string(1, 400), "entity_types": {"type": 
                                                                         "maxItems": 16},
                               "predicates": {"type": ["array", "null"], "items": _ID, "minItems": 1,
                                              "maxItems": 200}}))
+S_PUSHDOWN = _schema(_closed({
+    "min_confirming_sites": _int(1, 100), "min_independent_roots": _int(1, 100000),
+    "min_independent_reporters": _int(1, 100000), "freshness_days": _int(1, 3660), "max_sibling_sites": _int(0, 100)}))
 S_ROLE = _schema(_closed({"label": _LABEL120}))
 S_FOLLOWUP_SCALARS = _schema(_closed({
     "label": _LABEL120, "tier": _string(1, 8), "enabled": _BOOL,
@@ -1031,9 +1050,9 @@ def _question_text(f: str, path: str, text: str) -> None:
             raise PackError(f, path, "placeholder may not carry a conversion or format spec") from None
 
 
-def _questions(b: _Build) -> dict[str, QuestionTemplate]:
+def _questions(b: _Build, egress: Egress) -> tuple[dict[str, QuestionTemplate], PushdownConfig]:
     f = "questions.json"
-    raw = _object(f, "$", b.files[f], ("templates",))
+    raw = _object(f, "$", b.files[f], _QUESTIONS_KEYS)
     templates = _map(f, "$.templates", raw["templates"], ID_RE, "template id", hi=200, reserved=True)
     out = {}
     for q in sorted(templates):
@@ -1047,7 +1066,14 @@ def _questions(b: _Build) -> dict[str, QuestionTemplate]:
             _ref(f, f"{_child(path, 'predicates')}[{i}]", p, b.predicates, "predicate")
         out[q] = QuestionTemplate(id=q, text=tpl["text"], entity_types=tuple(tpl["entity_types"]),
                                   predicates=None if tpl["predicates"] is None else tuple(tpl["predicates"]))
-    return out
+    for t in egress.egress_entity_types:
+        if not any(t in tpl.entity_types and tpl.predicates is None for tpl in out.values()):
+            raise PackError(f, "$.templates", f"egress entity type {t} has no template with predicates null") from None
+    pushdown = _object(f, "$.pushdown", raw["pushdown"], _PUSHDOWN_KEYS)
+    _check(f, "$.pushdown", pushdown, S_PUSHDOWN)
+    if pushdown["freshness_days"] < egress.close_lag_days + 7:
+        raise PackError(f, "$.pushdown.freshness_days", "must be at least egress.close_lag_days + 7") from None
+    return out, PushdownConfig(**{key: pushdown[key] for key in _PUSHDOWN_KEYS})
 
 
 def _arg_schema(b: _Build, spec: Mapping[str, Any]) -> dict[str, Any]:
@@ -1451,7 +1477,7 @@ def load_pack_dir(directory: str | os.PathLike[str], *, expected_id: str | None 
     egress = _egress(b)
     detectors = _detectors(b, egress)
     rules = _rules(b, egress)
-    questions = _questions(b)
+    questions, pushdown = _questions(b, egress)
     roles, followups = _followups(b)
     generator = _generator(b, mappings["mapping"], aliases)
     hashes = compute_hashes(files, [line for _, line in fixture_lines])
@@ -1468,7 +1494,7 @@ def load_pack_dir(directory: str | os.PathLike[str], *, expected_id: str | None 
         codes=MappingProxyType({c: b.codes[c] for c in sorted(b.codes)}),
         aliases=freeze(aliases), mappings=freeze(mappings), egress=egress, detectors=freeze(detectors),
         rules=MappingProxyType({r: rules[r] for r in sorted(rules)}),
-        questions=MappingProxyType({q: questions[q] for q in sorted(questions)}),
+        questions=MappingProxyType({q: questions[q] for q in sorted(questions)}), pushdown=pushdown,
         roles=MappingProxyType({r: roles[r] for r in sorted(roles)}),
         followups=MappingProxyType({x: followups[x] for x in sorted(followups)}),
         generator=freeze(generator),

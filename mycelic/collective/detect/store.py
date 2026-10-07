@@ -38,9 +38,25 @@ Rules:
   current org's sites.
 * :meth:`CollectiveStore.save_run` stores a detection result once: the same ``run_id`` with the same result sha256 is
   a no-op, with another one ``StoreError('run conflict')``. One writer per store.
+
+Pushdown verification (G6, ``pushdown/orchestrator.py``) adds five tables, all prefixed ``pd_`` so a later fabric table
+cannot collide with them. The change is additive (``CREATE ... IF NOT EXISTS``), so ``SCHEMA_VERSION`` stays 1:
+
+* ``pd_questions`` (one row per question id, with the exact body and HQ's display text), ``pd_routes`` (the sites a
+  question went to, ``contributing`` or ``sibling``, with a rank), ``pd_verdicts`` (every verdict per question and
+  site, numbered ``seq`` from 1; a ``site`` verdict holds the exact body, an ``hq`` record a timeout or an error) and
+  ``pd_conclusions`` (versioned conclusions) are append-only: triggers abort any ``UPDATE`` or ``DELETE``.
+  :meth:`CollectiveStore.append_verdict` writes ``seq = last + 1`` unless the body's sha256 equals the site's latest
+  (a duplicate, nothing written), in one transaction;
+* ``pd_verdict_rejections`` holds a refused verdict's sha256, the site only when it is a valid site id, the question
+  id only when it is 64 hex, the reason, and the validator's path and keyword; never a value from the body;
+* the reads the orchestrator routes with: a stored candidate and its run's ``as_of``, a key's visible cells in a
+  window, and per-site lower-bound volumes (a NULL count counts 1) of an entity and of an entity type, over the current
+  org's sites and the cells visible at an ``as_of``.
 """
 from __future__ import annotations
 
+import re
 import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -58,7 +74,10 @@ if TYPE_CHECKING:
 
 SCHEMA_VERSION = 1
 TABLES = ("store_info", "org_sites", "org_log", "bundles", "cells", "rejections", "detection_runs", "candidates",
-          "rule_hits")
+          "rule_hits", "pd_questions", "pd_routes", "pd_verdicts", "pd_verdict_rejections", "pd_conclusions")
+PD_ROLES = ("contributing", "sibling")
+PD_SOURCES = ("site", "hq")
+PD_IMMUTABLE = ("pd_questions", "pd_routes", "pd_verdicts", "pd_conclusions")
 STORE_INFO_KEYS = ("schema_version", "pack_id", "config_hash", "enterprise")
 REJECT_REASONS = ("bad_line", "config_hash", "unknown_site", "invalid", "site_mismatch", "conflict", "sequence")
 RUN_CHANNELS: Mapping[str, tuple[str, ...]] = MappingProxyType({"X": CHANNELS, "S": CHANNELS[:1]})
@@ -94,6 +113,23 @@ _DDL = (
     "CREATE TABLE IF NOT EXISTS rule_hits (run_id TEXT NOT NULL REFERENCES detection_runs(run_id), "
     "rule_id TEXT NOT NULL, key TEXT NOT NULL, first_week TEXT NOT NULL, body BLOB NOT NULL, "
     "PRIMARY KEY (run_id, rule_id, key))",
+    "CREATE TABLE IF NOT EXISTS pd_questions (question_id TEXT PRIMARY KEY, candidate_key TEXT NOT NULL, run_id TEXT, "
+    "template_id TEXT NOT NULL, as_of TEXT NOT NULL, window_start TEXT NOT NULL, window_end TEXT NOT NULL, "
+    "pack_hash TEXT NOT NULL, body BLOB NOT NULL, display_text TEXT NOT NULL, created_at TEXT NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS pd_routes (question_id TEXT NOT NULL REFERENCES pd_questions(question_id), "
+    "site TEXT NOT NULL, role TEXT NOT NULL, rank INTEGER NOT NULL, PRIMARY KEY (question_id, site))",
+    "CREATE TABLE IF NOT EXISTS pd_verdicts (question_id TEXT NOT NULL REFERENCES pd_questions(question_id), "
+    "site TEXT NOT NULL, seq INTEGER NOT NULL, source TEXT NOT NULL, verdict TEXT NOT NULL, reason TEXT, "
+    "body BLOB NOT NULL, sha256 TEXT NOT NULL, received_as_of TEXT NOT NULL, received_at TEXT NOT NULL, "
+    "PRIMARY KEY (question_id, site, seq))",
+    "CREATE TABLE IF NOT EXISTS pd_verdict_rejections (seq INTEGER PRIMARY KEY, sha256 TEXT NOT NULL, site TEXT, "
+    "question_id TEXT, reason TEXT NOT NULL, path TEXT, keyword TEXT, received_at TEXT NOT NULL, "
+    "UNIQUE (sha256, reason))",
+    "CREATE TABLE IF NOT EXISTS pd_conclusions (conclusion_id TEXT NOT NULL, version INTEGER NOT NULL, "
+    "question_id TEXT NOT NULL REFERENCES pd_questions(question_id), as_of TEXT NOT NULL, status TEXT NOT NULL, "
+    "body BLOB NOT NULL, sha256 TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (conclusion_id, version))",
+    *(f"CREATE TRIGGER IF NOT EXISTS {table}_no_{op.lower()} BEFORE {op} ON {table} "
+      "BEGIN SELECT RAISE(ABORT, 'immutable'); END" for table in PD_IMMUTABLE for op in ("UPDATE", "DELETE")),
 )
 _STORE_INFO = "SELECT key, value FROM store_info ORDER BY key"
 _INSERT_STORE_INFO = "INSERT INTO store_info (key, value) VALUES (?, ?)"
@@ -133,6 +169,43 @@ _INSERT_RUN = ("INSERT INTO detection_runs (run_id, run_channel, as_of, last_wee
 _INSERT_CANDIDATE = ("INSERT INTO candidates (run_id, key, first_candidate_week, detection_week, body) "
                      "VALUES (?, ?, ?, ?, ?)")
 _INSERT_RULE_HIT = "INSERT INTO rule_hits (run_id, rule_id, key, first_week, body) VALUES (?, ?, ?, ?, ?)"
+_CANDIDATE = "SELECT body FROM candidates WHERE run_id = ? AND key = ? ORDER BY key"
+_RUN_AS_OF = "SELECT as_of FROM detection_runs WHERE run_id = ? ORDER BY run_id"
+# the cells visible at an as_of, of the given channels, at the current org's sites (each query spells it out)
+_KEY_CELLS = (
+    "SELECT site, entity_type, entity_id, predicate, iso_week, channel, n, n_roots, n_reporters, res_conf_min, "
+    "bundle, as_of FROM cells WHERE entity_type = ? AND entity_id = ? AND predicate = ? AND iso_week >= ? "
+    "AND iso_week <= ? AND as_of <= ? AND channel IN (?, ?) AND site IN (SELECT site_id FROM org_sites) "
+    "ORDER BY site, entity_type, entity_id, predicate, iso_week, channel")
+_ENTITY_COUNTS = (
+    "SELECT site, n FROM cells WHERE entity_type = ? AND entity_id = ? AND iso_week >= ? AND iso_week <= ? "
+    "AND as_of <= ? AND channel IN (?, ?) AND site IN (SELECT site_id FROM org_sites) "
+    "ORDER BY site, entity_type, entity_id, predicate, iso_week, channel")
+_TYPE_COUNTS = (
+    "SELECT site, n FROM cells WHERE entity_type = ? AND iso_week >= ? AND iso_week <= ? "
+    "AND as_of <= ? AND channel IN (?, ?) AND site IN (SELECT site_id FROM org_sites) "
+    "ORDER BY site, entity_type, entity_id, predicate, iso_week, channel")
+_PD_QUESTION_COLUMNS = ("question_id, candidate_key, run_id, template_id, as_of, window_start, window_end, pack_hash, "
+                        "body, display_text, created_at")
+_INSERT_PD_QUESTION = "INSERT INTO pd_questions (" + _PD_QUESTION_COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+_PD_QUESTION = ("SELECT question_id, candidate_key, run_id, template_id, as_of, window_start, window_end, pack_hash, "
+                "body, display_text, created_at FROM pd_questions WHERE question_id = ? ORDER BY question_id")
+_INSERT_PD_ROUTE = "INSERT INTO pd_routes (question_id, site, role, rank) VALUES (?, ?, ?, ?)"
+_PD_ROUTES = "SELECT question_id, site, role, rank FROM pd_routes WHERE question_id = ? ORDER BY site"
+_PD_VERDICT_COLUMNS = ("question_id, site, seq, source, verdict, reason, body, sha256, received_as_of, received_at")
+_PD_LAST_VERDICT = ("SELECT seq, sha256 FROM pd_verdicts WHERE question_id = ? AND site = ? "
+                    "ORDER BY seq DESC LIMIT 1")
+_INSERT_PD_VERDICT = "INSERT INTO pd_verdicts (" + _PD_VERDICT_COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+_PD_VERDICTS = ("SELECT question_id, site, seq, source, verdict, reason, body, sha256, received_as_of, received_at "
+                "FROM pd_verdicts WHERE question_id = ? ORDER BY site, seq")
+_INSERT_PD_REJECTION = ("INSERT OR IGNORE INTO pd_verdict_rejections (sha256, site, question_id, reason, path, "
+                        "keyword, received_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
+_PD_REJECTIONS = ("SELECT seq, sha256, site, question_id, reason, path, keyword, received_at "
+                  "FROM pd_verdict_rejections ORDER BY seq")
+_PD_CONCLUSION_COLUMNS = "conclusion_id, version, question_id, as_of, status, body, sha256, created_at"
+_INSERT_PD_CONCLUSION = "INSERT INTO pd_conclusions (" + _PD_CONCLUSION_COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+_PD_CONCLUSIONS = ("SELECT conclusion_id, version, question_id, as_of, status, body, sha256, created_at "
+                   "FROM pd_conclusions WHERE conclusion_id = ? ORDER BY version")
 
 
 class StoreError(ValueError):
@@ -184,6 +257,64 @@ class OrgLogRow(NamedTuple):
     at: str
 
 
+class QuestionRow(NamedTuple):
+    question_id: str
+    candidate_key: str
+    run_id: str | None
+    template_id: str
+    as_of: str
+    window_start: str
+    window_end: str
+    pack_hash: str
+    body: bytes
+    display_text: str
+    created_at: str
+
+
+class RouteRow(NamedTuple):
+    question_id: str
+    site: str
+    role: str
+    rank: int
+
+
+class PdVerdictRow(NamedTuple):
+    """One verdict HQ holds for a (question, site): a site's exact body, or an HQ record of a timeout or an error."""
+
+    question_id: str
+    site: str
+    seq: int
+    source: str
+    verdict: str
+    reason: str | None
+    body: bytes
+    sha256: str
+    received_as_of: str
+    received_at: str
+
+
+class PdRejectionRow(NamedTuple):
+    seq: int
+    sha256: str
+    site: str | None
+    question_id: str | None
+    reason: str
+    path: str | None
+    keyword: str | None
+    received_at: str
+
+
+class ConclusionRow(NamedTuple):
+    conclusion_id: str
+    version: int
+    question_id: str
+    as_of: str
+    status: str
+    body: bytes
+    sha256: str
+    created_at: str
+
+
 @dataclass(frozen=True)
 class IngestReport:
     accepted: int
@@ -194,6 +325,9 @@ class IngestReport:
 
 def _count(value: Any) -> int | None:
     return None if value == SUPPRESSED else value
+
+
+_HEX64 = re.compile(r"[0-9a-f]{64}", re.ASCII)
 
 
 def _valid_site(value: Any) -> str | None:
@@ -431,3 +565,92 @@ class CollectiveStore:
                                                   canonical_bytes(c)) for c in result["candidates"]])
             conn.executemany(_INSERT_RULE_HIT, [(run_id, h["rule_id"], h["key"], h["first_week"], canonical_bytes(h))
                                                 for h in result["rule_hits"]])
+
+    # ------------------------------------------------------------------ pushdown reads (G6)
+    def candidate(self, run_id: str, key: str) -> dict[str, Any] | None:
+        """A stored candidate's body, or None."""
+        row = self._conn.execute(_CANDIDATE, (run_id, key)).fetchone()
+        return strict_load(bytes(row[0])) if row is not None else None
+
+    def run_as_of(self, run_id: str) -> str | None:
+        row = self._conn.execute(_RUN_AS_OF, (run_id,)).fetchone()
+        return row[0] if row is not None else None
+
+    def key_cells(self, entity_type: str, entity_id: str, predicate: str, first_week: str, last_week: str,
+                  as_of: str, channels: tuple[str, ...]) -> tuple[CellRow, ...]:
+        """The key's cells of the current org's sites in ``[first_week, last_week]``, visible at ``as_of``, in
+        ``channels`` (one or two channel names)."""
+        rows = self._conn.execute(_KEY_CELLS, (entity_type, entity_id, predicate, first_week, last_week, as_of,
+                                               channels[0], channels[-1])).fetchall()
+        return tuple(CellRow(*row) for row in rows)
+
+    @staticmethod
+    def _volumes(rows: list[tuple[str, int | None]]) -> dict[str, int]:
+        out: dict[str, int] = {}
+        for site, n in rows:
+            out[site] = out.get(site, 0) + (n if n is not None else 1)
+        return out
+
+    def entity_site_volumes(self, entity_type: str, entity_id: str, first_week: str, last_week: str, as_of: str,
+                            channels: tuple[str, ...]) -> dict[str, int]:
+        """Per site, the lower-bound count of the entity's cells (any predicate; a NULL count counts 1)."""
+        return self._volumes(self._conn.execute(_ENTITY_COUNTS, (entity_type, entity_id, first_week, last_week, as_of,
+                                                                 channels[0], channels[-1])).fetchall())
+
+    def type_site_volumes(self, entity_type: str, first_week: str, last_week: str, as_of: str,
+                          channels: tuple[str, ...]) -> dict[str, int]:
+        """Per site, the lower-bound count of every cell of the entity type."""
+        return self._volumes(self._conn.execute(_TYPE_COUNTS, (entity_type, first_week, last_week, as_of,
+                                                               channels[0], channels[-1])).fetchall())
+
+    # ------------------------------------------------------------------ pushdown writes and reads (G6)
+    def add_question(self, row: QuestionRow, routes: tuple[RouteRow, ...]) -> None:
+        """A question and its routes, in one transaction."""
+        with self._write() as conn:
+            conn.execute(_INSERT_PD_QUESTION, tuple(row))
+            conn.executemany(_INSERT_PD_ROUTE, [tuple(r) for r in routes])
+
+    def question(self, question_id: str) -> QuestionRow | None:
+        row = self._conn.execute(_PD_QUESTION, (question_id,)).fetchone()
+        return QuestionRow(*row[:8], bytes(row[8]), *row[9:]) if row is not None else None
+
+    def routes(self, question_id: str) -> tuple[RouteRow, ...]:
+        return tuple(RouteRow(*row) for row in self._conn.execute(_PD_ROUTES, (question_id,)).fetchall())
+
+    def append_verdict(self, *, question_id: str, site: str, source: str, verdict: str, reason: str | None,
+                       body: bytes, received_as_of: str) -> str:
+        """``'duplicate'`` (nothing written) when ``body``'s sha256 equals the site's latest verdict for the question,
+        else ``'accepted'`` with ``seq = last + 1``; one transaction."""
+        sha = sha256_hex(body)
+        with self._write() as conn:
+            last = conn.execute(_PD_LAST_VERDICT, (question_id, site)).fetchone()
+            if last is not None and last[1] == sha:
+                return "duplicate"
+            conn.execute(_INSERT_PD_VERDICT, (question_id, site, (last[0] if last is not None else 0) + 1, source,
+                                              verdict, reason, body, sha, received_as_of, self._now()))
+        return "accepted"
+
+    def pd_verdicts(self, question_id: str) -> tuple[PdVerdictRow, ...]:
+        return tuple(PdVerdictRow(*row[:6], bytes(row[6]), *row[7:])
+                     for row in self._conn.execute(_PD_VERDICTS, (question_id,)).fetchall())
+
+    def add_verdict_rejection(self, *, sha256: str, site: str | None, question_id: str | None, reason: str,
+                              path: str | None, keyword: str | None) -> None:
+        """One rejection row (``INSERT OR IGNORE`` on ``(sha256, reason)``); ``site`` and ``question_id`` are kept
+        only when they are a valid site id and 64 hex."""
+        site = _valid_site(site)
+        qid = question_id if isinstance(question_id, str) and _HEX64.fullmatch(question_id) else None
+        with self._write() as conn:
+            conn.execute(_INSERT_PD_REJECTION, (sha256, site, qid, reason, path, keyword, self._now()))
+
+    def verdict_rejections(self) -> tuple[PdRejectionRow, ...]:
+        return tuple(PdRejectionRow(*row) for row in self._conn.execute(_PD_REJECTIONS).fetchall())
+
+    def add_conclusion(self, row: ConclusionRow) -> None:
+        with self._write() as conn:
+            conn.execute(_INSERT_PD_CONCLUSION, tuple(row))
+
+    def conclusions(self, conclusion_id: str) -> tuple[ConclusionRow, ...]:
+        """Every stored version of a conclusion, oldest first."""
+        return tuple(ConclusionRow(*row[:5], bytes(row[5]), *row[6:])
+                     for row in self._conn.execute(_PD_CONCLUSIONS, (conclusion_id,)).fetchall())

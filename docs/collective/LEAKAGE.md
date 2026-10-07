@@ -1,4 +1,4 @@
-# G0: what may leave a site, and the text-leakage scan
+# G0: what may cross a site boundary, and the text-leakage scan
 
 **G0 proves only that text did not leave.** It plants canaries in raw records and scans every byte that crossed a
 site boundary for them and for narrative text. STRATEGY section 6.4 calls this the weakest leak mode: counts and
@@ -13,12 +13,15 @@ lexical extractor). None of it measures a model, a partner's data or a real site
 ## 1. What may cross, and why
 
 A site keeps its records, claims and extraction stats in its own SQLite file (`site-<id>.sqlite3`, ARCHITECTURE
-section 12). Exactly two artifact types leave, both through one `Boundary` (`edge/egress.py`), in one direction:
+section 12). Four artifact types cross one `Boundary` (`edge/egress.py`), each in one direction. G3 let two leave;
+G6 adds the verdict, which leaves, and the question, the only artifact that comes in (section 9):
 
-| Artifact | What it holds | What it never holds |
-|---|---|---|
-| `cells_bundle` | weekly count cells per (entity type, entity id, predicate, ISO week, channel): `n` records, `n_roots` distinct roots, `n_reporters` distinct reporters, and `res_conf_min` when `n` is exact | narrative, persons, reporters, record refs, dates finer than a week, totals or marginals, forwarded-in records |
-| `usage_summary` | per (task, endpoint): calls, ok, errors by kind, missing-token counts, a fake flag; token sums and latency p50/p95 only when calls >= k | `ts`, `ref`, `host`, `run_id`, model names, per-call rows |
+| Artifact | Direction | What it holds | What it never holds |
+|---|---|---|---|
+| `cells_bundle` | out | weekly count cells per (entity type, entity id, predicate, ISO week, channel): `n` records, `n_roots` distinct roots, `n_reporters` distinct reporters, and `res_conf_min` when `n` is exact | narrative, persons, reporters, record refs, dates finer than a week, totals or marginals, forwarded-in records |
+| `usage_summary` | out | per (task, endpoint): calls, ok, errors by kind, missing-token counts, a fake flag; token sums and latency p50/p95 only when calls >= k | `ts`, `ref`, `host`, `run_id`, model names, per-call rows |
+| `question` (G6) | in | one candidate key, a pack template id, the params `{entity_type, entity_id, predicate}`, a window of closed ISO weeks, `as_of`, the pack id and hash, the question id | any text (the template's display text stays at HQ), a record ref, a count |
+| `verdict` (G6) | out | `confirm`, `refute` or `unknown`; four count buckets (`'<k'`, `k-9`, `10-49`, `50+`); the newest confirming week; one opaque 16-hex `evidence_ref`; `truncated`, `quality`, `secret_mode`; a reason only for `budget` or `no_secret` | text, an exact count, a record ref or any per-record handle, judged or failure counts, the site's own reason for an unknown |
 
 The rules, each enforced in code and tested:
 
@@ -107,18 +110,21 @@ pairs, and the short escapes). Decoding the artifact catches every escaped form 
   of matched positions, the maximum over its views, so escaping does not double count.
 
 **What is scanned.** Everything that crossed: each site's egress log, the whole HQ directory (so later `-wal` files
-are covered), and each `cells_bundle` and `usage_summary` body from the HQ log, separately. **What is never scanned
-as crossing:** the site databases and the manifest. The site ledgers stay at their site; they are scanned as a
+are covered), and each `cells_bundle` and `usage_summary` body from the HQ log, separately. Since G6 also every
+question (each line of `hq/questions.jsonl`), every verdict body of the HQ log, each site's ingress log, and HQ's
+collective store with its `-wal` (section 9). **What is never scanned as crossing:** the site databases and the
+manifest. The site ledgers stay at their site; they are scanned as a
 separate hygiene class (`site_ledger_hygiene`), which must also be clean. **The positive control** scans the first
 site's database: the scanner must find canaries and narrative text there, or the run fails, because a scanner that
 finds nothing anywhere proves nothing.
 
-Measured on the runs of section 1 (synthetic, fake model): every run exits 0 with `hits` empty and
-`shingle_overlap_bytes` 0. The positive control found 880 canary hits and 40,318 bytes of narrative overlap in
-`edge/site-plant-ashvale.sqlite3` (`device_quality`), and 1,180 hits and 43,524 bytes in
+Measured on the runs of section 1 (G3, the edge stage only; synthetic, fake model): every run exits 0 with `hits`
+empty and `shingle_overlap_bytes` 0. The positive control found 880 canary hits and 40,318 bytes of narrative overlap
+in `edge/site-plant-ashvale.sqlite3` (`device_quality`), and 1,180 hits and 43,524 bytes in
 `edge/site-motor-north.sqlite3` (`claims_integrity`). The `device_quality` run planted 4,297 canaries (a 3,789,
 b 240, c 268) and scanned 494,528 bytes of cell bodies, 499,664 bytes of HQ log, the same of site egress logs and
-2,671 bytes of usage summaries; its ledgers (563,827 bytes) were clean.
+2,671 bytes of usage summaries; its ledgers (563,827 bytes) were clean. Section 9 has the same runs with G6's
+pushdown stage.
 
 ## 5. `leakage.json`
 
@@ -130,7 +136,8 @@ b 240, c 268) and scanned 494,528 bytes of cell bodies, 499,664 bytes of HQ log,
 | `seed`, `records`, `sites`, `weeks`, `world_digest` | the synthetic world |
 | `mode`, `models_fake` | `fake`, `lexical` or `routing`; true for the fake provider, false for routing, null for lexical (no model) |
 | `as_of`, `clock` | the simulated clock: ingest the day after the last record, emit when every record week and the ingest week are closed |
-| `stages` | the stages that ran (G3: `edge`) |
+| `stages` | the stages that ran (G3: `edge`; G6: `edge`, `pushdown`) |
+| `pushdown_totals` | G6: the judge (`fake`, `lexical` or `routing`), the secret mode, detector and constructed candidates verified, questions, routes, verdicts by kind and conclusions by status |
 | `scope`, `not_covered` | `text-only`, and section 7's list |
 | `canaries_planted`, `canaries_by_class` | totals per class |
 | `artifact_classes`, `scanned` | bytes and items per crossing class; each scanned artifact with its bytes |
@@ -164,6 +171,10 @@ entries do not fail a run.
 - Encoded or transformed text (hashes, base64, translation, paraphrase).
 - Fragments shorter than 8 canary-core characters or 24 narrative characters.
 - Strings split across SQLite pages.
+- Presence or absence of an entity at a site in a question window, revealed by a refute versus an unknown; limited,
+  not prevented, by the per-entity daily question budget (G6, X5).
+- Bucket transitions between overlapping question windows for one key, which can narrow a count inside its bucket
+  (G6, X5).
 
 **Known limitation (verbatim from `leakage.KNOWN_LIMITATION_NOTE`):** With require_master_data off, ids found only in
 narratives leave as cell keys (their counts suppressed), so id-shaped person data written into a narrative crosses.
@@ -177,3 +188,82 @@ With master data on, both packs list none.
 ## 8. How to run it
 
 RUNBOOK section 9 has the commands. Send back `leakage.json` only, never `private/manifest.json`.
+
+## 9. Questions and verdicts (G6)
+
+Pushdown verification (ARCHITECTURE section 15) is the one place HQ talks back to a site. HQ asks a narrow question
+about one candidate; the site answers from its own raw records with its in-boundary model (or the lexical judge) and
+sends a verdict. Both cross the same Boundary as the cells, through the same validator, and G0 scans both.
+
+**The question (in).** Exactly nine keys: `schema_version`, `pack`, `pack_hash`, `question_id`, `candidate_key`,
+`template_id`, `params {entity_type, entity_id, predicate}`, `window {start_week, end_week}` and `as_of`. The params
+are an egress entity type, a canonical id (an alias-only type's id is one of its ids) and a pack predicate, checked
+before anything is built. The template's display text ("In the last 6 weeks, how many of your records describe ...")
+is rendered for HQ's screens and never sent. The site refuses a window that ends after the last week closed by its own
+clock (`range`), so a question cannot ask about a week the site has not closed. A question tells the site which key
+HQ is looking at; that is what it is for.
+
+**The verdict (out).** Every leaf is an id (the pack, the site), a 64-hex id, a fixed enum string, an ISO week, a
+bucket label, the 16-hex `evidence_ref`, a bool or `schema_version` 1. The spec is closed: an int count anywhere, a
+count string such as `'7'`, a list of record refs, judged or failure counts and free-text reasons are all refused
+structurally, and every cross-field rule is checked (a confirm carries support, roots and reporters buckets, the
+newest week inside the window and an `evidence_ref`; a refute carries only the entity-records bucket and a reference;
+an unknown carries no bucket, week or reference; the roots and reporters buckets never exceed the support bucket;
+`secret_mode` is `none` exactly when the reason is `no_secret`; the `verdict_id` is the sha256 of the body without it
+and the reference).
+
+**Buckets.** A count leaves only as a label of `verdict_buckets(pack)`, from the pack's `verdict_count_buckets`
+(`[3, 10, 50]` for `device_quality`, `[5, 10, 50]` for `claims_integrity`): `'<k'` for 1 to k-1, then `3-9` (or
+`5-9`), `10-49` and `50+`. A count of 0 is never bucketed: a site with no matching record answers `unknown`. HQ uses
+each label's lower bound (`'<k'` counts 1).
+
+**evidence_ref.** STRATEGY section 6.3 has a verdict carry `record_ids_local[]`. G6 sends one opaque reference per
+verdict instead: `HMAC-SHA256(site secret, verdict_id)`, first 16 hex characters. A list's length is an exact count,
+and per-record handles let HQ link records across questions; one keyed reference per verdict lets the site's auditor
+resolve it (`SiteVerifier.resolve`) to the local record refs behind it, and lets nobody else. The refs, the judged,
+failure and unclear counts, the extraction misses and the site's own reason for an unknown stay in the site's
+`verdict_log`.
+
+**The question budget.** A site answers at most `question_budget_per_entity_per_day` distinct questions about one
+entity per day of its own clock (5 in `device_quality`, 3 in `claims_integrity`); further ones get `unknown` with the
+wire reason `budget`, are not stored, and are answered on a later day. Re-delivering a question answered before
+returns the stored bytes and uses no budget. The budget limits how fast HQ can probe one entity with overlapping
+windows; it does not prevent it.
+
+**Unknown discloses little.** Only two reasons cross: `budget` and `no_secret`. A site's own reason (no record, unclear
+judgements, failures on more than half the records) stays at the site; only `quality: degraded` crosses for the last.
+`timeout` and `error` are HQ's own records of a route that did not answer.
+
+**Secrets and rotation.** A site's secret is a file of exactly 64 lowercase hex characters (one trailing newline
+allowed); a malformed file stops the verifier at construction. A missing file fails closed: every question gets
+`unknown` with `no_secret`, before any record is read or the budget is checked. Demos use `seeded-demo` secrets
+(`sha256("mycelic-seeded-demo-secret:<seed>:<site id>")`), stamped in every verdict's `secret_mode` and in E2's
+stamps; they are not secrets. Rotating the file makes every earlier `evidence_ref` unresolvable (resolve recomputes
+the HMAC with the current secret) unless the old file is kept.
+
+**Residual risks (X5), not hidden.** Three remain and are listed in section 7: a refute versus an unknown reveals
+whether a site holds the entity in the window (the budget limits it); bucket transitions between overlapping windows
+for one key can narrow a count inside its bucket; and verdict buckets can be differenced against weekly cells.
+Verdicts also reveal, by design, which sites hold supporting evidence for a candidate.
+
+**What G0 scans for G6.** The pushdown stage opens HQ's collective store at `hqdb/collective.sqlite3` (outside `hq/`,
+so the edge stage's whole-directory artifact still covers only the transport logs: `receive.jsonl` with its cell,
+usage and verdict rows, and `questions.jsonl`), ingests the receive log, detects (run X), verifies up to 20 detector
+candidates and tops them up to 5 with constructed ones, every site answering with a seeded-demo secret. It adds four
+crossing classes: `questions`, `verdicts`, `collective_sqlite3` (the HQ database and its `-wal`, read while the store
+is open) and `site_ingress_log`.
+
+Measured on the G0 runs of section 1 with the pushdown stage (seed 11, 1,000 records, 6 sites; synthetic, fake
+model, which replays the lexical judge): both exit 0 with `hits` empty and `shingle_overlap_bytes` 0.
+
+| | `device_quality` | `claims_integrity` |
+|---|---|---|
+| questions (candidates verified) | 9 | 7 |
+| routes, verdicts | 50: 40 confirm, 10 refute | 41: 35 confirm, 6 refute |
+| conclusions | 4 supported, 3 stale, 2 hypothesis | 1 supported, 1 stale, 5 hypothesis |
+| bytes scanned: questions, verdicts | 22,398, 30,734 | 19,531, 25,145 |
+| bytes scanned: HQ database and `-wal`, site ingress logs | 2,278,368, 32,335 | 2,220,688, 27,555 |
+
+`claims_integrity` at its own setting (master data off) now lists 660 known-limitation entries for the same 165
+class-c canaries as before: the fourth artifact holding each is HQ's database, which stores the cells. No question
+and no verdict carries one. These are synthetic numbers from fake models, not measurements.

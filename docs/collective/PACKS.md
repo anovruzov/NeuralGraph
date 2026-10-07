@@ -26,7 +26,7 @@ specs, below, are the one exception).
 | `egress.json` | k, count suppression and granularity, verdict count buckets, which entity types may leave a site, the fields that never leave (`never_fields`) and the fields a restricted central baseline may read, verification limits |
 | `detectors.json` | the parameters of the HQ detectors (G4 set the shape; section 1.1): alert budget and cooldown, baseline, window and minimum history weeks, the burst test, co-occurrence lift, resolution, independence, decoy filters and the ranker's default weights |
 | `rules.json` | hand-written rules, the second detection channel |
-| `questions.json` | pushdown question templates; only `{window}`, `{predicate_label}`, `{entity_type_label}` and `{entity_id}` may appear, without conversions or format specs, so a template can embed no record content |
+| `questions.json` | pushdown question templates; only `{window}`, `{predicate_label}`, `{entity_type_label}` and `{entity_id}` may appear, without conversions or format specs, so a template can embed no record content. Since G6 also the required `pushdown` block: the commit gate's thresholds and the sibling cap (section 1.2) |
 | `followups.json` | roles and follow-up types: tier (T0 packet, T1 draft, T2 write; T3 is never an action type and an enabled T2 is refused), owner and escalation roles, daily cap, acknowledgement days, an argument DSL (entity id, predicate, conclusion id, enum, integer: no free text) and, for drafts, a JSON schema whose every string has a `maxLength` |
 | `generator.json` | the synthetic world spec: sites, rates, predicate weights, code rates, the id universe and its links, surface weights, narrative templates per language and predicate, entity sentences, filler, person and reporter generators, site master data |
 | `fixtures/records.jsonl` | at least 40 hand-labelled records, each `{"record", "gold"}`; the same line format as E1's `labels.jsonl` |
@@ -94,6 +94,38 @@ cooldown 4, baseline 26, window 8, minimum history 12; `alpha_site` 0.01, `lambd
 `base_rate_site_fraction` 0.5; bias -4.0 and weights 0.35, 0.5, 0.4, 0.3, -1.0, -1.5, -1.0, -1.5 in the order above.
 They are default weights; nothing learns them. Changing any of them changes `config_hash` and `detector_hash`, so
 site stores made with the old pack refuse to reopen (`site_info mismatch`) and a new HQ store is needed.
+
+### 1.2 Pushdown verification: `questions.json`'s `pushdown` block and the verdict buckets (G6)
+
+`questions.json` holds `templates` and, since G6, a required `pushdown` object. It is closed and every key is
+required; a missing, extra or out-of-range key is a `PackError` naming `questions.json` and its path. The keys are in
+`config_hash` only (not `detector_hash`: detection does not read them) and are reserved words.
+
+| Key | Range | What it controls (`pushdown/gate.py`, `pushdown/orchestrator.py`) |
+|---|---|---|
+| `min_confirming_sites` | int 1..100 | sites whose confirm counts (support of at least k records) a `supported` conclusion needs |
+| `min_independent_roots` | int 1..100000 | the sum over counted confirms of the roots bucket's lower bound (`'<k'` counts 1) it needs |
+| `min_independent_reporters` | int 1..100000 | the same for reporters (every unknown reporter at a site is one shared reporter) |
+| `freshness_days` | int 1..3660, and >= `egress.close_lag_days + 7` | a conclusion is `stale` when the newest counted confirming week ended more than this many days before `as_of` (exactly this many is fresh) |
+| `max_sibling_sites` | int 0..100 | how many sibling sites (sites that did not contribute cells to the key, ranked by the entity's and then the entity type's volume) a question also goes to, for negative evidence and extraction misses |
+
+Two more load checks: `freshness_days` below `close_lag_days + 7` is refused (`must be at least
+egress.close_lag_days + 7`), so the newest closed week is never stale; and every egress entity type needs a template
+whose `predicates` is null (`egress entity type <t> has no template with predicates null`), so HQ can ask about any
+key a cell can name. Templates are chosen in sorted id order: the first whose `entity_types` hold the type and whose
+`predicates` are null or hold the predicate.
+
+**Built-in values (the same author's defaults, not fitted):** `device_quality` 2, 3, 3, 42, 2; `claims_integrity`
+2, 3, 3, 56, 2 (in the table's order). `claims_integrity`'s one template also covers `damage_area` since G6.
+
+**Verdict buckets** (`egress.json`'s `verdict_count_buckets`). The first edge must equal `k`. A verdict carries a
+count only as a label: `'<k'` for 1 to `k - 1`, then `lo-hi` per edge up to the next edge minus 1 (or `lo` alone
+when that is `lo`), then `last+`. G6 set the edges to `[k, 10, 50]` in both packs: `device_quality` `[3, 10, 50]`
+(`'<k'`, `3-9`, `10-49`, `50+`) and `claims_integrity` `[5, 10, 50]` (`'<k'`, `5-9`, `10-49`, `50+`). Only
+`config_hash` changed; the other three hashes are byte-identical to G5 (`INTEGRATION.md`, G6). `egress.json`'s
+`verify_max_records` caps the records a site judges for one question (newest first; the verdict says `truncated`)
+and `question_budget_per_entity_per_day` caps the distinct questions a site answers about one entity per day of its
+own clock (`LEAKAGE.md` section 9).
 
 ## 2. Freezing and the four hashes
 

@@ -8,9 +8,11 @@
 * RunbookCommandTests: every command in ``docs/collective/RUNBOOK.md`` runs with ``--dry-run`` appended, with the
   network blocked, and creates nothing.
 * DomainLiteralTests: the generic collective code holds no domain-pack literal (G2).
-* HqImportGuardTests: the HQ detection modules (``mycelic/collective/detect``) import nothing site-side, no harness and
-  no model client (static check and a fresh interpreter) (G4).
-* ClockEntropyTests: every ``detect`` module is on the determinism list and reads no clock or entropy (G4).
+* HqImportGuardTests: the HQ detection modules (``mycelic/collective/detect``) and, since G6, the pushdown modules
+  (``mycelic/collective/pushdown``) import nothing site-side (the site verifier included), no harness and no model
+  client (static check and a fresh interpreter) (G4, G6).
+* ClockEntropyTests: every ``detect`` and ``pushdown`` module is on the determinism list and reads no clock or entropy
+  (G4, G6).
 * EvaluateImportGuardTests: no ``evaluate`` module and no openFDA replay imports an inference module or a model client
   (static check) (G5).
 
@@ -88,6 +90,12 @@ STDLIB_ONLY_MODULES = (
     "mycelic.collective.evaluate.baselines",
     "mycelic.collective.evaluate.harness",
     "mycelic.collective.experiments.openfda_replay",
+    "mycelic.collective.pushdown",
+    "mycelic.collective.pushdown.questions",
+    "mycelic.collective.pushdown.gate",
+    "mycelic.collective.pushdown.orchestrator",
+    "mycelic.collective.edge.verify",
+    "mycelic.collective.experiments.e2_pushdown",
 )
 CLI_MODULES = (
     ("mycelic.collective.experiments.e3_latency",),
@@ -107,6 +115,7 @@ CLI_MODULES = (
     ("mycelic.collective.experiments.openfda_replay", "prereg"),
     ("mycelic.collective.experiments.openfda_replay", "signals"),
     ("mycelic.collective.experiments.openfda_replay", "score"),
+    ("mycelic.collective.experiments.e2_pushdown", "run"),
 )
 NAME_SCAN_ROOTS = ("mycelic/collective", "docs/collective", "demo/collective", "tests/mycelic/test_collective_*.py",
                    "runs/.gitignore")
@@ -142,11 +151,20 @@ DETERMINISTIC_MODULES = (
     "mycelic/collective/evaluate/baselines.py",
     "mycelic/collective/evaluate/harness.py",
     "mycelic/collective/experiments/openfda_replay.py",
+    "mycelic/collective/pushdown/__init__.py",
+    "mycelic/collective/pushdown/questions.py",
+    "mycelic/collective/pushdown/orchestrator.py",
+    "mycelic/collective/pushdown/gate.py",
+    "mycelic/collective/edge/verify.py",
+    "mycelic/collective/experiments/e2_pushdown.py",
 )
 DETECT_DIR = ROOT / "mycelic" / "collective" / "detect"
-# what the HQ side may never import: the site's raw-record modules, the extractor, the world generator, the harness
-# and evaluation modules, any inference module (egress pulls in only inference.errors), and every model client
+PUSHDOWN_DIR = ROOT / "mycelic" / "collective" / "pushdown"
+# what the HQ side (detect, and pushdown since G6) may never import: the site's raw-record modules, the extractor, the
+# site verifier, the world generator, the harness and evaluation modules, any inference module (egress pulls in only
+# inference.errors), and every model client
 HQ_FORBIDDEN = ("mycelic.collective.edge.records", "mycelic.collective.edge.site", "mycelic.collective.edge.extract",
+                "mycelic.collective.edge.verify",
                 "mycelic.collective.packs.generator", "mycelic.collective.evaluate", "mycelic.collective.leakage",
                 "mycelic.collective.experiments", "mycelic.collective.inference", "openai", "anthropic", "ollama",
                 "llama_cpp", "vllm", "transformers", "torch")
@@ -187,6 +205,8 @@ RUNBOOK_PLACEHOLDERS = {
     "manufacturer": "ACME",
     "manufacturer-field": "device[].manufacturer_d_name",
     "partition-field": "event_location",
+    "site-routing-dir": "{tmp}/missing/site-routing",
+    "central-routing-file": "{tmp}/missing/central_routing.json",
 }
 EVALUATE_DIR = ROOT / "mycelic" / "collective" / "evaluate"
 EVALUATE_FILES = (*sorted(EVALUATE_DIR.glob("*.py")),
@@ -368,7 +388,7 @@ def _run_without_site_packages(*args: str) -> subprocess.CompletedProcess[str]:
 
 class StdlibOnlyTests(unittest.TestCase):
     def test_every_collective_module_imports_without_site_packages(self) -> None:
-        self.assertEqual(len(STDLIB_ONLY_MODULES), 44)
+        self.assertEqual(len(STDLIB_ONLY_MODULES), 50)
         code = "import importlib\n" + "".join(f"importlib.import_module({m!r})\n" for m in STDLIB_ONLY_MODULES)
         r = _run_without_site_packages("-c", code)
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -584,6 +604,8 @@ HQ_POSITIVE_IMPORTS = (
     "from ..edge import records",
     "from ..edge.site import EdgeSite",
     "from ..edge.extract import sense",
+    "from ..edge.verify import SiteVerifier",
+    "from ..edge import verify",
     "from ..packs.generator import generate",
     "from ..packs import generator",
     "from .. import leakage",
@@ -619,10 +641,22 @@ class HqImportGuardTests(unittest.TestCase):
         self.assertEqual([p.name for p in files], ["__init__.py", "detectors.py", "org.py", "rules.py", "store.py"])
         return files
 
+    def pushdown_files(self) -> list[Path]:
+        files = sorted(PUSHDOWN_DIR.glob("*.py"))
+        self.assertEqual([p.name for p in files], ["__init__.py", "gate.py", "orchestrator.py", "questions.py"])
+        return files
+
     def test_no_detect_module_imports_a_forbidden_module(self) -> None:
         for path in self.detect_files():
             with self.subTest(module=path.name):
                 module = f"mycelic.collective.detect.{path.stem}"
+                self.assertEqual(forbidden_imports(path.read_text(encoding="utf-8"), module, HQ_FORBIDDEN), [])
+
+    def test_no_pushdown_module_imports_a_forbidden_module(self) -> None:
+        self.assertIn("mycelic.collective.edge.verify", HQ_FORBIDDEN)
+        for path in self.pushdown_files():
+            with self.subTest(module=path.name):
+                module = f"mycelic.collective.pushdown.{path.stem}"
                 self.assertEqual(forbidden_imports(path.read_text(encoding="utf-8"), module, HQ_FORBIDDEN), [])
 
     def test_checker_flags_every_positive_snippet(self) -> None:
@@ -644,6 +678,7 @@ class HqImportGuardTests(unittest.TestCase):
 
     def test_fresh_interpreter_loads_nothing_forbidden_with_the_detect_modules(self) -> None:
         modules = tuple(f"mycelic.collective.detect.{p.stem}" for p in self.detect_files() if p.stem != "__init__")
+        modules += tuple(f"mycelic.collective.pushdown.{p.stem}" for p in self.pushdown_files() if p.stem != "__init__")
         code = ("import json, sys\n" + "".join(f"import {m}\n" for m in modules)
                 + "print(json.dumps(sorted(sys.modules)))\n")
         r = subprocess.run([sys.executable, "-c", code], cwd=ROOT, capture_output=True, text=True, timeout=120,
@@ -718,6 +753,16 @@ class ClockEntropyTests(unittest.TestCase):
         files = sorted(DETECT_DIR.glob("*.py"))
         self.assertEqual(len(files), 5)
         for path in files:
+            rel = path.relative_to(ROOT).as_posix()
+            with self.subTest(module=rel):
+                self.assertIn(rel, DETERMINISTIC_MODULES)
+                self.assertEqual(nondeterminism(path.read_text(encoding="utf-8")), [])
+
+    def test_every_pushdown_module_is_on_the_determinism_list_with_no_hits(self) -> None:
+        files = sorted(PUSHDOWN_DIR.glob("*.py"))
+        self.assertEqual(len(files), 4)
+        for path in [*files, ROOT / "mycelic" / "collective" / "edge" / "verify.py",
+                     ROOT / "mycelic" / "collective" / "experiments" / "e2_pushdown.py"]:
             rel = path.relative_to(ROOT).as_posix()
             with self.subTest(module=rel):
                 self.assertIn(rel, DETERMINISTIC_MODULES)
@@ -806,6 +851,15 @@ class RunbookCommandTests(unittest.TestCase):
         for sub in ("prereg", "signals", "score"):
             self.assertIn(f"mycelic.collective.experiments.openfda_replay {sub} ", joined)
         self.assertIn("mycelic.collective.connectors.openfda fetch --dataset recall ", joined)
+
+    def test_commands_cover_the_g6_clis(self) -> None:
+        commands = [c for c in runbook_commands() if "mycelic.collective.experiments.e2_pushdown run " in c]
+        self.assertTrue(commands)
+        for command in commands:
+            self.assertIn("--allow-external-raw synthetic --data-label synthetic", command)
+        self.assertTrue(any("--site-routing <site-routing-dir>" in c and "--central-routing <central-routing-file>"
+                            in c for c in commands))
+        self.assertTrue(any("--site-routing" not in c and "--central-routing" not in c for c in commands))
 
     def test_every_command_dry_runs_offline_and_creates_nothing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

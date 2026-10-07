@@ -11,6 +11,7 @@ import io
 import json
 import os
 import random
+import re
 import shutil
 import socket
 import subprocess
@@ -22,6 +23,7 @@ from typing import Any
 from unittest import mock
 
 from mycelic.collective.edge.extract import TASK_NAME, LexicalExtractor, codes_channel, lexical_handler, pair
+from mycelic.collective.edge.verify import JUDGE_TASK, lexical_judge
 from mycelic.collective.experiments import g0_canary
 from mycelic.collective.inference.fakeserver import FakeOpenAIServer, request_payload
 from mycelic.collective.leakage import (CANARY_PREFIX, CANARY_WINDOW, CORE_LETTERS, KNOWN_LIMITATION_NOTE,
@@ -547,7 +549,9 @@ class G0RunnerTests(unittest.TestCase):
                 self.assertEqual(d["edge_totals"]["records_ingested"], 1000)
                 for item in d["scanned"]:
                     self.assertFalse(item["label"].startswith("private"), item)
-                    self.assertNotIn(".sqlite3", item["label"])
+                    # a site's own database never crosses; HQ's collective store (G6 pushdown stage) does
+                    self.assertIsNone(re.search(r"edge/site-.*\.sqlite3", item["label"]), item)
+                self.assertIn("hqdb/collective.sqlite3", {item["label"] for item in d["scanned"]})
                 self.assert_no_token(name)
                 code, output, _ = self.runs[name]
                 self.assertIn(f"g0: pack={pid} canaries={d['canaries_planted']} hits=0 shingle_overlap_bytes=0 "
@@ -586,27 +590,39 @@ class G0RunnerTests(unittest.TestCase):
         self.assertTrue(d["passed"])
 
     def test_routing_mode_against_a_fake_server(self) -> None:
-        handler = lexical_handler(DQ, Canonicaliser(DQ))
-        srv = FakeOpenAIServer("valid", responder=lambda request: handler(request_payload(request))).start()
+        # one server answers both routed tasks (G6), dispatching on the payload's shape: an extraction payload has
+        # "text", a judge payload has "question"
+        canonicaliser = Canonicaliser(DQ)
+        extract, judge = lexical_handler(DQ, canonicaliser), lexical_judge(DQ, canonicaliser)
+
+        def respond(request: Any) -> Any:
+            payload = request_payload(request)
+            return judge(payload) if "question" in payload else extract(payload)
+
+        srv = FakeOpenAIServer("valid", responder=respond).start()
         self.addCleanup(srv.stop)
         routing = self.tmp / "routing.json"
+        routes = {TASK_NAME: {"endpoint": "sim"}, JUDGE_TASK: {"endpoint": "sim"}}
         routing.write_text(json.dumps({"schema_version": 1, "endpoints": {"sim": {
             "provider": "openai_compat", "boundary": "any-simulated", "base_url": srv.base_url, "model": "m-tag"}},
-            "routes": {TASK_NAME: {"endpoint": "sim"}}}), encoding="utf-8")
+            "routes": routes}), encoding="utf-8")
         out = self.tmp / "routing-run"
         code, output, _ = run_main(args("device_quality", out, "--mode", "routing", "--routing", str(routing),
                                         records=60))
         self.assertEqual(code, 0, output)
         d = json.loads((out / "leakage.json").read_text(encoding="utf-8"))
         self.assertEqual((d["mode"], d["models_fake"], d["passed"]), ("routing", False, True))
-        self.assertEqual(len(srv.chat_requests), 60)
+        payloads = [request_payload(r["json"]) for r in srv.chat_requests]
+        self.assertEqual(sum(1 for p in payloads if "text" in p and "question" not in p), 60)
+        self.assertGreaterEqual(sum(1 for p in payloads if "question" in p), 1)
+        self.assertEqual(len(payloads), sum(1 for p in payloads if ("question" in p) != ("text" in p)))
         self.assertGreater(d["artifact_classes"]["usage_summary"]["bytes"], 0)
         for boundary, provider in (("site:plant-ashvale", "openai_compat"), ("any-simulated", "fake")):
             spec = {"provider": provider, "boundary": boundary}
             if provider == "openai_compat":
                 spec.update(base_url=srv.base_url, model="m-tag")
-            routing.write_text(json.dumps({"schema_version": 1, "endpoints": {"sim": spec},
-                                           "routes": {TASK_NAME: {"endpoint": "sim"}}}), encoding="utf-8")
+            routing.write_text(json.dumps({"schema_version": 1, "endpoints": {"sim": spec}, "routes": routes}),
+                               encoding="utf-8")
             target = self.tmp / f"refused-{provider}"
             code, output, _ = run_main(args("device_quality", target, "--mode", "routing", "--routing",
                                             str(routing), records=10))
@@ -661,7 +677,7 @@ class G0RunnerTests(unittest.TestCase):
         self.assertTrue(d["hits"])
         self.assertEqual({h["file"] for h in d["hits"]}, {"hq/leak.txt"})
         self.assertGreater(d["shingle_overlap_bytes"], 0)
-        self.assertEqual(d["stages"], ["edge", "leaky"])
+        self.assertEqual(d["stages"], ["edge", "pushdown", "leaky"])
         self.assertIn("-> FAIL", output)
 
 

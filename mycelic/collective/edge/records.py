@@ -7,7 +7,8 @@ Rules:
 
 * One file per site, opened with ``isolation_level=None``, WAL (refused with :class:`StoreError` when the file
   system cannot do WAL), ``synchronous=FULL``, foreign keys on and a 5 s busy timeout. No table has a fabric table
-  name (:data:`TABLES` is the whole schema; later gates add ``verdict_log`` and ``question_log``).
+  name (:data:`TABLES` is the whole schema). G6 added ``question_log`` and ``verdict_log`` with ``CREATE ... IF NOT
+  EXISTS``; the change is additive, so ``SCHEMA_VERSION`` stays 1 and a G3 store gains the two tables on open.
 * ``site_info`` pins ``schema_version``, ``site_id``, ``pack_id`` and ``config_hash``. A store opened with any other
   value raises ``StoreError('site_info mismatch: <key>')``: claims are tied to a pack's vocabulary, so a changed pack
   config needs a new store.
@@ -29,6 +30,17 @@ Ingest (records already validated and normalised by ``EdgeSite``), per record in
 ``emitted_weeks`` holds one row per emission per artifact type, with the exact bytes sent; the latest
 ``closed_through`` is that type's watermark, and every week at or before it is final, including weeks without a
 record.
+
+Pushdown verification (G6, ``edge/verify.py``) reads and writes here only through the methods below:
+
+* ``question_log`` has one row per question the site took in on a site-clock day: the question id, the entity and
+  an outcome (``answered``, ``budget`` or ``no_secret``); :meth:`RecordStore.answered_count` is the per-entity daily
+  budget's count of distinct answered questions;
+* ``verdict_log`` has one row per answered question (``question_id`` and ``evidence_ref`` unique): the exact bytes
+  sent and, for the site's auditor only, the confirming and entity record refs, the judged, failure and unclear
+  counts, the extraction misses and the local reason for an unknown. None of these leaves the site;
+* :meth:`RecordStore.window_records` reads the site's own records (forwarded-in excluded) received in a window of
+  ISO weeks, newest first, which is what a question is answered from.
 """
 from __future__ import annotations
 
@@ -43,7 +55,10 @@ from ..packs.canonical import folded
 from .weeks import iso_week, local_date, next_week
 
 SCHEMA_VERSION = 1
-TABLES = ("site_info", "records", "claims", "extraction_stats", "late_records", "emitted_weeks")
+TABLES = ("site_info", "records", "claims", "extraction_stats", "late_records", "emitted_weeks", "question_log",
+          "verdict_log")
+QUESTION_OUTCOMES = ("answered", "budget", "no_secret")
+LOCAL_REASONS = ("no_records", "unclear", "degraded")
 CELLS_ARTIFACT = "cells_bundle"
 SITE_INFO_KEYS = ("schema_version", "site_id", "pack_id", "config_hash")
 
@@ -74,6 +89,16 @@ _DDL = (
     "artifact_type TEXT, closed_through TEXT, as_of TEXT NOT NULL, after_week TEXT, ledger_rows INTEGER, "
     "body BLOB NOT NULL, sha256 TEXT NOT NULL, cells INTEGER, created_at TEXT NOT NULL, sent_at TEXT, "
     "PRIMARY KEY (artifact_type, closed_through))",
+    "CREATE TABLE IF NOT EXISTS question_log ("
+    "seq INTEGER PRIMARY KEY, question_id TEXT NOT NULL, day TEXT NOT NULL, entity_type TEXT NOT NULL, "
+    "entity_id TEXT NOT NULL, outcome TEXT NOT NULL, at TEXT NOT NULL)",
+    "CREATE INDEX IF NOT EXISTS question_log_entity_day ON question_log (entity_type, entity_id, day)",
+    "CREATE TABLE IF NOT EXISTS verdict_log ("
+    "verdict_id TEXT PRIMARY KEY, question_id TEXT NOT NULL UNIQUE, evidence_ref TEXT UNIQUE, body BLOB NOT NULL, "
+    "sha256 TEXT NOT NULL, verdict TEXT NOT NULL, confirming_refs TEXT NOT NULL, entity_refs TEXT NOT NULL, "
+    "judged INTEGER NOT NULL, failures INTEGER NOT NULL, unclear INTEGER NOT NULL, extraction_misses INTEGER NOT NULL, "
+    "local_reason TEXT, truncated INTEGER NOT NULL, created_at TEXT NOT NULL)",
+    "CREATE INDEX IF NOT EXISTS records_iso_week ON records (iso_week, seq)",
 )
 _SITE_INFO = "SELECT key, value FROM site_info ORDER BY key"
 _INSERT_SITE_INFO = "INSERT INTO site_info (key, value) VALUES (?, ?)"
@@ -122,6 +147,36 @@ _INSERT_EMISSION = (
     "INSERT INTO emitted_weeks (artifact_type, closed_through, as_of, after_week, ledger_rows, body, sha256, cells, "
     "created_at, sent_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 _MARK_SENT = "UPDATE emitted_weeks SET sent_at = ? WHERE artifact_type = ? AND closed_through = ?"
+_WINDOW_OWN = (
+    "SELECT record_ref, iso_week, root_ref, reporter_id, language, codes, structured, narrative FROM records "
+    "WHERE forwarded_in = 0 AND iso_week >= ? AND iso_week <= ? ORDER BY iso_week DESC, seq DESC")
+_CLAIMED = (
+    "SELECT DISTINCT c.record_ref FROM claims c JOIN records r ON r.record_ref = c.record_ref "
+    "WHERE c.entity_type = ? AND c.entity_id = ? AND r.forwarded_in = 0 AND r.iso_week >= ? AND r.iso_week <= ? "
+    "ORDER BY c.record_ref")
+_HAS_CLAIM = ("SELECT record_ref FROM claims WHERE record_ref = ? AND entity_type = ? AND entity_id = ? "
+              "AND predicate = ? ORDER BY record_ref LIMIT 1")
+_ANSWERED = ("SELECT DISTINCT question_id FROM question_log WHERE entity_type = ? AND entity_id = ? AND day = ? "
+             "AND outcome = 'answered' ORDER BY question_id")
+_INSERT_QUESTION = ("INSERT INTO question_log (question_id, day, entity_type, entity_id, outcome, at) "
+                    "VALUES (?, ?, ?, ?, ?, ?)")
+_VERDICT_COLUMNS = ("verdict_id, question_id, evidence_ref, body, sha256, verdict, confirming_refs, entity_refs, "
+                    "judged, failures, unclear, extraction_misses, local_reason, truncated, created_at")
+_VERDICT_BY_QUESTION = (
+    "SELECT verdict_id, question_id, evidence_ref, body, sha256, verdict, confirming_refs, entity_refs, judged, "
+    "failures, unclear, extraction_misses, local_reason, truncated, created_at FROM verdict_log "
+    "WHERE question_id = ? ORDER BY verdict_id LIMIT 1")
+_VERDICT_BY_REF = (
+    "SELECT verdict_id, question_id, evidence_ref, body, sha256, verdict, confirming_refs, entity_refs, judged, "
+    "failures, unclear, extraction_misses, local_reason, truncated, created_at FROM verdict_log "
+    "WHERE evidence_ref = ? ORDER BY verdict_id LIMIT 1")
+_VERDICT_BY_ID = (
+    "SELECT verdict_id, question_id, evidence_ref, body, sha256, verdict, confirming_refs, entity_refs, judged, "
+    "failures, unclear, extraction_misses, local_reason, truncated, created_at FROM verdict_log "
+    "WHERE verdict_id = ? ORDER BY verdict_id LIMIT 1")
+_INSERT_VERDICT = ("INSERT INTO verdict_log (" + _VERDICT_COLUMNS + ") "
+                   "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+_QUESTION_LOG = "SELECT seq, question_id, day, entity_type, entity_id, outcome, at FROM question_log ORDER BY seq"
 
 
 class StoreError(ValueError):
@@ -153,6 +208,50 @@ class ExtractionRow:
     invalid_claims: int
     extracted_at: str
     claims: tuple[Any, ...]
+
+
+class WindowRecord(NamedTuple):
+    """One of the site's own records as a question is answered from it; ``codes`` and ``structured`` parsed."""
+
+    record_ref: str
+    iso_week: str
+    root_ref: str
+    reporter_id: str | None
+    language: str | None
+    codes: list[str]
+    structured: dict[str, list[str]]
+    narrative: str
+
+
+class QuestionLogRow(NamedTuple):
+    seq: int
+    question_id: str
+    day: str
+    entity_type: str
+    entity_id: str
+    outcome: str
+    at: str
+
+
+@dataclass(frozen=True)
+class VerdictRow:
+    """One answered question: the exact bytes sent and what only the site's auditor reads."""
+
+    verdict_id: str
+    question_id: str
+    evidence_ref: str | None
+    body: bytes
+    sha256: str
+    verdict: str
+    confirming_refs: tuple[str, ...]
+    entity_refs: tuple[str, ...]
+    judged: int
+    failures: int
+    unclear: int
+    extraction_misses: int
+    local_reason: str | None
+    truncated: bool
+    created_at: str
 
 
 class InputRow(NamedTuple):
@@ -324,6 +423,67 @@ class RecordStore:
     def mark_sent(self, artifact_type: str, closed_through: str, sent_at: str) -> None:
         with self._write() as conn:
             conn.execute(_MARK_SENT, (sent_at, artifact_type, closed_through))
+
+    # ------------------------------------------------------------------ pushdown verification (G6)
+    def window_records(self, first_week: str, last_week: str) -> list[WindowRecord]:
+        """The site's own records (forwarded-in excluded) received in ``[first_week, last_week]``, newest first."""
+        return [WindowRecord(ref, week, root, reporter, language, strict_load(codes), strict_load(structured),
+                             narrative)
+                for ref, week, root, reporter, language, codes, structured, narrative
+                in self._conn.execute(_WINDOW_OWN, (first_week, last_week)).fetchall()]
+
+    def claimed_refs(self, entity_type: str, entity_id: str, first_week: str, last_week: str) -> list[str]:
+        """Refs of own records received in the window with any stored claim on the entity (any predicate)."""
+        return [ref for (ref,) in self._conn.execute(_CLAIMED, (entity_type, entity_id, first_week,
+                                                                last_week)).fetchall()]
+
+    def has_claim(self, record_ref: str, entity_type: str, entity_id: str, predicate: str) -> bool:
+        return self._conn.execute(_HAS_CLAIM, (record_ref, entity_type, entity_id, predicate)).fetchone() is not None
+
+    def answered_count(self, entity_type: str, entity_id: str, day: str) -> int:
+        """Distinct questions about the entity answered on the site-clock ``day``."""
+        return len(self._conn.execute(_ANSWERED, (entity_type, entity_id, day)).fetchall())
+
+    def log_question(self, row: QuestionLogRow) -> None:
+        """One question_log row (``row.seq`` is ignored: the store numbers rows)."""
+        with self._write() as conn:
+            conn.execute(_INSERT_QUESTION, row[1:])
+
+    def question_log(self) -> list[QuestionLogRow]:
+        return [QuestionLogRow(*row) for row in self._conn.execute(_QUESTION_LOG).fetchall()]
+
+    def _verdict(self, sql: str, value: str) -> VerdictRow | None:
+        row = self._conn.execute(sql, (value,)).fetchone()
+        return _verdict_row(row) if row is not None else None
+
+    def verdict_for_question(self, question_id: str) -> VerdictRow | None:
+        return self._verdict(_VERDICT_BY_QUESTION, question_id)
+
+    def verdict_for_ref(self, evidence_ref: str) -> VerdictRow | None:
+        return self._verdict(_VERDICT_BY_REF, evidence_ref)
+
+    def verdict_by_id(self, verdict_id: str) -> VerdictRow | None:
+        return self._verdict(_VERDICT_BY_ID, verdict_id)
+
+    def add_verdict(self, verdict: VerdictRow, question: QuestionLogRow) -> None:
+        """The verdict and its ``answered`` question_log row, in one transaction."""
+        with self._write() as conn:
+            conn.execute(_INSERT_VERDICT, (
+                verdict.verdict_id, verdict.question_id, verdict.evidence_ref, verdict.body, verdict.sha256,
+                verdict.verdict, canonical_dumps(list(verdict.confirming_refs)),
+                canonical_dumps(list(verdict.entity_refs)), verdict.judged, verdict.failures, verdict.unclear,
+                verdict.extraction_misses, verdict.local_reason, int(bool(verdict.truncated)), verdict.created_at))
+            conn.execute(_INSERT_QUESTION, question[1:])
+
+
+def _verdict_row(row: tuple[Any, ...]) -> VerdictRow:
+    (verdict_id, question_id, evidence_ref, body, sha256, verdict, confirming, entity, judged, failures, unclear,
+     misses, local_reason, truncated, created_at) = row
+    return VerdictRow(verdict_id=verdict_id, question_id=question_id, evidence_ref=evidence_ref, body=bytes(body),
+                      sha256=sha256, verdict=verdict, confirming_refs=tuple(strict_load(confirming)),
+                      entity_refs=tuple(strict_load(entity)), judged=judged, failures=failures, unclear=unclear,
+                      extraction_misses=misses, local_reason=local_reason, truncated=bool(truncated),
+                      created_at=created_at)
 
 
 def _emission(row: tuple[Any, ...]) -> EmissionRow:

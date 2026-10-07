@@ -3,6 +3,7 @@
 This directory holds templates, never defaults:
 
 - `routing.example.json`: one site's routing file (below);
+- `central_routing.example.json`: the central comparator's routing file for E2 (G6; below);
 - `e1_models.example.md`: the model tags STRATEGY lists for E1, as configurable examples;
 - `e1.prereg.example.json`: the exact key set E1's `prereg` writes, with placeholder values (the E1 tests check that
   `prereg` writes exactly these keys).
@@ -37,7 +38,16 @@ the file. The runtime refuses to send raw records to an `external` endpoint unle
 or synthetic data (E3 does this; nothing that reads partner records can).
 
 The route `extract_claims` shows single-hop escalation. A reply that still fails the schema after one repair is
-retried once on `escalate_to`, with the original prompt only.
+retried once on `escalate_to`, with the original prompt only. The route `judge_record` (G6) is the site's
+pushdown judge: it answers one question about one of the site's own records, so it must stay at `site:<site-id>`
+(E2 refuses a judge route, or an escalation, that names another boundary).
+
+## The central comparator (E2)
+
+`central_routing.example.json` routes E2's two central tasks, `judge_candidate_raw` (raw record text, which E2 sends
+only from synthetic worlds) and `judge_candidate_allowed` (only the fields policy allows to leave), to one endpoint
+with boundary `central`. `central-model-tag` and the port are placeholders: point it at the server and model you
+compare against. E2 refuses a central route that names a `site:` boundary or the fake provider.
 
 ## Prices
 

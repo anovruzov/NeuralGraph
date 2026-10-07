@@ -7,7 +7,6 @@
   "verdict_count_buckets": [
     5,
     10,
-    25,
     50
   ],
   "egress_entity_types": [

@@ -6,9 +6,8 @@
   "min_window_weeks": 6,
   "verdict_count_buckets": [
     3,
-    5,
     10,
-    25
+    50
   ],
   "egress_entity_types": [
     "component",

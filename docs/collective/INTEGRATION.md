@@ -759,3 +759,242 @@ raised no X alert; the single reporter and high base rate decoys alerted with th
 alerted in X. `claims_integrity` (built-in, seed 5): X found 2 of 3 (the rate-2 pattern below k=5 was not found), S 0
 of 3, R (model-free) 0 of 3, U 3 of 3, single_site 3 of 3. The lifts over three patterns and one seed are not
 interpretable (the scorecard warns), and none of these figures may be shown to anyone outside the team.
+
+## G6
+
+**Base.** Branch `mycelic-collective-phase2` at 51f3b09 (G5), a clean worktree.
+
+**The port.** `pushdown/gate.py` is **ported (adapted, not merged) from
+`origin/claude/mycelic-implementation-vr034p@388aa30`, `mycelic/knowledge/gate.py` and `support.py`**: the five
+checks, the status precedence (contested, then hypothesis without evidence, then stale, then the support checks;
+`rejected` for a question-level failure), `age > freshness_days` for stale and readable reasons are kept; the
+deviations are listed in its header and in ARCHITECTURE section 15.6 (no Authorizer or OrgService, `as_of`
+injected, bucketed verdicts as input, `'<k'` roots and reporters counting their lower bound 1, weak confirms not
+counted, per-verdict exclusion instead of rejection, contested only from a contributing refute). Nothing else is
+ported. vr034p's `holder/` and `inquiry/` carry free-text questions and per-record evidence ref ids over its own
+transport and coordinator database, which G6's closed question and verdict formats exist to avoid;
+`edge/verify.py` and `pushdown/orchestrator.py` are written fresh. Its `models/` is superseded by G1's runtime.
+
+**Scope: fabric files changed: none.** `git diff --stat 51f3b09` touches only:
+
+- new: `mycelic/collective/pushdown/{__init__,questions,gate,orchestrator}.py`, `mycelic/collective/edge/verify.py`,
+  `mycelic/collective/experiments/e2_pushdown.py`, `packs/data/device_quality/fixtures/plant_e2_smoke.json`,
+  `docs/collective/examples/central_routing.example.json`, `tests/mycelic/test_collective_{pushdown,gate,e2}.py`;
+- changed additively: `edge/egress.py` (the `question` and `verdict` artifacts, `ARTIFACT_DIRECTION`,
+  `SEQUENCED_TYPES`, the bucket helpers, `question_id`, `verdict_id_of`, `Boundary.accept`, the ingress and question
+  logs; the cells and usage sequence is byte-identical and every G3 test passes), `edge/records.py`
+  (`question_log`, `verdict_log`, the window reads), `edge/site.py` (the Boundary's ingress and question logs; the
+  judge task among the usage tasks), `detect/store.py` (five `pd_` tables, their triggers and readers, the routing
+  reads), `packs/loader.py` (the `pushdown` block, `PushdownConfig`, template coverage), both packs' `egress.json`
+  and `questions.json`, `stats.py` (`paired_ranking_bootstrap`), `leakage.py` (two `NOT_COVERED` items),
+  `experiments/g0_canary.py` (the pushdown stage), `evaluate/harness.py` (`_prereg_pack`, `_check_world`, `_plant` and
+  `_dirty_state` renamed `prereg_pack`, `check_world`, `load_checked_plant` and `dirty_state`, no behaviour change),
+  the docstrings of `mycelic/collective/__init__.py`, `edge/__init__.py` and `experiments/__init__.py`,
+  `docs/collective/{ARCHITECTURE,LEAKAGE,RUNBOOK,PACKS,INTEGRATION}.md`, `docs/collective/examples/
+  {README.md,routing.example.json}` and the earlier tests listed below.
+
+**S2:** `git diff --stat 51f3b09 -- mycelic/service.py mycelic/store.py mycelic/aggregation.py mycelic/transport.py
+mycelic/api.py mycelic/lineage.py mycelic/config.py deploy SECURITY.md DEPLOYMENT.md NeuralGraph research
+mycelic/collective/detect/detectors.py mycelic/collective/detect/rules.py mycelic/collective/detect/org.py` is empty.
+Detection is unchanged; `PushdownImportGuardTests` pins the three detect files to their G5 sha256.
+
+### S1 test baseline
+
+| Suite | Before G6 (51f3b09) | After G6 |
+|---|---|---|
+| `python -m pytest tests/mycelic -q -p no:warnings` | 689 passed (23,696 subtests), 0 skipped, in 246 s | 802 passed (25,509 subtests) = 689 + 113 new, 0 skipped, in 369 s |
+| `python -m pytest NeuralGraph/tests -q -p no:warnings` | 222 passed, 1 skipped (119 subtests) in 6 s | unchanged: 222 passed, 1 skipped (119 subtests) in 5 s |
+
+The 113 new tests, by class:
+
+- `test_collective_pushdown.py` (72): `PackPushdownConfigTests` 3, `BucketTests` 3, `QuestionTests` 6,
+  `EgressQuestionVerdictTests` 12, `VerifyTests` 15, `RoutingTests` 6, `OrchestratorTests` 10,
+  `EndToEndPlantedTests` 7, `LeakageStageTests` 5, `PushdownImportGuardTests` 5;
+- `test_collective_gate.py` (13): `GateTableTests` 7 (26 table cases as subtests: 23 verdict cases and 3
+  question-level ones, plus the orchestrator-backed duplicate and conflict versions), `GateDeterminismTests` 3,
+  `GatePortTests` 3;
+- `test_collective_e2.py` (18): `E2SmokeTests` 8, `E2UnitTests` 3, `E2RefusalTests` 6, `E2DeterminismTests` 1;
+- `test_collective_stats.py` (7): `PairedRankingBootstrapTests`;
+- `test_collective_guards.py` (3): `HqImportGuardTests::test_no_pushdown_module_imports_a_forbidden_module`,
+  `ClockEntropyTests::test_every_pushdown_module_is_on_the_determinism_list_with_no_hits` and
+  `RunbookCommandTests::test_commands_cover_the_g6_clis`.
+
+The acceptance command `python -m pytest tests/mycelic/test_collective_pushdown.py tests/mycelic/test_collective_gate.py
+tests/mycelic/test_collective_e2.py -q -p no:warnings` passed 103 tests (1,753 subtests) in 131 s on the shared machine.
+
+**Earlier tests changed, and why** (each at least as strong as before; nothing skipped, deleted or weakened):
+
+- `test_collective_packs.py::LoadTests::test_egress_and_detector_values`: the expected verdict buckets (D4),
+  `[3, 10, 50]` and `[5, 10, 50]`;
+- `test_collective_evaluate.py::PlantSpecTests::test_the_loader_accepts_plant_files_and_hashes_none_of_them`: the
+  two `config_hash` pins only (D4, D5); the vocabulary, detector and fixtures pins are unchanged;
+- **outside the brief's list, and necessary:** `test_collective_evaluate.py::PlantSpecTests::
+  test_refusals_that_need_a_pack_copy`, case "not a structured entity type". Its pack copy adds an egress entity type
+  (`fastener`) to show that a type the record mapping does not carry cannot be planted as a structured code; G6's
+  mandated loader rule (every egress entity type needs a template with `predicates` null) now refuses that copy at
+  load, before the plant check runs. The copy's edits gain one line, adding the new type to the pack's template, so
+  the pack loads again; the asserted path and problem are unchanged and the test is exactly as strong. The full suite
+  found this; the alternative was to weaken the loader rule the brief fixes;
+- `test_collective_leakage.py::G0RunnerTests` (G0 now runs the pushdown stage): (a) "no scanned label contains
+  `.sqlite3`" became "no scanned label matches `edge/site-.*\.sqlite3`" (a site database, or its `-wal`, never
+  crosses) plus "`hqdb/collective.sqlite3` is scanned"; (b) the leaky-stage test expects the stages `["edge",
+  "pushdown", "leaky"]`; (c) the routing-mode test's file also routes `judge_record` to the same fake server, whose
+  responder dispatches on the payload's shape (`text` to the lexical extraction handler, `question` to the lexical
+  judge), and it asserts exactly 60 extraction requests, at least one judge request and no other request, instead of
+  exactly 60 requests in total; its two refusal cases now route both tasks, so they are still refused for their
+  boundary and provider rather than for a missing route;
+- `test_collective_guards.py`: the lists (50 stdlib modules, the E2 CLI, the deterministic modules, `HQ_FORBIDDEN`
+  plus `edge.verify`, two RUNBOOK placeholders) and the three new tests above;
+- `test_collective_stats.py`: one additive class.
+
+### S4: what the suites leave behind
+
+After both suites `git status --porcelain` lists only the G6 files above, `runs/` holds only its `.gitignore`, and
+there is no untracked `*.sqlite3`, `*.db` or `*.jsonl` in the worktree (every G6 test writes under a temporary
+directory, including E2's runs directories and the G0 outputs).
+
+### Pack hashes (only `config_hash` changed)
+
+| Pack | Hash | G5 | G6 |
+|---|---|---|---|
+| `device_quality` | config | 83c094ffee1f157203f7265a59bdbfc35b7d8f8ed07c35304743377dd301d723 | b9e03c14d88100dac6849ba37525059dfb65e681397c15e59000f5cfbdeeb56f |
+| | vocabulary | e46f521154ce94f42136319ade62cebb5c65515ab90a057470495a606f225901 | unchanged |
+| | detector | c9462f62aa90245f2c7cee50078d337554bded58c4630cda7becbf7a8048c7ec | unchanged |
+| | fixtures | dc4b70b7044b1094baaa669fb5a3582eeae91af290213e13b94180791db5656d | unchanged |
+| `claims_integrity` | config | 130b8396eb92e5af060f0dc7b645fb80f00be1e041c1f0d224bcb49566f0cb01 | aa422ef844b583d7d7c0f78afac9147400c0b378b6e193a2347a031330fa329d |
+| | vocabulary | 028b7603f2b6ef3bba203dee299ea8b001880ef89cd4b276de8513d2a1a301f3 | unchanged |
+| | detector | 2041fe9b3e141a5603836d893c97d5671eb21cbb3da611969efbd0c2c4514b84 | unchanged |
+| | fixtures | a2e8936b4be26683f0860c8c8799e701f9aedfb78ea167d5420ac891111b8d80 | unchanged |
+
+`PackPushdownConfigTests::test_only_config_hash_changed_against_g5` asserts all sixteen values. The new
+`plant_e2_smoke.json` is in no hash scope (G5's rule for `fixtures/plant_*.json`).
+
+### Merge notes
+
+1. **Nothing in the fabric changed and no fabric integration point is needed for G6 to run.** The orchestrator calls
+   each site through an injected handler (`site id -> callable(question) -> verdict`); in-process here.
+2. **Fabric event kinds for the merge.** When pushdown runs over the fabric, three event kinds would carry it:
+   `question` (HQ to a site: the closed question body, nothing else), `verdict` (a site to HQ: the closed verdict
+   body) and `conclusion` (HQ's versioned conclusion, for the fabric's own consumers). Both bodies are already
+   canonical JSON with a content id (`question_id`, `verdict_id`); a fabric event should carry them unchanged, and
+   HQ should still run `check_artifact` and `receive_verdict`'s checks on intake.
+3. **JetStream subjects (proposal).** One subject per direction and site, so a site's credentials can be scoped to
+   its own subjects: `mycelic.collective.<enterprise>.site.<site_id>.question` (HQ publishes, the site consumes) and
+   `mycelic.collective.<enterprise>.site.<site_id>.verdict` (the site publishes, HQ consumes); message ids
+   `q:<question_id>:<site_id>` and `v:<verdict_id>` make redelivery idempotent, matching the Boundary's sha256 no-op
+   and HQ's duplicate rule. vr034p's holder signed every envelope with a per-holder key and committed a
+   processed-message row with each effect; the fabric's own signing should play that role. The orchestrator's
+   thread-per-site delivery and deadline become a publish and a timed wait on the verdict subject; late verdicts
+   become ordinary consumption followed by `collect_late`-style re-gating.
+4. **Who may verify.** Only HQ's orchestrator (the detection owner's principal) should publish questions; a site
+   answers only questions that pass its Boundary (closed spec, its own clock's closed week) and its daily budget,
+   and only that site's auditor holds the secret that resolves `evidence_ref`. A fabric permission that lets any
+   other principal publish questions would bypass the budget's intent.
+5. **HQ tables are prefixed `pd_`** (D6), so a later fabric table named `questions` or `verdicts` cannot collide in
+   the no-fabric-name test after the merge. The site store's new tables are `question_log` and `verdict_log`.
+6. **`runs/e2/<id>/work/`** holds every simulated site's store, ledgers and logs (git-ignored with the rest of
+   `runs/`); the founder sends back `e2.json` and `central.ledger.jsonl` only (RUNBOOK section 10).
+
+### Decisions D1 to D10 (as implemented)
+
+All ten are implemented as the brief states them; ARCHITECTURE section 15.5 summarises each. Two observations from
+the planted worlds refine how D2 reads in practice:
+
+- **Same-site duplicates and background roots.** On the device `plant_smoke` world (seed 11) the duplicate decoy's
+  site holds background records of `component:ALARM-SPEAKER:detachment` in 2024-W30, W35, W38 and W45, so every
+  6-week window over the duplicate span (W33 to W40) holds 2 or 3 distinct roots and the roots check passes there;
+  verified at the span's end (`as_of` 2024-10-20) the decoy is a hypothesis on the sites check alone. In the window
+  W39 to W44 (`as_of` 2024-11-17), which holds only duplicates at that site, the reasons are exactly the sites reason
+  and `hypothesis: independent roots, lower bound 1; min_independent_roots is 3`. `EndToEndPlantedTests` asserts both.
+- **Few reporters at k = 5.** In `claims_integrity`, a pattern planted at two sites with fewer than 5 reporters each
+  stays a hypothesis on reporters (lower bound 2) until a third site confirms: on its `plant_smoke` world (seed 5)
+  `clinic:CL-B7X9:treatment_pattern_mismatch` is a hypothesis from 2024-W43 to W49 and supported at W50, while the
+  three-site `tow_operator:TW-0310:tow_without_dispatch` is supported throughout. The end-to-end claims test verifies
+  the pattern planted at the most sites.
+
+### Further decisions and deviations, for the reviewer
+
+- **The look-ahead window-end branch of `gate.evaluate` is defence in depth.** A question that passes the schema has a
+  window closed at its own `as_of`, so with `as_of` not before the question's the window is always closed; the test
+  shows the schema refusing a question whose `as_of` does not close its window.
+- **E2 refuses a pack whose `central_allowed_fields` lack `site` or `received_date`** (as R (model-free) does), since
+  `central_allowed`'s payload names both. `allowed_view` (E2) reads a record only by subscript for allowed fields; a
+  test uses G5's recording record.
+- **`bar_verdict` is a pure function** in E2, so the withheld and pass paths are unit-tested apart from a run.
+- **Delivery is one site at a time, in sorted site order, each joined against the deadline** (as the brief's
+  "join(timeout=deadline_seconds)" per handler reads). The engineer's first version started every site's thread at
+  once and joined them against one shared deadline; the G3 test `test_g0_runs_are_byte_identical_across_hash_seeds`
+  then failed in a full-suite run, because the sites' verdict and question lines landed in HQ's shared logs in thread
+  scheduling order. Sequential delivery fixes that (a hung site delays the others by at most the deadline; only a
+  timed-out site can write later), and `LeakageStageTests` now also pins the questions, verdict rows, ingress logs and
+  conclusions of two G0 runs under different hash seeds. The clock is read only for the `received_at` and
+  `created_at` columns, never for `as_of`.
+- **Every SELECT is one literal with `ORDER BY`.** The first version composed five HQ queries from shared fragments
+  (`"SELECT " + columns + ...`) and one site query by `str.format`; the G4 and G3 guards
+  (`test_sql_only_in_store_and_every_select_is_ordered`, `test_sql_lives_only_in_records_and_every_select_is_ordered`)
+  check every string constant that starts with `SELECT`, so each query is now spelled out (the site's verdict reads
+  are three explicit queries).
+- **`verify_stored` on a rule-only candidate without a run `as_of`** cannot happen (a stored candidate has a run);
+  `verify_candidate` uses the rule's first week's closing date as the earliest `as_of`.
+- **G0's pushdown stage verifies at the run's `as_of`**, not each snapshot's: every site emits once, at that `as_of`,
+  so no cell is visible earlier.
+
+### The E2 smoke fixture recipe (no generator script is committed)
+
+`packs/data/device_quality/fixtures/plant_e2_smoke.json` (sha256
+42f868eb2e3127a024b0c66457ae17edeba751f6fd1a57500a726e34501c85c4) was generated once and is reproduced byte for byte by
+this recipe: load `device_quality`; `rng =
+random.Random("plant_e2_smoke:1")`; sites = the first 6 generator sites; master data from `generate(DQ, 1, 6, 52)`;
+evaluation weeks 20 to 51. List every `(type, id, predicate)` for each predicate (sorted) and egress type (sorted)
+with an English single-slot template (`plant.single_slot_templates`), over the generator universe's ids (alias-only
+ids only when they have an alias), and shuffle the list with `rng`. Then take, in list order: 4 `single_reporter`
+decoys on products (2 sites by `rng.sample`, 4 to 6 weeks, rate 3), 3 `cross_site_unmarked_copies` decoys on
+products (an origin and two copy sites, rate 2) and 3 `high_base_rate_everywhere` decoys on two components sharing a
+predicate (4 sites, rate 2), each starting at `rng.randint(20, 51 - weeks + 1)`; then 85 `narrative_only` patterns
+from the remaining combinations whose id is in at least 2 sites' master data (components count at every site), each
+at `min(available, rng.choice((2, 2, 3)))` sites drawn from those, 4 to 6 weeks, rate 2, ids `p01` to `p85`. The
+spec is `planted_by: "mycelic engineering (same author as the detector code)"`, `planter_saw_detector_code: true`,
+`prereg_sha256: null`, written with `json.dumps(indent=2, ensure_ascii=False)` and a final newline. The planner's
+probe of the same shape gave about 79 candidates per seed and about 4 s per seed for the pipeline; on this fixture the
+five seeds gave 94, 90, 85, 86 and 91 detector candidates in the evaluation weeks (synthetic, same-author).
+
+### Mutation probes run
+
+On a scratch copy of the worktree outside the repository (`git` metadata excluded), each mutation was applied alone
+and the named G6 tests were run; every one failed at least one test, and the unmutated copy passed before and after:
+
+| # | Mutation | Caught by |
+|---|---|---|
+| 1 | count `'<k'` confirms | `GateTableTests` |
+| 2 | drop the forwarded-in exclusion (`window_records`, `claimed_refs`) | `VerifyTests` retrieval |
+| 3 | let a sibling refute contest | `GateTableTests` |
+| 4 | send the exact support count (and, as 4b, with the verdict spec widened to accept it) | `VerifyTests` confirm; `EgressQuestionVerdictTests` |
+| 5 | skip the HMAC check in `resolve` | `VerifyTests` secrets and rotation |
+| 6 | `>=` in the freshness test | `GateTableTests` |
+| 7 | `'<k'` roots count 0 | `GateTableTests` |
+| 8 | skip the budget | `VerifyTests` budget |
+| 9 | `as_of` in `question_id` (consistently in the Boundary and in `build_question`) | `QuestionTests` |
+| 10 | the gate sees verdicts received after `as_of` (10a); the orchestrator passes them to the gate (10b) | `GateTableTests`; `OrchestratorTests` |
+| 11 | drop the look-ahead rejection | `GateTableTests` |
+| 12 | bucket off by one at the edges (12a) or in the labels (12b) | `BucketTests` |
+| 13 | let central_allowed read the narrative | `E2UnitTests` |
+| 14 | leave the bar verdict un-withheld under fakes | `E2UnitTests` |
+| 15 | check the budget before no_secret | `VerifyTests` missing secret |
+| 16 | use the site's main `RecordStore` from the worker thread | `VerifyTests` worker thread |
+| 17 | intake skips the unrouted check (extra) | `OrchestratorTests` intake |
+| 18 | contributing sites ignore cell visibility (D3; extra) | `RoutingTests` |
+| 19 | the Boundary accepts an unclosed window (extra) | `EgressQuestionVerdictTests` |
+| 20 | a re-delivered question is answered again (extra) | `VerifyTests` budget |
+
+### Synthetic figures (synthetic, same-author, not a measurement)
+
+Printed or recorded in this sandbox, quoted only as **synthetic, same-author, not a measurement** (every judge was
+the lexical judge or a fake replaying it): on the device `plant_smoke` world (seed 11) the three planted patterns are
+supported at the first candidate week inside their found windows, with every contributing site confirming and at
+least one sibling routed; the echo, same-site-duplicate, single-reporter and stale decoys are hypotheses or stale as
+the brief states; the unmarked copies and all three high-base-rate keys reach `supported` (the known hard cases); all
+7 supported conclusions are resolvable, with 0 extraction-miss confirmations. G0 with the pushdown stage (seed 11,
+1,000 records) passes for both packs with no hit and no narrative overlap (`LEAKAGE.md` section 9). An E2 rehearsal on
+`plant_e2_smoke.json` (seeds 1 to 5, top-n 60, fakes everywhere) wrote 300 candidates over 5 seeds, raw-text bytes of
+2,487,381 for central_raw and 0 for central_allowed and pushdown, 265 of 265 supported conclusions resolvable, and a
+withheld verdict; its AP figures are not quoted because both sides used the same deterministic reader.

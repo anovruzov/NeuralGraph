@@ -22,6 +22,10 @@ Rules:
   ledger row is summarised exactly once; the per-call ledger never leaves.
 * **Never revised.** An emission is stored (with its exact bytes) before it is sent and re-sent unchanged after a
   failed send; ``as_of`` may not move backwards or past the site clock.
+* **Questions (G6).** The Boundary also takes questions in (``site-<id>.ingress.jsonl`` at the site, HQ's
+  ``questions.jsonl`` beside the receive log); ``edge/verify.py``'s ``SiteVerifier`` answers them. With a runtime,
+  a usage summary may name the judge task as well as extraction, so judge rows in the site's ledger can be
+  summarised.
 
 Timestamps (``ingested_at``, ``extracted_at``, emission rows, log rows) come only from the injected clock.
 """
@@ -39,6 +43,7 @@ from ..packs.connector import SITE_ID_RE, record_problems, valid_date
 from .egress import CHANNELS, SCHEMA_VERSION, SUPPRESSED, Boundary
 from .extract import TASK_NAME, Claim, LexicalExtractor, ModelExtractor, sense
 from .records import EmissionRow, ExtractionRow, InputRow, RecordStore
+from .verify import JUDGE_TASK
 from .weeks import TS_RE, closed_through, iso_week, local_date
 
 if TYPE_CHECKING:
@@ -197,8 +202,10 @@ class EdgeSite:
         workdir.mkdir(parents=True, exist_ok=True)
         self.boundary = Boundary(pack, site_id, egress_log=workdir / f"site-{site_id}.egress.jsonl",
                                  receive_log=Path(hq_dir) / "receive.jsonl", clock=clock,
-                                 tasks=(TASK_NAME,) if runtime is not None else (),
-                                 endpoints=tuple(sorted(runtime.config.endpoints)) if runtime is not None else ())
+                                 tasks=(TASK_NAME, JUDGE_TASK) if runtime is not None else (),
+                                 endpoints=tuple(sorted(runtime.config.endpoints)) if runtime is not None else (),
+                                 ingress_log=workdir / f"site-{site_id}.ingress.jsonl",
+                                 question_log=Path(hq_dir) / "questions.jsonl")
         self.store = RecordStore(workdir / f"site-{site_id}.sqlite3", site_id=site_id, pack_id=pack.id,
                                  config_hash=pack.config_hash)
 

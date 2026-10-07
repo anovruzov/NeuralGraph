@@ -4,10 +4,18 @@
       "text": "In the last {window}, how many of your files describe {predicate_label} involving {entity_type_label} {entity_id}?",
       "entity_types": [
         "clinic",
+        "damage_area",
         "repair_shop",
         "tow_operator"
       ],
       "predicates": null
     }
+  },
+  "pushdown": {
+    "min_confirming_sites": 2,
+    "min_independent_roots": 3,
+    "min_independent_reporters": 3,
+    "freshness_days": 56,
+    "max_sibling_sites": 2
   }
 }

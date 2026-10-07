@@ -87,6 +87,10 @@ NOT_COVERED = (
     "Encoded or transformed text (hashes, base64, translation, paraphrase).",
     "Fragments shorter than 8 canary-core characters or 24 narrative characters.",
     "Strings split across SQLite pages.",
+    "Presence or absence of an entity at a site in a question window, revealed by a refute versus an unknown; "
+    "limited, not prevented, by the per-entity daily question budget (G6, X5).",
+    "Bucket transitions between overlapping question windows for one key, which can narrow a count inside its "
+    "bucket (G6, X5).",
 )
 KNOWN_LIMITATION_NOTE = (
     "With require_master_data off, ids found only in narratives leave as cell keys (their counts suppressed), so "

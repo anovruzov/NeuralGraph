@@ -134,7 +134,7 @@ class LoadTests(TempCase):
                                  {t for t, et in p.entity_types.items() if et.egress})
 
     def test_egress_and_detector_values(self) -> None:
-        expected = {"device_quality": (3, [3, 5, 10, 25]), "claims_integrity": (5, [5, 10, 25, 50])}
+        expected = {"device_quality": (3, [3, 10, 50]), "claims_integrity": (5, [5, 10, 50])}
         for pid, (k, buckets) in expected.items():
             p = pack(pid)
             with self.subTest(pack=pid):

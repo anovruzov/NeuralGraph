@@ -58,12 +58,26 @@ broken by input order or by a stable sort, they are averaged exactly over every 
   of every cluster. Each of ``B`` replicates draws ``n_clusters`` whole clusters with replacement
   (``random.Random(seed)``) and takes the pooled mean of the drawn units; the interval is the replicates'
   :func:`percentile` at ``100 * alpha / 2`` and ``100 * (1 - alpha / 2)``. Units of one cluster are never split.
+
+The paired ranking bootstrap (G6, E2):
+
+* :func:`paired_ranking_bootstrap` ``(scores, relevant, *, k, B, seed, alpha=0.05, ratio=None, epsilon=0.01)``:
+  ``scores`` maps each condition name to one score per item, ``relevant`` marks each item. Point estimates per
+  condition: AP is :func:`tie_averaged_ap` with ``n_relevant`` = all relevant items (None when there is none), and
+  precision@k is :func:`tie_averaged_precision_at_k`. Each of ``B`` replicates draws ``n`` item indices with
+  replacement from one ``random.Random(seed)`` stream, and every condition is scored on the same draw (paired). In a
+  replicate AP uses ``n_relevant`` = the relevant items drawn; a replicate with none drawn is counted in
+  ``ap_undefined`` and left out of that condition's AP interval. With ``ratio = (numerator, denominator)`` the
+  estimate is ``AP_num / AP_den``, None when ``AP_den`` is None or below ``epsilon``; a replicate's ratio is
+  undefined (counted, left out) on the same rule. Every interval is the :func:`percentile` of the defined replicates
+  at ``100 * alpha / 2`` and ``100 * (1 - alpha / 2)``, None when there is none. ``method`` is ``paired
+  percentile``.
 """
 from __future__ import annotations
 
 import math
 import random
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 Z95 = 1.959963984540054
 
@@ -434,3 +448,91 @@ def cluster_bootstrap_mean(clusters: Sequence[Sequence[float]], *, B: int, seed:
     return {"mean": math.fsum(sums) / sum(sizes), "ci_low": percentile(reps, 100 * alpha / 2),
             "ci_high": percentile(reps, 100 * (1 - alpha / 2)), "B": B, "seed": seed, "method": "cluster percentile",
             "n_clusters": n, "n_units": sum(sizes)}
+
+
+# --------------------------------------------------------------------------------------------------- paired ranking
+
+def paired_ranking_bootstrap(scores: Mapping[str, Sequence[float]], relevant: Sequence[bool], *, k: int, B: int,
+                             seed: int | str, alpha: float = 0.05, ratio: tuple[str, str] | None = None,
+                             epsilon: float = 0.01) -> dict[str, Any]:
+    if not isinstance(scores, Mapping) or not scores or not all(isinstance(name, str) for name in scores):
+        raise ValueError("scores must map condition names to score lists") from None
+    if not isinstance(relevant, (list, tuple)) or not all(isinstance(r, bool) for r in relevant):
+        raise ValueError("relevant must be a list of bools") from None
+    n = len(relevant)
+    if n == 0:
+        raise ValueError("need at least one item") from None
+    for name in scores:
+        values = scores[name]
+        if not isinstance(values, (list, tuple)) or len(values) != n:
+            raise ValueError("every condition needs one score per item") from None
+        for v in values:
+            _real_arg(v, "each score")
+    _int_arg(k, "k", 1)
+    _int_arg(B, "B", 1)
+    if isinstance(alpha, bool) or not isinstance(alpha, (int, float)) or not 0 < alpha < 1:
+        raise ValueError("alpha must be in (0, 1)") from None
+    if isinstance(seed, bool) or not isinstance(seed, (int, str)):
+        raise ValueError("seed must be an int or str") from None
+    if ratio is not None and (not isinstance(ratio, (list, tuple)) or len(ratio) != 2
+                              or not all(name in scores for name in ratio)):
+        raise ValueError("ratio must name two conditions") from None
+    if isinstance(epsilon, bool) or not isinstance(epsilon, (int, float)) or not math.isfinite(epsilon) \
+            or epsilon <= 0:
+        raise ValueError("epsilon must be a finite number > 0") from None
+    names = sorted(scores)
+    rel = list(relevant)
+    n_relevant = sum(rel)
+
+    def ap(values: Sequence[float], marks: Sequence[bool]) -> float | None:
+        return tie_averaged_ap(list(values), list(marks)) if any(marks) else None
+
+    def quotient(num: float | None, den: float | None) -> float | None:
+        return None if num is None or den is None or den < epsilon else num / den
+
+    point_ap = {name: ap(scores[name], rel) for name in names}
+    ap_reps: dict[str, list[float]] = {name: [] for name in names}
+    p_reps: dict[str, list[float]] = {name: [] for name in names}
+    ratio_reps: list[float] = []
+    ap_undefined = ratio_undefined = 0
+    rng = random.Random(seed)
+    for _ in range(B):
+        drawn = [rng.randrange(n) for _ in range(n)]
+        marks = [rel[i] for i in drawn]
+        defined = any(marks)
+        ap_undefined += int(not defined)
+        replicate: dict[str, float | None] = {}
+        for name in names:
+            values = [scores[name][i] for i in drawn]
+            replicate[name] = tie_averaged_ap(values, marks) if defined else None
+            if replicate[name] is not None:
+                ap_reps[name].append(replicate[name])
+            p_reps[name].append(tie_averaged_precision_at_k(values, marks, k))
+        if ratio is not None:
+            value = quotient(replicate[ratio[0]], replicate[ratio[1]])
+            if value is None:
+                ratio_undefined += 1
+            else:
+                ratio_reps.append(value)
+
+    def ci(reps: Sequence[float]) -> tuple[float | None, float | None]:
+        if not reps:
+            return None, None
+        return percentile(reps, 100 * alpha / 2), percentile(reps, 100 * (1 - alpha / 2))
+
+    conditions = {}
+    for name in names:
+        ap_low, ap_high = ci(ap_reps[name])
+        p_low, p_high = ci(p_reps[name])
+        conditions[name] = {"ap": point_ap[name], "ap_ci_low": ap_low, "ap_ci_high": ap_high,
+                            "ap_undefined": ap_undefined,
+                            "precision_at_k": tie_averaged_precision_at_k(list(scores[name]), rel, k),
+                            "p_ci_low": p_low, "p_ci_high": p_high}
+    ratio_doc = None
+    if ratio is not None:
+        low, high = ci(ratio_reps)
+        ratio_doc = {"numerator": ratio[0], "denominator": ratio[1],
+                     "estimate": quotient(point_ap[ratio[0]], point_ap[ratio[1]]), "ci_low": low, "ci_high": high,
+                     "undefined": ratio_undefined, "epsilon": epsilon}
+    return {"n": n, "n_relevant": n_relevant, "B": B, "seed": seed, "k": k, "method": "paired percentile",
+            "conditions": conditions, "ratio": ratio_doc}

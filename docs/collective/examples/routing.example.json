@@ -36,6 +36,7 @@
     }
   },
   "routes": {
-    "extract_claims": {"endpoint": "site-a-ollama", "escalate_to": "site-a-vllm"}
+    "extract_claims": {"endpoint": "site-a-ollama", "escalate_to": "site-a-vllm"},
+    "judge_record": {"endpoint": "site-a-ollama", "escalate_to": "site-a-vllm"}
   }
 }

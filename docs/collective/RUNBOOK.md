@@ -1,4 +1,4 @@
-# Founder runbook: week-1 measurements, E1, G0, X1 and the public replay
+# Founder runbook: week-1 measurements, E1, G0, X1, the public replay and E2
 
 This runbook covers what you run on your own machines (STRATEGY sections 11.2 and 12):
 
@@ -10,7 +10,10 @@ This runbook covers what you run on your own machines (STRATEGY sections 11.2 an
 - **G0**: whether planted text leaves a site through the Boundary (text only, synthetic data);
 - **X1/X2**: the blind planted-pattern test of the frozen detectors against S, R (model-free), U and single-site
   baselines (synthetic, internal only; section 11);
-- **the openFDA public replay** (STRATEGY section 9.3): signals frozen before any recall is opened (section 12).
+- **the openFDA public replay** (STRATEGY section 9.3): signals frozen before any recall is opened (section 12);
+- **E2**: whether pushdown verification with a small model inside each site keeps the ranking quality of a central
+  model reading the raw text, with no raw text leaving a site (synthetic, internal only; section 13). It gates the
+  architecture (STRATEGY section 5.5).
 
 None of these produced a number in the sandbox where the code was written. Model weights and api.fda.gov could not
 be reached there, so every figure has to come from your runs. The E1 harness was rehearsed against local fake
@@ -103,6 +106,10 @@ cp docs/collective/examples/routing.example.json <routing-file>
 - Delete the endpoints you do not run.
 - `docs/collective/examples/README.md` explains each field and how to add a price from a provider's pricing page.
 - A key for a hosted comparator goes in the environment variable named by `api_key_env`, never in the file.
+- Since G6 a site's file also routes `judge_record`, the pushdown judge: it reads one of the site's own records to
+  answer one question from HQ, so its endpoint (and any `escalate_to`) must be at `site:<site-id>`, the same
+  boundary as `extract_claims` (`any-simulated` when one machine plays every simulated site, as in G0 and E2).
+  E2 refuses a judge route that names any other boundary.
 
 Check the file with a dry run (section 4). It reports any bad field by its JSON path, e.g.
 `$.endpoints.site-a-ollama.base_url`.
@@ -383,9 +390,10 @@ report lists them under `known_limitation`; the run writes a copy of the pack wi
 python -m mycelic.collective.experiments.g0_canary --pack <pack> --records 1000 --seed <seed> --require-master-data off --out runs/g0/<run-id>
 ```
 
-Through a real model server instead of the fake (section 2). The routing file's extraction endpoint must declare
-`"boundary": "any-simulated"`, because one machine plays every simulated site. The run is still synthetic and
-measures nothing about the model; it only checks that the path through a real server leaks no text:
+Through a real model server instead of the fake (section 2). The routing file must route both `extract_claims` and
+`judge_record` (G6), and every endpoint they name must declare `"boundary": "any-simulated"`, because one machine
+plays every simulated site; a file without a `judge_record` route exits 2. The run is still synthetic and measures
+nothing about the model; it only checks that the path through a real server leaks no text:
 
 ```
 python -m mycelic.collective.experiments.g0_canary --pack <pack> --records 1000 --seed <seed> --mode routing --routing <routing-file> --out runs/g0/<run-id>
@@ -402,6 +410,9 @@ Reading `runs/g0/<run-id>/leakage.json`:
 - `scope` is `text-only` and `not_covered` lists what G0 does not test.
 - `edge_totals.cells_n_ge_k` shows how many weekly cells had a count of at least k. At the built-in synthetic
   volumes it is 0: every weekly cell is suppressed (`LEAKAGE.md` section 1).
+- Since G6, `stages` is `["edge", "pushdown"]`: HQ detects over the cells, asks the sites about up to 20 candidates
+  (at least 5), and every question, every verdict, each site's ingress log and HQ's own database are scanned too.
+  `pushdown_totals` counts the candidates, questions, routes, verdicts and conclusions (`LEAKAGE.md` section 9).
 
 Send back `leakage.json` only. **Never send `private/manifest.json`**: it is the one file that holds the canary
 tokens, and a scan of anything that contains it is refused.
@@ -420,7 +431,9 @@ Send these files:
   `scorecard.json` (never the `work/` directory: it holds the synthetic world's site stores, which are large and
   add nothing);
 - for the replay: the three run files `prereg.json`, `signals.json` with `phase1.json`, and `replay.json`, plus both
-  caches' `manifest.json` (the pages only if asked; they are public data).
+  caches' `manifest.json` (the pages only if asked; they are public data);
+- for E2: the X1 `prereg.json` it used, the plant spec, `runs/e2/<run-id>/e2.json` and `central.ledger.jsonl` (never
+  the `work/` directory: it holds every simulated site's store, ledgers and logs).
 
 Never send:
 
@@ -553,3 +566,90 @@ Use a new `--run-id` for each of the three commands. Reading `runs/replay/<run-i
 - `false_alarms_per_week` counts alerts on **every** product code of the manufacturer, not only recalled ones.
 - `recalls.unmatched_product_code` lists recalls of codes with no event in the cache; `not_evaluable` recalls fall
   before the first evaluated week.
+
+## 13. E2: pushdown verification against central reading (synthetic, internal only)
+
+E2 (STRATEGY sections 5.5 and 11.2) gates the architecture: on planted synthetic worlds, does pushdown verification
+with a small model inside each site rank the detector's candidates at least 90% as well (AP) as one central model
+reading the raw text of every site's matching records, with zero raw-text bytes crossing a boundary? It compares four
+conditions on the same candidates:
+
+- `stats_only`: the detector's own snapshot score, no question asked;
+- `central_raw`: one central judge reads the raw record text of every site's matching records in the question window.
+  Raw text crosses site boundaries, so it runs on synthetic worlds only, and you must say so on the command line;
+- `central_allowed`: STRATEGY's R for this task: the same central judge reads only the fields policy allows to leave
+  (site, received date, codes and structured ids), never narrative;
+- `pushdown`: each contributing site and up to two sibling sites answer a narrow question from their own records
+  inside their boundaries; only bucketed verdicts cross; ranked by the commit gate's status, then the support lower
+  bound.
+
+Everything here is **synthetic and same-author**: `e2.json` says `synthetic: true` and `internal_only: true`, and it
+is never shown to a buyer or as a product number (STRATEGY section 9.1).
+
+**Inputs.** An X1 prereg (section 11, step 1) with at least 5 seeds, and a plant spec checked against it (section 11,
+step 2). The protocol needs at least 300 candidates over at least 5 seeds; below that the run exits 2 unless you pass
+`--min-candidates N`, which `e2.json` stamps as `below_protocol_minimum`. The device pack ships
+`fixtures/plant_e2_smoke.json`, a same-author smoke (not blind, never a result) that yields enough candidates on a
+6-site, 52-week world with evaluation weeks 20 to 51.
+
+**Rehearsal with fakes** (no model server; every site judges with the deterministic lexical judge behind a fake
+provider, and the central conditions use rehearsal-only fake handlers). It checks the plumbing and writes
+`measurement: false`; it says nothing about any model:
+
+```
+python -m mycelic.collective.evaluate.harness prereg --pack device_quality --seeds 1,2,3,4,5 --weeks 52 --eval-from 20 --eval-to 51 --tie-salt <tie-salt> --detector-author "<detector-author>" --run-id <run-id>
+```
+
+```
+python -m mycelic.collective.experiments.e2_pushdown run --x1-prereg <prereg-file> --plant mycelic/collective/packs/data/device_quality/fixtures/plant_e2_smoke.json --run-id <run-id> --allow-external-raw synthetic --data-label synthetic
+```
+
+**A real run.** Serve the small model you are testing (section 2) and write **one routing file per site boundary**
+into one directory, named `<site-id>.json` for every site of the prereg's world (`world.site_ids` in
+`prereg.json`). Each routes `judge_record` (and any `escalate_to`) to an endpoint whose boundary is `site:<site-id>`
+or `any-simulated` (one machine playing every site), never the fake provider; E2 refuses anything else with "the judge
+route of site <site-id> may leave the site". Copy `docs/collective/examples/central_routing.example.json` for the
+central comparator: it routes `judge_candidate_raw` and `judge_candidate_allowed` to the model you compare against,
+at a `central` (or `external`) boundary; E2 refuses a site boundary or the fake provider there.
+
+```
+python -m mycelic.collective.experiments.e2_pushdown run --x1-prereg <prereg-file> --plant <plant-file> --run-id <run-id> --site-routing <site-routing-dir> --central-routing <central-routing-file> --allow-external-raw synthetic --data-label synthetic
+```
+
+`--top-n` (default 60) is the number of candidates per seed; `--deadline-seconds` (default 600) is how long HQ waits
+for one site's verdict before it records a timeout; `--bootstrap-b` (at least 1000, default 10000) and
+`--bootstrap-seed` set the paired bootstrap. `--dry-run` lists what is missing and writes nothing.
+
+**How long it takes: estimate it from your own E3 numbers; there is no figure here.** Run the rehearsal first. In
+its `e2.json`, `items[].central_raw_records` is how many records the central judge read for each candidate across all
+sites (at most 400); each site's judge makes one call per record it retrieves for a question at most (capped by the
+pack's `verify_max_records`; a question asked again reuses the stored verdict), so the sum of `central_raw_records`
+over the items bounds the site judge calls, give or take the two caps. The central conditions add two calls per
+candidate. Multiply the calls by the per-call latency E3 measured on your hardware at your concurrency (section 4) to
+get an estimate. The per-entity daily question budget (`question_budget_per_entity_per_day`) turns extra questions
+about one entity on one simulated day into `unknown` (budget); `pushdown.budget_unknowns` counts them.
+
+**Reading `runs/e2/<run-id>/e2.json`:**
+
+- `stamps.measurement` is true only when no fake took part anywhere (every site endpoint, the central endpoint and
+  every ledger row). **The 0.90 bar is judged only then**: `verdict` holds `ratio_at_least_bar`,
+  `ci_low_at_least_bar`, `pushdown_raw_text_bytes_zero` and `pass`; otherwise `verdict` is null,
+  `verdicts_withheld` is true and `withheld_reason` says why (a fake was involved, or the ratio is undefined because
+  central_raw's AP is null or below 0.01).
+- `conditions.<name>`: AP and precision@40 with paired percentile intervals (`bootstrap.method`); `ratio` is
+  pushdown AP over central_raw AP with its paired interval.
+- `raw_text_bytes`: `central_raw` is the UTF-8 bytes of record text it sent (more than 0 by design); `stats_only` and
+  `central_allowed` are 0; `pushdown` is the narrative overlap found in every artifact that crossed (questions,
+  verdicts, the site ingress and egress logs) and must be 0. `raw_text_scan` shows how each was scanned.
+- `pushdown.resolvability`: the share of supported conclusions whose every counted confirm resolves, at its site,
+  to in-window records of that site judged yes/yes (STRATEGY section 6.3 targets at least 95%), and how many
+  confirming records the site's extractor had missed (`extraction_miss_confirmations`).
+- `pushdown.statuses`, `verdicts`, `routes`, `budget_unknowns`, `timeouts` and `errors` describe the pushdown run;
+  `items[]` lists every candidate with its label (`true`, `decoy` or `background`), status and four scores.
+- `notes` say what the data is: synthetic, same-author, internal only; cross-site copies without an origin marker
+  count as independent roots at each site, so pushdown can reach `supported` on them (a known hard case).
+- `content_hash` is reproducible: the same prereg, plant spec and settings give the same hash on any machine and run
+  id.
+
+Send back what section 10 lists for E2. `e2.json` and `central.ledger.jsonl` hold no record text, record ref or
+narrative (the ledger refs are `e2:<n>:raw` and `e2:<n>:allowed`), and a test scans them for narrative shingles.

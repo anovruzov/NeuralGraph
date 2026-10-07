@@ -105,7 +105,7 @@ def eval_code_hash() -> str:
     return code_hash([ROOT / p for p in eval_code_files()])
 
 
-def _dirty_state() -> bool | str:
+def dirty_state() -> bool | str:
     return code_dirty(list(EVAL_DIRTY_PATHS))
 
 
@@ -683,7 +683,7 @@ def cmd_prereg(args: argparse.Namespace) -> int:
         pack = _load_pack(args.pack)
         check_settings(pack, sites=args.sites, weeks=args.weeks, eval_from=args.eval_from, eval_to=args.eval_to,
                        grace_weeks=args.grace_weeks)
-        dirty = _dirty_state()
+        dirty = dirty_state()
         check_clean(args.allow_dirty, dry, dirty)
         if dry is not None:
             dry.write(str(out_dir / "prereg.json"))
@@ -715,7 +715,7 @@ def cmd_prereg(args: argparse.Namespace) -> int:
     return 0
 
 
-def _prereg_pack(prereg: Mapping[str, Any]) -> FrozenPack:
+def prereg_pack(prereg: Mapping[str, Any]) -> FrozenPack:
     """The pack the prereg names, refusing any of its four hashes that changed (all named)."""
     pack = _load_pack(prereg["pack"]["ref"])
     if pack.id != prereg["pack"]["id"]:
@@ -723,7 +723,7 @@ def _prereg_pack(prereg: Mapping[str, Any]) -> FrozenPack:
     return pack
 
 
-def _check_world(pack: FrozenPack, prereg: Mapping[str, Any]) -> None:
+def check_world(pack: FrozenPack, prereg: Mapping[str, Any]) -> None:
     w, ev = prereg["world"], prereg["evaluation"]
     check_settings(pack, sites=w["sites"], weeks=w["weeks"], eval_from=ev["eval_from"], eval_to=ev["eval_to"],
                    grace_weeks=ev["grace_weeks"])
@@ -734,7 +734,7 @@ def _check_world(pack: FrozenPack, prereg: Mapping[str, Any]) -> None:
         raise UsageError("the prereg's world settings are inconsistent with its pack") from None
 
 
-def _plant(path: str, pack: FrozenPack, prereg: Mapping[str, Any]) -> PlantSpec:
+def load_checked_plant(path: str, pack: FrozenPack, prereg: Mapping[str, Any]) -> PlantSpec:
     w, ev = prereg["world"], prereg["evaluation"]
     spec = load_plant(path, pack)
     world = generate(pack, w["seeds"][0], w["sites"], w["weeks"])
@@ -753,12 +753,12 @@ def cmd_check_plant(args: argparse.Namespace) -> int:
                 dry.need(f"{what} {p}")
             return dry.emit()
         prereg, data = read_prereg(args.prereg)
-        pack = _prereg_pack(prereg)
+        pack = prereg_pack(prereg)
         differing = pinned_differences(prereg, pack, None)
         if differing:
             raise UsageError(f"pinned values differ from the prereg: {', '.join(differing)}") from None
-        _check_world(pack, prereg)
-        spec = _plant(args.plant, pack, prereg)
+        check_world(pack, prereg)
+        spec = load_checked_plant(args.plant, pack, prereg)
     except (UsageError, PlantError, GeneratorError) as exc:
         return fail(str(exc))
     if dry is not None:
@@ -786,14 +786,14 @@ def cmd_run(args: argparse.Namespace) -> int:
         prereg_sha = sha256_hex(data)
         if seeds != prereg["world"]["seeds"]:
             raise UsageError("--seeds differ from the prereg's seeds") from None
-        pack = _prereg_pack(prereg)
+        pack = prereg_pack(prereg)
         differing = pinned_differences(prereg, pack, eval_code_hash())
         if differing:
             raise UsageError(f"pinned values differ from the prereg: {', '.join(differing)}") from None
-        dirty = _dirty_state()
+        dirty = dirty_state()
         check_clean(args.allow_dirty, dry, dirty)
-        _check_world(pack, prereg)
-        spec = _plant(args.plant, pack, prereg)
+        check_world(pack, prereg)
+        spec = load_checked_plant(args.plant, pack, prereg)
         if spec.prereg_sha256 is not None and spec.prereg_sha256 != prereg_sha:
             raise UsageError("the plant spec's prereg_sha256 is not the sha256 of this prereg file") from None
         if dry is not None:
