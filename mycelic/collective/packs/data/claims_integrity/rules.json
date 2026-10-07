@@ -1,0 +1,20 @@
+{
+  "rules": {
+    "shop_supplement_pattern": {
+      "label": "Supplements after teardown from one shop on several lines",
+      "entity_type": "repair_shop",
+      "predicate": "supplement_after_teardown",
+      "min_sites": 2,
+      "min_count_per_site": 2,
+      "window_weeks": 8
+    },
+    "clinic_treatment_pattern": {
+      "label": "One clinic's treatment pattern on several lines",
+      "entity_type": "clinic",
+      "predicate": "treatment_pattern_mismatch",
+      "min_sites": 2,
+      "min_count_per_site": 1,
+      "window_weeks": 12
+    }
+  }
+}

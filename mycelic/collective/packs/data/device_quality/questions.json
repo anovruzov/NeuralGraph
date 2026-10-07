@@ -1,0 +1,25 @@
+{
+  "templates": {
+    "count_predicate_on_entity": {
+      "text": "In the last {window}, how many of your records describe {predicate_label} for {entity_type_label} {entity_id}?",
+      "entity_types": [
+        "component",
+        "lot",
+        "product",
+        "supplier"
+      ],
+      "predicates": null
+    },
+    "lot_scope_check": {
+      "text": "Do any of your records from the last {window} link {entity_type_label} {entity_id} to {predicate_label}?",
+      "entity_types": [
+        "lot"
+      ],
+      "predicates": [
+        "contamination",
+        "crack",
+        "leak"
+      ]
+    }
+  }
+}

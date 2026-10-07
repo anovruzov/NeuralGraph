@@ -1,0 +1,32 @@
+{
+  "weekly_alert_budget": 4,
+  "baseline_weeks": 26,
+  "window_weeks": 8,
+  "burst": {
+    "min_sites": 2,
+    "rate_floor": 0.01
+  },
+  "cooccurrence": {
+    "min_sites": 2,
+    "min_pmi": 1.0,
+    "min_pair_count": 3
+  },
+  "independence": {
+    "echo_window_days": 28
+  },
+  "decoy": {
+    "max_single_reporter_share": 0.5,
+    "high_base_rate": 0.3,
+    "stale_weeks": 10
+  },
+  "ranker": {
+    "bias": -2.0,
+    "weights": {
+      "burst_surprise": 0.35,
+      "pmi": 0.5,
+      "independent_roots": 0.4,
+      "sites": 0.3,
+      "res_conf": 1.0
+    }
+  }
+}

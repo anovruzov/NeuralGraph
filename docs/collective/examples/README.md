@@ -1,4 +1,13 @@
-# Routing examples
+# Examples
+
+This directory holds templates, never defaults:
+
+- `routing.example.json`: one site's routing file (below);
+- `e1_models.example.md`: the model tags STRATEGY lists for E1, as configurable examples;
+- `e1.prereg.example.json`: the exact key set E1's `prereg` writes, with placeholder values (the E1 tests check that
+  `prereg` writes exactly these keys).
+
+## Routing
 
 `routing.example.json` is a template for one site's routing file. Copy it, set every `boundary` to your own site
 (`site:<site-id>`), delete the endpoints you do not run, and point `base_url` at your servers. The runtime never

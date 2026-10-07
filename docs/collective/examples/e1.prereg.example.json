@@ -1,0 +1,32 @@
+{
+  "kind": "e1_prereg",
+  "schema_version": 1,
+  "experiment": "E1",
+  "run_id": "<run-id>",
+  "created_at": "<written by prereg: ISO 8601 UTC>",
+  "pack": {"ref": "device_quality", "id": "device_quality", "version": "<pack version>", "vocabulary_hash": "<64 hex>"},
+  "code_hash": "<64 hex: e1_code_hash over E1_CODE_FILES>",
+  "code_files": ["<repository-relative path of each scoring file>"],
+  "code_commit": "<40 hex or unknown>",
+  "code_dirty": "<false, true or unknown>",
+  "allow_dirty": "<false unless --allow-dirty>",
+  "labels": {"sha256": "<64 hex of labels.jsonl>", "records": "<labelled records>", "claims": "<gold claims>"},
+  "primary_metric": "field_f1",
+  "secondary_metrics": ["claim_f1", "entity_f1", "predicate_f1", "json_validity_rate", "exact_match"],
+  "margin": "<fraction, e.g. 0.05 for --margin 5>",
+  "kill_below": "<0.8>",
+  "underpowered_below": "<600>",
+  "endpoints": [
+    {"name": "<endpoint-name>", "provider": "openai_compat", "boundary": "site:<site-id>", "model": "<model-tag>",
+     "response_format": "json_schema", "transport_schema": "full"},
+    {"name": "<reference-endpoint>", "provider": "openai_compat", "boundary": "external", "model": "<model-tag>",
+     "response_format": "json_schema", "transport_schema": "full"}
+  ],
+  "reference": "<reference-endpoint>",
+  "runs": "<3 or more>",
+  "seed": "<seed>",
+  "bootstrap_b": "<10000>",
+  "boundary": "site:<site-id>",
+  "data_label": "<public, synthetic or partner>",
+  "allow_external_raw": "<public, synthetic or null>"
+}

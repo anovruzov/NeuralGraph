@@ -1,0 +1,56 @@
+{
+  "record_ref": "complaint_no",
+  "site": "plant",
+  "received_date": {
+    "path": "received_on",
+    "format": "iso"
+  },
+  "language": "lang",
+  "codes": [
+    {
+      "path": "problem_codes[]",
+      "value_map": null
+    }
+  ],
+  "entities": {
+    "component": [
+      "parts[]"
+    ],
+    "lot": [
+      "lots[]"
+    ],
+    "product": [
+      "model"
+    ],
+    "supplier": [
+      "supplier_no"
+    ]
+  },
+  "primary_entity_type": "product",
+  "narrative": [
+    {
+      "path": "description",
+      "where": null
+    },
+    {
+      "path": "notes[].body",
+      "where": {
+        "field": "kind",
+        "in": [
+          "investigation"
+        ]
+      }
+    }
+  ],
+  "persons": {
+    "clinician_name": "clinician",
+    "patient_name": "patient.name",
+    "patient_ref": "patient.ref"
+  },
+  "reporter": "reported_by",
+  "origin_ref": "forwarded.complaint_no",
+  "origin_site": "forwarded.plant",
+  "required": [
+    "narrative"
+  ]
+}

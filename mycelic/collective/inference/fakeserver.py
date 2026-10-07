@@ -19,6 +19,12 @@ Personas (``n`` counts chat requests to this server, from 0): ``valid``, ``no-us
 ``truncated``, ``reset-mid-body``, ``stream``, ``stream-stall`` and ``stream-unsupported``. ``valid``, ``no-usage``
 and ``stream`` answer a streaming request with server-sent events: ``n_chunks`` content chunks (fewer only when the
 reply is shorter than that), and by default a usage chunk whose ``completion_tokens`` is the number of chunks sent.
+
+``responder``, when given, is called with each chat request's parsed JSON and its return value is the reply the
+``valid`` and ``invalid-then-valid`` personas (and every persona that answers with the good reply) send instead of
+``reply``. :func:`request_payload` recovers the task payload from such a request: the strict-parsed JSON in the
+``<data>`` block of the last user message that is not a repair message (a repair message's block holds the previous
+reply's excerpt, not the payload), or None.
 """
 from __future__ import annotations
 
@@ -30,8 +36,11 @@ import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import urlsplit
+
+from ..jsonio import StrictJsonError, strict_load
+from .tasks import REPAIR_MARKER
 
 PERSONAS = (
     "valid", "no-usage", "invalid-then-valid", "always-invalid", "prose-only", "http500-then-ok", "429-retry-after",
@@ -45,6 +54,30 @@ STRICT_KEYWORDS = ("pattern", "minLength", "maxLength", "minimum", "maximum", "m
 DEFAULT_REPLY = {"answer": "ok"}
 HTTP_DATE = "Wed, 21 Oct 2015 07:28:00 GMT"
 _DEFAULT_USAGE = object()
+_DATA_OPEN, _DATA_CLOSE = "<data>", "</data>"
+
+
+def request_payload(request_json: Any) -> Any | None:
+    """The task payload of a chat request (see the module docstring), or None when there is none."""
+    messages = request_json.get("messages") if isinstance(request_json, dict) else None
+    if not isinstance(messages, list):
+        return None
+    for message in reversed(messages):
+        if not isinstance(message, dict) or message.get("role") != "user":
+            continue
+        content = message.get("content")
+        if not isinstance(content, str) or content.startswith(REPAIR_MARKER):
+            continue
+        start, end = content.find(_DATA_OPEN), content.rfind(_DATA_CLOSE)
+        if start < 0 or end < start:
+            return None
+        failed = False
+        try:
+            value = strict_load(content[start + len(_DATA_OPEN):end])
+        except StrictJsonError:
+            failed = True
+        return None if failed else value
+    return None
 
 
 def _contains_key(obj: Any, keys: tuple[str, ...]) -> bool:
@@ -90,7 +123,8 @@ class FakeOpenAIServer:
                  served_model: str | None = None, usage: Any = _DEFAULT_USAGE, retry_after: str = "1",
                  slow_s: float = 5.0, trickle_s: float = 0.4, first_token_s: float = 0.3, token_s: float = 0.02,
                  n_chunks: int = 20, slots: int | None = None, oversize_bytes: int = 2097152,
-                 tls: tuple[str, str] | None = None) -> None:
+                 tls: tuple[str, str] | None = None,
+                 responder: Callable[[dict[str, Any]], dict[str, Any]] | None = None) -> None:
         if persona not in PERSONAS:
             raise ValueError(f"unknown persona {persona!r}") from None
         self.persona = persona
@@ -104,6 +138,7 @@ class FakeOpenAIServer:
         self.first_token_s, self.token_s, self.n_chunks = first_token_s, token_s, max(1, int(n_chunks))
         self.oversize_bytes = oversize_bytes
         self.tls = tls
+        self.responder = responder
         self.requests: list[dict[str, Any]] = []
         self.port = 0
         self._slots = threading.Semaphore(slots) if slots else None
@@ -230,7 +265,7 @@ class FakeOpenAIServer:
 
     def _chat(self, h: _Handler, request: dict[str, Any], raw: bytes, n: int) -> None:
         persona = self.persona
-        good = json.dumps(self.reply, ensure_ascii=False)
+        good = json.dumps(self.responder(request) if self.responder is not None else self.reply, ensure_ascii=False)
         wants_stream = request.get("stream") is True
         if persona in ("valid", "stream") and wants_stream:
             return self._stream(h, request, good, usage=True)

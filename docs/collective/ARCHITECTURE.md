@@ -1,7 +1,8 @@
-# Mycelic collective: architecture (gate G1)
+# Mycelic collective: architecture (gates G1 and G2)
 
-This document describes what gate G1 builds under `mycelic/collective/`. It also places G1 in the loop that later
-gates complete (STRATEGY section 4.1).
+This document describes what gates G1 and G2 build under `mycelic/collective/`. It also places them in the loop
+that later gates complete (STRATEGY section 4.1). Sections 1 to 10 describe G1; section 11 describes G2 (domain
+packs and the sense step).
 
 **No real-model number is produced in this sandbox.** Model weights and the openFDA API cannot be reached from it, so
 every test runs against a deterministic in-process fake or a local fake HTTP server. Every harness output says so in
@@ -151,9 +152,10 @@ Replies are validated locally against the full schema, even when the wire carrie
 | Guard | What it enforces |
 |---|---|
 | Import guard | `mycelic/{service,aggregation,store,transport,lineage}.py` import no model client and nothing from `mycelic.collective`. An AST check covers plain, relative and dynamic imports; a fresh-interpreter check confirms it. A missing core file fails loudly. |
-| Stdlib only | All 20 collective modules import, and the four CLIs answer `--help`, under `python -S` |
+| Stdlib only | All 28 collective modules import, and the ten CLIs (G2 adds the five E1 subcommands and `packs.loader check`) answer `--help`, under `python -S` |
 | No model names | No model-family name in collective code, docs or tests. The matcher holds sha256 digests only. Example tags live only in `docs/collective/examples/`. |
-| Determinism | No wall clock or unseeded randomness in `jsonio`, `schemacheck`, `stats` and the runtime modules |
+| Determinism | No wall clock or unseeded randomness in `jsonio`, `schemacheck`, `stats`, the runtime modules, the pack modules and `edge/extract.py` |
+| Domain literals (G2) | No pack term (entity type, predicate, code, rule, template, follow-up type or role id of either built-in pack) is an identifier or a whole string constant in generic collective code, no string constant there contains `ILL-`, and no openFDA field name is a string constant in the pack, extraction or E1 code (one documented exemption: `text`, the payload key the brief fixes) |
 | Runbook | Every RUNBOOK command runs with `--dry-run`, with the network blocked, and creates nothing |
 
 Each later gate extends the lists at the top of that module.
@@ -162,7 +164,7 @@ Each later gate extends the lists at the top of that module.
 
 | Stage | What it needs | Status after G1 |
 |---|---|---|
-| Sense | records become typed claims and per-site counts; structured codes (no model) and in-boundary extraction | **Runtime built** (boundary-bound model calls, schema validation, ledger); packs, extraction and counts are later gates |
+| Sense | records become typed claims and per-site counts; structured codes (no model) and in-boundary extraction | **G1:** runtime (boundary-bound model calls, schema validation, ledger). **G2:** packs, the canonicaliser, the record connector, claim extraction from codes (S) and narratives (X), and the E1 harness. Counts are a later gate |
 | Detect | statistical detectors over counts; rules as a second channel | Later (no model is involved) |
 | Decide | candidate decided at the lowest unit spanning the evidence | Exists in the fabric for rule conclusions; candidates are later |
 | Verify (pushdown) | narrow questions answered by each site's in-boundary model from its own records | Later; it will call `Runtime.run` at each site, where the guard keeps raw text inside |
@@ -189,5 +191,98 @@ policy a site's file should express, until a measurement says otherwise:
 
 ## 10. What G1 does not do
 
-Packs, extraction, edge stores, detectors, verification, follow-up and the demo are gates G2 to G8. The E1 and E2
-harnesses come later. They will use `Runtime.single` and `endpoint=`, as E3 does.
+G1 built no pack and no extractor; G2 adds them (section 11). Edge stores, counts, detectors, verification,
+follow-up and the demo are later gates, and the E2 harness comes later. E1 (G2) calls the model through
+`Runtime.run` with an `endpoint=` override, so the repair rule is the one production extraction uses.
+
+## 11. G2: packs and the sense step
+
+G2 makes generality a matter of data plus a small amount of generic code, and builds the sense step with the
+experiment that measures it (E1). **No real-model number is produced here either**: E1 was rehearsed against local
+fake servers, and its outputs say `measurement: false`.
+
+| Part | Module | Purpose |
+|---|---|---|
+| Pack loader | `packs/loader.py` | Strict-JSON pack directory to a frozen `FrozenPack` with four sha256 hashes; every failure a `PackError(file, path, problem)`; `python -m mycelic.collective.packs.loader check` |
+| Canonicaliser | `packs/canonical.py` | Folds, id formats compiled to ASCII patterns, deterministic resolution of entity mentions (never a model), sentence spans |
+| Connector | `packs/connector.py` | Vendor rows (and openFDA events) to internal records with exactly the record keys; per-reason rejections |
+| Generator | `packs/generator.py` | A seeded synthetic world (records, gold claims, master data) from a pack's world spec |
+| Built-in packs | `packs/data/device_quality`, `packs/data/claims_integrity` | An illustrative device-quality pack and a fictional claims-integrity pack, both same-author (`PACKS.md`) |
+| Extraction | `edge/extract.py` | The codes channel, the lexical and model extractors, post-processing, pairing into claims |
+| E1 | `experiments/e1_extract.py` | prepare, label-check, prereg, run, compare; pinned values, paired statistics |
+| Additions to G1 | `stats.py`, `inference/fakeserver.py` | `f1_from_counts` and `bootstrap_f1`; the fake server's `responder` hook and `request_payload` |
+
+Import graph (no cycles): `packs` imports neither `edge` nor `experiments`; `edge` imports `packs.canonical`, the
+inference errors and `TaskSpec` (the runtime and the pack type only for type hints); only `experiments` imports
+`experiments`; the fabric core imports none of this (the import guard).
+
+### 11.1 Two channels
+
+| Channel | Source | Model | Claims |
+|---|---|---|---|
+| **S** (codes) | structured codes and structured entity fields | none | structured entities x code predicates |
+| **X** = S + `text_only` | S plus the narrative, read inside the site's boundary | lexical, or a model behind the runtime with deterministic post-processing | S's claims plus the pairs only the narrative supports |
+
+`codes_channel` maps each code to its predicate (unknown codes are counted) and resolves each structured value
+with `resolve_exact` (failures are counted); the primary entity is the first resolved value of the mapping's
+`primary_entity_type`. An extractor returns text claims `(entity, predicate, negated)` or entity-only mentions.
+
+**Pairing** (`pair`, amendment A2). For a record with structured entities E_s, code predicates P_c and text claims:
+
+| Pair | Channel | Example (codes ILL-0101 crack; product SD-9, lot L10001; "Battery door cracked. No leak observed.") |
+|---|---|---|
+| E_s x P_c | `codes` | (SD-9, crack), (L10001, crack) |
+| the extractor's own non-negated pairs | `text_only` unless already a codes pair | (BATTERY-DOOR, crack) |
+| non-negated text predicates x E_s | `text_only` unless already a codes pair | (SD-9, crack) is already a codes pair |
+| P_c x entities named only in the text | `text_only` | (BATTERY-DOOR, crack) |
+| a pair the text states only as negated | never output | (SD-9, leak) is dropped |
+
+There is no record-level cross product of text predicates with every text entity, so a predicate is not attached to
+an unrelated component named elsewhere in the record. Each (entity, predicate) appears once; `res_conf` is the
+best evidence for the entity (text or structured). S is `pair(codes, None)`; X is `pair(codes, text)`.
+
+### 11.2 The canonicaliser
+
+Rules, in order: full-width fold; separators at separator positions (hyphen, underscore, every hyphen-like
+character, space or NBSP, the type's separator); zero-width deletion; ASCII-only case (so `ß`, `İ` and `ı` are
+never folded); leftmost-longest matches bounded by non-alphanumerics and never followed by a hard separator plus an
+alphanumeric (`SD-9-B` is rejected, `SD-90` is never `SD-9`); a lookalike with a non-ASCII letter or digit is
+unresolved and counted (`homoglyph`, `non_ascii_digit`); a space-separated form resolves only to an id the site
+knows (alias targets plus its master data), else it is counted as `space_unknown`; then alias phrases. Every span
+indexes the original text. Exact matches carry confidence 1.0, aliases 0.95 and variants 0.9 in both packs.
+
+### 11.3 Extraction and its post-processing
+
+The model receives exactly `{language, text}`: the narrative cut at a whitespace boundary to the pack's input cap.
+Persons, the reporter, the record ref and structured values are never sent. A reply item is dropped, in order, as
+`empty` (all null), `not_canonical` (only one of entity type and text), `ungrounded` (its text is not in what was
+sent), `person_value` (its text is a person value or the reporter), `not_canonical` (it does not resolve),
+`ungrounded` again (the canonicaliser does not read that id anywhere the text occurs: a model that trims `SD-9-B` to
+`SD-9` names an id the scanner rejects outright, so it is dropped, exactly as the lexical channel and label-check
+find nothing there), `no_entity` (a predicate with no entity and no primary) or `duplicate`. A kept entity's
+`res_conf` is that of the text's own occurrence, not of the model's spelling. An out-of-enum type or predicate is a
+schema failure (one repair, then the lexical fallback, or an empty result in E1), not a drop. A boundary refusal
+propagates. The fake provider's `lexical_handler` reproduces the lexical extractor's claims byte for byte, which
+the tests check on every fixture of both packs.
+
+The lexical extractor pairs per distinct entity and distinct (predicate, negated) in a sentence, carrying their
+multiplicities, so its work is linear in the narrative with a factor the pack bounds (at most two per predicate) and
+its duplicate counts equal those of pairing every mention. The remaining cost is the output itself: one sentence
+that names thousands of distinct ids next to every predicate yields that many claims (a 200,000-character worst
+case for `device_quality` gives about 371,000 claims in about 1.2 s). The handler stops at `max_claims` items.
+
+### 11.4 E1
+
+| Step | Writes | Refuses |
+|---|---|---|
+| `prepare` | `runs/e1/<id>/records.jsonl`, `sheet.csv`, `prepare.json` (seeded sample; shortfall recorded) | a missing mapping, an unreadable source |
+| `label-check` | `labels.jsonl` (canonical, sorted) | unlabelled cells, unknown types or predicates, ids that do not canonicalise, a predicate-only item without a primary entity, duplicate or missing rows |
+| `prereg` | `runs/e1/<id>/prereg.json` | fewer than 3 runs or 2 endpoints, a reference not evaluated, the fake provider, raw records to an external endpoint without a matching public or synthetic exemption, a data label the records contradict (`public` needs records from a public source, site `public`), dirty code without `--allow-dirty` |
+| `run` | `run.json` (with the sha256 of `predictions.jsonl` and `ledger.jsonl`), `predictions.jsonl`, `ledger.jsonl` | a malformed prereg, any change to the labels, the vocabulary hash, the scoring code hash or a pinned endpoint setting, a data label the labels contradict |
+| `compare` | `runs/e1/<id>/e1.json` | a tampered prereg, predictions or ledger that differ from their run's stamped sha256, a run that never finished writing `run.json`, duplicate or missing repeats, a pre-registered endpoint without runs or incomplete runs without `--allow-incomplete` (stamped; e1.json lists the endpoints without runs), a changed reference or margin |
+
+The scored output is the extractor's text claims (A3). Field-level micro F1 is primary; claim, entity and predicate
+F1, JSON validity and lot and supplier exact match (the share of records matched in every run, with a Wilson
+interval over records) are secondary. Intervals bootstrap records; the paired
+comparison bootstraps per-record differences against the reference and adds an exact sign test. With
+`measurement: false` the verdicts are withheld (null).

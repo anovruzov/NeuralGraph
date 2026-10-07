@@ -1,0 +1,213 @@
+{
+  "entity_types": {
+    "repair_shop": {
+      "label": "Repair shop",
+      "id_format": [
+        {
+          "literal": "RS"
+        },
+        {
+          "sep": "required"
+        },
+        {
+          "digit": [
+            1,
+            5
+          ]
+        }
+      ],
+      "separator": "-",
+      "case": "upper",
+      "strip_leading_zeros": true,
+      "exact_match_metric": true,
+      "egress": true,
+      "ids": null
+    },
+    "clinic": {
+      "label": "Clinic",
+      "id_format": [
+        {
+          "literal": "CL"
+        },
+        {
+          "sep": "required"
+        },
+        {
+          "alnum": [
+            4,
+            4
+          ]
+        }
+      ],
+      "separator": "-",
+      "case": "upper",
+      "strip_leading_zeros": false,
+      "exact_match_metric": true,
+      "egress": true,
+      "ids": null
+    },
+    "tow_operator": {
+      "label": "Tow operator",
+      "id_format": [
+        {
+          "literal": "TW"
+        },
+        {
+          "sep": "optional"
+        },
+        {
+          "digit": [
+            4,
+            4
+          ]
+        }
+      ],
+      "separator": "-",
+      "case": "upper",
+      "strip_leading_zeros": false,
+      "exact_match_metric": false,
+      "egress": true,
+      "ids": null
+    },
+    "damage_area": {
+      "label": "Damage area",
+      "id_format": null,
+      "separator": null,
+      "case": "upper",
+      "strip_leading_zeros": false,
+      "exact_match_metric": false,
+      "egress": true,
+      "ids": [
+        "BONNET-PANEL",
+        "FRONT-BUMPER",
+        "REAR-BUMPER",
+        "SIDE-PANEL",
+        "WINDSCREEN-GLASS"
+      ]
+    }
+  },
+  "predicates": {
+    "supplement_after_teardown": {
+      "label": "Supplement after teardown",
+      "lexicon": {
+        "en": [
+          "supplement after teardown",
+          "supplemental estimate",
+          "supplement request",
+          "additional damage after teardown"
+        ]
+      }
+    },
+    "prior_damage_concealed": {
+      "label": "Prior damage concealed",
+      "lexicon": {
+        "en": [
+          "prior damage",
+          "pre-existing damage",
+          "old damage",
+          "concealed damage"
+        ]
+      }
+    },
+    "treatment_pattern_mismatch": {
+      "label": "Treatment pattern mismatch",
+      "lexicon": {
+        "en": [
+          "identical treatment plans",
+          "same treatment plan",
+          "treatment pattern mismatch",
+          "treatment inconsistent with the injury"
+        ]
+      }
+    },
+    "duplicate_invoice": {
+      "label": "Duplicate invoice",
+      "lexicon": {
+        "en": [
+          "duplicate invoice",
+          "invoiced twice",
+          "billed twice",
+          "same invoice number"
+        ]
+      }
+    },
+    "inflated_labour_hours": {
+      "label": "Inflated labour hours",
+      "lexicon": {
+        "en": [
+          "inflated labour",
+          "inflated labor",
+          "excessive labour hours",
+          "excessive labor hours",
+          "padded labour"
+        ]
+      }
+    },
+    "staged_collision": {
+      "label": "Staged collision",
+      "lexicon": {
+        "en": [
+          "staged collision",
+          "staged accident",
+          "deliberate collision"
+        ]
+      }
+    },
+    "tow_without_dispatch": {
+      "label": "Tow without dispatch",
+      "lexicon": {
+        "en": [
+          "undispatched tow",
+          "phantom tow",
+          "unrequested tow"
+        ]
+      }
+    },
+    "irregularity_unspecified": {
+      "label": "Irregularity, not further specified",
+      "lexicon": {
+        "en": [
+          "irregularity",
+          "irregularities",
+          "anomaly",
+          "suspicious"
+        ]
+      }
+    }
+  },
+  "negation": {
+    "en": {
+      "pre": [
+        "no",
+        "not",
+        "never",
+        "without",
+        "did not",
+        "no evidence of"
+      ],
+      "post": [
+        "not found",
+        "not confirmed",
+        "ruled out",
+        "was ruled out"
+      ],
+      "terminators": [
+        "but",
+        "however",
+        "although",
+        ","
+      ]
+    }
+  },
+  "negation_window": 3,
+  "extraction": {
+    "max_input_chars": 4000,
+    "max_output_tokens": 768,
+    "max_claims": 16,
+    "confidence": {
+      "exact": 1.0,
+      "alias": 0.95,
+      "variant": 0.9
+    }
+  }
+}

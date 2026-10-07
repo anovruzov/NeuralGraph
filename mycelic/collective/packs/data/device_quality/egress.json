@@ -1,0 +1,38 @@
+{
+  "k": 3,
+  "suppress_below_days": 31,
+  "count_granularity": "week",
+  "close_lag_days": 14,
+  "min_window_weeks": 6,
+  "verdict_count_buckets": [
+    3,
+    5,
+    10,
+    25
+  ],
+  "egress_entity_types": [
+    "component",
+    "lot",
+    "product",
+    "supplier"
+  ],
+  "require_master_data": true,
+  "never_fields": [
+    "narrative",
+    "persons.clinician_name",
+    "persons.patient_name",
+    "persons.patient_ref",
+    "reporter"
+  ],
+  "central_allowed_fields": [
+    "codes",
+    "entities.component",
+    "entities.lot",
+    "entities.product",
+    "entities.supplier",
+    "received_date",
+    "site"
+  ],
+  "verify_max_records": 500,
+  "question_budget_per_entity_per_day": 5
+}

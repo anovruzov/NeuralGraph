@@ -1,0 +1,47 @@
+{
+  "FLAG-01": {
+    "label": "Supplement after teardown",
+    "predicate": "supplement_after_teardown",
+    "specific": true
+  },
+  "FLAG-02": {
+    "label": "Prior damage concealed",
+    "predicate": "prior_damage_concealed",
+    "specific": true
+  },
+  "FLAG-03": {
+    "label": "Treatment pattern mismatch",
+    "predicate": "treatment_pattern_mismatch",
+    "specific": true
+  },
+  "FLAG-04": {
+    "label": "Duplicate invoice",
+    "predicate": "duplicate_invoice",
+    "specific": true
+  },
+  "FLAG-05": {
+    "label": "Inflated labour hours",
+    "predicate": "inflated_labour_hours",
+    "specific": true
+  },
+  "FLAG-06": {
+    "label": "Staged collision",
+    "predicate": "staged_collision",
+    "specific": true
+  },
+  "FLAG-07": {
+    "label": "Tow without dispatch",
+    "predicate": "tow_without_dispatch",
+    "specific": true
+  },
+  "FLAG-98": {
+    "label": "Referred for review, no reason given",
+    "predicate": "irregularity_unspecified",
+    "specific": false
+  },
+  "FLAG-99": {
+    "label": "Irregularity, not further specified",
+    "predicate": "irregularity_unspecified",
+    "specific": false
+  }
+}

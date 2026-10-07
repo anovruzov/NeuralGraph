@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import itertools
 import math
+import random
 import unittest
 
 from mycelic.collective import stats
@@ -119,6 +120,51 @@ class BootstrapTests(unittest.TestCase):
             stats.paired_bootstrap([], [], B=10, seed=1)
         with self.assertRaises(TypeError):
             stats.paired_bootstrap([1], [1], B=10)  # seed is required
+
+
+class F1Tests(unittest.TestCase):
+    def test_f1_from_counts_values(self) -> None:
+        self.assertEqual(stats.f1_from_counts(3, 1, 1), 0.75)
+        self.assertEqual(stats.f1_from_counts(2, 0, 0), 1.0)
+        self.assertEqual(stats.f1_from_counts(0, 2, 5), 0.0)
+        self.assertIsNone(stats.f1_from_counts(0, 0, 0))
+
+    def test_f1_from_counts_rejects_bad_input(self) -> None:
+        for args in ((-1, 0, 0), (1.0, 0, 0), (True, 0, 0), ("1", 0, 0), (0, None, 0)):
+            with self.subTest(args=args), self.assertRaises(ValueError):
+                stats.f1_from_counts(*args)
+
+    def test_bootstrap_f1_is_deterministic_and_matches_a_direct_recomputation(self) -> None:
+        counts = [(1, 0, 0), (0, 1, 1), (2, 0, 1), (3, 1, 0), (1, 1, 1), (0, 0, 2)]
+        a = stats.bootstrap_f1(counts, B=400, seed="e1:7:x")
+        self.assertEqual(a, stats.bootstrap_f1(counts, B=400, seed="e1:7:x"))
+        other = stats.bootstrap_f1(counts, B=400, seed="e1:8:x")
+        self.assertNotEqual((a["ci_low"], a["ci_high"]), (other["ci_low"], other["ci_high"]))
+        self.assertEqual(a["f1"], stats.f1_from_counts(7, 3, 5))
+        self.assertLessEqual(a["ci_low"], a["f1"])
+        self.assertGreaterEqual(a["ci_high"], a["f1"])
+        self.assertEqual((a["B"], a["seed"], a["method"], a["undefined"]), (400, "e1:7:x", "percentile", 0))
+        rng = random.Random("e1:7:x")
+        reps = []
+        for _ in range(400):
+            picks = [counts[rng.randrange(len(counts))] for _ in counts]
+            reps.append(stats.f1_from_counts(*(sum(p[i] for p in picks) for i in range(3))))
+        self.assertEqual((a["ci_low"], a["ci_high"]), (stats.percentile(reps, 2.5), stats.percentile(reps, 97.5)))
+
+    def test_undefined_resamples_are_counted_and_excluded(self) -> None:
+        r = stats.bootstrap_f1([(0, 0, 0)] * 9 + [(1, 0, 0)], B=300, seed=3)
+        self.assertGreater(r["undefined"], 0)
+        self.assertEqual((r["f1"], r["ci_low"], r["ci_high"]), (1.0, 1.0, 1.0))
+        empty = stats.bootstrap_f1([(0, 0, 0), (0, 0, 0)], B=50, seed=3)
+        self.assertEqual((empty["f1"], empty["ci_low"], empty["ci_high"], empty["undefined"]), (None, None, None, 50))
+
+    def test_bootstrap_f1_input_validation(self) -> None:
+        for counts, kwargs in (([], {}), ([(1, 0)], {}), ([(1, 0, -1)], {}), ([(1, 0, 0.5)], {}), (["abc"], {}),
+                               ([(1, 0, 0)], {"B": 0}), ([(1, 0, 0)], {"B": True}), ([(1, 0, 0)], {"alpha": 1}),
+                               ([(1, 0, 0)], {"seed": 1.5})):
+            args = {"B": 10, "seed": 1, **kwargs}
+            with self.subTest(counts=counts, kwargs=kwargs), self.assertRaises(ValueError):
+                stats.bootstrap_f1(counts, **args)
 
 
 if __name__ == "__main__":

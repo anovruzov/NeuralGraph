@@ -9,6 +9,10 @@ recomputed bit for bit from the run file.
 * :func:`sign_test` is the exact two-sided sign test on paired differences with zeros dropped:
   ``p = min(1, 2 * sum_{i <= min(n+, n-)} C(n, i) / 2^n)``, summed in integers before the one final division.
 * :func:`paired_bootstrap` is a percentile bootstrap of the mean paired difference.
+* :func:`f1_from_counts` is ``2TP / (2TP + FP + FN)``, None when the denominator is 0 (nothing predicted, nothing
+  to find), never 1.0 by convention.
+* :func:`bootstrap_f1` resamples records (each a ``(tp, fp, fn)`` triple) with replacement and recomputes the
+  pooled F1; resamples whose F1 is undefined are counted in ``undefined`` and left out of the percentiles.
 """
 from __future__ import annotations
 
@@ -107,3 +111,48 @@ def paired_bootstrap(a: Sequence[float], b: Sequence[float], *, B: int = 10000, 
         reps.append(math.fsum(diffs[rng.randrange(n)] for _ in range(n)) / n)
     return {"n": n, "mean_diff": math.fsum(diffs) / n, "ci_low": percentile(reps, 100 * alpha / 2),
             "ci_high": percentile(reps, 100 * (1 - alpha / 2)), "B": B, "seed": seed, "method": "percentile"}
+
+
+def _check_count(v: Any, what: str) -> int:
+    if isinstance(v, bool) or not isinstance(v, int) or v < 0:
+        raise ValueError(f"{what} must be an int >= 0") from None
+    return v
+
+
+def f1_from_counts(tp: int, fp: int, fn: int) -> float | None:
+    tp, fp, fn = _check_count(tp, "tp"), _check_count(fp, "fp"), _check_count(fn, "fn")
+    denominator = 2 * tp + fp + fn
+    return 2 * tp / denominator if denominator else None
+
+
+def bootstrap_f1(counts: Sequence[Sequence[int]], *, B: int, seed: int | str, alpha: float = 0.05) -> dict[str, Any]:
+    rows = []
+    for row in counts:
+        if not isinstance(row, (tuple, list)) or len(row) != 3:
+            raise ValueError("counts must be (tp, fp, fn) triples") from None
+        rows.append(tuple(_check_count(v, "a count") for v in row))
+    if not rows:
+        raise ValueError("need at least one record") from None
+    if isinstance(B, bool) or not isinstance(B, int) or B < 1:
+        raise ValueError("B must be a positive int") from None
+    if isinstance(alpha, bool) or not isinstance(alpha, (int, float)) or not 0 < alpha < 1:
+        raise ValueError("alpha must be in (0, 1)") from None
+    if isinstance(seed, bool) or not isinstance(seed, (int, str)):
+        raise ValueError("seed must be an int or str") from None
+    n = len(rows)
+    rng = random.Random(seed)
+    reps, undefined = [], 0
+    for _ in range(B):
+        tp = fp = fn = 0
+        for _ in range(n):
+            a, b, c = rows[rng.randrange(n)]
+            tp, fp, fn = tp + a, fp + b, fn + c
+        value = f1_from_counts(tp, fp, fn)
+        if value is None:
+            undefined += 1
+        else:
+            reps.append(value)
+    total = tuple(sum(r[i] for r in rows) for i in range(3))
+    return {"f1": f1_from_counts(*total), "ci_low": percentile(reps, 100 * alpha / 2) if reps else None,
+            "ci_high": percentile(reps, 100 * (1 - alpha / 2)) if reps else None, "B": B, "seed": seed,
+            "method": "percentile", "undefined": undefined}

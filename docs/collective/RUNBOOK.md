@@ -1,13 +1,16 @@
-# Founder runbook, part 1: week-1 measurements
+# Founder runbook: week-1 measurements and E1
 
-This runbook covers three things you run on your own machines in week 1 (STRATEGY sections 11.2 and 12):
+This runbook covers what you run on your own machines (STRATEGY sections 11.2 and 12):
 
 - **E3**: latency and throughput of a model served inside a boundary;
 - the **openFDA fetch**;
-- **N1**: how often a device-event narrative carries information the coded fields lack.
+- **N1**: how often a device-event narrative carries information the coded fields lack;
+- **freezing a domain pack** before any labelling;
+- **E1**: whether a model inside the boundary extracts claims well enough, against a frontier reference.
 
 None of these produced a number in the sandbox where the code was written. Model weights and api.fda.gov could not
-be reached there, so every figure has to come from your runs.
+be reached there, so every figure has to come from your runs. The E1 harness was rehearsed against local fake
+servers only, and such a rehearsal writes `"measurement": false`.
 
 ## 0. Honesty rules (read these first)
 
@@ -19,7 +22,7 @@ be reached there, so every figure has to come from your runs.
    Never quote it. Only runs with `"measurement": true` count.
 4. **Say what the data is.** openFDA results are public data (`data_label: public`). MAUDE holds reportable events,
    not internal complaints. Synthetic text is labelled synthetic.
-5. **Send back run files, never keys** (section 7).
+5. **Send back run files, never keys** (section 9).
 
 Conventions:
 
@@ -223,18 +226,150 @@ python -m mycelic.collective.experiments.n1_narratives score --sheet <labelled-s
   channel to match it; anything between is ambiguous.
 - It refuses a sheet with unlabelled rows, or with keys that differ from the sample, and lists the rows to fix.
 
-## 7. What to send back
+## 7. Freeze or extend a pack
+
+E1 and every later experiment pin a pack's `vocabulary_hash`, so the vocabulary is fixed **before** anyone labels
+or looks at an outcome. The built-in `device_quality` pack is an illustrative subset with invented placeholder codes
+(`docs/collective/PACKS.md`); extend a copy of it before E1.
+
+1. Copy the pack to a directory of your own:
+
+```
+cp -r mycelic/collective/packs/data/device_quality <pack-dir>
+```
+
+2. Extend the vocabulary **before labelling**: add predicates and code mappings from FDA's published device-problem
+   and component code lists (the current versions, read on the day), and set each entity type's id format to the
+   id shapes in your data (the `alnum` segment covers mixed letter-and-digit lot and model numbers). Add aliases for
+   trade names and component phrases. Keep `pack.json`'s `illustrative` flag and disclaimer honest about what the
+   copy is.
+3. Bump `version` in `pack.json`.
+4. Check it until it loads:
+
+```
+python -m mycelic.collective.packs.loader check <pack-dir>
+```
+
+5. Record the four hashes it prints. `vocabulary_hash` is what E1 pins; `fixtures_hash` changes when you add your
+   own labelled fixtures.
+
+The built-in pack checks the same way:
+
+```
+python -m mycelic.collective.packs.loader check <pack>
+```
+
+## 8. E1: extraction inside the boundary vs a frontier reference
+
+What E1 decides (STRATEGY section 11.2): whether in-boundary models are within a pre-registered **5-point
+non-inferiority margin of a frontier reference on field-level F1**, with at least 600 paired records, and whether
+any falls below the **0.80 kill bar**. Lot and supplier exact match after canonicalisation are reported separately.
+In the commands below, `<pack>` is `device_quality` or, once you have extended it, the path of your frozen copy.
+
+**Step 1: sample records and write the labelling sheet.** From the openFDA cache of section 5 (public data):
+
+```
+python -m mycelic.collective.experiments.e1_extract prepare --pack <pack> --source openfda --cache <cache-dir> --n 600 --seed <seed> --run-id <run-id>
+```
+
+From a partner's export (JSON lines in the shape `mapping.json` describes; this stays on the partner's machine):
+
+```
+python -m mycelic.collective.experiments.e1_extract prepare --pack <pack> --source jsonl --input <partner-file> --site <site-id> --n 600 --seed <seed> --run-id <run-id>
+```
+
+This writes `runs/e1/<run-id>/records.jsonl`, `sheet.csv` and `prepare.json` (a shortfall below 600 is recorded,
+not topped up).
+
+**Step 2: label.** Open `sheet.csv` and fill `gold_claims` for every row from the narrative alone:
+
+| Write | Meaning |
+|---|---|
+| `lot:L12345@crack` | the narrative says lot L12345 cracked |
+| `component:battery door@!leak` | it says the battery door did **not** leak (`!` marks a negated predicate) |
+| `@overheat` | it states a predicate without naming an entity: it attaches to the record's primary structured entity |
+| `lot:L12345` | it names lot L12345 with no predicate |
+| `-` | it states no claim at all |
+
+Separate several items with `;`. Copy entity text as written; it must canonicalise to an id of the type. Leave no
+cell empty (an empty cell is "unlabelled"). Do not sort or delete rows. Note doubts in `labeller_note`. Save as CSV;
+a spreadsheet's byte-order mark is fine.
+
+**Step 3: check the labels.** Every problem is listed by row; fix them and run again:
+
+```
+python -m mycelic.collective.experiments.e1_extract label-check --pack <pack> --records <records-file> --sheet <labelled-sheet> --out <labels-file>
+```
+
+`<records-file>` is `runs/e1/<run-id>/records.jsonl` from step 1. The command prints the sha256 of the labels.
+
+**Step 4: pre-register.** Put every candidate and the reference in one routing file (section 3;
+`docs/collective/examples/e1_models.example.md` lists STRATEGY's candidates as example tags). Then pin everything
+before any model sees a record. For public data, with a hosted frontier reference:
+
+```
+python -m mycelic.collective.experiments.e1_extract prereg --pack <pack> --labels <labels-file> --routing <routing-file> --endpoint <endpoint-name> --endpoint <reference-endpoint> --reference <reference-endpoint> --margin 5 --runs 3 --seed <seed> --data-label public --boundary site:<site-id> --allow-external-raw public --run-id <run-id>
+```
+
+- Repeat `--endpoint` once per candidate. `--margin 5` means 5 points and is stored as 0.05.
+- `--data-label public` is for records prepared from the openFDA cache (their site is `public`); `prereg` refuses
+  it for any other records, which are partner data.
+- `--allow-external-raw` lets raw records reach an `external` endpoint, and only for public or synthetic data. For
+  **partner data** use `--data-label partner`, no `--allow-external-raw`, and a reference inside the boundary (a
+  larger model at the site): the harness refuses to send partner records to an external endpoint, before any
+  request.
+- `prereg` refuses uncommitted collective code unless you pass `--allow-dirty`, which is stamped into every result.
+  Commit first.
+
+**Step 5: run each endpoint three times.** One command per endpoint and repeat (`--repeat 1`, `2`, `3`):
+
+```
+python -m mycelic.collective.experiments.e1_extract run --prereg <prereg-file> --labels <labels-file> --routing <routing-file> --endpoint <endpoint-name> --repeat 1 --run-id <run-id>
+```
+
+`<prereg-file>` is `runs/e1/<run-id>/prereg.json` from step 4. `run` refuses, before writing anything, if the labels,
+the pack's vocabulary, the scoring code or any pinned endpoint setting (model, provider, boundary, response format,
+transport schema) changed since `prereg`. Ctrl-C leaves `run.json` with `complete: false`; start a new run id.
+When a run ends, `run.json` records the sha256 of its `predictions.jsonl` and `ledger.jsonl`; do not edit either
+file, or `compare` refuses the run.
+
+**Step 6: compare.** List every run directory of every endpoint. `compare` refuses a pre-registered endpoint
+without runs; `--allow-incomplete` accepts it (and incomplete runs), stamps that, and lists the endpoint under
+`endpoints_without_runs` in `e1.json`:
+
+```
+python -m mycelic.collective.experiments.e1_extract compare --prereg <prereg-file> --run-dirs <run-dirs> --run-id <run-id>
+```
+
+**Reading `runs/e1/<run-id>/e1.json`:**
+
+- Check `"measurement": true` first. A run against a fake server says false; then `non_inferior` and `kill_flag`
+  are null and `verdicts_withheld` says why. Never quote such a file.
+- `endpoints.<name>.field_f1` is the primary metric, with a bootstrap 95% interval over records. `claim_f1`,
+  `entity_f1` and `predicate_f1` are secondary and never replace it.
+- `paired.<name>` compares each candidate with the reference record by record: `mean_diff`, `ci95` and an exact
+  sign test. `non_inferior` is true only when `ci95` low is above minus the margin. `underpowered` is true below
+  600 paired records; report such a result as underpowered. `kill_flag` is true below 0.80 absolute field F1.
+- `exact_match.lot` and `exact_match.supplier` report lot and supplier exact match separately: `n` counts records
+  whose labels name a lot (or supplier), `matches` those whose predicted ids equal the labelled ones in every run,
+  with a Wilson interval over records. Each `run.json` has that run's own rate.
+- `models_served` and `model_mismatch` show whether a server answered with a different model than you asked for.
+
+## 9. What to send back
 
 Send these files:
 
 - `runs/e3/<run-id>/e3.json` and `runs/e3/<run-id>/ledger.jsonl`, with your note on the server setup;
 - `<cache-dir>/manifest.json` (the pages only if asked; they are public data but large);
-- `runs/n1/<run-id>/sample.json`, the labelled sheet and `runs/n1/<run-id>/narrative_gain.json`.
+- `runs/n1/<run-id>/sample.json`, the labelled sheet and `runs/n1/<run-id>/narrative_gain.json`;
+- the four hashes of your frozen pack (section 7);
+- for E1: `prereg.json`, every `run.json` and `e1.json`.
 
 Never send:
 
 - an API key, a `.env` file, or a shell history that contains a key;
-- partner data of any kind (none is used in week 1).
+- partner data of any kind: for E1 on partner data, never send `records.jsonl`, the sheets, `labels.jsonl` or
+  `predictions.jsonl`; `prereg.json`, `run.json` and `e1.json` hold no record text and can be sent.
 
 The ledger holds numbers and labels only (no prompt, no reply, no record text), so it is safe to send. One label
 comes from the server: `model_served` is the model id each server reported, kept only when it is a short plain

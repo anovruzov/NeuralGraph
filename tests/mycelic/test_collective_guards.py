@@ -7,8 +7,10 @@
 * DeterminismTests: no wall clock or unseeded randomness in the modules that must replay bit for bit.
 * RunbookCommandTests: every command in ``docs/collective/RUNBOOK.md`` runs with ``--dry-run`` appended, with the
   network blocked, and creates nothing.
+* DomainLiteralTests: the generic collective code holds no domain-pack literal (G2).
 
-``forbidden_imports``, ``model_name_hits`` and ``nondeterminism`` are importable for reviewers' probes.
+``forbidden_imports``, ``model_name_hits``, ``nondeterminism`` and ``domain_literal_hits`` are importable for
+reviewers' probes.
 """
 from __future__ import annotations
 
@@ -57,12 +59,26 @@ STDLIB_ONLY_MODULES = (
     "mycelic.collective.experiments.common",
     "mycelic.collective.experiments.e3_latency",
     "mycelic.collective.experiments.n1_narratives",
+    "mycelic.collective.packs",
+    "mycelic.collective.packs.loader",
+    "mycelic.collective.packs.canonical",
+    "mycelic.collective.packs.connector",
+    "mycelic.collective.packs.generator",
+    "mycelic.collective.edge",
+    "mycelic.collective.edge.extract",
+    "mycelic.collective.experiments.e1_extract",
 )
 CLI_MODULES = (
     ("mycelic.collective.experiments.e3_latency",),
     ("mycelic.collective.connectors.openfda", "fetch"),
     ("mycelic.collective.experiments.n1_narratives", "sample"),
     ("mycelic.collective.experiments.n1_narratives", "score"),
+    ("mycelic.collective.experiments.e1_extract", "prepare"),
+    ("mycelic.collective.experiments.e1_extract", "label-check"),
+    ("mycelic.collective.experiments.e1_extract", "prereg"),
+    ("mycelic.collective.experiments.e1_extract", "run"),
+    ("mycelic.collective.experiments.e1_extract", "compare"),
+    ("mycelic.collective.packs.loader", "check"),
 )
 NAME_SCAN_ROOTS = ("mycelic/collective", "docs/collective", "demo/collective", "tests/mycelic/test_collective_*.py",
                    "runs/.gitignore")
@@ -78,6 +94,11 @@ DETERMINISTIC_MODULES = (
     "mycelic/collective/inference/ledger.py",
     "mycelic/collective/inference/fake.py",
     "mycelic/collective/inference/runtime.py",
+    "mycelic/collective/packs/loader.py",
+    "mycelic/collective/packs/canonical.py",
+    "mycelic/collective/packs/connector.py",
+    "mycelic/collective/packs/generator.py",
+    "mycelic/collective/edge/extract.py",
 )
 RUNBOOK = ROOT / "docs" / "collective" / "RUNBOOK.md"
 RUNBOOK_PREFIXES = ("python -m mycelic.collective.", "python demo/collective/")
@@ -97,6 +118,14 @@ RUNBOOK_PLACEHOLDERS = {
     "server-note": "dry run",
     "powercap-path": "{tmp}/missing/energy_uj",
     "model-tag": "example-tag",
+    "pack": "device_quality",
+    "pack-dir": "{tmp}/missing/pack",
+    "records-file": "{tmp}/missing/records.jsonl",
+    "labels-file": "{tmp}/missing/labels.jsonl",
+    "prereg-file": "{tmp}/missing/prereg.json",
+    "partner-file": "{tmp}/missing/partner.jsonl",
+    "reference-endpoint": "frontier-ref",
+    "run-dirs": "{tmp}/missing/run-1",
 }
 
 # --------------------------------------------------------------------------------------------------- import guard
@@ -270,7 +299,7 @@ def _run_without_site_packages(*args: str) -> subprocess.CompletedProcess[str]:
 
 class StdlibOnlyTests(unittest.TestCase):
     def test_every_collective_module_imports_without_site_packages(self) -> None:
-        self.assertEqual(len(STDLIB_ONLY_MODULES), 20)
+        self.assertEqual(len(STDLIB_ONLY_MODULES), 28)
         code = "import importlib\n" + "".join(f"importlib.import_module({m!r})\n" for m in STDLIB_ONLY_MODULES)
         r = _run_without_site_packages("-c", code)
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -539,6 +568,12 @@ class RunbookCommandTests(unittest.TestCase):
                        "mycelic.collective.experiments.n1_narratives score"):
             self.assertIn(needle, joined)
 
+    def test_commands_cover_the_g2_clis(self) -> None:
+        joined = "\n".join(runbook_commands())
+        for sub in ("prepare", "label-check", "prereg", "run", "compare"):
+            self.assertIn(f"mycelic.collective.experiments.e1_extract {sub} ", joined)
+        self.assertIn("mycelic.collective.packs.loader check", joined)
+
     def test_every_command_dry_runs_offline_and_creates_nothing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             values = {k: v.format(tmp=tmp) for k, v in RUNBOOK_PLACEHOLDERS.items()}
@@ -558,6 +593,173 @@ class RunbookCommandTests(unittest.TestCase):
                     self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
                     self.assertTrue(r.stdout.startswith("dry-run: "), r.stdout)
             self.assertEqual((path_snapshot(ROOT), path_snapshot(Path(tmp))), before)
+
+
+# --------------------------------------------------------------------------------------------------- domain literals
+
+PACK_DATA = ROOT / "mycelic" / "collective" / "packs" / "data"
+DOMAIN_SCAN_EXCLUDED = ("mycelic/collective/packs/data",)
+OPENFDA_LITERAL_SCOPE = ("mycelic/collective/packs/*.py", "mycelic/collective/edge/*.py",
+                         "mycelic/collective/experiments/e1_extract.py")
+# "text" is the openFDA narrative field name and also the model payload key the G2 brief fixes ({language, text});
+# it is the only exemption, and test_openfda_check_is_exact proves every other segment is still flagged
+OPENFDA_SEGMENT_EXEMPT = ("text",)
+ILLUSTRATIVE_CODE_MARK = "ILL-"
+
+
+def pack_terms() -> set[str]:
+    """Type, predicate, code, rule, template, follow-up type and role ids of both built-in packs."""
+    terms: set[str] = set()
+    for pack in ("device_quality", "claims_integrity"):
+        d = PACK_DATA / pack
+        vocabulary = json.loads((d / "vocabulary.json").read_text(encoding="utf-8"))
+        followups = json.loads((d / "followups.json").read_text(encoding="utf-8"))
+        terms |= set(vocabulary["entity_types"]) | set(vocabulary["predicates"])
+        terms |= set(json.loads((d / "codes.json").read_text(encoding="utf-8")))
+        terms |= set(json.loads((d / "rules.json").read_text(encoding="utf-8"))["rules"])
+        terms |= set(json.loads((d / "questions.json").read_text(encoding="utf-8"))["templates"])
+        terms |= set(followups["types"]) | set(followups["roles"])
+    return terms
+
+
+def openfda_segments() -> set[str]:
+    mapping = json.loads((PACK_DATA / "device_quality" / "mapping_openfda.json").read_text(encoding="utf-8"))
+    paths = [mapping["record_ref"], mapping["received_date"]["path"], *(c["path"] for c in mapping["codes"]),
+             *(p for paths in mapping["entities"].values() for p in paths), *(n["path"] for n in mapping["narrative"])]
+    names = {seg.removesuffix("[]") for path in paths for seg in path.split(".")}
+    names |= {n["where"]["field"] for n in mapping["narrative"] if n["where"]}
+    return names
+
+
+def _docstring_nodes(tree: ast.AST) -> set[int]:
+    out = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)) and node.body:
+            first = node.body[0]
+            if isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant) \
+                    and isinstance(first.value.value, str):
+                out.add(id(first.value))
+    return out
+
+
+def domain_literal_hits(source: str, terms: set[str] | frozenset[str]) -> list[str]:
+    """Identifiers and whole string constants (f-string parts included, docstrings excluded) equal to a pack term,
+    and string constants containing the illustrative code mark."""
+    tree = ast.parse(source)
+    docstrings = _docstring_nodes(tree)
+    hits = []
+    for node in ast.walk(tree):
+        names: list[str] = []
+        if isinstance(node, ast.Name):
+            names = [node.id]
+        elif isinstance(node, ast.arg):
+            names = [node.arg]
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            names = [node.name]
+        elif isinstance(node, ast.keyword) and node.arg is not None:
+            names = [node.arg]
+        elif isinstance(node, ast.alias):
+            names = [*node.name.split("."), *([node.asname] if node.asname else [])]
+        elif isinstance(node, ast.Attribute):
+            names = [node.attr]
+        elif isinstance(node, ast.Constant) and isinstance(node.value, str) and id(node) not in docstrings:
+            if node.value in terms:
+                hits.append(f"line {node.lineno}: string {node.value!r}")
+            if ILLUSTRATIVE_CODE_MARK in node.value:
+                hits.append(f"line {node.lineno}: string containing {ILLUSTRATIVE_CODE_MARK!r}")
+        hits += [f"line {getattr(node, 'lineno', 0)}: name {n!r}" for n in names if n in terms]
+    return hits
+
+
+def string_constants(source: str) -> set[str]:
+    tree = ast.parse(source)
+    docstrings = _docstring_nodes(tree)
+    return {n.value for n in ast.walk(tree)
+            if isinstance(n, ast.Constant) and isinstance(n.value, str) and id(n) not in docstrings}
+
+
+def generic_code_files() -> list[Path]:
+    out = []
+    for path in sorted((ROOT / "mycelic" / "collective").rglob("*.py")):
+        rel = path.relative_to(ROOT).as_posix()
+        if any(rel.startswith(ex + "/") for ex in DOMAIN_SCAN_EXCLUDED) or path.name.startswith("test_"):
+            continue
+        out.append(path)
+    return out
+
+
+class DomainLiteralTests(unittest.TestCase):
+    """No pack term (type, predicate, code, rule, template, follow-up type or role id of either built-in pack)
+    appears in generic code as an identifier (name, argument, def or class name, keyword argument, import alias,
+    attribute) or as a whole string constant (f-string constant parts included; docstrings excluded), and no
+    string constant there contains 'ILL-'. This check does not catch a term inside a longer literal (a substring)
+    or a value built at runtime: it keeps domain literals out of the code's structure, it cannot prove the code
+    never handles domain text."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.terms = pack_terms()
+
+    def positive_snippets(self) -> list[str]:
+        out = []
+        for term in sorted(t for t in self.terms if t.isidentifier())[:12]:
+            out += [f"{term} = 'x'", f"def {term}():\n    pass\n", f"f({term}=1)", f"def g({term}):\n    pass\n",
+                    f"class {term}:\n    pass\n", f"obj.{term}", f"y = '{term}'", f"y = f'{term}{{x}}'",
+                    f"import os as {term}", f"from os import {term}"]
+        for term in sorted(t for t in self.terms if not t.isidentifier())[:4]:
+            out += [f"y = '{term}'", f"y = f'{term}{{x}}'"]
+        out.append("code = 'ILL-0001'")
+        return out
+
+    def test_terms_cover_both_packs(self) -> None:
+        self.assertGreater(len(self.terms), 40)
+        self.assertTrue(any(t.startswith(ILLUSTRATIVE_CODE_MARK) for t in self.terms))
+
+    def test_checker_flags_every_positive_snippet(self) -> None:
+        for snippet in self.positive_snippets():
+            with self.subTest(snippet=snippet):
+                self.assertTrue(domain_literal_hits(snippet, self.terms))
+
+    def test_checker_passes_every_negative_snippet(self) -> None:
+        term = sorted(t for t in self.terms if t.isidentifier())[0]
+        half = len(term) // 2
+        negatives = (f'def f():\n    """{term}"""\n    return 1\n', f'"""{term}"""\nx = 1\n',
+                     f'class C:\n    """{term}"""\n', f"x = '{term}_rate'", f"x = '{term[:half]}' + '{term[half:]}'",
+                     "x = 'ILL'")
+        for snippet in negatives:
+            with self.subTest(snippet=snippet):
+                self.assertEqual(domain_literal_hits(snippet, self.terms), [])
+
+    def test_checker_flags_an_injected_literal_in_a_copy_of_extract(self) -> None:
+        source = (ROOT / "mycelic" / "collective" / "edge" / "extract.py").read_text(encoding="utf-8")
+        predicate = sorted(json.loads((PACK_DATA / "device_quality" / "vocabulary.json").read_text())["predicates"])[0]
+        injected = source + f"\n\ndef probe(t):\n    if t == {predicate!r}:\n        return 1\n"
+        self.assertEqual(domain_literal_hits(source, self.terms), [])
+        self.assertTrue(domain_literal_hits(injected, self.terms))
+
+    def test_generic_code_has_no_domain_literal(self) -> None:
+        files = generic_code_files()
+        self.assertIn(ROOT / "mycelic" / "collective" / "edge" / "extract.py", files)
+        hits = {p.relative_to(ROOT).as_posix(): domain_literal_hits(p.read_text(encoding="utf-8"), self.terms)
+                for p in files}
+        self.assertEqual({k: v for k, v in hits.items() if v}, {})
+
+    def test_no_openfda_field_name_in_pack_extract_or_e1_code(self) -> None:
+        segments = openfda_segments() - set(OPENFDA_SEGMENT_EXEMPT)
+        self.assertIn("mdr_report_key", segments)
+        files = sorted({p for pattern in OPENFDA_LITERAL_SCOPE for p in ROOT.glob(pattern)})
+        self.assertGreaterEqual(len(files), 7)
+        hits = {p.relative_to(ROOT).as_posix(): sorted(string_constants(p.read_text(encoding="utf-8")) & segments)
+                for p in files}
+        self.assertEqual({k: v for k, v in hits.items() if v}, {})
+
+    def test_openfda_check_is_exact(self) -> None:
+        segments = openfda_segments()
+        self.assertEqual(set(OPENFDA_SEGMENT_EXEMPT) - segments, set())
+        for name in sorted(segments - set(OPENFDA_SEGMENT_EXEMPT)):
+            with self.subTest(name=name):
+                self.assertIn(name, string_constants(f"x = {name!r}"))
+                self.assertNotIn(name, string_constants(f'def f():\n    """{name}"""\n'))
 
 
 if __name__ == "__main__":
