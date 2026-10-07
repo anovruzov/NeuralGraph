@@ -18,15 +18,16 @@ Row keys (exactly :data:`LEDGER_KEYS`; ``append`` refuses anything else):
 * usage: ``tokens_in``, ``tokens_out`` (null when the server did not report them), ``latency_ms``, ``ttft_ms``,
   ``cost_usd``, ``cost_basis`` (per_token | per_hour | unpriced | fake), ``fake_marker``.
 
-A site's ledger stays at the site. :func:`usage_summary` is the only ledger-derived artifact meant to cross a
-boundary: per (task, endpoint) counts, token sums and latency percentiles, without ``ts``, ``ref``, ``host``,
-``run_id`` or model names.
+A site's ledger stays at the site. :func:`usage_summary` (``summarise`` over a whole file) reduces it to per
+(task, endpoint) counts, token sums and latency percentiles, without ``ts``, ``ref``, ``host``, ``run_id`` or model
+names. What actually crosses a site boundary is ``edge.site``'s windowed, k-suppressed form of :func:`summarise`
+over the ledger rows of closed weeks (G3).
 """
 from __future__ import annotations
 
 import threading
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Sequence
 
 from ..jsonio import canonical_dumps, strict_load
 from ..stats import percentile
@@ -98,8 +99,13 @@ def read_ledger(path: str | Path) -> list[dict[str, Any]]:
 
 
 def usage_summary(path: str | Path) -> dict[str, Any]:
+    return summarise(read_ledger(path))
+
+
+def summarise(rows: Sequence[dict[str, Any]]) -> dict[str, Any]:
+    """The usage summary of ledger rows: per (task, endpoint) counts, token sums and latency percentiles."""
     groups: dict[tuple[str, str], list[dict[str, Any]]] = {}
-    for row in read_ledger(path):
+    for row in rows:
         groups.setdefault((row["task"], row["endpoint"]), []).append(row)
     out = []
     for (task, endpoint), rows in sorted(groups.items()):

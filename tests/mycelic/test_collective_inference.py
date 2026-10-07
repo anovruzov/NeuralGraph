@@ -28,7 +28,8 @@ from mycelic.collective.inference import client, jsonparse, routing, tasks
 from mycelic.collective.inference.errors import InferenceBoundaryError, InferenceError
 from mycelic.collective.inference.fake import FakeProvider
 from mycelic.collective.inference.fakeserver import FakeOpenAIServer
-from mycelic.collective.inference.ledger import LEDGER_KEYS, UsageLedger, cost, read_ledger, usage_summary
+from mycelic.collective.inference.ledger import (LEDGER_KEYS, UsageLedger, cost, read_ledger, summarise,
+                                                 usage_summary)
 from mycelic.collective.inference.routing import ConfigError, Endpoint, Price, load_routing, parse_routing
 from mycelic.collective.inference.runtime import Runtime, boundary_mode
 from mycelic.collective.inference.tasks import REPAIR_MARKER, TaskSpec
@@ -1421,6 +1422,17 @@ class LedgerTests(RuntimeCase):
         text = jsonio.canonical_dumps(summary)
         for key in ("ref", "host", "ts", "run_id", "model_requested", "model_served"):
             self.assertNotIn(f'"{key}"', text)
+
+    def test_usage_summary_is_summarise_over_the_ledger(self) -> None:
+        srv = self.server("invalid-then-valid")
+        rt = self.runtime(self.config({"a": oc(srv.base_url)}))
+        rt.run(TASK, PAYLOAD, SCHEMA, ref="r:1")
+        rt.run(TASK, PAYLOAD, SCHEMA, ref="r:2")
+        rows = read_ledger(rt.ledger.path)
+        self.assertEqual(usage_summary(rt.ledger.path), summarise(rows))
+        self.assertEqual(jsonio.canonical_dumps(usage_summary(rt.ledger.path)), jsonio.canonical_dumps(summarise(rows)))
+        self.assertEqual([g["calls"] for g in summarise(rows[:1])["groups"]], [1])
+        self.assertEqual(summarise([]), {"kind": "usage_summary", "schema_version": 1, "groups": []})
 
 
 # =================================================================================================== canaries

@@ -1,8 +1,8 @@
-# Mycelic collective: architecture (gates G1 and G2)
+# Mycelic collective: architecture (gates G1 to G3)
 
-This document describes what gates G1 and G2 build under `mycelic/collective/`. It also places them in the loop
+This document describes what gates G1 to G3 build under `mycelic/collective/`. It also places them in the loop
 that later gates complete (STRATEGY section 4.1). Sections 1 to 10 describe G1; section 11 describes G2 (domain
-packs and the sense step).
+packs and the sense step); section 12 describes G3 (the site boundary and the G0 text-leakage scan).
 
 **No real-model number is produced in this sandbox.** Model weights and the openFDA API cannot be reached from it, so
 every test runs against a deterministic in-process fake or a local fake HTTP server. Every harness output says so in
@@ -24,7 +24,9 @@ its `measurement` flag. The figures STRATEGY needs come from the founder's runs 
 | Fakes | `inference/fake.py`, `inference/fakeserver.py` | Deterministic in-process provider; local OpenAI-compatible server with 33 personas |
 | Founder tools | `experiments/e3_latency.py`, `connectors/openfda.py`, `experiments/n1_narratives.py` | E3, the openFDA cache, N1 sample and score |
 
-Everything is standard library only and runs under `python -S`. No fabric file changed (`INTEGRATION.md`).
+Everything is standard library only and runs under `python -S`. No fabric file changed (`INTEGRATION.md`). After
+G3 the layer has 34 modules on the stdlib-only list and eleven CLIs (section 7); sections 11 and 12 list what G2 and
+G3 added.
 
 ## 2. The boundary guard
 
@@ -115,7 +117,7 @@ A row never holds a prompt, a completion, an error body, a header, a record id o
 **Only `usage_summary` crosses a boundary.** A site's ledger stays at the site. `usage_summary()` reduces it to
 counts per (task, endpoint): calls, ok, errors by kind, token sums with missing counts, latency p50/p95 and a fake
 flag. It has no `ts`, `ref`, `host`, `run_id` or model name. It is the only ledger-derived artifact meant to leave a
-site.
+site. G3 sends it windowed and k-suppressed rather than whole (section 12.6).
 
 ## 5. Fakes and the measurement flag
 
@@ -152,9 +154,9 @@ Replies are validated locally against the full schema, even when the wire carrie
 | Guard | What it enforces |
 |---|---|
 | Import guard | `mycelic/{service,aggregation,store,transport,lineage}.py` import no model client and nothing from `mycelic.collective`. An AST check covers plain, relative and dynamic imports; a fresh-interpreter check confirms it. A missing core file fails loudly. |
-| Stdlib only | All 28 collective modules import, and the ten CLIs (G2 adds the five E1 subcommands and `packs.loader check`) answer `--help`, under `python -S` |
+| Stdlib only | All 34 collective modules import, and the eleven CLIs (G2 adds the five E1 subcommands and `packs.loader check`; G3 adds `experiments.g0_canary`) answer `--help`, under `python -S` |
 | No model names | No model-family name in collective code, docs or tests. The matcher holds sha256 digests only. Example tags live only in `docs/collective/examples/`. |
-| Determinism | No wall clock or unseeded randomness in `jsonio`, `schemacheck`, `stats`, the runtime modules, the pack modules and `edge/extract.py` |
+| Determinism | No wall clock or unseeded randomness in `jsonio`, `schemacheck`, `stats`, the runtime modules, the pack modules, `edge/{extract,weeks,records,egress,site}.py` and `leakage.py` |
 | Domain literals (G2) | No pack term (entity type, predicate, code, rule, template, follow-up type or role id of either built-in pack) is an identifier or a whole string constant in generic collective code, no string constant there contains `ILL-`, and no openFDA field name is a string constant in the pack, extraction or E1 code (one documented exemption: `text`, the payload key the brief fixes) |
 | Runbook | Every RUNBOOK command runs with `--dry-run`, with the network blocked, and creates nothing |
 
@@ -162,9 +164,9 @@ Each later gate extends the lists at the top of that module.
 
 ## 8. Where G1 sits in the loop (STRATEGY section 4.1)
 
-| Stage | What it needs | Status after G1 |
+| Stage | What it needs | Status after G3 |
 |---|---|---|
-| Sense | records become typed claims and per-site counts; structured codes (no model) and in-boundary extraction | **G1:** runtime (boundary-bound model calls, schema validation, ledger). **G2:** packs, the canonicaliser, the record connector, claim extraction from codes (S) and narratives (X), and the E1 harness. Counts are a later gate |
+| Sense | records become typed claims and per-site counts; structured codes (no model) and in-boundary extraction | **G1:** runtime (boundary-bound model calls, schema validation, ledger). **G2:** packs, the canonicaliser, the record connector, claim extraction from codes (S) and narratives (X), and the E1 harness. **G3:** each site's own record store, k-suppressed weekly count cells and windowed usage summaries that leave only through the Boundary, and the G0 text-leakage scan. The HQ counts store is G4 |
 | Detect | statistical detectors over counts; rules as a second channel | Later (no model is involved) |
 | Decide | candidate decided at the lowest unit spanning the evidence | Exists in the fabric for rule conclusions; candidates are later |
 | Verify (pushdown) | narrow questions answered by each site's in-boundary model from its own records | Later; it will call `Runtime.run` at each site, where the guard keeps raw text inside |
@@ -286,3 +288,145 @@ F1, JSON validity and lot and supplier exact match (the share of records matched
 interval over records) are secondary. Intervals bootstrap records; the paired
 comparison bootstraps per-record differences against the reference and adds an exact sign test. With
 `measurement: false` the verdicts are withheld (null).
+
+## 12. G3: the site boundary
+
+G3 stores each site's raw records and claims inside the site and lets exactly two artifact types out, both through
+one `Boundary`: weekly count cells and usage summaries, each structurally closed, k-suppressed and never revised.
+G0 (`LEAKAGE.md`) plants canaries and scans every byte that crossed. **Scope: text only.** Nothing in the fabric
+changes, and no real-model number is produced: every run here is synthetic, with a fake model or none.
+
+| Part | Module | Purpose |
+|---|---|---|
+| Weeks | `edge/weeks.py` | ISO weeks (`YYYY-Www`, 52 or 53 a year), closed weeks, the recorded local date of a timestamp |
+| Record store | `edge/records.py` | One SQLite file per site (WAL); records, claims, extraction stats, late records and the emission log; the only SQL in the collective layer |
+| Boundary | `edge/egress.py` | The only path out of a site: a closed spec per artifact type, cross-field checks, the `after` sequence, two append-only logs |
+| EdgeSite | `edge/site.py` | Ingest, extract, `emit_cells`, `emit_usage`; `build_cells` |
+| Leakage | `leakage.py` | Canary planting, the manifest, the scan |
+| G0 runner | `experiments/g0_canary.py` | `python -m mycelic.collective.experiments.g0_canary`; writes `leakage.json` |
+| Addition to G1 | `inference/ledger.py` | `summarise(rows)`, the reduction `usage_summary(path)` now calls |
+
+Import graph (no cycles): `weeks` imports only `packs.connector`; `records` imports `weeks`, `jsonio` and
+`packs.canonical`; `egress` imports `weeks`, `jsonio`, `packs.connector` and the inference error kinds; `site`
+imports `records`, `egress`, `weeks`, `extract`, `packs.canonical`, `packs.connector` and the ledger (the runtime and
+the pack type only for type hints); `leakage` imports `jsonio`, `packs.canonical`, `packs.loader` and
+`egress.schema_words`; only `g0_canary` imports `experiments.common`.
+
+### 12.1 Data flow
+
+```
+ SITE <id> (inside its boundary)                                        HQ (simulated in G0)
+ +-------------------------------------------------------------+
+ | records ---ingest---> site-<id>.sqlite3                      |
+ |   (date check,        records | claims | extraction_stats    |
+ |    record check,      late_records | emitted_weeks           |
+ |    own site only)        |   ^                              |
+ |                  extract |   | claims (valid only)          |
+ |    lexical or model -----+---+   model calls -> ledger.jsonl |
+ |    (runtime bound to site:<id>)          (never leaves)      |
+ |                                                              |
+ | emit_cells / emit_usage: closed weeks, k-suppressed,         |
+ |   stored in emitted_weeks (exact bytes) before sending       |
+ |                          |                                   |
+ |                     Boundary.send ---------------------------+--> hq/receive.jsonl   (1st append)
+ |                          +--> site-<id>.egress.jsonl         |    (2nd append, same line)
+ +-------------------------------------------------------------+
+```
+
+### 12.2 The site store (`site-<id>.sqlite3`)
+
+Opened with `isolation_level=None`, `journal_mode=WAL` (refused when the file system cannot do WAL),
+`synchronous=FULL`, foreign keys on and a 5 s busy timeout. Every write runs in one `BEGIN IMMEDIATE ... COMMIT`
+and is rolled back on any exception; every `SELECT` carries `ORDER BY`. No table has a fabric table name.
+
+| Table | Columns |
+|---|---|
+| `site_info` | `key`, `value`: `schema_version`, `site_id`, `pack_id`, `config_hash`; reopening with another value raises `StoreError('site_info mismatch: <key>')` |
+| `records` | `record_ref` (key), `seq`, `received_date`, `iso_week`, `ingested_at`, `ingest_week`, `count_week`, `language`, `codes`, `structured`, `narrative`, `narrative_key`, `person`, `reporter_id`, `origin_ref`, `origin_site`, `root_ref`, `forwarded_in`, `synthetic` |
+| `claims` | `record_ref`, `entity_type`, `entity_id`, `predicate` (together the key), `channel`, `extractor`, `res_conf` |
+| `extraction_stats` | `record_ref` (key), `mode`, `extractor`, `error_kind`, `truncated`, `language_supported`, `drops`, `unresolved`, `unknown_codes`, `structured_unresolved`, `invalid_claims`, `extracted_at` |
+| `late_records` | `record_ref` (key), `received_week`, `count_week`, `watermark`, `ingested_at` |
+| `emitted_weeks` | `artifact_type`, `closed_through` (together the key), `as_of`, `after_week`, `ledger_rows`, `body` (the bytes sent), `sha256`, `cells`, `created_at`, `sent_at` |
+
+Ingest: a known `record_ref` (stored, or earlier in the batch) is a duplicate and the first wins. `root_ref` is the
+origin's ref when the record names one; else the root of the earliest record at this site with the same folded
+narrative (`narrative_key`); else the record's own ref. An empty narrative has no key and never shares a root, and a
+copy that reached another site without an origin marker counts as independent there (a documented limitation).
+`forwarded_in` is 1 only when the origin is another site. A record whose received week is at or before the cells
+watermark is late: it counts in `max(ingest week, the week after the watermark)` and gets a `late_records` row.
+
+Extraction runs over records without stats, 100 per transaction; the first extraction of a record wins. A claim is
+stored only when its type and predicate are the pack's, its id is canonical, its channel is `codes` or `text_only`
+and its `res_conf` is one of the pack's three confidences; others are counted as `invalid_claims`. A simulated
+runtime refuses to start while any pending record is not synthetic; a boundary refusal propagates and saves nothing
+of the batch.
+
+### 12.3 The cell format
+
+One cell per (entity type, entity id, predicate, ISO week, channel) with at least one of the site's own records:
+
+```
+{"channel":"text_only","entity_id":"ALARM-SPEAKER","entity_type":"component","iso_week":"2024-W02","n":3,
+ "n_reporters":"<k","n_roots":3,"predicate":"detachment","res_conf_min":0.95}
+{"channel":"codes","entity_id":"ALARM-SPEAKER","entity_type":"component","iso_week":"2024-W02","n":"<k",
+ "n_reporters":"<k","n_roots":"<k","predicate":"alarm_failure"}
+```
+
+(Both are taken from a high-volume synthetic copy of `device_quality`, seed 7, site `plant-ashvale`; at the
+pack's own volumes every cell looks like the second one, `LEAKAGE.md` section 1.)
+
+- `n` counts distinct records, `n_roots` distinct roots and `n_reporters` distinct reporters (all unknown reporters
+  are one shared reporter, so an unknown never inflates the count). Each is the int when it is at least k, else
+  `'<k'`, independently. `res_conf_min` (the lowest resolution confidence) is present exactly when `n` is an int.
+- Forwarded-in records are excluded; a record counts once per (entity, predicate), however many codes, structured
+  values or mentions name the pair. The codes and text-only cells of a key count disjoint record sets.
+- A row of a type outside `egress_entity_types` is counted as `non_egress_type`. With `require_master_data`, an id
+  of a type with an id format outside the site's master data is counted as `not_master_data` (alias-only types
+  always pass; a type without master data at the site drops all its ids).
+- The bundle is `{schema_version, pack, config_hash, site, as_of, after, closed_through, k, cells}`, cells sorted by
+  their key. It has no totals, no marginals, no forwarded count and no per-record rows; those stats stay at the site
+  (`Emission.stats`).
+
+### 12.4 The Boundary
+
+`Boundary(pack, site_id, egress_log=..., receive_log=..., clock=..., tasks=..., endpoints=...)` is a site's only
+way out (G6 adds the path in). `validate` and `send` check, in order, and raise the first problem as `EgressError`:
+
+1. the direction (`out`) and the artifact type (`cells_bundle` or `usage_summary`);
+2. canonical JSON (NaN, sets and other non-JSON values fail as `json`);
+3. the closed structure: unknown keys first (reported at the parent object as `additionalProperties`, never named),
+   then required keys in sorted order, then optional keys present; arrays by index. Counts are an int in
+   [k, 10^9] or exactly `'<k'` (booleans, floats, `'3'` and `'<k '` fail); ids match a coarse ASCII pattern;
+   enums compare type-strictly;
+4. cross-field checks: `range` (`after < closed_through`, every cell week in `(after, closed_through]`),
+   `id_format` (the type's canonical form, or a listed alias-only id), `consistency` (`res_conf_min` iff `n` is an
+   int; `n_roots` and `n_reporters` are `'<k'` when `n` is, and never above `n`; no token or latency keys in a
+   usage group whose `calls` is `'<k'`), `order` (cells, or usage groups, strictly ascending);
+5. `sequence`: `after` equals the last `closed_through` sent for that type (None before the first), unless the body
+   is byte-identical to the last one sent, which is an idempotent re-send.
+
+An `EgressError` has `artifact_type`, `path` and `keyword` only; its `args` are empty and its text never holds a
+value. A refused artifact writes nothing and `egress.py` logs nothing. `send` then appends one canonical line
+`{artifact_type, body, bytes, direction, sha256, site, ts}` (with `ts` from the injected clock) to the HQ receive log
+first and the site's egress log second, so after a crash between the two a re-send makes them agree; HQ may then hold
+a duplicate line with the same `sha256`, which HQ (G4) drops. `read_log` refuses any line that is not exactly such a
+row with a matching `sha256` and `bytes`.
+
+### 12.5 Weeks
+
+A week is closed at `as_of` when its Sunday plus `close_lag_days` is on or before `as_of`, so with a lag of 7 days
+and `as_of` on a Wednesday, the current and previous weeks are still open. `emit_cells(as_of)` refuses an `as_of`
+that is not a date, is later than the site clock or earlier than the last emission's; a repeated `as_of`, or one that
+closes no new week, sends nothing. Before computing a new bundle it re-sends, byte for byte, any stored bundle a
+failed send left unsent, and it refuses to emit while records counted in the window are not extracted. A window
+without cells still sends a bundle: it advances the watermark. Received dates are read in the record's own calendar
+(`2026-03-01T23:30:00-05:00` is 2026-03-01); a record dated in the future waits until its week closes.
+
+### 12.6 Usage windowing
+
+`emit_usage(as_of)` follows the same `as_of` rules and sends one `usage_summary` per newly closed span. It reads the
+site's ledger (every row must belong to `site:<id>`), takes the rows after those already summarised (the
+`ledger_rows` count of the last emission) up to the first row whose week is still open, and reduces them with
+`ledger.summarise`. Per group, `calls` and each error kind are `'<k'` below k, `ok` and the missing-token counts may
+also be 0, and tokens and latency percentiles are sent only when `calls` is at least k. Each ledger row is summarised
+exactly once. A site without a runtime sends no usage.

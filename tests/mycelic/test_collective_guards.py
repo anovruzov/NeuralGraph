@@ -67,6 +67,12 @@ STDLIB_ONLY_MODULES = (
     "mycelic.collective.edge",
     "mycelic.collective.edge.extract",
     "mycelic.collective.experiments.e1_extract",
+    "mycelic.collective.edge.weeks",
+    "mycelic.collective.edge.records",
+    "mycelic.collective.edge.egress",
+    "mycelic.collective.edge.site",
+    "mycelic.collective.leakage",
+    "mycelic.collective.experiments.g0_canary",
 )
 CLI_MODULES = (
     ("mycelic.collective.experiments.e3_latency",),
@@ -79,6 +85,7 @@ CLI_MODULES = (
     ("mycelic.collective.experiments.e1_extract", "run"),
     ("mycelic.collective.experiments.e1_extract", "compare"),
     ("mycelic.collective.packs.loader", "check"),
+    ("mycelic.collective.experiments.g0_canary",),
 )
 NAME_SCAN_ROOTS = ("mycelic/collective", "docs/collective", "demo/collective", "tests/mycelic/test_collective_*.py",
                    "runs/.gitignore")
@@ -99,6 +106,11 @@ DETERMINISTIC_MODULES = (
     "mycelic/collective/packs/connector.py",
     "mycelic/collective/packs/generator.py",
     "mycelic/collective/edge/extract.py",
+    "mycelic/collective/edge/weeks.py",
+    "mycelic/collective/edge/records.py",
+    "mycelic/collective/edge/egress.py",
+    "mycelic/collective/edge/site.py",
+    "mycelic/collective/leakage.py",
 )
 RUNBOOK = ROOT / "docs" / "collective" / "RUNBOOK.md"
 RUNBOOK_PREFIXES = ("python -m mycelic.collective.", "python demo/collective/")
@@ -299,7 +311,7 @@ def _run_without_site_packages(*args: str) -> subprocess.CompletedProcess[str]:
 
 class StdlibOnlyTests(unittest.TestCase):
     def test_every_collective_module_imports_without_site_packages(self) -> None:
-        self.assertEqual(len(STDLIB_ONLY_MODULES), 28)
+        self.assertEqual(len(STDLIB_ONLY_MODULES), 34)
         code = "import importlib\n" + "".join(f"importlib.import_module({m!r})\n" for m in STDLIB_ONLY_MODULES)
         r = _run_without_site_packages("-c", code)
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -573,6 +585,10 @@ class RunbookCommandTests(unittest.TestCase):
         for sub in ("prepare", "label-check", "prereg", "run", "compare"):
             self.assertIn(f"mycelic.collective.experiments.e1_extract {sub} ", joined)
         self.assertIn("mycelic.collective.packs.loader check", joined)
+
+    def test_commands_cover_the_g3_cli(self) -> None:
+        joined = "\n".join(runbook_commands())
+        self.assertIn("mycelic.collective.experiments.g0_canary ", joined)
 
     def test_every_command_dry_runs_offline_and_creates_nothing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

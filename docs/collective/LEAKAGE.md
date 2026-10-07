@@ -1,0 +1,179 @@
+# G0: what may leave a site, and the text-leakage scan
+
+**G0 proves only that text did not leave.** It plants canaries in raw records and scans every byte that crossed a
+site boundary for them and for narrative text. STRATEGY section 6.4 calls this the weakest leak mode: counts and
+claims can reveal things that no text scan sees. X5 (attribute and membership inference by a red team holding an
+HQ-level token) must run before anyone says "no leakage". Every `leakage.json` says `"scope": "text-only"` and lists
+what it does not cover (section 7).
+
+Every number in this document comes from runs in the worktree on **synthetic data** (the packs' seeded worlds, with
+fictional sites, products, people and narratives) and a **fake model** (an in-process provider that replays the
+lexical extractor). None of it measures a model, a partner's data or a real site.
+
+## 1. What may cross, and why
+
+A site keeps its records, claims and extraction stats in its own SQLite file (`site-<id>.sqlite3`, ARCHITECTURE
+section 12). Exactly two artifact types leave, both through one `Boundary` (`edge/egress.py`), in one direction:
+
+| Artifact | What it holds | What it never holds |
+|---|---|---|
+| `cells_bundle` | weekly count cells per (entity type, entity id, predicate, ISO week, channel): `n` records, `n_roots` distinct roots, `n_reporters` distinct reporters, and `res_conf_min` when `n` is exact | narrative, persons, reporters, record refs, dates finer than a week, totals or marginals, forwarded-in records |
+| `usage_summary` | per (task, endpoint): calls, ok, errors by kind, missing-token counts, a fake flag; token sums and latency p50/p95 only when calls >= k | `ts`, `ref`, `host`, `run_id`, model names, per-call rows |
+
+The rules, each enforced in code and tested:
+
+- **k-suppression, per field.** `n`, `n_roots` and `n_reporters` are each either an int >= k or the literal `'<k'`.
+  No count in 1..k-1 can pass the Boundary (`k` is 3 in `device_quality` and 5 in `claims_integrity`). A count of 0
+  never appears: there are no zero cells. `res_conf_min` is sent only when `n` is exact.
+- **Closed weeks only.** A week W is closed at `as_of` when its Sunday plus the pack's `close_lag_days` is on or
+  before `as_of` (`device_quality` 14 days, `claims_integrity` 21). A bundle covers `(after, closed_through]`.
+- **Never revised.** `after` must equal the last `closed_through` the site sent (the Boundary's `sequence` check),
+  and every week at or before it is final, including weeks without a record. A record that arrives for a week
+  already sent is *late*: it counts in its ingest week, or in the first week after the watermark when the site clock
+  is behind, and gets a `late_records` row. The earlier bundle's bytes never change.
+- **Forwarded-in records are excluded.** A record whose origin is another site never contributes to `n`, `n_roots`
+  or `n_reporters` there; a forward within the same site counts, with its origin as its root.
+- **Master data.** With the pack's `require_master_data` on, an id of a type with an id format leaves only when it
+  is in the site's master data; a type the site has no master data for leaves nothing. Alias-only types (closed
+  pack vocabularies, such as components) always pass. `device_quality` has it on; `claims_integrity` has it off.
+- **A closed structure.** Unknown keys anywhere, booleans, floats or strings where a count belongs, `'<k '` with a
+  space, non-canonical ids, unsorted or duplicate cells, weeks outside the window, a wrong `after`, NaN or non-JSON
+  values are all refused. The error (`EgressError`) names the artifact type, a schema path and a keyword, never a
+  value; a refused send writes nothing to either log.
+
+**What the built-in volumes produce.** At the packs' own synthetic weekly volumes, every weekly cell is `'<k'`:
+
+| Synthetic run (seed 11, 1,000 records, 6 sites) | cells | cells with `n` >= k |
+|---|---|---|
+| `device_quality`, master data on (its default) | 3,080 | 0 |
+| `claims_integrity`, master data off (its default) | 3,374 | 0 |
+| `claims_integrity`, master data on | 2,419 | 0 |
+
+So each site's whole weekly series is suppressed. That is valid output, and G4 and G5 must expect it: a weekly
+detector over these cells sees presence, not counts. On a high-volume copy of each pack (two sites at 120 to 160
+records a week, seed 7, built by the tests), `CellSuppressionTests` printed 843 cells with `n` >= k out of 5,173 for
+`device_quality` (262 of them with `n_reporters` still `'<k'`) and 443 out of 3,778 for `claims_integrity` (410 with
+`n_reporters` `'<k'`); those are synthetic test numbers too.
+
+## 2. Usage summaries
+
+A cumulative usage summary sent every week would reveal small deltas (one call in a week), so usage follows the cells'
+discipline: each emission covers the ledger rows whose timestamp falls in a newly closed week and that no earlier
+summary covered (the store records how many rows each summary consumed), so every ledger row is summarised exactly
+once. Counts are suppressed per field (`calls` and each error kind `'<k'` below k; `ok` and the missing-token counts
+may also be 0); tokens and latency are withheld unless `calls` is at least k. A row whose week is still open waits for
+the next window. The per-call ledger never leaves the site. A site without a model sends no usage.
+
+## 3. The canaries
+
+`leakage.plant_canaries` works on deep copies of the records, from a `random.Random` the runner seeds with
+`g0-canaries:<seed>`. The examples below are invented for this document.
+
+| Class | Where | Example | What should happen |
+|---|---|---|---|
+| **a**, letter-only | appended to every narrative, every person field without a class-b token, and every distinct reporter (one token per reporter value, so reporter counts are unchanged) | `Qzxv` + 12 random lower-case letters, e.g. `Qzxvplmkrtwsbcjn` | never extracted, never leaves |
+| **b**, id-shaped person data (25% of records) | a person field holds exactly an id of an egress type, mirrored into the narrative as `patient ref L483920K.` | `L483920K` (lot format) | extraction drops it as a person value |
+| **c**, id-shaped, narrative only (25% of records) | only in the narrative, as `<field phrase> <id>.` | `IP-604` (product format) | extracted as a claim; the site drops it as not master data, or, with master data off, it leaves as a cell key (section 7) |
+
+Draw rules (a re-draw on any failure; more than 50 re-draws stop the run):
+
+- a class-a core is re-drawn while any of its 8-letter windows is in the pack's text (every config string, the world
+  spec it was loaded with and the artifact schema words), is used by another canary, or consists only of `a` to `f`
+  (which a hex digest could contain), or while the token reads as an entity mention or matches a lexicon term, a
+  negation cue or an alias;
+- an id canary is drawn from its type's own id format and re-drawn unless it is canonical, outside the world's ids,
+  master data and alias targets, absent from the pack's text, at least 6 characters long, holds a letter `g` to `z`,
+  is not a substring (either way) of another canary, and its sentence scans to exactly that one mention. Formats that
+  cannot reach 6 characters are never used (the illustrative supplier format, `V` plus four digits).
+
+The manifest (`private/manifest.json`) is the only file that holds tokens. It is written outside every scanned path,
+and `scan` refuses an artifact that is the manifest, contains it, or holds a symlink to it.
+
+## 4. The scan
+
+Each artifact (a file, a directory walked without following directory links, or bytes in memory) is read as raw
+bytes, so SQLite pages and `-wal` files are scanned too. Each file gives up to three views: the bytes decoded as UTF-8
+with replacement, then JSON-unescaped once and, if that changes it, twice (`\uXXXX` in either hex case with surrogate
+pairs, and the short escapes). Decoding the artifact catches every escaped form of a canary or narrative, including
+`ensure_ascii` output, mixed escaping and double-encoded JSON.
+
+- **Canaries**, case-insensitive: any 8 consecutive core letters of a class-a canary (`match: core_window`, or
+  `token` when the whole token is there), or a whole id token. Hits are kept once per (artifact class, file, canary
+  id), preferring `token` over `core_window` and the raw view over an unescaped one.
+- **Narrative shingles**, exact: every 24-character window of every planted narrative. Windows that also occur in
+  the pack's config text (the `config_hash` file set) are excluded and counted, so a phrase every site shares by
+  configuration is not counted as leaked; the world spec's templates are *not* excluded, since they are not public
+  configuration and excluding them would blind the scan. An artifact's overlap is the UTF-8 byte length of the union
+  of matched positions, the maximum over its views, so escaping does not double count.
+
+**What is scanned.** Everything that crossed: each site's egress log, the whole HQ directory (so later `-wal` files
+are covered), and each `cells_bundle` and `usage_summary` body from the HQ log, separately. **What is never scanned
+as crossing:** the site databases and the manifest. The site ledgers stay at their site; they are scanned as a
+separate hygiene class (`site_ledger_hygiene`), which must also be clean. **The positive control** scans the first
+site's database: the scanner must find canaries and narrative text there, or the run fails, because a scanner that
+finds nothing anywhere proves nothing.
+
+Measured on the runs of section 1 (synthetic, fake model): every run exits 0 with `hits` empty and
+`shingle_overlap_bytes` 0. The positive control found 880 canary hits and 40,318 bytes of narrative overlap in
+`edge/site-plant-ashvale.sqlite3` (`device_quality`), and 1,180 hits and 43,524 bytes in
+`edge/site-motor-north.sqlite3` (`claims_integrity`). The `device_quality` run planted 4,297 canaries (a 3,789,
+b 240, c 268) and scanned 494,528 bytes of cell bodies, 499,664 bytes of HQ log, the same of site egress logs and
+2,671 bytes of usage summaries; its ledgers (563,827 bytes) were clean.
+
+## 5. `leakage.json`
+
+| Key | Meaning |
+|---|---|
+| `kind`, `schema_version`, `synthetic`, `data_label` | `g0_leakage`, 1, true, `synthetic` |
+| `pack`, `pack_version`, `illustrative`, `config_hash`, `base_config_hash` | the pack the run used; `base_config_hash` is the pack named on the command line |
+| `require_master_data`, `require_master_data_overridden` | the setting used; true when `--require-master-data` differed from the pack, which writes a pack copy with its own `config_hash` |
+| `seed`, `records`, `sites`, `weeks`, `world_digest` | the synthetic world |
+| `mode`, `models_fake` | `fake`, `lexical` or `routing`; true for the fake provider, false for routing, null for lexical (no model) |
+| `as_of`, `clock` | the simulated clock: ingest the day after the last record, emit when every record week and the ingest week are closed |
+| `stages` | the stages that ran (G3: `edge`) |
+| `scope`, `not_covered` | `text-only`, and section 7's list |
+| `canaries_planted`, `canaries_by_class` | totals per class |
+| `artifact_classes`, `scanned` | bytes and items per crossing class; each scanned artifact with its bytes |
+| `hits`, `hit_count` | at most 1,000 hits (artifact class, file, canary id, class, match, view), and their number |
+| `known_limitation`, `known_limitation_note` | class-c id hits when master data is off, by canary id; the note is set when the list is not empty |
+| `shingle_overlap_bytes`, `shingle_hits`, `excluded_vocabulary_windows` | narrative bytes found, per file; distinct config-text windows seen in crossing artifacts |
+| `shingles` | window size, narratives, short narratives, windows searched, windows excluded as vocabulary |
+| `site_ledger_hygiene` | the hygiene class: bytes, items, hits, overlap |
+| `positive_control` | the database scanned, its canary hits and narrative overlap |
+| `edge_totals` | totals across sites only: records ingested, rejected, duplicates, forwarded in, late, extracted, claims, cells, cells with `n` >= k, suppressed fields, not master data, non-egress type, usage groups |
+| `passed` | no hit, no overlap, clean ledgers and a positive control that found both |
+| `code_commit`, `code_dirty`, `code_hash`, `created_at` | code stamps; `created_at` is the only wall-clock value |
+
+The report never holds a token, and the run's one-line summary prints only counts.
+
+## 6. Exit codes
+
+0 when `passed`; 1 when a canary or narrative text crossed, a ledger is not clean, or the positive control found
+nothing; 2 on a usage or configuration error (a non-empty `--out`, a bad pack or routing file). Known-limitation
+entries do not fail a run.
+
+## 7. What G0 does not cover (verbatim from `leakage.NOT_COVERED`)
+
+- Attribute inference on counts and claims (X5).
+- Membership inference (X5).
+- Differencing between verdict buckets and weekly cells (G6, X5).
+- Cross-site duplicates without an origin marker, which each site counts as independent (X5).
+- A '<k' cell still reveals that an entity had at least one record with that predicate in that week, and entity ids
+  are emitted in clear by design (STRATEGY section 6.4).
+- Usage summaries reveal weekly extraction-call volume and latency per site, with counts of at least k.
+- Encoded or transformed text (hashes, base64, translation, paraphrase).
+- Fragments shorter than 8 canary-core characters or 24 narrative characters.
+- Strings split across SQLite pages.
+
+**Known limitation (verbatim from `leakage.KNOWN_LIMITATION_NOTE`):** With require_master_data off, ids found only in
+narratives leave as cell keys (their counts suppressed), so id-shaped person data written into a narrative crosses.
+Turn require_master_data on, or keep person identifiers out of id formats.
+
+Measured: `claims_integrity` at its own setting (off) lists 495 known-limitation entries for 165 distinct class-c
+canaries (each found in a cell body, the HQ log and the site's egress log); `device_quality` with
+`--require-master-data off` lists 552 entries for 184 canaries. Both runs have no hit of class a or b and exit 0.
+With master data on, both packs list none.
+
+## 8. How to run it
+
+RUNBOOK section 9 has the commands. Send back `leakage.json` only, never `private/manifest.json`.

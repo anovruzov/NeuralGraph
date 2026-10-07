@@ -343,3 +343,118 @@ Non-blocking notes acted on:
 
 Round-2 test counts: `tests/mycelic` 399 passed (19882 subtests), up from 387 by 12 new tests; `NeuralGraph/tests`
 222 passed, 1 skipped. After both suites `git status --porcelain` is unchanged and `runs/` holds only `.gitignore`.
+
+## G3
+
+**Base.** Branch `mycelic-collective-phase2` at 62f088b (G2). **Nothing is ported** from
+`origin/claude/mycelic-implementation-vr034p` in G3. That branch's `holder/` is an async NATS consumer around an
+embedding evidence store with HMAC envelopes, and its `inquiry/` serves questions; both belong to G6 (pushdown). It
+has no per-site count store, no egress validator and no leakage scanner, which is what G3 builds.
+
+**Scope: fabric files changed: none.** `git diff --stat 62f088b` touches only:
+
+- new: `mycelic/collective/edge/{weeks,records,egress,site}.py`, `mycelic/collective/leakage.py`,
+  `mycelic/collective/experiments/g0_canary.py`, `docs/collective/LEAKAGE.md`,
+  `tests/mycelic/test_collective_{edge,leakage}.py`;
+- changed additively: `mycelic/collective/inference/ledger.py` (`summarise`, which `usage_summary` now calls; the
+  output is byte-identical and the G1 test passes unchanged), the docstrings of `mycelic/collective/__init__.py` and
+  `mycelic/collective/edge/__init__.py`, `tests/mycelic/test_collective_guards.py` (lists, the stdlib count 28 to
+  34, and `test_commands_cover_the_g3_cli`), `tests/mycelic/test_collective_inference.py` (one equivalence test),
+  and `docs/collective/{ARCHITECTURE,RUNBOOK,INTEGRATION,PACKS}.md`.
+
+`mycelic/{service,store,aggregation,transport,api,lineage,config}.py`, `deploy/`, `SECURITY.md`, `DEPLOYMENT.md`,
+`NeuralGraph/` and `research/` have no diff. The site store is its own SQLite file per site with its own tables; no
+table has a fabric table name (a test parses `mycelic/store.py`'s DDL, plus `memories`, `events` and `outbox`).
+
+### S1 test baseline
+
+| Suite | Before G3 (62f088b, clean worktree) | After G3 |
+|---|---|---|
+| `python -m pytest tests/mycelic -q -p no:warnings` | 399 passed in 162 s | 499 passed (20,095 subtests) = 399 + 100 new, 0 skipped, in 187 s |
+| `python -m pytest NeuralGraph/tests -q -p no:warnings` | 222 passed, 1 skipped (119 subtests) | unchanged: 222 passed, 1 skipped (119 subtests) |
+
+The before run was verbose and did not print its subtest count. The one skip is the same as in G1 and G2
+(`test_single_hop_regression.py`, "Requires full NeuralGraph setup with data"). The 100 new tests:
+
+- `test_collective_edge.py`: 67 (weeks; the record store; cell suppression, including the property tests on
+  high-volume and built-in worlds of both packs; closed weeks, late arrivals, send failures and random interleavings;
+  master data; forwarded records; usage windowing; the Boundary and its rejections; G0 determinism across hash seeds);
+- `test_collective_leakage.py`: 31 (canary planting; the scanner's views, windows, shingles, manifest guard,
+  hygiene class and known limitation; the G0 runner in fake, lexical and routing modes, overrides, usage errors,
+  dry runs and a leaky stage);
+- `test_collective_guards.py`: 1 (`test_commands_cover_the_g3_cli`; the lists grew by six stdlib modules, one CLI
+  and five deterministic modules);
+- `test_collective_inference.py`: 1 (`usage_summary(p) == summarise(read_ledger(p))`; `test_usage_summary` is
+  unchanged).
+
+No skip decorator, loopback only, temporary directories only. The acceptance command for the two new files,
+`python -m pytest tests/mycelic/test_collective_edge.py tests/mycelic/test_collective_leakage.py -q -p no:warnings`,
+passed 98 tests (204 subtests) in 25 s on the shared machine.
+
+### S4: what the suites leave behind
+
+After both suites `git status --porcelain` is identical to before them (only the G3 files listed above), `runs/`
+holds only its `.gitignore`, and there is no untracked `*.db`, `*.sqlite3` or `*.jsonl` file in the worktree (the
+JSONL files under `research/` and the pack fixtures are tracked). The ignored leftovers are those G1 listed
+(`__pycache__/`, `.pytest_cache/`, `demo/results/`). Every G3 test and every G0 run in this gate wrote only to
+temporary or scratch directories outside the worktree.
+
+### Merge notes
+
+1. **The HQ cells store is G4's own database**, not the fabric's counts table and not the site store. G4 reads
+   `hq/receive.jsonl` (or its successor transport) and must:
+   - drop a line whose `sha256` it already holds (a re-send after a crash between the HQ and the site append repeats
+     the line, by design);
+   - check `config_hash` against the pack it runs, and refuse a bundle of another config;
+   - treat every week at or before a site's `closed_through` as final, including weeks without cells.
+2. **At the built-in synthetic volumes every weekly cell is `'<k'`** (seed 11, 1,000 records: 3,080 cells for
+   `device_quality` and 3,374 for `claims_integrity`, none with `n` >= k; synthetic). G4's detectors and G5's
+   baselines must work with presence-only weekly series, or the packs' volumes or time granularity must change by a
+   frozen, hashed config decision, not in code.
+3. **Fabric changes later gates still need** are unchanged (G1 merge note 3): the `claims_only` share mode, a counts
+   table, and the candidate, question, verdict and follow-up event kinds. G3 needs none of them.
+4. **One writer per site.** `EdgeSite` computes a bundle and stores it in two transactions; one process per site
+   store is the supported deployment (two writers could interleave an ingest between them). A multi-process site
+   needs the emission computed inside the store's write transaction (G4 or later, if needed).
+
+### Decisions and deviations (brief section 13, as implemented)
+
+- **Overriding `require_master_data` writes a pack copy** (`OUT/pack`, `egress.json` changed in that one field), so
+  it gets its own `config_hash`; `EdgeSite` has no override flag. The world is generated from the base pack (the
+  override touches only `egress.json`, which generation never reads), and `leakage.json` records `base_config_hash`
+  and `require_master_data_overridden`.
+- **`usage_summary` is windowed by ledger-row week and suppressed per field**, instead of the raw G1 summary.
+- **`'<k'` is the literal for suppressed fields.** A suppressed cell still reveals presence; `not_covered` says so.
+- **`emitted_weeks` is a watermark log**, one row per emission per artifact type, holding the bytes sent, so a crash
+  before or during a send is re-sent byte-identically before anything new.
+- **The Boundary enforces `sequence`**, appends to HQ first and then the site log, and treats an identical re-send as
+  a no-op.
+- **`edge/weeks.py` was added; `EdgeSite` takes `hq_dir`.**
+- **`ledger.summarise` was added.**
+- **Reporter identities carry class-a canaries**, one token per reporter value, so reporter counts are unchanged.
+- **Id canaries need a length of at least 6 and a letter `g` to `z`**, so short formats (the illustrative supplier
+  format) are skipped and no hex digest can contain one.
+- **The scan decodes JSON escapes in the artifact** (twice), instead of encoding narrative windows; this catches
+  mixed, upper-case, surrogate-pair and double escaping.
+- **The vocabulary exclusion is the `config_hash` file set only**; the world spec's templates are scanned for.
+- **A positive control proves the scanner is live** on each run's own data (the first site's database).
+- **G0 exit codes**: 0 passed, 1 leakage found (or a positive control that found nothing), 2 usage or configuration.
+
+Further decisions the brief left open:
+
+- **Counts have an upper bound**: an int in [k, 10^9]. Without it a crafted count could carry an arbitrarily large
+  integer (an encoded text) through the Boundary.
+- **A stored claim's `res_conf` must be one of the pack's three confidences**, not just in (0, 1]: the Boundary only
+  accepts those values for `res_conf_min`, so a claim with another value would make every later bundle unsendable.
+- **`RecordStore.pending_non_synthetic()`** was added for the simulated-runtime check, so that SQL stays in
+  `records.py`.
+- **`G0Context` carries `emit_at`, `seed`, `routing` and `totals`** beside the outline's fields; `ctx.runtimes` is
+  filled by the edge stage, which closes the sites and runtimes it opened.
+- **`--seed` is an int in [0, 10^12]**, so the runtime's `run_id` (`g0-<seed>`) is always valid.
+- **The positive control counts known-limitation hits as canary hits**, so it also works when master data is off.
+- **`windows_indexed` counts the narrative windows searched**, after the vocabulary exclusion.
+- **`models_fake` is null in lexical mode** (no model at all), true with the fake provider and false with routing.
+- **`Boundary.read_log` also checks** the artifact type, direction, site, timestamp and a valid `closed_through` of
+  every row, and a Boundary refuses an egress log holding another site's rows.
+- **The `ledger.py` module docstring** now says that what crosses is the windowed form (its old text said the raw
+  summary was the artifact meant to cross).

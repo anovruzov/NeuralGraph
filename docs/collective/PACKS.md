@@ -47,6 +47,15 @@ matter when you extend a pack:
 Every failure is a `PackError` naming the pack-relative file and a JSON path, for example
 `aliases.json: $.component: alias chain`.
 
+**How `egress.json` is enforced (G3).** A site's Boundary (`edge/egress.py`) reads it directly: `k` is the
+suppression threshold of every count that leaves (each is an int of at least `k` or the literal `'<k'`),
+`close_lag_days` decides when a week is closed and may be sent, `egress_entity_types` are the only types a cell may
+name, and `require_master_data` decides whether an id with an id format must be in the site's master data before it
+leaves (alias-only types always pass). `never_fields` never leave by construction: a cell holds only a type, a
+canonical id, a predicate, a week, a channel and counts. Because these values are part of `config_hash`, changing
+one (G0's `--require-master-data` override included) means a new pack copy, a new hash and a new site store.
+`LEAKAGE.md` describes what may cross and how G0 checks that text does not.
+
 ## 2. Freezing and the four hashes
 
 `load_pack` validates the files, then their cross-references, then hashes the parsed files and freezes the

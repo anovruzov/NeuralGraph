@@ -1,4 +1,4 @@
-# Founder runbook: week-1 measurements and E1
+# Founder runbook: week-1 measurements, E1 and G0
 
 This runbook covers what you run on your own machines (STRATEGY sections 11.2 and 12):
 
@@ -6,7 +6,8 @@ This runbook covers what you run on your own machines (STRATEGY sections 11.2 an
 - the **openFDA fetch**;
 - **N1**: how often a device-event narrative carries information the coded fields lack;
 - **freezing a domain pack** before any labelling;
-- **E1**: whether a model inside the boundary extracts claims well enough, against a frontier reference.
+- **E1**: whether a model inside the boundary extracts claims well enough, against a frontier reference;
+- **G0**: whether planted text leaves a site through the Boundary (text only, synthetic data).
 
 None of these produced a number in the sandbox where the code was written. Model weights and api.fda.gov could not
 be reached there, so every figure has to come from your runs. The E1 harness was rehearsed against local fake
@@ -22,7 +23,7 @@ servers only, and such a rehearsal writes `"measurement": false`.
    Never quote it. Only runs with `"measurement": true` count.
 4. **Say what the data is.** openFDA results are public data (`data_label: public`). MAUDE holds reportable events,
    not internal complaints. Synthetic text is labelled synthetic.
-5. **Send back run files, never keys** (section 9).
+5. **Send back run files, never keys** (section 10).
 
 Conventions:
 
@@ -355,7 +356,54 @@ python -m mycelic.collective.experiments.e1_extract compare --prereg <prereg-fil
   with a Wilson interval over records. Each `run.json` has that run's own rate.
 - `models_served` and `model_mismatch` show whether a server answered with a different model than you asked for.
 
-## 9. What to send back
+## 9. G0: does planted text leave a site? (text only)
+
+G0 plants unique canaries in a synthetic world's records (letter-only tokens, id-shaped person data and id-shaped
+tokens that appear only in narratives), runs every site through ingest, extraction and emission, and scans every byte
+that crossed a site boundary for the canaries and for 24-character narrative fragments. `docs/collective/LEAKAGE.md`
+explains what it checks and, as important, what it does not: it proves only that text did not leave. Counts and
+claims can still reveal things (X5); never quote a G0 result as "no leakage".
+
+Everything is synthetic and needs no network, no key and no model server. `<pack>` is `device_quality`,
+`claims_integrity` or the path of your frozen pack; `--out` must not exist yet (or be empty).
+
+The default run (fake in-process model, the pack's own `require_master_data`):
+
+```
+python -m mycelic.collective.experiments.g0_canary --pack <pack> --records 1000 --seed <seed> --out runs/g0/<run-id>
+```
+
+The same with master data off, to see what crosses when ids found only in narratives may leave as cell keys (the
+report lists them under `known_limitation`; the run writes a copy of the pack with its own `config_hash`):
+
+```
+python -m mycelic.collective.experiments.g0_canary --pack <pack> --records 1000 --seed <seed> --require-master-data off --out runs/g0/<run-id>
+```
+
+Through a real model server instead of the fake (section 2). The routing file's extraction endpoint must declare
+`"boundary": "any-simulated"`, because one machine plays every simulated site. The run is still synthetic and
+measures nothing about the model; it only checks that the path through a real server leaks no text:
+
+```
+python -m mycelic.collective.experiments.g0_canary --pack <pack> --records 1000 --seed <seed> --mode routing --routing <routing-file> --out runs/g0/<run-id>
+```
+
+Reading `runs/g0/<run-id>/leakage.json`:
+
+- The command prints one line, `g0: pack=... canaries=... hits=... shingle_overlap_bytes=... known_limitation=...
+  -> PASS|FAIL`, and exits 0 on PASS, 1 when something leaked (or the scanner's positive control found nothing) and
+  2 on a usage or configuration error.
+- `hits` and `shingle_overlap_bytes` must be empty and 0. Each hit names the file and the canary id, never the token.
+- `positive_control` must show canary hits and narrative bytes in the first site's own database; otherwise the
+  scanner is broken and the run fails.
+- `scope` is `text-only` and `not_covered` lists what G0 does not test.
+- `edge_totals.cells_n_ge_k` shows how many weekly cells had a count of at least k. At the built-in synthetic
+  volumes it is 0: every weekly cell is suppressed (`LEAKAGE.md` section 1).
+
+Send back `leakage.json` only. **Never send `private/manifest.json`**: it is the one file that holds the canary
+tokens, and a scan of anything that contains it is refused.
+
+## 10. What to send back
 
 Send these files:
 
@@ -363,7 +411,8 @@ Send these files:
 - `<cache-dir>/manifest.json` (the pages only if asked; they are public data but large);
 - `runs/n1/<run-id>/sample.json`, the labelled sheet and `runs/n1/<run-id>/narrative_gain.json`;
 - the four hashes of your frozen pack (section 7);
-- for E1: `prereg.json`, every `run.json` and `e1.json`.
+- for E1: `prereg.json`, every `run.json` and `e1.json`;
+- for G0: `runs/g0/<run-id>/leakage.json` (never `private/manifest.json`).
 
 Never send:
 
