@@ -200,6 +200,7 @@ All variables have the `MYCELIC_` prefix. Validation runs at start and fails fas
 | `AUDIT_RETENTION_DAYS` | `90` | audit rows older than this are pruned at start |
 | `MIN_SUPPORT` | `2` | distinct child units needed for a consolidated memory. Changing it re-derives every consolidation at the next start (the re-aggregation job, section 4). It is deployment configuration, not part of the event log, so a rebuild from the log uses the value the rebuilding node runs with |
 | `VERIFY_MAX_NODES` | `25000` | nodes one downward verification walks at most; beyond it the verdict is `unverifiable` (`walk_truncated`). Not set by the shipped compose file or manifests: to change it add `MYCELIC_VERIFY_MAX_NODES` to the `environment` of the `mycelic` service (compose) or to `mycelic-configmap.yaml` (Kubernetes) |
+| `EXPIRY_SWEEP_SECONDS` | `30` | how often the expiry sweep queues the retraction of notes past their `expires_at`, at most 100 per sweep (section 4, "Expiry"); `0` disables it (expired notes are still left out of answers, but stay evidence until retracted). Not set by the shipped compose file or manifests |
 | `RULES_FILE` | | JSON file of slot-composition rules re-applied at every start (`deploy/mycelic/rules.json`); a file rule overrides an API edit to the same `rule_id`, and the override is appended to the event log so a rebuild ends with the same rules. Rule fields are listed in section 3a |
 | `PUBLIC_URL` | | informational |
 
@@ -312,6 +313,85 @@ before restoring an older database.
 | force a re-aggregation | `python -m mycelic reaggregate [--org ORG]` or `POST /admin/reaggregate` with `{"org_id": …}`, or with no body or a null `org_id` for every organization (an empty `org_id` is refused with 400): re-derives every consolidation and conclusion of one organization or all of them in the background while the node keeps serving; `{"started": false}` while a run is in progress. Progress: `GET /admin/status` → `checks.reaggregation`, `mycelic_reaggregation_steps_total`, audit `aggregation.reaggregate` per organization (`test_admin_route_sdk_and_cli`) |
 | poison or rejected event | after `NATS_MAX_DELIVER` attempts it is terminated and recorded (`GET /admin/events?org=…&status=failed`, audit `event.failed`); a terminated or unsigned event counts as consumed, so a replay still completes (`test_poison_event_is_terminated_and_replay_completes`) |
 
+**Removing or moving an agent.** Revoking an agent (`python -m mycelic revoke-agent --agent-id X`, `DELETE
+/admin/agents/X`) refuses its key at once (403) and leaves its notes as evidence. Removing it (`python -m mycelic
+revoke-agent --agent-id X --retract`, `DELETE /admin/agents/X?retract=1`, `client.revoke_agent("X", retract=True)`)
+also retracts every note it has. The call appends one `agent.removed` event and answers `{"agent_id": "X", "revoked":
+true, "retracted": N}`, N being the notes active when the call was made (those still on their way through the log
+included; a repeat once the removal has applied answers 0). The key gets 403 at once, and a note or an event sent
+with a request that was already authenticated is refused inside its own transaction. When the event applies, every
+note of the agent is retracted (`status_reason` `agent removed`) and everything that rested on them is re-derived
+without them, in that one apply and with at most one new version per consolidation or conclusion; the units the agent
+leaves re-plan their promotions, so a department left with one team promotes it directly. A note of the agent that
+reaches the log after the removal (a write that raced it) is applied retracted (audit
+`memory.observed_after_removal`). A removed agent stays removed: a later revocation does not change that, and its id
+cannot be registered again (only a rollback to an earlier release undoes a removal: see "What a rollback loses").
+Removing an agent that was only revoked retracts its notes too. Measured in this repository's sandbox with
+`DEMO_RULE` active and five other agents present, the apply of one removal of an agent with 500 notes on one topic
+took 0.40 s median and 0.46 s at most over five runs, and with 500 notes on 500 topics (each also noted by a
+teammate, so 500 team consolidations are withdrawn) 1.28 s median and 1.40 s at most, and with 2,000 notes on 2,000
+topics 4.99 s median and 5.54 s at most over three runs. The apply runs on the event loop, so for that long every
+request waits, `/health` and `/ready` included. The Kubernetes liveness probe (section 6) restarts the pod after
+three failed probes 15 s apart, so an apply longer than about 35 s (roughly 13,000 topics at the rate above) would be
+rolled back and then repeated at every redelivery: remove an agent whose notes span that many topics off-peak, with
+the probe's `failureThreshold` raised for the time. To move an agent to another unit, register a new id at the new
+path, let the agent re-share its notes with the new key (`LocalMemory.share` sends each local id as the idempotency
+key, which under the new key gives new memory ids), then remove the old id with `--retract`. While both ids are
+active, support counts both.
+
+**Expiry.** A note may carry `expires_at` (`POST /memory`, an embedded memory of `POST /events`, MCP
+`mycelic_remember`, `client.remember(..., expires_at=...)`, `LocalMemory.share(..., expires_at=...)`): an ISO-8601 time
+in the future and at most ten years ahead, stored in UTC to the second (a time without an offset is taken as UTC;
+anything else is a 400). From that moment `POST /query` and MCP answers leave the note out, and the verification of
+anything that rests on it reports `leaf_expired` (stale). The expiry sweep, every `MYCELIC_EXPIRY_SWEEP_SECONDS`
+(30 s), appends one `memory.retracted` event (reason `expired`) for each expired note, at most 100 per sweep (200 a
+minute by default), and its apply retracts the note and re-derives what rested on it exactly like any other
+retraction. Aggregation never reads the clock, so until that retraction applies the note still counts in
+consolidations and conclusions. The event id is a function of the memory id, so a note gets one retraction however
+often it is swept: during a broker outage the events wait in the outbox and the sweep moves on to the next notes. A
+backlog shows as `checks.expiry.overdue` in `GET /admin/status` (with `last_sweep_at` and `last_queued`) and as
+`mycelic_memories_expiry_overdue`; `mycelic_memories_expired_total` counts the retractions queued, and each one is
+audited (`memory.expired`). Measured in this repository's sandbox with notes on 10 topics in two teams under
+`DEMO_RULE`: one sweep over 100 expired notes took 5.4 ms median and 8.1 ms at most over five runs, and applying the
+100 retractions it queued 0.99 s median in all (11 ms median per event, 23 ms at most). Like any retraction, expiry
+withdraws a note from answers but does not erase it: its text stays in the database, the event log and the stream.
+
+**Correcting a note.** An agent corrects one of its own active notes by sending the corrected note with
+`supersedes` set to the old note's id (`POST /memory`, MCP `mycelic_remember`, `client.remember(..., supersedes=...)`,
+`LocalMemory.share(..., supersedes=...)`). The correction is a complete note: nothing is inherited from the old one,
+so it repeats the topic, slot, entity and expiry it should have, and it needs an idempotency key of its own (with
+`LocalMemory`, write the correction as a new local note). The response adds `supersedes`. When its event applies, the
+old note is superseded (`superseded_by` the new id, `status_reason` `updated by producer`), everything that rested
+on the old note is re-derived on the new one (a consolidation or conclusion moves to the new note's topic, slot or
+entity, or is withdrawn when nothing else covers it), and the lineage of the new note lists the old one in
+`previous_versions`. Only the producer may update a note, and only an active raw note (404 for an id the caller may
+not read or that does not exist, 400 for a derived memory or a note that is no longer active, 403 for another agent's
+note, 400 for `supersedes` on an embedded memory of `POST /events`). While a retraction of the note (an expiry's
+included) or another update of it is still on its way through the log, an update is refused with 409; retry once it
+has applied (a resend with the same idempotency key returns the stored update at any time). An update whose target
+is no longer the producer's active note when it applies (a write that raced a retraction) is applied as a plain note
+and audited as `memory.update_conflict`. Nothing reactivates: after A → B → C, retracting C leaves A and B superseded.
+Measured in this repository's sandbox with `DEMO_RULE` active and 52 notes on the topic, the apply of an update took
+33 ms median (37 ms at most over five runs) against 18 ms (29 ms) for a plain note on the same labels.
+
+**Re-attesting notes.** Verification's `max_leaf_age` judges how long ago each raw note was last confirmed: when the
+server ingested it or, later, when its producer re-attested it. An agent re-attests one of its own active notes with
+`POST /memory/{id}/attest` and `{"still_true": true}` (MCP `mycelic_attest`, `client.attest(memory_id)`); the answer
+is 202, and once its `memory.attested` event applies the note's `attested_at` is set and the row is signed again (an
+attestation never moves `attested_at` backwards, never applies to a note that was retracted or superseded first, and
+is ignored on a row whose digest does not check, so it never re-signs an edited row). `{"still_true": false,
+"reason": …}` retracts the note instead, exactly as `POST /memory/{id}/retract`. Only the producer may attest, and
+only an active, unexpired raw note (403 for anyone else, the administrator included; 404 for an id the caller may not
+read; 400 for a derived, inactive or expired note or a `still_true` that is not a boolean); an attestation never
+extends an expiry. Only a row whose digest checks `ok` takes an attestation: besides an edited row, one signed by a
+key that is no longer configured (`unknown_key`) or signed without a key before one was set (`downgraded`) cannot be
+re-attested, and its attestation is ignored (`mycelic_events_ignored_total{reason="attestation_integrity"}`). `GET
+/attestations/due?older_than=N&limit=M` (`client.due_attestations(older_than=N)`) lists the caller's own active notes
+that an active consolidation or conclusion rests on and that were last ingested or attested at least N seconds ago (0
+by default), stalest first, at most M (50 by default, 1 to 500). It is self-attestation: it adds freshness, not
+independent assurance (SECURITY.md §6). Measured in this repository's sandbox, the apply of one attestation (digest
+check, `attested_at` and the new digest) took 0.88 ms median and 1.41 ms at most over five runs.
+
 **Verifying a conclusion.** Before acting on a conclusion, anyone who may read it and holds `lineage:read` (every
 agent key by default, and the admin token) can ask whether it was derived correctly and whether it is still true.
 The service walks the conclusion's derivation down to the raw notes and checks every node on the way: each
@@ -334,7 +414,7 @@ that many seconds.
 | Verdict | Meaning | `derived_correctly` / `still_true` | CLI exit |
 |---|---|---|---|
 | `verified` | derived correctly and still current | `true` / `true` | 0 |
-| `stale` | derived correctly, but something beneath it was retracted, superseded or changed since, or a raw note is older than `max_leaf_age` | `true` / `false` | 3 |
+| `stale` | derived correctly, but something beneath it was retracted, superseded or changed since, a raw note is past its `expires_at`, or one is older than `max_leaf_age` | `true` / `false` | 3 |
 | `failed` | a contribution is missing, was edited, or does not recompute to what is stored | `false` / `null` | 4 |
 | `unverifiable` | something needed for the check is unavailable: a signing key no longer configured, a missing event, a walk beyond `MYCELIC_VERIFY_MAX_NODES`, a replay in progress, a row derived by an older release | `null` / `null` | 5 |
 
@@ -423,35 +503,71 @@ reproduced by a rebuild from the log, which derives the converged state directly
   `metadata.statements` and `statement_origins`), the nodes of `GET /lineage/{id}` (which keep their shape) and
   the MCP tools. `text` stays a string, and `text_withheld` is absent whenever the text is shown.
 * Downward verification only adds: `GET /verify/{id}`, the opt-in `"verify": true` of `POST /query` (without it,
-  or with `false`, the response is unchanged), the MCP tool `mycelic_verify` (`tools/list` now lists six tools) and
-  `python -m mycelic verify`. Existing responses are unchanged.
+  or with `false`, the response is unchanged), the MCP tool `mycelic_verify` and `python -m mycelic verify`. Existing
+  responses are unchanged.
+* Re-attestation only adds: `POST /memory/{id}/attest`, `GET /attestations/due`, `client.attest` and
+  `client.due_attestations`, and the MCP tool `mycelic_attest` (`tools/list` now lists seven tools, `mycelic_verify`
+  and `mycelic_attest` among them); `GET /` lists the two routes among its endpoints.
+* Agent removal only adds: `DELETE /admin/agents/{id}?retract=1` (or `true`) answers `{"agent_id", "revoked": true,
+  "retracted": N}` and any other `retract` value is 400; without `retract` the request and its response are unchanged.
+  `python -m mycelic revoke-agent` is new. A note or an event whose agent was revoked after the request was
+  authenticated is now refused with 403 instead of being stored.
+* Expiry only adds: `expires_at` on `POST /memory`, on embedded memories of `POST /events` and on
+  `mycelic_remember` (a note without it behaves exactly as before); every memory object carries two new keys,
+  `expires_at` and `attested_at` (null unless set; `attested_at` is set once the producer re-attests the note); a
+  verification report carries `valid_until` (the earliest `expires_at` of the active raw notes the caller can read in
+  the walk, or null) and `valid_until_partial`, and may carry the stale code `leaf_expired`; `GET /admin/status` has
+  `checks.expiry` and `stats.expiry_overdue`.
+* Producer updates only add: `supersedes` on `POST /memory` and `mycelic_remember` (the response then adds
+  `supersedes`; without it the request and its response are unchanged), the status 409 for an update while a
+  retraction or another update of its target is pending, and the stale code `update_pending` in verification reports.
 * `DERIVATION_VERSION` is 2, so the first start re-derives everything (`checks.reaggregation.reason` =
   `derivation_version`). Until `checks.reaggregation.state` = `done`, consolidations derived by the earlier release
   keep their old text, which may quote team-visibility notes and agent ids above team level, and they are what
   agents read. Hold agent traffic until then if that matters; once they are superseded their text is withheld
   from agents like that of any other inactive memory.
 
-**Rolling back and forward again.** This release writes schema 4, and earlier releases refuse to open a schema-4
-database (`database schema 4 is newer than this code`). To roll back, stop the service, restore the database backup
+**Rolling back and forward again.** This release writes schema 5, and earlier releases refuse to open a schema-5
+database (`database schema 5 is newer than this code`). To roll back, stop the service, restore the database backup
 taken before the upgrade (see Backups) and start the earlier image on it. It re-delivers from the stream what it
 missed since the backup and applies it with its own derivation, provided every event since then is signed by its
 key: an earlier release verifies with one key only, so rotate the signing key only after deciding to stay on this
 release. An earlier release re-derives with its own renderer, which may quote team-visibility notes and agent ids
-above team level. Rolling forward again migrates the restored database to schema 4, signs its rows at the first
+above team level. Rolling forward again migrates the restored database to schema 5, signs its rows at the first
 start and re-aggregates whatever `meta.derivation_version` says was derived differently. A release from before
 derivation versions leaves that key as it found it while deriving ids without a version, so after rolling forward
 from one, run `python -m mycelic reaggregate` (or `POST /admin/reaggregate`) once and wait for
 `checks.reaggregation.state` = `done`.
 
-Upgrading to schema 4 (this release) adds three columns to `memories` (`digest`, `digest_key_id`,
+**What a rollback loses.** An earlier release applies only what it knows. It marks `agent.removed` and
+`memory.attested` events applied without effect (`unknown_kind`), applies a correction as a plain note, so the old
+version stays active next to it, and drops `expires_at`, so it neither hides nor sweeps expired notes (expiry
+retractions already in the stream still apply); it ignores `supersedes` and `expires_at` in a request the same way.
+After a rollback, an agent removed since the backup is therefore active again: its key authenticates and its notes
+count. Revoke each such agent at once with a plain `DELETE /admin/agents/{id}`, which earlier releases apply. Because
+the earlier release counts those events as applied, starting this release on its database again does not recover
+them, and a note logged with `expires_at` since the backup then has none and verifies `failed`
+(`source_event_mismatch`). So roll forward by rebuilding from the stream (Recovery procedures, "database lost or
+corrupt"; move the old database aside rather than deleting it, because the audit rows of API calls are not in the
+stream): the rebuild applies the whole log with this release's semantics. On the restored database instead, remove
+each such agent again with `?retract=1`, retract the old version of each correction (`POST /memory/{id}/retract` on
+the id in the correction's `metadata.version_of`) and have producers attest their notes again; a note logged with
+`expires_at` since the backup stays `failed` until a rebuild.
+
+Upgrading to schema 5 (this release) adds two columns to `memories`, `expires_at` and `attested_at`, and the partial
+index `idx_memories_expiry`, in one transaction at the first start; existing rows get NULL in both, so every digest
+written before the upgrade still checks (a digest covers `expires_at` only when a row has one) and nothing is
+re-derived. Like every schema upgrade it is one-way, so **back up the database first**.
+
+Upgrading to schema 4 adds three columns to `memories` (`digest`, `digest_key_id`,
 `digest_origin`) in one transaction. The first start then signs every existing memory (origin `backfill`, see
 SECURITY.md §3) before it starts the consumer: `/health` answers meanwhile and `/ready` stays 503 until it is done.
 Measured on a 22,685-row database (18,685 derived rows, up to 400 roots each, 248 MB): about 7,800 rows/s through the
 service in batches of 500 rows (2.9 s in all, at most 0.11 s per batch); at that rate a million rows take about two
 minutes. It writes one `integrity.backfill` audit row and counts `mycelic_integrity_backfilled_total`;
 an interrupted backfill (SIGTERM, crash) keeps what it committed and resumes at the next start. This is the only
-backfill that signs rows in a healthy database (in one created at schema 4, none ever does): after it completes, any
-backfill WARNING or ERROR in the log, any further `integrity.backfill` audit row and any rise of
+backfill that signs rows in a healthy database (in one created at schema 4 or later, none ever does): after it
+completes, any backfill WARNING or ERROR in the log, any further `integrity.backfill` audit row and any rise of
 `mycelic_integrity_backfilled_total` means digests were removed from the database (SECURITY.md §3), so alert on
 the log and the metric. Like the schema-3 upgrade it is one-way, so **back up the database first**.
 

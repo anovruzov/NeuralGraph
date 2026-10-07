@@ -20,8 +20,8 @@ MEMORY_KINDS = ("fact", "observation", "event", "risk", "decision", "plan", "pre
 MEMORY_STATUS = ("active", "superseded", "retracted")
 VISIBILITY = ("team", "org")
 OPERATORS = ("agent_observation", "topic_consolidation", "slot_composition")
-EVENT_KINDS = ("memory.observed", "memory.derived", "memory.retracted", "agent.event",
-               "agent.registered", "agent.revoked", "agent.key_rotated", "rule.upserted", "rule.deleted")
+EVENT_KINDS = ("memory.observed", "memory.derived", "memory.retracted", "memory.attested", "agent.event",
+               "agent.registered", "agent.revoked", "agent.removed", "agent.key_rotated", "rule.upserted", "rule.deleted")
 EVENT_STATUS = ("pending", "published", "applied", "failed")
 AGENT_STATUS = ("active", "revoked")
 DEFAULT_AGENT_SCOPES = ("memory:read", "memory:write", "events:write", "lineage:read")
@@ -46,6 +46,17 @@ def parse_iso(s: str | None) -> datetime | None:
     except ValueError:
         return None
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
+def utc_seconds(v: Any) -> str | None:
+    """An ISO-8601 time as UTC with second precision (a naive time is taken as UTC), or None when it is not one."""
+    dt = parse_iso(v) if isinstance(v, str) else None
+    if dt is None:
+        return None
+    try:
+        return dt.astimezone(timezone.utc).isoformat(timespec="seconds")
+    except (OverflowError, ValueError):                 # year 1 or 9999 pushed out of range by its offset
+        return None
 
 
 def new_id(prefix: str) -> str:
@@ -166,6 +177,8 @@ class Memory:
     source_event_ids: list[str] = field(default_factory=list)
     local_ref: str | None = None    # the agent's own local memory id (opaque to Mycelic)
     metadata: dict[str, Any] = field(default_factory=dict)
+    expires_at: str | None = None   # a raw note the producer gave an expiry (UTC, seconds); retracted by the sweep after it
+    attested_at: str | None = None  # when the producer last re-attested a raw note (UTC, seconds)
 
     @property
     def layer_index(self) -> int:

@@ -13,9 +13,12 @@ Design (the same shape as ``NeuralGraph.chat_memory.store``, which has been runn
   publisher marks them ``published`` with their JetStream sequence, and the consumer marks them ``applied``.
   Duplicate deliveries are rejected by primary key (``event_id``), which is also the JetStream ``Nats-Msg-Id``.
 * ``revision`` increases on every memory write so the retrieval index knows when to rebuild.
-* Every memory row carries a keyed digest of its content, its parents and its derivation metadata (``integrity.py``
-  says exactly what is covered), written by the statement that inserts it, so a rebuild reproduces it.  Covered content
-  never changes after insert; a future migration that rewrites covered content must re-sign the rows it rewrites.
+* Every memory row carries a keyed digest of its content (a raw note's ``expires_at`` included when it has one), its
+  parents and its derivation metadata (``integrity.py`` says exactly what is covered), written by the statement that
+  inserts it, so a rebuild reproduces it.  Covered content
+  never changes after insert, with one exception: a producer's re-attestation sets a raw note's ``attested_at`` and
+  signs the row again (:meth:`Tx.set_attested`, only after its digest checked ``ok``).  A future migration that rewrites
+  covered content must re-sign the rows it rewrites.
 """
 from __future__ import annotations
 
@@ -30,7 +33,7 @@ from pathlib import Path
 from typing import Any, AsyncIterator, Iterable
 
 from .hierarchy import LAYERS
-from .integrity import Keyring, canonical
+from .integrity import Keyring, canonical, check_memory
 from .models import OPERATORS, Agent, EventRecord, LineageEdge, Memory, Rule, canonical_label, canonical_rule_body, now_iso, utcnow
 
 try:
@@ -40,7 +43,7 @@ except ImportError:  # pragma: no cover
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 _DDL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -66,7 +69,8 @@ CREATE TABLE IF NOT EXISTS agents (
     created_at   TEXT NOT NULL,
     last_seen_at TEXT,
     metadata     TEXT NOT NULL DEFAULT '{}',
-    log_status   TEXT              -- status as of the last applied registry event (NULL: registration not applied yet)
+    log_status   TEXT              -- status as of the last applied registry event (NULL: registration not applied yet;
+                                   -- 'removed' is terminal)
 );
 CREATE INDEX IF NOT EXISTS idx_agents_org ON agents(org_id, status);
 
@@ -100,7 +104,9 @@ CREATE TABLE IF NOT EXISTS memories (
     apply_seq         INTEGER,         -- position in apply order (NULL until the consumer applies the memory)
     digest            TEXT,            -- keyed digest of the row's content and parents (integrity.py), NULL until backfilled
     digest_key_id     TEXT,            -- the key that signed it ('none' when unkeyed)
-    digest_origin     TEXT             -- 'write' (signed by the insert) or 'backfill' (signed at start-up after the upgrade)
+    digest_origin     TEXT,            -- 'write' (signed by the insert) or 'backfill' (signed at start-up after the upgrade)
+    expires_at        TEXT,            -- a raw note's expiry (UTC, seconds); the sweep retracts it through the log after it
+    attested_at       TEXT             -- when the producer last re-attested a raw note (UTC, seconds)
 );
 CREATE INDEX IF NOT EXISTS idx_memories_org_status ON memories(org_id, status);
 CREATE INDEX IF NOT EXISTS idx_memories_org_op_status ON memories(org_id, operator, status);
@@ -184,6 +190,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_at ON audit_log(at);
 # indexes on columns that a migration adds: created only after ``_migrate`` (``_DDL`` runs on the old schema first)
 _POST_MIGRATION_DDL = """
 CREATE INDEX IF NOT EXISTS idx_memories_apply_seq ON memories(apply_seq);
+CREATE INDEX IF NOT EXISTS idx_memories_expiry ON memories(expires_at, rid) WHERE status='active' AND expires_at IS NOT NULL;
 """
 
 _RULE_FIELDS = frozenset(Rule.__dataclass_fields__)
@@ -211,6 +218,7 @@ def row_memory(r: sqlite3.Row) -> Memory:
         operator=r["operator"], rule_id=r["rule_id"], event_id=r["event_id"], visibility=r["visibility"],
         status=r["status"], superseded_by=r["superseded_by"], created_at=r["created_at"], applied_at=r["applied_at"],
         source_event_ids=_jl(r["source_event_ids"], []), local_ref=r["local_ref"], metadata=_jl(r["metadata"], {}),
+        expires_at=r["expires_at"], attested_at=r["attested_at"],
     )
 
 
@@ -308,14 +316,15 @@ class Tx:
             f"""INSERT INTO memories(memory_id, org_id, layer, scope, text, topic, slot, entity, kind, confidence,
                                     support, independent_teams, producer_id, operator, rule_id, agg_key, event_id,
                                     visibility, status, superseded_by, created_at, applied_at, source_event_ids,
-                                    local_ref, metadata, apply_seq, digest, digest_key_id, digest_origin)
+                                    local_ref, metadata, apply_seq, digest, digest_key_id, digest_origin, expires_at,
+                                    attested_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                       CASE WHEN ? IS NOT NULL THEN {_NEXT_APPLY_SEQ} END, ?, ?, 'write')""",
+                       CASE WHEN ? IS NOT NULL THEN {_NEXT_APPLY_SEQ} END, ?, ?, 'write', ?, ?)""",
             (m.memory_id, m.org_id, m.layer, m.scope, m.text, m.topic, m.slot, m.entity, m.kind, m.confidence,
              m.support, m.independent_teams, m.producer_id, m.operator, m.rule_id,
              m.metadata.get("agg_key") if m.operator != "agent_observation" else None,
              m.event_id, m.visibility, m.status, m.superseded_by, m.created_at, m.applied_at,
-             _j(m.source_event_ids), m.local_ref, _j(m.metadata), m.applied_at, digest, kid),
+             _j(m.source_event_ids), m.local_ref, _j(m.metadata), m.applied_at, digest, kid, m.expires_at, m.attested_at),
         )
         self._store._bump()
         return True
@@ -330,6 +339,23 @@ class Tx:
             meta["status_reason"] = reason
         self.c.execute("UPDATE memories SET status=?, superseded_by=COALESCE(?, superseded_by), metadata=? WHERE memory_id=?",
                        (status, superseded_by, _j(meta), memory_id))
+        self._store._bump()
+        return True
+
+    def set_attested(self, memory_id: str, attested_at: str) -> bool:
+        """Record a producer's re-attestation of a raw note and sign the row again with origin ``write``: the one write of
+        covered content after insert.  Nothing is written (False) unless the row is a raw note whose digest checks ``ok``
+        as it is stored now, so an attestation never launders an edited row."""
+        r = self.c.execute("SELECT * FROM memories WHERE memory_id=?", (memory_id,)).fetchone()
+        if r is None or r["operator"] != "agent_observation":
+            return False
+        keyring, m = self._store.keyring, row_memory(r)
+        if check_memory(keyring, m, (), r["digest"], r["digest_key_id"], r["digest_origin"]) != "ok":
+            return False
+        m.attested_at = attested_at
+        digest, kid = keyring.sign(canonical(m))
+        self.c.execute("UPDATE memories SET attested_at=?, digest=?, digest_key_id=?, digest_origin='write' WHERE memory_id=?",
+                       (attested_at, digest, kid, memory_id))
         self._store._bump()
         return True
 
@@ -568,6 +594,7 @@ class MycelicStore:
           re-aggregation, flagged by ``meta.reaggregate_pending``); ``applied_rules`` starts as the canonical rules.
         * 4: memories.digest, digest_key_id, digest_origin (NULL for existing rows until the start-up backfill signs
           them: the service holds the key, the store does not).
+        * 5: memories.expires_at and attested_at, NULL for existing rows, so their digests are unchanged.
         """
         c = self._conn
         c.execute("BEGIN IMMEDIATE")
@@ -605,6 +632,11 @@ class MycelicStore:
             if from_version < 4:
                 have = {r["name"] for r in c.execute("PRAGMA table_info(memories)").fetchall()}
                 for name in ("digest", "digest_key_id", "digest_origin"):
+                    if name not in have:
+                        c.execute(f"ALTER TABLE memories ADD COLUMN {name} TEXT")
+            if from_version < 5:
+                have = {r["name"] for r in c.execute("PRAGMA table_info(memories)").fetchall()}
+                for name in ("expires_at", "attested_at"):
                     if name not in have:
                         c.execute(f"ALTER TABLE memories ADD COLUMN {name} TEXT")
             c.execute("UPDATE meta SET value=? WHERE key='schema_version'", (str(SCHEMA_VERSION),))
@@ -669,6 +701,11 @@ class MycelicStore:
             for r in self._conn.execute(f"SELECT * FROM agents WHERE agent_id IN ({','.join('?' * len(chunk))})", chunk).fetchall():
                 out[r["agent_id"]] = row_agent(r)
         return out
+
+    def agent_log_status(self, agent_id: str) -> str | None:
+        """The agent's status as the log has applied it (``active``, ``revoked`` or the terminal ``removed``), or None."""
+        r = self._conn.execute("SELECT log_status FROM agents WHERE agent_id=?", (agent_id,)).fetchone()
+        return r["log_status"] if r else None
 
     def get_agent_credentials(self, agent_id: str) -> tuple[Agent, str] | None:
         r = self._conn.execute("SELECT * FROM agents WHERE agent_id=?", (agent_id,)).fetchone()
@@ -769,6 +806,45 @@ class MycelicStore:
             sql += " ORDER BY rid " + ("DESC" if newest_first else "ASC") + " LIMIT ?"
         args.append(int(limit))
         return [row_memory(r) for r in self._conn.execute(sql, args).fetchall()]
+
+    def active_notes(self, org_id: str, producer_id: str, *, applied_only: bool) -> list[Memory]:
+        """The active raw notes of one producer: with ``applied_only`` those the consumer has applied, in apply order (the
+        same rows in the same order on a live node and on a rebuild), else every one, unapplied rows included."""
+        sql = "SELECT * FROM memories WHERE org_id=? AND producer_id=? AND operator='agent_observation' AND status='active'"
+        if applied_only:
+            sql += " AND apply_seq IS NOT NULL ORDER BY apply_seq, memory_id"
+        else:
+            sql += " ORDER BY rid"
+        return [row_memory(r) for r in self._conn.execute(sql, (org_id, producer_id)).fetchall()]
+
+    def expired_notes(self, cutoff: str, *, after: tuple[str, int] | None, limit: int) -> list[tuple[int, Memory]]:
+        """(rid, memory) of up to ``limit`` active memories whose ``expires_at`` is at or before ``cutoff``, in (expires_at,
+        rid) order after the key ``after`` (from the start when None): the expiry sweep's page, read through the partial
+        index ``idx_memories_expiry``."""
+        sql, args = "SELECT * FROM memories WHERE status='active' AND expires_at IS NOT NULL AND expires_at <= ?", [cutoff]
+        if after is not None:
+            sql += " AND (expires_at, rid) > (?, ?)"; args += [after[0], int(after[1])]
+        rows = self._conn.execute(sql + " ORDER BY expires_at, rid LIMIT ?", [*args, int(limit)]).fetchall()
+        return [(int(r["rid"]), row_memory(r)) for r in rows]
+
+    def due_attestations(self, org_id: str, producer_id: str, *, cutoff: str, now: str, limit: int) -> list[dict[str, Any]]:
+        """The producer's notes worth re-attesting: active and applied raw notes, not expired at ``now``, that an active
+        derived memory rests on directly, last ingested or attested (``fresh_at``) at or before ``cutoff``; stalest first
+        (then by id), each with its labels, times and the number of active derived memories resting on it."""
+        rows = self._conn.execute(
+            """SELECT m.memory_id, m.topic, m.slot, m.entity, e.created_at AS ingested_at, m.attested_at, m.expires_at,
+                      MAX(e.created_at, COALESCE(m.attested_at, '')) AS fresh_at,
+                      (SELECT COUNT(*) FROM lineage_edges l JOIN memories c ON c.memory_id = l.child_id
+                       WHERE l.parent_id = m.memory_id AND c.status='active') AS dependents
+               FROM memories m JOIN events e ON e.event_id = m.event_id
+               WHERE m.org_id=? AND m.producer_id=? AND m.operator='agent_observation' AND m.status='active'
+                 AND m.apply_seq IS NOT NULL AND (m.expires_at IS NULL OR m.expires_at > ?)
+                 AND EXISTS (SELECT 1 FROM lineage_edges l JOIN memories c ON c.memory_id = l.child_id
+                             WHERE l.parent_id = m.memory_id AND c.status='active')
+                 AND MAX(e.created_at, COALESCE(m.attested_at, '')) <= ?
+               ORDER BY fresh_at, m.memory_id LIMIT ?""", (org_id, producer_id, now, cutoff, int(limit))).fetchall()
+        return [{k: r[k] for k in ("memory_id", "topic", "slot", "entity", "ingested_at", "attested_at", "expires_at",
+                                   "dependents")} for r in rows]
 
     def current_derived(self, org_id: str, operator: str, scope: str, agg_key: str) -> Memory | None:
         r = self._conn.execute(
@@ -984,6 +1060,39 @@ class MycelicStore:
                 out.setdefault(r["target"], []).append((r["event_id"], r["status"]))
         return out
 
+    def removal_events(self, org_id: str, agent_ids: Iterable[str]) -> dict[str, list[tuple[str, str]]]:
+        """(event id, status) of every ``agent.removed`` event in an organization, by the agent its payload names, in log
+        order, for the given agents.  An event whose payload is not JSON or names no agent id is skipped."""
+        ids = set(agent_ids)
+        if not ids:
+            return {}
+        rows = self._conn.execute("""SELECT event_id, status, CASE WHEN json_valid(payload) THEN json_extract(payload, '$.agent_id') END
+                                     AS target FROM events WHERE org_id=? AND kind='agent.removed' ORDER BY rid""",
+                                  (org_id,)).fetchall()
+        out: dict[str, list[tuple[str, str]]] = {}
+        for r in rows:
+            if isinstance(r["target"], str) and r["target"] in ids:
+                out.setdefault(r["target"], []).append((r["event_id"], r["status"]))
+        return out
+
+    def unapplied_updates(self, org_id: str, memory_ids: Iterable[str]) -> dict[str, list[str]]:
+        """The producer updates of ``memory_ids`` still on their way through the log: by the id each one supersedes
+        (``metadata.version_of``), the ids of the raw notes not applied yet whose event is pending or published (an update
+        whose event was terminated as failed waits for nothing)."""
+        ids = list(dict.fromkeys(memory_ids))
+        out: dict[str, list[str]] = {}
+        for i in range(0, len(ids), 500):
+            chunk = ids[i:i + 500]
+            rows = self._conn.execute(
+                f"""SELECT m.memory_id, CASE WHEN json_valid(m.metadata) THEN json_extract(m.metadata, '$.version_of') END AS target
+                    FROM memories m JOIN events e ON e.event_id = m.event_id
+                    WHERE m.apply_seq IS NULL AND m.org_id=? AND m.operator='agent_observation'
+                      AND e.status IN ('pending', 'published') AND target IN ({','.join('?' * len(chunk))})
+                    ORDER BY m.rid""", [org_id, *chunk]).fetchall()
+            for r in rows:
+                out.setdefault(r["target"], []).append(r["memory_id"])
+        return out
+
     def unapplied_events(self, org_id: str) -> int:
         """Events of an organization (and the deployment-wide ``_``) not applied yet, derived events aside."""
         return int(self._conn.execute("""SELECT COUNT(*) AS n FROM events WHERE status IN ('pending', 'published')
@@ -1075,4 +1184,6 @@ class MycelicStore:
             "rules": int(c.execute("SELECT COUNT(*) AS n FROM rules WHERE enabled=1").fetchone()["n"]),
             "last_applied_seq": self.max_applied_seq(),
             "revision": self.revision,
+            "expiry_overdue": int(c.execute("SELECT COUNT(*) AS n FROM memories WHERE status='active' AND expires_at IS NOT NULL "
+                                            "AND expires_at <= ?", (now_iso(),)).fetchone()["n"]),
         }

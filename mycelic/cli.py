@@ -3,6 +3,7 @@
     python -m mycelic serve                       # API + publisher + consumer (configuration from MYCELIC_* env vars)
     python -m mycelic mcp --url URL --api-key KEY # MCP over stdio, proxied to a running server (Claude Desktop / Code)
     python -m mycelic register-agent --enterprise northwind --team logistics --agent-id agent-7
+    python -m mycelic revoke-agent --agent-id agent-7 [--retract]   # --retract removes it: every note it has is retracted
     python -m mycelic agents | rules | status | replay | query "delivery risk"
     python -m mycelic reaggregate [--org northwind]   # re-derive conclusions (progress: status, checks.reaggregation)
     python -m mycelic verify MEMORY_ID [--max-leaf-age N] [--json]   # exit 0 verified, 3 stale, 4 failed, 5 unverifiable
@@ -129,6 +130,18 @@ def cmd_register(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_revoke(args: argparse.Namespace) -> int:
+    res = _admin_client(args).revoke_agent(args.agent_id, retract=args.retract)
+    if args.json:
+        print(json.dumps(res, indent=1))
+    elif "retracted" in res:
+        n = res["retracted"]
+        print(f"revoked {res['agent_id']}; {n} note{'' if n == 1 else 's'} will be retracted")
+    else:
+        print(f"revoked {res['agent_id']}")
+    return 0
+
+
 def cmd_agents(args: argparse.Namespace) -> int:
     for a in _admin_client(args).list_agents(args.org):
         print(f"{a['agent_id']:<24} {a['status']:<8} {a['path']}  last seen {a.get('last_seen_at') or '-'}")
@@ -212,6 +225,8 @@ def cmd_verify(args: argparse.Namespace) -> int:
               f"still_true={json.dumps(report['still_true'])}  {report['memory_id']}")
         print(f"{s['nodes']} nodes ({s['derived']} derived, {s['leaves']} leaves, {s['redacted']} redacted)  "
               f"integrity {report['integrity_mode']}  verified at {report['verified_at']}")
+        if report.get("valid_until"):
+            print(f"valid until {report['valid_until']}" + (" (partial)" if report.get("valid_until_partial") else ""))
         for r in report["reasons"]:
             print(f"  {r['severity']} {r['code']} x{r['count']}")
         for w in report["warnings"]:
@@ -244,6 +259,11 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--region"); s.add_argument("--subsidiary"); s.add_argument("--department"); s.add_argument("--team")
     s.add_argument("--display-name"); s.add_argument("--scopes", help="comma-separated (default: read/write/events/lineage)")
     s.set_defaults(fn=cmd_register, is_async=False)
+
+    s = sub.add_parser("revoke-agent", help="revoke an agent's key; --retract also retracts every note it has"); common(s)
+    s.add_argument("--agent-id", required=True)
+    s.add_argument("--retract", action="store_true", help="remove the agent: one event retracts all its notes")
+    s.set_defaults(fn=cmd_revoke, is_async=False)
 
     s = sub.add_parser("agents", help="list agents"); common(s); s.add_argument("--org"); s.set_defaults(fn=cmd_agents, is_async=False)
     s = sub.add_parser("rules", help="list rules, optionally loading a JSON file first"); common(s)

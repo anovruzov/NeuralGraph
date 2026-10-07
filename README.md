@@ -41,7 +41,8 @@ Connect Claude Code: `claude mcp add --transport http mycelic http://localhost:8
 Everything else — configuration, Kubernetes, backups, recovery, TLS — is in [DEPLOYMENT.md](DEPLOYMENT.md).
 
 **API**: `POST /memory`, `POST /events`, `POST /query`, `GET /memory/{id}`, `GET /lineage/{id}`,
-`GET /verify/{id}`, `GET /health`, `GET /ready`, `GET /metrics`, `/admin/*`, `/mcp`. **SDK**: `mycelic.sdk.MycelicClient` and
+`GET /verify/{id}`, `POST /memory/{id}/attest`, `GET /attestations/due`, `GET /health`, `GET /ready`, `GET /metrics`,
+`/admin/*`, `/mcp`. **SDK**: `mycelic.sdk.MycelicClient` and
 `LocalMemory`; reference agent `python -m mycelic.sdk.agent`.
 
 ## Demonstration

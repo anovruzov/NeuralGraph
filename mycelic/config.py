@@ -115,6 +115,8 @@ class Settings:
     rules_file: str | None = None
     # verification
     verify_max_nodes: int = 25000                     # nodes one downward verification walks at most (5 x max_candidates fan-in)
+    # expiry
+    expiry_sweep_seconds: float = 30.0                # how often expired notes get their retraction queued (0 disables)
     # SDK/demo conveniences
     public_url: str | None = None
 
@@ -172,6 +174,7 @@ class Settings:
             min_support=_int("MYCELIC_MIN_SUPPORT", 2, minimum=1),
             rules_file=_str("MYCELIC_RULES_FILE"),
             verify_max_nodes=_int("MYCELIC_VERIFY_MAX_NODES", 25000, minimum=1),
+            expiry_sweep_seconds=_float("MYCELIC_EXPIRY_SWEEP_SECONDS", 30.0, minimum=0.0),
             public_url=_str("MYCELIC_PUBLIC_URL"),
         )
         s.validate()

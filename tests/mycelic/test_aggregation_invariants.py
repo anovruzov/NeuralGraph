@@ -1,7 +1,9 @@
 """Aggregation as a fixed point, under random sequences of everything that can change it: agents registered (full,
-sparse default-filled, a new region, a second organization) and revoked, notes shared with random labels (case and
-whitespace variants) and retracted, rules added, changed, disabled, deleted, re-created and moved to another layer or
-organization.
+sparse default-filled, a new region, a second organization), revoked and removed (every note retracted in one apply),
+notes shared with random labels (case and whitespace variants), some with an expiry, corrected by their producer (an
+update with other labels supersedes the note), re-attested (or withdrawn through an attestation) and retracted,
+expired notes swept (retracted through the log), rules added, changed, disabled, deleted, re-created and moved to
+another layer or organization.
 
 After every sequence (and, in one mode, after every single operation) the state must satisfy:
 
@@ -31,10 +33,12 @@ import os
 import random
 import tempfile
 import unittest
+from datetime import timedelta
 from typing import Any
 
 from mycelic.metrics import Metrics
-from mycelic.service import MycelicService, ValidationError
+from mycelic.models import utcnow
+from mycelic.service import Conflict, MycelicService, ValidationError
 from mycelic.transport import InProcessTransport
 
 from .helpers import (
@@ -121,9 +125,12 @@ class Sequence:
             body["slot"] = slot
         if entity:
             body["entity"] = entity
+        if self.rnd.random() < 0.2:                 # retracted by the next sweep (which looks two hours ahead)
+            body["expires_at"] = (utcnow() + timedelta(hours=1)).isoformat()
         m, _ = await self.service.ingest_memory(self.principal(agent_id), body)
         self.notes.append(m.memory_id)
-        return f"observe {agent_id} {body['topic']!r} {slot!r} {entity!r} {body['confidence']}"
+        return (f"observe {agent_id} {body['topic']!r} {slot!r} {entity!r} {body['confidence']}"
+                + (" expiring" if "expires_at" in body else ""))
 
     async def retract(self) -> str:
         live = [mid for mid in self.notes if (m := self.service.store.get_memory(mid)) and m.status == "active"]
@@ -133,6 +140,45 @@ class Sequence:
         self.notes.remove(mid)
         await self.service.retract(self.admin, mid, "withdrawn")
         return f"retract {mid}"
+
+    async def update(self, i: int) -> str:
+        """A producer's correction of one of its active notes: a complete note with random labels."""
+        agents = set(self.active_agents())
+        live = [mid for mid in self.notes if (m := self.service.store.get_memory(mid)) and m.status == "active"
+                and m.producer_id in agents]
+        if not live:
+            return await self.observe(i)
+        mid = self.rnd.choice(live)
+        agent_id = self.service.store.get_memory(mid).producer_id
+        body: dict[str, Any] = {"text": f"note {i} by {agent_id}, correcting {mid}", "topic": self.rnd.choice(TOPICS),
+                                "confidence": round(self.rnd.uniform(0.3, 0.95), 2), "idempotency_key": f"{self.seed}-u{i}",
+                                "supersedes": mid}
+        slot, entity = self.rnd.choice(SLOTS), self.rnd.choice(ENTITIES)
+        if slot:
+            body["slot"] = slot
+        if entity:
+            body["entity"] = entity
+        try:
+            m, _ = await self.service.ingest_memory(self.principal(agent_id), body)
+        except (ValidationError, Conflict) as exc:
+            return f"update {mid} refused: {exc}"
+        self.notes.append(m.memory_id)
+        return f"update {mid} by {agent_id} {body['topic']!r} {slot!r} {entity!r} {body['confidence']}"
+
+    async def attest(self, i: int) -> str:
+        agents = set(self.active_agents())
+        live = [mid for mid in self.notes if (m := self.service.store.get_memory(mid)) and m.status == "active"
+                and m.producer_id in agents]
+        if not live:
+            return await self.observe(i)
+        mid = self.rnd.choice(live)
+        still_true = self.rnd.random() < 0.8
+        await self.service.attest(self.principal(self.service.store.get_memory(mid).producer_id), mid, {"still_true": still_true})
+        return f"attest {mid} still_true={still_true}"
+
+    async def sweep(self) -> str:
+        queued = await self.service.sweep_expired(now=utcnow() + timedelta(hours=2))
+        return f"sweep ({queued} expired)"
 
     async def upsert_rule(self) -> str:
         rule_id = self.rnd.choice(sorted(RULES))
@@ -164,8 +210,9 @@ class Sequence:
         if len(agents) < 3:
             return await self.register()
         agent_id = self.rnd.choice(agents)
-        await self.service.revoke_agent(agent_id)
-        return f"revoke {agent_id}"
+        retract = self.rnd.random() < 0.5            # a removal: every note of the agent is retracted in one apply
+        await self.service.revoke_agent(agent_id, retract=retract)
+        return f"{'remove' if retract else 'revoke'} {agent_id}"
 
     async def run(self) -> list[str]:
         """The violations found, each prefixed with where (empty when every invariant held)."""
@@ -179,16 +226,22 @@ class Sequence:
             await pump(s, self.log)
             for i in range(OPS_PER_SEQUENCE):
                 r = self.rnd.random()
-                if r < 0.45:
+                if r < 0.38:
                     self.ops.append(await self.observe(i))
+                elif r < 0.42:
+                    self.ops.append(await self.update(i))
+                elif r < 0.45:
+                    self.ops.append(await self.attest(i))
                 elif r < 0.57:
                     self.ops.append(await self.retract())
                 elif r < 0.69:
                     self.ops.append(await self.register())
                 elif r < 0.75:
                     self.ops.append(await self.revoke())
-                elif r < 0.93:
+                elif r < 0.89:
                     self.ops.append(await self.upsert_rule())
+                elif r < 0.93:
+                    self.ops.append(await self.sweep())
                 else:
                     self.ops.append(await self.delete_rule())
                 if self.settle_each:

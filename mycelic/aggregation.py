@@ -506,6 +506,30 @@ class Aggregator:
             tx.set_memory_status(dep, "retracted", reason=reason)
         return ids
 
+    def retract_notes(self, tx: Tx, notes: list[Memory], reason: str) -> list[Derivation]:
+        """Retract active raw notes together (an agent's removal), so each key gets one new version instead of one per note.
+
+        The path of a single retraction (set the status, retire the dependents, offer the note upward, re-evaluate what
+        was retired), batched: every note is retracted and its dependents retired first, then each distinct (unit, topic)
+        is consolidated and each distinct candidate key composed once, in sorted order, and finally the retired memories
+        are re-evaluated on what remains.
+        """
+        retired: list[str] = []
+        for m in notes:
+            tx.set_memory_status(m.memory_id, "retracted", reason=reason)
+            retired += self.retire_dependents(tx, m.memory_id, "evidence retracted")
+        out: list[Derivation] = []
+        for org_id, scope, topic in sorted({(m.org_id, m.scope, m.topic) for m in notes if m.topic}):
+            out.extend(self._consolidate_topic(tx, org_id, scope, topic))
+        reps: dict[tuple, Memory] = {}
+        for m in notes:
+            if m.slot:
+                reps.setdefault(_candidate_key(m), m)
+        for key in sorted(reps, key=lambda k: (k[3], k[4] is not None, k[4] or "", k[5] or "")):
+            out.extend(self._compose_rules(tx, reps[key]))
+        out = self._cascade(tx, out)
+        return out + self.reevaluate(tx, retired)
+
     def _withdraw(self, tx: Tx, current: Memory, reason: str = "support below threshold") -> list[Derivation]:
         """The memory no longer holds (support fell below the threshold because a stronger note changed the selection,
         a child unit appeared or evidence went away; or its rule was deleted, disabled or moved): retract it, retire

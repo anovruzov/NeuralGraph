@@ -102,11 +102,13 @@ use the real broker.
 
 | Subject | Kind | Produced by | Applied as |
 |---|---|---|---|
-| `mycelic.<org>.memory-observed` | `memory.observed` | `POST /memory`, `POST /events` (embedded memory), MCP `mycelic_remember` | insert memory if absent, aggregate |
+| `mycelic.<org>.memory-observed` | `memory.observed` | `POST /memory`, `POST /events` (embedded memory), MCP `mycelic_remember` | insert memory if absent, aggregate; a producer's update (`metadata.version_of`, from `supersedes`) first supersedes the note it names when that is still the producer's active raw note (`superseded_by`, reason `updated by producer`), retires what rested on it and re-derives on the new note, else applies as a plain note (audit `memory.update_conflict`) |
 | `mycelic.<org>.memory-derived` | `memory.derived` | the consumer, for every derived memory | informational: `duplicate` if this node derived it, else ignored and counted (`mycelic_events_ignored_total{reason="derived_not_reproduced"}`), never inserted |
-| `mycelic.<org>.memory-retracted` | `memory.retracted` | `POST /memory/{id}/retract` | retract, retire dependents, re-derive |
+| `mycelic.<org>.memory-retracted` | `memory.retracted` | `POST /memory/{id}/retract`; the expiry sweep (reason `expired`, `by` `mycelic`, event id `evt_x…` derived from the memory id, so a note gets one however often it is swept) | retract, retire dependents, re-derive |
+| `mycelic.<org>.memory-attested` | `memory.attested` | `POST /memory/{id}/attest` with `still_true: true`, MCP `mycelic_attest` | set the raw note's `attested_at` to the attestation's time and sign the row again (`Tx.set_attested`), when the note is the attesting producer's active raw note, the time is not before its ingest and is after its last attestation, and its digest checks; otherwise ignored, audited (`memory.attest_ignored`) and counted (`mycelic_events_ignored_total{reason="attestation_target"|"attestation_not_newer"|"attestation_integrity"}`). Verification's freshness takes the later of ingest and attestation |
 | `mycelic.<org>.agent-event` | `agent.event` | `POST /events` | recorded (evidence) |
 | `mycelic.<org>.agent-registered` / `agent-revoked` / `agent-key-rotated` | admin operations | `/admin/agents` | upsert the registry (key **hashes**, never keys); `agents.log_status` records the registry as applied, which is what aggregation counts (the API writes `status` at once, for authentication and the admin views); a registration or revocation that changes how many child units a unit above the agent has re-plans that unit's promotions and everything above them |
+| `mycelic.<org>.agent-removed` | `agent.removed` | `DELETE /admin/agents/{id}?retract=1` | revoke the agent and set `agents.log_status` to `removed` (terminal: a later revocation or a replayed registration leaves it), then retract every active note of the agent in this one apply (`Aggregator.retract_notes`: each note's dependents retired, each topic and rule key re-derived once, the retired memories re-evaluated), then re-plan the promotions of the units it left; a `memory.observed` of the agent applied after it is inserted retracted and never aggregated |
 | `mycelic.<org>.rule-upserted` / `rule-deleted` | admin operations | `/admin/rules` | update `applied_rules`, which aggregation evaluates, then apply the rule to everything applied before it: an upsert reconciles the rule's active conclusions (withdrawn, kept or superseded) and composes the rule wherever evidence could satisfy it; a delete withdraws its conclusions; either way dependents are retired and re-evaluated. The admin table `rules` is written by the API at once, and by an event only when the event came from the stream alone and no newer local change of that rule is still unapplied |
 
 Stream `MYCELIC`: file storage, `retention=limits`, `discard=new`, no age/size/count limit by default
@@ -198,7 +200,10 @@ then `term`.
   its direct children's consolidations) are re-planned from the agent's team up to the enterprise
   (`Aggregator.registry_changed`). A second team in a department withdraws the department's promotion and the
   promotions above it; an agent in a brand-new region withdraws the enterprise's promotion; revoking the last agent
-  of the new unit reactivates the same ids. A revoked agent's notes stay evidence, so contributions do not change.
+  of the new unit reactivates the same ids. A revoked agent's notes stay evidence, so contributions do not change. A
+  removed agent's notes are retracted by the apply that records the removal, after the registry change, so what they
+  re-derive already counts the units without the agent and a promotion that the removal makes possible appears in
+  that apply, without an intermediate withdrawal.
   A registration into an existing unit, a duplicate registration and a revocation that is replayed or names an
   unknown agent change no count and do no aggregation work.
 * **Candidates.** Each consolidation and rule reads the newest `max_candidates` (5,000) matching memories in apply
@@ -221,6 +226,11 @@ then `term`.
   same candidate (same slot, entity, topic and rule chain: a note joining a consolidation, a conclusion gaining
   evidence, by far the most common case) is not composed again, because offering its successor upward has just
   composed exactly those rule keys (`test_same_candidate_successor_is_not_composed_twice`).
+* **Expiry.** A raw note may carry `expires_at`. Aggregation never reads the clock, so an expired note counts in
+  every consolidation and conclusion until its retraction applies: the expiry sweep (`MycelicService.sweep_expired`,
+  every `MYCELIC_EXPIRY_SWEEP_SECONDS`, 100 notes per sweep) appends a `memory.retracted` event for it (reason
+  `expired`), and the apply is that of any retraction, so a rebuild reproduces it without a clock. Retrieval leaves an
+  expired note out at once, and verification reports it as `leaf_expired` until the retraction applies.
 * **Cascades.** Retiring dependents walks active memories only (nearest first, in id order, at most 100,000);
   a cut walk and a cascade cut at depth 8 are logged as errors and counted
   (`mycelic_aggregation_truncated_total{what="dependents"|"cascade"}`). A derived id already taken by an unrelated
@@ -326,17 +336,19 @@ current one. `MycelicService.verify` runs it under the store lock, so the walk o
 Every surface needs `lineage:read` (403 without it) on a memory the caller may read: an id that does not exist and
 one the caller may not read get the same 404, an id outside `[A-Za-z0-9_.:-]{1,200}` a 400.
 
-**The walk and the checks.** Breadth first from the memory, one batched read of edges and one of rows per level,
-each frontier in sorted order, at most `MYCELIC_VERIFY_MAX_NODES` (25,000) rows. Then, in order: each row's
-digest (`integrity.check_memory`); the shape (missing parents, cycles, raw notes with parents, edge fields against
-the parent row); each raw note against its `memory.observed` event, the events it cites, its producer's registration
-and the retractions in the log; every node's status; each derived memory whose parents passed their own integrity
-check, recomputed from its stored parents under its stored derivation (`metadata.derivation`: the `MIN_SUPPORT` or
-the rule snapshot and digest it was derived under) and compared on id, text, confidence and every covered field,
-with its unit, eligibility and support thresholds; the currency of each active derived memory (its rule as applied,
-the configured `MIN_SUPPORT`, the planner's answer now); with `max_leaf_age`, how long ago the server ingested each
-raw note the caller can read; and the report-level codes. A child whose parent failed its integrity check is not
-recomputed: the parent's code stands, and the child is not blamed for it.
+**The walk and the checks.** Breadth first from the memory, one batched read of edges and one of rows per level, each
+frontier in sorted order, at most `MYCELIC_VERIFY_MAX_NODES` (25,000) rows. Then, in order: each row's digest
+(`integrity.check_memory`); the shape (missing parents, cycles, raw notes with parents, edge fields against the
+parent row); each raw note against its `memory.observed` event, the events it cites, its producer's registration, the
+retractions in the log and the removals of its producer, the update that superseded it (when it is superseded),
+pending updates, and its `expires_at` against the time of the check; every node's status; each derived memory whose
+parents passed their own integrity check, recomputed from its stored parents under its stored derivation
+(`metadata.derivation`: the `MIN_SUPPORT` or the rule snapshot and digest it was derived under) and compared on id,
+text, confidence and every covered field, with its unit, eligibility and support thresholds; the currency of each
+active derived memory (its rule as applied, the configured `MIN_SUPPORT`, the planner's answer now); with
+`max_leaf_age`, how long ago the server ingested each raw note the caller can read or its producer last re-attested
+it (`attested_at`), whichever is later; and the report-level codes. A child whose parent failed its integrity check
+is not recomputed: the parent's code stands, and the child is not blamed for it.
 
 **Verdict.** `failed` on any E code, else `unverifiable` on any U, else `stale` on any S, else `verified`; warnings
 (W) never change it. `derived_correctly` is false on an E, null on a U, else true; `still_true` is null on an E or a
@@ -362,10 +374,11 @@ derived correctly but no longer current; W warning).
 | `integrity_backfilled` | W | signed by the start-up backfill, so integrity is proved from the backfill onward |
 | `source_event_mismatch` | E | a raw note differs from its `memory.observed` event on a field the event carries |
 | `producer_unregistered` | E | a raw note's producer is not a registered agent at the note's path in its organization |
-| `status_inconsistent` | E | a raw note's status disagrees with the retractions in the log |
+| `status_inconsistent` | E | a raw note's status disagrees with the retractions in the log, or the removal of its producer, or it is superseded other than by its producer's applied update |
 | `source_event_missing` | U | a raw note's own event is not in the log |
 | `cited_event_missing` | U | an event a raw note cites (`source_event_ids`) is not in the log |
-| `retraction_pending` | S | a retraction of the raw note is in the log but not applied yet |
+| `retraction_pending` | S | a retraction of the raw note, or a removal of its producer, is in the log but not applied yet |
+| `update_pending` | S | an update of the active raw note by its producer is in the log but not applied yet |
 | `producer_revoked` | W | the raw note's producer has been revoked since |
 | `not_applied` | W | the raw note has not been applied by the consumer yet |
 | `parent_outside_unit` | E | a parent lies outside the derived memory's unit or organization, or not below its layer |
@@ -385,7 +398,8 @@ derived correctly but no longer current; W warning).
 | `legacy_derivation` | U | derived by an older release, without derivation-version-2 metadata: unverifiable until re-aggregated |
 | `node_retracted` | S | the node is retracted |
 | `node_superseded` | S | the node is superseded |
-| `leaf_stale` | S | with `max_leaf_age`: a raw note the caller can read was ingested longer ago than that |
+| `leaf_expired` | S | an active raw note is past its `expires_at`: its retraction by the expiry sweep has not applied yet (judged for every raw note, so a hidden one shows `hidden_stale`) |
+| `leaf_stale` | S | with `max_leaf_age`: a raw note the caller can read was ingested, and last re-attested by its producer, longer ago than that |
 | `min_support_changed` | S | a consolidation was derived under another `MIN_SUPPORT` than the configured one |
 | `rule_deleted` | S | the conclusion's rule is deleted, as applied from the log |
 | `rule_disabled` | S | the conclusion's rule is disabled |
@@ -401,9 +415,11 @@ derived correctly but no longer current; W warning).
 **The report.** `memory_id`, `verdict`, `derived_correctly`, `still_true`, `reasons` (report level: code, severity,
 count of nodes), `warnings`, `summary` (`nodes`, `derived`, `leaves`, `redacted`, `failed_nodes`,
 `unverifiable_nodes`, `stale_nodes`, `unexplored`, `hidden_warnings`), `superseded_by`, `current_version`,
-`freshness_partial`, `integrity_mode` (`keyed` or `unkeyed`), `verified_at`, `max_leaf_age`, `nodes` (each with its
-`memory_id`, `layer`, `scope`, `operator`, `status`, `redacted`, `ok` and `reasons`), `dag_digest` and
-`report_digest`; an administrator's report also has `as_of.last_applied_seq`.
+`freshness_partial`, `valid_until` (the earliest `expires_at` of the active raw notes the caller can read in the walk,
+null without one), `valid_until_partial` (true when the walk was truncated or holds raw notes the caller may not
+read, whose expiries `valid_until` does not cover), `integrity_mode` (`keyed` or `unkeyed`), `verified_at`,
+`max_leaf_age`, `nodes` (each with its `memory_id`, `layer`, `scope`, `operator`, `status`, `redacted`, `ok` and
+`reasons`), `dag_digest` and `report_digest`; an administrator's report also has `as_of.last_applied_seq`.
 
 **Redaction.** Every node shows its id, layer, unit (a raw note's team: its path would end in its producer's id),
 operator, status and `ok`. A node the caller may not read (`Principal.can_read`) shows nothing more; of its codes it
@@ -422,7 +438,8 @@ shows depends on who asks, so digests are compared caller against caller: smoke 
 before and after a rebuild.
 
 **Cost and limits.** About 0.1 ms per node plus one planner run per active derived memory, and one read of the
-organization's retractions logged since the oldest raw note's event; measured through `MycelicService.verify` in
+organization's retractions logged since the oldest raw note's event, one of its agent removals and one of its updates
+not applied yet; measured through `MycelicService.verify` in
 this repository's idle sandbox, 0.10–0.20 s for 1,005 nodes and 0.56–0.85 s for 5,005 nodes. The walk holds the store lock
 and the event loop. `MYCELIC_VERIFY_MAX_NODES` bounds it (`walk_truncated` beyond). A verification costs the caller
 1 + ceil(nodes / 250) rate-limit tokens: the request's token at the door and the walk's share after the walk
@@ -461,14 +478,16 @@ statuses, stdio proxy against new and old servers), `tests/mycelic/test_integrit
 `mycelic_events_published_total{kind}`, `mycelic_events_applied_total{kind,result}`,
 `mycelic_events_failed_total{stage}`, `mycelic_replay_events_total`, `mycelic_recovery_total{kind}`,
 `mycelic_memories_derived_total{layer,operator}`, `mycelic_events_ignored_total{reason}` (`derived_not_reproduced`,
-`retraction_target`, `unknown_kind`), `mycelic_aggregation_inconsistency_total{kind}` (`id_collision`,
-`reactivation_mismatch`), `mycelic_aggregation_truncated_total{what}` (`candidates`, `dependents`, `cascade`),
-`mycelic_retrieval_latency_seconds`,
+`retraction_target`, `unknown_kind`, `attestation_target`, `attestation_not_newer`, `attestation_integrity`),
+`mycelic_aggregation_inconsistency_total{kind}` (`id_collision`, `reactivation_mismatch`),
+`mycelic_aggregation_truncated_total{what}` (`candidates`, `dependents`, `cascade`), `mycelic_retrieval_latency_seconds`,
 `mycelic_aggregation_latency_seconds`, `mycelic_reaggregation_steps_total` (re-aggregation job steps, one
 transaction each), `mycelic_lineage_latency_seconds`,
 `mycelic_lineage_reconstruction_total{result}`, `mycelic_verifications_total{verdict}`,
 `mycelic_verification_reasons_total{reason}` (each code once per verification, as the caller saw it),
-`mycelic_verification_latency_seconds`, `mycelic_http_requests_total{route,status}`,
+`mycelic_verification_latency_seconds`, `mycelic_memories_expired_total` (expired notes the sweep queued a
+retraction for, each once), `mycelic_memories_expiry_overdue` (active notes past their `expires_at`: a backlog when it
+stays up), `mycelic_http_requests_total{route,status}`,
 `mycelic_auth_failures_total{reason}`, `mycelic_active_agents`, `mycelic_registered_agents`,
 `mycelic_memories{layer}`, `mycelic_outbox_pending`, `mycelic_transport_connected`,
 `mycelic_consumer_pending` (read from the broker at scrape time), `mycelic_build_info{version}`.
@@ -476,8 +495,9 @@ transaction each), `mycelic_lineage_latency_seconds`,
 `GET /health` (public: status, version, transport connected, consumer running), `GET /ready`,
 `GET /admin/status` (full checks, stream/consumer positions, masked settings, and `checks.reaggregation`: the
 re-aggregation job's `state` (`idle`, `running`, `waiting_for_replay`, `done`, `interrupted`, `failed`), `reason`,
-`scope`, current `org_id` and `phase`, `steps`, `changed`, `started_at`, `finished_at`, `error`), `GET /admin/audit`,
-`GET /admin/events`. The job never affects `/ready`: the node serves while it converges. Every successful downward
+`scope`, current `org_id` and `phase`, `steps`, `changed`, `started_at`, `finished_at`, `error`; and `checks.expiry`:
+`enabled`, `interval_seconds`, `overdue`, `last_sweep_at`, `last_queued`), `GET /admin/audit`, `GET /admin/events`.
+The job never affects `/ready`: the node serves while it converges. Every successful downward
 verification writes the audit row `memory.verify` (principal, target, organization, verdict, nodes walked and the
 reason codes before redaction).
 

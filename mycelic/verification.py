@@ -12,7 +12,8 @@ reads; the service runs it under the store lock, so it sees committed states onl
 * integrity: each row's keyed digest against the row as stored and its lineage edges (:func:`integrity.check_memory`);
 * raw notes: the row agrees with its ``memory.observed`` event on every field the log carries that never changes after
   insert (labels through ``canonical_label``, so pre-v3 spellings pass), the events it cites are in the log, its
-  producer is registered at its path in its organization, and its status agrees with the retractions in the log;
+  producer is registered at its path in its organization, and its status agrees with the lifecycle events in the log
+  (below);
 * derived memories: their parents lie inside their unit and are eligible evidence, the support thresholds hold, and
   recomputing the memory from its stored parents with the stored derivation (``metadata.derivation``: the
   ``min_support`` or the rule snapshot it was derived under) reproduces its id, text, confidence and every covered
@@ -21,8 +22,10 @@ reads; the service runs it under the store lock, so it sees committed states onl
 * currency, active derived memories only: the rule is still applied, enabled and unchanged, ``min_support`` is still
   the one configured, and the planner derives exactly this memory from the applied evidence now;
 * status: every retracted or superseded node, the memory itself included;
+* expiry: every active raw note whose ``expires_at`` is past (its retraction not applied yet), readable or not;
 * freshness, with ``max_leaf_age``: how long ago the server ingested each raw note the caller can read (its event's
-  ``created_at``, which a rebuild reproduces), never the producer's ``observed_at``.
+  ``created_at``, which a rebuild reproduces) or its producer last re-attested it (``attested_at``), whichever is later,
+  never the producer's ``observed_at``.
 
 **Verdict.**  ``failed`` on any E, else ``unverifiable`` on any U, else ``stale`` on any S, else ``verified``; warnings
 (W) never change it.  ``derived_correctly`` is False on an E, None on a U, else True; ``still_true`` is None on an E or a
@@ -41,9 +44,9 @@ U, False on an S, else True.  All three come from the codes before redaction, so
   longer configured), ``integrity_not_backfilled``, ``source_event_missing``, ``cited_event_missing``,
   ``legacy_derivation`` (derived by an older release), ``walk_truncated``, ``replay_in_progress``,
   ``hidden_unverifiable``;
-* S (stale, derived correctly but no longer current): ``retraction_pending``, ``node_retracted``, ``node_superseded``,
-  ``leaf_stale``, ``min_support_changed``, ``rule_deleted``, ``rule_disabled``, ``rule_changed``, ``not_current``,
-  ``hidden_stale``;
+* S (stale, derived correctly but no longer current): ``retraction_pending``, ``update_pending``, ``node_retracted``,
+  ``node_superseded``, ``leaf_expired``, ``leaf_stale``, ``min_support_changed``, ``rule_deleted``, ``rule_disabled``,
+  ``rule_changed``, ``not_current``, ``hidden_stale``;
 * W (warning): ``integrity_backfilled`` (signed by the start-up backfill), ``producer_revoked``, ``not_applied``,
   ``log_lag`` (events of the organization not applied yet; administrators only).
 
@@ -57,19 +60,31 @@ for any viewer, carries text, statements, metadata values, agent or producer ids
 **Determinism.**  Frontiers are sorted, so a truncated walk cuts at the same ids every time.  ``dag_digest`` hashes the
 DAG's shape (ids, layers, edges, missing parents, truncation): the same for every viewer and on a rebuild from the log.
 ``report_digest`` hashes the verdict, both booleans, ``max_leaf_age``, the DAG digest and each node's status, ``ok`` and
-codes as the caller sees them.  It leaves out details, warnings, times and pointers, so two calls agree, a rebuild
-agrees, and a row re-signed by the start-up backfill (warning ``integrity_backfilled``) changes nothing.
+codes as the caller sees them.  It leaves out details, warnings, times (``valid_until`` among them) and pointers, so
+two calls agree, a rebuild agrees, and a row re-signed by the start-up backfill (warning ``integrity_backfilled``)
+changes nothing.
+
+**Validity.**  ``valid_until`` is the earliest ``expires_at`` of the active raw notes in the walk the caller can read
+(None without one): until then no expiry the caller can see makes the memory stale.  ``valid_until_partial`` says the
+walk was truncated or holds raw notes the caller may not read, whose expiries it does not show.
 
 **Cost.**  About 0.1 ms per node plus one planner run per active derived memory, bounded by ``MYCELIC_VERIFY_MAX_NODES``
 (``walk_truncated`` beyond it), plus one read of the organization's retractions logged since the oldest raw note's event
-(all of them when a note's event row is gone); the walk holds the store lock and the event loop meanwhile.
+(all of them when a note's event row is gone), one of its agent removals and one of its updates not applied yet; the walk
+holds the store lock and the event loop meanwhile.
 
 **Unkeyed deployments** (``integrity_mode: unkeyed``).  Without ``MYCELIC_EVENT_SIGNING_KEY`` a digest detects
 corruption, not edits: whoever can write the database can re-hash a row.  A re-hashed raw note is still caught by the
 comparison with its event, and a derived memory is still recomputed from its parents.
 
-**Later.**  :data:`LIFECYCLE_KINDS` lists the events that change a raw note's status (G8 adds agent removals and
-producer supersessions), and freshness will take the later of ingest and re-attestation.
+**Lifecycle.**  A raw note's status is checked against the events that change it: the retractions that target it
+(:data:`LIFECYCLE_KINDS`) and the removals of its producer (``agent.removed``, which retracts every note the agent has,
+one logged after the removal included).  An active note with such an event applied, or a retracted one with none
+applied, is ``status_inconsistent``; one still pending or published is ``retraction_pending``.  A superseded raw note
+must be superseded by its producer's update: ``superseded_by`` names a raw note of the same producer and organization
+whose ``metadata.version_of`` names it, in its row and in its ``memory.observed`` event, and the log applied that
+event; anything else, or ``superseded_by`` on a note that is not superseded, is ``status_inconsistent``.  An active note
+with an update still on its way through the log is ``update_pending``.
 """
 from __future__ import annotations
 
@@ -89,7 +104,9 @@ from .aggregation import (
 from .auth import Principal
 from .hierarchy import LAYER_INDEX, child_unit_of, is_ancestor_or_self, parent_path, unit_at_layer
 from .integrity import CONTENT_FIELDS, DERIVED_METADATA, LIFECYCLE_METADATA, Keyring, check_memory
-from .models import DERIVATION_VERSION, MEMORY_STATUS, LineageEdge, Memory, Rule, canonical_label, parse_iso, rule_digest
+from .models import (
+    DERIVATION_VERSION, MEMORY_STATUS, LineageEdge, Memory, Rule, canonical_label, parse_iso, rule_digest, utc_seconds,
+)
 from .store import MycelicStore
 
 logger = logging.getLogger(__name__)
@@ -106,7 +123,8 @@ REASONS: dict[str, str] = {
     "integrity_unknown_key": "U", "integrity_not_backfilled": "U", "integrity_backfilled": "W",
     # raw notes
     "source_event_mismatch": "E", "producer_unregistered": "E", "status_inconsistent": "E", "source_event_missing": "U",
-    "cited_event_missing": "U", "retraction_pending": "S", "producer_revoked": "W", "not_applied": "W",
+    "cited_event_missing": "U", "retraction_pending": "S", "update_pending": "S", "leaf_expired": "S", "producer_revoked": "W",
+    "not_applied": "W",
     # derived memories
     "parent_outside_unit": "E", "topic_mismatch": "E", "parent_ineligible": "E", "slot_uncovered": "E",
     "below_min_support": "E", "below_min_agents": "E", "below_min_teams": "E", "below_min_units": "E",
@@ -127,8 +145,8 @@ HIDDEN = {"E": "hidden_error", "U": "hidden_unverifiable", "S": "hidden_stale"}
 #: events in the log that change a raw note's status
 LIFECYCLE_KINDS = ("memory.retracted",)
 MAX_LEAF_AGE_SECONDS = 315_360_000          # ten years
-#: fields of a raw note that its ``memory.observed`` payload must carry unchanged (labels, confidence, cited events and
-#: metadata are compared separately); what a rebuild would insert from the log
+#: fields of a raw note that its ``memory.observed`` payload must carry unchanged (labels, confidence, expiry, cited
+#: events and metadata are compared separately); what a rebuild would insert from the log
 _PAYLOAD_FIELDS = ("memory_id", "org_id", "layer", "scope", "text", "kind", "support", "independent_teams", "producer_id",
                    "operator", "rule_id", "visibility", "created_at", "local_ref", "event_id")
 _RULE_FIELDS = frozenset(Rule.__dataclass_fields__)
@@ -181,6 +199,11 @@ def _payload_mismatch(m: Memory, kind: str, p: dict[str, Any]) -> list[str]:
                 out.append(k)
         except TypeError:
             out.append(k)
+    expires = p.get("expires_at")
+    if expires is not None:             # the apply stores it in UTC to the second; a malformed value stays itself
+        expires = utc_seconds(expires) or expires
+    if expires != m.expires_at:
+        out.append("expires_at")
     c = p.get("confidence")
     if isinstance(c, bool) or not isinstance(c, (int, float)) or round(float(c), 6) != round(float(m.confidence), 6):
         out.append("confidence")
@@ -331,6 +354,10 @@ class _Verification:
         logged = [m.event_id for m in own if isinstance(m.event_id, str) and m.event_id in self.events]
         since = logged if len(logged) == len(own) else ()
         lifecycle = self.store.lifecycle_events(self.root.org_id, LIFECYCLE_KINDS, since=since) if own else {}
+        removals = self.store.removal_events(self.root.org_id, {m.producer_id for m in own})
+        updates = self.store.unapplied_updates(self.root.org_id, [m.memory_id for m in own if m.status == "active"])
+        successors = self.store.get_memories([m.superseded_by for m in own if isinstance(m.superseded_by, str)])
+        successor_events = self.store.get_events([s.event_id for s in successors.values() if isinstance(s.event_id, str)])
         for m in leaves:
             if m.org_id != self.root.org_id:
                 continue                            # parent_outside_unit on its child explains it
@@ -352,13 +379,39 @@ class _Verification:
                 self.add(mid, "producer_revoked")
             if m.applied_at is None:
                 self.add(mid, "not_applied")
-            states = [status for _, status in lifecycle.get(mid, [])]
+            states = [status for _, status in lifecycle.get(mid, []) + removals.get(m.producer_id, [])]
             applied = "applied" in states
-            if ((m.status == "active" and applied) or (m.status == "retracted" and not applied and ev is not None)
-                    or m.status == "superseded" or m.status not in MEMORY_STATUS):
+            if m.status == "superseded":
+                # only the producer's own update supersedes a raw note, once it applied; a retraction applied later was
+                # ignored, so the retractions are not read
+                if not self.superseded_by_update(m, successors, successor_events):
+                    self.add(mid, "status_inconsistent")
+            elif ((m.status == "active" and applied) or (m.status == "retracted" and not applied and ev is not None)
+                  or m.superseded_by is not None or m.status not in MEMORY_STATUS):
                 self.add(mid, "status_inconsistent")
             if "pending" in states or "published" in states:
                 self.add(mid, "retraction_pending")
+            if m.status == "active" and updates.get(mid):
+                self.add(mid, "update_pending")
+            # judged whoever asks (a hidden node shows hidden_stale), so the verdict is the same for every viewer
+            expires = parse_iso(m.expires_at) if isinstance(m.expires_at, str) else None
+            if m.status == "active" and expires is not None and expires <= self.now:
+                self.add(mid, "leaf_expired", {"expires_at": m.expires_at})
+
+    @staticmethod
+    def superseded_by_update(m: Memory, successors: dict[str, Memory], events: dict[str, Any]) -> bool:
+        """Is ``m`` superseded by a raw note of its producer and organization that names it (``metadata.version_of``), row
+        and log alike, and whose ``memory.observed`` event the log has applied?"""
+        nxt = successors.get(m.superseded_by) if isinstance(m.superseded_by, str) else None
+        ev = events.get(nxt.event_id) if nxt is not None and isinstance(nxt.event_id, str) else None
+        if nxt is None or ev is None:
+            return False
+        payload = ev.payload if isinstance(ev.payload, dict) else {}
+        logged = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
+        return (nxt.operator == "agent_observation" and (nxt.producer_id, nxt.org_id) == (m.producer_id, m.org_id)
+                and isinstance(nxt.metadata, dict) and nxt.metadata.get("version_of") == m.memory_id
+                and ev.kind == "memory.observed" and ev.status == "applied" and payload.get("memory_id") == nxt.memory_id
+                and logged.get("version_of") == m.memory_id)
 
     # ------------------------------------------------------------------ (e) status
     def check_status(self) -> None:
@@ -524,8 +577,8 @@ class _Verification:
 
     # ------------------------------------------------------------------ (h) freshness, (i) the report as a whole
     def check_freshness(self) -> bool:
-        """leaf_stale on every readable raw note ingested more than ``max_leaf_age`` seconds ago; returns whether some
-        raw note could not be judged (hidden, no usable event row, or not loaded)."""
+        """leaf_stale on every readable raw note ingested, and not re-attested since, more than ``max_leaf_age`` seconds
+        ago; returns whether some raw note could not be judged (hidden, no usable event row, or not loaded)."""
         partial = self.truncated
         for mid in sorted(self.nodes):
             m = self.nodes[mid]
@@ -539,7 +592,8 @@ class _Verification:
             if ingested is None:
                 partial = True
                 continue
-            age = (self.now - ingested).total_seconds()
+            attested = parse_iso(m.attested_at) if isinstance(m.attested_at, str) else None
+            age = (self.now - max(ingested, attested or ingested)).total_seconds()
             if age > self.max_leaf_age:             # type: ignore[operator]
                 self.add(mid, "leaf_stale", {"age_seconds": int(age), "max_leaf_age": self.max_leaf_age})
         return partial
@@ -639,6 +693,9 @@ class _Verification:
                                  "nodes": [[v["memory_id"], v["status"], v["ok"], sorted(r["code"] for r in v["reasons"])]
                                            for v in views]})
         leaves = sum(m.operator == "agent_observation" for m in self.nodes.values())
+        raw = [m for m in self.nodes.values() if m.operator == "agent_observation"]
+        expiries = [m.expires_at for m in raw if m.status == "active" and isinstance(m.expires_at, str)
+                    and self.principal.can_read(m)]
         report: dict[str, Any] = {
             "memory_id": self.root.memory_id, "verdict": verdict, "derived_correctly": derived_correctly,
             "still_true": still_true, "reasons": reasons, "warnings": warnings,
@@ -646,7 +703,9 @@ class _Verification:
                         "failed_nodes": worst["E"], "unverifiable_nodes": worst["U"], "stale_nodes": worst["S"],
                         "unexplored": unexplored, "hidden_warnings": hidden_warnings},
             "superseded_by": self.successor(), "current_version": self.current_version(),
-            "freshness_partial": freshness_partial, "integrity_mode": "keyed" if self.keyring.keyed else "unkeyed",
+            "freshness_partial": freshness_partial, "valid_until": min(expiries) if expiries else None,
+            "valid_until_partial": self.truncated or not all(self.principal.can_read(m) for m in raw),
+            "integrity_mode": "keyed" if self.keyring.keyed else "unkeyed",
             "verified_at": self.verified_at, "max_leaf_age": self.max_leaf_age,
             "nodes": views, "dag_digest": dag_digest, "report_digest": report_digest,
         }

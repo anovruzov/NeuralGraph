@@ -49,8 +49,9 @@ NOTES = {
 #: what every caller's verification report carries (an administrator's also has ``as_of``)
 REPORT_KEYS = {"memory_id", "verdict", "derived_correctly", "still_true", "reasons", "warnings", "summary", "superseded_by",
                "current_version", "freshness_partial", "integrity_mode", "verified_at", "max_leaf_age", "nodes", "dag_digest",
-               "report_digest"}
-TOOL_NAMES = ["mycelic_query", "mycelic_remember", "mycelic_lineage", "mycelic_verify", "mycelic_get_memory", "mycelic_status"]
+               "report_digest", "valid_until", "valid_until_partial"}
+TOOL_NAMES = ["mycelic_query", "mycelic_remember", "mycelic_lineage", "mycelic_verify", "mycelic_get_memory", "mycelic_status",
+              "mycelic_attest"]
 
 
 def bearer(token: str) -> dict[str, str]:
@@ -709,7 +710,7 @@ class MCPTests(ApiTestCase):
         r = await self.rpc(key, "tools/list")
         names = [t["name"] for t in (await r.json())["result"]["tools"]]
         self.assertEqual(names, ["mycelic_query", "mycelic_remember", "mycelic_lineage", "mycelic_verify", "mycelic_get_memory",
-                                 "mycelic_status"])
+                                 "mycelic_status", "mycelic_attest"])
         r = await self.rpc(key, "tools/call", {"name": "mycelic_remember", "arguments": {"text": "Terminal 3 strike announced.", "topic": "supply:sd-9/transport"}})
         out = (await r.json())["result"]
         self.assertFalse(out["isError"], out)

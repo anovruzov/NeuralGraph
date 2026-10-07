@@ -96,10 +96,17 @@ class MycelicClient:
     def remember(self, text: str, *, topic: str | None = None, slot: str | None = None, entity: str | None = None,
                  kind: str = "observation", confidence: float = 0.8, visibility: str = "team",
                  idempotency_key: str | None = None, observed_at: str | None = None, local_ref: str | None = None,
-                 source_event_ids: list[str] | None = None, metadata: dict[str, Any] | None = None) -> dict[str, Any]:
+                 source_event_ids: list[str] | None = None, metadata: dict[str, Any] | None = None,
+                 expires_at: str | None = None, supersedes: str | None = None) -> dict[str, Any]:
+        """Share one memory as the calling agent.  ``expires_at`` (ISO-8601, in the future, at most ten years ahead):
+        answers stop using it then, and the service retracts it through the log shortly after.  ``supersedes``: the id
+        of one of the caller's own active memories that this one corrects; this one is the complete note (nothing is
+        inherited) and needs its own idempotency key.  409 (:class:`MycelicError`) while a retraction or another update
+        of that memory is still on its way through the log."""
         body = {"text": text, "topic": topic, "slot": slot, "entity": entity, "kind": kind, "confidence": confidence,
                 "visibility": visibility, "idempotency_key": idempotency_key, "observed_at": observed_at,
-                "local_ref": local_ref, "source_event_ids": source_event_ids, "metadata": metadata}
+                "local_ref": local_ref, "source_event_ids": source_event_ids, "metadata": metadata,
+                "expires_at": expires_at, "supersedes": supersedes}
         return self._request("POST", "/memory", {k: v for k, v in body.items() if v is not None})
 
     def publish_events(self, events: list[dict[str, Any]]) -> dict[str, Any]:
@@ -149,6 +156,20 @@ class MycelicClient:
     def retract(self, memory_id: str, reason: str = "retracted by producer") -> dict[str, Any]:
         return self._request("POST", f"/memory/{urllib.parse.quote(memory_id)}/retract", {"reason": reason})
 
+    def attest(self, memory_id: str, *, still_true: bool = True, reason: str | None = None) -> dict[str, Any]:
+        """Re-attest one of the caller's own active notes: ``still_true`` refreshes it for verification's ``max_leaf_age``
+        (its ``attested_at`` once the event applies), False retracts it.  Self-attestation: it adds freshness, not
+        independent assurance."""
+        body: dict[str, Any] = {"still_true": still_true}
+        if reason is not None:
+            body["reason"] = reason
+        return self._request("POST", f"/memory/{urllib.parse.quote(memory_id, safe='')}/attest", body)
+
+    def due_attestations(self, *, older_than: int | None = None, limit: int | None = None) -> list[dict[str, Any]]:
+        """The caller's own notes that an active derived memory rests on, last ingested or attested at least
+        ``older_than`` seconds ago, stalest first."""
+        return self._request("GET", "/attestations/due", params={"older_than": older_than, "limit": limit})["due"]
+
     def list_memories(self, *, scope: str | None = None, layer: str | None = None, limit: int = 50,
                       status: str | None = None) -> list[dict[str, Any]]:
         """Memories the caller may read under ``scope``, newest first; ``status`` is ``active`` (the default),
@@ -168,8 +189,11 @@ class MycelicClient:
     def list_agents(self, org: str | None = None) -> list[dict[str, Any]]:
         return self._request("GET", "/admin/agents", params={"org": org})["agents"]
 
-    def revoke_agent(self, agent_id: str) -> dict[str, Any]:
-        return self._request("DELETE", f"/admin/agents/{urllib.parse.quote(agent_id)}")
+    def revoke_agent(self, agent_id: str, *, retract: bool = False) -> dict[str, Any]:
+        """Revoke an agent's key; with ``retract`` remove the agent: one event retracts every note it has when it applies
+        (``retracted`` counts the notes active when the call was made)."""
+        return self._request("DELETE", f"/admin/agents/{urllib.parse.quote(agent_id)}",
+                             params={"retract": 1} if retract else None)
 
     def rotate_key(self, agent_id: str) -> dict[str, Any]:
         return self._request("POST", f"/admin/agents/{urllib.parse.quote(agent_id)}/rotate")
@@ -259,13 +283,17 @@ class LocalMemory:
         self._c.execute("UPDATE notes SET shared_memory_id=?, shared_event_id=?, shared_at=? WHERE local_id=?",
                         (memory_id, event_id, _now(), local_id))
 
-    def share(self, client: MycelicClient, local_id: str, *, visibility: str = "team") -> dict[str, Any]:
+    def share(self, client: MycelicClient, local_id: str, *, visibility: str = "team", expires_at: str | None = None,
+              supersedes: str | None = None) -> dict[str, Any]:
+        """Share a local note (its local id is the idempotency key).  To correct a note already shared, write the
+        correction as a new local note and share it with ``supersedes`` set to the shared note's memory id: a new local
+        note gets a new idempotency key, which an update needs."""
         n = self.get(local_id)
         if n is None:
             raise KeyError(local_id)
         res = client.remember(n["text"], topic=n["topic"], slot=n["slot"], entity=n["entity"], kind=n["kind"],
                               confidence=n["confidence"], visibility=visibility, idempotency_key=local_id,
-                              observed_at=n["created_at"], local_ref=local_id)
+                              observed_at=n["created_at"], local_ref=local_id, expires_at=expires_at, supersedes=supersedes)
         self.mark_shared(local_id, res["memory_id"], res.get("event_id"))
         return res
 

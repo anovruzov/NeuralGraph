@@ -5,7 +5,8 @@ changes (the same strategy as ``NeuralGraph.chat_memory.retrieval``, whose token
 BM25 with a mild boost for higher organizational layers, so an enterprise conclusion outranks one of the raw
 observations it was built from when both match the query, while a precise raw observation still wins when the
 conclusion does not mention the query's terms.  Visibility is a predicate evaluated per row (see
-``auth.memory_visible``), so an agent never sees a hit it could not ``GET``.
+``auth.memory_visible``), so an agent never sees a hit it could not ``GET``.  A note past its ``expires_at`` is left out
+at once, before the expiry sweep has retracted it.
 
 Embeddings are deliberately not part of this slice: the deployment must run without any model server.
 ``Retriever`` is the seam where a vector channel plus reciprocal-rank fusion would go.
@@ -21,7 +22,7 @@ from collections import Counter
 from NeuralGraph.chat_memory.textutil import tokenize
 
 from .hierarchy import LAYERS
-from .models import Memory
+from .models import Memory, now_iso
 from .store import MycelicStore
 
 LAYER_BOOST = 0.15      # per layer above 'agent'
@@ -84,8 +85,9 @@ class _OrgIndex:
 
 
 class Retriever:
-    def __init__(self, store: MycelicStore) -> None:
+    def __init__(self, store: MycelicStore, *, clock: Callable[[], str] = now_iso) -> None:
         self.store = store
+        self.clock = clock                    # ISO-8601 UTC now: what has expired (a test hook)
         self._cache: dict[str, tuple[int, _OrgIndex]] = {}
 
     def _index(self, org_id: str) -> _OrgIndex:
@@ -108,8 +110,9 @@ class Retriever:
         min_idx = LAYERS.index(min_layer)
         q = tokenize(query or "")
         # BM25 statistics (IDF, average length) are computed over the caller's view only, so memories the caller
-        # cannot read never influence its ranking, not even through term statistics
-        view = [i for i, m in enumerate(index.rows) if visible(m)]
+        # cannot read never influence its ranking, not even through term statistics; nor do expired ones
+        now = self.clock()
+        view = [i for i, m in enumerate(index.rows) if visible(m) and not (m.expires_at is not None and m.expires_at <= now)]
         if not view:
             return []
         scores = BM25([index.docs[i] for i in view]).get_scores(q) if q else [0.0] * len(view)

@@ -2,9 +2,9 @@
 
 The names answer the operational questions in the deployment brief: ingestion rate, retrieval and
 aggregation latency, event throughput, failed events, replay/recovery events, active agents, memory counts by
-layer, lineage reconstruction success/failure, downward verification verdicts and reasons.  Gauges that describe
-stored state (memories by layer, outbox depth, active agents) are refreshed by ``Metrics.refresh_from_store`` before
-every scrape.
+layer, lineage reconstruction success/failure, downward verification verdicts and reasons, expiry.  Gauges that
+describe stored state (memories by layer, outbox depth, active agents, expired notes not retracted yet) are refreshed by
+``Metrics.refresh_from_stats`` before every scrape.
 """
 from __future__ import annotations
 
@@ -45,6 +45,8 @@ class Metrics:
                                            registry=r)
         self.integrity_backfilled = Counter("mycelic_integrity_backfilled_total", "Memories given a digest by the start-up backfill",
                                             registry=r)
+        self.memories_expired = Counter("mycelic_memories_expired_total", "Expired notes the sweep queued a retraction for",
+                                        registry=r)
         self.retrieval_latency = Histogram("mycelic_retrieval_latency_seconds", "POST /query latency", buckets=_LATENCY_BUCKETS, registry=r)
         self.aggregation_latency = Histogram("mycelic_aggregation_latency_seconds", "Time to apply one event including aggregation", buckets=_LATENCY_BUCKETS, registry=r)
         self.lineage_latency = Histogram("mycelic_lineage_latency_seconds", "Lineage reconstruction latency", buckets=_LATENCY_BUCKETS, registry=r)
@@ -63,12 +65,15 @@ class Metrics:
         self.outbox_depth = Gauge("mycelic_outbox_pending", "Events waiting to be published", registry=r)
         self.transport_connected = Gauge("mycelic_transport_connected", "1 when the transport is connected", registry=r)
         self.consumer_pending = Gauge("mycelic_consumer_pending", "Stream messages not yet delivered to the consumer", registry=r)
+        self.expiry_overdue = Gauge("mycelic_memories_expiry_overdue", "Active notes past their expires_at (their retraction "
+                                    "not queued or not applied yet)", registry=r)
         self.info = Gauge("mycelic_build_info", "Build information", ["version"], registry=r)
         for layer in LAYERS:
             self.memories_by_layer.labels(layer).set(0)
         for kind in ("memory.observed", "memory.derived", "memory.retracted", "agent.event"):
             self.events_published.labels(kind)
-        for reason in ("derived_not_reproduced", "retraction_target", "unknown_kind"):
+        for reason in ("derived_not_reproduced", "retraction_target", "unknown_kind", "attestation_target",
+                       "attestation_not_newer", "attestation_integrity"):
             self.events_ignored.labels(reason)
         for kind in ("id_collision", "reactivation_mismatch"):
             self.aggregation_inconsistency.labels(kind)
@@ -86,6 +91,7 @@ class Metrics:
         self.outbox_depth.set(stats.get("outbox_pending", 0))
         self.active_agents.set(stats.get("active_agents", 0))
         self.registered_agents.set(stats.get("registered_agents", 0))
+        self.expiry_overdue.set(stats.get("expiry_overdue", 0))
 
     def render(self) -> tuple[bytes, str]:
         return generate_latest(self.registry), CONTENT_TYPE_LATEST

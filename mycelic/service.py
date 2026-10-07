@@ -27,7 +27,7 @@ import logging
 import math
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -41,7 +41,7 @@ from .lineage import LineageNotFound, reconstruct
 from .metrics import Metrics
 from .models import (
     ALL_SCOPES, DEFAULT_AGENT_SCOPES, DERIVATION_VERSION, MEMORY_KINDS, OPERATORS, VISIBILITY, Agent, EventRecord, Memory, Rule,
-    canonical_label, canonical_rule_body, content_hash, new_id, now_iso, parse_iso, utcnow,
+    canonical_label, canonical_rule_body, content_hash, new_id, now_iso, parse_iso, utc_seconds, utcnow,
 )
 from .retrieval import Retriever
 from .store import MycelicStore, Tx, acquire_db_lock, release_db_lock
@@ -63,6 +63,8 @@ _REPLAY_IGNORED = "replay_ignored_derived"
 #: a verification costs one rate-limit token per this many nodes walked, on top of its request's own token: at about
 #: 0.1 ms per node (verification.py, Cost) a token buys about 25 ms of walk
 VERIFY_NODES_PER_TOKEN = 250
+#: how far ahead a note's ``expires_at`` may be (ten years, the bound of ``max_leaf_age``)
+MAX_EXPIRY_SECONDS = verification.MAX_LEAF_AGE_SECONDS
 
 
 class ValidationError(ValueError):
@@ -75,6 +77,11 @@ class Forbidden(PermissionError):
 
 class NotFound(KeyError):
     pass
+
+
+class Conflict(Exception):
+    """A request that cannot be applied yet because an earlier one on the same memory is still on its way through the
+    log; the API maps it to 409 and MCP to an error result."""
 
 
 class RateLimited(Exception):
@@ -130,6 +137,29 @@ def _iso(body: dict[str, Any], key: str) -> str | None:
     return dt.isoformat(timespec="seconds")
 
 
+def _expiry(body: dict[str, Any]) -> str | None:
+    """``expires_at`` in UTC with second precision, or None (absent or empty).  Syntax only: :func:`_check_expiry` checks
+    the window when the note is about to be stored."""
+    v = _s(body, "expires_at", max_len=40)
+    if v is None:
+        return None
+    out = utc_seconds(v)
+    if out is None:
+        raise ValidationError("'expires_at' must be an ISO-8601 timestamp")
+    return out
+
+
+def _check_expiry(expires_at: str | None, now: datetime) -> None:
+    """A new note's expiry, as stored, must lie in the future and at most :data:`MAX_EXPIRY_SECONDS` ahead."""
+    at = parse_iso(expires_at)
+    if at is None:
+        return
+    if at <= now:
+        raise ValidationError("'expires_at' must be in the future")
+    if (at - now).total_seconds() > MAX_EXPIRY_SECONDS:
+        raise ValidationError(f"'expires_at' must be at most {MAX_EXPIRY_SECONDS} seconds (ten years) ahead")
+
+
 def _small_dict(body: dict[str, Any], key: str, max_bytes: int) -> dict[str, Any]:
     v = body.get(key)
     if v is None:
@@ -154,6 +184,9 @@ class MycelicService:
     #: (median 0.06 s) on 22,685 rows whose consolidations rest on up to 400 roots, about 7,900 rows/s with its commits
     #: (1,000 took up to 0.17 s); keep a batch under 0.25 s
     backfill_batch = 500
+    #: expired notes one sweep queues a retraction for, in one transaction (``sweep_expired``): at the default
+    #: MYCELIC_EXPIRY_SWEEP_SECONDS of 30, 200 a minute
+    expiry_batch = 100
 
     def __init__(self, settings: Settings, *, store: MycelicStore | None = None, transport: Transport | None = None,
                  metrics: Metrics | None = None) -> None:
@@ -195,6 +228,8 @@ class MycelicService:
         self._closed = False
         self._reaggregation: dict[str, Any] = {"state": "idle"}
         self._reaggregate_task: asyncio.Task | None = None
+        self._expiry_cursor: tuple[str, int] | None = None      # (expires_at, rid) after which the next sweep reads
+        self._expiry: dict[str, Any] = {"last_sweep_at": None, "last_queued": None}
         self.metrics.info.labels(VERSION).set(1)
 
     # ------------------------------------------------------------------ lifecycle
@@ -221,6 +256,8 @@ class MycelicService:
                            asyncio.create_task(self._publisher_loop(), name="mycelic-publisher"),
                            asyncio.create_task(self._consumer_loop(), name="mycelic-consumer"),
                            asyncio.create_task(self._status_loop(), name="mycelic-status")]
+            if self.settings.expiry_sweep_seconds > 0:
+                self._tasks.append(asyncio.create_task(self._expiry_loop(), name="mycelic-expiry"))
             reason = self._reaggregate_reason()
             if reason is not None:
                 # derived state from an older release, another MIN_SUPPORT or before a migration: converge it in the
@@ -688,7 +725,8 @@ class MycelicService:
         return p
 
     # ------------------------------------------------------------------ ingest
-    def _validate_memory_body(self, principal: Principal, body: dict[str, Any], *, source_event_ids: list[str] | None = None) -> Memory:
+    def _validate_memory_body(self, principal: Principal, body: dict[str, Any], *, source_event_ids: list[str] | None = None,
+                              allow_supersedes: bool = False) -> Memory:
         if principal.kind != "agent" or principal.agent is None:
             raise Forbidden("only agents can write memories (administrators register agents)")
         if not principal.has("memory:write"):
@@ -712,7 +750,13 @@ class MycelicService:
             if any(eid not in found or found[eid].org_id != principal.org_id for eid in srcs):
                 raise ValidationError("'source_event_ids' must reference events recorded by your organization")
         srcs = list(dict.fromkeys([*srcs, *(source_event_ids or [])]))
+        expires_at = _expiry(body)
+        supersedes = _s(body, "supersedes", max_len=200, pattern=_ID_RE)
+        if supersedes is not None and not allow_supersedes:
+            raise ValidationError("'supersedes' is accepted by POST /memory only")
         meta = {k: v for k, v in _small_dict(body, "metadata", 4096).items() if k not in RESERVED_METADATA_KEYS}
+        if supersedes is not None:
+            meta["version_of"] = supersedes             # reserved: only an update sets it, and the digest covers it
         observed_at = _iso(body, "observed_at") or now_iso()
         idem = _s(body, "idempotency_key", max_len=200)
         memory_id = f"mem_{content_hash(principal.id, idem)[:22]}" if idem else new_id("mem")
@@ -722,30 +766,62 @@ class MycelicService:
             entity=_label(body, "entity", max_len=200), kind=kind, confidence=_f(body, "confidence", 0.8), support=1,
             independent_teams=1, producer_id=principal.id, operator="agent_observation", rule_id=None, event_id=None,
             visibility=visibility, status="active", created_at=observed_at, applied_at=None, source_event_ids=srcs,
-            local_ref=_s(body, "local_ref", max_len=200), metadata=meta,
+            local_ref=_s(body, "local_ref", max_len=200), metadata=meta, expires_at=expires_at,
         )
 
     async def ingest_memory(self, principal: Principal, body: dict[str, Any], *, remote: str | None = None) -> tuple[Memory, bool]:
-        """Store a memory and append its event to the outbox in one transaction. Returns (memory, created)."""
+        """Store a memory and append its event to the outbox in one transaction. Returns (memory, created).
+
+        With ``supersedes`` the memory is a producer's update: a complete new note (nothing is inherited) that replaces
+        one of the caller's own active raw notes when its event applies (``metadata.version_of``)."""
         if not isinstance(body, dict):
             raise ValidationError("body must be a JSON object")
-        m = self._validate_memory_body(principal, body)
+        m = self._validate_memory_body(principal, body, allow_supersedes=True)
+        supersedes = m.metadata.get("version_of")
+        if supersedes == m.memory_id:
+            raise ValidationError("'supersedes' names the memory this idempotency_key already identifies; use a new "
+                                  "idempotency_key for the update")
         event = EventRecord(event_id=new_id("evt"), kind="memory.observed", org_id=m.org_id, agent_id=principal.id,
                             subject=subject_for(m.org_id, "memory.observed"), payload={}, created_at=now_iso())
         m.event_id = event.event_id
         event.payload = m.to_dict()
         self._check_event_size(event)
         async with self.store.transaction() as tx:
+            self._check_writer(principal)
             existing = self.store.get_memory(m.memory_id)
             if existing is not None:
-                return existing, False
+                return existing, False          # a resend: whatever its expiry or its target says by now
+            _check_expiry(m.expires_at, utcnow())
+            if supersedes is not None:
+                self._check_update(principal, supersedes)
             tx.insert_memory(m)
             tx.insert_event(event)
-            tx.audit(principal.id, "memory.ingest", m.memory_id, {"org_id": m.org_id, "topic": m.topic, "slot": m.slot,
-                                                                  "event_id": event.event_id}, remote)
+            if supersedes is not None:
+                tx.audit(principal.id, "memory.update", m.memory_id, {"org_id": m.org_id, "supersedes": supersedes,
+                                                                      "event_id": event.event_id}, remote)
+            else:
+                tx.audit(principal.id, "memory.ingest", m.memory_id, {"org_id": m.org_id, "topic": m.topic, "slot": m.slot,
+                                                                      "event_id": event.event_id}, remote)
         self.metrics.memories_ingested.labels("agent").inc()
         self._outbox_wake.set()
         return m, True
+
+    def _check_update(self, principal: Principal, target: str) -> None:
+        """May ``principal`` update ``target`` now?  Its own active raw note, with no retraction (an expiry's included) and
+        no other update of it still on its way through the log (Conflict then: retry once that has applied)."""
+        old = self.store.get_memory(target)
+        if old is None or not principal.can_read(old):
+            raise NotFound(target)
+        if old.operator != "agent_observation":
+            raise ValidationError("'supersedes' must name a raw observation: derived memories are recomputed from their evidence")
+        if old.producer_id != principal.id:
+            raise Forbidden("only the producing agent can update a memory")
+        if old.status != "active":
+            raise ValidationError("'supersedes' names a memory that is not active (it was superseded or retracted)")
+        since = [old.event_id] if isinstance(old.event_id, str) else []
+        retractions = self.store.lifecycle_events(old.org_id, ("memory.retracted",), since=since).get(target, [])
+        if any(status in ("pending", "published") for _, status in retractions) or self.store.unapplied_updates(old.org_id, [target]):
+            raise Conflict("a retraction or another update of this memory is waiting to be applied; retry once it has been applied")
 
     async def ingest_events(self, principal: Principal, items: list[dict[str, Any]], *, remote: str | None = None) -> list[dict[str, Any]]:
         if principal.kind != "agent":
@@ -781,6 +857,8 @@ class MycelicService:
             prepared.append((record, mem))
         results = []
         async with self.store.transaction() as tx:
+            self._check_writer(principal)
+            now = utcnow()
             for record, mem in prepared:
                 created = tx.insert_event(record)
                 entry: dict[str, Any] = {"event_id": record.event_id, "created": created}
@@ -790,6 +868,7 @@ class MycelicService:
                     mem.event_id = mev.event_id
                     mev.payload = mem.to_dict()
                     if self.store.get_memory(mem.memory_id) is None:
+                        _check_expiry(mem.expires_at, now)          # refused: the whole batch rolls back
                         tx.insert_memory(mem)
                         tx.insert_event(mev)
                         self.metrics.memories_ingested.labels("agent").inc()
@@ -803,6 +882,13 @@ class MycelicService:
         self.metrics.events_received.inc(len(prepared))
         self._outbox_wake.set()
         return results
+
+    def _check_writer(self, principal: Principal) -> None:
+        """Inside the write's transaction: is the agent still active?  A request authenticated before a revocation committed
+        must not write after it (the store lock orders the two transactions)."""
+        agent = self.store.get_agent(principal.id)
+        if agent is None or agent.status != "active":
+            raise Forbidden("agent revoked")
 
     def _check_event_size(self, ev: EventRecord) -> None:
         size = len(json.dumps(self._event_wire(ev), ensure_ascii=False).encode("utf-8"))
@@ -822,10 +908,71 @@ class MycelicService:
                             subject=subject_for(m.org_id, "memory.retracted"),
                             payload={"memory_id": memory_id, "reason": reason[:200], "by": principal.id}, created_at=now_iso())
         async with self.store.transaction() as tx:
+            if not principal.is_admin:
+                self._check_writer(principal)
             tx.insert_event(event)
             tx.audit(principal.id, "memory.retract", memory_id, {"org_id": m.org_id, "reason": reason[:200]}, remote)
         self._outbox_wake.set()
         return event
+
+    async def attest(self, principal: Principal, memory_id: str, body: dict[str, Any], *, remote: str | None = None,
+                     now: datetime | None = None) -> tuple[EventRecord, bool]:
+        """The producer re-attests one of its own active raw notes: ``still_true`` true appends a ``memory.attested``
+        event, which sets the note's ``attested_at`` when it applies (freshness for verification), false retracts the
+        note.  Returns the event and ``still_true``.  Self-attestation: it adds freshness, not independent assurance.
+        ``now`` is a test hook."""
+        if principal.kind != "agent":
+            raise Forbidden("only the producing agent can attest a memory")
+        if not principal.has("memory:write"):
+            raise Forbidden("missing scope memory:write")
+        if not isinstance(body, dict):
+            raise ValidationError("body must be a JSON object")
+        still_true = body.get("still_true")
+        if not isinstance(still_true, bool):
+            raise ValidationError("'still_true' must be true or false")
+        reason = _s(body, "reason", max_len=200)
+        m = self.store.get_memory(memory_id)
+        if m is None or not principal.can_read(m):
+            raise NotFound(memory_id)
+        if m.operator != "agent_observation":
+            raise ValidationError("only a raw observation can be attested: derived memories are recomputed from their evidence")
+        if m.producer_id != principal.id:
+            raise Forbidden("only the producing agent can attest a memory")
+        if m.status != "active":
+            raise ValidationError("the memory is not active (it was superseded or retracted)")
+        at = now or utcnow()
+        expires = parse_iso(m.expires_at)
+        if expires is not None and expires <= at:
+            raise ValidationError("the memory has expired")
+        if not still_true:
+            return await self.retract(principal, memory_id, reason or "no longer true (attestation)", remote=remote), False
+        event = EventRecord(event_id=new_id("evt"), kind="memory.attested", org_id=m.org_id, agent_id=principal.id,
+                            subject=subject_for(m.org_id, "memory.attested"),
+                            payload={"memory_id": memory_id, "by": principal.id,
+                                     "at": at.astimezone(timezone.utc).isoformat(timespec="seconds")}, created_at=now_iso())
+        async with self.store.transaction() as tx:
+            self._check_writer(principal)
+            tx.insert_event(event)
+            tx.audit(principal.id, "memory.attest", memory_id, {"org_id": m.org_id, "at": event.payload["at"]}, remote)
+        self._outbox_wake.set()
+        return event, True
+
+    def due_attestations(self, principal: Principal, *, older_than: int = 0, limit: int = 50,
+                         now: datetime | None = None) -> list[dict[str, Any]]:
+        """The caller's own notes worth re-attesting (``MycelicStore.due_attestations``): last ingested or attested at least
+        ``older_than`` seconds ago, stalest first, at most ``limit``.  ``now`` is a test hook."""
+        if principal.kind != "agent":
+            raise Forbidden("only agents have notes to attest")
+        if not principal.has("memory:read"):
+            raise Forbidden("missing scope memory:read")
+        if isinstance(older_than, bool) or not isinstance(older_than, int) or not 0 <= older_than <= MAX_EXPIRY_SECONDS:
+            raise ValidationError(f"'older_than' must be an integer between 0 and {MAX_EXPIRY_SECONDS} seconds")
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 500:
+            raise ValidationError("'limit' must be an integer between 1 and 500")
+        at = (now or utcnow()).astimezone(timezone.utc)
+        return self.store.due_attestations(principal.org_id or "", principal.id,
+                                           cutoff=(at - timedelta(seconds=older_than)).isoformat(timespec="seconds"),
+                                           now=at.isoformat(timespec="seconds"), limit=limit)
 
     # ------------------------------------------------------------------ apply (consumer side)
     async def apply_event(self, event: dict[str, Any], *, seq: int | None = None) -> str:
@@ -870,8 +1017,14 @@ class MycelicService:
                 else:
                     tx.set_applied(m.memory_id, now)
                     m = self.store.get_memory(m.memory_id) or m
-                if m.status == "active":
-                    derivations = self.aggregator.derive_for(tx, m)
+                if m.status == "active" and self.store.agent_log_status(m.producer_id) == "removed":
+                    # logged after its producer's removal (a write that raced the revocation, or an injected event): it
+                    # is applied retracted, as the removal would have, and never offered upward
+                    tx.set_memory_status(m.memory_id, "retracted", reason="agent removed")
+                    tx.audit("mycelic", "memory.observed_after_removal", m.memory_id, {"org_id": m.org_id,
+                                                                                      "agent_id": m.producer_id})
+                elif m.status == "active":
+                    derivations = self._apply_observed(tx, m)
             elif kind == "memory.derived":
                 # Informational.  A derived memory exists only because this node derived it from applied evidence
                 # (a replay re-derives it when it applies that evidence), so nothing on the stream can plant a
@@ -900,6 +1053,13 @@ class MycelicService:
                     tx.audit("mycelic", "event.ignored", event_id, {"reason": "retraction target is not an active raw observation",
                                                                    "org_id": org_id})
                     result, ignored = "ignored", "retraction_target"
+            elif kind == "memory.attested":
+                ignored = self._apply_attestation(tx, payload)
+                if ignored:
+                    result = "ignored"
+                    mid = payload.get("memory_id")
+                    tx.audit("mycelic", "memory.attest_ignored", mid if isinstance(mid, str) else None,
+                             {"org_id": org_id, "reason": ignored})
             elif kind == "agent.event":
                 pass
             elif kind == "agent.registered":
@@ -909,8 +1069,10 @@ class MycelicService:
                 known = self.store.get_agent(agent.agent_id) or agent
                 before = self.aggregator.registry_counts(known.org_id, known.path)
                 # aggregation counts a unit's children from the registry as applied (``log_status``), never from
-                # what the API has already written, so a live node and a rebuild count the same children
-                if not tx.set_agent_log_status(agent.agent_id, "active"):
+                # what the API has already written, so a live node and a rebuild count the same children; a removed
+                # agent stays removed
+                if (self.store.agent_log_status(agent.agent_id) == "removed"
+                        or not tx.set_agent_log_status(agent.agent_id, "active")):
                     result = "duplicate"
                 else:                           # a unit with one more child unit may no longer promote its only child
                     derivations = self.aggregator.registry_changed(tx, known.org_id, known.path, before)
@@ -919,9 +1081,26 @@ class MycelicService:
                 known = self.store.get_agent(agent_id)
                 before = self.aggregator.registry_counts(known.org_id, known.path) if known is not None else {}
                 tx.set_agent_status(agent_id, "revoked")
-                if tx.set_agent_log_status(agent_id, "revoked") and known is not None:
+                # 'removed' is terminal: a later plain revocation leaves it (and the handling of late notes) in place
+                if (self.store.agent_log_status(agent_id) != "removed" and tx.set_agent_log_status(agent_id, "revoked")
+                        and known is not None):
                     # the agent's notes stay evidence; a unit left with fewer child units may promote again
                     derivations = self.aggregator.registry_changed(tx, known.org_id, known.path, before)
+            elif kind == "agent.removed":
+                # the agent leaves: its key is revoked and every note it has is retracted in this one apply
+                agent_id = str(payload.get("agent_id"))
+                known = self.store.get_agent(agent_id)
+                if known is not None:
+                    before = self.aggregator.registry_counts(known.org_id, known.path)
+                    tx.set_agent_status(agent_id, "revoked")
+                    # the registry first, so what the retractions re-derive already counts the unit's children without it
+                    changed = tx.set_agent_log_status(agent_id, "removed")
+                    notes = self.store.active_notes(known.org_id, agent_id, applied_only=True)
+                    derivations = self.aggregator.retract_notes(tx, notes, "agent removed")
+                    if changed:
+                        derivations += self.aggregator.registry_changed(tx, known.org_id, known.path, before)
+                    tx.audit("mycelic", "agent.removed", agent_id, {"org_id": known.org_id, "retracted": len(notes),
+                                                                   "derivations": len(derivations)})
             elif kind == "agent.key_rotated":
                 tx.rotate_agent_key(str(payload.get("agent_id")), str(payload.get("key_hash") or ""), str(payload.get("key_prefix") or ""))
             elif kind == "rule.upserted":
@@ -948,6 +1127,50 @@ class MycelicService:
         if derivations:
             self._outbox_wake.set()
         return result
+
+    def _apply_observed(self, tx: Tx, m: Memory) -> list[Derivation]:
+        """Offer an applied raw note upward; when it is a producer's update (``metadata.version_of``) of a note that is
+        still the producer's own active raw note, that note is superseded first and everything resting on it re-derived.
+        An update whose target is gone, inactive or not the producer's applies as a plain note and is audited."""
+        target = m.metadata.get("version_of")
+        if target is None:
+            return self.aggregator.derive_for(tx, m)
+        old = self.store.get_memory(target) if isinstance(target, str) else None
+        reason = ("target not found" if old is None else "self" if old.memory_id == m.memory_id
+                  else "not raw" if old.operator != "agent_observation"
+                  else "other producer" if (old.producer_id, old.org_id) != (m.producer_id, m.org_id)
+                  else "target not active" if old.status != "active" else None)
+        if reason is not None:
+            tx.audit("mycelic", "memory.update_conflict", m.memory_id, {"org_id": m.org_id, "supersedes": target, "reason": reason})
+            return self.aggregator.derive_for(tx, m)
+        tx.set_memory_status(old.memory_id, "superseded", superseded_by=m.memory_id, reason="updated by producer")
+        retired = self.aggregator.retire_dependents(tx, old.memory_id, "evidence superseded")
+        derivations = self.aggregator.derive_for(tx, m) + self.aggregator.derive_for(tx, old)
+        derivations += self.aggregator.reevaluate(tx, retired)
+        tx.audit("mycelic", "memory.updated", old.memory_id, {"org_id": m.org_id, "by": m.memory_id})
+        return derivations
+
+    def _apply_attestation(self, tx: Tx, payload: dict[str, Any]) -> str | None:
+        """Set a raw note's ``attested_at`` from a ``memory.attested`` event; the reason it was ignored, or None.  Only
+        the producer's attestation of its active raw note counts, and only one dated at or after the note's ingest and
+        after its last attestation (so a late older one never moves it back); a row whose digest does not check is never
+        re-signed."""
+        mid = payload.get("memory_id")
+        m = self.store.get_memory(mid) if isinstance(mid, str) else None
+        stamp = utc_seconds(payload.get("at"))
+        at = parse_iso(stamp)
+        ev = self.store.get_event(m.event_id) if m is not None and isinstance(m.event_id, str) else None
+        ingested = parse_iso(ev.created_at) if ev is not None else None
+        if (m is None or m.status != "active" or m.operator != "agent_observation" or payload.get("by") != m.producer_id
+                or at is None or ingested is None or at < ingested):
+            return "attestation_target"
+        last = parse_iso(m.attested_at)
+        if last is not None and at <= last:
+            return "attestation_not_newer"
+        if not tx.set_attested(m.memory_id, stamp):
+            return "attestation_integrity"
+        tx.audit("mycelic", "memory.attested", m.memory_id, {"org_id": m.org_id, "at": stamp})
+        return None
 
     def _emit_derived(self, tx: Tx, derivations: list[Derivation], now: str) -> None:
         """Append one ``memory.derived`` event per derivation, in the transaction that persisted it."""
@@ -1000,6 +1223,11 @@ class MycelicService:
         for k in ("topic", "slot", "entity"):
             if p.get(k) is not None and not isinstance(p[k], str):
                 raise ValidationError(f"memory payload has a non-string '{k}'")
+        expires_at = p.get("expires_at")
+        if expires_at is not None:
+            expires_at = utc_seconds(expires_at)
+            if expires_at is None:
+                raise ValidationError("memory payload has an invalid 'expires_at'")
         # the log is authoritative, so no charset check: an event written before labels were normalised is
         # applied in today's spelling, exactly as the migration rewrote the rows it produced
         return Memory(
@@ -1012,7 +1240,7 @@ class MycelicService:
             visibility=p.get("visibility") or "team", status=p.get("status") or "active", superseded_by=None,
             created_at=p.get("created_at") or now_iso(), applied_at=p.get("applied_at"),
             source_event_ids=list(p.get("source_event_ids") or []), local_ref=p.get("local_ref"),
-            metadata=dict(p.get("metadata") or {}),
+            metadata=dict(p.get("metadata") or {}), expires_at=expires_at,
         )
 
     # ------------------------------------------------------------------ reads
@@ -1222,17 +1450,26 @@ class MycelicService:
         self._outbox_wake.set()
         return agent, key
 
-    async def revoke_agent(self, agent_id: str, *, remote: str | None = None) -> bool:
+    async def revoke_agent(self, agent_id: str, *, retract: bool = False, remote: str | None = None) -> dict[str, Any] | None:
+        """Revoke an agent's key (None for an unknown id).  With ``retract`` the agent is removed: one ``agent.removed``
+        event retracts every note it has when the event applies, and ``retracted`` counts the notes active now (applied
+        or still on their way through the log; a settled repeat counts 0).  Every call appends an event."""
         agent = self.store.get_agent(agent_id)
         if agent is None:
-            return False
+            return None
         async with self.store.transaction() as tx:
-            ok = tx.set_agent_status(agent_id, "revoked")
-            if ok:
+            tx.set_agent_status(agent_id, "revoked")
+            if not retract:
                 tx.insert_event(self._admin_event("agent.revoked", agent.org_id, {"agent_id": agent_id}))
                 tx.audit("admin", "agent.revoke", agent_id, {"org_id": agent.org_id}, remote)
+                result: dict[str, Any] = {"agent_id": agent_id, "revoked": True}
+            else:
+                n = len(self.store.active_notes(agent.org_id, agent_id, applied_only=False))
+                tx.insert_event(self._admin_event("agent.removed", agent.org_id, {"agent_id": agent_id, "org_id": agent.org_id}))
+                tx.audit("admin", "agent.remove", agent_id, {"org_id": agent.org_id, "active_notes": n}, remote)
+                result = {"agent_id": agent_id, "revoked": True, "retracted": n}
         self._outbox_wake.set()
-        return ok
+        return result
 
     async def rotate_agent_key(self, agent_id: str, *, remote: str | None = None) -> str | None:
         agent = self.store.get_agent(agent_id)
@@ -1456,6 +1693,52 @@ class MycelicService:
         await self.store.audit("admin", "reaggregate", None, {"org_id": org_id, "started": started}, remote)
         return {"started": started, "org_id": org_id}
 
+    # ------------------------------------------------------------------ expiry
+    # An expired note is withdrawn through the log like any retraction, so a rebuild reproduces it without a clock.
+    # Aggregation never reads the clock: an expired note counts until its retraction applies (retrieval and
+    # verification read it, and hide it or report it at once).
+    async def sweep_expired(self, *, now: datetime | None = None) -> int:
+        """Queue one ``memory.retracted`` event (reason ``expired``) for each of up to ``expiry_batch`` active notes whose
+        ``expires_at`` is past, in one transaction; returns how many events were new (``now`` is a test hook).
+
+        The page is read after the previous sweep's cursor, which moves past a full page whether or not its events were
+        new and wraps around after a short one, so a backlog is covered page by page.  An event id is a function of the
+        memory id (``evt_x...``), so a note selected again while its retraction is still in the outbox (a broker outage)
+        or after a restored backup gets no second event.  Nothing runs during a replay, which re-delivers what earlier
+        sweeps queued.
+        """
+        if self._replay_target is not None:
+            return 0
+        cutoff = (now or utcnow()).astimezone(timezone.utc).isoformat(timespec="seconds")
+        queued = 0
+        async with self.store.transaction() as tx:
+            rows = self.store.expired_notes(cutoff, after=self._expiry_cursor, limit=self.expiry_batch)
+            for _, m in rows:
+                event = EventRecord(event_id=f"evt_x{content_hash(m.memory_id, 'expired')[:22]}", kind="memory.retracted",
+                                    org_id=m.org_id, agent_id=None, subject=subject_for(m.org_id, "memory.retracted"),
+                                    payload={"memory_id": m.memory_id, "reason": "expired", "by": MYCELIC_PRODUCER,
+                                             "expires_at": m.expires_at}, created_at=now_iso())
+                if tx.insert_event(event):
+                    tx.audit("mycelic", "memory.expired", m.memory_id, {"org_id": m.org_id, "expires_at": m.expires_at,
+                                                                       "event_id": event.event_id})
+                    queued += 1
+        self._expiry_cursor = (rows[-1][1].expires_at, rows[-1][0]) if len(rows) >= self.expiry_batch else None
+        self._expiry.update(last_sweep_at=now_iso(), last_queued=queued)
+        self.metrics.memories_expired.inc(queued)
+        if queued:
+            self._outbox_wake.set()
+        return queued
+
+    async def _expiry_loop(self) -> None:
+        while not self._stop.is_set():
+            await self._sleep(self.settings.expiry_sweep_seconds)
+            if self._stop.is_set():
+                break
+            try:
+                await self.sweep_expired()
+            except Exception:
+                logger.exception("expiry sweep failed")
+
     # ------------------------------------------------------------------ health
     async def _transport_info_bounded(self) -> tuple[dict[str, Any], bool]:
         """``transport.info()`` within ``status_timeout``: a stalled broker (SIGSTOP, network black hole) keeps the
@@ -1529,6 +1812,9 @@ class MycelicService:
         checks["consumer"] = {"running": self._consumer_running, "last_applied_seq": stats.get("last_applied_seq"),
                               "pending": tinfo.get("consumer_pending"), "replaying_to_seq": self._replay_target}
         checks["reaggregation"] = dict(self._reaggregation)
+        checks["expiry"] = {"enabled": self.settings.expiry_sweep_seconds > 0,
+                            "interval_seconds": self.settings.expiry_sweep_seconds, "overdue": stats.get("expiry_overdue"),
+                            **self._expiry}
         return {"status": self._status(checks["db"], tinfo), "version": VERSION, "instance": self.settings.instance_id, "started_at": self.started_at,
                 "checks": checks, "stats": stats}
 

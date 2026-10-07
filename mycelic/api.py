@@ -8,9 +8,15 @@ GET  /ready                    readiness: database open, loops running, no repla
                                (both answer from the status snapshot and never wait on the broker or the database)
 GET  /metrics                  Prometheus text format (token: MYCELIC_METRICS_TOKEN, else admin token or agent key)
 GET  /whoami                   the authenticated principal
-POST /memory                   memory:write   store one memory (202 Accepted; aggregation is asynchronous)
+POST /memory                   memory:write   store one memory (202 Accepted; aggregation is asynchronous); "expires_at"
+                                              optional: answers leave it out from then, the expiry sweep retracts it;
+                                              "supersedes": replace one of the caller's own active notes (409 while a
+                                              retraction or another update of it is still pending)
 GET  /memory/{id}              memory:read
 POST /memory/{id}/retract      producer or admin, raw observations only (derived memories follow their evidence)
+POST /memory/{id}/attest       the producing agent: {"still_true": true|false, "reason"?}; true refreshes the note's
+                               attested_at (verification freshness), false retracts it (202)
+GET  /attestations/due         memory:read    ?older_than=N&limit=M: the caller's own notes worth re-attesting
 GET  /memories                 memory:read    ?scope=&layer=&limit=&status= (active|superseded|retracted)
 POST /events                   events:write   {"events": [...]} (each may embed a "memory")
 POST /query                    memory:read    {"query", "scope"?, "min_layer"?, "k"?, "include_lineage"?}
@@ -19,7 +25,7 @@ GET  /verify/{id}              lineage:read   ?max_leaf_age=N (1..315360000 s): 
                                (200 for every verdict; POST /query embeds a summary with "verify": true)
 POST /admin/agents             admin          register an agent (the key is returned once)
 GET  /admin/agents             admin
-DELETE /admin/agents/{id}      admin          revoke
+DELETE /admin/agents/{id}      admin          revoke; ?retract=1 removes the agent: every note it has is retracted
 POST /admin/agents/{id}/rotate admin          new key (returned once)
 GET/POST /admin/rules, DELETE /admin/rules/{id}   admin
 POST /admin/replay             admin          re-deliver the whole event log to this instance
@@ -42,7 +48,7 @@ from aiohttp import web
 from .auth import AuthError, Principal
 from .hierarchy import HierarchyError
 from .mcp import MycelicMCPTransport
-from .service import VERSION, Forbidden, MycelicService, NotFound, RateLimited, ValidationError
+from .service import VERSION, Conflict, Forbidden, MycelicService, NotFound, RateLimited, ValidationError
 from .verification import MAX_LEAF_AGE_SECONDS
 
 logger = logging.getLogger(__name__)
@@ -175,6 +181,8 @@ def create_app(service: MycelicService) -> web.Application:
             response = _error(f"no visible memory with id {exc.args[0] if exc.args else ''}", 404)
         except RateLimited:
             response = _error("rate limit exceeded", 429)
+        except Conflict as exc:
+            response = _error(str(exc), 409)
         except web.HTTPException:
             raise
         except Exception as exc:
@@ -202,7 +210,8 @@ def create_app(service: MycelicService) -> web.Application:
         return _json({"service": "mycelic", "version": VERSION,
                       "docs": "https://github.com/anovruzov/NeuralGraph/blob/main/DEPLOYMENT.md",
                       "endpoints": ["/health", "/ready", "/metrics", "/whoami", "/memory", "/memories", "/events", "/query",
-                                    "/lineage/{id}", "/verify/{id}", "/admin/*", "/mcp"]})
+                                    "/lineage/{id}", "/verify/{id}", "/memory/{id}/attest", "/attestations/due", "/admin/*",
+                                    "/mcp"]})
 
     async def health(request: web.Request) -> web.Response:
         h = await service.health()
@@ -240,8 +249,10 @@ def create_app(service: MycelicService) -> web.Application:
     async def post_memory(request: web.Request) -> web.Response:
         p = principal(request)
         mem, created = await service.ingest_memory(p, await _body(request), remote=request["remote"])
-        return _json({"memory_id": mem.memory_id, "event_id": mem.event_id, "created": created, "scope": mem.scope,
-                      "status": "accepted"}, 202 if created else 200)
+        res = {"memory_id": mem.memory_id, "event_id": mem.event_id, "created": created, "scope": mem.scope, "status": "accepted"}
+        if mem.metadata.get("version_of") is not None:       # an update: the note it replaces once its event applies
+            res["supersedes"] = mem.metadata["version_of"]
+        return _json(res, 202 if created else 200)
 
     async def get_memory(request: web.Request) -> web.Response:
         p = principal(request)
@@ -253,6 +264,25 @@ def create_app(service: MycelicService) -> web.Application:
         body = await _body(request) if request.can_read_body else {}
         ev = await service.retract(p, request.match_info["id"], str(body.get("reason") or "retracted by producer"), remote=request["remote"])
         return _json({"memory_id": request.match_info["id"], "event_id": ev.event_id, "status": "accepted"}, 202)
+
+    async def attest_memory(request: web.Request) -> web.Response:
+        p = principal(request)
+        body = await _body(request) if request.can_read_body else {}
+        ev, still_true = await service.attest(p, request.match_info["id"], body, remote=request["remote"])
+        return _json({"memory_id": request.match_info["id"], "event_id": ev.event_id, "still_true": still_true,
+                      "status": "accepted"}, 202)
+
+    async def due_attestations(request: web.Request) -> web.Response:
+        # digits only, as for max_leaf_age; the service checks the ranges
+        args = {}
+        for name, default, bounds in (("older_than", 0, f"between 0 and {MAX_LEAF_AGE_SECONDS} seconds"),
+                                      ("limit", 50, "between 1 and 500")):
+            raw = request.query.get(name)
+            if raw is not None and not re.fullmatch(r"[0-9]{1,12}", raw):
+                raise ValidationError(f"'{name}' must be an integer {bounds}")
+            args[name] = int(raw) if raw is not None else default
+        due = service.due_attestations(principal(request), **args)
+        return _json({"due": due, **args})
 
     async def list_memories(request: web.Request) -> web.Response:
         p = principal(request)
@@ -301,8 +331,13 @@ def create_app(service: MycelicService) -> web.Application:
 
     async def admin_revoke(request: web.Request) -> web.Response:
         admin(request)
-        ok = await service.revoke_agent(request.match_info["id"], remote=request["remote"])
-        return _json({"agent_id": request.match_info["id"], "revoked": ok}, 200 if ok else 404)
+        flag = request.query.get("retract")
+        if flag not in (None, "", "0", "false", "1", "true"):
+            raise ValidationError("'retract' must be 1 or 0")
+        res = await service.revoke_agent(request.match_info["id"], retract=flag in ("1", "true"), remote=request["remote"])
+        if res is None:
+            return _json({"agent_id": request.match_info["id"], "revoked": False}, 404)
+        return _json(res)
 
     async def admin_rotate(request: web.Request) -> web.Response:
         admin(request)
@@ -371,6 +406,8 @@ def create_app(service: MycelicService) -> web.Application:
     r.add_get("/memory/{id}", get_memory)
     r.add_post("/memory/{id}/retract", retract_memory)
     r.add_delete("/memory/{id}", retract_memory)
+    r.add_post("/memory/{id}/attest", attest_memory)
+    r.add_get("/attestations/due", due_attestations)
     r.add_get("/memories", list_memories)
     r.add_post("/events", post_events)
     r.add_post("/query", post_query)

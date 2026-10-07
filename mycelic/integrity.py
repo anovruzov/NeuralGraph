@@ -10,7 +10,10 @@ is stored now and its lineage edges; G6's downward verification is built on it.
 
 * every row: :data:`CONTENT_FIELDS` as stored, and ``confidence`` rounded to 6 places (so float noise such as
   ``0.1 + 0.2`` is not an edit); :data:`OPTIONAL_FIELDS` only when a row has them and they are not None, so adding such
-  a field in a later release leaves every existing digest valid;
+  a field in a later release leaves every existing digest valid: a raw note's ``expires_at`` and ``attested_at``
+  (schema 5) are covered when they are set.  ``attested_at`` is the one covered field written after insert: a
+  producer's re-attestation sets it and signs the row again (``store.Tx.set_attested``), only once the row's digest
+  checked ``ok``, so an edited row is never re-signed;
 * a raw observation (``operator='agent_observation'``): also ``created_at`` (the producer's ``observed_at``),
   ``event_id``, ``local_ref``, ``source_event_ids`` (sorted, not de-duplicated) and the agent's metadata without the
   :data:`LIFECYCLE_METADATA` keys;
