@@ -41,6 +41,8 @@ class Metrics:
                                              ["what"], registry=r)
         self.reaggregation_steps = Counter("mycelic_reaggregation_steps_total", "Reaggregation job steps (one transaction each)",
                                            registry=r)
+        self.integrity_backfilled = Counter("mycelic_integrity_backfilled_total", "Memories given a digest by the start-up backfill",
+                                            registry=r)
         self.retrieval_latency = Histogram("mycelic_retrieval_latency_seconds", "POST /query latency", buckets=_LATENCY_BUCKETS, registry=r)
         self.aggregation_latency = Histogram("mycelic_aggregation_latency_seconds", "Time to apply one event including aggregation", buckets=_LATENCY_BUCKETS, registry=r)
         self.lineage_latency = Histogram("mycelic_lineage_latency_seconds", "Lineage reconstruction latency", buckets=_LATENCY_BUCKETS, registry=r)

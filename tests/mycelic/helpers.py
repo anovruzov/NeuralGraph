@@ -12,9 +12,10 @@ from mycelic.aggregation import CONSOLIDATABLE, contributing_agents, lineage_roo
 from mycelic.auth import Principal
 from mycelic.config import Settings
 from mycelic.hierarchy import ancestors, child_unit_of, unit_at_layer
+from mycelic.integrity import check_memory
 from mycelic.metrics import Metrics
 from mycelic.service import MycelicService
-from mycelic.store import MycelicStore
+from mycelic.store import MycelicStore, row_memory
 from mycelic.transport import InProcessTransport, Transport
 
 ADMIN_TOKEN = "test-admin-token-0123456789abcdef0123456789"
@@ -159,6 +160,146 @@ CREATE INDEX IF NOT EXISTS idx_audit_at ON audit_log(at);
 INSERT INTO meta(key, value) VALUES ('schema_version', '2');
 """
 
+
+#: the schema-3 DDL exactly as released (before per-row digests), for migration tests
+V3_SCHEMA = """
+CREATE TABLE IF NOT EXISTS meta (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS orgs (
+    org_id     TEXT PRIMARY KEY,
+    name       TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS agents (
+    agent_id     TEXT PRIMARY KEY,
+    org_id       TEXT NOT NULL REFERENCES orgs(org_id),
+    display_name TEXT NOT NULL,
+    path         TEXT NOT NULL UNIQUE,
+    scopes       TEXT NOT NULL DEFAULT '[]',
+    key_hash     TEXT NOT NULL,
+    key_prefix   TEXT NOT NULL,
+    status       TEXT NOT NULL DEFAULT 'active',
+    created_at   TEXT NOT NULL,
+    last_seen_at TEXT,
+    metadata     TEXT NOT NULL DEFAULT '{}',
+    log_status   TEXT              -- status as of the last applied registry event (NULL: registration not applied yet)
+);
+CREATE INDEX IF NOT EXISTS idx_agents_org ON agents(org_id, status);
+
+CREATE TABLE IF NOT EXISTS memories (
+    rid               INTEGER PRIMARY KEY AUTOINCREMENT,
+    memory_id         TEXT NOT NULL UNIQUE,
+    org_id            TEXT NOT NULL,
+    layer             TEXT NOT NULL,
+    scope             TEXT NOT NULL,
+    text              TEXT NOT NULL,
+    topic             TEXT,
+    slot              TEXT,
+    entity            TEXT,
+    kind              TEXT NOT NULL,
+    confidence        REAL NOT NULL,
+    support           INTEGER NOT NULL DEFAULT 1,
+    independent_teams INTEGER NOT NULL DEFAULT 1,
+    producer_id       TEXT NOT NULL,
+    operator          TEXT NOT NULL,
+    rule_id           TEXT,
+    agg_key           TEXT,
+    event_id          TEXT,
+    visibility        TEXT NOT NULL DEFAULT 'team',
+    status            TEXT NOT NULL DEFAULT 'active',
+    superseded_by     TEXT,
+    created_at        TEXT NOT NULL,
+    applied_at        TEXT,
+    source_event_ids  TEXT NOT NULL DEFAULT '[]',
+    local_ref         TEXT,
+    metadata          TEXT NOT NULL DEFAULT '{}',
+    apply_seq         INTEGER          -- position in apply order (NULL until the consumer applies the memory)
+);
+CREATE INDEX IF NOT EXISTS idx_memories_org_status ON memories(org_id, status);
+CREATE INDEX IF NOT EXISTS idx_memories_org_op_status ON memories(org_id, operator, status);
+CREATE INDEX IF NOT EXISTS idx_memories_scope ON memories(org_id, scope);
+CREATE INDEX IF NOT EXISTS idx_memories_topic ON memories(org_id, topic, status);
+CREATE INDEX IF NOT EXISTS idx_memories_entity ON memories(org_id, entity, status);
+CREATE INDEX IF NOT EXISTS idx_memories_agg ON memories(org_id, operator, scope, agg_key, status);
+-- at most one *active* derived memory per (unit, operator, key): supersession is the only way to replace it
+CREATE UNIQUE INDEX IF NOT EXISTS uq_memories_active_agg ON memories(org_id, operator, scope, agg_key)
+    WHERE status='active' AND agg_key IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS lineage_edges (
+    child_id       TEXT NOT NULL,
+    parent_id      TEXT NOT NULL,
+    contributed_by TEXT NOT NULL,
+    parent_layer   TEXT NOT NULL,
+    created_at     TEXT NOT NULL,
+    PRIMARY KEY (child_id, parent_id)
+);
+CREATE INDEX IF NOT EXISTS idx_lineage_parent ON lineage_edges(parent_id);
+
+CREATE TABLE IF NOT EXISTS events (
+    rid          INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id     TEXT NOT NULL UNIQUE,
+    kind         TEXT NOT NULL,
+    org_id       TEXT NOT NULL,
+    agent_id     TEXT,
+    subject      TEXT NOT NULL,
+    payload      TEXT NOT NULL,
+    status       TEXT NOT NULL DEFAULT 'pending',
+    js_seq       INTEGER,
+    attempts     INTEGER NOT NULL DEFAULT 0,
+    last_error   TEXT,
+    created_at   TEXT NOT NULL,
+    published_at TEXT,
+    applied_at   TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_events_status ON events(status, rid);
+CREATE INDEX IF NOT EXISTS idx_events_org ON events(org_id, kind, rid);
+
+CREATE TABLE IF NOT EXISTS rules (
+    rule_id        TEXT PRIMARY KEY,
+    org_id         TEXT,
+    target_layer   TEXT NOT NULL,
+    required_slots TEXT NOT NULL,
+    conclusion     TEXT NOT NULL,
+    topic_prefix   TEXT,
+    min_agents     INTEGER NOT NULL DEFAULT 2,
+    min_teams      INTEGER NOT NULL DEFAULT 1,
+    kind           TEXT NOT NULL DEFAULT 'risk',
+    enabled        INTEGER NOT NULL DEFAULT 1,
+    metadata       TEXT NOT NULL DEFAULT '{}',
+    updated_at     TEXT NOT NULL,
+    sources        TEXT NOT NULL DEFAULT '["agent_observation"]',
+    emits_slot     TEXT,
+    emits_topic    TEXT,
+    min_units      TEXT NOT NULL DEFAULT '{}',
+    corroborate    INTEGER NOT NULL DEFAULT 0
+);
+
+-- the rules as of the last applied rule event: what aggregation evaluates (``rules`` is what the admin API wrote)
+CREATE TABLE IF NOT EXISTS applied_rules (
+    rule_id     TEXT PRIMARY KEY,
+    org_id      TEXT,
+    snapshot    TEXT NOT NULL,
+    applied_seq INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS audit_log (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    at        TEXT NOT NULL,
+    principal TEXT NOT NULL,
+    action    TEXT NOT NULL,
+    target    TEXT,
+    detail    TEXT NOT NULL DEFAULT '{}',
+    remote    TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_audit_at ON audit_log(at);
+
+CREATE INDEX IF NOT EXISTS idx_memories_apply_seq ON memories(apply_seq);
+INSERT INTO meta(key, value) VALUES ('schema_version', '3');
+"""
 
 @dataclass
 class HeldTransport(InProcessTransport):
@@ -307,6 +448,25 @@ def applied_rule_rows(store: MycelicStore) -> list[tuple]:
     return [tuple(r) for r in store._conn.execute("SELECT rule_id, org_id, applied_seq, snapshot FROM applied_rules ORDER BY rule_id")]
 
 
+def digest_map(store: MycelicStore) -> dict[str, tuple]:
+    """{memory_id: (digest, digest_key_id)} of every row."""
+    return {r["memory_id"]: (r["digest"], r["digest_key_id"]) for r in store._conn.execute("SELECT memory_id, digest, digest_key_id FROM memories")}
+
+
+def integrity_outcomes(store: MycelicStore) -> dict[str, str]:
+    """``integrity.check_memory`` of every row as it is stored now, against its lineage edges, under ``store.keyring``."""
+    out = {}
+    for r in store._conn.execute("SELECT * FROM memories ORDER BY rid"):
+        parents = [e.parent_id for e in store.parents_of(r["memory_id"])]
+        out[r["memory_id"]] = check_memory(store.keyring, row_memory(r), parents, r["digest"], r["digest_key_id"], r["digest_origin"])
+    return out
+
+
+def digest_violations(store: MycelicStore) -> list[str]:
+    """I8: every row's digest checks 'ok' against the row and its lineage edges under the store's keyring."""
+    return [f"I8 {mid}: {outcome}" for mid, outcome in integrity_outcomes(store).items() if outcome != "ok"]
+
+
 def table_dump(store: MycelicStore, table: str) -> list[tuple]:
     return [tuple(r) for r in store._conn.execute(f"SELECT * FROM {table} ORDER BY rowid")]
 
@@ -387,12 +547,16 @@ def invariant_violations(service: MycelicService, org_id: str) -> list[str]:
 
 
 def rebuild_differences(live: MycelicService, rebuilt: MycelicService) -> list[str]:
-    """I7: what a rebuild of the log does not reproduce (memories, lineage edges, applied rules)."""
+    """I7: what a rebuild of the log does not reproduce (memories, their digests, lineage edges, applied rules)."""
     out = []
     a, b = memory_history(live.store), memory_history(rebuilt.store)
     for mid in sorted(set(a) | set(b)):
         if a.get(mid) != b.get(mid):
             out.append(f"I7 {mid}: live {a.get(mid)} rebuilt {b.get(mid)}")
+    da, db = digest_map(live.store), digest_map(rebuilt.store)
+    for mid in sorted(set(da) | set(db)):
+        if da.get(mid) != db.get(mid):
+            out.append(f"I7 digest of {mid}: live {da.get(mid)} rebuilt {db.get(mid)}")
     if lineage_edge_set(live.store) != lineage_edge_set(rebuilt.store):
         out.append(f"I7 lineage edges differ: {sorted(lineage_edge_set(live.store) ^ lineage_edge_set(rebuilt.store))[:5]}")
     if applied_rule_rows(live.store) != applied_rule_rows(rebuilt.store):

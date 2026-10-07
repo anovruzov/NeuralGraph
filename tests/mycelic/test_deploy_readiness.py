@@ -726,6 +726,15 @@ class DocsTests(unittest.TestCase):
         self.assertIn("not enabled", reporting[0])
         self.assertIn("must enable it", reporting[0])
         self.assertIn("backup-critical", flat, "the signing key is state, not a rotatable secret")
+        self.assertNotIn("verifies with a single key", flat)
+        self.assertNotIn("until key rotation with a keyring is supported", flat)
+        self.assertIn("MYCELIC_EVENT_SIGNING_KEYS_PREVIOUS", flat, "rotation through previous keys is documented")
+        # the backfill bound is read from the database, so it can be moved; the alarm must not depend on a second audit row
+        self.assertNotIn("never re-signs a row inserted after the first row signed at insert", flat)
+        self.assertNotIn("more than one `integrity.backfill` audit row", flat)
+        self.assertIn("removing the digests of every row signed at insert up to and including a row", flat)
+        self.assertIn("So in a database created at schema 4", flat)
+        self.assertIn("alert on the log and the metric", flat)
 
     def test_deployment_md_documents_the_shutdown_budget_and_the_lock(self) -> None:
         text = " ".join((ROOT / "DEPLOYMENT.md").read_text(encoding="utf-8").split())

@@ -15,8 +15,10 @@ After every sequence (and, in one mode, after every single operation) the state 
       its organization and targets its layer; completeness: wherever an operator holds on the applied evidence there is
       a current memory with the planned id, and nowhere else;
 * I6  with ``min_support`` 1, every active topical note reaches the consolidation of every unit above it;
-* I7  a rebuild of the log into a fresh store reproduces every memory's id, layer, status, support and version, the
-      lineage edges and the applied rules;
+* I7  a rebuild of the log into a fresh store reproduces every memory's id, layer, status, support and version, its
+      digest and the key that signed it, the lineage edges and the applied rules;
+* I8  every memory's digest checks ``ok`` against the row as stored and its lineage edges (odd seeds sign with a key,
+      even seeds run unkeyed);
 
 and a full re-aggregation pass over the final state changes nothing.
 
@@ -35,7 +37,9 @@ from mycelic.metrics import Metrics
 from mycelic.service import MycelicService, ValidationError
 from mycelic.transport import InProcessTransport
 
-from .helpers import ADMIN_TOKEN, full_reaggregation_pass, invariant_violations, pump, rebuild, rebuild_differences, settings
+from .helpers import (
+    ADMIN_TOKEN, digest_violations, full_reaggregation_pass, invariant_violations, pump, rebuild, rebuild_differences, settings,
+)
 
 DEFAULT_SEEDS = {"each": 12, "end": 24}
 OPS_PER_SEQUENCE = 36
@@ -62,6 +66,7 @@ RULES: dict[str, dict[str, Any]] = {
     "r_ent": {"rule_id": "r_ent", "target_layer": "enterprise", "required_slots": ["s3", "s1"], "min_agents": 2,
               "sources": ["slot_composition", "agent_observation", "topic_consolidation"], "conclusion": "E {entity}"},
 }
+SIGNING_KEY = "invariant-signing-key-0123456789abcdef"
 LAYER_MOVES = {"r_team": ["team", "department"], "r_dept": ["department", "subsidiary", "team"], "r_ent": ["enterprise", "region"]}
 
 
@@ -73,9 +78,10 @@ class Sequence:
         self.seed = seed
         self.settle_each = settle_each
         self.min_support = 1 + seed % 2
+        self.signing_key = SIGNING_KEY if seed % 2 else None
         self.tmp = tempfile.TemporaryDirectory()
-        self.service = MycelicService(settings(self.tmp.name, min_support=self.min_support), transport=InProcessTransport(),
-                                      metrics=Metrics())
+        self.service = MycelicService(settings(self.tmp.name, min_support=self.min_support, event_signing_key=self.signing_key),
+                                      transport=InProcessTransport(), metrics=Metrics())
         self.log: list[dict[str, Any]] = []
         self.keys: dict[str, str] = {}
         self.principals: dict[str, Any] = {}
@@ -187,14 +193,16 @@ class Sequence:
                     self.ops.append(await self.delete_rule())
                 if self.settle_each:
                     await pump(s, self.log)
-                    bad = [v for org in ORGS for v in invariant_violations(s, org)]
+                    bad = [v for org in ORGS for v in invariant_violations(s, org)] + digest_violations(s.store)
                     if bad:
                         return [f"after op {i}: {v}" for v in bad]
             await pump(s, self.log)
             bad = [f"settled: {v}" for org in ORGS for v in invariant_violations(s, org)]
-            rebuilt = await rebuild(self.log, self.tmp.name, min_support=self.min_support)
+            bad += [f"settled: {v}" for v in digest_violations(s.store)]
+            rebuilt = await rebuild(self.log, self.tmp.name, min_support=self.min_support, event_signing_key=self.signing_key)
             try:
                 bad += rebuild_differences(s, rebuilt)
+                bad += [f"rebuilt: {v}" for v in digest_violations(rebuilt.store)]
             finally:
                 await rebuilt.store.close()
             changed = await full_reaggregation_pass(s)
@@ -209,7 +217,8 @@ class Sequence:
     def report(self, bad: list[str]) -> str:
         mode = "settled after every op" if self.settle_each else "settled at the end"
         ops = "\n".join(f"  {i - 4:>3}: {op}" for i, op in enumerate(self.ops))
-        return (f"seed {self.seed}, {mode}, min_support {self.min_support}: {len(bad)} violations\n"
+        return (f"seed {self.seed}, {mode}, min_support {self.min_support}, {'keyed' if self.signing_key else 'unkeyed'}: "
+                f"{len(bad)} violations\n"
                 + "\n".join(bad[:12]) + f"\noperations (index -4..-1 are the set-up):\n{ops}")
 
 

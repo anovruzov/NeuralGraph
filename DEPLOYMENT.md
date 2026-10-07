@@ -22,7 +22,7 @@ cd NeuralGraph
 # 1. configure: every secret is required; compose refuses to start with one missing
 cp deploy/mycelic/.env.example deploy/mycelic/.env
 sed -i "s|^MYCELIC_ADMIN_TOKEN=.*|MYCELIC_ADMIN_TOKEN=$(openssl rand -hex 32)|" deploy/mycelic/.env
-# the signing key is set once, at first setup, and never regenerated afterwards (SECURITY.md §7)
+# the signing key is set once, at first setup; never regenerate it in place: rotate it as SECURITY.md §7 describes
 sed -i "s|^MYCELIC_EVENT_SIGNING_KEY=.*|MYCELIC_EVENT_SIGNING_KEY=$(openssl rand -hex 32)|" deploy/mycelic/.env
 sed -i "s|^NATS_PASSWORD=.*|NATS_PASSWORD=n$(openssl rand -hex 32)|" deploy/mycelic/.env   # must start with a letter
 
@@ -184,7 +184,8 @@ All variables have the `MYCELIC_` prefix. Validation runs at start and fails fas
 | `PUBLISH_BATCH`, `PUBLISH_INTERVAL_SECONDS` | `100`, `0.2` | outbox flushing |
 | `CONSUME_BATCH` | `1` | 1 = strictly ordered application; raise only if ordering on failure may relax |
 | `ADMIN_TOKEN` | | required off loopback, ≥ 32 characters |
-| `EVENT_SIGNING_KEY` | | HMAC key for events; unsigned/invalid events are rejected when set (**set it**) |
+| `EVENT_SIGNING_KEY` | | HMAC key for events and memory digests; unsigned/invalid events are rejected when set (**set it**). Backup-critical: change it only by rotating (section 4), never in place |
+| `EVENT_SIGNING_KEYS_PREVIOUS` | | comma-separated keys from before a rotation (each ≥ 32 characters; requires `EVENT_SIGNING_KEY`; a key containing a comma cannot be listed, and generated hex keys never contain one): they still verify the events and memory digests they signed. Keep each one as long as the stream holds events it signed |
 | `METRICS_TOKEN` | | bearer for `/metrics`; unset ⇒ admin token or agent key required off loopback |
 | `READY_REQUIRES_NATS` | `false` | `/ready` fails during a broker outage when true |
 | `TLS_CERT_FILE`, `TLS_KEY_FILE` | | serve HTTPS directly |
@@ -274,13 +275,16 @@ applied it committed, the outbox is durable, and whatever was in flight is redel
 idempotent duplicate. The whole shutdown takes at most about 2 × 10 s, inside the 30 s grace period of
 both the compose file (`stop_grace_period`) and the StatefulSet (`terminationGracePeriodSeconds`).
 
-**Backups.** Two things hold state:
+**Backups.** Three things hold state:
 
 1. the Mycelic database (`mycelic-data` volume). Back it up with SQLite's online backup while the service
    runs: `docker compose -f deploy/mycelic/docker-compose.yml exec mycelic python -c "import sqlite3; s=sqlite3.connect('/data/mycelic.db'); d=sqlite3.connect('/data/backup.db'); s.backup(d)"`
    then copy `/data/backup.db` out of the volume; or snapshot the volume while the service is stopped;
 2. the JetStream store (`nats-data` volume): snapshot the volume while the broker is stopped, or use the
-   `nats` CLI (`nats stream backup MYCELIC <dir>`) against port 4222 from inside the network.
+   `nats` CLI (`nats stream backup MYCELIC <dir>`) against port 4222 from inside the network;
+3. the signing keys, `MYCELIC_EVENT_SIGNING_KEY` and `MYCELIC_EVENT_SIGNING_KEYS_PREVIOUS`: store them with every
+   database backup. Without the keys that signed them, the digests of a restored database read `unknown_key` and a
+   rebuild from the stream rejects every event (SECURITY.md §7).
 
 Restore order matters: a database older than the stream is caught up automatically (the service detects
 that its `last_applied_seq` is behind the consumer's ack floor and re-delivers from the next sequence). A
@@ -302,6 +306,37 @@ before restoring an older database.
 | force a replay | `python -m mycelic replay` or `POST /admin/replay` (`test_forced_replay_is_idempotent`) |
 | force a re-aggregation | `python -m mycelic reaggregate [--org ORG]` or `POST /admin/reaggregate` with `{"org_id": …}`, or with no body or a null `org_id` for every organization (an empty `org_id` is refused with 400): re-derives every consolidation and conclusion of one organization or all of them in the background while the node keeps serving; `{"started": false}` while a run is in progress. Progress: `GET /admin/status` → `checks.reaggregation`, `mycelic_reaggregation_steps_total`, audit `aggregation.reaggregate` per organization (`test_admin_route_sdk_and_cli`) |
 | poison or rejected event | after `NATS_MAX_DELIVER` attempts it is terminated and recorded (`GET /admin/events?org=…&status=failed`, audit `event.failed`); a terminated or unsigned event counts as consumed, so a replay still completes (`test_poison_event_is_terminated_and_replay_completes`) |
+
+**Rotating the signing key.** Never regenerate `MYCELIC_EVENT_SIGNING_KEY` in place: make the current key a
+previous one and add a new current key. Events in flight and every memory digest signed by the old key keep
+verifying, new ones are signed by the new key, and a database rebuilt from the stream later still verifies the old
+events. Back up the keys with the database before and after.
+
+```bash
+# Compose: the old key joins MYCELIC_EVENT_SIGNING_KEYS_PREVIOUS (an .env from an earlier release lacks the line)
+env=deploy/mycelic/.env
+grep -q '^MYCELIC_EVENT_SIGNING_KEYS_PREVIOUS=' "$env" || echo 'MYCELIC_EVENT_SIGNING_KEYS_PREVIOUS=' >> "$env"
+old=$(sed -n 's/^MYCELIC_EVENT_SIGNING_KEY=//p' "$env"); prev=$(sed -n 's/^MYCELIC_EVENT_SIGNING_KEYS_PREVIOUS=//p' "$env")
+sed -i "s|^MYCELIC_EVENT_SIGNING_KEYS_PREVIOUS=.*|MYCELIC_EVENT_SIGNING_KEYS_PREVIOUS=${prev:+$prev,}$old|" "$env"
+sed -i "s|^MYCELIC_EVENT_SIGNING_KEY=.*|MYCELIC_EVENT_SIGNING_KEY=$(openssl rand -hex 32)|" "$env"
+docker compose -f deploy/mycelic/docker-compose.yml up -d mycelic
+
+# Kubernetes: the same change in the Secret, then a restart
+old=$(kubectl -n mycelic get secret mycelic-secrets -o jsonpath='{.data.MYCELIC_EVENT_SIGNING_KEY}' | base64 -d)
+prev=$(kubectl -n mycelic get secret mycelic-secrets -o jsonpath='{.data.MYCELIC_EVENT_SIGNING_KEYS_PREVIOUS}' | base64 -d)
+kubectl -n mycelic patch secret mycelic-secrets --type merge -p "{\"stringData\": {\"MYCELIC_EVENT_SIGNING_KEYS_PREVIOUS\": \"${prev:+$prev,}$old\", \"MYCELIC_EVENT_SIGNING_KEY\": \"$(openssl rand -hex 32)\"}}"
+kubectl -n mycelic rollout restart statefulset/mycelic
+```
+
+Keep every previous key for as long as the stream holds events it signed (with the default unbounded stream,
+for good). The database records the id of the key that is current at each start (`meta.known_key_ids`; a key id
+is a truncated hash, not the key), and the service logs a warning at start naming each one that is no longer
+configured: rows it signed read `unknown_key` and events it signed are rejected until it is listed again. A key
+retired before this release first started on the database (upgrading and rotating in one step) is never recorded
+and never warned about, one more reason to rotate only after the upgrade has started once. Previous keys are read
+with surrounding whitespace removed, while the current key is used exactly as given, so a current key with a
+leading or trailing space or newline (a Secret created from a file that ends in a newline) cannot be moved to
+the previous list verbatim: generate keys with `openssl rand -hex 32` as shown, without whitespace.
 
 **Upgrades.** Build the new image, `docker compose -f deploy/mycelic/docker-compose.yml up -d --build`. The schema version is stored in the
 database; a newer schema than the code refuses to start. Replays are idempotent across versions. Derived ids embed
@@ -336,16 +371,31 @@ reproduced by a rebuild from the log, which derives the converged state directly
   agents read. Hold agent traffic until then if that matters; once they are superseded their text is withheld
   from agents like that of any other inactive memory.
 
-**Rolling back and forward again.** This release keeps schema 3, so an earlier schema-3 release can open a
-database this one has written. Whichever it is, an earlier release re-derives with its own renderer, which quotes
-team-visibility notes and agent ids above team level. A release with derivation version 1 sees
-`meta.derivation_version` 2, re-aggregates at its first start and records 1, so rolling forward again re-aggregates
-on its own. A release from before derivation versions derives ids without one, while `meta.derivation_version` still
-records this release's, so rolling forward from it starts no re-aggregation on its own: after the roll-forward, run
-`python -m mycelic reaggregate` (or `POST /admin/reaggregate`) once and wait for `checks.reaggregation.state` =
-`done`.
+**Rolling back and forward again.** This release writes schema 4, and earlier releases refuse to open a schema-4
+database (`database schema 4 is newer than this code`). To roll back, stop the service, restore the database backup
+taken before the upgrade (see Backups) and start the earlier image on it. It re-delivers from the stream what it
+missed since the backup and applies it with its own derivation, provided every event since then is signed by its
+key: an earlier release verifies with one key only, so rotate the signing key only after deciding to stay on this
+release. An earlier release re-derives with its own renderer, which may quote team-visibility notes and agent ids
+above team level. Rolling forward again migrates the restored database to schema 4, signs its rows at the first
+start and re-aggregates whatever `meta.derivation_version` says was derived differently. A release from before
+derivation versions leaves that key as it found it while deriving ids without a version, so after rolling forward
+from one, run `python -m mycelic reaggregate` (or `POST /admin/reaggregate`) once and wait for
+`checks.reaggregation.state` = `done`.
 
-Upgrading to schema 3 (this release) is one-way: the first start migrates the database in one transaction
+Upgrading to schema 4 (this release) adds three columns to `memories` (`digest`, `digest_key_id`,
+`digest_origin`) in one transaction. The first start then signs every existing memory (origin `backfill`, see
+SECURITY.md §3) before it starts the consumer: `/health` answers meanwhile and `/ready` stays 503 until it is done.
+Measured on a 22,685-row database (18,685 derived rows, up to 400 roots each, 248 MB): about 7,800 rows/s through the
+service in batches of 500 rows (2.9 s in all, at most 0.11 s per batch); at that rate a million rows take about two
+minutes. It writes one `integrity.backfill` audit row and counts `mycelic_integrity_backfilled_total`;
+an interrupted backfill (SIGTERM, crash) keeps what it committed and resumes at the next start. This is the only
+backfill that signs rows in a healthy database (in one created at schema 4, none ever does): after it completes, any
+backfill WARNING or ERROR in the log, any further `integrity.backfill` audit row and any rise of
+`mycelic_integrity_backfilled_total` means digests were removed from the database (SECURITY.md §3), so alert on
+the log and the metric. Like the schema-3 upgrade it is one-way, so **back up the database first**.
+
+Upgrading to schema 3 is one-way: the first start migrates the database in one transaction
 (normalised labels on stored notes and rules, applied-rule and registry state, apply order), and older code cannot
 open it afterwards, so **back up the database first** (see Backups). Consolidations and conclusions derived before
 the upgrade keep the label spellings they were built under until they are re-aggregated; the migration records that

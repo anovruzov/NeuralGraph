@@ -33,6 +33,8 @@ spec:
               valueFrom: {secretKeyRef: {name: mycelic-secrets, key: MYCELIC_ADMIN_TOKEN}}
             - name: MYCELIC_EVENT_SIGNING_KEY
               valueFrom: {secretKeyRef: {name: mycelic-secrets, key: MYCELIC_EVENT_SIGNING_KEY}}
+            - name: MYCELIC_EVENT_SIGNING_KEYS_PREVIOUS
+              valueFrom: {secretKeyRef: {name: mycelic-secrets, key: MYCELIC_EVENT_SIGNING_KEYS_PREVIOUS, optional: true}}
             - name: MYCELIC_NATS_USER
               valueFrom: {secretKeyRef: {name: mycelic-secrets, key: NATS_USER}}
             - name: MYCELIC_NATS_PASSWORD

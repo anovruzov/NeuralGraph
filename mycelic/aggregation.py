@@ -65,6 +65,7 @@ from NeuralGraph.research.coordination.contracts import ClaimEnvelope, PolicySta
 from NeuralGraph.research.coordination.core import LineageAnalyzer, RuleBasedSynthesizer, to_jsonable
 
 from .hierarchy import LAYERS, ancestors, child_unit_of, layer_of_path, parent_path, unit_at_layer
+from .integrity import DERIVED_METADATA
 from .models import (
     DERIVATION_VERSION, SLOT_PLACEHOLDER_RE, LineageEdge, Memory, Rule, content_hash, derived_memory_id, now_iso, rule_digest,
     rule_snapshot,
@@ -944,7 +945,7 @@ class Aggregator:
             tx.set_memory_status(current.memory_id, "superseded", superseded_by=memory.memory_id, reason="coalition changed")
             supersedes = current.memory_id
         if existing is None:
-            tx.insert_memory(memory)
+            tx.insert_memory(memory, parent_ids=[p.memory_id for p in parents])
         else:
             # the exact earlier coalition is back (evidence was retracted, or a retraction was undone by new
             # evidence): the earlier derived memory becomes current again, keeping its id, text and lineage edges
@@ -954,6 +955,13 @@ class Aggregator:
             version_of = current.memory_id if current is not None else existing.metadata.get("version_of")
             meta = {**existing.metadata, **memory.metadata, "version_of": version_of, "reactivated_at": now}
             meta.pop("status_reason", None)          # the reason it was retired does not describe an active memory
+            for k in DERIVED_METADATA:
+                # keep what the digest signed: equal in every consistent case, and a recomputation that differs was
+                # reported as reactivation_mismatch above, so verification sees a derivation mismatch, not tampering
+                if k in existing.metadata:
+                    meta[k] = existing.metadata[k]
+                else:
+                    meta.pop(k, None)
             tx.reactivate_memory(memory.memory_id, applied_at=now, metadata=meta)
             memory = self.store.get_memory(memory.memory_id) or memory
         tx.add_lineage_edges(edges)

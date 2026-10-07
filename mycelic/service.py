@@ -22,8 +22,6 @@ demand.  Because derived ids are deterministic, a replay converges on exactly th
 from __future__ import annotations
 
 import asyncio
-import hashlib
-import hmac
 import json
 import logging
 import re
@@ -35,6 +33,7 @@ from .aggregation import MYCELIC_PRODUCER, Aggregator, Derivation
 from .auth import Authenticator, Principal, RateLimiter, generate_api_key
 from .config import Settings
 from .hierarchy import AgentPath, HierarchyError, LAYERS, layer_index, split_path, validate_segment
+from .integrity import Keyring
 from .lineage import LineageNotFound, reconstruct
 from .metrics import Metrics
 from .models import (
@@ -140,11 +139,16 @@ class MycelicService:
     #: step's work under 0.3 s at 5,000 notes in one organization (10 took up to 0.5 s, 50 up to 1.3 s); its commit
     #: comes on top and can stall on a slow fsync
     reaggregate_batch = 5
+    #: rows one start-up backfill batch signs, in one transaction (see ``_backfill_integrity``): 500 took at most 0.11 s
+    #: (median 0.06 s) on 22,685 rows whose consolidations rest on up to 400 roots, about 7,900 rows/s with its commits
+    #: (1,000 took up to 0.17 s); keep a batch under 0.25 s
+    backfill_batch = 500
 
     def __init__(self, settings: Settings, *, store: MycelicStore | None = None, transport: Transport | None = None,
                  metrics: Metrics | None = None) -> None:
         self.settings = settings
         self.metrics = metrics or Metrics()
+        self.keyring = Keyring.from_settings(settings)
         if store is None:
             # one writer per database file, refused before anything touches the schema; an injected store is the
             # caller's business (tests rebuilding into ':memory:')
@@ -155,6 +159,7 @@ class MycelicService:
                 release_db_lock(fd)
                 raise
         self.store = store
+        self.store.keyring = self.keyring           # memory digests are signed by the insert, with the event key
         self.transport = transport or build_transport(settings, on_state_change=self._transport_state)
         self.aggregator = Aggregator(self.store, min_support=settings.min_support, on_event=self._aggregation_event)
         self.retriever = Retriever(self.store)
@@ -196,6 +201,8 @@ class MycelicService:
                 logger.info("pruned %d audit rows older than %d days", pruned, self.settings.audit_retention_days)
         except Exception:
             logger.exception("audit pruning failed")
+        await self._note_signing_keys()
+        await self._backfill_integrity()              # before the loops: /health answers meanwhile, /ready does not
         await self._connect_with_retry(first=True)
         await self.refresh_status()                   # the first /ready already answers from a warm snapshot
         if background:
@@ -271,6 +278,67 @@ class MycelicService:
         self.metrics.transport_connected.set(1)
         await self._recover_if_needed()
         return True
+
+    async def _note_signing_keys(self) -> None:
+        """Record the current key id in ``meta.known_key_ids`` (first-use order) and warn about every key recorded at an
+        earlier start that is no longer configured: the rows it signed read ``unknown_key`` and the events it signed are
+        rejected until it is listed again.  A key retired before this release first started here is never recorded."""
+        try:
+            known = json.loads(self.store.get_meta("known_key_ids") or "[]")
+        except json.JSONDecodeError:
+            known = []
+        known = [k for k in known if isinstance(k, str)] if isinstance(known, list) else []
+        if self.keyring.keyed and self.keyring.key_id not in known:
+            known.append(self.keyring.key_id)
+            async with self.store.transaction() as tx:
+                tx.set_meta("known_key_ids", json.dumps(known))
+        missing = [k for k in known if k not in self.keyring.key_ids]
+        if missing:
+            logger.warning("signing keys %s were current at an earlier start of this database but are not configured: memories "
+                           "they signed read unknown_key and events they signed are rejected; add the keys to "
+                           "MYCELIC_EVENT_SIGNING_KEYS_PREVIOUS", ", ".join(missing))
+
+    async def _backfill_integrity(self) -> int:
+        """Give every memory written before schema 4 a digest (origin ``backfill``), ``backfill_batch`` rows per
+        transaction, yielding between batches; returns the rows signed.
+
+        Runs once: ``meta.integrity_backfill_complete`` ends it for good.  It never signs a row after the first row that
+        still carries a digest signed at insert (``store.backfill_bound``): such a row had its digest removed, and
+        signing it would turn an edit into a pass.  The bound and the flag live in the database, so someone who can
+        write to it can still have a row re-signed, by removing the flag and the digests of every row up to that one;
+        what they cannot avoid is this backfill, which is logged, audited and counted.  Only the start that completes
+        the upgrade from schema 3 or earlier signs rows legitimately (SECURITY.md §3).  A cancelled or failed batch
+        rolls back and the next start resumes from the rows still without a digest.
+        """
+        if self.store.get_meta("integrity_backfill_complete") == "1":
+            return 0
+        bound = self.store.backfill_bound()
+        signed = batches = refused = 0
+        after = 0
+        while True:
+            async with self.store.transaction() as tx:
+                n, after = tx.backfill_digests(after_rid=after, below_rid=bound, limit=self.backfill_batch)
+                signed += n
+                batches += 1
+                last = n < self.backfill_batch
+                if last:
+                    refused = self.store.count_unsigned(bound) if bound is not None else 0
+                    tx.set_meta("integrity_backfill_complete", "1")
+                    if signed + refused:
+                        tx.audit("mycelic", "integrity.backfill", None, {"rows": signed, "batches": batches, "refused": refused,
+                                                                        "key_id": self.keyring.key_id})
+            self.metrics.integrity_backfilled.inc(n)
+            if last:
+                break
+            await asyncio.sleep(0)
+        if signed:
+            logger.warning("signed %d memories that had no digest (origin backfill, key %s): expected once, when the backfill "
+                           "after an upgrade from schema 3 or earlier completes; at any other time digests were removed from "
+                           "the database", signed, self.keyring.key_id)
+        if refused:
+            logger.error("%d memories written after digests were introduced have no digest; they are not re-signed: digests "
+                         "were removed from the database", refused)
+        return signed
 
     async def _set_replay_target(self, target: int | None) -> None:
         """Remember how far a replay must go, in memory and in the database, so a crash mid-rebuild resumes it."""
@@ -469,7 +537,7 @@ class MycelicService:
 
     async def _handle_delivery(self, d: Any) -> None:
         t0 = time.perf_counter()
-        if self.settings.event_signing_key and not self._verify(d.data, getattr(d, "headers", {}) or {}):
+        if self.keyring.keyed and not self._verify(d.data, getattr(d, "headers", {}) or {}):
             # not ours: whoever published it did not hold the signing key.  Drop it loudly and permanently.
             self.metrics.events_failed.labels("signature").inc()
             logger.error("event at seq %s has a missing or invalid signature; terminated", d.seq)
@@ -563,18 +631,12 @@ class MycelicService:
 
     def _sign(self, wire: bytes) -> dict[str, str]:
         """HMAC-SHA256 over the exact bytes published, so the consumer can tell its own events from injected ones."""
-        key = self.settings.event_signing_key
-        if not key:
-            return {}
-        return {"Mycelic-Signature": "v1=" + hmac.new(key.encode("utf-8"), wire, hashlib.sha256).hexdigest()}
+        signature = self.keyring.event_signature(wire)
+        return {"Mycelic-Signature": signature} if signature else {}
 
     def _verify(self, wire: bytes, headers: dict[str, str]) -> bool:
-        key = self.settings.event_signing_key
-        if not key:
-            return True
-        expected = "v1=" + hmac.new(key.encode("utf-8"), wire, hashlib.sha256).hexdigest()
-        given = headers.get("Mycelic-Signature", "")
-        return hmac.compare_digest(given.encode("utf-8"), expected.encode("utf-8"))
+        """Signed by the current key or by one of the previous keys (events published before a rotation)."""
+        return self.keyring.verify_event(wire, headers.get("Mycelic-Signature", ""))
 
     def public_view(self, m: Memory | dict[str, Any], principal: Principal) -> dict[str, Any]:
         """What a caller may see of a memory: metadata that names other teams' agents is reserved for admins, and the

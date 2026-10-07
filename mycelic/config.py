@@ -60,6 +60,10 @@ def _list(name: str) -> list[str]:
     return [x.strip() for x in raw.split(",") if x.strip()]
 
 
+def _placeholder(value: str) -> bool:
+    return any(w in value.lower() for w in ("change", "example", "replace", "placeholder"))
+
+
 @dataclass
 class Settings:
     # service
@@ -103,6 +107,9 @@ class Settings:
     trusted_proxy_hops: int = 1                       # how many proxies append to X-Forwarded-For (take the Nth from the right)
     audit_retention_days: int = 90
     event_signing_key: str | None = None              # HMAC key: consumer rejects events the publisher did not sign
+    # keys used before a rotation: events and memory digests they signed keep verifying (comma-separated, so a key
+    # containing a comma cannot be listed; generated hex keys never contain one)
+    event_signing_keys_previous: list[str] = field(default_factory=list)
     # aggregation
     min_support: int = 2                              # distinct child units needed for topic consolidation
     rules_file: str | None = None
@@ -119,6 +126,7 @@ class Settings:
 
     @classmethod
     def from_env(cls) -> "Settings":
+        signing_key = _str("MYCELIC_EVENT_SIGNING_KEY")
         s = cls(
             host=_str("MYCELIC_HOST", "0.0.0.0") or "0.0.0.0",
             port=_int("MYCELIC_PORT", 8080, minimum=1),
@@ -157,7 +165,8 @@ class Settings:
             trust_proxy_headers=_bool("MYCELIC_TRUST_PROXY_HEADERS", False),
             trusted_proxy_hops=_int("MYCELIC_TRUSTED_PROXY_HOPS", 1, minimum=1),
             audit_retention_days=_int("MYCELIC_AUDIT_RETENTION_DAYS", 90, minimum=1),
-            event_signing_key=_str("MYCELIC_EVENT_SIGNING_KEY"),
+            event_signing_key=signing_key,
+            event_signing_keys_previous=[k for k in dict.fromkeys(_list("MYCELIC_EVENT_SIGNING_KEYS_PREVIOUS")) if k != signing_key],
             min_support=_int("MYCELIC_MIN_SUPPORT", 2, minimum=1),
             rules_file=_str("MYCELIC_RULES_FILE"),
             public_url=_str("MYCELIC_PUBLIC_URL"),
@@ -176,10 +185,19 @@ class Settings:
                 raise ConfigError("do not put credentials in MYCELIC_NATS_URL; use MYCELIC_NATS_USER / MYCELIC_NATS_PASSWORD")
         for name, value in (("MYCELIC_ADMIN_TOKEN", self.admin_token), ("MYCELIC_EVENT_SIGNING_KEY", self.event_signing_key),
                             ("MYCELIC_NATS_PASSWORD", self.nats_password), ("MYCELIC_METRICS_TOKEN", self.metrics_token)):
-            if value and any(w in value.lower() for w in ("change", "example", "replace", "placeholder")):
+            if value and _placeholder(value):
                 raise ConfigError(f"{name} looks like a placeholder; generate one with: openssl rand -hex 32")
         if self.event_signing_key is not None and len(self.event_signing_key) < 32:
             raise ConfigError("MYCELIC_EVENT_SIGNING_KEY must be at least 32 characters (openssl rand -hex 32)")
+        if self.event_signing_keys_previous and not self.event_signing_key:
+            raise ConfigError("MYCELIC_EVENT_SIGNING_KEYS_PREVIOUS requires MYCELIC_EVENT_SIGNING_KEY (the current key; "
+                              "previous keys only verify)")
+        for i, key in enumerate(self.event_signing_keys_previous, start=1):
+            # by position only: the message must never echo key material
+            if len(key) < 32:
+                raise ConfigError(f"MYCELIC_EVENT_SIGNING_KEYS_PREVIOUS entry {i} is shorter than 32 characters")
+            if _placeholder(key):
+                raise ConfigError(f"MYCELIC_EVENT_SIGNING_KEYS_PREVIOUS entry {i} looks like a placeholder")
         if bool(self.tls_cert_file) != bool(self.tls_key_file):
             raise ConfigError("MYCELIC_TLS_CERT_FILE and MYCELIC_TLS_KEY_FILE must be set together")
         for name, path in (("MYCELIC_TLS_CERT_FILE", self.tls_cert_file), ("MYCELIC_TLS_KEY_FILE", self.tls_key_file),
@@ -196,4 +214,5 @@ class Settings:
         d = dict(self.__dict__)
         for key in ("nats_password", "nats_token", "admin_token", "metrics_token", "event_signing_key"):
             d[key] = "set" if d.get(key) else None
+        d["event_signing_keys_previous"] = len(self.event_signing_keys_previous) or None
         return d

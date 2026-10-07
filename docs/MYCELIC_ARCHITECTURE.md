@@ -51,7 +51,8 @@ customer; they never talk to the broker.
 |---|---|
 | `mycelic/hierarchy.py` | Layers `agent → team → department → subsidiary → region → enterprise`; unit paths; ancestor/subtree relations |
 | `mycelic/config.py` | `MYCELIC_*` environment variables, validated at start (secrets never in source; placeholder values refused) |
-| `mycelic/store.py` | SQLite schema (version 3; forward-only migrations in one transaction, including label normalisation of stored observations and rules) and transactions (`BEGIN IMMEDIATE`, one writer, `synchronous=FULL`) |
+| `mycelic/store.py` | SQLite schema (version 4: per-row digests; forward-only migrations in one transaction, including label normalisation of stored observations and rules) and transactions (`BEGIN IMMEDIATE`, one writer, `synchronous=FULL`) |
+| `mycelic/integrity.py` | Canonical form of a memory row (content, parents and derivation metadata), its keyed digest, written by the insert and reproduced by a rebuild, and the keyring of current and previous signing keys that signs digests and events |
 | `mycelic/transport.py` | `JetStreamTransport` (nats-py) and `InProcessTransport` (unit tests) |
 | `mycelic/aggregation.py` | Topic consolidation and slot-composition rules: read-only planners (`plan_consolidation`, `plan_rule`) over pure builders (`build_consolidation`, `build_conclusion`: no store, no clock); deterministic derived ids; supersession |
 | `mycelic/lineage.py` | Lineage graph reconstruction with per-principal redaction |

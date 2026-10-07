@@ -10,6 +10,7 @@ The binary is found via ``MYCELIC_NATS_SERVER_BIN`` or ``nats-server`` on PATH; 
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import shutil
 import socket
@@ -19,13 +20,15 @@ import time
 import unittest
 from pathlib import Path
 
+from mycelic.integrity import key_id
 from mycelic.metrics import Metrics
 from mycelic.service import MycelicService
 
-from .helpers import DEMO_RULE, settings
+from .helpers import DEMO_RULE, digest_map, integrity_outcomes, settings
 
 NATS_BIN = os.environ.get("MYCELIC_NATS_SERVER_BIN") or shutil.which("nats-server")
 NATS_USER, NATS_PASSWORD = "mycelic", "nats-test-password-0123456789abcdef"
+SIGNING_KEY = "test-signing-key-0123456789abcdef0123"
 
 
 def free_port() -> int:
@@ -92,9 +95,10 @@ class JetStreamTests(unittest.IsolatedAsyncioTestCase):
         self.tmp.cleanup()
 
     def make_settings(self, **overrides):
-        return settings(self.root, db_path=str(self.db), nats_url=self.nats.url, nats_user=NATS_USER, nats_password=NATS_PASSWORD,
-                        nats_stream="MYCELIC_TEST", nats_consumer="mycelic-test", event_signing_key="test-signing-key-0123456789abcdef0123",
-                        **overrides)
+        base = dict(db_path=str(self.db), nats_url=self.nats.url, nats_user=NATS_USER, nats_password=NATS_PASSWORD,
+                    nats_stream="MYCELIC_TEST", nats_consumer="mycelic-test", event_signing_key=SIGNING_KEY)
+        base.update(overrides)
+        return settings(self.root, **base)
 
     async def new_service(self, **overrides) -> MycelicService:
         s = MycelicService(self.make_settings(**overrides), metrics=Metrics())
@@ -315,6 +319,65 @@ class JetStreamTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue((await s3.ready())[0])
         self.assertEqual(self.snapshot(s3), before)
         self.assertEqual((await s3.transport.info())["stream_messages"], stream_before, "no duplicates were appended")
+
+    async def test_rotated_signing_key_with_previous_key_replays(self) -> None:
+        key_a, key_b = SIGNING_KEY, "rotated-signing-key-fedcba9876543210fedcba"
+        id_a, id_b = key_id(key_a), key_id(key_b)
+        s1 = await self.new_service(event_signing_key=key_a)
+        keys = await self.seed(s1)
+        signed_by_a = (await s1.transport.info())["stream_messages"]
+        self.assertEqual({kid for _, kid in digest_map(s1.store).values()}, {id_a})
+        await s1.close()
+        self.services.remove(s1)
+
+        # rotation with the database intact: A's rows keep verifying, new rows are signed by B
+        s2 = await self.new_service(event_signing_key=key_b, event_signing_keys_previous=[key_a])
+        self.assertTrue(await s2.wait_idle(10))
+        self.assertEqual(json.loads(s2.store.get_meta("known_key_ids")), [id_a, id_b])
+        old = digest_map(s2.store)
+        m, _ = await s2.ingest_memory(s2.authenticate(f"Bearer {keys['log-1']}"), {
+            "text": "Customs backlog of two weeks reported at Rotterdam.", "topic": "supply:sd-9/transport",
+            "slot": "transport_disruption", "entity": "sd-9", "confidence": 0.95})
+        self.assertTrue(await s2.wait_idle(20))
+        now = digest_map(s2.store)
+        self.assertEqual({mid: now[mid] for mid in old}, old, "rows signed by A keep their digests")
+        self.assertEqual(now[m.memory_id][1], id_b)
+        self.assertGreater(len(set(now) - set(old)), 1, "the note changed derived memories too")
+        self.assertEqual({now[mid][1] for mid in set(now) - set(old)}, {id_b})
+        self.assertEqual(set(integrity_outcomes(s2.store).values()), {"ok"})
+        self.maxDiff = None
+        before = self.snapshot(s2)
+        stream_before = (await s2.transport.info())["stream_messages"]
+        self.assertGreater(stream_before, signed_by_a)
+        await s2.close()
+        self.services.remove(s2)
+
+        # the database is lost after the rotation: the rebuild needs A to verify the events A signed
+        for f in self.root.glob("mycelic.db*"):
+            f.unlink()
+        s3 = await self.new_service(event_signing_key=key_b, event_signing_keys_previous=[key_a])
+        self.assertTrue(await s3.wait_idle(30))
+        self.assertEqual(self.snapshot(s3), before)
+        self.assertEqual({kid for _, kid in digest_map(s3.store).values()}, {id_b}, "a rebuild signs with the current key")
+        self.assertEqual(set(integrity_outcomes(s3.store).values()), {"ok"})
+        self.assertEqual(s3.metrics.events_failed.labels("signature")._value.get(), 0)
+        self.assertEqual((await s3.transport.info())["stream_messages"], stream_before, "the replay appended nothing")
+        self.assertEqual(s3.authenticate(f"Bearer {keys['sales-1']}").id, "sales-1")
+        await s3.close()
+        self.services.remove(s3)
+
+        # ... and without A every event A signed is rejected, with everything it carried (registrations included)
+        for f in self.root.glob("mycelic.db*"):
+            f.unlink()
+        s4 = await self.new_service(event_signing_key=key_b)
+        self.assertTrue(await s4.wait_idle(30))
+        self.assertEqual(s4.metrics.events_failed.labels("signature")._value.get(), signed_by_a)
+        self.assertEqual(s4.store.list_memories("northwind", status=None, limit=1000), [])
+        self.assertEqual(await s4.store.list_agents(include_revoked=True), [])
+        deadline = time.monotonic() + 10
+        while not (await s4.ready())[0]:
+            self.assertLess(time.monotonic(), deadline, "the replay of rejected events completes")
+            await asyncio.sleep(0.1)
 
     async def test_unsigned_events_are_rejected(self) -> None:
         s = await self.new_service()

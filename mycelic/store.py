@@ -13,6 +13,9 @@ Design (the same shape as ``NeuralGraph.chat_memory.store``, which has been runn
   publisher marks them ``published`` with their JetStream sequence, and the consumer marks them ``applied``.
   Duplicate deliveries are rejected by primary key (``event_id``), which is also the JetStream ``Nats-Msg-Id``.
 * ``revision`` increases on every memory write so the retrieval index knows when to rebuild.
+* Every memory row carries a keyed digest of its content, its parents and its derivation metadata (``integrity.py``
+  says exactly what is covered), written by the statement that inserts it, so a rebuild reproduces it.  Covered content
+  never changes after insert; a future migration that rewrites covered content must re-sign the rows it rewrites.
 """
 from __future__ import annotations
 
@@ -27,6 +30,7 @@ from pathlib import Path
 from typing import Any, AsyncIterator, Iterable
 
 from .hierarchy import LAYERS
+from .integrity import Keyring, canonical
 from .models import OPERATORS, Agent, EventRecord, LineageEdge, Memory, Rule, canonical_label, canonical_rule_body, now_iso, utcnow
 
 try:
@@ -36,7 +40,7 @@ except ImportError:  # pragma: no cover
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 _DDL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -93,7 +97,10 @@ CREATE TABLE IF NOT EXISTS memories (
     source_event_ids  TEXT NOT NULL DEFAULT '[]',
     local_ref         TEXT,
     metadata          TEXT NOT NULL DEFAULT '{}',
-    apply_seq         INTEGER          -- position in apply order (NULL until the consumer applies the memory)
+    apply_seq         INTEGER,         -- position in apply order (NULL until the consumer applies the memory)
+    digest            TEXT,            -- keyed digest of the row's content and parents (integrity.py), NULL until backfilled
+    digest_key_id     TEXT,            -- the key that signed it ('none' when unkeyed)
+    digest_origin     TEXT             -- 'write' (signed by the insert) or 'backfill' (signed at start-up after the upgrade)
 );
 CREATE INDEX IF NOT EXISTS idx_memories_org_status ON memories(org_id, status);
 CREATE INDEX IF NOT EXISTS idx_memories_org_op_status ON memories(org_id, operator, status);
@@ -284,27 +291,31 @@ class Tx:
     def memory_exists(self, memory_id: str) -> bool:
         return self.c.execute("SELECT 1 FROM memories WHERE memory_id=?", (memory_id,)).fetchone() is not None
 
-    def insert_memory(self, m: Memory) -> bool:
+    def insert_memory(self, m: Memory, *, parent_ids: Iterable[str] = ()) -> bool:
         """Insert if absent. Returns False when the id already exists (idempotent replay).
 
         A memory inserted as applied (``applied_at`` set: apply side) takes the next position in apply order; one
         written by the API gets it when the consumer applies its event (:meth:`set_applied`).  Both a live node and
         a rebuild therefore number every row in the same order, whatever the consumer lag was.
+
+        The same statement writes the row's digest (origin ``write``) over its content and, for a derived memory, the
+        ``parent_ids`` its lineage edges will name; nothing ever rewrites it.
         """
         if self.memory_exists(m.memory_id):
             return False
+        digest, kid = self._store.keyring.sign(canonical(m, parent_ids))
         self.c.execute(
             f"""INSERT INTO memories(memory_id, org_id, layer, scope, text, topic, slot, entity, kind, confidence,
                                     support, independent_teams, producer_id, operator, rule_id, agg_key, event_id,
                                     visibility, status, superseded_by, created_at, applied_at, source_event_ids,
-                                    local_ref, metadata, apply_seq)
+                                    local_ref, metadata, apply_seq, digest, digest_key_id, digest_origin)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                       CASE WHEN ? IS NOT NULL THEN {_NEXT_APPLY_SEQ} END)""",
+                       CASE WHEN ? IS NOT NULL THEN {_NEXT_APPLY_SEQ} END, ?, ?, 'write')""",
             (m.memory_id, m.org_id, m.layer, m.scope, m.text, m.topic, m.slot, m.entity, m.kind, m.confidence,
              m.support, m.independent_teams, m.producer_id, m.operator, m.rule_id,
              m.metadata.get("agg_key") if m.operator != "agent_observation" else None,
              m.event_id, m.visibility, m.status, m.superseded_by, m.created_at, m.applied_at,
-             _j(m.source_event_ids), m.local_ref, _j(m.metadata), m.applied_at),
+             _j(m.source_event_ids), m.local_ref, _j(m.metadata), m.applied_at, digest, kid),
         )
         self._store._bump()
         return True
@@ -331,6 +342,28 @@ class Tx:
     def set_applied(self, memory_id: str, applied_at: str) -> None:
         self.c.execute(f"UPDATE memories SET applied_at=COALESCE(applied_at, ?), apply_seq=COALESCE(apply_seq, {_NEXT_APPLY_SEQ}) "
                        "WHERE memory_id=?", (applied_at, memory_id))
+
+    def backfill_digests(self, *, after_rid: int, below_rid: int | None, limit: int) -> tuple[int, int]:
+        """Sign up to ``limit`` rows without a digest after ``after_rid`` (and below ``below_rid``) with origin
+        ``backfill``; returns (rows signed, last rid seen).  A row that has a digest is never touched."""
+        sql, args = "SELECT * FROM memories WHERE digest IS NULL AND rid > ?", [after_rid]
+        if below_rid is not None:
+            sql += " AND rid < ?"; args.append(below_rid)
+        rows = self.c.execute(sql + " ORDER BY rid LIMIT ?", [*args, int(limit)]).fetchall()
+        if not rows:
+            return 0, after_rid
+        parents: dict[str, list[str]] = {}
+        ids = [r["memory_id"] for r in rows]
+        for e in self.c.execute(f"SELECT child_id, parent_id FROM lineage_edges WHERE child_id IN ({','.join('?' * len(ids))})",
+                                ids).fetchall():
+            parents.setdefault(e["child_id"], []).append(e["parent_id"])
+        signed = []
+        for r in rows:
+            digest, kid = self._store.keyring.sign(canonical(row_memory(r), parents.get(r["memory_id"], ())), origin="backfill")
+            signed.append((digest, kid, r["rid"]))
+        self.c.executemany("UPDATE memories SET digest=?, digest_key_id=?, digest_origin='backfill' WHERE rid=? AND digest IS NULL",
+                           signed)
+        return len(signed), rows[-1]["rid"]
 
     def add_lineage_edges(self, edges: Iterable[LineageEdge]) -> None:
         self.c.executemany(
@@ -494,6 +527,7 @@ class MycelicStore:
         self._conn.row_factory = sqlite3.Row
         self._lock = asyncio.Lock()
         self.revision = 0
+        self.keyring = Keyring()                    # unkeyed until the service hands it the configured keyring
         try:
             self._init_schema()
         except BaseException:
@@ -532,6 +566,8 @@ class MycelicStore:
           numbers the applied rows in their current order; raw observations and rules get canonical labels
           (derived rows keep theirs: their ids embed the key they were built under, so they stay until
           re-aggregation, flagged by ``meta.reaggregate_pending``); ``applied_rules`` starts as the canonical rules.
+        * 4: memories.digest, digest_key_id, digest_origin (NULL for existing rows until the start-up backfill signs
+          them: the service holds the key, the store does not).
         """
         c = self._conn
         c.execute("BEGIN IMMEDIATE")
@@ -566,6 +602,11 @@ class MycelicStore:
                               (rule.rule_id, rule.org_id, _j(rule.to_dict())))
                 c.execute("INSERT INTO meta(key, value) VALUES ('reaggregate_pending', '1') "
                           "ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+            if from_version < 4:
+                have = {r["name"] for r in c.execute("PRAGMA table_info(memories)").fetchall()}
+                for name in ("digest", "digest_key_id", "digest_origin"):
+                    if name not in have:
+                        c.execute(f"ALTER TABLE memories ADD COLUMN {name} TEXT")
             c.execute("UPDATE meta SET value=? WHERE key='schema_version'", (str(SCHEMA_VERSION),))
         except BaseException:
             c.execute("ROLLBACK")
@@ -809,6 +850,31 @@ class MycelicStore:
             sql += f" AND layer IN ({','.join('?' * len(ls))})"; args += ls
         sql += " ORDER BY rid"
         return [row_memory(r) for r in self._conn.execute(sql, args).fetchall()]
+
+    # ------------------------------------------------------------------ integrity (reads)
+    def integrity_of(self, ids: Iterable[str]) -> dict[str, tuple[str | None, str | None, str | None]]:
+        """(digest, key id, origin) of each memory found, by id (see ``integrity.check_memory``)."""
+        ids = list(dict.fromkeys(ids))
+        out: dict[str, tuple[str | None, str | None, str | None]] = {}
+        for i in range(0, len(ids), 500):
+            chunk = ids[i:i + 500]
+            q = f"SELECT memory_id, digest, digest_key_id, digest_origin FROM memories WHERE memory_id IN ({','.join('?' * len(chunk))})"
+            for r in self._conn.execute(q, chunk).fetchall():
+                out[r["memory_id"]] = (r["digest"], r["digest_key_id"], r["digest_origin"])
+        return out
+
+    def backfill_bound(self) -> int | None:
+        """The rid of the first row that still carries a digest signed at insert (origin other than ``backfill``): the
+        start-up backfill signs nothing at or after it (a later row without a digest had its digest removed).  Removing
+        the digests of every row up to a given one moves the bound past it (SECURITY.md §3)."""
+        row = self._conn.execute("SELECT rid FROM memories WHERE digest IS NOT NULL AND digest_origin IS NOT 'backfill' "
+                                 "ORDER BY rid LIMIT 1").fetchone()
+        return int(row["rid"]) if row else None
+
+    def count_unsigned(self, from_rid: int) -> int:
+        """Rows without a digest after ``from_rid``."""
+        return int(self._conn.execute("SELECT COUNT(*) AS n FROM memories WHERE digest IS NULL AND rid > ?",
+                                      (from_rid,)).fetchone()["n"])
 
     # ------------------------------------------------------------------ lineage (reads)
     def parents_of(self, child_id: str) -> list[LineageEdge]:

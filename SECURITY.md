@@ -14,7 +14,7 @@ launch. Until it is, never put vulnerability details in a public issue.
 | Administrator | `MYCELIC_ADMIN_TOKEN` (≥ 32 characters, environment only) | operator; rotating it means restarting the service |
 | Agent | API key `mk_<agent_id>.<256-bit secret>` | `POST /admin/agents` / `python -m mycelic register-agent`; shown once |
 | Service ↔ broker | NATS user/password (`MYCELIC_NATS_USER/PASSWORD`) | environment; the broker enforces `authorization {}` |
-| Service ↔ itself across the log | `MYCELIC_EVENT_SIGNING_KEY` (HMAC-SHA256 over every published event) | environment |
+| Service ↔ itself across the log | `MYCELIC_EVENT_SIGNING_KEY` (HMAC-SHA256 over every published event, and through a derived subkey over every memory row); keys from before a rotation, listed in `MYCELIC_EVENT_SIGNING_KEYS_PREVIOUS`, keep verifying what they signed | environment |
 
 Only the SHA-256 of an agent key is stored (unsalted: the secret is 256 random bits, so a rainbow table is
 not a threat, but a weaker secret format would need a KDF). The comparison of the secret's hash is
@@ -63,6 +63,37 @@ the caller's view only, so memories outside it influence neither the results nor
   `mycelic_events_ignored_total`), so an injected event cannot plant a conclusion, a lineage edge or a supersession.
 * Duplicate deliveries are harmless: `event_id` is the JetStream `Nats-Msg-Id` and the apply step is
   idempotent by event id and memory id.
+* **Memory integrity.** Every memory row carries a digest of its content (text, labels, kind, confidence, support,
+  independent teams, visibility, producer, operator and rule; for a raw note also its observation time, event,
+  local reference, cited events and metadata), its parents (the ids its lineage edges name) and its derivation
+  metadata (roots, statements, children, slots, evidence and the other keys listed in `mycelic/integrity.py`). The
+  statement that inserts the row writes the digest, and a rebuild from the stream under the same key reproduces it
+  byte for byte. With `MYCELIC_EVENT_SIGNING_KEY` set the digest is an HMAC under a subkey of that key, so an edit by
+  anyone who does not hold the key is detected, including one that rewrites the key id, recomputes an unkeyed hash
+  or relabels the origin; without a key it is a plain SHA-256 that detects corruption only, and once a key is set
+  such a row reads `downgraded`. Not covered: a memory's status, supersession and applied columns (`status`,
+  `superseded_by`, `applied_at`, `apply_seq` and the `status_reason`/`reactivated_at` metadata), a derived memory's
+  `created_at` and `event_id` and its metadata outside the derivation keys (`version_of`, `fragility`, candidate
+  counts), the `events`, `agents`, `rules`, `applied_rules`, `audit_log` and `meta` tables, and lineage edges'
+  `contributed_by` and `parent_layer`. Rows that existed before schema 4 are signed at the first start after the upgrade by the
+  start-up backfill, with origin `backfill` and a subkey of their own: they prove integrity from the backfill
+  onward only. The backfill never signs a row after the first row that still carries a digest signed at insert
+  (origin other than `backfill`): a later row without a digest had it removed, so it stays without one and is
+  logged as an error and audited as `refused`. That bound is read from the database, so whoever can write to it
+  can move it: deleting the completion flag (`meta.integrity_backfill_complete`) and removing the digests of every
+  row signed at insert up to and including a row gets that row signed again at the next start, as `backfill`, with
+  whatever it was edited to, and it then reads `ok` (a row from before the upgrade needs only its own digest
+  removed). What such an edit cannot avoid is the backfill itself: every backfill that signs rows is logged at
+  WARNING, one that refuses rows at ERROR, and either is audited (`integrity.backfill`, with the rows signed, the
+  rows refused and the key id) and counted (`mycelic_integrity_backfilled_total`, signed rows). The only legitimate
+  backfill that signs rows follows an upgrade from schema 3 or earlier: it runs at the first start after the upgrade
+  (an interrupted one resumes at the next start and is audited once, when it completes) and never refuses rows. So
+  in a database created at schema 4 (it is never backfilled: its first start finds nothing to sign and writes no
+  audit row), any backfill WARNING or ERROR, any `integrity.backfill` audit row and any rise of
+  `mycelic_integrity_backfilled_total` means digests were removed from the database; in an upgraded database, any
+  after the start that completed the upgrade's backfill does. Audit rows are pruned after
+  `MYCELIC_AUDIT_RETENTION_DAYS` and can be edited by the same person, so alert on the log and the metric. Nothing
+  exposes the check through the API yet.
 * TLS: `MYCELIC_TLS_CERT_FILE/KEY_FILE` (direct) or a TLS-terminating proxy with `MYCELIC_ALLOWED_HOSTS`;
   `tls://` + `MYCELIC_NATS_CA_FILE` for the broker (verified, TLS ≥ 1.2). The SDK verifies server
   certificates and accepts a private CA (`MycelicClient(..., ca_file=...)`).
@@ -90,8 +121,9 @@ retraction (principal, action, target, organization, remote address) and rejecte
 failures are **not** written to the database (they would let anyone grow it); they are counted in
 `mycelic_auth_failures_total{reason}` and logged at most once per minute per reason and address. Rows
 older than `MYCELIC_AUDIT_RETENTION_DAYS` are pruned at start. Access logging of URLs is off; no secret
-is ever logged: `Settings.redacted()` masks every token and password, credentials inside the NATS URL are
-refused at start, and placeholder-looking secrets are refused too.
+is ever logged: `Settings.redacted()` masks every token, password and key (previous signing keys as their
+number), signing keys appear in logs, audit rows and `meta` only as key ids (a truncated hash), credentials
+inside the NATS URL are refused at start, and placeholder-looking secrets are refused too.
 
 ## 6. What is verified
 
@@ -107,7 +139,11 @@ contributions and promotions included), derived text is bounded and rebuilds ide
 superseded and retracted memories is withheld from everyone but the producer and administrators (GET, list,
 lineage, MCP), and a database derived by the previous derivation version is re-derived at start; `test_api.py`
 reproduces the withheld view over HTTP and MCP and checks the MCP tool descriptions and the sentences of this
-page.
+page. `tests/mycelic/test_integrity.py`: the canonical forms and digests against fixed vectors, a digest on every
+row that a rebuild reproduces, SQL edits of content, lineage, key id and origin detected, signing-key rotation
+(previous keys, events in flight, a dropped key), the backfill's bound and alarm, and no digest in any API, MCP,
+event or `/metrics` output; `test_jetstream.py` replays a stream signed before a rotation on the real broker, and
+`test_aggregation_invariants.py` checks every row's digest after randomized sequences.
 
 ## 7. Limitations (read these)
 
@@ -115,11 +151,15 @@ page.
    can inject events that become organizational memory. Signing plus registry validation makes it
    detectable and hard, not impossible. Keep the broker unreachable from agents. Rotating the NATS
    credentials is safe (give the broker and the service the new pair and restart both).
-   `MYCELIC_EVENT_SIGNING_KEY` is different: it is backup-critical state, like the database. The consumer
-   verifies with a single key, so after the key is changed every older event in the stream fails
-   verification on a rebuild and is terminated, and a database rebuilt from the stream then loses
-   everything from before the change, agent registrations included (old agent keys then get 401). Do
-   not change it on a deployment you may need to rebuild until key rotation with a keyring is supported.
+   `MYCELIC_EVENT_SIGNING_KEY` is different: it is backup-critical state, like the database, because it signs
+   every event and every memory digest. Rotate it only through `MYCELIC_EVENT_SIGNING_KEYS_PREVIOUS`
+   (DEPLOYMENT.md §4, "Rotating the signing key"): the new key signs from then on, and the old one, listed as
+   previous, keeps verifying the events and the digests it signed. Keep a previous key for as long as the stream
+   holds events it signed (for the default unbounded stream, forever) and as long as the rows it signed should
+   verify. Dropping it makes those rows read `unknown_key` (never verified), and a database rebuilt from the
+   stream then rejects every event it signed and loses the state they carried, agent registrations included (old
+   agent keys then get 401). At each start the service records the id of its current key in the database and
+   logs a warning naming every recorded one that is no longer configured.
 2. **Agent keys are long-lived static bearer secrets** with no expiry and no scoping by IP or time.
    Leaked key ⇒ the attacker writes as that agent until you rotate or revoke it, and whatever it wrote
    keeps feeding team and higher conclusions until retracted (`POST /memory/{id}/retract` re-derives).
