@@ -51,9 +51,9 @@ customer; they never talk to the broker.
 |---|---|
 | `mycelic/hierarchy.py` | Layers `agent → team → department → subsidiary → region → enterprise`; unit paths; ancestor/subtree relations |
 | `mycelic/config.py` | `MYCELIC_*` environment variables, validated at start (secrets never in source; placeholder values refused) |
-| `mycelic/store.py` | SQLite schema (version 2, additive migrations) and transactions (`BEGIN IMMEDIATE`, one writer, `synchronous=FULL`) |
+| `mycelic/store.py` | SQLite schema (version 3; forward-only migrations in one transaction, including label normalisation of stored observations and rules) and transactions (`BEGIN IMMEDIATE`, one writer, `synchronous=FULL`) |
 | `mycelic/transport.py` | `JetStreamTransport` (nats-py) and `InProcessTransport` (unit tests) |
-| `mycelic/aggregation.py` | Topic consolidation and slot-composition rules; deterministic derived ids; supersession |
+| `mycelic/aggregation.py` | Topic consolidation and slot-composition rules: read-only planners (`plan_consolidation`, `plan_rule`) over pure builders (`build_consolidation`, `build_conclusion`: no store, no clock); deterministic derived ids; supersession |
 | `mycelic/lineage.py` | Lineage graph reconstruction with per-principal redaction |
 | `mycelic/retrieval.py` | BM25 (positive IDF) over visible memories, layer boost |
 | `mycelic/auth.py` | API keys, principals, the visibility rule, token-bucket rate limiter |
@@ -78,7 +78,8 @@ service   txn: INSERT memory(layer=agent, scope=agent path) + INSERT event(memor
 publisher pending events → js.publish("mycelic.<org>.memory-observed", wire, Nats-Msg-Id=event_id, Mycelic-Signature)
 consumer  fetch(1) → verify signature → apply(event):
             txn: record event; producer must be a registered agent for that scope;
-                 insert memory if absent; run aggregation:
+                 insert memory if absent; run aggregation over the rules and the agent registry
+                 as the log has applied them (applied_rules, agents.log_status):
                    topic consolidation for every ancestor unit of the memory's scope
                    slot-composition rules whose slots the memory fills
                  derived memories + lineage edges + memory.derived events (pending)
@@ -98,11 +99,11 @@ use the real broker.
 | Subject | Kind | Produced by | Applied as |
 |---|---|---|---|
 | `mycelic.<org>.memory-observed` | `memory.observed` | `POST /memory`, `POST /events` (embedded memory), MCP `mycelic_remember` | insert memory if absent, aggregate |
-| `mycelic.<org>.memory-derived` | `memory.derived` | the consumer, for every derived memory | insert if absent (normally a no-op: it was written when derived) |
+| `mycelic.<org>.memory-derived` | `memory.derived` | the consumer, for every derived memory | informational: `duplicate` if this node derived it, else ignored and counted (`mycelic_events_ignored_total{reason="derived_not_reproduced"}`), never inserted |
 | `mycelic.<org>.memory-retracted` | `memory.retracted` | `POST /memory/{id}/retract` | retract, retire dependents, re-derive |
 | `mycelic.<org>.agent-event` | `agent.event` | `POST /events` | recorded (evidence) |
-| `mycelic.<org>.agent-registered` / `agent-revoked` / `agent-key-rotated` | admin operations | `/admin/agents` | upsert the registry (key **hashes**, never keys) |
-| `mycelic.<org>.rule-upserted` / `rule-deleted` | admin operations | `/admin/rules` | upsert rules |
+| `mycelic.<org>.agent-registered` / `agent-revoked` / `agent-key-rotated` | admin operations | `/admin/agents` | upsert the registry (key **hashes**, never keys); `agents.log_status` records the registry as applied, which is what aggregation counts (the API writes `status` at once, for authentication and the admin views) |
+| `mycelic.<org>.rule-upserted` / `rule-deleted` | admin operations | `/admin/rules` | update `applied_rules`, which aggregation evaluates; the admin table `rules` is written by the API at once, and by an event only when the event came from the stream alone and no newer local change of that rule is still unapplied |
 
 Stream `MYCELIC`: file storage, `retention=limits`, `discard=new`, no age/size/count limit by default
 (a bounded stream is logged as an error at connect), duplicate window 2 h, one replica. Consumer
@@ -134,6 +135,32 @@ then `term`.
   a withdrawal for lost support, or a supersession that leaves a dependent behind, dependents are retired and
   re-evaluated on the remaining evidence (`Aggregator.reevaluate`). Verified by `tests/mycelic/test_strategic.py` and
   `demo/mycelic_strategic_demo.py` (run under pytest by `tests/mycelic/test_strategic_demo_process.py`).
+* **Label normalisation.** Topics, slots and entities are stored and compared in one spelling: NFKC, case-folded,
+  NFKC again, whitespace runs collapsed to one space and trimmed (`models.canonical_label`; a label that is only
+  whitespace is no label). `SD-9`, ` sd-9 ` and the full-width `ＳＤ－９` are one entity; Cyrillic is lower-cased and
+  CJK is kept as it is, never stripped. A slot must still match `[A-Za-z0-9_.:-]{1,100}` after normalisation, and
+  lengths are checked on the normalised form. The same rule applies at every entry point (`POST /memory`,
+  `POST /events`, MCP, `/query` filters), to a rule's slots, topic prefix, emitted slot and topic, `min_units`
+  slots (two that become one keep the larger count) and `{slot:...}` placeholders, and to `memory.observed`
+  payloads at apply (so an older log replays into the same state). Verified by `tests/mycelic/test_labels.py`.
+* **Log-applied rules and agents.** Aggregation reads `applied_rules` and the registry as of the event being
+  applied (`agents.log_status`), never what the API has already written but the consumer has not applied, so a
+  live node behind its log and a rebuild of that log derive the same history
+  (`test_rules_and_registry_are_read_in_log_order_and_rebuild_identically`).
+* **Candidates.** Each consolidation and rule reads the newest `max_candidates` (5,000) matching memories in apply
+  order (`memories.apply_seq`, which numbers rows in the order the consumer applied them on every node); a child
+  unit with its own consolidation contributes only that, so its notes are not read. A full candidate set means
+  older evidence was left out: `mycelic_aggregation_truncated_total{what="candidates"}` counts it and a warning
+  is logged once per unit and key (`test_candidate_cap_does_not_freeze_team_or_upper_layers`).
+* **`*` conclusions.** A rule evaluated without an entity concludes only when evidence that names no entity is
+  among the selected memories; such a `rule:*` conclusion is re-evaluated when entity-specific evidence arrives
+  (`test_wildcard_conclusion_is_refreshed_by_entity_evidence`).
+* **Cascades.** Retiring dependents walks active memories only (nearest first, in id order, at most 100,000);
+  a cut walk and a cascade cut at depth 8 are logged as errors and counted
+  (`mycelic_aggregation_truncated_total{what="dependents"|"cascade"}`). A derived id already taken by an unrelated
+  row, or an earlier version that comes back with different text, is reported
+  (`mycelic_aggregation_inconsistency_total{kind}`, audit `aggregation.inconsistency` with text hashes) instead of
+  failing the event.
 * **Determinism.** A derived memory's id is `sha256(operator, unit, key, sorted parent ids)`. Recomputing
   the parent set from currently active evidence either leaves the active memory as is, supersedes it with
   a new version (old one readable as `previous_versions`), reactivates an earlier version whose exact
@@ -180,7 +207,10 @@ entity are withheld, the unit (team) path, layer, timestamps and confidence rema
 `GET /metrics` (Prometheus): `mycelic_memories_ingested_total`, `mycelic_events_received_total`,
 `mycelic_events_published_total{kind}`, `mycelic_events_applied_total{kind,result}`,
 `mycelic_events_failed_total{stage}`, `mycelic_replay_events_total`, `mycelic_recovery_total{kind}`,
-`mycelic_memories_derived_total{layer,operator}`, `mycelic_retrieval_latency_seconds`,
+`mycelic_memories_derived_total{layer,operator}`, `mycelic_events_ignored_total{reason}` (`derived_not_reproduced`,
+`retraction_target`, `unknown_kind`), `mycelic_aggregation_inconsistency_total{kind}` (`id_collision`,
+`reactivation_mismatch`), `mycelic_aggregation_truncated_total{what}` (`candidates`, `dependents`, `cascade`),
+`mycelic_retrieval_latency_seconds`,
 `mycelic_aggregation_latency_seconds`, `mycelic_lineage_latency_seconds`,
 `mycelic_lineage_reconstruction_total{result}`, `mycelic_http_requests_total{route,status}`,
 `mycelic_auth_failures_total{reason}`, `mycelic_active_agents`, `mycelic_registered_agents`,

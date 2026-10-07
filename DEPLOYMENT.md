@@ -195,6 +195,20 @@ required slot is covered inside its target unit:
 | `corroborate` | every memory filling a required slot becomes evidence (lineage and support include all of them); confidence per slot is the noisy-OR over the units filling it |
 | `kind`, `org_id`, `enabled`, `metadata` | memory kind of the conclusion; restrict to one organization; switch off; free-form |
 
+Labels are normalised wherever they enter: topics, slots and entities of notes and query filters, and a rule's
+`required_slots`, `emits_slot`, `topic_prefix`, `emits_topic`, `min_units` slots and the `{slot:<name>}`
+placeholders of its `conclusion` (NFKC, case-folded, whitespace collapsed; `SD-9`, ` sd-9 ` and `Sd-9` are one
+entity, `{slot:Transport_Disruption}` is `{slot:transport_disruption}`). Slots must still match
+`[A-Za-z0-9_.:-]{1,100}` afterwards, so `Transport Disruption` is refused with a 400. `GET /admin/rules` returns
+the stored, normalised form. A rule with neither `emits_topic` nor `topic_prefix` gives its conclusions the
+normalised `rule_id` as topic.
+
+An upsert or delete shows in `GET /admin/rules` at once, but aggregation uses it only when the consumer applies its
+event, in log order with the notes around it: a note applied before the rule's event is not evaluated against the
+rule (re-evaluation on rule changes is not automatic yet). The same holds for agents: a unit's registered children,
+which decide whether it promotes a single child's consolidation, are counted from the registrations and revocations
+the consumer has applied.
+
 Rules compose and cascade: a conclusion is offered to the rules and consolidations above it as soon as it
 is derived, a rule never feeds on its own conclusions (directly or through other rules; a rule set that would
 form a cycle is refused at `POST /admin/rules` and in the rules file), and finer-grained evidence wins over a
@@ -258,6 +272,13 @@ before restoring an older database.
 **Upgrades.** Build the new image, `docker compose -f deploy/mycelic/docker-compose.yml up -d --build`. The schema version is stored in the
 database; a newer schema than the code refuses to start. Replays are idempotent across versions as long as
 the aggregation rules are unchanged; changing rules changes future derivations only.
+
+Upgrading to schema 3 (this release) is one-way: the first start migrates the database in one transaction
+(normalised labels on stored notes and rules, applied-rule and registry state, apply order), and older code cannot
+open it afterwards, so **back up the database first** (see Backups). Consolidations and conclusions derived before
+the upgrade keep the label spellings they were built under and stay as they are until they are re-aggregated; the
+migration records that need as `reaggregate_pending` in the `meta` table. A rebuild from an older stream applies
+its notes in normalised form and ignores the old derived events (one `event.ignored` audit row with their count).
 
 **Retention.** The stream is intentionally unbounded: bounding it (`NATS_MAX_AGE_SECONDS`,
 `NATS_MAX_BYTES`) makes a rebuild partial and is logged as an error at connect. Size the `nats-data`

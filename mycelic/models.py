@@ -6,6 +6,8 @@ comparison orders them, the same convention ``NeuralGraph.chat_memory.models`` u
 from __future__ import annotations
 
 import hashlib
+import re
+import unicodedata
 import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
@@ -23,6 +25,8 @@ EVENT_STATUS = ("pending", "published", "applied", "failed")
 AGENT_STATUS = ("active", "revoked")
 DEFAULT_AGENT_SCOPES = ("memory:read", "memory:write", "events:write", "lineage:read")
 ALL_SCOPES = DEFAULT_AGENT_SCOPES + ("admin",)
+#: a ``{slot:<name>}`` placeholder in a rule's conclusion template (the slot-name charset of the API)
+SLOT_PLACEHOLDER_RE = re.compile(r"\{slot:([A-Za-z0-9_.:-]{1,100})\}")
 
 
 def utcnow() -> datetime:
@@ -60,6 +64,62 @@ def derived_memory_id(*, operator: str, scope: str, key: str, parent_ids: list[s
 
 def content_hash(*parts: str) -> str:
     return hashlib.sha256("\x1f".join(parts).encode("utf-8")).hexdigest()[:32]
+
+
+def canonical_label(s: str | None) -> str | None:
+    """The one spelling of a topic, slot or entity: NFKC, case-folded, NFKC again, whitespace runs collapsed to one
+    space and trimmed.  None for None and for a label that is only whitespace.
+
+    ``'SD-9'``, ``' sd-9 '`` and the full-width ``'ＳＤ－９'`` are the same label; scripts without case (CJK) are
+    unchanged and others are lower-cased, never stripped.  Folding can leave text that is not NFKC (U+01F0 folds
+    to ``j`` + U+030C, which NFKC composes back), hence the second pass; the result is a fixed point:
+    ``canonical_label(canonical_label(x)) == canonical_label(x)``.
+    """
+    if s is None:
+        return None
+    if not isinstance(s, str):
+        raise TypeError(f"a label must be a string, not {type(s).__name__}")
+    return " ".join(unicodedata.normalize("NFKC", unicodedata.normalize("NFKC", s).casefold()).split()) or None
+
+
+def _is_count(v: Any) -> bool:
+    return isinstance(v, int) and not isinstance(v, bool)
+
+
+def _max_per_layer(a: Any, b: Any) -> Any:
+    """Merge two ``{layer: n}`` maps whose slots became one label: the larger count per layer.  A malformed side is
+    kept as it is, for the validator to refuse."""
+    if not (isinstance(a, dict) and isinstance(b, dict)):
+        return b if isinstance(a, dict) else a
+    out = dict(a)
+    for layer, n in b.items():
+        m = out.get(layer, n)
+        out[layer] = max(m, n) if _is_count(m) and _is_count(n) else (n if _is_count(m) else m)
+    return out
+
+
+def canonical_rule_body(body: dict[str, Any]) -> dict[str, Any]:
+    """A shallow copy of a rule body whose labels are canonical (see :func:`canonical_label`): the required slots
+    (de-duplicated, in order), ``emits_slot``, ``topic_prefix``, ``emits_topic``, the slots of ``min_units`` (two
+    that become one keep the larger count per layer) and the ``{slot:...}`` placeholders of ``conclusion``.  Values
+    of the wrong type are left as they are for the validator to refuse."""
+    out = dict(body)
+    slots = out.get("required_slots")
+    if isinstance(slots, list) and all(isinstance(x, str) for x in slots):
+        out["required_slots"] = list(dict.fromkeys(canonical_label(x) for x in slots))
+    for key in ("emits_slot", "topic_prefix", "emits_topic"):
+        if isinstance(out.get(key), str):
+            out[key] = canonical_label(out[key])
+    units = out.get("min_units")
+    if isinstance(units, dict) and all(isinstance(k, str) for k in units):
+        merged: dict[Any, Any] = {}
+        for slot, per in units.items():
+            key = canonical_label(slot)
+            merged[key] = _max_per_layer(merged[key], per) if key in merged else per
+        out["min_units"] = merged
+    if isinstance(out.get("conclusion"), str):
+        out["conclusion"] = SLOT_PLACEHOLDER_RE.sub(lambda m: "{slot:%s}" % canonical_label(m.group(1)), out["conclusion"])
+    return out
 
 
 @dataclass
@@ -177,6 +237,10 @@ class Rule:
     emits_topic: str | None = None  # the topic the conclusion carries (default: topic_prefix or rule_id)
     min_units: dict[str, dict[str, int]] = field(default_factory=dict)          # slot -> layer -> distinct units
     corroborate: bool = False       # every memory filling a required slot is evidence, not just the strongest
+
+    def conclusion_topic(self) -> str | None:
+        """The topic a conclusion carries: ``emits_topic``, else ``topic_prefix``, else the rule id as a label."""
+        return self.emits_topic or self.topic_prefix or canonical_label(self.rule_id)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

@@ -38,8 +38,8 @@ from .hierarchy import AgentPath, HierarchyError, LAYERS, layer_index, split_pat
 from .lineage import LineageNotFound, reconstruct
 from .metrics import Metrics
 from .models import (
-    ALL_SCOPES, DEFAULT_AGENT_SCOPES, MEMORY_KINDS, OPERATORS, VISIBILITY, Agent, EventRecord, LineageEdge, Memory, Rule,
-    content_hash, new_id, now_iso, parse_iso,
+    ALL_SCOPES, DEFAULT_AGENT_SCOPES, MEMORY_KINDS, OPERATORS, VISIBILITY, Agent, EventRecord, Memory, Rule,
+    canonical_label, canonical_rule_body, content_hash, new_id, now_iso, parse_iso,
 )
 from .retrieval import Retriever
 from .store import MycelicStore, Tx, acquire_db_lock, release_db_lock
@@ -55,6 +55,8 @@ RESERVED_METADATA_KEYS = frozenset({"agg_key", "promoted_from", "version_of", "c
                                     "roots", "evidence", "corroborated_units", "rule_chain", "fragility_scored_candidates"})
 _SLOT_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,100}$")
 _ID_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,200}$")
+#: meta key counting the derived events a replay ignored (summarised in one audit row when the replay completes)
+_REPLAY_IGNORED = "replay_ignored_derived"
 
 
 class ValidationError(ValueError):
@@ -85,6 +87,17 @@ def _s(body: dict[str, Any], key: str, *, required: bool = False, max_len: int =
     if pattern and v and not pattern.match(v):
         raise ValidationError(f"'{key}' contains characters outside {pattern.pattern}")
     return v or None
+
+
+def _label(body: dict[str, Any], key: str, *, max_len: int, pattern: re.Pattern | None = None) -> str | None:
+    """A topic, slot or entity in its canonical spelling (``models.canonical_label``); length and charset are
+    checked on the canonical form, which is what is stored and compared."""
+    v = canonical_label(_s(body, key, max_len=max_len))
+    if v is not None and len(v) > max_len:
+        raise ValidationError(f"'{key}' is longer than {max_len} characters")
+    if pattern and v and not pattern.match(v):
+        raise ValidationError(f"'{key}' contains characters outside {pattern.pattern}")
+    return v
 
 
 def _f(body: dict[str, Any], key: str, default: float) -> float:
@@ -138,7 +151,7 @@ class MycelicService:
                 raise
         self.store = store
         self.transport = transport or build_transport(settings, on_state_change=self._transport_state)
-        self.aggregator = Aggregator(self.store, min_support=settings.min_support)
+        self.aggregator = Aggregator(self.store, min_support=settings.min_support, on_event=self._aggregation_event)
         self.retriever = Retriever(self.store)
         self.auth = Authenticator(self.store, admin_token=settings.admin_token)
         self.limiter = RateLimiter(rps=settings.rate_limit_rps, burst=settings.rate_limit_burst)
@@ -221,6 +234,12 @@ class MycelicService:
         finally:
             await self.store.close()
 
+    def _aggregation_event(self, name: str, labels: dict[str, str]) -> None:
+        if name == "inconsistency":
+            self.metrics.aggregation_inconsistency.labels(labels["kind"]).inc()
+        elif name == "truncated":
+            self.metrics.aggregation_truncated.labels(labels["what"]).inc()
+
     def _transport_state(self, connected: bool) -> None:
         self.metrics.transport_connected.set(1 if connected else 0)
         if connected:
@@ -243,8 +262,16 @@ class MycelicService:
         async with self.store.transaction() as tx:
             if target is None:
                 tx.delete_meta("replay_target_seq")
+                self._summarise_replay_in_tx(tx)
             else:
                 tx.set_meta("replay_target_seq", str(target))
+
+    def _summarise_replay_in_tx(self, tx: Tx) -> None:
+        """One audit row for the derived events a replay ignored, instead of one per event."""
+        count = self.store.get_meta(_REPLAY_IGNORED)
+        if count is not None:
+            tx.audit("mycelic", "event.ignored", None, {"reason": "derived_not_reproduced", "count": int(count), "replay": True})
+            tx.delete_meta(_REPLAY_IGNORED)
 
     async def _recover_if_needed(self) -> None:
         """Bring a database that is out of step with the stream back in sync.
@@ -277,6 +304,7 @@ class MycelicService:
             async with self.store.transaction() as tx:
                 tx.set_meta("last_applied_seq", "0")
                 tx.delete_meta("replay_target_seq")
+                self._summarise_replay_in_tx(tx)
                 tx.audit("mycelic", "recovery.stream_behind_database", None, {"stream_last_seq": last_seq, "applied": applied})
             self._replay_target = None
             return
@@ -474,6 +502,7 @@ class MycelicService:
         tx.set_meta("last_applied_seq", str(seq))
         if self._replay_target is not None and seq >= self._replay_target:
             tx.delete_meta("replay_target_seq")
+            self._summarise_replay_in_tx(tx)
 
     def _note_progress(self, seq: int | None) -> None:
         if self._replay_target is None:
@@ -581,8 +610,8 @@ class MycelicService:
         memory_id = f"mem_{content_hash(principal.id, idem)[:22]}" if idem else new_id("mem")
         return Memory(
             memory_id=memory_id, org_id=principal.org_id or "", layer="agent", scope=principal.path or "",
-            text=text or "", topic=_s(body, "topic", max_len=200), slot=_s(body, "slot", max_len=100, pattern=_SLOT_RE),
-            entity=_s(body, "entity", max_len=200), kind=kind, confidence=_f(body, "confidence", 0.8), support=1,
+            text=text or "", topic=_label(body, "topic", max_len=200), slot=_label(body, "slot", max_len=100, pattern=_SLOT_RE),
+            entity=_label(body, "entity", max_len=200), kind=kind, confidence=_f(body, "confidence", 0.8), support=1,
             independent_teams=1, producer_id=principal.id, operator="agent_observation", rule_id=None, event_id=None,
             visibility=visibility, status="active", created_at=observed_at, applied_at=None, source_event_ids=srcs,
             local_ref=_s(body, "local_ref", max_len=200), metadata=meta,
@@ -695,9 +724,12 @@ class MycelicService:
         """Apply one event from the log. Idempotent: an already-applied event id is a no-op ('duplicate')."""
         event_id = event["event_id"]
         kind = event.get("kind")
-        payload = event.get("payload") or {}
+        payload = event.get("payload")
+        if not isinstance(payload, dict):
+            payload = {}
         org_id = event.get("org_id") or payload.get("org_id") or ""
         now = now_iso()
+        ignored: str | None = None              # the reason an event had no effect (mycelic_events_ignored_total)
         async with self.store.transaction() as tx:
             status = tx.event_status(event_id)
             if status == "applied":
@@ -733,21 +765,19 @@ class MycelicService:
                 if m.status == "active":
                     derivations = self.aggregator.derive_for(tx, m)
             elif kind == "memory.derived":
-                m = self._memory_from_payload(payload)
-                m.applied_at = m.applied_at or now
-                if tx.insert_memory(m):
-                    edges = [LineageEdge(child_id=m.memory_id, parent_id=p["parent_id"], contributed_by=p["contributed_by"],
-                                         parent_layer=p["parent_layer"], created_at=p.get("created_at") or now)
-                             for p in payload.get("parents", []) if isinstance(p, dict) and p.get("parent_id")]
-                    tx.add_lineage_edges(edges)
-                    old = payload.get("supersedes")
-                    if isinstance(old, str):
-                        prev = self.store.get_memory(old)
-                        if prev is not None and prev.status == "active":
-                            tx.set_memory_status(old, "superseded", superseded_by=m.memory_id, reason="coalition changed")
-                    self.metrics.derived.labels(m.layer, m.operator).inc()
-                else:
+                # Informational.  A derived memory exists only because this node derived it from applied evidence
+                # (a replay re-derives it when it applies that evidence), so nothing on the stream can plant a
+                # conclusion, a lineage edge or a supersession: the payload is never inserted.
+                mid = payload.get("memory_id")
+                if isinstance(mid, str) and self.store.get_memory(mid) is not None:
                     result = "duplicate"
+                else:
+                    result, ignored = "ignored", "derived_not_reproduced"
+                    if self._replay_target is None:
+                        tx.audit("mycelic", "event.ignored", event_id, {"reason": ignored, "org_id": org_id,
+                                                                       "memory_id": mid if isinstance(mid, str) else None})
+                    else:                       # a rebuild over an older log can ignore thousands: one summary row
+                        tx.set_meta(_REPLAY_IGNORED, str(int(self.store.get_meta(_REPLAY_IGNORED) or 0) + 1))
             elif kind == "memory.retracted":
                 mid = payload.get("memory_id")
                 m = self.store.get_memory(mid) if isinstance(mid, str) else None
@@ -759,26 +789,37 @@ class MycelicService:
                     derivations += self.aggregator.reevaluate(tx, retired)
                 else:
                     # derived memories are a function of their evidence: they can only go away with it
-                    tx.audit("mycelic", "event.ignored", event_id, {"reason": "retraction target is not an active raw observation"})
-                    result = "ignored"
+                    tx.audit("mycelic", "event.ignored", event_id, {"reason": "retraction target is not an active raw observation",
+                                                                   "org_id": org_id})
+                    result, ignored = "ignored", "retraction_target"
             elif kind == "agent.event":
                 pass
             elif kind == "agent.registered":
                 agent = self._agent_from_payload(payload)
                 if self.store.get_agent(agent.agent_id) is None:
                     tx.insert_agent(agent, str(payload.get("key_hash") or ""))
-                else:
+                # aggregation counts a unit's children from the registry as applied (``log_status``), never from
+                # what the API has already written, so a live node and a rebuild count the same children
+                if not tx.set_agent_log_status(agent.agent_id, "active"):
                     result = "duplicate"
             elif kind == "agent.revoked":
                 tx.set_agent_status(str(payload.get("agent_id")), "revoked")
+                tx.set_agent_log_status(str(payload.get("agent_id")), "revoked")
             elif kind == "agent.key_rotated":
                 tx.rotate_agent_key(str(payload.get("agent_id")), str(payload.get("key_hash") or ""), str(payload.get("key_prefix") or ""))
             elif kind == "rule.upserted":
-                tx.upsert_rule(self._rule_from_body(payload))
+                # aggregation evaluates the rules as applied, in log order (``applied_rules``)
+                rule = self._rule_from_body(payload)
+                tx.upsert_applied_rule(rule, self.store.max_apply_seq())
+                if self._writes_admin_table(tx, status, event_id, rule.rule_id):
+                    tx.upsert_rule(rule)
             elif kind == "rule.deleted":
-                tx.delete_rule(str(payload.get("rule_id")))
+                rule_id = str(payload.get("rule_id"))
+                tx.delete_applied_rule(rule_id)
+                if self._writes_admin_table(tx, status, event_id, rule_id):
+                    tx.delete_rule(rule_id)
             else:
-                result = "ignored"
+                result, ignored = "ignored", "unknown_kind"
             for d in derivations:
                 dev = EventRecord(event_id=f"evt_d{content_hash(d.memory.memory_id)[:22]}", kind="memory.derived",
                                   org_id=d.memory.org_id, agent_id=None, subject=subject_for(d.memory.org_id, "memory.derived"),
@@ -795,9 +836,18 @@ class MycelicService:
                 self.metrics.derived.labels(d.memory.layer, d.memory.operator).inc()
             tx.mark_applied(event_id, seq, now)
             self._progress_in_tx(tx, seq)
+        if ignored:
+            self.metrics.events_ignored.labels(ignored).inc()
         if derivations:
             self._outbox_wake.set()
         return result
+
+    @staticmethod
+    def _writes_admin_table(tx: Tx, status: str | None, event_id: str, rule_id: str) -> bool:
+        """``rules`` holds what the admin API or the rules file wrote on this node, so a rule event writes it only when
+        the event came from the stream alone (rebuild, another writer) and no newer local change of the same rule
+        is still on its way through the log: a replayed old version never overwrites a newer one."""
+        return status is None and not tx.has_unapplied_rule_event(rule_id, other_than=event_id)
 
     @staticmethod
     def _agent_from_payload(p: dict[str, Any]) -> Agent:
@@ -823,9 +873,15 @@ class MycelicService:
         if p["layer"] not in LAYERS:
             raise ValidationError("memory payload has an unknown layer")
         split_path(p["scope"])
+        for k in ("topic", "slot", "entity"):
+            if p.get(k) is not None and not isinstance(p[k], str):
+                raise ValidationError(f"memory payload has a non-string '{k}'")
+        # the log is authoritative, so no charset check: an event written before labels were normalised is
+        # applied in today's spelling, exactly as the migration rewrote the rows it produced
         return Memory(
             memory_id=p["memory_id"], org_id=p["org_id"], layer=p["layer"], scope=p["scope"], text=p["text"],
-            topic=p.get("topic"), slot=p.get("slot"), entity=p.get("entity"), kind=p.get("kind") or "observation",
+            topic=canonical_label(p.get("topic")), slot=canonical_label(p.get("slot")), entity=canonical_label(p.get("entity")),
+            kind=p.get("kind") or "observation",
             confidence=float(p.get("confidence", 0.5)), support=int(p.get("support", 1)),
             independent_teams=int(p.get("independent_teams", 1)), producer_id=p.get("producer_id") or "unknown",
             operator=p.get("operator") or "agent_observation", rule_id=p.get("rule_id"), event_id=p.get("event_id"),
@@ -876,7 +932,7 @@ class MycelicService:
             raise ValidationError("'k' must be an integer between 1 and 100")
         include_lineage = bool(body.get("include_lineage", True)) and principal.has("lineage:read")
         hits = self.retriever.search(org_id or "", text, visible=principal.can_read, scope=scope, min_layer=min_layer, k=k,
-                                     topic=_s(body, "topic", max_len=200), entity=_s(body, "entity", max_len=200))
+                                     topic=_label(body, "topic", max_len=200), entity=_label(body, "entity", max_len=200))
         answer = None
         lineage = None
         if hits:
@@ -1006,6 +1062,7 @@ class MycelicService:
     def _rule_from_body(self, body: dict[str, Any]) -> Rule:
         if not isinstance(body, dict):
             raise ValidationError("rule must be an object")
+        body = canonical_rule_body(body)          # validated (and stored) in the spelling memories are compared in
         rule_id = _s(body, "rule_id", required=True, max_len=100, pattern=_ID_RE) or ""
         target = _s(body, "target_layer", required=True, max_len=20) or ""
         if target not in LAYERS[1:]:
@@ -1056,8 +1113,7 @@ class MycelicService:
             return False
         if p.org_id and c.org_id and p.org_id != c.org_id:
             return False
-        topic = p.emits_topic or p.topic_prefix or p.rule_id
-        return not c.topic_prefix or topic.startswith(c.topic_prefix)
+        return not c.topic_prefix or (p.conclusion_topic() or "").startswith(c.topic_prefix)
 
     def _check_rule_cycles(self, new: Rule) -> None:
         """Refuse a rule that would (transitively) feed on its own conclusions; the aggregator also guards at apply time."""

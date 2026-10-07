@@ -58,6 +58,9 @@ the caller's view only, so memories outside it influence neither the results nor
   apply time: an event the agent published before revocation is still applied, and its memories stay active
   until retracted (see §7, item 2). Inside the broker boundary an injected event may name any registered
   agent id, including a revoked one.
+* The consumer never inserts a derived memory from the stream: a `memory.derived` event is informational (a
+  duplicate when this node derived the same memory, otherwise ignored, audited and counted in
+  `mycelic_events_ignored_total`), so an injected event cannot plant a conclusion, a lineage edge or a supersession.
 * Duplicate deliveries are harmless: `event_id` is the JetStream `Nats-Msg-Id` and the apply step is
   idempotent by event id and memory id.
 * TLS: `MYCELIC_TLS_CERT_FILE/KEY_FILE` (direct) or a TLS-terminating proxy with `MYCELIC_ALLOWED_HOSTS`;

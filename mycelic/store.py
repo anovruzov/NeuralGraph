@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Any, AsyncIterator, Iterable
 
 from .hierarchy import LAYERS
-from .models import Agent, EventRecord, LineageEdge, Memory, Rule, now_iso, utcnow
+from .models import Agent, EventRecord, LineageEdge, Memory, Rule, canonical_label, canonical_rule_body, now_iso, utcnow
 
 try:
     import fcntl
@@ -36,7 +36,7 @@ except ImportError:  # pragma: no cover
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 _DDL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -61,7 +61,8 @@ CREATE TABLE IF NOT EXISTS agents (
     status       TEXT NOT NULL DEFAULT 'active',
     created_at   TEXT NOT NULL,
     last_seen_at TEXT,
-    metadata     TEXT NOT NULL DEFAULT '{}'
+    metadata     TEXT NOT NULL DEFAULT '{}',
+    log_status   TEXT              -- status as of the last applied registry event (NULL: registration not applied yet)
 );
 CREATE INDEX IF NOT EXISTS idx_agents_org ON agents(org_id, status);
 
@@ -91,9 +92,11 @@ CREATE TABLE IF NOT EXISTS memories (
     applied_at        TEXT,
     source_event_ids  TEXT NOT NULL DEFAULT '[]',
     local_ref         TEXT,
-    metadata          TEXT NOT NULL DEFAULT '{}'
+    metadata          TEXT NOT NULL DEFAULT '{}',
+    apply_seq         INTEGER          -- position in apply order (NULL until the consumer applies the memory)
 );
 CREATE INDEX IF NOT EXISTS idx_memories_org_status ON memories(org_id, status);
+CREATE INDEX IF NOT EXISTS idx_memories_org_op_status ON memories(org_id, operator, status);
 CREATE INDEX IF NOT EXISTS idx_memories_scope ON memories(org_id, scope);
 CREATE INDEX IF NOT EXISTS idx_memories_topic ON memories(org_id, topic, status);
 CREATE INDEX IF NOT EXISTS idx_memories_entity ON memories(org_id, entity, status);
@@ -151,6 +154,14 @@ CREATE TABLE IF NOT EXISTS rules (
     corroborate    INTEGER NOT NULL DEFAULT 0
 );
 
+-- the rules as of the last applied rule event: what aggregation evaluates (``rules`` is what the admin API wrote)
+CREATE TABLE IF NOT EXISTS applied_rules (
+    rule_id     TEXT PRIMARY KEY,
+    org_id      TEXT,
+    snapshot    TEXT NOT NULL,
+    applied_seq INTEGER NOT NULL DEFAULT 0
+);
+
 CREATE TABLE IF NOT EXISTS audit_log (
     id        INTEGER PRIMARY KEY AUTOINCREMENT,
     at        TEXT NOT NULL,
@@ -162,6 +173,14 @@ CREATE TABLE IF NOT EXISTS audit_log (
 );
 CREATE INDEX IF NOT EXISTS idx_audit_at ON audit_log(at);
 """
+
+# indexes on columns that a migration adds: created only after ``_migrate`` (``_DDL`` runs on the old schema first)
+_POST_MIGRATION_DDL = """
+CREATE INDEX IF NOT EXISTS idx_memories_apply_seq ON memories(apply_seq);
+"""
+
+_RULE_FIELDS = frozenset(Rule.__dataclass_fields__)
+_NEXT_APPLY_SEQ = "(SELECT COALESCE(MAX(apply_seq), 0) + 1 FROM memories)"
 
 
 def _j(v: Any) -> str:
@@ -217,6 +236,10 @@ def row_rule(r: sqlite3.Row) -> Rule:
     )
 
 
+def snapshot_rule(snapshot: str) -> Rule:
+    return Rule(**{k: v for k, v in _jl(snapshot, {}).items() if k in _RULE_FIELDS})
+
+
 def row_edge(r: sqlite3.Row) -> LineageEdge:
     return LineageEdge(child_id=r["child_id"], parent_id=r["parent_id"], contributed_by=r["contributed_by"],
                        parent_layer=r["parent_layer"], created_at=r["created_at"])
@@ -248,6 +271,11 @@ class Tx:
         cur = self.c.execute("UPDATE agents SET status=? WHERE agent_id=?", (status, agent_id))
         return cur.rowcount > 0
 
+    def set_agent_log_status(self, agent_id: str, status: str) -> bool:
+        """Record the registry as the log has it (apply side). Returns False when nothing changed."""
+        cur = self.c.execute("UPDATE agents SET log_status=? WHERE agent_id=? AND log_status IS NOT ?", (status, agent_id, status))
+        return cur.rowcount > 0
+
     def rotate_agent_key(self, agent_id: str, key_hash: str, key_prefix: str) -> bool:
         cur = self.c.execute("UPDATE agents SET key_hash=?, key_prefix=? WHERE agent_id=?", (key_hash, key_prefix, agent_id))
         return cur.rowcount > 0
@@ -257,20 +285,26 @@ class Tx:
         return self.c.execute("SELECT 1 FROM memories WHERE memory_id=?", (memory_id,)).fetchone() is not None
 
     def insert_memory(self, m: Memory) -> bool:
-        """Insert if absent. Returns False when the id already exists (idempotent replay)."""
+        """Insert if absent. Returns False when the id already exists (idempotent replay).
+
+        A memory inserted as applied (``applied_at`` set: apply side) takes the next position in apply order; one
+        written by the API gets it when the consumer applies its event (:meth:`set_applied`).  Both a live node and
+        a rebuild therefore number every row in the same order, whatever the consumer lag was.
+        """
         if self.memory_exists(m.memory_id):
             return False
         self.c.execute(
-            """INSERT INTO memories(memory_id, org_id, layer, scope, text, topic, slot, entity, kind, confidence,
+            f"""INSERT INTO memories(memory_id, org_id, layer, scope, text, topic, slot, entity, kind, confidence,
                                     support, independent_teams, producer_id, operator, rule_id, agg_key, event_id,
                                     visibility, status, superseded_by, created_at, applied_at, source_event_ids,
-                                    local_ref, metadata)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                                    local_ref, metadata, apply_seq)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                       CASE WHEN ? IS NOT NULL THEN {_NEXT_APPLY_SEQ} END)""",
             (m.memory_id, m.org_id, m.layer, m.scope, m.text, m.topic, m.slot, m.entity, m.kind, m.confidence,
              m.support, m.independent_teams, m.producer_id, m.operator, m.rule_id,
              m.metadata.get("agg_key") if m.operator != "agent_observation" else None,
              m.event_id, m.visibility, m.status, m.superseded_by, m.created_at, m.applied_at,
-             _j(m.source_event_ids), m.local_ref, _j(m.metadata)),
+             _j(m.source_event_ids), m.local_ref, _j(m.metadata), m.applied_at),
         )
         self._store._bump()
         return True
@@ -295,7 +329,8 @@ class Tx:
         self._store._bump()
 
     def set_applied(self, memory_id: str, applied_at: str) -> None:
-        self.c.execute("UPDATE memories SET applied_at=COALESCE(applied_at, ?) WHERE memory_id=?", (applied_at, memory_id))
+        self.c.execute(f"UPDATE memories SET applied_at=COALESCE(applied_at, ?), apply_seq=COALESCE(apply_seq, {_NEXT_APPLY_SEQ}) "
+                       "WHERE memory_id=?", (applied_at, memory_id))
 
     def add_lineage_edges(self, edges: Iterable[LineageEdge]) -> None:
         self.c.executemany(
@@ -359,6 +394,22 @@ class Tx:
 
     def delete_rule(self, rule_id: str) -> bool:
         return self.c.execute("DELETE FROM rules WHERE rule_id=?", (rule_id,)).rowcount > 0
+
+    def upsert_applied_rule(self, rule: Rule, applied_seq: int) -> None:
+        self.c.execute("""INSERT INTO applied_rules(rule_id, org_id, snapshot, applied_seq) VALUES (?, ?, ?, ?)
+                          ON CONFLICT(rule_id) DO UPDATE SET org_id=excluded.org_id, snapshot=excluded.snapshot,
+                            applied_seq=excluded.applied_seq""",
+                       (rule.rule_id, rule.org_id, _j(rule.to_dict()), int(applied_seq)))
+
+    def delete_applied_rule(self, rule_id: str) -> bool:
+        return self.c.execute("DELETE FROM applied_rules WHERE rule_id=?", (rule_id,)).rowcount > 0
+
+    def has_unapplied_rule_event(self, rule_id: str, *, other_than: str) -> bool:
+        """Is a rule event for ``rule_id`` that this node wrote still waiting to be applied?  Then ``rules`` already
+        holds a newer version than an event replayed from the stream."""
+        rows = self.c.execute("""SELECT payload FROM events WHERE kind IN ('rule.upserted', 'rule.deleted')
+                                 AND status IN ('pending', 'published') AND event_id != ?""", (other_than,)).fetchall()
+        return any(_jl(r["payload"], {}).get("rule_id") == rule_id for r in rows)
 
     # ---- meta / audit
     def set_meta(self, key: str, value: str) -> None:
@@ -471,9 +522,17 @@ class MycelicStore:
             raise RuntimeError(f"database schema {row['value']} is newer than this code ({SCHEMA_VERSION})")
         elif int(row["value"]) < SCHEMA_VERSION:
             self._migrate(int(row["value"]))
+        c.executescript(_POST_MIGRATION_DDL)
 
     def _migrate(self, from_version: int) -> None:
-        """Forward-only, additive migrations (columns with defaults), applied in one transaction."""
+        """Forward-only migrations, applied in one transaction (any failure leaves the database as it was).
+
+        * 2: the composition columns of ``rules`` (with defaults).
+        * 3: log-applied state and canonical labels.  ``agents.log_status`` starts as ``status``; ``memories.apply_seq``
+          numbers the applied rows in their current order; raw observations and rules get canonical labels
+          (derived rows keep theirs: their ids embed the key they were built under, so they stay until
+          re-aggregation, flagged by ``meta.reaggregate_pending``); ``applied_rules`` starts as the canonical rules.
+        """
         c = self._conn
         c.execute("BEGIN IMMEDIATE")
         try:
@@ -484,6 +543,29 @@ class MycelicStore:
                                   ("corroborate", "INTEGER NOT NULL DEFAULT 0")):
                     if name not in have:
                         c.execute(f"ALTER TABLE rules ADD COLUMN {name} {ddl}")
+            if from_version < 3:
+                if "log_status" not in {r["name"] for r in c.execute("PRAGMA table_info(agents)").fetchall()}:
+                    c.execute("ALTER TABLE agents ADD COLUMN log_status TEXT")
+                c.execute("UPDATE agents SET log_status=status")
+                if "apply_seq" not in {r["name"] for r in c.execute("PRAGMA table_info(memories)").fetchall()}:
+                    c.execute("ALTER TABLE memories ADD COLUMN apply_seq INTEGER")
+                c.execute("UPDATE memories SET apply_seq=rid WHERE applied_at IS NOT NULL AND apply_seq IS NULL")
+                changed = []
+                for r in c.execute("SELECT rid, topic, slot, entity FROM memories WHERE operator='agent_observation'").fetchall():
+                    labels = (canonical_label(r["topic"]), canonical_label(r["slot"]), canonical_label(r["entity"]))
+                    if labels != (r["topic"], r["slot"], r["entity"]):
+                        changed.append((*labels, r["rid"]))
+                c.executemany("UPDATE memories SET topic=?, slot=?, entity=? WHERE rid=?", changed)
+                for r in c.execute("SELECT * FROM rules").fetchall():
+                    rule = Rule(**canonical_rule_body(row_rule(r).to_dict()))
+                    c.execute("""UPDATE rules SET required_slots=?, conclusion=?, topic_prefix=?, emits_slot=?, emits_topic=?,
+                                 min_units=? WHERE rule_id=?""",
+                              (_j(rule.required_slots), rule.conclusion, rule.topic_prefix, rule.emits_slot, rule.emits_topic,
+                               _j(rule.min_units), rule.rule_id))
+                    c.execute("INSERT OR REPLACE INTO applied_rules(rule_id, org_id, snapshot, applied_seq) VALUES (?, ?, ?, 0)",
+                              (rule.rule_id, rule.org_id, _j(rule.to_dict())))
+                c.execute("INSERT INTO meta(key, value) VALUES ('reaggregate_pending', '1') "
+                          "ON CONFLICT(key) DO UPDATE SET value=excluded.value")
             c.execute("UPDATE meta SET value=? WHERE key='schema_version'", (str(SCHEMA_VERSION),))
         except BaseException:
             c.execute("ROLLBACK")
@@ -556,9 +638,10 @@ class MycelicStore:
             tx.c.execute("UPDATE agents SET last_seen_at=? WHERE agent_id=?", (at or now_iso(), agent_id))
 
     def child_units(self, org_id: str, unit: str) -> list[str]:
-        """Direct child units of ``unit`` according to the registered (active) agents' paths."""
+        """Direct child units of ``unit`` according to the paths of the agents whose registration the consumer has
+        applied and whose revocation it has not: the registry as of the event being applied, as a rebuild sees it."""
         depth = unit.count("/") + 2
-        rows = self._conn.execute("SELECT path FROM agents WHERE org_id=? AND status='active' AND (path=? OR substr(path, 1, ?)=?)",
+        rows = self._conn.execute("SELECT path FROM agents WHERE org_id=? AND log_status='active' AND (path=? OR substr(path, 1, ?)=?)",
                                   (org_id, unit, len(unit) + 1, unit + "/")).fetchall()
         return sorted({"/".join(r["path"].split("/")[:depth]) for r in rows if r["path"].count("/") + 1 >= depth})
 
@@ -584,15 +667,35 @@ class MycelicStore:
                       status: str | None = "active", topic: str | None = None, entity: str | None = None,
                       slot: str | None = None, operator: str | None = None, producer_id: str | None = None,
                       since: str | None = None, limit: int = 200, newest_first: bool = True,
-                      applied_only: bool = False, operators: Iterable[str] | None = None) -> list[Memory]:
+                      applied_only: bool = False, operators: Iterable[str] | None = None,
+                      slots: Iterable[str] | None = None, topic_prefix: str | None = None, null_entity: bool = False,
+                      exclude_subtrees: Iterable[str] = (), latest: bool = False) -> list[Memory]:
+        """Memories matching every filter given.  Prefix and subtree filters use ``substr``, never ``LIKE`` (``_``
+        and ``%`` are literal characters of labels and unit names).
+
+        ``latest``: only applied rows, the newest ``limit`` of them in apply order, returned oldest first.  That is
+        how aggregation reads candidates: the same rows on a live node and on a rebuild, and new evidence is never
+        crowded out by old.
+        """
         sql, args = "SELECT * FROM memories WHERE org_id=?", [org_id]
         if operators:
             ops = list(operators)
             sql += f" AND operator IN ({','.join('?' * len(ops))})"; args += ops
         if applied_only:                       # only what the consumer has applied: aggregation must not see ahead
             sql += " AND applied_at IS NOT NULL"
+        if latest:
+            sql += " AND apply_seq IS NOT NULL"
         if scope:
             sql += " AND (scope=? OR substr(scope, 1, ?)=?)"; args += [scope, len(scope) + 1, scope + "/"]
+        for sub in exclude_subtrees:
+            sql += " AND NOT (scope=? OR substr(scope, 1, ?)=?)"; args += [sub, len(sub) + 1, sub + "/"]
+        if slots:
+            ss = list(slots)
+            sql += f" AND slot IN ({','.join('?' * len(ss))})"; args += ss
+        if topic_prefix:
+            sql += " AND substr(topic, 1, ?)=?"; args += [len(topic_prefix), topic_prefix]
+        if null_entity:
+            sql += " AND entity IS NULL"
         if layers:
             ls = list(layers)
             sql += f" AND layer IN ({','.join('?' * len(ls))})"; args += ls
@@ -610,7 +713,10 @@ class MycelicStore:
             sql += " AND producer_id=?"; args.append(producer_id)
         if since:
             sql += " AND created_at>=?"; args.append(since)
-        sql += " ORDER BY rid " + ("DESC" if newest_first else "ASC") + " LIMIT ?"
+        if latest:
+            sql = f"SELECT * FROM ({sql} ORDER BY apply_seq DESC LIMIT ?) ORDER BY apply_seq"
+        else:
+            sql += " ORDER BY rid " + ("DESC" if newest_first else "ASC") + " LIMIT ?"
         args.append(int(limit))
         return [row_memory(r) for r in self._conn.execute(sql, args).fetchall()]
 
@@ -652,20 +758,27 @@ class MycelicStore:
         rows = self._conn.execute("SELECT * FROM lineage_edges WHERE parent_id=? ORDER BY child_id", (parent_id,)).fetchall()
         return [row_edge(r) for r in rows]
 
-    def dependents_of(self, memory_id: str, *, max_nodes: int = 10_000) -> list[str]:
-        """Every memory that (transitively) derives from ``memory_id``, nearest first."""
+    def dependents_of(self, memory_id: str, *, active_only: bool = False, max_nodes: int = 100_000) -> list[str]:
+        """Memories that (transitively) derive from ``memory_id``, nearest first and at most ``max_nodes`` of them
+        (a caller that gets exactly ``max_nodes`` must assume the walk was cut).  Each level is in ``child_id``
+        order, so the order is the same on every node.  ``active_only`` walks through active memories only."""
         seen: list[str] = []
         frontier = [memory_id]
         visited = {memory_id}
         while frontier and len(seen) < max_nodes:
-            nxt = []
-            for pid in frontier:
-                for e in self.children_of(pid):
-                    if e.child_id not in visited:
-                        visited.add(e.child_id)
-                        seen.append(e.child_id)
-                        nxt.append(e.child_id)
-            frontier = nxt
+            found: set[str] = set()
+            for i in range(0, len(frontier), 500):
+                chunk = frontier[i:i + 500]
+                marks = ",".join("?" * len(chunk))
+                if active_only:
+                    q = (f"SELECT e.child_id FROM lineage_edges e JOIN memories m ON m.memory_id=e.child_id "
+                         f"WHERE e.parent_id IN ({marks}) AND m.status='active' ORDER BY e.child_id")
+                else:
+                    q = f"SELECT child_id FROM lineage_edges WHERE parent_id IN ({marks}) ORDER BY child_id"
+                found.update(r["child_id"] for r in self._conn.execute(q, chunk).fetchall())
+            frontier = sorted(found - visited)[: max_nodes - len(seen)]
+            visited.update(frontier)
+            seen.extend(frontier)
         return seen
 
     # ------------------------------------------------------------------ events (reads)
@@ -707,6 +820,10 @@ class MycelicStore:
         row = self._conn.execute("SELECT COALESCE(MAX(js_seq), 0) AS s FROM events WHERE status='applied'").fetchone()
         return int(row["s"])
 
+    def max_apply_seq(self) -> int:
+        """The newest position in memory apply order (0 when nothing was applied)."""
+        return int(self._conn.execute("SELECT COALESCE(MAX(apply_seq), 0) AS s FROM memories").fetchone()["s"])
+
     # ------------------------------------------------------------------ rules
     def list_rules(self, org_id: str | None = None, *, enabled_only: bool = True) -> list[Rule]:
         sql, args = "SELECT * FROM rules WHERE 1=1", []
@@ -720,6 +837,16 @@ class MycelicStore:
     def get_rule(self, rule_id: str) -> Rule | None:
         r = self._conn.execute("SELECT * FROM rules WHERE rule_id=?", (rule_id,)).fetchone()
         return row_rule(r) if r else None
+
+    def list_applied_rules(self, org_id: str) -> list[Rule]:
+        """The enabled rules as of the last applied rule event: what aggregation evaluates."""
+        rows = self._conn.execute("SELECT snapshot FROM applied_rules WHERE org_id IS NULL OR org_id=? ORDER BY rule_id",
+                                  (org_id,)).fetchall()
+        return [rule for rule in (snapshot_rule(r["snapshot"]) for r in rows) if rule.enabled]
+
+    def get_applied_rule(self, rule_id: str) -> Rule | None:
+        r = self._conn.execute("SELECT snapshot FROM applied_rules WHERE rule_id=?", (rule_id,)).fetchone()
+        return snapshot_rule(r["snapshot"]) if r else None
 
     # ------------------------------------------------------------------ audit / stats
     async def audit(self, principal: str, action: str, target: str | None = None, detail: dict[str, Any] | None = None,

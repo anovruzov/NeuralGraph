@@ -2,6 +2,9 @@
 
 Two deterministic operators run inside the consumer's apply transaction.  No model is involved, so every
 derived memory can be explained from its lineage alone and a replay of the event log reproduces it exactly.
+Each operator is a read-only planner (:meth:`Aggregator.plan_consolidation`, :meth:`Aggregator.plan_rule`) that
+reads the evidence, rules and registry as the log has applied them, and a pure builder (:func:`build_consolidation`,
+:func:`build_conclusion`) that turns that evidence into the memory; the apply path persists what the planner returns.
 
 **Topic consolidation** (``operator='topic_consolidation'``).  A unit U at layer L gets a memory on topic T
 when at least ``min_support`` of its *direct children* contribute something on T.  A child's contribution
@@ -34,21 +37,19 @@ research synthesizer makes: a conclusion is only as certain as its weakest requi
 from __future__ import annotations
 
 import logging
-import re
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from NeuralGraph.research.coordination.contracts import ClaimEnvelope, PolicyStatus
 from NeuralGraph.research.coordination.core import LineageAnalyzer, RuleBasedSynthesizer, to_jsonable
 
-from .hierarchy import LAYERS, ancestors, child_unit_of, layer_of_path, unit_at_layer
-from .models import LineageEdge, Memory, Rule, derived_memory_id, now_iso
+from .hierarchy import LAYERS, ancestors, child_unit_of, layer_of_path, parent_path, unit_at_layer
+from .models import SLOT_PLACEHOLDER_RE, LineageEdge, Memory, Rule, content_hash, derived_memory_id, now_iso
 from .store import MycelicStore, Tx
 
 logger = logging.getLogger(__name__)
 
 MYCELIC_PRODUCER = "mycelic"
-_SLOT_RE = re.compile(r"\{slot:([a-zA-Z0-9_.-]+)\}")
 CONSOLIDATABLE = ("agent_observation", "topic_consolidation", "slot_composition")
 MAX_CASCADE = 8
 FRAGILITY_TOP_K = 6        # per-slot claims scored for fragility (the analyzer enumerates their product)
@@ -68,6 +69,21 @@ class Derivation:
         payload["parents"] = [e.to_dict() for e in self.edges]
         payload["supersedes"] = self.supersedes
         return payload
+
+
+@dataclass
+class Plan:
+    """What one operator derives at one unit from the evidence applied so far, computed without writing anything.
+
+    ``memory`` is None when the operator does not hold.  ``current`` is the active memory for the same
+    (unit, operator, key).  ``contributions`` maps each direct child unit to what it contributes (consolidation),
+    or each required slot to the candidates that fill it (rule).
+    """
+
+    memory: Memory | None
+    parents: list[Memory]
+    current: Memory | None
+    contributions: dict[str, list[Memory]]
 
 
 def _clip(text: str, limit: int = 220) -> str:
@@ -144,16 +160,153 @@ def render_consolidation(unit: str, topic: str, contributions: dict[str, list[Me
 
 def render_conclusion(template: str, entity: str | None, slot_texts: dict[str, str]) -> str:
     out = template.replace("{entity}", entity or "unknown entity")
-    return _SLOT_RE.sub(lambda m: _clip(slot_texts.get(m.group(1), f"<{m.group(1)}: missing>"), 200), out)
+    return SLOT_PLACEHOLDER_RE.sub(lambda m: _clip(slot_texts.get(m.group(1), f"<{m.group(1)}: missing>"), 200), out)
+
+
+def _claim(m: Memory, rule: Rule, now: str) -> ClaimEnvelope:
+    return ClaimEnvelope(
+        claim_id=m.memory_id, query_id=rule.rule_id, producer_node_id=m.producer_id,
+        content={"slot": m.slot, "value": m.text}, confidence=max(0.0, min(1.0, m.confidence)),
+        evidence_refs=(m.memory_id,), source_ids=tuple(m.source_event_ids), parent_memory_ids=(),
+        lineage_root_ids=tuple(lineage_roots(m)) or (m.memory_id,),
+        failure_domains=tuple(contributing_teams(m)) or (m.scope,),
+        policy_status=PolicyStatus.ALLOWED, created_at=m.created_at or now,
+        derivation_operator=m.operator,
+    )
+
+
+def _scored_claims(claims: tuple[ClaimEnvelope, ...], slots: tuple[str, ...]) -> tuple[ClaimEnvelope, ...]:
+    """Fragility enumerates the product of per-slot candidates: score only the K strongest per slot, in the
+    synthesizer's own order so the selection is always inside the scored set."""
+    scored: list[ClaimEnvelope] = []
+    for slot in slots:
+        per = sorted((c for c in claims if c.content.get("slot") == slot),
+                     key=lambda c: (-c.confidence, c.producer_node_id, c.claim_id))
+        scored.extend(per[:FRAGILITY_TOP_K])
+    return tuple(scored)
+
+
+def build_consolidation(org_id: str, unit: str, topic: str, contributions: dict[str, list[Memory]], *, promotion: bool,
+                        effective_min_support: int, registered_child_units: int, version_of: str | None,
+                        now: str) -> Memory:
+    """The consolidation of ``topic`` at ``unit`` from what each direct child contributes (no store, no clock).
+
+    Each child's list is in apply order: ``render_consolidation`` keeps the first of two statements that read the
+    same, so the order is part of the text.
+    """
+    layer = layer_of_path(unit)
+    parents = [m for group in contributions.values() for m in group]
+    parent_ids = sorted(m.memory_id for m in parents)
+    agents = sorted({a for m in parents for a in contributing_agents(m)})
+    teams = sorted({t for m in parents for t in contributing_teams(m)})
+    confidence = noisy_or([max(m.confidence for m in group) for group in contributions.values()])
+    return Memory(
+        memory_id=derived_memory_id(operator="topic_consolidation", scope=unit, key=topic, parent_ids=parent_ids),
+        org_id=org_id, layer=layer, scope=unit, text=render_consolidation(unit, topic, contributions, len(agents)),
+        topic=topic, slot=_common(parents, "slot"),      # a consolidation of same-slot evidence is itself evidence
+        entity=_common(parents, "entity"), kind=_common(parents, "kind") or "fact", confidence=confidence,
+        support=len(agents), independent_teams=len(teams), producer_id=MYCELIC_PRODUCER,
+        operator="topic_consolidation", rule_id=None, event_id=None, visibility="org", created_at=now,
+        applied_at=now, source_event_ids=[], metadata={
+            "agg_key": topic, "contributing_agents": agents, "contributing_teams": teams,
+            "children": sorted(contributions), "child_layer": LAYERS[LAYERS.index(layer) - 1],
+            "parent_count": len(parents), "version_of": version_of,
+            "effective_min_support": effective_min_support, "registered_child_units": registered_child_units,
+            "promoted_from": parents[0].memory_id if promotion else None,
+            "roots": sorted({r for m in parents for r in lineage_roots(m)}),
+            "rule_chain": sorted({r for m in parents for r in rule_chain(m)}),
+        },
+    )
+
+
+def build_conclusion(rule: Rule, org_id: str, unit: str, entity: str | None, candidates: list[Memory], *,
+                     version_of: str | None, now: str) -> tuple[Memory, list[Memory]] | None:
+    """The conclusion of ``rule`` at ``unit`` for ``entity`` and the evidence it rests on, or None when the rule does
+    not hold on these candidates (no store, no clock).  The fragility metrics are left to the caller."""
+    key = f"{rule.rule_id}:{entity or '*'}"
+    claims = tuple(_claim(m, rule, now) for m in candidates)
+    slots = tuple(rule.required_slots)
+    synthesis = RuleBasedSynthesizer(slots).synthesize(claims)
+    scored_claims = _scored_claims(claims, slots)
+    by_id = {m.memory_id: m for m in candidates}
+    selected = [by_id[cid] for cid in synthesis.selected_claim_ids] if synthesis.success else []
+    # with corroboration every memory that fills a required slot is evidence, not only the strongest per slot
+    evidence = sorted(candidates, key=lambda m: m.memory_id) if (rule.corroborate and synthesis.success) else selected
+    agents = sorted({a for m in evidence for a in contributing_agents(m)})
+    teams = sorted({t for m in evidence for t in contributing_teams(m)})
+    # corroboration is per slot: "supply_risk reported by two regions" counts the units behind that slot only
+    units = {slot: {layer: sorted({u for m in evidence if m.slot == slot for u in contributing_units(m, layer)})
+                    for layer in per} for slot, per in rule.min_units.items()}
+    enough_units = all(len(units[slot][layer]) >= n for slot, per in rule.min_units.items() for layer, n in per.items())
+    if not synthesis.success or len(agents) < rule.min_agents or len(teams) < rule.min_teams or not enough_units:
+        return None
+    if entity is None and all(m.entity is not None for m in selected):
+        return None         # a '*' conclusion stands for evidence that names no entity, not for one entity's conclusion
+    parent_ids = sorted(m.memory_id for m in evidence)
+    slot_texts = {m.slot: m.text for m in selected if m.slot}
+    if rule.corroborate:
+        # confidence per slot rises with independent corroboration (noisy-OR over the units filling it);
+        # the conclusion is as certain as its weakest slot
+        per_slot = []
+        for slot in slots:
+            best_by_unit: dict[str, float] = {}
+            for m in evidence:
+                if m.slot == slot:
+                    u = m.scope if m.layer != "agent" else (unit_at_layer(m.scope, "team") or m.scope)
+                    best_by_unit[u] = max(best_by_unit.get(u, 0.0), m.confidence)
+            per_slot.append(noisy_or(list(best_by_unit.values())))
+        confidence = round(min(per_slot), 4) if per_slot else 0.0
+    else:
+        confidence = round(synthesis.confidence, 4)
+    memory = Memory(
+        memory_id=derived_memory_id(operator="slot_composition", scope=unit, key=key, parent_ids=parent_ids),
+        org_id=org_id, layer=rule.target_layer, scope=unit,
+        text=render_conclusion(rule.conclusion, entity, slot_texts),
+        topic=rule.conclusion_topic(), slot=rule.emits_slot, entity=entity,
+        kind=rule.kind, confidence=confidence, support=len(agents), independent_teams=len(teams),
+        producer_id=MYCELIC_PRODUCER, operator="slot_composition", rule_id=rule.rule_id, event_id=None,
+        visibility="org", created_at=now, applied_at=now, source_event_ids=[],
+        metadata={
+            "agg_key": key, "contributing_agents": agents, "contributing_teams": teams,
+            "slots": {m.slot: m.memory_id for m in selected if m.slot}, "candidates": len(candidates),
+            "fragility_scored_candidates": len(scored_claims),
+            "evidence": {m.memory_id: {"slot": m.slot, "layer": m.layer, "scope": m.scope, "operator": m.operator}
+                         for m in evidence},
+            "corroborated_units": units, "roots": sorted({r for m in evidence for r in lineage_roots(m)}),
+            "rule_chain": sorted({rule.rule_id} | {r for m in evidence for r in rule_chain(m)}),
+            "version_of": version_of,
+        },
+    )
+    return memory, evidence
 
 
 class Aggregator:
     def __init__(self, store: MycelicStore, *, min_support: int = 2, clock: Callable[[], str] = now_iso,
-                 max_candidates: int = 5000) -> None:
+                 max_candidates: int = 5000, max_dependents: int = 100_000,
+                 on_event: Callable[[str, dict[str, str]], None] | None = None) -> None:
         self.store = store
         self.min_support = max(1, int(min_support))
         self.clock = clock
         self.max_candidates = max_candidates
+        self.max_dependents = max_dependents
+        self.on_event = on_event          # ('inconsistency', {kind}) / ('truncated', {what}): the service counts them
+        self._cap_warned: set[tuple[str, str]] = set()
+
+    def _emit(self, name: str, labels: dict[str, str]) -> None:
+        if self.on_event is not None:
+            self.on_event(name, labels)
+
+    def _latest(self, org_id: str, unit: str, key: str, **filters: Any) -> list[Memory]:
+        """The newest ``max_candidates`` active applied memories under ``unit`` matching ``filters``, in apply order.
+        A full result means older evidence was left out: counted every time, logged once per (unit, key)."""
+        rows = self.store.list_memories(org_id, scope=unit, status="active", latest=True, limit=self.max_candidates, **filters)
+        if len(rows) >= self.max_candidates:
+            self._emit("truncated", {"what": "candidates"})
+            if (unit, key) not in self._cap_warned:
+                self._cap_warned.add((unit, key))
+                logger.warning("candidates for %s at %s reached the cap of %d: only the newest are aggregated",
+                               key, unit, self.max_candidates)
+        return rows
 
     # ------------------------------------------------------------------ entry point
     def derive_for(self, tx: Tx, memory: Memory) -> list[Derivation]:
@@ -182,19 +335,25 @@ class Aggregator:
                     stale = self.retire_dependents(tx, d.supersedes, "evidence superseded")
                     out.extend(self.reevaluate(tx, stale, depth=depth + 1))
         elif out:
-            logger.warning("cascade truncated at depth %d after %s; not re-offered: %s (rules may form a cycle)",
-                           depth, memory.memory_id, [d.memory.memory_id for d in out])
+            logger.error("cascade truncated at depth %d after %s; not re-offered: %s (rules may form a cycle)",
+                         depth, memory.memory_id, [d.memory.memory_id for d in out])
+            self._emit("truncated", {"what": "cascade"})
         return out
 
     def retire_dependents(self, tx: Tx, memory_id: str, reason: str) -> list[str]:
-        """Retract every memory derived (transitively) from ``memory_id``; the caller re-derives afterwards."""
-        retired = []
-        for dep in self.store.dependents_of(memory_id):
-            m = self.store.get_memory(dep)
-            if m is not None and m.status == "active":
-                tx.set_memory_status(dep, "retracted", reason=reason)
-                retired.append(dep)
-        return retired
+        """Retract every active memory derived (transitively) from ``memory_id``; the caller re-derives afterwards.
+
+        Only active memories are walked: an active memory never rests on an inactive one, so the walk reaches every
+        active dependent, and its cost follows what is current rather than every version the history kept.
+        """
+        ids = self.store.dependents_of(memory_id, active_only=True, max_nodes=self.max_dependents)
+        if len(ids) >= self.max_dependents:
+            logger.error("dependents of %s cut at %d; the rest stay active until their own evidence changes",
+                         memory_id, self.max_dependents)
+            self._emit("truncated", {"what": "dependents"})
+        for dep in ids:
+            tx.set_memory_status(dep, "retracted", reason=reason)
+        return ids
 
     def _withdraw(self, tx: Tx, current: Memory) -> list[Derivation]:
         """Support fell below the threshold (a stronger note changed the selection, a child unit appeared, evidence
@@ -219,7 +378,7 @@ class Aggregator:
                 child_scope = m.scope + "/x"          # any path directly below the unit climbs through it
                 out.extend(self._consolidate_topic(tx, m.org_id, child_scope, m.topic))
             elif m.operator == "slot_composition" and m.rule_id:
-                rule = self.store.get_rule(m.rule_id)
+                rule = self.store.get_applied_rule(m.rule_id)
                 if rule is not None and rule.enabled:
                     out.extend(self._compose_rule(tx, rule, m.org_id, m.scope, m.entity))
         for d in list(out):
@@ -227,55 +386,50 @@ class Aggregator:
         return out
 
     # ------------------------------------------------------------------ topic consolidation
+    def plan_consolidation(self, org_id: str, unit: str, topic: str) -> Plan:
+        """The consolidation ``unit`` should carry on ``topic`` given the applied evidence (read-only)."""
+        consolidations: list[Memory] = []
+        if layer_of_path(unit) != "team":             # a team's children are agents: nothing below it consolidates
+            consolidations = [m for m in self._latest(org_id, unit, topic, topic=topic, operators=("topic_consolidation",))
+                              if m.scope != unit]
+        # a child with its own consolidation contributes exactly that, so its leaves are not read at all and the
+        # newest leaves are those of the children that still need them
+        consolidated = sorted(m.scope for m in consolidations if parent_path(m.scope) == unit)
+        leaves = [m for m in self._latest(org_id, unit, topic, topic=topic, operators=("agent_observation", "slot_composition"),
+                                          exclude_subtrees=consolidated) if m.scope != unit]
+        contributions = self._contributions(unit, consolidations + leaves)
+        # A unit with fewer registered child units than min_support (a subsidiary with one department, an
+        # enterprise with one region) would otherwise never get a memory.  Such a unit *promotes* its child's
+        # own consolidation unchanged, which keeps the chain of transformations explicit in the lineage instead
+        # of leaving the top layers empty.  A raw observation is never promoted: a team memory always means at
+        # least ``min_support`` agents agreed, and a solo agent's note stays discoverable through subtree search.
+        registered_children = self.store.child_units(org_id, unit)
+        promotion = (0 < len(contributions) < self.min_support and len(registered_children) < self.min_support
+                     and all(len(group) == 1 and group[0].operator == "topic_consolidation" and group[0].scope == child
+                             for child, group in contributions.items()))
+        current = self.store.current_derived(org_id, "topic_consolidation", unit, topic)
+        if len(contributions) < self.min_support and not promotion:
+            return Plan(memory=None, parents=[], current=current, contributions=contributions)
+        memory = build_consolidation(org_id, unit, topic, contributions, promotion=promotion,
+                                     effective_min_support=1 if promotion else self.min_support,
+                                     registered_child_units=len(registered_children),
+                                     version_of=current.memory_id if current else None, now=self.clock())
+        return Plan(memory=memory, parents=[m for group in contributions.values() for m in group], current=current,
+                    contributions=contributions)
+
     def _consolidate_topic(self, tx: Tx, org_id: str, scope: str, topic: str) -> list[Derivation]:
         results: list[Derivation] = []
         for unit in reversed(ancestors(scope, include_self=False)):          # team first, enterprise last
-            mems = self.store.list_memories(org_id, scope=unit, topic=topic, status="active", limit=self.max_candidates,
-                                            newest_first=False, applied_only=True)
-            mems = [m for m in mems if m.operator in CONSOLIDATABLE and m.scope != unit]
-            contributions = self._contributions(unit, mems)
-            # A unit with fewer registered child units than min_support (a subsidiary with one department, an
-            # enterprise with one region) would otherwise never get a memory.  Such a unit *promotes* its child's
-            # own consolidation unchanged, which keeps the chain of transformations explicit in the lineage instead
-            # of leaving the top layers empty.  A raw observation is never promoted: a team memory always means at
-            # least ``min_support`` agents agreed, and a solo agent's note stays discoverable through subtree search.
-            registered_children = self.store.child_units(org_id, unit)
-            promotion = (0 < len(contributions) < self.min_support and len(registered_children) < self.min_support
-                         and all(len(group) == 1 and group[0].operator == "topic_consolidation" and group[0].scope == child
-                                 for child, group in contributions.items()))
-            current = self.store.current_derived(org_id, "topic_consolidation", unit, topic)
-            if len(contributions) < self.min_support and not promotion:
-                if current is not None:      # support fell below the threshold (retraction): the memory no longer holds
-                    results.extend(self._withdraw(tx, current))
+            plan = self.plan_consolidation(org_id, unit, topic)
+            if plan.memory is None:
+                if plan.current is not None:  # support fell below the threshold (retraction): the memory no longer holds
+                    results.extend(self._withdraw(tx, plan.current))
                 continue
-            effective = 1 if promotion else self.min_support
-            parents = [m for group in contributions.values() for m in group]
-            parent_ids = sorted(m.memory_id for m in parents)
-            new_id = derived_memory_id(operator="topic_consolidation", scope=unit, key=topic, parent_ids=parent_ids)
-            if current is not None and current.memory_id == new_id:
+            if plan.current is not None and plan.current.memory_id == plan.memory.memory_id:
                 continue
-            agents = sorted({a for m in parents for a in contributing_agents(m)})
-            teams = sorted({t for m in parents for t in contributing_teams(m)})
-            confidence = noisy_or([max(m.confidence for m in group) for group in contributions.values()])
-            now = self.clock()
-            memory = Memory(
-                memory_id=new_id, org_id=org_id, layer=layer_of_path(unit), scope=unit,
-                text=render_consolidation(unit, topic, contributions, len(agents)), topic=topic,
-                slot=_common(parents, "slot"),      # a consolidation of same-slot evidence is itself evidence
-                entity=_common(parents, "entity"), kind=_common(parents, "kind") or "fact", confidence=confidence,
-                support=len(agents), independent_teams=len(teams), producer_id=MYCELIC_PRODUCER,
-                operator="topic_consolidation", rule_id=None, event_id=None, visibility="org", created_at=now,
-                applied_at=now, source_event_ids=[], metadata={
-                    "agg_key": topic, "contributing_agents": agents, "contributing_teams": teams,
-                    "children": sorted(contributions), "child_layer": LAYERS[LAYERS.index(layer_of_path(unit)) - 1],
-                    "parent_count": len(parents), "version_of": current.memory_id if current else None,
-                    "effective_min_support": effective, "registered_child_units": len(registered_children),
-                    "promoted_from": parents[0].memory_id if promotion else None,
-                    "roots": sorted({r for m in parents for r in lineage_roots(m)}),
-                    "rule_chain": sorted({r for m in parents for r in rule_chain(m)}),
-                },
-            )
-            results.append(self._persist(tx, memory, parents, current))
+            d = self._persist(tx, plan.memory, plan.parents, plan.current)
+            if d is not None:
+                results.append(d)
         return results
 
     def _contributions(self, unit: str, mems: list[Memory]) -> dict[str, list[Memory]]:
@@ -305,7 +459,9 @@ class Aggregator:
         here = [m for m in leaves if m.scope == unit]
         if here or layer_of_path(unit) == "agent":
             return here
-        children = sorted({child_unit_of(m.scope, unit) for m in leaves if m.scope.startswith(unit + "/")})
+        # grandchildren come from consolidations too: a capped leaf set must not hide a consolidation below
+        children = sorted({child_unit_of(s, unit) for s in [*(m.scope for m in leaves), *derived_by_scope]
+                           if s.startswith(unit + "/")})
         out: list[Memory] = []
         for child in children:
             out.extend(self._best_in_subtree(child, derived_by_scope, leaves))
@@ -314,7 +470,7 @@ class Aggregator:
     # ------------------------------------------------------------------ slot composition (rules)
     def _compose_rules(self, tx: Tx, memory: Memory) -> list[Derivation]:
         results: list[Derivation] = []
-        for rule in self.store.list_rules(memory.org_id):
+        for rule in self.store.list_applied_rules(memory.org_id):
             if memory.slot not in rule.required_slots or memory.operator not in rule.sources:
                 continue
             if rule.rule_id in rule_chain(memory):
@@ -325,103 +481,76 @@ class Aggregator:
             if target_unit is None:
                 continue
             results.extend(self._compose_rule(tx, rule, memory.org_id, target_unit, memory.entity))
+            if memory.entity is not None and self._wildcard_due(rule, memory.org_id, target_unit):
+                # evidence about one entity can also change which memory is strongest for the rule's '*' conclusion
+                results.extend(self._compose_rule(tx, rule, memory.org_id, target_unit, None))
         return results
 
-    def _compose_rule(self, tx: Tx, rule: Rule, org_id: str, target_unit: str, entity: str | None) -> list[Derivation]:
-        """Evaluate one rule at one unit: the new conclusion (possibly with what its withdrawal re-derived), or []."""
-        candidates = self.store.list_memories(org_id, scope=target_unit, status="active", entity=entity,
-                                              operators=rule.sources, limit=self.max_candidates, newest_first=False,
-                                              applied_only=True)
-        candidates = [m for m in candidates if m.slot in rule.required_slots
-                      and rule.rule_id not in rule_chain(m)
-                      and (not rule.topic_prefix or (m.topic or "").startswith(rule.topic_prefix))
-                      and (entity is None or m.entity == entity)]
+    def _wildcard_due(self, rule: Rule, org_id: str, unit: str) -> bool:
+        """Is there a '*' conclusion of ``rule`` at ``unit`` to refresh, or an entity-less memory that could form one?"""
+        if self.store.current_derived(org_id, "slot_composition", unit, f"{rule.rule_id}:*") is not None:
+            return True
+        return bool(self.store.list_memories(org_id, scope=unit, status="active", null_entity=True, operators=rule.sources,
+                                             slots=rule.required_slots, topic_prefix=rule.topic_prefix, latest=True, limit=1))
+
+    def plan_rule(self, rule: Rule, org_id: str, unit: str, entity: str | None) -> Plan:
+        """The conclusion ``rule`` should have at ``unit`` for ``entity`` given the applied evidence (read-only)."""
+        key = f"{rule.rule_id}:{entity or '*'}"
+        candidates = self._latest(org_id, unit, key, entity=entity, operators=rule.sources, slots=rule.required_slots,
+                                  topic_prefix=rule.topic_prefix)
+        candidates = [m for m in candidates if rule.rule_id not in rule_chain(m)]
         # finer-grained evidence wins: a consolidation whose own parents are already candidates would only
         # restate them (and count them twice), so it is used only when its parents are not available here
         ids = {m.memory_id for m in candidates}
         candidates = [m for m in candidates if m.operator != "topic_consolidation"
                       or not all(e.parent_id in ids for e in self.store.parents_of(m.memory_id))]
-        key = f"{rule.rule_id}:{entity or '*'}"
-        current = self.store.current_derived(org_id, "slot_composition", target_unit, key)
-        claims = tuple(self._claim(m, rule) for m in candidates)
+        current = self.store.current_derived(org_id, "slot_composition", unit, key)
+        contributions = {slot: [m for m in candidates if m.slot == slot] for slot in rule.required_slots}
+        built = build_conclusion(rule, org_id, unit, entity, candidates,
+                                 version_of=current.memory_id if current else None, now=self.clock())
+        if built is None:
+            return Plan(memory=None, parents=[], current=current, contributions=contributions)
+        memory, evidence = built
+        return Plan(memory=memory, parents=evidence, current=current, contributions=contributions)
+
+    def _compose_rule(self, tx: Tx, rule: Rule, org_id: str, target_unit: str, entity: str | None) -> list[Derivation]:
+        """Evaluate one rule at one unit: the new conclusion (possibly with what its withdrawal re-derived), or []."""
+        plan = self.plan_rule(rule, org_id, target_unit, entity)
+        current = plan.current
+        if plan.memory is None:
+            return self._withdraw(tx, current) if current is not None else []
+        if current is not None and current.memory_id == plan.memory.memory_id:
+            return []
+        claims = tuple(_claim(m, rule, plan.memory.created_at) for group in plan.contributions.values() for m in group)
         slots = tuple(rule.required_slots)
         synthesis = RuleBasedSynthesizer(slots).synthesize(claims)
-        # fragility enumerates the product of per-slot candidates: score only the K strongest per slot, in the
-        # synthesizer's own order so the selection is always inside the scored set
-        scored: list[ClaimEnvelope] = []
-        for slot in slots:
-            per = sorted((c for c in claims if c.content.get("slot") == slot),
-                         key=lambda c: (-c.confidence, c.producer_node_id, c.claim_id))
-            scored.extend(per[:FRAGILITY_TOP_K])
-        scored_claims = tuple(scored)
-        by_id = {m.memory_id: m for m in candidates}
-        selected = [by_id[cid] for cid in synthesis.selected_claim_ids] if synthesis.success else []
-        # with corroboration every memory that fills a required slot is evidence, not only the strongest per slot
-        evidence = sorted(candidates, key=lambda m: m.memory_id) if (rule.corroborate and synthesis.success) else selected
-        agents = sorted({a for m in evidence for a in contributing_agents(m)})
-        teams = sorted({t for m in evidence for t in contributing_teams(m)})
-        # corroboration is per slot: "supply_risk reported by two regions" counts the units behind that slot only
-        units = {slot: {layer: sorted({u for m in evidence if m.slot == slot for u in contributing_units(m, layer)})
-                        for layer in per} for slot, per in rule.min_units.items()}
-        enough_units = all(len(units[slot][layer]) >= n for slot, per in rule.min_units.items() for layer, n in per.items())
-        if not synthesis.success or len(agents) < rule.min_agents or len(teams) < rule.min_teams or not enough_units:
-            return self._withdraw(tx, current) if current is not None else []
-        parent_ids = sorted(m.memory_id for m in evidence)
-        new_id = derived_memory_id(operator="slot_composition", scope=target_unit, key=key, parent_ids=parent_ids)
-        if current is not None and current.memory_id == new_id:
-            return []
-        metrics = LineageAnalyzer().score(scored_claims, slots, synthesis)
-        slot_texts = {m.slot: m.text for m in selected if m.slot}
-        if rule.corroborate:
-            # confidence per slot rises with independent corroboration (noisy-OR over the units filling it);
-            # the conclusion is as certain as its weakest slot
-            per_slot = []
-            for slot in slots:
-                best_by_unit: dict[str, float] = {}
-                for m in evidence:
-                    if m.slot == slot:
-                        unit = m.scope if m.layer != "agent" else (unit_at_layer(m.scope, "team") or m.scope)
-                        best_by_unit[unit] = max(best_by_unit.get(unit, 0.0), m.confidence)
-                per_slot.append(noisy_or(list(best_by_unit.values())))
-            confidence = round(min(per_slot), 4) if per_slot else 0.0
-        else:
-            confidence = round(synthesis.confidence, 4)
-        now = self.clock()
-        memory = Memory(
-            memory_id=new_id, org_id=org_id, layer=rule.target_layer, scope=target_unit,
-            text=render_conclusion(rule.conclusion, entity, slot_texts),
-            topic=rule.emits_topic or rule.topic_prefix or rule.rule_id, slot=rule.emits_slot, entity=entity,
-            kind=rule.kind, confidence=confidence, support=len(agents), independent_teams=len(teams),
-            producer_id=MYCELIC_PRODUCER, operator="slot_composition", rule_id=rule.rule_id, event_id=None,
-            visibility="org", created_at=now, applied_at=now, source_event_ids=[],
-            metadata={
-                "agg_key": key, "contributing_agents": agents, "contributing_teams": teams,
-                "slots": {m.slot: m.memory_id for m in selected if m.slot}, "candidates": len(candidates),
-                "fragility_scored_candidates": len(scored_claims),
-                "evidence": {m.memory_id: {"slot": m.slot, "layer": m.layer, "scope": m.scope, "operator": m.operator}
-                             for m in evidence},
-                "corroborated_units": units, "roots": sorted({r for m in evidence for r in lineage_roots(m)}),
-                "rule_chain": sorted({rule.rule_id} | {r for m in evidence for r in rule_chain(m)}),
-                "fragility": to_jsonable(metrics), "version_of": current.memory_id if current else None,
-            },
-        )
-        return [self._persist(tx, memory, evidence, current)]
-
-    @staticmethod
-    def _claim(m: Memory, rule: Rule) -> ClaimEnvelope:
-        return ClaimEnvelope(
-            claim_id=m.memory_id, query_id=rule.rule_id, producer_node_id=m.producer_id,
-            content={"slot": m.slot, "value": m.text}, confidence=max(0.0, min(1.0, m.confidence)),
-            evidence_refs=(m.memory_id,), source_ids=tuple(m.source_event_ids), parent_memory_ids=(),
-            lineage_root_ids=tuple(lineage_roots(m)) or (m.memory_id,),
-            failure_domains=tuple(contributing_teams(m)) or (m.scope,),
-            policy_status=PolicyStatus.ALLOWED, created_at=m.created_at or now_iso(),
-            derivation_operator=m.operator,
-        )
+        plan.memory.metadata["fragility"] = to_jsonable(LineageAnalyzer().score(_scored_claims(claims, slots), slots, synthesis))
+        d = self._persist(tx, plan.memory, plan.parents, current)
+        return [d] if d is not None else []
 
     # ------------------------------------------------------------------ persistence
-    def _persist(self, tx: Tx, memory: Memory, parents: list[Memory], current: Memory | None) -> Derivation:
+    def _inconsistency(self, tx: Tx, kind: str, memory: Memory, stored: Memory) -> None:
+        """Report derived state that disagrees with its recomputation; applying goes on (one poisoned memory must not
+        stall the log).  The audit row carries hashes of the texts, never the texts."""
+        logger.error("aggregation inconsistency (%s) for %s at %s: stored %s/%s, recomputed %s/%s", kind, memory.memory_id,
+                     memory.scope, stored.operator, stored.confidence, memory.operator, memory.confidence)
+        self._emit("inconsistency", {"kind": kind})
+        tx.audit(MYCELIC_PRODUCER, "aggregation.inconsistency", memory.memory_id, {
+            "org_id": memory.org_id, "kind": kind, "operator": memory.operator, "scope": memory.scope,
+            "stored_text_sha": content_hash(stored.text), "recomputed_text_sha": content_hash(memory.text),
+            "stored_confidence": stored.confidence, "recomputed_confidence": memory.confidence})
+
+    def _persist(self, tx: Tx, memory: Memory, parents: list[Memory], current: Memory | None) -> Derivation | None:
+        """Make ``memory`` the active version for its (unit, operator, key): insert it, or reactivate the identical
+        earlier version.  None when its id is taken by an unrelated row (reported; nothing changes)."""
         now = memory.created_at
+        existing = self.store.get_memory(memory.memory_id)
+        reactivation = (existing is not None and existing.status != "active" and existing.operator == memory.operator
+                        and existing.scope == memory.scope)
+        if existing is not None and not reactivation:
+            # never attach lineage to (or supersede in favour of) a row this derivation did not produce
+            self._inconsistency(tx, "id_collision", memory, existing)
+            return None
         edges = [LineageEdge(child_id=memory.memory_id, parent_id=p.memory_id,
                              contributed_by=p.producer_id if p.layer == "agent" else MYCELIC_PRODUCER,
                              parent_layer=p.layer, created_at=now) for p in parents]
@@ -429,19 +558,19 @@ class Aggregator:
         if current is not None:              # before the insert: only one active memory per (unit, operator, key)
             tx.set_memory_status(current.memory_id, "superseded", superseded_by=memory.memory_id, reason="coalition changed")
             supersedes = current.memory_id
-        existing = self.store.get_memory(memory.memory_id)
         if existing is None:
             tx.insert_memory(memory)
-        elif existing.status != "active" and existing.operator == memory.operator and existing.scope == memory.scope:
+        else:
             # the exact earlier coalition is back (evidence was retracted, or a retraction was undone by new
-            # evidence): the earlier derived memory becomes current again, keeping its id and its lineage edges
+            # evidence): the earlier derived memory becomes current again, keeping its id, text and lineage edges
+            if (existing.text != memory.text or round(existing.confidence, 4) != round(memory.confidence, 4)
+                    or existing.support != memory.support):
+                self._inconsistency(tx, "reactivation_mismatch", memory, existing)
             version_of = current.memory_id if current is not None else existing.metadata.get("version_of")
             meta = {**existing.metadata, **memory.metadata, "version_of": version_of, "reactivated_at": now}
             meta.pop("status_reason", None)          # the reason it was retired does not describe an active memory
             tx.reactivate_memory(memory.memory_id, applied_at=now, metadata=meta)
             memory = self.store.get_memory(memory.memory_id) or memory
-        else:
-            raise RuntimeError(f"derived memory id collision for {memory.memory_id}; refusing to attach lineage")
         tx.add_lineage_edges(edges)
         logger.info("derived %s at %s (%s) from %d parents%s", memory.memory_id, memory.scope, memory.operator,
                     len(parents), f", supersedes {supersedes}" if supersedes else "")

@@ -34,6 +34,11 @@ class Metrics:
         self.replay_events = Counter("mycelic_replay_events_total", "Events re-applied during a replay", registry=r)
         self.recoveries = Counter("mycelic_recovery_total", "Recovery actions taken", ["kind"], registry=r)
         self.derived = Counter("mycelic_memories_derived_total", "Higher-layer memories derived by aggregation", ["layer", "operator"], registry=r)
+        self.events_ignored = Counter("mycelic_events_ignored_total", "Events applied without effect", ["reason"], registry=r)
+        self.aggregation_inconsistency = Counter("mycelic_aggregation_inconsistency_total",
+                                                 "Derived memories whose stored row disagreed with their recomputation", ["kind"], registry=r)
+        self.aggregation_truncated = Counter("mycelic_aggregation_truncated_total", "Aggregation steps cut short at a bound",
+                                             ["what"], registry=r)
         self.retrieval_latency = Histogram("mycelic_retrieval_latency_seconds", "POST /query latency", buckets=_LATENCY_BUCKETS, registry=r)
         self.aggregation_latency = Histogram("mycelic_aggregation_latency_seconds", "Time to apply one event including aggregation", buckets=_LATENCY_BUCKETS, registry=r)
         self.lineage_latency = Histogram("mycelic_lineage_latency_seconds", "Lineage reconstruction latency", buckets=_LATENCY_BUCKETS, registry=r)
@@ -51,6 +56,12 @@ class Metrics:
             self.memories_by_layer.labels(layer).set(0)
         for kind in ("memory.observed", "memory.derived", "memory.retracted", "agent.event"):
             self.events_published.labels(kind)
+        for reason in ("derived_not_reproduced", "retraction_target", "unknown_kind"):
+            self.events_ignored.labels(reason)
+        for kind in ("id_collision", "reactivation_mismatch"):
+            self.aggregation_inconsistency.labels(kind)
+        for what in ("dependents", "cascade", "candidates"):
+            self.aggregation_truncated.labels(what)
 
     def refresh_from_stats(self, stats: dict[str, Any]) -> None:
         for layer in LAYERS:
