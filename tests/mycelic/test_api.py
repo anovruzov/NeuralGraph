@@ -1,15 +1,30 @@
 """HTTP API and MCP endpoint over aiohttp's test client: authentication, authorization, limits, health, metrics,
-memory/query/lineage routes, admin routes and the per-request MCP identity."""
+memory/query/lineage routes, admin routes and the per-request MCP identity; downward verification on every surface
+(GET /verify/{id} with its errors and four verdicts, the opt-in "verify" of POST /query, the mycelic_verify tool), its
+cost-weighted rate limiting over REST and inside MCP batches, and its documentation."""
 from __future__ import annotations
 
+import asyncio
+import itertools
+import json
+import re
+import tempfile
 import unittest
+from datetime import timedelta
 from pathlib import Path
+from unittest import mock
 
 from aiohttp.test_utils import TestClient, TestServer
 
+from mycelic import verification
 from mycelic.api import create_app
+from mycelic.auth import RateLimiter
+from mycelic.models import now_iso, utcnow
+from mycelic.service import RateLimited
 
-from .helpers import ADMIN_TOKEN, DEMO_RULE, ServiceHarness
+from .helpers import ADMIN_TOKEN, DEMO_RULE, ServiceHarness, full_reaggregation_pass
+from .test_integrity import boot
+from .test_verification import DEMO_TEXTS, World, demo
 
 ROOT = Path(__file__).resolve().parents[2]
 #: sentences SECURITY.md (all four) and docs/MYCELIC_ARCHITECTURE.md (the first two) state verbatim
@@ -24,8 +39,30 @@ POLICY = {
 }
 
 
+#: the four notes of MemoryRoutesTests' scenario, by producer
+NOTES = {
+    "log-1": "Port of Rotterdam terminal 3 strike announced for weeks 41-43.",
+    "log-2": "Carrier ETA for the SD-9 container slipped by 12 days.",
+    "proc-1": "Kessler Antriebe has two weeks of SD-9 inventory left.",
+    "sales-1": "Helios Automation committed to 40 RX-4 arms for November.",
+}
+#: what every caller's verification report carries (an administrator's also has ``as_of``)
+REPORT_KEYS = {"memory_id", "verdict", "derived_correctly", "still_true", "reasons", "warnings", "summary", "superseded_by",
+               "current_version", "freshness_partial", "integrity_mode", "verified_at", "max_leaf_age", "nodes", "dag_digest",
+               "report_digest"}
+TOOL_NAMES = ["mycelic_query", "mycelic_remember", "mycelic_lineage", "mycelic_verify", "mycelic_get_memory", "mycelic_status"]
+
+
 def bearer(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
+
+
+def verify_audits(service) -> list[dict]:
+    return [a for a in service.store.recent_audit(100_000) if a["action"] == "memory.verify"]
+
+
+def codes(report: dict) -> list[str]:
+    return [r["code"] for r in report["reasons"]]
 
 
 def normalised(rel: str) -> str:
@@ -151,6 +188,95 @@ class RateLimitTests(ApiTestCase):
         self.assertEqual(r.status, 200)
         self.assertEqual((await self.client.get("/whoami", headers={**bearer(key2), **xff(2)})).status, 200)
         self.assertEqual((await self.client.get("/whoami", headers={**bearer(key2), **xff(3)})).status, 429)
+
+
+class VerifyLimitTests(unittest.IsolatedAsyncioTestCase):
+    async def test_verify_is_cost_weighted_by_the_rate_limiter(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        w = World(tmp.name, trust_proxy_headers=True)
+        self.addAsyncCleanup(w.close)
+        await boot(w.service)
+        s = w.service
+        # test_wide_fan_in_verifies_within_budget's fast path, 10 agents x 100 org-visible notes: a 1005-node DAG
+        for j in range(10):
+            await w.register(f"a{j}", team="t1", department="acme", subsidiary="acme", region="acme", enterprise="acme")
+        await w.settle()
+        for j in range(10):
+            p = w.principal(f"a{j}")
+            for n in range(100):
+                await s.ingest_memory(p, {"text": f"note {n} by a{j}", "topic": "supply:x", "visibility": "org", "confidence": 0.6})
+        now = now_iso()
+        async with s.store.transaction() as tx:
+            for ev in s.store.pending_events(1_000_000):
+                w.log.append({})
+                tx.mark_applied(ev.event_id, len(w.log), now)
+                tx.set_applied(ev.payload["memory_id"], now)
+        await full_reaggregation_pass(s)
+        await w.settle()
+        [top] = s.store.list_memories("acme", layers=["enterprise"])
+        own = next(m for m in s.store.list_memories("acme", layers=["agent"], limit=1000) if m.producer_id == "a1")
+        client = TestClient(TestServer(create_app(s)))
+        await client.start_server()
+        self.addAsyncCleanup(client.close)
+        # one token a second, ten at most, and a clock that never moves: no refill between requests
+        s.limiter = RateLimiter(rps=1.0, burst=10, clock=lambda: 0.0)
+        peers = itertools.count()
+
+        def headers(agent_id: str) -> dict[str, str]:
+            # a new proxy-observed address per request, so only the principal's bucket counts
+            n = next(peers)
+            return {**bearer(w.keys[agent_id]), "X-Forwarded-For": f"198.51.{n // 250}.{n % 250}"}
+
+        refused = s.metrics.auth_failures.labels("rate_limited")._value.get()
+        # 1005 nodes cost 1 + ceil(1005/250) = 6 tokens: 10 -> 4 -> -2, and the third request is refused at the door
+        statuses, nodes = [], []
+        for _ in range(3):
+            r = await client.get(f"/verify/{top.memory_id}", headers=headers("a0"))
+            statuses.append(r.status)
+            if r.status == 200:
+                nodes.append((await r.json())["summary"]["nodes"])
+        self.assertEqual(statuses, [200, 200, 429])
+        self.assertEqual(nodes, [1005, 1005])
+        # the debt is checked before the id is looked up, so an indebted caller learns nothing about any id
+        audits = len(verify_audits(s))
+        for memory_id in ("mem_doesnotexist", top.memory_id):
+            with self.assertRaises(RateLimited):
+                await s.verify(s.authenticate(f"Bearer {w.keys['a0']}"), memory_id)
+        self.assertEqual(len(verify_audits(s)), audits)
+        # a 1-node walk costs 1 + 1 = 2 tokens: five of them
+        statuses = [(await client.get(f"/verify/{own.memory_id}", headers=headers("a1"))).status for _ in range(6)]
+        self.assertEqual(statuses, [200, 200, 200, 200, 200, 429])
+        # a batch is charged one token per message up front (3), then each walk: 7 -> 2 -> -3, and the third verify
+        # message finds the bucket in debt and is refused without walking
+        batch = [{"jsonrpc": "2.0", "id": i, "method": "tools/call",
+                  "params": {"name": "mycelic_verify", "arguments": {"memory_id": top.memory_id}}} for i in (1, 2, 3)]
+        audits = len(verify_audits(s))
+        r = await client.post("/mcp", json=batch, headers={**headers("a2"), "Accept": "application/json"})
+        self.assertEqual(r.status, 200)
+        results = [m["result"] for m in await r.json()]
+        reports = [x["structuredContent"] for x in results if not x["isError"]]
+        self.assertEqual([x["summary"]["nodes"] for x in reports], [1005, 1005])
+        self.assertEqual([x["content"][0]["text"] for x in results if x["isError"]], ["rate limit exceeded"])
+        self.assertEqual([a["principal"] for a in verify_audits(s)[: len(verify_audits(s)) - audits]], ["a2", "a2"])
+        self.assertEqual((await client.get("/whoami", headers=headers("a2"))).status, 429)
+        self.assertGreater(s.metrics.auth_failures.labels("rate_limited")._value.get(), refused)
+        # two concurrent requests both pass the door (4 -> 3 -> 2) while a transaction holds the store lock; the first
+        # walk takes 5 (-> -3) and the second request finds the debt under the lock: 429, neither walked nor audited
+        key = s.authenticate(f"Bearer {w.keys['a3']}").limiter_key
+        s.limiter.take(key, 6)
+        audits = len(verify_audits(s))
+        async with s.store._lock:
+            racing = [asyncio.ensure_future(client.get(f"/verify/{top.memory_id}", headers=headers("a3"))) for _ in range(2)]
+            for _ in range(500):
+                if s.limiter._buckets[key].tokens == 2.0:
+                    break
+                await asyncio.sleep(0.01)
+            self.assertEqual(s.limiter._buckets[key].tokens, 2.0, "both requests passed the middleware")
+        responses = await asyncio.gather(*racing)
+        self.assertEqual(sorted(r.status for r in responses), [200, 429])
+        self.assertEqual([await r.json() for r in responses if r.status == 429], [{"error": "rate limit exceeded"}])
+        self.assertEqual(len(verify_audits(s)), audits + 1)
 
 
 class HostAllowListTests(ApiTestCase):
@@ -330,6 +456,210 @@ class MemoryRoutesTests(ApiTestCase):
         self.assertFalse(out["isError"], out)
         self.assertEqual((out["structuredContent"]["text"], out["structuredContent"]["text_withheld"]), ("", "retracted"))
 
+    async def demo_notes(self) -> dict[str, str]:
+        """The four notes of test_memory_query_lineage_and_visibility, settled: their ids and the enterprise conclusion's."""
+        ids = {}
+        for agent_id, key, fields in (
+                ("log-1", self.log1, {"topic": "supply:sd-9/transport", "slot": "transport_disruption", "confidence": 0.9}),
+                ("log-2", self.log2, {"topic": "supply:sd-9/transport", "slot": "transport_disruption", "confidence": 0.7}),
+                ("proc-1", self.proc1, {"topic": "supply:sd-9/supplier", "slot": "supplier_buffer_low"}),
+                ("sales-1", self.sales1, {"topic": "supply:sd-9/demand", "slot": "demand_commitment"})):
+            ids[agent_id] = (await self.observe(key, NOTES[agent_id], entity="sd-9", **fields))["memory_id"]
+        await self.h.settle()
+        [conclusion] = self.h.service.store.list_memories("northwind", layers=["enterprise"])
+        ids["conclusion"] = conclusion.memory_id
+        return ids
+
+    async def register_reader(self) -> str:
+        """An agent of the field-sales team that may read memories but not lineage."""
+        r = await self.client.post("/admin/agents", json={"enterprise": "northwind", "region": "emea", "subsidiary": "nw-gmbh",
+                                                         "department": "commercial", "team": "field-sales",
+                                                         "agent_id": "reader-1", "scopes": ["memory:read"]}, headers=self.admin)
+        self.assertEqual(r.status, 201, await r.text())
+        return (await r.json())["api_key"]
+
+    async def test_verify_route_auth_errors_and_shape(self) -> None:
+        # every principal before the notes, so no registry change re-plans anything under them
+        reader = await self.register_reader()
+        revoked = await self.register("sales-3", department="commercial", team="field-sales")
+        self.assertEqual((await self.client.delete("/admin/agents/sales-3", headers=self.admin)).status, 200)
+        r = await self.client.post("/admin/agents", json={"enterprise": "acme", "agent_id": "acme-1"}, headers=self.admin)
+        acme = (await r.json())["api_key"]
+        ids = await self.demo_notes()
+        s, cid = self.h.service, ids["conclusion"]
+        self.assertIn("/verify/{id}", (await (await self.client.get("/")).json())["endpoints"])
+
+        async def get(key: str | dict | None, memory_id: str, **params: str):
+            headers = key if isinstance(key, dict) else bearer(key) if key else {}
+            return await self.client.get(f"/verify/{memory_id}", params=params, headers=headers)
+
+        # refusals, none of which walks, counts or audits anything
+        audits = len(verify_audits(s))
+        r = await get(None, cid)
+        self.assertEqual(r.status, 401)
+        self.assertIn("Bearer", r.headers.get("WWW-Authenticate", ""))
+        r = await get(reader, cid)
+        self.assertEqual((r.status, await r.json()), (403, {"error": "missing scope lineage:read"}))
+        r = await get(revoked, cid)
+        self.assertEqual((r.status, await r.json()), (403, {"error": "agent revoked"}))
+        # another team's raw note, an id that does not exist and another organization's conclusion: one answer
+        for key, memory_id in ((self.sales2, ids["log-1"]), (self.sales2, "mem_doesnotexist"), (acme, cid), (self.sales2, "x" * 200)):
+            with self.subTest(memory_id=memory_id[:40]):
+                r = await get(key, memory_id)
+                self.assertEqual((r.status, await r.json()), (404, {"error": f"no visible memory with id {memory_id}"}))
+        for raw in ("abc", "0", "-1", "1.5", "1e3", "", "+5", " 5", "315360001", "9" * 12, "9" * 13):
+            with self.subTest(max_leaf_age=raw):
+                r = await get(self.sales2, cid, max_leaf_age=raw)
+                self.assertEqual(r.status, 400, await r.text())
+                self.assertEqual((await r.json())["error"],
+                                 f"'max_leaf_age' must be an integer between 1 and {verification.MAX_LEAF_AGE_SECONDS} seconds")
+        # aiohttp decodes %2F inside {id}: every id reaches the service's check, which answers 400, never 500
+        for raw in ("a%20b", "a%2Fb", "%C3%A9", "a%3Fb", "a%23b", "a%25b", "x" * 201):
+            with self.subTest(memory_id=raw[:40]):
+                r = await get(self.sales2, raw)
+                self.assertEqual(r.status, 400, await r.text())
+                self.assertIn("'memory_id' must be an id", (await r.json())["error"])
+        self.assertEqual(len(verify_audits(s)), audits, "refused calls are not audited")
+        for raw in ("1", "315360000"):
+            with self.subTest(max_leaf_age=raw):
+                r = await get(self.sales2, cid, max_leaf_age=raw)
+                self.assertEqual(r.status, 200, await r.text())
+                self.assertEqual((await r.json())["max_leaf_age"], int(raw))
+        self.assertEqual(len(verify_audits(s)), audits + 2)
+
+        # verified, for an agent of another team: the shape, the redaction and the service's own answer
+        r = await get(self.sales2, cid)
+        self.assertEqual(r.status, 200)
+        self.assertEqual(r.headers.get("Cache-Control"), "no-store")
+        body = await r.text()
+        report = json.loads(body)
+        self.assertEqual(set(report), REPORT_KEYS)
+        self.assertEqual((report["verdict"], report["derived_correctly"], report["still_true"], report["summary"]["redacted"]),
+                         ("verified", True, True, 2))
+        self.assertEqual(report["report_digest"], (await s.verify(s.authenticate(f"Bearer {self.sales2}"), cid))["report_digest"])
+        for hidden in (NOTES["log-1"], NOTES["log-2"], NOTES["proc-1"], "log-1", "log-2", "proc-1"):
+            self.assertNotIn(hidden, body)
+        r = await get(self.admin, cid)
+        admin_report = await r.json()
+        self.assertEqual(set(admin_report), REPORT_KEYS | {"as_of"})
+        self.assertEqual((admin_report["verdict"], admin_report["summary"]["redacted"]), ("verified", 0))
+        self.assertEqual(admin_report["report_digest"], (await s.verify(self.h.admin, cid))["report_digest"])
+        self.assertEqual([a["principal"] for a in verify_audits(s)[:4]], ["admin", "admin", "sales-2", "sales-2"])
+
+        # stale: two days on, every note sales-2 may read is older than a second; the hidden ones are not judged
+        with mock.patch("mycelic.service.utcnow", return_value=utcnow() + timedelta(days=2)):
+            r = await get(self.sales2, cid, max_leaf_age="1")
+        self.assertEqual(r.status, 200)
+        stale = await r.json()
+        self.assertEqual((stale["verdict"], stale["derived_correctly"], stale["still_true"]), ("stale", True, False))
+        self.assertIn("leaf_stale", codes(stale))
+        self.assertTrue(stale["freshness_partial"])
+        # unverifiable: the walk stops at MYCELIC_VERIFY_MAX_NODES
+        budget = s.settings.verify_max_nodes
+        s.settings.verify_max_nodes = 1
+        try:
+            r = await get(self.sales2, cid)
+        finally:
+            s.settings.verify_max_nodes = budget
+        self.assertEqual(r.status, 200)
+        unverifiable = await r.json()
+        self.assertEqual((unverifiable["verdict"], unverifiable["derived_correctly"], unverifiable["still_true"]),
+                         ("unverifiable", None, None))
+        self.assertIn("walk_truncated", codes(unverifiable))
+        self.assertLessEqual(unverifiable["summary"]["nodes"], 1)
+        # failed, last (the row stays tampered): sales-2 learns that a node it may not read failed, never why
+        s.store._conn.execute("UPDATE memories SET text=text||'!' WHERE memory_id=?", (ids["log-1"],))
+        r = await get(self.sales2, cid)
+        self.assertEqual(r.status, 200)
+        failed = await r.json()
+        self.assertEqual((failed["verdict"], failed["derived_correctly"], failed["still_true"]), ("failed", False, None))
+        [node] = [n for n in failed["nodes"] if n["memory_id"] == ids["log-1"]]
+        self.assertEqual((node["redacted"], node["ok"], node["reasons"]), (True, False, [{"code": "hidden_error", "severity": "E"}]))
+        admin_failed = await (await get(self.admin, cid)).json()
+        [node] = [n for n in admin_failed["nodes"] if n["memory_id"] == ids["log-1"]]
+        self.assertIn("integrity_mismatch", codes(node))
+        self.assertEqual(len(verify_audits(s)), audits + 10)
+
+    async def test_metrics_count_verification_codes_as_the_caller_sees_them(self) -> None:
+        # /metrics answers any agent key when MYCELIC_METRICS_TOKEN is unset: diffing it around its own verification must
+        # not tell an agent why a node it may not read failed, while the audit row keeps every code for administrators
+        ids = await self.demo_notes()
+        self.assertEqual((await self.client.delete("/admin/agents/proc-1", headers=self.admin)).status, 200)
+        await self.h.settle()                                                     # proc-1's note: producer_revoked
+        s, cid = self.h.service, ids["conclusion"]
+        s.store._conn.execute("UPDATE memories SET text=text||'!' WHERE memory_id=?", (ids["log-1"],))
+        pattern = re.compile(r'^mycelic_verification_reasons_total\{reason="([^"]+)"\} (\S+)$', re.M)
+
+        async def counted(headers: dict[str, str]) -> tuple[dict, dict[str, float]]:
+            r = await self.client.get("/metrics", headers=bearer(self.sales2))
+            self.assertEqual(r.status, 200)
+            before = {code: float(n) for code, n in pattern.findall(await r.text())}
+            report = await (await self.client.get(f"/verify/{cid}", headers=headers)).json()
+            after = {code: float(n) for code, n in pattern.findall(await (await self.client.get("/metrics", headers=bearer(self.sales2))).text())}
+            return report, {code: n - before.get(code, 0.0) for code, n in after.items() if n != before.get(code, 0.0)}
+
+        report, moved = await counted(bearer(self.sales2))
+        self.assertEqual(report["verdict"], "failed")
+        self.assertEqual(report["summary"]["hidden_warnings"], 1)
+        self.assertEqual(moved, {"hidden_error": 1.0})
+        hidden = verify_audits(s)[0]["detail"]["reasons"]
+        self.assertTrue({"integrity_mismatch", "producer_revoked"} <= set(hidden), hidden)
+        report, moved = await counted(self.admin)
+        self.assertEqual(set(moved), set(verify_audits(s)[0]["detail"]["reasons"]))
+        self.assertEqual(set(moved), set(hidden), "an administrator's report, and its count, has every code")
+        self.assertEqual(set(moved), set(codes(report)) | {w["code"] for w in report["warnings"]})
+
+    async def test_query_verify_flag_is_opt_in(self) -> None:
+        reader = await self.register_reader()
+        ids = await self.demo_notes()
+        s = self.h.service
+        q = {"query": "delivery risk RX-4 SD-9", "scope": "northwind"}
+        verified = s.metrics.verifications.labels("verified")
+
+        async def query(key: str, body: dict, status: int = 200) -> dict:
+            r = await self.client.post("/query", json=body, headers=bearer(key))
+            self.assertEqual(r.status, status, await r.text())
+            return await r.json()
+
+        audits, count = len(verify_audits(s)), verified._value.get()
+        plain = await query(self.sales2, q)
+        self.assertEqual(plain["answer"]["memory_id"], ids["conclusion"])
+        self.assertNotIn("verification", plain["answer"])
+        for flag in (False, None):                 # JSON null is the flag left out
+            with self.subTest(verify=flag):
+                res = await query(self.sales2, {**q, "verify": flag})
+                self.assertEqual((set(res), res["answer"]), (set(plain), plain["answer"]))
+        self.assertEqual((len(verify_audits(s)), verified._value.get()), (audits, count), "nothing walked without the flag")
+        res = await query(self.sales2, {**q, "verify": True})
+        v = res["answer"].pop("verification")
+        self.assertEqual(v, {"verdict": "verified", "derived_correctly": True, "still_true": True, "reasons": []})
+        self.assertEqual((set(res), res["answer"]), (set(plain), plain["answer"]), "the rest of the response is unchanged")
+        self.assertEqual((len(verify_audits(s)), verified._value.get()), (audits + 1, count + 1))
+        res = await query(self.admin["Authorization"][7:], {**q, "verify": True})
+        self.assertEqual(res["answer"]["verification"]["verdict"], "verified")
+        self.assertEqual(verified._value.get(), count + 2)
+        # without lineage:read the summary is left out, like the lineage graph: nothing walked, nothing audited
+        audits = len(verify_audits(s))
+        res = await query(reader, {**q, "verify": True})
+        self.assertEqual(res["answer"]["memory_id"], ids["conclusion"])
+        self.assertNotIn("verification", res["answer"])
+        for bad in ("yes", 1, 0, "true", [], {}):
+            with self.subTest(verify=bad):
+                res = await query(self.sales2, {**q, "verify": bad}, 400)
+                self.assertEqual(res, {"error": "'verify' must be true or false"})
+        res = await query(self.sales2, {"query": "zebra quantum harmonica", "scope": "northwind", "verify": True})
+        self.assertIsNone(res["answer"])
+        self.assertEqual(len(verify_audits(s)), audits)
+        # a DAG beyond MYCELIC_VERIFY_MAX_NODES: the walk stops at the budget
+        budget = s.settings.verify_max_nodes
+        s.settings.verify_max_nodes = 2
+        try:
+            v = (await query(self.sales2, {**q, "verify": True}))["answer"]["verification"]
+        finally:
+            s.settings.verify_max_nodes = budget
+        self.assertEqual((v["verdict"], v["derived_correctly"], v["still_true"]), ("unverifiable", None, None))
+        self.assertIn({"code": "walk_truncated", "severity": "U", "count": 1}, v["reasons"])
+
     async def test_events_validation_and_size(self) -> None:
         r = await self.client.post("/events", json={"events": [{"type": "call", "memory": {"text": "Kessler stock is low", "slot": "supplier_buffer_low"}}]},
                                    headers=bearer(self.proc1))
@@ -378,7 +708,8 @@ class MCPTests(ApiTestCase):
         self.assertIn("Mcp-Session-Id", r.headers)
         r = await self.rpc(key, "tools/list")
         names = [t["name"] for t in (await r.json())["result"]["tools"]]
-        self.assertEqual(names, ["mycelic_query", "mycelic_remember", "mycelic_lineage", "mycelic_get_memory", "mycelic_status"])
+        self.assertEqual(names, ["mycelic_query", "mycelic_remember", "mycelic_lineage", "mycelic_verify", "mycelic_get_memory",
+                                 "mycelic_status"])
         r = await self.rpc(key, "tools/call", {"name": "mycelic_remember", "arguments": {"text": "Terminal 3 strike announced.", "topic": "supply:sd-9/transport"}})
         out = (await r.json())["result"]
         self.assertFalse(out["isError"], out)
@@ -420,6 +751,74 @@ class MCPTests(ApiTestCase):
         self.assertIn("**Responses changed in this release**", deployment)
         self.assertIn("`DERIVATION_VERSION` is 2", deployment)
         self.assertIn(POLICY["P3"], deployment)
+
+    async def test_mcp_verify_tool_identity_and_redaction(self) -> None:
+        await self.h.register("reader-1", team="field-sales", department="commercial", scopes=["memory:read"])
+        ids = await demo(self.h)
+        s, keys, cid = self.h.service, self.h.keys, ids["conclusion"]
+        r = await self.rpc(keys["sales-2"], "initialize", {"protocolVersion": "2025-06-18", "capabilities": {},
+                                                          "clientInfo": {"name": "t", "version": "1"}})
+        instructions = (await r.json())["result"]["instructions"]
+        self.assertIn("Before acting on a conclusion, call mycelic_verify", instructions)
+        self.assertIn("untrusted data", instructions)
+        tools = (await (await self.rpc(keys["sales-2"], "tools/list")).json())["result"]["tools"]
+        self.assertEqual([t["name"] for t in tools], TOOL_NAMES)
+        [tool] = [t for t in tools if t["name"] == "mycelic_verify"]
+        self.assertEqual(tool["annotations"], {"readOnlyHint": True, "openWorldHint": False})
+        self.assertEqual(tool["inputSchema"]["required"], ["memory_id"])
+        self.assertEqual(tool["inputSchema"]["properties"]["max_leaf_age_seconds"],
+                         {"type": "integer", "minimum": 1, "maximum": verification.MAX_LEAF_AGE_SECONDS})
+        for phrase in ("derived correctly", "still true", "verified, stale, failed or unverifiable",
+                       "never their text, agent ids or row digests"):
+            self.assertIn(phrase, tool["description"])
+
+        async def call(key: str, **arguments) -> tuple[dict, str]:
+            r = await self.rpc(key, "tools/call", {"name": "mycelic_verify", "arguments": arguments})
+            self.assertEqual(r.status, 200)
+            text = await r.text()
+            return json.loads(text)["result"], text
+
+        audits = len(verify_audits(s))
+        out, text = await call(keys["sales-2"], memory_id=cid)
+        self.assertFalse(out["isError"], out)
+        self.assertEqual([(a["principal"], a["target"]) for a in verify_audits(s)[:1]], [("sales-2", cid)])
+        self.assertEqual(len(verify_audits(s)), audits + 1)
+        report = out["structuredContent"]
+        self.assertEqual(report["report_digest"], (await s.verify(self.h.principal("sales-2"), cid))["report_digest"])
+        self.assertEqual(report["verdict"], "verified")
+        self.assertGreaterEqual(report["summary"]["redacted"], 2)
+        for hidden in (DEMO_TEXTS["log-1"], DEMO_TEXTS["log-2"], DEMO_TEXTS["proc-1"], "log-1", "log-2", "proc-1"):
+            self.assertNotIn(hidden, text)
+        out, _ = await call(ADMIN_TOKEN, memory_id=cid, max_leaf_age_seconds=3600)
+        self.assertFalse(out["isError"], out)
+        self.assertEqual((out["structuredContent"]["summary"]["redacted"], out["structuredContent"]["max_leaf_age"]), (0, 3600))
+        audits = len(verify_audits(s))
+        for key, arguments, message in ((keys["sales-2"], {"memory_id": ids["log-1"]}, "no visible memory with id"),
+                                        (keys["sales-2"], {"memory_id": cid, "max_leaf_age_seconds": 0}, "'max_leaf_age'"),
+                                        (keys["sales-2"], {"memory_id": cid, "max_leaf_age_seconds": True}, "'max_leaf_age'"),
+                                        (keys["sales-2"], {"memory_id": cid, "max_leaf_age_seconds": 1.5}, "'max_leaf_age'"),
+                                        (keys["sales-2"], {"memory_id": cid, "max_leaf_age_seconds": "3"}, "'max_leaf_age'"),
+                                        (keys["sales-2"], {"memory_id": "a/b"}, "'memory_id'"),
+                                        (keys["reader-1"], {"memory_id": cid}, "missing scope lineage:read")):
+            with self.subTest(arguments=arguments):
+                out, _ = await call(key, **arguments)
+                self.assertTrue(out["isError"], out)
+                self.assertIn(message, out["content"][0]["text"])
+        self.assertEqual(len(verify_audits(s)), audits, "refused calls are not audited")
+
+
+class VerificationDocsTests(unittest.TestCase):
+    def test_verification_is_documented(self) -> None:
+        architecture = (ROOT / "docs/MYCELIC_ARCHITECTURE.md").read_text(encoding="utf-8")
+        for code, severity in verification.REASONS.items():
+            with self.subTest(code=code):
+                self.assertRegex(architecture, rf"\|\s*`{re.escape(code)}`\s*\|\s*{severity}\s*\|")
+        for rel in ("DEPLOYMENT.md", "SECURITY.md", "docs/MYCELIC_ARCHITECTURE.md", "README.md", "mycelic/api.py"):
+            with self.subTest(doc=rel):
+                self.assertIn("/verify", (ROOT / rel).read_text(encoding="utf-8"))
+        deployment = (ROOT / "DEPLOYMENT.md").read_text(encoding="utf-8")
+        self.assertIn("`mycelic_verify`", deployment)
+        self.assertTrue("MYCELIC_VERIFY_MAX_NODES" in deployment or "`VERIFY_MAX_NODES`" in deployment)
 
 
 if __name__ == "__main__":

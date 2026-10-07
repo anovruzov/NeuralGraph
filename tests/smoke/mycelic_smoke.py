@@ -14,13 +14,17 @@ What it proves, in order (every step is asserted; the run fails on the first bro
     conclusion from three teams' evidence;
  4. a query from a higher organizational layer returns that conclusion, with lineage that names the contributing
     teams and layers, is reconstructable, and redacts other teams' raw notes for a non-admin caller;
- 5. SIGKILL of the service, restart: the same answer and the same lineage;
- 6. the broker is killed, an agent keeps writing (outbox), the broker returns, the write is applied and changes
+ 5. the conclusion verifies downward: 'verified' (derived correctly and still true) for the sales agent, with other
+    teams' notes redacted and none of their text in the report, and for the administrator; POST /query with
+    "verify": true and the CLI (`python -m mycelic verify`, exit 0) agree, and a logistics note is a 404 to the agent;
+ 6. SIGKILL of the service, restart: the same answer and the same lineage;
+ 7. the broker is killed, an agent keeps writing (outbox), the broker returns, the write is applied and changes
     the team memory as expected;
- 7. the service is killed and its database deleted; on restart it rebuilds itself from the JetStream log: the
-    same active memory ids, the agents' keys still work, the rule is back;
- 8. an agent process restarts with its local memory: nothing is duplicated, its private note is still local;
- 9. metrics report what happened (memories by layer, replayed events, recoveries).
+ 8. the service is killed and its database deleted; on restart it rebuilds itself from the JetStream log: the
+    same active memory ids, the agents' keys still work, the rule is back, and the administrator's verification of
+    the answer has the same report digest;
+ 9. an agent process restarts with its local memory: nothing is duplicated, its private note is still local;
+10. metrics report what happened (memories by layer, replayed events, recoveries, verifications).
 
 Exit code 0 means every assertion held. A JSON report is written with --report.
 """
@@ -29,6 +33,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import time
@@ -37,9 +42,9 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from mycelic.harness import ComposeDriver, Driver, ProcessDriver  # noqa: E402
+from mycelic.harness import REPO_ROOT, ComposeDriver, Driver, ProcessDriver, wait_http  # noqa: E402
 from mycelic.sdk import MycelicClient, MycelicError  # noqa: E402
-from tests.smoke.scenario import ENTERPRISE, ENTITY, QUERY, Scenario  # noqa: E402
+from tests.smoke.scenario import ENTERPRISE, ENTITY, QUERY, SHARED, Scenario  # noqa: E402
 
 
 class SmokeFailure(AssertionError):
@@ -143,7 +148,37 @@ def run(driver: Driver, *, agents_per_team: int, log, keep_workdir: Path | None 
     step("query + lineage", answer=answer_before, redacted=lin["redacted_contributions"], layers=lin["layers"],
          agents=len(admin_lin["contributing_agents"]), text=ans["text"][:200])
 
-    log("== 5. kill the service (SIGKILL) and restart it")
+    log("== 5. verify the answer downward (agent and administrator)")
+    cid = answer_before["memory_id"]
+    agent_report = agent_client.verify(cid)
+    check((agent_report["verdict"], agent_report["derived_correctly"], agent_report["still_true"]) == ("verified", True, True),
+          f"the sales agent's verification is {agent_report['verdict']}: {agent_report['reasons']}")
+    check(agent_report["summary"]["redacted"] >= 2,
+          f"other teams' raw notes must be redacted in the verification: {agent_report['summary']}")
+    dumped = json.dumps(agent_report)
+    check(not [o["text"] for team in ("logistics", "procurement") for o in SHARED[team] if o["text"] in dumped],
+          "the sales agent's verification carries another team's note text")
+    admin_report = admin.verify(cid)
+    check(admin_report["verdict"] == "verified" and admin_report["summary"]["redacted"] == 0,
+          f"the administrator's verification is {admin_report['verdict']} with {admin_report['summary']['redacted']} redacted: "
+          f"{admin_report['reasons']}")
+    verified = agent_client.query(QUERY, scope=ENTERPRISE, min_layer="enterprise", verify=True)["answer"]
+    check(verified["memory_id"] == cid and verified["verification"]["verdict"] == "verified",
+          f"POST /query with verify: {verified['memory_id']} {verified.get('verification')}")
+    try:
+        agent_client.verify(log_root)
+        check(False, "sales agent could verify a logistics raw note")
+    except MycelicError as exc:
+        check(exc.status == 404, f"expected 404, got {exc.status}")
+    cli = subprocess.run([sys.executable, "-m", "mycelic", "verify", cid, "--url", driver.base_url, "--api-key", sales.api_key],
+                         cwd=REPO_ROOT, capture_output=True, text=True, timeout=60)
+    check(cli.returncode == 0 and cli.stdout.startswith("verified"),
+          f"python -m mycelic verify exited {cli.returncode}: {cli.stdout[:300]} {cli.stderr[-300:]}")
+    verify_digest = admin_report["report_digest"]
+    step("verify", viewer=sales.agent_id, verdict=agent_report["verdict"], nodes=agent_report["summary"]["nodes"],
+         redacted=agent_report["summary"]["redacted"], admin_report_digest=verify_digest)
+
+    log("== 6. kill the service (SIGKILL) and restart it")
     driver.kill("mycelic")
     driver.start("mycelic")
     st = wait_idle(admin)
@@ -153,7 +188,7 @@ def run(driver: Driver, *, agents_per_team: int, log, keep_workdir: Path | None 
     check(active_snapshot(admin) == snap_before, "active memories changed after a service restart")
     step("service restart survived", recoveries=st["checks"]["consumer"])
 
-    log("== 6. kill the broker, keep writing, bring it back")
+    log("== 7. kill the broker, keep writing, bring it back")
     team_before = [m for m in admin.list_memories(scope=ENTERPRISE, layer="team", limit=100) if m["topic"] == "supply:sd-9/transport"][0]
     driver.kill("nats")
     time.sleep(1.0)
@@ -178,7 +213,7 @@ def run(driver: Driver, *, agents_per_team: int, log, keep_workdir: Path | None 
     snap_before_wipe = active_snapshot(admin)
     answer_before_wipe = agent_client.query(QUERY, scope=ENTERPRISE, min_layer="enterprise")["answer"]["memory_id"]
 
-    log("== 7. kill the service, delete its database, restart: rebuild from the event log")
+    log("== 8. kill the service, delete its database, restart: rebuild from the event log")
     driver.kill("mycelic")
     driver.wipe_database()
     driver.start("mycelic")
@@ -192,8 +227,15 @@ def run(driver: Driver, *, agents_per_team: int, log, keep_workdir: Path | None 
     check(res3["answer"]["memory_id"] == answer_before_wipe, "answer differs after the rebuild")
     check(res3["lineage"]["evidence"]["reconstructable"], "lineage not reconstructable after the rebuild")
     step("database rebuilt from JetStream", active_memories=len(snap_after), agents=len(sc.agents))
+    # administrator against administrator: what a report shows depends on who asks
+    wait_http(f"{driver.base_url}/ready")
+    rebuilt = admin.verify(answer_before["memory_id"])
+    check(rebuilt["verdict"] == "verified" and rebuilt["report_digest"] == verify_digest,
+          f"the administrator's verification after the rebuild is {rebuilt['verdict']} ({rebuilt['reasons']}), digest "
+          f"{rebuilt['report_digest']} vs {verify_digest} before")
+    step("verify after rebuild", verdict=rebuilt["verdict"], report_digest=rebuilt["report_digest"])
 
-    log("== 8. restart an agent process with its local memory")
+    log("== 9. restart an agent process with its local memory")
     one = sc.by_team("procurement")[0]
     before_state = states[one.agent_id]
     after_state = sc.run_agents(driver.base_url, agents=[one])[one.agent_id]
@@ -204,14 +246,17 @@ def run(driver: Driver, *, agents_per_team: int, log, keep_workdir: Path | None 
     check(active_snapshot(admin) == snap_after, "an agent restart must not change organizational memory")
     step("agent restart idempotent", counts=after_state["counts"])
 
-    log("== 9. metrics")
+    log("== 10. metrics")
     import urllib.request
     req = urllib.request.Request(f"{driver.base_url}/metrics", headers={"Authorization": f"Bearer {driver.admin_token}"})
     text = urllib.request.urlopen(req, timeout=5).read().decode()
     check('mycelic_memories{layer="enterprise"}' in text, "metrics lack memories by layer")
     check("mycelic_replay_events_total" in text and "mycelic_recovery_total" in text, "metrics lack replay/recovery counters")
     replayed = [l for l in text.splitlines() if l.startswith("mycelic_replay_events_total")]
-    step("metrics present", replay_counter=replayed[0] if replayed else None)
+    # the counter restarted with the rebuilt process; the verification after the rebuild counted once
+    verified_line = next((l for l in text.splitlines() if l.startswith('mycelic_verifications_total{verdict="verified"}')), "")
+    check(verified_line and float(verified_line.split()[-1]) >= 1, f"metrics lack verified verifications: {verified_line!r}")
+    step("metrics present", replay_counter=replayed[0] if replayed else None, verifications_verified=verified_line.split()[-1])
 
     report["result"] = "PASS"
     report["seconds"] = round(time.time() - t_start, 1)

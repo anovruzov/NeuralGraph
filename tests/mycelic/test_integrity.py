@@ -762,6 +762,15 @@ class IntegrityTests(unittest.IsolatedAsyncioTestCase):
             for m in st.list_memories(ORG, status=None, limit=1000):
                 for who, headers in (("admin", admin), ("log-1", keys["log-1"])):
                     seen.append((f"GET /memory {m.memory_id} as {who}", await (await client.get(f"/memory/{m.memory_id}", headers=headers)).text()))
+            # downward verification walks every row's digest and reports none of them (before the audit log is read)
+            for who, headers in (("sales-1", keys["sales-1"]), ("admin", admin)):
+                r = await client.get(f"/verify/{conclusion.memory_id}", headers=headers)
+                self.assertEqual(r.status, 200)
+                seen.append((f"GET /verify as {who}", await r.text()))
+            r = await client.post("/query", json={"query": "supply risk sd-9", "verify": True}, headers=keys["sales-1"])
+            text = await r.text()
+            self.assertIn("verification", json.loads(text)["answer"], text)
+            seen.append(("POST /query verify", text))
             for path, headers in ((f"/memories?scope={ORG}&limit=500", admin), ("/memories?status=superseded", keys["log-1"]),
                                   ("/memories?status=retracted", keys["log-3"]), ("/memories", keys["sales-1"]),
                                   (f"/lineage/{conclusion.memory_id}", keys["sales-1"]), (f"/lineage/{conclusion.memory_id}", admin),
@@ -772,7 +781,8 @@ class IntegrityTests(unittest.IsolatedAsyncioTestCase):
                                   ({"query": "strike", "scope": ORG, "include_lineage": True}, admin)):
                 seen.append((f"POST /query {body}", await (await client.post("/query", json=body, headers=headers)).text()))
             for name, arguments in (("mycelic_query", {"query": "supply risk sd-9"}), ("mycelic_lineage", {"memory_id": conclusion.memory_id}),
-                                    ("mycelic_get_memory", {"memory_id": conclusion.memory_id})):
+                                    ("mycelic_get_memory", {"memory_id": conclusion.memory_id}),
+                                    ("mycelic_verify", {"memory_id": conclusion.memory_id})):
                 r = await client.post("/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "tools/call",
                                                     "params": {"name": name, "arguments": arguments}},
                                       headers={**keys["sales-1"], "Accept": "application/json"})

@@ -53,8 +53,8 @@ class Metrics:
         self.verification_latency = Histogram("mycelic_verification_latency_seconds", "Downward verification latency",
                                               buckets=_LATENCY_BUCKETS, registry=r)
         self.verification_reasons = Counter("mycelic_verification_reasons_total",
-                                            "Reason codes found by downward verification, each once per verification", ["reason"],
-                                            registry=r)
+                                            "Reason codes of downward verifications as each caller saw them, each once per "
+                                            "verification", ["reason"], registry=r)
         self.http_requests = Counter("mycelic_http_requests_total", "HTTP requests", ["route", "status"], registry=r)
         self.auth_failures = Counter("mycelic_auth_failures_total", "Rejected requests", ["reason"], registry=r)
         self.active_agents = Gauge("mycelic_active_agents", "Agents seen in the last 15 minutes", registry=r)
@@ -77,7 +77,7 @@ class Metrics:
         for verdict in VERDICTS:
             self.verifications.labels(verdict)
         for code in REASONS:
-            if not code.startswith("hidden_"):          # what a caller sees of hidden nodes is never counted
+            if not code.startswith("hidden_"):          # hidden_* appear once a caller has been shown one
                 self.verification_reasons.labels(code)
 
     def refresh_from_stats(self, stats: dict[str, Any]) -> None:

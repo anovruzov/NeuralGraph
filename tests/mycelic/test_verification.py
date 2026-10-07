@@ -1138,7 +1138,12 @@ class VerificationTests(unittest.IsolatedAsyncioTestCase):
         await w.settle()
         revoked = counter(m.verification_reasons, "producer_revoked")
         await s.verify(w.principal("sales-2"), C)
-        self.assertEqual(counter(m.verification_reasons, "producer_revoked"), revoked + 1, "unredacted codes, warnings included")
+        # counted as the caller sees them: log-1's warning is only in sales-2's summary.hidden_warnings, while the audit
+        # row keeps the codes before redaction; an administrator's verification counts it
+        self.assertEqual(counter(m.verification_reasons, "producer_revoked"), revoked, "a hidden node's warning is not counted")
+        self.assertEqual(audit_rows(w.store)[0]["detail"]["reasons"], ["producer_revoked"])
+        await s.verify(w.admin, C)
+        self.assertEqual(counter(m.verification_reasons, "producer_revoked"), revoked + 1, "an administrator's, warnings included")
         self.assertEqual(audit_rows(w.store)[0]["detail"]["reasons"], ["producer_revoked"])
         rendered = m.render()[0].decode()
         self.assertNotIn("hidden_", rendered)

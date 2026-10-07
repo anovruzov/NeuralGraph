@@ -15,6 +15,8 @@ GET  /memories                 memory:read    ?scope=&layer=&limit=&status= (act
 POST /events                   events:write   {"events": [...]} (each may embed a "memory")
 POST /query                    memory:read    {"query", "scope"?, "min_layer"?, "k"?, "include_lineage"?}
 GET  /lineage/{id}             lineage:read   (POST /query embeds the lineage only for callers holding it)
+GET  /verify/{id}              lineage:read   ?max_leaf_age=N (1..315360000 s): was it derived correctly, is it still true
+                               (200 for every verdict; POST /query embeds a summary with "verify": true)
 POST /admin/agents             admin          register an agent (the key is returned once)
 GET  /admin/agents             admin
 DELETE /admin/agents/{id}      admin          revoke
@@ -30,6 +32,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import ssl
 import time
 from typing import Any, Awaitable, Callable
@@ -39,7 +42,8 @@ from aiohttp import web
 from .auth import AuthError, Principal
 from .hierarchy import HierarchyError
 from .mcp import MycelicMCPTransport
-from .service import VERSION, Forbidden, MycelicService, NotFound, ValidationError
+from .service import VERSION, Forbidden, MycelicService, NotFound, RateLimited, ValidationError
+from .verification import MAX_LEAF_AGE_SECONDS
 
 logger = logging.getLogger(__name__)
 
@@ -153,7 +157,7 @@ def create_app(service: MycelicService) -> web.Application:
                     headers = {"WWW-Authenticate": 'Bearer realm="mycelic"'} if exc.status == 401 else {}
                     return _json({"error": exc.reason}, exc.status) if not headers else web.Response(
                         text=json.dumps({"error": exc.reason}), status=exc.status, content_type="application/json", headers=headers)
-                if not service.limiter.allow(f"principal:{principal.kind}:{principal.id}"):
+                if not service.limiter.allow(principal.limiter_key):
                     m.http_requests.labels(route, "429").inc()
                     m.auth_failures.labels("rate_limited").inc()
                     return _error("rate limit exceeded", 429)
@@ -169,6 +173,8 @@ def create_app(service: MycelicService) -> web.Application:
             response = _error(str(exc), 403)
         except NotFound as exc:
             response = _error(f"no visible memory with id {exc.args[0] if exc.args else ''}", 404)
+        except RateLimited:
+            response = _error("rate limit exceeded", 429)
         except web.HTTPException:
             raise
         except Exception as exc:
@@ -196,7 +202,7 @@ def create_app(service: MycelicService) -> web.Application:
         return _json({"service": "mycelic", "version": VERSION,
                       "docs": "https://github.com/anovruzov/NeuralGraph/blob/main/DEPLOYMENT.md",
                       "endpoints": ["/health", "/ready", "/metrics", "/whoami", "/memory", "/memories", "/events", "/query",
-                                    "/lineage/{id}", "/admin/*", "/mcp"]})
+                                    "/lineage/{id}", "/verify/{id}", "/admin/*", "/mcp"]})
 
     async def health(request: web.Request) -> web.Response:
         h = await service.health()
@@ -267,12 +273,20 @@ def create_app(service: MycelicService) -> web.Application:
 
     async def post_query(request: web.Request) -> web.Response:
         p = principal(request)
-        res = service.query(p, await _body(request))
+        res = await service.query_and_verify(p, await _body(request), remote=request["remote"])
         res["results"] = [{**h, "memory": service.public_view(h["memory"], p)} for h in res["results"]]
         return _json(res)
 
     async def get_lineage(request: web.Request) -> web.Response:
         return _json(service.lineage(principal(request), request.match_info["id"]))
+
+    async def get_verify(request: web.Request) -> web.Response:
+        # digits only (no sign, point, exponent or blanks), at most 12 of them; the service checks the range
+        raw = request.query.get("max_leaf_age")
+        if raw is not None and not re.fullmatch(r"[0-9]{1,12}", raw):
+            raise ValidationError(f"'max_leaf_age' must be an integer between 1 and {MAX_LEAF_AGE_SECONDS} seconds")
+        return _json(await service.verify(principal(request), request.match_info["id"],
+                                          max_leaf_age=int(raw) if raw is not None else None, remote=request["remote"]))
 
     # ---------------------------------------------------------------- admin
     async def admin_register(request: web.Request) -> web.Response:
@@ -361,6 +375,7 @@ def create_app(service: MycelicService) -> web.Application:
     r.add_post("/events", post_events)
     r.add_post("/query", post_query)
     r.add_get("/lineage/{id}", get_lineage)
+    r.add_get("/verify/{id}", get_verify)
     r.add_post("/admin/agents", admin_register)
     r.add_get("/admin/agents", admin_list_agents)
     r.add_delete("/admin/agents/{id}", admin_revoke)

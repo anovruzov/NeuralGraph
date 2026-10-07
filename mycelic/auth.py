@@ -29,6 +29,7 @@ import hmac
 import secrets
 import time
 from dataclasses import dataclass, field
+from typing import Callable
 
 from .hierarchy import AgentPath, HierarchyError, is_ancestor_or_self, unit_at_layer
 from .models import Agent, Memory
@@ -76,6 +77,12 @@ class Principal:
     @property
     def is_admin(self) -> bool:
         return self.kind == "admin"
+
+    @property
+    def limiter_key(self) -> str:
+        """The principal's rate-limit bucket: one per agent or administrator, shared by the API middleware, the MCP batch
+        charge and verification."""
+        return f"principal:{self.kind}:{self.id}"
 
     def has(self, scope: str) -> bool:
         return self.is_admin or scope in self.scopes
@@ -171,18 +178,41 @@ class _Bucket:
 
 @dataclass
 class RateLimiter:
-    """Token bucket per principal. ``rps <= 0`` disables limiting."""
+    """Token bucket per principal. ``rps <= 0`` disables limiting.  ``clock`` (seconds, monotonic) is a test hook."""
 
     rps: float = 50.0
     burst: int = 100
     max_keys: int = 20_000
     _buckets: dict[str, _Bucket] = field(default_factory=dict)
+    clock: Callable[[], float] = field(default=time.monotonic, repr=False)
 
     def allow(self, key: str, now: float | None = None, cost: int = 1) -> bool:
         """Take ``cost`` tokens from the bucket (a batch request costs as many as the requests it carries)."""
         if self.rps <= 0 or cost <= 0:
             return True
-        now = time.monotonic() if now is None else now
+        b = self._refill(key, self.clock() if now is None else now)
+        if b.tokens >= float(cost):
+            b.tokens -= float(cost)
+            return True
+        return False
+
+    def take(self, key: str, cost: int, now: float | None = None) -> None:
+        """Charge ``cost`` tokens after the fact (a verification, priced once its walk size is known), into debt if need
+        be; a no-op when limiting is off or ``cost <= 0``.  A debt is never deeper than one burst, so it is repaid in at
+        most ``(burst + 1) / rps`` seconds."""
+        if self.rps <= 0 or cost <= 0:
+            return
+        b = self._refill(key, self.clock() if now is None else now)
+        b.tokens = max(b.tokens - float(cost), -float(self.burst))
+
+    def in_debt(self, key: str, now: float | None = None) -> bool:
+        """Has :meth:`take` left the bucket below zero (after refilling it)?  Creates no bucket."""
+        if self.rps <= 0 or key not in self._buckets:
+            return False
+        return self._refill(key, self.clock() if now is None else now).tokens < 0
+
+    def _refill(self, key: str, now: float) -> _Bucket:
+        """The bucket of ``key`` (created full, pruning the map first when it is full), refilled up to ``now``."""
         b = self._buckets.get(key)
         if b is None:
             if len(self._buckets) >= self.max_keys:
@@ -190,10 +220,7 @@ class RateLimiter:
             b = self._buckets[key] = _Bucket(tokens=float(self.burst), updated=now)
         b.tokens = min(float(self.burst), b.tokens + (now - b.updated) * self.rps)
         b.updated = now
-        if b.tokens >= float(cost):
-            b.tokens -= float(cost)
-            return True
-        return False
+        return b
 
     def _prune(self, now: float) -> None:
         """Drop idle buckets; if the map is still full, evict the least recently used tenth (never everyone)."""

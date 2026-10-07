@@ -24,6 +24,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 import re
 import time
 from datetime import datetime
@@ -59,6 +60,9 @@ _SLOT_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,100}$")
 _ID_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,200}$")
 #: meta key counting the derived events a replay ignored (summarised in one audit row when the replay completes)
 _REPLAY_IGNORED = "replay_ignored_derived"
+#: a verification costs one rate-limit token per this many nodes walked, on top of its request's own token: at about
+#: 0.1 ms per node (verification.py, Cost) a token buys about 25 ms of walk
+VERIFY_NODES_PER_TOKEN = 250
 
 
 class ValidationError(ValueError):
@@ -71,6 +75,11 @@ class Forbidden(PermissionError):
 
 class NotFound(KeyError):
     pass
+
+
+class RateLimited(Exception):
+    """A principal whose verifications put its rate-limit bucket in debt; the API maps it to 429 and MCP to an error
+    result."""
 
 
 def _s(body: dict[str, Any], key: str, *, required: bool = False, max_len: int = 200, pattern: re.Pattern | None = None) -> str | None:
@@ -1095,8 +1104,17 @@ class MycelicService:
                      remote: str | None = None, now: datetime | None = None) -> dict[str, Any]:
         """Downward verification of a memory the caller may read (``verification.py``): was it derived correctly, and is
         it still true?  Unknown and unreadable ids are the same NotFound, as for lineage.  ``max_leaf_age`` (seconds)
-        also checks how long ago each readable raw note was ingested; ``now`` is a test hook.  A successful call is
-        counted by verdict and reason and audited; a refused one is neither."""
+        also checks how long ago each readable raw note was ingested; ``now`` is a test hook.
+
+        The walk is priced after the fact: ``ceil(nodes / VERIFY_NODES_PER_TOKEN)`` tokens from the caller's rate-limit
+        bucket (:meth:`RateLimiter.take`), on top of the request's own token, into debt if need be.  A caller in debt is
+        refused (:class:`RateLimited`) before anything is read, so a JSON-RPC batch, whose messages run back to back with
+        no middleware between them, walks at most once past solvency.  The debt check and the charge both run under the
+        store lock, so concurrent verifications by one caller are serialised on them.  A successful call is charged,
+        counted by verdict and reason and audited; a refused one (Forbidden, ValidationError, NotFound, RateLimited) is
+        none of these.  The reason counters take the codes of the caller's own report (``hidden_*`` for a node it may not
+        read, no hidden warning), because ``/metrics`` answers any agent key when ``MYCELIC_METRICS_TOKEN`` is unset; the
+        audit row keeps the codes before redaction."""
         if not principal.has("lineage:read"):
             raise Forbidden("missing scope lineage:read")
         if not isinstance(memory_id, str) or not _ID_RE.fullmatch(memory_id):
@@ -1107,22 +1125,42 @@ class MycelicService:
         t0 = time.perf_counter()
         # nothing in here awaits, so the walk never sees a transaction half-way through its body
         async with self.store._lock:
+            if self.limiter.in_debt(principal.limiter_key):
+                self.metrics.auth_failures.labels("rate_limited").inc()
+                raise RateLimited("rate limit exceeded")
             m = self.store.get_memory(memory_id)
             if m is None or not principal.can_read(m):
                 raise NotFound(memory_id)
             result = verification.verify(self.store, self.aggregator.planner(), self.keyring, memory_id,
                                          principal=principal, now=now or utcnow(), max_nodes=self.settings.verify_max_nodes,
                                          max_leaf_age=max_leaf_age)
+            self.limiter.take(principal.limiter_key, math.ceil(result.report["summary"]["nodes"] / VERIFY_NODES_PER_TOKEN))
         verdict = result.report["verdict"]
         self.metrics.verification_latency.observe(time.perf_counter() - t0)
         self.metrics.verifications.labels(verdict).inc()
-        for code in result.codes:
+        # the codes as the caller sees them: diffing /metrics around its own call must not tell an agent what its report
+        # redacted (an administrator's report, and so its count, has every code)
+        for code in sorted({r["code"] for r in result.report["reasons"]} | {w["code"] for w in result.report["warnings"]}):
             self.metrics.verification_reasons.labels(code).inc()
         # the codes before redaction: the audit log is for administrators
         await self.store.audit(principal.id, "memory.verify", memory_id, {"org_id": m.org_id, "verdict": verdict,
                                                                           "nodes": result.report["summary"]["nodes"],
                                                                           "reasons": result.codes}, remote)
         return result.report
+
+    async def query_and_verify(self, principal: Principal, body: dict[str, Any], *, remote: str | None = None) -> dict[str, Any]:
+        """POST /query: :meth:`query`, and with ``"verify": true`` the answer's verification summary (``verdict``, both
+        answers and the report-level reasons as the caller sees them) as ``answer.verification``.  Only for callers holding
+        lineage:read, like the embedded lineage graph; without the flag, or without an answer, the response is exactly
+        :meth:`query`'s.  No freshness bound applies here: ``GET /verify/{id}?max_leaf_age=`` has it."""
+        flag = body.get("verify") if isinstance(body, dict) else None
+        if flag is not None and not isinstance(flag, bool):
+            raise ValidationError("'verify' must be true or false")
+        res = self.query(principal, body)
+        if flag is True and res["answer"] is not None and principal.has("lineage:read"):
+            report = await self.verify(principal, res["answer"]["memory_id"], remote=remote)
+            res["answer"]["verification"] = {k: report[k] for k in ("verdict", "derived_correctly", "still_true", "reasons")}
+        return res
 
     def list_memories(self, principal: Principal, *, scope: str | None = None, layers: list[str] | None = None,
                       limit: int = 50, status: str = "active") -> list[Memory]:

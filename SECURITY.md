@@ -35,6 +35,7 @@ to its organization; a deployment may host several.
 | `POST /memory`, `POST /events` | agents only, scope `memory:write` / `events:write`; the memory is written **as the caller** at the caller's path; a body naming another agent is refused; the admin token cannot write memories |
 | `GET /memory/{id}`, `POST /query`, `GET /memories` | scope `memory:read`; an agent sees agent-layer memories of **its own team** (or ones the producer marked `visibility: org`) and derived memories of **every unit it belongs to** (the memory's unit is an ancestor-or-self of the agent's path); a query `scope` must be the caller's team or an ancestor unit (403 otherwise); results are filtered by the same rule, so a query never reveals the existence of a memory outside the caller's view, and a `GET` of one returns 404, not 403. Text of a memory that is not active (superseded or retracted) is returned only to its producer and to administrators; everyone else who may read the memory gets an empty `text` and `text_withheld` set to its status. The memory keeps every other field (its `metadata.statements` and `statement_origins` are dropped), and `GET /memories?status=superseded` or `?status=retracted` lists such memories the same way; `POST /query` searches active memories only |
 | `GET /lineage/{id}` | scope `lineage:read` on a readable memory (`POST /query` embeds the lineage graph only for callers holding it); contributions the caller may not read are **redacted** (text, agent id, event ids, entity and the producer's local reference withheld; unit path, layer, timestamps, confidence kept). A readable node that is superseded or retracted, and that the caller did not produce, is **withheld**: it keeps its shape and every other field, with an empty `text` and `text_withheld` set to its status; the nodes, edges and counts are those of any other reader. A producer's local reference is shown only to that producer and to administrators |
+| `GET /verify/{id}`, `POST /query` with `"verify": true` | scope `lineage:read` on a readable memory: an id that does not exist and one the caller may not read get the same 404, and a caller without the scope gets 403 whatever the id (on `POST /query` the summary is silently left out, like the lineage graph). The verdict and both answers (`derived_correctly`, `still_true`) are computed from the codes before redaction, so every viewer gets the same answer. A node the caller may not read shows only its id, layer, unit (a raw note's team, not its path, which ends in the producer's id), operator, status and `ok`; of its codes it keeps only those lineage already discloses (`node_retracted`, `node_superseded`, `missing_parent`, `cycle_detected`), every other one becomes `hidden_error`, `hidden_unverifiable` or `hidden_stale`, it carries no details, and its warnings are only counted. No detail on any node, for any viewer, carries text, statements, metadata values, agent or producer ids or row digests; key ids, `as_of` and the `log_lag` warning are shown to administrators only. `mycelic_verification_reasons_total` counts each verification's codes as its caller saw them (a hidden node's as `hidden_*`, its warnings not at all), so diffing `/metrics` around its own call tells an agent nothing its report withheld; the totals also count administrators' verifications, which see every code, so set `MYCELIC_METRICS_TOKEN` where even those totals must not reach agents (without it `/metrics` accepts any agent key) |
 | `POST /memory/{id}/retract` | the producing agent or the administrator, raw observations only: a derived memory is a function of its evidence and is withdrawn (retracted, not deleted) when that evidence is retracted. Retraction withdraws a note from answers but does not erase it. Its text stays in the database, the event log and the stream, readable by its producer and administrators |
 | `/admin/*`, `POST /admin/replay`, `POST /admin/reaggregate` | administrator token only; the `admin` scope cannot be granted to an agent key |
 | `/metrics` | `MYCELIC_METRICS_TOKEN` if set, otherwise an admin token or any valid agent key; unauthenticated only on a loopback bind |
@@ -92,8 +93,9 @@ the caller's view only, so memories outside it influence neither the results nor
   audit row), any backfill WARNING or ERROR, any `integrity.backfill` audit row and any rise of
   `mycelic_integrity_backfilled_total` means digests were removed from the database; in an upgraded database, any
   after the start that completed the upgrade's backfill does. Audit rows are pruned after
-  `MYCELIC_AUDIT_RETENTION_DAYS` and can be edited by the same person, so alert on the log and the metric. Nothing
-  exposes the check through the API yet.
+  `MYCELIC_AUDIT_RETENTION_DAYS` and can be edited by the same person, so alert on the log and the metric. Downward
+  verification (`GET /verify/{id}`, §2 and §6) runs this check on every row it walks and reports the outcome as a
+  reason code (`integrity_mismatch`, `integrity_downgraded`, `integrity_unknown_key`, …), never the digest.
 * TLS: `MYCELIC_TLS_CERT_FILE/KEY_FILE` (direct) or a TLS-terminating proxy with `MYCELIC_ALLOWED_HOSTS`;
   `tls://` + `MYCELIC_NATS_CA_FILE` for the broker (verified, TLS ≥ 1.2). The SDK verifies server
   certificates and accepts a private CA (`MycelicClient(..., ca_file=...)`).
@@ -114,10 +116,25 @@ buckets is evicted, never everyone. Behind a proxy (`MYCELIC_TRUST_PROXY_HEADERS
 is the Nth entry from the right of `X-Forwarded-For` (`MYCELIC_TRUSTED_PROXY_HOPS`), never the leftmost one
 the client can forge.
 
+Downward verification is priced by its walk: 1 + ceil(nodes / 250) tokens from the caller's principal bucket, the
+walk's share charged after the walk, which may take the bucket into debt (never deeper than one burst, so it is
+repaid within (burst + 1) / rps seconds). A principal in debt is refused with 429 before anything is read. Inside a
+JSON-RPC batch on `/mcp`, whose messages run back to back without the middleware between them, every message is
+charged its token up front and every `mycelic_verify` message its walk, so once the bucket is in debt the remaining
+verify messages get an error result without walking, and the next request is 429. The debt check and the charge
+both run under the store lock, so two concurrent verifications by one principal cannot both walk on one token. A
+walk reads at most `MYCELIC_VERIFY_MAX_NODES` (25,000) nodes and holds the event loop while it runs; the charge
+is a brake proportional to the walk, not a CPU cap (DEPLOYMENT.md §4, "Verifying a conclusion"). `max_leaf_age` must
+be an integer from 1 to 315,360,000 and a memory id must match `[A-Za-z0-9_.:-]{1,200}` (400 otherwise, also for an
+id sent with `%2F` in it, which aiohttp decodes before the check).
+
 ## 5. Audit and logs
 
 `audit_log` records agent registration/revocation/rotation, rule changes, replays, every memory ingest and
-retraction (principal, action, target, organization, remote address) and rejected events. Unauthenticated
+retraction (principal, action, target, organization, remote address) and rejected events. Every successful
+downward verification writes `memory.verify` (principal, target, organization, verdict, nodes walked and the reason
+codes before redaction, so an administrator sees why a hidden node failed; remote address); a refused one (403,
+400, 404, 429) writes nothing. Unauthenticated
 failures are **not** written to the database (they would let anyone grow it); they are counted in
 `mycelic_auth_failures_total{reason}` and logged at most once per minute per reason and address. Rows
 older than `MYCELIC_AUDIT_RETENTION_DAYS` are pruned at start. Access logging of URLs is off; no secret
@@ -144,6 +161,54 @@ row that a rebuild reproduces, SQL edits of content, lineage, key id and origin 
 (previous keys, events in flight, a dropped key), the backfill's bound and alarm, and no digest in any API, MCP,
 event or `/metrics` output; `test_jetstream.py` replays a stream signed before a rotation on the real broker, and
 `test_aggregation_invariants.py` checks every row's digest after randomized sequences.
+`tests/mycelic/test_verification.py`: every reason code of downward verification on the node it concerns (tampering
+with each kind of row, status flips, retractions in flight, rule and `MIN_SUPPORT` changes, old leaves, missing
+keys, events and digests, truncated walks, replays), redaction for viewers of other teams and regions,
+authorisation (another organization's memory is a 404), determinism and rebuilds. `test_api.py` checks `GET /verify/{id}` over HTTP (401, 403
+for a missing scope and a revoked agent, the same 404 for another team's note, an unknown id and another
+organization's conclusion, 400 for malformed ids and `max_leaf_age`, and the four verdicts with 200, without other
+teams' text or agent ids), the opt-in `"verify"` of `POST /query`, the `mycelic_verify` tool, the cost-weighted
+limit over REST, concurrent requests and MCP batches, and that `/metrics` counts an agent's verification codes as
+its report shows them; `tests/mycelic/test_sdk_cli.py` the SDK, the CLI's exit
+statuses and the stdio proxy against a live server; the scanner of `test_integrity.py` also reads `GET /verify` (an
+agent and the administrator), `POST /query` with `"verify": true` and `mycelic_verify`; and smoke steps 5 and 8
+verify the answer as a sales agent (other teams' notes redacted, none of their text in the report) and as the
+administrator, whose report digest is the same after the database is rebuilt from the stream.
+
+### What downward verification proves, and what it does not
+
+A `verified` answer at `verified_at` proves, for every node of the walk:
+
+* shape: every parent exists, there is no cycle, a raw note has no parents, and every lineage edge agrees with its
+  parent row;
+* integrity: every row's digest matches the row as stored and its parents (§3); with a signing key set, an unkeyed
+  digest or one under a key the deployment no longer has does not pass;
+* raw notes: each one equals its `memory.observed` event in the log on every field the event carries, the events it
+  cites are in the log, its producer is a registered agent at its path, and its status agrees with the retractions
+  the log holds;
+* derived memories: each one is recomputed from its stored parents under its stored derivation (the rule snapshot or
+  `MIN_SUPPORT` it was derived under) and the result has its id, text, confidence and every field the digest covers;
+  its parents lie inside its unit and are eligible evidence, and the support thresholds (`MIN_SUPPORT`, a rule's
+  slots, `min_agents`, `min_teams`, `min_units`) hold;
+* currency: no node is retracted or superseded, the memory's rule is still applied, enabled and unchanged,
+  `MIN_SUPPORT` is the configured one, and the planner derives exactly this memory from the applied evidence now;
+* with `max_leaf_age`: every raw note the caller can read was ingested by the server within that many seconds.
+
+It does not prove:
+
+* that an observation is true in the world: only that the derivation from what agents reported is sound and current;
+* that a producer still stands by its note: there is no re-attestation in this release. Freshness is the server's
+  ingest time, not the producer's `observed_at`, and raw notes the caller may not read are not judged
+  (`freshness_partial` is then true);
+* anything against a holder of the signing key or the broker credentials: the event log is trusted (§7, item 1),
+  and without `MYCELIC_EVENT_SIGNING_KEY` a digest detects corruption, not edits (a re-hashed raw note is still
+  caught by the comparison with its event, and a derived memory is still recomputed from its parents);
+* anything about events not yet applied (an administrator sees the `log_lag` warning);
+* anything beyond `MYCELIC_VERIFY_MAX_NODES` nodes: such a walk is `unverifiable` (`walk_truncated`);
+* why a node the caller may not read failed: that caller sees `hidden_error`, and its verification adds only that
+  code to `/metrics`; the code itself is in the reports of callers who may read the node (administrators among
+  them), in the `/metrics` totals their verifications add (§2), and in the `memory.verify` audit row;
+* rows derived by an older release: they are `unverifiable` (`legacy_derivation`) until re-aggregated.
 
 ## 7. Limitations (read these)
 

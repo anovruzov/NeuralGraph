@@ -34,13 +34,14 @@ export MYCELIC_ADMIN_TOKEN=...                # from .env
 python -m mycelic register-agent --enterprise northwind --department ops --team logistics --agent-id logistics-1
 export MYCELIC_API_KEY=mk_logistics-1....
 python -m mycelic query "delivery risk sd-9" --scope northwind --lineage
+python -m mycelic verify <memory_id>      # derived correctly and still true? exit 0 = verified
 ```
 
 Connect Claude Code: `claude mcp add --transport http mycelic http://localhost:8080/mcp --header "Authorization: Bearer $MYCELIC_API_KEY"`.
 Everything else — configuration, Kubernetes, backups, recovery, TLS — is in [DEPLOYMENT.md](DEPLOYMENT.md).
 
 **API**: `POST /memory`, `POST /events`, `POST /query`, `GET /memory/{id}`, `GET /lineage/{id}`,
-`GET /health`, `GET /ready`, `GET /metrics`, `/admin/*`, `/mcp`. **SDK**: `mycelic.sdk.MycelicClient` and
+`GET /verify/{id}`, `GET /health`, `GET /ready`, `GET /metrics`, `/admin/*`, `/mcp`. **SDK**: `mycelic.sdk.MycelicClient` and
 `LocalMemory`; reference agent `python -m mycelic.sdk.agent`.
 
 ## Demonstration
@@ -56,7 +57,7 @@ consolidates the logistics observations into a team memory and composes an enter
 conclusion whose lineage names every contributing observation, agent, team and layer, and whose evidence is
 still reconstructable. The demo then SIGKILLs the service, kills the broker while an agent keeps writing,
 and deletes the service database; each time the same conclusion and lineage come back. Private notes never
-leave the agents. The same scenario with 99 agent processes passes in about twenty seconds.
+leave the agents. The same scenario with 99 agent processes passes in about fifteen seconds with the process driver.
 
 ### Strategic synthesis
 

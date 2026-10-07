@@ -63,6 +63,51 @@ class AuthTests(unittest.TestCase):
         self.assertTrue(r.allow("k", now=0.2))
         self.assertTrue(RateLimiter(rps=0).allow("k"))
 
+    def test_rate_limiter_take_and_debt(self) -> None:
+        r = RateLimiter(rps=1, burst=10)
+        self.assertTrue(r.allow("k", now=0.0))
+        r.take("k", 5, now=0.0)
+        self.assertEqual(r._buckets["k"].tokens, 4.0)
+        self.assertFalse(r.in_debt("k", now=0.0))
+        r.take("k", 6, now=0.0)
+        self.assertEqual(r._buckets["k"].tokens, -2.0)
+        self.assertTrue(r.in_debt("k", now=0.0))
+        self.assertFalse(r.allow("k", now=0.0))
+        self.assertEqual(r._buckets["k"].tokens, -2.0, "a refused request takes nothing")
+        self.assertTrue(r.in_debt("k", now=1.0))
+        self.assertFalse(r.in_debt("k", now=2.0))
+        self.assertFalse(r.allow("k", now=2.0), "out of debt is not yet solvent")
+        self.assertTrue(r.allow("k", now=3.0))
+        # a debt is never deeper than one burst: repaid within (burst + 1) / rps seconds
+        r.take("k", 1_000_000, now=3.0)
+        self.assertEqual(r._buckets["k"].tokens, -10.0)
+        self.assertTrue(r.in_debt("k", now=12.5))
+        self.assertFalse(r.allow("k", now=13.5))
+        self.assertTrue(r.allow("k", now=14.0))
+        # nothing to charge, and an unknown key, create no bucket
+        r.take("other", 0, now=0.0)
+        r.take("other", -3, now=0.0)
+        self.assertFalse(r.in_debt("unknown", now=0.0))
+        self.assertEqual(set(r._buckets), {"k"})
+        # limiting off: take is a no-op and nobody is ever in debt
+        off = RateLimiter(rps=0, burst=10)
+        off.take("k", 50)
+        self.assertFalse(off.in_debt("k"))
+        self.assertEqual(off._buckets, {})
+        # the injected clock is used whenever no time is passed; frozen, it never refills
+        t = [0.0]
+        c = RateLimiter(rps=1, burst=10, clock=lambda: t[0])
+        c.take("k", 12)
+        self.assertEqual(c._buckets["k"].tokens, -2.0)
+        for _ in range(3):
+            self.assertTrue(c.in_debt("k"))
+            self.assertFalse(c.allow("k"))
+        t[0] = 2.0
+        self.assertFalse(c.in_debt("k"))
+        self.assertEqual(c._buckets["k"].updated, 2.0)
+        frozen = RateLimiter(rps=1, burst=2, clock=lambda: 7.0)
+        self.assertEqual([frozen.allow("k") for _ in range(3)], [True, True, False])
+
 
 if __name__ == "__main__":
     unittest.main()

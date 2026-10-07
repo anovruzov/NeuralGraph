@@ -94,7 +94,7 @@ claude mcp add --transport http mycelic http://localhost:8080/mcp --header "Auth
 python -m mycelic mcp --url http://localhost:8080 --api-key "$MYCELIC_API_KEY"
 ```
 
-Tools: `mycelic_query`, `mycelic_remember`, `mycelic_lineage`, `mycelic_get_memory`, `mycelic_status`.
+Tools: `mycelic_query`, `mycelic_remember`, `mycelic_lineage`, `mycelic_verify`, `mycelic_get_memory`, `mycelic_status`.
 
 ### Run the canonical demonstration
 
@@ -106,9 +106,13 @@ python demo/mycelic_demo.py --driver compose
 ```
 
 The smoke test registers agents in three teams, runs them as separate processes, checks the enterprise
-conclusion and its lineage, then kills the service, kills the broker, deletes the service database, and
-verifies that the same knowledge and lineage come back. It exits 0 only when every step held. It passed in
-this repository's CI sandbox with both drivers (6 agents: 8 s process / 25 s compose; 99 agents: 19 s process).
+conclusion and its lineage, verifies the conclusion downward (as a sales agent, who sees other teams' notes
+redacted, and as the administrator), then kills the service, kills the broker, deletes the service database, and
+checks that the same knowledge and lineage come back and that the administrator's verification of the answer has
+the same report digest. It exits 0 only when every step held. With the process driver, all ten steps passed in
+this repository's sandbox in 8.0–8.3 s with 6 agents (five runs) and 14.2–15.2 s with 99 agents (three runs,
+`--agents-per-team 33`), and with the compose driver in 26.0–26.1 s (two runs, 6 agents, the image built from the
+same tree with its dependency layer cached). CI runs both drivers (`.github/workflows/mycelic.yml`).
 
 ## 2. Production topology
 
@@ -195,6 +199,7 @@ All variables have the `MYCELIC_` prefix. Validation runs at start and fails fas
 | `MAX_BODY_BYTES`, `MAX_TEXT_CHARS`, `MAX_BATCH`, `MAX_EVENT_BYTES` | `1 MiB`, `4000`, `100`, `256 KiB` | input limits |
 | `AUDIT_RETENTION_DAYS` | `90` | audit rows older than this are pruned at start |
 | `MIN_SUPPORT` | `2` | distinct child units needed for a consolidated memory. Changing it re-derives every consolidation at the next start (the re-aggregation job, section 4). It is deployment configuration, not part of the event log, so a rebuild from the log uses the value the rebuilding node runs with |
+| `VERIFY_MAX_NODES` | `25000` | nodes one downward verification walks at most; beyond it the verdict is `unverifiable` (`walk_truncated`). Not set by the shipped compose file or manifests: to change it add `MYCELIC_VERIFY_MAX_NODES` to the `environment` of the `mycelic` service (compose) or to `mycelic-configmap.yaml` (Kubernetes) |
 | `RULES_FILE` | | JSON file of slot-composition rules re-applied at every start (`deploy/mycelic/rules.json`); a file rule overrides an API edit to the same `rule_id`, and the override is appended to the event log so a rebuild ends with the same rules. Rule fields are listed in section 3a |
 | `PUBLIC_URL` | | informational |
 
@@ -293,7 +298,7 @@ serving, but nothing can be replayed until new events accumulate; restore the st
 before restoring an older database.
 
 **Recovery procedures** (service crash, broker outage and database loss are exercised by
-`tests/smoke/mycelic_smoke.py` steps 5–7; the other rows by the named tests in `tests/mycelic/test_jetstream.py`):
+`tests/smoke/mycelic_smoke.py` steps 6–8; the other rows by the named tests in `tests/mycelic/test_jetstream.py`):
 
 | Situation | What to do |
 |---|---|
@@ -306,6 +311,58 @@ before restoring an older database.
 | force a replay | `python -m mycelic replay` or `POST /admin/replay` (`test_forced_replay_is_idempotent`) |
 | force a re-aggregation | `python -m mycelic reaggregate [--org ORG]` or `POST /admin/reaggregate` with `{"org_id": …}`, or with no body or a null `org_id` for every organization (an empty `org_id` is refused with 400): re-derives every consolidation and conclusion of one organization or all of them in the background while the node keeps serving; `{"started": false}` while a run is in progress. Progress: `GET /admin/status` → `checks.reaggregation`, `mycelic_reaggregation_steps_total`, audit `aggregation.reaggregate` per organization (`test_admin_route_sdk_and_cli`) |
 | poison or rejected event | after `NATS_MAX_DELIVER` attempts it is terminated and recorded (`GET /admin/events?org=…&status=failed`, audit `event.failed`); a terminated or unsigned event counts as consumed, so a replay still completes (`test_poison_event_is_terminated_and_replay_completes`) |
+
+**Verifying a conclusion.** Before acting on a conclusion, anyone who may read it and holds `lineage:read` (every
+agent key by default, and the admin token) can ask whether it was derived correctly and whether it is still true.
+The service walks the conclusion's derivation down to the raw notes and checks every node on the way: each
+contributing memory exists and its digest matches its content, each raw note agrees with its `memory.observed`
+event, each consolidation and rule conclusion recomputes from its stored parents with its support thresholds still
+holding, and nothing beneath it was retracted or superseded, nor its rule or `MIN_SUPPORT` changed. SECURITY.md §6
+says exactly what that proves and what it does not.
+
+```bash
+python -m mycelic verify <memory_id> [--max-leaf-age 604800] [--json]     # MYCELIC_API_KEY, or the admin token
+curl -H "Authorization: Bearer $MYCELIC_API_KEY" "http://localhost:8080/verify/<memory_id>?max_leaf_age=604800"
+```
+
+From Python, `client.verify(memory_id, max_leaf_age=604800)`. `POST /query` with `"verify": true`
+(`client.query(..., verify=True)`, `python -m mycelic query --verify`) adds `answer.verification` with the verdict,
+both answers and the reason codes, and MCP clients call `mycelic_verify`. `max_leaf_age` (1 to 315,360,000
+seconds, optional) also requires every raw note the caller can read to have been ingested by the server within
+that many seconds.
+
+| Verdict | Meaning | `derived_correctly` / `still_true` | CLI exit |
+|---|---|---|---|
+| `verified` | derived correctly and still current | `true` / `true` | 0 |
+| `stale` | derived correctly, but something beneath it was retracted, superseded or changed since, or a raw note is older than `max_leaf_age` | `true` / `false` | 3 |
+| `failed` | a contribution is missing, was edited, or does not recompute to what is stored | `false` / `null` | 4 |
+| `unverifiable` | something needed for the check is unavailable: a signing key no longer configured, a missing event, a walk beyond `MYCELIC_VERIFY_MAX_NODES`, a replay in progress, a row derived by an older release | `null` / `null` | 5 |
+
+The CLI exits 1 on an HTTP or connection error and 2 on a usage error. `GET /verify/{id}` answers 200 with the
+report for every verdict; otherwise 400 for a malformed id or `max_leaf_age`, 401 without a valid token, 403 without
+`lineage:read` or for a revoked agent, 404 for an id that does not exist or that the caller may not read (one and
+the same answer) and 429 when rate limited. The report lists reason codes per node and for the whole walk
+(docs/MYCELIC_ARCHITECTURE.md §7 has the table); contributions the caller may not read are redacted (SECURITY.md §2).
+
+Each successful verification is counted (`mycelic_verifications_total{verdict}`,
+`mycelic_verification_reasons_total{reason}`, `mycelic_verification_latency_seconds`) and audited (`memory.verify`,
+with the reason codes before redaction, for administrators); a refused one is neither. The reason counter takes the
+codes as the caller saw them: an agent's verification counts `hidden_error` for another team's node that failed,
+not the code its report withheld, while an administrator's counts every code. Without `MYCELIC_METRICS_TOKEN`,
+`/metrics` accepts any agent key, so set it where even those totals must stay away from agents (SECURITY.md §2).
+Alert on any increase of `mycelic_verifications_total{verdict="failed"}`: something a conclusion rests on is missing
+or was edited; the audit row says what.
+
+Limits. A walk reads at most `MYCELIC_VERIFY_MAX_NODES` (25,000) nodes. It costs the caller 1 + ceil(nodes / 250)
+rate-limit tokens from its principal bucket: the request's own token at the door, the walk's share after it ran,
+which may take the bucket into debt, at most one burst deep. A principal in debt is refused with 429 (an MCP error
+result inside a JSON-RPC batch) before anything is read, until its bucket refills. The walk holds the store lock
+and the event loop while it runs, so nothing else is served meanwhile: measured in this repository's sandbox with
+`service.verify` over one team's org-visible notes, 0.10–0.20 s for 1,005 nodes and 0.56–0.85 s for 5,005 nodes
+(five runs of five calls each on an otherwise idle 4-CPU machine; slower while other work runs). The charge is a
+brake proportional to the walk, not a CPU cap: at the default `MYCELIC_RATE_LIMIT_RPS` of 50 a principal still
+earns 12,500 nodes of walk a second, more than the service walks in a second at those rates, so where agents may
+verify large conclusions often, lower `MYCELIC_RATE_LIMIT_RPS` or `MYCELIC_VERIFY_MAX_NODES`.
 
 **Rotating the signing key.** Never regenerate `MYCELIC_EVENT_SIGNING_KEY` in place: make the current key a
 previous one and add a new current key. Events in flight and every memory digest signed by the old key keep
@@ -365,6 +422,9 @@ reproduced by a rebuild from the log, which derives the converged state directly
   status. This applies to `GET /memory/{id}`, `GET /memories?status=superseded|retracted` (which also drop
   `metadata.statements` and `statement_origins`), the nodes of `GET /lineage/{id}` (which keep their shape) and
   the MCP tools. `text` stays a string, and `text_withheld` is absent whenever the text is shown.
+* Downward verification only adds: `GET /verify/{id}`, the opt-in `"verify": true` of `POST /query` (without it,
+  or with `false`, the response is unchanged), the MCP tool `mycelic_verify` (`tools/list` now lists six tools) and
+  `python -m mycelic verify`. Existing responses are unchanged.
 * `DERIVATION_VERSION` is 2, so the first start re-derives everything (`checks.reaggregation.reason` =
   `derivation_version`). Until `checks.reaggregation.state` = `done`, consolidations derived by the earlier release
   keep their old text, which may quote team-visibility notes and agent ids above team level, and they are what

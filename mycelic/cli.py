@@ -5,9 +5,10 @@
     python -m mycelic register-agent --enterprise northwind --team logistics --agent-id agent-7
     python -m mycelic agents | rules | status | replay | query "delivery risk"
     python -m mycelic reaggregate [--org northwind]   # re-derive conclusions (progress: status, checks.reaggregation)
+    python -m mycelic verify MEMORY_ID [--max-leaf-age N] [--json]   # exit 0 verified, 3 stale, 4 failed, 5 unverifiable
 
 Admin commands are HTTP clients of a running server: MYCELIC_URL (default http://127.0.0.1:8080) and
-MYCELIC_ADMIN_TOKEN.  ``query`` uses MYCELIC_API_KEY (an agent key) or the admin token.
+MYCELIC_ADMIN_TOKEN.  ``query`` and ``verify`` use MYCELIC_API_KEY (an agent key) or the admin token.
 """
 from __future__ import annotations
 
@@ -22,6 +23,9 @@ from pathlib import Path
 
 from .config import ConfigError, Settings
 from .sdk import MycelicError
+
+#: ``verify``'s exit status per verdict
+VERDICT_EXIT_CODES = {"verified": 0, "stale": 3, "failed": 4, "unverifiable": 5}
 
 
 def _admin_client(args: argparse.Namespace):
@@ -164,7 +168,7 @@ def cmd_query(args: argparse.Namespace) -> int:
     if not key:
         raise SystemExit("MYCELIC_API_KEY or MYCELIC_ADMIN_TOKEN is required")
     res = MycelicClient(args.url, key, ca_file=args.ca_file).query(args.text, scope=args.scope, min_layer=args.min_layer,
-                                                                    k=args.k, include_lineage=args.lineage)
+                                                                    k=args.k, include_lineage=args.lineage, verify=args.verify)
     if args.json:
         print(json.dumps(res, indent=1))
         return 0
@@ -177,10 +181,43 @@ def cmd_query(args: argparse.Namespace) -> int:
     lin = ans.get("lineage") or {}
     print(f"lineage: {lin.get('contributing_agents')} agents, {lin.get('contributing_teams')} teams, layers {lin.get('layers')}, "
           f"reconstructable={lin.get('reconstructable')}  (memory {ans['memory_id']})")
+    if "verification" in ans:
+        v = ans["verification"]
+        print(f"verification: {v['verdict']} (derived_correctly={json.dumps(v['derived_correctly'])}, "
+              f"still_true={json.dumps(v['still_true'])})")
     for h in res["results"][1:]:
         m = h["memory"]
         print(f"  - [{m['layer']}] {m['text'][:120]}")
     return 0
+
+
+def verdict_exit_code(verdict: str) -> int:
+    """``verify``'s exit status: 0 verified, 3 stale, 4 failed, 5 unverifiable; 1 for anything else or an HTTP error, 2
+    for usage or configuration errors."""
+    return VERDICT_EXIT_CODES.get(verdict, 1)
+
+
+def cmd_verify(args: argparse.Namespace) -> int:
+    from .sdk import MycelicClient
+
+    key = (args.api_key or os.environ.get("MYCELIC_API_KEY") or args.admin_token or os.environ.get("MYCELIC_ADMIN_TOKEN"))
+    if not key:
+        raise SystemExit("MYCELIC_API_KEY or MYCELIC_ADMIN_TOKEN is required")
+    report = MycelicClient(args.url, key, ca_file=args.ca_file).verify(args.memory_id, max_leaf_age=args.max_leaf_age)
+    if args.json:
+        print(json.dumps(report, indent=1))
+    else:
+        s = report["summary"]
+        print(f"{report['verdict']}  derived_correctly={json.dumps(report['derived_correctly'])}  "
+              f"still_true={json.dumps(report['still_true'])}  {report['memory_id']}")
+        print(f"{s['nodes']} nodes ({s['derived']} derived, {s['leaves']} leaves, {s['redacted']} redacted)  "
+              f"integrity {report['integrity_mode']}  verified at {report['verified_at']}")
+        for r in report["reasons"]:
+            print(f"  {r['severity']} {r['code']} x{r['count']}")
+        for w in report["warnings"]:
+            print(f"  W {w['code']} {w.get('memory_id') or ''}".rstrip())
+        print(f"report_digest {report['report_digest']}")
+    return verdict_exit_code(report["verdict"])
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -219,7 +256,14 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("query", help="ask the organization"); common(s)
     s.add_argument("text"); s.add_argument("--api-key"); s.add_argument("--scope"); s.add_argument("--min-layer", default="agent")
     s.add_argument("-k", type=int, default=5); s.add_argument("--lineage", action="store_true")
+    s.add_argument("--verify", action="store_true", help="also verify the answer downward (needs lineage:read)")
     s.set_defaults(fn=cmd_query, is_async=False)
+    s = sub.add_parser("verify", help="was a memory derived correctly, and is it still true? "
+                                      "(exit 0 verified, 3 stale, 4 failed, 5 unverifiable)"); common(s)
+    s.add_argument("memory_id"); s.add_argument("--api-key")
+    s.add_argument("--max-leaf-age", type=int, metavar="SECONDS",
+                   help="also require every raw note you can read to have been ingested within this many seconds (1..315360000)")
+    s.set_defaults(fn=cmd_verify, is_async=False)
     return p
 
 

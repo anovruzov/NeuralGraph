@@ -10,6 +10,7 @@
     local.share(client, note_id)                                  # publish it; idempotent on retry
     answer = client.query("delivery risk for RX-4 in Q4", scope="northwind")
     lineage = client.lineage(answer["answer"]["memory_id"])
+    report = client.verify(answer["answer"]["memory_id"])         # derived correctly, and still true?
 
 The client is synchronous and uses only the standard library, so it drops into any agent runtime.  Retries cover
 connection errors and 5xx/429 with exponential backoff; 4xx errors raise :class:`MycelicError` immediately.
@@ -105,11 +106,16 @@ class MycelicClient:
         return self._request("POST", "/events", {"events": events})
 
     def query(self, text: str, *, scope: str | None = None, min_layer: str = "agent", k: int = 5,
-              include_lineage: bool = True, topic: str | None = None, entity: str | None = None) -> dict[str, Any]:
+              include_lineage: bool = True, topic: str | None = None, entity: str | None = None,
+              verify: bool = False) -> dict[str, Any]:
         """Search what the caller may read.  Answers and results come from active memories only, so their ``text`` is
-        never withheld; the embedded lineage follows the rule of :meth:`lineage`."""
+        never withheld; the embedded lineage follows the rule of :meth:`lineage`.  With ``verify`` (and lineage:read)
+        the answer also carries ``verification``: the ``verdict``, ``derived_correctly``, ``still_true`` and ``reasons``
+        of :meth:`verify`."""
         body = {"query": text, "scope": scope, "min_layer": min_layer, "k": k, "include_lineage": include_lineage,
                 "topic": topic, "entity": entity}
+        if verify:
+            body["verify"] = True
         return self._request("POST", "/query", {k: v for k, v in body.items() if v is not None})
 
     def get_memory(self, memory_id: str) -> dict[str, Any]:
@@ -123,6 +129,22 @@ class MycelicClient:
         (``text`` None); a readable node that is superseded or retracted and that the caller did not produce has
         ``text`` "" and ``text_withheld`` set to its status, with every other field kept."""
         return self._request("GET", f"/lineage/{urllib.parse.quote(memory_id)}")
+
+    def verify(self, memory_id: str, *, max_leaf_age: int | None = None) -> dict[str, Any]:
+        """Downward verification of a memory the caller may read: was it derived correctly, and is it still true?
+
+        The report's ``verdict`` is ``verified`` (both true), ``stale`` (derived correctly, but something it rests on was
+        retracted, superseded or changed, or with ``max_leaf_age`` a raw note you can read was ingested longer ago than
+        that many seconds), ``failed`` (a contribution is missing, tampered with or does not recompute) or
+        ``unverifiable`` (something needed to check it is unavailable); ``derived_correctly`` and ``still_true`` are
+        True, False or None (not known).  Reason codes are per node and for the report as a whole.  Contributions the
+        caller may not read are redacted: their id, layer, unit, operator, status and ``ok``, and of their reasons only
+        those lineage shows (retracted, superseded, missing parent, cycle), any other as a ``hidden_*`` code; never their
+        text, agent ids or row digests.  Raises :class:`MycelicError` 404 for an unknown or invisible id, 403 without
+        lineage:read and 400 for a malformed id or ``max_leaf_age``; a server older than this method answers 404 without
+        a JSON error (``message`` is aiohttp's "404: Not Found")."""
+        return self._request("GET", f"/verify/{urllib.parse.quote(memory_id, safe='')}",
+                             params={"max_leaf_age": max_leaf_age} if max_leaf_age is not None else None)
 
     def retract(self, memory_id: str, reason: str = "retracted by producer") -> dict[str, Any]:
         return self._request("POST", f"/memory/{urllib.parse.quote(memory_id)}/retract", {"reason": reason})
