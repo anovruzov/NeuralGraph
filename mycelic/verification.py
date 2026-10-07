@@ -149,6 +149,10 @@ MAX_LEAF_AGE_SECONDS = 315_360_000          # ten years
 #: events and metadata are compared separately); what a rebuild would insert from the log
 _PAYLOAD_FIELDS = ("memory_id", "org_id", "layer", "scope", "text", "kind", "support", "independent_teams", "producer_id",
                    "operator", "rule_id", "visibility", "created_at", "local_ref", "event_id")
+#: what the apply (``MycelicService._memory_from_payload``) stores for a field a payload leaves out (or empty, for the
+#: strings); ``created_at`` and ``event_id`` default to the event's own
+_PAYLOAD_DEFAULTS = {"kind": "observation", "producer_id": "unknown", "operator": "agent_observation", "visibility": "team"}
+_PAYLOAD_COUNT_DEFAULTS = {"support": 1, "independent_teams": 1}
 _RULE_FIELDS = frozenset(Rule.__dataclass_fields__)
 _ADMIN_DETAIL = ("key_id",)
 _STRUCTURAL = ("parent_outside_unit", "topic_mismatch", "parent_ineligible", "slot_uncovered", "below_min_support",
@@ -189,10 +193,18 @@ def _team_of(scope: str) -> str | None:
         return None
 
 
-def _payload_mismatch(m: Memory, kind: str, p: dict[str, Any]) -> list[str]:
-    """The fields on which a raw note and its ``memory.observed`` event disagree (a malformed value is a mismatch)."""
-    out = [] if kind == "memory.observed" else ["event_kind"]
-    out += [k for k in _PAYLOAD_FIELDS if p.get(k) != getattr(m, k)]
+def _payload_mismatch(m: Memory, ev: Any, p: dict[str, Any]) -> list[str]:
+    """The fields on which a raw note and its ``memory.observed`` event disagree (a malformed value is a mismatch).  A
+    field the payload leaves out is compared with the default the apply stored (a payload from another release)."""
+    out = [] if ev.kind == "memory.observed" else ["event_kind"]
+    defaults = {**_PAYLOAD_DEFAULTS, "created_at": ev.created_at, "event_id": ev.event_id}
+
+    def expected(k: str) -> Any:
+        if k in _PAYLOAD_COUNT_DEFAULTS:
+            return p.get(k, _PAYLOAD_COUNT_DEFAULTS[k])
+        return (p.get(k) or defaults[k]) if k in defaults else p.get(k)
+
+    out += [k for k in _PAYLOAD_FIELDS if expected(k) != getattr(m, k)]
     for k in ("topic", "slot", "entity"):
         try:
             if canonical_label(p.get(k)) != getattr(m, k):
@@ -204,7 +216,7 @@ def _payload_mismatch(m: Memory, kind: str, p: dict[str, Any]) -> list[str]:
         expires = utc_seconds(expires) or expires
     if expires != m.expires_at:
         out.append("expires_at")
-    c = p.get("confidence")
+    c = p.get("confidence", 0.5)
     if isinstance(c, bool) or not isinstance(c, (int, float)) or round(float(c), 6) != round(float(m.confidence), 6):
         out.append("confidence")
     try:
@@ -366,7 +378,7 @@ class _Verification:
             if ev is None:
                 self.add(mid, "source_event_missing", {"event_id": m.event_id})
             else:
-                fields = _payload_mismatch(m, ev.kind, ev.payload if isinstance(ev.payload, dict) else {})
+                fields = _payload_mismatch(m, ev, ev.payload if isinstance(ev.payload, dict) else {})
                 if fields:
                     self.add(mid, "source_event_mismatch", {"fields": fields})
             cited = sorted({e for e in _strs(m.source_event_ids) if e not in self.events})

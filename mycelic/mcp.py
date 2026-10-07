@@ -26,9 +26,10 @@ from NeuralGraph.chat_memory.mcp_server import JSONRPC_INVALID_REQUEST, MCPProto
 
 from .auth import Principal
 from .sdk import MycelicClient, MycelicError
-from .service import Conflict, Forbidden, MycelicService, NotFound, RateLimited, ValidationError
+from .service import Conflict, Forbidden, MycelicService, NotFound, QuotaExceeded, RateLimited, ValidationError
+from .version import VERSION
 
-SERVER_INFO = {"name": "mycelic", "version": "0.1.0"}
+SERVER_INFO = {"name": "mycelic", "version": VERSION}
 INSTRUCTIONS = ("Organizational memory shared across agents. Call mycelic_query before answering questions about the "
                 "organization, its customers, suppliers, projects or risks; the answer carries lineage you can inspect "
                 "with mycelic_lineage. Call mycelic_remember to share an observation worth propagating; give it a topic "
@@ -175,7 +176,7 @@ class MycelicTools:
             raise ToolError(f"unknown tool: {name}")
         try:
             return await fn(**args)
-        except (ValidationError, Forbidden, Conflict) as exc:
+        except (ValidationError, Forbidden, Conflict, QuotaExceeded) as exc:
             raise ToolError(str(exc)) from exc
         except NotFound as exc:
             raise ToolError(f"no visible memory with id {exc}") from exc

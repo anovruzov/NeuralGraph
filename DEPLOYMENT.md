@@ -31,7 +31,7 @@ docker compose -f deploy/mycelic/docker-compose.yml up -d --build
 
 # 3. check
 curl -s http://localhost:8080/health
-# {"status": "ok", "version": "0.1.0", "transport_connected": true, "consumer_running": true}
+# {"status": "ok", "version": "0.2.0", "transport_connected": true, "consumer_running": true}
 ```
 
 `docker compose ... config` shows the resolved configuration and fails on any missing variable before
@@ -151,7 +151,10 @@ same tree with its dependency layer cached). CI runs both drivers (`.github/work
     waiting on the disk: in instrumented runs no step's work exceeded 0.3 s, while one commit took 0.57 s.
 
   Keep each organization at or below about 5,000 active notes per node in this release (with the shipped rules
-  that is about two notes per second at most), and make rule changes in quiet periods. A re-aggregation run
+  that is about two notes per second at most), and make rule changes in quiet periods. The shipped
+  `MYCELIC_MAX_ACTIVE_MEMORIES_PER_ORG=5000` enforces that limit, measured again for this release: a `/query` right
+  after a write stays at or under 1 s at the 95th percentile up to 5,000 notes and not at 10,000 (section 4, "Volume
+  cap"). A re-aggregation run
   enumerates its organization's keys again at every step, so its duration grows faster than the organization; it
   yields between steps, so the node keeps serving meanwhile.
 * **One NATS server** with a file-backed JetStream store. A 3-node JetStream cluster is a drop-in change on
@@ -190,6 +193,7 @@ All variables have the `MYCELIC_` prefix. Validation runs at start and fails fas
 | `ADMIN_TOKEN` | | required off loopback, ≥ 32 characters |
 | `EVENT_SIGNING_KEY` | | HMAC key for events and memory digests; unsigned/invalid events are rejected when set (**set it**). Backup-critical: change it only by rotating (section 4), never in place |
 | `EVENT_SIGNING_KEYS_PREVIOUS` | | comma-separated keys from before a rotation (each ≥ 32 characters; requires `EVENT_SIGNING_KEY`; a key containing a comma cannot be listed, and generated hex keys never contain one): they still verify the events and memory digests they signed. Keep each one as long as the stream holds events it signed |
+| `REPLAY_MAX_REJECT_RATIO` | `0.01` | share of the events a replay consumes whose signature may be rejected (0 to 1); above it `/ready` stays 503 until a rebuild with the corrected keyring (section 4, "Signing-key mistakes"). `0`: any rejection blocks; `1`: never. Set in `.env`, the compose file and the ConfigMap |
 | `METRICS_TOKEN` | | bearer for `/metrics`; unset ⇒ admin token or agent key required off loopback |
 | `READY_REQUIRES_NATS` | `false` | `/ready` fails during a broker outage when true |
 | `TLS_CERT_FILE`, `TLS_KEY_FILE` | | serve HTTPS directly |
@@ -198,9 +202,10 @@ All variables have the `MYCELIC_` prefix. Validation runs at start and fails fas
 | `RATE_LIMIT_RPS`, `RATE_LIMIT_BURST` | `50`, `100` | per peer address before auth and per principal after |
 | `MAX_BODY_BYTES`, `MAX_TEXT_CHARS`, `MAX_BATCH`, `MAX_EVENT_BYTES` | `1 MiB`, `4000`, `100`, `256 KiB` | input limits |
 | `AUDIT_RETENTION_DAYS` | `90` | audit rows older than this are pruned at start |
+| `MAX_ACTIVE_MEMORIES_PER_ORG` | `0` (no limit) | active raw notes one organization may hold; a new note past it is refused with 507 until retractions apply (section 4, "Volume cap", which measured the value `.env.example`, the compose file and the ConfigMap ship) |
 | `MIN_SUPPORT` | `2` | distinct child units needed for a consolidated memory. Changing it re-derives every consolidation at the next start (the re-aggregation job, section 4). It is deployment configuration, not part of the event log, so a rebuild from the log uses the value the rebuilding node runs with |
-| `VERIFY_MAX_NODES` | `25000` | nodes one downward verification walks at most; beyond it the verdict is `unverifiable` (`walk_truncated`). Not set by the shipped compose file or manifests: to change it add `MYCELIC_VERIFY_MAX_NODES` to the `environment` of the `mycelic` service (compose) or to `mycelic-configmap.yaml` (Kubernetes) |
-| `EXPIRY_SWEEP_SECONDS` | `30` | how often the expiry sweep queues the retraction of notes past their `expires_at`, at most 100 per sweep (section 4, "Expiry"); `0` disables it (expired notes are still left out of answers, but stay evidence until retracted). Not set by the shipped compose file or manifests |
+| `VERIFY_MAX_NODES` | `25000` | nodes one downward verification walks at most; beyond it the verdict is `unverifiable` (`walk_truncated`). Set in `.env`, the compose file and the ConfigMap |
+| `EXPIRY_SWEEP_SECONDS` | `30` | how often the expiry sweep queues the retraction of notes past their `expires_at`, at most 100 per sweep (section 4, "Expiry"); `0` disables it (expired notes are still left out of answers, but stay evidence until retracted). Set in `.env`, the compose file and the ConfigMap |
 | `RULES_FILE` | | JSON file of slot-composition rules re-applied at every start (`deploy/mycelic/rules.json`); a file rule overrides an API edit to the same `rule_id`, and the override is appended to the event log so a rebuild ends with the same rules. Rule fields are listed in section 3a |
 | `PUBLIC_URL` | | informational |
 
@@ -262,8 +267,9 @@ regional conclusion and the strategy, and fresh evidence brings both back as a n
 ## 4. Operations
 
 **Health.** `GET /health` is liveness (200 while the database is open; `status` is `ok` or `degraded`, the
-latter when the broker is unreachable or a loop is down). `GET /ready` is readiness (database open, loops
-running, no replay in progress). Both answer from a status snapshot that a background task refreshes every
+latter when the broker is unreachable, a loop is down or readiness is blocked). `GET /ready` is readiness (database
+open, loops running, no replay in progress); it is also 503, with `"reason": "signature_rejections: …"`, while a
+replay that rejected too many signatures blocks it ("Signing-key mistakes" below). Both answer from a status snapshot that a background task refreshes every
 2 s, so they never wait on the broker or the database: a stalled broker cannot time out a probe. Whether the
 broker is connected is read live, so a broker that goes away shows at once. The admin view of `/health`
 shows `checks.transport.stale` and `age_seconds`: the snapshot is stale when the last broker call failed or
@@ -290,7 +296,8 @@ both the compose file (`stop_grace_period`) and the StatefulSet (`terminationGra
    `nats` CLI (`nats stream backup MYCELIC <dir>`) against port 4222 from inside the network;
 3. the signing keys, `MYCELIC_EVENT_SIGNING_KEY` and `MYCELIC_EVENT_SIGNING_KEYS_PREVIOUS`: store them with every
    database backup. Without the keys that signed them, the digests of a restored database read `unknown_key` and a
-   rebuild from the stream rejects every event (SECURITY.md §7).
+   rebuild from the stream rejects every event (SECURITY.md §7), which keeps `/ready` at 503 ("Signing-key
+   mistakes" below). Section 4a has the paired snapshot of both volumes that a rollback needs.
 
 Restore order matters: a database older than the stream is caught up automatically (the service detects
 that its `last_applied_seq` is behind the consumer's ack floor and re-delivers from the next sequence). A
@@ -311,7 +318,55 @@ before restoring an older database.
 | stream shorter than the database (purged or recreated) | the database keeps serving; the log restarts from the new sequence and `kind="stream_behind_database"` is counted; restore the stream backup first when you can |
 | force a replay | `python -m mycelic replay` or `POST /admin/replay` (`test_forced_replay_is_idempotent`) |
 | force a re-aggregation | `python -m mycelic reaggregate [--org ORG]` or `POST /admin/reaggregate` with `{"org_id": …}`, or with no body or a null `org_id` for every organization (an empty `org_id` is refused with 400): re-derives every consolidation and conclusion of one organization or all of them in the background while the node keeps serving; `{"started": false}` while a run is in progress. Progress: `GET /admin/status` → `checks.reaggregation`, `mycelic_reaggregation_steps_total`, audit `aggregation.reaggregate` per organization (`test_admin_route_sdk_and_cli`) |
-| poison or rejected event | after `NATS_MAX_DELIVER` attempts it is terminated and recorded (`GET /admin/events?org=…&status=failed`, audit `event.failed`); a terminated or unsigned event counts as consumed, so a replay still completes (`test_poison_event_is_terminated_and_replay_completes`) |
+| replay rejected signatures (wrong or missing key) | `/ready` is 503 with `"reason": "signature_rejections: rebuild with the corrected keyring required"`, `/health` 200 and `degraded`, audit `recovery.signature_rejections`, `mycelic_recovery_total{kind="replay_signature_rejections"}`: follow "Signing-key mistakes" below (`test_wrong_signing_key_replay_blocks_readiness_until_fresh_rebuild`) |
+| poison or rejected event | after `NATS_MAX_DELIVER` attempts it is terminated and recorded (`GET /admin/events?org=…&status=failed`, audit `event.failed`); a terminated or unsigned event counts as consumed, so a replay still completes (`test_poison_event_is_terminated_and_replay_completes`); a replay judges the signatures it rejected, see the row above |
+
+**Volume cap.** `MYCELIC_MAX_ACTIVE_MEMORIES_PER_ORG` caps the active raw notes of each organization. A new note
+that would pass it is refused with 507 and `{"error": "organization '<org>' is at its limit of <cap> active notes
+(MYCELIC_MAX_ACTIVE_MEMORIES_PER_ORG; <n> active now): retract notes it no longer needs (a retraction counts once it
+has been applied) or ask the operator to raise the limit"}`; MCP `mycelic_remember` returns an error result with the
+same text, and the SDK raises `MycelicError` 507 at once (it retries only 429, 502, 503 and 504). The count is taken
+inside the write's transaction, so concurrent writes never pass the limit together. It includes every active raw note
+of the organization whether its event has been applied yet or not, the notes of revoked agents, and expired notes
+until the sweep's retraction applies; a retraction, an expiry or an agent removal frees room when its event applies,
+not when it is accepted. Never counted or refused: a resend of a stored note (200), an embedded memory of `POST
+/events` that already exists, plain events, derived memories and updates (`supersedes`). An update replaces an active
+note, at most one update per note can be pending (409), and the count is back where it was once it applies; an update
+that races a retraction of its target and applies as a plain note (`memory.update_conflict`) can leave the
+organization one note over the limit. While the consumer lags (a broker outage, say), a pending update is counted
+beside the note it replaces, and an agent may update its own pending update, so the count can run above the limit by
+the number of pending updates; it falls back once they apply. A `POST /events` batch whose new embedded memories would pass the limit is
+refused whole: none of its events, memories or audit rows is written. In a JSON-RPC batch on `/mcp` each
+`mycelic_remember` is its own write: the calls past the limit get error results, the earlier ones succeed. Nothing
+the consumer applies is capped (the apply path, replays, the expiry sweep, retractions and attestations), so a rebuild
+applies the whole log; lowering the limit deletes nothing and refuses new notes until the count is under it again.
+`mycelic_quota_rejections_total` counts the refused requests. `0` turns the cap off (the code default).
+
+The shipped value was measured with `tests/perf/mycelic_volume.py` (not collected by CI) on this repository's 4-CPU
+sandbox (Python 3.11.15). It builds one organization of 96 agents in 32 teams across 2 regions through the consumer's
+apply path, with the rules of `deploy/mycelic/rules.json` and a signing key, fed notes over 3 slots and about 50
+entities, and saves the database at 2,000, 5,000 and 10,000 active notes, timing the apply of the last 200 notes
+before each. Then it serves each saved database with `nats-server` and `python -m mycelic serve` (same key and rules,
+`MYCELIC_RATE_LIMIT_RPS=1000`) and times 200 `POST /query` calls at the client, each sent right after a `POST /memory`
+by a random agent, so a query waits for the note before it to apply. The build took 46 minutes, with other processes
+sharing the machine for part of it, and the serve phase 8 minutes:
+
+```bash
+python tests/perf/mycelic_volume.py --workdir /tmp/mycelic-volume --phase build
+python tests/perf/mycelic_volume.py --workdir /tmp/mycelic-volume --phase serve --out /tmp/mycelic-volume.json
+```
+
+| active raw notes | DB MB | apply p50 / p95 / max (s, last 200 notes) | /query after a write p50 / p95 / max (s, 200 runs) | qualifies |
+|---|---|---|---|---|
+| 2,000 | 65 | 0.113 / 0.165 / 0.241 | 0.251 / 0.411 / 0.525 | yes |
+| 5,000 | 178 | 0.293 / 0.374 / 0.474 | 0.507 / 0.983 / 1.311 | yes |
+| 10,000 | 387 | 0.456 / 0.586 / 0.795 | 0.922 / 1.605 / 1.872 | no |
+
+A level qualifies when both p95s are at most 1.0 s, and the shipped value is the largest level that does. 5,000 passes
+with little room (a `/query` p95 of 0.983 s), so treat it as a ceiling on hardware like this, not a target; the
+`--phase all` default runs both phases in one command.
+
+Shipped value: `MYCELIC_MAX_ACTIVE_MEMORIES_PER_ORG=5000`
 
 **Removing or moving an agent.** Revoking an agent (`python -m mycelic revoke-agent --agent-id X`, `DELETE
 /admin/agents/X`) refuses its key at once (403) and leaves its notes as evidence. Removing it (`python -m mycelic
@@ -325,7 +380,7 @@ without them, in that one apply and with at most one new version per consolidati
 leaves re-plan their promotions, so a department left with one team promotes it directly. A note of the agent that
 reaches the log after the removal (a write that raced it) is applied retracted (audit
 `memory.observed_after_removal`). A removed agent stays removed: a later revocation does not change that, and its id
-cannot be registered again (only a rollback to an earlier release undoes a removal: see "What a rollback loses").
+cannot be registered again (only a rollback to an earlier release undoes a removal: see section 4a).
 Removing an agent that was only revoked retracts its notes too. Measured in this repository's sandbox with
 `DEMO_RULE` active and five other agents present, the apply of one removal of an agent with 500 notes on one topic
 took 0.40 s median and 0.46 s at most over five runs, and with 500 notes on 500 topics (each also noted by a
@@ -475,6 +530,56 @@ with surrounding whitespace removed, while the current key is used exactly as gi
 leading or trailing space or newline (a Secret created from a file that ends in a newline) cannot be moved to
 the previous list verbatim: generate keys with `openssl rand -hex 32` as shown, without whitespace.
 
+**Signing-key mistakes.** A rebuild verifies every event of the stream against the configured keys. When the key was
+regenerated in place, or a previous key was dropped, every event those keys signed is rejected (each audited as
+`event.rejected` with its `seq` and `subject`) and everything it carried is missing: notes, rules and agent
+registrations (old agent keys then get 401). A replay counts the events it consumes and those whose signature it
+rejected, in the transaction that consumed each one (a crash in the middle keeps the counts). When it completes with
+more than `MYCELIC_REPLAY_MAX_REJECT_RATIO` (1%) rejected, it records a block in the database: `/ready` answers 503
+with `"reason": "signature_rejections: rebuild with the corrected keyring required"`, so Kubernetes (or a load
+balancer that checks it) sends it no traffic, while `/health` stays 200 with `status` `degraded`, so the startup and
+liveness probes never restart it. The replay is
+audited as `recovery.signature_rejections` (events consumed, rejected, ratio, configured ratio, blocked), counted in
+`mycelic_recovery_total{kind="replay_signature_rejections"}` (alert on any increase), logged at ERROR with the remedy,
+and shown in `GET /admin/status` as `checks.consumer.ready_block`. A replay under the ratio only warns and audits.
+The block survives restarts, and a replay into the same database (`POST /admin/replay`, `python -m mycelic replay`)
+cannot repair it: it runs and answers 202 with a `warning`, because events that depended on the rejected ones (a note
+whose producer's registration was rejected, say) may have been applied without them, and an applied event is never
+applied again. The remedy is a rebuild into a fresh database with the corrected keyring:
+
+```bash
+# Compose: stop the service, keep the current key and add the key that signed the rejected events to the previous ones
+env=deploy/mycelic/.env; old='<the key that signed the rejected events>'
+docker compose -f deploy/mycelic/docker-compose.yml stop mycelic
+grep -q '^MYCELIC_EVENT_SIGNING_KEYS_PREVIOUS=' "$env" || echo 'MYCELIC_EVENT_SIGNING_KEYS_PREVIOUS=' >> "$env"
+prev=$(sed -n 's/^MYCELIC_EVENT_SIGNING_KEYS_PREVIOUS=//p' "$env")
+sed -i "s|^MYCELIC_EVENT_SIGNING_KEYS_PREVIOUS=.*|MYCELIC_EVENT_SIGNING_KEYS_PREVIOUS=${prev:+$prev,}$old|" "$env"
+# move the blocked database aside (keep it: the audit rows of API calls are not in the stream), then start to rebuild
+docker compose -f deploy/mycelic/docker-compose.yml run --rm --no-deps --entrypoint sh mycelic -c 'mkdir -p /data/aside && mv /data/mycelic.db* /data/aside/'
+docker compose -f deploy/mycelic/docker-compose.yml up -d mycelic
+
+# Kubernetes (not executed against a cluster): the same steps, with a one-off pod on the data volume
+old='<the key that signed the rejected events>'
+prev=$(kubectl -n mycelic get secret mycelic-secrets -o jsonpath='{.data.MYCELIC_EVENT_SIGNING_KEYS_PREVIOUS}' | base64 -d)
+kubectl -n mycelic patch secret mycelic-secrets --type merge -p "{\"stringData\": {\"MYCELIC_EVENT_SIGNING_KEYS_PREVIOUS\": \"${prev:+$prev,}$old\"}}"
+kubectl -n mycelic scale statefulset/mycelic --replicas=0
+kubectl -n mycelic run mycelic-aside --image=busybox --restart=Never --overrides='{"apiVersion": "v1", "spec": {"securityContext": {"runAsUser": 10001, "runAsGroup": 10001, "fsGroup": 10001}, "containers": [{"name": "mycelic-aside", "image": "busybox", "command": ["sh", "-c", "mkdir -p /data/aside && mv /data/mycelic.db* /data/aside/"], "volumeMounts": [{"name": "data", "mountPath": "/data"}]}], "volumes": [{"name": "data", "persistentVolumeClaim": {"claimName": "data-mycelic-0"}}]}}'
+kubectl -n mycelic wait --for=jsonpath='{.status.phase}'=Succeeded pod/mycelic-aside && kubectl -n mycelic delete pod mycelic-aside
+kubectl -n mycelic scale statefulset/mycelic --replicas=1
+```
+
+`/ready` turns 200 once the rebuild has replayed the stream. A blocked pod is unready, so the Service and the Ingress
+do not reach it; reach it with `kubectl -n mycelic port-forward pod/mycelic-0 8080:8080` and
+`curl -H "Authorization: Bearer $MYCELIC_ADMIN_TOKEN" http://localhost:8080/admin/status`. When the rejected events
+really are forgeries (the `event.rejected` audit rows say which), there is nothing to restore: set
+`MYCELIC_REPLAY_MAX_REJECT_RATIO` to at least the recorded `ratio` (in `checks.consumer.ready_block`, the audit row and
+the ERROR log; rejected/consumed rounded up to six decimal places, so the value as shown is enough: 2 of 7 is recorded
+as `0.285715`) and restart. The block no longer holds at that ratio (it stays recorded, and a lower ratio brings it back); `1`
+disables the check, and `0` blocks on any rejection. An unkeyed service never rejects a signature, so it never
+blocks. Events published while no key was set carry no signature, so a keyed rebuild rejects them too, and with more
+than the ratio of them it blocks: accept losing what they carried (raise the ratio as above), or rebuild without a
+key, whose rows then read `downgraded` once a key is set. Setting the key before the first event avoids both.
+
 **Upgrades.** Build the new image, `docker compose -f deploy/mycelic/docker-compose.yml up -d --build`. The schema version is stored in the
 database; a newer schema than the code refuses to start. Replays are idempotent across versions. Derived ids embed
 the derivation version, `MIN_SUPPORT` and each rule's digest, so after an upgrade that changes how memories are
@@ -521,38 +626,18 @@ reproduced by a rebuild from the log, which derives the converged state directly
 * Producer updates only add: `supersedes` on `POST /memory` and `mycelic_remember` (the response then adds
   `supersedes`; without it the request and its response are unchanged), the status 409 for an update while a
   retraction or another update of its target is pending, and the stale code `update_pending` in verification reports.
+* The volume cap only adds: `POST /memory` and `POST /events` answer 507 when the organization is at
+  `MYCELIC_MAX_ACTIVE_MEMORIES_PER_ORG` ("Volume cap"), and `mycelic_remember` returns an error result then. The
+  shipped compose file and ConfigMap set the cap, also for an `.env` from an earlier release that lacks the line.
+* Readiness only adds: `/ready` may answer 503 with a `reason` (signature rejections, "Signing-key mistakes"), `POST
+  /admin/replay` then adds a `warning`, and `GET /admin/status` has `checks.consumer.ready_block`. Without a block,
+  `/ready` and `/admin/replay` answer exactly as before. `/health`, `GET /` and the MCP server info report version
+  `0.2.0`.
 * `DERIVATION_VERSION` is 2, so the first start re-derives everything (`checks.reaggregation.reason` =
   `derivation_version`). Until `checks.reaggregation.state` = `done`, consolidations derived by the earlier release
   keep their old text, which may quote team-visibility notes and agent ids above team level, and they are what
   agents read. Hold agent traffic until then if that matters; once they are superseded their text is withheld
   from agents like that of any other inactive memory.
-
-**Rolling back and forward again.** This release writes schema 5, and earlier releases refuse to open a schema-5
-database (`database schema 5 is newer than this code`). To roll back, stop the service, restore the database backup
-taken before the upgrade (see Backups) and start the earlier image on it. It re-delivers from the stream what it
-missed since the backup and applies it with its own derivation, provided every event since then is signed by its
-key: an earlier release verifies with one key only, so rotate the signing key only after deciding to stay on this
-release. An earlier release re-derives with its own renderer, which may quote team-visibility notes and agent ids
-above team level. Rolling forward again migrates the restored database to schema 5, signs its rows at the first
-start and re-aggregates whatever `meta.derivation_version` says was derived differently. A release from before
-derivation versions leaves that key as it found it while deriving ids without a version, so after rolling forward
-from one, run `python -m mycelic reaggregate` (or `POST /admin/reaggregate`) once and wait for
-`checks.reaggregation.state` = `done`.
-
-**What a rollback loses.** An earlier release applies only what it knows. It marks `agent.removed` and
-`memory.attested` events applied without effect (`unknown_kind`), applies a correction as a plain note, so the old
-version stays active next to it, and drops `expires_at`, so it neither hides nor sweeps expired notes (expiry
-retractions already in the stream still apply); it ignores `supersedes` and `expires_at` in a request the same way.
-After a rollback, an agent removed since the backup is therefore active again: its key authenticates and its notes
-count. Revoke each such agent at once with a plain `DELETE /admin/agents/{id}`, which earlier releases apply. Because
-the earlier release counts those events as applied, starting this release on its database again does not recover
-them, and a note logged with `expires_at` since the backup then has none and verifies `failed`
-(`source_event_mismatch`). So roll forward by rebuilding from the stream (Recovery procedures, "database lost or
-corrupt"; move the old database aside rather than deleting it, because the audit rows of API calls are not in the
-stream): the rebuild applies the whole log with this release's semantics. On the restored database instead, remove
-each such agent again with `?retract=1`, retract the old version of each correction (`POST /memory/{id}/retract` on
-the id in the correction's `metadata.version_of`) and have producers attest their notes again; a note logged with
-`expires_at` since the backup stays `failed` until a rebuild.
 
 Upgrading to schema 5 (this release) adds two columns to `memories`, `expires_at` and `attested_at`, and the partial
 index `idx_memories_expiry`, in one transaction at the first start; existing rows get NULL in both, so every digest
@@ -583,6 +668,70 @@ its notes in normalised form and ignores the old derived events (one `event.igno
 `NATS_MAX_BYTES`) makes a rebuild partial and is logged as an error at connect. Size the `nats-data`
 volume accordingly (a memory event is a few hundred bytes to a few kilobytes).
 
+
+### 4a. Rollback
+
+A rollback returns to a point where the database, the stream and the signing keys belong together, so take that
+point before every upgrade.
+
+**(a) The rollback point.** Stop the stack, snapshot both volumes together, and keep the signing keys
+(`MYCELIC_EVENT_SIGNING_KEY` and `MYCELIC_EVENT_SIGNING_KEYS_PREVIOUS` in `.env`) with the two archives. Compose names
+the volumes after its project, `mycelic`:
+
+```bash
+docker compose -f deploy/mycelic/docker-compose.yml stop
+docker run --rm -v mycelic_mycelic-data:/v -v "$PWD":/b alpine tar czf /b/mycelic-data.tgz -C /v .
+docker run --rm -v mycelic_nats-data:/v -v "$PWD":/b alpine tar czf /b/nats-data.tgz -C /v .
+cp deploy/mycelic/.env mycelic-keys.env       # the keys that signed both; protect it like the archives
+docker compose -f deploy/mycelic/docker-compose.yml start
+```
+
+To return to that point, restore both archives, never one alone, while the stack is down:
+
+```bash
+docker compose -f deploy/mycelic/docker-compose.yml down        # keeps the volumes (down -v deletes them)
+docker run --rm -v mycelic_mycelic-data:/v -v "$PWD":/b alpine sh -c 'find /v -mindepth 1 -delete && tar xzf /b/mycelic-data.tgz -C /v'
+docker run --rm -v mycelic_nats-data:/v -v "$PWD":/b alpine sh -c 'find /v -mindepth 1 -delete && tar xzf /b/nats-data.tgz -C /v'
+docker compose -f deploy/mycelic/docker-compose.yml up -d       # with the .env whose keys signed the snapshot
+```
+
+Rehearsed with these exact commands in this repository's sandbox: 4 agents shared 4 notes (7 active memories with
+the enterprise conclusion, 8 lineage edges), the pair was taken, one more note followed (8 active and 3 superseded
+memories, 17 edges), `down -v` deleted both volumes, and after the restore and `up -d` `/ready` answered 200 with the
+memories by layer and status, the lineage edges and the agents of the snapshot; an old agent key still got the
+enterprise conclusion. (The sandbox could not pull images, so `alpine` there was the Alpine-based `nats` image already
+present.)
+
+**(b) Back to 0.1.0 (schema 2).** Restore the pair you took before upgrading from 0.1.0, with the keys kept with it
+(0.1.0 reads `MYCELIC_EVENT_SIGNING_KEY` only), and start the 0.1.0 image on it (the image you kept, or the 0.1.0 tree built with `up -d --build`). Neither this
+release's database nor its stream can be used instead:
+
+* 0.1.0 refuses to open this release's database: `database schema 5 is newer than this code (2)`.
+* 0.1.0 must never consume a stream this release wrote, because it inserts the `memory.derived` events it reads instead
+  of deriving them. Applying, in order on a fresh 0.1.0 database, a log written by this release (4 agent
+  registrations, a rule, 4 notes, a retraction and the 2 derived events they caused) applied the registrations, the
+  rule, the notes and the retraction, and both derived events raised `IntegrityError: UNIQUE constraint failed:
+  memories.org_id, memories.operator, memories.scope, memories.agg_key`: both releases key a consolidation by its
+  topic, so 0.1.0's own derivation already holds the key. 0.1.0's consumer retries such an event `NATS_MAX_DELIVER`
+  (8) times, about 35 s, before it terminates it, and a derived event for a key it has not derived itself would be
+  inserted with this release's text.
+
+What is lost is everything since the snapshot. An agent that keeps a `LocalMemory` shares again what it shared since
+(`LocalMemory.share` sends the local id as the idempotency key, so each note gets the memory id it had before).
+Revoke, or remove with `?retract=1`, any agent revoked or removed since the snapshot, and repeat rule changes and key
+rotations made since.
+
+**(c) Back to this release from a later one.** Stop the later release, move its database aside (as in "Signing-key
+mistakes" above), keep the stream and the same keys, and start this image: it rebuilds a fresh database from the
+stream. It never inserts a derived event; it derives everything from the evidence itself. An event kind it does not
+know is applied as `ignored`: counted in `mycelic_events_ignored_total{reason="unknown_kind"}`, marked applied and
+never visited again, so its effect is absent from this database, and rolling forward again needs a fresh rebuild by
+the later release (move this database aside the same way). Payload fields it does not know are ignored, and fields a
+payload leaves out take their defaults, a note's time and event those of the event that carried it, so a rebuild
+reproduces every row (`test_unknown_kinds_and_missing_optional_fields_apply_for_rollback`).
+
+**(d) Forward from 0.1.0** is the normal upgrade ("Upgrades" above): take the rollback point first.
+
 ## 5. Local processes (no Docker)
 
 Used by CI, the demo and the tests. Needs Python 3.11+, `pip install -r requirements.txt`, and the
@@ -598,19 +747,21 @@ python -m mycelic serve
 ```
 
 `python -m pytest tests/mycelic -q` runs the unit, API, MCP, JetStream integration and smoke tests
-(the JetStream and smoke modules skip themselves without the binary).
+(the JetStream and smoke modules skip themselves without the binary). The steps of this page that use Docker (the
+compose smoke test and demo, `docker compose … config`, the snapshot of section 4a) need a Docker daemon: they are
+release checks, and CI runs them in its compose job.
 
 ## 6. Kubernetes
 
 `deploy/mycelic/k8s/` is a kustomize base: namespace, NATS StatefulSet + headless Service, Mycelic
 StatefulSet (`replicas: 1`, never scale) + Service, ConfigMaps (`nats.conf`, settings, `rules.json`) and an
 Ingress with TLS. Probes: startup `/health`, readiness `/ready`, liveness `/health`, all with 5 s timeouts;
-a replay (a rebuild may take minutes) keeps the pod unready and never restarts it. Both pods run as
-non-root with `fsGroup` so their PVCs are writable.
+a replay (a rebuild may take minutes), or a signature-rejection block (section 4), keeps the pod unready and never
+restarts it. Both pods run as non-root with `fsGroup` so their PVCs are writable.
 
 ```bash
 # 1. image
-docker build -f deploy/mycelic/Dockerfile -t ghcr.io/your-org/mycelic:0.1.0 . && docker push ghcr.io/your-org/mycelic:0.1.0
+docker build -f deploy/mycelic/Dockerfile -t ghcr.io/your-org/mycelic:0.2.0 . && docker push ghcr.io/your-org/mycelic:0.2.0
 #    then set images[0].newName/newTag in deploy/mycelic/k8s/kustomization.yaml
 # 2. secrets (never commit them; secret.example.yaml documents the keys)
 kubectl create namespace mycelic
@@ -646,9 +797,12 @@ a cluster: expect to adjust storage class, ingress class and resource requests.
 | Symptom | Cause / fix |
 |---|---|
 | `configuration error: MYCELIC_ADMIN_TOKEN is required…` | set the token; ≥ 32 characters; no placeholder-looking values |
-| `nats-server: … interface conversion: interface {} is int64` | `NATS_PASSWORD` is all digits; regenerate with letters (`openssl rand -hex 32`) |
+| `nats-server: … interface conversion: interface {} is int64` | `NATS_PASSWORD` starts with a digit, so nats-server reads it as a number; regenerate it starting with a letter: `n$(openssl rand -hex 32)` |
 | `/health` says `degraded`, `transport_connected: false` | broker unreachable or wrong credentials; writes are queued (`mycelic_outbox_pending`) |
 | `/ready` 503 after a restart | a replay is running (`replaying_to_seq` in `/admin/status`); wait |
+| `/ready` 503 with `"reason": "signature_rejections: rebuild with the corrected keyring required"` | a replay rejected the signature of more than `MYCELIC_REPLAY_MAX_REJECT_RATIO` of the events it consumed (a regenerated or dropped signing key): add the old key to `MYCELIC_EVENT_SIGNING_KEYS_PREVIOUS`, move the database aside and start (section 4, "Signing-key mistakes"); a replay into the same database does not lift it |
+| 507 `organization '…' is at its limit of N active notes` | the organization is at `MYCELIC_MAX_ACTIVE_MEMORIES_PER_ORG`: retract notes it no longer needs (they count until the retraction applies) or raise the limit (section 4, "Volume cap") |
+| `database schema 5 is newer than this code` | an earlier release started on this release's database; restore the snapshot pair you took before upgrading (section 4a) |
 | `configuration error: another Mycelic process is using …` | a second instance on the same database, or the previous one is still shutting down; stop it or wait (at most 2 × `MYCELIC_SHUTDOWN_TIMEOUT_SECONDS`). Never `docker compose up --scale mycelic=N` |
 | 401 with a key that used to work | key rotated or agent revoked (`GET /admin/agents?all=1`) |
 | 403 on `/query` with a `scope` | agents may only query their own team or an ancestor unit |

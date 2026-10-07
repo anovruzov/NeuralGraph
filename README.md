@@ -17,7 +17,8 @@ memory). Nothing in the data path needs a model server.
 
 What runs: one `mycelic` service (aiohttp API + outbox publisher + JetStream consumer/aggregator, SQLite on
 a volume) and one `nats-server` with a file-backed JetStream stream that is the durable event log. Lose the
-service database and it rebuilds itself from the stream; lose the broker for a while and agents keep
+service database and it rebuilds itself from the stream, provided the signing keys that signed it are kept (with the
+wrong key `/ready` stays 503 rather than serve a partial rebuild); lose the broker for a while and agents keep
 writing through the outbox. Both are exercised by an automated smoke test, not asserted in prose.
 
 ## Deploy Mycelic in five minutes
@@ -25,7 +26,8 @@ writing through the outbox. Both are exercised by an automated smoke test, not a
 ```bash
 git clone https://github.com/anovruzov/NeuralGraph.git && cd NeuralGraph
 cp deploy/mycelic/.env.example deploy/mycelic/.env
-# fill the three secrets (openssl rand -hex 32): MYCELIC_ADMIN_TOKEN, MYCELIC_EVENT_SIGNING_KEY, NATS_PASSWORD
+# fill the three secrets: MYCELIC_ADMIN_TOKEN and MYCELIC_EVENT_SIGNING_KEY with $(openssl rand -hex 32),
+# NATS_PASSWORD with n$(openssl rand -hex 32) (it must start with a letter); back up the signing key with the data
 docker compose -f deploy/mycelic/docker-compose.yml up -d --build
 curl -s http://localhost:8080/health          # {"status":"ok", ...}
 

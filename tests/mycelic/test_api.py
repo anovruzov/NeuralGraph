@@ -1,7 +1,8 @@
 """HTTP API and MCP endpoint over aiohttp's test client: authentication, authorization, limits, health, metrics,
 memory/query/lineage routes, admin routes and the per-request MCP identity; downward verification on every surface
 (GET /verify/{id} with its errors and four verdicts, the opt-in "verify" of POST /query, the mycelic_verify tool), its
-cost-weighted rate limiting over REST and inside MCP batches, and its documentation."""
+cost-weighted rate limiting over REST and inside MCP batches, and its documentation; the per-organization note limit's
+507 over REST, the SDK (which never retries it) and MCP."""
 from __future__ import annotations
 
 import asyncio
@@ -20,6 +21,7 @@ from mycelic import verification
 from mycelic.api import create_app
 from mycelic.auth import RateLimiter
 from mycelic.models import now_iso, utcnow
+from mycelic.sdk import MycelicClient, MycelicError
 from mycelic.service import RateLimited
 
 from .helpers import ADMIN_TOKEN, DEMO_RULE, ServiceHarness, full_reaggregation_pass
@@ -806,6 +808,59 @@ class MCPTests(ApiTestCase):
                 self.assertTrue(out["isError"], out)
                 self.assertIn(message, out["content"][0]["text"])
         self.assertEqual(len(verify_audits(s)), audits, "refused calls are not audited")
+
+
+class QuotaApiTests(ApiTestCase):
+    harness_overrides = {"max_active_memories_per_org": 2}
+
+    @staticmethod
+    def remember_rpc(text: str, id_: int = 1) -> dict:
+        return {"jsonrpc": "2.0", "id": id_, "method": "tools/call",
+                "params": {"name": "mycelic_remember", "arguments": {"text": text, "topic": "supply:sd-9/transport"}}}
+
+    async def test_quota_status_code_and_sdk_does_not_retry_507(self) -> None:
+        key = await self.register("log-1")
+        ids = []
+        for i in range(2):
+            r = await self.client.post("/memory", json={"text": f"note {i}"}, headers=bearer(key))
+            self.assertEqual(r.status, 202)
+            ids.append((await r.json())["memory_id"])
+        r = await self.client.post("/memory", json={"text": "one too many"}, headers=bearer(key))
+        self.assertEqual(r.status, 507)
+        self.assertEqual(r.content_type, "application/json")
+        message = (await r.json())["error"]
+        self.assertTrue(message.startswith("organization 'northwind' is at its limit of 2 active notes "
+                                           "(MYCELIC_MAX_ACTIVE_MEMORIES_PER_ORG; 2 active now)"), message)
+        # the SDK raises at once: a 507 is not retried, whatever ``retries`` says
+        server = TestServer(create_app(self.h.service), host="127.0.0.1")
+        await server.start_server()
+        try:
+            sdk = MycelicClient(str(server.make_url("")).rstrip("/"), key, retries=4, backoff=0)
+            requests = self.h.service.metrics.http_requests.labels("/memory", "507")
+            before = requests._value.get()
+            with self.assertRaises(MycelicError) as cm:
+                await asyncio.to_thread(sdk.remember, "from the SDK")
+            self.assertEqual(cm.exception.status, 507)
+            self.assertIn("MYCELIC_MAX_ACTIVE_MEMORIES_PER_ORG", cm.exception.message)
+            self.assertEqual(requests._value.get(), before + 1, "exactly one request")
+        finally:
+            await server.close()
+        # MCP: an error result naming the limit
+        headers = {**bearer(key), "Accept": "application/json"}
+        r = await self.client.post("/mcp", json=self.remember_rpc("over MCP"), headers=headers)
+        result = (await r.json())["result"]
+        self.assertTrue(result["isError"])
+        self.assertEqual(result["content"][0]["text"], message, "the refusal itself, not an unexpected tool failure")
+        # in a JSON-RPC batch each mycelic_remember is its own write: those past the limit get error results
+        r = await self.client.post(f"/memory/{ids[0]}/retract", json={}, headers=bearer(key))
+        self.assertEqual(r.status, 202)
+        await self.h.settle()
+        batch = [self.remember_rpc(f"batched {i}", id_=i) for i in range(3)]
+        r = await self.client.post("/mcp", json=batch, headers=headers)
+        results = {m["id"]: m["result"]["isError"] for m in await r.json()}
+        self.assertEqual(results, {0: False, 1: True, 2: True})
+        self.assertEqual(self.h.service.store.active_note_count("northwind"), 2)
+        self.assertEqual(self.h.service.metrics.quota_rejections._value.get(), 5)
 
 
 class VerificationDocsTests(unittest.TestCase):

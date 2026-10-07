@@ -14,4 +14,4 @@ resources:
 images:
   - name: mycelic
     newName: ghcr.io/your-org/mycelic   # replace with the registry you pushed the image to
-    newTag: "0.1.0"
+    newTag: "0.2.0"

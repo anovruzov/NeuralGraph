@@ -11,6 +11,10 @@ data:
   MYCELIC_LOG_LEVEL: INFO
   MYCELIC_MIN_SUPPORT: "2"
   MYCELIC_SHUTDOWN_TIMEOUT_SECONDS: "10"    # SIGTERM budget; keep 2x + 5 <= terminationGracePeriodSeconds (30)
+  MYCELIC_MAX_ACTIVE_MEMORIES_PER_ORG: "5000"  # active raw notes per organization (DEPLOYMENT.md, "Volume cap"); 0 = no limit
+  MYCELIC_REPLAY_MAX_REJECT_RATIO: "0.01"   # replay signature rejections tolerated before /ready stays 503
+  MYCELIC_VERIFY_MAX_NODES: "25000"         # nodes one downward verification walks at most
+  MYCELIC_EXPIRY_SWEEP_SECONDS: "30"        # 0 disables the expiry sweep
   MYCELIC_ALLOWED_HOSTS: ""                 # set to the Ingress host, e.g. mycelic.example.com
   MYCELIC_TRUST_PROXY_HEADERS: "true"       # the Ingress terminates TLS and forwards X-Forwarded-For
   # the exact text of deploy/mycelic/rules.json (the Compose deployment mounts that file); keep the two in sync

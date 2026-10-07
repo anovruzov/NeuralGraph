@@ -20,11 +20,14 @@ import time
 import unittest
 from pathlib import Path
 
+from aiohttp.test_utils import TestClient, TestServer
+
+from mycelic.api import create_app
 from mycelic.integrity import key_id
 from mycelic.metrics import Metrics
-from mycelic.service import MycelicService
+from mycelic.service import READY_BLOCK_REASON, MycelicService
 
-from .helpers import DEMO_RULE, digest_map, integrity_outcomes, settings
+from .helpers import ADMIN_TOKEN, DEMO_RULE, digest_map, integrity_outcomes, settings
 
 NATS_BIN = os.environ.get("MYCELIC_NATS_SERVER_BIN") or shutil.which("nats-server")
 NATS_USER, NATS_PASSWORD = "mycelic", "nats-test-password-0123456789abcdef"
@@ -287,10 +290,14 @@ class JetStreamTests(unittest.IsolatedAsyncioTestCase):
         self.services.remove(s)
         for f in self.root.glob("mycelic.db*"):
             f.unlink()
-        s2 = await self.new_service(nats_max_deliver=2)
+        # the rebuild rejects the one unsigned event among the stream's few: a ratio far above the default 1%, so this
+        # test allows half (the signature-rejection block has its own tests)
+        s2 = await self.new_service(nats_max_deliver=2, replay_max_reject_ratio=0.5)
         self.assertTrue(await s2.wait_idle(30))
         self.assertTrue((await s2.ready())[0], "terminated events count as consumed for replay completion")
         self.assertEqual(s2.store.stats()["memories_by_layer"]["enterprise"], 1)
+        judged = [a["detail"] for a in s2.store.recent_audit(1000) if a["action"] == "recovery.signature_rejections"]
+        self.assertEqual([(d["rejected"], d["blocked"]) for d in judged], [(1, False)])
 
     async def test_unfinished_replay_resumes_after_a_crash(self) -> None:
         s1 = await self.new_service()
@@ -375,9 +382,113 @@ class JetStreamTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(s4.store.list_memories("northwind", status=None, limit=1000), [])
         self.assertEqual(await s4.store.list_agents(include_revoked=True), [])
         deadline = time.monotonic() + 10
-        while not (await s4.ready())[0]:
+        while s4._replay_target is not None or s4.store.get_meta("replay_target_seq") is not None:
             self.assertLess(time.monotonic(), deadline, "the replay of rejected events completes")
             await asyncio.sleep(0.1)
+        ok, detail = await s4.ready()
+        self.assertFalse(ok, "a rebuild that lost what the rejected events carried is never ready")
+        self.assertTrue(detail["reason"].startswith("signature_rejections"))
+
+    def counts(self, s: MycelicService) -> dict[str, object]:
+        """What a rebuild must reproduce besides the snapshot: memories by layer and status (active and in all), derived
+        memories (active and in all) and agents, revoked ones included."""
+        rows = s.store._conn.execute("SELECT layer, status, operator FROM memories").fetchall()
+        by = {}
+        for r in rows:
+            by[(r["layer"], r["status"])] = by.get((r["layer"], r["status"]), 0) + 1
+        derived = [r for r in rows if r["operator"] != "agent_observation"]
+        return {"by_layer_status": by, "total": len(rows), "active": sum(r["status"] == "active" for r in rows),
+                "derived_total": len(derived), "derived_active": sum(r["status"] == "active" for r in derived),
+                "agents": sorted((a["agent_id"], a["status"]) for a in s.store._conn.execute("SELECT agent_id, status FROM agents"))}
+
+    async def wait_replayed(self, s: MycelicService, timeout: float = 30.0) -> None:
+        deadline = time.monotonic() + timeout
+        while s._replay_target is not None or s.store.get_meta("replay_target_seq") is not None:
+            self.assertLess(time.monotonic(), deadline, "the replay completes")
+            await asyncio.sleep(0.1)
+        self.assertTrue(await s.wait_idle(timeout))
+
+    async def test_wrong_signing_key_replay_blocks_readiness_until_fresh_rebuild(self) -> None:
+        key_a, key_b = SIGNING_KEY, "regenerated-signing-key-fedcba9876543210fe"
+        admin = {"Authorization": f"Bearer {ADMIN_TOKEN}"}
+        s1 = await self.new_service(event_signing_key=key_a)
+        keys = await self.seed(s1)
+        await s1.register_agent({"enterprise": "northwind", "region": "emea", "subsidiary": "nw-gmbh",
+                                 "department": "ops", "team": "logistics", "agent_id": "temp-1"})
+        await s1.revoke_agent("temp-1")
+        self.assertTrue(await s1.wait_idle(20))
+        before, counts = self.snapshot(s1), self.counts(s1)
+        self.assertIn(("temp-1", "revoked"), counts["agents"])
+        stream = (await s1.transport.info())["stream_messages"]
+        await s1.close()
+        self.services.remove(s1)
+
+        # the database is lost and the signing key was regenerated in place: the rebuild rejects every event
+        for f in self.root.glob("mycelic.db*"):
+            f.unlink()
+        s2 = await self.new_service(event_signing_key=key_b)
+        await self.wait_replayed(s2)
+        client = TestClient(TestServer(create_app(s2)))
+        await client.start_server()
+        try:
+            r = await client.get("/ready")
+            body = await r.json()
+            self.assertEqual(r.status, 503)
+            self.assertTrue(body["reason"].startswith("signature_rejections"), body)
+            r = await client.get("/health")
+            self.assertEqual((r.status, (await r.json())["status"]), (200, "degraded"))
+            r = await client.get("/metrics", headers=admin)
+            self.assertIn('mycelic_recovery_total{kind="replay_signature_rejections"} 1.0', await r.text())
+        finally:
+            await client.close()
+        judged = [a["detail"] for a in s2.store.recent_audit(1000) if a["action"] == "recovery.signature_rejections"]
+        self.assertEqual(len(judged), 1)
+        self.assertEqual((judged[0]["blocked"], judged[0]["rejected"], judged[0]["seen"]), (True, stream, stream))
+        self.assertEqual(s2.metrics.recoveries.labels("replay_signature_rejections")._value.get(), 1)
+        await s2.close()
+        self.services.remove(s2)
+
+        # restarted with the corrected keyring on that database: still blocked, and a replay does not change that
+        fixed = dict(event_signing_key=key_b, event_signing_keys_previous=[key_a])
+        s3 = MycelicService(self.make_settings(**fixed), metrics=Metrics())
+        self.services.append(s3)
+        self.assertEqual((await s3.ready())[1].get("reason"), READY_BLOCK_REASON, "blocked before start")
+        await s3.start()
+        self.assertTrue(await s3.wait_idle(20))
+        ok, detail = await s3.ready()
+        self.assertEqual((ok, detail.get("reason")), (False, READY_BLOCK_REASON), "blocked after start")
+        client = TestClient(TestServer(create_app(s3)))
+        await client.start_server()
+        try:
+            r = await client.post("/admin/replay", headers=admin)
+            self.assertEqual(r.status, 202)
+            self.assertIn("warning", await r.json())
+        finally:
+            await client.close()
+        await self.wait_replayed(s3)
+        self.assertEqual((await s3.ready())[1].get("reason"), READY_BLOCK_REASON, "still blocked after that replay")
+        await s3.close()
+        self.services.remove(s3)
+
+        # the documented remedy: the database moved aside, then a start with the corrected keyring rebuilds it
+        aside = self.root / "aside"
+        aside.mkdir()
+        for f in self.root.glob("mycelic.db*"):
+            f.rename(aside / f.name)
+        s4 = await self.new_service(**fixed)
+        await self.wait_replayed(s4)
+        client = TestClient(TestServer(create_app(s4)))
+        await client.start_server()
+        try:
+            r = await client.get("/ready")
+            self.assertEqual((r.status, await r.json()), (200, {"ready": True, "status": "ok", "replaying_to_seq": None,
+                                                                "transport_connected": True}))
+        finally:
+            await client.close()
+        self.assertEqual(self.counts(s4), counts)
+        self.assertEqual(self.snapshot(s4), before)
+        self.assertEqual((await s4.transport.info())["stream_messages"], stream, "nothing was appended to the stream")
+        self.assertEqual(s4.authenticate(f"Bearer {keys['sales-1']}").id, "sales-1")
 
     async def test_unsigned_events_are_rejected(self) -> None:
         s = await self.new_service()

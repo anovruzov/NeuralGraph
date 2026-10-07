@@ -470,13 +470,18 @@ statuses, stdio proxy against new and old servers), `tests/mycelic/test_integrit
 | forced replay, poison events | `POST /admin/replay` re-delivers everything idempotently; an event that fails `max_deliver` times, or fails the signature check, is terminated, recorded and counted as consumed so the replay still completes | `test_forced_replay_is_idempotent`, `test_poison_event_is_terminated_and_replay_completes` |
 | agent restart | local notes persist; re-sending uses the local id as idempotency key | smoke step 9 |
 | forged / unsigned events on the stream | HMAC-SHA256 signature checked before apply; producer must match the registry | `test_unsigned_events_are_rejected` |
+| rebuild with the wrong signing key (regenerated in place, previous key dropped) | each replay delivery is counted in `meta` in the transaction that consumes it, signature rejections separately; when the replay completes with more than `MYCELIC_REPLAY_MAX_REJECT_RATIO` rejected, `meta.ready_block` is written: `/ready` 503 (`signature_rejections`), `/health` 200 `degraded`, audit `recovery.signature_rejections`, `mycelic_recovery_total{kind="replay_signature_rejections"}`. Nothing deletes the block: a rebuild into a fresh database with the corrected keyring is ready, a replay into the same database is not; a ratio raised to the recorded one lifts it at the next start | `test_wrong_signing_key_replay_blocks_readiness_until_fresh_rebuild`, `SignatureReadinessTests` |
+| organization at its note limit | `MYCELIC_MAX_ACTIVE_MEMORIES_PER_ORG`: a new note past it is refused with 507 inside the write's transaction; resends, updates and everything the consumer applies are never capped | `QuotaTests`, `QuotaApiTests` |
+| rollback to this release from a later one | unknown event kinds applied as `ignored` (`unknown_kind`), unknown payload fields ignored, missing ones defaulted from the event, so a rebuild reproduces every row; 0.1.0 must never consume this release's stream (DEPLOYMENT.md §4a) | `test_unknown_kinds_and_missing_optional_fields_apply_for_rollback` |
 | lost NATS volume with intact database | **not covered**: the database keeps serving, but the log cannot be replayed until new events accumulate (see DEPLOYMENT.md, backups) | — |
 
 ## 9. Observability
 
 `GET /metrics` (Prometheus): `mycelic_memories_ingested_total`, `mycelic_events_received_total`,
 `mycelic_events_published_total{kind}`, `mycelic_events_applied_total{kind,result}`,
-`mycelic_events_failed_total{stage}`, `mycelic_replay_events_total`, `mycelic_recovery_total{kind}`,
+`mycelic_events_failed_total{stage}`, `mycelic_replay_events_total`, `mycelic_recovery_total{kind}` (among them
+`mycelic_recovery_total{kind="replay_signature_rejections"}`: a replay blocked readiness; alert on any increase),
+`mycelic_quota_rejections_total` (writes refused at `MYCELIC_MAX_ACTIVE_MEMORIES_PER_ORG`),
 `mycelic_memories_derived_total{layer,operator}`, `mycelic_events_ignored_total{reason}` (`derived_not_reproduced`,
 `retraction_target`, `unknown_kind`, `attestation_target`, `attestation_not_newer`, `attestation_integrity`),
 `mycelic_aggregation_inconsistency_total{kind}` (`id_collision`, `reactivation_mismatch`),
@@ -496,7 +501,8 @@ stays up), `mycelic_http_requests_total{route,status}`,
 `GET /admin/status` (full checks, stream/consumer positions, masked settings, and `checks.reaggregation`: the
 re-aggregation job's `state` (`idle`, `running`, `waiting_for_replay`, `done`, `interrupted`, `failed`), `reason`,
 `scope`, current `org_id` and `phase`, `steps`, `changed`, `started_at`, `finished_at`, `error`; and `checks.expiry`:
-`enabled`, `interval_seconds`, `overdue`, `last_sweep_at`, `last_queued`), `GET /admin/audit`, `GET /admin/events`.
+`enabled`, `interval_seconds`, `overdue`, `last_sweep_at`, `last_queued`; and `checks.consumer.ready_block`: the
+signature-rejection block on readiness, or null), `GET /admin/audit`, `GET /admin/events`.
 The job never affects `/ready`: the node serves while it converges. Every successful downward
 verification writes the audit row `memory.verify` (principal, target, organization, verdict, nodes walked and the
 reason codes before redaction).

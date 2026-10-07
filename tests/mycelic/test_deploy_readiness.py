@@ -1,10 +1,13 @@
 """Deploy safety: probes that never wait on the broker or the database, Kubernetes/Compose manifests that match
-the service (probe timeouts, grace periods, the shipped rules), the single-writer lock on the SQLite file, a
-SIGTERM that finishes inside the grace period, and SECURITY.md statements that are true of the code."""
+the service (probe timeouts, grace periods, the shipped rules, the optional settings and the release version), the
+single-writer lock on the SQLite file, a SIGTERM that finishes inside the grace period, readiness that a replay over the
+wrong signing key blocks until a rebuild, the per-organization volume cap, a log from another release that still
+applies (rollback), and documentation that is true of the code."""
 from __future__ import annotations
 
 import asyncio
 import json
+import math
 import os
 import re
 import signal
@@ -16,6 +19,7 @@ import tempfile
 import time
 import unittest
 import urllib.request
+from fractions import Fraction
 from pathlib import Path
 from unittest import mock
 
@@ -24,12 +28,16 @@ from aiohttp.test_utils import TestClient, TestServer
 
 from mycelic.api import create_app, run_server
 from mycelic.config import ConfigError, Settings
+from mycelic.integrity import Keyring
 from mycelic.metrics import Metrics
-from mycelic.service import MycelicService
+from mycelic.service import READY_BLOCK_REASON, MycelicService, _recorded_ratio
 from mycelic.store import DatabaseLocked, MycelicStore, acquire_db_lock, release_db_lock
-from mycelic.transport import InProcessTransport, JetStreamTransport
+from mycelic.transport import InProcessTransport, JetStreamTransport, subject_for
+from mycelic.version import VERSION
 
-from .helpers import ADMIN_TOKEN, ServiceHarness, settings
+from .helpers import (ADMIN_TOKEN, DEMO_RULE, HeldTransport, ServiceHarness, integrity_outcomes, memory_history, rebuild,
+                      rebuild_differences, settings)
+from .test_aggregation_core import ORG, TEAM, wire
 
 ROOT = Path(__file__).resolve().parents[2]
 DEPLOY = ROOT / "deploy" / "mycelic"
@@ -364,6 +372,36 @@ class ManifestTests(unittest.TestCase):
             self.assertGreaterEqual(grace, 2 * compose_t + 5)
 
 
+    def test_optional_settings_pass_through(self) -> None:
+        defaults = {"MYCELIC_MAX_ACTIVE_MEMORIES_PER_ORG": shipped_quota()["DEPLOYMENT.md"],
+                    "MYCELIC_REPLAY_MAX_REJECT_RATIO": Settings.replay_max_reject_ratio,
+                    "MYCELIC_VERIFY_MAX_NODES": Settings.verify_max_nodes,
+                    "MYCELIC_EXPIRY_SWEEP_SECONDS": Settings.expiry_sweep_seconds}
+        example = dict(re.findall(r"^(MYCELIC_[A-Z_]+)=(.*)$", (DEPLOY / ".env.example").read_text(encoding="utf-8"), re.M))
+        env = yaml.safe_load((DEPLOY / "docker-compose.yml").read_text(encoding="utf-8"))["services"]["mycelic"]["environment"]
+        cm = next(d for d in _docs(DEPLOY / "k8s" / "mycelic-configmap.yaml") if d["kind"] == "ConfigMap")["data"]
+        for name, default in defaults.items():
+            with self.subTest(name=name):
+                self.assertIsNotNone(default)
+                self.assertEqual(float(example[name]), float(default), ".env.example")
+                m = re.fullmatch(rf"\$\{{{name}:-([0-9.]+)\}}", str(env.get(name)))
+                self.assertIsNotNone(m, f"compose passes {name} with a default")
+                self.assertEqual(float(m.group(1)), float(default), "compose default")
+                self.assertIsInstance(cm.get(name), str, "ConfigMap values are strings")
+                self.assertEqual(float(cm[name]), float(default), "ConfigMap")
+        with mock.patch.dict(os.environ, serve_env(MYCELIC_HOST="127.0.0.1", **{k: v for k, v in example.items() if v}),
+                             clear=True):
+            s = Settings.from_env()
+        self.assertEqual((s.max_active_memories_per_org, s.replay_max_reject_ratio, s.verify_max_nodes, s.expiry_sweep_seconds),
+                         tuple(type(getattr(Settings, k))(v) for k, v in zip(
+                             ("max_active_memories_per_org", "replay_max_reject_ratio", "verify_max_nodes",
+                              "expiry_sweep_seconds"), defaults.values())))
+        kustomization = _docs(DEPLOY / "k8s" / "kustomization.yaml")[0]
+        self.assertEqual(kustomization["images"][0]["newTag"], VERSION)
+        container = _statefulset(DEPLOY / "k8s" / "mycelic-statefulset.yaml")["spec"]["template"]["spec"]["containers"][0]
+        self.assertEqual(container["image"], f"mycelic:{VERSION}")
+
+
 # ---------------------------------------------------------------------------------------------------------- lock
 
 
@@ -692,6 +730,582 @@ class ShutdownTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('"mycelic": "started"', text)
 
 
+# ---------------------------------------------------------------------------------------------------------- signing keys
+
+
+KEY_A = "readiness-signing-key-a-0123456789abcdef"
+KEY_B = "readiness-signing-key-b-fedcba9876543210"
+KEY_C = "unrelated-signing-key-c-0011223344556677"      # configured nowhere: what a forger might hold
+
+
+def audit_details(store: MycelicStore, action: str) -> list[dict]:
+    """The details of every audit row with ``action``, oldest first."""
+    return [a["detail"] for a in reversed(store.recent_audit(100_000)) if a["action"] == action]
+
+
+def forged(event_id: str, *, signed_by: str | None) -> tuple[str, bytes, str, dict[str, str]]:
+    """A stream entry claiming a note of log-1, unsigned or signed by a key the service does not hold."""
+    data = json.dumps(wire("memory.observed", {"memory_id": f"mem_{event_id}", "org_id": ORG, "layer": "agent",
+                                               "scope": f"{TEAM}/log-1", "text": "forged", "producer_id": "log-1"},
+                           event_id=event_id)).encode()
+    headers = {"Mycelic-Signature": Keyring(signed_by).event_signature(data)} if signed_by else {}
+    return subject_for(ORG, "memory.observed"), data, event_id, headers
+
+
+def signed_note(event_id: str, key: str) -> tuple[str, bytes, str, dict[str, str]]:
+    """A stream entry signed with ``key``: an agent event that applies without touching any memory."""
+    data = json.dumps(wire("agent.event", {"type": "note"}, event_id=event_id)).encode()
+    return subject_for(ORG, "agent.event"), data, event_id, {"Mycelic-Signature": Keyring(key).event_signature(data)}
+
+
+def recorded_ratio(rejected: int, seen: int) -> float:
+    """The ``ratio`` a judged replay records: rejected/seen rounded up to 6 places, computed exactly here."""
+    return math.ceil(Fraction(rejected, seen) * 10**6) / 10**6
+
+
+def agent_state(service: MycelicService) -> list[tuple]:
+    return sorted((a["agent_id"], a["status"], a["log_status"])
+                  for a in service.store._conn.execute("SELECT agent_id, status, log_status FROM agents"))
+
+
+class SignatureReadinessTests(unittest.IsolatedAsyncioTestCase):
+    """A replay that rejects the signature of more than MYCELIC_REPLAY_MAX_REJECT_RATIO of what it consumes leaves readiness
+    blocked until a rebuild into a fresh database, or a ratio raised to the recorded one and a restart; fewer rejections
+    only warn.  In process: the stream is an in-process log holding what a seeded node signed."""
+
+    async def asyncSetUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.services: list[MycelicService] = []
+        self.clients: list[TestClient] = []
+
+    async def asyncTearDown(self) -> None:
+        for c in self.clients:
+            await c.close()
+        for s in self.services:
+            await s.close()
+        self.tmp.cleanup()
+
+    async def node(self, name: str, log: list | None = None, *, transport: InProcessTransport | None = None,
+                   start: bool = True, **overrides) -> MycelicService:
+        """A service on the database in ``root/name``, over ``transport`` or a new in-process stream holding ``log`` (its
+        consumer at the start, as a durable consumer created for a fresh database is)."""
+        where = self.root / name
+        where.mkdir(exist_ok=True)
+        if transport is None:
+            transport = InProcessTransport()
+            for entry in log or []:
+                transport._log.append(entry)
+                transport._seen_ids[entry[2]] = len(transport._log)
+        s = MycelicService(settings(where, **overrides), transport=transport, metrics=Metrics())
+        self.services.append(s)
+        if start:
+            await s.start()
+        return s
+
+    async def replayed(self, s: MycelicService, timeout: float = 20.0) -> None:
+        """Wait until the replay has completed (in memory and in the database) and the consumer has nothing left."""
+        deadline = time.monotonic() + timeout
+        while s._replay_target is not None or s.store.get_meta("replay_target_seq") is not None:
+            self.assertLess(time.monotonic(), deadline, "the replay did not complete")
+            await asyncio.sleep(0.02)
+        self.assertTrue(await s.wait_idle(timeout))
+
+    async def http(self, s: MycelicService) -> TestClient:
+        client = TestClient(TestServer(create_app(s)))
+        await client.start_server()
+        self.clients.append(client)
+        return client
+
+    async def signed_log(self) -> tuple[list, dict[str, str], dict, list]:
+        """What a seeded node signed with KEY_A (the rule, five agents of which one is revoked, four notes and a
+        retraction): its stream, the agent keys, and the memory history and agents a rebuild must reproduce."""
+        s = await self.node("origin", event_signing_key=KEY_A)
+        await s.upsert_rule(DEMO_RULE)
+        keys = {}
+        for agent, team, dept in (("log-1", "logistics", "ops"), ("log-2", "logistics", "ops"), ("proc-1", "procurement", "ops"),
+                                  ("sales-1", "field-sales", "commercial"), ("temp-1", "logistics", "ops")):
+            _, keys[agent] = await s.register_agent({"enterprise": ORG, "region": "emea", "subsidiary": "nw-gmbh",
+                                                     "department": dept, "team": team, "agent_id": agent})
+        ids = {}
+        for agent, topic, slot in (("log-1", "supply:sd-9/transport", "transport_disruption"),
+                                   ("log-2", "supply:sd-9/transport", "transport_disruption"),
+                                   ("proc-1", "supply:sd-9/supplier", "supplier_buffer_low"),
+                                   ("sales-1", "supply:sd-9/demand", "demand_commitment"),
+                                   ("temp-1", "supply:sd-9/transport", "transport_disruption")):
+            m, _ = await s.ingest_memory(s.authenticate(f"Bearer {keys[agent]}"),
+                                         {"text": f"{slot} for sd-9 by {agent}", "topic": topic, "slot": slot, "entity": "sd-9"})
+            ids[agent] = m.memory_id
+        await s.retract(s.authenticate(f"Bearer {keys['temp-1']}"), ids["temp-1"])
+        await s.revoke_agent("temp-1")
+        self.assertTrue(await s.wait_idle(20))
+        self.assertEqual(s.store.stats()["memories_by_layer"]["enterprise"], 1)
+        log = list(s.transport._log)
+        before, agents = memory_history(s.store), agent_state(s)
+        await s.close()
+        return log, keys, before, agents
+
+    async def test_replay_under_the_ratio_does_not_block(self) -> None:
+        log, _, before, agents = await self.signed_log()
+        mixed = log[:3] + [forged("evt_forged_unsigned", signed_by=None)] + log[3:9] + [forged("evt_forged_c", signed_by=KEY_C)] + log[9:]
+        n, k = len(mixed), 2
+        for ratio, blocked in ((k / n, False), ((k - 1) / n, True), (0.0, True)):
+            with self.subTest(ratio=ratio):
+                s = await self.node(f"ratio-{ratio}", mixed, event_signing_key=KEY_A, replay_max_reject_ratio=ratio)
+                await self.replayed(s)
+                ok, detail = await s.ready()
+                self.assertEqual(ok, not blocked)
+                self.assertEqual(detail.get("reason"), READY_BLOCK_REASON if blocked else None)
+                self.assertEqual(audit_details(s.store, "recovery.signature_rejections"),
+                                 [{"seen": n, "rejected": k, "ratio": recorded_ratio(k, n), "max_ratio": ratio, "blocked": blocked}])
+                rejected = [d for d in audit_details(s.store, "event.rejected") if d.get("reason") == "invalid signature"]
+                self.assertEqual(sorted(d["seq"] for d in rejected), [4, 11], "one event.rejected per forgery, at its seq")
+                block = s.store.get_meta("ready_block")
+                if blocked:
+                    self.assertEqual({k_: v for k_, v in json.loads(block).items() if k_ != "at"},
+                                     {"reason": "signature_rejections", "seen": n, "rejected": k})
+                else:
+                    self.assertIsNone(block)
+                self.assertEqual(s.metrics.recoveries.labels("replay_signature_rejections")._value.get(), 1 if blocked else 0)
+                self.assertIsNone(s.store.get_meta("replay_seen"), "the counts end with the replay")
+                self.assertIsNone(s.store.get_meta("replay_sig_rejected"))
+                self.assertEqual(memory_history(s.store), before, "the forgeries changed nothing")
+                self.assertEqual(agent_state(s), agents)
+                await s.close()
+
+    async def test_replay_with_nothing_seen_does_not_block(self) -> None:
+        s = await self.node("empty", event_signing_key=KEY_A, replay_max_reject_ratio=0.0)
+        client = await self.http(s)
+        r = await client.post("/admin/replay", headers={"Authorization": f"Bearer {ADMIN_TOKEN}"})
+        self.assertEqual(r.status, 202)
+        self.assertEqual(await r.json(), {"replaying": True, "target_seq": None})
+        self.assertTrue((await s.ready())[0])
+        self.assertEqual(audit_details(s.store, "recovery.signature_rejections"), [])
+        for key in ("ready_block", "replay_seen", "replay_sig_rejected", "replay_target_seq"):
+            self.assertIsNone(s.store.get_meta(key), key)
+
+    async def test_block_persists_warns_on_replay_and_lifts_only_by_fresh_rebuild_or_ratio(self) -> None:
+        log, keys, before, agents = await self.signed_log()
+        n = len(log)
+        admin = {"Authorization": f"Bearer {ADMIN_TOKEN}"}
+        # the database is lost and the signing key was regenerated in place: every event is rejected
+        s = await self.node("lost", log, event_signing_key=KEY_B)
+        transport = s.transport
+        await self.replayed(s)
+        self.assertEqual(memory_history(s.store), {})
+        self.assertEqual(agent_state(s), [])
+        ok, detail = await s.ready()
+        self.assertFalse(ok)
+        self.assertEqual(detail["reason"], READY_BLOCK_REASON)
+        self.assertEqual(audit_details(s.store, "recovery.signature_rejections"),
+                         [{"seen": n, "rejected": n, "ratio": 1.0, "max_ratio": 0.01, "blocked": True}])
+        client = await self.http(s)
+        with mock.patch.object(s.store, "get_meta", side_effect=AssertionError("a probe read the database")), \
+                mock.patch.object(s.store, "stats", side_effect=AssertionError("a probe read the database")):
+            r = await client.get("/ready")
+            self.assertEqual(r.status, 503)
+            self.assertTrue((await r.json())["reason"].startswith("signature_rejections"))
+        r = await client.get("/health")
+        self.assertEqual((r.status, (await r.json())["status"]), (200, "degraded"), "liveness holds: the pod is never restarted")
+        r = await client.get("/admin/status", headers=admin)
+        block = (await r.json())["checks"]["consumer"]["ready_block"]
+        self.assertEqual({k: block[k] for k in ("reason", "seen", "rejected", "ratio", "max_ratio")},
+                         {"reason": "signature_rejections", "seen": n, "rejected": n, "ratio": 1.0, "max_ratio": 0.01})
+        r = await client.get("/metrics", headers=admin)
+        self.assertIn('mycelic_recovery_total{kind="replay_signature_rejections"} 1.0', await r.text())
+        # a second replay over the ratio rewrites the block with its own counts (one more event, signed by B)
+        extra = json.dumps(wire("agent.event", {"type": "note"}, event_id="evt_signed_by_b")).encode()
+        await transport.publish(subject_for(ORG, "agent.event"), extra, "evt_signed_by_b", headers=s._sign(extra))
+        r = await client.post("/admin/replay", headers=admin)
+        self.assertEqual(r.status, 202)
+        self.assertIn("warning", await r.json())
+        await self.replayed(s)
+        recorded = json.loads(s.store.get_meta("ready_block"))
+        self.assertEqual((recorded["seen"], recorded["rejected"]), (n + 1, n))
+        self.assertEqual(s.metrics.recoveries.labels("replay_signature_rejections")._value.get(), 2)
+        await s.close()
+
+        # reopened with the corrected keyring: blocked at construction and after start, and a replay rejecting nothing
+        # neither lifts nor rewrites the block
+        fixed = dict(event_signing_key=KEY_B, event_signing_keys_previous=[KEY_A])
+        s2 = await self.node("lost", transport=transport, start=False, **fixed)
+        self.assertFalse((await s2.ready())[0])
+        self.assertEqual((await s2.ready())[1]["reason"], READY_BLOCK_REASON)
+        await s2.start()
+        self.assertTrue(await s2.wait_idle(10))
+        self.assertEqual(await s2.ready(), (False, {"ready": False, "status": "degraded", "replaying_to_seq": None,
+                                                     "transport_connected": True, "reason": READY_BLOCK_REASON}))
+        client2 = await self.http(s2)
+        r = await client2.post("/admin/replay", headers=admin)
+        self.assertEqual(r.status, 202)
+        body = await r.json()
+        self.assertIn("move the database aside", body["warning"])
+        self.assertEqual(audit_details(s2.store, "replay")[-1]["warning"], body["warning"])
+        await self.replayed(s2)
+        ok, detail = await s2.ready()
+        self.assertFalse(ok, "a replay into the blocked database never lifts the block")
+        self.assertEqual(detail["reason"], READY_BLOCK_REASON)
+        self.assertEqual(json.loads(s2.store.get_meta("ready_block")), recorded)
+        self.assertEqual(len(audit_details(s2.store, "recovery.signature_rejections")), 2, "nothing rejected, nothing judged")
+        self.assertEqual(s2.metrics.recoveries.labels("replay_signature_rejections")._value.get(), 0)
+        await s2.close()
+
+        # the escape hatch for a stream that really holds forgeries: a ratio at the recorded one lifts it in place
+        self.assertEqual(recorded["seen"], n + 1)
+        for ratio, ready in (((n - 1) / (n + 1), False), (n / (n + 1), True), (recorded_ratio(n, n + 1), True), (1.0, True)):
+            with self.subTest(ratio=ratio):
+                s3 = await self.node("lost", transport=transport, replay_max_reject_ratio=ratio, **fixed)
+                self.assertTrue(await s3.wait_idle(10))
+                self.assertEqual((await s3.ready())[0], ready)
+                self.assertIsNotNone(s3.store.get_meta("ready_block"), "the block itself is never deleted")
+                await s3.close()
+
+        # the remedy: the database moved aside, a rebuild with the corrected keyring is ready and complete
+        s4 = await self.node("rebuilt", list(transport._log), **fixed)
+        await self.replayed(s4)
+        self.assertTrue((await s4.ready())[0])
+        self.assertEqual(memory_history(s4.store), before)
+        self.assertEqual(agent_state(s4), agents)
+        self.assertEqual(audit_details(s4.store, "recovery.signature_rejections"), [])
+        self.assertEqual(s4.authenticate(f"Bearer {keys['sales-1']}").id, "sales-1")
+
+    async def test_unparsable_block_holds(self) -> None:
+        s = await self.node("garbled", event_signing_key=KEY_A, replay_max_reject_ratio=1.0)
+        async with s.store.transaction() as tx:
+            tx.set_meta("ready_block", "{not json")
+        await s.close()
+        s2 = await self.node("garbled", event_signing_key=KEY_A, replay_max_reject_ratio=1.0)
+        self.assertTrue(await s2.wait_idle(10))
+        ok, detail = await s2.ready()
+        self.assertEqual((ok, detail["reason"]), (False, READY_BLOCK_REASON), "a block that does not parse fails safe")
+        self.assertEqual((await s2.health(live=True))["checks"]["consumer"]["ready_block"], {"reason": "signature_rejections"})
+
+    async def test_replay_counts_survive_a_crash(self) -> None:
+        log, _, before, _ = await self.signed_log()
+        mixed = log[:1] + [forged("evt_forged_early", signed_by=None)] + log[1:]
+        n = len(mixed)
+        # a rebuild that dies after three deliveries (the second a forgery), applied by hand with no background loops
+        s = await self.node("crash", mixed, start=False, event_signing_key=KEY_A, replay_max_reject_ratio=0.5)
+        self.services.remove(s)                     # it dies below; nothing closes it again
+        transport = s.transport
+        await s.start(background=False)
+        self.assertEqual(s._replay_target, n)
+        for _ in range(3):
+            for d in await transport.fetch(1, 1.0):
+                await s._handle_delivery(d)
+        self.assertEqual((s.store.get_meta("replay_seen"), s.store.get_meta("replay_sig_rejected")), ("3", "1"))
+        await transport.close()
+        await s.store.close()
+        # the restart resumes the replay where the consumer stood, and keeps counting
+        s2 = await self.node("crash", transport=transport, event_signing_key=KEY_A, replay_max_reject_ratio=0.5)
+        self.assertGreater(s2.metrics.recoveries.labels("replay_resumed")._value.get(), 0)
+        await self.replayed(s2)
+        self.assertEqual(audit_details(s2.store, "recovery.signature_rejections"),
+                         [{"seen": n, "rejected": 1, "ratio": recorded_ratio(1, n), "max_ratio": 0.5, "blocked": False}])
+        self.assertTrue((await s2.ready())[0])
+        self.assertEqual(memory_history(s2.store), before)
+
+    async def test_a_replay_that_can_never_complete_is_not_judged(self) -> None:
+        """A replay cut short by a crash, and a stream that now ends before what the database applied (purged or
+        recreated): that replay can never complete, so its partial counts are discarded without a judgement."""
+        log = [forged(f"evt_purged_forged_{i}", signed_by=None) for i in range(3)] + [signed_note(f"evt_purged_{i}", KEY_A)
+                                                                                     for i in range(3)]
+        s = await self.node("purged", log, start=False, event_signing_key=KEY_A)
+        self.services.remove(s)                     # it dies below; nothing closes it again
+        await s.start(background=False)
+        self.assertEqual(s._replay_target, len(log))
+        for _ in range(3):
+            for d in await s.transport.fetch(1, 1.0):
+                await s._handle_delivery(d)
+        self.assertEqual((s.store.get_meta("replay_seen"), s.store.get_meta("replay_sig_rejected")), ("3", "3"))
+        await s.transport.close()
+        await s.store.close()
+        s2 = await self.node("purged", event_signing_key=KEY_A)          # over a new, empty stream
+        self.assertTrue(await s2.wait_idle(10))
+        self.assertEqual(s2.metrics.recoveries.labels("stream_behind_database")._value.get(), 1)
+        self.assertEqual(len(audit_details(s2.store, "recovery.stream_behind_database")), 1)
+        self.assertTrue((await s2.ready())[0], "3 of 3 rejected so far, but never judged")
+        self.assertEqual(audit_details(s2.store, "recovery.signature_rejections"), [])
+        for key in ("ready_block", "replay_seen", "replay_sig_rejected", "replay_target_seq"):
+            self.assertIsNone(s2.store.get_meta(key), key)
+        self.assertEqual(s2.metrics.recoveries.labels("replay_signature_rejections")._value.get(), 0)
+
+    async def test_a_new_replay_target_starts_the_counts_again(self) -> None:
+        """POST /admin/replay in the middle of a replay starts it again from the first event, and its counts with it,
+        so what the abandoned pass consumed is not counted twice."""
+        log = [forged("evt_again_forged", signed_by=None)] + [signed_note(f"evt_again_{i}", KEY_A) for i in range(5)]
+        n = len(log)
+        s = await self.node("again", log, start=False, event_signing_key=KEY_A, replay_max_reject_ratio=0.5)
+        await s.start(background=False)
+        for _ in range(3):
+            for d in await s.transport.fetch(1, 1.0):
+                await s._handle_delivery(d)
+        self.assertEqual((s.store.get_meta("replay_seen"), s.store.get_meta("replay_sig_rejected")), ("3", "1"))
+        self.assertEqual((await s.replay())["target_seq"], n)
+        self.assertEqual((s.store.get_meta("replay_seen"), s.store.get_meta("replay_sig_rejected")), ("0", "0"))
+        for _ in range(n):
+            for d in await s.transport.fetch(1, 1.0):
+                await s._handle_delivery(d)
+        self.assertIsNone(s._replay_target, "the replay completed")
+        self.assertEqual(audit_details(s.store, "recovery.signature_rejections"),
+                         [{"seen": n, "rejected": 1, "ratio": recorded_ratio(1, n), "max_ratio": 0.5, "blocked": False}])
+
+    def test_recorded_ratio_is_the_least_six_place_value_that_lifts_the_block(self) -> None:
+        """For every rejected/seen up to 400 events: the recorded ratio is rejected/seen rounded up to 6 places (never
+        float noise above it: 83/160 stays 0.51875), the service's strict ``rejected / seen > ratio`` does not block at
+        it, it does block one step lower, and the value survives JSON and the environment as written."""
+        for seen in range(1, 401):
+            for rejected in range(1, seen + 1):
+                value = _recorded_ratio(rejected, seen)
+                self.assertEqual(value, recorded_ratio(rejected, seen), (rejected, seen))
+                self.assertFalse(rejected / seen > value, (rejected, seen))
+                self.assertTrue(rejected / seen > (round(value * 10**6) - 1) / 10**6, (rejected, seen))
+                self.assertEqual(float(json.dumps(value)), value)
+                self.assertLessEqual(len(json.dumps(value).partition(".")[2]), 6, (rejected, seen))
+
+    async def test_the_recorded_ratio_as_shown_lifts_the_block(self) -> None:
+        """The escape hatch exactly as documented: MYCELIC_REPLAY_MAX_REJECT_RATIO set to the ``ratio`` /admin/status
+        shows, copied as text, lifts the block at the restart, and a later replay judged at that setting does not block,
+        also where rejected/seen has no 6-place form (2 of 7 is recorded as 0.285715, where 0.285714 would leave it
+        blocked); one step lower still blocks."""
+        admin = {"Authorization": f"Bearer {ADMIN_TOKEN}"}
+        for rejected, seen, shown in ((2, 7, "0.285715"), (1, 12, "0.083334")):
+            with self.subTest(rejected=rejected, seen=seen):
+                name = f"shown-{rejected}-of-{seen}"
+                log = [forged(f"evt_{name}_forged_{i}", signed_by=None) for i in range(rejected)] + \
+                    [signed_note(f"evt_{name}_{i}", KEY_A) for i in range(seen - rejected)]
+                s = await self.node(name, log, event_signing_key=KEY_A)
+                await self.replayed(s)
+                self.assertFalse((await s.ready())[0])
+                r = await (await self.http(s)).get("/admin/status", headers=admin)
+                text = json.dumps((await r.json())["checks"]["consumer"]["ready_block"]["ratio"])
+                self.assertEqual(text, shown)
+                self.assertEqual(audit_details(s.store, "recovery.signature_rejections")[0]["ratio"], float(shown))
+                transport = s.transport
+                await s.close()
+                with mock.patch.dict(os.environ, {**serve_env(MYCELIC_HOST="127.0.0.1"),
+                                                  "MYCELIC_REPLAY_MAX_REJECT_RATIO": text}, clear=True):
+                    configured = Settings.from_env().replay_max_reject_ratio
+                s2 = await self.node(name, transport=transport, event_signing_key=KEY_A, replay_max_reject_ratio=configured)
+                self.assertTrue(await s2.wait_idle(10))
+                self.assertTrue((await s2.ready())[0], f"{shown} as shown lifts the block")
+                await s2.replay()
+                await self.replayed(s2)
+                self.assertTrue((await s2.ready())[0], "a replay judged at that ratio does not block again")
+                self.assertEqual(audit_details(s2.store, "recovery.signature_rejections")[-1],
+                                 {"seen": seen, "rejected": rejected, "ratio": float(shown), "max_ratio": configured,
+                                  "blocked": False})
+                await s2.close()
+                lower = (round(float(shown) * 10**6) - 1) / 10**6
+                s3 = await self.node(name, transport=transport, event_signing_key=KEY_A, replay_max_reject_ratio=lower)
+                self.assertTrue(await s3.wait_idle(10))
+                self.assertFalse((await s3.ready())[0], f"{lower} is below {rejected}/{seen}")
+                await s3.close()
+
+
+# ---------------------------------------------------------------------------------------------------------- volume cap
+
+
+def shipped_quota() -> dict[str, int | None]:
+    """MYCELIC_MAX_ACTIVE_MEMORIES_PER_ORG as .env.example, the compose default, the ConfigMap and the DEPLOYMENT.md marker
+    give it (None where it is missing)."""
+    name = "MYCELIC_MAX_ACTIVE_MEMORIES_PER_ORG"
+    example = re.search(rf"^{name}=([0-9]+)$", (DEPLOY / ".env.example").read_text(encoding="utf-8"), re.M)
+    env = yaml.safe_load((DEPLOY / "docker-compose.yml").read_text(encoding="utf-8"))["services"]["mycelic"]["environment"]
+    compose = re.fullmatch(rf"\$\{{{name}:-([0-9]+)\}}", str(env.get(name)))
+    cm = next(d for d in _docs(DEPLOY / "k8s" / "mycelic-configmap.yaml") if d["kind"] == "ConfigMap")["data"].get(name)
+    marker = re.search(rf"Shipped value: `{name}=([0-9]+)`", (ROOT / "DEPLOYMENT.md").read_text(encoding="utf-8"))
+    return {"env.example": int(example.group(1)) if example else None, "compose": int(compose.group(1)) if compose else None,
+            "configmap": int(cm) if isinstance(cm, str) and cm.isdigit() else None,
+            "DEPLOYMENT.md": int(marker.group(1)) if marker else None}
+
+
+class QuotaTests(unittest.IsolatedAsyncioTestCase):
+    """MYCELIC_MAX_ACTIVE_MEMORIES_PER_ORG: a new note past the organization's limit is refused with 507, inside the write's
+    transaction; resends and updates never are, and nothing the consumer applies is ever capped."""
+
+    async def asyncSetUp(self) -> None:
+        self.transport = HeldTransport()                      # the consumer receives nothing until released
+        self.h = await ServiceHarness(transport=self.transport, max_active_memories_per_org=3).start()
+        self.client = TestClient(TestServer(create_app(self.h.service)))
+        await self.client.start_server()
+        for agent in ("log-1", "log-2"):
+            await self.h.register(agent, team="logistics")
+        await self.h.register("acme-1", team="ops", enterprise="acme")
+
+    async def asyncTearDown(self) -> None:
+        await self.client.close()
+        await self.h.close()
+
+    async def post(self, agent: str, key: str, **extra) -> tuple[int, dict]:
+        body = {"text": f"note {key} by {agent}", "topic": "supply:sd-9/transport", "idempotency_key": key, **extra}
+        r = await self.client.post("/memory", json=body, headers={"Authorization": f"Bearer {self.h.keys[agent]}"})
+        return r.status, await r.json()
+
+    async def events(self, agent: str, events: list[dict]) -> tuple[int, dict]:
+        r = await self.client.post("/events", json={"events": events}, headers={"Authorization": f"Bearer {self.h.keys[agent]}"})
+        return r.status, await r.json()
+
+    def rows(self) -> tuple[int, int, int]:
+        c = self.h.service.store._conn
+        return tuple(c.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] for t in ("events", "memories", "audit_log"))
+
+    async def test_org_quota_returns_507_and_is_per_org(self) -> None:
+        s, refused = self.h.service, 0
+        ids = []
+        for i in range(3):
+            status, body = await self.post("log-1", f"k{i}")
+            self.assertEqual(status, 202, body)
+            ids.append(body["memory_id"])
+        status, body = await self.post("log-1", "k3")
+        refused += 1
+        self.assertEqual(status, 507)
+        self.assertEqual(body["error"], "organization 'northwind' is at its limit of 3 active notes "
+                                        "(MYCELIC_MAX_ACTIVE_MEMORIES_PER_ORG; 3 active now): retract notes it no longer "
+                                        "needs (a retraction counts once it has been applied) or ask the operator to raise "
+                                        "the limit")
+        status, body = await self.post("log-1", "k0")
+        self.assertEqual((status, body["created"], body["memory_id"]), (200, False, ids[0]), "a resend is never refused")
+        self.assertEqual((await self.post("acme-1", "a0"))[0], 202, "another organization has its own count")
+        # a retraction counts once it has been applied, not while it is on its way through the log
+        r = await self.client.post(f"/memory/{ids[0]}/retract", json={}, headers={"Authorization": f"Bearer {self.h.keys['log-1']}"})
+        self.assertEqual(r.status, 202)
+        self.assertEqual((await self.post("log-2", "k4"))[0], 507)
+        refused += 1
+        self.transport.hold = False
+        await self.h.settle()
+        self.assertEqual((await self.post("log-2", "k4"))[0], 202)
+        # five concurrent posts at one below the limit: exactly one is accepted
+        r = await self.client.post(f"/memory/{ids[1]}/retract", json={}, headers={"Authorization": f"Bearer {self.h.keys['log-1']}"})
+        self.assertEqual(r.status, 202)
+        await self.h.settle()
+        self.assertEqual(s.store.active_note_count("northwind"), 2)
+        results = await asyncio.gather(*(self.post("log-2", f"c{i}") for i in range(5)))
+        self.assertEqual(sorted(status for status, _ in results), [202, 507, 507, 507, 507])
+        refused += 4
+        await self.h.settle()
+        # a batch that would pass the limit is refused whole: no event, memory or audit row
+        r = await self.client.post(f"/memory/{ids[2]}/retract", json={}, headers={"Authorization": f"Bearer {self.h.keys['log-1']}"})
+        self.assertEqual(r.status, 202)
+        await self.h.settle()
+        before = self.rows()
+        status, body = await self.events("log-2", [{"type": "seen", "memory": {"text": "batched 1", "topic": "supply:x/y"}},
+                                                   {"type": "seen"},
+                                                   {"type": "seen", "memory": {"text": "batched 2", "topic": "supply:x/y"}}])
+        refused += 1
+        self.assertEqual(status, 507)
+        self.assertIn("2 active now, this batch adds 2", body["error"])
+        self.assertEqual(self.rows(), before, "nothing of the refused batch was written")
+        # embedded resends and plain events are never counted
+        status, body = await self.events("log-2", [{"type": "seen", "idempotency_key": "e1", "memory": {"text": "embedded"}}])
+        self.assertEqual(status, 202, body)
+        self.assertEqual(s.store.active_note_count("northwind"), 3)
+        status, body = await self.events("log-2", [{"type": "seen", "idempotency_key": "e1", "memory": {"text": "embedded"}},
+                                                   {"type": "plain"}])
+        self.assertEqual(status, 202, body)
+        self.assertEqual(body["results"][0]["memory_created"], False)
+        # an update replaces an active note, so it is accepted at the limit (and the count is back once it applies)
+        status, body = await self.post("log-2", "k4-v2", supersedes=(await self.post("log-2", "k4"))[1]["memory_id"])
+        self.assertEqual(status, 202, body)
+        await self.h.settle()
+        self.assertEqual(s.store.active_note_count("northwind"), 3)
+        self.assertEqual(s.metrics.quota_rejections._value.get(), refused)
+        r = await self.client.get("/metrics", headers={"Authorization": f"Bearer {ADMIN_TOKEN}"})
+        self.assertIn(f"mycelic_quota_rejections_total {float(refused)}", await r.text())
+        plan = s.store._conn.execute("EXPLAIN QUERY PLAN SELECT COUNT(*) AS n FROM memories WHERE org_id=? AND "
+                                     "operator='agent_observation' AND status='active'", ("northwind",)).fetchall()
+        self.assertIn("USING COVERING INDEX idx_memories_org_op_status", " ".join(r["detail"] for r in plan))
+        # lowering the limit deletes nothing; a rebuild from the log is never capped
+        s.settings.max_active_memories_per_org = 1
+        self.assertEqual((await self.post("log-1", "late"))[0], 507)
+        self.assertEqual(s.store.active_note_count("northwind"), 3)
+        log = [json.loads(payload) for _, payload, _, _ in self.transport._log]
+        rebuilt = await rebuild(log, self.h.tmp.name, max_active_memories_per_org=1)
+        try:
+            self.assertEqual(rebuilt.store.active_note_count("northwind"), 3)
+            self.assertEqual(rebuild_differences(s, rebuilt), [])
+        finally:
+            await rebuilt.store.close()
+
+    def test_quota_shipped_default_matches_docs(self) -> None:
+        values = shipped_quota()
+        self.assertNotIn(None, values.values(), values)
+        self.assertEqual(len(set(values.values())), 1, values)
+        self.assertEqual(Settings.max_active_memories_per_org, 0, "the code default is off; the shipped files set the cap")
+
+
+# ---------------------------------------------------------------------------------------------------------- rollback
+
+
+class RollbackTests(unittest.IsolatedAsyncioTestCase):
+    """What rolling back to this release from a later one relies on: a stream that later release wrote applies here.
+    Unknown kinds are ignored (marked applied, counted), unknown fields are ignored, and fields a payload leaves out take
+    defaults a rebuild reproduces; 0.1.0's payloads (no ``expires_at`` or ``attested_at``) apply too."""
+
+    async def test_unknown_kinds_and_missing_optional_fields_apply_for_rollback(self) -> None:
+        h = await ServiceHarness(event_signing_key=KEY_A).start()
+        self.addAsyncCleanup(h.close)
+        s = h.service
+
+        async def send(event: dict) -> int:
+            """Publish ``event`` signed with the node's key and let the consumer apply it; its stream sequence."""
+            data = json.dumps(event).encode()
+            seq = await s.transport.publish(subject_for(event["org_id"], event["kind"]), data, event["event_id"],
+                                            headers=s._sign(data))
+            await h.settle()
+            self.assertEqual(s.store.get_event(event["event_id"]).status, "applied")
+            return seq
+
+        # registrations and a rule from a later release: extra fields, and schema 2 in the envelope
+        for agent in ("log-1", "log-2"):
+            await send({**wire("agent.registered", {"agent_id": agent, "org_id": ORG, "path": f"{TEAM}/{agent}", "key_hash": "x",
+                                                    "status": "active", "pronouns": "it/its", "quota_class": "gold"}),
+                        "schema": 2, "trace_id": "abc"})
+        await send({**wire("rule.upserted", {**DEMO_RULE, "priority": 7, "explain": {"style": "short"}}), "schema": 2})
+        self.assertEqual(s.store.get_agent("log-1").path, f"{TEAM}/log-1")
+        self.assertEqual(s.store.get_rule(DEMO_RULE["rule_id"]).min_agents, DEMO_RULE["min_agents"])
+        # an unknown kind: applied without effect, counted, and the position moves past it
+        state = (memory_history(s.store), agent_state(s), s.store.list_rules(enabled_only=False))
+        seq = await send({**wire("memory.reclassified", {"memory_id": "mem_x", "class": "b"}), "schema": 2})
+        self.assertEqual(s.store.get_meta("last_applied_seq"), str(seq))
+        self.assertEqual(s.metrics.events_ignored.labels("unknown_kind")._value.get(), 1)
+        self.assertEqual((memory_history(s.store), agent_state(s), s.store.list_rules(enabled_only=False)), state)
+        # a note with only the fields the apply requires, and one in the shape 0.1.0 published (no expires_at, attested_at)
+        topic = "supply:sd-9/transport"
+        await send(wire("memory.observed", {"memory_id": "mem_minimal", "org_id": ORG, "layer": "agent",
+                                            "scope": f"{TEAM}/log-1", "text": "Terminal 3 strike announced.",
+                                            "producer_id": "log-1", "topic": topic}))
+        v010 = wire("memory.observed", {"memory_id": "mem_v010", "org_id": ORG, "layer": "agent", "scope": f"{TEAM}/log-2",
+                                        "text": "Carrier ETA slipped by 12 days.", "topic": topic, "slot": None, "entity": None,
+                                        "kind": "observation", "confidence": 0.7, "support": 1, "independent_teams": 1,
+                                        "producer_id": "log-2", "operator": "agent_observation", "rule_id": None,
+                                        "event_id": None, "visibility": "team", "status": "active", "superseded_by": None,
+                                        "created_at": "2026-10-01T08:00:00+00:00", "applied_at": None, "source_event_ids": [],
+                                        "local_ref": None, "metadata": {}, "embedding_hint": [0.1, 0.2]})
+        v010["payload"]["event_id"] = v010["event_id"]
+        await send(v010)
+        minimal, old = s.store.get_memory("mem_minimal"), s.store.get_memory("mem_v010")
+        self.assertEqual((minimal.kind, minimal.confidence, minimal.visibility, minimal.status, minimal.expires_at,
+                          minimal.attested_at), ("observation", 0.5, "team", "active", None, None))
+        carrier = s.store.get_event(minimal.event_id)
+        self.assertEqual(carrier.payload["memory_id"], "mem_minimal", "the note's event defaults to the one that carried it")
+        self.assertEqual(minimal.created_at, carrier.created_at, "and its time to that event's, which a rebuild reproduces")
+        self.assertEqual((old.expires_at, old.attested_at, old.created_at), (None, None, "2026-10-01T08:00:00+00:00"))
+        self.assertEqual(set(integrity_outcomes(s.store).values()), {"ok"})
+        team = s.store.current_derived(ORG, "topic_consolidation", TEAM, topic)
+        self.assertIsNotNone(team)
+        self.assertEqual(sorted(team.metadata["roots"]), ["mem_minimal", "mem_v010"])
+        report = await s.verify(h.admin, team.memory_id)
+        self.assertEqual((report["verdict"], report["reasons"]), ("verified", []))
+        # a rebuild of that stream reproduces every row, digest, edge and applied rule
+        log = [json.loads(payload) for _, payload, _, _ in s.transport._log]
+        rebuilt = await rebuild(log, h.tmp.name, event_signing_key=KEY_A)
+        try:
+            self.assertEqual(rebuild_differences(s, rebuilt), [])
+        finally:
+            await rebuilt.store.close()
+
+
 # ---------------------------------------------------------------------------------------------------------- config
 
 
@@ -709,6 +1323,34 @@ class ConfigTests(unittest.TestCase):
                     Settings.from_env()
                 self.assertIn("MYCELIC_SHUTDOWN_TIMEOUT_SECONDS", str(cm.exception))
         self.assertNotEqual(Settings().redacted()["shutdown_timeout_seconds"], "set", "not a secret")
+
+    def test_new_settings_validate(self) -> None:
+        loopback = serve_env(MYCELIC_HOST="127.0.0.1")
+        with mock.patch.dict(os.environ, loopback, clear=True):
+            s = Settings.from_env()
+        self.assertEqual((s.replay_max_reject_ratio, s.max_active_memories_per_org), (0.01, 0))
+        self.assertEqual((Settings().replay_max_reject_ratio, Settings().max_active_memories_per_org), (0.01, 0))
+        for name, raw, attr, value in (("MYCELIC_REPLAY_MAX_REJECT_RATIO", "0", "replay_max_reject_ratio", 0.0),
+                                       ("MYCELIC_REPLAY_MAX_REJECT_RATIO", "0.25", "replay_max_reject_ratio", 0.25),
+                                       ("MYCELIC_REPLAY_MAX_REJECT_RATIO", "1", "replay_max_reject_ratio", 1.0),
+                                       ("MYCELIC_MAX_ACTIVE_MEMORIES_PER_ORG", "0", "max_active_memories_per_org", 0),
+                                       ("MYCELIC_MAX_ACTIVE_MEMORIES_PER_ORG", "5000", "max_active_memories_per_org", 5000)):
+            with self.subTest(name=name, value=raw), mock.patch.dict(os.environ, {**loopback, name: raw}, clear=True):
+                self.assertEqual(getattr(Settings.from_env(), attr), value)
+        for name, raw in (("MYCELIC_REPLAY_MAX_REJECT_RATIO", "1.5"), ("MYCELIC_REPLAY_MAX_REJECT_RATIO", "-0.1"),
+                          ("MYCELIC_REPLAY_MAX_REJECT_RATIO", "abc"), ("MYCELIC_REPLAY_MAX_REJECT_RATIO", "nan"),
+                          ("MYCELIC_REPLAY_MAX_REJECT_RATIO", "inf"), ("MYCELIC_REPLAY_MAX_REJECT_RATIO", "-inf"),
+                          ("MYCELIC_MAX_ACTIVE_MEMORIES_PER_ORG", "-1"), ("MYCELIC_MAX_ACTIVE_MEMORIES_PER_ORG", "2.5"),
+                          ("MYCELIC_MAX_ACTIVE_MEMORIES_PER_ORG", "lots")):
+            with self.subTest(name=name, value=raw), mock.patch.dict(os.environ, {**loopback, name: raw}, clear=True):
+                with self.assertRaises(ConfigError) as cm:
+                    Settings.from_env()
+                self.assertIn(name, str(cm.exception))
+        with self.assertRaises(ConfigError) as cm:
+            Settings(host="127.0.0.1", replay_max_reject_ratio=1.01).validate()
+        self.assertEqual(str(cm.exception), "MYCELIC_REPLAY_MAX_REJECT_RATIO must be between 0 and 1")
+        redacted = Settings().redacted()
+        self.assertEqual((redacted["replay_max_reject_ratio"], redacted["max_active_memories_per_org"]), (0.01, 0), "not secrets")
 
 
 # ---------------------------------------------------------------------------------------------------------- docs
@@ -741,6 +1383,52 @@ class DocsTests(unittest.TestCase):
         self.assertIn("| `SHUTDOWN_TIMEOUT_SECONDS` | `10` |", text)
         self.assertIn("configuration error: another Mycelic process is using", text)
         self.assertIn("Probes: startup `/health`, readiness `/ready`, liveness `/health`", text)
+
+    def test_every_setting_has_a_configuration_row(self) -> None:
+        names = sorted(set(re.findall(r'"MYCELIC_([A-Z_]+)"', (ROOT / "mycelic" / "config.py").read_text(encoding="utf-8"))))
+        self.assertIn("MAX_ACTIVE_MEMORIES_PER_ORG", names)
+        section = (ROOT / "DEPLOYMENT.md").read_text(encoding="utf-8").split("## 3. Configuration reference", 1)[1].split("### 3a.", 1)[0]
+        first_cells = " ".join(line.split("|")[1] for line in section.splitlines() if line.startswith("| `"))
+        for name in names:
+            with self.subTest(name=name):
+                self.assertIn(f"`{name}`", first_cells)
+
+    def test_g9_docs(self) -> None:
+        deployment = (ROOT / "DEPLOYMENT.md").read_text(encoding="utf-8")
+        flat = " ".join(deployment.split())
+        self.assertIn("\n### 4a. Rollback\n", deployment)
+        rollback = deployment.split("### 4a. Rollback", 1)[1].split("\n## 5.", 1)[0]
+        flat_rollback = " ".join(rollback.split())
+        self.assertIn("database schema 5 is newer than this code", flat_rollback)
+        for phrase in ("mycelic_mycelic-data", "mycelic_nats-data", "alpine tar czf", "tar xzf /b/mycelic-data.tgz", "0.1.0",
+                       "IntegrityError", "unknown_kind"):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, flat_rollback)
+        # G8's text (restore the database and let 0.1.0 replay the stream) is gone
+        self.assertNotIn("**Rolling back and forward again.**", flat)
+        self.assertNotIn("**What a rollback loses.**", flat)
+        self.assertNotIn("start the earlier image on it. It re-delivers from the stream", flat)
+        troubleshooting = deployment.split("## 7. Troubleshooting", 1)[1]
+        for phrase in ('"reason": "signature_rejections', "507", "is at its limit of", "database schema 5 is newer than this code",
+                       "another Mycelic process"):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, troubleshooting)
+        self.assertIn("**Signing-key mistakes.**", flat)
+        self.assertIn("**Volume cap.**", flat)
+        security = " ".join((ROOT / "SECURITY.md").read_text(encoding="utf-8").split())
+        for phrase in ("signature_rejections", "MYCELIC_MAX_ACTIVE_MEMORIES_PER_ORG", "MYCELIC_REPLAY_MAX_REJECT_RATIO",
+                       "recovery.signature_rejections", "507"):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, security)
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        for line in readme.splitlines():
+            if "NATS_PASSWORD" in line and "openssl rand -hex" in line:
+                with self.subTest(line=line):
+                    self.assertRegex(line, r"n\$\(openssl rand -hex 32\)", "the NATS password must start with a letter")
+        architecture = (ROOT / "docs" / "MYCELIC_ARCHITECTURE.md").read_text(encoding="utf-8")
+        for name in ("mycelic_quota_rejections_total", 'mycelic_recovery_total{kind="replay_signature_rejections"}'):
+            with self.subTest(metric=name):
+                self.assertIn(name, architecture)
 
 
 if __name__ == "__main__":

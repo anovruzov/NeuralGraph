@@ -13,7 +13,8 @@
     report = client.verify(answer["answer"]["memory_id"])         # derived correctly, and still true?
 
 The client is synchronous and uses only the standard library, so it drops into any agent runtime.  Retries cover
-connection errors and 5xx/429 with exponential backoff; 4xx errors raise :class:`MycelicError` immediately.
+connection errors and the statuses 429, 502, 503 and 504, with exponential backoff; every other status (507, the
+organization's note limit, among them) raises :class:`MycelicError` at once.
 """
 from __future__ import annotations
 
@@ -102,7 +103,9 @@ class MycelicClient:
         answers stop using it then, and the service retracts it through the log shortly after.  ``supersedes``: the id
         of one of the caller's own active memories that this one corrects; this one is the complete note (nothing is
         inherited) and needs its own idempotency key.  409 (:class:`MycelicError`) while a retraction or another update
-        of that memory is still on its way through the log."""
+        of that memory is still on its way through the log.  507, never retried, when the organization is at the
+        operator's limit of active notes (``MYCELIC_MAX_ACTIVE_MEMORIES_PER_ORG``): retract notes it no longer needs (a
+        retraction counts once it has been applied); an update and a resend of a stored note are never refused."""
         body = {"text": text, "topic": topic, "slot": slot, "entity": entity, "kind": kind, "confidence": confidence,
                 "visibility": visibility, "idempotency_key": idempotency_key, "observed_at": observed_at,
                 "local_ref": local_ref, "source_event_ids": source_event_ids, "metadata": metadata,

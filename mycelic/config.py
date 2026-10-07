@@ -110,6 +110,10 @@ class Settings:
     # keys used before a rotation: events and memory digests they signed keep verifying (comma-separated, so a key
     # containing a comma cannot be listed; generated hex keys never contain one)
     event_signing_keys_previous: list[str] = field(default_factory=list)
+    # share of a replay's deliveries whose signature may be rejected before /ready stays 503 (0: any; 1: never)
+    replay_max_reject_ratio: float = 0.01
+    # volume
+    max_active_memories_per_org: int = 0              # active raw notes one organization may hold (0 = no cap)
     # aggregation
     min_support: int = 2                              # distinct child units needed for topic consolidation
     rules_file: str | None = None
@@ -171,6 +175,8 @@ class Settings:
             audit_retention_days=_int("MYCELIC_AUDIT_RETENTION_DAYS", 90, minimum=1),
             event_signing_key=signing_key,
             event_signing_keys_previous=[k for k in dict.fromkeys(_list("MYCELIC_EVENT_SIGNING_KEYS_PREVIOUS")) if k != signing_key],
+            replay_max_reject_ratio=_float("MYCELIC_REPLAY_MAX_REJECT_RATIO", 0.01, minimum=0.0),
+            max_active_memories_per_org=_int("MYCELIC_MAX_ACTIVE_MEMORIES_PER_ORG", 0, minimum=0),
             min_support=_int("MYCELIC_MIN_SUPPORT", 2, minimum=1),
             rules_file=_str("MYCELIC_RULES_FILE"),
             verify_max_nodes=_int("MYCELIC_VERIFY_MAX_NODES", 25000, minimum=1),
@@ -204,6 +210,8 @@ class Settings:
                 raise ConfigError(f"MYCELIC_EVENT_SIGNING_KEYS_PREVIOUS entry {i} is shorter than 32 characters")
             if _placeholder(key):
                 raise ConfigError(f"MYCELIC_EVENT_SIGNING_KEYS_PREVIOUS entry {i} looks like a placeholder")
+        if not 0.0 <= self.replay_max_reject_ratio <= 1.0:
+            raise ConfigError("MYCELIC_REPLAY_MAX_REJECT_RATIO must be between 0 and 1")
         if bool(self.tls_cert_file) != bool(self.tls_key_file):
             raise ConfigError("MYCELIC_TLS_CERT_FILE and MYCELIC_TLS_KEY_FILE must be set together")
         for name, path in (("MYCELIC_TLS_CERT_FILE", self.tls_cert_file), ("MYCELIC_TLS_KEY_FILE", self.tls_key_file),

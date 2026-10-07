@@ -22,7 +22,7 @@ spec:
       terminationGracePeriodSeconds: 30   # >= 2 x MYCELIC_SHUTDOWN_TIMEOUT_SECONDS + 5: HTTP drain, then broker drain
       containers:
         - name: mycelic
-          image: mycelic:0.1.0
+          image: mycelic:0.2.0
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: {drop: ["ALL"]}

@@ -67,6 +67,14 @@ the caller's view only, so memories outside it influence neither the results nor
   applied, and its memories stay active until retracted, or until the agent is removed with `?retract=1`, which
   retracts them all; a note logged after the removal is applied retracted (see §7, item 2). Inside the broker
   boundary an injected event may name any registered agent id, including a revoked one.
+* A replay (a rebuild into a fresh database, a restored backup catching up, `POST /admin/replay`) counts, in the
+  transaction that consumed each one, the events it consumed and those whose signature it rejected. When it completes
+  with more than `MYCELIC_REPLAY_MAX_REJECT_RATIO` (default 0.01) of them rejected, it records a block in the database
+  and `/ready` stays 503 with `"reason": "signature_rejections: …"` until a rebuild into a fresh database with the
+  corrected keyring (or the ratio is raised to the recorded one, which is rounded up so the value shown is enough, and
+  the service restarted); `/health` stays 200 (`degraded`). A replay into the same database never lifts the block.
+  Fewer rejections are logged at WARNING and audited, and each rejected event is audited as `event.rejected` either
+  way.
 * The consumer never inserts a derived memory from the stream: a `memory.derived` event is informational (a
   duplicate when this node derived the same memory, otherwise ignored, audited and counted in
   `mycelic_events_ignored_total`), so an injected event cannot plant a conclusion, a lineage edge or a supersession.
@@ -129,6 +137,12 @@ when full, the least recently used tenth of buckets is evicted, never everyone. 
 (`MYCELIC_TRUST_PROXY_HEADERS=true`) the client address is the Nth entry from the right of `X-Forwarded-For`
 (`MYCELIC_TRUSTED_PROXY_HOPS`), never the leftmost one the client can forge.
 
+Volume: with `MYCELIC_MAX_ACTIVE_MEMORIES_PER_ORG` set (the shipped compose file and ConfigMap set it), a new note that
+would take its organization past that many active raw notes is refused with 507 (an MCP error result), checked inside
+the write's transaction so concurrent writes cannot pass it together; a `POST /events` batch that would pass it is
+refused whole. Resends of stored notes and updates are never refused, notes count until their retraction applies,
+and nothing the consumer applies is capped, so a rebuild is never cut short (DEPLOYMENT.md §4, "Volume cap").
+
 Downward verification is priced by its walk: 1 + ceil(nodes / 250) tokens from the caller's principal bucket, the
 walk's share charged after the walk, which may take the bucket into debt (never deeper than one burst, so it is
 repaid within (burst + 1) / rps seconds). A principal in debt is refused with 429 before anything is read. Inside a
@@ -154,7 +168,10 @@ then `memory.attested` when it sets `attested_at`, or `memory.attest_ignored` (w
 `attestation_not_newer` or `attestation_integrity`) when it applies without effect. A producer's update writes
 `memory.update` (the agent's call, with the note it supersedes) instead of `memory.ingest`, then `memory.updated` when
 it supersedes the old note, or `memory.update_conflict` (with the reason) when it applies as a plain note because its
-target was gone, no longer active, not raw or another producer's. Every successful downward verification writes
+target was gone, no longer active, not raw or another producer's. A replay that rejected signatures writes `recovery.signature_rejections` (principal `mycelic`: the
+events it consumed and rejected, the ratio, the configured ratio and whether it blocked readiness) when it completes,
+and a `replay` row whose replay ran while readiness was blocked carries the `warning` the caller got. Every successful
+downward verification writes
 `memory.verify` (principal, target, organization, verdict, nodes walked and the reason codes before redaction, so an
 administrator sees why a hidden node failed; remote address); a refused one (403, 400, 404, 429) writes nothing.
 Unauthenticated failures are **not** written to the database (they would let anyone grow it); they are counted in
@@ -264,16 +281,19 @@ It does not prove:
    holds events it signed (for the default unbounded stream, forever) and as long as the rows it signed should
    verify. Dropping it makes those rows read `unknown_key` (never verified), and a database rebuilt from the
    stream then rejects every event it signed and loses the state they carried, agent registrations included (old
-   agent keys then get 401). At each start the service records the id of its current key in the database and
-   logs a warning naming every recorded one that is no longer configured.
+   agent keys then get 401). Such a rebuild is not silent: when more than `MYCELIC_REPLAY_MAX_REJECT_RATIO` of the
+   events it consumed were rejected, `/ready` returns 503 (`signature_rejections`) until a rebuild into a fresh
+   database with the key listed again (DEPLOYMENT.md §4, "Signing-key mistakes"). At each start the service records
+   the id of its current key in the database and logs a warning naming every recorded one that is no longer
+   configured.
 2. **Agent keys are long-lived static bearer secrets** with no expiry and no scoping by IP or time.
    Leaked key ⇒ the attacker writes as that agent until you rotate or revoke it, and whatever it wrote
    keeps feeding team and higher conclusions until retracted (`POST /memory/{id}/retract` re-derives). When
    you cannot tell its notes from the agent's own, remove the agent (`python -m mycelic revoke-agent --agent-id X
    --retract`, `DELETE /admin/agents/{id}?retract=1`): every note it has is retracted in one step and whatever
    rested on them is re-derived without them; register a new id for the legitimate agent and let it re-share.
-   A rollback to an earlier release undoes a removal made since the backup it restores: revoke the agent again
-   there (DEPLOYMENT.md §4, "What a rollback loses").
+   A rollback to an earlier release undoes a removal made since the snapshots it restores: revoke the agent again
+   there (DEPLOYMENT.md §4a).
 3. **One administrator token**, no per-admin identity in the audit log, no SSO/OIDC, no RBAC beyond
    agent scopes.
 4. **Consolidation declassifies on purpose, by visibility.** A team consolidation quotes its team's notes

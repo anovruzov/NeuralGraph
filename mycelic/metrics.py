@@ -2,9 +2,9 @@
 
 The names answer the operational questions in the deployment brief: ingestion rate, retrieval and
 aggregation latency, event throughput, failed events, replay/recovery events, active agents, memory counts by
-layer, lineage reconstruction success/failure, downward verification verdicts and reasons, expiry.  Gauges that
-describe stored state (memories by layer, outbox depth, active agents, expired notes not retracted yet) are refreshed by
-``Metrics.refresh_from_stats`` before every scrape.
+layer, lineage reconstruction success/failure, downward verification verdicts and reasons, expiry, writes refused at
+the per-organization cap.  Gauges that describe stored state (memories by layer, outbox depth, active agents, expired
+notes not retracted yet) are refreshed by ``Metrics.refresh_from_stats`` before every scrape.
 """
 from __future__ import annotations
 
@@ -47,6 +47,9 @@ class Metrics:
                                             registry=r)
         self.memories_expired = Counter("mycelic_memories_expired_total", "Expired notes the sweep queued a retraction for",
                                         registry=r)
+        self.quota_rejections = Counter("mycelic_quota_rejections_total",
+                                        "Writes refused because the organization is at MYCELIC_MAX_ACTIVE_MEMORIES_PER_ORG",
+                                        registry=r)
         self.retrieval_latency = Histogram("mycelic_retrieval_latency_seconds", "POST /query latency", buckets=_LATENCY_BUCKETS, registry=r)
         self.aggregation_latency = Histogram("mycelic_aggregation_latency_seconds", "Time to apply one event including aggregation", buckets=_LATENCY_BUCKETS, registry=r)
         self.lineage_latency = Histogram("mycelic_lineage_latency_seconds", "Lineage reconstruction latency", buckets=_LATENCY_BUCKETS, registry=r)
@@ -77,6 +80,7 @@ class Metrics:
             self.events_ignored.labels(reason)
         for kind in ("id_collision", "reactivation_mismatch"):
             self.aggregation_inconsistency.labels(kind)
+        self.recoveries.labels("replay_signature_rejections")     # alert on any increase: readiness is blocked
         for what in ("dependents", "cascade", "candidates"):
             self.aggregation_truncated.labels(what)
         for verdict in VERDICTS:

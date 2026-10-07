@@ -60,6 +60,24 @@ _SLOT_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,100}$")
 _ID_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,200}$")
 #: meta key counting the derived events a replay ignored (summarised in one audit row when the replay completes)
 _REPLAY_IGNORED = "replay_ignored_derived"
+#: meta keys counting the deliveries a replay consumed and those of them whose signature it rejected, written in the
+#: transaction that consumed each one and judged when the replay completes (``_finish_replay_in_tx``)
+_REPLAY_SEEN = "replay_seen"
+_REPLAY_SIG_REJECTED = "replay_sig_rejected"
+#: meta key of the readiness block a replay over MYCELIC_REPLAY_MAX_REJECT_RATIO writes; the service never deletes it
+_READY_BLOCK = "ready_block"
+READY_BLOCK_REASON = "signature_rejections: rebuild with the corrected keyring required"
+_BLOCK_REMEDY = ("Stop the service, add the key that signed those events to MYCELIC_EVENT_SIGNING_KEYS_PREVIOUS (keeping the "
+                 "current key), move the database aside and start the service so it rebuilds from the stream (DEPLOYMENT.md "
+                 "section 4, 'Signing-key mistakes'); if the stream really holds that many forged events (each audited as "
+                 "event.rejected), raise MYCELIC_REPLAY_MAX_REJECT_RATIO to at least the recorded ratio and restart instead.")
+
+
+def _recorded_ratio(rejected: int, seen: int) -> float:
+    """``rejected / seen`` rounded *up* to 6 decimal places, in integers (so 83/160 stays 0.51875): the ratio a replay
+    records and /admin/status shows.  The block is judged on the exact quotient, so MYCELIC_REPLAY_MAX_REJECT_RATIO set to
+    this value, as written, lifts it, where a ratio rounded down (2/7 to 0.285714) would not."""
+    return -(-rejected * 10**6 // seen) / 10**6
 #: a verification costs one rate-limit token per this many nodes walked, on top of its request's own token: at about
 #: 0.1 ms per node (verification.py, Cost) a token buys about 25 ms of walk
 VERIFY_NODES_PER_TOKEN = 250
@@ -87,6 +105,11 @@ class Conflict(Exception):
 class RateLimited(Exception):
     """A principal whose verifications put its rate-limit bucket in debt; the API maps it to 429 and MCP to an error
     result."""
+
+
+class QuotaExceeded(Exception):
+    """A write that would take its organization past ``MYCELIC_MAX_ACTIVE_MEMORIES_PER_ORG`` active raw notes; the API
+    maps it to 507 and MCP to an error result."""
 
 
 def _s(body: dict[str, Any], key: str, *, required: bool = False, max_len: int = 200, pattern: re.Pattern | None = None) -> str | None:
@@ -230,6 +253,9 @@ class MycelicService:
         self._reaggregate_task: asyncio.Task | None = None
         self._expiry_cursor: tuple[str, int] | None = None      # (expires_at, rid) after which the next sweep reads
         self._expiry: dict[str, Any] = {"last_sweep_at": None, "last_queued": None}
+        self._replay_judgement: tuple[int, int, bool] | None = None   # (seen, rejected, blocked) until its commit is noted
+        # read here and after every replay completes, so /ready answers from memory and the block survives a restart
+        self._ready_block = self._load_ready_block()
         self.metrics.info.labels(VERSION).set(1)
 
     # ------------------------------------------------------------------ lifecycle
@@ -248,6 +274,11 @@ class MycelicService:
         except Exception:
             logger.exception("audit pruning failed")
         await self._note_signing_keys()
+        if self._ready_block is not None:
+            logger.error("readiness is blocked: an earlier replay into this database rejected the signature of %s of the %s "
+                         "events it consumed (recorded ratio %s, %s): /ready stays 503. %s", self._ready_block.get("rejected", "?"),
+                         self._ready_block.get("seen", "?"), self._ready_block.get("ratio", "?"),
+                         self._ready_block.get("at", "time unknown"), _BLOCK_REMEDY)
         await self._backfill_integrity()              # before the loops: /health answers meanwhile, /ready does not
         await self._connect_with_retry(first=True)
         await self.refresh_status()                   # the first /ready already answers from a warm snapshot
@@ -389,14 +420,18 @@ class MycelicService:
         return signed
 
     async def _set_replay_target(self, target: int | None) -> None:
-        """Remember how far a replay must go, in memory and in the database, so a crash mid-rebuild resumes it."""
+        """Remember how far a replay must go, in memory and in the database, so a crash mid-rebuild resumes it.  A new
+        target starts the replay's delivery counts at zero; None ends the replay and judges them."""
         self._replay_target = target
         async with self.store.transaction() as tx:
             if target is None:
                 tx.delete_meta("replay_target_seq")
-                self._summarise_replay_in_tx(tx)
+                self._finish_replay_in_tx(tx)
             else:
                 tx.set_meta("replay_target_seq", str(target))
+                tx.set_meta(_REPLAY_SEEN, "0")
+                tx.set_meta(_REPLAY_SIG_REJECTED, "0")
+        self._note_replay_judgement()
 
     def _summarise_replay_in_tx(self, tx: Tx) -> None:
         """One audit row for the derived events a replay ignored, instead of one per event."""
@@ -404,6 +439,68 @@ class MycelicService:
         if count is not None:
             tx.audit("mycelic", "event.ignored", None, {"reason": "derived_not_reproduced", "count": int(count), "replay": True})
             tx.delete_meta(_REPLAY_IGNORED)
+
+    def _finish_replay_in_tx(self, tx: Tx, *, judge: bool = True) -> None:
+        """In the transaction that ends a replay: summarise the derived events it ignored and judge its deliveries.
+
+        When more than MYCELIC_REPLAY_MAX_REJECT_RATIO of the deliveries it consumed had their signature rejected (the
+        wrong key, or a key missing from the keyring), everything those events carried is missing from this database, so
+        ``meta.ready_block`` is written and /ready stays 503: a rebuild with the wrong key never passes for a good one.
+        Only a rebuild into a fresh database, or a ratio raised to the recorded one and a restart, lifts it; nothing here
+        deletes it.  ``judge`` False (a replay that can never complete) discards the counts.  The judgement is stashed
+        for :meth:`_note_replay_judgement`, which runs after the commit (a later end of the same replay, after a failed
+        ack, finds no counts and leaves it for that)."""
+        self._summarise_replay_in_tx(tx)
+        seen = int(self.store.get_meta(_REPLAY_SEEN) or 0)
+        rejected = int(self.store.get_meta(_REPLAY_SIG_REJECTED) or 0)
+        tx.delete_meta(_REPLAY_SEEN)
+        tx.delete_meta(_REPLAY_SIG_REJECTED)
+        if not judge or seen <= 0 or rejected <= 0:
+            return
+        ratio = rejected / seen
+        blocked = ratio > self.settings.replay_max_reject_ratio
+        tx.audit("mycelic", "recovery.signature_rejections", None, {"seen": seen, "rejected": rejected,
+                                                                    "ratio": _recorded_ratio(rejected, seen),
+                                                                    "max_ratio": self.settings.replay_max_reject_ratio,
+                                                                    "blocked": blocked})
+        if blocked:
+            tx.set_meta(_READY_BLOCK, json.dumps({"reason": "signature_rejections", "seen": seen, "rejected": rejected,
+                                                  "at": now_iso()}))
+        self._replay_judgement = (seen, rejected, blocked)
+
+    def _note_replay_judgement(self) -> None:
+        """After the commit that ended a replay: count and log its judgement, and read the readiness block again."""
+        judged, self._replay_judgement = self._replay_judgement, None
+        if judged is not None:
+            seen, rejected, blocked = judged
+            if blocked:
+                self.metrics.recoveries.labels("replay_signature_rejections").inc()
+                logger.error("the replay rejected the signature of %d of the %d events it consumed (recorded ratio %s), more "
+                             "than MYCELIC_REPLAY_MAX_REJECT_RATIO (%s): what they carried is missing and /ready stays 503. %s",
+                             rejected, seen, _recorded_ratio(rejected, seen), self.settings.replay_max_reject_ratio,
+                             _BLOCK_REMEDY)
+            else:
+                logger.warning("the replay rejected the signature of %d of the %d events it consumed (within "
+                               "MYCELIC_REPLAY_MAX_REJECT_RATIO %s; each is audited as event.rejected)", rejected, seen,
+                               self.settings.replay_max_reject_ratio)
+        self._ready_block = self._load_ready_block()
+
+    def _load_ready_block(self) -> dict[str, Any] | None:
+        """``meta.ready_block`` with its ``ratio`` and the configured ``max_ratio``, or None: no block, or one recorded at a
+        ratio the configuration now allows (MYCELIC_REPLAY_MAX_REJECT_RATIO raised to it).  A block that does not parse
+        holds, because a block must fail safe."""
+        raw = self.store.get_meta(_READY_BLOCK)
+        if raw is None:
+            return None
+        try:
+            block = json.loads(raw)
+            seen, rejected = int(block["seen"]), int(block["rejected"])
+            ratio = rejected / seen
+        except (ValueError, TypeError, KeyError, ZeroDivisionError):
+            return {"reason": "signature_rejections"}
+        if not ratio > self.settings.replay_max_reject_ratio:
+            return None
+        return {**block, "ratio": _recorded_ratio(rejected, seen), "max_ratio": self.settings.replay_max_reject_ratio}
 
     async def _recover_if_needed(self) -> None:
         """Bring a database that is out of step with the stream back in sync.
@@ -436,7 +533,7 @@ class MycelicService:
             async with self.store.transaction() as tx:
                 tx.set_meta("last_applied_seq", "0")
                 tx.delete_meta("replay_target_seq")
-                self._summarise_replay_in_tx(tx)
+                self._finish_replay_in_tx(tx, judge=False)         # that replay can never complete: its counts are partial
                 tx.audit("mycelic", "recovery.stream_behind_database", None, {"stream_last_seq": last_seq, "applied": applied})
             self._replay_target = None
             return
@@ -592,6 +689,8 @@ class MycelicService:
             await d.term()
             async with self.store.transaction() as tx:
                 tx.audit("mycelic", "event.rejected", None, {"reason": "invalid signature", "seq": d.seq, "subject": d.subject})
+                if self._replay_target is not None and d.seq is not None:
+                    self._count_meta_in_tx(tx, _REPLAY_SIG_REJECTED)    # before the progress that may end the replay
                 self._progress_in_tx(tx, d.seq)
             self._note_progress(d.seq)
             return
@@ -628,13 +727,19 @@ class MycelicService:
         self._note_progress(d.seq)
 
     def _progress_in_tx(self, tx: Tx, seq: int | None) -> None:
-        """Record the stream position inside the transaction that consumed it (applied, rejected or terminated)."""
+        """Record the stream position inside the transaction that consumed it (applied, rejected or terminated); during
+        a replay, count the delivery, and end the replay at its target."""
         if seq is None:
             return
         tx.set_meta("last_applied_seq", str(seq))
-        if self._replay_target is not None and seq >= self._replay_target:
-            tx.delete_meta("replay_target_seq")
-            self._summarise_replay_in_tx(tx)
+        if self._replay_target is not None:
+            self._count_meta_in_tx(tx, _REPLAY_SEEN)
+            if seq >= self._replay_target:
+                tx.delete_meta("replay_target_seq")
+                self._finish_replay_in_tx(tx)
+
+    def _count_meta_in_tx(self, tx: Tx, key: str) -> None:
+        tx.set_meta(key, str(int(self.store.get_meta(key) or 0) + 1))
 
     def _note_progress(self, seq: int | None) -> None:
         if self._replay_target is None:
@@ -643,6 +748,7 @@ class MycelicService:
         if seq is not None and seq >= self._replay_target:
             logger.info("replay complete at seq %s", seq)
             self._replay_target = None
+            self._note_replay_judgement()
 
     async def _sleep(self, seconds: float) -> None:
         try:
@@ -793,7 +899,11 @@ class MycelicService:
                 return existing, False          # a resend: whatever its expiry or its target says by now
             _check_expiry(m.expires_at, utcnow())
             if supersedes is not None:
+                # an update replaces an active note, at most one per target is pending (409), so it is not capped: the
+                # count is back where it was once it applies
                 self._check_update(principal, supersedes)
+            else:
+                self._check_quota(m.org_id)
             tx.insert_memory(m)
             tx.insert_event(event)
             if supersedes is not None:
@@ -856,9 +966,12 @@ class MycelicService:
             self._check_event_size(record)
             prepared.append((record, mem))
         results = []
+        new = 0                                 # embedded memories this batch inserts
         async with self.store.transaction() as tx:
             self._check_writer(principal)
             now = utcnow()
+            cap = self.settings.max_active_memories_per_org
+            active = self.store.active_note_count(principal.org_id or "") if cap > 0 else 0
             for record, mem in prepared:
                 created = tx.insert_event(record)
                 entry: dict[str, Any] = {"event_id": record.event_id, "created": created}
@@ -869,9 +982,11 @@ class MycelicService:
                     mev.payload = mem.to_dict()
                     if self.store.get_memory(mem.memory_id) is None:
                         _check_expiry(mem.expires_at, now)          # refused: the whole batch rolls back
+                        if cap > 0 and active + new + 1 > cap:      # so is this: nothing of the batch is written
+                            self._refuse_quota(mem.org_id, cap, active, batch_adds=new + 1)
                         tx.insert_memory(mem)
                         tx.insert_event(mev)
-                        self.metrics.memories_ingested.labels("agent").inc()
+                        new += 1
                         entry["memory_id"] = mem.memory_id
                         entry["memory_event_id"] = mev.event_id
                     else:
@@ -879,9 +994,29 @@ class MycelicService:
                         entry["memory_created"] = False
                 results.append(entry)
             tx.audit(principal.id, "events.ingest", None, {"org_id": principal.org_id, "count": len(prepared)}, remote)
+        self.metrics.memories_ingested.labels("agent").inc(new)     # after the commit: a refused batch counts nothing
         self.metrics.events_received.inc(len(prepared))
         self._outbox_wake.set()
         return results
+
+    def _check_quota(self, org_id: str) -> None:
+        """Inside the write's transaction: refuse (:class:`QuotaExceeded`) a new note that would take the organization past
+        MYCELIC_MAX_ACTIVE_MEMORIES_PER_ORG active raw notes, applied or still on their way through the log.  A note
+        leaves the count when its retraction (an expiry's or an agent removal's included) applies; derived memories,
+        updates and everything the consumer applies are never capped, so a rebuild applies the whole log."""
+        cap = self.settings.max_active_memories_per_org
+        if cap > 0:
+            active = self.store.active_note_count(org_id)
+            if active + 1 > cap:
+                self._refuse_quota(org_id, cap, active)
+
+    def _refuse_quota(self, org_id: str, cap: int, active: int, *, batch_adds: int | None = None) -> None:
+        """Count the refused request and raise :class:`QuotaExceeded` (once per request: its transaction rolls back)."""
+        self.metrics.quota_rejections.inc()
+        batch = f", this batch adds {batch_adds}" if batch_adds is not None else ""
+        raise QuotaExceeded(f"organization '{org_id}' is at its limit of {cap} active notes (MYCELIC_MAX_ACTIVE_MEMORIES_PER_ORG; "
+                            f"{active} active now{batch}): retract notes it no longer needs (a retraction counts once it has "
+                            "been applied) or ask the operator to raise the limit")
 
     def _check_writer(self, principal: Principal) -> None:
         """Inside the write's transaction: is the agent still active?  A request authenticated before a revocation committed
@@ -1000,7 +1135,9 @@ class MycelicService:
             derivations: list[Derivation] = []
             result = "applied"
             if kind == "memory.observed":
-                m = self._memory_from_payload(payload)
+                # a payload from another release may leave optional fields out: the note's event and time then come from
+                # the envelope, so a rebuild stores the same row
+                m = self._memory_from_payload(payload, event_id=event_id, created_at=event.get("created_at") or now)
                 m.applied_at = now
                 agent = self.store.get_agent(m.producer_id)
                 if agent is None or agent.org_id != m.org_id or agent.path != m.scope or m.layer != "agent":
@@ -1212,7 +1349,9 @@ class MycelicService:
                      metadata=dict(p.get("metadata") or {}))
 
     @staticmethod
-    def _memory_from_payload(p: dict[str, Any]) -> Memory:
+    def _memory_from_payload(p: dict[str, Any], *, event_id: str | None = None, created_at: str | None = None) -> Memory:
+        """The raw note a ``memory.observed`` payload carries; fields it leaves out take their defaults (``event_id`` and
+        ``created_at`` those of the event that carries it), and fields this release does not know are ignored."""
         required = ("memory_id", "org_id", "layer", "scope", "text")
         for k in required:
             if not isinstance(p.get(k), str) or not p[k]:
@@ -1236,9 +1375,9 @@ class MycelicService:
             kind=p.get("kind") or "observation",
             confidence=float(p.get("confidence", 0.5)), support=int(p.get("support", 1)),
             independent_teams=int(p.get("independent_teams", 1)), producer_id=p.get("producer_id") or "unknown",
-            operator=p.get("operator") or "agent_observation", rule_id=p.get("rule_id"), event_id=p.get("event_id"),
+            operator=p.get("operator") or "agent_observation", rule_id=p.get("rule_id"), event_id=p.get("event_id") or event_id,
             visibility=p.get("visibility") or "team", status=p.get("status") or "active", superseded_by=None,
-            created_at=p.get("created_at") or now_iso(), applied_at=p.get("applied_at"),
+            created_at=p.get("created_at") or created_at or now_iso(), applied_at=p.get("applied_at"),
             source_event_ids=list(p.get("source_event_ids") or []), local_ref=p.get("local_ref"),
             metadata=dict(p.get("metadata") or {}), expires_at=expires_at,
         )
@@ -1580,13 +1719,24 @@ class MycelicService:
         return ok
 
     async def replay(self, *, remote: str | None = None) -> dict[str, Any]:
-        """Re-deliver the whole log to this instance. Applying is idempotent; missing derived state is rebuilt."""
+        """Re-deliver the whole log to this instance. Applying is idempotent; missing derived state is rebuilt.
+
+        It cannot undo a readiness block (:meth:`_finish_replay_in_tx`): it runs all the same, and the answer and its
+        audit row carry a ``warning``; only a replay over the ratio again rewrites the block, none removes it."""
+        blocked = self._ready_block is not None
         info = await self.transport.info()
         await self.transport.reset_consumer()
         await self._set_replay_target(info.get("last_seq") or info.get("stream_messages") or None)
         self.metrics.recoveries.labels("replay_requested").inc()
-        await self.store.audit("admin", "replay", None, {"target_seq": self._replay_target}, remote)
-        return {"replaying": True, "target_seq": self._replay_target}
+        res: dict[str, Any] = {"replaying": True, "target_seq": self._replay_target}
+        if blocked:
+            res["warning"] = ("readiness stays blocked: a replay into this database cannot restore what an earlier replay "
+                              "lost by rejecting signatures, because the events that depended on the rejected ones were "
+                              "applied without them and are never applied again; stop the service, add the key that signed "
+                              "them to MYCELIC_EVENT_SIGNING_KEYS_PREVIOUS, move the database aside and start it to rebuild "
+                              "(DEPLOYMENT.md section 4, 'Signing-key mistakes')")
+        await self.store.audit("admin", "replay", None, {k: v for k, v in res.items() if k != "replaying"}, remote)
+        return res
 
     # ------------------------------------------------------------------ re-aggregation (local maintenance)
     # Derived ids embed the derivation version, MIN_SUPPORT and each rule's digest, so state derived by an older
@@ -1795,7 +1945,9 @@ class MycelicService:
     def _status(self, db: dict[str, Any], tinfo: dict[str, Any]) -> str:
         if not db["ok"]:
             return "failing"
-        if not tinfo["connected"] or tinfo["stale"] or not self._consumer_running or not self._publisher_running:
+        # a readiness block is degraded, never failing: /health stays 200, so the probes on it never restart the pod
+        if (not tinfo["connected"] or tinfo["stale"] or not self._consumer_running or not self._publisher_running
+                or self._ready_block is not None):
             return "degraded"
         return "ok"
 
@@ -1810,7 +1962,8 @@ class MycelicService:
         checks: dict[str, Any] = {"db": self._db_check(), "transport": tinfo}
         checks["publisher"] = {"running": self._publisher_running, "outbox_pending": stats.get("outbox_pending")}
         checks["consumer"] = {"running": self._consumer_running, "last_applied_seq": stats.get("last_applied_seq"),
-                              "pending": tinfo.get("consumer_pending"), "replaying_to_seq": self._replay_target}
+                              "pending": tinfo.get("consumer_pending"), "replaying_to_seq": self._replay_target,
+                              "ready_block": self._ready_block}
         checks["reaggregation"] = dict(self._reaggregation)
         checks["expiry"] = {"enabled": self.settings.expiry_sweep_seconds > 0,
                             "interval_seconds": self.settings.expiry_sweep_seconds, "overdue": stats.get("expiry_overdue"),
@@ -1819,15 +1972,21 @@ class MycelicService:
                 "checks": checks, "stats": stats}
 
     async def ready(self) -> tuple[bool, dict[str, Any]]:
-        """Readiness: database open, background loops running, no replay in progress.
+        """Readiness: database open, background loops running, no replay in progress, and no replay that rejected the
+        signature of more than MYCELIC_REPLAY_MAX_REJECT_RATIO of its events (``reason`` then; see
+        :meth:`_finish_replay_in_tx`).  From memory only, like /health: no database query and no broker call.
 
         A broker outage does *not* make the service unready by default: the outbox exists precisely so agents can
         keep writing through one.  Set ``MYCELIC_READY_REQUIRES_NATS=true`` to change that.
         """
         db = self._db_check()
         tinfo = self.transport_check()
-        ok = db["ok"] and self._consumer_running and self._publisher_running and self._replay_target is None
+        ok = (db["ok"] and self._consumer_running and self._publisher_running and self._replay_target is None
+              and self._ready_block is None)
         if self.settings.ready_requires_nats and not tinfo["connected"]:
             ok = False
-        return ok, {"ready": ok, "status": self._status(db, tinfo), "replaying_to_seq": self._replay_target,
-                    "transport_connected": tinfo["connected"]}
+        detail = {"ready": ok, "status": self._status(db, tinfo), "replaying_to_seq": self._replay_target,
+                  "transport_connected": tinfo["connected"]}
+        if self._ready_block is not None:
+            detail["reason"] = READY_BLOCK_REASON
+        return ok, detail

@@ -9,7 +9,9 @@
     python -m mycelic verify MEMORY_ID [--max-leaf-age N] [--json]   # exit 0 verified, 3 stale, 4 failed, 5 unverifiable
 
 Admin commands are HTTP clients of a running server: MYCELIC_URL (default http://127.0.0.1:8080) and
-MYCELIC_ADMIN_TOKEN.  ``query`` and ``verify`` use MYCELIC_API_KEY (an agent key) or the admin token.
+MYCELIC_ADMIN_TOKEN.  ``query`` and ``verify`` use MYCELIC_API_KEY (an agent key) or the admin token.  ``status`` shows a
+readiness block left by a replay that rejected too many signatures as ``checks.consumer.ready_block``, and ``replay``
+prints the server's answer, which then carries a ``warning``: a replay never lifts that block.
 """
 from __future__ import annotations
 

@@ -817,6 +817,12 @@ class MycelicStore:
             sql += " ORDER BY rid"
         return [row_memory(r) for r in self._conn.execute(sql, (org_id, producer_id)).fetchall()]
 
+    def active_note_count(self, org_id: str) -> int:
+        """The organization's active raw notes, applied or still on their way through the log (what
+        ``MYCELIC_MAX_ACTIVE_MEMORIES_PER_ORG`` caps), counted on the covering index ``idx_memories_org_op_status``."""
+        return int(self._conn.execute("SELECT COUNT(*) AS n FROM memories WHERE org_id=? AND operator='agent_observation' "
+                                      "AND status='active'", (org_id,)).fetchone()["n"])
+
     def expired_notes(self, cutoff: str, *, after: tuple[str, int] | None, limit: int) -> list[tuple[int, Memory]]:
         """(rid, memory) of up to ``limit`` active memories whose ``expires_at`` is at or before ``cutoff``, in (expires_at,
         rid) order after the key ``after`` (from the start when None): the expiry sweep's page, read through the partial

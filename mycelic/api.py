@@ -4,21 +4,26 @@ Routes and the scope each requires
 ----------------------------------
 GET  /                         service index (no auth)
 GET  /health                   liveness: 200 while the database is open (public: status only; details for admins)
-GET  /ready                    readiness: database open, loops running, no replay in progress
+GET  /ready                    readiness: database open, loops running, no replay in progress, no replay that rejected
+                               the signature of more than MYCELIC_REPLAY_MAX_REJECT_RATIO of its events (503 with
+                               "reason": "signature_rejections: ..." until a rebuild with the corrected keyring)
                                (both answer from the status snapshot and never wait on the broker or the database)
 GET  /metrics                  Prometheus text format (token: MYCELIC_METRICS_TOKEN, else admin token or agent key)
 GET  /whoami                   the authenticated principal
 POST /memory                   memory:write   store one memory (202 Accepted; aggregation is asynchronous); "expires_at"
                                               optional: answers leave it out from then, the expiry sweep retracts it;
                                               "supersedes": replace one of the caller's own active notes (409 while a
-                                              retraction or another update of it is still pending)
+                                              retraction or another update of it is still pending); 507 when the
+                                              organization is at MYCELIC_MAX_ACTIVE_MEMORIES_PER_ORG active notes (an
+                                              update and a resend of a stored note are never refused)
 GET  /memory/{id}              memory:read
 POST /memory/{id}/retract      producer or admin, raw observations only (derived memories follow their evidence)
 POST /memory/{id}/attest       the producing agent: {"still_true": true|false, "reason"?}; true refreshes the note's
                                attested_at (verification freshness), false retracts it (202)
 GET  /attestations/due         memory:read    ?older_than=N&limit=M: the caller's own notes worth re-attesting
 GET  /memories                 memory:read    ?scope=&layer=&limit=&status= (active|superseded|retracted)
-POST /events                   events:write   {"events": [...]} (each may embed a "memory")
+POST /events                   events:write   {"events": [...]} (each may embed a "memory"); 507, with nothing written,
+                                              when its new embedded memories would pass the organization's limit
 POST /query                    memory:read    {"query", "scope"?, "min_layer"?, "k"?, "include_lineage"?}
 GET  /lineage/{id}             lineage:read   (POST /query embeds the lineage only for callers holding it)
 GET  /verify/{id}              lineage:read   ?max_leaf_age=N (1..315360000 s): was it derived correctly, is it still true
@@ -28,7 +33,8 @@ GET  /admin/agents             admin
 DELETE /admin/agents/{id}      admin          revoke; ?retract=1 removes the agent: every note it has is retracted
 POST /admin/agents/{id}/rotate admin          new key (returned once)
 GET/POST /admin/rules, DELETE /admin/rules/{id}   admin
-POST /admin/replay             admin          re-deliver the whole event log to this instance
+POST /admin/replay             admin          re-deliver the whole event log to this instance ("warning" while readiness
+                                              is blocked by signature rejections: a replay never lifts that block)
 POST /admin/reaggregate        admin          {"org_id"?}: re-aggregate one organization or all (202; started false while running)
 GET  /admin/status             admin          full health, settings (secrets masked), transport state
 GET  /admin/audit, GET /admin/events            admin
@@ -48,7 +54,7 @@ from aiohttp import web
 from .auth import AuthError, Principal
 from .hierarchy import HierarchyError
 from .mcp import MycelicMCPTransport
-from .service import VERSION, Conflict, Forbidden, MycelicService, NotFound, RateLimited, ValidationError
+from .service import VERSION, Conflict, Forbidden, MycelicService, NotFound, QuotaExceeded, RateLimited, ValidationError
 from .verification import MAX_LEAF_AGE_SECONDS
 
 logger = logging.getLogger(__name__)
@@ -183,6 +189,8 @@ def create_app(service: MycelicService) -> web.Application:
             response = _error("rate limit exceeded", 429)
         except Conflict as exc:
             response = _error(str(exc), 409)
+        except QuotaExceeded as exc:
+            response = _error(str(exc), 507)
         except web.HTTPException:
             raise
         except Exception as exc:
