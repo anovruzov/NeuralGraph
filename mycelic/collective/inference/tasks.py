@@ -14,7 +14,10 @@ written.
 
 A repair message goes back only to the endpoint that produced the bad reply. It names problems by JSON path and
 schema keyword (never by value) and quotes the first 300 characters of the previous reply, itself inside a data
-block. An escalation attempt gets the original conversation only: no repair marker and no excerpt.
+block. :func:`with_repair` appends it to the conversation's last user turn, so every request is ``[system, user]``:
+chat templates that require alternating roles (they raise on two user turns in a row, and the server answers 400)
+accept the repair attempt too. An escalation attempt gets the original conversation only: no repair marker and no
+excerpt.
 """
 from __future__ import annotations
 
@@ -76,6 +79,14 @@ def render_messages(task: TaskSpec, payload: dict[str, Any], schema: "Schema") -
     system = (SYSTEM_TEXT + "\n\nTask: " + task.instructions + "\n\nOutput JSON schema: "
               + canonical_dumps(schema.full))
     return [{"role": "system", "content": system}, {"role": "user", "content": data_block(payload)}]
+
+
+def with_repair(messages: list[dict[str, str]], repair: dict[str, str]) -> list[dict[str, str]]:
+    """``messages`` with the repair note appended to the last (user) turn, after a blank line: no second user turn
+    and no assistant turn, so the roles still alternate."""
+    if not messages or messages[-1]["role"] != "user" or repair["role"] != "user":
+        raise ValueError("a repair follows a conversation that ends with a user turn") from None
+    return messages[:-1] + [{"role": "user", "content": messages[-1]["content"] + "\n\n" + repair["content"]}]
 
 
 def repair_message(problems: list[tuple[str, str]], *, truncated: bool, previous_reply: str | None) -> dict[str, str]:

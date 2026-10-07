@@ -76,8 +76,13 @@ Pre-flight checks run in this order, before any I/O:
 | Attempt | Endpoint | Messages | When |
 |---|---|---|---|
 | 1 | primary | system (task, schema) + user `<data>` block | always |
-| 2 | primary | the same + one repair message (`### REPAIR`, problems as `path: keyword`, a 300-character excerpt of the bad reply as data, a truncation hint when `finish_reason` was `length`) | attempt 1 was `json_invalid` or `schema_invalid` |
+| 2 | primary | the same two messages, the repair appended to the user turn (`### REPAIR`, problems as `path: keyword`, a 300-character excerpt of the bad reply as data, a truncation hint when `finish_reason` was `length`) | attempt 1 was `json_invalid` or `schema_invalid` |
 | 3 | `escalate_to` | the attempt-1 messages only: no repair marker, no excerpt | attempt 2 was also `json_invalid` or `schema_invalid`, and the route names `escalate_to` (no `endpoint=` override) |
+
+The repair is part of the one user turn (`tasks.with_repair`), never a second user message: chat templates that
+require roles to alternate (user, assistant, user, ...) refuse `[system, user, user]` with a 400, which would turn
+every repair on such a server into an `http_4xx`. The fake server refuses non-alternating roles the same way, so a
+test of the repair path fails if the turn is ever split again.
 
 **Escalation matrix.** Only `json_invalid` and `schema_invalid` lead to a repair or an escalation. These never reach
 the escalation endpoint:
@@ -565,10 +570,9 @@ Each use takes the side that makes a detector less likely to fire:
 | D2 window count c (evidence) | lower bound |
 | D2 baseline rate (null hypothesis) | upper bound |
 | D2 past exceedance for `p_s` (A1) | window upper bound, baseline lower bound ("possible") |
-| D3 window PMI: numerators `n_ep` and `N` | lower bound |
-| D3 window PMI: marginals `n_e` and `n_p` | upper bound |
-| D3 baseline PMI: numerators | upper bound |
-| D3 baseline PMI: marginals | lower bound |
+| D3 window PMI: the key's own count `n_ep` | lower bound |
+| D3 baseline PMI: the key's own count `n_ep` | upper bound |
+| D3 nuisance counts (the entity's other predicates, the predicate's other entities, the rest of the type), window and baseline | one shared imputation: an int as is, `'<k'` as `k / 2` |
 | D3 support (`n_ep >= k`) | lower bound |
 | Rule count per site | lower bound |
 | D5 independent roots | lower bound of `n_roots` |
@@ -576,16 +580,38 @@ Each use takes the side that makes a detector less likely to fire:
 | D6 few reporters | an int `n` with `n_reporters` `'<k'` (at most k-1 reporters; it cannot tell 1 from k-1) |
 | D4 `res_conf` | lowest `res_conf_min` over cells with an int `n`; null when there is none |
 
+D3 does not take opposite bounds for its marginals. Up to G8 it did (window marginals at the upper bound, baseline
+marginals at the lower bound), which on all-`'<k'` cells cost every key a large negative rise before any change in the
+data: for a key alone in its type, `-4 log(k - 1)` before smoothing (about -2.8 at k = 3), which a real rise had to
+overcome on top of `pmi_delta`. The nuisance cells are not evidence for or against the key: taking them at one
+imputation on both sides lets them shift both PMIs alike, and the key's own count still takes its conservative side. A
+steady key beside steady suppressed background does not rise (a test pins it); the price is that a rise is no longer
+certain over every value consistent with the suppression, only over the key's own count.
+
 ### 13.5 Detectors and the ranker
 
 Series are `(entity_type, entity_id, predicate)` with any used cell; a key is `<entity_type>:<entity_id>:<predicate>`.
 
-- **D2, cross-site burst.** For each eligible site: `B = min(baseline_weeks, history_weeks)`, `lambda =
-  max(lambda_floor, baseline ub / B)`, `expected = lambda * window_weeks`, `c` = window lower bound, `logp =
-  poisson_logsf(c, expected)`; the site **certainly exceeds** when `c >= 1` and `logp < log(alpha_site)`. That holds
-  for every value consistent with the suppression, because `P(X >= c)` falls in `c` and rises in `lambda`.
-  `possible(w)` is the same test with the window upper bound against `max(lambda_floor, baseline lb / B)`. `p_s =
-  clip(#possible / |P|, p_min, p_max)` over `P = {w <= W - window_weeks : history_weeks(s, w) >= min_history_weeks}`
+- **D2, cross-site burst.** For each eligible site and each test: `B = min(baseline_weeks, history_weeks)`, `lambda
+  = max(lambda_floor, baseline ub / B)`, `expected = lambda * window_weeks`, `c` = window lower bound, `logp =
+  poisson_logsf(c, expected)`; a test **certainly exceeds** when `c >= 1` and `logp < log(alpha_site / tests)`. That
+  holds for every value consistent with the suppression, because `P(X >= c)` falls in `c` and rises in `lambda`. S
+  has one test, its codes count. In X, once the series has cells in both channels at the site, there are two tests,
+  Bonferroni over two: the combined count (`codes` plus `text_only`), and S's own codes count against a rate of at
+  least the series' certain rate over both channels (`combined baseline lb / B`); before that the two coincide and
+  the one test runs at `alpha_site`. The site certainly exceeds when one test does, and the snapshot shows the test
+  with the lowest `logp` (`test`: `combined` or `codes`). Up to G8, X ran the combined test alone, so steady
+  `text_only` background raised its baseline and a codes burst that S caught could reach X weeks later or not at all
+  (a test pins one that X missed through its last week). The codes test removes most of that, and the floor keeps
+  records that move between channels from looking like a fresh series (without it, per-channel tests at
+  `lambda_floor` roughly tripled X's false alarms in an engineering probe on synthetic plant worlds). X can still be
+  later than S, by design and disclosed: its codes test runs at `alpha_site / 2` where S runs at `alpha_site` (the
+  same test has the burst in S in week 36 and in X in week 37), and its rate is floored by the series' certain rate
+  over both channels, so a key with steady text-only background needs a higher codes rate in X than in S
+  (`rate_at_k_text_background`, 14.4). Closing the gap fully means running S's test at full `alpha_site` inside X,
+  which raises X's false alarms; that is an owner's decision, not made here. `possible(w)` is the same test with the
+  window upper bound against `max(lambda_floor, baseline lb / B)` (any test). `p_s = clip(#possible / |P|, p_min,
+  p_max)` over `P = {w <= W - window_weeks : history_weeks(s, w) >= min_history_weeks}`
   (`p_max` when P is empty), so no past window overlaps the current one and `p_s` is an upper bound on the site's base
   rate (A1). With `m` certainly exceeding among `n` eligible sites, `surprise = -poisson_binomial_logsf([p_s in
   site order], m)`, finite because `p_s` lies inside (0, 1). A candidate when `m >= burst.min_sites`. A site whose
@@ -593,9 +619,10 @@ Series are `(entity_type, entity_id, predicate)` with any used cell; a key is `<
   `flags.suppressed_history_sites` (A2): leaving out a trial that did not exceed would raise the surprise.
 - **D3, co-occurrence lift.** For each eligible site, within the key's entity type: `n_ep` (the key), `n_e` (the
   entity over all predicates), `n_p` (the predicate over all entities of the type) and `N` (all cells of the type),
-  all derived from cells (no emitted marginal exists; the Boundary refuses any extra key). `pmi_window =
-  smoothed_pmi(n_ep lb, n_e ub, n_p ub, N lb, pmi_smoothing)` over the window, `pmi_baseline = smoothed_pmi(n_ep ub,
-  n_e lb, n_p lb, N ub, pmi_smoothing)` over the site's baseline weeks; `rise = pmi_window - pmi_baseline`; rising
+  all derived from cells (no emitted marginal exists; the Boundary refuses any extra key). With `own` the key's count
+  (window lower bound, baseline upper bound) and `rest_x = imputed(x) - imputed(n_ep)` the nuisance part at the
+  shared imputation (13.4), each PMI is `smoothed_pmi(own, own + rest_e, own + rest_p, own + rest_N,
+  pmi_smoothing)`, over the window and over the site's baseline weeks; `rise = pmi_window - pmi_baseline`; rising
   when `rise > pmi_delta` and `n_ep lb >= k`. A candidate when `cooccurrence.min_sites` sites rise. D2 and D3 on one
   key give one candidate; `detectors` lists `d2` and/or `d3`.
 - **D4, resolution.** `res_conf` as in the table; `low_res_conf` is 1.0 when it is known and below
@@ -603,14 +630,17 @@ Series are `(entity_type, entity_id, predicate)` with any used cell; a key is `<
 - **D5, independence.** `independent_roots` is the sum of the lineage cells' lower-bound roots (root-cells: a root
   that spans weeks or channels counts more than once, a documented limitation); `root_ratio_ub` as in the table.
 - **D6, decoys.** `echo` when `root_ratio_ub < echo_min_ratio`, which is flagged only when certain: an int `n` of 10
-  with 3 roots gives 0.3 (echo); at k = 3, `'<k'` roots with an int `n` of 4 give 2/4 = 0.5 (no echo) and with an
-  int `n` of 10 give 0.2 (echo: fewer than k roots is certain); a `'<k'` `n` caps the ratio at 1.0.
-  `few_reporters_sites`: contributing sites with a lineage cell of int `n` and `'<k'` reporters (with k = 5 in `claims_integrity` that means
-  at most 4 reporters). `high_base_rate` (A3): the share of eligible sites where **another** series of the same
-  predicate (any entity type) certainly exceeds is above `base_rate_site_fraction`; the key itself is left out, so a
-  single-entity burst never flags itself, but the flag stays predicate-wide. `short_history_sites`: contributing
-  sites with status `short_history`. **Stale** is a hard filter: when the newest lineage week's Sunday is more than
-  `stale_days` before `as_of_W`, the candidate is removed at that step (`weeks[].stale_removed`). Because
+  with 3 roots gives 0.3 (echo); at k = 3, `'<k'` roots with an int `n` of 4 give 2/4 = 0.5 (no echo) and with an int
+  `n` of 10 give 0.2 (echo: fewer than k roots is certain); a `'<k'` `n` caps the ratio at 1.0. `few_reporters_sites`:
+  contributing sites with a lineage cell of int `n` and `'<k'` reporters (with k = 5 in `claims_integrity` that means at
+  most 4 reporters). `high_base_rate` (A3): the share of eligible sites where **another** series of the same predicate
+  **and entity type** certainly exceeds is above `base_rate_site_fraction`; the key itself is left out, so a
+  single-entity burst never flags itself. Up to G8 the flag was predicate-wide over every entity type, so the pattern's
+  own co-mentioned keys (the product and the supplier of a lot burst, each bursting with it) set it on the lot. Per
+  type, a co-mentioned key of another type no longer does; the limitation that stays is two co-mentioned entities of the
+  **same** type (two lots in one narrative), which still count as each other's base rate. `short_history_sites`:
+  contributing sites with status `short_history`. **Stale** is a hard filter: when the newest lineage week's Sunday is
+  more than `stale_days` before `as_of_W`, the candidate is removed at that step (`weeks[].stale_removed`). Because
   `stale_days >= close_lag_days + 7` (checked at load), the newest closed week is never stale.
 - **D7, ranker.** Features: `burst_surprise` (the D2 surprise, 0.0 when `m = 0`), `pmi_rise` (mean rise over rising
   sites), `log_independent_roots = log1p(independent_roots)`, `supporting_sites`, `low_res_conf`, `echo`,
@@ -656,15 +686,15 @@ candidate with a null snapshot and no alert.
 ```
 
 `run_id` is `det-` plus the first 16 hex characters of the sha256 of the canonical `{run_channel, as_of, tie_salt,
-config_hash, detector_hash, org_hash, sorted visible bundle shas}`, so a later bundle never changes an earlier run's
-id. `snapshot` is the detector part at the detection week (else the first candidate week): `week`, `as_of`,
-`window`, `score`, `features`, `flags` (`echo`, `few_reporters_sites`, `high_base_rate`, `short_history_sites`,
-`suppressed_history_sites`), `res_conf`, `independent_roots`, `root_ratio_ub`, `d2` (`m`, `n`, `surprise`, one entry
-per org site with its status, history, `c`, rate, expected, `logp`, `exceeded`, `p_s`, suppressed history),
-`d3` (`rising`, one entry per org site with `n_ep_lb`, both PMIs, `rise`, `rising`), `supporting_sites`,
-`contributing_sites`, `decision_unit` and `lineage`; fields not defined for a site's status are null. `rule` is the
-rule part at its first week: `rule_ids`, `first_week`, `weeks`, `window`, `sites` (`site`, `rule_id`, `count_lb`),
-`decision_unit` and `lineage`. Every list is sorted and floats are as computed.
+config_hash, detector_hash, org_hash, sorted visible bundle shas}`, so a later bundle never changes an earlier run's id.
+`snapshot` is the detector part at the detection week (else the first candidate week): `week`, `as_of`, `window`,
+`score`, `features`, `flags` (`echo`, `few_reporters_sites`, `high_base_rate`, `short_history_sites`,
+`suppressed_history_sites`), `res_conf`, `independent_roots`, `root_ratio_ub`, `d2` (`m`, `n`, `surprise`, one entry per
+org site with its status, history, `test` (the D2 test shown: `combined` or `codes`), `c`, rate, expected, `logp`,
+`exceeded`, `p_s`, suppressed history), `d3` (`rising`, one entry per org site with `n_ep_lb`, both PMIs, `rise`,
+`rising`), `supporting_sites`, `contributing_sites`, `decision_unit` and `lineage`; fields not defined for a site's
+status are null. `rule` is the rule part at its first week: `rule_ids`, `first_week`, `weeks`, `window`, `sites`
+(`site`, `rule_id`, `count_lb`), `decision_unit` and `lineage`. Every list is sorted and floats are as computed.
 
 ### 13.9 What detection can and cannot see when every cell is `'<k'`
 
@@ -674,12 +704,15 @@ At the built-in packs' synthetic volumes every weekly cell is `'<k'` (G3 merge n
   `lambda_floor * window_weeks = 0.08`, and `P(X >= 2) = 0.003 < 0.01`. A series present every week cannot burst
   this way: its baseline rate is taken at the upper bound (k-1 per `'<k'` week) while its window counts 1 per week.
 - **D3 needs `n_ep lb >= k`**, which `'<k'` cells reach only by summing over the window (k cells, each counting 1).
+  It can rise on all-`'<k'` cells: with the nuisance cells at `k / 2` on both sides, a steady key whose type gains
+  other series in the window becomes more specific to its entity and predicate, and rises (a test pins such a case,
+  where the opposite-bound marginals of G8 gave a negative rise on the same cells).
 - **Few reporters and `res_conf` are invisible**: both need an int `n`. Echo cannot be shown either, since a
   `'<k'` `n` caps `root_ratio_ub` at 1.0.
 
 The end-to-end test runs generated worlds of both packs through `EdgeSite`, the receive log, the store and both
 runs. What it printed in this sandbox, quoted only as **synthetic, same-author world, not a measurement** (seed 4, 40
-weeks, six sites): `device_quality` X 3,155 cells, 26 candidates (10 from the detectors), 10 alerts, 18 rule hits;
+weeks, six sites): `device_quality` X 3,155 cells, 27 candidates (12 from the detectors), 12 alerts, 18 rule hits;
 S 1,367 cells, 9 candidates (2), 2 alerts, 7 rule hits. `claims_integrity` X 2,854 cells, 20 candidates (11),
 11 alerts, 9 rule hits; S 1,007 cells, 7 candidates (2), 2 alerts, 5 rule hits. These worlds plant nothing on
 purpose; the counts say only that the pipeline runs end to end. Recall, lead time and false alarms come from G5's
@@ -728,7 +761,9 @@ is no SQL in `evaluate/` or the replay: site stores are read through `RecordStor
      records  --> R (model-free): the allowed fields only, record level, unsuppressed
      X result --> rules (episode starts)
                       |
-                      v  alerts in the evaluation weeks, matched to labels.json
+     control, per seed: the same world without the plant, through the same pipeline and channels
+                      |
+                      v  alerts in the evaluation weeks, matched to labels.json; a control find is a chance find
  labels.json, scorecard.json (schema-checked, content_hash)
 ```
 
@@ -802,7 +837,7 @@ not asserted; `cross_site_unmarked_copies` is a known hard case, reported in `kn
 | **S** | HQ's codes cells | `detect(store, "S")` | no model, no narrative |
 | **R_mf** | record-level, unsuppressed counts built only from `central_allowed_fields` | `run_detection(..., "S")` over one synthetic bundle per site | see below |
 | **U** | every extracted claim of every non-forwarded record (`emission_inputs`), both channels, k=1, exact roots and reporters, no master-data rule | `run_detection(..., "X")` | a reference, not a deployable system |
-| **single_site** | each site's exact weekly counts (codes plus text_only) | G4's D2 site test per site, cooldown per (site, key), one budget shared by all sites, ties by `sha256(salt|site|key)`, score `-logp` | each site alone |
+| **single_site** | each site's exact weekly counts (codes plus text_only) | G4's D2 site test per site, cooldown per (site, key), one budget shared by all sites, ties by `sha256(salt|site|key)`, score `-logp` | each site alone; an event carries its site |
 | **rules** | the rule hits of the X run | one event per episode start (a hit week whose previous ISO week has no hit) | unranked, no budget |
 | **X_k1, S_k1** (`--ablation-k1`) | the sites' own cells with the master-data rule, k=1, bypassing the Boundary | `run_detection` | internal only; the detector's parameters (including D3's support k) unchanged |
 
@@ -827,8 +862,17 @@ defined on a suppressed reporter count.
 Alert events are `{week, rank, key, score, site}`; events before the evaluation weeks are burn-in and dropped.
 
 - **Found.** A pattern is found by a channel when an event names its key inside its found window (single_site: at
-  any site). Repeated events of a found pattern use budget but count once. Every other event is a false alarm,
-  including an event on a pattern key outside its window. Per pattern, seed and channel: `delay_weeks = first -
+  one of the pattern's planted sites; up to G8 any site counted, so a site that never saw the plant could "find" it
+  on its own background). Repeated events of a found pattern use budget but count once. Every other event is a false
+  alarm, including an event on a pattern key outside its window.
+- **Control and net found.** Each seed runs a second time **without the plant** (the same world records through the
+  same pipeline, `work/seed-<seed>/control/`), and every channel's events there are matched to the same labels. A
+  unit (pattern, seed) found in the control is a **chance find**: the key would have alerted in its window without a
+  single planted record. Every channel reports `control_found`, `control_recall` and `control_alerts` next to `found`
+  and `recall`, and `found_net` / `recall_net` count the units found with the plant and not in the control (pooled,
+  by visibility and per seed; each pattern outcome carries `found_in_control`). `found` and `recall` still include
+  chance finds; the lifts and `by_construction` read the net values. The control's alerts are kept in
+  `control_alerts` per seed and channel. Per pattern, seed and channel: `delay_weeks = first -
   start_index` and `lead_weeks = end_index - first` (negative when found in the grace weeks).
 - **Recall** = found units / (patterns x seeds), pooled and by visibility; median delay and lead (`stats.percentile`
   at 50) over found units, null when none.
@@ -842,13 +886,19 @@ Alert events are `{week, rank, key, score, site}`; events before the evaluation 
 - `false_alarms_per_week` = false alarms / (evaluation weeks x seeds); `decoys_alerted[class]` counts (decoy, seed)
   instances with an event on any of the decoy's keys inside its watch span.
 - **Lifts** `X_minus_single_site` (the collective lift), `X_minus_S` and `X_minus_R_mf`: per pattern, the list over
-  seeds of `found_a - found_b`; the estimate is the pooled mean; the 95% interval is `stats.cluster_bootstrap_mean`
+  seeds of `net_found_a - net_found_b` (`basis`: "found in the planted world and not in the same seed's no-plant
+  control world"); the estimate is the pooled mean; the 95% interval is `stats.cluster_bootstrap_mean`
   (whole patterns resampled, B and seed from the prereg, seed string `x1:<seed>:<name>`).
 - **Minimum detectable rate** (analytic, pack only): for a constant weekly background `b` in `0..2k` at a site with
   full history, the smallest weekly rate `r` for which G4's D2 site test certainly exceeds, with `c = window_weeks x
   lb(b + r)` against `max(lambda_floor, ub(b))`, at the pack's k and with k=1. For `device_quality` (k=3) the rates
   for `b = 0..6` are 1, 3, 2, 2, 2, 2, 3 (unsuppressed 1, 1, 2, 2, 2, 2, 3); for `claims_integrity` (k=5) `b = 0..4`
-  gives 1, 5, 4, 3, 2 (unsuppressed 1, 1, 2, 2, 2). This is arithmetic on the pack's settings, not a measurement.
+  gives 1, 5, 4, 3, 2 (unsuppressed 1, 1, 2, 2, 2). `rate_at_k_text_background` is X when the background sits in
+  text-only cells and the plant in codes cells (two cells a week): the combined test (`window x (lb(b) + lb(r))`
+  against `ub(b)`) or the codes test (`window x lb(r)` against the certain `lb(b)`), each at `alpha_site / 2`; for
+  `device_quality` `b = 0..6` it is 1, 3, 3, 3, 3, 3, 3 and for `claims_integrity` `b = 0..4` 1, 5, 5, 5, 5, where S,
+  which never sees the text-only background, needs 1 (13.5). This is arithmetic on the pack's settings, not a
+  measurement.
 
 ### 14.5 Prereg and run checks
 
@@ -874,11 +924,13 @@ one union schemacheck cannot express, `code_dirty` (true, false or `"unknown"`),
 stamps (`synthetic: true`, `internal_only: true`, `measurement: false`, `same_author_pack`, `blind` with its
 self-declared basis, `plant_bound_to_prereg`, `ablation_k1`, `allow_dirty`, `extractor: lexical`), every hash (pack,
 code, org, prereg, plant, labels), the world and plant summaries, the channel labels, every channel's metrics
-(per seed too), the ablation (or null), the three lifts, `by_construction` (S and R-mf cannot see `narrative_only`
-plants: "planted narrative_only records carry no codes and no structured entities, so they add nothing to the cells
-this channel reads", labelled "by construction, not a result", next to their measured recall), `known_hard_cases`,
-per-pattern and per-decoy outcomes, the decoys' quiet precondition and X flags at detection, suppression per seed,
-the minimum detectable rate, every alert in the evaluation weeks, warnings (fewer than 10 patterns; a decoy that was
+(per seed too, with the control's finds and the net values), the ablation (or null), the three lifts on net found,
+`by_construction` (S and R-mf cannot see `narrative_only` plants: "planted narrative_only records carry no codes and
+no structured entities, so they add nothing to the cells this channel reads", labelled "by construction, not a
+result", next to their measured recall, control recall and net recall), `known_hard_cases`,
+per-pattern and per-decoy outcomes (each with `found_in_control`), the decoys' quiet precondition and X flags at
+detection, suppression per seed, the minimum detectable rate, every alert in the evaluation weeks and every control
+alert (`control_alerts`), warnings (fewer than 10 patterns; a decoy that was
 not quiet elsewhere), the `x1` block and notes.
 
 `x1.eligible` needs a blind run (self-declared: `planter_saw_detector_code` false and `planted_by` other than the
@@ -924,6 +976,21 @@ artificial partitioning, not a confidentiality demonstration"** and the caches' 
    `lead_days`); alerts from the initiation through `post_weeks` after it are post-recall alerts, never found and
    never false alarms; false alarms are the evaluated weeks' alerts that match no in-scope recall's window, over
    every product code of the manufacturer. `measurement` is true only when both caches are public.
+
+**Chance (the circular-shift null).** Matching on the product code alone credits a channel for alert volume: a
+channel that alerts on a code every few weeks "finds" a recall of that code at almost any date, and the scorer does
+not match on the predicate or the cause (`root_cause_description` is free text with no mapping to the pack's
+predicates). So each channel's summary carries `alerts`, `alerts_per_week`, `found_minus_expected` and `chance`: the
+channel's alert timeline rotated by each whole number of weeks `s` in `0 .. evaluated_weeks - 1` (an alert available
+`t` days after the first evaluated closing date moves to `(t + 7 s) mod (7 x evaluated_weeks)`), which keeps every
+code's alert count and clustering, against the recalls at their real dates and the same look-back rule.
+`expected_found` is the mean found count over the shifts, `per_recall` each recall's share of shifts that find it,
+`p_value` the share of shifts (shift 0, the observed alignment, included, so never below `1 / evaluated_weeks`) whose
+found count is at least the observed one, and `median_lead_days` the median lead over every shift's finds. A
+channel's `found` means something only as far as it exceeds its own `expected_found`. A first null that drew alert
+dates uniformly over the evaluable dates was rejected: on a synthetic world with no signal it gave p = 0.016, because
+it broke the clustering of real alerts; the circular shift gave p = 0.30 on the same world (an engineering probe on
+synthetic data, not a measurement).
 
 ### 14.8 What G5 does not show
 
@@ -1069,7 +1136,11 @@ most the deadline; only a site that timed out can write later. A missing handler
 record `{question_id, site, verdict: unknown, reason: error, source: hq}` (nothing of the exception is kept); a
 handler still running at the deadline is an HQ record with reason `timeout`, and its thread is registered as late; a
 returned body goes through intake, and a refused one also gets an HQ `error` record. No SQLite object is used off
-the calling thread (the site verifier opens its own connection) and the clock is read only for `received_at`.
+the calling thread (the site verifier opens its own connection) and the clock is read only for `received_at`. A site
+answers one question at a time (its verifier's lock), so a question sent to a site still busy with a late one waits
+behind it, and that wait counts against the new question's deadline: this is documented behaviour, not changed.
+`join_late(timeout_seconds)` waits a bounded time for every late thread and returns how many still run; it takes
+nothing in (`late_deliveries` counts what `collect_late` has not taken yet). E2 uses it (15.7).
 
 **Intake** (`receive_verdict`): non-canonical JSON raises `PushdownError`; then the first failing check decides,
 written as one `pd_verdict_rejections` row (the sha256, the site only when it is a valid site id, the question id
@@ -1113,12 +1184,16 @@ a malformed secret file (`VerifyError`, no value in its text). `answer(question)
    `max_input_chars`; never persons, the reporter or a record ref. A boundary refusal propagates and nothing is stored
    or sent; any other inference error counts the record as a failure;
 8. **the rules**, in order: nothing retrieved, `unknown` (local reason `no_records`); failures on more than half,
-   `unknown` with quality `degraded`; any yes/yes, `confirm` (support = yes/yes records, roots = their distinct
-   roots, reporters = their distinct reporters with every unknown reporter one shared reporter, newest week);
-   a record that mentions the entity, none that describes the predicate and fewer than half unclear, `refute` (the
+   `unknown` with quality `degraded` (see below); any yes/yes, `confirm` (support = yes/yes records, roots = their
+   distinct roots, reporters = their distinct reporters with every unknown reporter one shared reporter, newest week); a
+   record that mentions the entity, none that describes the predicate and fewer than half unclear, `refute` (the
    mentioning records); otherwise `unknown` (`unclear`). Only `budget` and `no_secret` cross as reasons (D8);
 9. counts leave only as buckets; `evidence_ref = HMAC-SHA256(secret, verdict_id)[:16]` for a confirm or a refute;
-   the verdict and its `answered` question_log row are stored in one transaction, then sent.
+   the verdict and its `answered` question_log row are stored in one transaction, then sent. A **degraded** verdict
+   is the exception: it reflects the model server's health, not the records, so it is sent but never stored (its
+   question_log row is `degraded`, which uses no budget, and `audit` has nothing for it), and the next ask of the
+   question judges again. Up to G8 it was stored like any verdict, so step 4 re-sent the outage's `unknown` for that
+   question forever.
 
 **The lexical judge** rebuilds the record from the payload (no persons, no reporter) and runs the codes channel, the
 lexical extractor and `pair`: `mentions_entity` is yes when the entity is a codes-channel entity or in any text claim
@@ -1211,22 +1286,24 @@ fake extractor).
 
 ```
 python -m mycelic.collective.experiments.e2_pushdown run --x1-prereg FILE --plant FILE --run-id ID
-    [--top-n 60] [--min-candidates N] [--site-routing DIR] [--central-routing FILE] [--allow-external-raw synthetic]
-    [--data-label synthetic] [--deadline-seconds 600] [--bootstrap-b 10000] [--bootstrap-seed 1] [--runs-dir runs]
-    [--allow-dirty] [--dry-run]
+    [--top-n 60] [--min-candidates N] [--site-routing DIR] [--central-routing FILE --central-context-tokens N]
+    [--allow-external-raw synthetic] [--data-label synthetic] [--deadline-seconds 600] [--bootstrap-b 10000]
+    [--bootstrap-seed 1] [--runs-dir runs] [--allow-dirty] [--dry-run]
 ```
 
-**Refusals** (exit 2, nothing written): an existing run id; the prereg and its pack (the four hashes and G5's
-evaluation code hash, as X1 pins them); the pack's `central_allowed_fields` without `site` and `received_date`; dirty
-code under the evaluation paths, `pushdown/` and E2 without `--allow-dirty` (stamped); the world and the plant spec
-with its binding; `--allow-external-raw` and `--data-label` both required and both `synthetic` ("central_raw sends raw
-record text across site boundaries: ..."); a site routing directory without a file per prereg site, or whose judge
-route or escalation names a boundary other than `site:<id>` or `any-simulated`, or the fake provider ("the judge route
-of site <sid> may leave the site"); a central routing on a site boundary or the fake provider; `--bootstrap-b` below
-1000. Without `--site-routing` every site judges with an in-process fake (the lexical judge); without
-`--central-routing` the central conditions use fake handlers, rehearsal only: a record counts when the site's lexical
-judge says yes/yes (raw) or a structured value resolves to the entity and a code maps to the predicate (allowed), and
-`score = min(100, 30 * min(3, confirming sites) + min(10, confirming records))`.
+**Refusals** (exit 2, nothing written): an existing run id; the prereg and its pack (the four hashes and G5's evaluation
+code hash, as X1 pins them); the pack's `central_allowed_fields` without `site` and `received_date`; dirty code under
+the evaluation paths, `pushdown/` and E2 without `--allow-dirty` (stamped); the world and the plant spec with its
+binding; `--allow-external-raw` and `--data-label` both required and both `synthetic` ("central_raw sends raw record
+text across site boundaries: ..."); a site routing directory without a file per prereg site, or whose judge route or
+escalation names a boundary other than `site:<id>` or `any-simulated`, or the fake provider ("the judge route of site
+<sid> may leave the site"); a central routing on a site boundary or the fake provider; `--central-routing` without
+`--central-context-tokens` (the context the central server gives one request: Ollama's `num_ctx`, llama-server's `-c`
+divided by `--parallel`), a context of at most the central tasks' 64 output tokens, or `--central-context-tokens`
+without `--central-routing`; `--bootstrap-b` below 1000. Without `--site-routing` every site judges with an in-process
+fake (the lexical judge); without `--central-routing` the central conditions use fake handlers, rehearsal only: a record
+counts when the site's lexical judge says yes/yes (raw) or a structured value resolves to the entity and a code maps to
+the predicate (allowed), and `score = min(100, 30 * min(3, confirming sites) + min(10, confirming records))`.
 
 **Per seed**, in prereg order: generate and plant the world, run G5's pipeline, detect run X at its `as_of` with the
 prereg tie salt, and take the detector candidates whose first candidate week is an evaluation week, by `(-snapshot
@@ -1245,9 +1322,33 @@ week is in the window, and sends them to `judge_candidate_allowed` (structured);
 `verify_stored(run_id, key)` at the snapshot's `as_of`, scored `STATUS_RANK[status] * 1,000,000 + support lower
 bound`.
 
-**Statistics.** `stats.paired_ranking_bootstrap` over every item pooled: AP (tie-averaged, null without positives)
-and precision@40 per condition with paired percentile intervals (one resampling stream for all conditions), and the
-ratio pushdown AP / central_raw AP (null when central_raw's AP is null or below 0.01).
+**Late answers.** After each item's pushdown, every delivery still running at the deadline gets one more
+`--deadline-seconds` (`join_late`) and is then collected at the item's own `as_of` (`collect_late`, which re-gates
+the question there), and the item is scored on the conclusion read after that. Up to G8, E2 never collected late
+answers: a slow site's verdict was scored as a timeout `unknown`, and since a site answers one question at a time,
+its next questions queued behind the late one and timed out too. A route that still ends `unknown` with reason
+`timeout` or `error`, or a `degraded` verdict, is **unanswered**; `pushdown.unanswered`, `unanswered_share` and
+`late_collected` count them, and each item carries its `late_collected`.
+
+**Central failures and the context.** A central call that fails after the runtime's retries, repair and escalation
+(an `InferenceError`) no longer aborts the run: the item records its `central_errors` by condition and kind, its
+central scores are null, `central.failures` counts every kind, and such items are left out of the statistics
+(`bootstrap.excluded_central_failures`). Each central_raw call's server-reported prompt tokens are kept per item
+(`central_raw_prompt_tokens`); a prompt whose tokens plus the task's 64 output tokens reach
+`--central-context-tokens`, or whose tokens were not reported, is counted in `central.at_context_limit`, since a
+server that truncates silently would have shown the central reference a cut prompt.
+
+**Statistics.** `stats.paired_ranking_bootstrap` over the items without a central failure: AP (tie-averaged, null
+without positives) and precision@40 per condition with paired percentile intervals (one resampling stream for all
+conditions), resampled by **candidate key** (`bootstrap.clusters: "candidate key"`, `n_clusters`): the same key in
+several seeds is one cluster, so its correlated items are drawn together. The ratio is pushdown AP / central_raw AP
+(null when central_raw's AP is null or below 0.01). `chance` is the AP of a random order (its expectation, near the
+prevalence of true items, with its interval), and the ratio block adds the **chance-corrected ratio** `lift_estimate`,
+`(AP_pushdown - chance) / (AP_central_raw - chance)`, with its paired interval (`lift_undefined` when central_raw's lift
+is below 0.01) and central_raw's own lift over chance (`denominator_lift` with its interval). The plain AP ratio alone
+passes an uninformative verifier: on a pool where most candidates are true, a constant score has an AP near the
+prevalence, and the ratio of that to central_raw's AP can exceed 0.90 while the verifier ranks nothing; its lift over
+chance is 0 (a test pins it).
 
 **Raw text.** `central_raw` reports the UTF-8 bytes of every text it sent; the in-memory payloads are also scanned
 (their overlap must be above 0, a positive control); `central_allowed` reports the shingle overlap of its payloads (0
@@ -1258,20 +1359,27 @@ against that seed's narratives; it must be 0.
 **Resolvability** as in section 15.6, and `extraction_miss_confirmations` from each counted confirm's `audit`.
 
 **The bar.** `measurement` is `common.measurement_flag` over every site and central endpoint and every ledger row, so
-any fake makes it false. The 0.90 bar (`{bar, ratio, ratio_at_least_bar, ci_low_at_least_bar,
-pushdown_raw_text_bytes_zero, pass}`) is filled only when `measurement` is true and the ratio is defined; otherwise
-`verdict` is null, `verdicts_withheld` true and `withheld_reason` says why.
+any fake makes it false. The 0.90 bar (`{bar, ratio, ratio_at_least_bar, ci_low_at_least_bar, lift_ratio,
+lift_ratio_at_least_bar, pushdown_raw_text_bytes_zero, pass}`) is withheld (`verdict` null, `verdicts_withheld` true,
+`withheld_reason` says why), in this order, when: a fake took part; a central call failed; a central_raw prompt
+reached the declared context or did not report its tokens; more than 5% of the pushdown routes were unanswered
+(`settings.max_unanswered_share`); the ratio is undefined; or the pool is uninformative (central_raw's lift over
+chance has a 95% interval reaching 0, so no ratio can show that pushdown keeps it). `pass` needs the AP ratio and
+its interval's low end at 0.90, the chance-corrected ratio at 0.90 and zero pushdown raw-text bytes.
 
 **The run file.** `e2.json` is validated against `E2_SCHEMA` (every object closed) before it is written: `kind`,
 `schema_version`, `run_id`, `created_at`, `stamps` (`synthetic` and `internal_only` true, `measurement`,
-`same_author_pack`, `below_protocol_minimum`, `allow_dirty`, `secret_mode: seeded-demo`, `data_label: synthetic`),
-the four pack hashes, the E2 code hash, the prereg and plant sha256, `code`, `endpoints`, `settings`, `candidates`,
-`condition_labels` (each says what the condition is: `central_allowed` is "STRATEGY's R for this task", `central_raw`
-says raw text crosses and the data is synthetic only), `bootstrap`, `conditions`, `ratio`, `raw_text_bytes`,
-`raw_text_scan`, `pushdown` (statuses, verdicts by kind and reason, routes, budget unknowns, timeouts, errors,
+`same_author_pack`, `below_protocol_minimum`, `allow_dirty`, `secret_mode: seeded-demo`, `data_label: synthetic`), the
+four pack hashes, the E2 code hash, the prereg and plant sha256, `code`, `endpoints`, `settings` (with
+`central_context_tokens` and `max_unanswered_share`), `candidates`, `condition_labels` (each says what the condition is:
+`central_allowed` is "STRATEGY's R for this task", `central_raw` says raw text crosses and the data is synthetic only),
+`bootstrap` (with `clusters`, `n_clusters` and `excluded_central_failures`), `conditions`, `chance`, `ratio`, `central`
+(`failures` by condition and kind, `failed_items`, `context_tokens`, `prompt_tokens_max`, `prompt_tokens_median`,
+`prompt_tokens_unreported`, `at_context_limit`), `raw_text_bytes`, `raw_text_scan`, `pushdown` (statuses, verdicts by
+kind and reason, routes, budget unknowns, timeouts, errors, `late_collected`, `unanswered`, `unanswered_share`,
 resolvability), `verdict`, `verdicts_withheld`, `withheld_reason`, `items`, `notes`, `paths`, `timings`,
-`content_hash_excludes` and `content_hash` (without `content_hash`, `created_at`, `run_id`, `paths` and `timings`;
-two runs under other run ids and `PYTHONHASHSEED` values give the same hash, tested). No record text, record ref or
+`content_hash_excludes` and `content_hash` (without `content_hash`, `created_at`, `run_id`, `paths` and `timings`; two
+runs under other run ids and `PYTHONHASHSEED` values give the same hash, tested). No record text, record ref or
 narrative is written to `e2.json` or to `central.ledger.jsonl` beside it (ledger refs are `e2:<n>:raw|allowed`); the
 site ledgers stay in the work directories.
 
@@ -1279,11 +1387,17 @@ site ledgers stay in the work directories.
 the evaluation weeks, ids in each counted site's master data, plus 10 decoys of the single-reporter, unmarked-copies
 and high-base-rate classes) yields at least 60 candidates per seed under an X1 prereg of 6 sites, 52 weeks,
 evaluation weeks 20 to 51 and seeds 1 to 5. Its recipe is in `INTEGRATION.md` (G6); no generator script is
-committed. A rehearsal over it (fakes everywhere; synthetic, same-author, **not a measurement**) gave 300 candidates
-over 5 seeds, raw-text bytes of 2,487,381 for central_raw and 0 for central_allowed and pushdown, 265 of 265 supported
-conclusions resolvable, and a withheld verdict. Its AP figures are not quoted here: the fake site judge and the fake
-central judge are the same deterministic reader of the pack's own templates, so their ratio says nothing about any
-model.
+committed. A rehearsal over it with this round's code (fakes everywhere, tie salt `r9-rehearsal`, top-n 60;
+synthetic, same-author, **not a measurement**) gave 300 candidates over 5 seeds (106 distinct keys), raw-text bytes
+of 2,573,511 for central_raw and 0 for central_allowed and pushdown, 276 of 276 supported conclusions resolvable, 0
+unanswered routes, 0 late answers, 0 central failures, and a verdict withheld because fakes took part. Its AP figures
+are not quoted: the fake site judge and the fake central judge are the same deterministic reader of the pack's own
+templates, so their ratio says nothing about any model. What the rehearsal does say is about the **pool**: 247 of
+the 300 candidates are true, so the chance AP is about 0.83 and central_raw's lift over chance has a 95% interval
+reaching below 0. On such a pool the plain AP ratio and its interval's low end clear 0.90 for almost any verifier,
+which is why the bar also needs the chance-corrected ratio, and why a run on this fixture is withheld as
+uninformative unless the real judges separate far better than chance. A real E2 needs a plant spec whose candidate
+pool holds many more decoys and background keys than this smoke does.
 
 ### 15.8 What G6 does not show
 
@@ -1719,8 +1833,8 @@ happen. The wall clock reaches only `created_at`, `recorded_at`, the timings and
 
 A run directory holds exactly six files (`runfiles.RUN_FILES`): `scorecard.json` (the hero's detection, pushdown and
 follow-up blocks, the decoys, the providers, the checks, the stamps and the content hash), `trace.json` (meta, the
-org, the beats and every event), `ledger.jsonl` (usage rows, at most twelve per site and task, projected to
-`LEDGER_ROW_KEYS`; never a host, ref, timestamp or served model), `leakage.json` (the two scans, the positive
+org, the beats and every event), `ledger.jsonl` (HQ's own model calls only, at most twelve rows per task, projected
+to `LEDGER_ROW_KEYS`; never a host, ref, timestamp or served model), `leakage.json` (the two scans, the positive
 control, what is not covered), `approvals.jsonl` (every follow-up ledger entry, then one `ledger_head` line) and
 `screen.json`. The first five are the **primary** files; `screen.json` is derived from them.
 
@@ -1738,13 +1852,27 @@ control, what is not covered), `approvals.jsonl` (every follow-up ledger entry, 
   `/created_at`, `/run_id` and `/timings`. A fresh recording of the committed scenario reproduces the committed
   run's hash under any `PYTHONHASHSEED`, work directory and run id; the tests check it, so the committed run is
   genuine and current.
+- **A site's usage only as it crossed.** `runfiles.project_ledger` refuses any row of a `site:<id>` runtime: a
+  site's per-call ledger never leaves it, and its exact call counts are site data below k (one judge call per judged
+  record, so a site's per-call rows for one question give its exact judged count). A site's usage appears only as
+  `scorecard.ledger.site_usage` (`runfiles.crossed_usage`): every group of every `usage_summary` in HQ's receive log,
+  as the site sent it, a `'<k'` count written as null and named in `suppressed`. `ledger.scope` says so, and the
+  providers block gives a site task's `calls` as null, keeping only booleans read from the site ledgers (any call,
+  every call to an in-process fake, every call fake-marked) for its label. Up to G8 the run-file ledger copied up to
+  twelve per-call rows per site and task, which leaked those sub-k counts into a committed file.
 - **What never enters a run directory:** narrative text, record refs, person or reporter values, the canary manifest,
-  the site databases and the site `packets/` directories. The work directory holding them is removed at exit.
+  the site databases, the site ledgers and the site `packets/` directories. The work directory holding them is
+  removed at exit.
 
 ### 17.3 Screen items and provenance
 
-`screen.json` is `{kind, schema_version, run_id, mode, phase, beats, cut_60s, controls, blocks, items}`. A block is a
-list of parts, each exactly one of a static `text` or an `item` id. An item is `{id, beat, label, display, src, fmt}`:
+`screen.json` is `{kind, schema_version, run_id, mode, presentation, phase, beats, cut_60s, controls, blocks,
+items}`. `mode` is how the run was made (`record` or `live`; the footer item shows "scripted run" or "run driven live
+in the console"); `presentation` is how the screen is shown now, and the console's badge reads only it: `live` while
+the console is attached to the engine running the run (`--serve`), `recorded` for `--record` and always for
+`--replay` and `--export` (`screen.presented`). Up to G8 the badge read the mode, so a replay or an export of a run
+made with `--serve` showed a green LIVE badge with nothing running behind it. A block is a list of parts, each
+exactly one of a static `text` or an `item` id. An item is `{id, beat, label, display, src, fmt}`:
 `src` is `<primary file>#<RFC 6901 pointer>` (a `.jsonl` pointer starts with the line index), and `display` is
 `screen.format_value(runfiles.resolve(docs, src), fmt)`. No other code formats a value: the formats (`int` with
 thousands separators, `rank` with "not alerted" for null, `pct`, `dec2`, `text`, `digest12`, `yesno`, `mode`,
@@ -1758,16 +1886,20 @@ of X4, not measured) and the real-data line. `cut_60s` is the four others.
 
 ### 17.4 Caught vs related
 
-`caught(channel)` means the channel alerted the hero key in the hero window (from the hero's first week through the
-last closed week); `related(channel)` lists its first alert on every other **case key** in that window. Case keys are
-the hero's entities (the key's, every structured entity of a hero record and every entity the lexical extractor finds
-in a hero narrative) times the hero's predicates (the key's and every hero code's), egress types only. The screen says
-"The restricted central baseline also caught this case" (R) or "The codes-only baseline also caught this case" (S)
-exactly when the flag is true, lists every related key with its own entity, predicate, rank and week under "flagged a
-related key", and never calls a related key a miss. The by-construction caption ("By construction, S and R cannot see
-this key: ...") is shown exactly when the scenario makes the hero narrative-only: it is a property of the constructed
-case, not a result. A scenario copy with a specific code and the structured lot always filled makes both baselines
-catch the hero, and the screen says so (`HonestyTests`).
+`caught(channel)` means the channel alerted the hero key in the hero window (from the hero's first week through the last
+closed week); `related(channel)` lists its first alert on every other **case key** in that window. Case keys are the
+hero's entities (the key's, every structured entity of a hero record and every entity the lexical extractor finds in a
+hero narrative) times the hero's predicates (the key's and every hero code's), egress types only. A caption names the
+hero key as "this failure mode", and each channel row's rank is for it; the S and R rows also name the **first other
+case key** each flagged, with its own rank and week ("first other key of this case it flagged"), or say that it flagged
+none. On the committed run both baselines rank the lot or the product under the generic malfunction code first: up to G8
+their rows said only "not alerted", which read as if they had missed the lot, and the talk track said that "nobody
+connects" the complaints. The screen says "The restricted central baseline also caught this case" (R) or "The codes-only
+baseline also caught this case" (S) exactly when the flag is true, lists every related key with its own entity,
+predicate, rank and week under "flagged a related key", and never calls a related key a miss. The by-construction
+caption ("By construction, S and R cannot see this key: ...") is shown exactly when the scenario makes the hero
+narrative-only: it is a property of the constructed case, not a result. A scenario copy with a specific code and the
+structured lot always filled makes both baselines catch the hero, and the screen says so (`HonestyTests`).
 
 ### 17.5 The lint
 

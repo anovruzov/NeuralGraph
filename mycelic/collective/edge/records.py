@@ -34,8 +34,9 @@ record.
 Pushdown verification (G6, ``edge/verify.py``) reads and writes here only through the methods below:
 
 * ``question_log`` has one row per question the site took in on a site-clock day: the question id, the entity and
-  an outcome (``answered``, ``budget`` or ``no_secret``); :meth:`RecordStore.answered_count` is the per-entity daily
-  budget's count of distinct answered questions;
+  an outcome (``answered``, ``budget``, ``no_secret`` or ``degraded``: the judge failed on more than half the
+  records, which is not an answer); :meth:`RecordStore.answered_count` is the per-entity daily budget's count of
+  distinct answered questions;
 * ``verdict_log`` has one row per answered question (``question_id`` and ``evidence_ref`` unique): the exact bytes
   sent and, for the site's auditor only, the confirming and entity record refs, the judged, failure and unclear
   counts, the extraction misses and the local reason for an unknown. None of these leaves the site;
@@ -57,7 +58,7 @@ from .weeks import iso_week, local_date, next_week
 SCHEMA_VERSION = 1
 TABLES = ("site_info", "records", "claims", "extraction_stats", "late_records", "emitted_weeks", "question_log",
           "verdict_log")
-QUESTION_OUTCOMES = ("answered", "budget", "no_secret")
+QUESTION_OUTCOMES = ("answered", "budget", "no_secret", "degraded")
 LOCAL_REASONS = ("no_records", "unclear", "degraded")
 CELLS_ARTIFACT = "cells_bundle"
 SITE_INFO_KEYS = ("schema_version", "site_id", "pack_id", "config_hash")

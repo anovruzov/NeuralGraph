@@ -61,17 +61,23 @@ broken by input order or by a stable sort, they are averaged exactly over every 
 
 The paired ranking bootstrap (G6, E2):
 
-* :func:`paired_ranking_bootstrap` ``(scores, relevant, *, k, B, seed, alpha=0.05, ratio=None, epsilon=0.01)``:
-  ``scores`` maps each condition name to one score per item, ``relevant`` marks each item. Point estimates per
-  condition: AP is :func:`tie_averaged_ap` with ``n_relevant`` = all relevant items (None when there is none), and
-  precision@k is :func:`tie_averaged_precision_at_k`. Each of ``B`` replicates draws ``n`` item indices with
-  replacement from one ``random.Random(seed)`` stream, and every condition is scored on the same draw (paired). In a
-  replicate AP uses ``n_relevant`` = the relevant items drawn; a replicate with none drawn is counted in
-  ``ap_undefined`` and left out of that condition's AP interval. With ``ratio = (numerator, denominator)`` the
-  estimate is ``AP_num / AP_den``, None when ``AP_den`` is None or below ``epsilon``; a replicate's ratio is
-  undefined (counted, left out) on the same rule. Every interval is the :func:`percentile` of the defined replicates
-  at ``100 * alpha / 2`` and ``100 * (1 - alpha / 2)``, None when there is none. ``method`` is ``paired
-  percentile``.
+* :func:`paired_ranking_bootstrap` ``(scores, relevant, *, k, B, seed, alpha=0.05, ratio=None, epsilon=0.01,
+  clusters=None)``: ``scores`` maps each condition name to one score per item, ``relevant`` marks each item. Point
+  estimates per condition: AP is :func:`tie_averaged_ap` with ``n_relevant`` = all relevant items (None when there is
+  none), and precision@k is :func:`tie_averaged_precision_at_k`. Each of ``B`` replicates draws ``n`` item indices
+  with replacement from one ``random.Random(seed)`` stream, and every condition is scored on the same draw (paired).
+  With ``clusters`` (one label per item) a replicate instead draws as many labels as there are distinct labels, with
+  replacement, from the labels in sorted order, and takes every item of each drawn label (in item order), so items
+  that share a label are never split; ``method`` is then ``paired cluster percentile`` and ``n_clusters`` the number
+  of labels. In a replicate AP uses ``n_relevant`` = the relevant items drawn; a replicate with none drawn is counted
+  in ``ap_undefined`` and left out of that condition's AP interval. ``chance`` is the AP of a ranking that ties every
+  item (the expected AP of a random order, near the prevalence ``n_relevant / n``), on the same draws.
+  With ``ratio = (numerator, denominator)`` the estimate is ``AP_num / AP_den``, None when ``AP_den`` is None or
+  below ``epsilon``; a replicate's ratio is undefined (counted, left out) on the same rule. ``lift`` is the
+  chance-corrected ratio ``(AP_num - chance) / (AP_den - chance)``, the share of the denominator's lift over a random
+  order that the numerator keeps, undefined when ``AP_den - chance`` is below ``epsilon``; ``denominator_lift`` is
+  ``AP_den - chance``. Every interval is the :func:`percentile` of the defined replicates at ``100 * alpha / 2`` and
+  ``100 * (1 - alpha / 2)``, None when there is none. ``method`` is ``paired percentile`` without clusters.
 """
 from __future__ import annotations
 
@@ -454,7 +460,7 @@ def cluster_bootstrap_mean(clusters: Sequence[Sequence[float]], *, B: int, seed:
 
 def paired_ranking_bootstrap(scores: Mapping[str, Sequence[float]], relevant: Sequence[bool], *, k: int, B: int,
                              seed: int | str, alpha: float = 0.05, ratio: tuple[str, str] | None = None,
-                             epsilon: float = 0.01) -> dict[str, Any]:
+                             epsilon: float = 0.01, clusters: Sequence[str] | None = None) -> dict[str, Any]:
     if not isinstance(scores, Mapping) or not scores or not all(isinstance(name, str) for name in scores):
         raise ValueError("scores must map condition names to score lists") from None
     if not isinstance(relevant, (list, tuple)) or not all(isinstance(r, bool) for r in relevant):
@@ -480,9 +486,18 @@ def paired_ranking_bootstrap(scores: Mapping[str, Sequence[float]], relevant: Se
     if isinstance(epsilon, bool) or not isinstance(epsilon, (int, float)) or not math.isfinite(epsilon) \
             or epsilon <= 0:
         raise ValueError("epsilon must be a finite number > 0") from None
+    if clusters is not None and (not isinstance(clusters, (list, tuple)) or len(clusters) != n
+                                 or not all(isinstance(c, str) for c in clusters)):
+        raise ValueError("clusters must hold one str label per item") from None
     names = sorted(scores)
     rel = list(relevant)
     n_relevant = sum(rel)
+    groups: list[list[int]] = []
+    if clusters is not None:
+        members: dict[str, list[int]] = {}
+        for i, label in enumerate(clusters):
+            members.setdefault(label, []).append(i)
+        groups = [members[label] for label in sorted(members)]
 
     def ap(values: Sequence[float], marks: Sequence[bool]) -> float | None:
         return tie_averaged_ap(list(values), list(marks)) if any(marks) else None
@@ -490,17 +505,32 @@ def paired_ranking_bootstrap(scores: Mapping[str, Sequence[float]], relevant: Se
     def quotient(num: float | None, den: float | None) -> float | None:
         return None if num is None or den is None or den < epsilon else num / den
 
+    def lift(num: float | None, den: float | None, base: float | None) -> float | None:
+        if num is None or den is None or base is None:
+            return None
+        return quotient(num - base, den - base)
+
     point_ap = {name: ap(scores[name], rel) for name in names}
+    point_chance = ap([0.0] * n, rel)
     ap_reps: dict[str, list[float]] = {name: [] for name in names}
     p_reps: dict[str, list[float]] = {name: [] for name in names}
+    chance_reps: list[float] = []
     ratio_reps: list[float] = []
-    ap_undefined = ratio_undefined = 0
+    lift_reps: list[float] = []
+    den_lift_reps: list[float] = []
+    ap_undefined = ratio_undefined = lift_undefined = 0
     rng = random.Random(seed)
     for _ in range(B):
-        drawn = [rng.randrange(n) for _ in range(n)]
+        if clusters is None:
+            drawn = [rng.randrange(n) for _ in range(n)]
+        else:
+            drawn = [i for _ in range(len(groups)) for i in groups[rng.randrange(len(groups))]]
         marks = [rel[i] for i in drawn]
         defined = any(marks)
         ap_undefined += int(not defined)
+        chance = tie_averaged_ap([0.0] * len(drawn), marks) if defined else None
+        if chance is not None:
+            chance_reps.append(chance)
         replicate: dict[str, float | None] = {}
         for name in names:
             values = [scores[name][i] for i in drawn]
@@ -514,6 +544,13 @@ def paired_ranking_bootstrap(scores: Mapping[str, Sequence[float]], relevant: Se
                 ratio_undefined += 1
             else:
                 ratio_reps.append(value)
+            value = lift(replicate[ratio[0]], replicate[ratio[1]], chance)
+            if value is None:
+                lift_undefined += 1
+            else:
+                lift_reps.append(value)
+            if replicate[ratio[1]] is not None and chance is not None:
+                den_lift_reps.append(replicate[ratio[1]] - chance)
 
     def ci(reps: Sequence[float]) -> tuple[float | None, float | None]:
         if not reps:
@@ -531,8 +568,20 @@ def paired_ranking_bootstrap(scores: Mapping[str, Sequence[float]], relevant: Se
     ratio_doc = None
     if ratio is not None:
         low, high = ci(ratio_reps)
+        lift_low, lift_high = ci(lift_reps)
+        den_low, den_high = ci(den_lift_reps)
+        den_ap = point_ap[ratio[1]]
         ratio_doc = {"numerator": ratio[0], "denominator": ratio[1],
-                     "estimate": quotient(point_ap[ratio[0]], point_ap[ratio[1]]), "ci_low": low, "ci_high": high,
-                     "undefined": ratio_undefined, "epsilon": epsilon}
-    return {"n": n, "n_relevant": n_relevant, "B": B, "seed": seed, "k": k, "method": "paired percentile",
+                     "estimate": quotient(point_ap[ratio[0]], den_ap), "ci_low": low, "ci_high": high,
+                     "undefined": ratio_undefined, "epsilon": epsilon,
+                     "lift_estimate": lift(point_ap[ratio[0]], den_ap, point_chance), "lift_ci_low": lift_low,
+                     "lift_ci_high": lift_high, "lift_undefined": lift_undefined,
+                     "denominator_lift": None if den_ap is None or point_chance is None else den_ap - point_chance,
+                     "denominator_lift_ci_low": den_low, "denominator_lift_ci_high": den_high}
+    chance_low, chance_high = ci(chance_reps)
+    return {"n": n, "n_relevant": n_relevant, "B": B, "seed": seed, "k": k,
+            "method": "paired percentile" if clusters is None else "paired cluster percentile",
+            "n_clusters": None if clusters is None else len(groups),
+            "chance": {"prevalence": n_relevant / n, "ap": point_chance, "ap_ci_low": chance_low,
+                       "ap_ci_high": chance_high},
             "conditions": conditions, "ratio": ratio_doc}

@@ -23,8 +23,13 @@ reply is shorter than that), and by default a usage chunk whose ``completion_tok
 ``responder``, when given, is called with each chat request's parsed JSON and its return value is the reply the
 ``valid`` and ``invalid-then-valid`` personas (and every persona that answers with the good reply) send instead of
 ``reply``. :func:`request_payload` recovers the task payload from such a request: the strict-parsed JSON in the
-``<data>`` block of the last user message that is not a repair message (a repair message's block holds the previous
-reply's excerpt, not the payload), or None.
+first ``<data>`` block of the last user message that does not start with the repair marker (a repair note's block,
+appended after the payload's or in a turn of its own, holds the previous reply's excerpt, not the payload), or None.
+
+Every persona first checks the roles the way common chat templates do: after an optional leading ``system``
+message, ``user`` and ``assistant`` must alternate, starting with ``user``. Anything else (two user turns in a row,
+for instance) gets ``400`` with the templates' wording ("Conversation roles must alternate ..."), as vLLM and
+llama-server answer when the model's template raises.
 """
 from __future__ import annotations
 
@@ -68,7 +73,8 @@ def request_payload(request_json: Any) -> Any | None:
         content = message.get("content")
         if not isinstance(content, str) or content.startswith(REPAIR_MARKER):
             continue
-        start, end = content.find(_DATA_OPEN), content.rfind(_DATA_CLOSE)
+        start = content.find(_DATA_OPEN)
+        end = content.find(_DATA_CLOSE, start) if start >= 0 else -1
         if start < 0 or end < start:
             return None
         failed = False
@@ -78,6 +84,16 @@ def request_payload(request_json: Any) -> Any | None:
             failed = True
         return None if failed else value
     return None
+
+
+def roles_alternate(messages: Any) -> bool:
+    """After an optional leading ``system`` message, ``user`` and ``assistant`` alternate, starting with ``user``."""
+    if not isinstance(messages, list) or not messages:
+        return False
+    roles = [m.get("role") if isinstance(m, dict) else None for m in messages]
+    if roles[0] == "system":
+        roles = roles[1:]
+    return bool(roles) and all(role == ("user", "assistant")[i % 2] for i, role in enumerate(roles))
 
 
 def _contains_key(obj: Any, keys: tuple[str, ...]) -> bool:
@@ -265,6 +281,9 @@ class FakeOpenAIServer:
 
     def _chat(self, h: _Handler, request: dict[str, Any], raw: bytes, n: int) -> None:
         persona = self.persona
+        if not roles_alternate(request.get("messages")):
+            return self._send(h, 400, {"error": {"code": 400, "type": "invalid_request_error", "message": (
+                "Conversation roles must alternate user/assistant/user/assistant/...")}})
         good = json.dumps(self.responder(request) if self.responder is not None else self.reply, ensure_ascii=False)
         wants_stream = request.get("stream") is True
         if persona in ("valid", "stream") and wants_stream:

@@ -15,7 +15,9 @@ import math
 import shutil
 import socket
 import tempfile
+import threading
 import unittest
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Callable
 from unittest import mock
@@ -819,7 +821,8 @@ class E1SmokeTests(E1Case):
         self.assertEqual(a["exact_match"]["lot"]["rate"], 1.0)
         paired = doc["paired"]["model-b"]
         self.assertEqual(set(paired), {"against", "n", "dropped", "mean_diff", "ci95", "B", "seed", "sign", "sign_p",
-                                       "underpowered", "non_inferior", "kill_flag"})
+                                       "underpowered", "non_inferior", "kill_flag", "withheld_reason"})
+        self.assertEqual(paired["withheld_reason"], "measurement_false")
         self.assertEqual((paired["against"], paired["n"], paired["dropped"]),
                          ("model-a", 120, {"only_model": 0, "only_reference": 0}))
         self.assertLess(paired["mean_diff"], 0)
@@ -851,6 +854,85 @@ class E1SmokeTests(E1Case):
         self.assertEqual(doc["endpoints"]["model-a"]["field_f1"]["value"], 1.0)
         self.assertEqual(sorted(doc["endpoints"]["model-a"]["exact_match"]), ["clinic", "repair_shop"])
         self.assertIs(doc["measurement"], False)
+
+
+def plain_server(respond: Callable[[dict], dict], *, fail_every: int = 0) -> ThreadingHTTPServer:
+    """A minimal OpenAI-compatible server that is not a fake (no fake header or model listing), so a run against it
+    is a measurement; with ``fail_every`` it answers 503 for every record whose text hashes to 0 mod that number."""
+
+    class Handler(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+
+        def log_message(self, format: str, *args: Any) -> None:  # noqa: A002 - BaseHTTPRequestHandler's signature
+            pass
+
+        def _send(self, status: int, obj: Any) -> None:
+            data = json.dumps(obj).encode("utf-8")
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def do_GET(self) -> None:
+            self._send(200, {"object": "list", "data": [{"id": "m", "object": "model"}]})
+
+        def do_POST(self) -> None:
+            body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            text = request_payload(body)["text"]
+            if fail_every and int(hashlib.sha256(text.encode("utf-8")).hexdigest(), 16) % fail_every == 0:
+                return self._send(503, {"error": {"message": "server busy"}})
+            message = {"role": "assistant", "content": json.dumps(respond(body))}
+            self._send(200, {"model": "m", "choices": [{"index": 0, "message": message, "finish_reason": "stop"}],
+                             "usage": {"prompt_tokens": 10, "completion_tokens": 10}})
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    server.daemon_threads = True
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return server
+
+
+class TransportFailureTests(E1Case):
+    def test_a_flaky_server_is_not_scored_as_model_errors_and_withholds_the_verdict(self) -> None:
+        # regression: two servers return the same gold answers; B answers 503 for about one record in four. The
+        # failures are the server's: B's F1 and JSON validity stay those of the model, and the verdict is withheld
+        records = independent(self.pid, 40)
+        labels = self.labels(self.pid, records)
+        servers = {"model-a": plain_server(responder(self.pid, records)),
+                   "model-b": plain_server(responder(self.pid, records), fail_every=4)}
+        for srv in servers.values():
+            self.addCleanup(srv.server_close)
+            self.addCleanup(srv.shutdown)
+        routing = self.routing({name: {"provider": "openai_compat", "boundary": "site:a", "model": "m",
+                                       "base_url": f"http://127.0.0.1:{srv.server_address[1]}/v1", "max_retries": 0}
+                                for name, srv in servers.items()})
+        prereg, _ = self.prereg(labels, routing)
+        dirs = [self.run_one(prereg, labels, routing, name, k)[0] for name in servers for k in (1, 2, 3)]
+        failed = [r for r in records
+                  if int(hashlib.sha256(r["narrative"].encode("utf-8")).hexdigest(), 16) % 4 == 0]
+        self.assertTrue(0 < len(failed) < len(records))
+        run_b = load_json_file(dirs[-1] / "run.json")
+        self.assertIs(run_b["measurement"], True)
+        m = run_b["metrics"]
+        self.assertEqual(m["failures"], {"transport": {"records": len(failed), "by_kind": {"http_5xx": len(failed)}},
+                                         "model": {"records": 0, "by_kind": {}}})
+        self.assertEqual(m["scored_records"], len(records) - len(failed))
+        self.assertEqual((m["field_f1"]["value"], m["json_validity_rate"], m["valid_after_repair_rate"]),
+                         (1.0, 1.0, 1.0))
+        lines = [json.loads(line) for line in (dirs[-1] / "predictions.jsonl").read_text().splitlines()]
+        self.assertEqual(sum(1 for p in lines if not p["scored"]), len(failed))
+        self.assertTrue(all(p["error_kind"] == "http_5xx" for p in lines if not p["scored"]))
+        doc = load_json_file(self.compare(prereg, dirs)[0])
+        self.assertIs(doc["measurement"], True)
+        b = doc["endpoints"]["model-b"]
+        self.assertEqual((b["field_f1"]["value"], b["json_validity_rate"]), (1.0, 1.0))
+        self.assertEqual(b["transport_failure_share"], 3 * len(failed) / (3 * len(records)))
+        self.assertEqual(doc["endpoints"]["model-a"]["transport_failure_share"], 0.0)
+        paired = doc["paired"]["model-b"]
+        self.assertEqual(paired["mean_diff"], 0.0)
+        self.assertEqual(paired["dropped"], {"only_model": 0, "only_reference": len(failed)})
+        self.assertEqual((paired["non_inferior"], paired["kill_flag"]), (None, None))
+        self.assertIn("transport failures above 1% of the record runs of model-b", paired["withheld_reason"])
 
 
 class ExternalRawTests(E1Case):

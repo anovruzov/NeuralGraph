@@ -38,12 +38,13 @@ stays inside the site and is never scanned as crossing. ``leakage.json`` gains `
 
 ``run_files`` (G8) writes ``DIR/run/`` with ``runfiles.write_run_files`` (refused, writing nothing, when a file holds
 an absolute path, the output directory, the repository root, the home directory, the host or user name, a 64-hex
-token, a credential key or an agent-key prefix): ``ledger.jsonl`` (``runfiles.project_ledger`` over every site ledger
-and the central draft ledger, 12 rows per site and task), ``approvals.jsonl`` (``runfiles.project_entries`` over the
-follow-up ledger), ``trace.json`` (the stages, every verified question with its display text, and every conclusion
-with its used verdicts, read through ``HqReader`` and, for the verdict bodies, the receive log) and ``scorecard.json``
-(the pack digests, the stage totals and the ledger summary; every digest 32 hex). Each of the four files crosses as
-class ``run_files``; ``leakage.json`` gains ``run_files_totals``.
+token, a credential key or an agent-key prefix): ``ledger.jsonl`` (``runfiles.project_ledger`` over HQ's own central
+draft ledger, 12 rows per task; a site's per-call ledger never leaves it), ``approvals.jsonl``
+(``runfiles.project_entries`` over the follow-up ledger), ``trace.json`` (the stages, every verified question with
+its display text, and every conclusion with its used verdicts, read through ``HqReader`` and, for the verdict
+bodies, the receive log) and ``scorecard.json`` (the pack digests, the stage totals, the ledger summary and, as
+``site_usage``, the usage summaries that crossed from the sites, k-suppressed; every digest 32 hex). Each of the four
+files crosses as class ``run_files``; ``leakage.json`` gains ``run_files_totals``.
 
 Modes: ``fake`` (default) extracts and judges through an in-process fake model at each site, so a ledger and a usage
 summary exist; ``lexical`` uses no model (no ledger); ``routing`` uses a routing file whose extraction and judge
@@ -434,20 +435,17 @@ def _forbidden(out: Path) -> list[str]:
 def run_files_stage(ctx: G0Context) -> tuple[list[Artifact], list[Artifact]]:
     """The run files G8 defines (``runfiles.py``), written to ``DIR/run/``: everything in them crossed, so each is
     scanned as class ``run_files``."""
-    edge, base, run = ctx.out / "edge", ctx.out / "followup", ctx.out / "run"
-    rows: list[dict[str, Any]] = []
-    for path in sorted(edge.glob("site-*.ledger.jsonl")):
-        rows += read_ledger(path)
-    if (base / "central.ledger.jsonl").exists():
-        rows += read_ledger(base / "central.ledger.jsonl")
+    base, run = ctx.out / "followup", ctx.out / "run"
+    rows = read_ledger(base / "central.ledger.jsonl") if (base / "central.ledger.jsonl").exists() else []
     ledger_rows, summary = runfiles.project_ledger(rows, per_group=RUN_LEDGER_PER_GROUP)
+    receive = read_log(ctx.out / "hq" / "receive.jsonl")
     ledger = FollowupLedger.open(base / LEDGER_FILE, pack=ctx.pack, enterprise=G0_ENTERPRISE, clock=ctx.clock)
     try:
         entries = ledger.entries()
     finally:
         ledger.close()
     bodies = {}
-    for row in read_log(ctx.out / "hq" / "receive.jsonl"):
+    for row in receive:
         if row["artifact_type"] == "verdict":
             bodies[row["sha256"]] = row["body"]
     reader = HqReader(ctx.out / "hqdb" / "collective.sqlite3")
@@ -472,7 +470,8 @@ def run_files_stage(ctx: G0Context) -> tuple[list[Artifact], list[Artifact]]:
     scorecard = {"kind": "g0_scorecard", "schema_version": 1, "pack": pack.id,
                  "digests": {name: runfiles.digest(value) for name, value in pack.hashes().items()},
                  "edge_totals": dict(ctx.totals), "pushdown_totals": dict(ctx.pushdown_totals),
-                 "followup_totals": runfiles.shorten(ctx.followup_totals), "ledger": summary}
+                 "followup_totals": runfiles.shorten(ctx.followup_totals), "ledger": summary,
+                 "site_usage": runfiles.crossed_usage(receive)}
     scorecard["content_hash"] = runfiles.content_hash(scorecard, ["/content_hash"])
     docs = {"scorecard.json": scorecard,
             "trace.json": {"kind": "g0_trace", "schema_version": 1, "stages": [stage.name for stage in STAGES],

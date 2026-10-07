@@ -10,6 +10,7 @@ import builtins
 import contextlib
 import io
 import json
+import math
 import shutil
 import tempfile
 import unittest
@@ -20,6 +21,7 @@ from unittest import mock
 
 from mycelic.collective.connectors import openfda
 from mycelic.collective.evaluate import plant as P
+from mycelic.collective.evaluate.baselines import closing_date
 from mycelic.collective.experiments import openfda_replay as R
 from mycelic.collective.jsonio import canonical_dumps, sha256_hex
 from mycelic.collective.packs.connector import field_values
@@ -313,6 +315,55 @@ class OpenFDAReplayTests(unittest.TestCase):
                           if PLANTED_CODE not in a["product_codes"]]
         self.assertTrue(never_recalled)
         self.assertGreaterEqual(self.channel("X")["false_alarms"], len(never_recalled))
+
+    def test_every_channel_reports_its_alerts_and_a_circular_shift_null(self) -> None:
+        weeks = self.signals["weeks"]["evaluated_weeks"]
+        for name in ("X", "S", "R_mf"):
+            with self.subTest(channel=name):
+                summary = self.channel(name)
+                alerts = self.signals["channels"][name]["alerts"]
+                self.assertEqual((summary["alerts"], summary["alerts_per_week"]), (len(alerts), len(alerts) / weeks))
+                chance = summary["chance"]
+                self.assertEqual((chance["shifts"], len(chance["per_recall"])), (weeks, summary["in_scope"]))
+                self.assertEqual(chance["method"], R.CHANCE_METHOD)
+                self.assertAlmostEqual(chance["expected_found"], math.fsum(chance["per_recall"]), delta=1e-12)
+                self.assertEqual(summary["found_minus_expected"], summary["found"] - chance["expected_found"])
+                self.assertGreaterEqual(chance["p_value"], 1 / weeks)    # shift 0 is the observed alignment
+        self.assertIn("(chance ", self.score_out)
+
+    def test_the_circular_shift_null_by_hand(self) -> None:
+        first = date(2024, 6, 2)
+        alerts = [{"week": "2024-W23", "rank": 1, "key": "k", "score": 0.5, "available_date": "2024-06-09",
+                   "product_codes": ["A"]}]
+        recall = {"evaluable": True, "product_code": "A", "event_date_initiated": "2024-06-12"}
+        # 4 evaluated weeks, look-back 1 week ([06-05, 06-12)): the alert at +7 days is in it at shift 0 only; at
+        # shifts 1, 2 and 3 it moves to +14, +21 and +0 (wrapped)
+        chance = R.chance_null([recall], alerts, 1, first, 4, 1)
+        self.assertEqual((chance["expected_found"], chance["per_recall"], chance["p_value"]), (0.25, [0.25], 0.25))
+        self.assertEqual((chance["recall_rate"], chance["median_lead_days"], chance["shifts"]), (0.25, 3, 4))
+        other = {**recall, "product_code": "B"}
+        self.assertEqual(R.chance_null([other], alerts, 1, first, 4, 0)["p_value"], 1.0)
+        none = R.chance_null([], alerts, 1, first, 4, 0)
+        self.assertEqual((none["expected_found"], none["recall_rate"], none["p_value"]), (0.0, None, None))
+
+    def test_alert_volume_alone_is_not_credited_above_chance(self) -> None:
+        # regression: recalls at arbitrary dates every 14 days on the two background codes, which no plant touches.
+        # X raises many alerts on those codes and "finds" every recall; its own null expects nearly as many
+        first = date.fromisoformat(closing_date(DQ, self.signals["weeks"]["evaluated_from"]))
+        last = date.fromisoformat(closing_date(DQ, self.signals["weeks"]["last"]))
+        items, d = [], first + timedelta(days=30)
+        while d < last:
+            items += [{"evaluable": True, "product_code": code, "event_date_initiated": d.isoformat()}
+                      for code in (IP_CODE, OTHER_CODE)]
+            d += timedelta(days=14)
+        weeks = self.signals["weeks"]["evaluated_weeks"]
+        x = R._channel_score(items, self.signals["channels"]["X"]["alerts"], 26, 26, weeks, first)["summary"]
+        s = R._channel_score(items, self.signals["channels"]["S"]["alerts"], 26, 26, weeks, first)["summary"]
+        self.assertEqual(x["found"], len(items))
+        self.assertGreater(x["alerts"], s["alerts"])
+        self.assertGreater(x["chance"]["expected_found"], 0.9 * len(items))
+        self.assertLess(x["found_minus_expected"], 0.1 * len(items))
+        self.assertGreater(x["chance"]["p_value"], 0.05)
 
     def test_alert_product_codes_come_from_the_alerts_own_window(self) -> None:
         weeks = self.signals["weeks"]

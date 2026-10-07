@@ -11,17 +11,23 @@ import contextlib
 import io
 import json
 import os
+import random
 import re
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
+from unittest import mock
 
+from mycelic.collective import stats
 from mycelic.collective.evaluate import harness as H
 from mycelic.collective.evaluate.plant import load_plant, plant
 from mycelic.collective.experiments import e2_pushdown as E2
+from mycelic.collective.inference.errors import KINDS
+from mycelic.collective.inference.fakeserver import FakeOpenAIServer
 from mycelic.collective.inference.ledger import read_ledger
 from mycelic.collective.leakage import CANARY_PREFIX, Artifact, Manifest, scan
 from mycelic.collective.packs.generator import generate
@@ -125,7 +131,19 @@ class E2SmokeTests(unittest.TestCase):
                 self.assertLessEqual(c["ap_ci_low"], c["ap_ci_high"])
                 self.assertLessEqual(c["p_ci_low"], c["p_ci_high"])
         self.assertEqual((d["bootstrap"]["B"], d["bootstrap"]["method"], d["bootstrap"]["n"]),
-                         (1000, "paired percentile", d["candidates"]["total"]))
+                         (1000, "paired cluster percentile", d["candidates"]["total"]))
+        # regression: the bootstrap resamples candidate keys (a key recurs across seeds), not items
+        self.assertEqual((d["bootstrap"]["clusters"], d["bootstrap"]["n_clusters"]),
+                         ("candidate key", len({i["key"] for i in d["items"]})))
+        self.assertLess(d["bootstrap"]["n_clusters"], d["bootstrap"]["n"])
+        self.assertEqual(d["chance"]["prevalence"], d["candidates"]["by_label"]["true"] / d["candidates"]["total"])
+        self.assertEqual(d["chance"]["ap"], stats.tie_averaged_ap([0.0] * len(d["items"]),
+                                                                  [i["label"] == "true" for i in d["items"]]))
+        self.assertEqual(d["central"]["failed_items"], 0)
+        self.assertEqual(d["central"]["failures"], {c: dict.fromkeys(KINDS, 0) for c in ("central_raw",
+                                                                                         "central_allowed")})
+        self.assertEqual((d["central"]["context_tokens"], d["central"]["at_context_limit"]), (None, 0))
+        self.assertEqual((d["pushdown"]["unanswered"], d["pushdown"]["late_collected"]), (0, 0))
         ratio = d["ratio"]
         self.assertEqual((ratio["numerator"], ratio["denominator"], ratio["epsilon"]),
                          ("pushdown", "central_raw", 0.01))
@@ -133,6 +151,10 @@ class E2SmokeTests(unittest.TestCase):
         self.assertLessEqual(ratio["ci_low"], ratio["ci_high"])
         self.assertAlmostEqual(ratio["estimate"],
                                d["conditions"]["pushdown"]["ap"] / d["conditions"]["central_raw"]["ap"])
+        chance = d["chance"]["ap"]
+        if ratio["lift_estimate"] is not None:
+            self.assertAlmostEqual(ratio["lift_estimate"], (d["conditions"]["pushdown"]["ap"] - chance)
+                                   / (d["conditions"]["central_raw"]["ap"] - chance))
 
     def test_raw_text_bytes_per_condition(self) -> None:
         d = self.doc
@@ -218,23 +240,71 @@ class E2SmokeTests(unittest.TestCase):
                                                              "timings": {}, "paths": {}}))
 
 
+def ratio_doc(**changes: Any) -> dict[str, Any]:
+    return {"estimate": 0.95, "ci_low": 0.91, "ci_high": 0.99, "lift_estimate": 0.93, "lift_ci_low": 0.8,
+            "lift_ci_high": 1.0, "denominator_lift": 0.1, "denominator_lift_ci_low": 0.05,
+            "denominator_lift_ci_high": 0.15, **changes}
+
+
 class E2UnitTests(unittest.TestCase):
     def test_the_bar_verdict_is_withheld_without_a_measurement_or_a_ratio(self) -> None:
-        ratio = {"estimate": 0.95, "ci_low": 0.91, "ci_high": 0.99}
-        verdict, reason = E2.bar_verdict(False, ratio, 0)
+        verdict, reason = E2.bar_verdict(False, ratio_doc(), 0)
         self.assertIsNone(verdict)
         self.assertIn("fake", reason)
-        verdict, reason = E2.bar_verdict(True, {"estimate": None, "ci_low": None, "ci_high": None}, 0)
+        verdict, reason = E2.bar_verdict(True, ratio_doc(estimate=None, ci_low=None, ci_high=None), 0)
         self.assertIsNone(verdict)
         self.assertIn("undefined", reason)
-        verdict, reason = E2.bar_verdict(True, ratio, 0)
+        verdict, reason = E2.bar_verdict(True, ratio_doc(), 0)
         self.assertEqual((verdict, reason), ({"bar": 0.9, "ratio": 0.95, "ratio_at_least_bar": True,
-                                              "ci_low_at_least_bar": True, "pushdown_raw_text_bytes_zero": True,
+                                              "ci_low_at_least_bar": True, "lift_ratio": 0.93,
+                                              "lift_ratio_at_least_bar": True, "pushdown_raw_text_bytes_zero": True,
                                               "pass": True}, None))
-        self.assertFalse(E2.bar_verdict(True, {**ratio, "ci_low": 0.89}, 0)[0]["pass"])
-        self.assertFalse(E2.bar_verdict(True, ratio, 1)[0]["pass"])
-        self.assertTrue(E2.bar_verdict(True, {"estimate": 0.9, "ci_low": 0.9, "ci_high": 1.0}, 0)[0]["pass"])
-        self.assertFalse(E2.bar_verdict(True, {"estimate": 0.95, "ci_low": None, "ci_high": None}, 0)[0]["pass"])
+        self.assertFalse(E2.bar_verdict(True, ratio_doc(ci_low=0.89), 0)[0]["pass"])
+        self.assertFalse(E2.bar_verdict(True, ratio_doc(), 1)[0]["pass"])
+        self.assertTrue(E2.bar_verdict(True, ratio_doc(estimate=0.9, ci_low=0.9, lift_estimate=0.9), 0)[0]["pass"])
+        self.assertFalse(E2.bar_verdict(True, ratio_doc(ci_low=None, ci_high=None), 0)[0]["pass"])
+
+    def test_the_bar_needs_the_chance_corrected_ratio_and_an_informative_pool(self) -> None:
+        # regression: a pool of 92% true items, an informative central judge and a constant pushdown score; the plain
+        # AP ratio and its interval clear 0.90, but a constant score keeps none of central_raw's lift over chance
+        rng = random.Random(0)
+        relevant = [rng.random() < 0.92 for _ in range(300)]
+        central = [(1.0 if r else 0.0) + rng.gauss(0, 1.2) for r in relevant]
+        boot = stats.paired_ranking_bootstrap({"pushdown": [1.0] * 300, "central_raw": central}, relevant, k=40,
+                                              B=1000, seed=1, ratio=("pushdown", "central_raw"), epsilon=0.01,
+                                              clusters=[f"k{i % 105}" for i in range(300)])
+        verdict, reason = E2.bar_verdict(True, boot["ratio"], 0)
+        self.assertIsNone(reason)
+        self.assertEqual((verdict["ratio_at_least_bar"], verdict["ci_low_at_least_bar"]), (True, True))
+        self.assertEqual((verdict["lift_ratio"], verdict["lift_ratio_at_least_bar"], verdict["pass"]),
+                         (0.0, False, False))
+        # a central judge no better than a random order makes the pool uninformative: withheld
+        verdict, reason = E2.bar_verdict(True, ratio_doc(denominator_lift_ci_low=-0.01), 0)
+        self.assertIsNone(verdict)
+        self.assertIn("uninformative", reason)
+        self.assertIsNone(E2.bar_verdict(True, ratio_doc(denominator_lift_ci_low=None), 0)[0])
+
+    def test_failures_context_and_unanswered_routes_withhold_the_bar(self) -> None:
+        # regression: a failed central call, a central prompt at the declared context and unanswered pushdown routes
+        # each withhold the verdict, in this order
+        cases = ((dict(central_failures=2), "the central judge failed on 2 items"),
+                 (dict(at_context_limit=3), "3 central_raw prompts reached the declared context"),
+                 (dict(unanswered_share=0.06), "6% of the pushdown routes were unanswered"),
+                 (dict(central_failures=1, at_context_limit=1, unanswered_share=0.5), "the central judge failed"))
+        for kwargs, text in cases:
+            with self.subTest(kwargs=kwargs):
+                verdict, reason = E2.bar_verdict(True, ratio_doc(), 0, **kwargs)
+                self.assertIsNone(verdict)
+                self.assertIn(text, reason)
+        self.assertTrue(E2.bar_verdict(True, ratio_doc(), 0, unanswered_share=0.05)[0]["pass"])
+        self.assertTrue(E2.bar_verdict(True, ratio_doc(), 0, unanswered_share=None)[0]["pass"])
+
+    def test_prompt_tokens_per_central_raw_ref(self) -> None:
+        def row(ref: str, attempt: int, tokens: int | None, task: str = "judge_candidate_raw") -> dict[str, Any]:
+            return {"task": task, "ref": ref, "attempt": attempt, "tokens_in": tokens}
+        rows = [row("e2:1:raw", 1, 900), row("e2:1:raw", 2, 1200), row("e2:2:raw", 1, None), row("e2:3:raw", 0, 5),
+                row("e2:1:allowed", 1, 99999, task="judge_candidate_allowed")]
+        self.assertEqual(E2._prompt_tokens(rows), {"e2:1:raw": 1200, "e2:2:raw": None})
 
     def test_central_allowed_reads_only_the_allowed_fields(self) -> None:
         from tests.mycelic.test_collective_evaluate import RecordingRecord
@@ -340,6 +410,94 @@ class E2RefusalTests(unittest.TestCase):
                             encoding="utf-8")
             with self.subTest(endpoint=endpoint["boundary"]):
                 self.refused(f"central-{i}", *RAW_FLAGS, "--central-routing", path)
+
+    def test_central_routing_needs_the_central_context(self) -> None:
+        path = self.tmp / "central-ctx.json"
+        path.write_text(json.dumps({"schema_version": 1, "endpoints": {"c": {
+            "provider": "openai_compat", "boundary": "central", "base_url": "http://127.0.0.1:9/v1", "model": "m"}},
+            "routes": {task: {"endpoint": "c"} for task in E2.CENTRAL_TASKS}}), encoding="utf-8")
+        self.refused("ctx-missing", *RAW_FLAGS, "--central-routing", path,
+                     message="--central-routing needs --central-context-tokens")
+        self.refused("ctx-small", *RAW_FLAGS, "--central-routing", path, "--central-context-tokens", 64,
+                     message="--central-routing needs --central-context-tokens")
+        self.refused("ctx-alone", *RAW_FLAGS, "--central-context-tokens", 8192,
+                     message="--central-context-tokens goes with --central-routing")
+
+    def central_server(self, persona: str) -> Path:
+        srv = FakeOpenAIServer(persona, reply={"score": 50}).start()
+        self.addCleanup(srv.stop)
+        path = self.tmp / f"central-{persona}.json"
+        path.write_text(json.dumps({"schema_version": 1, "endpoints": {"c": {
+            "provider": "openai_compat", "boundary": "central", "base_url": srv.base_url, "model": "m",
+            "max_retries": 0}}, "routes": {task: {"endpoint": "c"} for task in E2.CENTRAL_TASKS}}), encoding="utf-8")
+        return path
+
+    def test_a_failing_central_judge_is_recorded_and_the_run_completes(self) -> None:
+        # regression: one failed central call used to end the run with a traceback, no e2.json and a burned run id
+        routing = self.central_server("always-invalid")
+        code, out, err = cli(E2.main, e2_argv(self.prereg, self.runs, "central-fails", *RAW_FLAGS, "--bootstrap-b",
+                                              1000, "--min-candidates", 1, "--top-n", 6, "--central-routing", routing,
+                                              "--central-context-tokens", 100000))
+        self.assertEqual(code, 0, out + err)
+        self.assertNotIn("Traceback", err)
+        d = json.loads((self.runs / "e2" / "central-fails" / "e2.json").read_text(encoding="utf-8"))
+        self.assertEqual(E2.e2_problems(d), [])
+        failed = [i for i in d["items"] if i["central_errors"]["central_raw"] is not None]
+        self.assertTrue(failed)
+        self.assertTrue(all(i["central_errors"]["central_raw"] == "schema_invalid"
+                            and i["scores"]["central_raw"] is None for i in failed))
+        self.assertEqual(d["central"]["failures"]["central_raw"]["schema_invalid"], len(failed))
+        excluded = sum(1 for i in d["items"] if None in (i["scores"]["central_raw"], i["scores"]["central_allowed"]))
+        self.assertEqual((d["central"]["failed_items"], d["bootstrap"]["excluded_central_failures"]),
+                         (excluded, excluded))
+        self.assertEqual(d["bootstrap"]["n"], len(d["items"]) - excluded)
+        self.assertEqual((d["verdict"], d["verdicts_withheld"]), (None, True))
+
+    def test_central_prompts_at_the_declared_context_are_counted(self) -> None:
+        # regression: the fake server reports 123 prompt tokens; with the 64-token output budget a 150-token context
+        # is reached by every central_raw prompt, a large one by none
+        routing = self.central_server("valid")
+        counts = {}
+        for context in (150, 100000):
+            run_id = f"ctx-{context}"
+            code, out, err = cli(E2.main, e2_argv(self.prereg, self.runs, run_id, *RAW_FLAGS, "--bootstrap-b", 1000,
+                                                  "--min-candidates", 1, "--top-n", 6, "--central-routing", routing,
+                                                  "--central-context-tokens", context))
+            self.assertEqual(code, 0, out + err)
+            d = json.loads((self.runs / "e2" / run_id / "e2.json").read_text(encoding="utf-8"))
+            sent = [i for i in d["items"] if i["central_raw_records"]]
+            self.assertTrue(sent)
+            self.assertTrue(all(i["central_raw_prompt_tokens"] == 123 for i in sent))
+            self.assertEqual((d["central"]["prompt_tokens_max"], d["central"]["context_tokens"]), (123, context))
+            counts[context] = (d["central"]["at_context_limit"], len(sent))
+        self.assertEqual(counts[150][0], counts[150][1])
+        self.assertEqual(counts[100000][0], 0)
+
+    def test_late_pushdown_answers_are_collected_and_scored(self) -> None:
+        # regression: a site whose first answer outlives the deadline used to leave a timeout behind (and the next
+        # question queued behind it); E2 now waits one more deadline and collects the answer at the item's as_of
+        real = E2.lexical_judge
+        slept: set[int] = set()
+
+        def slow_once(pack: Any, canonicaliser: Any) -> Callable[[Mapping[str, Any]], dict[str, Any]]:
+            judge = real(pack, canonicaliser)
+            key = id(canonicaliser)
+
+            def handler(payload: Mapping[str, Any]) -> dict[str, Any]:
+                if key not in slept:
+                    slept.add(key)
+                    time.sleep(1.5)
+                return judge(payload)
+            return handler
+
+        with mock.patch.object(E2, "lexical_judge", slow_once):
+            code, out, err = cli(E2.main, e2_argv(self.prereg, self.runs, "late", *RAW_FLAGS, "--bootstrap-b", 1000,
+                                                  "--min-candidates", 1, "--top-n", 4, "--deadline-seconds", 1.0))
+        self.assertEqual(code, 0, out + err)
+        d = json.loads((self.runs / "e2" / "late" / "e2.json").read_text(encoding="utf-8"))
+        self.assertGreater(d["pushdown"]["late_collected"], 0)
+        self.assertEqual(d["pushdown"]["late_collected"], sum(i["late_collected"] for i in d["items"]))
+        self.assertEqual((d["pushdown"]["timeouts"], d["pushdown"]["unanswered"]), (0, 0))
 
     def test_a_small_bootstrap_is_refused(self) -> None:
         self.refused("boot", *RAW_FLAGS, "--bootstrap-b", 999, message="--bootstrap-b must be >= 1000")

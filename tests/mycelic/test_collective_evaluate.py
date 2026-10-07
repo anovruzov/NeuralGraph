@@ -12,6 +12,7 @@ import contextlib
 import copy
 import io
 import json
+import math
 import os
 import shutil
 import subprocess
@@ -530,7 +531,7 @@ class ConstructionCase(unittest.TestCase):
         cls.run_dir = cls.runs / "x1" / "smoke"
         cls.card = json.loads((cls.run_dir / "scorecard.json").read_text(encoding="utf-8"))
         cls.labels = json.loads((cls.run_dir / "labels.json").read_text(encoding="utf-8"))
-        cls.work = cls.run_dir / "work" / f"seed-{seed}"
+        cls.work = cls.run_dir / "work" / f"seed-{seed}" / "planted"
         loaded = pack if not isinstance(pack, str) else load_pack(pack)
         cls.pack = loaded
         cls.spec = P.load_plant(plant_file, loaded)
@@ -739,6 +740,34 @@ class PlantedConstructionTests(ConstructionCase):
                                                         "ORDER BY record_ref", (r["record_ref"],))
                 self.assertEqual(root, [(r["record_ref"],)])
 
+    def test_the_no_plant_control_runs_per_seed_and_its_finds_are_not_net(self) -> None:
+        # regression: seed 11's world alone (no plant) already alerts single_site on two pattern keys at a planted
+        # site inside their windows; those two units are chance finds, never net
+        control_dir = self.run_dir / "work" / f"seed-{self.seed}" / "control"
+        self.assertTrue((control_dir / "hq" / "collective.sqlite3").is_file())
+        index = {w: i for i, w in enumerate(W)}
+        control = {(a["seed"], a["channel"]): a["items"] for a in self.card["control_alerts"]}
+        self.assertEqual(sorted(control), sorted((self.seed, name) for name in (*B.CHANNELS, *B.ABLATION_CHANNELS)))
+        for name in B.CHANNELS:
+            with self.subTest(channel=name):
+                block, items = self.card["channels"][name], control[(self.seed, name)]
+                chance = {p["id"] for p in self.labels["patterns"] if H.pattern_outcome(items, p, index)["found"]}
+                self.assertEqual((block["control_alerts"], block["control_found"]), (len(items), len(chance)))
+                outcomes = {p["id"]: next(o for o in p["outcomes"] if o["channel"] == name)
+                            for p in self.card["patterns"]}
+                self.assertEqual({i for i, o in outcomes.items() if o["found_in_control"]}, chance)
+                self.assertEqual(block["found_net"],
+                                 sum(1 for i, o in outcomes.items() if o["found"] and i not in chance))
+        single = self.card["channels"]["single_site"]
+        self.assertEqual((single["found"], single["control_found"], single["found_net"]), (3, 2, 1))
+        self.assertEqual(self.card["channels"]["X"]["control_found"], 0)
+        lift = self.card["lifts"]["X_minus_single_site"]
+        self.assertEqual((lift["estimate"], lift["basis"]), (2 / 3, H.NET_BASIS))
+        for e in self.card["by_construction"]:
+            self.assertEqual(e["recall_net"], 0.0)
+        for item in next(a["items"] for a in self.card["control_alerts"] if a["channel"] == "single_site"):
+            self.assertIn(item["site"], self.site_ids)
+
     def test_the_x1_block_lifts_and_ablation(self) -> None:
         x1 = self.card["x1"]
         self.assertFalse(x1["eligible"])
@@ -775,7 +804,9 @@ class ClaimsIntegrityConstructionTests(ConstructionCase):
     def test_min_detectable_rate_at_k5_equals_the_hand_rows(self) -> None:
         mdr = self.card["min_detectable_rate"]
         self.assertEqual(mdr["k"], 5)
-        self.assertEqual(mdr["label"], "analytic: constant weekly counts, G4's per-site D2 test only; not a measurement")
+        self.assertEqual(mdr["label"], "analytic: constant weekly counts, G4's per-site D2 tests only "
+                                       "(rate_at_k_text_background: X with the background in text-only cells and the "
+                                       "planted rate in codes cells, two tests at alpha_site / 2); not a measurement")
         rows = mdr["rows"]
         self.assertEqual([r["background"] for r in rows], list(range(11)))
         self.assertEqual([r["rate_at_k"] for r in rows[:5]], [1, 5, 4, 3, 2])
@@ -1034,7 +1065,7 @@ class SingleSiteAndRulesTests(unittest.TestCase):
 
 def _label(**fields: Any) -> dict[str, Any]:
     base = {"id": "p", "key": "t:K1:p", "visibility": "narrative_only", "start_index": 30, "end_index": 37,
-            "found_from": W[30], "found_to": W[41]}
+            "found_from": W[30], "found_to": W[41], "sites": ["plant-x", "plant-z"]}
     return {**base, **fields}
 
 
@@ -1075,10 +1106,15 @@ class MetricTests(unittest.TestCase):
         per_seed = {1: [_event(W[32], score=0.9), _event(W[33], score=0.9), _event(W[31], "t:D1:p", score=0.95),
                         _event(W[45], "t:X:p", score=0.2)],
                     2: [_event(W[45], score=0.4)]}
-        block = H.channel_block("X", "label", per_seed, self.labels(), self.index, 26)
+        block = H.channel_block("X", "label", per_seed, self.labels(), self.index, 26, {1: [], 2: []})
         self.assertEqual((block["units"], block["found"], block["recall"]), (4, 1, 0.25))
-        self.assertEqual(block["by_visibility"]["narrative_only"], {"units": 2, "found": 1, "recall": 0.5})
-        self.assertEqual(block["by_visibility"]["both"], {"units": 0, "found": 0, "recall": None})
+        self.assertEqual((block["control_found"], block["found_net"], block["recall_net"]), (0, 1, 0.25))
+        self.assertEqual(block["by_visibility"]["narrative_only"],
+                         {"units": 2, "found": 1, "recall": 0.5, "control_found": 0, "found_net": 1,
+                          "recall_net": 0.5})
+        self.assertEqual(block["by_visibility"]["both"],
+                         {"units": 0, "found": 0, "recall": None, "control_found": 0, "found_net": 0,
+                          "recall_net": None})
         self.assertEqual((block["alerts"], block["false_alarms"]), (5, 3))
         self.assertEqual(block["false_alarms_per_week"], 3 / (26 * 2))
         self.assertEqual(block["decoys_alerted"]["echo_marked"], 1)
@@ -1088,19 +1124,41 @@ class MetricTests(unittest.TestCase):
         self.assertEqual((seed1["precision_at_40"], seed1["average_precision"]), (1 / 40, 0.25))
         self.assertEqual(block["per_seed"][1]["average_precision"], 0.0)
         self.assertEqual(block["average_precision"], 0.125)
-        rules = H.channel_block("rules", "label", {1: [_event(W[32], score=None)]}, self.labels(), self.index, 26)
+        rules = H.channel_block("rules", "label", {1: [_event(W[32], score=None)]}, self.labels(), self.index, 26,
+                                {1: []})
         self.assertEqual((rules["ranked"], rules["precision_at_40"], rules["average_precision"], rules["found"]),
                          (False, None, None, 1))
 
-    def test_single_site_matches_the_key_at_any_site(self) -> None:
+    def test_single_site_matches_the_key_only_at_a_planted_site(self) -> None:
+        # regression: an alert on the key at a site the pattern was never planted at is not a find
+        label = _label()
+        self.assertEqual(label["sites"], ["plant-x", "plant-z"])
         per_seed = {1: [_event(W[34], site="plant-x"), _event(W[34], site="plant-y")]}
-        block = H.channel_block("single_site", "label", per_seed, self.labels(), self.index, 26)
-        self.assertEqual((block["found"], block["false_alarms"], block["alerts"]), (1, 0, 2))
+        block = H.channel_block("single_site", "label", per_seed, self.labels(), self.index, 26, {1: []})
+        self.assertEqual((block["found"], block["false_alarms"], block["alerts"]), (1, 1, 2))
+        elsewhere = {1: [_event(W[34], site="plant-y")]}
+        block = H.channel_block("single_site", "label", elsewhere, self.labels(), self.index, 26, {1: []})
+        self.assertEqual((block["found"], block["false_alarms"]), (0, 1))
+        self.assertFalse(H.pattern_outcome(elsewhere[1], label, self.index)["found"])
+
+    def test_a_find_in_the_no_plant_control_is_a_chance_find_and_not_net(self) -> None:
+        # regression: the same alert in the world without the plant makes the planted run's find a chance find
+        planted = {1: [_event(W[32])], 2: [_event(W[33])]}
+        control = {1: [_event(W[35])], 2: []}
+        block = H.channel_block("X", "label", planted, self.labels(), self.index, 26, control)
+        self.assertEqual((block["found"], block["control_found"], block["found_net"]), (2, 1, 1))
+        self.assertEqual((block["control_recall"], block["recall_net"], block["control_alerts"]), (0.25, 0.25, 1))
+        self.assertEqual([(r["seed"], r["found"], r["control_found"], r["found_net"], r["control_alerts"])
+                          for r in block["per_seed"]], [(1, 1, 1, 0, 1), (2, 1, 0, 1, 0)])
+        label = self.labels()["patterns"][0]
+        self.assertFalse(H.net_found(planted[1], control[1], label, self.index))
+        self.assertTrue(H.net_found(planted[2], control[2], label, self.index))
 
     def test_lifts_are_cluster_bootstraps_and_equal_recalls_give_zero(self) -> None:
         same = {"p1": [True, False], "p2": [True, True]}
         lift = H.lift("X_minus_S", same, same, B=1000, seed=1)
         self.assertEqual((lift["estimate"], lift["ci_low"], lift["ci_high"]), (0.0, 0.0, 0.0))
+        self.assertEqual(lift["basis"], "found in the planted world and not in the same seed's no-plant control world")
         self.assertTrue(lift["ci_low"] <= 0 <= lift["ci_high"])
         self.assertEqual((lift["n_patterns"], lift["n_seeds"], lift["n_units"], lift["seed"], lift["method"]),
                          (2, 2, 4, "x1:1:X_minus_S", "cluster percentile"))
@@ -1121,6 +1179,14 @@ class MetricTests(unittest.TestCase):
 
     def test_min_detectable_rate_of_the_device_pack(self) -> None:
         rows = H.min_detectable_rate(DQ)["rows"]
+        # regression: with the background in text-only cells and the plant in codes cells X needs rate 3 at b = 2..5,
+        # not the single-cell row's 2 (b = 2: the codes test's 8 x lb(2) = 8 against the certain 1 a week, and the
+        # combined 8 x (1 + 1) = 16 against ub 2 a week, both fail at alpha / 2)
+        self.assertEqual([r["rate_at_k_text_background"] for r in rows], [1, 3, 3, 3, 3, 3, 3])
+        log_half = math.log(0.01 / 2)
+        self.assertGreater(stats.poisson_logsf(8, 8.0), log_half)
+        self.assertGreater(stats.poisson_logsf(16, 16.0), log_half)
+        self.assertLess(stats.poisson_logsf(24, 8.0), log_half)
         self.assertEqual([r["rate_at_k"] for r in rows], [1, 3, 2, 2, 2, 2, 3])
         self.assertEqual([r["rate_unsuppressed"] for r in rows], [1, 1, 2, 2, 2, 2, 3])
 

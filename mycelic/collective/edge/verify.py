@@ -24,12 +24,14 @@ threads; the orchestrator calls ``answer`` on worker threads):
    ref, and the ledger ``ref`` is ``j:<question id prefix>:<index>``. A boundary refusal propagates and nothing is
    stored or sent; any other inference error counts the record as a failure;
 7. the verdict: no record retrieved, ``unknown`` (``no_records``); failures on more than half, ``unknown`` with
-   quality ``degraded``; any yes/yes, ``confirm`` (support, distinct roots, distinct reporters with every unknown
-   reporter one shared reporter, the newest week of the yes/yes records); a record that mentions the entity, none
-   that describes the predicate and fewer than half unclear, ``refute`` (the mentioning records); else ``unknown``
-   (``unclear``). Counts leave only as :func:`~.egress.bucket_of` labels; the local reason stays in ``verdict_log``;
-8. ``evidence_ref = HMAC-SHA256(secret, verdict_id)[:16]`` for a confirm or a refute, null otherwise; the verdict and
-   its ``answered`` question_log row are stored in one transaction, then sent.
+   quality ``degraded``, which reflects the model server's health rather than the records, so it is sent but not
+   stored (its question_log row is ``degraded``, which uses no budget) and the next ask re-judges; any yes/yes,
+   ``confirm`` (support, distinct roots, distinct reporters with every unknown reporter one shared reporter, the
+   newest week of the yes/yes records); a record that mentions the entity, none that describes the predicate and
+   fewer than half unclear, ``refute`` (the mentioning records); else ``unknown`` (``unclear``). Counts leave only
+   as :func:`~.egress.bucket_of` labels; the local reason stays in ``verdict_log``;
+8. ``evidence_ref = HMAC-SHA256(secret, verdict_id)[:16]`` for a confirm or a refute, null otherwise; any verdict but
+   a degraded one is stored with its ``answered`` question_log row in one transaction, then sent.
 
 Secrets: a secret file of exactly 64 lowercase hex characters (one trailing newline allowed), read at construction
 (``secret_mode`` ``file``; a missing file is ``none`` and fails closed), or a demo seed (``seeded-demo``:
@@ -372,6 +374,9 @@ class SiteVerifier:
         outcome = decide(records, judged, failures)
         parsed = boundary.validate("out", "verdict", self._body(question, outcome.verdict, outcome=outcome,
                                                                 truncated=truncated))
+        if outcome.quality == "degraded":
+            store.log_question(QuestionLogRow(0, qid, day, t, eid, "degraded", ts))
+            return boundary.send("out", "verdict", parsed)
         data = canonical_bytes(parsed)
         misses = sum(1 for r in outcome.confirming if not store.has_claim(r.record_ref, t, eid, params["predicate"]))
         store.add_verdict(

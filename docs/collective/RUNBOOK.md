@@ -371,6 +371,15 @@ python -m mycelic.collective.experiments.e1_extract compare --prereg <prereg-fil
   whose labels name a lot (or supplier), `matches` those whose predicted ids equal the labelled ones in every run,
   with a Wilson interval over records. Each `run.json` has that run's own rate.
 - `models_served` and `model_mismatch` show whether a server answered with a different model than you asked for.
+- **Transport failures are the server's, not the model's.** A record whose extraction ended in `timeout`,
+  `network`, `http_4xx`, `http_5xx`, `too_large` or `no_handler` is not scored (`scored: false` in
+  `predictions.jsonl`): it is left out of every F1, exact-match figure and paired comparison, and the JSON validity
+  rates count only attempts that reached the model and came back. `failures` (per endpoint in `e1.json`, per run in
+  `run.json`) counts the transport and the model failures by kind, and `transport_failure_share` is the transport
+  share of the endpoint's record runs. When either side of a paired comparison has transport failures on more than
+  1% of its record runs, `paired.<name>.withheld_reason` says so and `non_inferior` and `kill_flag` are null: fix the
+  server (timeouts, memory, the context size) and re-run that endpoint's repeats. A fake run says
+  `measurement_false` there.
 
 ## 9. G0: does planted text leave a site? (text only)
 
@@ -519,6 +528,16 @@ suppression. Ctrl-C exits 130 and leaves a partial run directory; start again un
 - `channels.<name>` gives recall (found / patterns x seeds), recall by visibility, median delay and lead in weeks,
   tie-averaged precision@40 and AP, false alarms per week and how many decoys of each class alerted. Read X against
   S, R_mf, single_site and U; `rules` is unranked.
+- **Every seed also runs without the plant** (the control, `work/seed-<seed>/control/`). A pattern a channel finds
+  there is a chance find: its key alerts in its window on the background alone. Each channel reports
+  `control_found`, `control_recall` and `control_alerts` next to `found`, and `found_net` / `recall_net` count only
+  what was found with the plant and not in the control; each pattern outcome says `found_in_control`, and
+  `control_alerts` lists the control's alerts. The lifts compare net found (`lifts.*.basis`). Read `recall_net`, not
+  `recall`, when you compare channels: single_site in particular can "find" a pattern on a busy site's background.
+  single_site counts a find only at one of the pattern's planted sites.
+- `min_detectable_rate` is arithmetic on the pack's settings: the smallest constant weekly rate each per-site test
+  can certainly see over a constant background, at k, unsuppressed, and for X with the background in text-only
+  cells (`rate_at_k_text_background`).
 - `by_construction` says what S and R_mf cannot see by construction (narrative-only plants); it is **not a result**.
 - `known_hard_cases` lists unmarked cross-site copies, which count as independent at each site.
 - `warnings` include decoys that were not quiet elsewhere (background noise on their key) and fewer than 10
@@ -577,6 +596,15 @@ Use a new `--run-id` for each of the three commands. Reading `runs/replay/<run-i
   initiation date, within `--lookback-weeks`; `median_lead_days` is how long before. Alerts after the initiation are
   counted as `post_recall_alerts` (stimulated reporting) and never as found.
 - `false_alarms_per_week` counts alerts on **every** product code of the manufacturer, not only recalled ones.
+- **Read `found` only against chance.** A recall is matched on its product code alone, so a channel that alerts on
+  a code often "finds" its recalls at almost any date. Each channel reports `alerts`, `alerts_per_week`,
+  `found_minus_expected` and `chance`: the channel's own alerts shifted in time by every whole number of weeks
+  (keeping how many alerts each code has and how they cluster) against the recalls at their real dates.
+  `chance.expected_found` is what the channel's alert volume finds by timing alone; `chance.p_value` is the share of
+  shifts that found at least as many recalls as the real alignment (never below one over the number of evaluated
+  weeks); `chance.per_recall` says how easily each recall is found by chance. A channel whose `found` does not clear
+  its `expected_found` with a small `p_value` has shown nothing, however high its `found`. Compare channels by
+  `found_minus_expected`, never by `found`.
 - `recalls.unmatched_product_code` lists recalls of codes with no event in the cache; `not_evaluable` recalls fall
   before the first evaluated week.
 
@@ -626,12 +654,23 @@ central comparator: it routes `judge_candidate_raw` and `judge_candidate_allowed
 at a `central` (or `external`) boundary; E2 refuses a site boundary or the fake provider there.
 
 ```
-python -m mycelic.collective.experiments.e2_pushdown run --x1-prereg <prereg-file> --plant <plant-file> --run-id <run-id> --site-routing <site-routing-dir> --central-routing <central-routing-file> --allow-external-raw synthetic --data-label synthetic
+python -m mycelic.collective.experiments.e2_pushdown run --x1-prereg <prereg-file> --plant <plant-file> --run-id <run-id> --site-routing <site-routing-dir> --central-routing <central-routing-file> --central-context-tokens <context-tokens> --allow-external-raw synthetic --data-label synthetic
 ```
 
-`--top-n` (default 60) is the number of candidates per seed; `--deadline-seconds` (default 600) is how long HQ waits
-for one site's verdict before it records a timeout; `--bootstrap-b` (at least 1000, default 10000) and
-`--bootstrap-seed` set the paired bootstrap. `--dry-run` lists what is missing and writes nothing.
+`--central-context-tokens` is required with `--central-routing`: the context one request gets on the central server. For
+Ollama that is the model's `num_ctx` (check what your server uses; set it in a Modelfile or the request options); for
+llama-server it is `-c` divided by `--parallel`, since the slots share the context. A central_raw prompt holds up to 400
+records of raw text and can run to thousands of tokens (the fake's rough estimate, a quarter of the payload's bytes, put
+the rehearsal's longest near ten thousand; a real tokenizer differs), and a server that cuts a prompt silently shows the
+central reference less than it was given. E2 keeps each central_raw call's server-reported prompt tokens and counts
+every prompt that, with the 64 output tokens, reaches the context you declared (or did not report its tokens); any such
+prompt withholds the bar. Declare the real number: a larger one than the server gives hides truncation.
+
+`--top-n` (default 60) is the number of candidates per seed; `--deadline-seconds` (default 600) is how long HQ waits for
+one site's verdict before it records a timeout, after which E2 waits up to the same time again for the late answer and
+scores the item on it (a site answers one question at a time, so a late answer would otherwise also delay the next
+question to that site); `--bootstrap-b` (at least 1000, default 10000) and `--bootstrap-seed` set the paired bootstrap.
+`--dry-run` lists what is missing and writes nothing.
 
 **How long it takes: estimate it from your own E3 numbers; there is no figure here.** Run the rehearsal first. In
 its `e2.json`, `items[].central_raw_records` is how many records the central judge read for each candidate across all
@@ -645,12 +684,29 @@ about one entity on one simulated day into `unknown` (budget); `pushdown.budget_
 **Reading `runs/e2/<run-id>/e2.json`:**
 
 - `stamps.measurement` is true only when no fake took part anywhere (every site endpoint, the central endpoint and
-  every ledger row). **The 0.90 bar is judged only then**: `verdict` holds `ratio_at_least_bar`,
-  `ci_low_at_least_bar`, `pushdown_raw_text_bytes_zero` and `pass`; otherwise `verdict` is null,
-  `verdicts_withheld` is true and `withheld_reason` says why (a fake was involved, or the ratio is undefined because
-  central_raw's AP is null or below 0.01).
-- `conditions.<name>`: AP and precision@40 with paired percentile intervals (`bootstrap.method`); `ratio` is
-  pushdown AP over central_raw AP with its paired interval.
+  every ledger row). **The 0.90 bar is judged only then, and only on a complete, informative run**: `verdict` holds
+  `ratio_at_least_bar`, `ci_low_at_least_bar`, `lift_ratio_at_least_bar`, `pushdown_raw_text_bytes_zero` and `pass`.
+  Otherwise `verdict` is null, `verdicts_withheld` is true and `withheld_reason` says why, the first that applies of:
+  a fake was involved; the central judge failed on some items (`central.failures` by kind: fix the server and
+  re-run); a central_raw prompt reached the context you declared or did not report its tokens
+  (`central.at_context_limit`: raise the context on the server and in `--central-context-tokens`); more than 5% of
+  the pushdown routes went unanswered (`pushdown.unanswered_share`: a timeout, an error or a degraded judge; the run
+  measured your deadline and servers, not pushdown); the ratio is undefined (central_raw's AP is null or below 0.01);
+  or the candidate pool is **uninformative** (central_raw does not beat a random order: its lift over `chance` has a
+  95% interval reaching 0).
+- `conditions.<name>`: AP and precision@40 with paired percentile intervals, resampled by candidate key
+  (`bootstrap.clusters`, `n_clusters`: one key in several seeds is one cluster). `ratio.estimate` is pushdown AP over
+  central_raw AP with its paired interval. `chance` is the AP of a random order, close to the share of true candidates,
+  and `ratio.lift_estimate` is the **chance-corrected ratio**, pushdown's AP minus chance over central_raw's AP minus
+  chance: how much of central_raw's gain over a random order pushdown keeps. Read it first. When most candidates are
+  true, any verifier, even one that scores every candidate the same, has an AP close to central_raw's and an AP ratio
+  near 1; its chance-corrected ratio is 0. On the shipped smoke fixture 247 of 300 candidates are true, so a run on it
+  is withheld as uninformative unless the judges separate far better than chance: a real E2 needs a plant spec with many
+  more decoys and background keys.
+- `central`: central-call failures by condition and kind, items left out of the statistics for them
+  (`failed_items`, also `bootstrap.excluded_central_failures`), and the central_raw prompt tokens (`prompt_tokens_max`,
+  `prompt_tokens_median`, `prompt_tokens_unreported`, `at_context_limit`). Each item has its `central_errors` and
+  `central_raw_prompt_tokens`.
 - `raw_text_bytes`: `central_raw` is the UTF-8 bytes of record text it sent (more than 0 by design); `stats_only` and
   `central_allowed` are 0; `pushdown` is the narrative overlap found in every artifact that crossed (questions,
   verdicts, the site ingress and egress logs) and must be 0. `raw_text_scan` shows how each was scanned.
@@ -658,6 +714,10 @@ about one entity on one simulated day into `unknown` (budget); `pushdown.budget_
   to in-window records of that site judged yes/yes (STRATEGY section 6.3 targets at least 95%), and how many
   confirming records the site's extractor had missed (`extraction_miss_confirmations`).
 - `pushdown.statuses`, `verdicts`, `routes`, `budget_unknowns`, `timeouts` and `errors` describe the pushdown run;
+  `late_collected` counts answers that came after the deadline and were scored, `unanswered` and `unanswered_share`
+  the routes that still ended without an answer (timeout, error, or a degraded judge: a site whose judge failed on
+  more than half of the records answers `unknown` with quality `degraded`, keeps nothing and judges again when asked
+  again);
   `items[]` lists every candidate with its label (`true`, `decoy` or `background`), status and four scores.
 - `notes` say what the data is: synthetic, same-author, internal only; cross-site copies without an origin marker
   count as independent roots at each site, so pushdown can reach `supported` on them (a known hard case).
@@ -768,10 +828,11 @@ python demo/collective/collective_demo.py --export <page-file>
 ```
 
 `--export` takes the committed run unless you pass `--run <recorded-dir>`. A port in use, a missing file or an older
-schema version prints one `error:` line and exits 2.
+schema version prints one `error:` line and exits 2. A replay and an export always show the RECORDED badge, also for
+a run that was driven live with `--serve`: nothing runs behind them. Their footer still says how the run was made.
 
 **Serve** the live console at `http://127.0.0.1:8765/`: the engine runs now, the presenter presses "Check with sites"
-and approves each follow-up as the named owner, and the screen says LIVE. The run files are written to
+and approves each follow-up as the named owner, and the badge says LIVE. The run files are written to
 `runs/collective/<run-id>` (or `--out`) when the last beat ends:
 
 ```
@@ -821,15 +882,18 @@ the error kinds, and writes nothing.
 
 ## 17. Live vs recorded, and what to send back
 
-- **RECORDED** (`--record`, `--replay`, `--export`): the approvals were scripted (`approval: recorded`, and the
-  screen says "recorded approval (scripted)"); `--record` requests each execution twice to show it runs once.
-  **LIVE** (`--serve`): the presenter approved each follow-up in the console, acting as the named owner
-  (`approval: live`), and each execution was requested once. Say which one you are showing; the badge and the footer
-  say it too.
+- **The badge** says LIVE only while the console drives the engine now (`--serve`); `--record`, `--replay` and
+  `--export` say RECORDED, whatever mode the run was made in (`screen.json`'s `presentation`). **The footer** says
+  how the run was made (`mode`): a **scripted run** (`--record`: the approvals were scripted, `approval: recorded`,
+  the screen says "recorded approval (scripted)", and each execution is requested twice to show it runs once) or a
+  **run driven live in the console** (`--serve`: the presenter approved each follow-up, acting as the named owner,
+  `approval: live`, and each execution was requested once). Say which one you are showing.
 - **Simulated:** the plants run in one process; the stand-in model reads the pack's own sentences perfectly; the
   follow-up layer is built ahead of X4 and not measured; the outcome is "not yet checked".
 - **Send back** the six run files of a `--routing` recording, with a note on the server (section 2). They hold no
-  narrative, no path, no host or user name and no key; the run's own scans and the lint check that. Never send the
+  narrative, no path, no host or user name and no key; the run's own scans and the lint check that. `ledger.jsonl`
+  holds HQ's own model calls only; a plant's usage is in `scorecard.json` `ledger.site_usage`, only as the
+  k-suppressed usage summaries that crossed its Boundary (a plant's per-call ledger never leaves it). Never send the
   work directory (`--keep-workdir`): it holds the synthetic narratives and the canary manifest.
 - **What the demo does not replace:** E2 (section 13) measures pushdown against central reading; X1 (section 11) is
   the blind planted-pattern test; the public replay (section 12) is the real-data result. Until they run, the demo's

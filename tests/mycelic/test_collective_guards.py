@@ -1,7 +1,9 @@
 """Repository guards for the collective layer. Later gates extend the lists at the top of this module.
 
 * ImportGuardTests: the fabric core imports no model client and nothing from ``mycelic.collective`` (static AST
-  check, including ``importlib.import_module``/``__import__`` string constants, plus fresh-interpreter checks).
+  check, including ``importlib.import_module``/``__import__`` string constants and names a package re-exports, each
+  resolved to the module that defines it; plus fresh-interpreter checks: no core global is defined in a forbidden
+  module, and the one known transitive load of a model-client module follows exactly its documented chain).
 * StdlibOnlyTests: every collective module and CLI runs under ``python -S`` (no site-packages).
 * NoModelNamesTests: no model-family name in collective code, docs or tests (the matcher holds digests only).
 * DeterminismTests: no wall clock or unseeded randomness in the modules that must replay bit for bit.
@@ -30,6 +32,7 @@ from __future__ import annotations
 import ast
 import codecs
 import hashlib
+import importlib
 import json
 import os
 import re
@@ -37,6 +40,7 @@ import shlex
 import subprocess
 import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
 
@@ -48,9 +52,14 @@ CORE_FILES = tuple(ROOT / "mycelic" / f"{name}.py"
                    for name in ("service", "aggregation", "store", "transport", "lineage"))
 FORBIDDEN_IMPORTS = ("mycelic.collective", "openai", "anthropic", "ollama", "llama_cpp", "vllm", "transformers",
                      "torch", "NeuralGraph.llm_backend", "NeuralGraph.chat_memory.llm")
-# importing mycelic.service loads NeuralGraph.chat_memory (and with it chat_memory.llm) through mycelic.retrieval;
-# the fresh-interpreter check therefore omits chat_memory.llm and checks that chain separately
+# importing mycelic.service loads NeuralGraph.chat_memory (and with it chat_memory.llm) through mycelic.retrieval,
+# whose ``from NeuralGraph.chat_memory.textutil import tokenize`` runs the package's __init__ (an integration note for
+# the fabric, INTEGRATION.md); the fresh-interpreter check allows that one module to be loaded only along exactly
+# this chain (KNOWN_CHAIN: module -> the only package or module that may import it), and checks that no core global
+# comes from it
 FORBIDDEN_LOADED = tuple(p for p in FORBIDDEN_IMPORTS if p != "NeuralGraph.chat_memory.llm")
+KNOWN_CHAIN = {"NeuralGraph.chat_memory.llm": "NeuralGraph.chat_memory",
+               "NeuralGraph.chat_memory": "mycelic.retrieval"}
 STDLIB_ONLY_MODULES = (
     "mycelic.collective",
     "mycelic.collective.jsonio",
@@ -237,6 +246,7 @@ RUNBOOK_PLACEHOLDERS = {
     "partition-field": "event_location",
     "site-routing-dir": "{tmp}/missing/site-routing",
     "central-routing-file": "{tmp}/missing/central_routing.json",
+    "context-tokens": "8192",
     "ledger-file": "{tmp}/missing/followups.sqlite3",
     "head-hash": "0" * 64,
     "entity-type": "supplier",
@@ -272,27 +282,81 @@ def _resolve(module: str, level: int, name: str | None) -> str | None:
     return ".".join(base + ([name] if name else [])) or None
 
 
+def _import_quietly(name: str) -> types.ModuleType | None:
+    try:
+        return importlib.import_module(name)
+    except Exception:                    # noqa: BLE001 - a name the checker cannot import is left to the other rules
+        return None
+
+
+def _member(module_name: str, attr: str) -> object | None:
+    """``module_name.attr``: an attribute of the imported module, else its submodule, else None."""
+    mod = _import_quietly(module_name)
+    if mod is None:
+        return None
+    if hasattr(mod, attr):
+        return getattr(mod, attr)
+    return _import_quietly(f"{module_name}.{attr}")
+
+
+def defined_in(obj: object) -> str | None:
+    """The module that defines ``obj``: a module's own name, else its ``__module__`` (None when it has none)."""
+    if isinstance(obj, types.ModuleType):
+        return obj.__name__
+    name = getattr(obj, "__module__", None)
+    return name if isinstance(name, str) else None
+
+
+def _dotted(node: ast.AST) -> list[str] | None:
+    parts: list[str] = []
+    while isinstance(node, ast.Attribute):
+        parts.append(node.attr)
+        node = node.value
+    if not isinstance(node, ast.Name):
+        return None
+    return [node.id, *reversed(parts)]
+
+
 def forbidden_imports(source: str, module: str, prefixes: tuple[str, ...] = FORBIDDEN_IMPORTS) -> list[str]:
     """Every import of a module under ``prefixes`` in ``source`` (the text of ``module``), and every unverifiable
-    one."""
+    one. A name taken from a package that is not itself under ``prefixes`` (``from pkg import name``, or ``import pkg
+    as m`` then ``m.name``) is resolved by importing the package here and is a hit when the module that defines the
+    object is under ``prefixes``: a package that re-exports a model client does not hide it."""
     tree = ast.parse(source)
     dynamic = set(_DYNAMIC_NAMES)
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom) and node.module == "importlib":
             dynamic.update(a.asname or a.name for a in node.names if a.name in _DYNAMIC_NAMES)
     hits: list[str] = []
+    bound: dict[str, str] = {}              # a local name bound to a module (by an import) -> that module's name
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             hits += [f"line {node.lineno}: import {a.name}" for a in node.names if _forbidden(a.name, prefixes)]
+            for a in node.names:
+                if a.asname is not None:
+                    bound[a.asname] = a.name
+                else:
+                    bound[a.name.split(".")[0]] = a.name.split(".")[0]
         elif isinstance(node, ast.ImportFrom):
             base = _resolve(module, node.level, node.module)
             if base is None:
                 hits.append(f"line {node.lineno}: unresolvable relative import")
                 continue
+            found = False
             for name in [base] + [f"{base}.{a.name}" for a in node.names]:
                 if _forbidden(name, prefixes):
                     hits.append(f"line {node.lineno}: from-import of {name}")
+                    found = True
                     break
+            if found or base == "__future__":
+                continue
+            for a in node.names:
+                obj = _member(base, a.name) if a.name != "*" else None
+                origin = defined_in(obj) if obj is not None else None
+                if origin is not None and _forbidden(origin, prefixes):
+                    hits.append(f"line {node.lineno}: from-import of {base}.{a.name}, defined in {origin}")
+                elif isinstance(obj, types.ModuleType):
+                    bound[a.asname or a.name] = obj.__name__
         elif isinstance(node, ast.Call):
             func = node.func
             is_dynamic = ((isinstance(func, ast.Name) and func.id in dynamic)
@@ -314,7 +378,21 @@ def forbidden_imports(source: str, module: str, prefixes: tuple[str, ...] = FORB
                 name = _resolve(pkg.value + ".__init__", level, name.lstrip(".") or None) or ""
             if _forbidden(name, prefixes):
                 hits.append(f"line {node.lineno}: dynamic import of {name}")
-    return hits
+    for node in ast.walk(tree):
+        chain = _dotted(node) if isinstance(node, ast.Attribute) else None
+        if chain is None or chain[0] not in bound:
+            continue
+        current = bound[chain[0]]
+        for attr in chain[1:]:
+            obj = _member(current, attr)
+            origin = defined_in(obj) if obj is not None else None
+            if origin is not None and _forbidden(origin, prefixes):
+                hits.append(f"line {node.lineno}: attribute {'.'.join(chain)}, defined in {origin}")
+                break
+            if not isinstance(obj, types.ModuleType):
+                break
+            current = obj.__name__
+    return sorted(set(hits), key=hits.index)
 
 
 POSITIVE_IMPORTS = (
@@ -347,12 +425,20 @@ POSITIVE_IMPORTS = (
     "import importlib\nimportlib.import_module('.collective', 'mycelic')",
     "import importlib\nname = 'x'\nimportlib.import_module(name)",
     "__import__(''.join(['open', 'ai']))",
+    # a package that re-exports a model client (regression: these passed the guard)
+    "from NeuralGraph.chat_memory import BackendLLMClient",
+    "from NeuralGraph.chat_memory import BackendLLMClient as _ModelClient",
+    "import NeuralGraph.chat_memory as _cm\n_ModelClient = _cm.BackendLLMClient",
+    "import NeuralGraph.chat_memory\nclient = NeuralGraph.chat_memory.BackendLLMClient",
+    "from NeuralGraph import chat_memory\nclient = chat_memory.BackendLLMClient",
 )
 NEGATIVE_IMPORTS = (
     "import json",
     "from .store import MycelicStore",
     "from .models import Memory",
     "from NeuralGraph.chat_memory.textutil import tokenize",
+    "from NeuralGraph.chat_memory import ChatMessage",
+    "import NeuralGraph.chat_memory as _cm\nmessage = _cm.ChatMessage",
     "from NeuralGraph.research.coordination.core import LineageAnalyzer",
     "import openaiish",
     "import torchvisionlike",
@@ -389,10 +475,13 @@ class ImportGuardTests(unittest.TestCase):
                 self.assertEqual(forbidden_imports(snippet, "mycelic.service"), [])
 
     def test_checker_flags_an_injected_import_in_a_copy_of_a_core_file(self) -> None:
-        source = (ROOT / "mycelic" / "lineage.py").read_text(encoding="utf-8")
-        for line in ("import openai", "import importlib\nimportlib.import_module('vllm')"):
-            with self.subTest(line=line):
-                self.assertTrue(forbidden_imports(source + "\n" + line + "\n", "mycelic.lineage"))
+        for name in ("lineage", "service"):
+            source = (ROOT / "mycelic" / f"{name}.py").read_text(encoding="utf-8")
+            for line in ("import openai", "import importlib\nimportlib.import_module('vllm')",
+                         "from NeuralGraph.chat_memory import BackendLLMClient as _ModelClient",
+                         "import NeuralGraph.chat_memory as _cm\n_ModelClient = _cm.BackendLLMClient"):
+                with self.subTest(core=name, line=line):
+                    self.assertTrue(forbidden_imports(source + "\n" + line + "\n", f"mycelic.{name}"))
 
     def loaded(self, modules: tuple[str, ...]) -> list[str]:
         code = ("import json, sys\n" + "".join(f"import {m}\n" for m in modules)
@@ -408,6 +497,65 @@ class ImportGuardTests(unittest.TestCase):
         self.assertEqual([m for m in loaded if _forbidden(m, FORBIDDEN_LOADED)], [])
         if any(m.startswith("NeuralGraph.chat_memory") for m in loaded):
             self.assertIn("mycelic.retrieval", loaded, "NeuralGraph.chat_memory loaded without mycelic.retrieval")
+
+    def core_report(self, modules: tuple[str, ...], extra: str = "") -> dict[str, object]:
+        """A fresh interpreter imports ``modules`` (after ``extra``) and reports, per module of KNOWN_CHAIN, the
+        modules that imported it, and per module the modules that define its globals."""
+        code = "\n".join([
+            "import json, sys, types",
+            "watch = " + json.dumps(sorted(KNOWN_CHAIN)),
+            "importers = {}",
+            "class Recorder:",
+            "    def find_spec(self, name, path=None, target=None):",
+            "        if name in watch:",
+            "            frame = sys._getframe(1)",
+            "            while frame is not None and frame.f_code.co_filename.startswith('<frozen importlib'):",
+            "                frame = frame.f_back",
+            "            importers.setdefault(name, set()).add(frame.f_globals.get('__name__') if frame else None)",
+            "        return None",
+            "sys.meta_path.insert(0, Recorder())",
+            extra,
+            *[f"import {m}" for m in modules],
+            "origins = {}",
+            "for m in " + json.dumps(list(modules)) + ":",
+            "    values = vars(sys.modules[m]).values()",
+            "    names = {v.__name__ if isinstance(v, types.ModuleType) else getattr(v, '__module__', None)",
+            "             for v in values}",
+            "    origins[m] = sorted(n for n in names if isinstance(n, str))",
+            "print(json.dumps({'importers': {k: sorted(map(str, v)) for k, v in importers.items()},",
+            "                  'origins': origins}))"])
+        r = subprocess.run([sys.executable, "-c", code], cwd=ROOT, capture_output=True, text=True, timeout=120,
+                           env={**os.environ, "PYTHONPATH": str(ROOT)})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return json.loads(r.stdout.strip().splitlines()[-1])
+
+    def test_no_core_global_is_defined_in_a_model_client_module(self) -> None:
+        # regression: a core file could take the model client a package re-exports and every check stayed green
+        modules = tuple(f"mycelic.{p.stem}" for p in CORE_FILES)
+        report = self.core_report(modules)
+        for m in modules:
+            with self.subTest(module=m):
+                self.assertEqual([o for o in report["origins"][m] if _forbidden(o)], [])
+        # the same check catches a re-exported client however it was imported (here added to a core module's
+        # globals the way a one-line import in service.py would add it)
+        injected = self.core_report(("mycelic.service",), "import mycelic.service as _s\n"
+                                    "from NeuralGraph.chat_memory import BackendLLMClient as _M\n_s._ModelClient = _M")
+        self.assertEqual([o for o in injected["origins"]["mycelic.service"] if _forbidden(o)],
+                         ["NeuralGraph.chat_memory.llm"])
+
+    def test_the_known_model_client_load_follows_exactly_its_documented_chain(self) -> None:
+        # chat_memory.llm is loaded with the core only because mycelic.retrieval imports a chat_memory submodule,
+        # which runs the package's __init__; any other importer of either module fails here
+        report = self.core_report(tuple(f"mycelic.{p.stem}" for p in CORE_FILES))
+        self.assertEqual(sorted(report["importers"]), sorted(KNOWN_CHAIN))
+        for module, importers in report["importers"].items():
+            allowed = KNOWN_CHAIN[module]
+            with self.subTest(module=module):
+                self.assertTrue(importers)
+                self.assertEqual([i for i in importers if not (i == allowed or i.startswith(allowed + "."))], [])
+        # a core file importing the package itself is outside the chain
+        injected = self.core_report(("mycelic.lineage",), "import NeuralGraph.chat_memory")
+        self.assertEqual(injected["importers"]["NeuralGraph.chat_memory"], ["__main__"])
 
     def test_core_without_service_loads_no_chat_memory(self) -> None:
         loaded = self.loaded(("mycelic.store", "mycelic.transport", "mycelic.lineage", "mycelic.aggregation"))

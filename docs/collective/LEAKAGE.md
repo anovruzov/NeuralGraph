@@ -68,7 +68,8 @@ discipline: each emission covers the ledger rows whose timestamp falls in a newl
 summary covered (the store records how many rows each summary consumed), so every ledger row is summarised exactly
 once. Counts are suppressed per field (`calls` and each error kind `'<k'` below k; `ok` and the missing-token counts
 may also be 0); tokens and latency are withheld unless `calls` is at least k. A row whose week is still open waits for
-the next window. The per-call ledger never leaves the site. A site without a model sends no usage.
+the next window. The per-call ledger never leaves the site, and the run files (section 11) carry a site's usage only
+as these summaries. A site without a model sends no usage.
 
 ## 3. The canaries
 
@@ -358,12 +359,22 @@ G8 writes run files (ARCHITECTURE section 17): the six files of a collective dem
 G0 run. Run files are meant to be sent back and committed, so they are scanned like anything that crosses a boundary,
 and they must also be portable.
 
-**What a run file may hold.** Counts, buckets, ranks, labels, ids that already crossed (entity ids, codes, question
-and conclusion ids, follow-up keys, evidence refs), the follow-up ledger's entries with their payloads, and usage
-ledger rows projected to `runfiles.LEDGER_ROW_KEYS` (at most twelve per site and task; never a timestamp, run id,
-record ref, host or served model). Never narrative text, a record ref, a person or reporter value, the canary manifest,
-a site database or a site `packets/` directory. The baselines R, U and each site alone appear only as `{rank, caught,
-related}`: none of their counts, features or scores is written.
+**What a run file may hold.** Counts, buckets, ranks, labels, ids that already crossed (entity ids, codes, question and
+conclusion ids, follow-up keys, evidence refs), the follow-up ledger's entries with their payloads, HQ's own usage
+ledger rows projected to `runfiles.LEDGER_ROW_KEYS` (at most twelve per task; never a timestamp, run id, record ref,
+host or served model), and a site's usage only as the usage summaries that crossed its Boundary (`site_usage`,
+k-suppressed as sent, section 2). Never narrative text, a record ref, a person or reporter value, the canary manifest, a
+site database, a site's per-call ledger or a site `packets/` directory. The baselines R, U and each site alone appear
+only as `{rank, caught, related}`: none of their counts, features or scores is written.
+
+**Why a site's ledger rows never enter a run file.** A site's per-call ledger is site data: the judge makes one call per
+judged record and extraction one per record, so a site's rows for one question or one week are its exact record counts,
+below k as often as not. Up to G8 the run files copied up to twelve rows per site and task, which put those counts (and,
+for a question, the site's exact judged count) into a file meant to be committed and sent. `runfiles.project_ledger` now
+refuses any `site:<id>` row, and a site's usage appears only as `crossed_usage` reads it from HQ's receive log: every
+group of every usage summary, a `'<k'` count written as null and named in `suppressed`. The site ledgers are still read
+inside the run, for one thing only: each site task's endpoint flags (any call, every call to an in-process fake, every
+call fake-marked), which label the providers; no count or row leaves that read.
 
 **Hygiene of digests and paths.** Every sha256 in a run file is its first 32 hex characters (`runfiles.shorten`); a
 64-hex token is refused, because it reads as a credential (`secret_findings` of the live-demo tests), and a string
@@ -372,23 +383,27 @@ path, the work and output directories, the repository root, the home directory, 
 tokens), a credential-named key and the agent-key prefix; `write_run_files` checks every file before writing any, so
 a problem writes nothing. The full digests stay in the stores of the work directory, which the demo removes at exit.
 
-**G0's `run_files` stage** runs after the follow-up stage. It writes `run/ledger.jsonl` (every site's usage ledger and
-the central draft ledger, projected and capped), `run/approvals.jsonl` (the follow-up ledger's entries and its head),
-`run/trace.json` (the stages, every question's rendered text and every conclusion with its verdicts' buckets) and
-`run/scorecard.json` (digests, the stage totals, the ledger summary and a content hash), and scans the four files as
-the crossing class `run_files`. A stage that writes narrative text into `run/` fails the run with a shingle hit of that
-class (`G0RunnerTests`). `leakage.json` gains `run_files_totals` (`files`, `bytes`, `ledger_rows_total`,
-`ledger_rows_written`).
+**G0's `run_files` stage** runs after the follow-up stage. It writes `run/ledger.jsonl` (HQ's central draft ledger only,
+projected and capped; the sites' usage is the scorecard's `site_usage`), `run/approvals.jsonl` (the follow-up ledger's
+entries and its head), `run/trace.json` (the stages, every question's rendered text and every conclusion with its
+verdicts' buckets) and `run/scorecard.json` (digests, the stage totals, the ledger summary and a content hash), and
+scans the four files as the crossing class `run_files`. A stage that writes narrative text into `run/` fails the run
+with a shingle hit of that class (`G0RunnerTests`). `leakage.json` gains `run_files_totals` (`files`, `bytes`,
+`ledger_rows_total`, `ledger_rows_written`).
 
-Measured on the G0 runs of section 1 with the run-files stage (seed 11, 1,000 records, 6 sites; synthetic, a fake
-model, simulated approvals; same-author, **not a measurement**): both exit 0 with stages `edge`, `pushdown`,
-`followup`, `run_files`, `hits` empty and `shingle_overlap_bytes` 0.
+Measured on the G0 runs of section 1 with the run-files stage, re-run after the change above (seed 11, 1,000
+records, 6 sites; synthetic, a fake model, simulated approvals; same-author, **not a measurement**): both exit 0 with
+stages `edge`, `pushdown`, `followup`, `run_files`, `hits` empty and `shingle_overlap_bytes` 0.
 
 | | `device_quality` | `claims_integrity` |
 |---|---|---|
-| run files scanned, bytes | 4, 95,860 | 4, 66,422 |
-| usage ledger rows: total, written (at most twelve per site and task) | 1,485, 148 | 1,538, 145 |
+| run files scanned, bytes | 4, 54,784 | 4, 25,780 |
+| HQ usage ledger rows: total, written (at most twelve per task) | 4, 4 | 1, 1 |
+| crossed usage groups in `site_usage` | 6 | 6 |
 | follow-up ledger entries in `approvals.jsonl` | 44 | 11 |
+
+Up to G8 the same runs wrote 1,485 and 1,538 usage rows in total (148 and 145 written), nearly all of them the
+sites' own.
 
 **The demo's two scans.** A collective demo run scans twice, with the scenario's canaries planted at every plant
 (classes a, b and c) and its narratives as the shingle source:
@@ -404,11 +419,11 @@ plant's own database and must find canaries and narrative text. After `screen.js
 scans all six final files and runs the portability check; any hit stops the run with nothing written. Both scans and
 the positive control are in `leakage.json`, and the check beat shows the first one.
 
-On the committed demo run (synthetic, same-author, the deterministic stand-in model, **not a measurement**): both
-scans have `hits` empty and `shingle_overlap_bytes` 0; the final scan covers fourteen classes, `run_files` among them
-(four files, 88,667 bytes); the positive control finds 952 canary hits and 44,050 overlapping bytes in the first
-plant's database. The committed run's six files also pass a re-scan against a rebuilt world in the tests
-(`CommittedRunTests`).
+On the committed demo run (synthetic, same-author, the deterministic stand-in model, **not a measurement**): both scans
+have `hits` empty and `shingle_overlap_bytes` 0; the final scan covers fourteen classes, `run_files` among them (four
+files, 49,452 bytes; HQ's draft ledger only, the plants' usage as `site_usage`); the positive control finds 952 canary
+hits and 44,050 overlapping bytes in the first plant's database. The committed run's six files also pass a re-scan
+against a rebuilt world in the tests (`CommittedRunTests`).
 
 **What the run-file checks do not cover.** They are text checks, as everything here: they cannot show that a run
 file's counts, buckets, ranks or co-mentions reveal nothing (section 7, X5). A run with `--routing` names the endpoint

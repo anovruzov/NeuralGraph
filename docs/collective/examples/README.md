@@ -49,7 +49,9 @@ pushdown judge: it answers one question about one of the site's own records, so 
 `central_routing.example.json` routes E2's two central tasks, `judge_candidate_raw` (raw record text, which E2 sends
 only from synthetic worlds) and `judge_candidate_allowed` (only the fields policy allows to leave), to one endpoint
 with boundary `central`. `central-model-tag` and the port are placeholders: point it at the server and model you
-compare against. E2 refuses a central route that names a `site:` boundary or the fake provider.
+compare against. E2 refuses a central route that names a `site:` boundary or the fake provider. Pass the context
+one request gets on that server with `--central-context-tokens` (required with `--central-routing`; RUNBOOK section
+13): a central_raw prompt can hold up to 400 records of raw text, and a prompt at that context withholds the bar.
 
 ## Prices
 

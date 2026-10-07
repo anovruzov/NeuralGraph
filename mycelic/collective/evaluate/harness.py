@@ -21,13 +21,15 @@ sha256, which ``check-plant`` prints for the planter), and dirty or unknown code
 
 **What a run does.** Per seed: generate the world, plant the spec, run the real pipeline (``baselines``), and read
 every channel: X and S from HQ's store, R (model-free), U, rules and single_site, and with ``--ablation-k1`` the
-unsuppressed X and S. Alerts before the evaluation weeks are burn-in and dropped. A pattern is found by a channel
-when an alert names its key inside ``[start, min(end + grace, eval_to)]`` (single_site: at any site); repeats count
-once; every other alert is a false alarm. Recall is pooled over patterns x seeds; precision@40 and AP are
-tie-averaged per seed over distinct alerted keys (score: the key's best alert) and averaged over seeds; lifts are
-cluster bootstraps over patterns (each pattern's per-seed found differences). Diagnostics: the quiet precondition of
-the structural decoys, the X flags at a decoy's detection, suppression shares and the analytic minimum detectable
-rate of G4's per-site test.
+unsuppressed X and S. Then the same seed's world **without the plant** (the control) runs through the same pipeline
+and channels. Alerts before the evaluation weeks are burn-in and dropped. A pattern is found by a channel when an
+alert names its key inside ``[start, min(end + grace, eval_to)]`` (single_site: at one of the pattern's planted
+sites); repeats count once; every other alert is a false alarm. A unit (pattern, seed) found in the control world is
+a chance find: each channel reports its control finds, and ``found_net`` counts units found with the plant and not
+in the control. Recall is pooled over patterns x seeds; precision@40 and AP are tie-averaged per seed over distinct
+alerted keys (score: the key's best alert) and averaged over seeds; lifts are cluster bootstraps over patterns of
+each pattern's per-seed differences in net found. Diagnostics: the quiet precondition of the structural decoys, the
+X flags at a decoy's detection, suppression shares and the analytic minimum detectable rate of G4's per-site test.
 
 **What the scorecard says about itself.** ``stamps`` are ``synthetic: true``, ``internal_only: true`` and
 ``measurement: false``; ``blind`` is self-declared (``blind_basis``). It is validated against
@@ -83,8 +85,11 @@ BY_CONSTRUCTION_LABEL = "by construction, not a result"
 BY_CONSTRUCTION_STATEMENT = ("planted narrative_only records carry no codes and no structured entities, so they add "
                              "nothing to the cells this channel reads")
 KNOWN_HARD_NOTE = "copies without origin markers count as independent at each site (G3 limitation)"
+NET_BASIS = "found in the planted world and not in the same seed's no-plant control world"
 FEW_PATTERNS_WARNING = "fewer than 10 patterns: the lift intervals are unstable"
-MIN_RATE_LABEL = "analytic: constant weekly counts, G4's per-site D2 test only; not a measurement"
+MIN_RATE_LABEL = ("analytic: constant weekly counts, G4's per-site D2 tests only (rate_at_k_text_background: X with "
+                  "the background in text-only cells and the planted rate in codes cells, two tests at alpha_site / "
+                  "2); not a measurement")
 NOTES = [
     "Synthetic and same-author: the world, the pack and the detector were written by one author. Internal only; "
     "never shown to buyers (STRATEGY section 9.1). Nothing in this file is a measurement.",
@@ -93,6 +98,8 @@ NOTES = [
     "fields allowed to leave, with no model.",
     "The exact channels (U, R_mf and the k=1 ablation) can never raise few_reporters, which G4 defines on a "
     "suppressed reporter count; R_mf also counts every record as its own root and reporter.",
+    "Each seed also runs without the plant (the control): a pattern found there is a chance find. found and recall "
+    "include chance finds; found_net and recall_net do not, and the lifts use found_net.",
 ]
 PREREG_NOTES = ["Settings, code and pack are frozen and hashed here before any plant spec or outcome is seen."]
 
@@ -182,16 +189,19 @@ PREREG_SCHEMA = schemacheck.compile(_O({
 
 _CHANNEL_ENUM = _enum([*CHANNELS, *ABLATION_CHANNELS])
 _EVENT = _O({"week": _WEEK, "rank": _NINT, "key": _STR, "score": _NNUM, "site": _NSTR})
-_VIS_BLOCK = _O({"units": _NAT, "found": _NAT, "recall": _NNUM})
+_VIS_BLOCK = _O({"units": _NAT, "found": _NAT, "recall": _NNUM, "control_found": _NAT, "found_net": _NAT,
+                 "recall_net": _NNUM})
 _CHANNEL_BLOCK = _O({
-    "label": _STR, "ranked": _BOOL, "units": _NAT, "found": _NAT, "recall": _NNUM,
+    "label": _STR, "ranked": _BOOL, "units": _NAT, "found": _NAT, "recall": _NNUM, "control_found": _NAT,
+    "control_recall": _NNUM, "control_alerts": _NAT, "found_net": _NAT, "recall_net": _NNUM,
     "by_visibility": _O({v: _VIS_BLOCK for v in VISIBILITIES}), "median_delay_weeks": _NNUM,
     "median_lead_weeks": _NNUM, "precision_at_40": _NNUM, "average_precision": _NNUM, "false_alarms": _NAT,
     "false_alarms_per_week": _NUM, "alerts": _NAT, "decoys_alerted": _O({c: _NAT for c in DECOY_CLASSES}),
-    "per_seed": _A(_O({"seed": _NAT, "found": _NAT, "recall": _NNUM, "alerts": _NAT, "false_alarms": _NAT,
-                       "false_alarms_per_week": _NUM, "precision_at_40": _NNUM, "average_precision": _NNUM}))})
+    "per_seed": _A(_O({"seed": _NAT, "found": _NAT, "recall": _NNUM, "control_found": _NAT, "found_net": _NAT,
+                       "alerts": _NAT, "control_alerts": _NAT, "false_alarms": _NAT, "false_alarms_per_week": _NUM,
+                       "precision_at_40": _NNUM, "average_precision": _NNUM}))})
 _LIFT = _O({"estimate": _NUM, "ci_low": _NUM, "ci_high": _NUM, "B": _POS, "seed": _STR, "method": _STR,
-            "n_patterns": _NAT, "n_seeds": _NAT, "n_units": _NAT})
+            "basis": _const(NET_BASIS), "n_patterns": _NAT, "n_seeds": _NAT, "n_units": _NAT})
 _FLAGS = _O({"echo": _BOOL, "few_reporters_sites": _A(_STR), "high_base_rate": _BOOL}, nullable=True)
 _SUPPRESSION = {"cells": _NAT, "cells_n_suppressed": _NAT, "share_n_suppressed": _NNUM}
 _HASH_NAMES = ("config_hash", "vocabulary_hash", "detector_hash", "fixtures_hash", "code_hash", "org_hash",
@@ -219,13 +229,14 @@ SCORECARD_SCHEMA = schemacheck.compile(_O({
     "lifts": _O({name: _LIFT for name, _, _ in LIFTS}),
     "by_construction": _A(_O({"channel": _enum(["S", "R_mf"]), "statement": _const(BY_CONSTRUCTION_STATEMENT),
                               "label": _const(BY_CONSTRUCTION_LABEL), "visibility": _const("narrative_only"),
-                              "recall": _NNUM})),
+                              "recall": _NNUM, "control_recall": _NNUM, "recall_net": _NNUM})),
     "known_hard_cases": _A(_O({"decoy_id": _STR, "class": _STR, "seed": _NAT, "note": _const(KNOWN_HARD_NOTE),
                                "alerted": _O({c: _BOOL for c in CHANNELS})})),
     "patterns": _A(_O({"id": _STR, "key": _STR, "visibility": _enum(VISIBILITIES), "sites": _A(_STR),
                        "start_week": _WEEK, "end_week": _WEEK,
                        "outcomes": _A(_O({"seed": _NAT, "channel": _CHANNEL_ENUM, "found": _BOOL,
-                                          "first_alert_week": _NSTR, "delay_weeks": _NINT, "lead_weeks": _NINT}))})),
+                                          "first_alert_week": _NSTR, "delay_weeks": _NINT, "lead_weeks": _NINT,
+                                          "found_in_control": _BOOL}))})),
     "decoys": _A(_O({"id": _STR, "class": _enum(DECOY_CLASSES), "keys": _A(_STR), "sites": _A(_STR),
                      "watch_from": _WEEK, "watch_to": _WEEK,
                      "outcomes": _A(_O({"seed": _NAT, "channel": _CHANNEL_ENUM, "alerted": _BOOL,
@@ -236,8 +247,10 @@ SCORECARD_SCHEMA = schemacheck.compile(_O({
     "suppression": _A(_O({"seed": _NAT, **_SUPPRESSION,
                           "by_channel": _O({"codes": _O(_SUPPRESSION), "text_only": _O(_SUPPRESSION)})})),
     "min_detectable_rate": _O({"label": _const(MIN_RATE_LABEL), "k": _POS,
-                               "rows": _A(_O({"background": _NAT, "rate_at_k": _NINT, "rate_unsuppressed": _NINT}))}),
+                               "rows": _A(_O({"background": _NAT, "rate_at_k": _NINT, "rate_unsuppressed": _NINT,
+                                              "rate_at_k_text_background": _NINT}))}),
     "alerts": _A(_O({"seed": _NAT, "channel": _CHANNEL_ENUM, "items": _A(_EVENT)})),
+    "control_alerts": _A(_O({"seed": _NAT, "channel": _CHANNEL_ENUM, "items": _A(_EVENT)})),
     "warnings": _A(_STR),
     "x1": _O({"eligible": _BOOL, "reasons": _A(_STR),
               "verdict": _O({"lift_ci_low_above_0": _BOOL, "precision_at_40_at_least_0_25": _BOOL, "pass": _BOOL},
@@ -354,7 +367,10 @@ def eval_events(events: Sequence[Mapping[str, Any]], first: str, last: str) -> l
 
 
 def _in_window(event: Mapping[str, Any], label: Mapping[str, Any]) -> bool:
-    return event["key"] == label["key"] and label["found_from"] <= event["week"] <= label["found_to"]
+    """The event names the pattern's key inside its found window and, for a per-site event (single_site), at one of
+    the pattern's planted sites."""
+    return (event["key"] == label["key"] and label["found_from"] <= event["week"] <= label["found_to"]
+            and (event["site"] is None or event["site"] in label["sites"]))
 
 
 def pattern_outcome(events: Sequence[Mapping[str, Any]], label: Mapping[str, Any],
@@ -400,18 +416,30 @@ def _mean(values: Sequence[float | None]) -> float | None:
     return math.fsum(known) / len(known) if known else None
 
 
+def net_found(events: Sequence[Mapping[str, Any]], control: Sequence[Mapping[str, Any]], label: Mapping[str, Any],
+              index: Mapping[str, int]) -> bool:
+    """Found with the plant and not in the no-plant control world (a control find is a chance find)."""
+    return pattern_outcome(events, label, index)["found"] and not pattern_outcome(control, label, index)["found"]
+
+
 def channel_block(channel: str, label: str, per_seed_events: Mapping[int, Sequence[Mapping[str, Any]]],
-                  labels: Mapping[str, Any], index: Mapping[str, int], evaluation_weeks: int) -> dict[str, Any]:
+                  labels: Mapping[str, Any], index: Mapping[str, int], evaluation_weeks: int,
+                  control_events: Mapping[int, Sequence[Mapping[str, Any]]]) -> dict[str, Any]:
     patterns, decoys = labels["patterns"], labels["decoys"]
     seeds = sorted(per_seed_events)
     ranked = channel != "rules"
     outcomes = {(p["id"], s): pattern_outcome(per_seed_events[s], p, index) for p in patterns for s in seeds}
+    chance = {(p["id"], s): pattern_outcome(control_events[s], p, index)["found"] for p in patterns for s in seeds}
+    net = {u: outcomes[u]["found"] and not chance[u] for u in outcomes}
     found_units = [o for o in outcomes.values() if o["found"]]
     by_visibility = {}
     for v in VISIBILITIES:
         units = [(p["id"], s) for p in patterns if p["visibility"] == v for s in seeds]
         found = sum(1 for u in units if outcomes[u]["found"])
-        by_visibility[v] = {"units": len(units), "found": found, "recall": _recall(found, len(units))}
+        found_net = sum(1 for u in units if net[u])
+        by_visibility[v] = {"units": len(units), "found": found, "recall": _recall(found, len(units)),
+                            "control_found": sum(1 for u in units if chance[u]), "found_net": found_net,
+                            "recall_net": _recall(found_net, len(units))}
     per_seed = []
     total_alerts = total_false = 0
     for s in seeds:
@@ -419,9 +447,12 @@ def channel_block(channel: str, label: str, per_seed_events: Mapping[int, Sequen
         found = sum(1 for p in patterns if outcomes[(p["id"], s)]["found"])
         fa = false_alarms(events, patterns)
         p_at_k, ap = ranking(events, patterns) if ranked else (None, None)
-        per_seed.append({"seed": s, "found": found, "recall": _recall(found, len(patterns)), "alerts": len(events),
-                         "false_alarms": fa, "false_alarms_per_week": fa / evaluation_weeks,
-                         "precision_at_40": p_at_k, "average_precision": ap})
+        per_seed.append({"seed": s, "found": found, "recall": _recall(found, len(patterns)),
+                         "control_found": sum(1 for p in patterns if chance[(p["id"], s)]),
+                         "found_net": sum(1 for p in patterns if net[(p["id"], s)]), "alerts": len(events),
+                         "control_alerts": len(control_events[s]), "false_alarms": fa,
+                         "false_alarms_per_week": fa / evaluation_weeks, "precision_at_40": p_at_k,
+                         "average_precision": ap})
         total_alerts += len(events)
         total_false += fa
     alerted = dict.fromkeys(DECOY_CLASSES, 0)
@@ -429,8 +460,13 @@ def channel_block(channel: str, label: str, per_seed_events: Mapping[int, Sequen
         for s in seeds:
             alerted[d["class"]] += int(decoy_outcome(per_seed_events[s], d)["alerted"])
     units = len(patterns) * len(seeds)
+    control_found = sum(1 for found in chance.values() if found)
+    found_net = sum(1 for found in net.values() if found)
     return {"label": label, "ranked": ranked, "units": units, "found": len(found_units),
-            "recall": _recall(len(found_units), units), "by_visibility": by_visibility,
+            "recall": _recall(len(found_units), units), "control_found": control_found,
+            "control_recall": _recall(control_found, units),
+            "control_alerts": sum(len(control_events[s]) for s in seeds), "found_net": found_net,
+            "recall_net": _recall(found_net, units), "by_visibility": by_visibility,
             "median_delay_weeks": stats.percentile([o["delay_weeks"] for o in found_units], 50),
             "median_lead_weeks": stats.percentile([o["lead_weeks"] for o in found_units], 50),
             "precision_at_40": _mean([r["precision_at_40"] for r in per_seed]) if ranked else None,
@@ -441,11 +477,12 @@ def channel_block(channel: str, label: str, per_seed_events: Mapping[int, Sequen
 
 def lift(name: str, found_a: Mapping[str, Sequence[bool]], found_b: Mapping[str, Sequence[bool]], *, B: int,
          seed: int) -> dict[str, Any]:
-    """Cluster bootstrap over patterns of the per-seed differences found_a - found_b (each -1, 0 or 1)."""
+    """Cluster bootstrap over patterns of the per-seed differences found_a - found_b (each -1, 0 or 1); the harness
+    passes net found (:data:`NET_BASIS`)."""
     clusters = [[int(a) - int(b) for a, b in zip(found_a[p], found_b[p])] for p in sorted(found_a)]
     boot = stats.cluster_bootstrap_mean(clusters, B=B, seed=f"x1:{seed}:{name}")
     return {"estimate": boot["mean"], "ci_low": boot["ci_low"], "ci_high": boot["ci_high"], "B": boot["B"],
-            "seed": boot["seed"], "method": boot["method"], "n_patterns": len(clusters),
+            "seed": boot["seed"], "method": boot["method"], "basis": NET_BASIS, "n_patterns": len(clusters),
             "n_seeds": len(clusters[0]) if clusters else 0, "n_units": boot["n_units"]}
 
 
@@ -498,24 +535,36 @@ def suppression(cells: Sequence[CellRow]) -> dict[str, Any]:
 def min_detectable_rate(pack: FrozenPack) -> dict[str, Any]:
     """For a constant weekly background count b at a site with full history, the smallest weekly planted rate r for
     which G4's per-site D2 test certainly exceeds: ``c = window * lb(b + r)`` against ``max(lambda_floor, ub(b))``,
-    with the cells' bounds at the pack's k and without suppression."""
+    with the cells' bounds at the pack's k and without suppression. ``rate_at_k_text_background`` is X when the
+    background sits in text-only cells and the plant in codes cells (two cells a week, so two bounds): the combined
+    test (``window * (lb(b) + lb(r))`` against ``ub(b)``) or the codes test (``window * lb(r)`` against the certain
+    ``lb(b)``), each at ``alpha_site / 2``; with no background the series has one channel and one test."""
     cfg = DetectorConfig.from_pack(pack)
-    log_alpha = math.log(cfg.alpha_site)
+    log_alpha, log_half = math.log(cfg.alpha_site), math.log(cfg.alpha_site / 2)
+    w = cfg.window_weeks
+
+    def bounds(v: int, k: int) -> tuple[int, int]:
+        return (0, 0) if v == 0 else (1, k - 1) if v < k else (v, v)
+
+    def exceeds(c: int, lam: float, log_a: float) -> bool:
+        return c >= 1 and stats.poisson_logsf(c, max(cfg.lambda_floor, lam) * w) < log_a
 
     def rate(b: int, k: int) -> int | None:
-        def bounds(v: int) -> tuple[int, int]:
-            return (0, 0) if v == 0 else (1, k - 1) if v < k else (v, v)
-        lam = max(cfg.lambda_floor, bounds(b)[1])
-        for r in range(1, MAX_RATE_SEARCH + 1):
-            c = cfg.window_weeks * bounds(b + r)[0]
-            if c >= 1 and stats.poisson_logsf(c, lam * cfg.window_weeks) < log_alpha:
-                return r
-        return None
+        return next((r for r in range(1, MAX_RATE_SEARCH + 1)
+                     if exceeds(w * bounds(b + r, k)[0], bounds(b, k)[1], log_alpha)), None)
+
+    def rate_split(b: int, k: int) -> int | None:
+        if b == 0:
+            return rate(0, k)
+        lb, ub = bounds(b, k)
+        return next((r for r in range(1, MAX_RATE_SEARCH + 1)
+                     if exceeds(w * (lb + bounds(r, k)[0]), ub, log_half)
+                     or exceeds(w * bounds(r, k)[0], lb, log_half)), None)
 
     k = pack.egress.k
     return {"label": MIN_RATE_LABEL, "k": k,
-            "rows": [{"background": b, "rate_at_k": rate(b, k), "rate_unsuppressed": rate(b, 1)}
-                     for b in range(2 * k + 1)]}
+            "rows": [{"background": b, "rate_at_k": rate(b, k), "rate_unsuppressed": rate(b, 1),
+                      "rate_at_k_text_background": rate_split(b, k)} for b in range(2 * k + 1)]}
 
 
 def x1_block(*, blind: bool, bound: bool, n_patterns: int, n_decoys: int, lift_x: Mapping[str, Any],
@@ -535,8 +584,28 @@ def x1_block(*, blind: bool, bound: bool, n_patterns: int, n_decoys: int, lift_x
 
 # --------------------------------------------------------------------------------------------------- one seed
 
+def _channel_events(pack: FrozenPack, pipeline: Pipeline, records: Sequence[Mapping[str, Any]],
+                    master_data: Mapping[str, Any], weeks: Sequence[str], salt: str, *,
+                    ablation_k1: bool) -> tuple[dict[str, list[dict[str, Any]]], dict[str, dict[str, Any]]]:
+    """Every channel's alert events over one pipeline, and HQ's X and S results."""
+    hq = hq_results(pipeline.store, as_of=pipeline.as_of, tie_salt=salt)
+    u = exact_result(pack, pipeline.org, u_cells(pipeline), as_of=pipeline.as_of, run_channel="X", tie_salt=salt)
+    r = exact_result(pack, pipeline.org, r_mf_cells(pack, records, master_data=master_data, last_week=weeks[-1]),
+                     as_of=pipeline.as_of, run_channel="S", tie_salt=salt)
+    events = {"X": detector_alerts(hq["X"]), "S": detector_alerts(hq["S"]), "R_mf": detector_alerts(r),
+              "U": detector_alerts(u), "rules": rule_alerts(hq["X"]),
+              "single_site": single_site_alerts(pipeline, tie_salt=salt)}
+    if ablation_k1:
+        k1 = k1_cells(pipeline, ablation_k1=True)
+        for name, channel in zip(ABLATION_CHANNELS, ("X", "S")):
+            events[name] = detector_alerts(exact_result(pack, pipeline.org, k1, as_of=pipeline.as_of,
+                                                        run_channel=channel, tie_salt=salt))
+    return events, hq
+
+
 def _seed_run(pack: FrozenPack, spec: PlantSpec, prereg: Mapping[str, Any], labels: Mapping[str, Any], seed: int,
               workdir: Path, *, ablation_k1: bool) -> dict[str, Any]:
+    """One seed with the plant (``workdir/planted``) and its no-plant control (``workdir/control``)."""
     world_spec, ev = prereg["world"], prereg["evaluation"]
     weeks = world_weeks(world_spec["start"], world_spec["weeks"])
     world = generate(pack, seed, world_spec["sites"], world_spec["weeks"])
@@ -544,21 +613,10 @@ def _seed_run(pack: FrozenPack, spec: PlantSpec, prereg: Mapping[str, Any], labe
     records = list(world.records) + list(planted.records)
     salt = prereg["tie_salt"]
     pipeline: Pipeline = run_pipeline(pack, records, site_ids=world_spec["site_ids"], master_data=world.master_data,
-                                      weeks=weeks, workdir=workdir)
+                                      weeks=weeks, workdir=workdir / "planted")
     try:
-        hq = hq_results(pipeline.store, as_of=pipeline.as_of, tie_salt=salt)
-        u = exact_result(pack, pipeline.org, u_cells(pipeline), as_of=pipeline.as_of, run_channel="X", tie_salt=salt)
-        r = exact_result(pack, pipeline.org, r_mf_cells(pack, records, master_data=world.master_data,
-                                                        last_week=weeks[-1]),
-                         as_of=pipeline.as_of, run_channel="S", tie_salt=salt)
-        events = {"X": detector_alerts(hq["X"]), "S": detector_alerts(hq["S"]), "R_mf": detector_alerts(r),
-                  "U": detector_alerts(u), "rules": rule_alerts(hq["X"]),
-                  "single_site": single_site_alerts(pipeline, tie_salt=salt)}
-        if ablation_k1:
-            k1 = k1_cells(pipeline, ablation_k1=True)
-            for name, channel in zip(ABLATION_CHANNELS, ("X", "S")):
-                events[name] = detector_alerts(exact_result(pack, pipeline.org, k1, as_of=pipeline.as_of,
-                                                            run_channel=channel, tie_salt=salt))
+        events, hq = _channel_events(pack, pipeline, records, world.master_data, weeks, salt,
+                                     ablation_k1=ablation_k1)
         _, cells = pipeline.store.detection_inputs(pipeline.as_of, "X")
         decoys = [{"quiet": quiet_elsewhere(d, dl, cells), "flags": flags_at_detection(hq["X"], dl)}
                   for d, dl in zip(spec.decoys, labels["decoys"])]
@@ -566,7 +624,16 @@ def _seed_run(pack: FrozenPack, spec: PlantSpec, prereg: Mapping[str, Any], labe
         cells_stats = suppression(cells)
     finally:
         pipeline.close()
-    return {"events": {name: eval_events(e, ev["eval_from_week"], ev["eval_to_week"]) for name, e in events.items()},
+    control: Pipeline = run_pipeline(pack, list(world.records), site_ids=world_spec["site_ids"],
+                                     master_data=world.master_data, weeks=weeks, workdir=workdir / "control")
+    try:
+        control_events, _ = _channel_events(pack, control, list(world.records), world.master_data, weeks, salt,
+                                            ablation_k1=ablation_k1)
+    finally:
+        control.close()
+    window = (ev["eval_from_week"], ev["eval_to_week"])
+    return {"events": {name: eval_events(e, *window) for name, e in events.items()},
+            "control_events": {name: eval_events(e, *window) for name, e in control_events.items()},
             "decoys": decoys, "suppression": cells_stats, "org_hash": org_hash,
             "planted_records": len(planted.records)}
 
@@ -585,9 +652,11 @@ def build_scorecard(*, run_id: str, pack: FrozenPack, prereg: Mapping[str, Any],
     patterns, decoys = labels["patterns"], labels["decoys"]
     names = list(CHANNELS) + (list(ABLATION_CHANNELS) if ablation_k1 else [])
     per_channel = {name: {s: runs[s]["events"][name] for s in seeds} for name in names}
+    per_control = {name: {s: runs[s]["control_events"][name] for s in seeds} for name in names}
     blocks = {name: channel_block(name, CHANNEL_LABELS[name] if name in CHANNEL_LABELS else ABLATION_LABEL,
-                                  per_channel[name], labels, index, evaluation_weeks) for name in names}
-    found = {name: {p["id"]: [pattern_outcome(per_channel[name][s], p, index)["found"] for s in seeds]
+                                  per_channel[name], labels, index, evaluation_weeks, per_control[name])
+              for name in names}
+    found = {name: {p["id"]: [net_found(per_channel[name][s], per_control[name][s], p, index) for s in seeds]
                     for p in patterns} for name in CHANNELS}
     lifts = {name: lift(name, found[a], found[b], B=boot["B"], seed=boot["seed"]) for name, a, b in LIFTS}
     blind = is_blind(spec, prereg["detector_author"])
@@ -607,10 +676,14 @@ def build_scorecard(*, run_id: str, pack: FrozenPack, prereg: Mapping[str, Any],
             "flags_at_detection": [{"seed": s, "flags": runs[s]["decoys"][i]["flags"]} for s in seeds]})
     by_construction = []
     if any(p["visibility"] == "narrative_only" for p in patterns):
-        by_construction = [{"channel": name, "statement": BY_CONSTRUCTION_STATEMENT, "label": BY_CONSTRUCTION_LABEL,
-                            "visibility": "narrative_only",
-                            "recall": blocks[name]["by_visibility"]["narrative_only"]["recall"]}
-                           for name in ("S", "R_mf")]
+        by_construction = []
+        for name in ("S", "R_mf"):
+            vis = blocks[name]["by_visibility"]["narrative_only"]
+            by_construction.append({"channel": name, "statement": BY_CONSTRUCTION_STATEMENT,
+                                    "label": BY_CONSTRUCTION_LABEL, "visibility": "narrative_only",
+                                    "recall": vis["recall"], "control_recall": _recall(vis["control_found"],
+                                                                                       vis["units"]),
+                                    "recall_net": vis["recall_net"]})
     known_hard = [{"decoy_id": dl["id"], "class": dl["class"], "seed": s, "note": KNOWN_HARD_NOTE,
                    "alerted": {name: decoy_outcome(per_channel[name][s], dl)["alerted"] for name in CHANNELS}}
                   for dl in decoys if dl["class"] in HARD_CASE_CLASSES for s in seeds]
@@ -646,12 +719,15 @@ def build_scorecard(*, run_id: str, pack: FrozenPack, prereg: Mapping[str, Any],
         "lifts": lifts, "by_construction": by_construction, "known_hard_cases": known_hard,
         "patterns": [{"id": p["id"], "key": p["key"], "visibility": p["visibility"], "sites": list(p["sites"]),
                       "start_week": p["start_week"], "end_week": p["end_week"],
-                      "outcomes": [{"seed": s, "channel": name, **pattern_outcome(per_channel[name][s], p, index)}
+                      "outcomes": [{"seed": s, "channel": name, **pattern_outcome(per_channel[name][s], p, index),
+                                    "found_in_control": pattern_outcome(per_control[name][s], p, index)["found"]}
                                    for s in seeds for name in CHANNELS]} for p in patterns],
         "decoys": decoy_docs,
         "suppression": [{"seed": s, **runs[s]["suppression"]} for s in seeds],
         "min_detectable_rate": min_detectable_rate(pack),
         "alerts": [{"seed": s, "channel": name, "items": per_channel[name][s]} for s in seeds for name in names],
+        "control_alerts": [{"seed": s, "channel": name, "items": per_control[name][s]} for s in seeds
+                           for name in names],
         "warnings": warnings,
         "x1": x1_block(blind=blind, bound=bound, n_patterns=len(patterns), n_decoys=len(decoys),
                        lift_x=lifts["X_minus_single_site"], precision_x=blocks["X"]["precision_at_40"]),
@@ -779,7 +855,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         if dry is not None and missing:
             for what, p in missing:
                 dry.need(f"{what} {p}")
-            for name in ("labels.json", "scorecard.json", "work/seed-<seed>/"):
+            for name in ("labels.json", "scorecard.json", "work/seed-<seed>/planted/", "work/seed-<seed>/control/"):
                 dry.write(str(out_dir / name))
             return dry.emit()
         prereg, data = read_prereg(args.prereg)
@@ -797,7 +873,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         if spec.prereg_sha256 is not None and spec.prereg_sha256 != prereg_sha:
             raise UsageError("the plant spec's prereg_sha256 is not the sha256 of this prereg file") from None
         if dry is not None:
-            for name in ("labels.json", "scorecard.json", "work/seed-<seed>/"):
+            for name in ("labels.json", "scorecard.json", "work/seed-<seed>/planted/", "work/seed-<seed>/control/"):
                 dry.write(str(out_dir / name))
             return dry.emit()
     except (UsageError, PlantError, GeneratorError) as exc:
@@ -835,7 +911,8 @@ def cmd_run(args: argparse.Namespace) -> int:
     if problems:
         raise AssertionError(f"scorecard fails its schema at {problems[0][0]} ({problems[0][1]}): a bug")
     write_json_atomic(out_dir / "scorecard.json", doc)
-    recall = " ".join(f"{name}={doc['channels'][name]['found']}/{doc['channels'][name]['units']}"
+    recall = " ".join(f"{name}={doc['channels'][name]['found']}/{doc['channels'][name]['units']} "
+                      f"(control {doc['channels'][name]['control_found']}, net {doc['channels'][name]['found_net']})"
                       for name in ("X", "S", "R_mf", "U", "single_site"))
     print(f"x1: pack={pack.id} seeds={len(seeds)} patterns={len(spec.patterns)} decoys={len(spec.decoys)} "
           f"blind={str(doc['stamps']['blind']).lower()} recall {recall} -> {out_dir / 'scorecard.json'} "

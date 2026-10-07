@@ -1,7 +1,7 @@
 """E2: does pushdown verification keep the ranking quality of central reading with no raw text leaving a site?
 
     python -m mycelic.collective.experiments.e2_pushdown run --x1-prereg FILE --plant FILE --run-id ID
-        [--top-n 60] [--min-candidates N] [--site-routing DIR] [--central-routing FILE]
+        [--top-n 60] [--min-candidates N] [--site-routing DIR] [--central-routing FILE --central-context-tokens N]
         [--allow-external-raw synthetic] [--data-label synthetic] [--deadline-seconds 600] [--bootstrap-b 10000]
         [--bootstrap-seed 1] [--runs-dir runs] [--allow-dirty] [--dry-run]
 
@@ -22,10 +22,12 @@ Checks, each exiting 2 before anything is written: a new run id; the prereg (its
 evaluation code hash, as the X1 harness pins them); dirty code under the evaluation paths, ``pushdown/`` and this
 file without ``--allow-dirty`` (stamped); the world and the plant spec with its binding; both raw-text flags equal to
 ``synthetic``; a site routing file per prereg site whose judge route (and escalation) stays at ``site:<id>`` or
-``any-simulated`` and is not fake; a central routing file whose two tasks name non-site, non-fake endpoints;
-``--bootstrap-b`` at least 1000. Without ``--site-routing`` every site judges with an in-process fake (the lexical
-judge); without ``--central-routing`` the central conditions use fake handlers (rehearsal only: yes/yes per record,
-``score = min(100, 30 * min(3, confirming sites) + min(10, confirming records))``).
+``any-simulated`` and is not fake; a central routing file whose two tasks name non-site, non-fake endpoints, with
+``--central-context-tokens`` (the context the central server gives one request: Ollama's ``num_ctx``,
+llama-server's ``-c`` divided by ``--parallel``); ``--bootstrap-b`` at least 1000. Without ``--site-routing`` every
+site judges with an in-process fake (the lexical judge); without ``--central-routing`` the central conditions use
+fake handlers (rehearsal only: yes/yes per record, ``score = min(100, 30 * min(3, confirming sites) + min(10,
+confirming records))``).
 
 Per seed (prereg order): generate and plant the world, run the real pipeline (``evaluate.baselines``), detect run X
 at the pipeline's ``as_of`` with the prereg tie salt, and take the detector candidates whose first candidate week is
@@ -35,15 +37,33 @@ else ``background``. Fewer than 300 candidates or 5 seeds exits 2 (the partial r
 ``--min-candidates`` allows it, which is stamped ``below_protocol_minimum``. The items are then scored in
 ``(as_of, seed, key)`` order with the site clock at the item's ``as_of`` (the question budget's day).
 
-Statistics: :func:`~..stats.paired_ranking_bootstrap` over all items pooled, k = 40, the ratio pushdown AP /
-central_raw AP (epsilon 0.01). Raw text: ``central_raw`` counts the UTF-8 bytes of every text it sent; the others
-count the narrative shingle overlap (``leakage.scan`` with an empty canary manifest, per seed) of their payloads
-(``central_allowed``) and of every crossing transport artifact (``pushdown``: the questions, the verdict rows, the
-site ingress and egress logs), each of which must be 0; the in-memory ``central_raw`` payloads must overlap. The
+**Delivery.** After each item's pushdown, deliveries still running at the deadline get one more
+``--deadline-seconds`` (:meth:`~..pushdown.orchestrator.Orchestrator.join_late`) and are then collected at the item's
+own ``as_of`` (:meth:`~..pushdown.orchestrator.Orchestrator.collect_late`), so the item is scored on every answer a
+site gave and the next question never queues behind a late one. A route that still ends ``unknown`` with reason
+``timeout`` or ``error``, or a ``degraded`` judge, is unanswered. A central call that fails (an
+:class:`~..inference.errors.InferenceError` after the runtime's retries, repair and escalation) is recorded on its
+item by kind and the run goes on; such items are left out of the statistics.
+
+Statistics: :func:`~..stats.paired_ranking_bootstrap` over the items without a central failure, resampled by
+candidate key (the same key in several seeds is one cluster), k = 40, the ratio pushdown AP / central_raw AP
+(epsilon 0.01), the AP of a random order (``chance``, near the prevalence of true items) and the chance-corrected
+ratio ``(AP_pushdown - chance) / (AP_central_raw - chance)``. Raw text: ``central_raw`` counts the UTF-8 bytes of
+every text it sent; the others count the narrative shingle overlap (``leakage.scan`` with an empty canary manifest,
+per seed) of their payloads (``central_allowed``) and of every crossing transport artifact (``pushdown``: the
+questions, the verdict rows, the site ingress and egress logs), each of which must be 0; the in-memory
+``central_raw`` payloads must overlap. The
 resolvability of every supported conclusion is checked at each counted confirming site with its own verifier.
 
 ``measurement`` is false whenever a fake was involved (an endpoint or a ledger row), and then the 0.90 bar verdict is
-withheld, as it is when the ratio is undefined. ``e2.json`` is validated against :data:`E2_SCHEMA` before it is
+withheld. It is also withheld (:func:`bar_verdict`, in this order) when a central call failed; when a central_raw
+prompt reached the declared context (server-reported prompt tokens plus the task's output budget at or above
+``--central-context-tokens``) or its prompt tokens were not reported, since the central reference may then have read a
+truncated prompt; when more than :data:`MAX_UNANSWERED_SHARE` of the pushdown routes were unanswered; when the ratio
+is undefined; and when the pool is uninformative (central_raw's lift over chance has a 95% interval reaching 0). The
+bar passes only when the AP ratio and its interval's low end are at least 0.90, the chance-corrected ratio is at
+least 0.90, and pushdown sent 0 raw-text bytes: a constant or random pushdown score keeps none of central_raw's
+lift over chance and fails. ``e2.json`` is validated against :data:`E2_SCHEMA` before it is
 written, holds no record text, ref or narrative, and its ``content_hash`` excludes ``content_hash``, ``created_at``,
 ``run_id``, ``paths`` and ``timings``. ``central.ledger.jsonl`` sits beside it; the site ledgers stay in the work
 directories. Everything here is synthetic and internal; no figure is a product number.
@@ -70,6 +90,8 @@ from ..evaluate.harness import (EVAL_CODE_FILES, EVAL_DIRTY_PATHS, arr_schema, c
                                 eval_code_hash, load_checked_plant, obj_schema, pinned_differences, prereg_pack,
                                 read_prereg, typed_schema, union_problems)
 from ..evaluate.plant import PlantError, PlantSpec, labels_doc, plant
+from ..inference.errors import KINDS as ERROR_KINDS
+from ..inference.errors import InferenceBoundaryError, InferenceError
 from ..inference.fake import FakeProvider
 from ..inference.ledger import read_ledger
 from ..inference.routing import ConfigError, Endpoint, RoutingConfig, is_site_boundary, load_routing, parse_routing
@@ -112,6 +134,9 @@ PROTOCOL_MIN_SEEDS = 5
 CENTRAL_MAX_RECORDS = 400
 BAR = 0.90
 EPSILON = 0.01
+MAX_UNANSWERED_SHARE = 0.05
+UNANSWERED_REASONS = ("timeout", "error", "degraded")
+CENTRAL_MAX_TOKENS = 64
 MIN_BOOTSTRAP_B = 1000
 STATUS_SCALE = 1_000_000
 RAW_FLAGS_MESSAGE = ("central_raw sends raw record text across site boundaries: pass --allow-external-raw synthetic "
@@ -129,6 +154,8 @@ NOTES = [
     "supported on them (a known hard case, as in G5).",
     "The fake central handlers count yes/yes records with the same deterministic judge the sites use; they are a "
     "rehearsal of the plumbing, not a comparator.",
+    "The candidate pool is mostly true items on planted worlds, so a random order already has a high AP (chance). "
+    "The bar therefore also needs the chance-corrected ratio, and the bootstrap resamples candidate keys, not items.",
 ]
 
 
@@ -184,6 +211,7 @@ E2_SCHEMA = schemacheck.compile(_O({
                      "central_routing_sha256": _T("string", nullable=True, pattern="[0-9a-f]{64}"),
                      "providers": _A(_STR)}),
     "settings": _O({"top_n": _POS, "min_candidates": _NNAT, "deadline_seconds": _NUM, "bootstrap_b": _POS,
+                    "central_context_tokens": _NNAT, "max_unanswered_share": _NUM,
                     "bootstrap_seed": _T("integer"), "k": _const(TOP_K), "central_max_records":
                         _const(CENTRAL_MAX_RECORDS), "epsilon": _NUM, "bar": _NUM, "tie_salt": _STR,
                     "seeds": _A(_NAT, 1), "eval_from_week": _WEEK, "eval_to_week": _WEEK, "grace_weeks": _NAT}),
@@ -191,10 +219,18 @@ E2_SCHEMA = schemacheck.compile(_O({
                       "by_seed": _A(_O({"seed": _NAT, "detected": _NAT, "candidates": _NAT})),
                       "by_label": _O({label: _NAT for label in LABELS})}),
     "condition_labels": _O({c: _const(CONDITION_LABELS[c]) for c in CONDITIONS}),
-    "bootstrap": _O({"n": _NAT, "n_relevant": _NAT, "B": _POS, "seed": _T("integer"), "k": _POS, "method": _STR}),
+    "bootstrap": _O({"n": _NAT, "n_relevant": _NAT, "B": _POS, "seed": _T("integer"), "k": _POS, "method": _STR,
+                     "clusters": _const("candidate key"), "n_clusters": _NAT, "excluded_central_failures": _NAT}),
+    "chance": _O({"prevalence": _NUM, "ap": _NNUM, "ap_ci_low": _NNUM, "ap_ci_high": _NNUM}),
     "conditions": _O({c: _CONDITION for c in CONDITIONS}),
     "ratio": _O({"numerator": _const("pushdown"), "denominator": _const("central_raw"), "estimate": _NNUM,
-                 "ci_low": _NNUM, "ci_high": _NNUM, "undefined": _NAT, "epsilon": _NUM}),
+                 "ci_low": _NNUM, "ci_high": _NNUM, "undefined": _NAT, "epsilon": _NUM, "lift_estimate": _NNUM,
+                 "lift_ci_low": _NNUM, "lift_ci_high": _NNUM, "lift_undefined": _NAT, "denominator_lift": _NNUM,
+                 "denominator_lift_ci_low": _NNUM, "denominator_lift_ci_high": _NNUM}),
+    "central": _O({"failures": _O({c: _O({kind: _NAT for kind in ERROR_KINDS})
+                                    for c in ("central_raw", "central_allowed")}),
+                   "failed_items": _NAT, "context_tokens": _NNAT, "prompt_tokens_max": _NNAT,
+                   "prompt_tokens_median": _NNUM, "prompt_tokens_unreported": _NAT, "at_context_limit": _NAT}),
     "raw_text_bytes": _O({c: _NAT for c in CONDITIONS}),
     "raw_text_scan": _O({"method": _const(SCAN_METHOD), "central_raw": _NAT, "central_allowed": _NAT,
                          "pushdown": _NAT, "artifacts": _O({c: _O({"bytes": _NAT, "items": _NAT})
@@ -203,16 +239,19 @@ E2_SCHEMA = schemacheck.compile(_O({
                     "verdicts": _O({"confirm": _NAT, "refute": _NAT,
                                     "unknown": _O({r: _NAT for r in UNKNOWN_REASONS})}),
                     "routes": _O({"contributing": _NAT, "sibling": _NAT}), "budget_unknowns": _NAT, "timeouts": _NAT,
-                    "errors": _NAT,
+                    "errors": _NAT, "late_collected": _NAT, "unanswered": _NAT, "unanswered_share": _NNUM,
                     "resolvability": _O({"supported": _NAT, "resolvable": _NAT, "share": _NNUM,
                                          "extraction_miss_confirmations": _NAT})}),
     "verdict": _O({"bar": _NUM, "ratio": _NUM, "ratio_at_least_bar": _BOOL, "ci_low_at_least_bar": _BOOL,
-                   "pushdown_raw_text_bytes_zero": _BOOL, "pass": _BOOL}, nullable=True),
+                   "lift_ratio": _NNUM, "lift_ratio_at_least_bar": _BOOL, "pushdown_raw_text_bytes_zero": _BOOL,
+                   "pass": _BOOL}, nullable=True),
     "verdicts_withheld": _BOOL, "withheld_reason": _NSTR,
     "items": _A(_O({"seed": _NAT, "key": _STR, "label": _enum(LABELS), "as_of": _STR, "question_id": _HEX,
                     "conclusion_id": _STR, "status": _enum(STATUSES),
-                    "scores": _O({c: _NUM for c in CONDITIONS}), "central_raw_records": _NAT,
-                    "central_raw_truncated": _BOOL, "central_allowed_records": _NAT})),
+                    "scores": _O({c: _NNUM for c in CONDITIONS}), "central_raw_records": _NAT,
+                    "central_raw_truncated": _BOOL, "central_allowed_records": _NAT,
+                    "central_errors": _O({c: _NSTR for c in ("central_raw", "central_allowed")}),
+                    "central_raw_prompt_tokens": _NNAT, "late_collected": _NAT})),
     "notes": _A(_STR),
     "paths": _O({name: _STR for name in ("prereg", "plant", "run_dir", "workdir", "central_ledger")}),
     "timings": _O({"total_s": _NUM, "per_seed_pipeline_s": _A(_NUM), "score_s": _NUM}),
@@ -235,7 +274,7 @@ def central_task(name: str) -> TaskSpec:
         "Score how strongly these records, taken together, show that the named entity had the named predicate in "
         "the window: 0 for no support, up to 100 for strong support from several sites. Count a record only when "
         "it states the predicate for that entity; a record saying that it did not happen counts against.")
-    return TaskSpec(name, "raw" if name == CENTRAL_TASKS[0] else "structured", instructions, 64)
+    return TaskSpec(name, "raw" if name == CENTRAL_TASKS[0] else "structured", instructions, CENTRAL_MAX_TOKENS)
 
 
 CENTRAL_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["score"],
@@ -374,6 +413,13 @@ def _check(args: argparse.Namespace, dry: DryRun | None) -> _Settings | None:
         raise UsageError("--top-n and --min-candidates must be >= 1") from None
     if not (math.isfinite(args.deadline_seconds) and 0 < args.deadline_seconds <= 3600):
         raise UsageError("--deadline-seconds must be in (0, 3600]") from None
+    context = args.central_context_tokens
+    if args.central_routing and (context is None or context <= CENTRAL_MAX_TOKENS):
+        raise UsageError("--central-routing needs --central-context-tokens: the context one request gets on the "
+                         "central server (Ollama num_ctx, llama-server -c / --parallel), above "
+                         f"{CENTRAL_MAX_TOKENS}") from None
+    if not args.central_routing and context is not None:
+        raise UsageError("--central-context-tokens goes with --central-routing") from None
     missing = [(what, p) for what, p in (("prereg file", args.x1_prereg), ("plant file", args.plant),
                                          ("central routing file", args.central_routing)) if p and not Path(p).is_file()]
     if args.site_routing is not None and not Path(args.site_routing).is_dir():
@@ -483,9 +529,21 @@ def allowed_view(pack: FrozenPack, record: Mapping[str, Any]) -> dict[str, Any]:
             "entities": {t: list(record["entities"][t]) if f"entities.{t}" in allowed else [] for t in types}}
 
 
+def _judge_central(runtime: Runtime, name: str, payload: dict[str, Any], ref: str) -> tuple[int | None, str | None]:
+    """``(score, None)``, or ``(None, error kind)`` when the call failed after the runtime's retries, repair and
+    escalation; a boundary refusal propagates (a configuration error, never a result)."""
+    try:
+        reply = runtime.run(central_task(name), payload, CENTRAL_SCHEMA, ref=ref)
+    except InferenceBoundaryError:
+        raise
+    except InferenceError as err:
+        return None, err.kind
+    return reply["score"], None
+
+
 def _central_raw(s: _Seed, cfg: _Settings, runtime: Runtime, params: Mapping[str, str], window: Mapping[str, str],
-                 ref: str) -> tuple[int, int, bool, int]:
-    """(score, records, truncated, text bytes sent)."""
+                 ref: str) -> tuple[int | None, int, bool, int, str | None]:
+    """(score, records, truncated, text bytes sent, error kind)."""
     pack = cfg.pack
     pool: list[tuple[str, WindowRecord]] = []
     truncated = False
@@ -500,28 +558,28 @@ def _central_raw(s: _Seed, cfg: _Settings, runtime: Runtime, params: Mapping[str
     truncated = truncated or len(pool) > CENTRAL_MAX_RECORDS
     pool = pool[:CENTRAL_MAX_RECORDS]
     if not pool:
-        return 0, 0, truncated, 0
+        return 0, 0, truncated, 0, None
     texts = [truncate(r.narrative, pack.extraction.max_input_chars)[0] for _, r in pool]
     payload = {"question": judge_question(pack, params), "window": dict(window),
                "records": [{"site": sid, "week": r.iso_week, "codes": sorted(r.codes),
                             "entities": {t: list(r.structured[t]) for t in sorted(r.structured)},
                             "language": r.language, "text": text} for (sid, r), text in zip(pool, texts)]}
     s.raw_payloads.append(canonical_bytes(payload))
-    reply = runtime.run(central_task(CENTRAL_TASKS[0]), payload, CENTRAL_SCHEMA, ref=ref)
-    return reply["score"], len(pool), truncated, sum(len(t.encode("utf-8")) for t in texts)
+    score, error = _judge_central(runtime, CENTRAL_TASKS[0], payload, ref)
+    return score, len(pool), truncated, sum(len(t.encode("utf-8")) for t in texts), error
 
 
 def _central_allowed(s: _Seed, cfg: _Settings, runtime: Runtime, params: Mapping[str, str],
-                     window: Mapping[str, str], ref: str) -> tuple[int, int]:
-    """(score, records)."""
+                     window: Mapping[str, str], ref: str) -> tuple[int | None, int, str | None]:
+    """(score, records, error kind)."""
     rows = [view for week, view in s.allowed.get((params["entity_type"], params["entity_id"]), ())
             if window["start_week"] <= week <= window["end_week"]]
     if not rows:
-        return 0, 0
+        return 0, 0, None
     payload = {"question": judge_question(cfg.pack, params), "window": dict(window), "records": rows}
     s.allowed_payloads.append(canonical_bytes(payload))
-    reply = runtime.run(central_task(CENTRAL_TASKS[1]), payload, CENTRAL_SCHEMA, ref=ref)
-    return reply["score"], len(rows)
+    score, error = _judge_central(runtime, CENTRAL_TASKS[1], payload, ref)
+    return score, len(rows), error
 
 
 def _resolvable(s: _Seed, body: Mapping[str, Any]) -> tuple[bool, int]:
@@ -633,6 +691,20 @@ def run(args: argparse.Namespace, cfg: _Settings, out_dir: Path, started: float)
     return 0
 
 
+def _prompt_tokens(rows: Sequence[Mapping[str, Any]]) -> dict[str, int | None]:
+    """The server-reported prompt tokens per central_raw ref: the largest over its attempts that got a reply."""
+    out: dict[str, int | None] = {}
+    for r in rows:
+        if r["task"] != CENTRAL_TASKS[0] or r["attempt"] < 1:
+            continue
+        tokens = r["tokens_in"]
+        if tokens is not None:
+            out[r["ref"]] = max(tokens, out.get(r["ref"]) or 0)
+        else:
+            out.setdefault(r["ref"], None)
+    return out
+
+
 def _score_items(args: argparse.Namespace, cfg: _Settings, seeds: Sequence[_Seed], labels: Mapping[str, Any],
                  central: Runtime, clock: SimClock, below: bool) -> dict[str, Any]:
     pack, prereg = cfg.pack, cfg.prereg
@@ -643,19 +715,35 @@ def _score_items(args: argparse.Namespace, cfg: _Settings, seeds: Sequence[_Seed
             work.append((c["snapshot"]["as_of"], s.seed, c["key"], s, c))
     work.sort(key=lambda item: item[:3])
     items: list[dict[str, Any]] = []
+    raw_refs: list[str | None] = []
     raw_sent = 0
     verdicts = {"confirm": 0, "refute": 0, "unknown": dict.fromkeys(UNKNOWN_REASONS, 0)}
     statuses = dict.fromkeys(STATUSES, 0)
     routes = {"contributing": 0, "sibling": 0}
-    supported = resolvable = misses = 0
+    central_failures = {c: dict.fromkeys(ERROR_KINDS, 0) for c in ("central_raw", "central_allowed")}
+    supported = resolvable = misses = late_collected = 0
     for n, (as_of, seed, key, s, c) in enumerate(work, start=1):
         clock.set(f"{as_of}T12:00:00Z")
         params = {"entity_type": c["entity_type"], "entity_id": c["entity_id"], "predicate": c["predicate"]}
         window = question_window(pack, as_of=as_of, candidate_window_start=c["snapshot"]["window"][0])
-        raw_score, raw_records, raw_truncated, sent = _central_raw(s, cfg, central, params, window, f"e2:{n}:raw")
+        raw_ref = f"e2:{n}:raw"
+        raw_score, raw_records, raw_truncated, sent, raw_error = _central_raw(s, cfg, central, params, window,
+                                                                              raw_ref)
         raw_sent += sent
-        allowed_score, allowed_records = _central_allowed(s, cfg, central, params, window, f"e2:{n}:allowed")
+        allowed_score, allowed_records, allowed_error = _central_allowed(s, cfg, central, params, window,
+                                                                         f"e2:{n}:allowed")
+        for name, error in (("central_raw", raw_error), ("central_allowed", allowed_error)):
+            if error is not None:
+                central_failures[name][error] += 1
         conclusion = s.orchestrator.verify_stored(s.run_id, key)
+        late = 0
+        if s.orchestrator.late_deliveries:
+            pending = s.orchestrator.late_deliveries
+            still = s.orchestrator.join_late(args.deadline_seconds)
+            s.orchestrator.collect_late(as_of=as_of)
+            late = pending - still
+            late_collected += late
+            conclusion = s.orchestrator.conclusion(conclusion.conclusion_id)
         gate_doc = conclusion.body["gate"]
         statuses[conclusion.status] += 1
         for u in gate_doc["used"]:
@@ -673,6 +761,7 @@ def _score_items(args: argparse.Namespace, cfg: _Settings, seeds: Sequence[_Seed
             resolvable += int(all(ok for ok, _ in checks))
             misses += sum(m for _, m in checks)
         support_lb = gate_doc["support"]["support_lb"]
+        raw_refs.append(raw_ref if raw_records else None)
         items.append({"seed": seed, "key": key, "label": _label(key, c["snapshot"]["week"], labels), "as_of": as_of,
                       "question_id": conclusion.question_id, "conclusion_id": conclusion.conclusion_id,
                       "status": conclusion.status,
@@ -680,31 +769,52 @@ def _score_items(args: argparse.Namespace, cfg: _Settings, seeds: Sequence[_Seed
                                  "central_allowed": allowed_score,
                                  "pushdown": STATUS_RANK[conclusion.status] * STATUS_SCALE + support_lb},
                       "central_raw_records": raw_records, "central_raw_truncated": raw_truncated,
-                      "central_allowed_records": allowed_records})
-    items.sort(key=lambda i: (i["seed"], i["key"]))
-    boot = stats.paired_ranking_bootstrap({c: [i["scores"][c] for i in items] for c in CONDITIONS},
-                                          [i["label"] == "true" for i in items], k=TOP_K, B=args.bootstrap_b,
+                      "central_allowed_records": allowed_records,
+                      "central_errors": {"central_raw": raw_error, "central_allowed": allowed_error},
+                      "central_raw_prompt_tokens": None, "late_collected": late})
+    rows = read_ledger(central.ledger.path) if central.ledger.path.exists() else []
+    tokens = _prompt_tokens(rows)
+    for item, ref in zip(items, raw_refs):
+        item["central_raw_prompt_tokens"] = tokens.get(ref) if ref is not None else None
+    context = args.central_context_tokens
+    sent_refs = [ref for ref in raw_refs if ref is not None and ref in tokens]
+    reported = [tokens[ref] for ref in sent_refs if tokens[ref] is not None]
+    unreported = sum(1 for ref in sent_refs if tokens[ref] is None)
+    at_limit = 0 if context is None else unreported + sum(1 for t in reported if t + CENTRAL_MAX_TOKENS >= context)
+    order = sorted(range(len(items)), key=lambda i: (items[i]["seed"], items[i]["key"]))
+    items = [items[i] for i in order]
+    scored = [i for i in items if i["scores"]["central_raw"] is not None and i["scores"]["central_allowed"] is not None]
+    failed_items = len(items) - len(scored)
+    boot = stats.paired_ranking_bootstrap({c: [i["scores"][c] for i in scored] for c in CONDITIONS},
+                                          [i["label"] == "true" for i in scored], k=TOP_K, B=args.bootstrap_b,
                                           seed=args.bootstrap_seed, ratio=("pushdown", "central_raw"),
-                                          epsilon=EPSILON)
+                                          epsilon=EPSILON, clusters=[i["key"] for i in scored]) if scored else None
     scans = [_scan(s, cfg) for s in seeds]
     overlap = {c: sum(x[c]["overlap"] for x in scans) for c in ("central_raw", "central_allowed", "pushdown")}
     artifacts = {c: {"bytes": sum(x[c]["bytes"] for x in scans), "items": sum(x[c]["items"] for x in scans)}
                  for c in ("central_raw", "central_allowed", "pushdown")}
     endpoints: list[Endpoint] = list(central.config.endpoints.values())
-    rows = read_ledger(central.ledger.path) if central.ledger.path.exists() else []
     for s in seeds:
         for runtime in s.runtimes:
             endpoints += list(runtime.config.endpoints.values())
             rows += read_ledger(runtime.ledger.path) if runtime.ledger.path.exists() else []
     measurement = measurement_flag(endpoints, rows, False)
-    ratio = boot["ratio"]
+    ratio = boot["ratio"] if boot is not None else _empty_ratio()
     raw_text_bytes = {"stats_only": 0, "central_raw": raw_sent, "central_allowed": overlap["central_allowed"],
                       "pushdown": overlap["pushdown"]}
-    verdict, withheld_reason = bar_verdict(measurement, ratio, raw_text_bytes["pushdown"])
+    used = sum(routes.values())
+    unanswered = sum(verdicts["unknown"][r] for r in UNANSWERED_REASONS)
+    unanswered_share = unanswered / used if used else None
+    verdict, withheld_reason = bar_verdict(measurement, ratio, raw_text_bytes["pushdown"],
+                                           central_failures=failed_items, at_context_limit=at_limit,
+                                           unanswered_share=unanswered_share)
     by_label = dict.fromkeys(LABELS, 0)
     for i in items:
         by_label[i["label"]] += 1
     providers = sorted({f"{e.boundary}:{e.provider}" for e in endpoints})
+    chance = boot["chance"] if boot is not None else {"prevalence": 0.0, "ap": None, "ap_ci_low": None,
+                                                     "ap_ci_high": None}
+    conditions = boot["conditions"] if boot is not None else {c: _empty_condition() for c in CONDITIONS}
     doc: dict[str, Any] = {
         "kind": "e2_pushdown", "schema_version": SCHEMA_VERSION,
         "stamps": {"synthetic": True, "internal_only": True, "measurement": measurement,
@@ -721,6 +831,7 @@ def _score_items(args: argparse.Namespace, cfg: _Settings, seeds: Sequence[_Seed
                       "providers": providers},
         "settings": {"top_n": args.top_n, "min_candidates": args.min_candidates,
                      "deadline_seconds": float(args.deadline_seconds), "bootstrap_b": args.bootstrap_b,
+                     "central_context_tokens": context, "max_unanswered_share": MAX_UNANSWERED_SHARE,
                      "bootstrap_seed": args.bootstrap_seed, "k": TOP_K, "central_max_records": CENTRAL_MAX_RECORDS,
                      "epsilon": EPSILON, "bar": BAR, "tie_salt": prereg["tie_salt"], "seeds": list(w["seeds"]),
                      "eval_from_week": ev["eval_from_week"], "eval_to_week": ev["eval_to_week"],
@@ -729,12 +840,23 @@ def _score_items(args: argparse.Namespace, cfg: _Settings, seeds: Sequence[_Seed
                        "by_seed": [{"seed": s.seed, "detected": s.detected, "candidates": len(s.candidates)}
                                    for s in seeds], "by_label": by_label},
         "condition_labels": dict(CONDITION_LABELS),
-        "bootstrap": {k: boot[k] for k in ("n", "n_relevant", "B", "seed", "k", "method")},
-        "conditions": boot["conditions"], "ratio": ratio, "raw_text_bytes": raw_text_bytes,
+        "bootstrap": {"n": len(scored), "n_relevant": sum(1 for i in scored if i["label"] == "true"),
+                      "B": args.bootstrap_b, "seed": args.bootstrap_seed, "k": TOP_K,
+                      "method": boot["method"] if boot is not None else "paired cluster percentile",
+                      "clusters": "candidate key", "n_clusters": boot["n_clusters"] if boot is not None else 0,
+                      "excluded_central_failures": failed_items},
+        "chance": chance, "conditions": conditions, "ratio": ratio,
+        "central": {"failures": central_failures,
+                    "failed_items": failed_items, "context_tokens": context,
+                    "prompt_tokens_max": max(reported) if reported else None,
+                    "prompt_tokens_median": stats.percentile(reported, 50), "prompt_tokens_unreported": unreported,
+                    "at_context_limit": at_limit},
+        "raw_text_bytes": raw_text_bytes,
         "raw_text_scan": {"method": SCAN_METHOD, **overlap, "artifacts": artifacts},
         "pushdown": {"statuses": statuses, "verdicts": verdicts, "routes": routes,
                      "budget_unknowns": verdicts["unknown"]["budget"], "timeouts": verdicts["unknown"]["timeout"],
-                     "errors": verdicts["unknown"]["error"],
+                     "errors": verdicts["unknown"]["error"], "late_collected": late_collected,
+                     "unanswered": unanswered, "unanswered_share": unanswered_share,
                      "resolvability": {"supported": supported, "resolvable": resolvable,
                                        "share": resolvable / supported if supported else None,
                                        "extraction_miss_confirmations": misses}},
@@ -745,19 +867,52 @@ def _score_items(args: argparse.Namespace, cfg: _Settings, seeds: Sequence[_Seed
     return doc
 
 
-def bar_verdict(measurement: bool, ratio: Mapping[str, Any],
-                pushdown_raw_text_bytes: int) -> tuple[dict[str, Any] | None, str | None]:
-    """``(verdict, withheld_reason)``: the 0.90 bar is judged only for a measurement (no fake anywhere) with a defined
-    ratio; otherwise the verdict is None and the reason says why."""
+def _empty_ratio() -> dict[str, Any]:
+    return {"numerator": "pushdown", "denominator": "central_raw", "estimate": None, "ci_low": None, "ci_high": None,
+            "undefined": 0, "epsilon": EPSILON, "lift_estimate": None, "lift_ci_low": None, "lift_ci_high": None,
+            "lift_undefined": 0, "denominator_lift": None, "denominator_lift_ci_low": None,
+            "denominator_lift_ci_high": None}
+
+
+def _empty_condition() -> dict[str, Any]:
+    return {"ap": None, "ap_ci_low": None, "ap_ci_high": None, "ap_undefined": 0, "precision_at_k": 0.0,
+            "p_ci_low": None, "p_ci_high": None}
+
+
+def bar_verdict(measurement: bool, ratio: Mapping[str, Any], pushdown_raw_text_bytes: int, *,
+                central_failures: int = 0, at_context_limit: int = 0,
+                unanswered_share: float | None = 0.0) -> tuple[dict[str, Any] | None, str | None]:
+    """``(verdict, withheld_reason)``: the 0.90 bar is judged only for a measurement (no fake anywhere) whose central
+    calls all returned, whose central_raw prompts all fitted the declared context, whose pushdown routes were
+    answered (at most :data:`MAX_UNANSWERED_SHARE` unanswered), with a defined ratio and an informative pool
+    (central_raw beats a random order: its lift over chance has a 95% interval above 0); otherwise the verdict is
+    None and the reason says why. The bar needs the AP ratio and its interval's low end at :data:`BAR`, the
+    chance-corrected ratio at :data:`BAR` and zero pushdown raw-text bytes."""
     if not measurement:
         return None, "a fake judge was involved (a fake endpoint or a fake-marked ledger row): a rehearsal"
+    if central_failures:
+        return None, (f"the central judge failed on {central_failures} items (see central.failures): the comparison "
+                      "is incomplete; re-run against a healthy server")
+    if at_context_limit:
+        return None, (f"{at_context_limit} central_raw prompts reached the declared context, or the server did not "
+                      "report their prompt tokens: the central reference may have read a truncated prompt; raise the "
+                      "context (--central-context-tokens and the server's own setting) and re-run")
+    if unanswered_share is not None and unanswered_share > MAX_UNANSWERED_SHARE:
+        return None, (f"{unanswered_share:.0%} of the pushdown routes were unanswered (timeout, error or a degraded "
+                      "judge): the run measured the deadline and the servers, not pushdown")
     if ratio["estimate"] is None:
         return None, "the ratio is undefined (central_raw AP is null or below epsilon)"
+    if ratio["denominator_lift_ci_low"] is None or ratio["denominator_lift_ci_low"] <= 0:
+        return None, ("the candidate pool is uninformative: central_raw does not beat a random order (its lift over "
+                      "the chance AP has a 95% interval reaching 0), so no ratio can show that pushdown keeps it")
     at_bar = ratio["estimate"] >= BAR
     ci_at_bar = ratio["ci_low"] is not None and ratio["ci_low"] >= BAR
+    lift = ratio["lift_estimate"]
+    lift_at_bar = lift is not None and lift >= BAR
     zero = pushdown_raw_text_bytes == 0
     return {"bar": BAR, "ratio": ratio["estimate"], "ratio_at_least_bar": at_bar, "ci_low_at_least_bar": ci_at_bar,
-            "pushdown_raw_text_bytes_zero": zero, "pass": at_bar and ci_at_bar and zero}, None
+            "lift_ratio": lift, "lift_ratio_at_least_bar": lift_at_bar, "pushdown_raw_text_bytes_zero": zero,
+            "pass": at_bar and ci_at_bar and lift_at_bar and zero}, None
 
 
 def _body(s: _Seed, question_id: str, used: Mapping[str, Any]) -> dict[str, Any]:
@@ -783,6 +938,8 @@ def _parser() -> argparse.ArgumentParser:
     s.add_argument("--min-candidates", type=int, default=None, help="run below the protocol minimum (stamped)")
     s.add_argument("--site-routing", default=None, help="a directory of <site id>.json routing files")
     s.add_argument("--central-routing", default=None, help="the central comparator's routing file")
+    s.add_argument("--central-context-tokens", type=int, default=None,
+                   help="the context one request gets on the central server (needed with --central-routing)")
     s.add_argument("--allow-external-raw", default=None, help="must be synthetic: central_raw moves raw text")
     s.add_argument("--data-label", default=None, help="must be synthetic")
     s.add_argument("--deadline-seconds", type=float, default=600.0)
@@ -814,7 +971,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     except KeyboardInterrupt:
         print(f"e2 run: interrupted; {out_dir} is partial and its run id cannot be reused", file=sys.stderr)
         return 130
-    except (EvaluationError, GeneratorError, PlantError, PushdownError, LeakageError) as exc:
+    except (EvaluationError, GeneratorError, PlantError, PushdownError, LeakageError, InferenceError) as exc:
         return fail(str(exc))
     except (OSError, StrictJsonError) as exc:
         return fail(f"cannot read or write a run file ({exc.__class__.__name__})")

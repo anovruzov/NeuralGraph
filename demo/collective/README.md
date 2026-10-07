@@ -13,8 +13,10 @@ German. This is the narrative-only case, constructed on purpose:
 - **The alert.** Each plant extracts claims inside its own boundary and sends only k-suppressed weekly counts. HQ's
   detectors (X) flag the lot with no rule written for it. Next to X, every time: **S** (the same detectors over the
   structured codes only, no model) and **R** (the same detectors over the fields allowed to leave, record level, no
-  model). The screen says so whenever either baseline catches this case, and lists every related key either one
-  flags on the same case. A related key is never called a miss.
+  model). Each row's rank is for the failure mode the screen names; the S and R rows also name the first other key
+  of the case they flagged (the lot or the product under the generic code), with its rank and week. The screen says
+  so whenever either baseline catches this case, and lists every related key either one flags on the same case. A
+  related key is never called a miss.
 - **The check (pushdown verification).** HQ asks the plants one narrow question. Each plant answers from its own
   records with a verdict, count buckets and a reference only it can resolve; a sibling plant that holds the same lot
   without the failure refutes. The commit gate decides the status. The text-overlap scan and the canary scan of
@@ -34,8 +36,10 @@ python demo/collective/lint_numbers.py demo/collective/recorded/<run-id>
 ```
 
 **Live vs recorded.** `--serve` runs the engine now; the presenter presses "check with sites" and approves each
-follow-up as the named owner, and the screen says LIVE. `--record` runs the same engine headless with scripted
-approvals, and the screen says RECORDED. `--replay` and `--export` show a recorded run and run nothing. Without
+follow-up as the named owner, and the badge says LIVE. `--record` runs the same engine headless with scripted
+approvals, and the badge says RECORDED. `--replay` and `--export` show a recorded run and run nothing, so their badge
+says RECORDED whatever mode the run was made in (`screen.json`'s `presentation`); the footer keeps how it was made
+(`mode`: a scripted run, or one driven live in the console). Without
 `--routing`, every plant's model is a deterministic stand-in (no model) and the screen says so; with a routing file
 the plants are simulated in one process with one shared model, which the screen also says (RUNBOOK section 16).
 
@@ -47,7 +51,9 @@ whose `src` points into a primary file, and `lint_numbers.py` re-resolves each o
 match, when a static text holds a digit or a number word, when the console could render a digit of its own (an
 ordered list, a counter), or when a denylisted phrase or a benchmark figure appears. Every digest in a run file is
 32 hex characters; no run file holds a path, a host name, a user name or narrative text, and the run's own scans and
-self-check refuse to write one that does.
+self-check refuse to write one that does. `ledger.jsonl` holds HQ's own model calls only: a plant's per-call ledger
+never leaves it, and its usage appears only as the k-suppressed usage summaries that crossed its Boundary
+(`scorecard.json` `ledger.site_usage`).
 
 ## Re-recording after a change
 

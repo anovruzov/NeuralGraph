@@ -59,7 +59,14 @@ The import guard encodes this chain:
 - after importing the five core modules, no `mycelic.collective*`, `NeuralGraph.llm_backend` or model-client module
   is loaded;
 - a `NeuralGraph.chat_memory` module is present only if `mycelic.retrieval` is;
-- the core without `service` loads no `chat_memory` module at all.
+- the core without `service` loads no `chat_memory` module at all;
+- since the review fixes: `NeuralGraph.chat_memory.llm`, which the chain above does load, may be loaded only from
+  inside the `NeuralGraph.chat_memory` package, and that package only by `mycelic.retrieval` (a meta-path recorder
+  in a fresh interpreter names each importer); no global of a core module is defined in a forbidden module; and the
+  static check resolves every name taken from a package (`from pkg import name`, or `import pkg as m` then
+  `m.name`) to the module that defines it, so `from NeuralGraph.chat_memory import BackendLLMClient`, a re-export of
+  `chat_memory.llm`, is a hit. Before, the guard said "no model-client module is loaded" while one was, and both a
+  re-exported import and a module-alias attribute passed it.
 
 ### Merge notes
 
@@ -758,7 +765,12 @@ patterns, S 0 of 3, R (model-free) 0 of 3, U 3 of 3, single_site 3 of 3; the fiv
 raised no X alert; the single reporter and high base rate decoys alerted with their flags set; the unmarked copies
 alerted in X. `claims_integrity` (built-in, seed 5): X found 2 of 3 (the rate-2 pattern below k=5 was not found), S 0
 of 3, R (model-free) 0 of 3, U 3 of 3, single_site 3 of 3. The lifts over three patterns and one seed are not
-interpretable (the scorecard warns), and none of these figures may be shown to anyone outside the team.
+interpretable (the scorecard warns), and none of these figures may be shown to anyone outside the team. Re-run with
+the review fixes (a no-plant control per seed; single_site counted only at a planted site; "Review fixes" at the end
+of this file), same labels: `device_quality` X 3 of 3 (control 0, net 3), S 0 of 3, R 0 of 3, U 3 of 3 (control 0,
+net 3), single_site 3 of 3 (control 2, net 1); `claims_integrity` X 2 of 3 (control 0, net 2), S 0, R 0, U 3 of 3
+(control 0, net 3), single_site 3 of 3 (control 1, net 2). Two of single_site's three device finds, and one of its
+three claims finds, also happen in the world without the plant: they were chance finds.
 
 ## G6
 
@@ -1661,3 +1673,103 @@ stand-in model reads the pack's own sentences perfectly.
 - **Leakage.** Both scans: no canary hit and no narrative overlap; the positive control finds canaries and text.
 - **Time of one `--record`** (fake mode, this sandbox, shared machine): 9.7 s for the committed run; 9.6 to 11.3 s for
   the other recordings in this session, and 12.8 s against a local fake server with `--routing`. The bound is 300 s.
+
+## Review fixes (sixteen confirmed findings)
+
+**Base.** Branch `mycelic-collective-phase2` at 2d2f54a (G8), a clean worktree. Nothing is committed by the engineer.
+
+**Scope: fabric files changed: none.** `git diff --stat 2d2f54a -- mycelic/service.py mycelic/store.py
+mycelic/aggregation.py mycelic/transport.py mycelic/api.py mycelic/lineage.py mycelic/config.py deploy SECURITY.md
+DEPLOYMENT.md NeuralGraph research` is empty. Changed: `mycelic/collective/{stats,runfiles}.py`,
+`detect/detectors.py`, `evaluate/harness.py`, `edge/{verify,records}.py`, `pushdown/orchestrator.py`,
+`inference/{tasks,runtime,fakeserver}.py`, `experiments/{openfda_replay,e1_extract,e2_pushdown,g0_canary}.py`,
+`demo/collective/{collective_demo,screen}.py`, `console.html`, `SCRIPT.md`, `README.md`, the committed run (re-recorded
+as `demo/collective/recorded/collective-halvern-g9/`, the G8 directory removed, as the README's re-recording steps
+say), `docs/collective/{ARCHITECTURE,RUNBOOK,LEAKAGE,INTEGRATION}.md` and nine test files. No new SQLite schema. Pack
+data and the four hashes per pack are unchanged.
+
+| # | Finding | Fix | Regression test |
+|---|---|---|---|
+| 1 | The openFDA replay credits recalls by alert volume | Every channel reports `alerts`, `alerts_per_week`, `found_minus_expected` and a circular-shift null (`chance`: expected found, per-recall share, p-value, median lead); ARCHITECTURE 14.7, RUNBOOK 12 | `OpenFDAReplayTests::test_every_channel_reports_its_alerts_and_a_circular_shift_null`, `test_the_circular_shift_null_by_hand`, `test_alert_volume_alone_is_not_credited_above_chance` |
+| 2 | X1 credits "found" without the plant; single_site at any site | A no-plant control world per seed through the same pipeline; `control_found`, `found_net`, `recall_net` everywhere, lifts on net found; single_site counts only at a planted site | `test_single_site_matches_the_key_only_at_a_planted_site`, `test_a_find_in_the_no_plant_control_is_a_chance_find_and_not_net`, `test_the_no_plant_control_runs_per_seed_and_its_finds_are_not_net` |
+| 3 | D3 PMI cannot fire on k-suppressed cells | The key's own count keeps its conservative bounds; the nuisance cells take one shared imputation (`'<k'` as k/2) in window and baseline | `test_d3_fires_on_all_suppressed_cells_where_opposite_marginal_bounds_could_not`, `test_a_steady_suppressed_key_beside_steady_suppressed_cells_does_not_rise` |
+| 4 | X detects later than S on code-visible patterns | X runs S's codes test beside the combined test (Bonferroni over two, a certain-rate floor), shown as `test` in the snapshot | `test_text_only_background_does_not_hide_a_codes_burst_that_s_sees` |
+| 5 | The E2 bar passes an uninformative verifier | Chance AP, the chance-corrected ratio and central_raw's lift over chance; the bar needs the corrected ratio and withholds an uninformative pool; key-cluster bootstrap | `test_a_constant_numerator_keeps_none_of_the_lift_over_chance`, `test_the_lift_ratio_by_hand_and_its_epsilon`, `test_cluster_replicates_draw_whole_labels`, `test_the_bar_needs_the_chance_corrected_ratio_and_an_informative_pool` |
+| 6 | high_base_rate set by a pattern's own co-mentioned keys | A3 counts other series of the same predicate and entity type | `test_a_co_mentioned_key_of_another_type_does_not_flag_a_genuine_burst` (and the renamed `test_high_base_rate_is_type_wide_and_never_flags_itself`) |
+| 7 | The run-file ledger copies per-call site rows (sub-k counts) | `project_ledger` refuses a site row; a site's usage is `site_usage` from the crossed summaries | `test_a_site_ledger_row_never_enters_a_run_file`, `test_crossed_usage_keeps_the_sites_suppression`, `RecordTests::test_ledger_capped_and_clean` |
+| 8 | The import guard is bypassed by re-exports from `NeuralGraph.chat_memory` | Names resolved to their defining module; fresh-interpreter globals and importer-chain checks | the re-export snippets of `POSITIVE_IMPORTS` (`test_checker_flags_every_positive_snippet`) and `test_checker_flags_an_injected_import_in_a_copy_of_a_core_file` (now `lineage` and `service`), `test_no_core_global_is_defined_in_a_model_client_module`, `test_the_known_model_client_load_follows_exactly_its_documented_chain` |
+| 9 | E2 aborts on the first central InferenceError | Recorded per item by kind; the run completes; the bar is withheld | `test_a_failing_central_judge_is_recorded_and_the_run_completes` |
+| 10 | A degraded verdict is cached and re-sent forever | Sent, not stored (question_log `degraded`, no budget); the next ask judges again | `test_a_judge_outage_is_not_pinned_the_next_ask_re_judges` |
+| 11 | E1 scores transport failures as model errors | Transport failures unscored, out of the validity denominators, counted by kind; a verdict withheld above 1% | `test_a_flaky_server_is_not_scored_as_model_errors_and_withholds_the_verdict` |
+| 12 | E2 judges despite timeouts; late verdicts never collected | `join_late` then `collect_late` at the item's `as_of`; unanswered share above 5% withholds the bar | `test_late_pushdown_answers_are_collected_and_scored`, `test_failures_context_and_unanswered_routes_withhold_the_bar` |
+| 13 | The repair turn sends [system, user, user] | The repair is appended to the one user turn; the fake server refuses non-alternating roles with 400 | `test_the_fake_server_refuses_roles_that_do_not_alternate_like_chat_templates` and the updated repair test |
+| 14 | No context-length check on central_raw prompts | `--central-context-tokens` required with `--central-routing`; prompts at the context (or unreported) withhold the bar | `test_central_routing_needs_the_central_context`, `test_central_prompts_at_the_declared_context_are_counted`, `test_prompt_tokens_per_central_raw_ref` |
+| 15 | S/R rows say "not alerted" while ranking the lot first; "nobody connects them" | A failure-mode caption; S and R rows name their first other case key with rank and week; the SCRIPT line dropped | `_HeroAssertions.assert_detection` (record and committed run) |
+| 16 | Replay/export of a `--serve` run shows LIVE | `screen.presentation`; replay and export present `recorded`; the badge reads only it | `ExportReplayTests::test_serve_controls_are_idempotent` (exports and replays the live run), `HonestyTests::test_labels_present` |
+
+### Earlier tests whose expectation encoded a finding
+
+Changed, never weakened: each now asserts the fixed behaviour.
+
+- `test_collective_evaluate.py`: `test_single_site_matches_the_key_at_any_site` became
+  `..._only_at_a_planted_site` (finding 2); the construction smokes read `work/seed-N/planted`; `channel_block` takes
+  the control events; the minimum-rate rows gained `rate_at_k_text_background`.
+- `test_collective_detect.py`: the hand-bounds test uses the new D3 formulas and the snapshot's `test` field;
+  `test_high_base_rate_is_predicate_wide_and_never_flags_itself` became `..._type_wide_...` (finding 6).
+- `test_collective_inference.py`: the repair test asserts `[system, user]` on both requests (finding 13).
+- `test_collective_pushdown.py`: the degrade test asserts nothing is stored and `audit` is None (finding 10).
+  `DETECT_SHA256` re-pins `detectors.py` (`9d23000e...`; G5 to G8 `7d4ca86b...`; `rules.py` and `org.py` unchanged),
+  and `test_detection_is_byte_identical_to_g5` is renamed `..._to_its_pin`: it is a tripwire for unintended changes
+  to detection, and this one is intended (findings 3, 4 and 6).
+- `test_collective_e1.py`, `test_collective_e2.py`: the smokes assert the new fields.
+- `test_collective_demo.py`: the `mode` format reads "scripted run" / "run driven live in the console" (the badge
+  text moved to `presentation`); the ledger test asserts HQ-only rows (`rows_written <= rows_total`, since HQ's draft
+  ledger has fewer rows than the cap).
+
+### Merge notes
+
+1. **For the fabric (not changed here, out of scope): `mycelic/retrieval.py` loads a model-client module.** Its
+   `from NeuralGraph.chat_memory.textutil import tokenize` runs `NeuralGraph/chat_memory/__init__`, which imports
+   `.llm` (and numpy and prometheus_client). Nothing calls a model, and the guard now pins that exact chain, but
+   the core would load no model-client module at all if `tokenize` lived outside the package `__init__`'s reach
+   (for example a module of `mycelic/` or a `chat_memory` package `__init__` that imports `.llm` lazily). Once
+   fixed, drop the `KNOWN_CHAIN` exemption in `test_collective_guards.py`.
+2. **E2 needs a more informative pool than the shipped smoke.** On `plant_e2_smoke.json` 247 of 300 candidates are
+   true (chance AP about 0.83), so a run on it is withheld as uninformative unless the judges separate far better
+   than chance. A real E2 needs a plant spec with many more decoys and background candidates (ARCHITECTURE 15.7).
+3. **A site answers one question at a time.** The verifier's lock queues a question behind a late one, and that wait
+   counts against the new question's deadline (orchestrator docstring, ARCHITECTURE 15.3). E2 now waits for late
+   answers itself; a deployment that sends many questions to a slow site should size `deadline_seconds` for it.
+
+### Disagreements and residuals, for the reviewer
+
+- **Finding 4 is mitigated, not closed.** A per-channel test at `lambda_floor` without a floor roughly tripled X's
+  false alarms in an engineering probe on synthetic plant worlds, because records that move between channels look
+  like a fresh series; the shipped fix is two tests at `alpha_site / 2` with a certain-rate floor. X can still be one
+  week behind S at S's threshold (the regression test pins W36 for S and W37 for X), and with steady text-only
+  background X needs a higher codes rate than S (`rate_at_k_text_background`). Full parity means running S's test at
+  full alpha inside X; that trades false alarms and is the owner's call.
+- **Finding 3 as worded ("can never fire") was stronger than the code.** On all-`'<k'` cells the opposite-bound
+  marginals cost every key a large negative rise before any change in the data (`-4 log(k - 1)` before smoothing for a
+  key alone in its type), so D3 could fire there only on a change large enough to overcome it; the regression test pins
+  a case it could not reach. The fix also gives up certainty over the nuisance cells (ARCHITECTURE 13.4).
+- **Finding 6's same-type case stays.** Two co-mentioned entities of the same type (two lots in one narrative) still
+  count as each other's base rate.
+- **Finding 12's queueing is left as documented behaviour** (merge note 3), not changed: E2 waits for the late answer
+  instead of letting the next question time out behind it.
+
+### Synthetic figures (synthetic, same-author, not a measurement)
+
+Printed in this sandbox, quoted only as **synthetic, same-author, not a measurement**:
+
+- The detection end-to-end test (seed 4, 40 weeks, six sites): `device_quality` X 3,155 cells, 27 candidates (12 from
+  the detectors), 12 alerts, 18 rule hits (G8: 26, 10, 10, 18); S and `claims_integrity` unchanged (ARCHITECTURE 13.9).
+- The X1 construction smokes: as quoted at the end of the G5 section above, with the control columns.
+- G0 with the run-files stage (seed 11, 1,000 records, both packs): exit 0, no hit, no overlap; HQ's ledger rows 4
+  and 1, six crossed usage groups each (LEAKAGE section 11).
+- An E2 rehearsal on `plant_e2_smoke.json` (fakes everywhere, tie salt `r9-rehearsal`): 300 candidates, 106 keys,
+  2,573,511 raw-text bytes for central_raw and 0 for the others, 276 of 276 supported conclusions resolvable, 0
+  unanswered routes, a withheld verdict; the pool is uninformative (merge note 2).
+- The re-recorded demo run: checks 12 of 12, hero X rank 2 in 2024-W35, gate supported; S's first other case key is
+  the lot's generic-malfunction key (rank 1, 2024-W36) and R's the product's (rank 1, 2024-W35), as in G8;
+  `ledger.jsonl` holds one HQ row; the final scan's run files are 49,452 bytes.

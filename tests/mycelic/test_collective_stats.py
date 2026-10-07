@@ -611,6 +611,67 @@ class PairedRankingBootstrapTests(unittest.TestCase):
                             (two["ratio"]["ci_low"], two["ratio"]["ci_high"]))
         self.assertEqual(one["conditions"]["a"]["ap"], two["conditions"]["a"]["ap"])
 
+    def test_a_constant_numerator_keeps_none_of_the_lift_over_chance(self) -> None:
+        # regression (E2): on a pool that is mostly relevant a constant ranking's AP is near the prevalence, so the
+        # plain AP ratio can clear a bar; the chance-corrected lift ratio of a constant ranking is 0
+        rng = random.Random(5)
+        relevant = [rng.random() < 0.8 for _ in range(200)]
+        central = [(2.0 if r else 1.0) + rng.random() * 1.5 for r in relevant]
+        out = stats.paired_ranking_bootstrap({"constant": [0.5] * 200, "central": central}, relevant, k=40, B=300,
+                                             seed=1, ratio=("constant", "central"))
+        chance = stats.tie_averaged_ap([0.0] * 200, relevant)
+        self.assertEqual(out["chance"]["ap"], chance)
+        self.assertEqual(out["chance"]["prevalence"], sum(relevant) / 200)
+        self.assertEqual(out["conditions"]["constant"]["ap"], chance)
+        self.assertGreater(out["ratio"]["estimate"], 0.8)                    # the plain ratio looks good
+        self.assertEqual(out["ratio"]["lift_estimate"], 0.0)
+        self.assertAlmostEqual(out["ratio"]["denominator_lift"], out["conditions"]["central"]["ap"] - chance)
+        self.assertLess(out["ratio"]["lift_ci_high"], 0.05)
+        self.assertGreater(out["ratio"]["denominator_lift_ci_low"], 0.0)
+        self.assertEqual(out["ratio"]["lift_undefined"], 0)
+
+    def test_the_lift_ratio_by_hand_and_its_epsilon(self) -> None:
+        scores = {"a": [0.9, 0.8, 0.3, 0.2, 0.1], "b": [0.8, 0.1, 0.9, 0.2, 0.3]}
+        relevant = [True, False, True, False, False]
+        out = stats.paired_ranking_bootstrap(scores, relevant, k=2, B=50, seed=1, ratio=("a", "b"))
+        chance = stats.tie_averaged_ap([0.0] * 5, relevant)
+        ap_a, ap_b = out["conditions"]["a"]["ap"], out["conditions"]["b"]["ap"]
+        self.assertEqual((ap_a, ap_b), ((1 + 2 / 3) / 2, 1.0))
+        self.assertEqual(out["ratio"]["lift_estimate"], (ap_a - chance) / (ap_b - chance))
+        # a denominator below chance leaves the lift undefined too
+        below = stats.paired_ranking_bootstrap({"a": scores["a"], "b": [0.1, 0.7, 0.0, 0.9, 0.2]}, relevant, k=2,
+                                               B=50, seed=1, ratio=("a", "b"))
+        self.assertLess(below["conditions"]["b"]["ap"], chance)
+        self.assertIsNone(below["ratio"]["lift_estimate"])
+        # a denominator no better than chance (within epsilon) leaves the lift undefined
+        flat = stats.paired_ranking_bootstrap({"a": scores["a"], "b": [0.0] * 5}, relevant, k=2, B=50, seed=1,
+                                              ratio=("a", "b"))
+        self.assertIsNone(flat["ratio"]["lift_estimate"])
+        self.assertEqual(flat["ratio"]["denominator_lift"], 0.0)
+        self.assertEqual(flat["ratio"]["lift_undefined"], 50)
+
+    def test_cluster_replicates_draw_whole_labels(self) -> None:
+        scores = {"a": [0.9, 0.8, 0.3, 0.2, 0.1, 0.4], "b": [0.1, 0.7, 0.8, 0.9, 0.2, 0.3]}
+        relevant = [True, False, True, False, False, True]
+        clusters = ["k2", "k1", "k2", "k3", "k1", "k3"]
+        out = stats.paired_ranking_bootstrap(scores, relevant, k=2, B=100, seed="c", ratio=("a", "b"),
+                                             clusters=clusters)
+        self.assertEqual((out["method"], out["n_clusters"]), ("paired cluster percentile", 3))
+        members = {"k1": [1, 4], "k2": [0, 2], "k3": [3, 5]}
+        labels = sorted(members)
+        rng = random.Random("c")
+        reps = []
+        for _ in range(100):
+            drawn = [i for _ in range(3) for i in members[labels[rng.randrange(3)]]]
+            marks = [relevant[i] for i in drawn]
+            if any(marks):
+                reps.append(stats.tie_averaged_ap([scores["a"][i] for i in drawn], marks))
+        self.assertEqual((out["conditions"]["a"]["ap_ci_low"], out["conditions"]["a"]["ap_ci_high"]),
+                         (stats.percentile(reps, 2.5), stats.percentile(reps, 97.5)))
+        plain = stats.paired_ranking_bootstrap(scores, relevant, k=2, B=100, seed="c", ratio=("a", "b"))
+        self.assertEqual((plain["method"], plain["n_clusters"]), ("paired percentile", None))
+        self.assertEqual(plain["conditions"]["a"]["ap"], out["conditions"]["a"]["ap"])
+
     def test_input_validation(self) -> None:
         good = {"a": [1.0, 2.0]}
         cases = [
@@ -626,6 +687,8 @@ class PairedRankingBootstrapTests(unittest.TestCase):
             (good, [True, False], {"ratio": ("a", "z")}), (good, [True, False], {"ratio": ("a",)}),
             (good, [True, False], {"epsilon": 0}), (good, [True, False], {"epsilon": -1}),
             (good, [True, False], {"epsilon": float("nan")}), (good, [True, False], {"epsilon": True}),
+            (good, [True, False], {"clusters": ["x"]}), (good, [True, False], {"clusters": ["x", 1]}),
+            (good, [True, False], {"clusters": "xy"}),
         ]
         for scores, relevant, kwargs in cases:
             args = {"k": 1, "B": 5, "seed": 1, **kwargs}

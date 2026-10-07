@@ -24,7 +24,10 @@ six files. Every stored timestamp comes from a simulated clock; the wall clock i
 
 Run files (``runfiles.RUN_FILES``): ``scorecard.json``, ``trace.json``, ``ledger.jsonl``, ``leakage.json``,
 ``approvals.jsonl`` (the primary five) and ``screen.json``, each validated against the closed schemas here
-(:func:`validate_run`), every digest written as 32 hex, nothing a free-key map. A run that fails (an endpoint, a
+(:func:`validate_run`), every digest written as 32 hex, nothing a free-key map. ``ledger.jsonl`` holds HQ's own model
+calls only; a site's calls appear only as the usage summaries that crossed its Boundary (``scorecard.ledger.
+site_usage``, k-suppressed). The site ledgers are read for one thing, each site task's endpoint flags (every call to
+an in-process fake, every call fake-marked), never for a count or a row. A run that fails (an endpoint, a
 fallback, a configuration error, an interrupt) writes no run file.
 
 Exit codes of ``--record``: 0 every check passed; 1 the run files were written and a check failed; 2 a usage,
@@ -111,6 +114,8 @@ STUB_LABEL = "deterministic stand-in, no model"
 TEST_SERVER_LABEL = "local test server (fake marker), no model"
 TEMPLATE_LABEL = "template, no model"
 SITES_NOTE = "sites simulated in one process, one shared model"
+LEDGER_SCOPE = ("HQ's own model calls, row by row; a site's calls only as the usage summaries that crossed its "
+                "Boundary, k-suppressed")
 X4_NOT_MEASURED = "not measured"
 OUTCOME_STATUS = "not yet checked"
 CONTENT_HASH_EXCLUDES = ("/code", "/content_hash", "/created_at", "/run_id", "/timings")
@@ -220,7 +225,7 @@ SCORECARD_SCHEMA = _obj({
                   "detector_digest": _H32, "fixtures_digest": _H32, "k": _I, "alert_budget_per_week": _I,
                   "window_weeks": _I, "min_window_weeks": _I}),
     "providers": _arr(_obj({"task": {"type": "string", "enum": [t for t, _ in TASKS]}, "task_name": _S, "label": _S,
-                            "calls": _I, "fake": _B})),
+                            "calls": _NI, "fake": _B})),
     "hero": _obj({
         "key": _obj({"entity_type": _S, "entity_type_label": _S, "entity_id": _S, "predicate": _S,
                      "predicate_label": _S, "key": _S}),
@@ -276,9 +281,13 @@ SCORECARD_SCHEMA = _obj({
     "leakage": _obj({"scope": {"type": "string", "const": "text-only"}, "canaries_planted": _I, "window_chars": _I,
                      "after_pushdown": _nobj({"hit_count": _I, "shingle_overlap_bytes": _I}),
                      "artifact_classes": _arr(_S)}),
-    "ledger": _obj({"rows_total": _I, "rows_written": _I, "per_group": _I, "capped": _B,
+    "ledger": _obj({"scope": {"type": "string", "const": LEDGER_SCOPE}, "rows_total": _I, "rows_written": _I,
+                    "per_group": _I, "capped": _B,
                     "by_task": _arr(_obj({"task": _S, "calls": _I, "ok": _I, "errors": _I, "tokens_in": _I,
-                                          "tokens_out": _I, "tokens_missing": _I, "fake": _B}))}),
+                                          "tokens_out": _I, "tokens_missing": _I, "fake": _B})),
+                    "site_usage": _arr(_obj({"site": _S, "closed_through": _S, "task": _S, "endpoint": _S,
+                                             "calls": _NI, "ok": _NI, "errors": _arr(_obj({"kind": _S, "n": _NI})),
+                                             "fake": _B, "suppressed": _arr(_S)}))}),
     "checks": _arr(_obj({"id": {"type": "string", "enum": [c for c, _ in CHECK_TEXTS]}, "ok": _B, "text": _S})),
     "code": _obj({"commit": _S, "dirty": {"type": "string", "enum": ["yes", "no", "unknown"]}, "digest": _H32}),
     "timings": _obj({"total_s": _NUM, "prepare_s": _NUM, "check_s": _NUM, "followup_s": _NUM, "finish_s": _NUM}),
@@ -1156,13 +1165,16 @@ class DemoEngine:
 
     # ------------------------------------------------------------------ documents
     def _providers(self) -> list[dict[str, Any]]:
-        rows = self._ledger_rows()
+        hq_rows, flags = self._hq_rows(), self._site_flags()
         out = []
         for task, name in TASKS:
-            task_rows = [r for r in rows if r["task"] == name]
-            if task_rows and all(r["provider"] == "fake" for r in task_rows):
+            hq_task = [r for r in hq_rows if r["task"] == name]
+            seen, all_stub, all_marked, any_marked = (flags[name] if name in flags else (
+                bool(hq_task), all(r["provider"] == "fake" for r in hq_task), all(r["fake_marker"] for r in hq_task),
+                any(r["fake_marker"] for r in hq_task)))
+            if seen and all_stub:
                 label = STUB_LABEL
-            elif task_rows and all(r["fake_marker"] for r in task_rows):
+            elif seen and all_marked:
                 label = TEST_SERVER_LABEL
             elif self.routing is None:
                 label = STUB_LABEL
@@ -1172,20 +1184,26 @@ class DemoEngine:
                 endpoint = self.routing.endpoints[routed_names(self.routing, name)[0]]
                 where = "structured inputs only, at HQ" if task == "draft" else SITES_NOTE
                 label = f"{endpoint.name}: model {endpoint.model}, {where}"
-            out.append({"task": task, "task_name": name, "label": label, "calls": len(task_rows),
-                        "fake": any(r["fake_marker"] for r in task_rows)})
+            out.append({"task": task, "task_name": name, "label": label,
+                        "calls": None if name in flags else len(hq_task), "fake": any_marked})
         return out
 
-    def _ledger_rows(self) -> list[dict[str, Any]]:
-        rows: list[dict[str, Any]] = []
+    def _hq_rows(self) -> list[dict[str, Any]]:
+        """HQ's own ledger (the central drafter's): the only per-call rows a run file may hold."""
+        central = self.fu_dir / "central.ledger.jsonl"
+        return read_ledger(central) if central.exists() else []
+
+    def _site_flags(self) -> dict[str, tuple[bool, bool, bool, bool]]:
+        """Per site task: ``(any call, every call to an in-process fake, every call fake-marked, any call
+        fake-marked)`` over every site ledger. Only these flags leave this method: no count and no row."""
+        flags: dict[str, tuple[bool, bool, bool, bool]] = {}
         for sid in self.site_ids:
             path = self.edge / f"site-{sid}.ledger.jsonl"
-            if path.exists():
-                rows += read_ledger(path)
-        central = self.fu_dir / "central.ledger.jsonl"
-        if central.exists():
-            rows += read_ledger(central)
-        return rows
+            for r in read_ledger(path) if path.exists() else []:
+                seen, stub, marked, any_marked = flags.get(r["task"], (False, True, True, False))
+                flags[r["task"]] = (True, stub and r["provider"] == "fake", marked and bool(r["fake_marker"]),
+                                    any_marked or bool(r["fake_marker"]))
+        return {name: flags.get(name, (False, True, True, False)) for _, name in TASKS if name != DRAFT_TASK}
 
     def _followup_doc(self) -> dict[str, Any]:
         if self.followup_reason is not None or not self.followups:
@@ -1265,8 +1283,9 @@ class DemoEngine:
         hero = sc.hero
         key = hero.key
         hero_records = world.item_records[hero.id]
-        rows = self._ledger_rows()
-        ledger_rows, ledger_summary = runfiles.project_ledger(rows, per_group=LEDGER_PER_GROUP)
+        ledger_rows, ledger_summary = runfiles.project_ledger(self._hq_rows(), per_group=LEDGER_PER_GROUP)
+        ledger_summary = {"scope": LEDGER_SCOPE, **ledger_summary,
+                          "site_usage": runfiles.crossed_usage(read_log(self.hq / "receive.jsonl"))}
         labels = []
         for k in world.case_keys:
             t, i, p = _key_parts(k)
@@ -1914,6 +1933,7 @@ def run_replay(args: argparse.Namespace) -> int:
     if directory is None:
         raise DemoError("there is not exactly one recorded run under demo/collective/recorded; pass its directory")
     docs = read_run(directory)
+    docs = {**docs, "screen.json": scr.presented(docs["screen.json"], "recorded")}
     if not port_free(args.host, args.port):
         print(f"error: port {args.port} on {args.host} is in use: pass --port <another>", file=sys.stderr)
         return 2
@@ -1939,7 +1959,7 @@ def run_export(args: argparse.Namespace) -> int:
     if directory is None:
         raise DemoError("there is not exactly one recorded run under demo/collective/recorded; pass --run")
     docs = read_run(directory)
-    page = build_page(docs["screen.json"]).encode("utf-8")
+    page = build_page(scr.presented(docs["screen.json"], "recorded")).encode("utf-8")
     if len(page) > MAX_PAGE_BYTES:
         raise DemoError(f"the page would be {len(page)} bytes, over the {MAX_PAGE_BYTES} byte limit")
     target = Path(args.export)

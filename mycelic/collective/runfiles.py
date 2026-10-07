@@ -12,9 +12,15 @@ Rules:
   (:func:`digest`, :func:`shorten`): a 64-hex string looks like a credential to a secret scan, and the full digests
   stay in the stores of the work directory. A string that holds a 64-hex run inside a longer text is refused, never
   kept silently.
-* **Usage ledger** (:func:`project_ledger`): exactly :data:`LEDGER_ROW_KEYS` per row (never ``ts``, ``run_id``,
-  ``ref``, ``host`` or ``model_served``), at most ``per_group`` rows per ``(site, task)`` in input order, and a summary
-  that counts every row. ``site`` is the id of a ``site:<id>`` boundary, or ``hq`` for ``central``.
+* **Usage ledger** (:func:`project_ledger`): HQ's own calls only (a ``central`` runtime's rows; ``site`` is
+  ``hq``): exactly :data:`LEDGER_ROW_KEYS` per row (never ``ts``, ``run_id``, ``ref``, ``host`` or ``model_served``),
+  at most ``per_group`` rows per ``(site, task)`` in input order, and a summary that counts every row. A row of a
+  ``site:<id>`` runtime is refused: a site's per-call ledger never leaves it, and its exact call counts (one judge
+  call per judged record, one extraction per record) are site data below k. A site's usage enters run files only as
+  the usage summaries that crossed its Boundary (:func:`crossed_usage`), suppressed there like the cells.
+* **Crossed usage** (:func:`crossed_usage`): one entry per group of every ``usage_summary`` in HQ's receive log, as
+  the site sent it: ``{site, closed_through, task, endpoint, calls, ok, errors, fake, suppressed}``, a ``'<k'`` count
+  written as null and named in ``suppressed`` (an error kind's count likewise null).
 * **Follow-up ledger** (:func:`project_entries`): one line per entry with shortened digests, then one
   ``ledger_head`` line with the head hash and the entry count.
 * **Portability** (:func:`portability_problems`): rule names, never values. A run file holds no absolute path, none of
@@ -107,11 +113,11 @@ def _site_of(boundary: Any) -> str:
 
 def project_ledger(rows: Sequence[Mapping[str, Any]], *,
                    per_group: int) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """The first ``per_group`` rows of each ``(site, task)`` in input order, projected to :data:`LEDGER_ROW_KEYS`, and
-    a summary over every row: ``{rows_total, rows_written, per_group, capped, by_task}`` with ``by_task`` sorted by
-    task, each ``{task, calls, ok, errors, tokens_in, tokens_out, tokens_missing, fake}`` (``calls`` counts logical
-    attempts; ``tokens_missing`` counts rows without one of the two token counts; ``fake`` is true when any row of the
-    task carried the fake marker)."""
+    """HQ's own ledger rows: the first ``per_group`` rows of each ``(site, task)`` in input order, projected to
+    :data:`LEDGER_ROW_KEYS`, and a summary over every row: ``{rows_total, rows_written, per_group, capped, by_task}``
+    with ``by_task`` sorted by task, each ``{task, calls, ok, errors, tokens_in, tokens_out, tokens_missing, fake}``
+    (``calls`` counts logical attempts; ``tokens_missing`` counts rows without one of the two token counts; ``fake`` is
+    true when any row of the task carried the fake marker). A site runtime's row raises :class:`RunFileError`."""
     if isinstance(per_group, bool) or not isinstance(per_group, int) or per_group < 1:
         raise RunFileError("ledger", "per_group must be an int >= 1") from None
     out: list[dict[str, Any]] = []
@@ -119,6 +125,9 @@ def project_ledger(rows: Sequence[Mapping[str, Any]], *,
     by_task: dict[str, dict[str, Any]] = {}
     for row in rows:
         site, task = _site_of(row["boundary"]), row["task"]
+        if site != CENTRAL_SITE:
+            raise RunFileError("ledger", "a site runtime's row: a site's usage enters run files only through the "
+                                         "usage summaries that crossed its Boundary") from None
         group = (site, task)
         seen[group] = seen.get(group, 0) + 1
         if seen[group] <= per_group:
@@ -135,6 +144,26 @@ def project_ledger(rows: Sequence[Mapping[str, Any]], *,
     summary = {"rows_total": len(rows), "rows_written": len(out), "per_group": per_group,
                "capped": len(out) < len(rows), "by_task": [by_task[t] for t in sorted(by_task)]}
     return out, summary
+
+
+def crossed_usage(receive_rows: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """Every group of every ``usage_summary`` in HQ's receive log (rows ``{artifact_type, body, ...}``), as the site
+    sent it, sorted by ``(site, closed_through, task, endpoint)``."""
+    out = []
+    for row in receive_rows:
+        if row["artifact_type"] != "usage_summary":
+            continue
+        body = row["body"]
+        for group in body["groups"]:
+            suppressed = sorted(k for k in ("calls", "ok") if not isinstance(group[k], int))
+            out.append({"site": body["site"], "closed_through": body["closed_through"], "task": group["task"],
+                        "endpoint": group["endpoint"],
+                        **{k: group[k] if isinstance(group[k], int) else None for k in ("calls", "ok")},
+                        "errors": [{"kind": kind, "n": n if isinstance(n, int) else None}
+                                   for kind, n in sorted(group["errors"].items())],
+                        "fake": bool(group["fake"]), "suppressed": suppressed})
+    out.sort(key=lambda g: (g["site"], g["closed_through"], g["task"], g["endpoint"]))
+    return out
 
 
 def project_entries(entries: Sequence[Any], *, label: str) -> list[dict[str, Any]]:

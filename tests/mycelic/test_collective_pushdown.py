@@ -80,9 +80,11 @@ G6_CONFIG_HASHES = {"device_quality": "b9e03c14d88100dac6849ba37525059dfb65e6813
 # G7 changed only followups.json's args (D2), so again only config_hash
 G7_CONFIG_HASHES = {"device_quality": "285935198ba34f2e194dc175cffd1f8f62c494d03d8fb7400ca1aef709058f2a",
                     "claims_integrity": "a3a042943452f6ef781f171cf879f3ba5f594f6c4dae5ffef47bfa241bb392da"}
-# sha256 of detect/{detectors,rules,org}.py at 51f3b09: detection is not changed by G6
+# sha256 of detect/{rules,org}.py at 51f3b09 and of detectors.py after the review fixes (D2's codes test in X, D3's
+# shared nuisance imputation, A3 per entity type; G5 to G8: 7d4ca86b...): detection changes only on purpose, and a
+# change re-pins it here
 DETECT_SHA256 = {
-    "detectors.py": "7d4ca86bd6e66f0e6e8a392ba45082f16ed372ecfb0ed611021ea3f1d8883b3f",
+    "detectors.py": "9d23000e2f84a0eea30fac05ac0227be9b12cf086652c61b5e74f488ac74b6b1",
     "rules.py": "f0f5caa1f3168cb5da064aed9fec80fce67f7dee939e4a06880c7245ec8ac62d",
     "org.py": "33972bebb177c2c7eb4b6dae86c5f8a8cb1ad1a752286bcf803e9b84a7b0368c",
 }
@@ -961,8 +963,9 @@ class VerifyTests(WorldCase):
         provider.fail_next(JUDGE_TASK, ["http_5xx"] * 3)
         out = v.answer(_q())
         self.assertEqual((out["verdict"], out["quality"], out["reason"]), ("unknown", "degraded", None))
-        audit = v.audit(out["verdict_id"])
-        self.assertEqual((audit.failures, audit.judged, audit.local_reason), (3, 2, "degraded"))
+        # a degraded verdict is sent but not stored (the next ask re-judges), so it has no audit row
+        self.assertIsNone(v.audit(out["verdict_id"]))
+        self.assertEqual([(r["ok"], r["error_kind"]) for r in read_ledger(ledger)].count((False, "http_5xx")), 3)
         refs = {r["ref"] for r in read_ledger(ledger)}
         self.assertTrue(all(re.fullmatch(r"j:[0-9a-f]{12}:[0-9]+", ref) for ref in refs), refs)
         self.assertFalse(refs & {r["record_ref"] for r in crack_records("s1", 5)})
@@ -975,6 +978,30 @@ class VerifyTests(WorldCase):
         provider4.fail_next(JUDGE_TASK, ["http_5xx"] * 2)
         half = SiteVerifier(s4, runtime=runtime4, clock=self.clock, demo_seed=1).answer(_q())
         self.assertEqual((half["verdict"], half["support_bucket"], half["quality"]), ("confirm", "<k", "ok"))
+
+    def test_a_judge_outage_is_not_pinned_the_next_ask_re_judges(self) -> None:
+        # regression: a degraded answer (the model server down) used to be stored and re-sent on every re-ask
+        s = self.loaded(crack_records("s1", 5))
+        ledger = self.tmp / "judge.ledger.jsonl"
+        provider = FakeProvider()
+        provider.register(JUDGE_TASK, lexical_judge(DQ, s.canonicaliser))
+        runtime = judge_runtime(DQ, "s1", ledger, self.clock, provider=provider)
+        self.addCleanup(runtime.close)
+        v = SiteVerifier(s, runtime=runtime, clock=self.clock, demo_seed=1)
+        provider.fail_next(JUDGE_TASK, ["network"] * 5)
+        down = v.answer(_q())
+        self.assertEqual((down["verdict"], down["quality"]), ("unknown", "degraded"))
+        calls = len(read_ledger(ledger))
+        up = v.answer(_q())                                         # same day, the server is back
+        self.assertEqual((up["verdict"], up["quality"]), ("confirm", "ok"))
+        self.assertGreater(len(read_ledger(ledger)), calls)
+        self.assertNotEqual(up["verdict_id"], down["verdict_id"])
+        self.assertEqual(v.audit(up["verdict_id"]).confirming, 5)
+        again = v.answer(_q())                                      # a confirm is final: re-sent, not re-judged
+        self.assertEqual(again, up)
+        log = [(row.question_id, row.outcome) for row in s.store.question_log()]
+        self.assertEqual([o for _, o in log], ["degraded", "answered"])
+        self.assertEqual(s.store.answered_count("product", "SD-9", AS_OF), 1)
 
     def test_answer_runs_on_a_worker_thread_with_its_own_connection(self) -> None:
         s = self.loaded(crack_records("s1", 3))
@@ -1983,7 +2010,7 @@ class PushdownImportGuardTests(unittest.TestCase):
         self.assertEqual([m for m in loaded if m.startswith("mycelic.collective.inference")], list(HQ_ALLOWED_LOADED))
         self.assertEqual([m for m in loaded if _forbidden(m, FORBIDDEN_LOADED) and not m.startswith("mycelic.")], [])
 
-    def test_detection_is_byte_identical_to_g5(self) -> None:
+    def test_detection_is_byte_identical_to_its_pin(self) -> None:
         for name, digest in DETECT_SHA256.items():
             with self.subTest(file=name):
                 data = (ROOT / "mycelic" / "collective" / "detect" / name).read_bytes()

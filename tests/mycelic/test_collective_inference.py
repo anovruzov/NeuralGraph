@@ -24,7 +24,7 @@ from pathlib import Path
 from unittest import mock
 
 from mycelic.collective import jsonio, schemacheck
-from mycelic.collective.inference import client, jsonparse, routing, tasks
+from mycelic.collective.inference import client, fakeserver, jsonparse, routing, tasks
 from mycelic.collective.inference.errors import InferenceBoundaryError, InferenceError
 from mycelic.collective.inference.fake import FakeProvider
 from mycelic.collective.inference.fakeserver import FakeOpenAIServer
@@ -866,7 +866,8 @@ class FakeServerRuntimeTests(RuntimeCase):
         srv, rt = self.one_server_runtime("invalid-then-valid")
         self.assertEqual(rt.run(TASK, PAYLOAD, SCHEMA, ref="r:1"), REPLY)
         self.assertEqual(len(srv.requests), 2)
-        first_reply = json.loads(srv.requests[1]["json"]["messages"][-1]["content"].split("<data>")[1]
+        # the repair note follows the payload's data block in the same user turn; its own block holds the excerpt
+        first_reply = json.loads(srv.requests[1]["json"]["messages"][-1]["content"].split("<data>")[2]
                                  .split("</data>")[0].replace("\\u003c", "<"))
         problems = schemacheck.compile(SCHEMA).validate(json.loads(first_reply))
         self.assertIn(("$", "additionalProperties"), problems)
@@ -876,7 +877,13 @@ class FakeServerRuntimeTests(RuntimeCase):
         for path, keyword in problems:
             self.assertIn(f"- {path}: {keyword}", last["content"].splitlines())
         self.assertIn("- $: additionalProperties", last["content"].splitlines())
-        self.assertEqual(srv.requests[1]["json"]["messages"][:2], srv.requests[0]["json"]["messages"])
+        # regression: the repair attempt is still [system, user] (no second user turn, which alternation-checking
+        # chat templates refuse with a 400), and its user turn is the original one plus the repair note
+        first, second = srv.requests[0]["json"]["messages"], srv.requests[1]["json"]["messages"]
+        self.assertEqual([m["role"] for m in first], ["system", "user"])
+        self.assertEqual([m["role"] for m in second], ["system", "user"])
+        self.assertEqual(second[0], first[0])
+        self.assertTrue(second[1]["content"].startswith(first[1]["content"] + "\n\n" + REPAIR_MARKER))
         rows = self.rows(rt)
         self.assertEqual([(r["attempt"], r["error_kind"], r["ok"]) for r in rows],
                          [(1, "schema_invalid", False), (2, None, True)])
@@ -1016,6 +1023,25 @@ class FakeServerRuntimeTests(RuntimeCase):
                 srv, rt = self.one_server_runtime(persona)
                 self.assert_raises_kind("json_invalid", rt.run, TASK, PAYLOAD, SCHEMA, ref="r:1")
                 self.assertEqual([r["error_kind"] for r in self.rows(rt)], ["json_invalid", "json_invalid"])
+
+    def test_the_fake_server_refuses_roles_that_do_not_alternate_like_chat_templates(self) -> None:
+        self.assertTrue(fakeserver.roles_alternate([{"role": "system"}, {"role": "user"}]))
+        self.assertTrue(fakeserver.roles_alternate([{"role": "user"}, {"role": "assistant"}, {"role": "user"}]))
+        for roles in (["system", "user", "user"], ["system", "assistant"], ["user", "user"], ["system"], [],
+                      ["system", "user", "assistant", "assistant"]):
+            self.assertFalse(fakeserver.roles_alternate([{"role": r} for r in roles]), roles)
+        with fakeserver.FakeOpenAIServer("valid") as srv:
+            body = json.dumps({"model": "m", "messages": [{"role": "system", "content": "s"},
+                                                         {"role": "user", "content": "a"},
+                                                         {"role": "user", "content": "b"}]}).encode("utf-8")
+            conn = http.client.HTTPConnection("127.0.0.1", srv.port, timeout=10)
+            try:
+                conn.request("POST", "/v1/chat/completions", body=body, headers={"Content-Type": "application/json"})
+                response = conn.getresponse()
+                self.assertEqual(response.status, 400)
+                self.assertIn(b"Conversation roles must alternate", response.read())
+            finally:
+                conn.close()
 
     def test_truncated_reply_carries_the_hint(self) -> None:
         srv, rt = self.one_server_runtime("truncated", server_kwargs={"reply": {"answer": "a long enough answer"}})

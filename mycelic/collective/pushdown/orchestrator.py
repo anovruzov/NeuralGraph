@@ -33,7 +33,10 @@ with the next ``seq`` and supersedes the earlier one in the gate.
 
 Late verdicts: :meth:`Orchestrator.collect_late` takes in the body of every late thread that has finished, received
 at the collection's ``as_of``, and re-gates those questions there; re-gating at an ``as_of`` before the latest
-version is refused, and the gate never sees a verdict received after its ``as_of``.
+version is refused, and the gate never sees a verdict received after its ``as_of``. :meth:`Orchestrator.join_late`
+waits a bounded time for the late threads, for a caller (E2) that must not score a deadline. A site answers one
+question at a time (its verifier's lock), so a question sent to a site still busy with a late one waits behind it,
+and that wait counts against the new question's deadline.
 
 A conclusion is ``c-`` plus the first 32 hex of the question id, versioned from 1; its body holds the gate result, the
 pack hash and gate parameters, the decision unit (of the confirming sites, else the contributing ones) and the
@@ -43,6 +46,7 @@ from __future__ import annotations
 
 import math
 import threading
+import time
 from dataclasses import dataclass
 from datetime import timedelta
 from types import MappingProxyType
@@ -350,6 +354,19 @@ class Orchestrator:
         return self.store.append_verdict(question_id=parsed["question_id"], site=site, source="site",
                                          verdict=parsed["verdict"], reason=parsed["reason"], body=data,
                                          received_as_of=as_of)
+
+    @property
+    def late_deliveries(self) -> int:
+        """Late deliveries not collected yet (finished or still running)."""
+        return len(self._late)
+
+    def join_late(self, timeout_seconds: float) -> int:
+        """Wait up to ``timeout_seconds`` in all for every late delivery's thread to finish; returns how many are
+        still running. Nothing is taken in: :meth:`collect_late` does that."""
+        deadline = time.monotonic() + max(0.0, float(timeout_seconds))
+        for late in list(self._late):
+            late.thread.join(timeout=max(0.0, deadline - time.monotonic()))
+        return sum(1 for late in self._late if late.thread.is_alive())
 
     def collect_late(self, *, as_of: str) -> list[Conclusion]:
         """Take in every finished late verdict, received at ``as_of``, and re-gate those questions at ``as_of``."""

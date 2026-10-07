@@ -11,9 +11,15 @@ build when a display does not match.
 
 Formats (:data:`FMTS`), with a fixed locale and no float repr: ``int`` ``f'{v:,}'``; ``rank`` an int, or ``not
 alerted`` for null; ``pct`` ``f'{round(v * 100)}%'`` for v in [0, 1]; ``dec2`` ``f'{v:.2f}'``; ``text`` verbatim;
-``digest12`` the first 12 of at least 12 lowercase hex characters; ``yesno``; ``mode`` (``RECORDED`` or ``LIVE``);
-``approval`` (scripted or live); ``datetime`` ``YYYY-MM-DD HH:MM UTC`` from an ISO timestamp with ``Z``.
-:func:`parse_display` reads a display back to the value the lint compares with :func:`comparable`.
+``digest12`` the first 12 of at least 12 lowercase hex characters; ``yesno``; ``mode`` (how the run was made: a
+scripted run or one driven live in the console); ``approval`` (scripted or live); ``datetime`` ``YYYY-MM-DD HH:MM
+UTC`` from an ISO timestamp with ``Z``. :func:`parse_display` reads a display back to the value the lint compares
+with :func:`comparable`.
+
+``presentation`` is how this screen is shown now, and the console's badge reads it: ``live`` only while the console
+is attached to the engine that is running the run (``--serve``); ``recorded`` for ``--record``, and always for
+``--replay`` and ``--export`` (:func:`presented`), whatever mode the run was made in. The footer's ``mode`` item
+keeps how the run was made.
 
 Pure and deterministic: :func:`build_screen` gives the same screen for the same documents; it imports only
 ``jsonio``, ``schemacheck`` and ``runfiles``.
@@ -36,12 +42,13 @@ BLOCK_KINDS = ("headline", "caption", "channel_row", "verdict_card", "packet_car
 PHASES = ("preparing", "ready", "running", "complete", "failed")
 ACTIONS = ("next", "check", "approve")
 MODES = ("record", "live")
+PRESENTATIONS = ("live", "recorded")
 BEATS = (("problem", "The problem"), ("alert", "The alert"), ("check", "Check with the sites"),
          ("followup", "Approval-routed follow-up"), ("real_data", "Real data"))
 CUT_60S = ("problem", "alert", "check", "real_data")
 FOOTER_BEAT = "footer"
 NOT_ALERTED = "not alerted"
-MODE_DISPLAY = {"record": "RECORDED", "live": "LIVE"}
+MODE_DISPLAY = {"record": "scripted run", "live": "run driven live in the console"}
 APPROVAL_DISPLAY = {"recorded": "recorded approval (scripted)",
                     "live": "approved live in the console (the presenter acts as the named owner)"}
 
@@ -54,6 +61,9 @@ S_ALSO = "The codes-only baseline also caught this case"
 R_RELATED = "The restricted central baseline flagged a related key:"
 S_RELATED = "The codes-only baseline flagged a related key:"
 BY_CONSTRUCTION = "By construction, S and R cannot see this key:"
+THIS_MODE = "This failure mode: "
+OTHER_KEY = " · first other key of this case it flagged: "
+NO_OTHER_KEY = " · it flagged no other key of this case"
 REASON_TEXTS = {
     "predicate_only_in_narrative": "its predicate is never coded in these records; it appears only in the narratives",
     "entity_and_predicate_only_in_narrative": "neither its predicate nor its entity is in a coded or structured "
@@ -189,6 +199,7 @@ SCREEN_SCHEMA = _obj({
     "schema_version": {"type": "integer", "const": SCHEMA_VERSION},
     "run_id": {"type": "string", "pattern": RUN_ID_PATTERN},
     "mode": {"type": "string", "enum": list(MODES)},
+    "presentation": {"type": "string", "enum": list(PRESENTATIONS)},
     "phase": {"type": "string", "enum": list(PHASES)},
     "beats": _arr(_obj({"id": {"type": "string", "enum": [b for b, _ in BEATS]}, "title": _STR,
                         "in_cut": {"type": "boolean"}})),
@@ -286,21 +297,39 @@ def _key_parts(b: _Builder, sc: Mapping[str, Any], prefix: str, item_id: str, be
             b.item(f"{item_id}_predicate", beat, "Predicate", base + "/predicate_label", "text")]
 
 
+def _other_key(b: _Builder, sc: Mapping[str, Any], S: str, channel: str, prefix: str) -> list[dict[str, Any]]:
+    """A baseline row's tail: the first other key of the case it flagged (its rank and week), or that it flagged
+    none."""
+    related = sc["hero"]["detection"][channel]["related"]
+    if not related:
+        return [b.text(NO_OTHER_KEY)]
+    base = f"{S}/{channel}/related/0"
+    return ([b.text(OTHER_KEY)] + _key_parts(b, sc, S, f"{prefix}_first_other", "alert", related[0]["key"])
+            + [b.text(" · rank "), b.item(f"{prefix}_first_other_rank", "alert", "Rank of the first other key",
+                                          base + "/rank", "rank"),
+               b.text(" in week "), b.item(f"{prefix}_first_other_week", "alert", "Week of the first other key",
+                                           base + "/week", "text")])
+
+
 def _alert(b: _Builder, sc: Mapping[str, Any]) -> None:
     S = "scorecard.json#/hero/detection"
     det = sc["hero"]["detection"]
-    x = [b.text("X · rank "), b.item("x_rank", "alert", "X rank", S + "/X/rank", "rank")]
+    b.block("alert-key", "alert", "caption",
+            [b.text(THIS_MODE)] + _key_parts(b, sc, S, "hero_key", "alert", sc["hero"]["key"]["key"]))
+    x = [b.text("X · this failure mode · rank "), b.item("x_rank", "alert", "X rank", S + "/X/rank", "rank")]
     if det["X"]["rank"] is not None:
         x += [b.text(" · score "), b.item("x_score", "alert", "X score", S + "/X/score", "dec2"),
               b.text(" · first alerted in week "),
               b.item("x_week", "alert", "X first alert week", S + "/X/detection_week", "text")]
     b.block("alert-x", "alert", "channel_row", x, group="X")
     b.block("alert-x-definition", "alert", "note", [b.text(X_DEFINITION)], group="X")
-    b.block("alert-s", "alert", "channel_row", [b.text("S · rank "), b.item("s_rank", "alert", "S rank",
-                                                                             S + "/S/rank", "rank")], group="S")
+    b.block("alert-s", "alert", "channel_row",
+            [b.text("S · this failure mode · rank "), b.item("s_rank", "alert", "S rank", S + "/S/rank", "rank")]
+            + _other_key(b, sc, S, "S", "s"), group="S")
     b.block("alert-s-definition", "alert", "note", [b.text(S_DEFINITION)], group="S")
-    b.block("alert-r", "alert", "channel_row", [b.text("R · rank "), b.item("r_rank", "alert", "R rank",
-                                                                             S + "/R_mf/rank", "rank")], group="R")
+    b.block("alert-r", "alert", "channel_row",
+            [b.text("R · this failure mode · rank "), b.item("r_rank", "alert", "R rank", S + "/R_mf/rank", "rank")]
+            + _other_key(b, sc, S, "R_mf", "r"), group="R")
     b.block("alert-r-definition", "alert", "note", [b.text(R_DEFINITION)], group="R")
     b.block("alert-references", "alert", "channel_row",
             [b.text("References: U · rank "), b.item("u_rank", "alert", "U rank", S + "/U/rank", "rank"),
@@ -522,20 +551,34 @@ def _footer(b: _Builder, sc: Mapping[str, Any], trace: Mapping[str, Any]) -> Non
             for j in failed])
 
 
-def _shell(run_id: str, mode: str, phase: str, controls: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
-    return {"kind": KIND, "schema_version": SCHEMA_VERSION, "run_id": run_id, "mode": mode, "phase": phase,
+def _shell(run_id: str, mode: str, presentation: str, phase: str,
+           controls: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    return {"kind": KIND, "schema_version": SCHEMA_VERSION, "run_id": run_id, "mode": mode,
+            "presentation": presentation, "phase": phase,
             "beats": [{"id": i, "title": t, "in_cut": i in CUT_60S} for i, t in BEATS], "cut_60s": list(CUT_60S),
             "controls": [dict(c) for c in controls], "blocks": [], "items": []}
+
+
+def presented(screen: Mapping[str, Any], presentation: str) -> dict[str, Any]:
+    """A copy of ``screen`` presented as ``presentation``: ``--replay`` and ``--export`` show every run as
+    ``recorded``, nothing runs behind them."""
+    if presentation not in PRESENTATIONS:
+        raise ScreenError("unknown presentation") from None
+    out = {**strict_load(canonical_bytes(screen)), "presentation": presentation}
+    if screen_problems(out):
+        raise ScreenError("the screen breaks its schema") from None
+    return out
 
 
 def build_screen(docs: Mapping[str, Any] | None, *, mode: str, phase: str,
                  controls: Sequence[Mapping[str, Any]] = (), run_id: str | None = None) -> dict[str, Any]:
     """The screen for the primary documents (``{file name: document}``; the run id is the scorecard's), or, without
     documents (a run still preparing, or one that failed before it had any), a screen of static texts only for
-    ``run_id``."""
+    ``run_id``. It is presented ``live`` while the engine runs in ``live`` mode, else ``recorded``."""
     if mode not in MODES or phase not in PHASES:
         raise ScreenError("unknown mode or phase") from None
-    out = _shell(docs["scorecard.json"]["run_id"] if docs is not None else run_id, mode, phase, controls)
+    out = _shell(docs["scorecard.json"]["run_id"] if docs is not None else run_id, mode,
+                 "live" if mode == "live" else "recorded", phase, controls)
     b = _Builder(docs)
     if docs is None:
         b.block("preparing", "problem", "headline", [b.text(PREPARING)])

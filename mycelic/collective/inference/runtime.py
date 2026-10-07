@@ -29,7 +29,8 @@ A refusal writes one ledger row (attempt 0, ``boundary_mode`` refused) and raise
 endpoint is out of bounds.
 
 Flow of :meth:`Runtime.run`: attempt 1 on the primary; on ``json_invalid`` or ``schema_invalid`` attempt 2 on the
-same endpoint with a repair message; if that also fails validation and the route has ``escalate_to``, attempt 3 on
+same endpoint with a repair note appended to the user turn (:func:`~.tasks.with_repair`; the roles stay ``[system,
+user]``); if that also fails validation and the route has ``escalate_to``, attempt 3 on
 the escalation endpoint with the original conversation only. Nothing else (HTTP errors, timeouts, size limits,
 boundary, configuration, a missing fake handler) is repaired or escalated. :meth:`Runtime.single` makes exactly one
 attempt and returns the row instead of raising; the latency and extraction harnesses use it.
@@ -52,7 +53,7 @@ from .errors import InferenceBoundaryError, InferenceError
 from .jsonparse import ReplyParseError, extract_object
 from .ledger import UsageLedger, cost
 from .routing import NAME_RE, ConfigError, Endpoint, RoutingConfig, key_problem, runtime_boundary_ok
-from .tasks import TaskSpec, render_messages, repair_message
+from .tasks import TaskSpec, render_messages, repair_message, with_repair
 
 logger = logging.getLogger(__name__)
 
@@ -161,7 +162,7 @@ class Runtime:
         if first.row["error_kind"] in VALIDATION_KINDS:
             repair = repair_message(first.problems, truncated=first.finish_reason == "length",
                                     previous_reply=first.content)
-            second = self._attempt(plan, plan.primary, plan.primary_mode, 2, base + [repair], stream=False)
+            second = self._attempt(plan, plan.primary, plan.primary_mode, 2, with_repair(base, repair), stream=False)
             if second.output is not None:
                 return second.output
             last = second

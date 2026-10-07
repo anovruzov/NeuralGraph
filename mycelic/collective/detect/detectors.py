@@ -16,23 +16,31 @@ Rules:
   closed is used at step W). The step's own ``as_of_W = min(D, sunday(W) + close_lag_days + 6 days)`` is used only
   for staleness.
 * **Imputation.** A count is ``(v, v)`` for an int and ``(1, k - 1)`` for ``'<k'``; an absent cell is ``(0, 0)``.
-  Every use takes the side that makes a detector less likely to fire: evidence (window counts, PMI numerators in the
-  window, support, rule counts, independent roots) takes the lower bound, the null hypothesis (baseline rates, window
-  marginals) the upper bound, and the opposite sides for the baseline PMI and for past exceedances (A1).
-* **D2 cross-site burst.** Per eligible site: ``B = min(baseline_weeks, history)``, ``lam = max(lambda_floor,
-  baseline ub / B)``, ``c = window lb``, ``logp = log P(Poisson(lam * window_weeks) >= c)``; the site certainly
-  exceeds when ``c >= 1`` and ``logp < log(alpha_site)``. ``p_s`` is the share of the site's past windows (ending at or
-  before ``W - window_weeks``, each with enough history) whose exceedance was possible under the bounds, clipped to
-  ``[p_min, p_max]``. ``surprise = -log P(PoissonBinomial(p_s) >= m)`` over the ``n`` eligible sites, ``m`` of them
-  exceeding; a candidate when ``m >= burst.min_sites``. A site whose history of the series is all ``'<k'`` stays in
-  ``n`` (A2).
+  Every use takes the side that makes a detector less likely to fire: evidence (window counts, the key's own PMI
+  count in the window, support, rule counts, independent roots) takes the lower bound, the null hypothesis (baseline
+  rates, the key's own PMI count in the baseline) the upper bound, and the opposite sides for past exceedances (A1).
+  D3's nuisance counts (the entity's other predicates, the predicate's other entities, the rest of the type) take
+  one shared imputation in the window and the baseline, an int as is and ``'<k'`` as ``k / 2``, so suppressed
+  background shifts both PMIs alike instead of deciding the rise.
+* **D2 cross-site burst.** Per eligible site and per test: ``B = min(baseline_weeks, history)``, ``lam =
+  max(lambda_floor, baseline ub / B)``, ``c = window lb``, ``logp = log P(Poisson(lam * window_weeks) >= c)``; a test
+  certainly exceeds when ``c >= 1`` and ``logp < log(alpha_site / tests)``. S has one test (its codes cells). In X,
+  once the series has cells in both channels at the site, there are two tests (Bonferroni over two): the combined
+  count, and S's own codes count against a rate of at least the series' certain rate over both channels (combined
+  baseline lb / B), so text-only background no longer delays a burst that S sees, and records moving between channels
+  never look like a fresh series; before that the tests coincide and the one test runs at ``alpha_site``. The site
+  certainly exceeds when one of its tests does, and the snapshot shows the test with the lowest ``logp``. ``p_s`` is
+  the share of the site's past windows (ending at or before ``W - window_weeks``, each with enough history) whose
+  exceedance was possible under the bounds (any test), clipped to ``[p_min, p_max]``. ``surprise = -log
+  P(PoissonBinomial(p_s) >= m)`` over the ``n`` eligible sites, ``m`` of them exceeding; a candidate when ``m >=
+  burst.min_sites``. A site whose history of the series is all ``'<k'`` stays in ``n`` (A2).
 * **D3 co-occurrence lift.** Per eligible site, PMI of (entity, predicate) within the entity type, smoothed, derived
   from cells only; ``rise = pmi_window - pmi_baseline``; rising when ``rise > pmi_delta`` and the key's window lower
   bound is at least k; a candidate when ``cooccurrence.min_sites`` eligible sites rise.
 * **D4 to D6.** ``res_conf`` (the lowest ``res_conf_min`` in the lineage), independent roots (lower bounds),
-  ``root_ratio_ub`` and ``echo``, few reporters per site, the predicate-wide high base rate excluding the key itself
-  (A3), short and suppressed histories; a candidate whose newest lineage week is more than ``stale_days`` before
-  ``as_of_W`` is removed at that step.
+  ``root_ratio_ub`` and ``echo``, few reporters per site, the high base rate of the predicate among the key's own
+  entity type, excluding the key itself (A3), short and suppressed histories; a candidate whose newest lineage week
+  is more than ``stale_days`` before ``as_of_W`` is removed at that step.
 * **D7 ranker.** ``score = logistic(bias + fsum(weight_f * feature_f))`` with the pack's default weights; nothing is
   fitted and nothing is learned.
 * **Alerts.** Per week the candidates not cooling are ordered by ``(-score, sha256(tie_salt|key))`` and the first
@@ -42,9 +50,9 @@ Rules:
 * **Determinism.** Never iterate a set or a set-derived dict without ``sorted()``; float sums via ``math.fsum`` or a
   fixed order; no ``hash()``; no clock and no entropy; the only randomness is none. The result is byte-identical under
   any ``PYTHONHASHSEED``.
-* **Cost.** One pass over the cells builds per-(site, series), per-(site, entity), per-(site, type, predicate) and
-  per-(site, type) prefix arrays; the walk is then O((sites x series + rules x entities) x weeks) with no per-step
-  scan of the cells.
+* **Cost.** One pass over the cells builds per-(site, series), per-(site, series, channel) in X, per-(site, entity),
+  per-(site, type, predicate) and per-(site, type) prefix arrays; the walk is then O((sites x series + rules x
+  entities) x weeks) with no per-step scan of the cells.
 """
 from __future__ import annotations
 
@@ -73,6 +81,7 @@ RUN_STATUSES = ("ok", "insufficient_baseline", "empty")
 SITE_STATUSES = ("late", "short_history", "eligible")
 DETECTOR_CHANNEL = "detector"
 RULE_CHANNEL = "rule"
+COMBINED_TEST = "combined"
 TIE_SALT_RE = re.compile(r"[\x20-\x7e]{1,128}", re.ASCII)
 
 Series = tuple[str, str, str]                     # (entity_type, entity_id, predicate)
@@ -128,6 +137,12 @@ def bounds(value: int | None, k: int) -> tuple[int, int]:
     return (1, k - 1) if value is None else (value, value)
 
 
+def twice_imputed(value: int | None, k: int) -> int:
+    """Twice D3's shared nuisance imputation: ``2 * value`` for an int count, ``k`` (``'<k'`` as ``k / 2``) for None;
+    kept doubled so the prefix sums stay ints."""
+    return k if value is None else 2 * value
+
+
 def result_bytes(result: Mapping[str, Any]) -> bytes:
     return canonical_bytes(result)
 
@@ -169,9 +184,12 @@ class _Index:
     """Prefix arrays and per-week precomputations over the cells of one run."""
 
     def __init__(self, cfg: DetectorConfig, org: OrgConfig, bundles: Sequence[BundleRow], used: Sequence[CellRow],
-                 last_week: str) -> None:
+                 last_week: str, channels: Sequence[str]) -> None:
         self.cfg = cfg
         self.org = org
+        self.channels = tuple(channels)
+        self.split_tests = ((COMBINED_TEST,) if self.channels == RUN_CHANNELS["S"]
+                            else (COMBINED_TEST, *RUN_CHANNELS["S"]))
         self.sites = tuple(sorted(org.sites))
         weeks = [min(c.iso_week for c in used)]
         while weeks[-1] < last_week:
@@ -184,26 +202,33 @@ class _Index:
             if b.closed_through > self.reported_through.get(b.site, ""):
                 self.reported_through[b.site] = b.closed_through
         k = cfg.k
-        raw: dict[tuple[Any, ...], tuple[list[int], list[int]]] = {}
+        raw: dict[tuple[Any, ...], tuple[list[int], list[int], list[int]]] = {}
         self.cells_of: dict[tuple[str, Series], list[tuple[int, CellRow]]] = {}
         self.start: dict[str, int] = {}
         entities: dict[tuple[str, str, str], list[str]] = {}
+        first_in: dict[tuple[str, Series], dict[str, int]] = {}
 
-        def add(key: tuple[Any, ...], i: int, lo: int, hi: int) -> None:
+        def add(key: tuple[Any, ...], i: int, lo: int, hi: int, mid2: int) -> None:
             arrays = raw.get(key)
             if arrays is None:
-                arrays = raw[key] = ([0] * nw, [0] * nw)
+                arrays = raw[key] = ([0] * nw, [0] * nw, [0] * nw)
             arrays[0][i] += lo
             arrays[1][i] += hi
+            arrays[2][i] += mid2
 
         for c in used:
             i = self.pos[c.iso_week]
             lo, hi = bounds(c.n, k)
+            mid2 = twice_imputed(c.n, k)
             ser = (c.entity_type, c.entity_id, c.predicate)
-            add(("s", c.site, ser), i, lo, hi)
-            add(("e", c.site, c.entity_type, c.entity_id), i, lo, hi)
-            add(("p", c.site, c.entity_type, c.predicate), i, lo, hi)
-            add(("t", c.site, c.entity_type), i, lo, hi)
+            add(("s", c.site, ser), i, lo, hi, mid2)
+            if len(self.split_tests) > 1:
+                add(("c", c.site, ser, c.channel), i, lo, hi, mid2)
+                seen = first_in.setdefault((c.site, ser), {})
+                seen[c.channel] = min(seen.get(c.channel, nw), i)
+            add(("e", c.site, c.entity_type, c.entity_id), i, lo, hi, mid2)
+            add(("p", c.site, c.entity_type, c.predicate), i, lo, hi, mid2)
+            add(("t", c.site, c.entity_type), i, lo, hi, mid2)
             cell_list = self.cells_of.setdefault((c.site, ser), [])
             if not cell_list:
                 entities.setdefault((c.site, c.entity_type, c.predicate), []).append(c.entity_id)
@@ -212,25 +237,30 @@ class _Index:
                 self.start[c.site] = i
         self.lb = {key: _prefix(arrays[0]) for key, arrays in raw.items()}
         self.ub = {key: _prefix(arrays[1]) for key, arrays in raw.items()}
+        self.mid2 = {key: _prefix(arrays[2]) for key, arrays in raw.items() if key[0] != "c"}
+        # per (site, series) in X: the first week index with cells of the series in every channel (the two D2 tests
+        # are distinct from then on)
+        self.split_from = {sk: max(seen.values()) for sk, seen in sorted(first_in.items())
+                           if len(seen) == len(self.channels)}
         self.entities = {key: tuple(sorted(ids)) for key, ids in sorted(entities.items())}
         series_sites: dict[Series, list[str]] = {}
         for site, ser in sorted(self.cells_of):
             series_sites.setdefault(ser, []).append(site)
             self.cells_of[(site, ser)].sort(key=lambda item: (item[0], item[1].channel))
         self.series_sites = {ser: tuple(series_sites[ser]) for ser in sorted(series_sites)}
-        self.log_alpha = math.log(cfg.alpha_site)
+        self.log_alpha = {n: math.log(cfg.alpha_site / n) for n in sorted({1, len(self.split_tests)})}
         self._logsf: dict[tuple[int, float], float] = {}
         # per (site, series): certain exceedance per week and a prefix count of possible exceedances (A1); per
-        # (site, predicate): how many series certainly exceed each week (A3)
+        # (site, entity type, predicate): how many series certainly exceed each week (A3)
         self.exceeded: dict[tuple[str, Series], bytearray] = {}
         self.possible: dict[tuple[str, Series], list[int]] = {}
-        self.exceeding: dict[tuple[str, str], list[int]] = {}
+        self.exceeding: dict[tuple[str, str, str], list[int]] = {}
         for site, ser in sorted(self.cells_of):
             exc = bytearray(nw)
             possible = [0] * nw
-            counts = self.exceeding.setdefault((site, ser[2]), [0] * nw)
+            counts = self.exceeding.setdefault((site, ser[0], ser[2]), [0] * nw)
             for i in range(self.history_start(site), nw):
-                exc[i] = self.d2_site(site, ser, i)[4]
+                exc[i] = self.d2_site(site, ser, i)[5]
                 possible[i] = self.possible_at(site, ser, i)
                 counts[i] += exc[i]
             self.exceeded[(site, ser)] = exc
@@ -261,26 +291,56 @@ class _Index:
     def window_lb(self, site: str, ser: Series, i: int) -> int:
         return _span(self.lb.get(("s", site, ser)), i - self.cfg.window_weeks + 1, i)
 
-    def d2_site(self, site: str, ser: Series, i: int) -> tuple[int, float, float, float, bool]:
-        """``(c, lam, expected, logp, exceeded)`` of a site with history at week index ``i`` (window lb against
-        baseline ub)."""
+    def tests_at(self, site: str, ser: Series, i: int) -> tuple[str, ...]:
+        """The D2 tests of a site's series at week index ``i``: the combined count alone, or in X, once the series has
+        cells in both channels, the combined count and S's own codes count."""
+        split = self.split_from.get((site, ser))
+        return self.split_tests if split is not None and split <= i else (COMBINED_TEST,)
+
+    @staticmethod
+    def _test_key(test: str, site: str, ser: Series) -> tuple[Any, ...]:
+        return ("s", site, ser) if test == COMBINED_TEST else ("c", site, ser, test)
+
+    def d2_site(self, site: str, ser: Series, i: int) -> tuple[str, int, float, float, float, bool]:
+        """``(test, c, lam, expected, logp, exceeded)`` of a site with history at week index ``i``: each test is the
+        window lb against the baseline ub at ``alpha_site / tests``, and the codes test's rate is at least the
+        series' certain rate over both channels (combined baseline lb), so records that move between channels never
+        look like a fresh series; the site exceeds when one test does, and the values are those of the test with the
+        lowest ``logp`` (the first test on a tie)."""
         cfg = self.cfg
         b_eff = min(cfg.baseline_weeks, self.history(site, i))
         top = i - cfg.window_weeks
-        c = self.window_lb(site, ser, i)
-        lam = max(cfg.lambda_floor, _span(self.ub.get(("s", site, ser)), top - b_eff + 1, top) / b_eff)
-        expected = lam * cfg.window_weeks
-        logp = self.logsf(c, expected)
-        return c, lam, expected, logp, c >= 1 and logp < self.log_alpha
+        tests = self.tests_at(site, ser, i)
+        log_alpha = self.log_alpha[len(tests)]
+        certain = _span(self.lb.get(("s", site, ser)), top - b_eff + 1, top) / b_eff
+        best: tuple[str, int, float, float, float, bool] | None = None
+        for test in tests:
+            key = self._test_key(test, site, ser)
+            c = _span(self.lb.get(key), i - cfg.window_weeks + 1, i)
+            lam = max(cfg.lambda_floor, _span(self.ub.get(key), top - b_eff + 1, top) / b_eff, certain)
+            expected = lam * cfg.window_weeks
+            logp = self.logsf(c, expected)
+            if best is None or logp < best[4]:
+                best = (test, c, lam, expected, logp, c >= 1 and logp < log_alpha)
+        assert best is not None
+        return best
 
     def possible_at(self, site: str, ser: Series, i: int) -> int:
-        """1 when an exceedance at week index ``i`` was possible under the bounds (window ub against baseline lb)."""
+        """1 when an exceedance at week index ``i`` was possible under the bounds in any of the site's tests (window
+        ub against baseline lb)."""
         cfg = self.cfg
         b_eff = min(cfg.baseline_weeks, self.history(site, i))
         top = i - cfg.window_weeks
-        c = _span(self.ub.get(("s", site, ser)), i - cfg.window_weeks + 1, i)
-        lam = max(cfg.lambda_floor, _span(self.lb.get(("s", site, ser)), top - b_eff + 1, top) / b_eff)
-        return int(c >= 1 and self.logsf(c, lam * cfg.window_weeks) < self.log_alpha)
+        tests = self.tests_at(site, ser, i)
+        log_alpha = self.log_alpha[len(tests)]
+        certain = _span(self.lb.get(("s", site, ser)), top - b_eff + 1, top) / b_eff
+        for test in tests:
+            key = self._test_key(test, site, ser)
+            c = _span(self.ub.get(key), i - cfg.window_weeks + 1, i)
+            lam = max(cfg.lambda_floor, _span(self.lb.get(key), top - b_eff + 1, top) / b_eff, certain)
+            if c >= 1 and self.logsf(c, lam * cfg.window_weeks) < log_alpha:
+                return 1
+        return 0
 
     def p_s(self, site: str, ser: Series, i: int) -> float:
         """The share of past windows (ending at or before ``i - window_weeks``, each with enough history) whose
@@ -297,20 +357,26 @@ class _Index:
         before = [c for j, c in self.cells_of.get((site, ser), ()) if j <= i - self.cfg.window_weeks]
         return bool(before) and all(c.n is None for c in before)
 
+    def _pmi(self, keys: Sequence[tuple[Any, ...]], lo: int, hi: int, own: int) -> float:
+        """The smoothed PMI over weeks ``lo..hi`` with the key's own count ``own`` in all four counts and every other
+        cell (the entity's other predicates, the predicate's other entities, the rest of the type) at the shared
+        imputation."""
+        own2, e2, p2, n2 = (_span(self.mid2.get(key), lo, hi) for key in keys)
+        return stats.smoothed_pmi(own, own + (e2 - own2) / 2, own + (p2 - own2) / 2, own + (n2 - own2) / 2,
+                                  self.cfg.pmi_smoothing)
+
     def d3_site(self, site: str, ser: Series, i: int) -> tuple[int, float, float, float, bool]:
-        """``(n_ep_lb, pmi_window, pmi_baseline, rise, rising)`` of an eligible site at week index ``i``."""
+        """``(n_ep_lb, pmi_window, pmi_baseline, rise, rising)`` of an eligible site at week index ``i``: the key's
+        own count takes its lower bound in the window and its upper bound in the baseline."""
         cfg = self.cfg
         t, eid, p = ser
         keys = (("s", site, ser), ("e", site, t, eid), ("p", site, t, p), ("t", site, t))
         lo, hi = i - cfg.window_weeks + 1, i
-        n_ep, n_e, n_p, total = (_span(self.lb.get(keys[0]), lo, hi), _span(self.ub.get(keys[1]), lo, hi),
-                                 _span(self.ub.get(keys[2]), lo, hi), _span(self.lb.get(keys[3]), lo, hi))
-        pmi_window = stats.smoothed_pmi(n_ep, n_e, n_p, total, cfg.pmi_smoothing)
+        n_ep = _span(self.lb.get(keys[0]), lo, hi)
+        pmi_window = self._pmi(keys, lo, hi, n_ep)
         top = i - cfg.window_weeks
         lo = max(self.start[site], top - cfg.baseline_weeks + 1)
-        pmi_baseline = stats.smoothed_pmi(_span(self.ub.get(keys[0]), lo, top), _span(self.lb.get(keys[1]), lo, top),
-                                          _span(self.lb.get(keys[2]), lo, top), _span(self.ub.get(keys[3]), lo, top),
-                                          cfg.pmi_smoothing)
+        pmi_baseline = self._pmi(keys, lo, top, _span(self.ub.get(keys[0]), lo, top))
         rise = pmi_window - pmi_baseline
         return n_ep, pmi_window, pmi_baseline, rise, rise > cfg.pmi_delta and n_ep >= cfg.k
 
@@ -327,13 +393,13 @@ class _Index:
         d2_sites, d3_sites, ps, exceeded, rising, rises, suppressed = [], [], [], [], [], [], []
         for s in self.sites:
             if status[s] != "eligible":
-                d2_sites.append({"site": s, "status": status[s], "history_weeks": self.history(s, i), "c": None,
-                                 "baseline_rate": None, "expected": None, "logp": None, "exceeded": None,
+                d2_sites.append({"site": s, "status": status[s], "history_weeks": self.history(s, i), "test": None,
+                                 "c": None, "baseline_rate": None, "expected": None, "logp": None, "exceeded": None,
                                  "p_s": None, "suppressed_history": None})
                 d3_sites.append({"site": s, "status": status[s], "n_ep_lb": None, "pmi_window": None,
                                  "pmi_baseline": None, "rise": None, "rising": None})
                 continue
-            c, lam, expected, logp, is_exceeded = self.d2_site(s, ser, i)
+            test, c, lam, expected, logp, is_exceeded = self.d2_site(s, ser, i)
             p = self.p_s(s, ser, i)
             sup = self.suppressed_history(s, ser, i)
             ps.append(p)
@@ -341,9 +407,9 @@ class _Index:
                 exceeded.append(s)
             if sup:
                 suppressed.append(s)
-            d2_sites.append({"site": s, "status": "eligible", "history_weeks": self.history(s, i), "c": c,
-                             "baseline_rate": lam, "expected": expected, "logp": logp, "exceeded": is_exceeded,
-                             "p_s": p, "suppressed_history": sup})
+            d2_sites.append({"site": s, "status": "eligible", "history_weeks": self.history(s, i), "test": test,
+                             "c": c, "baseline_rate": lam, "expected": expected, "logp": logp,
+                             "exceeded": is_exceeded, "p_s": p, "suppressed_history": sup})
             n_ep, pmi_window, pmi_baseline, rise, is_rising = self.d3_site(s, ser, i)
             if is_rising:
                 rising.append(s)
@@ -367,7 +433,7 @@ class _Index:
         few = sorted({c.site for c in lineage if c.n is not None and c.n_reporters is None})
         others = 0
         for s in eligible:
-            row = self.exceeding.get((s, ser[2]))
+            row = self.exceeding.get((s, ser[0], ser[2]))
             own = self.exceeded.get((s, ser))
             if row is not None and row[i] - (own[i] if own is not None else 0) > 0:
                 others += 1
@@ -458,7 +524,7 @@ def run_detection(pack: "FrozenPack", org: OrgConfig, *, bundles: Sequence[Bundl
         "rule_hits": []}
     if not used:
         return result
-    idx = _Index(cfg, org, visible, used, last_week)
+    idx = _Index(cfg, org, visible, used, last_week, channels)
     result["first_week"] = idx.weeks[0]
     _walk(idx, pack, as_of, run_channel, tie_salt, result)
     return result

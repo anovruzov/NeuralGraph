@@ -184,10 +184,10 @@ button { font: inherit; color: inherit; }
     if (current === null || !beats.some(function (beat) { return beat.id === current; })) {
       current = live && liveBeat !== null ? liveBeat : beats[0].id;
     }
-    var modeItem = items.mode;
     var mode = document.getElementById("mode");
-    mode.textContent = modeItem ? modeItem.display : (screen.mode === "live" ? "LIVE" : "RECORDED");
-    mode.className = "badge " + (screen.mode === "live" ? "live" : "recorded");
+    var presentation = live && screen.presentation === "live" ? "live" : "recorded";
+    mode.textContent = presentation === "live" ? "LIVE" : "RECORDED";
+    mode.className = "badge " + presentation;
     document.getElementById("phase").textContent = live ? screen.phase : "";
     var nav = document.getElementById("beats");
     nav.textContent = "";

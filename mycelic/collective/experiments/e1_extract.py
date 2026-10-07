@@ -22,9 +22,19 @@ over (record, field, value) across records and runs; F1 = 2TP / (2TP + FP + FN),
 or labelled anywhere. Secondary: claim F1 over ``(type, id, predicate, negated)`` tuples with a predicate, entity
 F1, predicate F1, the share of records whose first attempt was valid JSON for the schema, and exact match of the
 id set per type the pack flags with ``exact_match_metric`` (reported separately, as STRATEGY asks): the share of
-records matched in every run, with a Wilson interval over records. A model error on a record is an empty prediction. Confidence intervals bootstrap records (all runs'
+records matched in every run, with a Wilson interval over records. A model error on a record (``json_invalid`` or
+``schema_invalid`` after the repair) is an empty prediction. Confidence intervals bootstrap records (all runs'
 counts per record pooled). The paired comparison bootstraps the per-record mean field F1 difference against the
 reference over the records both sides have, with an exact sign test.
+
+**Transport failures are not model errors.** A record whose extraction ended in a transport failure (``timeout``,
+``network``, ``http_4xx``, ``http_5xx``, ``too_large``, ``no_handler``: the server, not the model's output) is not
+scored: its prediction line says ``scored: false`` and its F1 counts, exact flags and per-record F1 are left out of
+every metric and of the paired comparison (where a record only one side has is counted in ``dropped``). The JSON
+validity rates count only records whose attempt reached the model and came back (a reply, valid or not). run.json
+and e1.json report the transport and model failures by kind; when either side of a paired comparison has transport
+failures on more than :data:`TRANSPORT_MAX_SHARE` of its record runs, its verdicts are withheld (``null``, with
+``withheld_reason``): re-run that endpoint's repeats against a healthy server.
 
 **What is pinned.** ``prereg`` fixes the pack's vocabulary hash, the labels' sha256, the scoring code's hash
 (:data:`E1_CODE_FILES`), every endpoint's model, provider, boundary, response format and transport schema, the
@@ -58,7 +68,7 @@ from ..edge.extract import ModelExtractor, codes_channel
 from ..inference.client import list_models
 from ..inference.ledger import read_ledger
 from ..inference.routing import ConfigError, Endpoint, key_problem, load_routing, missing_env, runtime_boundary_ok
-from ..inference.runtime import DATA_LABELS, EXTERNAL_RAW_LABELS, Runtime, boundary_mode
+from ..inference.runtime import DATA_LABELS, EXTERNAL_RAW_LABELS, VALIDATION_KINDS, Runtime, boundary_mode
 from ..jsonio import StrictJsonError, canonical_dumps, sha256_hex, short_digest, strict_load
 from ..packs.canonical import Canonicaliser
 from ..packs.connector import ConnectorError, map_rows, read_jsonl, record_mapping
@@ -73,6 +83,7 @@ KILL_BELOW = 0.80
 UNDERPOWERED_BELOW = 600
 MIN_RUNS = 3
 MIN_BOOTSTRAP_B = 1000
+TRANSPORT_MAX_SHARE = 0.01
 PRIMARY_METRIC = "field_f1"
 SECONDARY_METRICS = ("claim_f1", "entity_f1", "predicate_f1", "json_validity_rate", "exact_match")
 METRICS = ("field", "claim", "entity", "predicate")
@@ -105,6 +116,9 @@ NOTES = [
     "exact_match counts records whose gold names at least one id of the type; a record matches when its predicted "
     "id set equals the gold's in every run, so repeats are not counted as independent trials. Each run.json has "
     "that run's own rate.",
+    "A transport failure (timeout, network, HTTP error, size limit) is the server's, not the model's: such a "
+    "record is not scored, the JSON validity rates leave it out, and a paired verdict is withheld when either side "
+    f"has transport failures on more than {TRANSPORT_MAX_SHARE:.0%} of its record runs.",
 ]
 
 
@@ -751,15 +765,45 @@ def _check_pinned_endpoint(prereg: Mapping[str, Any], endpoint: Endpoint) -> Non
         _pinned(f"endpoint {endpoint.name} {f}", pinned[f], getattr(endpoint, f))
 
 
+def failure_class(error_kind: str | None) -> str | None:
+    """None for a success, ``model`` for an unusable reply, ``transport`` for anything the server caused."""
+    if error_kind is None:
+        return None
+    return "model" if error_kind in VALIDATION_KINDS else "transport"
+
+
+def _reached(row: Mapping[str, Any]) -> bool:
+    """The attempt reached the model and a reply came back (valid or not)."""
+    return bool(row["ok"]) or row["error_kind"] in VALIDATION_KINDS
+
+
 def _ledger_summary(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    """Per ref (one record of one run): ``first_reached``/``first_ok`` count refs whose first attempt came back and
+    was valid; ``reached``/``any_ok`` refs with any attempt that came back and any valid one. A ref whose attempts
+    all failed in transport is in neither denominator."""
     refs: dict[str, list[Mapping[str, Any]]] = {}
     for r in rows:
         refs.setdefault(r["ref"], []).append(r)
-    n = len(refs)
-    first_ok = sum(1 for rs in refs.values() if any(r["attempt"] == 1 and r["ok"] for r in rs))
-    any_ok = sum(1 for rs in refs.values() if any(r["ok"] for r in rs))
+    first = [rs for rs in refs.values() if any(r["attempt"] == 1 and _reached(r) for r in rs)]
+    reached = [rs for rs in refs.values() if any(_reached(r) for r in rs)]
     latencies = [r["latency_ms"] for r in rows if r["ok"] and r["attempt"] >= 1 and r["latency_ms"] is not None]
-    return {"refs": n, "first_ok": first_ok, "any_ok": any_ok, "latencies": latencies}
+    return {"refs": len(refs), "first_reached": len(first),
+            "first_ok": sum(1 for rs in first if any(r["attempt"] == 1 and r["ok"] for r in rs)),
+            "reached": len(reached), "any_ok": sum(1 for rs in reached if any(r["ok"] for r in rs)),
+            "latencies": latencies}
+
+
+def failures(predictions: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
+    """Records (record runs) whose extraction failed, by class and kind."""
+    out: dict[str, Any] = {c: {"records": 0, "by_kind": {}} for c in ("transport", "model")}
+    for p in predictions:
+        cls = failure_class(p["error_kind"])
+        if cls is not None:
+            out[cls]["records"] += 1
+            out[cls]["by_kind"][p["error_kind"]] = out[cls]["by_kind"].get(p["error_kind"], 0) + 1
+    for entry in out.values():
+        entry["by_kind"] = dict(sorted(entry["by_kind"].items()))
+    return out
 
 
 def _run_doc(base: Mapping[str, Any], predictions: Sequence[Mapping[str, Any]], rows: Sequence[Mapping[str, Any]],
@@ -770,11 +814,13 @@ def _run_doc(base: Mapping[str, Any], predictions: Sequence[Mapping[str, Any]], 
         for k, v in p["drops"].items():
             drops[k] = drops.get(k, 0) + v
     served = sorted({r["model_served"] for r in rows if r["model_served"]})
-    metrics = {f"{m}_f1": micro_f1(p["counts"][m] for p in predictions) for m in METRICS}
+    scored = [p for p in predictions if p["scored"]]
+    metrics = {f"{m}_f1": micro_f1(p["counts"][m] for p in scored) for m in METRICS}
     metrics.update({
-        "json_validity_rate": ledger["first_ok"] / ledger["refs"] if ledger["refs"] else None,
-        "valid_after_repair_rate": ledger["any_ok"] / ledger["refs"] if ledger["refs"] else None,
-        "exact_match": exact_summary(([p["exact"]] for p in predictions), types, ci=False),
+        "json_validity_rate": ledger["first_ok"] / ledger["first_reached"] if ledger["first_reached"] else None,
+        "valid_after_repair_rate": ledger["any_ok"] / ledger["reached"] if ledger["reached"] else None,
+        "scored_records": len(scored), "failures": failures(predictions),
+        "exact_match": exact_summary(([p["exact"]] for p in scored), types, ci=False),
         "latency_ms_p50": stats.percentile(ledger["latencies"], 50),
         "latency_ms_p95": stats.percentile(ledger["latencies"], 95),
         "truncated": sum(1 for p in predictions if p["truncated"]), "drops": dict(sorted(drops.items())),
@@ -880,9 +926,10 @@ def _execute(args: argparse.Namespace, out_dir: Path, prereg: Mapping[str, Any],
                 claims = [{"entity_type": c.entity_type, "entity_id": c.entity_id, "predicate": c.predicate,
                            "negated": c.negated} for c in result.claims]
                 line = {"record_ref": record["record_ref"], "claims": claims, "ok": result.error_kind is None,
-                        "error_kind": result.error_kind, "truncated": result.truncated, "drops": dict(result.drops),
-                        "counts": record_counts(claims, gold), "exact": exact_flags(claims, gold, types),
-                        "field_f1": record_field_f1(claims, gold)}
+                        "error_kind": result.error_kind,
+                        "scored": failure_class(result.error_kind) != "transport", "truncated": result.truncated,
+                        "drops": dict(result.drops), "counts": record_counts(claims, gold),
+                        "exact": exact_flags(claims, gold, types), "field_f1": record_field_f1(claims, gold)}
                 fh.write(canonical_dumps(line) + "\n")
                 fh.flush()
                 predictions.append(line)
@@ -932,6 +979,7 @@ def _run_problem(run: Any) -> str | None:
 
 def _prediction_ok(p: Any) -> bool:
     return (isinstance(p, dict) and isinstance(p.get("record_ref"), str) and _is_number(p.get("field_f1"))
+            and isinstance(p.get("scored"), bool) and isinstance(p.get("error_kind"), (str, type(None)))
             and isinstance(p.get("exact"), dict) and isinstance(p.get("counts"), dict)
             and all(isinstance(p["counts"].get(m), list) and len(p["counts"][m]) == 3
                     and all(_is_int(x) and x >= 0 for x in p["counts"][m]) for m in METRICS))
@@ -969,9 +1017,15 @@ def _endpoint_block(name: str, runs: Sequence[tuple[dict, list, list]], prereg: 
     per_record_f1: dict[str, list[float]] = {}
     flags: dict[str, list[Mapping[str, Any]]] = {}
     rows: list[Mapping[str, Any]] = []
+    record_runs = 0
+    all_predictions: list[Mapping[str, Any]] = []
     for run, predictions, ledger in runs:
         rows += ledger
+        record_runs += len(predictions)
+        all_predictions += predictions
         for p in predictions:
+            if not p["scored"]:
+                continue
             entry = pooled.setdefault(p["record_ref"], {m: [0, 0, 0] for m in METRICS})
             for m in METRICS:
                 entry[m] = [x + y for x, y in zip(entry[m], p["counts"][m])]
@@ -990,12 +1044,17 @@ def _endpoint_block(name: str, runs: Sequence[tuple[dict, list, list]], prereg: 
         else:
             block[key] = {"value": None, "ci_low": None, "ci_high": None, "B": b, "seed": f"e1:{seed}:{name}:{key}"}
     ledger = _ledger_summary(rows)
-    block["json_validity_rate"] = ledger["first_ok"] / ledger["refs"] if ledger["refs"] else None
-    block["valid_after_repair_rate"] = ledger["any_ok"] / ledger["refs"] if ledger["refs"] else None
+    block["json_validity_rate"] = ledger["first_ok"] / ledger["first_reached"] if ledger["first_reached"] else None
+    block["valid_after_repair_rate"] = ledger["any_ok"] / ledger["reached"] if ledger["reached"] else None
+    found = failures(all_predictions)
+    block["failures"] = found
+    block["record_runs"] = record_runs
+    block["transport_failure_share"] = found["transport"]["records"] / record_runs if record_runs else None
     block["exact_match"] = exact_summary((flags[r] for r in sorted(flags)), types, ci=True)
     block["latency_ms_p50"] = stats.percentile(ledger["latencies"], 50)
     block["latency_ms_p95"] = stats.percentile(ledger["latencies"], 95)
-    per_run = sorted(({"repeat": run["repeat"], "field_f1": micro_f1(p["counts"]["field"] for p in preds)["value"]}
+    per_run = sorted(({"repeat": run["repeat"],
+                       "field_f1": micro_f1(p["counts"]["field"] for p in preds if p["scored"])["value"]}
                       for run, preds, _ in runs), key=lambda x: x["repeat"])
     block["per_run"] = per_run
     block["run_sd"] = {"field_f1": stats.sd([r["field_f1"] for r in per_run if r["field_f1"] is not None])}
@@ -1085,8 +1144,15 @@ def cmd_compare(args: argparse.Namespace) -> int:
                           "sign": None, "sign_p": None})
         entry["underpowered"] = len(shared) < UNDERPOWERED_BELOW
         v = verdicts(entry["ci95"][0], prereg["margin"], blocks[name]["field_f1"]["value"])
-        entry["non_inferior"] = v["non_inferior"] if measurement else None
-        entry["kill_flag"] = v["kill_flag"] if measurement else None
+        flaky = [n for n in (name, reference) if (blocks[n]["transport_failure_share"] or 0) > TRANSPORT_MAX_SHARE]
+        entry["withheld_reason"] = None
+        if not measurement:
+            entry["withheld_reason"] = "measurement_false"
+        elif flaky:
+            entry["withheld_reason"] = (f"transport failures above {TRANSPORT_MAX_SHARE:.0%} of the record runs of "
+                                        f"{', '.join(flaky)}: re-run against a healthy server")
+        entry["non_inferior"] = v["non_inferior"] if entry["withheld_reason"] is None else None
+        entry["kill_flag"] = v["kill_flag"] if entry["withheld_reason"] is None else None
         paired[name] = entry
     doc = {
         "kind": KIND, "schema_version": SCHEMA_VERSION, "run_id": args.run_id, "prereg_sha256": prereg_sha,

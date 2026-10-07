@@ -34,10 +34,24 @@ claims (in the channel's cell channels) hold its key inside its window.
 ``post_weeks`` after it are listed as post-recall alerts, never found and never false alarms. False alarms are the
 evaluated weeks' alerts that match no in-scope recall's window, over every product code of the manufacturer.
 ``measurement`` is true only when both caches hold public data.
+
+**Chance.** Matching on a product code alone credits a channel for raising many alerts: a channel that alerts on a
+code every few weeks "finds" a recall of that code at almost any date. So each channel's summary carries its alert
+count and a circular-shift null (:func:`chance_null`): the channel's alert timeline is rotated by each whole number
+of weeks ``s`` in ``0 .. evaluated_weeks - 1`` (an alert available ``t`` days after the first evaluated closing date
+moves to ``(t + 7 s) mod (7 * evaluated_weeks)``), which keeps how many alerts each code has and how they cluster,
+while the recalls stay at their real dates and are scored by the same look-back rule. ``expected_found`` is the mean
+found count over the shifts, ``per_recall`` each recall's share of shifts in which it is found, ``p_value`` the share
+of shifts (shift 0, the observed alignment, included) whose found count is at least the observed one, so it is never
+below ``1 / evaluated_weeks``, and ``median_lead_days`` the median lead over every shift's found recalls. A channel's
+``found`` means something only as far as it exceeds its own ``expected_found``. The scorer does not match on the
+predicate or the cause: ``root_cause_description`` is free text with no mapping to the pack's predicates.
 """
 from __future__ import annotations
 
 import argparse
+import bisect
+import math
 import re
 import sys
 from datetime import date, timedelta
@@ -86,6 +100,10 @@ COVERAGE_FIELDS = ("date_received", "narrative", "product_problems", "mapped_cod
                    "resolved_entity", "partition_field", "manufacturer_field")
 DENOMINATOR_NOTE = ("false alarms per week count alerts on every product code of the manufacturer, not only recalled "
                     "ones")
+CHANCE_METHOD = ("circular shift: the channel's alert timeline rotated by each whole number of weeks within the "
+                 "evaluated weeks, the recalls at their real dates; shift 0 is the observed alignment")
+CHANCE_NOTE = ("found counts mean something only as far as they exceed expected_found: matching on the product code "
+               "alone credits a channel for raising many alerts")
 MASTER_DATA_NOTE = "public data has no ERP; structured ids seen at the site stand in for it"
 _SLUG_RUN = re.compile(r"[a-z0-9]+", re.ASCII)
 
@@ -575,8 +593,41 @@ def read_signals(directory: str | Path, prereg_sha: str) -> tuple[dict[str, Any]
     return doc, phase["signals_sha256"]
 
 
+def chance_null(in_scope: Sequence[Mapping[str, Any]], alerts: Sequence[Mapping[str, Any]], lookback: int,
+                available_first: date, evaluated_weeks: int, found: int) -> dict[str, Any]:
+    """The circular-shift null of one channel (see the module docstring): the channel's alert timeline rotated by
+    each whole number of weeks in turn, within the evaluated weeks, against the recalls at their real dates."""
+    period = 7 * evaluated_weeks
+    hits = [0] * len(in_scope)
+    totals, leads = [], []
+    for shift in range(evaluated_weeks):
+        moved: dict[str, list[date]] = {}
+        for a in alerts:
+            offset = ((_days(a["available_date"]) - available_first).days + 7 * shift) % period
+            for code in a["product_codes"]:
+                moved.setdefault(code, []).append(available_first + timedelta(days=offset))
+        for dates in moved.values():
+            dates.sort()
+        total = 0
+        for j, r in enumerate(in_scope):
+            init = _days(r["event_date_initiated"])
+            dates = moved.get(r["product_code"], [])
+            i = bisect.bisect_left(dates, init - timedelta(days=7 * lookback))
+            if i < len(dates) and dates[i] < init:
+                hits[j] += 1
+                total += 1
+                leads.append((init - dates[i]).days)
+        totals.append(total)
+    expected = math.fsum(totals) / evaluated_weeks
+    return {"method": CHANCE_METHOD, "shifts": evaluated_weeks, "expected_found": expected,
+            "recall_rate": expected / len(in_scope) if in_scope else None,
+            "per_recall": [h / evaluated_weeks for h in hits],
+            "p_value": sum(1 for t in totals if t >= found) / evaluated_weeks if in_scope else None,
+            "median_lead_days": stats.percentile(leads, 50), "note": CHANCE_NOTE}
+
+
 def _channel_score(items: Sequence[Mapping[str, Any]], alerts: Sequence[Mapping[str, Any]],
-                   lookback: int, post: int, evaluated_weeks: int) -> dict[str, Any]:
+                   lookback: int, post: int, evaluated_weeks: int, available_first: date) -> dict[str, Any]:
     in_scope = [r for r in items if r["evaluable"]]
     by_recall = []
     matched: set[int] = set()
@@ -602,9 +653,12 @@ def _channel_score(items: Sequence[Mapping[str, Any]], alerts: Sequence[Mapping[
                               "lead_days": (init - _days(first["available_date"])).days}})
     found = [b for b in by_recall if b["found_pre"]]
     false = len(alerts) - len(matched)
+    chance = chance_null(in_scope, alerts, lookback, available_first, evaluated_weeks, len(found))
     summary = {"in_scope": len(in_scope), "found": len(found),
                "recall_rate": len(found) / len(in_scope) if in_scope else None,
                "median_lead_days": stats.percentile([b["first_signal"]["lead_days"] for b in found], 50),
+               "alerts": len(alerts), "alerts_per_week": len(alerts) / evaluated_weeks,
+               "found_minus_expected": len(found) - chance["expected_found"], "chance": chance,
                "post_recall_alerts": len(post_alerts), "false_alarms": false,
                "false_alarms_per_week": false / evaluated_weeks, "denominator_note": DENOMINATOR_NOTE,
                "reason": None}
@@ -672,7 +726,7 @@ def score(pack: FrozenPack, prereg: Mapping[str, Any], signals: Mapping[str, Any
             channels[name] = {"summary": None, "reason": channel["reason"]}
             continue
         result = _channel_score(items, channel["alerts"], s["lookback_weeks"], s["post_weeks"],
-                                weeks["evaluated_weeks"])
+                                weeks["evaluated_weeks"], available_first)
         channels[name] = {"summary": result["summary"], "reason": None}
         per_item[name] = result["by_recall"]
     evaluable = [item for item in items if item["evaluable"]]
@@ -715,8 +769,9 @@ def cmd_score(args: argparse.Namespace) -> int:
            **body, "coverage": signals["coverage"], "warnings": list(signals["warnings"])}
     out_dir.mkdir(parents=True)
     write_json_atomic(out_dir / "replay.json", doc)
-    found = " ".join(f"{name}={c['summary']['found']}/{c['summary']['in_scope']}" if c["summary"] is not None
-                     else f"{name}=null" for name, c in body["channels"].items())
+    found = " ".join(f"{name}={c['summary']['found']}/{c['summary']['in_scope']} (chance "
+                     f"{c['summary']['chance']['expected_found']:.1f}, {c['summary']['alerts']} alerts)"
+                     if c["summary"] is not None else f"{name}=null" for name, c in body["channels"].items())
     print(f"replay score: {LABEL}; data_label={doc['data_label']}; measurement={str(both_public).lower()}; "
           f"found before initiation {found} -> {out_dir / 'replay.json'}")
     return 0

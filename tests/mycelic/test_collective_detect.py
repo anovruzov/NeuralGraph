@@ -797,17 +797,22 @@ class ImputationTests(HqCase):
                 self.assertEqual(snap["window"], [W[23], W[30]])
                 d2 = entry(snap["d2"], "s1")
                 lam = max(0.01, (k - 1) * 3 / 23)               # 3 baseline cells, upper bound k-1 each, B_eff 23
-                self.assertEqual((d2["status"], d2["history_weeks"], d2["c"]), ("eligible", 23, 2))
+                self.assertEqual((d2["status"], d2["history_weeks"], d2["test"], d2["c"]),
+                                 ("eligible", 23, "combined", 2))
                 self.assertEqual(d2["baseline_rate"], lam)
                 self.assertEqual(d2["expected"], lam * 8)
                 self.assertEqual(d2["logp"], stats.poisson_logsf(2, lam * 8))
                 self.assertFalse(d2["exceeded"])
                 d3 = entry(snap["d3"], "s1")
                 self.assertEqual(d3["n_ep_lb"], 2)
-                # window: numerators lower bounds (key 2 cells, all type cells 5), marginals upper bounds (3 cells)
-                self.assertEqual(d3["pmi_window"], stats.smoothed_pmi(2, (k - 1) * 3, (k - 1) * 3, 5, 0.5))
-                # baseline: numerators upper bounds (key 3 cells, type 7 cells), marginals lower bounds (4 and 5)
-                self.assertEqual(d3["pmi_baseline"], stats.smoothed_pmi((k - 1) * 3, 4, 5, (k - 1) * 7, 0.5))
+                # window: the key's own 2 cells at their lower bound, in all four counts; every other cell at k/2
+                # (one of the entity's other predicates, one of the predicate's other entities, one other)
+                self.assertEqual(d3["pmi_window"], stats.smoothed_pmi(2, 2 + k / 2, 2 + k / 2, 2 + 3 * k / 2, 0.5))
+                # baseline: the key's own 3 cells at their upper bound; one entity cell, two predicate cells and four
+                # other cells of the type at k/2
+                own = (k - 1) * 3
+                self.assertEqual(d3["pmi_baseline"], stats.smoothed_pmi(own, own + k / 2, own + 2 * k / 2,
+                                                                        own + 4 * k / 2, 0.5))
                 self.assertEqual(d3["rise"], d3["pmi_window"] - d3["pmi_baseline"])
                 self.assertFalse(d3["rising"])
                 self.assertEqual(len(snap["lineage"]), 6)
@@ -1033,6 +1038,53 @@ class D3Tests(HqCase):
                          [("$.cells[0]", "additionalProperties"), ("$", "additionalProperties")])
         self.assertEqual(table_count(hq.path, "cells"), 0)
 
+    def suppressed_world(self, other_weeks: Iterable[int]) -> dict[str, Any]:
+        """Every cell '<k': the key every week 0..33 at s1 and s2, and twenty other product series (other ids, other
+        predicates) at ``other_weeks``."""
+        others = [("product", eid, p) for eid in ("SD-9", "IP-7", "IP-21", "IP-300", "SD-12", "SD-40")
+                  for p in ("overheat", "leak", "power_loss", "alarm_failure")][:20]
+        hq = self.hq()
+        hq.background().put(["s1", "s2"], Z, range(0, 34))
+        for o in others:
+            hq.put(["s1", "s2"], o, other_weeks)
+        hq.send(33)
+        return hq.run()
+
+    def test_d3_fires_on_all_suppressed_cells_where_opposite_marginal_bounds_could_not(self) -> None:
+        # the key is steady (no burst) and twenty other series of the type appear in week 33, so the key's share of
+        # its type falls and its PMI rises; every cell is '<k'
+        k = DQ.egress.k
+        result = self.suppressed_world((33,))
+        c = cand(result, Z)
+        self.assertEqual((c["detectors"], c["first_candidate_week"]), (["d3"], W[33]))
+        snap = c["snapshot"]
+        for s in ("s1", "s2"):
+            e = entry(snap["d3"], s)
+            self.assertEqual(e["n_ep_lb"], 8)
+            # window: the key's 8 cells at their lower bound, the twenty other cells at k/2
+            self.assertEqual(e["pmi_window"], stats.smoothed_pmi(8, 8, 8, 8 + 20 * k / 2, 0.5))
+            # baseline: weeks 0..25, the key's 26 cells at their upper bound, nothing else of the type
+            own = 26 * (k - 1)
+            self.assertEqual(e["pmi_baseline"], stats.smoothed_pmi(own, own, own, own, 0.5))
+            self.assertTrue(e["rising"])
+            self.assertFalse(entry(snap["d2"], s)["exceeded"])
+            # the earlier rule (marginals at the opposite bounds) gave a negative rise on these same cells
+            earlier = (stats.smoothed_pmi(8, 8 * (k - 1), 8 * (k - 1), 8 + 20, 0.5)
+                       - stats.smoothed_pmi(own, 26, 26, own, 0.5))
+            self.assertLess(earlier, 0.0)
+        self.assertGreater(snap["features"]["pmi_rise"], 1.0)
+
+    def test_a_steady_suppressed_key_beside_steady_suppressed_cells_does_not_rise(self) -> None:
+        # the same twenty other series every week: the key's own count still takes its lower bound in the window and
+        # its upper bound in the baseline, so a steady key never rises
+        k = DQ.egress.k
+        result = self.suppressed_world(range(0, 34))
+        self.assertIsNone(cand(result, Z))
+        own = 26 * (k - 1)
+        rise = (stats.smoothed_pmi(8, 8, 8, 8 + 20 * 8 * k / 2, 0.5)
+                - stats.smoothed_pmi(own, own, own, own + 20 * 26 * k / 2, 0.5))
+        self.assertLess(rise, DQ.detectors["cooccurrence"]["pmi_delta"])
+
     def test_d2_and_d3_on_one_key_give_one_candidate(self) -> None:
         hq = self.hq()
         hq.background().put(["s1", "s2"], Z, (40,), n=5).put(["s1", "s2"], MASS, (40,), n=200)
@@ -1104,7 +1156,22 @@ class D5D6Tests(HqCase):
         self.assertEqual(cand(earlier, g)["candidate_weeks"], W[31:35])
         self.assertEqual(earlier["weeks"][-1]["stale_removed"], 0)
 
-    def test_high_base_rate_is_predicate_wide_and_never_flags_itself(self) -> None:
+    def test_a_co_mentioned_key_of_another_type_does_not_flag_a_genuine_burst(self) -> None:
+        # the same records name a lot and its product: (lot, leak) and (product, leak) burst together at 4 of 6 sites;
+        # only series of the key's own entity type count toward its high base rate
+        lot, product = ("lot", "L20046", "leak"), ("product", "IP-21", "leak")
+        hq = self.hq()
+        hq.background()
+        for s in (lot, product):
+            hq.put(["s1", "s2", "s3", "s4"], s, range(33, 41), n=5)
+        hq.send(40)
+        result = hq.run()
+        for s in (lot, product):
+            snap = cand(result, s)["snapshot"]
+            self.assertGreaterEqual(snap["d2"]["m"], 4)
+            self.assertEqual((snap["flags"]["high_base_rate"], snap["features"]["high_base_rate"]), (False, 0.0))
+
+    def test_high_base_rate_is_type_wide_and_never_flags_itself(self) -> None:
         single3, single4 = ("product", "IP-21", "occlusion"), ("product", "IP-300", "overheat")
         hq = self.hq()
         hq.background()
@@ -1196,10 +1263,39 @@ class ChannelTests(HqCase):
     def test_x_combines_codes_and_text_only_bounds(self) -> None:
         hq = self.world()
         x, s = hq.run("X"), hq.run("S")
+        # s2: no history; the combined count (3) beats the codes count (2) against the same floor
+        e2 = entry(cand(x, LOW)["snapshot"]["d2"], "s2")
+        self.assertEqual((e2["test"], e2["c"], e2["baseline_rate"]), ("combined", 3, 0.01))
+        self.assertEqual(e2["logp"], stats.poisson_logsf(3, 0.08))
+        # s1: the combined test (3 against (2 + 2) / 26) and S's codes test (2 against 2 / 26, at least the certain
+        # 2 / 26 of both channels); the snapshot shows the lower logp, here the codes test
         ex, es = entry(cand(x, LOW)["snapshot"]["d2"], "s1"), entry(cand(s, LOW)["snapshot"]["d2"], "s1")
-        self.assertEqual((ex["c"], ex["baseline_rate"]), (3, max(0.01, (2 + 2) / 26)))
-        self.assertEqual((es["c"], es["baseline_rate"]), (2, max(0.01, 2 / 26)))
+        combined = stats.poisson_logsf(3, max(0.01, (2 + 2) / 26) * 8)
+        self.assertEqual((ex["test"], ex["c"], ex["baseline_rate"]), ("codes", 2, max(0.01, 2 / 26)))
+        self.assertEqual(ex["logp"], stats.poisson_logsf(2, 2 / 26 * 8))
+        self.assertLess(ex["logp"], combined)
+        self.assertEqual((es["test"], es["c"], es["baseline_rate"]), ("combined", 2, max(0.01, 2 / 26)))
         self.assertEqual((x["cell_channels"], s["cell_channels"]), (["codes", "text_only"], ["codes"]))
+
+    def test_text_only_background_does_not_hide_a_codes_burst_that_s_sees(self) -> None:
+        # s1 and s2: the key's codes cells '<k' in weeks 10 and 17, text-only cells '<k' in weeks 21 and 24, then a
+        # codes burst ('<k' each week) from week 32
+        y2 = ("product", "IP-21", "power_loss")
+        hq = self.hq()
+        hq.background()
+        hq.put(["s1", "s2"], y2, (10, 17)).put(["s1", "s2"], y2, (21, 24), channel="text_only")
+        hq.put(["s1", "s2"], y2, range(32, 39))
+        hq.send(38)
+        x, s = cand(hq.run("X"), y2), cand(hq.run("S"), y2)
+        # S: 5 codes weeks against 2 * 2 / 26 at alpha; X's codes test runs at alpha / 2 and needs a sixth week
+        self.assertEqual((s["first_candidate_week"], x["first_candidate_week"]), (W[36], W[37]))
+        snap = x["snapshot"]
+        for site in ("s1", "s2"):
+            e = entry(snap["d2"], site)
+            self.assertEqual((e["test"], e["c"], e["baseline_rate"], e["exceeded"]), ("codes", 6, 4 / 26, True))
+            self.assertLess(e["logp"], math.log(0.01 / 2))
+        # the combined test alone (6 against (2 + 2) * 2 / 26) does not exceed at alpha, at any week through 38
+        self.assertGreater(stats.poisson_logsf(7, 8 / 26 * 8), math.log(0.01))
 
     def test_a_text_only_burst_is_in_x_and_absent_in_s(self) -> None:
         hq = self.world()

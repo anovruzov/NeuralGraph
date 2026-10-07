@@ -245,15 +245,15 @@ class RunFilesTests(unittest.TestCase):
                 runfiles.digest(bad)
 
     def test_project_ledger_caps_per_group_and_summarises_every_row(self) -> None:
-        rows = ([_row("a", "extract_claims") for _ in range(5)] + [_row("b", "extract_claims", ok=False)]
-                + [_row(None, "draft_followup", tokens=(None, 2), fake=False) for _ in range(3)])
+        rows = ([_row(None, "draft_followup", tokens=(None, 2), fake=False) for _ in range(3)]
+                + [_row(None, "extract_claims") for _ in range(5)] + [_row(None, "extract_claims", ok=False)])
         out, summary = runfiles.project_ledger(rows, per_group=2)
         self.assertEqual([(r["site"], r["task"]) for r in out],
-                         [("a", "extract_claims")] * 2 + [("b", "extract_claims")] + [("hq", "draft_followup")] * 2)
+                         [("hq", "draft_followup")] * 2 + [("hq", "extract_claims")] * 2)
         for r in out:
             self.assertEqual(tuple(r), runfiles.LEDGER_ROW_KEYS)
         self.assertEqual((summary["rows_total"], summary["rows_written"], summary["per_group"], summary["capped"]),
-                         (9, 5, 2, True))
+                         (9, 4, 2, True))
         self.assertEqual(summary["by_task"], [
             {"task": "draft_followup", "calls": 3, "ok": 3, "errors": 0, "tokens_in": 0, "tokens_out": 6,
              "tokens_missing": 3, "fake": False},
@@ -264,6 +264,32 @@ class RunFilesTests(unittest.TestCase):
         for bad in (0, -1, True, 1.5):
             with self.assertRaises(runfiles.RunFileError):
                 runfiles.project_ledger(rows, per_group=bad)
+
+    def test_a_site_ledger_row_never_enters_a_run_file(self) -> None:
+        # regression: the run-file ledger used to copy up to 12 per-call rows per (site, task) from each site's own
+        # ledger, so a site's exact judged count below k (and its local reason for an unknown) left it
+        with self.assertRaises(runfiles.RunFileError) as cm:
+            runfiles.project_ledger([_row(None, "draft_followup"), _row("plant-a", "judge_record")], per_group=12)
+        self.assertIn("usage summaries that crossed its Boundary", str(cm.exception))
+        self.assertNotIn("plant-a", str(cm.exception))
+
+    def test_crossed_usage_keeps_the_sites_suppression(self) -> None:
+        def summary(site: str, through: str, groups: list[dict[str, Any]]) -> dict[str, Any]:
+            return {"artifact_type": "usage_summary", "site": site,
+                    "body": {"site": site, "closed_through": through, "groups": groups}}
+        group = {"task": "judge_record", "endpoint": "e", "calls": "<k", "ok": "<k", "errors": {"timeout": "<k"},
+                 "fake": True, "tokens_in_missing": 0, "tokens_out_missing": 0}
+        big = {**group, "task": "extract_claims", "calls": 40, "ok": 39, "errors": {"timeout": 1}, "fake": False,
+               "tokens_in": 10, "tokens_out": 5}
+        rows = [summary("b", "2026-W10", [group]), {"artifact_type": "cells_bundle", "body": {}},
+                summary("a", "2026-W10", [big, group])]
+        self.assertEqual(runfiles.crossed_usage(rows), [
+            {"site": "a", "closed_through": "2026-W10", "task": "extract_claims", "endpoint": "e", "calls": 40,
+             "ok": 39, "errors": [{"kind": "timeout", "n": 1}], "fake": False, "suppressed": []},
+            {"site": "a", "closed_through": "2026-W10", "task": "judge_record", "endpoint": "e", "calls": None,
+             "ok": None, "errors": [{"kind": "timeout", "n": None}], "fake": True, "suppressed": ["calls", "ok"]},
+            {"site": "b", "closed_through": "2026-W10", "task": "judge_record", "endpoint": "e", "calls": None,
+             "ok": None, "errors": [{"kind": "timeout", "n": None}], "fake": True, "suppressed": ["calls", "ok"]}])
 
     def test_project_entries_ends_with_the_ledger_head(self) -> None:
         h = [f"{n:x}" * 64 for n in range(1, 4)]
@@ -401,6 +427,22 @@ class _HeroAssertions:
                 self.assertIn(rel["key"], hero["case_keys"])
         items = {i["id"]: i for i in docs["screen.json"]["items"]}
         self.assertEqual((items["s_rank"]["display"], items["r_rank"]["display"]), (scr.NOT_ALERTED, scr.NOT_ALERTED))
+        # regression: the S and R rows read only "not alerted" while both baselines ranked another key of the same
+        # case first; each row now names the failure mode its rank is for and the first other case key it flagged
+        blocks = {b["id"]: b for b in docs["screen.json"]["blocks"]}
+        caption = "".join(p["text"] or items[p["item"]]["display"] for p in blocks["alert-key"]["parts"])
+        self.assertTrue(caption.startswith(scr.THIS_MODE), caption)
+        self.assertIn(items["hero_key_id"]["display"], caption)
+        for channel, prefix, block in (("S", "s", "alert-s"), ("R_mf", "r", "alert-r")):
+            related = det[channel]["related"]
+            self.assertTrue(related, channel)
+            parts = blocks[block]["parts"]
+            self.assertIn(scr.OTHER_KEY, [p["text"] for p in parts])
+            self.assertEqual(items[f"{prefix}_first_other_rank"]["display"], str(related[0]["rank"]))
+            self.assertEqual(items[f"{prefix}_first_other_week"]["display"], related[0]["week"])
+            j = [x["key"] for x in docs["scorecard.json"]["hero"]["case_key_labels"]].index(related[0]["key"])
+            self.assertEqual(items[f"{prefix}_first_other_id"]["src"],
+                             f"scorecard.json#/hero/case_key_labels/{j}/entity_id")
 
     def assert_pushdown(self, docs: dict[str, Any]) -> None:
         pd = docs["scorecard.json"]["hero"]["pushdown"]
@@ -552,11 +594,32 @@ class RecordTests(_HeroAssertions, unittest.TestCase):
         self.assertTrue(all(n <= demo.LEDGER_PER_GROUP for n in groups.values()))
         self.assertEqual(summary["rows_written"], len(rows))
         self.assertLessEqual(summary["rows_written"], demo.LEDGER_PER_GROUP * len(groups))
-        self.assertLess(summary["rows_written"], summary["rows_total"])
+        self.assertLessEqual(summary["rows_written"], summary["rows_total"])
         self.assertEqual(sum(t["calls"] for t in summary["by_task"]), summary["rows_total"])
         text = (self.out / "ledger.jsonl").read_text(encoding="utf-8")
         for key in ("host", "ref", "ts", "model_served"):
             self.assertNotIn(f'"{key}"', text)
+        self.assert_site_usage_only_as_crossed(self.docs)
+
+    def assert_site_usage_only_as_crossed(self, docs: dict[str, Any]) -> None:
+        # regression: the run-file ledger used to copy each site's per-call rows, so a site's exact judged count
+        # below k left it; now only HQ's own calls are rows, and a site's usage is what crossed its Boundary
+        sc = docs["scorecard.json"]
+        summary, k = sc["ledger"], sc["pack"]["k"]
+        self.assertEqual(summary["scope"], demo.LEDGER_SCOPE)
+        self.assertTrue(docs["ledger.jsonl"])
+        self.assertEqual({row["site"] for row in docs["ledger.jsonl"]}, {"hq"})
+        self.assertEqual({t["task"] for t in summary["by_task"]}, {DRAFT_TASK})
+        sites = {s["site_id"] for s in scn.load_scenario().raw["org"]["sites"]}
+        usage = summary["site_usage"]
+        self.assertEqual({u["site"] for u in usage}, sites)
+        for u in usage:
+            for field in ("calls", "ok"):
+                self.assertTrue(u[field] is None or u[field] >= k, u)
+                self.assertEqual(u[field] is None, field in u["suppressed"], u)
+            self.assertTrue(all(e["n"] is None or e["n"] >= k for e in u["errors"]), u)
+        self.assertEqual({p["task"]: p["calls"] for p in sc["providers"]},
+                         {"extract": None, "judge": None, "draft": summary["rows_total"]})
 
     def test_run_files_portable(self) -> None:
         forbidden = [str(self.rec["work"]), str(self.rec["work"].resolve()), str(self.out), str(self.out.resolve()),
@@ -738,7 +801,7 @@ class LintTests(unittest.TestCase):
                  ("2024-10-28T08:00:00.000Z", "datetime", "2024-10-28 08:00 UTC"),
                  ("2024-11-02T00:00:00Z", "datetime", "2024-11-02 00:00 UTC"),
                  ("Werk Dornhagen – Gerätemontage (fiktiv)", "text", "Werk Dornhagen – Gerätemontage (fiktiv)"),
-                 ("record", "mode", "RECORDED"), ("live", "mode", "LIVE"),
+                 ("record", "mode", "scripted run"), ("live", "mode", "run driven live in the console"),
                  ("recorded", "approval", scr.APPROVAL_DISPLAY["recorded"]),
                  ("live", "approval", scr.APPROVAL_DISPLAY["live"])]
         for value, fmt, display in cases:
@@ -917,11 +980,13 @@ class HonestyTests(unittest.TestCase):
             self.assertEqual(r.returncode, 0, r.stderr)
             page = page_path.read_text(encoding="utf-8")
         text = json.dumps(screen, ensure_ascii=False)
-        for label in ("Fictional company", "synthetic data", "RECORDED", scr.R_DEFINITION, "Internal and YC use only",
-                      STUB):
+        for label in ("Fictional company", "synthetic data", scr.MODE_DISPLAY["record"], scr.R_DEFINITION,
+                      "Internal and YC use only", STUB):
             with self.subTest(label=label):
                 self.assertIn(label, text)
                 self.assertIn(label, page)
+        self.assertEqual((screen["mode"], screen["presentation"]), ("record", "recorded"))
+        self.assertIn('mode.textContent = presentation === "live" ? "LIVE" : "RECORDED";', page)
         self.assertEqual(scr.R_DEFINITION, "R: the same detectors over the fields allowed to leave, record-level, "
                                            "no model")
         self.assertNotIn("LIVE", [i["display"] for i in screen["items"]])
@@ -1183,7 +1248,8 @@ class ExportReplayTests(unittest.TestCase):
         self.assertEqual(post_control(port, {"action": "next"})[0], 200)
         s = wait_until(lambda: (lambda x: x if x["phase"] == "complete" else None)(get_json(port, "/screen")),
                        what="completion")
-        self.assertIn("LIVE", [i["display"] for i in s["items"]])
+        self.assertEqual((s["mode"], s["presentation"]), ("live", "live"))
+        self.assertIn(scr.MODE_DISPLAY["live"], [i["display"] for i in s["items"]])
         self.assertEqual(post_control(port, {"action": "next"})[0], 409)
         proc.terminate()
         proc.communicate(timeout=30)
@@ -1191,7 +1257,8 @@ class ExportReplayTests(unittest.TestCase):
         self.assertEqual(demo.validate_run(docs), [])
         sc, trace = docs["scorecard.json"], docs["trace.json"]
         self.assertEqual((sc["mode"], sc["stamps"]["approval"], trace["meta"]["approval"]), ("live", "live", "live"))
-        self.assertEqual(docs["screen.json"]["mode"], "live")
+        self.assertEqual((docs["screen.json"]["mode"], docs["screen.json"]["presentation"]), ("live", "live"))
+        self.assert_replayed_as_recorded(out)
         hero_key = sc["hero"]["key"]["key"]
         events = trace["events"]
         questions = [e for e in events if e["type"] == "question" and e["data"]["key"] == hero_key]
@@ -1208,6 +1275,28 @@ class ExportReplayTests(unittest.TestCase):
         self.assertTrue(all(c["ok"] for c in sc["checks"]), [c for c in sc["checks"] if not c["ok"]])
         r = run_lint(str(out))
         self.assertEqual(r.returncode, 0, r.stdout)
+
+    def assert_replayed_as_recorded(self, directory: Path) -> None:
+        """A replay or an export of a live run is presented recorded: nothing runs behind it, so no LIVE badge,
+        while the footer keeps how the run was made."""
+        recorded = {**load(directory)["screen.json"], "presentation": "recorded"}
+        page_path = self.tmp / "live-page.html"
+        r = run_demo("--export", str(page_path), "--run", str(directory))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        m = re.search(r'<script id="collective-screen" type="application/json">(.*?)</script>',
+                      page_path.read_text(encoding="utf-8"), re.DOTALL)
+        self.assertEqual(json.loads(m.group(1)), recorded)
+        port = free_port()
+        self.popen("--replay", str(directory), "--port", str(port), "--no-browser", "--exit-after", "60")
+        screen = wait_until(lambda: get_json(port, "/screen"), what="the replay server")
+        self.assertEqual(screen, recorded)
+        self.assertEqual(screen["mode"], "live")
+        self.assertNotIn("LIVE", [i["display"] for i in screen["items"]])
+        console = (DEMO_DIR / "console.html").read_text(encoding="utf-8")
+        self.assertIn('var presentation = live && screen.presentation === "live" ? "live" : "recorded";', console)
+        self.assertNotIn("screen.mode", console)
+        with self.assertRaises(scr.ScreenError):
+            scr.presented(recorded, "LIVE")
 
     def test_routing_unreachable_endpoint_fails_visibly(self) -> None:
         port = free_port()
