@@ -31,9 +31,6 @@ export const emergence: Metric[] = [
   { value: "0", unit: "/ 306", what: "Facet records of a hidden pattern that rank in the global top 900 by any per-record feature", scope: "10,000 users · the signals are invisible one record at a time", source: "docs/MYCELIC_ENTERPRISE.md §2, §28" },
   { value: "0→57", unit: "%", what: "Hidden problems found: upward summarisation alone, then with targeted questioning back down the hierarchy", scope: "50,000 users · 5 seeds · Δ +0.546, CI [+0.49, +0.61]", source: "docs/MYCELIC_ENTERPRISE.md §2, §17" },
   { value: "0", unit: "%", what: "Original records that leave the agent owning them", scope: "vs 22% for the best centralised option", source: "docs/MYCELIC_ENTERPRISE.md §1" },
-  { value: "77", unit: "%", what: "Independent-support accuracy", scope: "vs 62% centralised · 50,000 users", source: "docs/MYCELIC_ENTERPRISE.md §1" },
-  { value: "38", unit: "%", what: "Planted decoy traps accepted", scope: "vs 47% centralised · lower is better", source: "docs/MYCELIC_ENTERPRISE.md §1" },
-  { value: "57", unit: "%", what: "Hidden problems found by the hierarchy, against 78% for reading 22% of all records centrally", scope: "the honest comparison · 50,000 users", source: "docs/MYCELIC_ENTERPRISE.md §1" },
 ];
 
 /* Track 03 — continual questioning, from the same benchmark's ablations. */
