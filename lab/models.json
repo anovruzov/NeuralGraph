@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "hf_base": "https://huggingface.co",
+  "server": null,
+  "models": {
+    "fake-a": {
+      "kind": "fake",
+      "alias": "lab-fake-a",
+      "persona": "valid",
+      "response_format": "json_schema",
+      "transport_schema": "full"
+    },
+    "fake-b": {
+      "kind": "fake",
+      "alias": "lab-fake-b",
+      "persona": "valid",
+      "response_format": "json_schema",
+      "transport_schema": "reduced"
+    }
+  }
+}

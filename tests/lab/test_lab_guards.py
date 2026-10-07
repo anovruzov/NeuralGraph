@@ -1,0 +1,128 @@
+"""Repository guards for the lab.
+
+* no model-family name in lab code, docs or tests (model names belong only in the manifest and request files);
+* no server program, release tag or asset literal in lab Python (they come from the manifest);
+* lab Python never passes the harnesses' dirty-tree override, and every harness argv is ``--flag=value`` only;
+* every fixed sentence in ``lab/notes.py`` is free of ASCII digits;
+* lab Python imports only the standard library, ``mycelic`` and ``lab`` (no YAML, no HTTP client, nothing else).
+"""
+from __future__ import annotations
+
+import ast
+import json
+import re
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+from lab import notes
+from lab.units import build_argv
+from tests.lab.helpers import MANIFEST_TEST, ROOT, make_plan, plumbing_min
+from tests.mycelic.test_collective_guards import model_name_hits
+
+LAB = ROOT / "lab"
+NAME_SCAN_EXCLUDED = ("lab/models.json", "lab/models.lock.json")
+DIRTY_OVERRIDE = "--allow-" + "dirty"
+
+
+def lab_python() -> list[Path]:
+    return sorted(p for p in LAB.rglob("*.py") if "__pycache__" not in p.parts)
+
+
+def name_scan_excluded(rel: str) -> bool:
+    """The manifest, the lock, request and template files and results: the places model names may appear."""
+    parts = rel.split("/")
+    in_json_dir = len(parts) == 3 and parts[0] == "lab" and parts[1] in ("requests", "templates")
+    return (rel in NAME_SCAN_EXCLUDED or (in_json_dir and rel.endswith(".json"))
+            or rel.startswith("lab/results/"))
+
+
+def name_scan_files() -> list[Path]:
+    files = []
+    for base in (LAB, ROOT / "tests" / "lab"):
+        for path in sorted(base.rglob("*")):
+            if not path.is_file() or "__pycache__" in path.parts or path.suffix == ".pyc":
+                continue
+            if not name_scan_excluded(path.relative_to(ROOT).as_posix()):
+                files.append(path)
+    return files
+
+
+class LabGuardTests(unittest.TestCase):
+    def test_exclusions(self) -> None:
+        for rel in ("lab/models.json", "lab/models.lock.json", "lab/requests/x.json", "lab/templates/y.json",
+                    "lab/results/a/b.md"):
+            self.assertTrue(name_scan_excluded(rel), rel)
+        for rel in ("lab/units.py", "lab/requests/sub/x.json", "lab/README.md", "tests/lab/data/manifest-test.json"):
+            self.assertFalse(name_scan_excluded(rel), rel)
+
+    def test_no_model_names(self) -> None:
+        files = name_scan_files()
+        self.assertTrue(files)
+        self.assertIn(LAB / "units.py", files)
+        self.assertIn(MANIFEST_TEST, files)
+        for path in files:
+            with self.subTest(path=path.relative_to(ROOT).as_posix()):
+                self.assertEqual(model_name_hits(path.read_text(encoding="utf-8")), [])
+
+    def test_no_server_literals_in_lab_python(self) -> None:
+        literals = []
+        for manifest in (MANIFEST_TEST, LAB / "models.json"):
+            server = json.loads(manifest.read_text(encoding="utf-8"))["server"]
+            if server is not None:
+                literals += [server["program"], server["tag"], server["asset"]]
+        self.assertTrue(literals)
+        for path in lab_python():
+            text = path.read_text(encoding="utf-8")
+            for literal in literals:
+                with self.subTest(path=path.name, literal=literal):
+                    self.assertNotIn(literal, text)
+
+    def test_no_dirty_override(self) -> None:
+        for path in lab_python():
+            self.assertNotIn(DIRTY_OVERRIDE, path.read_text(encoding="utf-8"), path.name)
+
+    def test_build_argv_is_flag_equals_value_only(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="lab-guard-") as tmp:
+            plan, _ = make_plan(Path(tmp), plumbing_min())
+        self.assertEqual({u["experiment"] for u in plan["units"]}, {"e3", "g0"})
+        for unit in plan["units"]:
+            argv = build_argv(unit, Path("/out"), Path("/out/routing/x.json"))
+            self.assertEqual(argv[:2], [sys.executable, "-m"])
+            self.assertTrue(argv[2].startswith("mycelic.collective.experiments."))
+            for arg in argv[3:]:
+                self.assertRegex(arg, r"\A--[a-z][a-z0-9-]*=.*\Z")
+            self.assertNotIn(DIRTY_OVERRIDE, " ".join(argv))
+
+    def test_notes_hold_no_digits(self) -> None:
+        values = []
+        for name in dir(notes):
+            value = getattr(notes, name)
+            if name.isupper() and isinstance(value, str):
+                values.append((name, value))
+            elif name.isupper() and isinstance(value, dict):
+                values += [(f"{name}.{k}", v) for k, v in value.items()]
+        self.assertGreater(len(values), 20)
+        for name, value in values:
+            with self.subTest(name=name):
+                self.assertIsNone(re.search(r"[0-9]", value))
+
+    def test_imports_are_stdlib_mycelic_or_lab(self) -> None:
+        allowed = set(sys.stdlib_module_names) | {"__future__", "mycelic", "lab"}
+        for path in lab_python():
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    names = [alias.name for alias in node.names]
+                elif isinstance(node, ast.ImportFrom):
+                    names = [] if node.level else [node.module or ""]
+                else:
+                    continue
+                for name in names:
+                    with self.subTest(path=path.name, module=name):
+                        self.assertIn(name.split(".")[0], allowed)
+
+
+if __name__ == "__main__":
+    unittest.main()

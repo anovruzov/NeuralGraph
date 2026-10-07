@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "hf_base": "https://huggingface.co",
+  "server": {
+    "program": "llama-server",
+    "tag": "b0000",
+    "asset": "lab-test-server-b0000-x64.tar.gz",
+    "url": "https://github.com/example-org/lab-test-server/releases/download/b0000/lab-test-server-b0000-x64.tar.gz",
+    "archive_root": "",
+    "binary": "bin/llama-server",
+    "format": "tar.gz",
+    "args": []
+  },
+  "models": {
+    "fake-a": {
+      "kind": "fake",
+      "alias": "lab-fake-a",
+      "persona": "valid",
+      "response_format": "json_schema",
+      "transport_schema": "full"
+    },
+    "fake-b": {
+      "kind": "fake",
+      "alias": "lab-fake-b",
+      "persona": "valid",
+      "response_format": "json_schema",
+      "transport_schema": "reduced"
+    },
+    "fake-fail": {
+      "kind": "fake",
+      "alias": "lab-fake-fail",
+      "persona": "unauthorized",
+      "response_format": "json_schema",
+      "transport_schema": "full"
+    },
+    "fake-slow": {
+      "kind": "fake",
+      "alias": "lab-fake-slow",
+      "persona": "slow",
+      "response_format": "json_schema",
+      "transport_schema": "full"
+    },
+    "fake-longest-key-0123456": {
+      "kind": "fake",
+      "alias": "lab-fake-longest",
+      "persona": "valid",
+      "response_format": "json_schema",
+      "transport_schema": "full"
+    },
+    "tiny-gguf": {
+      "kind": "gguf",
+      "alias": "tiny-test",
+      "gguf": {
+        "repo": "example-org/tiny-test-GGUF",
+        "file": "tiny-test-q4.gguf",
+        "revision": "0123456789abcdef0123456789abcdef01234567",
+        "license": "apache-2.0"
+      },
+      "response_format": "json_schema",
+      "transport_schema": "full"
+    }
+  }
+}
