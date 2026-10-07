@@ -1,13 +1,15 @@
-# Mycelic collective: architecture (gates G1 to G7)
+# Mycelic collective: architecture (gates G1 to G8)
 
-This document describes what gates G1 to G7 build under `mycelic/collective/`. It also places them in the loop
-that later gates complete (STRATEGY section 4.1). Sections 1 to 10 describe G1; section 11 describes G2 (domain
-packs and the sense step); section 12 describes G3 (the site boundary and the G0 text-leakage scan); section 13
-describes G4 (detection at HQ over the cells that left the sites); section 14 describes G5 (measuring that detection
-on planted synthetic worlds against its baselines, and the openFDA public replay); section 15 describes G6 (pushdown
-verification: narrow questions answered inside each site, bucketed verdicts, the commit gate, and the E2 harness);
-section 16 describes G7 (approval-routed follow-up on supported conclusions, built ahead of E2 and X4 and
-unvalidated).
+This document describes what gates G1 to G8 build under `mycelic/collective/` (and, for G8, `demo/collective/`). It
+also places them in the loop that later gates complete (STRATEGY section 4.1). Sections 1 to 10 describe G1; section
+11 describes G2 (domain packs and the sense step); section 12 describes G3 (the site boundary and the G0
+text-leakage scan); section 13 describes G4 (detection at HQ over the cells that left the sites); section 14
+describes G5 (measuring that detection on planted synthetic worlds against its baselines, and the openFDA public
+replay); section 15 describes G6 (pushdown verification: narrow questions answered inside each site, bucketed
+verdicts, the commit gate, and the E2 harness); section 16 describes G7 (approval-routed follow-up on supported
+conclusions, built ahead of E2 and X4 and unvalidated); section 17 describes G8 (the end-to-end demo for a fictional
+multi-site device maker: the run-file contract, the screen with per-number provenance, the console and the number
+lint).
 
 **No real-model number is produced in this sandbox.** Model weights and the openFDA API cannot be reached from it, so
 every test runs against a deterministic in-process fake or a local fake HTTP server. Every harness output says so in
@@ -30,8 +32,9 @@ its `measurement` flag. The figures STRATEGY needs come from the founder's runs 
 | Founder tools | `experiments/e3_latency.py`, `connectors/openfda.py`, `experiments/n1_narratives.py` | E3, the openFDA cache, N1 sample and score |
 
 Everything is standard library only and runs under `python -S`. No fabric file changed (`INTEGRATION.md`). After
-G6 the layer has 50 modules on the stdlib-only list and eighteen CLIs (section 7; G4 added no CLI, G5 added six, G6
-adds one); sections 11 to 15 list what G2 to G6 added.
+G8 the layer has 60 modules on the stdlib-only list and twenty CLIs, plus the demo's two scripts (section 7; G4 added
+no CLI, G5 added six, G6 one, G7 two, G8 adds `runfiles` and no module CLI); sections 11 to 17 list what G2 to G8
+added.
 
 ## 2. The boundary guard
 
@@ -159,15 +162,16 @@ Replies are validated locally against the full schema, even when the wire carrie
 | Guard | What it enforces |
 |---|---|
 | Import guard | `mycelic/{service,aggregation,store,transport,lineage}.py` import no model client and nothing from `mycelic.collective`. An AST check covers plain, relative and dynamic imports; a fresh-interpreter check confirms it. A missing core file fails loudly. |
-| Stdlib only | All 59 collective modules import, and the twenty CLIs (G2 adds the five E1 subcommands and `packs.loader check`; G3 adds `experiments.g0_canary`; G4 adds none; G5 adds `evaluate.harness` `prereg`, `check-plant` and `run` and `experiments.openfda_replay` `prereg`, `signals` and `score`; G6 adds `experiments.e2_pushdown run`; G7 adds `experiments.e5_injection` and `followup.ledger verify`) answer `--help`, under `python -S` |
+| Stdlib only | All 60 collective modules import (G8 adds `runfiles`), and the twenty CLIs (G2 adds the five E1 subcommands and `packs.loader check`; G3 adds `experiments.g0_canary`; G4 adds none; G5 adds `evaluate.harness` `prereg`, `check-plant` and `run` and `experiments.openfda_replay` `prereg`, `signals` and `score`; G6 adds `experiments.e2_pushdown run`; G7 adds `experiments.e5_injection` and `followup.ledger verify`) answer `--help`, under `python -S`; so do the demo's two scripts, `demo/collective/collective_demo.py` and `lint_numbers.py` (G8), and `demo/collective/{scenario,screen}.py` import there |
 | No model names | No model-family name in collective code, docs or tests. The matcher holds sha256 digests only. Example tags live only in `docs/collective/examples/`. |
-| Determinism | No wall clock or unseeded randomness in `jsonio`, `schemacheck`, `stats`, the runtime modules, the pack modules, `edge/{extract,weeks,records,egress,site,verify}.py`, `leakage.py`, every `detect/*.py` and every `pushdown/*.py` (`ClockEntropyTests` checks by glob that each detect and pushdown module is listed), every `evaluate/*.py`, `experiments/openfda_replay.py`, `experiments/e2_pushdown.py`, every `followup/*.py` and `edge/packets.py` (`ClockEntropyTests` checks the follow-up modules by glob too; the harnesses stamp `created_at` through `common.utc_clock` and time with `time.perf_counter`, both allowed) |
-| Domain literals (G2) | No pack term (entity type, predicate, code, rule, template, follow-up type or role id of either built-in pack) is an identifier or a whole string constant in generic collective code, no string constant there contains `ILL-`, and no openFDA field name is a string constant in the pack, extraction or E1 code (one documented exemption: `text`, the payload key the brief fixes) |
+| Determinism | No wall clock or unseeded randomness in `jsonio`, `schemacheck`, `stats`, the runtime modules, the pack modules, `edge/{extract,weeks,records,egress,site,verify}.py`, `leakage.py`, every `detect/*.py` and every `pushdown/*.py` (`ClockEntropyTests` checks by glob that each detect and pushdown module is listed), every `evaluate/*.py`, `experiments/openfda_replay.py`, `experiments/e2_pushdown.py`, every `followup/*.py` and `edge/packets.py` (`ClockEntropyTests` checks the follow-up modules by glob too; the harnesses stamp `created_at` through `common.utc_clock` and time with `time.perf_counter`, both allowed), `runfiles.py` and the demo's `scenario.py`, `screen.py` and `lint_numbers.py` (G8) |
+| Domain literals (G2, G8) | No pack term (entity type, predicate, code, rule, template, follow-up type or role id of either built-in pack) is an identifier or a whole string constant in generic collective code or in any `demo/collective/*.py` (G8: every domain value of the demo comes from `scenario.json` or the pack), no string constant there contains `ILL-`, and no openFDA field name is a string constant in the pack, extraction or E1 code (one documented exemption: `text`, the payload key the brief fixes) |
 | Runbook | Every RUNBOOK command runs with `--dry-run`, with the network blocked, and creates nothing |
 | HQ imports (G4, G6) | No `detect/*.py` and no `pushdown/*.py` imports `edge.records`, `edge.site`, `edge.extract`, `edge.verify` (the site verifier, G6), `packs.generator`, `evaluate`, `leakage`, `experiments`, any `inference` module or a model client (AST check with relative imports resolved); a fresh interpreter importing every detect and pushdown module loads none of them except `inference` and `inference.errors`, which the Boundary's validator pulls in. `test_collective_pushdown.py::PushdownImportGuardTests` repeats it for pushdown and pins `detect/{detectors,rules,org}.py` to their G5 bytes |
 | Evaluation imports (G5) | No `evaluate/*.py` and not `experiments/openfda_replay.py` imports any `mycelic.collective.inference` module or a model client (`EvaluateImportGuardTests`, the same AST check; `edge.site` pulls in `inference.ledger` transitively, which is allowed). G5 makes no model call: X uses the lexical extractor |
 | Follow-up imports (G7) | No `followup/*.py` imports `edge.records`, `edge.site`, `edge.extract`, `edge.verify`, `edge.packets`, `packs.generator`, `evaluate`, `leakage`, `experiments` or a model client; only `followup/drafts.py` imports inference (`tasks` and `errors` at run time, the runtime only for type checking); `edge/packets.py` imports no `followup`, `pushdown`, `detect` or inference module (`FollowupImportGuardTests`: the AST checks and two fresh interpreters) |
-| Approval call sites (G7) | Outside `followup/service.py`, `experiments/g0_canary.py` (G0's simulated owner), `demo/collective/collective_demo.py` (a later gate's console) and `tests/`, nothing under `mycelic/` or `demo/` calls `approve`, `edit` or `reject`, as a name, an attribute call or `getattr` with that name (`ApprovalCallSiteTests`) |
+| Approval call sites (G7) | Outside `followup/service.py`, `experiments/g0_canary.py` (G0's simulated owner), `demo/collective/collective_demo.py` (the G8 console, whose real call the checker must see) and `tests/`, nothing under `mycelic/` or `demo/` calls `approve`, `edit` or `reject`, as a name, an attribute call or `getattr` with that name (`ApprovalCallSiteTests`) |
+| Demo readers (G8) | `demo/collective/screen.py` and `lint_numbers.py` import no `collective_demo`, no `inference`, `edge`, `detect`, `pushdown` or `followup` module and no model client (`DemoImportGuardTests`: the AST check, an injected import in a copy of the lint, and a fresh interpreter); they read run files only, so neither a replayed screen nor the lint can compute a number of its own |
 
 Each later gate extends the lists at the top of that module.
 
@@ -1661,3 +1665,159 @@ also takes the conclusion id and candidate key its result names.
   co-occurrence as buckets, and a drafting model's prose could restate a count or an id in another form.
 - **No fabric wiring.** Fabric event kinds, JetStream subjects, auth scopes and anchoring the ledger head in the
   fabric's signed log are integration notes (`INTEGRATION.md`, G7), not code.
+
+## 17. G8: the collective demo
+
+**A fictional company, synthetic data and a constructed illustration. Internal and YC use only; never a
+measurement** (STRATEGY sections 9.1 and 12). Every run file says `measurement: false`, and no number from the demo is
+a product figure.
+
+G8 runs the whole loop once, end to end, for one fictional multi-site device maker (Halvern Medical, six plants in
+four countries) and shows it on a console: sense (each plant extracts claims inside its boundary), detect (X over the
+k-suppressed cells, next to S and R), check (pushdown verification at the plants), follow-up (approval-routed, built
+ahead of X4) and the outcome ("not yet checked"). The hero is the narrative-only case: complaints about one lot carry
+only a generic malfunction code, and what failed is written only in the narratives, in English and German. Nothing in
+the loop changed: `detect/`, `pushdown/`, `followup/`, `edge/`, `evaluate/`, `inference/` and `packs/` (pack data and
+hashes included) are byte-identical to G7. G8 adds one module under `mycelic/` and a demo directory.
+
+| Part | File | Purpose |
+|---|---|---|
+| Run-file contract | `mycelic/collective/runfiles.py` | the six names, digests (32 hex), ledger and approvals projections, portability checks, `content_hash`, RFC 6901 `src` resolution, atomic write (scorecard last) and strict read; shared by G0 and the demo (`mycelic/` never imports `demo/`) |
+| Scenario | `demo/collective/scenario.json`, `scenario.py` | the fictional org, approvers, follow-ups and five items (hero, sibling, three decoys) over the pack generator's background world; validation in a fixed order; `build_world` (records, canaries, case keys, `by_construction`, structured fill) |
+| Engine and server | `demo/collective/collective_demo.py` | `DemoEngine` (prepare, check, follow-up, finish), the closed run-file schemas and `validate_run`, `--record`, `--serve`, `--replay`, `--export`, the console server |
+| Screen | `demo/collective/screen.py` | `build_screen`: every value an item read from a primary run file; the formats; the static texts |
+| Console | `demo/collective/console.html` | renders `screen.json` only; live (`/screen`, `/events`, `/control`) or embedded (replay and export) |
+| Number lint | `demo/collective/lint_numbers.py` | fails the build when a number on screen cannot be traced to a primary run file |
+| Talk track | `demo/collective/SCRIPT.md`, `README.md` | the 60-second cut and the extended internal beat; what the demo is and is not |
+| Committed run | `demo/collective/recorded/<run-id>/` | the six files of one fake-mode recording |
+| G0 | `experiments/g0_canary.py` | the `run_files` stage (section 17.6) |
+
+### 17.1 Data flow
+
+```
+ scenario.json ─► build_world: background (pack generator) + items, canaries planted; manifest to <workdir>/private
+                                   │
+ per plant (one process): EdgeSite ingest ─► extract (stand-in, or --routing) ─► weekly cells, usage ─► Boundary
+                                   │                                                          │
+ HQ: CollectiveStore ◄─────────────┴───── receive.jsonl ◄────────────────────────────────────┘
+      X, S (detect) · R_mf, U, each site alone (evaluate.baselines) ─► hero detection block, decoys
+      check: Orchestrator.verify_stored(hero key, as_of) ─► questions ─► SiteVerifier at each routed plant ─► verdicts
+             ─► gate ─► scan "after_pushdown"
+      follow-up (supported only): T0 evidence packet (approve, execute) ─► T1 CAPA draft (approve, execute)
+      finish: scan "final" (every crossing + four run files) ─► documents ─► screen.json ─► self-check ─► write
+                                   │
+ run directory: scorecard.json trace.json ledger.jsonl leakage.json approvals.jsonl screen.json
+                                   │
+ console (live SSE, or one page with screen.json embedded) · lint_numbers.py · --replay · --export
+```
+
+The clock is simulated (as in G0): ingest and extraction run at the day after the last record, then the clock moves
+to `as_of` (that day plus seven days plus the pack's close lag), where detection, the check and every follow-up step
+happen. The wall clock reaches only `created_at`, `recorded_at`, the timings and the trace's `t`.
+
+### 17.2 The run-file contract
+
+A run directory holds exactly six files (`runfiles.RUN_FILES`): `scorecard.json` (the hero's detection, pushdown and
+follow-up blocks, the decoys, the providers, the checks, the stamps and the content hash), `trace.json` (meta, the
+org, the beats and every event), `ledger.jsonl` (usage rows, at most twelve per site and task, projected to
+`LEDGER_ROW_KEYS`; never a host, ref, timestamp or served model), `leakage.json` (the two scans, the positive
+control, what is not covered), `approvals.jsonl` (every follow-up ledger entry, then one `ledger_head` line) and
+`screen.json`. The first five are the **primary** files; `screen.json` is derived from them.
+
+- **Closed schemas.** Every object has fixed keys (no free-key maps: per-site and per-task data are arrays), checked by
+  `validate_run`. The baselines' blocks are exactly `{rank, caught, related}`: no count, feature, score, rate or
+  log-probability of R, U or a single site appears in any run file, and an alert event carries only channel, key,
+  week and rank.
+- **Digests are 32 hex.** Every sha256 is written as its first 32 characters (`runfiles.shorten`, `digest`); a string
+  holding a 64-hex run inside longer text is refused rather than kept. The screen shows 12 (`digest12`).
+- **Portability.** `portability_problems` refuses an absolute path, the work and output directories, the repository
+  root, the home directory, the host and user names (whole tokens), a 64-hex token, a credential-named key and the
+  agent-key prefix. `write_run_files` checks every file first and writes nothing on any problem; it writes atomically,
+  `scorecard.json` last, so a run directory with a scorecard is complete.
+- **Content hash.** `content_hash` is 32 hex of the canonical scorecard without `/code`, `/content_hash`,
+  `/created_at`, `/run_id` and `/timings`. A fresh recording of the committed scenario reproduces the committed
+  run's hash under any `PYTHONHASHSEED`, work directory and run id; the tests check it, so the committed run is
+  genuine and current.
+- **What never enters a run directory:** narrative text, record refs, person or reporter values, the canary manifest,
+  the site databases and the site `packets/` directories. The work directory holding them is removed at exit.
+
+### 17.3 Screen items and provenance
+
+`screen.json` is `{kind, schema_version, run_id, mode, phase, beats, cut_60s, controls, blocks, items}`. A block is a
+list of parts, each exactly one of a static `text` or an `item` id. An item is `{id, beat, label, display, src, fmt}`:
+`src` is `<primary file>#<RFC 6901 pointer>` (a `.jsonl` pointer starts with the line index), and `display` is
+`screen.format_value(runfiles.resolve(docs, src), fmt)`. No other code formats a value: the formats (`int` with
+thousands separators, `rank` with "not alerted" for null, `pct`, `dec2`, `text`, `digest12`, `yesno`, `mode`,
+`approval`, `datetime`) live in `screen.py` with a fixed locale, and `parse_display` reads each display back. Every
+run-derived string (display names, ids, labels, the question, reasons, draft text, the run id and time) is an item;
+static texts are module constants with no digit and no number word. The console renders `item.display` with
+`textContent` and computes or formats nothing.
+
+Beats: the problem, the alert, the check with the sites, the approval-routed follow-up (`in_cut: false`; built ahead
+of X4, not measured) and the real-data line. `cut_60s` is the four others.
+
+### 17.4 Caught vs related
+
+`caught(channel)` means the channel alerted the hero key in the hero window (from the hero's first week through the
+last closed week); `related(channel)` lists its first alert on every other **case key** in that window. Case keys are
+the hero's entities (the key's, every structured entity of a hero record and every entity the lexical extractor finds
+in a hero narrative) times the hero's predicates (the key's and every hero code's), egress types only. The screen says
+"The restricted central baseline also caught this case" (R) or "The codes-only baseline also caught this case" (S)
+exactly when the flag is true, lists every related key with its own entity, predicate, rank and week under "flagged a
+related key", and never calls a related key a miss. The by-construction caption ("By construction, S and R cannot see
+this key: ...") is shown exactly when the scenario makes the hero narrative-only: it is a property of the constructed
+case, not a result. A scenario copy with a specific code and the structured lot always filled makes both baselines
+catch the hero, and the screen says so (`HonestyTests`).
+
+### 17.5 The lint
+
+`lint_numbers.py RUN_DIR` reads the six files, the console, `SCRIPT.md` and `README.md`, and prints one
+`lint: <file>: <rule>: <token>` line per violation (exit 1), `lint: ok (...)` (exit 0), or one `error:` line (exit 2:
+a missing directory or file, invalid JSON, another schema version). Rules: `schema` and `run_id_mismatch`;
+`src_not_primary`, `src_unresolved`, `src_not_scalar`; `display_mismatch` (the display differs from the formatted
+source, or does not read back to it); `digit_in_text` and `number_word` over screen text parts, item labels, beat and
+control titles, the console's visible text, `title`, `alt`, `placeholder` and `aria-*` attributes, its script string
+literals (escapes decoded; CSS lengths, durations, colours and colour or transform functions allowed) and every
+`SCRIPT.md` line but the time column (a short list of identifiers such as X4, N1, Phase-1 and 60-second is removed
+first); `console_markup` (an ordered list, a progress or meter element, a CSS counter or a decimal list style, which
+render digits that are in no run file); `aggregate_metric_key` (a screen key or item id naming recall, precision,
+lift, AP, F1, AUC or accuracy); `denylisted_phrase` and `benchmark_figure` (STRATEGY section 9.1) in all four files.
+
+### 17.6 The two scans, the self-check and G0
+
+`after_pushdown` scans what crossed when the check finished (cells, usage summaries, questions, verdicts, the site
+egress and ingress logs, HQ's database); the check beat shows it, so a live run can too. `final` adds the follow-up
+crossings (packet requests, packets, the follow-up ledger, the outbox, the draft ledger and every draft) and the four
+primary run files that exist by then (class `run_files`). The positive control scans the first plant's own database
+and must find canaries and narrative text. After `screen.json` is built, a self-check validates all six documents,
+scans their final bytes for canaries and narrative shingles and runs the portability check; any hit stops the run
+with nothing written. G0 gains a `run_files` stage (after `followup`): it writes a `run/` directory (`ledger.jsonl`,
+`approvals.jsonl`, a `g0_trace` and a `g0_scorecard`) with `runfiles`, and the stage's four files are scanned as
+class `run_files`; a stage that writes narrative text there fails the run (`LEAKAGE.md` section 11).
+
+### 17.7 Modes, the server and failures
+
+`--record` runs the loop headless with scripted approvals by the named owner (labelled recorded; each execute is
+requested twice to show it runs once). `--serve` runs the same engine behind a `ThreadingHTTPServer`: `GET /`,
+`/screen`, `/trace` and `/events` (SSE: a snapshot, every event with its `id`, a new snapshot when the screen
+changes; a `Last-Event-ID` at or beyond the end restarts from the start), and `POST /control` with `next`, `check` or
+`approve` (by follow-up key). Actions are queued to the main thread; a control at the wrong beat or after completion
+answers 409, a bad body 400, a second press while one runs `busy`, and a repeated check or approval `done_before`
+with no effect. `--replay` serves a recorded run with no engine (every control 409) and `--export` writes it as one
+standalone page (no network, under 2 MB). A routed endpoint that does not answer `GET /models`, an extraction that
+falls back, or a judge that degrades stops the run with one line naming the endpoint and the replay command, and
+nothing is written; in `--serve` the console shows the error and stays up. Ctrl-C, SIGTERM and SIGHUP exit 130 with
+nothing written.
+
+### 17.8 What G8 does not show
+
+- **No measurement.** The world, the hero and the decoys are synthetic and written by the same author as the detectors
+  and the pack; the stand-in model reads the pack's own sentences perfectly. The committed outcome (`INTEGRATION.md`,
+  G8) is an illustration of the narrative-only case, not evidence that X beats S or R.
+- **R here is model-free.** It is not STRATEGY's R, which includes a frontier model reading the allowed fields; E2's
+  `central_allowed` condition approximates that R.
+- **No X4 and no E2.** The follow-up beat is built ahead of X4 and unmeasured; pushdown with a real small model is E2,
+  which has not run. With `--routing` the plants share one model in one process.
+- **Text only.** The scans show that planted text did not cross; they say nothing about what counts and buckets reveal
+  (X5, `LEAKAGE.md` section 7).
+- **No fabric wiring.** The console reads run files, not fabric events (`INTEGRATION.md`, G8 merge notes).

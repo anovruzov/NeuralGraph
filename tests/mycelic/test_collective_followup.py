@@ -2482,7 +2482,8 @@ class LeakageStageTests(unittest.TestCase):
                 self.assertEqual(code, 0, output)
                 d = json.loads((out / "leakage.json").read_text(encoding="utf-8"))
                 self.assertEqual((d["hits"], d["shingle_overlap_bytes"], d["passed"], d["stages"]),
-                                 ([], 0, True, ["edge", "pushdown", "followup"]))
+                                 ([], 0, True, ["edge", "pushdown", "followup", "run_files"]))     # G8: run_files
+                self.assertEqual(d["artifact_classes"]["run_files"]["items"], 4)
                 for cls_name in ("packets", "drafts", "approvals_ledger", "outbox", "packet_requests"):
                     self.assertGreater(d["artifact_classes"][cls_name]["bytes"], 0, cls_name)
                 self.assertIn("hq_draft_ledger", d["artifact_classes"])

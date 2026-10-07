@@ -1446,3 +1446,218 @@ ledger entries) and the claims pack 2 on 1 (6 packets, 1 draft, 1 outbox line, 1
 section 10 has the table. The E5 plumbing smoke (ARCHITECTURE section 16.11) gives 0 hits in every follow-up artifact
 for both packs and both variants, with HQ holding 3 (device, `V9999`) and 1 (claims, `RS-99999`) cells naming the
 injected id. Neither is evidence about a model or about E5 itself.
+
+## G8
+
+**Base.** Branch `mycelic-collective-phase2` at 3a4c786 (G7), a clean worktree. Nothing is committed by the engineer.
+
+**A fictional company, synthetic data and a constructed illustration; internal and YC use only; never a
+measurement.** G8 runs the loop end to end for one fictional multi-site device maker (Halvern Medical, six plants in
+four countries) and shows it on a console whose every number is read from run files (ARCHITECTURE section 17).
+Nothing in the loop changed: `detect/`, `pushdown/`, `followup/`, `edge/`, `evaluate/`, `inference/` and `packs/`
+(pack data and the four hashes per pack) are byte-identical to G7.
+
+**Scope: fabric files changed: none.** `git status` against 3a4c786 lists only:
+
+- new: `mycelic/collective/runfiles.py`; `demo/collective/{collective_demo,scenario,screen,lint_numbers}.py`,
+  `scenario.json`, `console.html`, `SCRIPT.md`, `README.md`; the committed run, the six run files under
+  `demo/collective/recorded/collective-halvern-g8/`; `tests/mycelic/test_collective_demo.py`;
+- changed additively: `mycelic/collective/experiments/g0_canary.py` (the `run_files` stage, `run_files` in
+  `CROSSING_CLASSES`, `G0Context.run_files_totals`, a docstring paragraph and the dry-run line for `run/`),
+  one docstring line in `mycelic/collective/__init__.py`,
+  `docs/collective/{RUNBOOK,ARCHITECTURE,LEAKAGE,INTEGRATION}.md`, and the earlier tests listed below.
+
+**S2:** `git diff --stat 3a4c786 -- mycelic/service.py mycelic/store.py mycelic/aggregation.py mycelic/transport.py
+mycelic/api.py mycelic/lineage.py mycelic/config.py deploy SECURITY.md DEPLOYMENT.md NeuralGraph research demo/live
+demo/README.md mycelic/collective/detect/detectors.py mycelic/collective/detect/rules.py
+mycelic/collective/detect/org.py` is empty (the three detect files keep their G5 sha256, `7d4ca86b...`,
+`f0f5caa1...`, `33972beb...`); so is the same diff over `mycelic/collective/{detect,pushdown,followup,edge,evaluate,
+inference,packs}` and `leakage.py`. `git diff --stat 3a4c786 -- mycelic` lists only `mycelic/collective/__init__.py`
+(one docstring line) and `mycelic/collective/experiments/g0_canary.py`.
+
+**S3, S5 to S8.** The guards pass (`test_collective_guards.py`, in the suite below). Every figure G8 adds to the docs
+and every run file is labelled synthetic, same-author or not a measurement (`measurement: false` in every run file).
+Everything is standard library only: the 60 modules import and the demo's two scripts answer `--help` under
+`python -S`. Pack hashes are unchanged (table below). Nothing is committed.
+
+### S1 test baseline
+
+Both columns were measured in this sandbox on the shared machine (another team runs suites concurrently, so times are
+indicative); "before" is an isolated copy of 3a4c786.
+
+| Suite | Before G8 (3a4c786) | After G8 |
+|---|---|---|
+| `python -m pytest tests/mycelic -q -p no:warnings` | 890 passed (25,838 subtests), 0 skipped, in 403 s | 947 passed (26,080 subtests) = 890 + 57 new, 0 skipped, in 514 s |
+| `python -m pytest NeuralGraph/tests -q -p no:warnings` | 222 passed, 1 skipped (119 subtests) in 5 s | unchanged: 222 passed, 1 skipped (119 subtests) in 5 s |
+
+The 57 new tests, by file:
+
+- `test_collective_demo.py` (48): `RunFilesTests` 9, `RecordTests` 10, `LintTests` 5, `HonestyTests` 8,
+  `DeterminismTests` 2, `ExportReplayTests` 11, `CommittedRunTests` 3. `setUpModule` records the committed scenario
+  twice (`PYTHONHASHSEED` 0 and 4242, different work and output directories) for `RecordTests` and
+  `DeterminismTests`; `HonestyTests` records three scenario variants (visibility both; a two-week hero, which the
+  gate keeps a hypothesis; a one-week hero, which X does not alert). The file ran in
+  94 s on its own.
+- `test_collective_guards.py` (7): `StdlibOnlyTests::test_demo_scripts_answer_help_without_site_packages` (also
+  imports `scenario.py` and `screen.py` under `-S` and builds a static screen), `DemoImportGuardTests` 5 (the AST check
+  over `screen.py` and `lint_numbers.py`, positive and negative snippets, an injected import in a copy of the lint, a
+  fresh interpreter) and `RunbookCommandTests::test_commands_cover_the_g8_clis`.
+- `test_collective_leakage.py` (2): `G0RunnerTests::test_run_files_stage_both_packs` and
+  `G0RunnerTests::test_narrative_written_into_run_files_fails_the_run`.
+
+The acceptance command `python -m pytest tests/mycelic/test_collective_demo.py tests/mycelic/test_collective_guards.py
+-q -p no:warnings` passed with nothing skipped: 112 tests (732 subtests) in 104 s.
+
+**Earlier tests changed, and why** (each at least as strong as before; nothing skipped, deleted or weakened):
+
+- `test_collective_pushdown.py::LeakageStageTests::test_both_packs_pass_with_every_pushdown_artifact_scanned` and
+  `test_collective_followup.py::LeakageStageTests::test_both_packs_pass_with_every_follow_up_artifact_scanned`: the
+  stages are `["edge", "pushdown", "followup", "run_files"]` and each also asserts that the `run_files` class scanned
+  four items; every other assertion is unchanged;
+- `test_collective_leakage.py::G0RunnerTests::test_a_leaky_stage_fails_the_run`: the stages are `["edge",
+  "pushdown", "followup", "run_files", "leaky"]`, and it asserts the four `run_files` items;
+- `test_collective_guards.py`: the lists (`STDLIB_ONLY_MODULES` 59 to 60, `DETERMINISTIC_MODULES` plus `runfiles.py`
+  and the demo's `scenario.py`, `screen.py` and `lint_numbers.py`, two RUNBOOK placeholders), `generic_code_files()`
+  now covering `demo/collective/*.py` (so the domain-literal test covers the demo, and asserts that it does),
+  `ApprovalCallSiteTests` asserting that the checker sees the real call in `demo/collective/collective_demo.py` (the
+  allow-list is unchanged), and the seven new tests above.
+
+### S4: what the suites leave behind
+
+After both suites `git status --porcelain` lists only the G8 files above, `runs/` holds only its `.gitignore`, and
+there is no untracked `*.sqlite3`, `*.db` or `*.jsonl` outside the committed run: every G8 test records, serves,
+exports and lints under a temporary directory, and every recording removes its work directory. The only ignored files
+the suite rewrites are the fabric strategic demo's `demo/results/mycelic-strategic/` outputs, which the base suite
+writes too.
+
+### Pack hashes (unchanged from G7)
+
+| Pack | config | vocabulary | detector | fixtures |
+|---|---|---|---|---|
+| `device_quality` | 285935198ba34f2e194dc175cffd1f8f62c494d03d8fb7400ca1aef709058f2a | e46f521154ce94f42136319ade62cebb5c65515ab90a057470495a606f225901 | c9462f62aa90245f2c7cee50078d337554bded58c4630cda7becbf7a8048c7ec | dc4b70b7044b1094baaa669fb5a3582eeae91af290213e13b94180791db5656d |
+| `claims_integrity` | a3a042943452f6ef781f171cf879f3ba5f594f6c4dae5ffef47bfa241bb392da | 028b7603f2b6ef3bba203dee299ea8b001880ef89cd4b276de8513d2a1a301f3 | 2041fe9b3e141a5603836d893c97d5671eb21cbb3da611969efbd0c2c4514b84 | a2e8936b4be26683f0860c8c8799e701f9aedfb78ea167d5420ac891111b8d80 |
+
+### Merge notes
+
+1. **No fabric integration is needed for G8 to run.** The demo runs every plant in one process, reads and writes
+   plain files under a temporary work directory, and imports nothing from the fabric; `mycelic/` never imports
+   `demo/`.
+2. **A later console could read the fabric.** The console reads `screen.json`, which is built from run files. Once
+   G6's conclusions and G7's follow-ups travel as fabric events (G6 and G7 merge notes: `followup.proposed`,
+   `followup.approved`, `followup.result`, the conclusion events and the signed ledger head), a console could build
+   the same items from those events instead; the item contract (`src` pointing at a primary document, `display` from
+   `screen.format_value`) and the lint carry over unchanged if the events are first written as run files.
+3. **`demo/README.md` could link `demo/collective/`.** It is left byte-identical here (scope); one line in its index
+   would do.
+4. **The committed run's code stamp names the base commit.** `scorecard.code` says commit 3a4c786 with `dirty: yes`,
+   because G8 is uncommitted when it records. `code` is excluded from the content hash, so the run stays current after
+   the commit; re-record after committing only if a clean stamp is wanted (`demo/collective/README.md`).
+
+### Amendments A1 to A12 (as implemented)
+
+- **A1 caught vs related:** as specified, with case keys from `scenario.build_world` (the hero's entity, every
+  structured entity of a hero record and every entity the lexical extractor finds in a hero narrative, times the hero
+  predicate and every hero code's predicate, egress types only). The committed scenario has `caught: false` for S and
+  R and a non-empty related list for both: R and S each flag the lot's and the product's generic-malfunction keys.
+- **A2 digests:** every sha256 is 32 hex in a run file (`runfiles.shorten`, `digest`); the screen shows 12.
+- **A3 one shared module:** `mycelic/collective/runfiles.py`, used by G0's `run_files` stage and by the demo.
+- **A4 the demo's own item builder:** `scenario.py` builds the items over the pack generator's background world and
+  reuses the generator, the pack's filler sentences, `connector.record_problems` and `edge.extract` for its checks.
+- **A5 the demo's own pipeline:** its own `OrgConfig` for the cells; `evaluate.baselines` for R (model-free), U and
+  each site alone. No `evaluate/` file changed.
+- **A6 pushdown at the run's `as_of`:** the scorecard reports both the detection week and the `as_of`.
+- **A7 decoys:** every decoy key X alerted is verified at `as_of`; a decoy X did not alert is `verified: false`,
+  `reason: not_alerted`. Hero, sibling and decoy ids are fresh and added to master data.
+- **A8 follow-up order and approval:** T0 proposed, approved, executed; then T1 (its draft written from structured
+  inputs including the packet summaries), approved, executed. Live: approval by key from the console. Record:
+  scripted approvals by the named owner, each execute requested twice (`execute_requests` 2, `executor_calls` 1).
+- **A9 no silent fallback:** `list_models` preflight on every routed endpoint; a fallback extraction, an extraction
+  error kind, a degraded judge or a judge failure stops the run with exit 2, naming the endpoint, and writes nothing
+  (`ExportReplayTests::test_routing_unreachable_endpoint_fails_visibly`, `test_routing_schema_invalid_fails_visibly`).
+- **A10 content hash:** excludes `/code`, `/content_hash`, `/created_at`, `/run_id` and `/timings`; two fresh
+  recordings (`PYTHONHASHSEED` 0 and 4242, different work and output directories and run ids) reproduce the committed
+  hash (`DeterminismTests`).
+- **A11 two scans:** `after_pushdown` and `final`, both in `leakage.json`; the check beat shows the first.
+- **A12 lint strengthening:** number words, the console markup rule (ordered lists, progress and meter, CSS counters,
+  decimal list styles) and the digit rule over screen text parts, as specified.
+
+### Further decisions and deviations, for the reviewer
+
+- **The hero may be `narrative_only` or `both`** (the brief allows only `narrative_only`). `HonestyTests` must record
+  a scenario copy whose hero has a specific code and the structured lot always filled, which the brief's validation
+  would refuse. The committed scenario is `narrative_only`, and `HonestyTests::test_committed_scenario_shape` pins it.
+- **An alert event carries channel, key, week and rank only.** The brief's trace list also has a `hero` flag, but its
+  test allows only rank, caught, related, key, week and channel in a baseline's alert event; the flag added nothing a
+  reader cannot get by comparing the key with `scorecard.hero.key.key`, so it was dropped.
+- **`--run-id` defaults to the run directory's name** when that name is a valid run id (`--record DIR` or `--serve
+  --out DIR`), else `collective-` plus random hex as the brief says. `--record demo/collective/recorded/<run-id>`
+  (the brief's re-recording command) then gives a directory and a run id that agree, which
+  `CommittedRunTests::test_exactly_one_committed_run_with_six_small_files` checks. An explicit `--run-id` wins.
+- **`followup` when nothing was proposed** is the closed object `{proposed: false, reason, label: null, ...}` with
+  every other field null (the brief says "followup = null" when X did not alert, and `{proposed: false, reason}`
+  otherwise); one shape keeps `validate_run` closed. The reasons are `not_alerted`, `not_yet_checked` (live, before
+  the check), `awaiting_followup` and `conclusion_not_supported`. `pushdown` is null when X did not alert.
+- **The final self-check scans all six files**, not only `screen.json` and `leakage.json`, and also re-validates
+  every document against its schema.
+- **The live server shows every failure.** Besides a `DemoError` (an endpoint, a fallback), any unexpected exception
+  in the engine becomes an error event naming only its class, the phase goes `failed`, the console stays up and
+  nothing is written. A probe found the case: the live follow-up screen tried to format the ledger head before the
+  follow-ups had finished; the screen now leaves out the ledger line, and an owner, role or acknowledgement date, until
+  they exist.
+- **The inference runtime's per-attempt warnings are silenced in the demo** (a `NullHandler` on the inference
+  logger). Every attempt is still a ledger row, and a run that needed a fallback stops with one line naming the
+  endpoint and the error kinds instead of hundreds of warnings.
+- **The lint also checks beat titles and control labels**, and the `any field(s)` denylist entry matches "any field"
+  and "any fields".
+- **Decoys in the committed scenario.** The generic-code rise (three new product models) does alert X here (the
+  probe's did not), and the gate keeps it a hypothesis; the echo flood is not alerted by X (`verified: false`); the
+  single-reporter burst on a fresh lot at two plants is alerted and kept a hypothesis by the reporters bound. So
+  `no_decoy_supported` is not vacuous.
+
+### Mutation probes run
+
+Each mutation was applied alone to the worktree, the named test run, and the file restored
+(a scratch script outside the repository); every one is killed.
+
+| # | Mutation | Killed by |
+|---|---|---|
+| m1 | `format_value` drops the thousands separator for `int` | `LintTests::test_format_value_and_parse_display` |
+| m2 | the screen says R "also caught this case" whatever the flag | `HonestyTests::test_screen_sentences_follow_flags` |
+| m3 | the by-construction caption shown whatever the flag | the same test |
+| m4 | the lint never reports `display_mismatch` | `LintTests::test_each_injection_fails_naming_the_token` |
+| m5 | the lint stops decoding escapes in script literals | the same test (`t\u0068ree`, `\u006fl`; it survived the first version of the test, whose only escape case decoded to a digit that the raw escape also shows, so the two cases were added) |
+| m6 | `shorten` keeps a 64-hex run inside a longer string | `RunFilesTests::test_shorten_maps_64_hex_to_32_and_refuses_an_embedded_one` |
+| m7 | `write_run_files` ignores portability problems | `RunFilesTests::test_write_run_files_writes_nothing_when_any_file_has_a_problem` |
+| m8 | `portability_problems` drops the forbidden-string rule | `RunFilesTests::test_portability_problems_flags_each_rule` |
+| m9 | record mode requests each execution once | `RecordTests::test_followup_block` |
+| m10 | an alert event carries a score | `RecordTests::test_no_baseline_counts_or_features` (the event schema refuses it, so the recording fails) |
+
+### The committed scenario and its outcome (synthetic, same-author, not a measurement)
+
+Quoted only as **synthetic, same-author, not a measurement**: the world and the detectors have one author, and the
+stand-in model reads the pack's own sentences perfectly.
+
+- **Settings.** `device_quality`, seed 7, 40 weeks, tie salt `collective-demo`; six plants in four countries (GB, IE,
+  DE, US; one display name is non-ASCII, one is longer than 40 characters), 1,116 records. Hero:
+  `lot:L10099:detachment`, narrative-only, at plant-ashvale and plant-corrowfield (English) and werk-dornhagen (German), one record per plant
+  per week for 6 weeks from week index 33 (18 records), code ILL-9001 (a generic malfunction code), structured product
+  SD-9 at fill 1.0 (18 of 18 records) and lot L10099 at fill 0.6 (11 of 18). Sibling: plant-fennick holds L10099 with
+  a quarantine sentence and code ILL-9002. Decoys: a generic-code rise on three new product models at five plants, an
+  echo flood (marked copies from one plant to three), a single-reporter burst on a fresh lot at two plants. Follow-ups:
+  `evidence_packet`, then `capa_initiation_draft` (severity medium); approvers at unit `halvern`.
+- **Detection.** X alerted the hero key at rank 2 in 2024-W35, its first week (the lot's generic-malfunction key was
+  rank 1 that week); no rule names it. S and R did not alert the hero key (`caught: false`, by construction: the
+  predicate is never coded); each flagged related keys: S `lot:L10099:malfunction_unspecified` (rank 1, 2024-W36) and
+  `product:SD-9:malfunction_unspecified` (rank 1, 2024-W39); R `product:SD-9:malfunction_unspecified` (rank 1,
+  2024-W35) and `lot:L10099:malfunction_unspecified` (rank 1, 2024-W36). The references: U rank 2, each site alone
+  rank 4.
+- **Check.** At `as_of` 2024-10-28 over 2024-W28 to 2024-W41: the three contributing plants confirm (support, roots
+  and reporters `3-9` each), plant-fennick refutes (its entity bucket `3-9`), plant-brindlemoor (sibling) answers
+  unknown; the gate says supported ("3 confirming sites; independent roots, lower bound 9; independent reporters,
+  lower bound 9"), and every counted confirm resolves at its own plant.
+- **Follow-up.** The evidence packet is complete with one ok packet per contributing plant; the CAPA draft for
+  `qe-owner.halvern` (Quality engineer) is approved and executed; each ran once though requested twice; 11 ledger
+  entries; the outcome is "not yet checked".
+- **Leakage.** Both scans: no canary hit and no narrative overlap; the positive control finds canaries and text.
+- **Time of one `--record`** (fake mode, this sandbox, shared machine): 9.7 s for the committed run; 9.6 to 11.3 s for
+  the other recordings in this session, and 12.8 s against a local fake server with `--routing`. The bound is 300 s.

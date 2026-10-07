@@ -1,0 +1,267 @@
+<title>Mycelic collective demo</title>
+<style>
+/* The collective demo console. A fragment: the server and the export wrap it in a page skeleton.
+   It renders screen.json only: static texts as given, and every value from an item's display. Nothing here computes
+   or formats a number. One dark look for projectors; long and non-ASCII names wrap. */
+:root {
+  color-scheme: dark;
+  --ground: #0f1012;
+  --well: #17191c;
+  --raised: #20232a;
+  --rule: #343842;
+  --text: #eceae4;
+  --text-2: #b9b6ad;
+  --text-3: #8e8b84;
+  --signal: #f0b84c;
+  --cool: #86d3c9;
+  --ok: #a6d08a;
+  --warn: #e3a35f;
+  --bad: #e07a64;
+  --f-sans: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+  --f-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+html, body { margin: 0; background: var(--ground); color: var(--text); }
+body { font: 400 18px/1.5 var(--f-sans); -webkit-font-smoothing: antialiased; }
+*, *::before, *::after { box-sizing: border-box; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.app { max-width: 1200px; margin: 0 auto; padding: 18px 24px 28px; }
+.bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; padding-bottom: 12px;
+  border-bottom: 1px solid var(--rule); }
+.brand { font-weight: 600; font-size: 20px; letter-spacing: 0.01em; }
+.tagline { color: var(--text-2); font-size: 15px; flex: 1 1 280px; min-width: 0; overflow-wrap: anywhere; }
+.badge { display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px; border-radius: 999px;
+  border: 1px solid var(--rule); background: var(--well); font: 600 13px/1.4 var(--f-mono); letter-spacing: 0.1em; }
+.badge.live { color: var(--ok); border-color: var(--ok); }
+.badge.recorded { color: var(--text-2); }
+.phase { color: var(--text-3); font-size: 14px; }
+.beats { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 6px; padding: 0; list-style: none; }
+.beats li { display: inline-block; }
+.beats button { background: var(--well); border: 1px solid var(--rule); border-radius: 6px; padding: 6px 12px;
+  color: var(--text-2); cursor: pointer; font-size: 15px; }
+.beats button[aria-current="step"] { color: var(--ground); background: var(--signal); border-color: var(--signal); }
+.beats button:disabled { opacity: 0.45; cursor: default; }
+.tools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 8px 0 16px; }
+.tools button, .controls button { background: var(--raised); border: 1px solid var(--rule); border-radius: 8px;
+  padding: 8px 16px; cursor: pointer; }
+.tools button:hover, .controls button:hover { border-color: var(--text-2); }
+.controls { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0; }
+.controls button.primary { background: var(--signal); color: var(--ground); border-color: var(--signal); font-weight: 600; }
+.controls button:disabled { opacity: 0.4; cursor: default; }
+.stage { min-height: 320px; }
+.beat-title { font-size: 30px; font-weight: 600; margin: 6px 0 14px; letter-spacing: -0.01em; }
+.block { margin: 10px 0; padding: 12px 16px; border-radius: 10px; background: var(--well); border: 1px solid var(--rule);
+  overflow-wrap: anywhere; }
+.block.headline { font-size: 24px; font-weight: 600; background: transparent; border: none; padding: 4px 0; }
+.block.caption { font-size: 20px; border-left: 4px solid var(--signal); }
+.block.note { color: var(--text-2); font-size: 17px; }
+.block.warning { border-color: var(--warn); color: var(--text); }
+.block.warning::before { content: "!"; display: inline-block; margin-right: 10px; color: var(--warn); font-weight: 700; }
+.block.channel_row { font-size: 21px; background: var(--raised); }
+.block.channel_row.group-X { border-color: var(--signal); }
+.block.verdict_card, .block.packet_card { background: var(--raised); }
+.block.verdict_card.group-sibling { border-style: dashed; }
+.block.draft_field { font-family: var(--f-mono); font-size: 15px; }
+.item { font-weight: 600; color: var(--signal); }
+.block.note .item, .block.footer .item { color: var(--cool); }
+.footer-area { margin-top: 26px; padding-top: 12px; border-top: 1px solid var(--rule); }
+.block.footer { background: transparent; border: none; padding: 2px 0; color: var(--text-3); font-size: 14px; margin: 2px 0; }
+.error { display: none; margin: 14px 0; padding: 14px 16px; border: 1px solid var(--bad); border-radius: 10px;
+  background: var(--well); overflow-wrap: anywhere; }
+.error.shown { display: block; }
+.error .hint { color: var(--text-2); font-family: var(--f-mono); font-size: 15px; margin-top: 6px; }
+.empty { color: var(--text-3); }
+@media (max-width: 720px) {
+  body { font-size: 16px; }
+  .beat-title { font-size: 24px; }
+  .block.headline { font-size: 20px; }
+  .block.channel_row { font-size: 18px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .stage { transition: opacity 180ms ease-out; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none; animation: none; }
+}
+</style>
+<div class="app">
+  <header class="bar">
+    <span class="brand">Mycelic</span>
+    <span class="tagline">Cross-site quality alerts without moving raw records</span>
+    <span id="mode" class="badge" aria-label="Recorded or live"></span>
+    <span id="phase" class="phase" aria-live="polite"></span>
+  </header>
+  <nav aria-label="Beats"><ul id="beats" class="beats"></ul></nav>
+  <div class="tools">
+    <button id="prev" type="button" aria-label="Previous beat">Previous</button>
+    <button id="next" type="button" aria-label="Next beat">Next</button>
+    <button id="cut" type="button" aria-pressed="false">Show the 60-second cut</button>
+  </div>
+  <div id="error" class="error" role="alert"><div id="error-message"></div><div id="error-hint" class="hint"></div></div>
+  <main id="stage" class="stage" aria-live="polite">
+    <h1 id="beat-title" class="beat-title"></h1>
+    <div id="blocks"></div>
+    <div id="controls" class="controls"></div>
+  </main>
+  <footer id="footer" class="footer-area"></footer>
+</div>
+<!-- collective:screen -->
+<script>
+(function () {
+  "use strict";
+  var embedded = document.getElementById("collective-screen");
+  var live = !embedded;
+  var screen = null;
+  var runId = null;
+  var current = null;
+  var liveBeat = null;
+  var cutOnly = false;
+
+  function el(tag, cls, text) {
+    var node = document.createElement(tag);
+    if (cls) { node.className = cls; }
+    if (text !== undefined && text !== null) { node.textContent = text; }
+    return node;
+  }
+
+  function itemsById() {
+    var map = {};
+    screen.items.forEach(function (item) { map[item.id] = item; });
+    return map;
+  }
+
+  function visibleBeats() {
+    return screen.beats.filter(function (beat) { return !cutOnly || beat.in_cut; });
+  }
+
+  function reachable(beatId) {
+    if (!live || liveBeat === null) { return true; }
+    var ids = screen.beats.map(function (beat) { return beat.id; });
+    return ids.indexOf(beatId) <= ids.indexOf(liveBeat);
+  }
+
+  function renderBlock(block, items) {
+    var node = el("div", "block " + block.kind + (block.group ? " group-" + block.group : ""));
+    block.parts.forEach(function (part) {
+      if (part.item !== null) {
+        var item = items[part.item];
+        var span = el("span", "item", item.display);
+        span.title = item.label;
+        span.setAttribute("data-src", item.src);
+        node.appendChild(span);
+      } else {
+        node.appendChild(document.createTextNode(part.text));
+      }
+    });
+    return node;
+  }
+
+  function renderControls() {
+    var box = document.getElementById("controls");
+    box.textContent = "";
+    if (!live) { return; }
+    screen.controls.forEach(function (control) {
+      if (control.beat !== current) { return; }
+      var button = el("button", control.action === "next" ? "" : "primary", control.label);
+      button.type = "button";
+      button.disabled = !control.enabled;
+      button.addEventListener("click", function () {
+        button.disabled = true;
+        var body = { action: control.action };
+        if (control.key !== null) { body.key = control.key; }
+        fetch("/control", { method: "POST", headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify(body) })
+          .catch(function () { button.disabled = false; });
+      });
+      box.appendChild(button);
+    });
+  }
+
+  function render() {
+    if (!screen) { return; }
+    var items = itemsById();
+    var beats = visibleBeats();
+    if (current === null || !beats.some(function (beat) { return beat.id === current; })) {
+      current = live && liveBeat !== null ? liveBeat : beats[0].id;
+    }
+    var modeItem = items.mode;
+    var mode = document.getElementById("mode");
+    mode.textContent = modeItem ? modeItem.display : (screen.mode === "live" ? "LIVE" : "RECORDED");
+    mode.className = "badge " + (screen.mode === "live" ? "live" : "recorded");
+    document.getElementById("phase").textContent = live ? screen.phase : "";
+    var nav = document.getElementById("beats");
+    nav.textContent = "";
+    beats.forEach(function (beat) {
+      var li = el("li");
+      var button = el("button", "", beat.title);
+      button.type = "button";
+      button.disabled = !reachable(beat.id);
+      if (beat.id === current) { button.setAttribute("aria-current", "step"); }
+      button.addEventListener("click", function () { current = beat.id; render(); });
+      li.appendChild(button);
+      nav.appendChild(li);
+    });
+    var title = beats.filter(function (beat) { return beat.id === current; })[0];
+    document.getElementById("beat-title").textContent = title ? title.title : "";
+    var box = document.getElementById("blocks");
+    box.textContent = "";
+    screen.blocks.forEach(function (block) {
+      if (block.beat === current) { box.appendChild(renderBlock(block, items)); }
+    });
+    var footer = document.getElementById("footer");
+    footer.textContent = "";
+    screen.blocks.forEach(function (block) {
+      if (block.beat === "footer") { footer.appendChild(renderBlock(block, items)); }
+    });
+    renderControls();
+  }
+
+  function step(delta) {
+    var beats = visibleBeats().filter(function (beat) { return reachable(beat.id); });
+    var ids = beats.map(function (beat) { return beat.id; });
+    var at = ids.indexOf(current);
+    var target = at + delta;
+    if (target >= 0 && target < ids.length) { current = ids[target]; render(); }
+  }
+
+  function showError(data) {
+    document.getElementById("error-message").textContent = data.message;
+    document.getElementById("error-hint").textContent = data.hint;
+    document.getElementById("error").className = "error shown";
+  }
+
+  function accept(next) {
+    if (runId !== null && next.run_id !== runId) { window.location.reload(); return; }
+    runId = next.run_id;
+    screen = next;
+    render();
+  }
+
+  document.getElementById("prev").addEventListener("click", function () { step(-1); });
+  document.getElementById("next").addEventListener("click", function () { step(1); });
+  document.getElementById("cut").addEventListener("click", function () {
+    cutOnly = !cutOnly;
+    var button = document.getElementById("cut");
+    button.textContent = cutOnly ? "Show the full version" : "Show the 60-second cut";
+    button.setAttribute("aria-pressed", cutOnly ? "true" : "false");
+    render();
+  });
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "ArrowRight") { step(1); }
+    if (event.key === "ArrowLeft") { step(-1); }
+  });
+
+  if (!live) {
+    accept(JSON.parse(embedded.textContent));
+    return;
+  }
+  fetch("/screen").then(function (response) { return response.json(); }).then(accept);
+  var source = new EventSource("/events");
+  source.addEventListener("snapshot", function (message) { accept(JSON.parse(message.data)); });
+  source.onmessage = function (message) {
+    var event = JSON.parse(message.data);
+    if (event.type === "beat_start") { liveBeat = event.data.beat; current = liveBeat; render(); }
+    if (event.type === "error") { showError(event.data); }
+  };
+}());
+</script>

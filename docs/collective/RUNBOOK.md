@@ -1,4 +1,4 @@
-# Founder runbook: week-1 measurements, E1, G0, X1, the public replay, E2 and follow-up
+# Founder runbook: week-1 measurements, E1, G0, X1, the public replay, E2, follow-up and the demo
 
 This runbook covers what you run on your own machines (STRATEGY sections 11.2 and 12):
 
@@ -17,6 +17,9 @@ This runbook covers what you run on your own machines (STRATEGY sections 11.2 an
 - **follow-up** (G7): the approvers file, the kill switch, checking the follow-up ledger's hash chain and the E5
   injection smoke (section 14). **Built ahead of E2 and X4 (STRATEGY sections 5.5 and 7): approval-routed follow-up
   is unvalidated; nothing here measures it.**
+- **part 2, the collective demo** (G8): one fictional multi-site device maker end to end, recorded, replayed,
+  exported or driven live from a console (sections 15 to 17). **Fictional company, synthetic data, an illustration;
+  internal and YC use only; never a measurement.**
 
 None of these produced a number in the sandbox where the code was written. Model weights and api.fda.gov could not
 be reached there, so every figure has to come from your runs. The E1 harness was rehearsed against local fake
@@ -719,3 +722,115 @@ nothing) when the type has no id format, the id is not canonical or already in t
 or a fake replaying it, so the injected text is inert by construction. E5 proper needs your in-boundary model
 (section 2) and is not built here. `e5.json` says `measurement: false`, `synthetic: true` and
 `simulated_approvals: true`.
+
+# Part 2: the collective demo (G8)
+
+## 15. The demo: record, lint, replay, export, serve
+
+**Fictional company (Halvern Medical), synthetic data, a constructed illustration. Internal and YC use only: never
+show it to a buyer, never quote a number from it** (STRATEGY sections 9.1 and 12). Every run file says
+`measurement: false`. `demo/collective/README.md` explains what the demo shows and what it does not;
+`demo/collective/SCRIPT.md` is the talk track.
+
+**Record** the full loop headless, with the deterministic stand-in model at every plant (no model server needed). The
+directory's name becomes the run id; `--record` alone writes to `runs/collective/<random run id>`:
+
+```
+python demo/collective/collective_demo.py --record runs/collective/<run-id>
+```
+
+It prints one summary line (the hero's X rank, the gate status and how many of the twelve checks passed) and the time
+it took, and writes six files: `scorecard.json`, `trace.json`, `ledger.jsonl`, `leakage.json`, `approvals.jsonl` and
+`screen.json`. Exit 0 means every check passed; 1 means the files were written and a check failed (the failed checks
+are on screen); 2 means nothing was written (a usage, scenario, routing, endpoint or run-file problem, printed as one
+`error:` line). Ctrl-C writes nothing and exits 130. The work directory, which holds the raw synthetic narratives and
+the canary manifest, is removed at exit unless you pass `--keep-workdir`; never send it.
+
+**Lint** a run: every number on screen must read back from a primary run file, and no static text, console string or
+talk-track line may hold a digit, a number word, a denylisted phrase or a benchmark figure:
+
+```
+python demo/collective/lint_numbers.py runs/collective/<run-id>
+```
+
+It prints `lint: ok (...)` and exits 0, or one `lint: <file>: <rule>: <token>` line per violation and exits 1, or one
+`error:` line and exits 2 (a missing directory or file, invalid JSON, or run files of another schema version).
+
+**Replay** a recorded run (no engine; the committed run under `demo/collective/recorded/` when no directory is given)
+at `http://127.0.0.1:8766/`, and **export** one as a standalone page (under 2 MB, no network, opens from disk):
+
+```
+python demo/collective/collective_demo.py --replay <recorded-dir>
+```
+
+```
+python demo/collective/collective_demo.py --export <page-file>
+```
+
+`--export` takes the committed run unless you pass `--run <recorded-dir>`. A port in use, a missing file or an older
+schema version prints one `error:` line and exits 2.
+
+**Serve** the live console at `http://127.0.0.1:8765/`: the engine runs now, the presenter presses "Check with sites"
+and approves each follow-up as the named owner, and the screen says LIVE. The run files are written to
+`runs/collective/<run-id>` (or `--out`) when the last beat ends:
+
+```
+python demo/collective/collective_demo.py --serve
+```
+
+A control pressed at the wrong time answers 409, pressing one twice answers `done_before` and changes nothing, and a
+failure (an endpoint, a fallback) shows the error and the replay command on the console, which stays up until Ctrl-C.
+
+## 16. Recording with a real local model
+
+The plants can extract and judge with a model you serve (section 2) instead of the stand-in. On one machine every
+plant is simulated in one process with one shared model; the screen says "sites simulated in one process, one shared
+model" and names the endpoint and the model tag, and `measurement` stays false. **Never show this run to a buyer
+either:** the world is still synthetic and same-author.
+
+The routing file routes `extract_claims` and `judge_record` (and any `escalate_to`) to `openai_compat` endpoints at
+boundary `any-simulated`; `draft_followup` is optional (`central` or `any-simulated`; without it HQ's template drafter
+writes the CAPA draft from structured inputs only). The demo refuses the fake provider and `site:` boundaries here:
+the stand-in already runs without `--routing`, and one machine plays every plant. For example (set `base_url` and
+`model` to your server's):
+
+```
+{
+  "schema_version": 1,
+  "endpoints": {
+    "local": {"provider": "openai_compat", "boundary": "any-simulated", "base_url": "http://127.0.0.1:8000/v1",
+              "model": "<model-tag>", "response_format": "json_schema"}
+  },
+  "routes": {"extract_claims": {"endpoint": "local"}, "judge_record": {"endpoint": "local"}}
+}
+```
+
+```
+python demo/collective/collective_demo.py --record runs/collective/<run-id> --routing <routing-file>
+```
+
+```
+python demo/collective/collective_demo.py --serve --routing <routing-file>
+```
+
+Before anything is built the demo asks every routed endpoint `GET /models`; one that does not answer stops the run
+with exit 2, naming the endpoint, and prints the `--replay` command so the talk can go on from the recorded run.
+**The demo never falls back silently:** if extraction at any plant falls back to the lexical extractor, or a judge
+degrades (a schema-invalid reply after the repair retry, a timeout), the run stops with exit 2, names the endpoint and
+the error kinds, and writes nothing.
+
+## 17. Live vs recorded, and what to send back
+
+- **RECORDED** (`--record`, `--replay`, `--export`): the approvals were scripted (`approval: recorded`, and the
+  screen says "recorded approval (scripted)"); `--record` requests each execution twice to show it runs once.
+  **LIVE** (`--serve`): the presenter approved each follow-up in the console, acting as the named owner
+  (`approval: live`), and each execution was requested once. Say which one you are showing; the badge and the footer
+  say it too.
+- **Simulated:** the plants run in one process; the stand-in model reads the pack's own sentences perfectly; the
+  follow-up layer is built ahead of X4 and not measured; the outcome is "not yet checked".
+- **Send back** the six run files of a `--routing` recording, with a note on the server (section 2). They hold no
+  narrative, no path, no host or user name and no key; the run's own scans and the lint check that. Never send the
+  work directory (`--keep-workdir`): it holds the synthetic narratives and the canary manifest.
+- **What the demo does not replace:** E2 (section 13) measures pushdown against central reading; X1 (section 11) is
+  the blind planted-pattern test; the public replay (section 12) is the real-data result. Until they run, the demo's
+  real-data line says "not yet measured".

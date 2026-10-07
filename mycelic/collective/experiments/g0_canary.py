@@ -11,8 +11,8 @@ N records and keep the first N; plant canaries (``leakage.plant_canaries``) and 
 stages say crossed, with the site ledgers as a separate hygiene class; scan the first site's database as a positive
 control (the scanner must find canaries and narrative text there, or the run fails); write ``DIR/leakage.json``.
 
-Stages: ``edge`` (each site ingests, extracts and emits its cells and usage), ``pushdown`` (G6) and ``followup``
-(G7). ``pushdown``: HQ's collective
+Stages: ``edge`` (each site ingests, extracts and emits its cells and usage), ``pushdown`` (G6), ``followup`` (G7)
+and ``run_files`` (G8). ``pushdown``: HQ's collective
 store at ``DIR/hqdb/collective.sqlite3`` (outside ``hq/``, so the edge stage's ``hq`` artifact still covers only the
 transport logs) ingests the receive log, detects (run X, tie salt ``g0``) and verifies up to
 :data:`G0_MAX_CANDIDATES` detector candidates by ``(-score, key)``, topped up to :data:`G0_MIN_CANDIDATES` with
@@ -36,6 +36,15 @@ of the receive log, every packet request (``hq/packet_requests.jsonl``), every d
 the outbox and the central draft ledger; each site's ``packets/`` directory (the full packets, narratives included)
 stays inside the site and is never scanned as crossing. ``leakage.json`` gains ``followup_totals``.
 
+``run_files`` (G8) writes ``DIR/run/`` with ``runfiles.write_run_files`` (refused, writing nothing, when a file holds
+an absolute path, the output directory, the repository root, the home directory, the host or user name, a 64-hex
+token, a credential key or an agent-key prefix): ``ledger.jsonl`` (``runfiles.project_ledger`` over every site ledger
+and the central draft ledger, 12 rows per site and task), ``approvals.jsonl`` (``runfiles.project_entries`` over the
+follow-up ledger), ``trace.json`` (the stages, every verified question with its display text, and every conclusion
+with its used verdicts, read through ``HqReader`` and, for the verdict bodies, the receive log) and ``scorecard.json``
+(the pack digests, the stage totals and the ledger summary; every digest 32 hex). Each of the four files crosses as
+class ``run_files``; ``leakage.json`` gains ``run_files_totals``.
+
 Modes: ``fake`` (default) extracts and judges through an in-process fake model at each site, so a ledger and a usage
 summary exist; ``lexical`` uses no model (no ledger); ``routing`` uses a routing file whose extraction and judge
 endpoints are all ``any-simulated`` (one machine plays every simulated site). Everything is synthetic, and nothing
@@ -48,16 +57,19 @@ keys with ``require_master_data`` off) do not fail the run. The one wall-clock v
 from __future__ import annotations
 
 import argparse
+import getpass
 import math
 import os
 import random
 import shutil
+import socket
 import sys
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
+from .. import runfiles
 from ..detect.detectors import detect
 from ..detect.store import CollectiveStore, HqReader
 from ..edge.egress import read_log
@@ -72,6 +84,7 @@ from ..followup.ledger import LEDGER_FILE, FollowupLedger
 from ..followup.policy import BUILT_AHEAD_LABEL, SYSTEM, KillSwitch, human
 from ..followup.service import ConclusionView, FollowupRefused, FollowupService
 from ..inference.fake import FakeProvider
+from ..inference.ledger import read_ledger
 from ..inference.routing import ConfigError, RoutingConfig, load_routing, missing_env, parse_routing
 from ..inference.runtime import Runtime
 from ..jsonio import StrictJsonError, canonical_bytes, canonical_dumps, strict_load
@@ -81,7 +94,8 @@ from ..packs.generator import GeneratorError, generate, world_digest
 from ..packs.loader import FrozenPack, PackError, is_builtin_ref, load_pack
 from ..pushdown.gate import STATUSES
 from ..pushdown.orchestrator import Orchestrator, constructed_candidate
-from .common import DryRun, UsageError, code_stamps, fail, utc_clock, write_json_atomic
+from ..pushdown.questions import render_text
+from .common import ROOT, DryRun, UsageError, code_stamps, fail, utc_clock, write_json_atomic
 
 CLI = "experiments.g0_canary"
 MODES = ("fake", "lexical", "routing")
@@ -91,7 +105,7 @@ MAX_WEEKS = 520
 DAY_TIME = "T08:00:00.000Z"
 CROSSING_CLASSES = ("cells", "hq_receive_log", "site_egress_log", "usage_summary", "questions", "verdicts",
                     "collective_sqlite3", "site_ingress_log", "packets", "packet_requests", "drafts",
-                    "approvals_ledger", "outbox", "hq_draft_ledger")
+                    "approvals_ledger", "outbox", "hq_draft_ledger", "run_files")
 ROUTED_TASKS = (TASK_NAME, JUDGE_TASK)
 G0_MAX_CANDIDATES = 20
 G0_MIN_CANDIDATES = 5
@@ -132,6 +146,7 @@ class G0Context:
     pushdown_totals: dict[str, Any] = field(default_factory=dict)
     conclusion_ids: list[str] = field(default_factory=list)
     followup_totals: dict[str, Any] = field(default_factory=dict)
+    run_files_totals: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -403,8 +418,77 @@ def followup_stage(ctx: G0Context) -> tuple[list[Artifact], list[Artifact]]:
     return crossing, []
 
 
+RUN_LEDGER_PER_GROUP = 12
+
+
+def _forbidden(out: Path) -> list[str]:
+    names = [str(out.resolve()), str(ROOT.resolve()), str(Path.home())]
+    for get in (socket.gethostname, getpass.getuser):
+        try:
+            names.append(get())
+        except (OSError, KeyError):
+            pass
+    return names
+
+
+def run_files_stage(ctx: G0Context) -> tuple[list[Artifact], list[Artifact]]:
+    """The run files G8 defines (``runfiles.py``), written to ``DIR/run/``: everything in them crossed, so each is
+    scanned as class ``run_files``."""
+    edge, base, run = ctx.out / "edge", ctx.out / "followup", ctx.out / "run"
+    rows: list[dict[str, Any]] = []
+    for path in sorted(edge.glob("site-*.ledger.jsonl")):
+        rows += read_ledger(path)
+    if (base / "central.ledger.jsonl").exists():
+        rows += read_ledger(base / "central.ledger.jsonl")
+    ledger_rows, summary = runfiles.project_ledger(rows, per_group=RUN_LEDGER_PER_GROUP)
+    ledger = FollowupLedger.open(base / LEDGER_FILE, pack=ctx.pack, enterprise=G0_ENTERPRISE, clock=ctx.clock)
+    try:
+        entries = ledger.entries()
+    finally:
+        ledger.close()
+    bodies = {}
+    for row in read_log(ctx.out / "hq" / "receive.jsonl"):
+        if row["artifact_type"] == "verdict":
+            bodies[row["sha256"]] = row["body"]
+    reader = HqReader(ctx.out / "hqdb" / "collective.sqlite3")
+    questions, conclusions = [], []
+    for conclusion_id in sorted(set(ctx.conclusion_ids)):
+        latest = reader.conclusions(conclusion_id)[-1]
+        body = strict_load(latest.body)
+        question = strict_load(reader.question(latest.question_id).body)
+        questions.append({"question_id": runfiles.digest(question["question_id"]),
+                          "candidate_key": question["candidate_key"], "window": question["window"],
+                          "text": render_text(ctx.pack, question)})
+        verdicts = []
+        for used in body["gate"]["used"]:
+            v = bodies.get(used["sha256"], {})
+            verdicts.append({"site": used["site"], "verdict": used["verdict"], "reason": v.get("reason"),
+                             **{k: v.get(k) for k in ("support_bucket", "roots_bucket", "reporters_bucket",
+                                                      "entity_records_bucket")},
+                             "evidence_ref": v.get("evidence_ref")})
+        conclusions.append({"conclusion_id": conclusion_id, "status": latest.status, "reasons": body["reasons"],
+                            "verdicts": verdicts})
+    pack = ctx.pack
+    scorecard = {"kind": "g0_scorecard", "schema_version": 1, "pack": pack.id,
+                 "digests": {name: runfiles.digest(value) for name, value in pack.hashes().items()},
+                 "edge_totals": dict(ctx.totals), "pushdown_totals": dict(ctx.pushdown_totals),
+                 "followup_totals": runfiles.shorten(ctx.followup_totals), "ledger": summary}
+    scorecard["content_hash"] = runfiles.content_hash(scorecard, ["/content_hash"])
+    docs = {"scorecard.json": scorecard,
+            "trace.json": {"kind": "g0_trace", "schema_version": 1, "stages": [stage.name for stage in STAGES],
+                           "questions": questions, "conclusions": conclusions},
+            "ledger.jsonl": ledger_rows,
+            "approvals.jsonl": runfiles.project_entries(entries, label=BUILT_AHEAD_LABEL)}
+    written = runfiles.write_run_files(run, docs, forbidden=_forbidden(ctx.out))
+    crossing = [Artifact("run_files", f"run/{name}", path=run / name) for name in written]
+    ctx.run_files_totals.update({"files": len(written), "bytes": sum((run / n).stat().st_size for n in written),
+                                 "ledger_rows_total": summary["rows_total"],
+                                 "ledger_rows_written": summary["rows_written"]})
+    return crossing, []
+
+
 STAGES: tuple[Stage, ...] = (Stage("edge", edge_stage), Stage("pushdown", pushdown_stage),
-                             Stage("followup", followup_stage))
+                             Stage("followup", followup_stage), Stage("run_files", run_files_stage))
 
 
 # --------------------------------------------------------------------------------------------------- arguments
@@ -479,7 +563,8 @@ def _dry_run(args: argparse.Namespace) -> int:
                  "edge/site-<id>.{sqlite3,egress.jsonl,ingress.jsonl,ledger.jsonl}",
                  "edge/packets/site-<id>/<key digest>.json (site-local, never scanned as crossing)",
                  "hq/receive.jsonl", "hq/questions.jsonl", "hq/packet_requests.jsonl", "hqdb/collective.sqlite3",
-                 "followup/{approvers.json,kill.json,followups.sqlite3,outbox.jsonl,central.ledger.jsonl}"):
+                 "followup/{approvers.json,kill.json,followups.sqlite3,outbox.jsonl,central.ledger.jsonl}",
+                 "run/{scorecard.json,trace.json,ledger.jsonl,approvals.jsonl}"):
         dry.write(str(out / line))
     if args.require_master_data is not None:
         dry.write(f"{out / 'pack'} (only when --require-master-data differs from the pack)")
@@ -589,7 +674,8 @@ def run(args: argparse.Namespace) -> int:
         "as_of": ctx.as_of, "clock": {"ingest": ingest_day.isoformat() + DAY_TIME, "emit": ctx.emit_at},
         "stages": [stage.name for stage in STAGES], "positive_control": positive,
         "edge_totals": dict(ctx.totals), "pushdown_totals": dict(ctx.pushdown_totals),
-        "followup_totals": dict(ctx.followup_totals), "passed": passed,
+        "followup_totals": dict(ctx.followup_totals), "run_files_totals": dict(ctx.run_files_totals),
+        "passed": passed,
         **report, **code_stamps(), "created_at": utc_clock(),
     }
     write_json_atomic(out / "leakage.json", result)
@@ -606,7 +692,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.dry_run:
             return _dry_run(args)
         return run(args)
-    except (UsageError, ConfigError, PackError, GeneratorError, LeakageError) as exc:
+    except (UsageError, ConfigError, PackError, GeneratorError, LeakageError, runfiles.RunFileError) as exc:
         return fail(str(exc))
     except (OSError, StrictJsonError) as exc:
         return fail(f"cannot read or write a run file ({exc.__class__.__name__})")

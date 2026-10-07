@@ -351,3 +351,65 @@ measurement**): both exit 0 with `hits` empty and `shingle_overlap_bytes` 0.
 `claims_integrity` at its own setting (master data off) still lists the same 660 known-limitation entries as in
 section 9: no packet, draft, ledger entry or outbox line carries a class-c canary. These are synthetic numbers from
 fakes, not measurements.
+
+## 11. Run files (G8)
+
+G8 writes run files (ARCHITECTURE section 17): the six files of a collective demo run, and a `run/` directory in every
+G0 run. Run files are meant to be sent back and committed, so they are scanned like anything that crosses a boundary,
+and they must also be portable.
+
+**What a run file may hold.** Counts, buckets, ranks, labels, ids that already crossed (entity ids, codes, question
+and conclusion ids, follow-up keys, evidence refs), the follow-up ledger's entries with their payloads, and usage
+ledger rows projected to `runfiles.LEDGER_ROW_KEYS` (at most twelve per site and task; never a timestamp, run id,
+record ref, host or served model). Never narrative text, a record ref, a person or reporter value, the canary manifest,
+a site database or a site `packets/` directory. The baselines R, U and each site alone appear only as `{rank, caught,
+related}`: none of their counts, features or scores is written.
+
+**Hygiene of digests and paths.** Every sha256 in a run file is its first 32 hex characters (`runfiles.shorten`); a
+64-hex token is refused, because it reads as a credential (`secret_findings` of the live-demo tests), and a string
+that holds one inside longer text is refused rather than kept. `runfiles.portability_problems` refuses an absolute
+path, the work and output directories, the repository root, the home directory, the host and user names (whole
+tokens), a credential-named key and the agent-key prefix; `write_run_files` checks every file before writing any, so
+a problem writes nothing. The full digests stay in the stores of the work directory, which the demo removes at exit.
+
+**G0's `run_files` stage** runs after the follow-up stage. It writes `run/ledger.jsonl` (every site's usage ledger and
+the central draft ledger, projected and capped), `run/approvals.jsonl` (the follow-up ledger's entries and its head),
+`run/trace.json` (the stages, every question's rendered text and every conclusion with its verdicts' buckets) and
+`run/scorecard.json` (digests, the stage totals, the ledger summary and a content hash), and scans the four files as
+the crossing class `run_files`. A stage that writes narrative text into `run/` fails the run with a shingle hit of that
+class (`G0RunnerTests`). `leakage.json` gains `run_files_totals` (`files`, `bytes`, `ledger_rows_total`,
+`ledger_rows_written`).
+
+Measured on the G0 runs of section 1 with the run-files stage (seed 11, 1,000 records, 6 sites; synthetic, a fake
+model, simulated approvals; same-author, **not a measurement**): both exit 0 with stages `edge`, `pushdown`,
+`followup`, `run_files`, `hits` empty and `shingle_overlap_bytes` 0.
+
+| | `device_quality` | `claims_integrity` |
+|---|---|---|
+| run files scanned, bytes | 4, 95,860 | 4, 66,422 |
+| usage ledger rows: total, written (at most twelve per site and task) | 1,485, 148 | 1,538, 145 |
+| follow-up ledger entries in `approvals.jsonl` | 44 | 11 |
+
+**The demo's two scans.** A collective demo run scans twice, with the scenario's canaries planted at every plant
+(classes a, b and c) and its narratives as the shingle source:
+
+- `after_pushdown`, when the check finishes: HQ's cells, usage summaries, questions and verdicts (each receive-log row
+  by artifact type), every plant's egress and ingress log, and HQ's database (and its WAL);
+- `final`, at the end: all of that plus the packet requests, packets, the follow-up ledger, the outbox, the central
+  draft ledger, every draft, and the four primary run files that exist by then (`scorecard.json`, `trace.json`,
+  `ledger.jsonl`, `approvals.jsonl`; class `run_files`).
+
+The plants' usage ledgers are scanned apart as hygiene (`site_ledger_hygiene`). A positive control scans the first
+plant's own database and must find canaries and narrative text. After `screen.json` is built, the demo's self-check
+scans all six final files and runs the portability check; any hit stops the run with nothing written. Both scans and
+the positive control are in `leakage.json`, and the check beat shows the first one.
+
+On the committed demo run (synthetic, same-author, the deterministic stand-in model, **not a measurement**): both
+scans have `hits` empty and `shingle_overlap_bytes` 0; the final scan covers fourteen classes, `run_files` among them
+(four files, 88,667 bytes); the positive control finds 952 canary hits and 44,050 overlapping bytes in the first
+plant's database. The committed run's six files also pass a re-scan against a rebuilt world in the tests
+(`CommittedRunTests`).
+
+**What the run-file checks do not cover.** They are text checks, as everything here: they cannot show that a run
+file's counts, buckets, ranks or co-mentions reveal nothing (section 7, X5). A run with `--routing` names the endpoint
+and the model tag the founder configured; that is a label, not a secret.

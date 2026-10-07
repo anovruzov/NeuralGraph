@@ -1,0 +1,173 @@
+{
+  "kind": "collective_demo_scenario",
+  "schema_version": 1,
+  "pack": "device_quality",
+  "seed": 7,
+  "weeks": 40,
+  "company": "Halvern Medical (fictional)",
+  "illustration": "A constructed illustration of the narrative-only case: the codes say only that a device malfunctioned; what failed is written only in the complaint narratives, in English and German, at several plants.",
+  "tie_salt": "collective-demo",
+  "org": {
+    "schema_version": 1,
+    "enterprise": "halvern",
+    "sites": [
+      {"site_id": "plant-ashvale", "unit_path": "halvern/gb/ashvale", "country": "GB", "display_name": "Ashvale plant (fictional)"},
+      {"site_id": "plant-brindlemoor", "unit_path": "halvern/gb/brindlemoor", "country": "GB", "display_name": "Brindlemoor plant (fictional)"},
+      {"site_id": "plant-corrowfield", "unit_path": "halvern/ie/corrowfield", "country": "IE", "display_name": "Corrowfield sterile assembly and packaging plant (fictional)"},
+      {"site_id": "werk-dornhagen", "unit_path": "halvern/de/dornhagen", "country": "DE", "display_name": "Werk Dornhagen – Gerätemontage (fiktiv)"},
+      {"site_id": "werk-erlenbruch", "unit_path": "halvern/de/erlenbruch", "country": "DE", "display_name": "Werk Erlenbruch (fiktiv)"},
+      {"site_id": "plant-fennick", "unit_path": "halvern/us/fennick", "country": "US", "display_name": "Fennick plant (fictional)"}
+    ]
+  },
+  "master_data_additions": [
+    {"site": "plant-ashvale", "entity_type": "lot", "ids": ["L10099", "L20077"]},
+    {"site": "plant-ashvale", "entity_type": "product", "ids": ["HV-71", "HV-72", "HV-73"]},
+    {"site": "plant-brindlemoor", "entity_type": "lot", "ids": ["L20077", "L20099"]},
+    {"site": "plant-brindlemoor", "entity_type": "product", "ids": ["HV-71", "HV-72", "HV-73"]},
+    {"site": "plant-corrowfield", "entity_type": "lot", "ids": ["L10099"]},
+    {"site": "plant-corrowfield", "entity_type": "product", "ids": ["HV-71", "HV-72", "HV-73"]},
+    {"site": "werk-dornhagen", "entity_type": "lot", "ids": ["L10099"]},
+    {"site": "werk-dornhagen", "entity_type": "product", "ids": ["HV-71", "HV-72", "HV-73"]},
+    {"site": "werk-erlenbruch", "entity_type": "lot", "ids": ["L20077", "L20099"]},
+    {"site": "werk-erlenbruch", "entity_type": "product", "ids": ["HV-71", "HV-72", "HV-73"]},
+    {"site": "plant-fennick", "entity_type": "lot", "ids": ["L10099", "L20077"]}
+  ],
+  "approvers": {
+    "schema_version": 1,
+    "enterprise": "halvern",
+    "approvers": [
+      {"person_label": "qe-owner.halvern", "role": "quality_engineer", "unit_path": "halvern"},
+      {"person_label": "qm-escalation.halvern", "role": "quality_manager", "unit_path": "halvern"},
+      {"person_label": "sqe-owner.halvern", "role": "supplier_quality_engineer", "unit_path": "halvern"}
+    ]
+  },
+  "followups": [
+    {"type": "evidence_packet", "args": {}},
+    {"type": "capa_initiation_draft", "args": {"severity": "medium"}}
+  ],
+  "items": [
+    {
+      "id": "hero-battery-door",
+      "role": "hero",
+      "label": "Battery doors coming loose on one lot, written only in the narratives",
+      "key": {"entity_type": "lot", "entity_id": "L10099", "predicate": "detachment"},
+      "visibility": "narrative_only",
+      "start_week": 33,
+      "weeks": 6,
+      "sites": [
+        {"site": "plant-ashvale", "language": "en", "rate_per_week": 1},
+        {"site": "plant-corrowfield", "language": "en", "rate_per_week": 1},
+        {"site": "werk-dornhagen", "language": "de", "rate_per_week": 1}
+      ],
+      "codes": ["ILL-9001"],
+      "structured": [
+        {"entity_type": "product", "ids": ["SD-9"], "fill_rate": 1.0},
+        {"entity_type": "lot", "ids": ["L10099"], "fill_rate": 0.6}
+      ],
+      "narratives": {
+        "en": ["On units from lot {lot} the battery door came loose during use."],
+        "de": ["Bei Geräten der Charge {lot} hat sich der Batteriedeckel abgelöst."]
+      },
+      "slots": {"lot": "L10099"},
+      "filler": [2, 2],
+      "reporter": "pool",
+      "copies": []
+    },
+    {
+      "id": "sibling-quarantine",
+      "role": "sibling",
+      "label": "The same lot at a plant that holds it without the failure",
+      "key": {"entity_type": "lot", "entity_id": "L10099", "predicate": null},
+      "visibility": "none",
+      "start_week": 33,
+      "weeks": 6,
+      "sites": [
+        {"site": "plant-fennick", "language": "en", "rate_per_week": 1}
+      ],
+      "codes": ["ILL-9002"],
+      "structured": [
+        {"entity_type": "lot", "ids": ["L10099"], "fill_rate": 1.0},
+        {"entity_type": "product", "ids": ["SD-9"], "fill_rate": 1.0}
+      ],
+      "narratives": {"en": ["Lot {lot} was quarantined for review."]},
+      "slots": {"lot": "L10099"},
+      "filler": [2, 2],
+      "reporter": "pool",
+      "copies": []
+    },
+    {
+      "id": "decoy-generic-rise",
+      "role": "decoy",
+      "label": "A high-base-rate rise on a generic code, spread over several new product models",
+      "key": {"entity_type": "product", "entity_id": "HV-71", "predicate": "malfunction_unspecified"},
+      "visibility": "codes_only",
+      "start_week": 33,
+      "weeks": 6,
+      "sites": [
+        {"site": "plant-ashvale", "language": "en", "rate_per_week": 1},
+        {"site": "plant-brindlemoor", "language": "en", "rate_per_week": 1},
+        {"site": "plant-corrowfield", "language": "en", "rate_per_week": 1},
+        {"site": "werk-dornhagen", "language": "de", "rate_per_week": 1},
+        {"site": "werk-erlenbruch", "language": "de", "rate_per_week": 1}
+      ],
+      "codes": ["ILL-9001"],
+      "structured": [
+        {"entity_type": "product", "ids": ["HV-71", "HV-72", "HV-73"], "fill_rate": 1.0}
+      ],
+      "narratives": {
+        "en": ["A unit was returned under warranty."],
+        "de": ["Ein Gerät wurde im Rahmen der Garantie zurückgegeben."]
+      },
+      "slots": {},
+      "filler": [1, 2],
+      "reporter": "pool",
+      "copies": []
+    },
+    {
+      "id": "decoy-echo-flood",
+      "role": "decoy",
+      "label": "An echo flood: one plant's records forwarded, marked, to other plants",
+      "key": {"entity_type": "lot", "entity_id": "L20077", "predicate": "crack"},
+      "visibility": "narrative_only",
+      "start_week": 34,
+      "weeks": 4,
+      "sites": [
+        {"site": "plant-brindlemoor", "language": "en", "rate_per_week": 2}
+      ],
+      "codes": [],
+      "structured": [],
+      "narratives": {"en": ["Units from lot {lot} arrived cracked."]},
+      "slots": {"lot": "L20077"},
+      "filler": [1, 2],
+      "reporter": "pool",
+      "copies": [
+        {"to_site": "plant-ashvale", "marked": true},
+        {"to_site": "werk-erlenbruch", "marked": true},
+        {"to_site": "plant-fennick", "marked": true}
+      ]
+    },
+    {
+      "id": "decoy-single-reporter",
+      "role": "decoy",
+      "label": "A single-reporter burst on a new lot at two plants",
+      "key": {"entity_type": "lot", "entity_id": "L20099", "predicate": "occlusion"},
+      "visibility": "narrative_only",
+      "start_week": 34,
+      "weeks": 5,
+      "sites": [
+        {"site": "plant-brindlemoor", "language": "en", "rate_per_week": 3},
+        {"site": "werk-erlenbruch", "language": "de", "rate_per_week": 3}
+      ],
+      "codes": [],
+      "structured": [],
+      "narratives": {
+        "en": ["The line on units from lot {lot} was clogged."],
+        "de": ["Die Leitung bei Geräten der Charge {lot} war verstopft."]
+      },
+      "slots": {"lot": "L20099"},
+      "filler": [1, 2],
+      "reporter": "single",
+      "copies": []
+    }
+  ]
+}

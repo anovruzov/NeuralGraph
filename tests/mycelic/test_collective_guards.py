@@ -111,6 +111,7 @@ STDLIB_ONLY_MODULES = (
     "mycelic.collective.followup.outcome",
     "mycelic.collective.edge.packets",
     "mycelic.collective.experiments.e5_injection",
+    "mycelic.collective.runfiles",
 )
 CLI_MODULES = (
     ("mycelic.collective.experiments.e3_latency",),
@@ -182,6 +183,10 @@ DETERMINISTIC_MODULES = (
     "mycelic/collective/followup/executors.py",
     "mycelic/collective/followup/outcome.py",
     "mycelic/collective/edge/packets.py",
+    "mycelic/collective/runfiles.py",
+    "demo/collective/scenario.py",
+    "demo/collective/screen.py",
+    "demo/collective/lint_numbers.py",
 )
 DETECT_DIR = ROOT / "mycelic" / "collective" / "detect"
 PUSHDOWN_DIR = ROOT / "mycelic" / "collective" / "pushdown"
@@ -236,6 +241,8 @@ RUNBOOK_PLACEHOLDERS = {
     "head-hash": "0" * 64,
     "entity-type": "supplier",
     "injected-id": "V9999",
+    "page-file": "{tmp}/missing/page.html",
+    "recorded-dir": "{tmp}/missing/recorded",
 }
 EVALUATE_DIR = ROOT / "mycelic" / "collective" / "evaluate"
 EVALUATE_FILES = (*sorted(EVALUATE_DIR.glob("*.py")),
@@ -410,6 +417,9 @@ class ImportGuardTests(unittest.TestCase):
 
 # --------------------------------------------------------------------------------------------------- stdlib only
 
+DEMO_SCRIPTS = ("demo/collective/collective_demo.py", "demo/collective/lint_numbers.py")
+
+
 def _run_without_site_packages(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run([sys.executable, "-S", *args], cwd=ROOT, capture_output=True, text=True, timeout=60,
                           env={"PYTHONPATH": str(ROOT), "PATH": "/usr/bin:/bin"})
@@ -417,7 +427,7 @@ def _run_without_site_packages(*args: str) -> subprocess.CompletedProcess[str]:
 
 class StdlibOnlyTests(unittest.TestCase):
     def test_every_collective_module_imports_without_site_packages(self) -> None:
-        self.assertEqual(len(STDLIB_ONLY_MODULES), 59)
+        self.assertEqual(len(STDLIB_ONLY_MODULES), 60)
         code = "import importlib\n" + "".join(f"importlib.import_module({m!r})\n" for m in STDLIB_ONLY_MODULES)
         r = _run_without_site_packages("-c", code)
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -428,6 +438,17 @@ class StdlibOnlyTests(unittest.TestCase):
                 r = _run_without_site_packages("-m", module, *sub, "--help")
                 self.assertEqual(r.returncode, 0, r.stderr)
                 self.assertIn("usage:", r.stdout)
+
+    def test_demo_scripts_answer_help_without_site_packages(self) -> None:
+        for script in DEMO_SCRIPTS:
+            with self.subTest(script=script):
+                r = _run_without_site_packages(script, "--help")
+                self.assertEqual(r.returncode, 0, r.stderr)
+                self.assertIn("usage:", r.stdout)
+        code = ("from demo.collective import scenario, screen\nscenario.load_scenario()\n"
+                "screen.build_screen(None, mode='record', phase='preparing', run_id='x')\n")
+        r = _run_without_site_packages("-c", code)
+        self.assertEqual(r.returncode, 0, r.stderr)
 
     def test_site_packages_are_really_absent_under_dash_s(self) -> None:
         r = _run_without_site_packages("-c", "import numpy")
@@ -1002,6 +1023,7 @@ class ApprovalCallSiteTests(unittest.TestCase):
         hits = {p.relative_to(ROOT).as_posix(): approval_calls(p.read_text(encoding="utf-8")) for p in files}
         self.assertEqual({k: v for k, v in hits.items() if v and k not in APPROVAL_ALLOWED}, {})
         self.assertTrue(hits["mycelic/collective/experiments/g0_canary.py"])      # the checker sees the real call
+        self.assertTrue(hits["demo/collective/collective_demo.py"])               # and the demo console's (G8)
 
     def test_an_injected_call_in_a_copy_of_detectors_is_flagged(self) -> None:
         source = (DETECT_DIR / "detectors.py").read_text(encoding="utf-8")
@@ -1010,6 +1032,74 @@ class ApprovalCallSiteTests(unittest.TestCase):
                      "reject(key)"):
             with self.subTest(line=line):
                 self.assertTrue(approval_calls(source + "\n" + line + "\n"))
+
+
+# --------------------------------------------------------------------------------------------------- demo imports
+
+DEMO_DIR = ROOT / "demo" / "collective"
+# what the demo's screen builder and number lint may never import: the engine, and every module that runs the loop
+# (they read run files only, so a lint or a replayed screen can never compute a number of its own)
+DEMO_FORBIDDEN = ("demo.collective.collective_demo", "collective_demo", "mycelic.collective.inference",
+                  "mycelic.collective.edge", "mycelic.collective.detect", "mycelic.collective.pushdown",
+                  "mycelic.collective.followup", "openai", "anthropic", "ollama", "llama_cpp", "vllm", "transformers",
+                  "torch")
+DEMO_READERS = ("lint_numbers.py", "screen.py")
+DEMO_POSITIVE_IMPORTS = (
+    "from demo.collective import collective_demo",
+    "from demo.collective.collective_demo import DemoEngine",
+    "import collective_demo",
+    "import demo.collective.collective_demo as engine",
+    "from mycelic.collective.inference.runtime import Runtime",
+    "from mycelic.collective.edge.egress import verdict_buckets",
+    "from mycelic.collective.detect import detectors",
+    "from mycelic.collective.pushdown.gate import STATUS_RANK",
+    "from mycelic.collective.followup.service import replay",
+    "import importlib\nimportlib.import_module('mycelic.collective.edge.site')",
+)
+DEMO_NEGATIVE_IMPORTS = (
+    "from demo.collective import screen as scr",
+    "from mycelic.collective import runfiles",
+    "from mycelic.collective.jsonio import strict_load",
+    "from mycelic.collective import schemacheck",
+    "import html.parser",
+)
+
+
+class DemoImportGuardTests(unittest.TestCase):
+    def test_the_demo_readers_import_no_engine_or_loop_module(self) -> None:
+        for name in DEMO_READERS:
+            with self.subTest(module=name):
+                source = (DEMO_DIR / name).read_text(encoding="utf-8")
+                self.assertEqual(forbidden_imports(source, f"demo.collective.{Path(name).stem}", DEMO_FORBIDDEN), [])
+
+    def test_checker_flags_every_positive_snippet(self) -> None:
+        for snippet in DEMO_POSITIVE_IMPORTS:
+            with self.subTest(snippet=snippet):
+                self.assertTrue(forbidden_imports(snippet, "demo.collective.lint_numbers", DEMO_FORBIDDEN))
+
+    def test_checker_passes_every_negative_snippet(self) -> None:
+        for snippet in DEMO_NEGATIVE_IMPORTS:
+            with self.subTest(snippet=snippet):
+                self.assertEqual(forbidden_imports(snippet, "demo.collective.lint_numbers", DEMO_FORBIDDEN), [])
+
+    def test_an_injected_import_in_a_copy_of_the_lint_is_flagged(self) -> None:
+        source = (DEMO_DIR / "lint_numbers.py").read_text(encoding="utf-8")
+        self.assertEqual(forbidden_imports(source, "demo.collective.lint_numbers", DEMO_FORBIDDEN), [])
+        for line in ("from demo.collective import collective_demo", "from mycelic.collective.detect import detectors",
+                     "import mycelic.collective.inference.runtime"):
+            with self.subTest(line=line):
+                self.assertTrue(forbidden_imports(source + "\n" + line + "\n", "demo.collective.lint_numbers",
+                                                  DEMO_FORBIDDEN))
+
+    def test_a_fresh_interpreter_loads_nothing_forbidden_with_the_demo_readers(self) -> None:
+        code = ("import json, sys\nimport demo.collective.screen, demo.collective.lint_numbers\n"
+                "print(json.dumps(sorted(sys.modules)))\n")
+        r = subprocess.run([sys.executable, "-S", "-c", code], cwd=ROOT, capture_output=True, text=True, timeout=60,
+                           env={"PYTHONPATH": str(ROOT), "PATH": "/usr/bin:/bin"})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        loaded = json.loads(r.stdout)
+        self.assertIn("demo.collective.lint_numbers", loaded)
+        self.assertEqual([m for m in loaded if _forbidden(m, DEMO_FORBIDDEN)], [])
 
 
 # --------------------------------------------------------------------------------------------------- runbook
@@ -1102,6 +1192,16 @@ class RunbookCommandTests(unittest.TestCase):
                       "<head-hash>", joined)
         self.assertIn("python -m mycelic.collective.experiments.e5_injection --pack <pack> --records 1000 --seed "
                       "<seed> --entity-type <entity-type> --injected-id <injected-id> --out runs/e5/<run-id>", joined)
+
+    def test_commands_cover_the_g8_clis(self) -> None:
+        commands = runbook_commands()
+        demo = [c for c in commands if c.startswith("python demo/collective/collective_demo.py ")]
+        self.assertIn("python demo/collective/collective_demo.py --record runs/collective/<run-id>", demo)
+        self.assertTrue(any("--record runs/collective/<run-id>" in c and "--routing <routing-file>" in c
+                            for c in demo))
+        for needle in ("--serve", "--replay <recorded-dir>", "--export <page-file>"):
+            self.assertTrue(any(needle in c for c in demo), needle)
+        self.assertTrue(any(c.startswith("python demo/collective/lint_numbers.py ") for c in commands))
 
     def test_every_command_dry_runs_offline_and_creates_nothing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1214,6 +1314,7 @@ def generic_code_files() -> list[Path]:
         if any(rel.startswith(ex + "/") for ex in DOMAIN_SCAN_EXCLUDED) or path.name.startswith("test_"):
             continue
         out.append(path)
+    out += sorted((ROOT / "demo" / "collective").glob("*.py"))       # the demo (G8): every domain value from data
     return out
 
 
@@ -1269,6 +1370,9 @@ class DomainLiteralTests(unittest.TestCase):
     def test_generic_code_has_no_domain_literal(self) -> None:
         files = generic_code_files()
         self.assertIn(ROOT / "mycelic" / "collective" / "edge" / "extract.py", files)
+        for name in ("collective_demo.py", "scenario.py", "screen.py", "lint_numbers.py"):
+            self.assertIn(ROOT / "demo" / "collective" / name, files)
+        self.assertIn(ROOT / "mycelic" / "collective" / "runfiles.py", files)
         hits = {p.relative_to(ROOT).as_posix(): domain_literal_hits(p.read_text(encoding="utf-8"), self.terms)
                 for p in files}
         self.assertEqual({k: v for k, v in hits.items() if v}, {})

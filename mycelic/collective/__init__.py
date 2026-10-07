@@ -18,4 +18,5 @@ the outcome check), ``evaluate`` (G5: plant specs, the baselines S, R (model-fre
 and the pre-registered X1/X2 harness and scorecard; evaluation only, never deployed), ``leakage`` (the G0 canary
 planter and text-leakage scanner) and ``experiments`` (founder harnesses that write ``runs/<kind>/<id>/``, the G0
 runner, the openFDA replay, E2 and the E5 injection smoke). This file deliberately imports and re-exports nothing.
+``runfiles`` (G8) is the run-file contract that G0 and the collective demo (``demo/collective``) share.
 """

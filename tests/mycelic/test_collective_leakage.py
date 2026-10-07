@@ -661,6 +661,56 @@ class G0RunnerTests(unittest.TestCase):
                     self.assertTrue(output.startswith("dry-run: experiments.g0_canary"), output)
         self.assertEqual(sorted(str(p) for p in self.tmp.rglob("*")), before)
 
+    def test_run_files_stage_both_packs(self) -> None:
+        # G8: the run_files stage writes the four G0 run files under run/, and each crosses as class run_files
+        for name in ("dq-on", "ci-on"):
+            with self.subTest(run=name):
+                d, out = self.result(name), self.runs[name][2]
+                self.assertEqual(d["stages"][-1], "run_files")
+                self.assertEqual(d["artifact_classes"]["run_files"]["items"], 4)
+                self.assertEqual((d["hits"], d["shingle_overlap_bytes"], d["passed"]), ([], 0, True))
+                self.assertEqual(sorted(p.name for p in (out / "run").iterdir()),
+                                 ["approvals.jsonl", "ledger.jsonl", "scorecard.json", "trace.json"])
+                self.assertEqual(d["run_files_totals"]["files"], 4)
+                self.assertEqual(d["run_files_totals"]["bytes"], d["artifact_classes"]["run_files"]["bytes"])
+                self.assertLessEqual(d["run_files_totals"]["ledger_rows_written"],
+                                     d["run_files_totals"]["ledger_rows_total"])
+                for path in (out / "run").iterdir():
+                    text = path.read_text(encoding="utf-8")
+                    self.assertIsNone(re.search(r"(?<![0-9a-f])[0-9a-f]{64}(?![0-9a-f])", text), path.name)
+                    self.assertIsNone(re.search(r"(?<![\w.-])/(home|Users|root|tmp|var|private|opt|mnt|srv|etc)/",
+                                                text), path.name)
+                    self.assertNotIn(str(out), text)
+                scorecard = json.loads((out / "run" / "scorecard.json").read_text(encoding="utf-8"))
+                self.assertEqual((scorecard["kind"], scorecard["schema_version"]), ("g0_scorecard", 1))
+                self.assertEqual(scorecard["followup_totals"]["ledger_head_hash"],
+                                 d["followup_totals"]["ledger_head_hash"][:32])
+                trace = json.loads((out / "run" / "trace.json").read_text(encoding="utf-8"))
+                self.assertEqual(trace["stages"], d["stages"])
+                self.assertEqual(len(trace["conclusions"]), d["pushdown_totals"]["questions"])
+                head = json.loads((out / "run" / "approvals.jsonl").read_text(encoding="utf-8").splitlines()[-1])
+                self.assertEqual((head["kind"], head["entries"]),
+                                 ("ledger_head", d["followup_totals"]["ledger_entries"]))
+
+    def test_narrative_written_into_run_files_fails_the_run(self) -> None:
+        def leaky(ctx: g0_canary.G0Context) -> tuple[list, list]:
+            trace = ctx.out / "run" / "trace.json"
+            doc = json.loads(trace.read_text(encoding="utf-8"))
+            doc["note"] = ctx.records[0]["narrative"]
+            trace.write_text(json.dumps(doc), encoding="utf-8")
+            return [], []
+
+        stages = g0_canary.STAGES + (g0_canary.Stage("leaky", leaky),)
+        out = self.tmp / "leaky-run-files"
+        with mock.patch.object(g0_canary, "STAGES", stages):
+            code, output, _ = run_main(args("device_quality", out, records=200))
+        self.assertEqual(code, 1, output)
+        d = json.loads((out / "leakage.json").read_text(encoding="utf-8"))
+        self.assertFalse(d["passed"])
+        self.assertGreater(d["shingle_overlap_bytes"], 0)
+        self.assertIn(("run_files", "run/trace.json"), {(h["artifact_class"], h["file"]) for h in d["shingle_hits"]})
+        self.assertIn("run_files", {h["artifact_class"] for h in d["hits"]})
+
     def test_a_leaky_stage_fails_the_run(self) -> None:
         def leaky(ctx: g0_canary.G0Context) -> tuple[list, list]:
             narrative = ctx.records[0]["narrative"]
@@ -677,7 +727,9 @@ class G0RunnerTests(unittest.TestCase):
         self.assertTrue(d["hits"])
         self.assertEqual({h["file"] for h in d["hits"]}, {"hq/leak.txt"})
         self.assertGreater(d["shingle_overlap_bytes"], 0)
-        self.assertEqual(d["stages"], ["edge", "pushdown", "followup", "leaky"])          # G7 added followup
+        # G7 added followup, G8 run_files
+        self.assertEqual(d["stages"], ["edge", "pushdown", "followup", "run_files", "leaky"])
+        self.assertEqual(d["artifact_classes"]["run_files"]["items"], 4)
         self.assertIn("-> FAIL", output)
 
 

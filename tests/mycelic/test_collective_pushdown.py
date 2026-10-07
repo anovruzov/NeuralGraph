@@ -1831,9 +1831,11 @@ class LeakageStageTests(unittest.TestCase):
         for name in ("device_quality", "claims_integrity"):
             with self.subTest(pack=name):
                 d, out = self.result(name), self.runs[name][2]
-                # G7 added the followup stage after pushdown; every pushdown assertion below is unchanged
+                # G7 added the followup stage after pushdown and G8 the run_files stage after it; every pushdown
+                # assertion below is unchanged
                 self.assertEqual((d["hits"], d["shingle_overlap_bytes"], d["passed"], d["stages"]),
-                                 ([], 0, True, ["edge", "pushdown", "followup"]))
+                                 ([], 0, True, ["edge", "pushdown", "followup", "run_files"]))
+                self.assertEqual(d["artifact_classes"]["run_files"]["items"], 4)
                 for cls_name in ("questions", "verdicts", "collective_sqlite3", "site_ingress_log"):
                     self.assertGreater(d["artifact_classes"][cls_name]["bytes"], 0, cls_name)
                 labels = {item["label"] for item in d["scanned"]}
