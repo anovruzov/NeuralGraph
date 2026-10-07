@@ -26,9 +26,11 @@ import json
 import logging
 import re
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from . import verification
 from .aggregation import MYCELIC_PRODUCER, Aggregator, Derivation
 from .auth import Authenticator, Principal, RateLimiter, generate_api_key
 from .config import Settings
@@ -38,7 +40,7 @@ from .lineage import LineageNotFound, reconstruct
 from .metrics import Metrics
 from .models import (
     ALL_SCOPES, DEFAULT_AGENT_SCOPES, DERIVATION_VERSION, MEMORY_KINDS, OPERATORS, VISIBILITY, Agent, EventRecord, Memory, Rule,
-    canonical_label, canonical_rule_body, content_hash, new_id, now_iso, parse_iso,
+    canonical_label, canonical_rule_body, content_hash, new_id, now_iso, parse_iso, utcnow,
 )
 from .retrieval import Retriever
 from .store import MycelicStore, Tx, acquire_db_lock, release_db_lock
@@ -634,6 +636,7 @@ class MycelicService:
         signature = self.keyring.event_signature(wire)
         return {"Mycelic-Signature": signature} if signature else {}
 
+    # event signatures (``verify`` further down is the downward verification of a memory)
     def _verify(self, wire: bytes, headers: dict[str, str]) -> bool:
         """Signed by the current key or by one of the previous keys (events published before a rotation)."""
         return self.keyring.verify_event(wire, headers.get("Mycelic-Signature", ""))
@@ -1087,6 +1090,39 @@ class MycelicService:
         self.metrics.lineage_latency.observe(time.perf_counter() - t0)
         self.metrics.lineage_results.labels("success" if g["evidence"]["reconstructable"] else "incomplete").inc()
         return g
+
+    async def verify(self, principal: Principal, memory_id: str, *, max_leaf_age: int | None = None,
+                     remote: str | None = None, now: datetime | None = None) -> dict[str, Any]:
+        """Downward verification of a memory the caller may read (``verification.py``): was it derived correctly, and is
+        it still true?  Unknown and unreadable ids are the same NotFound, as for lineage.  ``max_leaf_age`` (seconds)
+        also checks how long ago each readable raw note was ingested; ``now`` is a test hook.  A successful call is
+        counted by verdict and reason and audited; a refused one is neither."""
+        if not principal.has("lineage:read"):
+            raise Forbidden("missing scope lineage:read")
+        if not isinstance(memory_id, str) or not _ID_RE.fullmatch(memory_id):
+            raise ValidationError("'memory_id' must be an id of at most 200 characters [A-Za-z0-9_.:-]")
+        if max_leaf_age is not None and (isinstance(max_leaf_age, bool) or not isinstance(max_leaf_age, int)
+                                         or not 1 <= max_leaf_age <= verification.MAX_LEAF_AGE_SECONDS):
+            raise ValidationError(f"'max_leaf_age' must be an integer between 1 and {verification.MAX_LEAF_AGE_SECONDS} seconds")
+        t0 = time.perf_counter()
+        # nothing in here awaits, so the walk never sees a transaction half-way through its body
+        async with self.store._lock:
+            m = self.store.get_memory(memory_id)
+            if m is None or not principal.can_read(m):
+                raise NotFound(memory_id)
+            result = verification.verify(self.store, self.aggregator.planner(), self.keyring, memory_id,
+                                         principal=principal, now=now or utcnow(), max_nodes=self.settings.verify_max_nodes,
+                                         max_leaf_age=max_leaf_age)
+        verdict = result.report["verdict"]
+        self.metrics.verification_latency.observe(time.perf_counter() - t0)
+        self.metrics.verifications.labels(verdict).inc()
+        for code in result.codes:
+            self.metrics.verification_reasons.labels(code).inc()
+        # the codes before redaction: the audit log is for administrators
+        await self.store.audit(principal.id, "memory.verify", memory_id, {"org_id": m.org_id, "verdict": verdict,
+                                                                          "nodes": result.report["summary"]["nodes"],
+                                                                          "reasons": result.codes}, remote)
+        return result.report
 
     def list_memories(self, principal: Principal, *, scope: str | None = None, layers: list[str] | None = None,
                       limit: int = 50, status: str = "active") -> list[Memory]:

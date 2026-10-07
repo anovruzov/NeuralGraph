@@ -73,11 +73,11 @@ LAYER_MOVES = {"r_team": ["team", "department"], "r_dept": ["department", "subsi
 class Sequence:
     """One seeded sequence of operations through the service's own entry points, applied by an inline consumer."""
 
-    def __init__(self, seed: int, *, settle_each: bool) -> None:
+    def __init__(self, seed: int, *, settle_each: bool, min_support: int | None = None) -> None:
         self.rnd = random.Random(seed)
         self.seed = seed
         self.settle_each = settle_each
-        self.min_support = 1 + seed % 2
+        self.min_support = min_support or 1 + seed % 2
         self.signing_key = SIGNING_KEY if seed % 2 else None
         self.tmp = tempfile.TemporaryDirectory()
         self.service = MycelicService(settings(self.tmp.name, min_support=self.min_support, event_signing_key=self.signing_key),
@@ -203,6 +203,7 @@ class Sequence:
             try:
                 bad += rebuild_differences(s, rebuilt)
                 bad += [f"rebuilt: {v}" for v in digest_violations(rebuilt.store)]
+                bad += await self.on_settled(rebuilt)
             finally:
                 await rebuilt.store.close()
             changed = await full_reaggregation_pass(s)
@@ -213,6 +214,10 @@ class Sequence:
             await asyncio.sleep(0)                   # let the last-seen touches that authenticate() scheduled finish
             await s.store.close()
             self.tmp.cleanup()
+
+    async def on_settled(self, rebuilt: MycelicService) -> list[str]:
+        """A hook for further checks of the settled state and its rebuild (test_verification); the violations found."""
+        return []
 
     def report(self, bad: list[str]) -> str:
         mode = "settled after every op" if self.settle_each else "settled at the end"

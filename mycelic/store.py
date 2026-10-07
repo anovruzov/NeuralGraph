@@ -661,6 +661,15 @@ class MycelicStore:
         r = self._conn.execute("SELECT * FROM agents WHERE agent_id=?", (agent_id,)).fetchone()
         return row_agent(r) if r else None
 
+    def get_agents(self, agent_ids: Iterable[str]) -> dict[str, Agent]:
+        ids = list(dict.fromkeys(agent_ids))
+        out: dict[str, Agent] = {}
+        for i in range(0, len(ids), 500):
+            chunk = ids[i:i + 500]
+            for r in self._conn.execute(f"SELECT * FROM agents WHERE agent_id IN ({','.join('?' * len(chunk))})", chunk).fetchall():
+                out[r["agent_id"]] = row_agent(r)
+        return out
+
     def get_agent_credentials(self, agent_id: str) -> tuple[Agent, str] | None:
         r = self._conn.execute("SELECT * FROM agents WHERE agent_id=?", (agent_id,)).fetchone()
         return (row_agent(r), r["key_hash"]) if r else None
@@ -881,6 +890,17 @@ class MycelicStore:
         rows = self._conn.execute("SELECT * FROM lineage_edges WHERE child_id=? ORDER BY parent_id", (child_id,)).fetchall()
         return [row_edge(r) for r in rows]
 
+    def parents_of_many(self, child_ids: Iterable[str]) -> dict[str, list[LineageEdge]]:
+        """The lineage edges of each child, in ``parent_id`` order; a child without edges is absent."""
+        ids = list(dict.fromkeys(child_ids))
+        out: dict[str, list[LineageEdge]] = {}
+        for i in range(0, len(ids), 500):
+            chunk = ids[i:i + 500]
+            q = f"SELECT * FROM lineage_edges WHERE child_id IN ({','.join('?' * len(chunk))}) ORDER BY child_id, parent_id"
+            for r in self._conn.execute(q, chunk).fetchall():
+                out.setdefault(r["child_id"], []).append(row_edge(r))
+        return out
+
     def children_of(self, parent_id: str) -> list[LineageEdge]:
         rows = self._conn.execute("SELECT * FROM lineage_edges WHERE parent_id=? ORDER BY child_id", (parent_id,)).fetchall()
         return [row_edge(r) for r in rows]
@@ -938,6 +958,36 @@ class MycelicStore:
             sql += " AND status=?"; args.append(status)
         sql += " ORDER BY rid DESC LIMIT ?"; args.append(int(limit))
         return [row_event(r) for r in self._conn.execute(sql, args).fetchall()]
+
+    def lifecycle_events(self, org_id: str, kinds: Iterable[str], *, since: Iterable[str] = ()) -> dict[str, list[tuple[str, str]]]:
+        """(event id, status) of every event of ``kinds`` in an organization, by the memory its payload targets, in log
+        order.  An event whose payload is not JSON or names no memory id is skipped.  With ``since`` (event ids), only the
+        events logged from the first of them on: an event can target a memory only once the memory's own event is here."""
+        ks = list(kinds)
+        ids = list(dict.fromkeys(since))
+        first: int | None = None
+        for i in range(0, len(ids), 500):
+            chunk = ids[i:i + 500]
+            r = self._conn.execute(f"SELECT MIN(rid) AS rid FROM events WHERE event_id IN ({','.join('?' * len(chunk))})",
+                                   chunk).fetchone()
+            if r["rid"] is not None:
+                first = r["rid"] if first is None else min(first, r["rid"])
+        sql = f"""SELECT event_id, status, CASE WHEN json_valid(payload) THEN json_extract(payload, '$.memory_id') END AS target
+                  FROM events WHERE org_id=? AND kind IN ({','.join('?' * len(ks))})"""
+        args: list[Any] = [org_id, *ks]
+        if first is not None:
+            sql += " AND rid >= ?"; args.append(first)
+        rows = self._conn.execute(sql + " ORDER BY rid", args).fetchall()
+        out: dict[str, list[tuple[str, str]]] = {}
+        for r in rows:
+            if isinstance(r["target"], str):
+                out.setdefault(r["target"], []).append((r["event_id"], r["status"]))
+        return out
+
+    def unapplied_events(self, org_id: str) -> int:
+        """Events of an organization (and the deployment-wide ``_``) not applied yet, derived events aside."""
+        return int(self._conn.execute("""SELECT COUNT(*) AS n FROM events WHERE status IN ('pending', 'published')
+                                         AND kind != 'memory.derived' AND org_id IN (?, '_')""", (org_id,)).fetchone()["n"])
 
     def event_counts(self) -> dict[str, int]:
         rows = self._conn.execute("SELECT status, COUNT(*) AS n FROM events GROUP BY status").fetchall()

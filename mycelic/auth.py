@@ -16,6 +16,7 @@ Authorization, in full:
   query cannot reveal even the existence of memories outside the caller's view;
 * lineage of a readable memory is returned with unreadable contributions redacted (shape kept, content
   withheld);
+* verification of a readable memory follows lineage's redaction rule; it never returns text, agent ids or digests;
 * the text of a memory that is not active (superseded or retracted) is returned only to its producer and to
   administrators; every other reader gets an empty text and ``text_withheld`` set to its status
   (:meth:`Principal.can_read_text`), and the memory itself stays readable (existence and 404s do not change);

@@ -439,6 +439,14 @@ class Aggregator:
         self.on_event = on_event          # ('inconsistency', {kind}) / ('truncated', {what}): the service counts them
         self._cap_warned: set[tuple[str, str]] = set()
 
+    def planner(self) -> "Aggregator":
+        """A twin for read-only planning (downward verification): the same min_support, clock, max_candidates and
+        max_dependents, no on_event (nothing is counted), and the once-per-key cap warnings shared with this one."""
+        twin = Aggregator(self.store, min_support=self.min_support, clock=self.clock, max_candidates=self.max_candidates,
+                          max_dependents=self.max_dependents)
+        twin._cap_warned = self._cap_warned
+        return twin
+
     def _emit(self, name: str, labels: dict[str, str]) -> None:
         if self.on_event is not None:
             self.on_event(name, labels)

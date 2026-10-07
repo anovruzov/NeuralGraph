@@ -2,8 +2,9 @@
 
 The names answer the operational questions in the deployment brief: ingestion rate, retrieval and
 aggregation latency, event throughput, failed events, replay/recovery events, active agents, memory counts by
-layer, lineage reconstruction success/failure.  Gauges that describe stored state (memories by layer, outbox
-depth, active agents) are refreshed by ``Metrics.refresh_from_store`` before every scrape.
+layer, lineage reconstruction success/failure, downward verification verdicts and reasons.  Gauges that describe
+stored state (memories by layer, outbox depth, active agents) are refreshed by ``Metrics.refresh_from_store`` before
+every scrape.
 """
 from __future__ import annotations
 
@@ -19,6 +20,7 @@ from prometheus_client import (
 )
 
 from .hierarchy import LAYERS
+from .verification import REASONS, VERDICTS
 
 _LATENCY_BUCKETS = (0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0)
 
@@ -47,6 +49,12 @@ class Metrics:
         self.aggregation_latency = Histogram("mycelic_aggregation_latency_seconds", "Time to apply one event including aggregation", buckets=_LATENCY_BUCKETS, registry=r)
         self.lineage_latency = Histogram("mycelic_lineage_latency_seconds", "Lineage reconstruction latency", buckets=_LATENCY_BUCKETS, registry=r)
         self.lineage_results = Counter("mycelic_lineage_reconstruction_total", "Lineage reconstructions", ["result"], registry=r)
+        self.verifications = Counter("mycelic_verifications_total", "Downward verifications by verdict", ["verdict"], registry=r)
+        self.verification_latency = Histogram("mycelic_verification_latency_seconds", "Downward verification latency",
+                                              buckets=_LATENCY_BUCKETS, registry=r)
+        self.verification_reasons = Counter("mycelic_verification_reasons_total",
+                                            "Reason codes found by downward verification, each once per verification", ["reason"],
+                                            registry=r)
         self.http_requests = Counter("mycelic_http_requests_total", "HTTP requests", ["route", "status"], registry=r)
         self.auth_failures = Counter("mycelic_auth_failures_total", "Rejected requests", ["reason"], registry=r)
         self.active_agents = Gauge("mycelic_active_agents", "Agents seen in the last 15 minutes", registry=r)
@@ -66,6 +74,11 @@ class Metrics:
             self.aggregation_inconsistency.labels(kind)
         for what in ("dependents", "cascade", "candidates"):
             self.aggregation_truncated.labels(what)
+        for verdict in VERDICTS:
+            self.verifications.labels(verdict)
+        for code in REASONS:
+            if not code.startswith("hidden_"):          # what a caller sees of hidden nodes is never counted
+                self.verification_reasons.labels(code)
 
     def refresh_from_stats(self, stats: dict[str, Any]) -> None:
         for layer in LAYERS:

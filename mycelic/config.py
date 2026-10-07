@@ -113,6 +113,8 @@ class Settings:
     # aggregation
     min_support: int = 2                              # distinct child units needed for topic consolidation
     rules_file: str | None = None
+    # verification
+    verify_max_nodes: int = 25000                     # nodes one downward verification walks at most (5 x max_candidates fan-in)
     # SDK/demo conveniences
     public_url: str | None = None
 
@@ -169,6 +171,7 @@ class Settings:
             event_signing_keys_previous=[k for k in dict.fromkeys(_list("MYCELIC_EVENT_SIGNING_KEYS_PREVIOUS")) if k != signing_key],
             min_support=_int("MYCELIC_MIN_SUPPORT", 2, minimum=1),
             rules_file=_str("MYCELIC_RULES_FILE"),
+            verify_max_nodes=_int("MYCELIC_VERIFY_MAX_NODES", 25000, minimum=1),
             public_url=_str("MYCELIC_PUBLIC_URL"),
         )
         s.validate()
