@@ -8,6 +8,9 @@
 * RunbookCommandTests: every command in ``docs/collective/RUNBOOK.md`` runs with ``--dry-run`` appended, with the
   network blocked, and creates nothing.
 * DomainLiteralTests: the generic collective code holds no domain-pack literal (G2).
+* HqImportGuardTests: the HQ detection modules (``mycelic/collective/detect``) import nothing site-side, no harness and
+  no model client (static check and a fresh interpreter) (G4).
+* ClockEntropyTests: every ``detect`` module is on the determinism list and reads no clock or entropy (G4).
 
 ``forbidden_imports``, ``model_name_hits``, ``nondeterminism`` and ``domain_literal_hits`` are importable for
 reviewers' probes.
@@ -73,6 +76,11 @@ STDLIB_ONLY_MODULES = (
     "mycelic.collective.edge.site",
     "mycelic.collective.leakage",
     "mycelic.collective.experiments.g0_canary",
+    "mycelic.collective.detect",
+    "mycelic.collective.detect.org",
+    "mycelic.collective.detect.store",
+    "mycelic.collective.detect.detectors",
+    "mycelic.collective.detect.rules",
 )
 CLI_MODULES = (
     ("mycelic.collective.experiments.e3_latency",),
@@ -111,7 +119,20 @@ DETERMINISTIC_MODULES = (
     "mycelic/collective/edge/egress.py",
     "mycelic/collective/edge/site.py",
     "mycelic/collective/leakage.py",
+    "mycelic/collective/detect/__init__.py",
+    "mycelic/collective/detect/org.py",
+    "mycelic/collective/detect/store.py",
+    "mycelic/collective/detect/detectors.py",
+    "mycelic/collective/detect/rules.py",
 )
+DETECT_DIR = ROOT / "mycelic" / "collective" / "detect"
+# what the HQ side may never import: the site's raw-record modules, the extractor, the world generator, the harness
+# and evaluation modules, any inference module (egress pulls in only inference.errors), and every model client
+HQ_FORBIDDEN = ("mycelic.collective.edge.records", "mycelic.collective.edge.site", "mycelic.collective.edge.extract",
+                "mycelic.collective.packs.generator", "mycelic.collective.evaluate", "mycelic.collective.leakage",
+                "mycelic.collective.experiments", "mycelic.collective.inference", "openai", "anthropic", "ollama",
+                "llama_cpp", "vllm", "transformers", "torch")
+HQ_ALLOWED_LOADED = ("mycelic.collective.inference", "mycelic.collective.inference.errors")
 RUNBOOK = ROOT / "docs" / "collective" / "RUNBOOK.md"
 RUNBOOK_PREFIXES = ("python -m mycelic.collective.", "python demo/collective/")
 RUNBOOK_PLACEHOLDERS = {
@@ -160,8 +181,9 @@ def _resolve(module: str, level: int, name: str | None) -> str | None:
     return ".".join(base + ([name] if name else [])) or None
 
 
-def forbidden_imports(source: str, module: str) -> list[str]:
-    """Every import of a forbidden module in ``source`` (the text of ``module``), and every unverifiable one."""
+def forbidden_imports(source: str, module: str, prefixes: tuple[str, ...] = FORBIDDEN_IMPORTS) -> list[str]:
+    """Every import of a module under ``prefixes`` in ``source`` (the text of ``module``), and every unverifiable
+    one."""
     tree = ast.parse(source)
     dynamic = set(_DYNAMIC_NAMES)
     for node in ast.walk(tree):
@@ -170,14 +192,14 @@ def forbidden_imports(source: str, module: str) -> list[str]:
     hits: list[str] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
-            hits += [f"line {node.lineno}: import {a.name}" for a in node.names if _forbidden(a.name)]
+            hits += [f"line {node.lineno}: import {a.name}" for a in node.names if _forbidden(a.name, prefixes)]
         elif isinstance(node, ast.ImportFrom):
             base = _resolve(module, node.level, node.module)
             if base is None:
                 hits.append(f"line {node.lineno}: unresolvable relative import")
                 continue
             for name in [base] + [f"{base}.{a.name}" for a in node.names]:
-                if _forbidden(name):
+                if _forbidden(name, prefixes):
                     hits.append(f"line {node.lineno}: from-import of {name}")
                     break
         elif isinstance(node, ast.Call):
@@ -199,7 +221,7 @@ def forbidden_imports(source: str, module: str) -> list[str]:
                     continue
                 level = len(name) - len(name.lstrip("."))
                 name = _resolve(pkg.value + ".__init__", level, name.lstrip(".") or None) or ""
-            if _forbidden(name):
+            if _forbidden(name, prefixes):
                 hits.append(f"line {node.lineno}: dynamic import of {name}")
     return hits
 
@@ -311,7 +333,7 @@ def _run_without_site_packages(*args: str) -> subprocess.CompletedProcess[str]:
 
 class StdlibOnlyTests(unittest.TestCase):
     def test_every_collective_module_imports_without_site_packages(self) -> None:
-        self.assertEqual(len(STDLIB_ONLY_MODULES), 34)
+        self.assertEqual(len(STDLIB_ONLY_MODULES), 39)
         code = "import importlib\n" + "".join(f"importlib.import_module({m!r})\n" for m in STDLIB_ONLY_MODULES)
         r = _run_without_site_packages("-c", code)
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -521,6 +543,101 @@ class DeterminismTests(unittest.TestCase):
         for rel in DETERMINISTIC_MODULES:
             with self.subTest(module=rel):
                 self.assertEqual(nondeterminism((ROOT / rel).read_text(encoding="utf-8")), [])
+
+
+HQ_POSITIVE_IMPORTS = (
+    "from ..edge import records",
+    "from ..edge.site import EdgeSite",
+    "from ..edge.extract import sense",
+    "from ..packs.generator import generate",
+    "from ..packs import generator",
+    "from .. import leakage",
+    "from ..evaluate import scorecard",
+    "from ..experiments.common import UsageError",
+    "import mycelic.collective.edge.site",
+    "import mycelic.collective.edge.records as rec",
+    "from ..inference.runtime import Runtime",
+    "from ..inference import errors",
+    "from mycelic.collective.inference.errors import KINDS",
+    "import importlib\nimportlib.import_module('mycelic.collective.leakage')",
+    "import importlib\nimportlib.import_module('..edge.site', 'mycelic.collective.detect')",
+    "import openai",
+    "def lazy():\n    import torch\n",
+)
+HQ_NEGATIVE_IMPORTS = (
+    "from ..edge.egress import check_artifact",
+    "from ..edge.weeks import next_week",
+    "from ..edge import egress",
+    "from ..packs.loader import FrozenPack",
+    "from ..packs.connector import SITE_ID_RE",
+    "from ...hierarchy import split_path",
+    "from .. import stats",
+    "from ..jsonio import canonical_bytes",
+    "from .store import CollectiveStore",
+    "import sqlite3",
+)
+
+
+class HqImportGuardTests(unittest.TestCase):
+    def detect_files(self) -> list[Path]:
+        files = sorted(DETECT_DIR.glob("*.py"))
+        self.assertEqual([p.name for p in files], ["__init__.py", "detectors.py", "org.py", "rules.py", "store.py"])
+        return files
+
+    def test_no_detect_module_imports_a_forbidden_module(self) -> None:
+        for path in self.detect_files():
+            with self.subTest(module=path.name):
+                module = f"mycelic.collective.detect.{path.stem}"
+                self.assertEqual(forbidden_imports(path.read_text(encoding="utf-8"), module, HQ_FORBIDDEN), [])
+
+    def test_checker_flags_every_positive_snippet(self) -> None:
+        for snippet in HQ_POSITIVE_IMPORTS:
+            with self.subTest(snippet=snippet):
+                self.assertTrue(forbidden_imports(snippet, "mycelic.collective.detect.detectors", HQ_FORBIDDEN))
+
+    def test_checker_passes_every_negative_snippet(self) -> None:
+        for snippet in HQ_NEGATIVE_IMPORTS:
+            with self.subTest(snippet=snippet):
+                self.assertEqual(forbidden_imports(snippet, "mycelic.collective.detect.detectors", HQ_FORBIDDEN), [])
+
+    def test_checker_flags_an_injected_import_in_a_copy_of_detectors(self) -> None:
+        source = (DETECT_DIR / "detectors.py").read_text(encoding="utf-8")
+        for line in ("from ..edge.records import RecordStore", "from ..inference.runtime import Runtime"):
+            with self.subTest(line=line):
+                self.assertTrue(forbidden_imports(source + "\n" + line + "\n", "mycelic.collective.detect.detectors",
+                                                  HQ_FORBIDDEN))
+
+    def test_fresh_interpreter_loads_nothing_forbidden_with_the_detect_modules(self) -> None:
+        modules = tuple(f"mycelic.collective.detect.{p.stem}" for p in self.detect_files() if p.stem != "__init__")
+        code = ("import json, sys\n" + "".join(f"import {m}\n" for m in modules)
+                + "print(json.dumps(sorted(sys.modules)))\n")
+        r = subprocess.run([sys.executable, "-c", code], cwd=ROOT, capture_output=True, text=True, timeout=120,
+                           env={**os.environ, "PYTHONPATH": str(ROOT)})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        loaded = json.loads(r.stdout.strip().splitlines()[-1])
+        self.assertIn("mycelic.collective.detect.detectors", loaded)
+        self.assertEqual([m for m in loaded if _forbidden(m, HQ_FORBIDDEN) and m not in HQ_ALLOWED_LOADED], [])
+        self.assertEqual([m for m in loaded if m.startswith("mycelic.collective.inference")], list(HQ_ALLOWED_LOADED))
+        self.assertEqual([m for m in loaded if _forbidden(m, FORBIDDEN_LOADED) and not m.startswith("mycelic.")], [])
+
+
+class ClockEntropyTests(unittest.TestCase):
+    def test_every_detect_module_is_on_the_determinism_list_with_no_hits(self) -> None:
+        files = sorted(DETECT_DIR.glob("*.py"))
+        self.assertEqual(len(files), 5)
+        for path in files:
+            rel = path.relative_to(ROOT).as_posix()
+            with self.subTest(module=rel):
+                self.assertIn(rel, DETERMINISTIC_MODULES)
+                self.assertEqual(nondeterminism(path.read_text(encoding="utf-8")), [])
+
+    def test_an_injected_clock_or_entropy_call_in_a_copy_of_detectors_is_flagged(self) -> None:
+        source = (DETECT_DIR / "detectors.py").read_text(encoding="utf-8")
+        self.assertEqual(nondeterminism(source), [])
+        for snippet in ("import time\nstamp = time.time()\n", "import datetime\nday = datetime.date.today()\n",
+                        "import random\nsalt = random.random()\n", "import os\nnoise = os.urandom(4)\n"):
+            with self.subTest(snippet=snippet):
+                self.assertTrue(nondeterminism(source + "\n" + snippet))
 
 
 # --------------------------------------------------------------------------------------------------- runbook

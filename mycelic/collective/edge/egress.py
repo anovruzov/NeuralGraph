@@ -19,6 +19,11 @@ nothing.
 :meth:`Boundary.send` appends one canonical JSON line (``artifact_type, body, bytes, direction, sha256, site, ts``)
 to the HQ receive log first and then to the site's egress log; after a crash between the two writes a re-send makes
 them agree (HQ may then hold a duplicate with the same sha256, which HQ drops). A refused send writes nothing.
+
+The Boundary and HQ share one validator. :func:`check_artifact` runs the structural check and then the cross-field
+check on an already-parsed body and returns the first problem ``(path, keyword)`` or None; :func:`log_row_problem`
+is the check of one receive- or egress-log row. HQ (``detect/store.py``) calls both on what it reads, so a bundle HQ
+accepts is exactly one this Boundary would have let out.
 """
 from __future__ import annotations
 
@@ -323,9 +328,23 @@ def _usage_problem(body: dict[str, Any]) -> tuple[str, str] | None:
     return _range(body, [])
 
 
+def check_artifact(pack: "FrozenPack", site_id: str, artifact_type: str, body: Any, *, tasks: Sequence[str] = (),
+                   endpoints: Sequence[str] = ()) -> tuple[str, str] | None:
+    """The first problem ``(path, keyword)`` of an already-parsed ``body`` of ``artifact_type`` from ``site_id``:
+    the closed structure first, then the cross-field checks. None when the artifact is valid (the ``after`` sequence
+    is the caller's)."""
+    if artifact_type not in ARTIFACT_TYPES:
+        raise ValueError("unknown artifact type") from None
+    found = _check(_spec(pack, site_id, artifact_type, tasks, endpoints), body, "$")
+    if found is None:
+        found = _cells_problem(pack, body) if artifact_type == "cells_bundle" else _usage_problem(body)
+    return found
+
+
 # --------------------------------------------------------------------------------------------------- logs
 
-def _log_problem(row: Any) -> str | None:
+def log_row_problem(row: Any) -> str | None:
+    """None for a well-formed log row, else a fixed problem text (never a value)."""
     if not isinstance(row, dict) or sorted(row) != list(LOG_KEYS):
         return "not a log row with exactly the log keys"
     if row["artifact_type"] not in ARTIFACT_TYPES or row["direction"] not in DIRECTIONS:
@@ -358,7 +377,7 @@ def read_log(path: str | Path) -> list[dict[str, Any]]:
         except StrictJsonError:
             problem = "not strict JSON"
         if problem is None:
-            problem = _log_problem(row)
+            problem = log_row_problem(row)
         if problem is not None:
             raise ValueError(f"{path}: line {number}: {problem}") from None
         rows.append(row)
@@ -379,7 +398,8 @@ class Boundary:
         self.egress_log = Path(egress_log)
         self.receive_log = Path(receive_log)
         self._clock = clock
-        self._specs = MappingProxyType({t: _spec(pack, site_id, t, tasks, endpoints) for t in ARTIFACT_TYPES})
+        self._tasks = tuple(tasks)
+        self._endpoints = tuple(endpoints)
         self.egress_log.parent.mkdir(parents=True, exist_ok=True)
         self.receive_log.parent.mkdir(parents=True, exist_ok=True)
         self._last: dict[str, tuple[str, str]] = {}
@@ -402,9 +422,7 @@ class Boundary:
             data = None
         if data is None:
             raise EgressError(artifact_type=t, path="$", keyword="json") from None
-        found = _check(self._specs[t], parsed, "$")
-        if found is None:
-            found = _cells_problem(self.pack, parsed) if t == "cells_bundle" else _usage_problem(parsed)
+        found = check_artifact(self.pack, self.site_id, t, parsed, tasks=self._tasks, endpoints=self._endpoints)
         if found is not None:
             raise EgressError(artifact_type=t, path=found[0], keyword=found[1]) from None
         sha = sha256_hex(data)

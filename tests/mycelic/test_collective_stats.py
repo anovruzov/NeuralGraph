@@ -4,7 +4,9 @@ from __future__ import annotations
 import itertools
 import math
 import random
+import time
 import unittest
+from fractions import Fraction
 
 from mycelic.collective import stats
 
@@ -165,6 +167,188 @@ class F1Tests(unittest.TestCase):
             args = {"B": 10, "seed": 1, **kwargs}
             with self.subTest(counts=counts, kwargs=kwargs), self.assertRaises(ValueError):
                 stats.bootstrap_f1(counts, **args)
+
+
+
+# --------------------------------------------------------------------------------------------------- G4: detector tails
+
+BAD_NUMBERS = (True, False, float("nan"), float("inf"), float("-inf"), "1", None, [1])
+
+
+def _brute_poisson_binomial(ps: list[float], m: int) -> float:
+    total = 0.0
+    for bits in itertools.product((0, 1), repeat=len(ps)):
+        if sum(bits) >= m:
+            pr = 1.0
+            for b, p in zip(bits, ps):
+                pr *= p if b else 1 - p
+            total += pr
+    return total
+
+
+def _exact_poisson_tail(c: int, lam: float) -> float:
+    """The sum of pmf terms from c upward (exp of the lgamma-based log pmf), until they vanish."""
+    terms, j = [], c
+    while True:
+        t = math.exp(-lam + j * math.log(lam) - math.lgamma(j + 1))
+        terms.append(t)
+        if (j > lam and t < 1e-320) or j > c + 5000:
+            return math.fsum(terms)
+        j += 1
+
+
+class PoissonBinomialTests(unittest.TestCase):
+    def test_equals_brute_force_enumeration_on_50_seeded_vectors(self) -> None:
+        rng = random.Random("g4-poisson-binomial")
+        with_edges = 0
+        for case in range(50):
+            n = rng.randrange(0, 11)
+            ps = [rng.choice((0.0, 1.0, rng.random(), rng.random() ** 6, 1 - rng.random() ** 6)) for _ in range(n)]
+            if case % 5 == 0 and n >= 2:
+                ps[0], ps[1] = 0.0, 1.0
+            with_edges += any(p in (0.0, 1.0) for p in ps)
+            for m in range(0, n + 2):
+                with self.subTest(case=case, m=m):
+                    got = math.exp(stats.poisson_binomial_logsf(ps, m))
+                    self.assertAlmostEqual(got, _brute_poisson_binomial(ps, m), delta=1e-12)
+        self.assertGreaterEqual(with_edges, 10)
+
+    def test_equal_probabilities_give_the_binomial_tail(self) -> None:
+        for n, p in ((1, 0.3), (6, 0.01), (6, 0.25), (10, 0.5), (25, 0.07), (40, 0.9)):
+            for m in range(-1, n + 2):
+                with self.subTest(n=n, p=p, m=m):
+                    a, b = stats.poisson_binomial_logsf([p] * n, m), stats.binom_logsf(m, n, p)
+                    if b == -math.inf:
+                        self.assertEqual(a, -math.inf)
+                    else:
+                        self.assertAlmostEqual(a, b, delta=1e-10 * max(1.0, abs(b)))
+
+    def test_edges(self) -> None:
+        self.assertEqual(stats.poisson_binomial_logsf([0.2, 0.3], 0), 0.0)
+        self.assertEqual(stats.poisson_binomial_logsf([0.2, 0.3], -4), 0.0)
+        self.assertEqual(stats.poisson_binomial_logsf([0.2, 0.3], 3), -math.inf)
+        self.assertEqual(stats.poisson_binomial_logsf([], 1), -math.inf)
+        self.assertEqual(stats.poisson_binomial_logsf([], 0), 0.0)
+        self.assertEqual(stats.poisson_binomial_logsf([0.0, 0.0, 0.0], 1), -math.inf)
+        self.assertEqual(stats.poisson_binomial_logsf([1.0, 1.0], 2), 0.0)
+        self.assertEqual(stats.poisson_binomial_logsf([1.0, 0.0], 2), -math.inf)
+        ps = [0.25] * 6
+        self.assertAlmostEqual(stats.poisson_binomial_logsf(ps, 6), 6 * math.log(0.25), delta=1e-12)
+        self.assertTrue(math.isfinite(stats.poisson_binomial_logsf([0.01] * 1000, 1000)))
+        self.assertEqual(str(stats.poisson_binomial_logsf([0.5], 0)), "0.0")
+
+    def test_invalid_input(self) -> None:
+        for ps in ([0.5, -0.1], [1.5], [True], [float("nan")], [float("inf")], ["0.5"], "abc", None, {0.5}):
+            with self.subTest(ps=ps), self.assertRaises(ValueError):
+                stats.poisson_binomial_logsf(ps, 1)
+        for m in (1.0, True, "1", None):
+            with self.subTest(m=m), self.assertRaises(ValueError):
+                stats.poisson_binomial_logsf([0.5], m)
+
+
+class TailTests(unittest.TestCase):
+    def test_poisson_matches_the_exact_pmf_sum(self) -> None:
+        for c in range(0, 41):
+            for lam in (0.01, 0.08, 0.5, 1, 2.46, 5, 10, 20, 35):
+                with self.subTest(c=c, lam=lam):
+                    exact, got = _exact_poisson_tail(c, lam), stats.poisson_sf(c, lam)
+                    if exact > 1e-300:
+                        self.assertLessEqual(abs(got - exact) / exact, 1e-10)
+                    else:
+                        self.assertLessEqual(abs(got - exact), 1e-12)
+
+    def test_poisson_c_zero_and_huge_counts_are_finite_and_fast(self) -> None:
+        self.assertEqual(stats.poisson_logsf(0, 0.08), 0.0)
+        self.assertEqual(stats.poisson_logsf(0, 10 ** 9), 0.0)
+        for c, lam, check in ((10 ** 9, 0.08, lambda sf: sf == 0.0), (10 ** 6, 10 ** 6, lambda sf: 0.49 < sf < 0.51),
+                              (8 * 10 ** 9, 8 * 10 ** 9, lambda sf: 0.49 < sf < 0.51),
+                              (8 * 10 ** 9 - 1, 8 * 10 ** 9, lambda sf: 0.49 < sf < 0.51),
+                              (1, 10 ** 9, lambda sf: sf == 1.0)):
+            with self.subTest(c=c, lam=lam):
+                start = time.perf_counter()
+                value = stats.poisson_logsf(c, lam)
+                self.assertLess(time.perf_counter() - start, 1.0)
+                self.assertTrue(math.isfinite(value))
+                self.assertLessEqual(value, 0.0)
+                self.assertTrue(check(math.exp(value)), math.exp(value))
+
+    def test_poisson_documented_edge_value(self) -> None:
+        # a fresh series: two '<k' window weeks (c = 2) against lambda_floor 0.01 over an 8-week window
+        self.assertAlmostEqual(stats.poisson_sf(2, 0.08), 1 - math.exp(-0.08) * 1.08, delta=1e-15)
+        self.assertLess(stats.poisson_sf(2, 0.08), 0.01)
+
+    def test_poisson_invalid_input(self) -> None:
+        for c in (-1, 1.0, True, "1", None, float("nan")):
+            with self.subTest(c=c), self.assertRaises(ValueError):
+                stats.poisson_logsf(c, 1.0)
+        for lam in (0, 0.0, -1.0, *BAD_NUMBERS):
+            with self.subTest(lam=lam), self.assertRaises(ValueError):
+                stats.poisson_logsf(1, lam)
+
+    def test_binomial_matches_exact_fraction_sums(self) -> None:
+        rng = random.Random("g4-binomial")
+        for case in range(120):
+            n = rng.randrange(0, 31)
+            p = rng.choice((rng.random(), rng.random() ** 8, 1 - rng.random() ** 8, 0.5, 1e-5))
+            exact_p = Fraction(p)
+            for m in range(-1, n + 2):
+                with self.subTest(case=case, m=m):
+                    exact = float(sum(Fraction(math.comb(n, j)) * exact_p ** j * (1 - exact_p) ** (n - j)
+                                      for j in range(max(m, 0), n + 1)))
+                    got = stats.binom_sf(m, n, p)
+                    if exact == 0.0:
+                        self.assertEqual(got, 0.0)
+                    else:
+                        self.assertLessEqual(abs(got - exact) / exact, 1e-12)
+
+    def test_binomial_edges_and_invalid_input(self) -> None:
+        self.assertEqual(stats.binom_logsf(0, 5, 0.3), 0.0)
+        self.assertEqual(stats.binom_logsf(-2, 5, 0.3), 0.0)
+        self.assertEqual(stats.binom_logsf(6, 5, 0.3), -math.inf)
+        self.assertEqual(stats.binom_logsf(1, 5, 0.0), -math.inf)
+        self.assertEqual(stats.binom_logsf(5, 5, 1.0), 0.0)
+        self.assertEqual(stats.binom_logsf(0, 0, 0.5), 0.0)
+        for args in ((1.0, 5, 0.3), (True, 5, 0.3), (1, -1, 0.3), (1, 5.0, 0.3), (1, False, 0.3), (1, 5, -0.1),
+                     (1, 5, 1.1), *((1, 5, bad) for bad in BAD_NUMBERS)):
+            with self.subTest(args=args), self.assertRaises(ValueError):
+                stats.binom_logsf(*args)
+
+
+class PMITests(unittest.TestCase):
+    def test_hand_values(self) -> None:
+        self.assertEqual(stats.smoothed_pmi(10, 20, 25, 100, 0), math.log(2))
+        self.assertEqual(stats.smoothed_pmi(10, 20, 25, 100, 0), 0.6931471805599453)
+        self.assertEqual(stats.smoothed_pmi(10, 20, 25, 100, 0.5), 0.7024296463538652)
+        self.assertEqual(stats.smoothed_pmi(0, 4, 6, 50, 1.0), 0.37647757123491205)
+
+    def test_undefined_and_invalid_input(self) -> None:
+        for args in ((0, 4, 6, 50, 0), (3, 0, 6, 50, 0), (3, 4, 0, 50, 0), (3, 4, 6, 0, 0)):
+            with self.subTest(args=args), self.assertRaises(ValueError) as cm:
+                stats.smoothed_pmi(*args)
+            self.assertEqual(str(cm.exception), "undefined")
+        for i in range(5):
+            for bad in (-1, -0.5, *BAD_NUMBERS):
+                args = [10, 20, 25, 100, 0.5]
+                args[i] = bad
+                with self.subTest(position=i, bad=bad), self.assertRaises(ValueError):
+                    stats.smoothed_pmi(*args)
+
+
+class LogisticTests(unittest.TestCase):
+    def test_values_and_symmetry(self) -> None:
+        self.assertEqual(stats.logistic(0), 0.5)
+        self.assertAlmostEqual(stats.logistic(2), 0.8807970779778823, delta=1e-15)
+        self.assertEqual(stats.logistic(-800), 0.0)
+        self.assertEqual(stats.logistic(800), 1.0)
+        self.assertEqual(stats.logistic(-800.0), 0.0)
+        for x in (0.1, 1, 2.5, 7, 13.25, 36):
+            with self.subTest(x=x):
+                self.assertAlmostEqual(stats.logistic(x) + stats.logistic(-x), 1.0, delta=1e-15)
+
+    def test_invalid_input(self) -> None:
+        for bad in BAD_NUMBERS:
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                stats.logistic(bad)
 
 
 if __name__ == "__main__":

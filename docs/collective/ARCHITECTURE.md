@@ -1,8 +1,9 @@
-# Mycelic collective: architecture (gates G1 to G3)
+# Mycelic collective: architecture (gates G1 to G4)
 
-This document describes what gates G1 to G3 build under `mycelic/collective/`. It also places them in the loop
+This document describes what gates G1 to G4 build under `mycelic/collective/`. It also places them in the loop
 that later gates complete (STRATEGY section 4.1). Sections 1 to 10 describe G1; section 11 describes G2 (domain
-packs and the sense step); section 12 describes G3 (the site boundary and the G0 text-leakage scan).
+packs and the sense step); section 12 describes G3 (the site boundary and the G0 text-leakage scan); section 13
+describes G4 (detection at HQ over the cells that left the sites).
 
 **No real-model number is produced in this sandbox.** Model weights and the openFDA API cannot be reached from it, so
 every test runs against a deterministic in-process fake or a local fake HTTP server. Every harness output says so in
@@ -25,8 +26,8 @@ its `measurement` flag. The figures STRATEGY needs come from the founder's runs 
 | Founder tools | `experiments/e3_latency.py`, `connectors/openfda.py`, `experiments/n1_narratives.py` | E3, the openFDA cache, N1 sample and score |
 
 Everything is standard library only and runs under `python -S`. No fabric file changed (`INTEGRATION.md`). After
-G3 the layer has 34 modules on the stdlib-only list and eleven CLIs (section 7); sections 11 and 12 list what G2 and
-G3 added.
+G4 the layer has 39 modules on the stdlib-only list and eleven CLIs (section 7; G4 adds no CLI); sections 11 to 13
+list what G2, G3 and G4 added.
 
 ## 2. The boundary guard
 
@@ -154,21 +155,22 @@ Replies are validated locally against the full schema, even when the wire carrie
 | Guard | What it enforces |
 |---|---|
 | Import guard | `mycelic/{service,aggregation,store,transport,lineage}.py` import no model client and nothing from `mycelic.collective`. An AST check covers plain, relative and dynamic imports; a fresh-interpreter check confirms it. A missing core file fails loudly. |
-| Stdlib only | All 34 collective modules import, and the eleven CLIs (G2 adds the five E1 subcommands and `packs.loader check`; G3 adds `experiments.g0_canary`) answer `--help`, under `python -S` |
+| Stdlib only | All 39 collective modules import, and the eleven CLIs (G2 adds the five E1 subcommands and `packs.loader check`; G3 adds `experiments.g0_canary`; G4 adds none) answer `--help`, under `python -S` |
 | No model names | No model-family name in collective code, docs or tests. The matcher holds sha256 digests only. Example tags live only in `docs/collective/examples/`. |
-| Determinism | No wall clock or unseeded randomness in `jsonio`, `schemacheck`, `stats`, the runtime modules, the pack modules, `edge/{extract,weeks,records,egress,site}.py` and `leakage.py` |
+| Determinism | No wall clock or unseeded randomness in `jsonio`, `schemacheck`, `stats`, the runtime modules, the pack modules, `edge/{extract,weeks,records,egress,site}.py`, `leakage.py` and every `detect/*.py` (`ClockEntropyTests` checks by glob that each detect module is listed) |
 | Domain literals (G2) | No pack term (entity type, predicate, code, rule, template, follow-up type or role id of either built-in pack) is an identifier or a whole string constant in generic collective code, no string constant there contains `ILL-`, and no openFDA field name is a string constant in the pack, extraction or E1 code (one documented exemption: `text`, the payload key the brief fixes) |
 | Runbook | Every RUNBOOK command runs with `--dry-run`, with the network blocked, and creates nothing |
+| HQ imports (G4) | No `detect/*.py` imports `edge.records`, `edge.site`, `edge.extract`, `packs.generator`, `evaluate`, `leakage`, `experiments`, any `inference` module or a model client (AST check with relative imports resolved); a fresh interpreter importing every detect module loads none of them except `inference` and `inference.errors`, which the Boundary's validator pulls in |
 
 Each later gate extends the lists at the top of that module.
 
 ## 8. Where G1 sits in the loop (STRATEGY section 4.1)
 
-| Stage | What it needs | Status after G3 |
+| Stage | What it needs | Status after G4 |
 |---|---|---|
 | Sense | records become typed claims and per-site counts; structured codes (no model) and in-boundary extraction | **G1:** runtime (boundary-bound model calls, schema validation, ledger). **G2:** packs, the canonicaliser, the record connector, claim extraction from codes (S) and narratives (X), and the E1 harness. **G3:** each site's own record store, k-suppressed weekly count cells and windowed usage summaries that leave only through the Boundary, and the G0 text-leakage scan. The HQ counts store is G4 |
-| Detect | statistical detectors over counts; rules as a second channel | Later (no model is involved) |
-| Decide | candidate decided at the lowest unit spanning the evidence | Exists in the fabric for rule conclusions; candidates are later |
+| Detect | statistical detectors over counts; rules as a second channel | **G4:** HQ's collective store of immutable cells, the model-free detectors D2 to D7 over the k-suppressed weekly cells, the rules channel over the same cells, run X (codes and text-derived cells) and baseline S (codes only); section 13 |
+| Decide | candidate decided at the lowest unit spanning the evidence | **G4:** each candidate carries the decision unit of its supporting sites (their lowest common ancestor in the current org config); the fabric's rule conclusions are unchanged |
 | Verify (pushdown) | narrow questions answered by each site's in-boundary model from its own records | Later; it will call `Runtime.run` at each site, where the guard keeps raw text inside |
 | Follow up | approval-routed T0/T1 tasks | Later |
 | Check the outcome | did the failure mode recur | Later |
@@ -299,7 +301,7 @@ changes, and no real-model number is produced: every run here is synthetic, with
 | Part | Module | Purpose |
 |---|---|---|
 | Weeks | `edge/weeks.py` | ISO weeks (`YYYY-Www`, 52 or 53 a year), closed weeks, the recorded local date of a timestamp |
-| Record store | `edge/records.py` | One SQLite file per site (WAL); records, claims, extraction stats, late records and the emission log; the only SQL in the collective layer |
+| Record store | `edge/records.py` | One SQLite file per site (WAL); records, claims, extraction stats, late records and the emission log; the only SQL inside a site (HQ's is `detect/store.py`, section 13) |
 | Boundary | `edge/egress.py` | The only path out of a site: a closed spec per artifact type, cross-field checks, the `after` sequence, two append-only logs |
 | EdgeSite | `edge/site.py` | Ingest, extract, `emit_cells`, `emit_usage`; `build_cells` |
 | Leakage | `leakage.py` | Canary planting, the manifest, the scan |
@@ -430,3 +432,246 @@ site's ledger (every row must belong to `site:<id>`), takes the rows after those
 `ledger.summarise`. Per group, `calls` and each error kind are `'<k'` below k, `ok` and the missing-token counts may
 also be 0, and tokens and latency percentiles are sent only when `calls` is at least k. Each ledger row is summarised
 exactly once. A site without a runtime sends no usage.
+
+## 13. G4: detection at HQ
+
+G4 finds cross-site candidates that no rule was written for, using only the k-suppressed weekly cells that left the
+sites through the G3 Boundary. It runs two channels over the same store: **X** reads `codes` and `text_only` cells;
+**S**, the baseline, reads `codes` cells only, so nothing in an S run (history, eligibility, rules) depends on text.
+The hand-written rules run as a second channel over the same cells and are merged by key. Every parameter comes from
+the frozen pack (`detectors.json`, pinned by `detector_hash`). Detection uses no model, no clock and no entropy, and
+its result is byte-identical under any `PYTHONHASHSEED`. **Nothing in G4 is a measurement:** every number its tests
+print comes from synthetic, same-author data, and the sandbox timing in `INTEGRATION.md` is an engineering figure.
+
+| Part | Module | Purpose |
+|---|---|---|
+| Org config | `detect/org.py` | Sites, their unit paths (2 to 5 segments, below the enterprise, none nested), country and display name; `org_hash`; the decision unit of a set of sites |
+| Collective store | `detect/store.py` | HQ's own `collective.sqlite3`: immutable bundles and cells, rejections, the org log, saved runs; ingest of the receive log; the only SQL on the HQ side |
+| Rules channel | `detect/rules.py` | A rule fires for an entity when enough sites count enough in the rule's own window; pure |
+| Detectors | `detect/detectors.py` | `DetectorConfig`, the imputation, D2 to D7, the weekly walk, alerts and cooldown, the rules merge and the result JSON; `run_detection` (pure) and `detect(store, ...)` |
+| Statistics | `stats.py` (extended) | `poisson_logsf`, `binom_logsf`, `poisson_binomial_logsf`, `smoothed_pmi`, `logistic`, each formula in the module docstring |
+| Shared validator | `edge/egress.py` (additive) | `check_artifact` and `log_row_problem`, now public, so the Boundary and HQ run one validator |
+
+Import graph (no cycles): `org` imports `mycelic.hierarchy`, `jsonio` and the connector's site-id pattern; `store`
+imports `org`, `jsonio`, `edge.egress` and `edge.weeks` (the pack type only for type hints); `rules` imports no
+collective module at run time; `detectors` imports `stats`, `store`, `org`, `rules`, `edge.weeks` and `jsonio`. No
+detect module imports `edge.records`, `edge.site`, `edge.extract`, `packs.generator`, `leakage`, `experiments` or any
+inference module (the guard in section 7).
+
+### 13.1 Data flow
+
+```
+ sites (G3)                       HQ
+ Boundary.send ---> hq/receive.jsonl
+                         |
+                         v  CollectiveStore.ingest_log: each line checked (log_row_problem), each cells_bundle
+                         |  checked in a fixed order (duplicate, invalid, config_hash, unknown_site, the Boundary's
+                         |  own validator, site_mismatch, conflict, sequence); usage summaries are counted, not kept
+                         v
+                 collective.sqlite3: bundles + cells (immutable) | rejections | org_sites + org_log
+                         |
+                         v  detection_inputs(as_of, X|S): bundles and cells with as_of <= D, weeks <= closed_through(D),
+                         |  the run's channels, the current org's sites
+                         v
+                 run_detection: one pass builds prefix arrays; the weekly walk computes D2 to D7, the rules, the
+                         |       alert budget and cooldown
+                         v
+                 result JSON: weeks[], alerts[], candidates[] (snapshot and/or rule part, lineage), rule_hits[]
+                         |
+                         v  save_run (idempotent): detection_runs, candidates, rule_hits
+```
+
+### 13.2 The collective store
+
+Opened like the site store (`isolation_level=None`, WAL, so `':memory:'` is refused, `synchronous=FULL`, foreign
+keys on, 5 s busy timeout); every write is one `BEGIN IMMEDIATE ... COMMIT`, every `SELECT` carries `ORDER BY`, and
+timestamps come only from the injected clock. One writer per store.
+
+| Table | Columns |
+|---|---|
+| `store_info` | `key`, `value`: `schema_version`, `pack_id`, `config_hash`, `enterprise`; reopening with another value raises `StoreError('store_info mismatch: <key>')` |
+| `org_sites` | `site_id` (key), `unit_path`, `country`, `display_name`: the org config the store was last opened with |
+| `org_log` | `seq`, `site_id`, `old_unit_path`, `new_unit_path`, `org_hash`, `at`: one row per added, moved or removed site |
+| `bundles` | `sha256` (key), `seq`, `site`, `config_hash`, `as_of`, `after_week`, `closed_through`, `cells`, `received_at` |
+| `cells` | `site`, `entity_type`, `entity_id`, `predicate`, `iso_week`, `channel` (together the key), `n`, `n_roots`, `n_reporters` (NULL is `'<k'`), `res_conf_min` (NULL is absent), `as_of`, `bundle` |
+| `rejections` | `seq`, `sha256`, `site` (only a valid site id), `reason`, `path`, `keyword`, `line`, `received_at`; unique on `(sha256, reason)` |
+| `detection_runs` | `run_id` (key), `run_channel`, `as_of`, `last_week`, `tie_salt`, `config_hash`, `detector_hash`, `org_hash`, `result_sha256`, `saved_at` |
+| `candidates` | `run_id`, `key`, `first_candidate_week`, `detection_week`, `body` (canonical bytes) |
+| `rule_hits` | `run_id`, `rule_id`, `key`, `first_week`, `body` (canonical bytes) |
+
+Triggers abort any `UPDATE` or `DELETE` on `cells` and `bundles`; `store.py` has no such statement. No table has a
+fabric table name. `cells` is the counts table of STRATEGY section 4.5.
+
+**Ingest order and reasons** (`ingest_bundle(body, row_site=None)`), first failing check decides:
+
+| Step | Check | Result |
+|---|---|---|
+| 0 | the body's sha256 is already stored | `duplicate`, nothing written |
+| 1 | the body is not an object | `invalid` (`$`, `type`) |
+| 2 | a str `config_hash` other than the pack's (a missing one falls through to step 4) | `config_hash` |
+| 3 | a str `site` outside the current org | `unknown_site` |
+| 4 | `edge.egress.check_artifact` finds a problem (structure, counts, ids, ranges, order; an extra key such as a marginal is `additionalProperties`) | `invalid`, with its path and keyword |
+| 5 | the log row names another site than the body | `site_mismatch` |
+| 6 | a stored cell with the same key and other `(n, n_roots, n_reporters, res_conf_min)`, compared NULL-safe | `conflict` |
+| 7 | `after` other than the site's last accepted `closed_through` (None before the first), or `as_of` before the site's last accepted one | `sequence` |
+
+A rejection is one `rejections` row and never a value from the body. A bundle refused for `sequence` is accepted by a
+later ingest once its predecessor has arrived. `ingest_log` adds `bad_line` (a line that is not strict JSON or not a
+well-formed log row, recorded with the sha256 of the raw line and its 1-based number) and counts `usage_summary` rows
+as ignored; re-ingesting a file writes nothing new. **Org sync** on open compares `org_sites` with the config passed
+in: an added site logs `(NULL, path)`, a moved one `(old, new)`, a removed one `(old, NULL)`; a changed country or
+display name is updated without a log row; an identical org writes nothing. Detection always uses the config passed
+in, and cells of sites no longer in it are not read.
+
+### 13.3 The walk and the visibility model
+
+A run at `as_of` D reads only bundles with `as_of <= D` and cells of weeks up to `last_week = closed_through(D,
+close_lag_days)`; anything else handed to `run_detection` is counted in `ignored_cells` (`after_last_week`,
+`invisible_bundle`, `not_in_org`, `other_channel`). The walk covers the contiguous ISO weeks (built with `next_week`,
+so week 53 and year ends are handled) from the first week with a used cell to `last_week`. Step W uses every loaded
+cell with a week at or before W and nothing later.
+
+- **Reported.** A site has reported W when the largest `closed_through` among its loaded bundles is at or after W.
+  This is the *on-time-reporting assumption*: a bundle that reached HQ after W closed is still used at step W, which
+  is what makes a historical backfill (one bundle covering two years) testable. Lead times are only meaningful on
+  worlds whose sites emit every week (G5), and the alerts a deployment actually raised are those each saved run holds.
+- **History.** `history_weeks(s, W) = max(0, idx(W) - window_weeks - idx(site_start) + 1)`, where `site_start` is the
+  site's first week with a used cell in the run's channels (for S, codes only). A site is `late` (not reported),
+  `short_history` (reported, fewer than `min_history_weeks`) or `eligible`. A step with no eligible site is
+  `insufficient_baseline`: D2 and D3 are skipped there, rules still run.
+- **Windows.** `Window(W)` is the `window_weeks` weeks ending at W; `Baseline(W)` the `baseline_weeks` weeks ending
+  at `W - window_weeks`; indices are clipped at 0. The step's own `as_of_W = min(D, sunday(W) + close_lag_days + 6
+  days)` is used only for staleness and is reported per week.
+
+### 13.4 Imputation
+
+`bounds(v, k)` is `(v, v)` for an int count and `(1, k - 1)` for `'<k'`; an absent cell is `(0, 0)`. In run X a
+series' week at a site adds the bounds of its `codes` and `text_only` cells (two `'<k'` cells give `(2, 2k - 2)`).
+Each use takes the side that makes a detector less likely to fire:
+
+| Use | Side taken for `'<k'` |
+|---|---|
+| D2 window count c (evidence) | lower bound |
+| D2 baseline rate (null hypothesis) | upper bound |
+| D2 past exceedance for `p_s` (A1) | window upper bound, baseline lower bound ("possible") |
+| D3 window PMI: numerators `n_ep` and `N` | lower bound |
+| D3 window PMI: marginals `n_e` and `n_p` | upper bound |
+| D3 baseline PMI: numerators | upper bound |
+| D3 baseline PMI: marginals | lower bound |
+| D3 support (`n_ep >= k`) | lower bound |
+| Rule count per site | lower bound |
+| D5 independent roots | lower bound of `n_roots` |
+| D5 `root_ratio_ub` | numerator: per cell `min(ub n_roots, ub n)`; denominator: lower bound of `n`; capped at 1.0 |
+| D6 few reporters | an int `n` with `n_reporters` `'<k'` (at most k-1 reporters; it cannot tell 1 from k-1) |
+| D4 `res_conf` | lowest `res_conf_min` over cells with an int `n`; null when there is none |
+
+### 13.5 Detectors and the ranker
+
+Series are `(entity_type, entity_id, predicate)` with any used cell; a key is `<entity_type>:<entity_id>:<predicate>`.
+
+- **D2, cross-site burst.** For each eligible site: `B = min(baseline_weeks, history_weeks)`, `lambda =
+  max(lambda_floor, baseline ub / B)`, `expected = lambda * window_weeks`, `c` = window lower bound, `logp =
+  poisson_logsf(c, expected)`; the site **certainly exceeds** when `c >= 1` and `logp < log(alpha_site)`. That holds
+  for every value consistent with the suppression, because `P(X >= c)` falls in `c` and rises in `lambda`.
+  `possible(w)` is the same test with the window upper bound against `max(lambda_floor, baseline lb / B)`. `p_s =
+  clip(#possible / |P|, p_min, p_max)` over `P = {w <= W - window_weeks : history_weeks(s, w) >= min_history_weeks}`
+  (`p_max` when P is empty), so no past window overlaps the current one and `p_s` is an upper bound on the site's base
+  rate (A1). With `m` certainly exceeding among `n` eligible sites, `surprise = -poisson_binomial_logsf([p_s in
+  site order], m)`, finite because `p_s` lies inside (0, 1). A candidate when `m >= burst.min_sites`. A site whose
+  history of the series is all `'<k'` stays in `n` with its conservative `p_s` and is listed in
+  `flags.suppressed_history_sites` (A2): leaving out a trial that did not exceed would raise the surprise.
+- **D3, co-occurrence lift.** For each eligible site, within the key's entity type: `n_ep` (the key), `n_e` (the
+  entity over all predicates), `n_p` (the predicate over all entities of the type) and `N` (all cells of the type),
+  all derived from cells (no emitted marginal exists; the Boundary refuses any extra key). `pmi_window =
+  smoothed_pmi(n_ep lb, n_e ub, n_p ub, N lb, pmi_smoothing)` over the window, `pmi_baseline = smoothed_pmi(n_ep ub,
+  n_e lb, n_p lb, N ub, pmi_smoothing)` over the site's baseline weeks; `rise = pmi_window - pmi_baseline`; rising
+  when `rise > pmi_delta` and `n_ep lb >= k`. A candidate when `cooccurrence.min_sites` sites rise. D2 and D3 on one
+  key give one candidate; `detectors` lists `d2` and/or `d3`.
+- **D4, resolution.** `res_conf` as in the table; `low_res_conf` is 1.0 when it is known and below
+  `resolution.res_conf_min`.
+- **D5, independence.** `independent_roots` is the sum of the lineage cells' lower-bound roots (root-cells: a root
+  that spans weeks or channels counts more than once, a documented limitation); `root_ratio_ub` as in the table.
+- **D6, decoys.** `echo` when `root_ratio_ub < echo_min_ratio`, which is flagged only when certain: an int `n` of 10
+  with 3 roots gives 0.3 (echo); at k = 3, `'<k'` roots with an int `n` of 4 give 2/4 = 0.5 (no echo) and with an
+  int `n` of 10 give 0.2 (echo: fewer than k roots is certain); a `'<k'` `n` caps the ratio at 1.0.
+  `few_reporters_sites`: contributing sites with a lineage cell of int `n` and `'<k'` reporters (with k = 5 in `claims_integrity` that means
+  at most 4 reporters). `high_base_rate` (A3): the share of eligible sites where **another** series of the same
+  predicate (any entity type) certainly exceeds is above `base_rate_site_fraction`; the key itself is left out, so a
+  single-entity burst never flags itself, but the flag stays predicate-wide. `short_history_sites`: contributing
+  sites with status `short_history`. **Stale** is a hard filter: when the newest lineage week's Sunday is more than
+  `stale_days` before `as_of_W`, the candidate is removed at that step (`weeks[].stale_removed`). Because
+  `stale_days >= close_lag_days + 7` (checked at load), the newest closed week is never stale.
+- **D7, ranker.** Features: `burst_surprise` (the D2 surprise, 0.0 when `m = 0`), `pmi_rise` (mean rise over rising
+  sites), `log_independent_roots = log1p(independent_roots)`, `supporting_sites`, `low_res_conf`, `echo`,
+  `few_reporters_share = |few_reporters_sites| / |contributing_sites|`, `high_base_rate`. `score = logistic(bias +
+  fsum(weight_f * feature_f))`. These are default weights; nothing is fitted and there is no learning.
+
+Per candidate: `contributing_sites` are reported sites with a window cell of the key, `lineage` those cells (site,
+type, id, predicate, week, channel, bundle), `supporting_sites` the eligible sites that exceed or rise, and
+`decision_unit = org.decision_unit(supporting_sites)`, from the org config passed in.
+
+### 13.6 Alerts, cooldown and ties
+
+Per week, the detector candidates left after the stale filter are split into cooling and eligible keys. A key that
+alerted cools until it has been absent from the candidates for `cooldown_weeks` consecutive steps; a cooling key
+that appears again restarts its count and uses no budget (a stale-removed step counts as absent). The eligible keys
+are ordered by `(-score, sha256(tie_salt|key))` and the first `alert_budget_per_week` alert, ranked from 1; the
+lexical key never decides a tie, and another salt can flip it. Budget 0 gives no alerts. `detection_week` is a key's
+first alert week (null if it never alerted) and `alert_weeks` lists every alert.
+
+### 13.7 The rules channel
+
+At every step, each pack rule is evaluated over the reported sites' lower-bound window counts, in the rule's own
+`window_weeks`, for its entity type and predicate in the run's channels. A hit needs `min_sites` sites each counting
+at least `min_count_per_site`. There is no history requirement and no stale filter; late sites are left out. Rule
+hits are never ranked and never use the alert budget. `rule_hits[]` holds `{rule_id, key, first_week, weeks,
+sites_at_first}`; a candidate's `channels` is the sorted subset of `["detector", "rule"]`, and a rule-only key is a
+candidate with a null snapshot and no alert.
+
+### 13.8 The result JSON
+
+```
+{"schema_version": 1, "run_id": "det-<16 hex>", "pack", "config_hash", "detector_hash", "org_hash", "run_channel",
+ "cell_channels", "as_of", "first_week", "last_week", "tie_salt", "bundles", "bundles_sha256", "cells",
+ "ignored_cells": {"after_last_week", "invisible_bundle", "not_in_org", "other_channel"},
+ "status": "ok" | "insufficient_baseline" | "empty", "insufficient_baseline_weeks",
+ "weeks": [{"week", "as_of", "status", "reported_sites", "eligible_sites", "late_sites", "candidates",
+            "stale_removed", "cooling", "rule_hits", "alerts"}],
+ "alerts": [{"week", "rank", "key", "score"}],
+ "candidates": [{"key", "entity_type", "entity_id", "predicate", "run_channel", "channels", "detectors",
+                 "first_candidate_week", "candidate_weeks", "alert_weeks", "detection_week", "decision_unit",
+                 "config_hash", "detector_hash", "org_hash", "snapshot", "rule"}],
+ "rule_hits": [{"rule_id", "key", "first_week", "weeks", "sites_at_first"}]}
+```
+
+`run_id` is `det-` plus the first 16 hex characters of the sha256 of the canonical `{run_channel, as_of, tie_salt,
+config_hash, detector_hash, org_hash, sorted visible bundle shas}`, so a later bundle never changes an earlier run's
+id. `snapshot` is the detector part at the detection week (else the first candidate week): `week`, `as_of`,
+`window`, `score`, `features`, `flags` (`echo`, `few_reporters_sites`, `high_base_rate`, `short_history_sites`,
+`suppressed_history_sites`), `res_conf`, `independent_roots`, `root_ratio_ub`, `d2` (`m`, `n`, `surprise`, one entry
+per org site with its status, history, `c`, rate, expected, `logp`, `exceeded`, `p_s`, suppressed history),
+`d3` (`rising`, one entry per org site with `n_ep_lb`, both PMIs, `rise`, `rising`), `supporting_sites`,
+`contributing_sites`, `decision_unit` and `lineage`; fields not defined for a site's status are null. `rule` is the
+rule part at its first week: `rule_ids`, `first_week`, `weeks`, `window`, `sites` (`site`, `rule_id`, `count_lb`),
+`decision_unit` and `lineage`. Every list is sorted and floats are as computed.
+
+### 13.9 What detection can and cannot see when every cell is `'<k'`
+
+At the built-in packs' synthetic volumes every weekly cell is `'<k'` (G3 merge note 2). Then:
+
+- **D2 can still fire** on a fresh or low-background series: two `'<k'` window weeks give `c = 2` against
+  `lambda_floor * window_weeks = 0.08`, and `P(X >= 2) = 0.003 < 0.01`. A series present every week cannot burst
+  this way: its baseline rate is taken at the upper bound (k-1 per `'<k'` week) while its window counts 1 per week.
+- **D3 needs `n_ep lb >= k`**, which `'<k'` cells reach only by summing over the window (k cells, each counting 1).
+- **Few reporters and `res_conf` are invisible**: both need an int `n`. Echo cannot be shown either, since a
+  `'<k'` `n` caps `root_ratio_ub` at 1.0.
+
+The end-to-end test runs generated worlds of both packs through `EdgeSite`, the receive log, the store and both
+runs. What it printed in this sandbox, quoted only as **synthetic, same-author world, not a measurement** (seed 4, 40
+weeks, six sites): `device_quality` X 3,155 cells, 26 candidates (10 from the detectors), 10 alerts, 18 rule hits;
+S 1,367 cells, 9 candidates (2), 2 alerts, 7 rule hits. `claims_integrity` X 2,854 cells, 20 candidates (11),
+11 alerts, 9 rule hits; S 1,007 cells, 7 candidates (2), 2 alerts, 5 rule hits. These worlds plant nothing on
+purpose; the counts say only that the pipeline runs end to end. Recall, lead time and false alarms come from G5's
+harness, never from these lines.
+
+Nothing is ported from `origin/claude/mycelic-implementation-vr034p` in G4 (`INTEGRATION.md`).

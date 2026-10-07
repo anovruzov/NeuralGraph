@@ -23,7 +23,7 @@ It contains exactly these files; names starting with `.` are ignored and anythin
 | `mapping.json` | how a vendor export maps to an internal record (paths with `[]` fan-out and a `where` filter, code value maps, entity paths, the primary entity type, narrative sources, person fields, the reporter, a forward's origin, required targets) |
 | `mapping_openfda.json` | optional: the same format for openFDA device events (device pack only) |
 | `egress.json` | k, count suppression and granularity, verdict count buckets, which entity types may leave a site, the fields that never leave (`never_fields`) and the fields a restricted central baseline may read, verification limits |
-| `detectors.json` | detector parameters: alert budget, baseline and window weeks, burst, co-occurrence, independence, decoy filters and ranker weights (semantics belong to the detector gate; G2 freezes the shape) |
+| `detectors.json` | the parameters of the HQ detectors (G4 set the shape; section 1.1): alert budget and cooldown, baseline, window and minimum history weeks, the burst test, co-occurrence lift, resolution, independence, decoy filters and the ranker's default weights |
 | `rules.json` | hand-written rules, the second detection channel |
 | `questions.json` | pushdown question templates; only `{window}`, `{predicate_label}`, `{entity_type_label}` and `{entity_id}` may appear, without conversions or format specs, so a template can embed no record content |
 | `followups.json` | roles and follow-up types: tier (T0 packet, T1 draft, T2 write; T3 is never an action type and an enabled T2 is refused), owner and escalation roles, daily cap, acknowledgement days, an argument DSL (entity id, predicate, conclusion id, enum, integer: no free text) and, for drafts, a JSON schema whose every string has a `maxLength` |
@@ -55,6 +55,43 @@ leaves (alias-only types always pass). `never_fields` never leave by constructio
 canonical id, a predicate, a week, a channel and counts. Because these values are part of `config_hash`, changing
 one (G0's `--require-master-data` override included) means a new pack copy, a new hash and a new site store.
 `LEAKAGE.md` describes what may cross and how G0 checks that text does not.
+
+### 1.1 `detectors.json` (G4)
+
+A closed object; every key is required and every number is a finite strict-JSON number. The loader checks the ranges
+below, the open ends explicitly, and four cross-checks: `window_weeks` is at least `egress.min_window_weeks`,
+`0 < p_min <= p_max < 1`, `lambda_floor > 0`, and `stale_days >= egress.close_lag_days + 7` (so the newest closed
+week is never stale). There is deliberately no relation between `min_history_weeks` and `baseline_weeks`.
+`ARCHITECTURE.md` section 13 gives every formula.
+
+| Key | Range | Meaning |
+|---|---|---|
+| `alert_budget_per_week` | int 0..1000 | how many candidates may alert per week (rule hits never use it) |
+| `cooldown_weeks` | int 0..52 | consecutive weeks a key must be absent from the candidates before it may alert again |
+| `baseline_weeks` | int 4..104 | the baseline: the weeks ending at `W - window_weeks` |
+| `window_weeks` | int 1..26, and >= `egress.min_window_weeks` | the current window: the weeks ending at W |
+| `min_history_weeks` | int 1..104 | weeks of history a site needs before the window to be eligible |
+| `burst.alpha_site` | (0, 0.5] | a site exceeds when `P(X >= c) < alpha_site` under its baseline rate |
+| `burst.lambda_floor` | (0, 1] | the lowest weekly baseline rate, so a never-seen series has a finite surprise |
+| `burst.p_min`, `burst.p_max` | `0 < p_min <= p_max < 1` | the clip of each site's base rate `p_s`; `p_max` when a site has no past window |
+| `burst.min_sites` | int 2..1000 | certainly exceeding sites a D2 candidate needs |
+| `cooccurrence.pmi_smoothing` | (0, 10] | the additive smoothing of the PMI |
+| `cooccurrence.pmi_delta` | [0, 20] | the PMI rise over the baseline a site needs to count as rising |
+| `cooccurrence.min_sites` | int 2..1000 | rising sites a D3 candidate needs |
+| `resolution.res_conf_min` | (0, 1] | a lineage resolution confidence below this sets `low_res_conf` |
+| `independence.echo_min_ratio` | (0, 1] | an upper-bound root ratio below this sets `echo` |
+| `decoy.stale_days` | int 7..3660, and >= `close_lag_days + 7` | a candidate whose newest lineage week is older than this at the step's as_of is removed |
+| `decoy.base_rate_site_fraction` | (0, 1] | the share of eligible sites where another series of the predicate exceeds above which `high_base_rate` is set |
+| `ranker.bias` | number | the ranker's intercept |
+| `ranker.weights` | a number for each of `burst_surprise`, `pmi_rise`, `log_independent_roots`, `supporting_sites`, `low_res_conf`, `echo`, `few_reporters_share`, `high_base_rate` | the ranker's default weights |
+
+**Both built-in packs use the same author's defaults, not fitted values:** budget 5 (4 for `claims_integrity`),
+cooldown 4, baseline 26, window 8, minimum history 12; `alpha_site` 0.01, `lambda_floor` 0.01, `p_min` 0.01, `p_max`
+0.25, burst and co-occurrence `min_sites` 2; `pmi_smoothing` 0.5, `pmi_delta` 1.0; `res_conf_min` 0.95;
+`echo_min_ratio` 0.5; `stale_days` 42 (56 for `claims_integrity`, whose `close_lag_days` is 21);
+`base_rate_site_fraction` 0.5; bias -4.0 and weights 0.35, 0.5, 0.4, 0.3, -1.0, -1.5, -1.0, -1.5 in the order above.
+They are default weights; nothing learns them. Changing any of them changes `config_hash` and `detector_hash`, so
+site stores made with the old pack refuse to reopen (`site_info mismatch`) and a new HQ store is needed.
 
 ## 2. Freezing and the four hashes
 

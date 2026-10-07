@@ -13,6 +13,31 @@ recomputed bit for bit from the run file.
   to find), never 1.0 by convention.
 * :func:`bootstrap_f1` resamples records (each a ``(tp, fp, fn)`` triple) with replacement and recomputes the
   pooled F1; resamples whose F1 is undefined are counted in ``undefined`` and left out of the percentiles.
+
+The detector tails (G4). "sf" means the inclusive upper tail ``P(X >= m)``; every ``*_logsf`` is its natural log,
+computed in log space so that counts up to 8*10^9 stay finite, and is never above 0.0:
+
+* :func:`poisson_logsf` ``(c, lam)``: ``log P(X >= c)`` for ``X ~ Poisson(lam)``, ``c`` an int >= 0, ``lam`` finite
+  and > 0. ``c = 0`` gives 0.0. Otherwise ``P(X >= c)`` is the regularised lower incomplete gamma ``P(c, lam)``
+  with log prefactor ``-lam + c*log(lam) - lgamma(c)``. When ``lam < c + 1`` it is the prefactor times the series
+  ``sum_{n>=0} lam^n / (c (c+1) ... (c+n))``, stopped when a term falls below ``sum * 1e-17``; otherwise
+  ``log1p(-Q)``, with ``Q(c, lam)`` the prefactor times the modified-Lentz continued fraction, stopped when
+  ``|delta - 1| < 1e-16``. Either loop raises ``ArithmeticError`` after 10^7 iterations.
+* :func:`binom_logsf` ``(m, n, p)``: ``log P(X >= m)`` for ``X ~ Bin(n, p)``; ``m <= 0`` gives 0.0, ``m > n``
+  gives -inf, ``p = 0`` gives -inf and ``p = 1`` gives 0.0; otherwise the log-sum-exp of
+  ``lgamma(n+1) - lgamma(j+1) - lgamma(n-j+1) + j*log(p) + (n-j)*log1p(-p)`` over ``j = m..n``.
+* :func:`poisson_binomial_logsf` ``(ps, m)``: ``log P(sum_i Bernoulli(p_i) >= m)`` by the exact O(n^2) dynamic
+  programme in log space: ``dp[0] = 0``, the rest -inf; per ``p``,
+  ``new[j] = logaddexp(dp[j] + log1p(-p), dp[j-1] + log(p))``, where a term with ``p = 0`` or ``p = 1`` is skipped
+  rather than taking ``log(0)``; the tail is ``logsumexp(dp[m..n])``. ``m <= 0`` gives 0.0, ``m > n`` -inf, and an
+  exactly-zero probability -inf.
+* :func:`smoothed_pmi` ``(n_xy, n_x, n_y, n, a) = log(((n_xy + a)(n + a)) / ((n_x + a)(n_y + a)))``, counts and
+  ``a`` non-negative; a zero factor raises ``ValueError('undefined')``.
+* :func:`logistic` ``(x) = 1 / (1 + exp(-x))`` for ``x >= 0`` and ``exp(x) / (1 + exp(x))`` otherwise, so it never
+  overflows: ``logistic(-800) == 0.0`` and ``logistic(800) == 1.0``.
+
+Each validates its input (no bool, no NaN or infinity, ints where an int is meant) and raises ``ValueError`` with a
+message that names the argument, never its value.
 """
 from __future__ import annotations
 
@@ -156,3 +181,153 @@ def bootstrap_f1(counts: Sequence[Sequence[int]], *, B: int, seed: int | str, al
     return {"f1": f1_from_counts(*total), "ci_low": percentile(reps, 100 * alpha / 2) if reps else None,
             "ci_high": percentile(reps, 100 * (1 - alpha / 2)) if reps else None, "B": B, "seed": seed,
             "method": "percentile", "undefined": undefined}
+
+
+# --------------------------------------------------------------------------------------------------- detector tails
+
+NEG_INF = -math.inf
+MAX_ITERATIONS = 10 ** 7
+_TINY = 1e-300
+
+
+def _int_arg(v: Any, what: str, lo: int | None = None) -> int:
+    if isinstance(v, bool) or not isinstance(v, int) or (lo is not None and v < lo):
+        raise ValueError(f"{what} must be an int" + ("" if lo is None else f" >= {lo}")) from None
+    return v
+
+
+def _real_arg(v: Any, what: str) -> float:
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or (isinstance(v, float) and not math.isfinite(v)):
+        raise ValueError(f"{what} must be a finite number (no bool)") from None
+    return v
+
+
+def _log_add(a: float, b: float) -> float:
+    if a == NEG_INF:
+        return b
+    if b == NEG_INF:
+        return a
+    hi, lo = (a, b) if a >= b else (b, a)
+    return hi + math.log1p(math.exp(lo - hi))
+
+
+def _log_sum(xs: Sequence[float]) -> float:
+    hi = max(xs, default=NEG_INF)
+    if hi == NEG_INF:
+        return NEG_INF
+    return hi + math.log(math.fsum(math.exp(x - hi) for x in xs))
+
+
+def poisson_logsf(c: int, lam: float) -> float:
+    c = _int_arg(c, "c", 0)
+    lam = _real_arg(lam, "lam")
+    if lam <= 0:
+        raise ValueError("lam must be > 0") from None
+    if c == 0:
+        return 0.0
+    prefix = -lam + c * math.log(lam) - math.lgamma(c)
+    if lam < c + 1:
+        term = total = 1.0 / c
+        n = 0
+        while term >= total * 1e-17:
+            n += 1
+            if n > MAX_ITERATIONS:
+                raise ArithmeticError("poisson_logsf series did not converge") from None
+            term *= lam / (c + n)
+            total += term
+        return min(0.0, prefix + math.log(total))
+    b = lam + 1.0 - c
+    lentz_c = 1.0 / _TINY
+    d = 1.0 / b
+    h = d
+    i = 0
+    while True:
+        i += 1
+        if i > MAX_ITERATIONS:
+            raise ArithmeticError("poisson_logsf continued fraction did not converge") from None
+        an = -i * (i - c)
+        b += 2.0
+        d = an * d + b
+        if abs(d) < _TINY:
+            d = _TINY
+        lentz_c = b + an / lentz_c
+        if abs(lentz_c) < _TINY:
+            lentz_c = _TINY
+        d = 1.0 / d
+        delta = d * lentz_c
+        h *= delta
+        if abs(delta - 1.0) < 1e-16:
+            break
+    return min(0.0, math.log1p(-math.exp(prefix) * h))
+
+
+def poisson_sf(c: int, lam: float) -> float:
+    return math.exp(poisson_logsf(c, lam))
+
+
+def binom_logsf(m: int, n: int, p: float) -> float:
+    m = _int_arg(m, "m")
+    n = _int_arg(n, "n", 0)
+    p = _real_arg(p, "p")
+    if not 0 <= p <= 1:
+        raise ValueError("p must be in [0, 1]") from None
+    if m <= 0:
+        return 0.0
+    if m > n or p == 0:
+        return NEG_INF
+    if p == 1:
+        return 0.0
+    lp, lq, top = math.log(p), math.log1p(-p), math.lgamma(n + 1)
+    terms = [top - math.lgamma(j + 1) - math.lgamma(n - j + 1) + j * lp + (n - j) * lq for j in range(m, n + 1)]
+    return min(0.0, _log_sum(terms))
+
+
+def binom_sf(m: int, n: int, p: float) -> float:
+    return math.exp(binom_logsf(m, n, p))
+
+
+def poisson_binomial_logsf(ps: Sequence[float], m: int) -> float:
+    if not isinstance(ps, (list, tuple)):
+        raise ValueError("ps must be a list or tuple of probabilities") from None
+    probs = []
+    for p in ps:
+        p = _real_arg(p, "each p")
+        if not 0 <= p <= 1:
+            raise ValueError("each p must be in [0, 1]") from None
+        probs.append(p)
+    m = _int_arg(m, "m")
+    n = len(probs)
+    if m <= 0:
+        return 0.0
+    if m > n:
+        return NEG_INF
+    dp = [0.0] + [NEG_INF] * n
+    for p in probs:
+        if p == 0:
+            continue
+        if p == 1:
+            dp = [NEG_INF] + dp[:-1]
+            continue
+        lp, lq = math.log(p), math.log1p(-p)
+        dp = [_log_add(dp[j] + lq, dp[j - 1] + lp if j else NEG_INF) for j in range(n + 1)]
+    return min(0.0, _log_sum(dp[m:]))
+
+
+def smoothed_pmi(n_xy: float, n_x: float, n_y: float, n: float, smoothing: float) -> float:
+    for name, v in (("n_xy", n_xy), ("n_x", n_x), ("n_y", n_y), ("n", n), ("smoothing", smoothing)):
+        if _real_arg(v, name) < 0:
+            raise ValueError(f"{name} must be >= 0") from None
+    a = smoothing
+    num = (n_xy + a) * (n + a)
+    den = (n_x + a) * (n_y + a)
+    if num == 0 or den == 0:
+        raise ValueError("undefined") from None
+    return math.log(num / den)
+
+
+def logistic(x: float) -> float:
+    x = _real_arg(x, "x")
+    if x >= 0:
+        return 1.0 / (1.0 + math.exp(-x))
+    e = math.exp(x)
+    return e / (1.0 + e)

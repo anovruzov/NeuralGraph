@@ -458,3 +458,155 @@ Further decisions the brief left open:
   every row, and a Boundary refuses an egress log holding another site's rows.
 - **The `ledger.py` module docstring** now says that what crosses is the windowed form (its old text said the raw
   summary was the artifact meant to cross).
+
+## G4
+
+**Base.** Branch `mycelic-collective-phase2` at e5575ba (G3), a clean worktree. **Nothing is ported** from
+`origin/claude/mycelic-implementation-vr034p` in G4. That branch's `discovery/engine.py` is an async, model-driven
+goal loop over `CoordDB` (jobs that route questions, evaluate model answers and commit claims); it has no count
+store and no count detectors, which is what G4 builds.
+
+**Scope: fabric files changed: none.** `git diff --stat e5575ba` touches only:
+
+- new: `mycelic/collective/detect/{__init__,org,store,rules,detectors}.py` and
+  `tests/mycelic/test_collective_detect.py`;
+- changed additively: `mycelic/collective/stats.py` (the detector tails, PMI and logistic, each formula in the
+  docstring), `mycelic/collective/edge/egress.py` (public `check_artifact` and `log_row_problem`; behaviour
+  byte-identical and every G3 test unchanged), `mycelic/collective/edge/records.py` (one docstring sentence),
+  `mycelic/collective/packs/loader.py` (the `detectors.json` schema, its checks and the reserved key lists), both
+  packs' `detectors.json`, the docstring of `mycelic/collective/__init__.py`, `tests/mycelic/test_collective_stats.py`
+  (four new classes), `tests/mycelic/test_collective_guards.py` (lists grown, the stdlib count 34 to 39, an optional
+  `prefixes` argument for `forbidden_imports`, `HqImportGuardTests` and `ClockEntropyTests`) and
+  `docs/collective/{ARCHITECTURE,PACKS,INTEGRATION}.md`.
+
+`mycelic/{service,store,aggregation,transport,api,lineage,config}.py`, `deploy/`, `SECURITY.md`, `DEPLOYMENT.md`,
+`NeuralGraph/` and `research/` have no diff (S2: `git diff --stat e5575ba -- <those paths>` is empty). There is no
+new CLI and `RUNBOOK.md` is unchanged. HQ's store is its own SQLite file (`collective.sqlite3`, any path the caller
+gives) with its own tables; no table has a fabric table name.
+
+### S1 test baseline
+
+| Suite | Before G4 (e5575ba, clean worktree) | After G4 |
+|---|---|---|
+| `python -m pytest tests/mycelic -q -p no:warnings` | 499 passed (20,095 subtests) in 198 s | 597 passed (23,358 subtests) = 499 + 98 new, 0 skipped, in 214 s |
+| `python -m pytest NeuralGraph/tests -q -p no:warnings` | 222 passed, 1 skipped (119 subtests) in 6 s | unchanged: 222 passed, 1 skipped (119 subtests) in 5 s |
+
+The one skip is the same as in G1 to G3 (`test_single_hop_regression.py`, "Requires full NeuralGraph setup with
+data"). The 98 new tests:
+
+- `test_collective_detect.py`: 77 (config; org and decision units; the store, its ingest order, rejections,
+  immutability, visibility and org sync; imputation; D2; D3; D4 to D6; the ranker; channels; the alert walk; no
+  look-ahead; determinism across hash seeds and `save_run`; the rules channel; org changes; end to end over generated
+  worlds of both packs; performance);
+- `test_collective_stats.py`: 14 (`PoissonBinomialTests`, `TailTests`, `PMITests`, `LogisticTests`);
+- `test_collective_guards.py`: 7 (`HqImportGuardTests` 5, `ClockEntropyTests` 2; the lists grew by five stdlib
+  modules and five deterministic modules).
+
+No G1 to G3 test was modified except the guard lists (and the count they assert) in `test_collective_guards.py`. No
+skip decorator, no network, temporary directories only. The acceptance command `python -m pytest
+tests/mycelic/test_collective_detect.py tests/mycelic/test_collective_stats.py tests/mycelic/test_collective_guards.py
+-q -p no:warnings` passed 144 tests (3,903 subtests) in 26 s on the shared machine.
+
+### S4: what the suites leave behind
+
+After both suites `git status --porcelain` lists only the G4 files above, `runs/` holds only its `.gitignore`, and
+there is no untracked `*.sqlite3`, `*.db` or `*.jsonl` in the worktree. The ignored leftovers are those G1 listed
+(`__pycache__/`, `.pytest_cache/`, `demo/results/`). Every G4 test writes only to temporary directories; the
+determinism subprocesses work in a temporary directory of the test.
+
+### Pack hashes (G4 changed `detectors.json`, amendment A5)
+
+| Pack | Hash | Before (G3) | After (G4) |
+|---|---|---|---|
+| `device_quality` | `config_hash` | `6e442cc37c7ecf16d6380fc95206aacb1fbe8ada5f022ec1981ea9cae1386d86` | `83c094ffee1f157203f7265a59bdbfc35b7d8f8ed07c35304743377dd301d723` |
+| `device_quality` | `detector_hash` | `21fae9365549617917ccd8d133d2975a37102706cacc8c750dcb524488686625` | `c9462f62aa90245f2c7cee50078d337554bded58c4630cda7becbf7a8048c7ec` |
+| `claims_integrity` | `config_hash` | `6d7e410d21ae45394f84455959d964fc9da80eb82542f3018d01481e2275b0bd` | `130b8396eb92e5af060f0dc7b645fb80f00be1e041c1f0d224bcb49566f0cb01` |
+| `claims_integrity` | `detector_hash` | `a46e83df4f68fa60aaf98d5149d251e010b4f8a9a1dd426122c2406018cb7b75` | `2041fe9b3e141a5603836d893c97d5671eb21cbb3da611969efbd0c2c4514b84` |
+
+`vocabulary_hash` and `fixtures_hash` are unchanged (`device_quality` `e46f521154ce...` and `dc4b70b7044b...`;
+`claims_integrity` `028b7603f2b6...` and `a2e8936b4be2...`). Printed by `python -m mycelic.collective.packs.loader
+check <pack>`. No hash was pinned anywhere in the repository.
+
+### Merge notes
+
+1. **`collective.sqlite3`'s `cells` is the HQ counts table** of STRATEGY section 4.5, so the fabric needs no counts
+   table for Phase 1. The fabric's `candidate` event kind (and the question, verdict and follow-up kinds) stays an
+   integration note for the gates that publish candidates into the event log.
+2. **`detect/org.py` imports `mycelic.hierarchy`** (`split_path`, `validate_segment`, `is_ancestor_or_self`,
+   `HierarchyError`), which is not on the other team's list of files they are changing. If the merge changes those
+   functions, `OrgTests` and `DecisionUnitTests` catch it.
+3. **The pack hashes changed**, so site stores made with the old packs refuse to reopen (`site_info mismatch:
+   config_hash`), as designed; a new HQ store is needed as well (`store_info mismatch: config_hash`).
+4. **One writer per HQ store.** Ingest reads and writes inside one `BEGIN IMMEDIATE` transaction per bundle, but a
+   multi-process HQ is not a supported deployment.
+
+### Performance (sandbox engineering timing, not a product figure)
+
+`PerformanceTests` ingests 6 sites x 52 weekly bundles (312 bundles) over 2,002 series (182 lot ids x 11
+predicates) with a seeded density: 205,939 cells (about three quarters `codes`, a quarter `text_only`; 85 % of
+them `'<k'`), every bundle through `ingest_bundle` with the full validator. On this sandbox (4 vCPU, Intel Xeon
+2.10 GHz, Python 3.11, shared with another team's suites) ingest took 7.0 to 7.3 s and the X detection run 7.1 to
+7.6 s (two runs), against the 180 s bound the test asserts. The cells are synthetic and random; the figure says only
+that this size runs well inside the bound here, nothing about any partner's data or volume.
+
+### Decisions and deviations: amendments A1 to A12 (as implemented)
+
+- **A1** `p_s` uses only past windows ending at or before `W - window_weeks`, each with at least
+  `min_history_weeks` of history, and counts a window when its exceedance was *possible* (window `'<k'` = k-1,
+  baseline `'<k'` = 1): an upper bound on the site's base rate. Tests: hand `p_s` (p_max, 1/14), overlapping and
+  current windows never counted.
+- **A2** A fully suppressed history stays in `n` with its conservative `p_s` and is listed in
+  `flags.suppressed_history_sites`; a test shows the surprise with it kept is at most the surprise without it.
+- **A3** `high_base_rate` counts eligible sites where *another* series of the predicate (any entity type) certainly
+  exceeds; a single-entity burst at 3 or at 4 of 6 sites does not flag itself.
+- **A4** Visibility is set at run level (bundles with `as_of <= D`, weeks up to `last_week`); step W uses every loaded
+  cell with a week at or before W; a site has reported W when its loaded bundles cover W (the on-time-reporting
+  assumption); `as_of_W` is used only for staleness and is reported per week (`ARCHITECTURE.md` section 13.3).
+- **A5** `detectors.json` has the new closed shape in both packs; both packs' `config_hash` and `detector_hash`
+  changed (table above). G2/G3 code and tests read only `baseline_weeks` and `window_weeks`, which are kept, and G3's
+  high-volume copy (`baseline_weeks` 4) still loads.
+- **A6** Rules name a predicate, never a code.
+- **A7** Rule hits are never ranked and never use the alert budget; they are merged into candidates by key.
+- **A8** The store enforces each site's sequence (`after` equals the last accepted `closed_through`, `as_of` never
+  moves backwards); the cell `conflict` check runs first, so a re-send that changes a stored cell is a `conflict`.
+- **A9** `edge/egress.py` exposes `check_artifact` and `log_row_problem`; the Boundary calls `check_artifact` (it now
+  keeps its tasks and endpoints and builds the spec per call instead of holding prebuilt specs; output identical).
+- **A10** A site's unit path has 2 to 5 segments, starts with the enterprise, is unique and is no ancestor of another.
+- **A11** The rejection reasons are `bad_line`, `config_hash`, `unknown_site`, `invalid`, `site_mismatch`, `conflict`
+  and `sequence`, all recorded the same way.
+- **A12** No CLI in G4.
+
+### Further decisions and deviations, for the reviewer
+
+- **`RUN_CHANNELS` lives in `detect/store.py`** (`X`: codes and text_only, `S`: codes) and `detectors` imports it:
+  the store filters by channel and cannot import `detectors`.
+- **Shape details the brief left open:** `insufficient_baseline_weeks` is a count; `weeks[].reported_sites`,
+  `eligible_sites`, `candidates`, `stale_removed`, `cooling` and `rule_hits` are counts, `late_sites` and `alerts`
+  lists; a candidate's `detectors` is the union over its candidate weeks; for a status other than `eligible`, the
+  `d2` entry keeps `site`, `status` and `history_weeks` and the `d3` entry `site` and `status`, every other field null.
+- **The rule part is taken at the key's first rule week:** `rule_ids`, `sites` and `lineage` come from the rules
+  that hit the key that week (lineage: the key's cells at each satisfying site inside that rule's window), and
+  `window` spans the widest of them; `weeks` lists every week any rule hit the key. `rule_hits[]` keeps every
+  `(rule_id, key)`.
+- **Two exact shortcuts in the walk:** a series is examined at week W only when at least `min(burst.min_sites,
+  cooccurrence.min_sites)` eligible sites have cells of it, and the PMI is computed only at sites whose window lower
+  bound reaches k; neither changes a result, since a site without cells never exceeds and a site below k never rises.
+  The snapshot recomputes D2 and D3 at every org site, so it shows rises at sites below k as not rising.
+- **`ingest_log` of an absent file** returns an empty report (as `read_log` returns no rows). A `bad_line` row has a
+  NULL site. A clock is read only when the store writes.
+- **A body whose `site` is not a string** is validated against the site id `""`, so the Boundary's `const` check
+  refuses it (`invalid`, `$.site`); a string site outside the org is `unknown_site` first.
+- **`OrgError` never names an unknown key** (it reports `unknown key` at the parent object); the size of `sites` is
+  checked with the top-level shape, before `schema_version`. An unreadable org file is `OrgError("$", "cannot read
+  (<exception class>)")`.
+- **The tails return at most 0.0** (`min(0.0, x)`), which also turns a `-0.0` into `0.0`, so no `-0.0` reaches the
+  result JSON; the D2 surprise is computed as `0.0 - logsf` for the same reason.
+- **The loader keeps a private copy of the eight weight names** (`_RANKER_WEIGHTS`, for the schema and the reserved
+  words) and `detectors.FEATURES` is the ordered list; `DetectorConfigTests` asserts they are the same set. It also
+  checks `p_min > 0` explicitly, as part of `0 < p_min`.
+- **The tests import helpers** (`Clock`, `coded`, `pack_copy`, `universe_master`, `string_constants` and the SQL
+  matcher) from `test_collective_edge.py`, functions only, so no test class is collected twice.
+- **The engineer ran the brief's thirteen mutation probes** (and nine more) on a scratch copy of the worktree, outside
+  the repository; each made at least one test in `test_collective_detect.py` fail. Two of the extra probes (the
+  `n_ep >= k` support check and echo's upper-bound roots) first survived and got a test each
+  (`test_a_site_below_k_is_shown_not_rising_in_the_snapshot`, `test_suppressed_roots_count_their_upper_bound`).

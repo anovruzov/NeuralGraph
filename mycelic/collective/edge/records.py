@@ -1,4 +1,4 @@
-"""The site record store: one SQLite file per site, the only SQL in the collective layer.
+"""The site record store: one SQLite file per site, the only SQL inside a site; HQ's is detect/store.py.
 
 A site's raw records, their claims and its emission log live in ``site-<id>.sqlite3`` inside the site's boundary.
 Nothing here leaves the site; :mod:`.egress` decides what may.

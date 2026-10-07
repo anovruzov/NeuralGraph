@@ -115,11 +115,13 @@ _WHERE_KEYS = ("field", "in")
 _EGRESS_KEYS = ("k", "suppress_below_days", "count_granularity", "close_lag_days", "min_window_weeks",
                 "verdict_count_buckets", "egress_entity_types", "require_master_data", "never_fields",
                 "central_allowed_fields", "verify_max_records", "question_budget_per_entity_per_day")
-_DETECTOR_KEYS = ("weekly_alert_budget", "baseline_weeks", "window_weeks", "burst", "cooccurrence", "independence",
-                  "decoy", "ranker")
-_DETECTOR_NESTED_KEYS = ("min_sites", "rate_floor", "min_pmi", "min_pair_count", "echo_window_days",
-                         "max_single_reporter_share", "high_base_rate", "stale_weeks", "bias", "weights",
-                         "burst_surprise", "pmi", "independent_roots", "sites", "res_conf")
+_DETECTOR_KEYS = ("alert_budget_per_week", "cooldown_weeks", "baseline_weeks", "window_weeks", "min_history_weeks",
+                  "burst", "cooccurrence", "resolution", "independence", "decoy", "ranker")
+_RANKER_WEIGHTS = ("burst_surprise", "pmi_rise", "log_independent_roots", "supporting_sites", "low_res_conf", "echo",
+                   "few_reporters_share", "high_base_rate")
+_DETECTOR_NESTED_KEYS = ("alpha_site", "lambda_floor", "p_min", "p_max", "min_sites", "pmi_smoothing", "pmi_delta",
+                         "res_conf_min", "echo_min_ratio", "stale_days", "base_rate_site_fraction", "bias", "weights",
+                         *_RANKER_WEIGHTS)
 _RULE_KEYS = ("label", "entity_type", "predicate", "min_sites", "min_count_per_site", "window_weeks")
 _TEMPLATE_KEYS = ("text", "entity_types", "predicates")
 _FOLLOWUP_KEYS = ("label", "tier", "enabled", "executor", "args_schema", "draft_schema", "owner_role", "daily_cap",
@@ -507,17 +509,25 @@ S_EGRESS = _schema(_closed({
     "never_fields": {"type": "array", "items": _string(1, 120), "maxItems": 200},
     "central_allowed_fields": {"type": "array", "items": _string(1, 120), "maxItems": 200},
     "verify_max_records": _int(1, 10000), "question_budget_per_entity_per_day": _int(1, 100)}))
+
+
+def _real(lo: float, hi: float | None = None) -> dict[str, Any]:
+    out: dict[str, Any] = {"type": "number", "minimum": lo}
+    if hi is not None:
+        out["maximum"] = hi
+    return out
+
+
 S_DETECTORS = _schema(_closed({
-    "weekly_alert_budget": _int(1, 100), "baseline_weeks": _int(4, 104), "window_weeks": _int(1, 26),
-    "burst": _closed({"min_sites": _int(2, 1000), "rate_floor": {"type": "number", "minimum": 0, "maximum": 1}}),
-    "cooccurrence": _closed({"min_sites": _int(2, 1000), "min_pmi": {"type": "number", "minimum": 0},
-                             "min_pair_count": _int(1, 1000000)}),
-    "independence": _closed({"echo_window_days": _int(0, 90)}),
-    "decoy": _closed({"max_single_reporter_share": {"type": "number", "minimum": 0, "maximum": 1},
-                      "high_base_rate": {"type": "number", "minimum": 0, "maximum": 1}, "stale_weeks": _int(1, 52)}),
-    "ranker": _closed({"bias": _NUMBER, "weights": _closed({
-        "burst_surprise": _NUMBER, "pmi": _NUMBER, "independent_roots": _NUMBER, "sites": _NUMBER,
-        "res_conf": _NUMBER})})}))
+    "alert_budget_per_week": _int(0, 1000), "cooldown_weeks": _int(0, 52), "baseline_weeks": _int(4, 104),
+    "window_weeks": _int(1, 26), "min_history_weeks": _int(1, 104),
+    "burst": _closed({"alpha_site": _real(0, 0.5), "lambda_floor": _real(0, 1), "p_min": _NUMBER, "p_max": _NUMBER,
+                      "min_sites": _int(2, 1000)}),
+    "cooccurrence": _closed({"pmi_smoothing": _real(0, 10), "pmi_delta": _real(0, 20), "min_sites": _int(2, 1000)}),
+    "resolution": _closed({"res_conf_min": _real(0, 1)}),
+    "independence": _closed({"echo_min_ratio": _real(0, 1)}),
+    "decoy": _closed({"stale_days": _int(7, 3660), "base_rate_site_fraction": _real(0, 1)}),
+    "ranker": _closed({"bias": _NUMBER, "weights": _closed({name: _NUMBER for name in _RANKER_WEIGHTS})})}))
 S_RULE = _schema(_closed({"label": _LABEL120, "entity_type": _ID, "predicate": _ID, "min_sites": _int(2, 1000),
                           "min_count_per_site": _int(1, 1000000), "window_weeks": _int(1, 104)}))
 S_TEMPLATE = _schema(_closed({"text": _string(1, 400), "entity_types": {"type": "array", "items": _ID, "minItems": 1,
@@ -959,16 +969,28 @@ def _egress(b: _Build) -> Egress:
 
 
 def _detectors(b: _Build, egress: Egress) -> dict[str, Any]:
+    """The schema gives types and closed ranges; the open ends and the cross-checks are explicit here."""
     f = "detectors.json"
     raw = b.files[f]
     _check(f, "$", raw, S_DETECTORS)
-    if not 0 < raw["burst"]["rate_floor"] < 1:
-        raise PackError(f, "$.burst.rate_floor", "must be in (0, 1)") from None
-    for key in ("max_single_reporter_share", "high_base_rate"):
-        if not 0 < raw["decoy"][key] <= 1:
-            raise PackError(f, f"$.decoy.{key}", "must be in (0, 1]") from None
+    for path, value in (("$.burst.alpha_site", raw["burst"]["alpha_site"]),
+                        ("$.burst.lambda_floor", raw["burst"]["lambda_floor"]),
+                        ("$.cooccurrence.pmi_smoothing", raw["cooccurrence"]["pmi_smoothing"]),
+                        ("$.resolution.res_conf_min", raw["resolution"]["res_conf_min"]),
+                        ("$.independence.echo_min_ratio", raw["independence"]["echo_min_ratio"]),
+                        ("$.decoy.base_rate_site_fraction", raw["decoy"]["base_rate_site_fraction"])):
+        if not value > 0:
+            raise PackError(f, path, "must be > 0") from None
     if raw["window_weeks"] < egress.min_window_weeks:
         raise PackError(f, "$.window_weeks", "must be at least egress.min_window_weeks") from None
+    if not 0 < raw["burst"]["p_min"]:
+        raise PackError(f, "$.burst.p_min", "must be > 0") from None
+    if not raw["burst"]["p_min"] <= raw["burst"]["p_max"]:
+        raise PackError(f, "$.burst.p_max", "must be at least p_min") from None
+    if not raw["burst"]["p_max"] < 1:
+        raise PackError(f, "$.burst.p_max", "must be < 1") from None
+    if raw["decoy"]["stale_days"] < egress.close_lag_days + 7:
+        raise PackError(f, "$.decoy.stale_days", "must be at least egress.close_lag_days + 7") from None
     return raw
 
 
