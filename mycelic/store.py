@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import sqlite3
 from contextlib import asynccontextmanager
 from datetime import timedelta
@@ -27,6 +28,11 @@ from typing import Any, AsyncIterator, Iterable
 
 from .hierarchy import LAYERS
 from .models import Agent, EventRecord, LineageEdge, Memory, Rule, now_iso, utcnow
+
+try:
+    import fcntl
+except ImportError:  # pragma: no cover
+    fcntl = None  # type: ignore[assignment]  # Windows: no advisory lock (development only)
 
 logger = logging.getLogger(__name__)
 
@@ -368,8 +374,68 @@ class Tx:
                        (now_iso(), principal, action, target, _j(detail or {}), remote))
 
 
+class DatabaseLocked(RuntimeError):
+    """Another process (or another service in this process) already writes to this database."""
+
+
+def acquire_db_lock(db_path: str | Path) -> int | None:
+    """Take the single-writer lock on ``<db>.lock`` or raise; returns the descriptor that holds it.
+
+    Two writers on one SQLite file would each run their own consumer and publisher against the same outbox and
+    ``last_applied_seq``, so the second one is refused before it touches the schema.  ``flock`` (not ``lockf``)
+    because it also conflicts between two ``open()`` calls in one process; the kernel drops it when the holder
+    dies, so a stale ``.lock`` file never blocks.  The file is never unlinked: that would race with a new holder.
+    """
+    if str(db_path) == ":memory:" or fcntl is None:
+        return None
+    path = Path(db_path).expanduser()
+    lock_path = Path(str(path) + ".lock")
+    fd: int | None = None
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        lock_path = Path(str(path.resolve()) + ".lock")      # two spellings or symlinks of one file contend
+        fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o644)
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        holder = ""
+        try:
+            pid = os.pread(fd, 32, 0).decode("ascii", "replace").strip()  # type: ignore[arg-type]
+            holder = f", pid {pid}" if pid.isdigit() else ""
+        except OSError:
+            pass
+        os.close(fd)  # type: ignore[arg-type]
+        raise DatabaseLocked(f"another Mycelic process is using {path} (lock {lock_path}{holder}); "
+                             "stop it first: one instance per database") from None
+    except OSError as exc:
+        if fd is not None:
+            os.close(fd)
+        raise RuntimeError(f"cannot lock {lock_path} for {path}: {exc.strerror or exc}") from exc
+    try:
+        os.ftruncate(fd, 0)
+        os.write(fd, f"{os.getpid()}\n".encode())
+    except OSError:
+        pass
+    return fd
+
+
+def release_db_lock(fd: int | None) -> None:
+    if fd is None:
+        return
+    try:
+        fcntl.flock(fd, fcntl.LOCK_UN)  # type: ignore[union-attr]
+    except OSError:
+        pass
+    try:
+        os.close(fd)
+    except OSError:
+        pass
+
+
 class MycelicStore:
-    def __init__(self, db_path: str | Path) -> None:
+    def __init__(self, db_path: str | Path, *, lock_fd: int | None = None) -> None:
+        """``lock_fd`` is a lock from :func:`acquire_db_lock`; the store owns it once constructed and releases it
+        in :meth:`close`.  If construction fails the caller still owns it."""
+        self._lock_fd: int | None = None
         self.db_path = ":memory:" if str(db_path) == ":memory:" else str(Path(db_path).expanduser())
         if self.db_path != ":memory:":
             Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
@@ -377,7 +443,12 @@ class MycelicStore:
         self._conn.row_factory = sqlite3.Row
         self._lock = asyncio.Lock()
         self.revision = 0
-        self._init_schema()
+        try:
+            self._init_schema()
+        except BaseException:
+            self._conn.close()
+            raise
+        self._lock_fd = lock_fd
 
     # ------------------------------------------------------------------ lifecycle
     def _init_schema(self) -> None:
@@ -420,11 +491,17 @@ class MycelicStore:
         c.execute("COMMIT")
         logger.info("migrated database schema %d -> %d", from_version, SCHEMA_VERSION)
 
+    @property
+    def is_open(self) -> bool:
+        return self._conn is not None
+
     async def close(self) -> None:
         async with self._lock:
             if self._conn is not None:
                 self._conn.close()
                 self._conn = None  # type: ignore[assignment]
+            release_db_lock(self._lock_fd)
+            self._lock_fd = None
 
     def _bump(self) -> None:
         self.revision += 1

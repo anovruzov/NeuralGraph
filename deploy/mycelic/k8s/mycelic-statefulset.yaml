@@ -19,7 +19,7 @@ spec:
         runAsUser: 10001
         runAsGroup: 10001
         fsGroup: 10001
-      terminationGracePeriodSeconds: 30
+      terminationGracePeriodSeconds: 30   # >= 2 x MYCELIC_SHUTDOWN_TIMEOUT_SECONDS + 5: HTTP drain, then broker drain
       containers:
         - name: mycelic
           image: mycelic:0.1.0
@@ -41,16 +41,24 @@ spec:
               valueFrom: {secretKeyRef: {name: mycelic-secrets, key: MYCELIC_METRICS_TOKEN, optional: true}}
           ports:
             - {name: http, containerPort: 8080}
-          startupProbe:                      # a rebuild from the event log can take a while: do not kill it
-            httpGet: {path: /ready, port: http}
+          # /health and /ready answer from a status snapshot and never wait on the broker.  A rebuild from the event
+          # log does not gate startup (that would kill a long replay); it gates readiness: the pod stays unready
+          # until the replay is done and is never restarted for it.
+          startupProbe:
+            httpGet: {path: /health, port: http}
             periodSeconds: 5
+            timeoutSeconds: 5
             failureThreshold: 120
           readinessProbe:
             httpGet: {path: /ready, port: http}
             periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
           livenessProbe:
             httpGet: {path: /health, port: http}
             periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
           resources:
             requests: {cpu: 250m, memory: 256Mi}
             limits: {memory: 1Gi}

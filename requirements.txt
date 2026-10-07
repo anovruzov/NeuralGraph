@@ -7,3 +7,4 @@ prometheus-client>=0.20
 # tests
 pytest>=8
 pytest-asyncio>=0.23
+pyyaml>=6

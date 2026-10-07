@@ -244,6 +244,8 @@ class JetStreamTransport:
             "max_reconnect_attempts": -1,
             "reconnect_time_wait": 1,
             "connect_timeout": 5,
+            # a drain that cannot finish (stalled broker) falls back to close() inside the shutdown budget
+            "drain_timeout": max(1, int(self.s.shutdown_timeout_seconds) // 2),
             "allow_reconnect": True,
             "error_cb": self._error_cb,
             "disconnected_cb": self._disconnected_cb,
@@ -357,6 +359,14 @@ class JetStreamTransport:
                     await self._nc.close()
                 except Exception:
                     pass
+        self._nc = None
+        self._js = None
+        self._sub = None
+        self._set_connected(False)
+
+    def abort(self) -> None:
+        """Drop the client without waiting for the broker (shutdown after :meth:`close` ran out of time).  Never raises
+        (``_set_connected`` guards its callback); whatever was fetched but not acked is redelivered to the next consumer."""
         self._nc = None
         self._js = None
         self._sub = None

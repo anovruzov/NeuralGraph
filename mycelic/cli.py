@@ -58,11 +58,8 @@ async def cmd_serve(args: argparse.Namespace) -> int:
         return 2
     logging.basicConfig(level=getattr(logging, settings.log_level, logging.INFO),
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s", stream=sys.stdout)
-    service = MycelicService(settings)
-    runner = await run_server(service)          # bind first so /health answers while the broker comes up
-    await service.start()
-    print(json.dumps({"mycelic": "started", "url": f"http{'s' if settings.tls_enabled else ''}://{settings.host}:{settings.port}",
-                      "db": settings.db_path, "transport": service.transport.name, "nats_url": settings.nats_url}), flush=True)
+    # handlers before anything slow: as PID 1 (the container) the process ignores a SIGTERM it has no handler for, so
+    # one that arrives while the broker connects would otherwise wait for the SIGKILL
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
@@ -70,10 +67,33 @@ async def cmd_serve(args: argparse.Namespace) -> int:
             loop.add_signal_handler(sig, stop.set)
         except NotImplementedError:  # pragma: no cover
             pass
-    await stop.wait()
-    print("shutting down", flush=True)
-    await runner.cleanup()
-    await service.close()
+    try:
+        service = MycelicService(settings)      # takes the single-writer lock on the database
+    except (RuntimeError, OSError) as exc:
+        print(f"configuration error: {exc}", file=sys.stderr)
+        return 2
+    runner = None
+    try:
+        runner = await run_server(service)      # bind first so /health answers while the broker comes up
+        # the first connect to a broker that is down or stalled is retried for ever, so a SIGTERM does not wait for
+        # start-up to finish: cancelling it is no worse than a crash, which recovery on the next start is built for
+        starting = asyncio.ensure_future(service.start())
+        stopping = asyncio.ensure_future(stop.wait())
+        await asyncio.wait({starting, stopping}, return_when=asyncio.FIRST_COMPLETED)
+        if starting.done():
+            starting.result()
+            print(json.dumps({"mycelic": "started", "url": f"http{'s' if settings.tls_enabled else ''}://{settings.host}:{settings.port}",
+                              "db": settings.db_path, "transport": service.transport.name, "nats_url": settings.nats_url}), flush=True)
+            await stopping
+        else:
+            starting.cancel()
+            await asyncio.wait({starting})
+        print("shutting down", flush=True)
+    finally:
+        # each step is bounded by MYCELIC_SHUTDOWN_TIMEOUT_SECONDS, so the whole shutdown stays inside the grace period
+        if runner is not None:
+            await runner.cleanup()
+        await service.close()
     return 0
 
 

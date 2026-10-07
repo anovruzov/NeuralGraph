@@ -52,9 +52,13 @@ spec:
           readinessProbe:
             exec: {command: ["wget", "-q", "--spider", "http://127.0.0.1:8222/healthz?js-enabled-only=true"]}
             periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 3
           livenessProbe:
             exec: {command: ["wget", "-q", "--spider", "http://127.0.0.1:8222/healthz"]}
             periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
           resources:
             requests: {cpu: 100m, memory: 256Mi}
             limits: {memory: 1Gi}

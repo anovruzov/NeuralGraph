@@ -30,6 +30,8 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  # One instance per mycelic-data volume: the service holds a lock on its SQLite database, and a second instance exits
+  # with 'another Mycelic process is using ...'. Never `docker compose up --scale mycelic=N`.
   mycelic:
     build:
       context: ../..
@@ -56,6 +58,10 @@ services:
       MYCELIC_MIN_SUPPORT: ${MYCELIC_MIN_SUPPORT:-2}
       MYCELIC_LOG_LEVEL: ${MYCELIC_LOG_LEVEL:-INFO}
       MYCELIC_PUBLIC_URL: ${MYCELIC_PUBLIC_URL:-http://localhost:8080}
+      MYCELIC_SHUTDOWN_TIMEOUT_SECONDS: ${MYCELIC_SHUTDOWN_TIMEOUT_SECONDS:-10}
+    # a SIGTERM drains HTTP, then the broker connection, each within MYCELIC_SHUTDOWN_TIMEOUT_SECONDS: give it
+    # 2 x that + 5 s before the SIGKILL (Docker's default is 10 s)
+    stop_grace_period: 30s
     ports:
       - "${MYCELIC_BIND_ADDRESS:-127.0.0.1}:${MYCELIC_PORT:-8080}:8080"
     volumes:

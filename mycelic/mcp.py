@@ -158,6 +158,8 @@ class MycelicTools:
         return self.service.public_view(self.service.get_memory(p, memory_id), p)
 
     async def tool_mycelic_status(self) -> dict[str, Any]:
+        """Answers from the status snapshot like /health (never waits on the broker); for an administrator,
+        ``memories_by_layer`` may therefore lag by up to one status interval (2 s)."""
         p = self._principal()
         h = await self.service.health()
         by_layer = h["stats"].get("memories_by_layer") if p.is_admin else self.service.store.memories_by_layer(p.org_id)

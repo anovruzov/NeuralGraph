@@ -1,8 +1,11 @@
 # Security
 
 This page states what Mycelic enforces today, how it is verified, and what it does **not** do. It is
-deliberately short on promises. Report vulnerabilities through GitHub security advisories on this
-repository.
+deliberately short on promises.
+
+Report vulnerabilities through GitHub private vulnerability reporting on this repository (Security →
+Report a vulnerability). That channel is **not enabled yet**: the repository owner must enable it before
+launch. Until it is, never put vulnerability details in a public issue.
 
 ## 1. Identities
 
@@ -14,8 +17,11 @@ repository.
 | Service ↔ itself across the log | `MYCELIC_EVENT_SIGNING_KEY` (HMAC-SHA256 over every published event) | environment |
 
 Only the SHA-256 of an agent key is stored (unsalted: the secret is 256 random bits, so a rainbow table is
-not a threat, but a weaker secret format would need a KDF). Comparison is constant-time; an unknown agent
-id costs the same as a wrong secret. The agent id inside the key is a routing hint and never trusted.
+not a threat, but a weaker secret format would need a KDF). The comparison of the secret's hash is
+constant-time, but an unknown agent id is not answered in the same time as a known id with a wrong secret:
+the unknown id is answered faster, because a known id first loads the agent's record (a 24–31 µs gap was
+measured over loopback HTTP). Agent ids are identifiers, not secrets, and can be enumerated this way; only
+the 256-bit secret authenticates. The agent id inside the key is a routing hint and never trusted.
 Keys are rotated (`POST /admin/agents/{id}/rotate`) or revoked (`DELETE /admin/agents/{id}`); a revoked
 agent's requests are refused with 403 and its id cannot be re-registered (register a new id instead).
 
@@ -98,8 +104,13 @@ administrator sees every contributor.
 
 1. **The broker is inside the trust boundary.** Whoever holds the NATS credentials (or the signing key)
    can inject events that become organizational memory. Signing plus registry validation makes it
-   detectable and hard, not impossible. Keep the broker unreachable from agents and rotate both secrets
-   together.
+   detectable and hard, not impossible. Keep the broker unreachable from agents. Rotating the NATS
+   credentials is safe (give the broker and the service the new pair and restart both).
+   `MYCELIC_EVENT_SIGNING_KEY` is different: it is backup-critical state, like the database. The consumer
+   verifies with a single key, so after the key is changed every older event in the stream fails
+   verification on a rebuild and is terminated, and a database rebuilt from the stream then loses
+   everything from before the change, agent registrations included (old agent keys then get 401). Do
+   not change it on a deployment you may need to rebuild until key rotation with a keyring is supported.
 2. **Agent keys are long-lived static bearer secrets** with no expiry and no scoping by IP or time.
    Leaked key ⇒ the attacker writes as that agent until you rotate or revoke it, and whatever it wrote
    keeps feeding team and higher conclusions until retracted (`POST /memory/{id}/retract` re-derives).

@@ -42,7 +42,7 @@ from .models import (
     content_hash, new_id, now_iso, parse_iso,
 )
 from .retrieval import Retriever
-from .store import MycelicStore, Tx
+from .store import MycelicStore, Tx, acquire_db_lock, release_db_lock
 from .transport import Transport, build_transport, subject_for
 from .version import VERSION
 
@@ -118,11 +118,25 @@ def _small_dict(body: dict[str, Any], key: str, max_bytes: int) -> dict[str, Any
 
 
 class MycelicService:
+    #: how often the status task refreshes what /health and /ready report (seconds)
+    status_interval = 2.0
+    #: a broker call slower than this leaves the previous status in place, marked stale (seconds)
+    status_timeout = 2.0
+
     def __init__(self, settings: Settings, *, store: MycelicStore | None = None, transport: Transport | None = None,
                  metrics: Metrics | None = None) -> None:
         self.settings = settings
         self.metrics = metrics or Metrics()
-        self.store = store or MycelicStore(settings.db_path)
+        if store is None:
+            # one writer per database file, refused before anything touches the schema; an injected store is the
+            # caller's business (tests rebuilding into ':memory:')
+            fd = acquire_db_lock(settings.db_path)
+            try:
+                store = MycelicStore(settings.db_path, lock_fd=fd)
+            except BaseException:
+                release_db_lock(fd)
+                raise
+        self.store = store
         self.transport = transport or build_transport(settings, on_state_change=self._transport_state)
         self.aggregator = Aggregator(self.store, min_support=settings.min_support)
         self.retriever = Retriever(self.store)
@@ -138,6 +152,13 @@ class MycelicService:
         self._publisher_running = False
         self._replay_target: int | None = None
         self._last_seen_touch: dict[str, float] = {}
+        # what /health and /ready answer from, refreshed by the status task: probes never wait on the broker or the db
+        self._transport_info: dict[str, Any] = {}
+        self._stats: dict[str, Any] = {}
+        self._status_at: float | None = None          # monotonic time of the last refresh whose transport call succeeded
+        self._status_ok = False
+        self._db_error: str | None = None
+        self._closed = False
         self.metrics.info.labels(VERSION).set(1)
 
     # ------------------------------------------------------------------ lifecycle
@@ -152,28 +173,53 @@ class MycelicService:
         except Exception:
             logger.exception("audit pruning failed")
         await self._connect_with_retry(first=True)
+        await self.refresh_status()                   # the first /ready already answers from a warm snapshot
         if background:
             self._tasks = [asyncio.create_task(self._transport_keeper(), name="mycelic-transport"),
                            asyncio.create_task(self._publisher_loop(), name="mycelic-publisher"),
-                           asyncio.create_task(self._consumer_loop(), name="mycelic-consumer")]
+                           asyncio.create_task(self._consumer_loop(), name="mycelic-consumer"),
+                           asyncio.create_task(self._status_loop(), name="mycelic-status")]
         logger.info("mycelic %s started (db=%s, transport=%s)", VERSION, self.store.db_path, self.transport.name)
 
     async def stop(self) -> None:
+        """Stop the loops and the transport within ``shutdown_timeout_seconds`` (plus at least 0.5 s for the transport).
+
+        Cutting either step short loses nothing: an event is acked only after the transaction that applied it
+        committed, the outbox is durable, a cancelled apply rolls back (``Tx`` rolls back on any BaseException),
+        and whatever was fetched but not acked is redelivered and applied as an idempotent duplicate (a publish
+        cancelled before ``mark_published`` is deduplicated by its ``Nats-Msg-Id``).
+        """
+        deadline = time.monotonic() + self.settings.shutdown_timeout_seconds
         self._stop.set()
         self._outbox_wake.set()
-        for t in self._tasks:
+        tasks, self._tasks = self._tasks, []
+        for t in tasks:
             t.cancel()
-        for t in self._tasks:
-            try:
-                await t
-            except (asyncio.CancelledError, Exception):
-                pass
-        self._tasks = []
-        await self.transport.close()
+        if tasks:
+            done, pending = await asyncio.wait(tasks, timeout=max(0.0, deadline - time.monotonic()))
+            for t in done:
+                if not t.cancelled():
+                    t.exception()                     # retrieved, so asyncio does not log it at exit
+            for t in pending:
+                logger.warning("task %s did not stop within the shutdown budget", t.get_name())
+        remaining = max(0.5, deadline - time.monotonic())
+        try:
+            await asyncio.wait_for(self.transport.close(), timeout=remaining)
+        except asyncio.TimeoutError:
+            logger.warning("transport did not close within %.1fs; dropping the connection (unacked events are redelivered)", remaining)
+            abort = getattr(self.transport, "abort", None)
+            if abort is not None:
+                abort()
 
     async def close(self) -> None:
-        await self.stop()
-        await self.store.close()
+        """Stop, then close the store (which releases the database lock). A second call does nothing."""
+        if self._closed:
+            return
+        self._closed = True
+        try:
+            await self.stop()
+        finally:
+            await self.store.close()
 
     def _transport_state(self, connected: bool) -> None:
         self.metrics.transport_connected.set(1 if connected else 0)
@@ -1062,29 +1108,78 @@ class MycelicService:
         return {"replaying": True, "target_seq": self._replay_target}
 
     # ------------------------------------------------------------------ health
-    async def health(self) -> dict[str, Any]:
-        checks: dict[str, Any] = {}
-        status = "ok"
+    async def _transport_info_bounded(self) -> tuple[dict[str, Any], bool]:
+        """``transport.info()`` within ``status_timeout``: a stalled broker (SIGSTOP, network black hole) keeps the
+        client "connected" while every JetStream request waits for its own 5 s timeout."""
         try:
-            stats = self.store.stats()
-            checks["db"] = {"ok": True, "path": self.store.db_path}
+            return await asyncio.wait_for(self.transport.info(), self.status_timeout), True
+        except asyncio.TimeoutError:
+            return {"connected": self.transport.connected, "error": f"transport.info() timed out after {self.status_timeout}s"}, False
         except Exception as exc:
-            stats = {}
-            checks["db"] = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
-            status = "failing"
+            return {"connected": self.transport.connected, "error": f"{type(exc).__name__}: {exc}"}, False
+
+    async def refresh_status(self) -> None:
+        """Refresh the snapshot /health and /ready answer from: database stats, then the transport (bounded)."""
         try:
-            tinfo = await self.transport.info()
+            self._stats = self.store.stats()
+            self._db_error = None
         except Exception as exc:
-            tinfo = {"connected": False, "error": f"{type(exc).__name__}: {exc}"}
-        checks["transport"] = tinfo
+            self._db_error = f"{type(exc).__name__}: {exc}"
+        self.metrics.refresh_from_stats(self._stats)
+        info, ok = await self._transport_info_bounded()
+        if ok:
+            self._transport_info = info
+            self._status_at = time.monotonic()
+            self._status_ok = True
+            if "consumer_pending" in info:
+                self.metrics.consumer_pending.set(int(info["consumer_pending"]))
+        else:
+            self._transport_info = {**self._transport_info, "error": info["error"]}
+            self._status_ok = False
+
+    async def _status_loop(self) -> None:
+        while not self._stop.is_set():
+            try:
+                await self.refresh_status()
+            except Exception:
+                logger.exception("status refresh failed")
+            await self._sleep(self.status_interval)
+
+    def transport_check(self) -> dict[str, Any]:
+        """The last transport snapshot with ``connected`` read live (a killed broker shows at once) and its age.
+        ``stale``: never refreshed, the last refresh failed or timed out, or the status task stopped refreshing."""
+        age = None if self._status_at is None else time.monotonic() - self._status_at
+        stale = age is None or not self._status_ok or age > 3 * self.status_interval
+        return {**self._transport_info, "connected": self.transport.connected, "stale": stale,
+                "age_seconds": None if age is None else round(age, 1)}
+
+    def _db_check(self) -> dict[str, Any]:
+        error = self._db_error if self.store.is_open else "the database is closed"
+        check: dict[str, Any] = {"ok": error is None, "path": self.store.db_path}
+        if error is not None:
+            check["error"] = error
+        return check
+
+    def _status(self, db: dict[str, Any], tinfo: dict[str, Any]) -> str:
+        if not db["ok"]:
+            return "failing"
+        if not tinfo["connected"] or tinfo["stale"] or not self._consumer_running or not self._publisher_running:
+            return "degraded"
+        return "ok"
+
+    async def health(self, *, live: bool = False) -> dict[str, Any]:
+        """Service health from the status snapshot: no database query and no broker call, so a probe answers at
+        once whatever the broker does.  ``live=True`` (``/admin/status``) refreshes the snapshot first, bounded by
+        ``status_timeout`` per broker call."""
+        if live:
+            await self.refresh_status()
+        stats = self._stats
+        tinfo = self.transport_check()
+        checks: dict[str, Any] = {"db": self._db_check(), "transport": tinfo}
         checks["publisher"] = {"running": self._publisher_running, "outbox_pending": stats.get("outbox_pending")}
         checks["consumer"] = {"running": self._consumer_running, "last_applied_seq": stats.get("last_applied_seq"),
                               "pending": tinfo.get("consumer_pending"), "replaying_to_seq": self._replay_target}
-        if status == "ok" and (not tinfo.get("connected") or not self._consumer_running or not self._publisher_running):
-            status = "degraded"
-        if self.metrics:
-            self.metrics.refresh_from_stats(stats)
-        return {"status": status, "version": VERSION, "instance": self.settings.instance_id, "started_at": self.started_at,
+        return {"status": self._status(checks["db"], tinfo), "version": VERSION, "instance": self.settings.instance_id, "started_at": self.started_at,
                 "checks": checks, "stats": stats}
 
     async def ready(self) -> tuple[bool, dict[str, Any]]:
@@ -1093,9 +1188,10 @@ class MycelicService:
         A broker outage does *not* make the service unready by default: the outbox exists precisely so agents can
         keep writing through one.  Set ``MYCELIC_READY_REQUIRES_NATS=true`` to change that.
         """
-        h = await self.health()
-        ok = h["checks"]["db"]["ok"] and self._consumer_running and self._publisher_running and self._replay_target is None
-        if self.settings.ready_requires_nats and not h["checks"]["transport"].get("connected"):
+        db = self._db_check()
+        tinfo = self.transport_check()
+        ok = db["ok"] and self._consumer_running and self._publisher_running and self._replay_target is None
+        if self.settings.ready_requires_nats and not tinfo["connected"]:
             ok = False
-        return ok, {"ready": ok, "status": h["status"], "replaying_to_seq": self._replay_target,
-                    "transport_connected": bool(h["checks"]["transport"].get("connected"))}
+        return ok, {"ready": ok, "status": self._status(db, tinfo), "replaying_to_seq": self._replay_target,
+                    "transport_connected": tinfo["connected"]}

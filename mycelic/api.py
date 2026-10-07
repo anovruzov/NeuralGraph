@@ -5,6 +5,7 @@ Routes and the scope each requires
 GET  /                         service index (no auth)
 GET  /health                   liveness: 200 while the database is open (public: status only; details for admins)
 GET  /ready                    readiness: database open, loops running, no replay in progress
+                               (both answer from the status snapshot and never wait on the broker or the database)
 GET  /metrics                  Prometheus text format (token: MYCELIC_METRICS_TOKEN, else admin token or agent key)
 GET  /whoami                   the authenticated principal
 POST /memory                   memory:write   store one memory (202 Accepted; aggregation is asynchronous)
@@ -219,7 +220,7 @@ def create_app(service: MycelicService) -> web.Application:
 
     async def metrics(request: web.Request) -> web.Response:
         m.refresh_from_stats(service.store.stats())
-        info = await service.transport.info()
+        info = service.transport_check()          # the status snapshot: a stalled broker cannot hang a scrape
         if "consumer_pending" in info:
             m.consumer_pending.set(int(info["consumer_pending"]))
         body, content_type = m.render()
@@ -315,7 +316,7 @@ def create_app(service: MycelicService) -> web.Application:
 
     async def admin_status(request: web.Request) -> web.Response:
         admin(request)
-        h = await service.health()
+        h = await service.health(live=True)       # refreshed now, bounded by status_timeout per broker call
         h["settings"] = service.settings.redacted()
         return _json(h)
 
@@ -383,7 +384,10 @@ def ssl_context(service: MycelicService) -> ssl.SSLContext | None:
 async def run_server(service: MycelicService) -> web.AppRunner:
     """Bind the HTTP server (before the transport connects, so probes answer during a slow broker start)."""
     app = create_app(service)
-    runner = web.AppRunner(app, access_log=None)
+    # on cleanup aiohttp gives running requests shutdown_timeout to finish, cancels them and (recent versions) waits
+    # up to shutdown_timeout again; an open GET /mcp stream never ends on its own and uses both.  Half the budget
+    # each keeps the HTTP drain within MYCELIC_SHUTDOWN_TIMEOUT_SECONDS.
+    runner = web.AppRunner(app, access_log=None, shutdown_timeout=service.settings.shutdown_timeout_seconds / 2)
     await runner.setup()
     site = web.TCPSite(runner, service.settings.host, service.settings.port, ssl_context=ssl_context(service))
     await site.start()

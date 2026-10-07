@@ -22,6 +22,7 @@ cd NeuralGraph
 # 1. configure: every secret is required; compose refuses to start with one missing
 cp deploy/mycelic/.env.example deploy/mycelic/.env
 sed -i "s|^MYCELIC_ADMIN_TOKEN=.*|MYCELIC_ADMIN_TOKEN=$(openssl rand -hex 32)|" deploy/mycelic/.env
+# the signing key is set once, at first setup, and never regenerated afterwards (SECURITY.md §7)
 sed -i "s|^MYCELIC_EVENT_SIGNING_KEY=.*|MYCELIC_EVENT_SIGNING_KEY=$(openssl rand -hex 32)|" deploy/mycelic/.env
 sed -i "s|^NATS_PASSWORD=.*|NATS_PASSWORD=n$(openssl rand -hex 32)|" deploy/mycelic/.env   # must start with a letter
 
@@ -120,9 +121,15 @@ this repository's CI sandbox with both drivers (6 agents: 8 s process / 25 s com
 
 * **One Mycelic instance per deployment.** State is a single SQLite file with one writer; the durable
   consumer name (`MYCELIC_NATS_CONSUMER`) is bound to that instance. Do not run two replicas against one
-  database or one consumer. Vertical capacity is what this slice targets: 10–100 agents, low thousands of
-  memories per day. The scale-out path (Postgres for the read model, one consumer per shard) is not part of
-  this release.
+  database or one consumer. The service enforces this for the database: it holds an advisory lock on
+  `<db>.lock` (`/data/mycelic.db.lock`) and a second process on the same file exits with
+  `configuration error: another Mycelic process is using …` before it touches the schema. The lock needs
+  a local filesystem: NFS and other `ReadWriteMany` storage are unsupported. Never delete the `.lock` file
+  while the service runs (a new process could then lock a fresh file next to the running one); a stale one
+  left by a crash never blocks, because the kernel releases the lock when its holder dies. The online
+  backup of section 4 opens its own `sqlite3` connection and still works while the lock is held. Vertical
+  capacity is what this slice targets: 10–100 agents, low thousands of memories per day. The scale-out path
+  (Postgres for the read model, one consumer per shard) is not part of this release.
 * **One NATS server** with a file-backed JetStream store. A 3-node JetStream cluster is a drop-in change on
   the broker side (`num_replicas` is a stream setting; Mycelic sets 1) and is not covered by this release.
 * **TLS.** Terminate at a reverse proxy or Ingress and set `MYCELIC_ALLOWED_HOSTS` to its hostname and
@@ -147,6 +154,7 @@ All variables have the `MYCELIC_` prefix. Validation runs at start and fails fas
 | `DB_PATH` | `/data/mycelic.db` | SQLite file (WAL, `synchronous=FULL`) |
 | `INSTANCE_ID` | `mycelic-main` | connection name |
 | `LOG_LEVEL` | `INFO` | |
+| `SHUTDOWN_TIMEOUT_SECONDS` | `10` | budget for draining HTTP requests/streams and then the broker connection on SIGTERM; total shutdown ≤ 2× this; keep below the grace period (compose 30 s, k8s 30 s) |
 | `NATS_URL` | `nats://nats:4222` | empty disables the broker (in-process transport, development only) |
 | `NATS_USER`, `NATS_PASSWORD`, `NATS_TOKEN`, `NATS_CA_FILE` | | broker credentials and CA; credentials in the URL are refused |
 | `NATS_STREAM`, `NATS_CONSUMER` | `MYCELIC`, `mycelic-main` | stream and durable consumer names |
@@ -201,8 +209,23 @@ regional conclusion and the strategy, and fresh evidence brings both back as a n
 
 **Health.** `GET /health` is liveness (200 while the database is open; `status` is `ok` or `degraded`, the
 latter when the broker is unreachable or a loop is down). `GET /ready` is readiness (database open, loops
-running, no replay in progress). `GET /admin/status` (admin token) shows stream and consumer positions,
-outbox depth, reconnect count and the masked settings.
+running, no replay in progress). Both answer from a status snapshot that a background task refreshes every
+2 s, so they never wait on the broker or the database: a stalled broker cannot time out a probe. Whether the
+broker is connected is read live, so a broker that goes away shows at once. The admin view of `/health`
+shows `checks.transport.stale` and `age_seconds`: the snapshot is stale when the last broker call failed or
+took longer than 2 s, or the last good refresh is more than 6 s old, and stale counts as `degraded`.
+`GET /admin/status` (admin token) is live: it refreshes the snapshot first, bounded to 2 s per broker call,
+and shows stream and consumer positions, outbox depth, reconnect count and the masked settings.
+
+**Shutdown.** On SIGTERM the service stops accepting connections and gives running requests up to
+`MYCELIC_SHUTDOWN_TIMEOUT_SECONDS` (10 s) to finish or be cancelled (an open `GET /mcp` stream never
+finishes on its own and takes the whole budget), then stops its loops and drains the broker connection
+within the same budget again; a broker that does not answer is dropped. A SIGTERM that arrives while the
+service is still starting (for example waiting for a broker that is down) cancels the start-up.
+Nothing is lost by cutting either step short: an event is acknowledged only after the transaction that
+applied it committed, the outbox is durable, and whatever was in flight is redelivered and applied as an
+idempotent duplicate. The whole shutdown takes at most about 2 × 10 s, inside the 30 s grace period of
+both the compose file (`stop_grace_period`) and the StatefulSet (`terminationGracePeriodSeconds`).
 
 **Backups.** Two things hold state:
 
@@ -261,8 +284,9 @@ python -m mycelic serve
 
 `deploy/mycelic/k8s/` is a kustomize base: namespace, NATS StatefulSet + headless Service, Mycelic
 StatefulSet (`replicas: 1`, never scale) + Service, ConfigMaps (`nats.conf`, settings, `rules.json`) and an
-Ingress with TLS. Probes: startup on `/ready` with a long failure threshold (a rebuild may take minutes),
-readiness `/ready`, liveness `/health`. Both pods run as non-root with `fsGroup` so their PVCs are writable.
+Ingress with TLS. Probes: startup `/health`, readiness `/ready`, liveness `/health`, all with 5 s timeouts;
+a replay (a rebuild may take minutes) keeps the pod unready and never restarts it. Both pods run as
+non-root with `fsGroup` so their PVCs are writable.
 
 ```bash
 # 1. image
@@ -305,6 +329,7 @@ a cluster: expect to adjust storage class, ingress class and resource requests.
 | `nats-server: … interface conversion: interface {} is int64` | `NATS_PASSWORD` is all digits; regenerate with letters (`openssl rand -hex 32`) |
 | `/health` says `degraded`, `transport_connected: false` | broker unreachable or wrong credentials; writes are queued (`mycelic_outbox_pending`) |
 | `/ready` 503 after a restart | a replay is running (`replaying_to_seq` in `/admin/status`); wait |
+| `configuration error: another Mycelic process is using …` | a second instance on the same database, or the previous one is still shutting down; stop it or wait (at most 2 × `MYCELIC_SHUTDOWN_TIMEOUT_SECONDS`). Never `docker compose up --scale mycelic=N` |
 | 401 with a key that used to work | key rotated or agent revoked (`GET /admin/agents?all=1`) |
 | 403 on `/query` with a `scope` | agents may only query their own team or an ancestor unit |
 | 404 on `/memory/{id}` that exists | not visible to this agent (other team's raw note); the API does not reveal existence |

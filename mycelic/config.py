@@ -5,6 +5,7 @@ with a message naming the variable, which is what an operator wants from ``docke
 """
 from __future__ import annotations
 
+import math
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -35,6 +36,8 @@ def _float(name: str, default: float, *, minimum: float | None = None) -> float:
         value = float(raw)
     except ValueError as exc:
         raise ConfigError(f"{name} must be a number, got {raw!r}") from exc
+    if not math.isfinite(value):
+        raise ConfigError(f"{name} must be a finite number, got {raw!r}")
     if minimum is not None and value < minimum:
         raise ConfigError(f"{name} must be >= {minimum}, got {value}")
     return value
@@ -65,6 +68,7 @@ class Settings:
     db_path: str = "/data/mycelic.db"
     instance_id: str = "mycelic-main"
     log_level: str = "INFO"
+    shutdown_timeout_seconds: float = 10.0            # HTTP drain + broker drain budget on SIGTERM; keep 2x + 5 below the grace period
     # transport
     nats_url: str | None = "nats://nats:4222"        # None disables NATS (in-process transport; tests/dev only)
     nats_user: str | None = None
@@ -121,6 +125,7 @@ class Settings:
             db_path=_str("MYCELIC_DB_PATH", "/data/mycelic.db") or "/data/mycelic.db",
             instance_id=_str("MYCELIC_INSTANCE_ID", "mycelic-main") or "mycelic-main",
             log_level=(_str("MYCELIC_LOG_LEVEL", "INFO") or "INFO").upper(),
+            shutdown_timeout_seconds=_float("MYCELIC_SHUTDOWN_TIMEOUT_SECONDS", 10.0, minimum=1.0),
             nats_url=_str("MYCELIC_NATS_URL", "nats://nats:4222"),
             nats_user=_str("MYCELIC_NATS_USER"),
             nats_password=_str("MYCELIC_NATS_PASSWORD"),
