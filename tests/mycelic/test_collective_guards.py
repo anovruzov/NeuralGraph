@@ -15,6 +15,12 @@
   (G4, G6).
 * EvaluateImportGuardTests: no ``evaluate`` module and no openFDA replay imports an inference module or a model client
   (static check) (G5).
+* FollowupImportGuardTests: no ``followup`` module imports a site-side module, the packet assembler, the world
+  generator, a harness or a model client; only ``followup/drafts.py`` imports inference (``tasks`` and ``errors``);
+  ``edge/packets.py`` imports no ``followup``, ``pushdown``, ``detect`` or inference module (static check and a fresh
+  interpreter) (G7).
+* ApprovalCallSiteTests: outside the allow-list (``followup/service.py``, the G0 runner's simulated owner, the demo
+  console and ``tests/``) nothing under ``mycelic/`` or ``demo/`` calls ``approve``, ``edit`` or ``reject`` (G7).
 
 ``forbidden_imports``, ``model_name_hits``, ``nondeterminism`` and ``domain_literal_hits`` are importable for
 reviewers' probes.
@@ -96,6 +102,15 @@ STDLIB_ONLY_MODULES = (
     "mycelic.collective.pushdown.orchestrator",
     "mycelic.collective.edge.verify",
     "mycelic.collective.experiments.e2_pushdown",
+    "mycelic.collective.followup",
+    "mycelic.collective.followup.policy",
+    "mycelic.collective.followup.ledger",
+    "mycelic.collective.followup.service",
+    "mycelic.collective.followup.drafts",
+    "mycelic.collective.followup.executors",
+    "mycelic.collective.followup.outcome",
+    "mycelic.collective.edge.packets",
+    "mycelic.collective.experiments.e5_injection",
 )
 CLI_MODULES = (
     ("mycelic.collective.experiments.e3_latency",),
@@ -116,6 +131,8 @@ CLI_MODULES = (
     ("mycelic.collective.experiments.openfda_replay", "signals"),
     ("mycelic.collective.experiments.openfda_replay", "score"),
     ("mycelic.collective.experiments.e2_pushdown", "run"),
+    ("mycelic.collective.experiments.e5_injection",),
+    ("mycelic.collective.followup.ledger", "verify"),
 )
 NAME_SCAN_ROOTS = ("mycelic/collective", "docs/collective", "demo/collective", "tests/mycelic/test_collective_*.py",
                    "runs/.gitignore")
@@ -157,6 +174,14 @@ DETERMINISTIC_MODULES = (
     "mycelic/collective/pushdown/gate.py",
     "mycelic/collective/edge/verify.py",
     "mycelic/collective/experiments/e2_pushdown.py",
+    "mycelic/collective/followup/__init__.py",
+    "mycelic/collective/followup/policy.py",
+    "mycelic/collective/followup/ledger.py",
+    "mycelic/collective/followup/service.py",
+    "mycelic/collective/followup/drafts.py",
+    "mycelic/collective/followup/executors.py",
+    "mycelic/collective/followup/outcome.py",
+    "mycelic/collective/edge/packets.py",
 )
 DETECT_DIR = ROOT / "mycelic" / "collective" / "detect"
 PUSHDOWN_DIR = ROOT / "mycelic" / "collective" / "pushdown"
@@ -207,6 +232,10 @@ RUNBOOK_PLACEHOLDERS = {
     "partition-field": "event_location",
     "site-routing-dir": "{tmp}/missing/site-routing",
     "central-routing-file": "{tmp}/missing/central_routing.json",
+    "ledger-file": "{tmp}/missing/followups.sqlite3",
+    "head-hash": "0" * 64,
+    "entity-type": "supplier",
+    "injected-id": "V9999",
 }
 EVALUATE_DIR = ROOT / "mycelic" / "collective" / "evaluate"
 EVALUATE_FILES = (*sorted(EVALUATE_DIR.glob("*.py")),
@@ -388,7 +417,7 @@ def _run_without_site_packages(*args: str) -> subprocess.CompletedProcess[str]:
 
 class StdlibOnlyTests(unittest.TestCase):
     def test_every_collective_module_imports_without_site_packages(self) -> None:
-        self.assertEqual(len(STDLIB_ONLY_MODULES), 50)
+        self.assertEqual(len(STDLIB_ONLY_MODULES), 59)
         code = "import importlib\n" + "".join(f"importlib.import_module({m!r})\n" for m in STDLIB_ONLY_MODULES)
         r = _run_without_site_packages("-c", code)
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -776,6 +805,212 @@ class ClockEntropyTests(unittest.TestCase):
             with self.subTest(snippet=snippet):
                 self.assertTrue(nondeterminism(source + "\n" + snippet))
 
+    def test_every_followup_module_is_on_the_determinism_list_with_no_hits(self) -> None:
+        files = sorted(FOLLOWUP_DIR.glob("*.py"))
+        self.assertEqual(len(files), 7)
+        for path in [*files, ROOT / "mycelic" / "collective" / "edge" / "packets.py"]:
+            rel = path.relative_to(ROOT).as_posix()
+            with self.subTest(module=rel):
+                self.assertIn(rel, DETERMINISTIC_MODULES)
+                self.assertEqual(nondeterminism(path.read_text(encoding="utf-8")), [])
+
+
+# --------------------------------------------------------------------------------------------------- follow-up (G7)
+
+FOLLOWUP_DIR = ROOT / "mycelic" / "collective" / "followup"
+FOLLOWUP_FILES = ("__init__.py", "drafts.py", "executors.py", "ledger.py", "outcome.py", "policy.py", "service.py")
+# what no follow-up module may import: the site's raw-record modules, the site verifier and packet assembler, the world
+# generator, the evaluation and leakage modules, the harnesses and every model client; inference only in drafts.py
+FOLLOWUP_FORBIDDEN = ("mycelic.collective.edge.records", "mycelic.collective.edge.site",
+                      "mycelic.collective.edge.extract", "mycelic.collective.edge.verify",
+                      "mycelic.collective.edge.packets", "mycelic.collective.packs.generator",
+                      "mycelic.collective.evaluate", "mycelic.collective.leakage", "mycelic.collective.experiments",
+                      "openai", "anthropic", "ollama", "llama_cpp", "vllm", "transformers", "torch")
+INFERENCE_PREFIX = ("mycelic.collective.inference",)
+DRAFTS_INFERENCE = ("mycelic.collective.inference.errors", "mycelic.collective.inference.tasks")
+# importing the follow-up modules may load these inference modules: errors (through edge.egress), tasks and the
+# routing module tasks reads its task-name pattern from (through drafts)
+FOLLOWUP_ALLOWED_LOADED = ("mycelic.collective.inference", "mycelic.collective.inference.errors",
+                           "mycelic.collective.inference.routing", "mycelic.collective.inference.tasks")
+PACKETS_FORBIDDEN = ("mycelic.collective.followup", "mycelic.collective.pushdown", "mycelic.collective.detect",
+                     "mycelic.collective.inference")
+
+
+def runtime_imports(source: str, module: str) -> set[str]:
+    """The absolute module names a module imports when it runs (its ``if TYPE_CHECKING:`` blocks excluded)."""
+    tree = ast.parse(source)
+    skipped: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.If) and isinstance(node.test, ast.Name) and node.test.id == "TYPE_CHECKING":
+            skipped.update(id(n) for child in node.body for n in ast.walk(child))
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if id(node) in skipped:
+            continue
+        if isinstance(node, ast.Import):
+            names.update(a.name for a in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            base = _resolve(module, node.level, node.module)
+            if base is not None:
+                names.add(base)
+    return names
+
+
+class FollowupImportGuardTests(unittest.TestCase):
+    def files(self) -> list[Path]:
+        files = sorted(FOLLOWUP_DIR.glob("*.py"))
+        self.assertEqual([p.name for p in files], list(FOLLOWUP_FILES))
+        return files
+
+    def test_no_followup_module_imports_a_forbidden_module(self) -> None:
+        for path in self.files():
+            with self.subTest(module=path.name):
+                module = f"mycelic.collective.followup.{path.stem}"
+                self.assertEqual(forbidden_imports(path.read_text(encoding="utf-8"), module, FOLLOWUP_FORBIDDEN), [])
+
+    def test_only_drafts_imports_inference_and_only_tasks_and_errors_at_runtime(self) -> None:
+        for path in self.files():
+            module = f"mycelic.collective.followup.{path.stem}"
+            source = path.read_text(encoding="utf-8")
+            with self.subTest(module=path.name):
+                inference = sorted(n for n in runtime_imports(source, module) if _forbidden(n, INFERENCE_PREFIX))
+                if path.name == "drafts.py":
+                    self.assertEqual(inference, list(DRAFTS_INFERENCE))
+                    self.assertIn("mycelic.collective.inference.runtime",
+                                  {n for n in (_resolve(module, node.level, node.module)
+                                               for node in ast.walk(ast.parse(source))
+                                               if isinstance(node, ast.ImportFrom)) if n})
+                else:
+                    self.assertEqual(inference, [])
+                    self.assertEqual(forbidden_imports(source, module, INFERENCE_PREFIX), [])
+
+    def test_the_packet_assembler_imports_no_followup_pushdown_detect_or_inference_module(self) -> None:
+        path = ROOT / "mycelic" / "collective" / "edge" / "packets.py"
+        source = path.read_text(encoding="utf-8")
+        self.assertEqual(forbidden_imports(source, "mycelic.collective.edge.packets", PACKETS_FORBIDDEN), [])
+        for line in ("from ..followup.policy import BUILT_AHEAD_LABEL", "from ..detect.store import HqReader",
+                     "from ..pushdown import gate", "from ..inference.runtime import Runtime"):
+            with self.subTest(line=line):
+                self.assertTrue(forbidden_imports(source + "\n" + line + "\n", "mycelic.collective.edge.packets",
+                                                  PACKETS_FORBIDDEN))
+
+    def test_an_injected_import_in_a_copy_of_the_service_is_flagged(self) -> None:
+        source = (FOLLOWUP_DIR / "service.py").read_text(encoding="utf-8")
+        module = "mycelic.collective.followup.service"
+        self.assertEqual(forbidden_imports(source, module, FOLLOWUP_FORBIDDEN), [])
+        for line in ("from ..edge.records import RecordStore", "from ..edge.packets import PacketAssembler",
+                     "from ..edge import site", "from ..packs.generator import generate", "from .. import leakage",
+                     "from ..experiments.common import fail", "import openai"):
+            with self.subTest(line=line):
+                self.assertTrue(forbidden_imports(source + "\n" + line + "\n", module, FOLLOWUP_FORBIDDEN))
+        self.assertTrue(forbidden_imports(source + "\nfrom ..inference.runtime import Runtime\n", module,
+                                          INFERENCE_PREFIX))
+
+    def loaded(self, modules: list[str]) -> list[str]:
+        code = ("import json, sys\n" + "".join(f"import {m}\n" for m in modules)
+                + "print(json.dumps(sorted(sys.modules)))\n")
+        r = subprocess.run([sys.executable, "-c", code], cwd=ROOT, capture_output=True, text=True, timeout=120,
+                           env={**os.environ, "PYTHONPATH": str(ROOT)})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return json.loads(r.stdout.strip().splitlines()[-1])
+
+    def test_a_fresh_interpreter_loads_nothing_forbidden_with_the_followup_modules(self) -> None:
+        loaded = self.loaded([f"mycelic.collective.followup.{p.stem}" for p in self.files() if p.stem != "__init__"])
+        self.assertIn("mycelic.collective.followup.service", loaded)
+        self.assertEqual([m for m in loaded if _forbidden(m, FOLLOWUP_FORBIDDEN)], [])
+        self.assertEqual([m for m in loaded if _forbidden(m, INFERENCE_PREFIX)], list(FOLLOWUP_ALLOWED_LOADED))
+        self.assertEqual([m for m in loaded if _forbidden(m, FORBIDDEN_LOADED) and not m.startswith("mycelic.")], [])
+
+    def test_a_fresh_interpreter_loads_no_followup_pushdown_or_detect_module_with_the_packet_assembler(self) -> None:
+        loaded = self.loaded(["mycelic.collective.edge.packets"])
+        self.assertIn("mycelic.collective.edge.packets", loaded)
+        self.assertEqual([m for m in loaded if _forbidden(m, PACKETS_FORBIDDEN) and m not in HQ_ALLOWED_LOADED], [])
+
+
+APPROVAL_NAMES = ("approve", "edit", "reject")
+# the only places that may call approve, edit or reject (D10): the service itself, the G0 runner's simulated owner
+# (stamped simulated_approvals), the demo console a later gate adds, and the tests
+APPROVAL_ALLOWED = ("mycelic/collective/followup/service.py", "mycelic/collective/experiments/g0_canary.py",
+                    "demo/collective/collective_demo.py")
+APPROVAL_SCAN_ROOTS = ("mycelic", "demo")
+
+
+def approval_calls(source: str) -> list[str]:
+    """Every call of ``approve``, ``edit`` or ``reject``: by name, as an attribute, or through ``getattr`` with that
+    name as a constant."""
+    hits = []
+    for node in ast.walk(ast.parse(source)):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        if isinstance(func, ast.Name) and func.id in APPROVAL_NAMES:
+            hits.append(f"line {node.lineno}: call of {func.id}")
+        elif isinstance(func, ast.Attribute) and func.attr in APPROVAL_NAMES:
+            hits.append(f"line {node.lineno}: call of .{func.attr}")
+        elif (isinstance(func, ast.Name) and func.id == "getattr" and len(node.args) >= 2
+              and isinstance(node.args[1], ast.Constant) and node.args[1].value in APPROVAL_NAMES):
+            hits.append(f"line {node.lineno}: getattr of {node.args[1].value}")
+    return hits
+
+
+POSITIVE_APPROVAL_CALLS = (
+    "service.approve(key, 1, principal=p, as_of=a)",
+    "svc.edit(key, 1, {'title': 'x'}, principal=p, as_of=a)",
+    "svc.reject(key, principal=p, as_of=a)",
+    "approve(key)",
+    "getattr(svc, 'approve')(key, 1)",
+    "decide = getattr(svc, 'reject')",
+    "self.followups.service.approve(k, v)",
+    "[s.edit(k, 1, {}) for s in services]",
+)
+NEGATIVE_APPROVAL_CALLS = (
+    "def approve(self, key):\n    return key\n",
+    "svc.approved",
+    "x = 'approve'",
+    "svc.approve_all()",
+    "reject_reason = 1",
+    "editor.open()",
+    "getattr(svc, 'state')(key)",
+    "fn = svc.approve",
+)
+
+
+def approval_scan_files() -> list[Path]:
+    out = []
+    for root in APPROVAL_SCAN_ROOTS:
+        for path in sorted((ROOT / root).rglob("*.py")):
+            if "__pycache__" not in path.parts:
+                out.append(path)
+    return out
+
+
+class ApprovalCallSiteTests(unittest.TestCase):
+    def test_checker_flags_every_positive_snippet(self) -> None:
+        for snippet in POSITIVE_APPROVAL_CALLS:
+            with self.subTest(snippet=snippet):
+                self.assertTrue(approval_calls(snippet))
+
+    def test_checker_passes_every_negative_snippet(self) -> None:
+        for snippet in NEGATIVE_APPROVAL_CALLS:
+            with self.subTest(snippet=snippet):
+                self.assertEqual(approval_calls(snippet), [])
+
+    def test_only_the_allow_list_calls_approve_edit_or_reject(self) -> None:
+        files = approval_scan_files()
+        self.assertIn(ROOT / "mycelic" / "collective" / "followup" / "service.py", files)
+        self.assertIn(ROOT / "mycelic" / "service.py", files)
+        hits = {p.relative_to(ROOT).as_posix(): approval_calls(p.read_text(encoding="utf-8")) for p in files}
+        self.assertEqual({k: v for k, v in hits.items() if v and k not in APPROVAL_ALLOWED}, {})
+        self.assertTrue(hits["mycelic/collective/experiments/g0_canary.py"])      # the checker sees the real call
+
+    def test_an_injected_call_in_a_copy_of_detectors_is_flagged(self) -> None:
+        source = (DETECT_DIR / "detectors.py").read_text(encoding="utf-8")
+        self.assertEqual(approval_calls(source), [])
+        for line in ("service.approve(key, 1, principal=p, as_of=a)", "getattr(service, 'edit')(key, 1, {})",
+                     "reject(key)"):
+            with self.subTest(line=line):
+                self.assertTrue(approval_calls(source + "\n" + line + "\n"))
+
 
 # --------------------------------------------------------------------------------------------------- runbook
 
@@ -860,6 +1095,13 @@ class RunbookCommandTests(unittest.TestCase):
         self.assertTrue(any("--site-routing <site-routing-dir>" in c and "--central-routing <central-routing-file>"
                             in c for c in commands))
         self.assertTrue(any("--site-routing" not in c and "--central-routing" not in c for c in commands))
+
+    def test_commands_cover_the_g7_clis(self) -> None:
+        joined = "\n".join(runbook_commands())
+        self.assertIn("python -m mycelic.collective.followup.ledger verify --ledger <ledger-file> --expected-head "
+                      "<head-hash>", joined)
+        self.assertIn("python -m mycelic.collective.experiments.e5_injection --pack <pack> --records 1000 --seed "
+                      "<seed> --entity-type <entity-type> --injected-id <injected-id> --out runs/e5/<run-id>", joined)
 
     def test_every_command_dry_runs_offline_and_creates_nothing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

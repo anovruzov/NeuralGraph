@@ -6,7 +6,9 @@ This directory holds templates, never defaults:
 - `central_routing.example.json`: the central comparator's routing file for E2 (G6; below);
 - `e1_models.example.md`: the model tags STRATEGY lists for E1, as configurable examples;
 - `e1.prereg.example.json`: the exact key set E1's `prereg` writes, with placeholder values (the E1 tests check that
-  `prereg` writes exactly these keys).
+  `prereg` writes exactly these keys);
+- `approvers.example.json` and `kill_switch.example.json`: the follow-up layer's approvers file and kill switch (G7;
+  built ahead of E2 and X4, unvalidated; below).
 
 ## Routing
 
@@ -66,3 +68,22 @@ read it from the provider's own pricing page on the day you run, and add **one**
 
 (your own amortised cost per hour, charged by measured latency). The zeros above are placeholders, not prices.
 Record in your notes where each figure came from.
+
+## Follow-up: approvers and the kill switch (G7)
+
+The follow-up layer is **built ahead of E2 and X4 (STRATEGY sections 5.5 and 7) and unvalidated**; nothing in it
+measures anything. `RUNBOOK.md` section 14 has the commands.
+
+`approvers.example.json` lists who may approve, edit or reject follow-ups, and where in the hierarchy. Every key is
+required: `person_label` (`[a-z][a-z0-9_.-]{1,63}`, never `system`), `role` (one of the pack's roles; the device
+pack's are `quality_engineer`, `quality_manager` and `supplier_quality_engineer`) and `unit_path` (1 to 5 segments
+from your enterprise, covering at least one of your org's sites). The labels and units are placeholders for an org
+whose enterprise is `acme` with `emea` and `amer` regions: replace them with your own. A person may decide on a
+follow-up only when one of their entries has the type's owner or escalation role and a unit that covers every target
+site. The file is read at every decision, so moving a person takes effect at once; a missing or invalid file stops
+every decision (`approvers_unavailable`).
+
+`kill_switch.example.json` stops follow-ups: `global` `on` stops every type; `types` stops one type at a time (here
+`scar_draft`). The file is read on every call and fails closed: a missing or unreadable file counts as ON. The
+environment variable `MYCELIC_FOLLOWUP_KILL` adds to it: `all`, or a comma-separated list of type ids; any other value
+also counts as ON.

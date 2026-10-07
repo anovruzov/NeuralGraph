@@ -27,7 +27,7 @@ specs, below, are the one exception).
 | `detectors.json` | the parameters of the HQ detectors (G4 set the shape; section 1.1): alert budget and cooldown, baseline, window and minimum history weeks, the burst test, co-occurrence lift, resolution, independence, decoy filters and the ranker's default weights |
 | `rules.json` | hand-written rules, the second detection channel |
 | `questions.json` | pushdown question templates; only `{window}`, `{predicate_label}`, `{entity_type_label}` and `{entity_id}` may appear, without conversions or format specs, so a template can embed no record content. Since G6 also the required `pushdown` block: the commit gate's thresholds and the sibling cap (section 1.2) |
-| `followups.json` | roles and follow-up types: tier (T0 packet, T1 draft, T2 write; T3 is never an action type and an enabled T2 is refused), owner and escalation roles, daily cap, acknowledgement days, an argument DSL (entity id, predicate, conclusion id, enum, integer: no free text) and, for drafts, a JSON schema whose every string has a `maxLength` |
+| `followups.json` | roles and follow-up types: tier (T0 packet, T1 draft, T2 write; T3 is never an action type and an enabled T2 is refused), owner and escalation roles, daily cap, acknowledgement days, an argument DSL (entity id, predicate, conclusion id, enum, integer: no free text) and, for drafts, a JSON schema whose every string has a `maxLength`; since G7 the follow-up layer uses them, and every arg must lie inside its conclusion (section 1.3) |
 | `generator.json` | the synthetic world spec: sites, rates, predicate weights, code rates, the id universe and its links, surface weights, narrative templates per language and predicate, entity sentences, filler, person and reporter generators, site master data |
 | `fixtures/records.jsonl` | at least 40 hand-labelled records, each `{"record", "gold"}`; the same line format as E1's `labels.jsonl` |
 | `fixtures/plant_<name>.json` | optional (G5): plant specs for the evaluation harness (`ARCHITECTURE.md` section 14.2), named `plant_` plus 1 to 40 of `[a-z0-9_]`. The listing accepts them, but the loader never reads them and no hash covers them, so adding or editing one changes none of the four hashes; only `evaluate/plant.py` reads them. Each built-in pack ships `plant_smoke.json`, a same-author construction smoke that is not blind and never a result |
@@ -126,6 +126,38 @@ when that is `lo`), then `last+`. G6 set the edges to `[k, 10, 50]` in both pack
 `verify_max_records` caps the records a site judges for one question (newest first; the verdict says `truncated`)
 and `question_budget_per_entity_per_day` caps the distinct questions a site answers about one entity per day of its
 own clock (`LEAKAGE.md` section 9).
+
+### 1.3 Follow-up types: `followups.json` (G7)
+
+**Built ahead of E2 and X4 (STRATEGY sections 5.5 and 7): approval-routed follow-up is unvalidated; nothing here
+measures it.** `ARCHITECTURE.md` section 16 describes the layer; this section covers only the pack data.
+
+G7 changed only the built-in packs' `args_schema` blocks (D2), so only `config_hash` changed (the table in
+`INTEGRATION.md`, G7); roles, owner and escalation roles, daily caps, acknowledgement days and draft schemas are as
+in G2:
+
+| Pack | Type | Tier | `args_schema` since G7 |
+|---|---|---|---|
+| `device_quality` | `evidence_packet` | T0 | `{conclusion: conclusion_id}` (was also `product_id`, `failure_mode`, `max_records`) |
+| `device_quality` | `capa_initiation_draft` | T1 | `{conclusion: conclusion_id, severity: enum [low, medium, high]}` (unchanged) |
+| `device_quality` | `scar_draft` | T1 | `{conclusion: conclusion_id, supplier_id: entity_id supplier}` (was also `component_id`) |
+| `claims_integrity` | `evidence_packet` | T0 | `{conclusion: conclusion_id}` (was also `shop_id`, `pattern`, `max_files`) |
+| `claims_integrity` | `siu_referral_draft` | T1 | `{conclusion: conclusion_id, priority: enum [routine, urgent]}` (was also `area`) |
+
+Why: a packet's target is the conclusion's own key, so a product, failure-mode or shop arg could only repeat it or
+contradict it; and generic code cannot tell which integer arg is a record cap (the cap is `egress.json`'s
+`verify_max_records`, which the verdict already enforces).
+
+**The scope rule.** A follow-up may be proposed only by the system principal, only on a `supported` conclusion, and
+only with args inside that conclusion: every `conclusion_id` arg must equal the conclusion's own id, every
+`predicate` arg the conclusion's key predicate, and every `entity_id` arg's (type, value) must be the conclusion's key
+entity or an entity of its lineage cells (which are cells of the same key). Anything else is refused
+(`args_out_of_scope`). So **a type whose entity arg names another entity type than the conclusion's key can never be
+proposed on that conclusion**: `scar_draft` (a `supplier` arg) is proposable only on supplier-keyed conclusions, and
+every other built-in type on any supported conclusion. When you design a pack's follow-up types, give each type at
+most one `entity_id` arg, of the entity type it is meant for; `enum` and `integer` args are free choices the system
+fills (G0's harness takes an enum's first value and an integer's minimum, a harness choice, not a system one), and
+there is still no free-text arg kind.
 
 ## 2. Freezing and the four hashes
 

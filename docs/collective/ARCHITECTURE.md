@@ -1,11 +1,13 @@
-# Mycelic collective: architecture (gates G1 to G6)
+# Mycelic collective: architecture (gates G1 to G7)
 
-This document describes what gates G1 to G6 build under `mycelic/collective/`. It also places them in the loop
+This document describes what gates G1 to G7 build under `mycelic/collective/`. It also places them in the loop
 that later gates complete (STRATEGY section 4.1). Sections 1 to 10 describe G1; section 11 describes G2 (domain
 packs and the sense step); section 12 describes G3 (the site boundary and the G0 text-leakage scan); section 13
 describes G4 (detection at HQ over the cells that left the sites); section 14 describes G5 (measuring that detection
 on planted synthetic worlds against its baselines, and the openFDA public replay); section 15 describes G6 (pushdown
-verification: narrow questions answered inside each site, bucketed verdicts, the commit gate, and the E2 harness).
+verification: narrow questions answered inside each site, bucketed verdicts, the commit gate, and the E2 harness);
+section 16 describes G7 (approval-routed follow-up on supported conclusions, built ahead of E2 and X4 and
+unvalidated).
 
 **No real-model number is produced in this sandbox.** Model weights and the openFDA API cannot be reached from it, so
 every test runs against a deterministic in-process fake or a local fake HTTP server. Every harness output says so in
@@ -157,13 +159,15 @@ Replies are validated locally against the full schema, even when the wire carrie
 | Guard | What it enforces |
 |---|---|
 | Import guard | `mycelic/{service,aggregation,store,transport,lineage}.py` import no model client and nothing from `mycelic.collective`. An AST check covers plain, relative and dynamic imports; a fresh-interpreter check confirms it. A missing core file fails loudly. |
-| Stdlib only | All 50 collective modules import, and the eighteen CLIs (G2 adds the five E1 subcommands and `packs.loader check`; G3 adds `experiments.g0_canary`; G4 adds none; G5 adds `evaluate.harness` `prereg`, `check-plant` and `run` and `experiments.openfda_replay` `prereg`, `signals` and `score`; G6 adds `experiments.e2_pushdown run`) answer `--help`, under `python -S` |
+| Stdlib only | All 59 collective modules import, and the twenty CLIs (G2 adds the five E1 subcommands and `packs.loader check`; G3 adds `experiments.g0_canary`; G4 adds none; G5 adds `evaluate.harness` `prereg`, `check-plant` and `run` and `experiments.openfda_replay` `prereg`, `signals` and `score`; G6 adds `experiments.e2_pushdown run`; G7 adds `experiments.e5_injection` and `followup.ledger verify`) answer `--help`, under `python -S` |
 | No model names | No model-family name in collective code, docs or tests. The matcher holds sha256 digests only. Example tags live only in `docs/collective/examples/`. |
-| Determinism | No wall clock or unseeded randomness in `jsonio`, `schemacheck`, `stats`, the runtime modules, the pack modules, `edge/{extract,weeks,records,egress,site,verify}.py`, `leakage.py`, every `detect/*.py` and every `pushdown/*.py` (`ClockEntropyTests` checks by glob that each detect and pushdown module is listed), every `evaluate/*.py`, `experiments/openfda_replay.py` and `experiments/e2_pushdown.py` (the harnesses stamp `created_at` through `common.utc_clock` and time with `time.perf_counter`, both allowed) |
+| Determinism | No wall clock or unseeded randomness in `jsonio`, `schemacheck`, `stats`, the runtime modules, the pack modules, `edge/{extract,weeks,records,egress,site,verify}.py`, `leakage.py`, every `detect/*.py` and every `pushdown/*.py` (`ClockEntropyTests` checks by glob that each detect and pushdown module is listed), every `evaluate/*.py`, `experiments/openfda_replay.py`, `experiments/e2_pushdown.py`, every `followup/*.py` and `edge/packets.py` (`ClockEntropyTests` checks the follow-up modules by glob too; the harnesses stamp `created_at` through `common.utc_clock` and time with `time.perf_counter`, both allowed) |
 | Domain literals (G2) | No pack term (entity type, predicate, code, rule, template, follow-up type or role id of either built-in pack) is an identifier or a whole string constant in generic collective code, no string constant there contains `ILL-`, and no openFDA field name is a string constant in the pack, extraction or E1 code (one documented exemption: `text`, the payload key the brief fixes) |
 | Runbook | Every RUNBOOK command runs with `--dry-run`, with the network blocked, and creates nothing |
 | HQ imports (G4, G6) | No `detect/*.py` and no `pushdown/*.py` imports `edge.records`, `edge.site`, `edge.extract`, `edge.verify` (the site verifier, G6), `packs.generator`, `evaluate`, `leakage`, `experiments`, any `inference` module or a model client (AST check with relative imports resolved); a fresh interpreter importing every detect and pushdown module loads none of them except `inference` and `inference.errors`, which the Boundary's validator pulls in. `test_collective_pushdown.py::PushdownImportGuardTests` repeats it for pushdown and pins `detect/{detectors,rules,org}.py` to their G5 bytes |
 | Evaluation imports (G5) | No `evaluate/*.py` and not `experiments/openfda_replay.py` imports any `mycelic.collective.inference` module or a model client (`EvaluateImportGuardTests`, the same AST check; `edge.site` pulls in `inference.ledger` transitively, which is allowed). G5 makes no model call: X uses the lexical extractor |
+| Follow-up imports (G7) | No `followup/*.py` imports `edge.records`, `edge.site`, `edge.extract`, `edge.verify`, `edge.packets`, `packs.generator`, `evaluate`, `leakage`, `experiments` or a model client; only `followup/drafts.py` imports inference (`tasks` and `errors` at run time, the runtime only for type checking); `edge/packets.py` imports no `followup`, `pushdown`, `detect` or inference module (`FollowupImportGuardTests`: the AST checks and two fresh interpreters) |
+| Approval call sites (G7) | Outside `followup/service.py`, `experiments/g0_canary.py` (G0's simulated owner), `demo/collective/collective_demo.py` (a later gate's console) and `tests/`, nothing under `mycelic/` or `demo/` calls `approve`, `edit` or `reject`, as a name, an attribute call or `getattr` with that name (`ApprovalCallSiteTests`) |
 
 Each later gate extends the lists at the top of that module.
 
@@ -175,8 +179,8 @@ Each later gate extends the lists at the top of that module.
 | Detect | statistical detectors over counts; rules as a second channel | **G4:** HQ's collective store of immutable cells, the model-free detectors D2 to D7 over the k-suppressed weekly cells, the rules channel over the same cells, run X (codes and text-derived cells) and baseline S (codes only); section 13. **G5 measures it** without changing it: planted patterns and decoys, the baselines S, R (model-free), U and single-site, the pre-registered X1/X2 harness and scorecard, and the openFDA replay; section 14 |
 | Decide | candidate decided at the lowest unit spanning the evidence | **G4:** each candidate carries the decision unit of its supporting sites (their lowest common ancestor in the current org config); the fabric's rule conclusions are unchanged |
 | Verify (pushdown) | narrow questions answered by each site's in-boundary model from its own records | **G6:** structured questions from pack templates routed to the contributing sites and up to two siblings; each site answers from its own raw records with its in-boundary model through `Runtime.run` (the boundary guard keeps raw text inside) or the lexical judge, and sends a bucketed verdict through the same Boundary as its cells; the commit gate ported from vr034p assigns `supported`, `hypothesis`, `contested`, `stale` or `rejected` and HQ keeps versioned conclusions with their lineage; E2 measures it against central reading; section 15 |
-| Follow up | approval-routed T0/T1 tasks | Later |
-| Check the outcome | did the failure mode recur | Later |
+| Follow up | approval-routed T0/T1 tasks | **G7, built ahead of E2 and X4 and unvalidated:** allow-listed proposals from supported conclusions only, a named owner, approval scoped to the current approvers file, at-most-once execution, caps, the kill switch, escalation and a hash-chained ledger; T0 packets assembled inside the sites, T1 drafts at HQ from structured inputs only; T2 off, T3 not an action type; section 16 |
+| Check the outcome | did the failure mode recur | **G7:** a measurement only (not causal, no counterfactual) of the key's cells in a post window against the baseline; section 16.10 |
 
 No stage "learns"; nothing in G1 claims learning.
 
@@ -1295,6 +1299,365 @@ model.
 - **Residual disclosure (X5).** A refute versus an unknown reveals presence in the window (the daily budget limits,
   not prevents, it), bucket transitions between overlapping windows narrow a count, and verdict buckets can be
   differenced against weekly cells (`LEAKAGE.md` sections 7 and 9).
-- **No follow-up and no fabric wiring.** Only `supported` conclusions will propose follow-ups (a later gate);
-  fabric events and JetStream subjects for questions, verdicts and conclusions are integration notes
+- **No follow-up and no fabric wiring.** Only `supported` conclusions propose follow-ups (G7, section 16, built ahead
+  of E2 and X4); fabric events and JetStream subjects for questions, verdicts and conclusions are integration notes
   (`INTEGRATION.md`, G6), not code.
+
+## 16. G7: approval-routed follow-up
+
+**Built ahead of E2 and X4 (STRATEGY sections 5.5 and 7): approval-routed follow-up is unvalidated; nothing here
+measures it.** STRATEGY section 5.5 says E2 gates the architecture and runs before any action-layer work; section 7
+says X4 (20 historical cases: time to an approved draft, edit distance, rejection and false-action rates) is measured
+before the layer is shown. Neither has run. G7 builds the layer so that those measurements have something to measure;
+every doc and run file of it carries the label above (`followup.policy.BUILT_AHEAD_LABEL`).
+
+G7 closes the Follow-up and Check-the-outcome steps of the loop (STRATEGY section 4.1). A `supported` conclusion (G6's
+`pd_conclusions`) becomes approval-routed work for a named owner: T0 assembles a read-only evidence packet inside each
+target site and lets only a bucketed, suppressed, structured summary cross the Boundary; T1 writes a CAPA, SCAR or
+SIU-referral style draft at HQ from structured inputs only; a human approves, edits or rejects it; T2 stays off and T3
+is not an action type. Nothing in a record can propose, target or approve anything. Every step is an entry of an
+append-only, hash-chained ledger (`followups.sqlite3`). Afterwards an outcome check measures, and only measures,
+whether the failure mode recurred. **No real-model number is produced**: drafts come from a deterministic template
+(or a fake provider replaying it), every approval in G0 and E5 is simulated and stamped so, and detection
+(`detect/{detectors,rules,org}.py`) is byte-identical to G5.
+
+| Part | Module | Purpose |
+|---|---|---|
+| Policy | `followup/policy.py` | the labels, `as_of` normalisation, `Principal` (`SYSTEM`, `human`), the approvers file (D1) and the kill switch |
+| Ledger | `followup/ledger.py` | `followups.sqlite3`: entries, unique indexes, triggers, the hash chain, `verify_chain` and the `verify` CLI |
+| Service | `followup/service.py` | `FollowupService`: propose, assign and escalate, draft, approve, edit, reject, execute, overdue, check_outcome; `FollowupState` and `replay` |
+| Drafts | `followup/drafts.py` | `draft_payload`, `template_draft`, `draft_scope_problem`, `DraftWriter` (the only follow-up module that imports inference) |
+| Executors | `followup/executors.py` | `PacketExecutor` (T0), `OutboxExecutor` (T1), `ExecContext` |
+| Outcome | `followup/outcome.py` | `evaluate` (pure) and `check` (from HQ's store): recurrence after execution, measurement only |
+| Packets | `edge/packets.py` | `PacketAssembler` inside the site; `code_distribution` and `co_mentions` (pure) |
+| Boundary | `edge/egress.py` | the `packet_request` (in) and `packet` (out) artifacts, `packet_labels`, `FOLLOWUP_KEY_RE`, the `suppression` keyword, `Boundary.accept` for packet requests (additive; the cells, usage, question and verdict behaviour is byte-identical) |
+| HQ reads | `detect/store.py` | `HqReader`: read-only, one `mode=ro` connection per call |
+| Packs | both packs' `followups.json` | the args per D2 (`PACKS.md` section 1.3); only `config_hash` changed |
+| G0 | `experiments/g0_canary.py` | the `followup` stage; `build_context` and `run_stages` |
+| E5 | `experiments/e5_injection.py` | the injection smoke (section 16.11) |
+
+**Import graph (no cycles).** `policy` imports `hierarchy`, `jsonio` and `packs.connector`; `ledger` imports
+`edge.egress`, `edge.weeks`, `jsonio` and `policy` (and `service.replay` inside `FollowupLedger.open`); `drafts`
+imports `schemacheck`, `jsonio`, `packs.canonical` and `inference.{errors,tasks}`; `executors` imports `edge.egress`,
+`jsonio`, `packs.connector` and `policy`; `outcome` imports `edge.{egress,weeks}`, `stats` and `policy`; `service`
+imports all of them, `detect.store` (`HqReader`) and `schemacheck`. No follow-up module imports `edge.records`,
+`edge.site`, `edge.extract`, `edge.verify`, `edge.packets`, `packs.generator`, `evaluate`, `leakage`, `experiments` or
+a model client; `edge/packets.py` imports `edge.{egress,records,weeks}` and `jsonio` and nothing of `followup`,
+`pushdown`, `detect` or inference (section 7).
+
+### 16.1 Tiers
+
+| Tier | Here | Executor | Approval |
+|---|---|---|---|
+| T0 read-only | an evidence packet assembled inside each target site | `packet` | exactly one human approval (D3); its version is always 1 and it cannot be edited |
+| T1 draft | a CAPA initiation, SCAR or SIU-referral draft written at HQ from structured inputs | `draft` (the outbox) | exactly one human approval of a draft version; edits make new versions |
+| T2 write | (none enabled; the loader refuses an enabled T2) | none: a `write` executor is refused | — |
+| T3 | regulatory submissions, recalls, holds | not an action type (the loader refuses `T3`) | human only |
+
+### 16.2 Data flow
+
+```
+ HQ   pd_conclusions (G6), read through HqReader (mode=ro)
+        |  propose(conclusion_id, type, args, principal=SYSTEM, as_of[, targets])   all checks in one ledger transaction
+        v
+      ledger: proposed -> assigned (owner from the CURRENT approvers file) [-> escalated | escalation_failed]
+        |  T1: draft_payload (structured only) -> DraftWriter (central runtime or template) -> id-scope scan
+        v                                         -> drafted | draft_failed   (own transaction, no retry)
+      a named human: approve(version) | edit(base_version, fields) -> edited | reject
+        |  execute(as_of): executing (committed) -> the executor -> executed | outcome_unknown | blocked
+        v
+ T0   PacketExecutor: per target site, in sorted order, on a daemon thread joined against the deadline
+ site   Boundary.accept("in", "packet_request")  -> hq/packet_requests.jsonl, then site-<id>.ingress.jsonl
+        PacketAssembler: the stored verdict for the question -> the confirming records -> codes, co-mentions
+        full packet (narratives) -> <workdir>/packets/site-<id>/<digest>.json   (never leaves the site)
+        Boundary.send("out", "packet")          -> hq/receive.jsonl, then site-<id>.egress.jsonl
+ T1   OutboxExecutor: one canonical line -> outbox.jsonl
+ HQ   check_outcome(as_of[, post_start]) -> outcome (measurement only)
+```
+
+### 16.3 Guardrails
+
+- **Only the system proposes, and only on `supported`.** `propose` refuses any principal but `SYSTEM`
+  (`not_system`), so no person and no record content can propose. A conclusion that is not `supported` at its latest
+  version is refused.
+- **Allow-listed and schema-validated.** The type must be a pack type of tier T0 or T1 and enabled; its args must
+  pass the pack's compiled args schema (the closed DSL: entity id, predicate, conclusion id, enum, integer; no free
+  text) after NFC normalisation, and lie inside the conclusion (the scope rule, `PACKS.md` section 1.3). Targets must
+  be contributing sites of the conclusion.
+- **Record content is data.** A packet reads only structured fields; a draft reads only `draft_payload`; refusal
+  payloads hold codes, schema paths and arg names, never values. E5 checks it (section 16.11).
+- **Scoped, current authority.** A decider is a human whose CURRENT approvers entry has the type's owner or
+  escalation role at a unit covering every target site; a target no longer in the org is out of scope.
+- **Version-pinned approval.** Approve names a version; an older one is `stale_version`. Rejects and approvals are
+  terminal, once each.
+- **At most once.** `executing` is committed before the executor runs; a stored result is returned, never recomputed;
+  replay calls no executor.
+- **Caps and the kill switch.** A per-type daily cap on proposals (by the UTC date of `as_of`); a kill switch read on
+  every call (file plus environment), failing closed, which blocks proposals, approvals and execution.
+- **Idempotent keys** `act:<conclusion>:<type>:<16 hex of sha256(canonical {args, targets})>` (D4).
+
+### 16.4 Propose: check order and codes
+
+In one `BEGIN IMMEDIATE` ledger transaction; the first failing check decides. A refusal writes one `refused` entry
+(its key column is the computed key when computable, else `-`), commits, and raises `FollowupRefused(code)`. A
+malformed call raises `FollowupError` and writes nothing: an `as_of` that is not a UTC date or a timestamp with `Z` or
+`+00:00` (an impossible date or time, another offset), a principal that is not a `Principal`, targets that are not a
+list of strings or hold duplicates, an `as_of` before the conclusion's, an `as_of` whose `ack_due` would pass
+9999-12-31. The shape checks (`as_of`, the principal object, targets as a list of strings) run before the
+transaction; the others sit at their step in the table, so an earlier refusal wins: duplicate targets from a human
+principal are `not_system` with its `refused` entry, and the duplicate check is reached only at step 10. When HQ's
+store is missing or damaged mid-call, `HqReader` raises its own `StoreError` (or `StrictJsonError`); the transaction
+rolls back and nothing is written.
+
+| # | Check | Code |
+|---|---|---|
+| 1 | the principal is `SYSTEM` | `not_system` |
+| 2 | the id matches `c-[0-9a-f]{32}` and HQ holds a version | `unknown_conclusion` |
+| 3 | the key (computable when the args canonicalise) already has `proposed`: return it, no entry, whatever its state | — |
+| 4 | the latest version is `supported` (the payload names the status) | `conclusion_not_supported` |
+| 5 | a pack follow-up type | `unknown_type` |
+| 6 | tier T0 or T1 (before enabled: a disabled T2 is this) | `tier_not_allowed` |
+| 7 | enabled | `type_disabled` |
+| 8 | the compiled args schema over the NFC args (the payload names the path and keyword; a non-object is `$`/`type`, args that cannot be canonical JSON `$`/`json`) | `args_invalid` |
+| 9 | each `conclusion_id` arg is the conclusion's id, each `predicate` arg its predicate, each `entity_id` arg in its scope ids (the payload names the arg) | `args_out_of_scope` |
+| 10 | targets (default: the contributing sites, routes of role `contributing` in the org) are a non-empty subset of the contributing sites | `target_not_contributing` |
+| 11 | the kill switch is off for the type | `kill_switch` |
+| 12 | fewer than `daily_cap` `proposed` entries of the type on the UTC date of `as_of` (refusals do not count) | `daily_cap` |
+| 13 | the approvers file loads | `approvers_unavailable` |
+
+Then `proposed` `{conclusion_id, conclusion_version, question_id, candidate_key, type, tier, executor, args (NFC),
+targets (sorted), as_of}`, then `assigned` (section 16.8), then, without an owner, the escalation entry. For T1 the
+draft is written after the commit, outside any transaction (section 16.9), and recorded in its own transaction.
+
+### 16.5 Decide: approve, edit, reject
+
+Each in one ledger transaction under the service's lock; the first failing check decides:
+
+| # | Check | Code |
+|---|---|---|
+| 1 | the principal is human | `system_cannot_decide` |
+| 2 | the key exists (logged with key `-` when it is not key-shaped) | `unknown_key` |
+| 3 | no terminal decision yet: approve after reject, reject after approve, edit after approve, approve twice | `terminal` |
+| 4 | `as_of` not before the key's last entry's | `FollowupError`, no entry |
+| 5 | the conclusion's latest version is still `supported` | `conclusion_no_longer_supported` |
+| 6 | the approvers file loads (read now, never from the assignment) | `approvers_unavailable` |
+| 7 | the principal holds the owner or escalation role at a unit covering every target (a target no longer in the org is out of scope) | `not_an_approver`, `role_not_allowed`, `out_of_scope` |
+| 8 | approve only: the kill switch is off | `kill_switch` |
+| 9 | approve and edit: an edit of T0, or a T1 without a draft | `no_draft` |
+| 10 | approve and edit: the version is the latest | `stale_version` |
+
+`approved` and `rejected` store `{version, role, unit_path, approvers_hash, conclusion_version, as_of}` from the
+current approvers file (the first sorted entry that grants authority) and the latest conclusion version. **Edit**: a
+field name that is not a draft property and is one of `args, conclusion_id, key, targets, tier, type` is
+`immutable_field`; the merged draft must pass the type's `draft_schema` (`draft_invalid`, with the path and keyword;
+an unknown field is `$`/`additionalProperties`) and the id-scope scan (`draft_out_of_scope`, with the path); an
+unchanged draft writes nothing and returns the latest version; otherwise `edited` `{base_version, version = latest +
+1, draft, diff: {changed: [{field, from, to}]}, as_of}`. `regenerate(key)` (the system, or a human with authority)
+adds a draft attempt to an undecided T1 (`unknown_key`, `terminal`, `no_draft` for T0,
+`conclusion_no_longer_supported`).
+
+### 16.6 Execute at most once, and the crash window
+
+`execute(key, as_of)`, in one transaction under the lock: an unknown key is refused; a stored `executed` returns its
+result byte for byte with no entry and no executor call; a stored `outcome_unknown` returns it; an `executing`
+without a closing entry is `in_progress` when this process runs it and otherwise gets one `outcome_unknown`
+`{reason: interrupted}` without an executor call (a crash happened); then `rejected`, `not_approved`,
+`conclusion_no_longer_supported`; a kill switch that is on appends `blocked` `{reason: kill_switch, source, as_of}` and
+returns `blocked_kill_switch`; else `executing` is committed and the key joins the in-flight set. Outside the lock and
+any transaction the executor runs with `ExecContext(view, state, as_of, draft)` (the approved version's draft for T1).
+An `Exception` is `outcome_unknown` `{reason: executor_error}` (nothing of it is stored); a `BaseException` (a crash)
+propagates and leaves `executing`, which the next call turns into `interrupted`. Otherwise `executed` `{result,
+as_of}`. The in-flight set is per process (D12): **one executing service per ledger**.
+
+### 16.7 The ledger (`followups.sqlite3`)
+
+Opened like the other stores (WAL, refused without it; `synchronous=FULL`; foreign keys; a 5 s busy timeout); one
+connection per ledger object, usable from any thread, always used under the ledger's lock; every write is one
+`BEGIN IMMEDIATE ... COMMIT`, rolled back on anything (a crash included). `ledger_info` pins `schema_version`,
+`pack_id`, `config_hash` and `enterprise`; `entries` holds `(seq, at, kind, key, actor, payload, prev_hash, hash)`;
+triggers abort `UPDATE` and `DELETE` on both.
+
+**Kinds and payloads** (exact key sets, `ledger.PAYLOAD_KEYS`): `proposed`, `refused` `{op, code, conclusion_id,
+type, status, path, keyword, arg}`, `assigned` `{owner, role, unit, assignment_unit, ack_due, approvers_hash}`,
+`drafted` `{attempt, version, draft, source}`, `draft_failed` `{attempt, reason}`, `approved` and `rejected`,
+`edited`, `executing` `{as_of}`, `executed` `{result, as_of}`, `outcome_unknown` `{reason}`, `blocked`, `escalated`
+`{reason, to_role, to, unit, as_of}`, `escalation_failed` `{reason, to_role, problem, as_of}` and `outcome` `{result,
+as_of}`: the brief's thirteen plus `drafted` and `escalation_failed` (D9).
+
+**Unique indexes** (partial, on `key`): one `proposed`, one `assigned`, one of `approved`/`rejected`, one
+`executing`, one of `executed`/`outcome_unknown`, one of `escalated`/`escalation_failed`. A violation inside an
+append is `LedgerConflict` and rolls its transaction back; the other kinds may repeat
+(`LedgerChainTests::test_each_partial_unique_index_allows_one_entry_per_key`). Two service instances on one file still
+produce exactly one terminal decision: every check re-reads the key's entries inside the `BEGIN IMMEDIATE` transaction
+(D12). The indexes are the last line behind the service's state checks: they hold even if those checks are handed the
+wrong entries.
+
+**The chain.** `seq` is the last plus one (no autoincrement); `prev_hash` of the first entry is the sha256 of the
+canonical `ledger_info`; `hash = sha256(prev_hash + canonical {seq, at, kind, key, actor, payload})`. `verify_chain`
+(read-only) reports `seq_gap`, `prev_hash_mismatch`, `bad_entry` (a payload that is not strict canonical JSON with
+its kind's keys) or `hash_mismatch` at the first seq it finds, and `unreadable` for any SQLite error, a failing
+`PRAGMA integrity_check` or a file without a well-formed `ledger_info`. The chain walk reads the table with a full
+scan, while every per-key read of the service goes through the `entries_key` index; `quick_check` (the brief's
+choice) never compares an index with its table, so one flipped byte in an index page passed it and the chain walk and
+handed the service a key's entries without, say, its `approved` row (the review of round 2 found an edit accepted on an
+approved follow-up that way). `open` and `verify_chain` therefore run `integrity_check`, which compares every index
+with the table; such a file is `unreadable`, not a traceback
+(`LedgerChainTests::test_an_index_flip_that_passes_quick_check_is_unreadable`,
+`test_page_and_header_corruption_is_unreadable_not_a_traceback`). Every ledger connection decodes TEXT cells
+strictly to a value that is never a string when the bytes are not UTF-8, so a flipped byte inside an entry's `at`,
+`key`, `actor` or `hash` cell is `bad_entry` at that seq (inside `prev_hash`, `prev_hash_mismatch`; inside `kind`,
+whose value the partial indexes' `WHERE` reads, `integrity_check` finds the index out of step first: `unreadable`),
+inside a `ledger_info` cell `unreadable`, and a SQLite error message that quotes a damaged schema name (which Python
+would decode into a `UnicodeDecodeError`) is `unreadable` too; none is a traceback
+(`LedgerChainTests::test_undecodable_or_retyped_cells_are_a_chain_problem_not_a_traceback`).
+
+**After `open`.** A payload damaged since `open` is `LedgerError('chain:bad_entry', seq)` on the next read of that
+row (a state, the entries, the daily-cap count), and so is a text cell that is no longer a string (a row, the head
+hash, the hash an append chains to); a read or a write that meets a damaged page (`SQLITE_CORRUPT`, `SQLITE_NOTADB`)
+is `LedgerError('unreadable')` and appends nothing; no sqlite3 or decoding error escapes. Any other SQLite error, such
+as a busy file, propagates unchanged
+(`LedgerChainTests::test_a_payload_damaged_after_open_is_bad_entry_not_a_decoding_error`,
+`test_a_text_cell_damaged_after_open_is_bad_entry`,
+`test_damage_met_after_open_is_a_ledger_error_and_a_busy_file_is_not`). The limit: damage made while a ledger is open
+is found by the read that meets it or at the next `open`; until then a damaged index can still mislead a per-key
+read, and the partial unique indexes are what keep one terminal decision and one execution per key.
+
+**The anchoring limit:** the chain has no key, so without an anchor a truncated tail or a complete rewrite passes; G0
+and E5 export the head hash and entry count, and `verify --expected-head --expected-entries` checks them
+(`anchor_mismatch`). `FollowupLedger.open` refuses a missing file (creating none), an existing path at
+`create` (an empty file included), `ledger_info` of another pack config or enterprise, a broken chain and an
+impossible sequence of entries.
+
+**Replay.** `replay(entries)` rebuilds every follow-up's state from the ledger alone: pure, no executor, no I/O; a gap
+or an out-of-order seq is `chain:seq_gap`, an impossible transition (anything before `proposed`, a second
+`proposed`, an executor that is not its tier's, `executed` without `executing`, a second terminal decision, a draft
+after a decision, a `drafted`, `draft_failed` or `edited` entry on a T0 key) is `chain:bad_entry`; `refused` entries
+never change a state. A state's status is, by precedence, `outcome_unknown`, `executed`, `executing`, `rejected`,
+`approved`, then for T1 without a draft `draft_failed` (an attempt failed) or `awaiting_draft`, else
+`awaiting_approval`.
+
+### 16.8 Assignment and escalation
+
+The assignment unit is the common unit-path prefix of the conclusion's decision unit and the targets' decision unit
+(their lowest common ancestor; the targets' alone when the conclusion has none), so the owner can always approve, even
+when a contributing site lies outside the confirming sites' subtree. The owner is the holder of the type's
+`owner_role` at that unit or its nearest ancestor (the smallest label when several hold it there), and
+`ack_due = as_of + ack_days`. Without a holder, `assigned` has a null owner and the escalation is written at once:
+`escalated` (`unassigned`) to the `escalate_to_role` holder found the same way, or `escalation_failed`
+(`no_escalation_role` when the type has none, `no_holder`). `overdue(as_of)` escalates, once each (the unique index),
+every follow-up still awaiting a draft or a decision, not acknowledged (no approve, reject or edit) and without an
+escalation entry, whose `ack_due` is strictly before `as_of`; a missing approvers file gives `escalation_failed`
+(`approvers_unavailable`).
+
+### 16.9 Packets and drafts
+
+**Packet request** (in; `edge/egress.py`): `schema_version`, `pack`, `pack_hash`, `followup_key`, `question_id`,
+`candidate_key`, `window`, `as_of`; the key's conclusion id must be the question's, the candidate key an egress type,
+a canonical id and a pack predicate, the window ordered and closed at `as_of` (and, at the site, by the site's clock).
+
+**Packet** (out): `schema_version`, `pack`, `pack_hash`, `site`, `followup_key`, `question_id`, `candidate_key`,
+`window`, `status` (`ok`, `no_confirmed_records`, `no_verdict`), `verdict`, `support_bucket`, `roots_bucket`,
+`reporters_bucket`, `evidence_ref`, `truncated`, `codes [{code, n}]` (`n` in `packet_labels`) and `co_mentions
+[{entity_type, entity_id, n}]` (`n` a bucket from k up). No total, no record handle, no text. Cross-field checks, in
+order: the key's conclusion id; the window; status against verdict (`ok` needs a confirm, `no_confirmed_records` a
+refute or an unknown, `no_verdict` none); buckets and reference against verdict; no codes or co-mentions unless `ok`;
+codes strictly sorted; never exactly one `'suppressed'` code among two or more (`suppression`); co-mentions strictly
+sorted, canonical, and never the key's entity. `PacketAssembler` (`edge/packets.py`) answers from the verdict the site
+stored for the question (refusing, after taking the request in, a verdict of another window or a question log naming
+another entity), counts codes and co-mentions over the confirming records only (D6; LEAKAGE section 10), writes the
+full packet inside the site, never overwriting one, and sends the summary. `PacketExecutor` asks the targets in
+sorted order with a deadline each and returns `complete`, `partial` or `failed` with the unavailable sites' reasons
+(`no_handler`, `error`, `timeout`, `invalid`). A late handler is left out of the result but not cancelled: it still
+finishes, so its site keeps the full packet and its summary may still reach HQ's receive log (where G0 scans it) while
+the ledger's result lists the site as `timeout`.
+
+**Draft.** `draft_payload` has exactly `{followup_type, type_label, tier, args, conclusion, packets}`, the conclusion
+`{conclusion_id, version, candidate_key, entity_type, entity_type_label, entity_id, predicate, predicate_label, status,
+window, confirming_sites, decision_unit, support_lb, roots_lb, reporters_lb, newest_week}` and each packet `{site,
+status, verdict, support_bucket, codes, co_mentions}`: structured only. `DraftWriter` runs the task `draft_followup`
+(data class `structured`, 2,048 tokens) on a `central` runtime (a runtime bound elsewhere is refused) with one repair,
+or fills `template_draft` without one; the draft must pass the type's `draft_schema` and the id-scope scan, else
+`draft_failed` with a reason from `DRAFT_FAILURE_REASONS` (the inference error kinds and `out_of_scope_id`). The
+ledger ref is `d:<last 16 of the key>:<attempt>`, never a record ref. The template's summary is `'<predicate label> on
+<entity type label> <entity id>: supported, <n> confirming site(s), weeks <start> to <end> (conclusion <id>
+v<version>)'`, and each required string property gets `'<type label>: <summary>'` cut at its `maxLength`.
+
+**Outbox** (T1 executor): one canonical line `{schema_version, key, conclusion_id, type, tier, version, draft, owner,
+approved_by, targets, label}` (the built-ahead label), flushed and synced; the result is `{outbox, line_sha256,
+version}`.
+
+### 16.10 The outcome check
+
+`outcome.evaluate` is pure: over the key's cells at the contributing sites, both channels, with `'<k'` counted as
+`[1, k - 1]` (G4's imputation), it compares a post window of the original window's length (default the next week on;
+one overlapping the original window is `OutcomeError`) against the `baseline_weeks` before the original window:
+`expected_ub = max(lambda_floor * sites, baseline_ub / B) * L`, `expected_lb = baseline_lb / B * L`. First match:
+the post window not closed at `as_of`, or a site's coverage ending before it, is `insufficient_data`
+(`post_window_incomplete`); more than half the post cells `'<k'` is `insufficient_data` (`mostly_suppressed`);
+`post_lb >= 1` and `poisson_sf(post_lb, expected_ub) < alpha_site` is `recurred`; `post_ub <= expected_lb` is
+`not_recurred`; otherwise `insufficient_data` (`inconclusive`). Every result carries **"measurement only; not causal,
+no counterfactual"**: a recurrence after a follow-up says nothing about the follow-up's effect. `check_outcome` is
+refused before execution (`not_executed`) and records one `outcome` entry per distinct result.
+
+### 16.11 E5: the injection smoke
+
+`experiments/e5_injection.py` plants instruction-shaped English sentences naming a fresh id (the type's label, the
+id, a predicate term, an imperative to open, approve or target a follow-up) in 1% of one site's narratives, adds the id
+to that site's master data, runs G0's stages and counts the artifacts holding the id: supported conclusions,
+proposals, drafts, outbox lines, ledger entries and packets must all be 0 while HQ's cells name it (the positive
+control); a second variant at two sites is recorded, never asserted. **It is a plumbing smoke, not E5:** the
+extractors here are the lexical extractor or a fake replaying it, so injected text is inert by construction, and a
+coordinated campaign at two or more sites is indistinguishable from real records for any extractor; the defences
+are independence and human approval. On the device pack (supplier `V9999`) and the claims pack (repair shop
+`RS-99999`), seed 11, 1,000 records (synthetic, same-author, not a measurement), every hit is 0 and HQ holds 3 and 1
+cells naming the id; the two-site variant's hits are also 0.
+
+### 16.12 Decisions that refine the brief (D1 to D12)
+
+- **D1. Approvers live in their own file** (`approvers.json`), validated against the org and the pack and read at
+  every use; `detect/org.py` is unchanged (its sha256 is pinned, its hash is stored in every detection run, and every
+  org file would otherwise need approvers).
+- **D2. Pack args.** `evidence_packet` takes `{conclusion}`; `scar_draft` `{conclusion, supplier_id}`;
+  `siu_referral_draft` `{conclusion, priority}`; only `config_hash` changed (`PACKS.md` section 1.3).
+- **D3. Every tier needs one human approval**, T0 included (the requester is always the system, which never decides,
+  and the T0 summary crosses the Boundary); T0's version is 1 and an edit of it is `no_draft`.
+- **D4. The key covers the targets**: the same args sent to other sites are another follow-up; key order and Unicode
+  normalisation never change a key.
+- **D5. Targets** default to the contributing sites; given ones must be a non-empty, duplicate-free subset.
+- **D6. Packet counts leave as buckets** (`'suppressed'` or k up), with complementary suppression; a co-mention needs k
+  records, comes only from structured master-data fields, and an id below k is omitted.
+- **D7. Packet requests and packets are Boundary artifacts**, logged in `hq/packet_requests.jsonl` and the receive
+  log; `questions.jsonl` keeps questions only.
+- **D8. The draft scope scan checks types with an id format only** (exact and variant mentions and unresolved
+  lookalikes); alias words are ordinary words (the device label "Display fault" reads as the component alias).
+- **D9. Ledger kinds** are the brief's thirteen plus `drafted` and `escalation_failed`.
+- **D10. The approve, edit and reject call sites** are the service, G0's simulated owner, a later demo console and
+  the tests (`ApprovalCallSiteTests`); E5 runs G0's stages and calls none of them.
+- **D11. HQ is read only through `HqReader`**, one `mode=ro` connection per call; the service never writes HQ's store.
+- **D12. One executing service per ledger.** Every check runs in a `BEGIN IMMEDIATE` transaction that re-reads the
+  key, so decisions from two instances are safe; the in-flight set that tells `in_progress` from `interrupted` is per
+  process. When a second instance executes a key while the first is running it, the executor still runs once, but
+  the second sees a foreign `executing`, records `outcome_unknown` (`interrupted`) and closes the key, so the first's
+  `executed` is refused and both return `outcome_unknown` while the side effect (a packet set, an outbox line)
+  exists. A deployment with more than one replica therefore needs a lease or a single executing worker (INTEGRATION
+  G7, merge note 7).
+
+Deviations, each recorded in `INTEGRATION.md` (G7): the full packet is kept at `packets/site-<id>/` (sites can share a
+work directory, as G0's do); the template's summary reads "supported, <n> confirming site(s)" (two letters, a space
+and a number read as a device product id); the service takes no clock (the ledger stamps `at` with its own and every
+decision uses the caller's `as_of`); a ledger refusal reason `wal` and `conflict` beside the brief's; `outcome.evaluate`
+also takes the conclusion id and candidate key its result names.
+
+### 16.13 What G7 does not show
+
+- **No X4 and no E2.** Nothing here says that approval-routed follow-up saves time, that drafts are good or that
+  pushdown with a small model works. The layer is built ahead of both and is unvalidated.
+- **Synthetic only, simulated approvals.** Every G0 and E5 run uses synthetic, same-author worlds; its approvals are a
+  simulated owner (`simulated_approvals: true`); its drafts are a template (or a fake replaying it). No figure here is
+  a product number.
+- **E5 is a smoke, not E5.** Injected text is inert for the lexical extractor by construction; a real in-boundary
+  model may behave differently, and a coordinated campaign at two or more sites cannot be told from real records.
+- **The text scan is text only** (`LEAKAGE.md` sections 7 and 10): a packet's codes and co-mentions disclose
+  co-occurrence as buckets, and a drafting model's prose could restate a count or an id in another form.
+- **No fabric wiring.** Fabric event kinds, JetStream subjects, auth scopes and anchoring the ledger head in the
+  fabric's signed log are integration notes (`INTEGRATION.md`, G7), not code.

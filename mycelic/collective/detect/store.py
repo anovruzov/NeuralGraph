@@ -53,6 +53,12 @@ cannot collide with them. The change is additive (``CREATE ... IF NOT EXISTS``),
 * the reads the orchestrator routes with: a stored candidate and its run's ``as_of``, a key's visible cells in a
   window, and per-site lower-bound volumes (a NULL count counts 1) of an entity and of an entity type, over the current
   org's sites and the cells visible at an ``as_of``.
+
+Follow-up (G7, ``followup/``) reads HQ's store only through :class:`HqReader`, a read-only reader: each call opens its
+own ``mode=ro`` connection and closes it, so worker threads never share a SQLite object, and it never writes the
+store (on a WAL file whose writer is closed, SQLite itself may create the empty ``-wal`` and ``-shm`` files a reader
+needs). A missing file is ``StoreError('missing')`` and creates nothing. The follow-up ledger is a separate file
+(``followups.sqlite3``) and keeps its own SQL in ``followup/ledger.py``; nothing here touches it.
 """
 from __future__ import annotations
 
@@ -206,6 +212,8 @@ _PD_CONCLUSION_COLUMNS = "conclusion_id, version, question_id, as_of, status, bo
 _INSERT_PD_CONCLUSION = "INSERT INTO pd_conclusions (" + _PD_CONCLUSION_COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
 _PD_CONCLUSIONS = ("SELECT conclusion_id, version, question_id, as_of, status, body, sha256, created_at "
                    "FROM pd_conclusions WHERE conclusion_id = ? ORDER BY version")
+_SITE_COVERAGE = ("SELECT site, closed_through FROM bundles WHERE as_of <= ? "
+                  "AND site IN (SELECT site_id FROM org_sites) ORDER BY site, closed_through")
 
 
 class StoreError(ValueError):
@@ -654,3 +662,57 @@ class CollectiveStore:
         """Every stored version of a conclusion, oldest first."""
         return tuple(ConclusionRow(*row[:5], bytes(row[5]), *row[6:])
                      for row in self._conn.execute(_PD_CONCLUSIONS, (conclusion_id,)).fetchall())
+
+
+class HqReader:
+    """Read-only access to HQ's collective store for the follow-up layer (G7). It never creates or writes the store;
+    every method opens its own ``mode=ro`` connection in the calling thread, runs literal ordered SELECTs and closes
+    it."""
+
+    def __init__(self, path: str | Path) -> None:
+        self.path = Path(path)
+
+    @contextmanager
+    def _read(self) -> Iterator[sqlite3.Connection]:
+        if not self.path.exists():
+            raise StoreError("missing") from None
+        conn = sqlite3.connect(f"{self.path.resolve().as_uri()}?mode=ro", uri=True, isolation_level=None)
+        try:
+            yield conn
+        finally:
+            conn.close()
+
+    def conclusions(self, conclusion_id: str) -> tuple[ConclusionRow, ...]:
+        """Every stored version of a conclusion, oldest first."""
+        with self._read() as conn:
+            rows = conn.execute(_PD_CONCLUSIONS, (conclusion_id,)).fetchall()
+        return tuple(ConclusionRow(*row[:5], bytes(row[5]), *row[6:]) for row in rows)
+
+    def question(self, question_id: str) -> QuestionRow | None:
+        with self._read() as conn:
+            row = conn.execute(_PD_QUESTION, (question_id,)).fetchone()
+        return QuestionRow(*row[:8], bytes(row[8]), *row[9:]) if row is not None else None
+
+    def routes(self, question_id: str) -> tuple[RouteRow, ...]:
+        with self._read() as conn:
+            rows = conn.execute(_PD_ROUTES, (question_id,)).fetchall()
+        return tuple(RouteRow(*row) for row in rows)
+
+    def key_cells(self, entity_type: str, entity_id: str, predicate: str, first_week: str, last_week: str,
+                  as_of: str, channels: tuple[str, ...]) -> tuple[CellRow, ...]:
+        """As :meth:`CollectiveStore.key_cells`: the key's cells of the current org's sites in ``[first_week,
+        last_week]``, visible at ``as_of``, in ``channels``."""
+        with self._read() as conn:
+            rows = conn.execute(_KEY_CELLS, (entity_type, entity_id, predicate, first_week, last_week, as_of,
+                                             channels[0], channels[-1])).fetchall()
+        return tuple(CellRow(*row) for row in rows)
+
+    def site_coverage(self, as_of: str) -> dict[str, str]:
+        """Per current-org site, the latest ``closed_through`` of its bundles received with ``as_of`` on or before
+        ``as_of``; a site without such a bundle is absent."""
+        with self._read() as conn:
+            rows = conn.execute(_SITE_COVERAGE, (as_of,)).fetchall()
+        out: dict[str, str] = {}
+        for site, through in rows:
+            out[site] = through
+        return out

@@ -1,4 +1,4 @@
-# Founder runbook: week-1 measurements, E1, G0, X1, the public replay and E2
+# Founder runbook: week-1 measurements, E1, G0, X1, the public replay, E2 and follow-up
 
 This runbook covers what you run on your own machines (STRATEGY sections 11.2 and 12):
 
@@ -13,7 +13,10 @@ This runbook covers what you run on your own machines (STRATEGY sections 11.2 an
 - **the openFDA public replay** (STRATEGY section 9.3): signals frozen before any recall is opened (section 12);
 - **E2**: whether pushdown verification with a small model inside each site keeps the ranking quality of a central
   model reading the raw text, with no raw text leaving a site (synthetic, internal only; section 13). It gates the
-  architecture (STRATEGY section 5.5).
+  architecture (STRATEGY section 5.5);
+- **follow-up** (G7): the approvers file, the kill switch, checking the follow-up ledger's hash chain and the E5
+  injection smoke (section 14). **Built ahead of E2 and X4 (STRATEGY sections 5.5 and 7): approval-routed follow-up
+  is unvalidated; nothing here measures it.**
 
 None of these produced a number in the sandbox where the code was written. Model weights and api.fda.gov could not
 be reached there, so every figure has to come from your runs. The E1 harness was rehearsed against local fake
@@ -413,6 +416,11 @@ Reading `runs/g0/<run-id>/leakage.json`:
 - Since G6, `stages` is `["edge", "pushdown"]`: HQ detects over the cells, asks the sites about up to 20 candidates
   (at least 5), and every question, every verdict, each site's ingress log and HQ's own database are scanned too.
   `pushdown_totals` counts the candidates, questions, routes, verdicts and conclusions (`LEAKAGE.md` section 9).
+- Since G7, `stages` is `["edge", "pushdown", "followup"]`: every supported conclusion gets its follow-ups proposed,
+  approved by a **simulated** owner (`followup_totals.simulated_approvals` is `true`) and executed, and every packet,
+  packet request, draft, the follow-up ledger, the outbox and the central draft ledger are scanned too.
+  `followup_totals` counts them and carries the ledger's head hash; the layer is built ahead of E2 and X4 and
+  unvalidated (`LEAKAGE.md` section 10).
 
 Send back `leakage.json` only. **Never send `private/manifest.json`**: it is the one file that holds the canary
 tokens, and a scan of anything that contains it is refused.
@@ -433,7 +441,9 @@ Send these files:
 - for the replay: the three run files `prereg.json`, `signals.json` with `phase1.json`, and `replay.json`, plus both
   caches' `manifest.json` (the pages only if asked; they are public data);
 - for E2: the X1 `prereg.json` it used, the plant spec, `runs/e2/<run-id>/e2.json` and `central.ledger.jsonl` (never
-  the `work/` directory: it holds every simulated site's store, ledgers and logs).
+  the `work/` directory: it holds every simulated site's store, ledgers and logs);
+- for the E5 injection smoke: `runs/e5/<run-id>/e5.json` only (never the variant directories: they hold the synthetic
+  world's site stores and full packets).
 
 Never send:
 
@@ -653,3 +663,59 @@ about one entity on one simulated day into `unknown` (budget); `pushdown.budget_
 
 Send back what section 10 lists for E2. `e2.json` and `central.ledger.jsonl` hold no record text, record ref or
 narrative (the ledger refs are `e2:<n>:raw` and `e2:<n>:allowed`), and a test scans them for narrative shingles.
+
+## 14. Follow-up (built ahead of E2 and X4; unvalidated)
+
+**Built ahead of E2 and X4 (STRATEGY sections 5.5 and 7): approval-routed follow-up is unvalidated; nothing here
+measures it.** STRATEGY section 7 says X4 (20 historical cases: time to an approved draft, edit distance, rejection
+and false-action rates) must run before this layer is shown; it has not. Never show a follow-up figure as a product
+number.
+
+What the layer does (ARCHITECTURE section 16): for a `supported` conclusion, the system proposes allow-listed
+follow-ups; a named owner approves, edits or rejects each one; an approved T0 assembles a read-only evidence packet
+inside each target site, of which only a bucketed, suppressed summary crosses; an approved T1 appends a draft to an
+outbox. Every step is one entry of the append-only, hash-chained ledger `followups.sqlite3`. Writes to a system of
+record (T2) are off and have no executor.
+
+**The approvers file.** Copy `docs/collective/examples/approvers.example.json`, set `enterprise` to your org's, and
+list each person with one of the pack's roles and the unit they answer for. A person decides on a follow-up only when
+they hold its owner or escalation role at a unit that covers every target site; the file is read at every decision.
+`examples/README.md` explains each key.
+
+**The kill switch.** Copy `docs/collective/examples/kill_switch.example.json`: `global` `on` stops everything, `types`
+stops one follow-up type. Keep the file in place: a missing or unreadable file counts as ON. The environment variable
+`MYCELIC_FOLLOWUP_KILL` (`all`, or a comma-separated list of type ids) adds to the file; any other value counts as ON.
+Proposing and approving are refused (`kill_switch`) while the switch is on, and executing records `blocked` instead
+of running; rejecting is not affected.
+
+**Check a ledger's hash chain** before you trust a run's follow-up trail. Pass the head hash and entry count the run
+exported (G0's `leakage.json` has them as `followup_totals.ledger_head_hash` and `ledger_entries`): without them a
+truncated tail or a complete rewrite of the file passes, because the chain has no key.
+
+```
+python -m mycelic.collective.followup.ledger verify --ledger <ledger-file> --expected-head <head-hash>
+```
+
+It prints one JSON line (`ok`, `entries`, `head_hash`, `problem`, `seq`; never a payload) and exits 0 when the chain
+is whole, 1 when it is broken (the problem and the seq it was found at) and 2 when the file is missing, not a ledger,
+or damaged below the chain (`unreadable`: a damaged page or header, an undecodable `ledger_info` cell or schema name).
+A flipped byte inside an entry is reported at its seq (`bad_entry` or `prev_hash_mismatch`), never as a traceback.
+`--expected-entries N` adds the count to the anchor.
+
+**The E5 injection smoke** plants instruction-shaped sentences that name a fresh id (`<injected-id>`, canonical for
+`<entity-type>`, found nowhere in the world or the pack) in 1% of one site's record narratives, runs G0's stages
+(edge, pushdown, follow-up), and checks that the id reaches no supported conclusion, proposal, draft, outbox line,
+ledger entry or packet, while HQ's cells do name it (the positive control). A second variant injects at two sites and
+is recorded, never asserted: a coordinated campaign is indistinguishable from real records for any extractor.
+
+```
+python -m mycelic.collective.experiments.e5_injection --pack <pack> --records 1000 --seed <seed> --entity-type <entity-type> --injected-id <injected-id> --out runs/e5/<run-id>
+```
+
+For the device pack use `--entity-type supplier` with an id such as `V9999`; for the claims pack `--entity-type
+repair_shop` with `RS-99999`. It exits 0 when the single-site variant passed, 1 when it did not, and 2 (writing
+nothing) when the type has no id format, the id is not canonical or already in the world, `--rate` is outside
+(0, 0.2] or `--out` is not empty. **It is a plumbing smoke, not E5:** the extractors here are the lexical extractor
+or a fake replaying it, so the injected text is inert by construction. E5 proper needs your in-boundary model
+(section 2) and is not built here. `e5.json` says `measurement: false`, `synthetic: true` and
+`simulated_approvals: true`.

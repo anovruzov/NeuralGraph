@@ -1,6 +1,7 @@
-"""The Boundary: the only path out of a site, and since G6 the only path in for a question.
+"""The Boundary: the only path out of a site, and since G6 the only path in for a question (since G7 also for a
+packet request).
 
-Four artifact types (:data:`ARTIFACT_TYPES`) cross it, each in one direction (:data:`ARTIFACT_DIRECTION`). Three
+Six artifact types (:data:`ARTIFACT_TYPES`) cross it, each in one direction (:data:`ARTIFACT_DIRECTION`). Four
 leave, ``out``:
 
 * ``cells_bundle``: weekly count cells ``(entity_type, entity_id, predicate, iso_week, channel)`` with ``n``,
@@ -12,17 +13,26 @@ leave, ``out``:
   (:func:`verdict_buckets`: ``'<k'``, then ranges from the pack's ``verdict_count_buckets``), never an exact count;
   the newest confirming week; one opaque 16-hex ``evidence_ref`` that only the site's auditor can resolve; a wire
   reason only for ``budget`` and ``no_secret``; ``truncated``, ``quality`` and ``secret_mode``. No text, no record
-  handle and no judged or failure count can pass the spec.
+  handle and no judged or failure count can pass the spec;
+* ``packet`` (G7): the bucketed, suppressed summary of a site's evidence packet for one follow-up: ``status``
+  (:data:`PACKET_STATUSES`), the stored verdict with its three buckets, ``evidence_ref`` and ``truncated``, per pack
+  code a count label (:func:`packet_labels`: ``'suppressed'`` or a verdict bucket from k up; complementary
+  suppression, so never exactly one ``'suppressed'`` code among two or more) and the master-data ids co-mentioned in
+  at least k confirmed records, as buckets. No total, no record handle and no text.
 
-One comes in, ``in``: ``question`` (G6), a narrow structured question from HQ: the candidate key, a pack template,
+Two come in, ``in``: ``question`` (G6), a narrow structured question from HQ: the candidate key, a pack template,
 the params ``{entity_type, entity_id, predicate}``, a window of closed ISO weeks and an ``as_of``. Its
-``question_id`` is :func:`question_id` (neither ``as_of`` nor the pack hash is in it).
+``question_id`` is :func:`question_id` (neither ``as_of`` nor the pack hash is in it). ``packet_request`` (G7): HQ's
+request for one follow-up's evidence packet: the follow-up key (:data:`FOLLOWUP_KEY_RE`, whose conclusion id is
+``c-`` plus the first 32 hex of the question id), the question id, the candidate key, the question's window and an
+``as_of``.
 
-All four are structurally closed (an unknown key anywhere is refused) and validated here by a closed spec
+All six are structurally closed (an unknown key anywhere is refused) and validated here by a closed spec
 language of our own (``schemacheck`` cannot say "an int >= k or the string '<k'", nor optional keys, and is tied to
 model replies). ``cells_bundle`` and ``usage_summary`` are the sequenced types (:data:`SEQUENCED_TYPES`): never
 revised (``after`` must equal the last ``closed_through`` sent for that type; an identical re-send is a no-op). A
-verdict or a question is idempotent by sha256: an identical one already sent or accepted is a no-op. Problems are
+verdict, a packet, a question or a packet request is idempotent by sha256: an identical one already sent or accepted
+is a no-op. Problems are
 checked in a fixed order and the first is raised as :class:`EgressError`, which holds the artifact type, a path
 built only from schema property names and integer indices, and a keyword. It never holds a value: an unknown key is
 reported at its parent object as ``additionalProperties``, unnamed. This module logs nothing.
@@ -30,8 +40,9 @@ reported at its parent object as ``additionalProperties``, unnamed. This module 
 :meth:`Boundary.send` appends one canonical JSON line (``artifact_type, body, bytes, direction, sha256, site, ts``)
 to the HQ receive log first and then to the site's egress log; after a crash between the two writes a re-send makes
 them agree (HQ may then hold a duplicate with the same sha256, which HQ drops). :meth:`Boundary.accept` takes a
-question in: it appends one line to HQ's question log first and then to the site's ingress log, and refuses a window
-that ends after the last week closed by the site's own clock. A refused send or accept writes nothing.
+question or a packet request in: it appends one line to HQ's question log (a packet request: HQ's packet request log)
+first and then to the site's ingress log, and refuses a window that ends after the last week closed by the site's own
+clock. A refused send or accept writes nothing.
 
 The Boundary and HQ share one validator. :func:`check_artifact` runs the structural check and then the cross-field
 check on an already-parsed body and returns the first problem ``(path, keyword)`` or None; :func:`log_row_problem`
@@ -56,21 +67,24 @@ from .weeks import TS_RE, closed_through, local_date, valid_week, week_monday
 if TYPE_CHECKING:
     from ..packs.loader import FrozenPack
 
-ARTIFACT_TYPES = ("cells_bundle", "usage_summary", "question", "verdict")
+ARTIFACT_TYPES = ("cells_bundle", "usage_summary", "question", "verdict", "packet_request", "packet")
 DIRECTIONS = ("out", "in")
 ARTIFACT_DIRECTION: Mapping[str, str] = MappingProxyType({"cells_bundle": "out", "usage_summary": "out",
-                                                         "question": "in", "verdict": "out"})
+                                                         "question": "in", "verdict": "out", "packet_request": "in",
+                                                         "packet": "out"})
 SEQUENCED_TYPES = ("cells_bundle", "usage_summary")
 VERDICTS = ("confirm", "refute", "unknown")
 WIRE_REASONS = ("budget", "no_secret")
 QUALITIES = ("ok", "degraded")
 SECRET_MODES = ("file", "seeded-demo", "none")
+PACKET_STATUSES = ("ok", "no_confirmed_records", "no_verdict")
 SUPPRESSED = "<k"
+PACKET_SUPPRESSED = "suppressed"
 CHANNELS = ("codes", "text_only")
 LOG_KEYS = ("artifact_type", "body", "bytes", "direction", "sha256", "site", "ts")
 KEYWORDS = ("type", "required", "additionalProperties", "const", "enum", "pattern", "maxLength", "minimum",
             "maximum", "count", "week", "date", "id_format", "order", "range", "consistency", "sequence", "json",
-            "direction", "artifact_type", "template", "question_id", "verdict_id")
+            "direction", "artifact_type", "template", "question_id", "verdict_id", "suppression")
 SCHEMA_VERSION = 1
 MAX_COUNT = 10 ** 9
 MAX_TOKENS = 10 ** 12
@@ -79,6 +93,8 @@ ENTITY_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_./-]{0,39}", re.ASCII)
 HEX64_RE = re.compile(r"[0-9a-f]{64}", re.ASCII)
 EVIDENCE_REF_RE = re.compile(r"[0-9a-f]{16}", re.ASCII)
 CANDIDATE_KEY_RE = re.compile(r"[a-z][a-z0-9_]{1,40}:[A-Za-z0-9][A-Za-z0-9_./-]{0,39}:[a-z][a-z0-9_]{1,40}", re.ASCII)
+FOLLOWUP_KEY_RE = re.compile(r"act:c-[0-9a-f]{32}:[a-z][a-z0-9_]{1,40}:[0-9a-f]{16}", re.ASCII)
+MAX_FOLLOWUP_KEY = 128
 
 BODY_KEYS = ("after", "as_of", "closed_through", "config_hash", "k", "pack", "schema_version", "site")
 CELL_KEYS = ("channel", "entity_id", "entity_type", "iso_week", "n", "n_reporters", "n_roots", "predicate")
@@ -94,6 +110,13 @@ BUCKET_FIELDS = ("support_bucket", "roots_bucket", "reporters_bucket", "entity_r
 VERDICT_KEYS = ("entity_records_bucket", "evidence_ref", "newest_week", "pack", "pack_hash", "quality",
                 "question_id", "reason", "reporters_bucket", "roots_bucket", "schema_version", "secret_mode", "site",
                 "support_bucket", "truncated", "verdict", "verdict_id", "window")
+PACKET_REQUEST_KEYS = ("as_of", "candidate_key", "followup_key", "pack", "pack_hash", "question_id", "schema_version",
+                       "window")
+PACKET_KEYS = ("candidate_key", "co_mentions", "codes", "evidence_ref", "followup_key", "pack", "pack_hash",
+               "question_id", "reporters_bucket", "roots_bucket", "schema_version", "site", "status",
+               "support_bucket", "truncated", "verdict", "window")
+PACKET_CODE_KEYS = ("code", "n")
+PACKET_MENTION_KEYS = ("entity_id", "entity_type", "n")
 
 
 class EgressError(Exception):
@@ -292,6 +315,12 @@ def bucket_lower(label: Any, pack: "FrozenPack") -> int:
     return int(label.rstrip("+").split("-")[0])
 
 
+def packet_labels(pack: "FrozenPack") -> tuple[str, ...]:
+    """The labels a packet's per-code count may carry: ``'suppressed'`` (below k, or complementary), then the verdict
+    buckets from k up (``'<k'`` never appears in a packet)."""
+    return (PACKET_SUPPRESSED, *verdict_buckets(pack)[1:])
+
+
 def question_id(candidate_key: str, template_id: str, params: Mapping[str, Any], window: Mapping[str, Any]) -> str:
     """sha256 of the canonical ``{candidate_key, params, template_id, window}``: ``as_of`` and the pack hash are not in
     it, so re-asking the same question later has the same id."""
@@ -334,6 +363,24 @@ def _spec(pack: "FrozenPack", site_id: str, artifact_type: str, tasks: Sequence[
                      **{f: bucket for f in BUCKET_FIELDS}, "newest_week": _Week(nullable=True),
                      "evidence_ref": _Str(EVIDENCE_REF_RE, 16, nullable=True), "truncated": _Bool(),
                      "quality": _Enum(QUALITIES), "secret_mode": _Enum(SECRET_MODES)})
+    if artifact_type == "packet_request":
+        return _obj({"schema_version": _Const(SCHEMA_VERSION), "pack": _Const(pack.id),
+                     "pack_hash": _Const(pack.config_hash), "followup_key": _Str(FOLLOWUP_KEY_RE, MAX_FOLLOWUP_KEY),
+                     "question_id": _Str(HEX64_RE, 64), "candidate_key": _Str(CANDIDATE_KEY_RE, 124),
+                     "window": _window(), "as_of": _Date()})
+    if artifact_type == "packet":
+        bucket = _Enum((None, *verdict_buckets(pack)))
+        code = _obj({"code": _Enum(tuple(sorted(pack.codes))), "n": _Enum(packet_labels(pack))})
+        mention = _obj({"entity_type": _Enum(tuple(pack.egress.egress_entity_types)),
+                        "entity_id": _Str(ENTITY_ID_RE, 40), "n": _Enum(verdict_buckets(pack)[1:])})
+        return _obj({"schema_version": _Const(SCHEMA_VERSION), "pack": _Const(pack.id),
+                     "pack_hash": _Const(pack.config_hash), "site": _Const(site_id),
+                     "followup_key": _Str(FOLLOWUP_KEY_RE, MAX_FOLLOWUP_KEY), "question_id": _Str(HEX64_RE, 64),
+                     "candidate_key": _Str(CANDIDATE_KEY_RE, 124), "window": _window(),
+                     "status": _Enum(PACKET_STATUSES), "verdict": _Enum((None, *VERDICTS)),
+                     **{f: bucket for f in BUCKET_FIELDS[:3]},
+                     "evidence_ref": _Str(EVIDENCE_REF_RE, 16, nullable=True), "truncated": _Bool(),
+                     "codes": _Arr(code), "co_mentions": _Arr(mention)})
     if artifact_type == "cells_bundle":
         conf = pack.extraction
         cell = _obj({"entity_type": _Enum(tuple(pack.egress.egress_entity_types)),
@@ -363,8 +410,8 @@ def _positions(node: Any, path: str, out: dict[str, tuple[tuple[str, ...], tuple
 
 def artifact_keys(pack: "FrozenPack", artifact_type: str) -> dict[str, tuple[tuple[str, ...], tuple[str, ...]]]:
     """Each object position of an artifact type (``$``, ``$.cells[]``; ``$``, ``$.groups[]``,
-    ``$.groups[].errors``; ``$``, ``$.params``, ``$.window``; ``$``, ``$.window``) mapped to its (required keys,
-    optional keys)."""
+    ``$.groups[].errors``; ``$``, ``$.params``, ``$.window``; ``$``, ``$.window``; ``$``, ``$.window``; ``$``,
+    ``$.codes[]``, ``$.co_mentions[]``, ``$.window``) mapped to its (required keys, optional keys)."""
     if artifact_type not in ARTIFACT_TYPES:
         raise ValueError("unknown artifact type") from None
     out: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {}
@@ -373,11 +420,12 @@ def artifact_keys(pack: "FrozenPack", artifact_type: str) -> dict[str, tuple[tup
 
 
 def schema_words() -> tuple[str, ...]:
-    """Every key name and fixed enum string of the four artifact schemas and the log rows (not the pack-dependent
-    bucket labels other than ``'<k'``)."""
+    """Every key name and fixed enum string of the six artifact schemas and the log rows (not the pack-dependent
+    bucket labels other than ``'<k'`` and ``'suppressed'``)."""
     words = {*BODY_KEYS, "cells", "groups", *CELL_KEYS, *CELL_OPTIONAL, *GROUP_KEYS, *GROUP_OPTIONAL, *KINDS,
              *LOG_KEYS, *ARTIFACT_TYPES, *DIRECTIONS, *CHANNELS, SUPPRESSED, *QUESTION_KEYS, *PARAM_KEYS,
-             *WINDOW_KEYS, *VERDICT_KEYS, *VERDICTS, *WIRE_REASONS, *QUALITIES, *SECRET_MODES}
+             *WINDOW_KEYS, *VERDICT_KEYS, *VERDICTS, *WIRE_REASONS, *QUALITIES, *SECRET_MODES, *PACKET_REQUEST_KEYS,
+             *PACKET_KEYS, *PACKET_CODE_KEYS, *PACKET_MENTION_KEYS, *PACKET_STATUSES, PACKET_SUPPRESSED}
     return tuple(sorted(words))
 
 
@@ -512,6 +560,77 @@ def _verdict_problem(pack: "FrozenPack", body: dict[str, Any]) -> tuple[str, str
     return None
 
 
+def _key_problem(body: dict[str, Any]) -> tuple[str, str] | None:
+    """The follow-up key's conclusion id must be the question's: ``c-`` plus the first 32 hex of the question id."""
+    if body["followup_key"].split(":")[1] != "c-" + body["question_id"][:32]:
+        return "$.followup_key", "consistency"
+    return None
+
+
+def _canonical_id(pack: "FrozenPack", entity_type: str, entity_id: str) -> bool:
+    et = pack.entity_types[entity_type]
+    return entity_id in et.ids if et.id_format is None else et.id_format.canonical.fullmatch(entity_id) is not None
+
+
+def _packet_request_problem(pack: "FrozenPack", body: dict[str, Any]) -> tuple[str, str] | None:
+    """In order: the key's conclusion id, the candidate key, the window, the window's end closed at ``as_of``."""
+    found = _key_problem(body)
+    if found is not None:
+        return found
+    entity_type, entity_id, predicate = body["candidate_key"].split(":")
+    if (entity_type not in pack.egress.egress_entity_types or predicate not in pack.predicates
+            or not _canonical_id(pack, entity_type, entity_id)):
+        return "$.candidate_key", "consistency"
+    window = body["window"]
+    if not window["start_week"] <= window["end_week"]:
+        return "$.window", "range"
+    if window["end_week"] > closed_through(body["as_of"], pack.egress.close_lag_days):
+        return "$.window.end_week", "range"
+    return None
+
+
+def _packet_problem(pack: "FrozenPack", body: dict[str, Any]) -> tuple[str, str] | None:
+    """In order: the key's conclusion id, the window, status against verdict, buckets and reference against
+    verdict, empty lists unless ok, code order, complementary suppression, co-mention order, id formats, and no
+    co-mention of the key's own entity."""
+    found = _key_problem(body)
+    if found is not None:
+        return found
+    window, verdict, status = body["window"], body["verdict"], body["status"]
+    if not window["start_week"] <= window["end_week"]:
+        return "$.window", "range"
+    if ((status == "ok") != (verdict == "confirm") or (status == "no_verdict") != (verdict is None)):
+        return "$.status", "consistency"
+    for field in (*BUCKET_FIELDS[:3], "evidence_ref"):
+        present = body[field] is not None
+        wanted = verdict == "confirm" or (field == "evidence_ref" and verdict == "refute")
+        if present != wanted:
+            return f"$.{field}", "consistency"
+    if status != "ok":
+        for field in ("codes", "co_mentions"):
+            if body[field]:
+                return f"$.{field}", "consistency"
+    codes = body["codes"]
+    for i in range(1, len(codes)):
+        if not codes[i - 1]["code"] < codes[i]["code"]:
+            return f"$.codes[{i}]", "order"
+    if len(codes) != 1 and sum(1 for c in codes if c["n"] == PACKET_SUPPRESSED) == 1:
+        return "$.codes", "suppression"
+    mentions = body["co_mentions"]
+    keys = [(m["entity_type"], m["entity_id"]) for m in mentions]
+    for i in range(1, len(keys)):
+        if not keys[i - 1] < keys[i]:
+            return f"$.co_mentions[{i}]", "order"
+    for i, (entity_type, entity_id) in enumerate(keys):
+        if not _canonical_id(pack, entity_type, entity_id):
+            return f"$.co_mentions[{i}].entity_id", "id_format"
+    own = tuple(body["candidate_key"].split(":")[:2])
+    for i, key in enumerate(keys):
+        if key == own:
+            return f"$.co_mentions[{i}]", "consistency"
+    return None
+
+
 def check_artifact(pack: "FrozenPack", site_id: str, artifact_type: str, body: Any, *, tasks: Sequence[str] = (),
                    endpoints: Sequence[str] = ()) -> tuple[str, str] | None:
     """The first problem ``(path, keyword)`` of an already-parsed ``body`` of ``artifact_type`` from ``site_id``:
@@ -522,7 +641,9 @@ def check_artifact(pack: "FrozenPack", site_id: str, artifact_type: str, body: A
     found = _check(_spec(pack, site_id, artifact_type, tasks, endpoints), body, "$")
     if found is None:
         cross = {"cells_bundle": lambda: _cells_problem(pack, body), "usage_summary": lambda: _usage_problem(body),
-                 "question": lambda: _question_problem(pack, body), "verdict": lambda: _verdict_problem(pack, body)}
+                 "question": lambda: _question_problem(pack, body), "verdict": lambda: _verdict_problem(pack, body),
+                 "packet_request": lambda: _packet_request_problem(pack, body),
+                 "packet": lambda: _packet_problem(pack, body)}
         found = cross[artifact_type]()
     return found
 
@@ -585,12 +706,14 @@ def read_log(path: str | Path) -> list[dict[str, Any]]:
 # --------------------------------------------------------------------------------------------------- the Boundary
 
 class Boundary:
-    """One site's way out (and a question's way in). ``tasks`` and ``endpoints`` are the values a usage summary may
-    name; ``ingress_log`` (the site's) and ``question_log`` (HQ's) are needed only to accept questions."""
+    """One site's way out (and a question's or a packet request's way in). ``tasks`` and ``endpoints`` are the values
+    a usage summary may name; ``ingress_log`` (the site's) and ``question_log`` (HQ's) are needed only to accept
+    questions, ``ingress_log`` and ``packet_request_log`` (HQ's) only to accept packet requests."""
 
     def __init__(self, pack: "FrozenPack", site_id: str, *, egress_log: str | Path, receive_log: str | Path,
                  clock: Callable[[], str], tasks: Sequence[str] = (), endpoints: Sequence[str] = (),
-                 ingress_log: str | Path | None = None, question_log: str | Path | None = None) -> None:
+                 ingress_log: str | Path | None = None, question_log: str | Path | None = None,
+                 packet_request_log: str | Path | None = None) -> None:
         if not isinstance(site_id, str) or SITE_ID_RE.fullmatch(site_id) is None:
             raise ValueError("site_id must match [a-z0-9][a-z0-9_.-]{0,63}") from None
         self.pack = pack
@@ -599,10 +722,11 @@ class Boundary:
         self.receive_log = Path(receive_log)
         self.ingress_log = Path(ingress_log) if ingress_log is not None else None
         self.question_log = Path(question_log) if question_log is not None else None
+        self.packet_request_log = Path(packet_request_log) if packet_request_log is not None else None
         self._clock = clock
         self._tasks = tuple(tasks)
         self._endpoints = tuple(endpoints)
-        for path in (self.egress_log, self.receive_log, self.ingress_log, self.question_log):
+        for path in (self.egress_log, self.receive_log, self.ingress_log, self.question_log, self.packet_request_log):
             if path is not None:
                 path.parent.mkdir(parents=True, exist_ok=True)
         self._last: dict[str, tuple[str, str]] = {}
@@ -687,10 +811,12 @@ class Boundary:
         return strict_load(data)
 
     def accept(self, direction: str, artifact_type: str, body: Any) -> dict[str, Any]:
-        """Let a question in: one line to HQ's question log, then the site's ingress log. A window that ends after the
-        last week closed by this site's clock is refused (``range``); an identical question is a no-op."""
-        if self.ingress_log is None or self.question_log is None:
-            raise ValueError("this Boundary has no ingress or question log") from None
+        """Let a question (or a packet request) in: one line to HQ's question log (HQ's packet request log), then the
+        site's ingress log. A window that ends after the last week closed by this site's clock is refused
+        (``range``); an identical question or request is a no-op."""
+        hq_log = self.packet_request_log if artifact_type == "packet_request" else self.question_log
+        if self.ingress_log is None or hq_log is None:
+            raise ValueError("this Boundary has no ingress log or no HQ log for this artifact type") from None
         if direction != "in":
             t = artifact_type if artifact_type in ARTIFACT_TYPES else "unknown"
             raise EgressError(artifact_type=t, path="$", keyword="direction") from None
@@ -703,7 +829,7 @@ class Boundary:
         if sha in self._accepted:
             return strict_load(data)
         line = self._line(direction, artifact_type, data, parsed, sha)
-        self.append(self.question_log, line)
+        self.append(hq_log, line)
         self.append(self.ingress_log, line)
         self._accepted.add(sha)
         return strict_load(data)

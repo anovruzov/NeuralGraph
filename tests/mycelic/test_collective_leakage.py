@@ -677,7 +677,7 @@ class G0RunnerTests(unittest.TestCase):
         self.assertTrue(d["hits"])
         self.assertEqual({h["file"] for h in d["hits"]}, {"hq/leak.txt"})
         self.assertGreater(d["shingle_overlap_bytes"], 0)
-        self.assertEqual(d["stages"], ["edge", "pushdown", "leaky"])
+        self.assertEqual(d["stages"], ["edge", "pushdown", "followup", "leaky"])          # G7 added followup
         self.assertIn("-> FAIL", output)
 
 

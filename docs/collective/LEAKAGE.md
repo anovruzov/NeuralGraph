@@ -13,8 +13,9 @@ lexical extractor). None of it measures a model, a partner's data or a real site
 ## 1. What may cross, and why
 
 A site keeps its records, claims and extraction stats in its own SQLite file (`site-<id>.sqlite3`, ARCHITECTURE
-section 12). Four artifact types cross one `Boundary` (`edge/egress.py`), each in one direction. G3 let two leave;
-G6 adds the verdict, which leaves, and the question, the only artifact that comes in (section 9):
+section 12). Six artifact types cross one `Boundary` (`edge/egress.py`), each in one direction. G3 let two leave;
+G6 adds the verdict, which leaves, and the question, which comes in (section 9); G7 adds the packet request, which
+comes in, and the packet summary, which leaves (section 10):
 
 | Artifact | Direction | What it holds | What it never holds |
 |---|---|---|---|
@@ -22,6 +23,8 @@ G6 adds the verdict, which leaves, and the question, the only artifact that come
 | `usage_summary` | out | per (task, endpoint): calls, ok, errors by kind, missing-token counts, a fake flag; token sums and latency p50/p95 only when calls >= k | `ts`, `ref`, `host`, `run_id`, model names, per-call rows |
 | `question` (G6) | in | one candidate key, a pack template id, the params `{entity_type, entity_id, predicate}`, a window of closed ISO weeks, `as_of`, the pack id and hash, the question id | any text (the template's display text stays at HQ), a record ref, a count |
 | `verdict` (G6) | out | `confirm`, `refute` or `unknown`; four count buckets (`'<k'`, `k-9`, `10-49`, `50+`); the newest confirming week; one opaque 16-hex `evidence_ref`; `truncated`, `quality`, `secret_mode`; a reason only for `budget` or `no_secret` | text, an exact count, a record ref or any per-record handle, judged or failure counts, the site's own reason for an unknown |
+| `packet_request` (G7) | in | one follow-up key, the question id, the candidate key, the question's window, `as_of`, the pack id and hash | any text, a record ref, a count |
+| `packet` (G7) | out | a status; the stored verdict, its three buckets, its `evidence_ref` and `truncated`; per pack code `'suppressed'` or a bucket from k up (complementary suppression); the master-data ids named in the structured fields of at least k confirming records, as buckets | a total, an exact count, a record ref, any text, an id below k, an id named only in a narrative, persons, the reporter |
 
 The rules, each enforced in code and tested:
 
@@ -175,6 +178,10 @@ entries do not fail a run.
   not prevented, by the per-entity daily question budget (G6, X5).
 - Bucket transitions between overlapping question windows for one key, which can narrow a count inside its bucket
   (G6, X5).
+- A packet discloses, for one window, which pack codes and which master-data ids co-occur with the key in at least k
+  confirmed records at a site, as count buckets (G7, X5).
+- A model drafting at HQ sees only structured inputs; the text scan cannot show that its prose does not restate a
+  count or an id in another form (G7).
 
 **Known limitation (verbatim from `leakage.KNOWN_LIMITATION_NOTE`):** With require_master_data off, ids found only in
 narratives leave as cell keys (their counts suppressed), so id-shaped person data written into a narrative crosses.
@@ -267,3 +274,80 @@ model, which replays the lexical judge): both exit 0 with `hits` empty and `shin
 `claims_integrity` at its own setting (master data off) now lists 660 known-limitation entries for the same 165
 class-c canaries as before: the fourth artifact holding each is HQ's database, which stores the cells. No question
 and no verdict carries one. These are synthetic numbers from fake models, not measurements.
+
+## 10. Follow-up: packets, drafts, the ledger and the outbox (G7)
+
+**Built ahead of E2 and X4 (STRATEGY sections 5.5 and 7): approval-routed follow-up is unvalidated; nothing here
+measures it.** ARCHITECTURE section 16 describes the layer. What it adds to what crosses a boundary:
+
+**Packet requests (in).** HQ asks each target site for one follow-up's evidence packet: the follow-up key (whose
+conclusion id must be `c-` plus the first 32 hex of the question id), the question id, the candidate key (an egress
+type, a canonical id, a pack predicate), the question's window and an `as_of` that closes it. The site refuses a
+window its own clock has not closed. A request is logged in HQ's `packet_requests.jsonl` and the site's ingress log,
+never in `questions.jsonl` (D7). A request tells the site which follow-up HQ is running on which key; that is what it
+is for.
+
+**Packets (out).** The site answers only from the verdict it stored for the question, and only for its confirming
+records. The summary that crosses holds no total, no exact count, no record handle and no text field:
+
+- **codes**: per pack code, the number of confirming records carrying it, sent as a bucket from k up
+  (`packet_labels(pack)`: `'suppressed'`, then `3-9`, `10-49`, `50+` for the device pack) or `'suppressed'` below k.
+  **Complementary suppression**: when exactly one code is suppressed among two or more, the unsuppressed code with
+  the smallest count is suppressed too, so a suppressed count cannot be recovered from the others and the support
+  bucket. The validator refuses a packet with exactly one `'suppressed'` code among two or more (keyword
+  `suppression`).
+- **co-mentions** (D6): an id is listed only when at least k confirming records name it, as a bucket label; an id
+  below k is omitted entirely, because listing it would itself disclose it. Co-mentions come only from records'
+  STRUCTURED entity fields, resolved exactly, and an id of a type with an id format must be in the site's master data
+  whatever the pack's `require_master_data` says. The narrative is never read for a packet, so text in a record (an
+  injection included) cannot reach one. The key's own entity is never a co-mention.
+- the stored verdict's buckets, `evidence_ref` and `truncated`, copied (a refute or an unknown sends no code and no
+  co-mention).
+
+The full packet (the crossing summary plus each confirming record's ref, week, codes, structured fields and
+narrative; never persons or the reporter) is written to `<site workdir>/packets/site-<id>/<key digest>.json` and never
+leaves the site. G0 never scans those directories as crossing.
+
+**Drafts (HQ).** A T1 draft is written at HQ from structured inputs only: the follow-up type, its args, the
+conclusion's key, labels, window, sites, decision unit and support lower bounds, and each packet's status, verdict,
+support bucket, codes and co-mentions (no reasons text, no narrative). A draft must then pass the id-scope scan: no
+exact or variant mention of an id (of a type with an id format) outside the conclusion's scope and the packets'
+co-mentions, and no unresolved lookalike (D8). The scan is conservative where the canonicaliser recognises a form: in
+the device pack two letters, a space and a number read as a space-separated product id, so prose such as "at 2" is
+refused; the template drafter avoids it. It sees only those forms, though. It catches an out-of-scope id in its
+canonical form, in another case, with a homoglyph or a non-ASCII digit, and, for a format with a separator, with a
+space for it (device `SD 10`, claims `RS 12345`). It does not see an id restated with a separator its format lacks or
+without the one it has: device suppliers `V-1001` and `V 1001`, device products `SD10`, claims repair shops `RS12345`
+pass the scan. This is the second G7 residual risk below.
+
+**The ledger and the outbox.** The follow-up ledger (`followups.sqlite3`) holds every proposal, assignment, draft,
+decision, execution result (the T0 packets' crossing summaries and the T1 outbox receipts) and outcome; refusals hold
+a code, a schema path and keyword or an arg name, never an arg value. The outbox holds one canonical JSON line per
+executed T1 draft. Both are HQ files; G0 scans both.
+
+**Residual risks, listed in section 7:** a packet discloses which pack codes and which master-data ids co-occur with
+the key in at least k confirmed records at a site, as buckets; and a model drafting at HQ sees only structured inputs,
+but the text scan cannot show that its prose does not restate a count or an id in another form.
+
+**What G0 scans for G7.** The follow-up stage (ARCHITECTURE section 16) adds six crossing classes: `packets` (every
+packet row of HQ's receive log), `packet_requests` (every row of `hq/packet_requests.jsonl`), `drafts` (every drafted
+or edited draft in the ledger), `approvals_ledger` (the ledger file), `outbox` and `hq_draft_ledger` (the central
+draft runtime's usage ledger, fake mode). The site egress and ingress logs and HQ's `hq/` directory, already scanned,
+now also carry the packet and packet-request lines.
+
+Measured on the G0 runs of section 1 with the follow-up stage (seed 11, 1,000 records, 6 sites; synthetic, a fake
+model replaying the lexical extractor, judge and template drafter, simulated approvals; same-author, **not a
+measurement**): both exit 0 with `hits` empty and `shingle_overlap_bytes` 0.
+
+| | `device_quality` | `claims_integrity` |
+|---|---|---|
+| supported conclusions, follow-ups proposed, approved and executed | 4, 8, 8, 8 | 1, 2, 2, 2 |
+| types skipped (an entity arg of another type: `scar_draft` on product keys) | 4 | 0 |
+| packets (all `ok`), packet codes (of them `'suppressed'`), co-mentions | 21, 43 (42), 5 | 6, 8 (8), 0 |
+| drafts, outbox lines, ledger entries | 4, 4, 44 | 1, 1, 11 |
+| bytes scanned: packets, packet requests, drafts | 14,339, 8,616, 2,611 | 3,971, 2,598, 464 |
+| bytes scanned: ledger file, outbox, central draft ledger | 90,112, 4,728, 2,216 | 61,440, 982, 554 |
+
+`claims_integrity` at its own setting (master data off) still lists the same 660 known-limitation entries as in
+section 9: no packet, draft, ledger entry or outbox line carries a class-c canary. These are synthetic numbers from
+fakes, not measurements.

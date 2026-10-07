@@ -23,9 +23,10 @@ Rules:
 * **Never revised.** An emission is stored (with its exact bytes) before it is sent and re-sent unchanged after a
   failed send; ``as_of`` may not move backwards or past the site clock.
 * **Questions (G6).** The Boundary also takes questions in (``site-<id>.ingress.jsonl`` at the site, HQ's
-  ``questions.jsonl`` beside the receive log); ``edge/verify.py``'s ``SiteVerifier`` answers them. With a runtime,
-  a usage summary may name the judge task as well as extraction, so judge rows in the site's ledger can be
-  summarised.
+  ``questions.jsonl`` beside the receive log); ``edge/verify.py``'s ``SiteVerifier`` answers them. Since G7 it also
+  takes packet requests in (HQ's ``packet_requests.jsonl``), which ``edge/packets.py``'s ``PacketAssembler``
+  answers. With a runtime, a usage summary may name the judge task as well as extraction, so judge rows in the site's
+  ledger can be summarised.
 
 Timestamps (``ingested_at``, ``extracted_at``, emission rows, log rows) come only from the injected clock.
 """
@@ -205,7 +206,8 @@ class EdgeSite:
                                  tasks=(TASK_NAME, JUDGE_TASK) if runtime is not None else (),
                                  endpoints=tuple(sorted(runtime.config.endpoints)) if runtime is not None else (),
                                  ingress_log=workdir / f"site-{site_id}.ingress.jsonl",
-                                 question_log=Path(hq_dir) / "questions.jsonl")
+                                 question_log=Path(hq_dir) / "questions.jsonl",
+                                 packet_request_log=Path(hq_dir) / "packet_requests.jsonl")
         self.store = RecordStore(workdir / f"site-{site_id}.sqlite3", site_id=site_id, pack_id=pack.id,
                                  config_hash=pack.config_hash)
 

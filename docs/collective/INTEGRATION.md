@@ -998,3 +998,451 @@ the brief states; the unmarked copies and all three high-base-rate keys reach `s
 `plant_e2_smoke.json` (seeds 1 to 5, top-n 60, fakes everywhere) wrote 300 candidates over 5 seeds, raw-text bytes of
 2,487,381 for central_raw and 0 for central_allowed and pushdown, 265 of 265 supported conclusions resolvable, and a
 withheld verdict; its AP figures are not quoted because both sides used the same deterministic reader.
+
+## G7
+
+**Base.** Branch `mycelic-collective-phase2` at b861362 (G6), a clean worktree. Nothing is committed by the engineer.
+
+**Built ahead of E2 and X4 (STRATEGY sections 5.5 and 7): approval-routed follow-up is unvalidated; nothing here
+measures it.** G7 builds tiers T0 (a site-local evidence packet) and T1 (an HQ draft written to an outbox), each
+behind one human approval, over a hash-chained ledger; T2 (a write into a system of record) has no executor. Nothing
+is ported: vr034p has no follow-up layer to port.
+
+**Scope: fabric files changed: none.** `git diff --stat b861362` touches only:
+
+- new: `mycelic/collective/followup/{__init__,policy,ledger,service,drafts,executors,outcome}.py`,
+  `mycelic/collective/edge/packets.py`, `mycelic/collective/experiments/e5_injection.py`,
+  `docs/collective/examples/{approvers,kill_switch}.example.json`, `tests/mycelic/test_collective_followup.py`;
+- changed additively: both packs' `followups.json` (D2: the args only), `edge/egress.py` (the `packet_request` and
+  `packet` artifacts, their specs and validators, `FOLLOWUP_KEY_RE`, `packet_labels`, the Boundary's packet-request
+  log; the cells, usage, question and verdict behaviour is byte-identical and every G3 and G6 test passes),
+  `edge/site.py` (the Boundary's packet-request log and one docstring sentence), `detect/store.py` (`HqReader`, one
+  literal SELECT for site coverage, a docstring paragraph; no table, trigger or write path changed),
+  `experiments/g0_canary.py` (the follow-up stage; `_world` renamed `make_world`; `build_context` and `run_stages`
+  split out of `run` so E5 runs the same stages, no behaviour change), `leakage.py` (two `NOT_COVERED` items), the
+  docstrings of `mycelic/collective/__init__.py`, `edge/__init__.py` and `experiments/__init__.py`,
+  `docs/collective/{ARCHITECTURE,LEAKAGE,RUNBOOK,PACKS,INTEGRATION}.md`, `docs/collective/examples/README.md` and the
+  earlier tests listed below.
+
+The follow-up ledger is its own SQLite file (`followups.sqlite3`, schema in `followup/ledger.py`); it shares no table,
+connection or schema with the fabric store or HQ's collective store, which follow-up reads only through `HqReader`
+(`mode=ro`, one connection per call).
+
+**S2:** `git diff --stat b861362 -- mycelic/service.py mycelic/store.py mycelic/aggregation.py mycelic/transport.py
+mycelic/api.py mycelic/lineage.py mycelic/config.py deploy SECURITY.md DEPLOYMENT.md NeuralGraph research
+mycelic/collective/detect/detectors.py mycelic/collective/detect/rules.py mycelic/collective/detect/org.py` is empty.
+The three detect files keep their G5 sha256 (`7d4ca86b...`, `f0f5caa1...`, `33972beb...`), which
+`PushdownImportGuardTests` pins.
+
+### S1 test baseline
+
+Both columns were measured in this sandbox on the shared machine (another team runs suites concurrently, so times are
+indicative); "before" is an isolated copy of b861362.
+
+| Suite | Before G7 (b861362) | After G7 |
+|---|---|---|
+| `python -m pytest tests/mycelic -q -p no:warnings` | 802 passed (25,509 subtests), 0 skipped, in 347 s | 890 passed (25,838 subtests) = 802 + 88 new, 0 skipped, in 417 s (after round 3) |
+| `python -m pytest NeuralGraph/tests -q -p no:warnings` | 222 passed, 1 skipped (119 subtests) in 5 s | unchanged: 222 passed, 1 skipped (119 subtests) in 5 s |
+
+The 88 new tests, by class:
+
+- `test_collective_followup.py` (76): `PackFollowupTests` 3, `ProposeGuardTests` 8, `ApproversFileTests` 3,
+  `IdempotencyTests` 5, `ConcurrencyTests` 6, `ApprovalScopeTests` 7, `KillSwitchCapTests` 4, `LedgerChainTests` 14
+  (two added in round 2, four in round 3), `AssignmentEscalationTests` 4, `PacketDraftTests` 13, `OutcomeTests` 4,
+  `InjectionSmokeTests` 3, `LeakageStageTests` 2 (`ApproversFileTests::test_the_example_files_are_valid` keeps the
+  two example files valid against an example org);
+- `test_collective_guards.py` (12): `FollowupImportGuardTests` 6 (static import checks of every follow-up module and
+  of `edge/packets.py`, only `drafts.py` importing inference and only `tasks` and `errors` at run time, an injected
+  import flagged, and two fresh-interpreter checks), `ApprovalCallSiteTests` 4 (D10),
+  `ClockEntropyTests::test_every_followup_module_is_on_the_determinism_list_with_no_hits` and
+  `RunbookCommandTests::test_commands_cover_the_g7_clis`.
+
+The acceptance command `python -m pytest tests/mycelic/test_collective_followup.py -q -p no:warnings` passed
+76 tests (340 subtests) in 41 s after round 3 (the bound is about 180 s).
+
+**Earlier tests changed, and why** (each at least as strong as before; nothing skipped, deleted or weakened):
+
+- `test_collective_pushdown.py::PackPushdownConfigTests::test_only_config_hash_changed_against_g5`: `G5_HASHES` and
+  `G6_CONFIG_HASHES` stay as history; `G7_CONFIG_HASHES` is added and the test asserts the current `config_hash` is
+  not G6's and is G7's (D2); the other three hashes still equal G5's;
+- `test_collective_pushdown.py::EgressQuestionVerdictTests::test_constants_and_keys`: `ARTIFACT_TYPES` and
+  `ARTIFACT_DIRECTION` gain `packet_request` (in) and `packet` (out); every G6 assertion is unchanged;
+- `test_collective_pushdown.py::LeakageStageTests::test_both_packs_pass_with_every_pushdown_artifact_scanned`: the
+  stages are `["edge", "pushdown", "followup"]`; every pushdown assertion is unchanged;
+- `test_collective_leakage.py::G0RunnerTests::test_a_leaky_stage_fails_the_run`: the stages are `["edge",
+  "pushdown", "followup", "leaky"]`;
+- `test_collective_evaluate.py::PlantSpecTests::test_the_loader_accepts_plant_files_and_hashes_none_of_them`: the
+  two `config_hash` pins only; the vocabulary, detector and fixtures pins are unchanged;
+- `test_args_schema_accepts_canonical_ids_only` (the brief places it in `LoadTests`; it lives in
+  `test_collective_packs.py::FrozenTests`): rewritten to the D2 args and stronger than before. The conclusion pattern
+  through `evidence_packet` (accepted forms, five refused values, an extra arg, a missing arg); the entity-id canonical
+  form through `scar_draft`'s `supplier_id` (`V1001` accepted; `v1001`, `V 1001`, `V-1001`, `V10011`, `V100` and a
+  full-width form refused; an extra arg refused); the enum through `capa_initiation_draft`'s `severity` (four refused
+  values); and the predicate, integer and alias-only entity kinds through a pack copy whose types regain the G6 args,
+  with every old case plus the integer bounds (1 and 200 accepted; 201, `10.0` and `true` refused) and a
+  wrong-case predicate;
+- `test_collective_guards.py`: the lists (`STDLIB_ONLY_MODULES` 50 to 59, `CLI_MODULES`, `DETERMINISTIC_MODULES`,
+  four RUNBOOK placeholders) and the twelve new tests above.
+
+### S4: what the suites leave behind
+
+After both suites `git status --porcelain` lists only the G7 files above, `runs/` holds only its `.gitignore`, and
+there is no untracked `*.sqlite3`, `*.db` or `*.jsonl` in the worktree: every G7 test writes its ledgers, outboxes,
+packets, G0 outputs and E5 runs under a temporary directory. The only ignored files the suite rewrites are the
+fabric strategic demo's `demo/results/mycelic-strategic/` outputs, which the base suite writes too.
+
+### Pack hashes (only `config_hash` changed)
+
+| Pack | Hash | G6 | G7 |
+|---|---|---|---|
+| `device_quality` | config | b9e03c14d88100dac6849ba37525059dfb65e681397c15e59000f5cfbdeeb56f | 285935198ba34f2e194dc175cffd1f8f62c494d03d8fb7400ca1aef709058f2a |
+| | vocabulary | e46f521154ce94f42136319ade62cebb5c65515ab90a057470495a606f225901 | unchanged |
+| | detector | c9462f62aa90245f2c7cee50078d337554bded58c4630cda7becbf7a8048c7ec | unchanged |
+| | fixtures | dc4b70b7044b1094baaa669fb5a3582eeae91af290213e13b94180791db5656d | unchanged |
+| `claims_integrity` | config | aa422ef844b583d7d7c0f78afac9147400c0b378b6e193a2347a031330fa329d | a3a042943452f6ef781f171cf879f3ba5f594f6c4dae5ffef47bfa241bb392da |
+| | vocabulary | 028b7603f2b6ef3bba203dee299ea8b001880ef89cd4b276de8513d2a1a301f3 | unchanged |
+| | detector | 2041fe9b3e141a5603836d893c97d5671eb21cbb3da611969efbd0c2c4514b84 | unchanged |
+| | fixtures | a2e8936b4be26683f0860c8c8799e701f9aedfb78ea167d5420ac891111b8d80 | unchanged |
+
+Only the follow-up types' `args_schema` changed (D2); owner and escalation roles, caps, acknowledgement days, tiers and
+`enabled` are G6's (`PackFollowupTests::test_the_new_args_shapes_and_the_unchanged_settings`). A follow-up ledger
+records the pack's `config_hash` in `ledger_info`, so a ledger written under G6's config would not open under G7's
+(`info_mismatch:config_hash`); no G6 ledger exists.
+
+### Merge notes
+
+1. **Nothing in the fabric changed and no fabric integration point is needed for G7 to run.** Packet requests go to
+   each site through an injected handler (`site id -> callable(request) -> packet`), in-process here, exactly as G6's
+   questions do; the approvers and kill-switch files and the ledger are plain files the caller names.
+2. **Fabric event kinds for the merge.** Three event kinds would carry follow-up over the fabric:
+   `followup.proposed` (the `proposed` entry's payload, the key, and the ledger seq and hash), `followup.approved`
+   (the `approved` entry: version, role, unit path, `approvers_hash`, conclusion version, `as_of` and the person
+   label) and `followup.result` (the `executed`, `outcome_unknown` or `blocked` entry). The ledger stays the record
+   of truth; an event carries the entry hash so a consumer can check it against `verify --expected-head`. Rejections,
+   edits and refusals stay in the ledger; publish them only if a consumer needs them.
+3. **JetStream subjects (proposal).** One subject per direction and site, as G6's questions and verdicts:
+   `mycelic.collective.<enterprise>.site.<site_id>.packet_request` (HQ publishes, the site consumes) and
+   `mycelic.collective.<enterprise>.site.<site_id>.packet` (the site publishes, HQ consumes). Message ids
+   `pr:<sha256 of the canonical request>` and `p:<sha256 of the canonical packet>` make redelivery idempotent,
+   matching the Boundary's sha256 no-op. The executor's per-site deadline becomes a timed wait on the packet subject;
+   a site that misses it is listed as unavailable with reason `timeout` in the result, as now.
+4. **Approver authority onto fabric auth scopes.** The approvers file grants `(person_label, role, unit_path)`;
+   authority is the follow-up type's owner or escalation role held on a unit that is, or is an ancestor of, every
+   target site's unit (D1). In the fabric this maps onto a principal scope such as
+   `followup:decide:<role>@<unit_path>` over the same agent, team, department, subsidiary, region and enterprise
+   hierarchy, with the file generated from the fabric's auth store (or the service reading the store). The service
+   must still re-check authority at every decision from the current table, never from the assignment, and record
+   that table's hash (`approvers_hash`) in the decision. Person labels are pseudonymous; the mapping to identities
+   stays in the fabric's auth store.
+5. **Anchor the ledger head in the fabric's signed event log.** The chain detects edits, reordering and deletion
+   inside the file, but a truncated tail is a valid shorter chain
+   (`LedgerChainTests::test_tail_truncation_passes_without_an_anchor_and_fails_with_one`). Publish the head hash and
+   entry count (`ledger_head_hash` in G0's `followup_totals`; `summary()` in the service) as a signed fabric event
+   after each `followup.result`, and check with `python -m mycelic.collective.followup.ledger verify --ledger
+   <ledger-file> --expected-head <head-hash>` (RUNBOOK section 14).
+6. **The approval call-site guard covers the fabric.** `ApprovalCallSiteTests` scans every `.py` under `mycelic/`
+   and `demo/` for calls of `approve`, `edit` or `reject` (by name, as an attribute, or through `getattr` with a
+   constant name) outside the allow-list (`followup/service.py`, G0's simulated owner, `demo/collective/
+   collective_demo.py`, and `tests/`). A merge that adds an API route or MCP tool calling the service's decisions
+   fails the guard until the route is added to the allow-list deliberately; a fabric method that happens to be named
+   `edit` or `reject` would be flagged too (none exists at b861362). The scan cannot see a decision method bound to
+   another name first (`f = svc.approve; f(...)`) or reached through `getattr` with a computed name.
+7. **One executing service per ledger (D12): a lease is required, not optional.** Decisions from any number of
+   instances are safe (each check re-reads the key inside `BEGIN IMMEDIATE`); execution must run in one process,
+   because the in-flight set that tells `in_progress` from `interrupted` is per process. The reviewer's probe confirms
+   what happens otherwise: when a second instance executes a key while the first runs it, the executor runs once, but
+   the second records `outcome_unknown` (`interrupted`), the first's `executed` is then refused by the unique index,
+   and both return `outcome_unknown` while the side effect (packets, an outbox line) exists. In a multi-replica
+   deployment, give execution a fabric lease or a single worker.
+8. **Deployment (not done here; `deploy/` is out of scope).** The ledger, the outbox, `approvers.json` and
+   `kill_switch.json` need a persistent volume at HQ; the kill file must exist (a missing or unreadable file is ON), and
+   `MYCELIC_FOLLOWUP_KILL` (`all` or a comma-separated list of type ids) is the operator's override. Sites need a
+   writable `packets/` directory in their work directory, which is site-local and never shipped.
+
+### Decisions D1 to D12 (as implemented)
+
+All twelve are implemented as the brief states them; ARCHITECTURE section 16.12 summarises each: D1 approvers in
+their own file, read at every use; D2 the pack args; D3 every tier, T0 included, needs one human approval; D4 the key
+covers the targets; D5 targets default to the contributing sites; D6 packet counts as buckets with complementary
+suppression, co-mentions from structured master-data fields at k or more; D7 packet requests and packets as Boundary
+artifacts with their own HQ log; D8 the draft scope scan over types with an id format only; D9 fifteen ledger kinds;
+D10 the approve, edit and reject call sites; D11 HQ read only through `HqReader`; D12 one executing service per
+ledger.
+
+### Further decisions and deviations, for the reviewer
+
+- **The full packet is kept at `<workdir>/packets/site-<id>/<sha256(key)[:16]>.json`**, not directly under
+  `packets/`: G0's sites share one work directory, so two sites answering the same follow-up would otherwise collide
+  (and the write never overwrites).
+- **The template summary reads "supported, <n> confirming site(s)"**, not "supported at <n> site(s)": in the device
+  pack two letters, a space and a number read as a space-separated product id, and the D8 scan rightly refuses that
+  as an unresolved lookalike. The scan is conservative by design; the template avoids the form.
+- **The service takes no clock.** The ledger stamps `at` with its own injected clock; every decision, cap and due date
+  uses the caller's `as_of` (mutation 7 shows the cap ignores `at`).
+- **Ledger refusal reasons** add `wal` (a file that cannot be put in WAL mode) and `conflict` (`LedgerConflict`, a
+  unique-index violation inside `append`) to the brief's `missing`, `exists` and `unreadable`.
+- **`PRAGMA integrity_check`, not the brief's `quick_check`** (round 3), in `FollowupLedger.open` and `verify_chain`.
+  Strictly stronger: every file `integrity_check` accepts, `quick_check` accepts too, and `integrity_check` also
+  compares every index with its table, which the service's per-key reads depend on (round 3 below). The cost on a
+  20,000-entry, 11 MB ledger, measured by the reviewer: 0.032 s against 0.011 s, while the whole open took 0.633 s.
+- **`outcome.evaluate` also takes `conclusion_id` and `candidate_key`**, which its result names.
+- **The ledger's lock is reentrant** (`threading.RLock`), so a read on the thread that holds a transaction does not
+  deadlock; the service has its own reentrant lock around each check-and-append.
+- **`HqReader` never writes HQ's store**, but on a WAL file whose writer has closed SQLite itself may create the empty
+  `-wal` and `-shm` files a reader needs; a missing store is `StoreError('missing')` and creates nothing.
+- **A regenerated draft's `drafted` entry names the principal who asked** (`system` or the person); the first draft's
+  is `system`.
+- **The approval call-site scan's limit** is stated in merge note 6.
+- **No model drafts here.** Every draft in the tests and in G0 is the deterministic template or a fake provider
+  replaying it; `DraftWriter` with a `central` runtime is exercised only against fakes.
+
+### Mutation probes run
+
+On a scratch copy of the worktree outside the repository (`git` metadata excluded), each mutation was applied alone
+and the named test classes were run; every one failed at least one test, and the unmutated copy passed before and
+after (62 tests, 242 subtests). The engineer's first run found one gap: no test fed the drafter a model draft that
+names an out-of-scope id, so a drafter that skipped the scope scan (19a) survived the earlier tests; G7 adds
+`PacketDraftTests::test_a_model_draft_naming_an_id_outside_its_scope_is_refused_and_never_stored`, which catches it.
+
+| # | Mutation | Caught by |
+|---|---|---|
+| 1 | skip the supported check | `ProposeGuardTests::test_conclusion_not_supported_for_every_other_status` (all four statuses) |
+| 2 | skip the args scope check | `ProposeGuardTests::test_each_refusal_code_writes_exactly_one_refused_entry`, `::test_supplier_keys_scar_scope_and_the_canonical_form`, `::test_pack_copy_refusals_tier_disabled_integer_and_predicate` |
+| 3 | skip the targets check (given targets outside the contributing sites accepted) | `ProposeGuardTests::test_each_refusal_code_writes_exactly_one_refused_entry` |
+| 4 | a missing kill file treated as OFF | `KillSwitchCapTests::test_between_propose_and_approve_and_per_type_versus_global`, `::test_on_after_approval_blocks_execute_and_off_runs_it` |
+| 5 | the env ON ignored when the file is OFF | `KillSwitchCapTests::test_the_state_table`, `::test_between_propose_and_approve_and_per_type_versus_global` |
+| 6 | the daily cap compares with `>` instead of `>=` | `KillSwitchCapTests::test_the_daily_cap_counts_proposals_per_type_and_utc_date` |
+| 7 | the daily cap counts by the entry's `at` instead of the UTC date of `as_of` | `KillSwitchCapTests::test_the_daily_cap_counts_proposals_per_type_and_utc_date` |
+| 8a | `executing` omitted | `IdempotencyTests::test_execute_twice_runs_the_executor_once_and_returns_the_stored_bytes`, `::test_replay_into_a_fresh_service_calls_no_executor`; `ConcurrencyTests::test_two_executes_with_a_blocking_executor_run_it_once`, `::test_a_crash_at_the_executed_append_leaves_executing_then_outcome_unknown`, `::test_an_executor_exception_is_outcome_unknown_with_nothing_of_it_kept` |
+| 8b | `executed` written before the executor runs | `IdempotencyTests::test_execute_twice_runs_the_executor_once_and_returns_the_stored_bytes`, `::test_re_proposing_after_reject_or_execute_appends_nothing`; the same three `ConcurrencyTests` |
+| 9 | replay calls the executor (a service built on an existing ledger runs its approved follow-ups) | `IdempotencyTests::test_replay_into_a_fresh_service_calls_no_executor` |
+| 10 | approve accepted on a stale version (`>` instead of `!=`) | `ApprovalScopeTests::test_edit_limits_the_diff_and_version_pinning`; `ConcurrencyTests::test_edit_versus_approve_never_approves_a_superseded_version` |
+| 11 | authority read from the assignment (the assigned owner may decide) instead of the current file | `ApprovalScopeTests::test_authority_is_read_from_the_current_approvers_file`, `::test_a_target_no_longer_in_the_org_is_out_of_scope` |
+| 12 | the system principal allowed to approve, edit and reject | `ApprovalScopeTests::test_the_system_principal_never_decides` (all three operations) |
+| 13 | complementary suppression removed | `PacketDraftTests::test_the_code_distribution_table`, `::test_packets_from_every_contributing_site_pass_the_validator_and_hold_no_total`, `::test_the_full_packet_stays_in_the_site_workdir`, `::test_packet_requests_are_logged_apart_and_an_unclosed_window_is_refused` (the Boundary's `suppression` check then refuses the packets) |
+| 14 | co-mentions include narrative claims | `PacketDraftTests::test_co_mentions_come_only_from_structured_master_data_fields`, `::test_a_narrative_naming_a_master_data_supplier_reaches_no_packet_and_no_draft` |
+| 15 | the entry hash omits the payload | `LedgerChainTests::test_payload_and_prev_hash_tampering_and_deletion_are_found_at_their_seq` |
+| 16 | `verify_chain` ignores seq gaps | `LedgerChainTests::test_payload_and_prev_hash_tampering_and_deletion_are_found_at_their_seq` |
+| 17 | the outcome accepts an overlapping post window | `OutcomeTests::test_an_overlapping_or_malformed_post_window_is_refused`, `::test_check_outcome_is_refused_before_execution_and_records_each_distinct_result` |
+| 18 | the outcome imputes a `'<k'` cell as 0 | `OutcomeTests::test_suppressed_cells_are_imputed_and_other_sites_ignored` |
+| 19a | the drafter skips the draft scope scan | `PacketDraftTests::test_a_model_draft_naming_an_id_outside_its_scope_is_refused_and_never_stored` (added after this probe survived the first run) |
+| 19b | the scope scan finds nothing (drafter and edit) | the same test; `PacketDraftTests::test_drafts_from_structured_inputs_only`; `ApprovalScopeTests::test_edit_limits_the_diff_and_version_pinning` |
+| 20 | edit accepts an unknown field (dropped silently instead of `draft_invalid`) | `ApprovalScopeTests::test_edit_limits_the_diff_and_version_pinning` |
+| 21 | overdue escalates on every call | `AssignmentEscalationTests::test_ack_due_and_overdue_escalation` |
+| 22 | open on a missing ledger creates it | `LedgerChainTests::test_missing_existing_and_mismatched_files` |
+
+### Round 2: review fixes
+
+**Blocking finding: a byte flip inside a TEXT cell crashed `open`, `verify_chain` and the `verify` CLI with a raw
+`UnicodeDecodeError`.** It is fixed in `followup/ledger.py`, and nothing else changed for it:
+
+- **Strict decoding.** Every ledger connection (`create`, `open`, `verify_chain`) now sets a `text_factory` that
+  decodes TEXT strictly as UTF-8. Bytes that are not UTF-8 read as a marker that is never a string, so every check
+  sees a bad value instead of raising. BLOB cells still read as bytes, so a payload retyped to TEXT is still caught.
+  The results are:
+  - an entry's `at`, `kind`, `key`, `actor` or `hash` cell gives `bad_entry` at its seq;
+  - its `prev_hash` gives `prev_hash_mismatch`;
+  - a `ledger_info` cell gives `unreadable`.
+- **SQLite error messages.** SQLite's own error message can quote a schema name whose bytes were flipped, and Python
+  decodes that message into a `UnicodeDecodeError`. This happens, for example, when a byte of the index name
+  `entries_one_assigned` in `sqlite_master` is flipped; the reviewer's repro landed there first. `verify_chain` and
+  `open` now catch it next to `sqlite3.DatabaseError` and map it to `unreadable`.
+- **`ledger_info` key check.** `_info_ok` compares key sets instead of sorting them. A key retyped as a BLOB used to
+  raise `TypeError` from `sorted`.
+- **Reads after `open`.** Hardening beyond the finding: a payload damaged after `open` is
+  `LedgerError('chain:bad_entry', seq)` on the next read of that row, never a JSON or decoding error. This covers
+  `FollowupLedger.entries`, `LedgerTx.entries` and `entries_for_conclusion`, which share `_entry`, and the daily-cap
+  count.
+- **New tests:**
+  - `LedgerChainTests::test_undecodable_or_retyped_cells_are_a_chain_problem_not_a_traceback`. It has seven cases
+    (eight since round 3, which changed the first):
+    - an entry's `kind`, byte-flipped in the closed file: `bad_entry` at seq 2, CLI exit 1 (since round 3
+      `unreadable`, CLI exit 2: see round 3);
+    - `actor` forged as `X'FF'`: `bad_entry` at seq 4;
+    - `prev_hash` forged as invalid UTF-8: `prev_hash_mismatch` at seq 3;
+    - a payload retyped as TEXT: `bad_entry` at seq 2;
+    - a `ledger_info` value, byte-flipped: `unreadable`, CLI exit 2;
+    - a `ledger_info` key retyped as a BLOB: `unreadable`;
+    - a schema name, byte-flipped: `unreadable`, CLI exit 2.
+
+    Every case asserts the `open` text, the chain report, one JSON line on stdout and an empty stderr.
+  - `LedgerChainTests::test_a_payload_damaged_after_open_is_bad_entry_not_a_decoding_error`.
+- **Fuzz results** (scratch probes outside the repository):
+  - The reviewer's `p3_ledger_fuzz.py` (1,577 flips) now gives no raw exception; it gave 32 before. The breakdown is
+    110 `bad_entry`, 13 `prev_hash_mismatch`, 1 `seq_gap`, 104 `unreadable`, and 1,348 flips that opened unchanged.
+  - The reviewer's `p4_text_flip.py` now gives `ledger corrupt: unreadable` and CLI exit 2 with a JSON line.
+  - An exhaustive run flipped every byte of a closed 9-entry, 57,344-byte ledger with XOR 0xFF and with XOR 0x01:
+    114,688 files in all. Every one either opened with all 9 entries or raised `LedgerError`, and every
+    `verify_chain` returned a report. None raised anything else. That run compared only the full scan; it did not
+    compare the per-key reads, which go through the `entries_key` index, and the review of round 2 found index
+    damage it could not see (round 3 below).
+
+**Non-blocking notes:**
+
+- **Fixed:**
+  - **`plus_days`.** A day past 9999-12-31 is now `FollowupError` with a fixed text; it was a raw `OverflowError`. A
+    proposal whose `ack_due` would pass it writes nothing
+    (`ProposeGuardTests::test_as_of_normalisation_and_malformed_calls_write_nothing`).
+  - **Replay** now refuses the following as `chain:bad_entry`:
+    - a `drafted`, `draft_failed` or `edited` entry on a T0 key;
+    - a `proposed` entry whose executor is not its tier's (T0 `packet`, T1 `draft`).
+
+    Five cases cover this in `LedgerChainTests::test_replay_is_pure_and_refuses_gaps_and_impossible_transitions`.
+- **Docs:**
+  - **Draft scope scan.** The `drafts.py` docstring and LEAKAGE section 10 now say which restatements the scan does
+    not see: a separator inserted into a format that has none (device `V-1001`, `V 1001`), or removed from one that
+    has one (device `SD10`, claims `RS12345`). The scan catches a space for a hyphen (`SD 10`, `RS 12345`), case
+    variants, homoglyphs and non-ASCII digits.
+  - **Duplicate targets.** ARCHITECTURE section 16.4 states that duplicate targets are checked at step 10, so an
+    earlier refusal wins. It also states that a damaged HQ store mid-call raises `HqReader`'s own error and writes
+    nothing.
+  - **Kill switch.** RUNBOOK section 14 says proposing and approving are refused, and executing records `blocked`.
+  - **Late packets.** The `executors.py` docstring and ARCHITECTURE section 16.9 say a late packet handler is not
+    cancelled: its packet may still reach HQ's receive log, where G0 scans it, while the result lists the site as
+    `timeout`.
+  - **Lease.** D12 (ARCHITECTURE section 16.12) and merge note 7 state that a lease is required and what happens
+    without one.
+- **Left as documented:**
+  - `ApprovalCallSiteTests` scanning the fabric (merge note 6);
+  - `HqReader`'s `-wal`/`-shm` side files (the deviation list above).
+
+**Mutation probes for round 2** were run on a fresh scratch copy with the runner above. The runner's mutant 22 was
+updated because `open` now connects through `_connect`, and mutant 7 because the cap query now selects `seq`. Each
+probe was applied alone:
+
+- all 32 variants were caught: mutants 1 to 22 (24 variants, rerun) and the eight below;
+- the unmutated copy passed before and after (64 tests, 258 subtests).
+
+| # | Mutation | Caught by |
+|---|---|---|
+| r2a | TEXT cells decoded by Python's default (no strict text factory) | `LedgerChainTests::test_undecodable_or_retyped_cells_are_a_chain_problem_not_a_traceback` (the `kind`, `actor` and `prev_hash` cases) |
+| r2b | an undecodable SQLite error message not caught | the same test (the schema-name case) |
+| r2c | `ledger_info` keys sorted (mixed types raise) | the same test (the BLOB-key case) |
+| r2d | replay accepts `drafted`, `draft_failed` and `edited` on a T0 key | `LedgerChainTests::test_replay_is_pure_and_refuses_gaps_and_impossible_transitions` (the three T0 cases) |
+| r2e | replay accepts an executor that is not its tier's | the same test (the two executor cases) |
+| r2f | `plus_days` lets `OverflowError` escape | `ProposeGuardTests::test_as_of_normalisation_and_malformed_calls_write_nothing` |
+| r2g | a row read after `open` parses its payload unchecked | `LedgerChainTests::test_a_payload_damaged_after_open_is_bad_entry_not_a_decoding_error` |
+| r2h | the daily-cap count parses payloads unchecked | the same test |
+
+### Round 3: review fixes
+
+**Blocking finding: one byte flipped in the `entries_key` index passed `quick_check`, `open` and `verify_chain`, and
+the service then acted on wrong per-key state.** The review of round 2 found an edit accepted on an approved T1
+follow-up (`edited` after `approved`), after which every `open` refused the ledger (`bad_entry at seq 5`) and the
+append-only triggers kept the bad entry for good. The cause: `quick_check` never compares an index with its table;
+the chain walk and `replay` read the table with a full scan; every check of the service reads a key's entries through
+`entries_key` (`LedgerTx.entries`, `entries_for_conclusion`). Fixed in `followup/ledger.py`:
+
+- **`PRAGMA integrity_check`** in `FollowupLedger.open` and `verify_chain` (a deviation from the brief, strictly
+  stronger; see the deviation list above). A file whose index disagrees with its table is `unreadable`: `open` raises
+  `ledger corrupt: unreadable` before it compares `ledger_info`, `verify_chain` reports `unreadable`, and the CLI
+  exits 2 with one JSON line.
+- **Reads and writes after `open`** (the reviewer's optional fix, and non-blocking notes 2 and 3). Every read and
+  write after `open` (`FollowupLedger.entries`, `head_hash`, `transaction`'s `BEGIN` and `COMMIT`, and in `LedgerTx`
+  `entries`, `entries_for_conclusion`, `proposed_count` and `append`) maps a damaged page (`SQLITE_CORRUPT` or
+  `SQLITE_NOTADB`, by the error's SQLite result code) to `LedgerError('unreadable')`. Any other SQLite error
+  propagates unchanged: a busy file, and the unique-index violation that `append` turns into `LedgerConflict`. A row
+  whose `at`, `key`, `actor`, `prev_hash` or `hash` cell is no longer a string, and a last hash that is no longer 64
+  hex characters (the one `head_hash` returns and `append` chains to), are `LedgerError('chain:bad_entry', seq)`.
+- **Docs.** The ARCHITECTURE section 16 sentence that claimed "a byte flip in a page or the header is
+  `unreadable`" is corrected and now names the check, the index and the limit below. The ledger module's docstring
+  says the same, and the round 2 fuzz bullet above now states that the run compared the full scan only.
+
+**The limit that remains** (ARCHITECTURE section 16 and the ledger docstring): damage made while a ledger is open is
+found by the read that meets it or at the next `open`. Until then a damaged index can still mislead a per-key read.
+The partial unique indexes are what keep one terminal decision and one execution per key, and in the reviewer's
+probes they held in every case.
+
+**New tests** (`LedgerChainTests`, four):
+
+- `test_an_index_flip_that_passes_quick_check_is_unreadable`. It scans the cell area of the `entries_key` root page
+  (found through `sqlite_master`, so `dbstat` is not needed) for the first XOR 0x01 flip that `quick_check` accepts
+  and that changes or breaks a per-key read through the index. It then asserts:
+  - `quick_check` passes and `integrity_check` does not;
+  - the `verify_chain` report;
+  - the `open` text, also under another pack: `unreadable` comes before the `ledger_info` comparison;
+  - CLI exit 2, one JSON line and an empty stderr.
+
+  In the probe for this test, 643 of the 666 bytes in that cell area were such flips (synthetic).
+- `test_damage_met_after_open_is_a_ledger_error_and_a_busy_file_is_not`. The `entries_key` page type is damaged
+  under a ledger as `open` left it. `entries(key)`, `tx.entries`, `tx.entries_for_conclusion`, `tx.append`, and the
+  service's `state`, `execute`, `approve` and `reject` each raise `LedgerError` with text `ledger corrupt: unreadable`
+  and no cause. Nothing is appended and no executor runs. A file held by another writer raises
+  `sqlite3.OperationalError`, not `LedgerError`.
+- `test_a_text_cell_damaged_after_open_is_bad_entry`. A `hash` cell forged as invalid UTF-8 gives `chain:bad_entry`
+  at its seq from `head_hash`, `entries` and the next append, which appends nothing. A forged `actor` cell gives the
+  same from `state`.
+- `test_each_partial_unique_index_allows_one_entry_per_key` (non-blocking note 1). For each of the six partial unique
+  indexes, every ordered pair within its group (15 pairs) appended directly on one key raises `LedgerConflict`, rolls
+  back and leaves the entry count unchanged; the same kind on another key is accepted. The six other kinds
+  (`refused`, `drafted`, `draft_failed`, `edited`, `blocked`, `outcome`) are accepted twice on one key.
+
+**An earlier G7 test changed, and is stronger:**
+`test_undecodable_or_retyped_cells_are_a_chain_problem_not_a_traceback`.
+- Its byte-flipped `kind` case now expects `unreadable` and CLI exit 2. The flipped value no longer matches
+  `entries_one_assigned`'s `WHERE`, so that partial index is out of step with its table, and `integrity_check`
+  reports it before the chain walk reads the cell.
+- A new case forges the `kind` by SQL, which keeps the indexes in step. It keeps the undecodable-`kind` path covered
+  at `bad_entry` at seq 2, CLI exit 1.
+
+The test now has eight cases instead of seven.
+
+**Fuzz** (scratch probes outside the repository, synthetic ledgers):
+
+- **The reviewer's `p10_index_repro.py`:** "no such flip found". Before the fix, an edit of an approved follow-up was
+  accepted.
+- **The reviewer's `p8_index_service.py`** (3,000 random flips): 2,340 files opened, every one with per-key reads
+  equal to the table and `integrity_check` ok. Before: 60 opened with differing per-key reads and 4 raised a raw
+  `DatabaseError`.
+- **The reviewer's `p9_index_edit.py`** at seeds 1 to 4, 4,000 flips each: 3,141, 3,159, 3,138 and 3,131 files
+  opened, every one with per-key reads equal to the table. No index-damaged file opened, so no service call ran on
+  one.
+- **An exhaustive run with per-key reads.** It flipped every byte of a closed 13-entry, 61,440-byte ledger with three
+  keys (an executed T0, a rejected T1 and an approved T1) with XOR 0x01 and with XOR 0xFF: 122,880 files.
+  - Every file either raised `LedgerError` or opened. For each that opened, the following were all compared with the
+    table and all equal: the full scan, every key's per-key read, the conclusion's range read and the daily-cap
+    counts (48,019 files under 0x01, 47,974 under 0xFF).
+  - `verify_chain` returned a report for every file.
+  - Nothing else was raised, and no read after a clean `open` failed.
+
+**Non-blocking notes:**
+
+1. **The partial unique indexes are now pinned** by the test above, and every index has its own mutant (below).
+2. **A `sqlite3.DatabaseError` from a read after `open`** is mapped to `LedgerError('unreadable')` (above).
+3. **Text cells damaged after `open`** (`_entry`, `head_hash`, `append`) give `chain:bad_entry` (above).
+4. **The round 2 fuzz wording** now says the exhaustive run compared the full scan only.
+5. **The notes accepted as documented** stay as they are.
+
+**Mutation probes for round 3** were run on a fresh scratch copy with the same runner. Mutant 7 and mutant r2g were
+updated for the new code: the cap loop reads its rows first, and `_entry` checks the text cells. Results:
+
+- all 49 variants were caught: mutants 1 to 22 (24 variants), r2a to r2h (8) and the 17 below;
+- the unmutated copy passed before and after (68 tests, 291 subtests);
+- r2a is now caught first by `test_a_text_cell_damaged_after_open_is_bad_entry`, and still by the undecodable-cell
+  test when that one runs alone.
+
+| # | Mutation | Caught by |
+|---|---|---|
+| r3a | the file check is `quick_check` (in `open` and `verify_chain`) | `LedgerChainTests::test_an_index_flip_that_passes_quick_check_is_unreadable` |
+| r3b | `open`'s own file check is `quick_check` (`verify_chain`, which `open` also calls, keeps `integrity_check`) | the same test: under another pack the mutant reports `ledger_info mismatch: pack_id` instead of `unreadable` |
+| r3c | `verify_chain`'s file check is `quick_check` | the same test (the report and the CLI exit) |
+| r3d | no file check at all (the reviewer's `if True:` in both places) | the same test |
+| r3e | damage met after `open` propagates as a raw sqlite3 error | `LedgerChainTests::test_damage_met_after_open_is_a_ledger_error_and_a_busy_file_is_not` |
+| r3f | every sqlite3 error after `open` is called damage, a busy file included | the same test (the busy case) |
+| r3g | a row read after `open` keeps an undecodable text cell | `LedgerChainTests::test_a_text_cell_damaged_after_open_is_bad_entry` |
+| r3h | the last hash read after `open` is used unchecked | the same test |
+| r3i | `LedgerTx.entries` reads unguarded | `LedgerChainTests::test_damage_met_after_open_is_a_ledger_error_and_a_busy_file_is_not` |
+| r3j | `LedgerTx.append`'s insert unguarded | the same test |
+| r3k | the decision index covers `approved` only | `LedgerChainTests::test_each_partial_unique_index_allows_one_entry_per_key` |
+| r3-proposed, r3-assigned, r3-decision, r3-executing, r3-closing, r3-escalation | each partial unique index made non-unique, one at a time | the same test |
+
+### Synthetic figures (synthetic, same-author, not a measurement)
+
+Printed or recorded in this sandbox, quoted only as **synthetic, same-author, not a measurement** (every extractor,
+judge and drafter was lexical, the template or a fake replaying them; approvals were simulated): G0 with the
+follow-up stage (seed 11, 1,000 records) passes for both packs with no hit and no narrative overlap; the device pack
+proposes, approves and executes 8 follow-ups on 4 supported conclusions (21 packets, 4 drafts, 4 outbox lines, 44
+ledger entries) and the claims pack 2 on 1 (6 packets, 1 draft, 1 outbox line, 11 ledger entries); `LEAKAGE.md`
+section 10 has the table. The E5 plumbing smoke (ARCHITECTURE section 16.11) gives 0 hits in every follow-up artifact
+for both packs and both variants, with HQ holding 3 (device, `V9999`) and 1 (claims, `RS-99999`) cells naming the
+injected id. Neither is evidence about a model or about E5 itself.

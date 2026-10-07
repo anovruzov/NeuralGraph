@@ -288,12 +288,12 @@ class PlantSpecTests(PlantCase):
                     self.assertEqual((cm.exception.file, cm.exception.problem), (f"fixtures/{name}", "unexpected file"))
                     (fixtures / name).unlink()
         self.assertEqual(DQ.hashes(), {
-            "config_hash": "b9e03c14d88100dac6849ba37525059dfb65e681397c15e59000f5cfbdeeb56f",
+            "config_hash": "285935198ba34f2e194dc175cffd1f8f62c494d03d8fb7400ca1aef709058f2a",
             "vocabulary_hash": "e46f521154ce94f42136319ade62cebb5c65515ab90a057470495a606f225901",
             "detector_hash": "c9462f62aa90245f2c7cee50078d337554bded58c4630cda7becbf7a8048c7ec",
             "fixtures_hash": "dc4b70b7044b1094baaa669fb5a3582eeae91af290213e13b94180791db5656d"})
         self.assertEqual(CI.hashes(), {
-            "config_hash": "aa422ef844b583d7d7c0f78afac9147400c0b378b6e193a2347a031330fa329d",
+            "config_hash": "a3a042943452f6ef781f171cf879f3ba5f594f6c4dae5ffef47bfa241bb392da",
             "vocabulary_hash": "028b7603f2b6ef3bba203dee299ea8b001880ef89cd4b276de8513d2a1a301f3",
             "detector_hash": "2041fe9b3e141a5603836d893c97d5671eb21cbb3da611969efbd0c2c4514b84",
             "fixtures_hash": "a2e8936b4be26683f0860c8c8799e701f9aedfb78ea167d5420ac891111b8d80"})

@@ -77,6 +77,9 @@ G5_HASHES = {   # the G5 values (51f3b09); G6 changed only config_hash (D4, D5)
 }
 G6_CONFIG_HASHES = {"device_quality": "b9e03c14d88100dac6849ba37525059dfb65e681397c15e59000f5cfbdeeb56f",
                     "claims_integrity": "aa422ef844b583d7d7c0f78afac9147400c0b378b6e193a2347a031330fa329d"}
+# G7 changed only followups.json's args (D2), so again only config_hash
+G7_CONFIG_HASHES = {"device_quality": "285935198ba34f2e194dc175cffd1f8f62c494d03d8fb7400ca1aef709058f2a",
+                    "claims_integrity": "a3a042943452f6ef781f171cf879f3ba5f594f6c4dae5ffef47bfa241bb392da"}
 # sha256 of detect/{detectors,rules,org}.py at 51f3b09: detection is not changed by G6
 DETECT_SHA256 = {
     "detectors.py": "7d4ca86bd6e66f0e6e8a392ba45082f16ed372ecfb0ed611021ea3f1d8883b3f",
@@ -281,7 +284,8 @@ class PackPushdownConfigTests(WorldCase):
                 self.assertEqual({k: v for k, v in pack.hashes().items() if k != "config_hash"},
                                  {k: v for k, v in old.items() if k != "config_hash"})
                 self.assertNotEqual(pack.config_hash, old["config_hash"])
-                self.assertEqual(pack.config_hash, G6_CONFIG_HASHES[pack.id])
+                self.assertNotEqual(pack.config_hash, G6_CONFIG_HASHES[pack.id])
+                self.assertEqual(pack.config_hash, G7_CONFIG_HASHES[pack.id])
         copy = pack_copy(self.tmp, "device_quality", {("questions.json", "pushdown", "max_sibling_sites"): 3})
         self.assertEqual({k for k in DQ.hashes() if DQ.hashes()[k] != copy.hashes()[k]}, {"config_hash"})
 
@@ -463,9 +467,11 @@ class EgressQuestionVerdictTests(WorldCase):
         return err
 
     def test_constants_and_keys(self) -> None:
-        self.assertEqual(ARTIFACT_TYPES, ("cells_bundle", "usage_summary", "question", "verdict"))
+        # G7 added packet_request (in) and packet (out); the G6 types and directions are unchanged
+        self.assertEqual(ARTIFACT_TYPES, ("cells_bundle", "usage_summary", "question", "verdict", "packet_request",
+                                          "packet"))
         self.assertEqual(dict(ARTIFACT_DIRECTION), {"cells_bundle": "out", "usage_summary": "out", "question": "in",
-                                                    "verdict": "out"})
+                                                    "verdict": "out", "packet_request": "in", "packet": "out"})
         for word in ("template", "question_id", "verdict_id", "range", "consistency"):
             self.assertIn(word, KEYWORDS)
         self.assertEqual(artifact_keys(DQ, "question"), {
@@ -1825,8 +1831,9 @@ class LeakageStageTests(unittest.TestCase):
         for name in ("device_quality", "claims_integrity"):
             with self.subTest(pack=name):
                 d, out = self.result(name), self.runs[name][2]
+                # G7 added the followup stage after pushdown; every pushdown assertion below is unchanged
                 self.assertEqual((d["hits"], d["shingle_overlap_bytes"], d["passed"], d["stages"]),
-                                 ([], 0, True, ["edge", "pushdown"]))
+                                 ([], 0, True, ["edge", "pushdown", "followup"]))
                 for cls_name in ("questions", "verdicts", "collective_sqlite3", "site_ingress_log"):
                     self.assertGreater(d["artifact_classes"][cls_name]["bytes"], 0, cls_name)
                 labels = {item["label"] for item in d["scanned"]}

@@ -19,18 +19,6 @@
       "args_schema": {
         "conclusion": {
           "kind": "conclusion_id"
-        },
-        "product_id": {
-          "kind": "entity_id",
-          "entity_type": "product"
-        },
-        "failure_mode": {
-          "kind": "predicate"
-        },
-        "max_records": {
-          "kind": "integer",
-          "minimum": 1,
-          "maximum": 200
         }
       },
       "draft_schema": null,
@@ -106,10 +94,6 @@
         "supplier_id": {
           "kind": "entity_id",
           "entity_type": "supplier"
-        },
-        "component_id": {
-          "kind": "entity_id",
-          "entity_type": "component"
         }
       },
       "draft_schema": {

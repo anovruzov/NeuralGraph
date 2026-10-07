@@ -16,18 +16,6 @@
       "args_schema": {
         "conclusion": {
           "kind": "conclusion_id"
-        },
-        "shop_id": {
-          "kind": "entity_id",
-          "entity_type": "repair_shop"
-        },
-        "pattern": {
-          "kind": "predicate"
-        },
-        "max_files": {
-          "kind": "integer",
-          "minimum": 1,
-          "maximum": 100
         }
       },
       "draft_schema": null,
@@ -44,10 +32,6 @@
       "args_schema": {
         "conclusion": {
           "kind": "conclusion_id"
-        },
-        "area": {
-          "kind": "entity_id",
-          "entity_type": "damage_area"
         },
         "priority": {
           "kind": "enum",

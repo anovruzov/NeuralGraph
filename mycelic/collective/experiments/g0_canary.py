@@ -11,7 +11,8 @@ N records and keep the first N; plant canaries (``leakage.plant_canaries``) and 
 stages say crossed, with the site ledgers as a separate hygiene class; scan the first site's database as a positive
 control (the scanner must find canaries and narrative text there, or the run fails); write ``DIR/leakage.json``.
 
-Stages: ``edge`` (each site ingests, extracts and emits its cells and usage) and ``pushdown`` (G6): HQ's collective
+Stages: ``edge`` (each site ingests, extracts and emits its cells and usage), ``pushdown`` (G6) and ``followup``
+(G7). ``pushdown``: HQ's collective
 store at ``DIR/hqdb/collective.sqlite3`` (outside ``hq/``, so the edge stage's ``hq`` artifact still covers only the
 transport logs) ingests the receive log, detects (run X, tie salt ``g0``) and verifies up to
 :data:`G0_MAX_CANDIDATES` detector candidates by ``(-score, key)``, topped up to :data:`G0_MIN_CANDIDATES` with
@@ -20,6 +21,20 @@ there, so no cell is visible earlier); every site answers with a ``SiteVerifier`
 seeded demo secret. Its crossing artifacts are every question (``hq/questions.jsonl``), every verdict row of the
 receive log, the HQ database and its ``-wal`` (read while the store is open) and each site's ingress log;
 ``leakage.json`` gains ``pushdown_totals``.
+
+``followup`` (G7; built ahead of E2 and X4, unvalidated): under ``DIR/followup/`` it writes ``approvers.json`` (one
+simulated owner ``g0-<role>`` per pack role, at the enterprise unit), ``kill.json`` (off), the follow-up ledger
+``followups.sqlite3`` and ``outbox.jsonl``. For each conclusion the pushdown stage verified whose latest status is
+``supported``, and each enabled T0 or T1 type in ``(tier, id)`` order (so drafts see the packets), it fills the args
+generically (a harness choice, not a system one: the conclusion id, the key's entity id when the arg's type is the
+key's type, else the type is skipped, the key's predicate, an enum's first value, an integer's minimum), proposes as
+the system principal, approves as the simulated owner at the latest version (``simulated_approvals: true``) and
+executes: T0 asks every target site's ``PacketAssembler`` for its packet, T1 drafts at HQ (``--mode fake``: a central
+fake runtime replaying the template drafter, with its usage ledger at ``DIR/followup/central.ledger.jsonl``; other
+modes: the template drafter) and appends the approved draft to the outbox. Its crossing artifacts are every packet row
+of the receive log, every packet request (``hq/packet_requests.jsonl``), every drafted or edited draft, the ledger file,
+the outbox and the central draft ledger; each site's ``packets/`` directory (the full packets, narratives included)
+stays inside the site and is never scanned as crossing. ``leakage.json`` gains ``followup_totals``.
 
 Modes: ``fake`` (default) extracts and judges through an in-process fake model at each site, so a ledger and a usage
 summary exist; ``lexical`` uses no model (no ledger); ``routing`` uses a routing file whose extraction and judge
@@ -44,12 +59,18 @@ from pathlib import Path
 from typing import Any, Callable, Mapping
 
 from ..detect.detectors import detect
-from ..detect.store import CollectiveStore
+from ..detect.store import CollectiveStore, HqReader
 from ..edge.egress import read_log
 from ..edge.extract import TASK_NAME, lexical_handler
+from ..edge.packets import PacketAssembler
 from ..edge.site import EdgeSite
 from ..edge.verify import JUDGE_TASK, SiteVerifier, lexical_judge
 from ..evaluate.baselines import org_for_sites
+from ..followup.drafts import DRAFT_TASK, DraftWriter, template_draft
+from ..followup.executors import OutboxExecutor, PacketExecutor
+from ..followup.ledger import LEDGER_FILE, FollowupLedger
+from ..followup.policy import BUILT_AHEAD_LABEL, SYSTEM, KillSwitch, human
+from ..followup.service import ConclusionView, FollowupRefused, FollowupService
 from ..inference.fake import FakeProvider
 from ..inference.routing import ConfigError, RoutingConfig, load_routing, missing_env, parse_routing
 from ..inference.runtime import Runtime
@@ -69,7 +90,8 @@ MAX_SEED = 10 ** 12
 MAX_WEEKS = 520
 DAY_TIME = "T08:00:00.000Z"
 CROSSING_CLASSES = ("cells", "hq_receive_log", "site_egress_log", "usage_summary", "questions", "verdicts",
-                    "collective_sqlite3", "site_ingress_log")
+                    "collective_sqlite3", "site_ingress_log", "packets", "packet_requests", "drafts",
+                    "approvals_ledger", "outbox", "hq_draft_ledger")
 ROUTED_TASKS = (TASK_NAME, JUDGE_TASK)
 G0_MAX_CANDIDATES = 20
 G0_MIN_CANDIDATES = 5
@@ -108,6 +130,8 @@ class G0Context:
     runtimes: dict[str, Runtime] = field(default_factory=dict)
     totals: dict[str, int] = field(default_factory=lambda: dict.fromkeys(TOTAL_KEYS, 0))
     pushdown_totals: dict[str, Any] = field(default_factory=dict)
+    conclusion_ids: list[str] = field(default_factory=list)
+    followup_totals: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -232,8 +256,9 @@ def pushdown_stage(ctx: G0Context) -> tuple[list[Artifact], list[Artifact]]:
                                               as_of=ctx.as_of)
             conclusions.append(orchestrator.verify_candidate(candidate, as_of=ctx.as_of))
             constructed += 1
+        ctx.conclusion_ids.extend(c.conclusion_id for c in conclusions)
         verdict_rows = [row for row in read_log(hq / "receive.jsonl") if row["artifact_type"] == "verdict"]
-        question_rows = read_log(hq / "questions.jsonl")
+        question_rows = [row for row in read_log(hq / "questions.jsonl") if row["artifact_type"] == "question"]
         question_ids = sorted({c.question_id for c in conclusions})
         verdicts = dict.fromkeys(("confirm", "refute", "unknown"), 0)
         for row in verdict_rows:
@@ -264,7 +289,122 @@ def pushdown_stage(ctx: G0Context) -> tuple[list[Artifact], list[Artifact]]:
     return crossing, []
 
 
-STAGES: tuple[Stage, ...] = (Stage("edge", edge_stage), Stage("pushdown", pushdown_stage))
+def _harness_args(ft: Any, view: ConclusionView) -> dict[str, Any] | None:
+    """The G0 harness's generic args (a harness choice, not a system one); None skips a type whose entity arg names
+    another type than the key's."""
+    args: dict[str, Any] = {}
+    for name in sorted(ft.args):
+        spec = ft.args[name]
+        if spec["kind"] == "conclusion_id":
+            args[name] = view.conclusion_id
+        elif spec["kind"] == "entity_id":
+            if spec["entity_type"] != view.entity_type:
+                return None
+            args[name] = view.entity_id
+        elif spec["kind"] == "predicate":
+            args[name] = view.predicate
+        elif spec["kind"] == "enum":
+            args[name] = spec["values"][0]
+        else:
+            args[name] = spec["minimum"]
+    return args
+
+
+def _drafter(ctx: G0Context, ledger: Path) -> tuple[DraftWriter, Runtime | None]:
+    if ctx.mode != "fake":
+        return DraftWriter(ctx.pack, runtime=None), None
+    config = parse_routing({"schema_version": 1, "endpoints": {"hq-fake": {"provider": "fake", "boundary": "central"}},
+                            "routes": {DRAFT_TASK: {"endpoint": "hq-fake"}}}, allow_fake=True)
+    provider = FakeProvider()
+    provider.register(DRAFT_TASK, template_draft(ctx.pack))
+    runtime = Runtime(config, boundary="central", ledger_path=ledger, run_id=f"g0-{ctx.seed}", clock=ctx.clock,
+                      data_label="synthetic", allow_fake=True, fake=provider, sleep=lambda s: None, environ={})
+    return DraftWriter(ctx.pack, runtime=runtime), runtime
+
+
+def followup_stage(ctx: G0Context) -> tuple[list[Artifact], list[Artifact]]:
+    """Approval-routed follow-up over the supported conclusions (G7; built ahead of E2 and X4, unvalidated), with a
+    simulated owner approving every proposal."""
+    edge, hq, base = ctx.out / "edge", ctx.out / "hq", ctx.out / "followup"
+    base.mkdir(parents=True, exist_ok=True)
+    org = org_for_sites(ctx.sites, G0_ENTERPRISE)
+    approvers, kill = base / "approvers.json", base / "kill.json"
+    write_json_atomic(approvers, {"schema_version": 1, "enterprise": G0_ENTERPRISE, "approvers": [
+        {"person_label": f"g0-{role}", "role": role, "unit_path": G0_ENTERPRISE} for role in sorted(ctx.pack.roles)]})
+    write_json_atomic(kill, {"schema_version": 1, "global": "off", "types": {}})
+    outbox, central = base / "outbox.jsonl", base / "central.ledger.jsonl"
+    outbox.touch()
+    ledger = FollowupLedger.create(base / LEDGER_FILE, pack=ctx.pack, enterprise=G0_ENTERPRISE, clock=ctx.clock)
+    sites: list[EdgeSite] = []
+    runtime: Runtime | None = None
+    reader = HqReader(ctx.out / "hqdb" / "collective.sqlite3")
+    supported = skipped = 0
+    packets = dict.fromkeys(("complete", "partial", "failed"), 0)
+    try:
+        handlers = {}
+        for site_id in ctx.sites:
+            site = EdgeSite(ctx.pack, site_id, edge, runtime=None, clock=ctx.clock,
+                            master_data=ctx.master_data[site_id], hq_dir=hq)
+            sites.append(site)
+            handlers[site_id] = PacketAssembler(site, clock=ctx.clock).handle
+        drafter, runtime = _drafter(ctx, central)
+        service = FollowupService(ledger, pack=ctx.pack, org=org, hq=reader, approvers_path=approvers,
+                                  kill_switch=KillSwitch(kill, ctx.pack, environ={}), drafter=drafter,
+                                  executors={"packet": PacketExecutor(ctx.pack, handlers),
+                                             "draft": OutboxExecutor(outbox)})
+        types = sorted((ft for ft in ctx.pack.followups.values() if ft.enabled and ft.tier in ("T0", "T1")),
+                       key=lambda ft: (ft.tier, ft.id))
+        for conclusion_id in sorted(set(ctx.conclusion_ids)):
+            view = service.view(conclusion_id)
+            if view is None or view.status != "supported":
+                continue
+            supported += 1
+            for ft in types:
+                args = _harness_args(ft, view)
+                if args is None:
+                    skipped += 1
+                    continue
+                try:
+                    key = service.propose(conclusion_id, ft.id, args, principal=SYSTEM, as_of=ctx.as_of)
+                    state = service.state(key)
+                    service.approve(key, state.latest_version, principal=human(state.owner), as_of=ctx.as_of)
+                    done = service.execute(key, as_of=ctx.as_of)
+                except FollowupRefused:
+                    continue
+                if done.status == "executed" and ft.tier == "T0":
+                    packets[done.result["status"]] += 1
+        summary = service.summary()
+        entries = ledger.entries()
+    finally:
+        for site in sites:
+            site.close()
+        if runtime is not None:
+            runtime.close()
+        ledger.close()
+    lines = [line for line in outbox.read_bytes().split(b"\n") if line]
+    kinds = summary["kinds"]
+    ctx.followup_totals.update({
+        "approved": kinds["approved"], "conclusions_supported": supported, "drafts": kinds["drafted"],
+        "executed": kinds["executed"], "label": BUILT_AHEAD_LABEL, "ledger_entries": summary["ledger_entries"],
+        "ledger_head_hash": summary["ledger_head_hash"], "outbox_lines": len(lines), "packets": packets,
+        "proposed": kinds["proposed"], "refused": kinds["refused"], "simulated_approvals": True,
+        "skipped_types": skipped, "statuses": summary["statuses"]})
+    crossing = [Artifact("packets", f"hq/receive.jsonl#packet-{n}", data=canonical_bytes(row["body"]))
+                for n, row in enumerate((r for r in read_log(hq / "receive.jsonl") if r["artifact_type"] == "packet"),
+                                        start=1)]
+    crossing += [Artifact("packet_requests", f"hq/packet_requests.jsonl#{n}", data=canonical_bytes(row["body"]))
+                 for n, row in enumerate(read_log(hq / "packet_requests.jsonl"), start=1)]
+    crossing += [Artifact("drafts", f"followup/{LEDGER_FILE}#seq-{e.seq}", data=canonical_bytes(e.payload["draft"]))
+                 for e in entries if e.kind in ("drafted", "edited")]
+    crossing.append(Artifact("approvals_ledger", f"followup/{LEDGER_FILE}", path=base / LEDGER_FILE))
+    crossing.append(Artifact("outbox", "followup/outbox.jsonl", path=outbox))
+    if central.exists():
+        crossing.append(Artifact("hq_draft_ledger", "followup/central.ledger.jsonl", path=central))
+    return crossing, []
+
+
+STAGES: tuple[Stage, ...] = (Stage("edge", edge_stage), Stage("pushdown", pushdown_stage),
+                             Stage("followup", followup_stage))
 
 
 # --------------------------------------------------------------------------------------------------- arguments
@@ -336,8 +476,10 @@ def _dry_run(args: argparse.Namespace) -> int:
                 dry.need(f"network {config.endpoints[name].host_label} (endpoint {name}, a running server)")
     out = Path(args.out)
     for line in ("leakage.json", "private/manifest.json",
-                 "edge/site-<id>.{sqlite3,egress.jsonl,ingress.jsonl,ledger.jsonl}", "hq/receive.jsonl",
-                 "hq/questions.jsonl", "hqdb/collective.sqlite3"):
+                 "edge/site-<id>.{sqlite3,egress.jsonl,ingress.jsonl,ledger.jsonl}",
+                 "edge/packets/site-<id>/<key digest>.json (site-local, never scanned as crossing)",
+                 "hq/receive.jsonl", "hq/questions.jsonl", "hq/packet_requests.jsonl", "hqdb/collective.sqlite3",
+                 "followup/{approvers.json,kill.json,followups.sqlite3,outbox.jsonl,central.ledger.jsonl}"):
         dry.write(str(out / line))
     if args.require_master_data is not None:
         dry.write(f"{out / 'pack'} (only when --require-master-data differs from the pack)")
@@ -359,7 +501,8 @@ def _override(base: FrozenPack, args: argparse.Namespace, out: Path) -> tuple[Fr
     return load_pack(copy_dir), True
 
 
-def _world(pack: FrozenPack, seed: int, n: int) -> tuple[Any, int]:
+def make_world(pack: FrozenPack, seed: int, n: int) -> tuple[Any, int]:
+    """The pack's seeded world with at least ``n`` records (the weeks grow until it has them), and its weeks."""
     sites = len(pack.generator["sites"])
     weeks = pack.detectors["baseline_weeks"] + pack.detectors["window_weeks"]
     while True:
@@ -385,29 +528,47 @@ def _positive_control(ctx: G0Context, manifest: Any, narratives: list[str]) -> d
             "shingle_overlap_bytes": report["shingle_overlap_bytes"]}
 
 
-def run(args: argparse.Namespace) -> int:
-    out = Path(args.out)
-    base = load_pack(args.pack)
-    routing = _routing(args.routing, check_env=True) if args.mode == "routing" else None
-    world, weeks = _world(base, args.seed, args.records)      # generation reads no egress field
-    out.mkdir(parents=True, exist_ok=True)
-    pack, overridden = _override(base, args, out)
-    records = world.records[:args.records]
-    planted, manifest = plant_canaries(records, random.Random(f"g0-canaries:{args.seed}"), pack)
-    manifest = write_manifest(manifest, out / "private" / "manifest.json")
+def _ingest_day(records: tuple[dict[str, Any], ...]) -> date:
+    return date.fromisoformat(max(r["received_date"] for r in records)) + timedelta(days=1)
 
-    ingest_day = date.fromisoformat(max(r["received_date"] for r in planted)) + timedelta(days=1)
+
+def build_context(pack: FrozenPack, records: tuple[dict[str, Any], ...],
+                  master_data: Mapping[str, Mapping[str, tuple[str, ...]]], out: Path, *, mode: str, seed: int,
+                  routing: RoutingConfig | None, sites: tuple[str, ...]) -> G0Context:
+    """The context every stage runs in: the simulated clock starts the day after the last record (ingest) and the
+    run's ``as_of`` closes every record week and the ingest week."""
+    ingest_day = _ingest_day(records)
     as_of = ingest_day + timedelta(days=7 + pack.egress.close_lag_days)
-    ctx = G0Context(pack=pack, records=planted, master_data=world.master_data, out=out,
-                    clock=SimClock(ingest_day.isoformat() + DAY_TIME), as_of=as_of.isoformat(),
-                    emit_at=as_of.isoformat() + DAY_TIME, mode=args.mode, seed=args.seed, routing=routing,
-                    sites=tuple(world.params["site_ids"]))
+    return G0Context(pack=pack, records=records, master_data=master_data, out=out,
+                     clock=SimClock(ingest_day.isoformat() + DAY_TIME), as_of=as_of.isoformat(),
+                     emit_at=as_of.isoformat() + DAY_TIME, mode=mode, seed=seed, routing=routing, sites=sites)
+
+
+def run_stages(ctx: G0Context) -> tuple[list[Artifact], list[Artifact]]:
+    """Every stage of :data:`STAGES` in order: (artifacts that crossed a boundary, hygiene artifacts)."""
     crossing: list[Artifact] = []
     hygiene: list[Artifact] = []
     for stage in STAGES:
         c, h = stage.run(ctx)
         crossing += c
         hygiene += h
+    return crossing, hygiene
+
+
+def run(args: argparse.Namespace) -> int:
+    out = Path(args.out)
+    base = load_pack(args.pack)
+    routing = _routing(args.routing, check_env=True) if args.mode == "routing" else None
+    world, weeks = make_world(base, args.seed, args.records)      # generation reads no egress field
+    out.mkdir(parents=True, exist_ok=True)
+    pack, overridden = _override(base, args, out)
+    records = world.records[:args.records]
+    planted, manifest = plant_canaries(records, random.Random(f"g0-canaries:{args.seed}"), pack)
+    manifest = write_manifest(manifest, out / "private" / "manifest.json")
+    ctx = build_context(pack, planted, world.master_data, out, mode=args.mode, seed=args.seed, routing=routing,
+                        sites=tuple(world.params["site_ids"]))
+    crossing, hygiene = run_stages(ctx)
+    ingest_day = _ingest_day(planted)
     narratives = [r["narrative"] for r in planted]
     report = scan(crossing, manifest, narratives, pack, hygiene=hygiene)
     for name in CROSSING_CLASSES:
@@ -427,7 +588,8 @@ def run(args: argparse.Namespace) -> int:
         "models_fake": None if args.mode == "lexical" else args.mode == "fake",
         "as_of": ctx.as_of, "clock": {"ingest": ingest_day.isoformat() + DAY_TIME, "emit": ctx.emit_at},
         "stages": [stage.name for stage in STAGES], "positive_control": positive,
-        "edge_totals": dict(ctx.totals), "pushdown_totals": dict(ctx.pushdown_totals), "passed": passed,
+        "edge_totals": dict(ctx.totals), "pushdown_totals": dict(ctx.pushdown_totals),
+        "followup_totals": dict(ctx.followup_totals), "passed": passed,
         **report, **code_stamps(), "created_at": utc_clock(),
     }
     write_json_atomic(out / "leakage.json", result)

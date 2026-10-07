@@ -91,6 +91,10 @@ NOT_COVERED = (
     "limited, not prevented, by the per-entity daily question budget (G6, X5).",
     "Bucket transitions between overlapping question windows for one key, which can narrow a count inside its "
     "bucket (G6, X5).",
+    "A packet discloses, for one window, which pack codes and which master-data ids co-occur with the key in at least "
+    "k confirmed records at a site, as count buckets (G7, X5).",
+    "A model drafting at HQ sees only structured inputs; the text scan cannot show that its prose does not restate a "
+    "count or an id in another form (G7).",
 )
 KNOWN_LIMITATION_NOTE = (
     "With require_master_data off, ids found only in narratives leave as cell keys (their counts suppressed), so "

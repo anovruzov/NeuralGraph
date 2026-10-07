@@ -263,15 +263,56 @@ class FrozenTests(unittest.TestCase):
                         self.assertIsNone(draft)
 
     def test_args_schema_accepts_canonical_ids_only(self) -> None:
-        ft = pack("device_quality").followups["evidence_packet"]
+        # G7 (D2): the built-in args are {conclusion} for evidence_packet, {conclusion, supplier_id} for scar_draft
+        # and {conclusion, severity} for capa_initiation_draft; every arg kind stays covered
+        dq = pack("device_quality")
+        packet = schemacheck.compile(dq.followups["evidence_packet"].args_json_schema())
+        self.assertEqual(packet.validate({"conclusion": "c-" + "0" * 32}), [])
+        self.assertEqual(packet.validate({"conclusion": "c:site-a:42"}), [])
+        for value in ("Has Space", "", "C-UPPER", 7, None):
+            with self.subTest(arg="conclusion", value=value):
+                self.assertTrue(packet.validate({"conclusion": value}))
+        self.assertTrue(packet.validate({"conclusion": "c1", "product_id": "SD-9"}))           # an extra arg
+        self.assertTrue(packet.validate({}))
+        scar = schemacheck.compile(dq.followups["scar_draft"].args_json_schema())
+        self.assertEqual(scar.validate({"conclusion": "c1", "supplier_id": "V1001"}), [])
+        for value in ("v1001", "V 1001", "V-1001", "V10011", "V100", "V１００１"):
+            with self.subTest(arg="supplier_id", value=value):
+                self.assertTrue(scar.validate({"conclusion": "c1", "supplier_id": value}))
+        self.assertTrue(scar.validate({"conclusion": "c1", "supplier_id": "V1001", "component_id": "BATTERY-DOOR"}))
+        capa = schemacheck.compile(dq.followups["capa_initiation_draft"].args_json_schema())
+        self.assertEqual(capa.validate({"conclusion": "c1", "severity": "high"}), [])
+        for value in ("HIGH", "urgent", "", 1):
+            with self.subTest(arg="severity", value=value):
+                self.assertTrue(capa.validate({"conclusion": "c1", "severity": value}))
+        # the predicate, integer and alias-only entity_id kinds, through a copy whose types regain the G6 args
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        directory = Path(tmp.name) / "device_quality"
+        shutil.copytree(BUILTIN_ROOT / "device_quality", directory)
+
+        def g6_args(obj: Any) -> None:
+            obj["types"]["evidence_packet"]["args_schema"] = {
+                "conclusion": {"kind": "conclusion_id"}, "product_id": {"kind": "entity_id", "entity_type": "product"},
+                "failure_mode": {"kind": "predicate"}, "max_records": {"kind": "integer", "minimum": 1, "maximum": 200}}
+            obj["types"]["scar_draft"]["args_schema"]["component_id"] = {"kind": "entity_id",
+                                                                         "entity_type": "component"}
+
+        TempCase.edit(directory, "followups.json", g6_args)
+        copy = load_pack(directory)
+        ft = copy.followups["evidence_packet"]
         schema = schemacheck.compile(ft.args_json_schema())
         good = {"conclusion": "c:site-a:42", "product_id": "SD-9", "failure_mode": "crack", "max_records": 10}
         self.assertEqual(schema.validate(good), [])
+        self.assertEqual(schema.validate({**good, "max_records": 200}), [])
+        self.assertEqual(schema.validate({**good, "max_records": 1}), [])
         for key, value in (("product_id", "sd-9"), ("product_id", "SD_9"), ("product_id", "SD 9"),
-                           ("failure_mode", "free text"), ("max_records", 0), ("conclusion", "Has Space")):
+                           ("failure_mode", "free text"), ("failure_mode", "Crack"), ("max_records", 0),
+                           ("max_records", 201), ("max_records", 10.0), ("max_records", True),
+                           ("conclusion", "Has Space")):
             with self.subTest(key=key, value=value):
                 self.assertTrue(schema.validate({**good, key: value}))
-        scar = schemacheck.compile(pack("device_quality").followups["scar_draft"].args_json_schema())
+        scar = schemacheck.compile(copy.followups["scar_draft"].args_json_schema())
         self.assertEqual(scar.validate({"conclusion": "c1", "supplier_id": "V1001", "component_id": "BATTERY-DOOR"}),
                          [])
         self.assertTrue(scar.validate({"conclusion": "c1", "supplier_id": "V1001", "component_id": "battery door"}))
