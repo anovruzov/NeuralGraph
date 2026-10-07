@@ -21,8 +21,8 @@ from unittest import mock
 from lab import shard as lab_shard
 from lab import units
 from lab.notes import (BUDGET_EXHAUSTED, E3_FAILURES, HARNESS_INTERRUPTED, HARNESS_USAGE, KILLED_BY_SIGNAL,
-                       LOW_PARTICIPATION, NO_MODEL_CALLS, RESULT_CONTRADICTS_EXIT, RESULT_MISSING, SHARD_INTERRUPTED,
-                       TIMED_OUT, UNEXPECTED_EXIT)
+                       LOW_PARTICIPATION, NO_MODEL_CALLS, NOT_PREPARED, RESULT_CONTRADICTS_EXIT, RESULT_MISSING,
+                       SHARD_INTERRUPTED, TIMED_OUT, UNEXPECTED_EXIT)
 from lab.responder import Responder, ResponderError
 from mycelic.collective import schemacheck
 from mycelic.collective.experiments.e3_latency import WORKLOADS
@@ -379,7 +379,14 @@ class MeasurementClassTests(unittest.TestCase):
         self.assertEqual(units.measurement_class("gguf", "fake", real), ("plumbing", "provider_override"))
         self.assertEqual(units.measurement_class("gguf", None, real + [_row("t", 1, True)]),
                          ("plumbing", "fake_marker"))
-        self.assertEqual(units.measurement_class("gguf", None, real), ("unverified", "model_rule_pending"))
+        self.assertEqual(units.measurement_class("gguf", None, real), ("unverified", "no_evidence"))
+        passing = dict.fromkeys(units.CHECK_KEYS, True)
+        self.assertEqual(units.measurement_class("gguf", None, real, passing), ("model", "verified"))
+        self.assertEqual(units.measurement_class("gguf", None, real, {**passing, "ledger_host": False}),
+                         ("unverified", "ledger_host"))
+        self.assertEqual(units.measurement_class("gguf", None, real + [_row("t", 1, True)], passing),
+                         ("plumbing", "fake_marker"))
+        self.assertEqual(units.measurement_class("fake", None, real, passing), ("plumbing", "fake_kind"))
 
 
 class ResponderTests(unittest.TestCase):
@@ -457,14 +464,21 @@ class ShardCliTests(TempDirTest):
         self.assertEqual(r.returncode, 2)
         self.assertFalse((self.tmp / "n").exists() or (self.tmp / "p").exists())
 
-    def test_server_shard_needs_the_fake_provider(self) -> None:
+    def test_server_shard_needs_prepare_or_fake_provider(self) -> None:
         obj = _request(["tiny-gguf"], g0=False)
         obj["provider"] = "llama-server"
         _, plan = make_plan(self.tmp, obj)
         r = lab_cli("lab.shard", "run", "--plan", str(plan), "--shard", "s001-tiny-gguf", "--out", str(self.tmp / "g"))
         self.assertEqual(r.returncode, 2)
-        self.assertIn("no model server", r.stderr)
+        self.assertEqual(r.stderr.splitlines()[0], f"error: {NOT_PREPARED}")
+        self.assertIn("--provider fake", r.stderr)
         self.assertFalse((self.tmp / "g").exists())
+        (self.tmp / "half" / "provision").mkdir(parents=True)
+        (self.tmp / "half" / "provision" / "prepare.json").write_text("{}")
+        r = lab_cli("lab.shard", "run", "--plan", str(plan), "--shard", "s001-tiny-gguf",
+                    "--out", str(self.tmp / "half"))
+        self.assertEqual((r.returncode, r.stderr.splitlines()[0]), (2, f"error: {NOT_PREPARED}"))
+        self.assertEqual(sorted(p.name for p in (self.tmp / "half").iterdir()), ["provision"])
         r = lab_cli("lab.shard", "run", "--plan", str(plan), "--shard", "s001-tiny-gguf", "--out", str(self.tmp / "o"),
                     "--provider", "fake")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)

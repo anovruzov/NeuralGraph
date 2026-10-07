@@ -1,7 +1,9 @@
 """Repository guards for the lab.
 
-* no model-family name in lab code, docs or tests (model names belong only in the manifest and request files);
-* no server program, release tag or asset literal in lab Python (they come from the manifest);
+* no model-family name in lab code, docs, tests or test stubs (model names belong only in the manifest and request
+  files);
+* no server program, release tag or asset literal in lab Python (they come from the manifest), no hub host and no
+  concrete release download URL, and the GitHub API host exactly once (the provision step's constant);
 * lab Python never passes the harnesses' dirty-tree override, and every harness argv is ``--flag=value`` only;
 * every fixed sentence in ``lab/notes.py`` is free of ASCII digits;
 * lab Python imports only the standard library, ``mycelic`` and ``lab`` (no YAML, no HTTP client, nothing else).
@@ -78,6 +80,33 @@ class LabGuardTests(unittest.TestCase):
             for literal in literals:
                 with self.subTest(path=path.name, literal=literal):
                     self.assertNotIn(literal, text)
+
+    def test_no_download_urls_in_lab_python(self) -> None:
+        release_url = re.compile(r"https://github\.com/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+/releases/download/")
+        hub_host = re.compile(r"huggingface\.co|(?<![A-Za-z0-9_.])hf\.co(?![A-Za-z0-9_])")
+        placeholder = "https://github.com/<owner>/<repo>/releases/download/"
+        self.assertIsNone(release_url.search(placeholder))
+        self.assertIsNotNone(release_url.search("x https://github.com/a-b/c.d/releases/download/t/f"))
+        self.assertIsNotNone(hub_host.search("https://hf.co/x"))
+        self.assertIsNone(hub_host.search("self.config"))
+        for path in lab_python():
+            text = path.read_text(encoding="utf-8")
+            with self.subTest(path=path.name):
+                self.assertIsNone(release_url.search(text))
+                self.assertIsNone(hub_host.search(text))
+
+    def test_api_host_constant_once(self) -> None:
+        host = "api." + "github.com"
+        hits = [(path.name, path.read_text(encoding="utf-8").count(host)) for path in lab_python()]
+        self.assertEqual([(name, n) for name, n in hits if n], [("provision.py", 1)])
+        self.assertIn(f'API_HOST = "{host}"', (LAB / "provision.py").read_text(encoding="utf-8"))
+        built = [(path.name, path.read_text(encoding="utf-8").count('"Authorization"')) for path in lab_python()]
+        self.assertEqual([(name, n) for name, n in built if n], [("provision.py", 1)])
+
+    def test_stubs_in_name_scan(self) -> None:
+        files = name_scan_files()
+        stubs = sorted(p.name for p in files if p.parent == ROOT / "tests" / "lab" / "stubs")
+        self.assertEqual(stubs, ["__init__.py", "fake_server_stub.py", "http_stub.py"])
 
     def test_no_dirty_override(self) -> None:
         for path in lab_python():

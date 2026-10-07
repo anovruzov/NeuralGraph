@@ -182,3 +182,132 @@ class GitWorld:
                    default_branch: str = "main", ref: str | None = None) -> Path:
         return self.event(before=before, after=after, ref=ref or f"refs/heads/{branch}", deleted=deleted,
                           repository={"default_branch": default_branch})
+
+
+# --------------------------------------------------------------------------------------------------- stub worlds
+
+COMMIT = "0123456789abcdef0123456789abcdef01234567"
+HUB_COMMIT = "89abcdef0123456789abcdef0123456789abcdef"
+RELEASE_OWNER, RELEASE_REPO = "example-org", "lab-test-server"
+ARCHIVE_ROOT = "lab-test-server-b0000"
+BINARY = "bin/server-stub"
+MODEL_KEY = "tiny-gguf"
+
+
+def gguf_blob(size: int, seed: int = 1) -> bytes:
+    """``GGUF`` followed by deterministic filler, ``size`` bytes in all."""
+    import hashlib
+    body = b"".join(hashlib.sha256(f"{seed}:{i}".encode()).digest() for i in range(size // 32 + 1))
+    return (b"GGUF" + body)[:size]
+
+
+def stub_manifest(directory: Path, *, revision: str = COMMIT, lock: dict[str, Any] | None = None,
+                  model: dict[str, Any] | None = None, server: dict[str, Any] | None = None) -> Path:
+    """The test manifest with the stub server (non-empty archive root) and one gguf model, plus its lock."""
+    manifest = json.loads(MANIFEST_TEST.read_text(encoding="utf-8"))
+    base = manifest["server"]
+    manifest["server"] = {**base, "archive_root": ARCHIVE_ROOT, "binary": BINARY, **(server or {})}
+    entry = manifest["models"][MODEL_KEY]
+    entry["gguf"]["revision"] = revision
+    entry.update(model or {})
+    manifest["models"] = {MODEL_KEY: entry}
+    path = write_json(directory / "manifest.json", manifest)
+    write_json(directory / "manifest.lock.json", lock or {"schema_version": 1, "server": None, "models": {}})
+    return path
+
+
+def gguf_request(*, e3: bool = True, g0: bool = True, program: str | None = None) -> dict[str, Any]:
+    obj = plumbing_min()
+    obj["provider"] = program or json.loads(MANIFEST_TEST.read_text(encoding="utf-8"))["server"]["program"]
+    obj["models"] = [MODEL_KEY]
+    blocks = {}
+    if g0:
+        blocks["g0"] = {**obj["experiments"]["g0"], "models": [MODEL_KEY]}
+    if e3:
+        blocks["e3"] = {**obj["experiments"]["e3"]}
+    obj["experiments"] = blocks
+    return obj
+
+
+def call_main(module: Any, argv: list[str], **kwargs: Any) -> tuple[int, str, str]:
+    """``module.main(argv, **kwargs)`` in-process with stdout and stderr captured."""
+    out, err = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        code = module.main(argv, **kwargs)
+    return code, out.getvalue(), err.getvalue()
+
+
+class StubWorld:
+    """A loopback hub and release CDN serving a stub server tarball and a GGUF blob, a manifest pinning them and a
+    plan for one gguf model; provision, prepare and run happen in process through the hub's ``url_map``. ``lock`` is
+    the lock to write, or a function of the world (its tarball and blob exist by then) that returns it."""
+
+    def __init__(self, tmp: Path, *, server_config: dict[str, Any] | None = None, revision: str = COMMIT,
+                 hub_commit: str | None = None, blob_size: int = 65536, request: dict[str, Any] | None = None,
+                 lock: Any = None, model: dict[str, Any] | None = None, server: dict[str, Any] | None = None,
+                 release: dict[str, Any] | None = None, unsafe: str | None = None) -> None:
+        from tests.lab.stubs.fake_server_stub import write_launcher
+        from tests.lab.stubs.http_stub import HubStub, make_tarball
+
+        self.tmp = Path(tmp)
+        self.hub = HubStub().start()
+        self.record_dir = self.tmp / "stub-records"
+        self.manifest_path = stub_manifest(self.tmp / "m", revision=revision, model=model, server=server)
+        self.manifest = json.loads(self.manifest_path.read_text(encoding="utf-8"))
+        server = self.manifest["server"]
+        self.tag, self.asset = server["tag"], server["asset"]
+        self.launcher = write_launcher(self.tmp / "launcher" / "server-stub",
+                                       {"record_dir": str(self.record_dir), "tag": self.tag, **(server_config or {})})
+        self.tarball = make_tarball(self.tmp / "asset.tar.gz", archive_root=ARCHIVE_ROOT, binary=BINARY,
+                                    launcher=self.launcher, unsafe=unsafe)
+        self.hub.add_release(RELEASE_OWNER, RELEASE_REPO, self.tag, self.asset, self.tarball, **(release or {}))
+        self.blob = gguf_blob(blob_size)
+        entry = self.manifest["models"][MODEL_KEY]
+        self.commit = hub_commit or (revision if revision == COMMIT else HUB_COMMIT)
+        self.hub.add_model(entry["gguf"]["repo"], commit=self.commit, file=entry["gguf"]["file"], blob=self.blob,
+                           revision=revision)
+        if lock is not None:
+            write_json(self.manifest_path.with_name("manifest.lock.json"), lock(self) if callable(lock) else lock)
+        self.plan, self.plan_path = make_plan(self.tmp / "p", request or gguf_request(), self.manifest_path)
+        self.cache = self.tmp / "cache"
+        self.records = self.tmp / "records"
+        self.sleeps: list[float] = []
+
+    def close(self) -> None:
+        self.hub.stop()
+
+    def provision(self, target: str, *extra: str, out: Path | None = None) -> tuple[int, str, str, dict[str, Any]]:
+        from lab import provision
+
+        out = out or self.records / (target if target == "server" else f"gguf-{MODEL_KEY}")
+        argv = [target, *(["--model", MODEL_KEY] if target == "gguf" else []), "--plan", str(self.plan_path),
+                "--manifest", str(self.manifest_path), "--cache-root", str(self.cache), "--out", str(out), *extra]
+        code, stdout, stderr = call_main(provision, argv, url_map=self.hub.url_map, sleep=self.sleeps.append)
+        record_path = out / "provision.json"
+        record = json.loads(record_path.read_text(encoding="utf-8")) if record_path.exists() else {}
+        return code, stdout, stderr, record
+
+    def provision_all(self) -> None:
+        for target in ("server", "gguf"):
+            code, stdout, stderr, record = self.provision(target)
+            if code != 0:
+                raise AssertionError(f"provision {target} failed: {stderr}")
+
+    def prepare(self, out: Path, shard: str | None = None, *extra: str) -> tuple[int, str, str]:
+        from lab import shard as lab_shard
+
+        shard = shard or next(s["shard"] for s in self.plan["shards"] if s["kind"] == "gguf")
+        return call_main(lab_shard, ["prepare", "--plan", str(self.plan_path), "--shard", shard,
+                                     "--provision-records", str(self.records), "--cache-root", str(self.cache),
+                                     "--out", str(out), *extra], url_map=self.hub.url_map, sleep=self.sleeps.append)
+
+    def run(self, out: Path, shard: str | None = None, *extra: str) -> tuple[int, str, str]:
+        from lab import shard as lab_shard
+
+        shard = shard or next(s["shard"] for s in self.plan["shards"] if s["kind"] == "gguf")
+        return call_main(lab_shard, ["run", "--plan", str(self.plan_path), "--shard", shard, "--out", str(out),
+                                     *extra])
+
+    def stub_files(self, kind: str) -> list[Any]:
+        return [json.loads(p.read_text(encoding="utf-8"))
+                for p in sorted(self.record_dir.glob(f"{kind}-*.json"), key=lambda p: int(p.stem.split("-")[1]))]

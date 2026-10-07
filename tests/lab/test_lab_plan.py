@@ -207,6 +207,59 @@ class OutputTests(TempDirTest):
         self.assertEqual((entry["kind"], entry["gguf_key"], entry["model"]), ("gguf", "tiny-gguf", "tiny-gguf"))
         self.assertEqual((entry["hosted"], entry["openfda"]), (False, False))
 
+    def test_provision_entries_and_outputs(self) -> None:
+        gho = self.tmp / "gho-fake"
+        code, out, err = run_plan(["--request", str(PLUMBING_MIN), "--manifest", str(MANIFEST_TEST),
+                                   "--out", str(self.tmp / "fake"), "--github-output", str(gho)])
+        self.assertEqual(code, 0, err)
+        plan = json.loads((self.tmp / "fake" / "plan.json").read_text())
+        self.assertEqual(plan["provision"], [])
+        outputs = self._outputs(gho)
+        self.assertEqual((outputs["has_provision"], outputs["provision_matrix"]), ("false", '{"include":[]}'))
+
+        manifest = json.loads(MANIFEST_TEST.read_text())
+        manifest["models"]["second-gguf"] = {**manifest["models"]["tiny-gguf"], "alias": "second-test"}
+        write_json(self.tmp / "m.json", manifest)
+        locked = {"repo": "example-org/tiny-test-GGUF", "file": "tiny-test-q4.gguf",
+                  "revision": manifest["models"]["tiny-gguf"]["gguf"]["revision"],
+                  "commit": manifest["models"]["tiny-gguf"]["gguf"]["revision"], "sha256": "ab" * 32, "size": 10}
+        server_lock = {"tag": manifest["server"]["tag"], "asset": manifest["server"]["asset"], "sha256": "cd" * 32}
+        write_json(self.tmp / "m.lock.json", {"schema_version": 1, "server": server_lock,
+                                              "models": {"second-gguf": locked}})
+        obj = plumbing_min()
+        obj.update(provider="llama-server", models=["tiny-gguf", "second-gguf"])
+        obj["experiments"]["g0"]["models"] = ["second-gguf", "tiny-gguf"]
+        path = write_json(self.tmp / "real.json", obj)
+        plans = []
+        for name in ("A", "B"):
+            gho = self.tmp / f"gho-{name}"
+            code, out, err = run_plan(["--request", str(path), "--manifest", str(self.tmp / "m.json"),
+                                       "--out", str(self.tmp / name), "--github-output", str(gho)])
+            self.assertEqual(code, 0, err)
+            plans.append((self.tmp / name / "plan.json").read_bytes())
+        self.assertEqual(plans[0], plans[1])
+        plan = json.loads(plans[0])
+        tag = manifest["server"]["tag"]
+        self.assertEqual(plan["provision"], [
+            {"target": "server", "key": "", "cache_path": f"server/{tag}",
+             "restore_key": f"lab-server-{tag}-" + "cd" * 8, "restore_prefix": f"lab-server-{tag}-"},
+            {"target": "gguf", "key": "second-gguf", "cache_path": "gguf/second-gguf",
+             "restore_key": "lab-gguf-second-gguf-" + "ab" * 8, "restore_prefix": "lab-gguf-second-gguf-"},
+            {"target": "gguf", "key": "tiny-gguf", "cache_path": "gguf/tiny-gguf", "restore_key": "",
+             "restore_prefix": "lab-gguf-tiny-gguf-"}])
+        outputs = self._outputs(self.tmp / "gho-A")
+        self.assertEqual(outputs["has_provision"], "true")
+        self.assertEqual(json.loads(outputs["provision_matrix"]), {"include": plan["provision"]})
+        self.assertNotIn("\n", outputs["provision_matrix"])
+
+        manifest["models"] = {k: v for k, v in manifest["models"].items() if v["kind"] == "fake"}
+        write_json(self.tmp / "m.json", manifest)
+        write_json(self.tmp / "m.lock.json", {"schema_version": 1, "server": server_lock, "models": {}})
+        code, out, err = run_plan(["--request", str(PLUMBING_MIN), "--manifest", str(self.tmp / "m.json"),
+                                   "--out", str(self.tmp / "C")])
+        self.assertEqual(code, 0, err)
+        self.assertEqual(json.loads((self.tmp / "C" / "plan.json").read_text())["provision"], [])
+
     def test_errors_for_request_manifest_and_event(self) -> None:
         bad = write_json(self.tmp / "bad.json", {**plumbing_min(), "job_minutes": 1})
         code, out, err = run_plan(["--request", str(bad), "--manifest", str(MANIFEST_TEST),
@@ -521,8 +574,8 @@ class EventCliTests(TempDirTest):
         self.assertEqual(r.stdout.strip(), f"::notice::{DELETE_ONLY}")
         self.assertFalse((self.tmp / "out" / "plan.json").exists())
         self.assertEqual(gho.read_text().splitlines(),
-                         ["has_units=false", 'matrix={"include":[]}', "max_parallel=1", "plan_sha256=",
-                          "retention_days=1", "result_class=none"])
+                         ["has_provision=false", "has_units=false", 'matrix={"include":[]}', "max_parallel=1",
+                          "plan_sha256=", 'provision_matrix={"include":[]}', "retention_days=1", "result_class=none"])
 
 
 if __name__ == "__main__":

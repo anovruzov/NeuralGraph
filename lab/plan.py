@@ -24,11 +24,19 @@ same commit are byte-identical)::
      "units": [{"unit", "run_id", "experiment", "model", "kind", "minutes", "params", "seeds", "needs_secret",
                 "env", "shard"}],                                         # sorted by unit id
      "shards": [{"shard", "model", "kind", "needs_secret", "units", "planned_minutes", "timeout_minutes"}],
-     "skipped": [], "matrix": {"include": [...]}}
+     "skipped": [], "matrix": {"include": [...]},
+     "provision": [{"target": "server" | "gguf", "key": "" | "<model key>", "cache_path", "restore_key",
+                    "restore_prefix"}]}
 
-``--github-output`` appends ``has_units``, ``matrix``, ``max_parallel``, ``plan_sha256``, ``retention_days`` and
-``result_class``, one ``name=value`` line each. When the event runs nothing, no plan is written, a notice is
-printed and the outputs say so (``has_units=false``); exit 0. Any problem writes ``DIR/plan-error.json``, prints
+``provision`` lists what the provision matrix downloads and verifies once per run: the server first, then each gguf
+model the plan uses in sorted key order; empty when no shard serves a gguf model. ``cache_path`` is the directory
+under the cache root (``manifest.cache_dir``); ``restore_key`` is the sha-derived cache key when the lock pins the
+file, else ``""`` (an unpinned file is only ever restored by ``restore_prefix`` and then re-verified).
+
+``--github-output`` appends ``has_provision``, ``has_units``, ``matrix``, ``max_parallel``, ``plan_sha256``,
+``provision_matrix`` (``{"include": <provision>}``), ``retention_days`` and ``result_class``, one ``name=value`` line
+each. When the event runs nothing, no plan is written, a notice is printed and the outputs say so
+(``has_units=false``, ``has_provision=false``); exit 0. Any problem writes ``DIR/plan-error.json``, prints
 ``error: <path>: <problem>`` as the first stderr line and an ``::error`` workflow command, and exits 2.
 """
 from __future__ import annotations
@@ -44,7 +52,7 @@ from mycelic.collective.jsonio import canonical_bytes, canonical_dumps, sha256_h
 
 from . import EXIT_OK, EXIT_USAGE, LabError, display_path, gh_data, gh_property, safe_path, shown_path
 from .discover import DiscoveryError, discover, git
-from .manifest import Manifest, ManifestError, load_manifest
+from .manifest import Manifest, ManifestError, cache_dir, cache_key, cache_prefix, load_manifest
 from .request import EXPERIMENTS, SHARD_OVERHEAD_MINUTES, Request, RequestError, load_request
 
 MAX_SHARDS = 256
@@ -53,7 +61,8 @@ MAX_UNIT_ID = 55
 UNIT_ID_RE = re.compile(r"[a-z0-9][a-z0-9-]*", re.ASCII)
 SHARD_ID_RE = re.compile(r"s[0-9]{3}-[a-z0-9][a-z0-9-]{0,23}", re.ASCII)
 NO_MODEL = "none"
-OUTPUT_KEYS = ("has_units", "matrix", "max_parallel", "plan_sha256", "retention_days", "result_class")
+OUTPUT_KEYS = ("has_provision", "has_units", "matrix", "max_parallel", "plan_sha256", "provision_matrix",
+               "retention_days", "result_class")
 
 
 class PlanError(LabError):
@@ -138,6 +147,21 @@ def check_matrix_size(obj: Any, limit: int = MAX_MATRIX_BYTES) -> None:
         raise PlanError("$.experiments", "the job matrix would be too large") from None
 
 
+def provision_entries(manifest: Manifest, gguf_keys: list[str]) -> list[dict[str, Any]]:
+    """The server, then each gguf key in sorted order; nothing without a gguf key."""
+    if not gguf_keys:
+        return []
+
+    def entry(target: str, key: str, name: str, locked: dict[str, Any] | None) -> dict[str, Any]:
+        return {"target": target, "key": key, "cache_path": cache_dir(target, name),
+                "restore_key": cache_key(target, name, locked["sha256"]) if locked is not None else "",
+                "restore_prefix": cache_prefix(target, name)}
+
+    tag = manifest.server["tag"]
+    return [entry("server", "", tag, manifest.lock.server),
+            *(entry("gguf", key, key, manifest.lock.models.get(key)) for key in sorted(gguf_keys))]
+
+
 def build_plan(request: Request, manifest: Manifest, git_sha: str) -> dict[str, Any]:
     data = request.data
     capacity = data["job_minutes"] - SHARD_OVERHEAD_MINUTES
@@ -152,6 +176,8 @@ def build_plan(request: Request, manifest: Manifest, git_sha: str) -> dict[str, 
                           for s in shards]}
     check_matrix_size(matrix)
     used = sorted({u["model"] for u in units if u["model"]})
+    provision = provision_entries(manifest, sorted({s["model"] for s in shards if s["kind"] == "gguf"}))
+    check_matrix_size({"include": provision})
     return {
         "schema_version": 1, "kind": "lab_plan",
         "request": {"path": request.path, "name": request.name, "sha256": request.sha256, "purpose": data["purpose"]},
@@ -162,7 +188,7 @@ def build_plan(request: Request, manifest: Manifest, git_sha: str) -> dict[str, 
         "retention_days": data["retention_days"], "shard_overhead_minutes": SHARD_OVERHEAD_MINUTES,
         "shard_capacity_minutes": capacity,
         "models": {key: {**manifest.models[key], "lock": manifest.lock.models.get(key)} for key in used},
-        "units": units, "shards": shards, "skipped": [], "matrix": matrix,
+        "units": units, "shards": shards, "skipped": [], "matrix": matrix, "provision": provision,
     }
 
 
@@ -180,10 +206,13 @@ def write_github_output(path: str | Path, outputs: dict[str, str]) -> None:
 
 def plan_outputs(plan: dict[str, Any] | None, plan_sha256: str) -> dict[str, str]:
     if plan is None:
-        return {"has_units": "false", "matrix": canonical_dumps({"include": []}), "max_parallel": "1",
-                "plan_sha256": "", "retention_days": "1", "result_class": "none"}
-    return {"has_units": "true" if plan["units"] else "false", "matrix": canonical_dumps(plan["matrix"]),
+        return {"has_provision": "false", "has_units": "false", "matrix": canonical_dumps({"include": []}),
+                "max_parallel": "1", "plan_sha256": "", "provision_matrix": canonical_dumps({"include": []}),
+                "retention_days": "1", "result_class": "none"}
+    return {"has_provision": "true" if plan["provision"] else "false",
+            "has_units": "true" if plan["units"] else "false", "matrix": canonical_dumps(plan["matrix"]),
             "max_parallel": str(min(plan["max_parallel"], len(plan["shards"]))), "plan_sha256": plan_sha256,
+            "provision_matrix": canonical_dumps({"include": plan["provision"]}),
             "retention_days": str(plan["retention_days"]), "result_class": plan["result_class"]}
 
 

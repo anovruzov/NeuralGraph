@@ -7,10 +7,14 @@ Inside a shard's output directory ``OUT``, a unit writes::
     runs/<e3|g0>/<run id>/...                the allowlisted harness outputs, copied from the scratch directory
     work/<unit>/                             the harness scratch directory, deleted when the unit ends
 
-and returns the record the shard writes to ``units/<unit>/unit.json``. In G1 the model server is always the
-collective's ``FakeOpenAIServer`` inside this process, answered by :class:`~lab.responder.Responder`; the routing
-file names it as an ``openai_compat`` endpoint (E3 refuses fake routing by design), so the harness talks HTTP to it
-exactly as it will to a real server.
+and returns the record the shard writes to ``units/<unit>/unit.json``. The model server is either the shard's
+started model server (a :class:`Serving` handle: its loopback URL, alias and the provenance evidence) or, for fake
+entries and the ``--provider fake`` override, the collective's ``FakeOpenAIServer`` inside this process, answered by
+:class:`~lab.responder.Responder` (``server.FakeServer``). Either way the routing file names it as an
+``openai_compat`` endpoint (E3 refuses fake routing by design), so the harness talks HTTP to it the same way. While
+a model server serves the unit, the harness is watched: if the server process exits, the harness group is stopped,
+and a unit whose server exited while it ran (seen by the watch or right after the harness ended) is ``invalid``
+(``server exited with ...``; SIGKILL adds the out-of-memory hint).
 
 Adapters (``ADAPTERS``): ``e3`` runs ``experiments.e3_latency`` (boundary ``central``) and keeps ``e3.json`` and
 ``ledger.jsonl``; ``g0`` runs ``experiments.g0_canary --mode routing`` (boundary ``any-simulated``, both routed
@@ -33,12 +37,21 @@ Status, from :func:`harness_status` and then the participation check:
 
 The measurement class (:func:`measurement_class`) says what the numbers are: ``plumbing`` when a fake answered (a
 fake manifest entry, the ``--provider fake`` override, or any ledger row carrying the fake-server marker),
-``no-model`` for a model-free unit, otherwise ``unverified`` until G2 adds the rule for ``model``. G0's own
+``no-model`` for a model-free unit; otherwise ``model`` only when every condition of :func:`model_checks` holds, in
+this order: the model file was verified by the hub or the lock and its record is the one prepare used
+(``model_verified``); the server archive likewise (``server_verified``; trusted on first use adds the flag
+``server_first_use``); every download connection reached the host it named and none was private
+(``download_hosts``); the server reported the verified file as its model (``model_path``); every ledger row went to
+the started server (``ledger_host``) and every answer named the alias (``model_served``); the harness counted the
+run as a measurement (``harness_measurement``, E3 only: its result says ``measurement: true``,
+:func:`harness_verdict`); and the unit ran to a valid result (``participation``).
+Otherwise ``unverified``, naming the first condition that failed (``no_evidence`` without a model server). G0's own
 ``models_fake`` is ignored: in routing mode it is false even against the fake HTTP server.
 
 The harness runs with an allowlisted environment (:data:`ENV_ALLOWLIST` plus ``PYTHONUNBUFFERED=1``; no token or
-key), in its own session; on a timeout or an exception (a shard interrupt included) the whole process group gets
-SIGTERM, then SIGKILL after 10 s, and after every exit the group is SIGKILLed again to remove stragglers.
+key), in its own session; on a timeout, a watch that fired or an exception (a shard interrupt included) the whole
+process group gets SIGTERM, then SIGKILL after 10 s, and after every exit the group is SIGKILLed again to remove
+stragglers.
 """
 from __future__ import annotations
 
@@ -58,7 +71,7 @@ from mycelic.collective.edge.extract import TASK_NAME
 from mycelic.collective.edge.verify import JUDGE_TASK
 from mycelic.collective.experiments.common import utc_clock, write_json_atomic
 from mycelic.collective.experiments.e3_latency import WORKLOADS
-from mycelic.collective.inference.fakeserver import FakeOpenAIServer
+from mycelic.collective.inference.client import is_private_host
 from mycelic.collective.inference.ledger import read_ledger
 from mycelic.collective.inference.routing import ConfigError, load_routing
 from mycelic.collective.jsonio import StrictJsonError, sha256_hex, strict_load
@@ -68,7 +81,7 @@ from . import ROOT
 from .notes import (E3_FAILURES, FAKE_SERVER_NOTE, HARNESS_INTERRUPTED, HARNESS_USAGE, KILLED_BY_SIGNAL, LAB_ROUTING,
                     LOW_PARTICIPATION, NO_MODEL_CALLS, RESULT_CONTRADICTS_EXIT, RESULT_MISSING, SHARD_INTERRUPTED,
                     TIMED_OUT, UNEXPECTED_EXIT)
-from .responder import Responder
+from .server import EXIT_GRACE_S, WATCH_INTERVAL_S, FakeServer, exit_reason
 
 ENV_ALLOWLIST = ("PATH", "HOME", "LANG", "LC_ALL", "TMPDIR", "SSL_CERT_FILE", "SSL_CERT_DIR", "HTTP_PROXY",
                  "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy")
@@ -79,9 +92,11 @@ MAX_E3_FAILED_SHARE = 0.05
 LOG_CAP_BYTES = 65536
 TERM_GRACE_S = 10
 ENDPOINT = "lab"
-FAKE_FIRST_TOKEN_S = 0.05
-FAKE_TOKEN_S = 0.005
 FLAG_NAME_RE = re.compile(r"[a-z][a-z0-9-]*", re.ASCII)
+CHECK_KEYS = ("model_verified", "server_verified", "download_hosts", "model_path", "ledger_host", "model_served",
+              "harness_measurement", "participation")
+MODEL_VERIFIED_BY = ("lock", "hf-api")
+SERVER_VERIFIED_BY = ("lock", "github-api", "first-use")
 
 
 class ShardInterrupted(BaseException):
@@ -98,6 +113,23 @@ class ProcessResult:
     timed_out: bool
     wall_s: float
     pgid: int
+    stopped_by_watch: bool = False
+
+
+@dataclass(frozen=True)
+class Serving:
+    """A started model server as a unit sees it: where to send calls, what to call it, how to note it in E3, how to
+    tell whether it still runs, and the evidence the classifier reads (``server_record``, ``model_record`` and their
+    sha256, ``prepare``, ``start``)."""
+
+    base_url: str
+    alias: str
+    host_label: str
+    server_note: str
+    poll: Callable[..., dict[str, Any] | None]   # ModelServer.poll(wait_s=0)
+    evidence: dict[str, Any]
+    start: int
+    class_name: str
 
 
 @dataclass(frozen=True)
@@ -236,7 +268,56 @@ def participation(experiment: str, rows: list[dict[str, Any]], required: list[st
     return record, None
 
 
-def measurement_class(kind: str, provider_override: str | None, rows: list[dict[str, Any]]) -> tuple[str, str]:
+def harness_verdict(experiment: str, result: Any) -> bool | None:
+    """E3's own verdict that its run was a measurement, for :func:`model_checks`: only ``measurement: true`` in its
+    result counts (a missing key or result does not); None for a harness that gives no such verdict (G0)."""
+    if experiment != "e3":
+        return None
+    return isinstance(result, dict) and result.get("measurement") is True
+
+
+def model_checks(evidence: Mapping[str, Any], rows: list[dict[str, Any]], status: str | None,
+                 harness_measurement: bool | None, alias: str, host: str) -> tuple[dict[str, bool], list[str]]:
+    """Every condition that admits a model measurement (:data:`CHECK_KEYS`, in order) and the flags; see the module
+    docstring. ``harness_measurement`` is None when the harness has no such verdict (G0), which passes."""
+    flags: list[str] = []
+
+    def held(check: Callable[[], bool]) -> bool:
+        try:
+            return bool(check())
+        except (KeyError, TypeError, AttributeError, IndexError):
+            return False
+
+    server_record, model_record = evidence.get("server_record"), evidence.get("model_record")
+    prepare, start = evidence.get("prepare"), evidence.get("start")
+
+    def connections() -> list[dict[str, Any]]:
+        return [*server_record["connections"], *model_record["connections"], *prepare["connections"]]
+
+    checks = {
+        "model_verified": held(lambda: model_record["verified"] is True
+                               and model_record["verified_by"] in MODEL_VERIFIED_BY
+                               and evidence["model_record_sha256"] == prepare["model"]["record_sha256"]),
+        "server_verified": held(lambda: server_record["verified"] is True
+                                and server_record["verified_by"] in SERVER_VERIFIED_BY
+                                and evidence["server_record_sha256"] == prepare["server"]["record_sha256"]),
+        "download_hosts": held(lambda: all(isinstance(c["host"], str) and c["host"] != ""
+                                           and c["host"] == c["logical_host"] and not is_private_host(c["host"])
+                                           for c in connections())),
+        "model_path": held(lambda: isinstance(start["props"]["model_path"], str)
+                           and start["props"]["model_path"] == prepare["model"]["path"]),
+        "ledger_host": held(lambda: all(row["host"] == host for row in rows)),
+        "model_served": held(lambda: all(row["model_served"] == alias for row in rows if row["http_status"] == 200)),
+        "harness_measurement": harness_measurement is None or harness_measurement is True,
+        "participation": status in ("ok", "result_fail"),
+    }
+    if held(lambda: server_record["verified_by"] == "first-use"):
+        flags.append("server_first_use")
+    return checks, flags
+
+
+def measurement_class(kind: str, provider_override: str | None, rows: list[dict[str, Any]],
+                      checks: Mapping[str, bool] | None = None) -> tuple[str, str]:
     """(class, reason key); the reason keys are those of ``notes.CLASS_REASONS``."""
     if kind == "none":
         return "no-model", "no_model"
@@ -246,11 +327,16 @@ def measurement_class(kind: str, provider_override: str | None, rows: list[dict[
         return "plumbing", "provider_override"
     if any(row.get("fake_marker") for row in rows):
         return "plumbing", "fake_marker"
-    return "unverified", "model_rule_pending"
+    if checks is None:
+        return "unverified", "no_evidence"
+    for key in CHECK_KEYS:
+        if checks.get(key) is not True:
+            return "unverified", key
+    return "model", "verified"
 
 
 def unit_notes(experiment: str, measurement: str) -> list[str]:
-    notes = ["plumbing"] if measurement == "plumbing" else []
+    notes = ["plumbing"] if measurement == "plumbing" else ["model_measurement"] if measurement == "model" else []
     notes.append("synthetic")
     notes.append("runner_hardware" if experiment == "e3" else "text_only_scan")
     return notes
@@ -268,6 +354,7 @@ def unit_record(unit: Mapping[str, Any], shard: str, provider: str, provider_ove
         "measurement_class": measurement, "class_reason": reason,
         "notes": unit_notes(unit["experiment"], measurement), "routing_sha256": None, "files": {},
         "fake_rows": None, "ledger_rows": None, "participation": None, "harness_measurement": None, "logs": None,
+        "serving": None, "server_exit": None, "server_after": None, "class_checks": None, "class_flags": [],
     }
     unknown = set(fields) - set(record)
     if unknown:
@@ -295,7 +382,7 @@ def _stop(proc: subprocess.Popen[bytes]) -> None:
         proc.wait()
 
 
-def _result(proc: subprocess.Popen[bytes], timed_out: bool, t0: float) -> ProcessResult:
+def _result(proc: subprocess.Popen[bytes], timed_out: bool, t0: float, watched: bool = False) -> ProcessResult:
     code = proc.returncode
     name = None
     if code is not None and code < 0:
@@ -304,26 +391,39 @@ def _result(proc: subprocess.Popen[bytes], timed_out: bool, t0: float) -> Proces
         except ValueError:
             name = f"signal {-code}"
     return ProcessResult(exit_code=code, signal_name=name, timed_out=timed_out,
-                         wall_s=round(time.monotonic() - t0, 3), pgid=proc.pid)
+                         wall_s=round(time.monotonic() - t0, 3), pgid=proc.pid, stopped_by_watch=watched)
 
 
 def run_process(argv: list[str], env: dict[str, str], *, cwd: Path, timeout_s: float, stdout_path: Path,
-                stderr_path: Path, on_start: Callable[[int], None] | None = None) -> ProcessResult:
-    """Run ``argv`` in a new session with output to the two files; see the module docstring for the kill rules."""
+                stderr_path: Path, on_start: Callable[[int], None] | None = None,
+                watch: Callable[[], bool] | None = None) -> ProcessResult:
+    """Run ``argv`` in a new session with output to the two files; see the module docstring for the kill rules.
+    With ``watch``, the wait goes in :data:`~lab.server.WATCH_INTERVAL_S` slices and a true ``watch()`` stops the
+    group as a timeout would (``stopped_by_watch``)."""
     t0 = time.monotonic()
     proc: subprocess.Popen[bytes] | None = None
-    timed_out = False
+    timed_out = watched = False
     try:
         with open(stdout_path, "wb") as out_fh, open(stderr_path, "wb") as err_fh:
             proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=out_fh, stderr=err_fh, env=env, cwd=cwd,
                                     start_new_session=True, close_fds=True)
         if on_start is not None:
             on_start(proc.pid)
-        try:
-            proc.wait(timeout=timeout_s)
-        except subprocess.TimeoutExpired:
-            timed_out = True
-            _stop(proc)
+        deadline = t0 + timeout_s
+        while True:
+            left = deadline - time.monotonic()
+            if left <= 0:
+                timed_out = True
+                _stop(proc)
+                break
+            try:
+                proc.wait(timeout=min(WATCH_INTERVAL_S, left) if watch is not None else left)
+                break
+            except subprocess.TimeoutExpired:
+                if watch is not None and watch():
+                    watched = True
+                    _stop(proc)
+                    break
     except BaseException as exc:
         if proc is not None:
             _stop(proc)
@@ -332,7 +432,7 @@ def run_process(argv: list[str], env: dict[str, str], *, cwd: Path, timeout_s: f
                 exc.process = _result(proc, timed_out, t0)
         raise
     _signal_group(proc.pid, signal.SIGKILL)
-    return _result(proc, timed_out, t0)
+    return _result(proc, timed_out, t0, watched)
 
 
 def cap_log(path: Path, cap: int = LOG_CAP_BYTES) -> dict[str, Any] | None:
@@ -429,12 +529,14 @@ def ledger_rows(unit: Mapping[str, Any], out: Path) -> list[dict[str, Any]] | No
 # --------------------------------------------------------------------------------------------------- one unit
 
 def run_unit(unit: dict[str, Any], plan: dict[str, Any], out: Path, *, timeout_s: float,
-             provider_override: str | None, on_start: Callable[[int], None] | None = None) -> dict[str, Any]:
+             provider_override: str | None, on_start: Callable[[int], None] | None = None,
+             serving: Serving | None = None) -> dict[str, Any]:
     out = Path(out)
     adapter = ADAPTERS[unit["experiment"]]
     entry = plan["models"][unit["model"]]
     persona = entry["persona"] if entry["kind"] == "fake" else "valid"
     provider = "fake" if provider_override == "fake" else plan["provider"]
+    server_exit = None
     work = out / "work" / unit["unit"]
     unit_dir = out / "units" / unit["unit"]
     routing_path = out / "routing" / f"{unit['unit']}.json"
@@ -445,24 +547,29 @@ def run_unit(unit: dict[str, Any], plan: dict[str, Any], out: Path, *, timeout_s
     status: str | None = None
     reason: str | None = None
     interrupted = False
-    server = None
+    server: FakeServer | None = None
     try:
-        pack = load_pack(unit["params"]["pack"]) if unit["experiment"] == "g0" else None
-        server = FakeOpenAIServer(persona, responder=Responder(pack), first_token_s=FAKE_FIRST_TOKEN_S,
-                                  token_s=FAKE_TOKEN_S).start()
+        if serving is None:
+            pack = load_pack(unit["params"]["pack"]) if unit["experiment"] == "g0" else None
+            server = FakeServer(persona, pack)
+            server.start()
+            base_url, server_note = server.base_url, FAKE_SERVER_NOTE
+        else:
+            base_url, server_note = serving.base_url, serving.server_note
         routing_path.parent.mkdir(parents=True, exist_ok=True)
-        routing_sha256 = write_json_atomic(routing_path, routing_doc(unit, entry, server.base_url))
+        routing_sha256 = write_json_atomic(routing_path, routing_doc(unit, entry, base_url))
         try:
             load_routing(routing_path, tasks=adapter.routed_tasks, check_env=False)
         except ConfigError:
             status, reason = "failed", LAB_ROUTING
         if status is None:
-            argv = build_argv(unit, out, routing_path)
+            argv = build_argv(unit, out, routing_path, server_note)
             work.mkdir(parents=True, exist_ok=True)
             unit_dir.mkdir(parents=True, exist_ok=True)
             proc = run_process(argv, subprocess_env(os.environ, unit["env"]), cwd=ROOT, timeout_s=timeout_s,
                                stdout_path=unit_dir / "stdout.log", stderr_path=unit_dir / "stderr.log",
-                               on_start=on_start)
+                               on_start=on_start,
+                               watch=(lambda: serving.poll() is not None) if serving is not None else None)
     except ShardInterrupted as exc:
         interrupted = True
         proc = exc.process or proc
@@ -472,8 +579,13 @@ def run_unit(unit: dict[str, Any], plan: dict[str, Any], out: Path, *, timeout_s
 
     files = collect(unit, out)
     result = load_result(unit, out) if proc is not None else None
+    if serving is not None and proc is not None:
+        server_exit = serving.poll()
     if interrupted:
         status, reason = "interrupted", SHARD_INTERRUPTED
+    elif proc is not None and serving is not None and (proc.stopped_by_watch or server_exit is not None):
+        # the server died while the harness ran: whatever the harness made of it, nothing here was served
+        status, reason = "invalid", exit_reason(server_exit or {})
     elif proc is not None:
         status, reason = harness_status(unit["experiment"], proc.exit_code, proc.timed_out, result)
     rows = ledger_rows(unit, out)
@@ -485,12 +597,22 @@ def run_unit(unit: dict[str, Any], plan: dict[str, Any], out: Path, *, timeout_s
             record_participation, problem = participation(unit["experiment"], rows, required_tasks(unit), result)
             if problem is not None:
                 status, reason = "invalid", problem
-    measurement, class_reason = measurement_class(unit["kind"], provider_override, rows or [])
-    logs = {name: cap_log(unit_dir / f"{name}.log") for name in ("stdout", "stderr")}
-    shutil.rmtree(work, ignore_errors=True)
+    if serving is not None and proc is not None and server_exit is None and not interrupted \
+            and status not in ("ok", "result_fail"):
+        # requests that just failed may have met a killed server that is not reaped yet: name the exit if it comes
+        server_exit = serving.poll(EXIT_GRACE_S)
+        if server_exit is not None:
+            status, reason = "invalid", exit_reason(server_exit)
     harness_measurement = None
     if unit["experiment"] == "e3" and isinstance(result, dict):
         harness_measurement = result.get("measurement")
+    checks, flags = None, []
+    if serving is not None:
+        checks, flags = model_checks(serving.evidence, rows or [], status, harness_verdict(unit["experiment"], result),
+                                     serving.alias, serving.host_label)
+    measurement, class_reason = measurement_class(unit["kind"], provider_override, rows or [], checks)
+    logs = {name: cap_log(unit_dir / f"{name}.log") for name in ("stdout", "stderr")}
+    shutil.rmtree(work, ignore_errors=True)
     return unit_record(
         unit, unit["shard"], provider, provider_override, argv=argv, timeout_s=round(timeout_s, 3),
         started_at=started_at, finished_at=utc_clock(),
@@ -501,4 +623,7 @@ def run_unit(unit: dict[str, Any], plan: dict[str, Any], out: Path, *, timeout_s
         routing_sha256=routing_sha256, files=files,
         fake_rows=sum(1 for r in rows if r["fake_marker"]) if rows is not None else None,
         ledger_rows=len(rows) if rows is not None else None, participation=record_participation,
-        harness_measurement=harness_measurement, logs=logs)
+        harness_measurement=harness_measurement, logs=logs,
+        serving=({"start": serving.start, "host": serving.host_label, "alias": serving.alias,
+                  "class": serving.class_name} if serving is not None else None),
+        server_exit=server_exit, class_checks=checks, class_flags=flags)

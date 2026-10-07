@@ -16,7 +16,8 @@ from pathlib import Path
 from typing import Any, Callable
 
 from lab import ROOT, check_keys, gh_data, gh_property, safe_path
-from lab.manifest import NO_ARGS, REPIN, ManifestError, load_manifest
+from lab.manifest import (ARGS_CROSS, ARGS_PROBLEM, ARGS_REPEAT, REPIN, REVISION_PROBLEM, ManifestError,
+                          load_manifest, parse_server_args)
 from lab.notes import PLACEHOLDER
 from lab.request import PACK_PROBLEM, RequestError, load_request, validate
 from tests.lab.helpers import MANIFEST_TEST, PLUMBING_MIN, lab_cli, plumbing_min, run_plan, write_json
@@ -288,8 +289,13 @@ class LoadTests(unittest.TestCase):
         self.assertEqual(validate(obj, MANIFEST)["provider"], "llama-server")
         with self.assertRaises(RequestError) as caught:
             validate(obj, LAB_MANIFEST)
+        self.assertEqual((caught.exception.path, caught.exception.problem),
+                         ("$.models[0]", "not a model in the manifest"))
+        self.assertEqual(LAB_MANIFEST.providers(), ("fake", LAB_MANIFEST.server["program"]))
+        obj["provider"] = "other-server"
+        with self.assertRaises(RequestError) as caught:
+            validate(obj, LAB_MANIFEST)
         self.assertEqual(caught.exception.path, "$.provider")
-        self.assertEqual(LAB_MANIFEST.providers(), ("fake",))
         self.assertEqual(validate(plumbing_min(), LAB_MANIFEST)["provider"], "fake")
 
     def test_hazard_order(self) -> None:
@@ -385,8 +391,26 @@ class ManifestTests(unittest.TestCase):
         self.assertTrue(caught.exception.problem.startswith(problem), caught.exception.problem)
 
     def test_shipped_manifests_load(self) -> None:
-        self.assertEqual(sorted(LAB_MANIFEST.models), ["fake-a", "fake-b"])
-        self.assertIsNone(LAB_MANIFEST.server)
+        self.assertEqual(sorted(LAB_MANIFEST.models), ["a-0p5b", "a-1p5b", "a-4b", "b-2b", "fake-a", "fake-b"])
+        server = LAB_MANIFEST.server
+        self.assertIsNotNone(server)
+        self.assertEqual((server["format"], server["threads"], server["cache_ram_mib"], server["args"]),
+                         ("tar.gz", "physical", 1024, []))
+        self.assertTrue(server["asset"].startswith(server["archive_root"] + "-bin-"))
+        self.assertTrue(server["url"].endswith(f"/releases/download/{server['tag']}/{server['asset']}"))
+        for key in ("a-0p5b", "a-1p5b", "a-4b", "b-2b"):
+            entry = LAB_MANIFEST.models[key]
+            with self.subTest(key=key):
+                self.assertEqual((entry["kind"], entry["alias"], entry["gguf"]["revision"], entry["gguf"]["license"]),
+                                 ("gguf", f"lab-{key}", "main", "apache-2.0"))
+                self.assertEqual((entry["response_format"], entry["transport_schema"]), ("json_schema", "full"))
+                self.assertEqual((entry["ctx_per_slot"], entry["e3_ctx_per_slot"], entry["e2_ctx_per_slot"]),
+                                 (16384, 4096, 32768))
+                self.assertTrue(entry["gguf"]["file"].endswith(".gguf"))
+        self.assertEqual(LAB_MANIFEST.models["a-4b"]["server_args"], ["--reasoning", "off"])
+        self.assertEqual((LAB_MANIFEST.lock.server, LAB_MANIFEST.lock.models), (None, {}))
+        self.assertEqual(json.loads((ROOT / "lab" / "models.lock.json").read_text(encoding="utf-8")),
+                         {"schema_version": 1, "server": None, "models": {}})
         self.assertTrue(LAB_MANIFEST.lock.path.endswith("lab/models.lock.json"))
         self.assertTrue((ROOT / "lab" / "models.lock.json").is_file())
         self.assertTrue((ROOT / "tests" / "lab" / "data" / "manifest-test.lock.json").is_file())
@@ -405,13 +429,63 @@ class ManifestTests(unittest.TestCase):
         m["models"]["none"] = m["models"]["fake-a"]
         self._refused(m, "$.models.none", "reserved")
 
-    def test_server_args_and_model_server_args_must_be_empty(self) -> None:
+    def test_server_args_allowlist(self) -> None:
+        for args in ([], ["--reasoning", "off"], ["--reasoning", "on"], ["--reasoning", "auto"],
+                     ["--reasoning-budget", "0"], ["--reasoning-budget", "-1"], ["--reasoning-budget", "32768"],
+                     ["--jinja"], ["--no-jinja"], ["--reasoning", "off", "--reasoning-budget", "128", "--jinja"]):
+            with self.subTest(args=args):
+                self.assertEqual(parse_server_args(args, "$.x"), tuple(args))
+                m = copy.deepcopy(self.manifest)
+                m["models"]["tiny-gguf"]["server_args"] = args
+                self.assertEqual(self._load(m).models["tiny-gguf"]["server_args"], args)
+                m = copy.deepcopy(self.manifest)
+                m["server"]["args"] = args
+                self.assertEqual(self._load(m).server["args"], args)
+        refused = (["--threads", "4"], ["--ctx-size", "1"], ["--host"], ["--host", "0.0.0.0"], ["--port", "8080"],
+                   ["--api-key", "k"], ["-m", "x.gguf"], ["--alias", "a"], ["--seed", "1"], ["--cache-ram", "0"],
+                   ["--fit", "on"], ["-np", "4"], ["--reasoning"], ["--reasoning", "maybe"],
+                   ["--reasoning-budget"], ["--reasoning-budget", "x"], ["--reasoning-budget", "-2"],
+                   ["--reasoning-budget", "32769"], ["--reasoning-budget", "+1"], ["--jinja", "yes"], "--jinja",
+                   [7], ["--reasoning", "off", "--reasoning", "on"])
+        for args in refused:
+            with self.subTest(args=args):
+                with self.assertRaises(ManifestError) as caught:
+                    parse_server_args(args, "$.x")
+                problem = ARGS_REPEAT if args == ["--reasoning", "off", "--reasoning", "on"] else ARGS_PROBLEM
+                self.assertEqual(caught.exception.problem, problem)
+                m = copy.deepcopy(self.manifest)
+                m["server"]["args"] = args
+                self._refused(m, "$.server.args", problem)
+                m = copy.deepcopy(self.manifest)
+                m["models"]["tiny-gguf"]["server_args"] = args
+                self._refused(m, "$.models.tiny-gguf.server_args", problem)
+        for args in (["--jinja", "--no-jinja"], ["--no-jinja", "--jinja"], ["--jinja", "--jinja"]):
+            with self.subTest(args=args), self.assertRaises(ManifestError) as caught:
+                parse_server_args(args, "$.x")
+            self.assertEqual(caught.exception.problem, ARGS_REPEAT)
+        for server_args, model_args in ((["--reasoning", "off"], ["--reasoning", "on"]), (["--jinja"], ["--no-jinja"]),
+                                        (["--reasoning-budget", "0"], ["--reasoning-budget", "0"])):
+            m = copy.deepcopy(self.manifest)
+            m["server"]["args"] = server_args
+            m["models"]["tiny-gguf"]["server_args"] = model_args
+            with self.subTest(server=server_args, model=model_args):
+                self._refused(m, "$.models.tiny-gguf.server_args", ARGS_CROSS)
         m = copy.deepcopy(self.manifest)
-        m["server"]["args"] = ["--threads", "4"]
-        self._refused(m, "$.server.args", NO_ARGS)
-        m = copy.deepcopy(self.manifest)
-        m["models"]["tiny-gguf"]["server_args"] = ["--ctx-size", "1"]
-        self._refused(m, "$.models.tiny-gguf.server_args", NO_ARGS)
+        m["server"]["args"] = ["--jinja"]
+        m["models"]["tiny-gguf"]["server_args"] = ["--reasoning", "off"]
+        self.assertEqual(self._load(m).models["tiny-gguf"]["server_args"], ["--reasoning", "off"])
+
+    def test_revision_branch_and_commit(self) -> None:
+        for revision in ("main", "v1.2", "release_2", "0123456789abcdef0123456789abcdef01234567"):
+            m = copy.deepcopy(self.manifest)
+            m["models"]["tiny-gguf"]["gguf"]["revision"] = revision
+            with self.subTest(revision=revision):
+                self.assertEqual(self._load(m).models["tiny-gguf"]["gguf"]["revision"], revision)
+        for revision in ("refs/pr/1", "a/b", "-x", "", "1abc", "main branch", "x" * 65, 7, None):
+            m = copy.deepcopy(self.manifest)
+            m["models"]["tiny-gguf"]["gguf"]["revision"] = revision
+            with self.subTest(revision=revision):
+                self._refused(m, "$.models.tiny-gguf.gguf.revision", REVISION_PROBLEM)
 
     def test_fake_entries(self) -> None:
         m = copy.deepcopy(self.manifest)
@@ -437,15 +511,32 @@ class ManifestTests(unittest.TestCase):
             with self.subTest(bad=bad):
                 self._refused(m, "$.hf_base", "must be an https URL")
 
-    def test_lock_mismatch(self) -> None:
-        good = {"repo": "example-org/tiny-test-GGUF", "file": "tiny-test-q4.gguf",
-                "commit": "0123456789abcdef0123456789abcdef01234567", "sha256": "a" * 64, "size": 10}
+    def test_lock_revision_and_commit_rules(self) -> None:
+        commit = "0123456789abcdef0123456789abcdef01234567"
+        good = {"repo": "example-org/tiny-test-GGUF", "file": "tiny-test-q4.gguf", "revision": commit,
+                "commit": commit, "sha256": "a" * 64, "size": 10}
         loaded = self._load(self.manifest, {"schema_version": 1, "server": None, "models": {"tiny-gguf": good}})
-        self.assertEqual(loaded.lock.models["tiny-gguf"]["sha256"], "a" * 64)
-        for field, value in (("repo", "example-org/other-GGUF"), ("file", "other.gguf"), ("commit", "b" * 40)):
+        self.assertEqual(loaded.lock.models["tiny-gguf"], good)
+        self.assertEqual(list(loaded.lock.models["tiny-gguf"]), ["repo", "file", "revision", "commit", "sha256",
+                                                                 "size"])
+        for field, value in (("repo", "example-org/other-GGUF"), ("file", "other.gguf"), ("revision", "main")):
             with self.subTest(field=field):
                 self._refused(self.manifest, "lock $.models.tiny-gguf", REPIN,
                               {"schema_version": 1, "server": None, "models": {"tiny-gguf": {**good, field: value}}})
+        self._refused(self.manifest, "lock $.models.tiny-gguf.commit", "must equal the revision",
+                      {"schema_version": 1, "server": None, "models": {"tiny-gguf": {**good, "commit": "b" * 40}}})
+        self._refused(self.manifest, "lock $.models.tiny-gguf.revision", "required",
+                      {"schema_version": 1, "server": None,
+                       "models": {"tiny-gguf": {k: v for k, v in good.items() if k != "revision"}}})
+        branch = copy.deepcopy(self.manifest)
+        branch["models"]["tiny-gguf"]["gguf"]["revision"] = "main"
+        pinned = {**good, "revision": "main", "commit": "c" * 40}
+        loaded = self._load(branch, {"schema_version": 1, "server": None, "models": {"tiny-gguf": pinned}})
+        self.assertEqual(loaded.lock.models["tiny-gguf"]["commit"], "c" * 40)
+        for bad in ("main", "C" * 40, "c" * 39, 7):
+            with self.subTest(commit=bad):
+                self._refused(branch, "lock $.models.tiny-gguf.commit", "must be a 40-hex commit id",
+                              {"schema_version": 1, "server": None, "models": {"tiny-gguf": {**pinned, "commit": bad}}})
         self._refused(self.manifest, "lock $.models", REPIN,
                       {"schema_version": 1, "server": None, "models": {"fake-a": good}})
         self._refused(self.manifest, "lock $.server", REPIN,

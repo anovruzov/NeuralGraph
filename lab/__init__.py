@@ -2,14 +2,17 @@
 
 A founder writes a request (``lab/requests/<name>.json``, see ``request.py``) naming experiments and models from the
 lab's model manifest (``lab/models.json``, see ``manifest.py``) and pushes it. The workflow's plan job finds the
-request the push added (``discover.py``), validates it and expands it into units and shards (``plan.py``); each shard
-job runs its units (``shard.py`` and ``units.py``) and seals its output directory; G3 aggregates the shards.
-``dryrun.py`` runs the same plan and shard steps in this sandbox against the collective's fake OpenAI-compatible
-server, so every gate is testable without model weights.
+request the push added (``discover.py``), validates it and expands it into units, shards and the files to provision
+(``plan.py``); the provision matrix downloads and verifies the pinned server archive and model files once per run
+(``provision.py`` over ``download.py``); each shard job prepares its files and server binary from the provision
+records, runs its units against the model server it starts on loopback (``shard.py``, ``server.py``, ``warmup.py``,
+``units.py``) and seals its output directory; G3 aggregates the shards. ``dryrun.py`` runs the same plan and shard
+steps in this sandbox against the collective's fake OpenAI-compatible server, so every gate is testable without
+model weights.
 
-Modules: ``notes`` (every fixed sentence), ``request``, ``manifest``, ``discover``, ``plan``, ``responder`` (the fake
-server's reply function), ``hostinfo``, ``units``, ``shard`` and ``dryrun``. The lab imports only the standard
-library, ``mycelic`` and itself.
+Modules: ``notes`` (every fixed sentence), ``request``, ``manifest``, ``discover``, ``plan``, ``download``,
+``provision``, ``server``, ``warmup``, ``responder`` (the fake server's reply function), ``hostinfo``, ``units``,
+``shard`` and ``dryrun``. The lab imports only the standard library, ``mycelic`` and itself.
 
 Exit codes, the same for every lab CLI:
 
@@ -17,9 +20,9 @@ Exit codes, the same for every lab CLI:
 code   meaning
 =====  =================================================================================================
 0      done; every unit ran to a valid result (a harness FAIL verdict is a valid result), or nothing to run
-1      a unit is invalid, failed, timed out or was interrupted, or the shard budget ran out
+1      a unit is invalid, failed, timed out, interrupted or skipped (budget, server or warm-up)
 2      usage or configuration error: a bad request, manifest, lock, event, plan or argument
-3      network error (reserved; unused in G1)
+3      network error: a download or API that stayed unreachable, or a download past its deadline
 =====  =================================================================================================
 
 Every path the lab prints goes through :func:`safe_path`, and every GitHub workflow command (``::error``,
@@ -40,6 +43,7 @@ EXIT_USAGE = 2
 EXIT_NETWORK = 3
 
 NAMED_PATHS = ("request", "event", "manifest", "lock")
+FORBIDDEN_ROOTS = ("mycelic", "research", "NeuralGraph", ".github")
 _SAFE_PATH_RE = re.compile(r"\$((\.[a-z0-9_-]{1,40})|(\[[0-9]{1,6}\]))*", re.ASCII)
 _SHOWN_PATH_RE = re.compile(r"[A-Za-z0-9._/-]{1,512}", re.ASCII)
 
@@ -90,6 +94,17 @@ def check_keys(obj: dict[str, Any], allowed: Sequence[str], required: Sequence[s
     for key in required:
         if key not in obj:
             raise error(f"{path}.{key}", "required") from None
+
+
+def forbidden_root(path: str | os.PathLike[str]) -> str | None:
+    """The name of the repository directory in :data:`FORBIDDEN_ROOTS` that ``path`` is or lies inside (symlinks
+    resolved), else None. No lab output, cache or scratch directory may live there."""
+    resolved = Path(path).resolve()
+    for name in FORBIDDEN_ROOTS:
+        root = (ROOT / name).resolve()
+        if resolved == root or root in resolved.parents:
+            return name
+    return None
 
 
 def display_path(path: str | os.PathLike[str], root: str | os.PathLike[str] | None = None) -> str:
