@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Metrics from "@/components/Metrics";
-import { locomoAB, locomoSlice, emergence, recursion } from "./metrics";
+import { locomoAB, locomoSlice, locomoLatency, emergence, recursion } from "./metrics";
 
 export const metadata: Metadata = {
   title: "Research",
@@ -37,6 +37,10 @@ export default function Research() {
                 <div>
                   <div className="label" style={{ marginBottom: 12 }}>The shipped configuration · conversations 1–5, 744 of 1,540 questions, Gemma lenient judge</div>
                   <Metrics items={locomoSlice} />
+                </div>
+                <div>
+                  <div className="label" style={{ marginBottom: 12 }}>Speed · the fast path trades the reranker for an 18× speedup</div>
+                  <Metrics items={locomoLatency} />
                 </div>
                 <div className="finding">
                   <div className="label signal">The insight</div>

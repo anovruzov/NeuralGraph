@@ -26,6 +26,13 @@ export const locomoSlice: Metric[] = [
   { value: "73.7", unit: "%", what: "Temporal accuracy", scope: "156 questions in that slice", source: "docs/BENCHMARKS.md" },
 ];
 
+/* Track 01 — latency. The no-reranker run exists only in the internal no-reranker report supplied by the founder; its result file is not committed. */
+export const locomoLatency: Metric[] = [
+  { value: "0.44", unit: "s", what: "End to end per question without the LLM reranker (retrieval 0.09 s)", scope: "all 1,540 questions · internal no-reranker report, not yet committed", delta: "from 8.2 s with the reranker", source: "RESULTS_ALL_norank.pdf §1.4, §6 (supplied outside the repository)" },
+  { value: "−6.5", unit: "pts", what: "Accuracy cost of dropping the reranker, on the question ids both runs share", scope: "1,112 shared questions · 68.6% → 62.2%", source: "RESULTS_ALL_norank.pdf §1.4" },
+  { value: "81", unit: "ms", what: "Retrieval alone, per question, with the full shipped stack", scope: "282 questions · committed latency_stats", source: "research/results/local_pairs_single_hop.json" },
+];
+
 /* Track 02 — the enterprise-hierarchy benchmark: synthetic enterprise with planted hidden problems, 18 architectures, 50,000 users, 5 seeds. */
 export const emergence: Metric[] = [
   { value: "0", unit: "/ 306", what: "Facet records of a hidden pattern that rank in the global top 900 by any per-record feature", scope: "10,000 users · the signals are invisible one record at a time", source: "docs/MYCELIC_ENTERPRISE.md §2, §28" },

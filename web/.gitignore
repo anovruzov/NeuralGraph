@@ -1,6 +1,7 @@
-node_modules
-.next
-out
 *.tsbuildinfo
-next-env.d.ts
+.next
 .next-dev
+next-env.d.ts
+node_modules
+out
+.next-export
