@@ -1,0 +1,192 @@
+{
+  "kind": "plant_spec",
+  "schema_version": 1,
+  "pack": "claims_integrity",
+  "prereg_sha256": null,
+  "planted_by": "mycelic engineering (same author as the detector code)",
+  "planter_saw_detector_code": true,
+  "notes": "Construction smoke for the G5 tests: synthetic, same-author, not blind, never a result.",
+  "patterns": [
+    {
+      "id": "p1",
+      "entity_type": "tow_operator",
+      "entity_id": "TW-0310",
+      "predicate": "tow_without_dispatch",
+      "sites": [
+        "motor-north",
+        "motor-south",
+        "motor-east"
+      ],
+      "start_week": 30,
+      "weeks": 8,
+      "rate_per_week": 5,
+      "visibility": "narrative_only",
+      "language": "en"
+    },
+    {
+      "id": "p2",
+      "entity_type": "repair_shop",
+      "entity_id": "RS-2290",
+      "predicate": "duplicate_invoice",
+      "sites": [
+        "motor-south",
+        "motor-west"
+      ],
+      "start_week": 36,
+      "weeks": 8,
+      "rate_per_week": 2,
+      "visibility": "narrative_only",
+      "language": "en"
+    },
+    {
+      "id": "p3",
+      "entity_type": "clinic",
+      "entity_id": "CL-B7X9",
+      "predicate": "treatment_pattern_mismatch",
+      "sites": [
+        "injury-central",
+        "injury-coastal"
+      ],
+      "start_week": 40,
+      "weeks": 6,
+      "rate_per_week": 5,
+      "visibility": "narrative_only",
+      "language": "en"
+    }
+  ],
+  "decoys": [
+    {
+      "id": "d-echo",
+      "class": "echo_marked",
+      "entity_type": "repair_shop",
+      "predicate": "inflated_labour_hours",
+      "sites": [
+        "motor-north"
+      ],
+      "start_week": 30,
+      "weeks": 8,
+      "rate_per_week": 5,
+      "language": "en",
+      "entity_id": "RS-42",
+      "copy_sites": [
+        "motor-south",
+        "motor-west"
+      ]
+    },
+    {
+      "id": "d-dup",
+      "class": "same_site_duplicates",
+      "entity_type": "damage_area",
+      "predicate": "prior_damage_concealed",
+      "sites": [
+        "motor-east"
+      ],
+      "start_week": 32,
+      "weeks": 8,
+      "rate_per_week": 5,
+      "language": "en",
+      "entity_id": "SIDE-PANEL"
+    },
+    {
+      "id": "d-copies",
+      "class": "cross_site_unmarked_copies",
+      "entity_type": "repair_shop",
+      "predicate": "supplement_after_teardown",
+      "sites": [
+        "motor-east"
+      ],
+      "start_week": 36,
+      "weeks": 8,
+      "rate_per_week": 2,
+      "language": "en",
+      "entity_id": "RS-310",
+      "copy_sites": [
+        "motor-north",
+        "injury-central"
+      ]
+    },
+    {
+      "id": "d-reporter",
+      "class": "single_reporter",
+      "entity_type": "tow_operator",
+      "predicate": "staged_collision",
+      "sites": [
+        "motor-west",
+        "motor-north"
+      ],
+      "start_week": 40,
+      "weeks": 8,
+      "rate_per_week": 5,
+      "language": "en",
+      "entity_id": "TW-1200"
+    },
+    {
+      "id": "d-stale",
+      "class": "stale_chain",
+      "entity_type": "tow_operator",
+      "predicate": "tow_without_dispatch",
+      "sites": [
+        "motor-north",
+        "motor-south"
+      ],
+      "start_week": 10,
+      "weeks": 6,
+      "rate_per_week": 5,
+      "language": "en",
+      "entity_id": "TW-0007"
+    },
+    {
+      "id": "d-base-rate",
+      "class": "high_base_rate_everywhere",
+      "entity_type": "damage_area",
+      "predicate": "inflated_labour_hours",
+      "sites": [
+        "motor-north",
+        "motor-south",
+        "motor-east",
+        "motor-west"
+      ],
+      "start_week": 42,
+      "weeks": 6,
+      "rate_per_week": 5,
+      "language": "en",
+      "entity_ids": [
+        "FRONT-BUMPER",
+        "REAR-BUMPER",
+        "BONNET-PANEL"
+      ]
+    },
+    {
+      "id": "d-burst",
+      "class": "single_site_burst",
+      "entity_type": "clinic",
+      "predicate": "treatment_pattern_mismatch",
+      "sites": [
+        "injury-central"
+      ],
+      "start_week": 36,
+      "weeks": 6,
+      "rate_per_week": 5,
+      "language": "en",
+      "entity_id": "CL-A100"
+    },
+    {
+      "id": "d-near-miss",
+      "class": "near_miss_entity",
+      "entity_type": "repair_shop",
+      "predicate": "duplicate_invoice",
+      "sites": [
+        "motor-north"
+      ],
+      "start_week": 44,
+      "weeks": 6,
+      "rate_per_week": 2,
+      "language": "en",
+      "entity_id": "RS-1077",
+      "near_miss_id": "RS-1078",
+      "near_miss_sites": [
+        "motor-east"
+      ]
+    }
+  ]
+}

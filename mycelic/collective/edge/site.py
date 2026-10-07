@@ -108,14 +108,21 @@ def _sup0(value: int, k: int) -> int | str:
 
 
 def build_cells(rows: Iterable[InputRow], pack: "FrozenPack", *, master: Mapping[str, Iterable[str]],
-                require_master_data: bool | None = None) -> tuple[list[dict[str, Any]], dict[str, int]]:
+                require_master_data: bool | None = None,
+                k: int | None = None) -> tuple[list[dict[str, Any]], dict[str, int]]:
     """Count cells from emission input rows. Pure. Rows of a type that may not leave are counted as
     ``non_egress_type``; with ``require_master_data`` (default: the pack's), an id of a type with an id format that
     is not in ``master`` is counted as ``not_master_data`` (alias-only types are closed pack vocabularies and always
-    pass; a type absent from ``master`` drops all its ids). Each record, root and reporter counts once per cell."""
+    pass; a type absent from ``master`` drops all its ids). Each record, root and reporter counts once per cell.
+
+    ``k`` (default: the pack's) is the suppression threshold and the ``res_conf_min`` presence rule. k=1 counts
+    without suppression; only the evaluation harness passes it, and nothing it builds goes through the Boundary."""
+    if k is None:
+        k = pack.egress.k
+    elif isinstance(k, bool) or not isinstance(k, int) or k < 1:
+        raise ValueError("k must be an int >= 1") from None
     require = pack.egress.require_master_data if require_master_data is None else require_master_data
     egress_types = frozenset(pack.egress.egress_entity_types)
-    k = pack.egress.k
     stats = dict.fromkeys(CELL_STATS, 0)
     acc: dict[tuple[str, str, str, str, str], tuple[set[str], set[str], set[Any], list[float]]] = {}
     for row in rows:

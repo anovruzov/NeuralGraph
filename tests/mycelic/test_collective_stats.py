@@ -351,5 +351,156 @@ class LogisticTests(unittest.TestCase):
                 stats.logistic(bad)
 
 
+# --------------------------------------------------------------------------------------------------- G5 ranking
+
+T, F = True, False
+HAND_RANKINGS = (
+    # scores, relevant, n_relevant, AP, {k: p@k}
+    ([.9, .8, .7, .6], [T, F, T, F], 2, Fraction(5, 6), {1: 1.0, 2: 0.5, 40: 0.05}),
+    ([.5, .5, .5, .5], [T, F, T, F], 2, Fraction(49, 72), {1: 0.5, 3: 0.5, 40: 0.05}),
+    ([.9, .5, .5, .5, .1], [F, T, F, T, T], 4, Fraction(2, 5), {2: 1 / 3, 4: 0.5, 40: 0.075}),
+    ([.7, .7, .2], [F, F, F], 0, None, {1: 0.0, 40: 0.0}),
+)
+
+
+def _orderings(scores: list[float], relevant: list[bool]) -> list[list[bool]]:
+    """Every ordering of the items by descending score, ties in every order (with duplicates for equal items, so each
+    permutation of a tie group is equally likely)."""
+    out = []
+    for perm in itertools.permutations(range(len(scores))):
+        if all(scores[perm[i]] >= scores[perm[i + 1]] for i in range(len(perm) - 1)):
+            out.append([relevant[i] for i in perm])
+    return out
+
+
+def brute_ap(scores: list[float], relevant: list[bool], n_relevant: int) -> float:
+    values = []
+    for order in _orderings(scores, relevant):
+        hits, total = 0, 0.0
+        for i, rel in enumerate(order, start=1):
+            if rel:
+                hits += 1
+                total += hits / i
+        values.append(total / n_relevant)
+    return sum(values) / len(values)
+
+
+def brute_precision(scores: list[float], relevant: list[bool], k: int) -> float:
+    orders = _orderings(scores, relevant)
+    return sum(sum(order[:k]) / k for order in orders) / len(orders)
+
+
+class TieAveragedRankingTests(unittest.TestCase):
+    def test_the_four_hand_rankings(self) -> None:
+        for scores, relevant, n_relevant, ap, at_k in HAND_RANKINGS:
+            with self.subTest(scores=scores, relevant=relevant):
+                got = stats.tie_averaged_ap(scores, relevant, n_relevant)
+                if ap is None:
+                    self.assertIsNone(got)
+                else:
+                    self.assertAlmostEqual(got, float(ap), delta=1e-12)
+                for k, value in at_k.items():
+                    self.assertAlmostEqual(stats.tie_averaged_precision_at_k(scores, relevant, k), value, delta=1e-12)
+
+    def test_default_n_relevant_and_an_empty_ranking(self) -> None:
+        self.assertAlmostEqual(stats.tie_averaged_ap([.9, .8, .7, .6], [T, F, T, F]), 5 / 6, delta=1e-12)
+        self.assertIsNone(stats.tie_averaged_ap([], []))
+        self.assertEqual(stats.tie_averaged_precision_at_k([], [], 40), 0.0)
+
+    def test_equal_brute_force_over_every_ordering_of_the_ties(self) -> None:
+        rng = random.Random("g5-ranking-brute-force")
+        for case in range(50):
+            n = rng.randint(1, 7)
+            scores = [rng.choice((0.1, 0.4, 0.4, 0.7, 0.9)) for _ in range(n)]
+            relevant = [rng.random() < 0.4 for _ in range(n)]
+            n_relevant = sum(relevant) + rng.randint(0, 2)
+            with self.subTest(case=case):
+                got = stats.tie_averaged_ap(scores, relevant, n_relevant)
+                if n_relevant == 0:
+                    self.assertIsNone(got)
+                else:
+                    self.assertAlmostEqual(got, brute_ap(scores, relevant, n_relevant), delta=1e-12)
+                for k in (1, 2, 3, n, 40):
+                    self.assertAlmostEqual(stats.tie_averaged_precision_at_k(scores, relevant, k),
+                                           brute_precision(scores, relevant, k), delta=1e-12)
+
+    def test_relevant_items_never_ranked_lower_ap(self) -> None:
+        scores, relevant = [.9, .5, .1], [T, F, T]
+        full = stats.tie_averaged_ap(scores, relevant)
+        for extra in (1, 2, 5):
+            with self.subTest(extra=extra):
+                self.assertAlmostEqual(stats.tie_averaged_ap(scores, relevant, 2 + extra), full * 2 / (2 + extra),
+                                       delta=1e-12)
+
+    def test_input_validation(self) -> None:
+        for scores, relevant in (([.5], [T, F]), ([True], [T]), ([float("nan")], [T]), ([float("inf")], [T]),
+                                 (["0.5"], [T]), ([.5], [1]), ([.5], ["yes"]), ((x for x in [.5]), [T])):
+            with self.subTest(scores=scores, relevant=relevant):
+                with self.assertRaises(ValueError):
+                    stats.tie_averaged_ap(scores, relevant)
+                with self.assertRaises(ValueError):
+                    stats.tie_averaged_precision_at_k(scores, relevant, 1)
+        for n_relevant in (0, 1, True, 2.0, "2"):
+            with self.subTest(n_relevant=n_relevant), self.assertRaises(ValueError):
+                stats.tie_averaged_ap([.9, .1], [T, T], n_relevant)
+        for k in (0, -1, True, 1.0, "1"):
+            with self.subTest(k=k), self.assertRaises(ValueError):
+                stats.tie_averaged_precision_at_k([.9], [T], k)
+
+    def test_errors_never_hold_a_value(self) -> None:
+        with self.assertRaises(ValueError) as cm:
+            stats.tie_averaged_ap([0.123456], ["marker-xyz"])
+        self.assertNotIn("marker-xyz", str(cm.exception))
+        self.assertNotIn("0.123456", str(cm.exception))
+
+
+class ClusterBootstrapTests(unittest.TestCase):
+    def test_reproducible_for_a_seed_and_different_for_another(self) -> None:
+        clusters = [[1, 0, 1], [0], [1, 1], [0, 0, 1, 1], [1]]
+        a = stats.cluster_bootstrap_mean(clusters, B=500, seed="x1:1:lift")
+        self.assertEqual(a, stats.cluster_bootstrap_mean(clusters, B=500, seed="x1:1:lift"))
+        b = stats.cluster_bootstrap_mean(clusters, B=500, seed="x1:2:lift")
+        self.assertNotEqual((a["ci_low"], a["ci_high"]), (b["ci_low"], b["ci_high"]))
+        self.assertEqual((a["B"], a["seed"], a["method"], a["n_clusters"], a["n_units"]),
+                         (500, "x1:1:lift", "cluster percentile", 5, 11))
+
+    def test_all_zero_clusters_give_zero(self) -> None:
+        out = stats.cluster_bootstrap_mean([[0, 0], [0], [0, 0, 0]], B=1000, seed=3)
+        self.assertEqual((out["mean"], out["ci_low"], out["ci_high"]), (0.0, 0.0, 0.0))
+
+    def test_the_mean_is_the_pooled_mean(self) -> None:
+        out = stats.cluster_bootstrap_mean([[1, 1, 1], [0]], B=10, seed=1)
+        self.assertEqual(out["mean"], 0.75)
+        self.assertNotEqual(out["mean"], (1.0 + 0.0) / 2)
+
+    def test_clusters_are_resampled_not_units(self) -> None:
+        out = stats.cluster_bootstrap_mean([[1] * 9, [0]], B=2000, seed=11)
+        self.assertEqual(out["ci_low"], 0.0)          # a quarter of the draws are the lone zero cluster twice
+        self.assertEqual(out["ci_high"], 1.0)
+        units = stats.paired_bootstrap([1] * 9 + [0], [0] * 10, B=2000, seed=11)
+        self.assertGreater(units["ci_low"], 0.0)       # resampling the ten units almost never gives all zeros
+
+    def test_a_replicate_draws_whole_clusters(self) -> None:
+        clusters = [[0.0], [1.0, 1.0, 1.0]]
+        out = stats.cluster_bootstrap_mean(clusters, B=200, seed="whole")
+        rng = random.Random("whole")
+        reps = []
+        for _ in range(200):
+            drawn = [rng.randrange(2) for _ in range(2)]
+            units = [v for i in drawn for v in clusters[i]]
+            reps.append(sum(units) / len(units))
+        self.assertEqual(out["ci_low"], stats.percentile(reps, 2.5))
+        self.assertEqual(out["ci_high"], stats.percentile(reps, 97.5))
+
+    def test_input_validation(self) -> None:
+        for clusters in ([], [[]], [[1], []], [[True]], [[float("nan")]], [["1"]], [1, 2], "ab", None):
+            with self.subTest(clusters=clusters), self.assertRaises(ValueError):
+                stats.cluster_bootstrap_mean(clusters, B=10, seed=1)
+        for kwargs in ({"B": 0, "seed": 1}, {"B": True, "seed": 1}, {"B": 1.0, "seed": 1}, {"B": 10, "seed": 1.5},
+                       {"B": 10, "seed": True}, {"B": 10, "seed": 1, "alpha": 0}, {"B": 10, "seed": 1, "alpha": 1}):
+            with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):
+                stats.cluster_bootstrap_mean([[1]], **kwargs)
+
+
 if __name__ == "__main__":
     unittest.main()

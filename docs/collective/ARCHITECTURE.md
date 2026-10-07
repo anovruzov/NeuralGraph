@@ -1,9 +1,10 @@
-# Mycelic collective: architecture (gates G1 to G4)
+# Mycelic collective: architecture (gates G1 to G5)
 
-This document describes what gates G1 to G4 build under `mycelic/collective/`. It also places them in the loop
+This document describes what gates G1 to G5 build under `mycelic/collective/`. It also places them in the loop
 that later gates complete (STRATEGY section 4.1). Sections 1 to 10 describe G1; section 11 describes G2 (domain
 packs and the sense step); section 12 describes G3 (the site boundary and the G0 text-leakage scan); section 13
-describes G4 (detection at HQ over the cells that left the sites).
+describes G4 (detection at HQ over the cells that left the sites); section 14 describes G5 (measuring that detection
+on planted synthetic worlds against its baselines, and the openFDA public replay).
 
 **No real-model number is produced in this sandbox.** Model weights and the openFDA API cannot be reached from it, so
 every test runs against a deterministic in-process fake or a local fake HTTP server. Every harness output says so in
@@ -26,8 +27,8 @@ its `measurement` flag. The figures STRATEGY needs come from the founder's runs 
 | Founder tools | `experiments/e3_latency.py`, `connectors/openfda.py`, `experiments/n1_narratives.py` | E3, the openFDA cache, N1 sample and score |
 
 Everything is standard library only and runs under `python -S`. No fabric file changed (`INTEGRATION.md`). After
-G4 the layer has 39 modules on the stdlib-only list and eleven CLIs (section 7; G4 adds no CLI); sections 11 to 13
-list what G2, G3 and G4 added.
+G5 the layer has 44 modules on the stdlib-only list and seventeen CLIs (section 7; G4 added no CLI, G5 adds six);
+sections 11 to 14 list what G2 to G5 added.
 
 ## 2. The boundary guard
 
@@ -155,12 +156,13 @@ Replies are validated locally against the full schema, even when the wire carrie
 | Guard | What it enforces |
 |---|---|
 | Import guard | `mycelic/{service,aggregation,store,transport,lineage}.py` import no model client and nothing from `mycelic.collective`. An AST check covers plain, relative and dynamic imports; a fresh-interpreter check confirms it. A missing core file fails loudly. |
-| Stdlib only | All 39 collective modules import, and the eleven CLIs (G2 adds the five E1 subcommands and `packs.loader check`; G3 adds `experiments.g0_canary`; G4 adds none) answer `--help`, under `python -S` |
+| Stdlib only | All 44 collective modules import, and the seventeen CLIs (G2 adds the five E1 subcommands and `packs.loader check`; G3 adds `experiments.g0_canary`; G4 adds none; G5 adds `evaluate.harness` `prereg`, `check-plant` and `run` and `experiments.openfda_replay` `prereg`, `signals` and `score`) answer `--help`, under `python -S` |
 | No model names | No model-family name in collective code, docs or tests. The matcher holds sha256 digests only. Example tags live only in `docs/collective/examples/`. |
-| Determinism | No wall clock or unseeded randomness in `jsonio`, `schemacheck`, `stats`, the runtime modules, the pack modules, `edge/{extract,weeks,records,egress,site}.py`, `leakage.py` and every `detect/*.py` (`ClockEntropyTests` checks by glob that each detect module is listed) |
+| Determinism | No wall clock or unseeded randomness in `jsonio`, `schemacheck`, `stats`, the runtime modules, the pack modules, `edge/{extract,weeks,records,egress,site}.py`, `leakage.py`, every `detect/*.py` (`ClockEntropyTests` checks by glob that each detect module is listed), every `evaluate/*.py` and `experiments/openfda_replay.py` (the harnesses stamp `created_at` through `common.utc_clock` and time with `time.perf_counter`, both allowed) |
 | Domain literals (G2) | No pack term (entity type, predicate, code, rule, template, follow-up type or role id of either built-in pack) is an identifier or a whole string constant in generic collective code, no string constant there contains `ILL-`, and no openFDA field name is a string constant in the pack, extraction or E1 code (one documented exemption: `text`, the payload key the brief fixes) |
 | Runbook | Every RUNBOOK command runs with `--dry-run`, with the network blocked, and creates nothing |
 | HQ imports (G4) | No `detect/*.py` imports `edge.records`, `edge.site`, `edge.extract`, `packs.generator`, `evaluate`, `leakage`, `experiments`, any `inference` module or a model client (AST check with relative imports resolved); a fresh interpreter importing every detect module loads none of them except `inference` and `inference.errors`, which the Boundary's validator pulls in |
+| Evaluation imports (G5) | No `evaluate/*.py` and not `experiments/openfda_replay.py` imports any `mycelic.collective.inference` module or a model client (`EvaluateImportGuardTests`, the same AST check; `edge.site` pulls in `inference.ledger` transitively, which is allowed). G5 makes no model call: X uses the lexical extractor |
 
 Each later gate extends the lists at the top of that module.
 
@@ -169,7 +171,7 @@ Each later gate extends the lists at the top of that module.
 | Stage | What it needs | Status after G4 |
 |---|---|---|
 | Sense | records become typed claims and per-site counts; structured codes (no model) and in-boundary extraction | **G1:** runtime (boundary-bound model calls, schema validation, ledger). **G2:** packs, the canonicaliser, the record connector, claim extraction from codes (S) and narratives (X), and the E1 harness. **G3:** each site's own record store, k-suppressed weekly count cells and windowed usage summaries that leave only through the Boundary, and the G0 text-leakage scan. The HQ counts store is G4 |
-| Detect | statistical detectors over counts; rules as a second channel | **G4:** HQ's collective store of immutable cells, the model-free detectors D2 to D7 over the k-suppressed weekly cells, the rules channel over the same cells, run X (codes and text-derived cells) and baseline S (codes only); section 13 |
+| Detect | statistical detectors over counts; rules as a second channel | **G4:** HQ's collective store of immutable cells, the model-free detectors D2 to D7 over the k-suppressed weekly cells, the rules channel over the same cells, run X (codes and text-derived cells) and baseline S (codes only); section 13. **G5 measures it** without changing it: planted patterns and decoys, the baselines S, R (model-free), U and single-site, the pre-registered X1/X2 harness and scorecard, and the openFDA replay; section 14 |
 | Decide | candidate decided at the lowest unit spanning the evidence | **G4:** each candidate carries the decision unit of its supporting sites (their lowest common ancestor in the current org config); the fabric's rule conclusions are unchanged |
 | Verify (pushdown) | narrow questions answered by each site's in-boundary model from its own records | Later; it will call `Runtime.run` at each site, where the guard keeps raw text inside |
 | Follow up | approval-routed T0/T1 tasks | Later |
@@ -675,3 +677,256 @@ purpose; the counts say only that the pipeline runs end to end. Recall, lead tim
 harness, never from these lines.
 
 Nothing is ported from `origin/claude/mycelic-implementation-vr034p` in G4 (`INTEGRATION.md`).
+
+## 14. G5: evaluation
+
+G5 measures the frozen G4 detector on synthetic worlds with planted patterns and decoys, and replays it on public
+openFDA data, **without changing what is measured**: no file under `detect/` changes, and every setting, the pack
+and the code are hashed in a pre-registration before a plant spec or an outcome is seen. Every result is reported
+against baselines. **Nothing in G5 is a measurement:** a planted world is synthetic and same-author, its scorecard
+says `synthetic: true`, `internal_only: true` and `measurement: false`, and a replay is a measurement only on public
+caches run by the founder. G5 makes no model call (X uses the lexical extractor).
+
+| Part | Module | Purpose |
+|---|---|---|
+| Plant specs | `evaluate/plant.py` | Strict-JSON plant specs (patterns and eight decoy classes), their pack and world checks, the seeded construction and the seed-independent labels |
+| Baselines | `evaluate/baselines.py` | The real G3 to G4 pipeline over a world, and the channels X, S, R (model-free), U, single_site, rules and the k=1 ablation |
+| Harness | `evaluate/harness.py` | `python -m mycelic.collective.evaluate.harness prereg|check-plant|run`: pins, metrics, diagnostics, the scorecard and its schema |
+| Replay | `experiments/openfda_replay.py` | `python -m mycelic.collective.experiments.openfda_replay prereg|signals|score` (STRATEGY section 9.3) |
+| Fixtures | `packs/data/<pack>/fixtures/plant_smoke.json` | A construction smoke per built-in pack: same-author, not blind, never a result |
+| Additions | `stats.py`, `edge/site.py`, `packs/loader.py`, `packs/connector.py`, `experiments/common.py` | Tie-averaged AP and precision@k and the cluster bootstrap; `build_cells(k=)`; the loader's listing accepts `fixtures/plant_*.json` (never read or hashed); `field_values`; `code_files` and `code_dirty(paths)` |
+
+Import graph (no cycles): `plant` imports `packs.{loader,canonical,connector,generator}`, `detect.rules.series_key` and
+`jsonio`; `baselines` imports `edge.{site,records,extract,weeks}`, `detect.{detectors,store,org,rules}`,
+`packs.canonical`, `jsonio` and `stats`; `harness` imports `plant`, `baselines`, `stats`, `schemacheck`, `jsonio`,
+`detect.detectors` and `experiments.common`; `openfda_replay` imports `connectors.openfda`, `packs`,
+`evaluate.{baselines,harness}` and `experiments.common`. `detect/` imports nothing from `evaluate` (section 7). There
+is no SQL in `evaluate/` or the replay: site stores are read through `RecordStore` methods and HQ through
+`CollectiveStore` and `detect`.
+
+### 14.1 Data flow
+
+```
+ prereg.json (pack hashes, code hash, seeds, world, evaluation weeks, grace, tie salt, author, bootstrap)
+      |                                    plant spec (planter; bound by prereg_sha256) -> check-plant
+      v
+ run, per seed:  generate(pack, seed) --> world.records + plant(world, spec).records
+                      |
+                      v  run_pipeline: EdgeSite.ingest + extract("lexical") per site, emit_cells at every week's
+                      |  closing date through each Boundary, CollectiveStore.ingest_log at HQ (constant clock)
+                      v
+     HQ store --> X, S (detect)            site stores --> U (exact cells, k=1), single_site, k=1 ablation
+     records  --> R (model-free): the allowed fields only, record level, unsuppressed
+     X result --> rules (episode starts)
+                      |
+                      v  alerts in the evaluation weeks, matched to labels.json
+ labels.json, scorecard.json (schema-checked, content_hash)
+```
+
+### 14.2 Plant specs and labels
+
+A plant spec is strict JSON with every object closed: `kind`, `schema_version`, `pack`, `prereg_sha256` (null or the
+sha256 of the prereg file the run is given), `planted_by`, `planter_saw_detector_code`, `notes`, 1 to 500 `patterns`
+and 0 to 500 `decoys`. A **pattern** is `{id, entity_type, entity_id, predicate, sites (at least 2), start_week,
+weeks, rate_per_week, visibility, language}`; `start_week` is a 0-based index into the world's weeks and
+`rate_per_week` the exact number of records per site per week. A **decoy** has `{id, class, entity_type, predicate,
+sites, start_week, weeks, rate_per_week, language}` plus, by class:
+
+| Class | Extra keys and shape | What it imitates |
+|---|---|---|
+| `echo_marked` | `entity_id`, one origin site, `copy_sites` (at least 1, disjoint) | forwarded copies that name their origin |
+| `cross_site_unmarked_copies` | as above | copies that reached other sites without an origin marker |
+| `same_site_duplicates` | `entity_id`, one site | one narrative entered again and again |
+| `single_site_burst` | `entity_id`, one site | a real burst that only one site sees |
+| `single_reporter` | `entity_id`, at least 2 sites, rate at least k | one person at each site |
+| `stale_chain` | `entity_id`, at least 2 sites, ending more than `stale_days` before the evaluation weeks | an old chain |
+| `high_base_rate_everywhere` | `entity_ids` (at least 2 of one type), more than `base_rate_site_fraction` of the sites | a predicate common everywhere |
+| `near_miss_entity` | `entity_id` (A) at one site, `near_miss_id` (B, 1 or 2 edits from A) at another | two ids that look alike |
+
+`parse_plant` raises the first problem as `PlantError(path, problem)`, whose text is `plant: <JSON path>:
+<problem>` and never holds a value. The order is fixed: the top level (shape, keys, types), `kind` and
+`schema_version`, `pack mismatch`, `prereg_sha256`, `planted_by`, `notes`, the list sizes; then each item in list
+order (a decoy's `class` first, since its keys depend on it; then keys, id, entity type, ids, predicate, site lists,
+week and rate ranges, visibility and language, what the construction needs, the class shape); then `duplicate id`
+and `duplicate key` (a key planted twice, counting every key of a decoy). `check_plant` adds the world: `unknown
+site`, `id not in master data of a counted site` (with `require_master_data`), `outside the world weeks`, `outside
+the evaluation weeks`, `not stale before the evaluation weeks` (unless `7 * (eval_from - end) > stale_days`), `too few
+sites for a high base rate` and `rate below k` (a single reporter needs an int `n`, so G4 can see few reporters).
+
+**Construction** (`plant`) uses `random.Random(f"plant:{spec sha256}:{world seed}")` only. Records are made in spec
+order (patterns, then decoys), weeks ascending, then sites in the given order, then the week's records. Persons and
+reporters come from each site's background records; a single reporter uses the same reporter at each site. **Planted
+records carry only the planted mention**:
+
+| Visibility | Codes | Structured entities | Narrative |
+|---|---|---|---|
+| `narrative_only` (and every decoy) | none | none | one affirmed template of (language, predicate) whose only non-person slot is the entity type, with the exact id (an alias for an alias-only type), plus 1 or 2 filler sentences |
+| `codes_only` | one specific code of the predicate | the id | 1 to 3 filler sentences |
+| `both` | one specific code | the id | the template and filler |
+
+Narratives are unique against the world (re-drawn at most 20 times), except same-site duplicates (one narrative for
+every record, so the site store collapses them to one root) and copies (the origin's narrative, persons, reporter,
+codes and entities, in the same ISO week; marked copies name their origin and are forwarded-in at the copy site,
+unmarked copies do not, so each is its own root there). The pipeline input is `world.records + planted.records`.
+
+**Labels** (`labels.json`) are seed-independent; the harness adds each seed's planted record count. A pattern's
+**found window** is `[start, min(end + grace, eval_to)]`. A decoy's **watch span** is `[start, min(end + grace,
+eval_to)]`, or for a stale chain `[eval_from, min(max(eval_from, end + window_weeks - 1) + grace, eval_to)]`. The
+**quiet precondition** of the structural classes is checked on HQ's X cells: for echo, same-site duplicates, a
+single-site burst and a near miss, over weeks `[start - window_weeks + 1, watch_to]`, every site that planted no
+counted record of the key sums at most 1 (an int `n` counts `n`, `'<k'` counts 1); for a stale chain every site sums
+0 over `(end, watch_to]`.
+
+**What the decoys assert (amendment A1).** G4 as built treats echo, few reporters and a high base rate as ranker
+penalties, removes only stale candidates, and alerts every candidate while the budget lasts (section 13.5-13.6).
+So: for the structural classes (`echo_marked`, `same_site_duplicates`, `single_site_burst`, `near_miss_entity`,
+`stale_chain`) the mechanism is noise-free and, given the quiet precondition, G4's rules leave no X alert in the
+watch span (fewer than `min_sites` sites can exceed or rise, or the candidate is stale); for the penalty classes
+(`single_reporter`, `high_base_rate_everywhere`) the flag is set on the candidate, and whether they alert is reported,
+not asserted; `cross_site_unmarked_copies` is a known hard case, reported in `known_hard_cases`.
+
+### 14.3 Channels and baselines
+
+| Channel | Input | Run | Notes |
+|---|---|---|---|
+| **X** | HQ's codes and text_only cells, k-suppressed | `detect(store, "X")` | exactly what HQ computes |
+| **S** | HQ's codes cells | `detect(store, "S")` | no model, no narrative |
+| **R_mf** | record-level, unsuppressed counts built only from `central_allowed_fields` | `run_detection(..., "S")` over one synthetic bundle per site | see below |
+| **U** | every extracted claim of every non-forwarded record (`emission_inputs`), both channels, k=1, exact roots and reporters, no master-data rule | `run_detection(..., "X")` | a reference, not a deployable system |
+| **single_site** | each site's exact weekly counts (codes plus text_only) | G4's D2 site test per site, cooldown per (site, key), one budget shared by all sites, ties by `sha256(salt|site|key)`, score `-logp` | each site alone |
+| **rules** | the rule hits of the X run | one event per episode start (a hit week whose previous ISO week has no hit) | unranked, no budget |
+| **X_k1, S_k1** (`--ablation-k1`) | the sites' own cells with the master-data rule, k=1, bypassing the Boundary | `run_detection` | internal only; the detector's parameters (including D3's support k) unchanged |
+
+The scorecard carries each channel's label verbatim. The R-mf label states the gap to STRATEGY's R:
+
+> R (model-free): the same detectors over record-level, unsuppressed counts built only from the pack's
+> central_allowed_fields (structured codes and structured ids, never narrative). Not STRATEGY section 6.1's R (the
+> best central system, including a frontier model, reading the allowed fields); E2 (G6) approximates that with its
+> central_allowed condition.
+
+**What R-mf reads (amendment A5).** A record is read only through `record[field]` for an allowed top-level field and
+`record["entities"][t]` for an allowed `entities.t`; it is never iterated and its narrative, persons, reporter and
+origin are never read (a test uses a record that fails on any other access). Both built-in packs allow `codes`,
+`entities.*`, `received_date` and `site`, and the reporter is a mandatory never field, so R-mf cannot drop forwarded
+copies and counts every record as its own root and reporter (`n_roots = n_reporters = n`). It applies exactly the
+cells' egress-type and master-data rules, so it differs from S only by record level, no suppression and no forwarded
+removal. **The exact channels (U, R-mf, the k=1 ablation) can never raise G4's `few_reporters` flag**, which is
+defined on a suppressed reporter count.
+
+### 14.4 Metrics
+
+Alert events are `{week, rank, key, score, site}`; events before the evaluation weeks are burn-in and dropped.
+
+- **Found.** A pattern is found by a channel when an event names its key inside its found window (single_site: at
+  any site). Repeated events of a found pattern use budget but count once. Every other event is a false alarm,
+  including an event on a pattern key outside its window. Per pattern, seed and channel: `delay_weeks = first -
+  start_index` and `lead_weeks = end_index - first` (negative when found in the grace weeks).
+- **Recall** = found units / (patterns x seeds), pooled and by visibility; median delay and lead (`stats.percentile`
+  at 50) over found units, null when none.
+- **Ranking**, per seed and channel: items are the distinct keys with an event, scored by their best event, relevant
+  when one of the key's events lies in its pattern's found window; `n_relevant` = the number of patterns. Ties are
+  averaged exactly over every ordering (`stats.tie_averaged_ap`, `stats.tie_averaged_precision_at_k`, formulas in
+  the module docstring): for a tie group of `n` items with `r` relevant after `s` items and `R_b` relevant ones,
+  AP adds `sum_{j=1..n} (r / n)(R_b + 1 + (j - 1)(r - 1)/(n - 1)) / (s + j)` (or `r (R_b + 1)/(s + 1)` for `n = 1`),
+  divided by `n_relevant`; precision@k adds the `r` of whole groups inside the top k and `r (k - s)/n` for the group
+  straddling k, divided by k always. The channel value is the mean over seeds; rules are unranked (null).
+- `false_alarms_per_week` = false alarms / (evaluation weeks x seeds); `decoys_alerted[class]` counts (decoy, seed)
+  instances with an event on any of the decoy's keys inside its watch span.
+- **Lifts** `X_minus_single_site` (the collective lift), `X_minus_S` and `X_minus_R_mf`: per pattern, the list over
+  seeds of `found_a - found_b`; the estimate is the pooled mean; the 95% interval is `stats.cluster_bootstrap_mean`
+  (whole patterns resampled, B and seed from the prereg, seed string `x1:<seed>:<name>`).
+- **Minimum detectable rate** (analytic, pack only): for a constant weekly background `b` in `0..2k` at a site with
+  full history, the smallest weekly rate `r` for which G4's D2 site test certainly exceeds, with `c = window_weeks x
+  lb(b + r)` against `max(lambda_floor, ub(b))`, at the pack's k and with k=1. For `device_quality` (k=3) the rates
+  for `b = 0..6` are 1, 3, 2, 2, 2, 2, 3 (unsuppressed 1, 1, 2, 2, 2, 2, 3); for `claims_integrity` (k=5) `b = 0..4`
+  gives 1, 5, 4, 3, 2 (unsuppressed 1, 1, 2, 2, 2). This is arithmetic on the pack's settings, not a measurement.
+
+### 14.5 Prereg and run checks
+
+`prereg` writes `runs/x1/<id>/prereg.json`: the pack (its ref, id, version, flags, four hashes, k, budget and
+window), `code_hash` over `EVAL_CODE_FILES` (every file of `detect/`, `edge/`, `packs/` and `evaluate/`, plus
+`stats.py`, `jsonio.py`, `schemacheck.py` and `experiments/common.py`), the code files, commit and dirty state, the
+seeds (1 to 100 unique ints, sorted), sites, weeks (at least `baseline_weeks + window_weeks`), the evaluation weeks
+(`eval_from >= window_weeks + min_history_weeks - 1`, `eval_to <= weeks - 1`), the grace weeks, top_k 40, the tie salt,
+the detector author and the bootstrap's B (at least 1000) and seed. Uncommitted or unknown code state under
+`EVAL_DIRTY_PATHS` is refused without `--allow-dirty`, which is stamped.
+
+`run` checks, in this order, and exits 2 writing no scorecard: the run id and a new run directory; the prereg's
+closed structure; `--seeds` equal to the prereg's; the pack; the pins (`config_hash`, `vocabulary_hash`,
+`detector_hash`, `fixtures_hash` and the code hash; every differing name is listed); the dirty rule; the plant spec
+(`parse_plant` and `check_plant`) and its binding: a non-null `prereg_sha256` must equal the sha256 of the prereg
+file. `check-plant` prints that sha256 for the planter and writes nothing. Ctrl-C exits 130 and leaves a partial run
+directory that a later run with the same id refuses.
+
+### 14.6 Scorecard and content hash
+
+`scorecard.json` is validated against `SCORECARD_SCHEMA` (schemacheck, every object closed) before it is written; the
+one union schemacheck cannot express, `code_dirty` (true, false or `"unknown"`), is checked beside it. It holds the
+stamps (`synthetic: true`, `internal_only: true`, `measurement: false`, `same_author_pack`, `blind` with its
+self-declared basis, `plant_bound_to_prereg`, `ablation_k1`, `allow_dirty`, `extractor: lexical`), every hash (pack,
+code, org, prereg, plant, labels), the world and plant summaries, the channel labels, every channel's metrics
+(per seed too), the ablation (or null), the three lifts, `by_construction` (S and R-mf cannot see `narrative_only`
+plants: "planted narrative_only records carry no codes and no structured entities, so they add nothing to the cells
+this channel reads", labelled "by construction, not a result", next to their measured recall), `known_hard_cases`,
+per-pattern and per-decoy outcomes, the decoys' quiet precondition and X flags at detection, suppression per seed,
+the minimum detectable rate, every alert in the evaluation weeks, warnings (fewer than 10 patterns; a decoy that was
+not quiet elsewhere), the `x1` block and notes.
+
+`x1.eligible` needs a blind run (self-declared: `planter_saw_detector_code` false and `planted_by` other than the
+detector author, compared case-folded with whitespace collapsed), a plant bound to the prereg, and at least 20
+patterns and 20 decoys; `reasons` lists every failing condition and `verdict` is null unless eligible
+(`lift_ci_low_above_0` for `X_minus_single_site`, `precision_at_40_at_least_0_25`, `pass`).
+
+`content_hash` is the sha256 of the canonical JSON without `$.content_hash`, `$.created_at`, `$.run_id`, `$.paths`
+and `$.timings` (`content_hash_excludes`, written in the file). The pipeline clock is constant, every RNG is seeded
+and every iteration sorted, so two runs of the same prereg and plant under other run ids, run directories and
+`PYTHONHASHSEED` values give the same hash (tested with two subprocesses).
+
+### 14.7 The openFDA replay
+
+Three commands that can only run in order (RUNBOOK section 12); every file carries the label **"public data,
+artificial partitioning, not a confidentiality demonstration"** and the caches' data label.
+
+1. **prereg** pins the pack's four hashes, the replay's code hash (`EVAL_CODE_FILES` plus `connectors/openfda.py` and
+   the replay), the events cache's manifest sha256 and query, the manufacturer names (exact, 1 to 20), the
+   manufacturer and partition field paths (`packs.loader.PATH_RE`), the recalling firms (default: the names), the
+   minimum partition coverage, the date range (inside the cache's query, at least `window_weeks +
+   min_history_weeks + 1` ISO weeks), the look-back and post weeks and the tie salt, and stamps the analyst's
+   declaration whether recall outcomes were seen. There is no recall argument.
+2. **signals** refuses any changed pin (listing the names) and a changed events manifest, then runs phase 1 on the
+   events alone: page order, each event with its page's product code; a repeated record ref counted and the first
+   kept; the manufacturer field's values equal to a name exactly (missing and malformed fields counted apart); a date
+   out of range counted (missing and malformed dates through the connector's rejections); the partition field's
+   first value as a site (`p-` plus a slug of 48 characters, a sha-based id on an empty slug or a collision,
+   `unpartitioned` without a value, more than 999 partitions refused); `map_rows` with `mapping_openfda`; records
+   re-keyed to the pack's own record fields (the site store checks the default mapping); master data from the
+   structured ids seen at each site ("public data has no ERP; structured ids seen at the site stand in for it"); the
+   real pipeline; X, S and R-mf (null with a reason when the pack does not allow `site` and `received_date`). Each
+   alert in the evaluated weeks (from index `window_weeks + min_history_weeks - 1`) carries its available date (its
+   week's closing date) and the product codes of the records whose claims, in the channel's cell channels, hold its
+   key in its window. It writes `signals.json` (coverage per field over the matched events, the partition, every
+   product code of the manufacturer, warnings `low_partition_coverage`, `fewer_sites_than_min_sites` and
+   `low_resolution`) and then `phase1.json` with the file's sha256.
+3. **score** re-checks the pins, refuses a `signals.json` whose bytes differ from `phase1.json` or that was made under
+   another prereg, and only then opens the recall cache. Recalls are deduplicated; another firm, a bad
+   `event_date_initiated` and an initiation outside the range are counted; a product code without events is listed;
+   a recall whose look-back window misses the evaluated weeks is not evaluable. A recall is found when an alert on
+   its product code is available in `[initiation - 7 x lookback_weeks, initiation)` (the earliest gives
+   `lead_days`); alerts from the initiation through `post_weeks` after it are post-recall alerts, never found and
+   never false alarms; false alarms are the evaluated weeks' alerts that match no in-scope recall's window, over
+   every product code of the manufacturer. `measurement` is true only when both caches are public.
+
+### 14.8 What G5 does not show
+
+- **Synthetic, same-author worlds.** The pack, the world generator, the planted templates and the detector were
+  written by one author; a planted pattern uses the pack's own templates, which the lexical extractor reads
+  perfectly. A smoke run is not blind, and blindness is self-declared even when it is claimed.
+- **Penalty decoys alert when the budget is free.** G4 penalises echo, few reporters and a high base rate in the
+  ranker; with budget to spare they alert, and the scorecard reports it.
+- **R-mf is not R.** STRATEGY's R includes a frontier model reading the allowed fields; E2 (G6) approximates it.
+- **The illustrative pack resolves few real ids.** On real openFDA data its id formats will not match most model and
+  lot numbers until a frozen copy carries the manufacturer's id shapes (`low_resolution` says so).
+- **Nothing here is a measurement.** The sandbox could not reach api.fda.gov; every replay in the tests ran on a
+  synthetic cache served by a local stub.
+
+Nothing is ported from `origin/claude/mycelic-implementation-vr034p` in G5 (`INTEGRATION.md`).

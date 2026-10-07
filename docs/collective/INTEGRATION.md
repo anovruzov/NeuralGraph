@@ -610,3 +610,152 @@ that this size runs well inside the bound here, nothing about any partner's data
   the repository; each made at least one test in `test_collective_detect.py` fail. Two of the extra probes (the
   `n_ep >= k` support check and echo's upper-bound roots) first survived and got a test each
   (`test_a_site_below_k_is_shown_not_rising_in_the_snapshot`, `test_suppressed_roots_count_their_upper_bound`).
+
+## G5
+
+**Base.** Branch `mycelic-collective-phase2` at 5b67dfe (G4), a clean worktree. **Nothing is ported** from
+`origin/claude/mycelic-implementation-vr034p` in G5: that branch has no planted-pattern evaluation, no baselines and
+no replay; its `discovery/` goal loop is model-driven, and G5 makes no model call.
+
+**Scope: fabric files changed: none.** `git diff --stat 5b67dfe` touches only:
+
+- new: `mycelic/collective/evaluate/{__init__,plant,baselines,harness}.py`,
+  `mycelic/collective/experiments/openfda_replay.py`, `packs/data/{device_quality,claims_integrity}/fixtures/
+  plant_smoke.json`, `tests/mycelic/test_collective_evaluate.py` and `tests/mycelic/test_collective_replay.py`;
+- changed additively: `stats.py` (tie-averaged AP and precision@k, the cluster bootstrap; formulas in the docstring),
+  `edge/site.py` (`build_cells(k=None)`; the default output is byte-identical, which every G3 cell test still
+  checks), `packs/loader.py` (the listing accepts `fixtures/plant_*.json`; never read or hashed), `packs/connector.py`
+  (`field_values`), `experiments/common.py` (`code_files`, `code_dirty(paths)`; the default unchanged), the
+  docstrings of `mycelic/collective/__init__.py` and `experiments/__init__.py`, `tests/mycelic/test_collective_stats.py`
+  (two new classes), `tests/mycelic/test_collective_guards.py` (the lists, the stdlib count 39 to 44, the G5 runbook
+  coverage test and `EvaluateImportGuardTests`) and `docs/collective/{ARCHITECTURE,RUNBOOK,PACKS,INTEGRATION}.md`.
+
+S2: `git diff --stat 5b67dfe -- mycelic/service.py mycelic/store.py mycelic/aggregation.py mycelic/transport.py
+mycelic/api.py mycelic/lineage.py mycelic/config.py deploy SECURITY.md DEPLOYMENT.md NeuralGraph research
+mycelic/collective/detect` is empty: **no file under `detect/` changed**; G5 measures the frozen G4 detector.
+
+### S1 test baseline
+
+| Suite | Before G5 (5b67dfe) | After G5 |
+|---|---|---|
+| `python -m pytest tests/mycelic -q -p no:warnings` | 597 passed (as recorded in the G4 section and the G5 brief) | 689 passed (23,696 subtests) = 597 + 92 new, 0 skipped, in 252 s |
+| `python -m pytest NeuralGraph/tests -q -p no:warnings` | 222 passed, 1 skipped | unchanged: 222 passed, 1 skipped (119 subtests) in 6 s |
+
+The 92 new tests, by class:
+
+- `test_collective_evaluate.py` (59): `PlantSpecTests` 12, `PlantedConstructionTests` 12,
+  `ClaimsIntegrityConstructionTests` 4, `BaselineInputTests` 8, `SingleSiteAndRulesTests` 4, `MetricTests` 8,
+  `HarnessTests` 8, `ScorecardSchemaTests` 2, `DeterminismTests` 1 (two subprocesses);
+- `test_collective_replay.py` (15): `OpenFDAReplayTests`;
+- `test_collective_stats.py` (12): `TieAveragedRankingTests` 6, `ClusterBootstrapTests` 6;
+- `test_collective_guards.py` (6): `EvaluateImportGuardTests` 5 and `RunbookCommandTests::test_commands_cover_the_g5_clis`.
+
+The brief's `HarnessTests` items are split over `HarnessTests`, `MetricTests` and `ScorecardSchemaTests`, and its
+single-site and rules items are in `SingleSiteAndRulesTests`. No G1 to G4 test was modified except the guard lists
+(and the count they assert). No skip decorator, no network beyond loopback stubs, temporary directories only. The
+acceptance command `python -m pytest tests/mycelic/test_collective_evaluate.py tests/mycelic/test_collective_replay.py
+tests/mycelic/test_collective_stats.py tests/mycelic/test_collective_guards.py -q -p no:warnings` passed 159 tests (4,119 subtests) in 47 s on the shared machine.
+
+### S4: what the suites leave behind
+
+After both suites `git status --porcelain` lists only the G5 files above, `runs/` holds only its `.gitignore`, and
+there is no untracked `*.sqlite3`, `*.db` or `*.jsonl` in the worktree. Every G5 test writes under a temporary
+directory (its runs directory, work directories, pack copies and openFDA caches); the determinism subprocesses work
+in a temporary directory of the test.
+
+### Pack hashes (unchanged from the G4 table)
+
+`python -m mycelic.collective.packs.loader check <pack>` prints the G4 values: `device_quality` 83c094ffee1f,
+e46f521154ce, c9462f62aa90, dc4b70b7044b; `claims_integrity` 130b8396eb92, 028b7603f2b6, 2041fe9b3e14, a2e8936b4be2
+(config, vocabulary, detector, fixtures). The plant fixtures are in no hash scope; `PlantSpecTests` asserts the full
+values and that adding or editing a plant file changes none of them.
+
+### Merge notes
+
+1. **No fabric integration point is needed.** The harness reads HQ only through `CollectiveStore` and `detect`, and
+   site stores only through `RecordStore.emission_inputs`; nothing publishes into the fabric's event log.
+2. **`runs/x1/<id>/work/` holds a synthetic world's site stores and HQ store** (git-ignored with the rest of
+   `runs/`); the founder sends back `prereg.json`, the plant spec, `labels.json` and `scorecard.json` only.
+3. **The replay depends on openFDA field paths the founder passes** (`--manufacturer-field`, `--partition-field`)
+   and on the four recall fields STRATEGY section 9.3 names; their contents are unverified until a run from an open
+   network. A pack copy frozen with the manufacturer's id shapes should precede any replay (`low_resolution` warns).
+
+### Amendments A1 to A8 (as implemented)
+
+- **A1** The device smoke asserts, for the structural classes, the mechanism, the quiet precondition on HQ's X cells
+  and then 0 X alerts in the watch span; for the penalty classes the flag on the candidate's snapshot (alerts
+  reported, not asserted); the unmarked copies are a known hard case. A smoke that is noisy elsewhere is warned, not
+  hidden: the claims_integrity smoke has several decoys that are not quiet, and the test checks the warnings.
+- **A2** Decoys are always planted `narrative_only`, and planted records carry only the planted mention (the
+  `by_construction` statement, next to the measured S and R-mf recall).
+- **A3** `code_hash` covers `EVAL_CODE_FILES` (every file of `detect/`, `edge/`, `packs/`, `evaluate/`, plus `stats`,
+  `jsonio`, `schemacheck` and `experiments/common`); the world is pinned through `fixtures_hash`; the dirty check
+  covers `EVAL_DIRTY_PATHS`.
+- **A4** Plant fixtures live at `packs/data/<pack>/fixtures/plant_*.json`; the listing accepts them, the loader never
+  reads or hashes them, and a spec is hashed on its own (`plant_sha256`).
+- **A5** R-mf reads only the allowed fields by subscript (a recording record fails on anything else), cannot drop
+  forwarded copies, counts `n_roots = n_reporters = n`, and applies the cells' egress-type and master-data rules.
+  The exact channels can never raise `few_reporters` (documented in ARCHITECTURE section 14.3 and the scorecard).
+- **A6** A plant spec's non-null `prereg_sha256` must equal the sha256 of the prereg file; `x1.eligible` requires it;
+  `check-plant` prints it.
+- **A7** The replay is three subcommands; `signals` has no recall argument; `score` re-hashes `signals.json` against
+  `phase1.json` (and its prereg) before it opens the recall cache; `--saw-recall-outcomes` is stamped.
+- **A8** `--manufacturer-field` and `--partition-field` are required paths checked against `packs.loader.PATH_RE`
+  and recorded; recalls use the four fixed fields.
+
+### Decisions and deviations, for the reviewer
+
+- **The device smoke's near-miss pair is `L20045`/`L20046` (contamination) at plant-ashvale and werk-dornhagen**, not
+  the outline's `L10001`/`L10002`: as the planner's prototype warned, `lot:L10001:contamination` was not quiet
+  elsewhere at seed 11 (plant-corrowfield summed 2 over the quiet weeks). The new pair is one edit apart and both keys
+  are quiet. Every other device key, site, week and rate is the outline's. The claims_integrity smoke was chosen
+  here: patterns `tow_operator:TW-0310:tow_without_dispatch` (rate 5 at three motor sites),
+  `repair_shop:RS-2290:duplicate_invoice` (rate 2, below k) and `clinic:CL-B7X9:treatment_pattern_mismatch` (rate 5 at
+  both injury sites), and one decoy of each class (`ClaimsIntegrityConstructionTests` asserts only what the brief
+  asks: a pattern found by X, a valid scorecard and the minimum detectable rate rows).
+- **Construction tests run on a device pack copy without rules** (as the brief's construction says); its config and
+  detector hashes differ from the built-in pack's, which the prereg pins like any path pack.
+- **Problems the brief left open are fixed strings:** `wrong type` (a top-level type), `must be an object`,
+  `unknown key` at the item, `must be a list of site ids`, the range messages, `no filler for the language` (a pack
+  language without filler), `site has no background records` and `planted record fails the record check` (a bug). A
+  decoy's `class` is read before its keys, because the key set depends on it.
+- **The quiet span ends at the watch span's end** (`min(end + grace, eval_to)`): later cells cannot affect an alert
+  inside the watch span, since step W reads only weeks up to W. For each key the quiet rule excludes only the sites
+  whose planted records count in that key's cells (an echo's origin, a near miss's own site), so an echo's copy sites
+  are checked too.
+- **`run_pipeline` takes `enterprise`** (`eval` for X1, `replay` for the replay) and also raises on a site that
+  rejects or duplicates a record; `Pipeline.close()` closes HQ and every site.
+- **`flags_at_detection`** is, per seed, a list of `{key, detection_week, flags}` (a high base rate has several keys);
+  `labels.json`'s `seeds[].planted_records` is the total planted per seed, and `Planted.counts` keeps it per item.
+- **`code_dirty` is true, false or "unknown"**, a union schemacheck cannot express: the schemas declare
+  boolean-or-null and `union_problems` checks "unknown" (and refuses null) beside them. The harness's schema helpers
+  (`obj_schema`, `arr_schema`, `typed_schema`, `union_problems`) are public because the replay reuses them.
+- **`connector.field_values` validates its path with the loader's `PATH_RE`, imported inside the function** (the
+  loader imports the connector), and takes an optional narrative-style `where`, so the replay's narrative coverage
+  follows the mapping exactly.
+- **Replay records are re-keyed to the pack's own record fields** (`site_record`): the site store checks records
+  against the pack's default mapping, and the openFDA mapping names a subset of its entity types; a pack whose
+  openFDA mapping names a type its default mapping lacks is refused.
+- **Replay product codes per alert come from the claims in the channel's own cell channels** (codes only for S and
+  R-mf). A partition field of the wrong shape counts as no value (unpartitioned). Manufacturer values are compared
+  after the connector's stripping, case-sensitively. `coverage.manufacturer_field` is over the matched events (so
+  1.0); the informative counts are the manufacturer block's.
+- **Replay scoring details:** a recall that is not a JSON object (or not canonical JSON) is counted as `bad_record`;
+  a recall whose product code has no event is listed and is not in scope; a channel's `post_recall_alerts` counts
+  distinct alerts in any in-scope recall's post window; items that are not evaluable carry `by_channel: null`; an
+  unavailable R-mf is `{alerts: null, candidates: null, status: null, reason}`; `data_label` is `public` only when both
+  caches are public.
+- **`check-plant` reads master data from the first seed's world** (master data does not depend on the seed), and
+  `run` re-checks the prereg's world settings against the pack before planting.
+- **The engineer ran the brief's twenty mutation probes** (24 variants, on a scratch copy outside the repository);
+  each made at least one new test fail.
+
+### Synthetic prototype figures (synthetic, same-author, not a measurement)
+
+The construction smokes printed, in this sandbox, quoted only as **synthetic, same-author, not a measurement**:
+`device_quality` (rules removed, seed 11, 6 sites, 52 weeks, evaluation weeks 26 to 51, grace 4): X found 3 of 3
+patterns, S 0 of 3, R (model-free) 0 of 3, U 3 of 3, single_site 3 of 3; the five structural decoys were quiet and
+raised no X alert; the single reporter and high base rate decoys alerted with their flags set; the unmarked copies
+alerted in X. `claims_integrity` (built-in, seed 5): X found 2 of 3 (the rate-2 pattern below k=5 was not found), S 0
+of 3, R (model-free) 0 of 3, U 3 of 3, single_site 3 of 3. The lifts over three patterns and one seed are not
+interpretable (the scorecard warns), and none of these figures may be shown to anyone outside the team.

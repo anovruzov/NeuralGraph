@@ -193,6 +193,22 @@ def _scalars(row: Any, path: str | None, where: Mapping[str, Any] | None = None)
     return out
 
 
+def field_values(row: Any, path: str, where: Mapping[str, Any] | None = None) -> list[str] | None:
+    """The stripped, non-empty scalar strings at ``path`` in a vendor row (ints become str), in document order, with
+    an optional narrative-style ``where`` filter; None when the row's shape contradicts the path or a value there is
+    not a scalar (``bad_type``). ``path`` must match the loader's ``PATH_RE`` (a mapping path), else ValueError:
+    callers pass paths a person typed (G5's replay)."""
+    from .loader import PATH_RE      # here, not at module level: the loader imports this module
+    if not isinstance(path, str) or PATH_RE.fullmatch(path) is None:
+        raise ValueError("path must be a mapping path (field names, '[]' fan-out, '.' separators)") from None
+    values = None
+    try:
+        values = _scalars(row, path, where)
+    except _Reject:
+        values = None
+    return values
+
+
 def _one(row: Any, path: str | None) -> str | None:
     values = _scalars(row, path)
     return values[0] if values else None

@@ -38,6 +38,26 @@ computed in log space so that counts up to 8*10^9 stay finite, and is never abov
 
 Each validates its input (no bool, no NaN or infinity, ints where an int is meant) and raises ``ValueError`` with a
 message that names the argument, never its value.
+
+The ranking metrics and the cluster bootstrap (G5). Items are ``(score, relevant)`` pairs; tied scores are never
+broken by input order or by a stable sort, they are averaged exactly over every ordering of the tie:
+
+* :func:`tie_averaged_ap` ``(scores, relevant, n_relevant=None)``: tie groups are formed by equal score, in
+  descending score order. For a group of ``n`` items with ``r`` relevant, ``s`` items before it and ``R_b`` relevant
+  items before it, the contribution is ``r * (R_b + 1) / (s + 1)`` when ``n = 1``, else
+  ``sum_{j=1..n} (r / n) * (R_b + 1 + (j - 1)(r - 1) / (n - 1)) / (s + j)``, the exact expectation over uniformly
+  random orderings of the ties (position ``s + j`` holds a relevant item with probability ``r / n``, and then the
+  expected number of relevant items among the ``j - 1`` tied items above it is ``(j - 1)(r - 1) / (n - 1)``).
+  ``AP = sum of contributions / n_relevant``. ``n_relevant`` defaults to the number of relevant items and must be an
+  int at least that number, so relevant items that were never ranked lower AP. None when ``n_relevant`` is 0.
+* :func:`tie_averaged_precision_at_k` ``(scores, relevant, k)``: the expected number of relevant items in the top
+  ``k`` is the sum of ``r`` over the groups lying wholly inside the top ``k``, plus ``r * (k - s) / n`` for the group
+  that straddles position ``k``; divided by ``k`` always, even when fewer than ``k`` items are ranked. An empty
+  ranking gives 0.0.
+* :func:`cluster_bootstrap_mean` ``(clusters, *, B, seed, alpha=0.05)``: ``mean`` is the pooled mean over every unit
+  of every cluster. Each of ``B`` replicates draws ``n_clusters`` whole clusters with replacement
+  (``random.Random(seed)``) and takes the pooled mean of the drawn units; the interval is the replicates'
+  :func:`percentile` at ``100 * alpha / 2`` and ``100 * (1 - alpha / 2)``. Units of one cluster are never split.
 """
 from __future__ import annotations
 
@@ -331,3 +351,86 @@ def logistic(x: float) -> float:
         return 1.0 / (1.0 + math.exp(-x))
     e = math.exp(x)
     return e / (1.0 + e)
+
+
+# --------------------------------------------------------------------------------------------------- ranking (G5)
+
+def _ranking(scores: Sequence[Any], relevant: Sequence[Any]) -> list[tuple[int, int]]:
+    """``(n, r)`` per tie group, in descending score order."""
+    if not isinstance(scores, (list, tuple)) or not isinstance(relevant, (list, tuple)):
+        raise ValueError("scores and relevant must be lists or tuples") from None
+    if len(scores) != len(relevant):
+        raise ValueError("scores and relevant must have the same length") from None
+    for s in scores:
+        _real_arg(s, "each score")
+    if not all(isinstance(r, bool) for r in relevant):
+        raise ValueError("relevant must hold bools") from None
+    groups: dict[float, list[int]] = {}
+    for s, r in zip(scores, relevant):
+        group = groups.setdefault(s, [0, 0])
+        group[0] += 1
+        group[1] += int(r)
+    return [(groups[s][0], groups[s][1]) for s in sorted(groups, reverse=True)]
+
+
+def tie_averaged_ap(scores: Sequence[float], relevant: Sequence[bool], n_relevant: int | None = None) -> float | None:
+    groups = _ranking(scores, relevant)
+    found = sum(r for _, r in groups)
+    if n_relevant is None:
+        n_relevant = found
+    if isinstance(n_relevant, bool) or not isinstance(n_relevant, int) or n_relevant < found:
+        raise ValueError("n_relevant must be an int >= the number of relevant items") from None
+    if n_relevant == 0:
+        return None
+    terms: list[float] = []
+    before = relevant_before = 0
+    for n, r in groups:
+        if n == 1:
+            terms.append(r * (relevant_before + 1) / (before + 1))
+        else:
+            terms.extend((r / n) * (relevant_before + 1 + (j - 1) * (r - 1) / (n - 1)) / (before + j)
+                         for j in range(1, n + 1))
+        before += n
+        relevant_before += r
+    return math.fsum(terms) / n_relevant
+
+
+def tie_averaged_precision_at_k(scores: Sequence[float], relevant: Sequence[bool], k: int) -> float:
+    groups = _ranking(scores, relevant)
+    k = _int_arg(k, "k", 1)
+    expected: list[float] = []
+    before = 0
+    for n, r in groups:
+        if before >= k:
+            break
+        expected.append(float(r) if before + n <= k else r * (k - before) / n)
+        before += n
+    return math.fsum(expected) / k
+
+
+def cluster_bootstrap_mean(clusters: Sequence[Sequence[float]], *, B: int, seed: int | str,
+                           alpha: float = 0.05) -> dict[str, Any]:
+    if not isinstance(clusters, (list, tuple)) or not clusters:
+        raise ValueError("clusters must be a non-empty list of clusters") from None
+    units: list[list[float]] = []
+    for c in clusters:
+        if not isinstance(c, (list, tuple)) or not c:
+            raise ValueError("each cluster must be a non-empty list of numbers") from None
+        units.append([_real_arg(v, "each value") for v in c])
+    if isinstance(B, bool) or not isinstance(B, int) or B < 1:
+        raise ValueError("B must be a positive int") from None
+    if isinstance(alpha, bool) or not isinstance(alpha, (int, float)) or not 0 < alpha < 1:
+        raise ValueError("alpha must be in (0, 1)") from None
+    if isinstance(seed, bool) or not isinstance(seed, (int, str)):
+        raise ValueError("seed must be an int or str") from None
+    n = len(units)
+    sums = [math.fsum(c) for c in units]
+    sizes = [len(c) for c in units]
+    rng = random.Random(seed)
+    reps = []
+    for _ in range(B):
+        drawn = [rng.randrange(n) for _ in range(n)]
+        reps.append(math.fsum(sums[i] for i in drawn) / sum(sizes[i] for i in drawn))
+    return {"mean": math.fsum(sums) / sum(sizes), "ci_low": percentile(reps, 100 * alpha / 2),
+            "ci_high": percentile(reps, 100 * (1 - alpha / 2)), "B": B, "seed": seed, "method": "cluster percentile",
+            "n_clusters": n, "n_units": sum(sizes)}

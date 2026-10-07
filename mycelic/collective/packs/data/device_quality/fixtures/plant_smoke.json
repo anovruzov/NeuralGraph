@@ -1,0 +1,194 @@
+{
+  "kind": "plant_spec",
+  "schema_version": 1,
+  "pack": "device_quality",
+  "prereg_sha256": null,
+  "planted_by": "mycelic engineering (same author as the detector code)",
+  "planter_saw_detector_code": true,
+  "notes": "Construction smoke for the G5 tests: synthetic, same-author, not blind, never a result.",
+  "patterns": [
+    {
+      "id": "p1",
+      "entity_type": "component",
+      "entity_id": "PRESSURE-SENSOR",
+      "predicate": "overheat",
+      "sites": [
+        "plant-ashvale",
+        "plant-brindlemoor",
+        "plant-corrowfield"
+      ],
+      "start_week": 30,
+      "weeks": 8,
+      "rate_per_week": 2,
+      "visibility": "narrative_only",
+      "language": "en"
+    },
+    {
+      "id": "p2",
+      "entity_type": "lot",
+      "entity_id": "L20046",
+      "predicate": "crack",
+      "sites": [
+        "plant-ashvale",
+        "plant-corrowfield"
+      ],
+      "start_week": 34,
+      "weeks": 8,
+      "rate_per_week": 2,
+      "visibility": "narrative_only",
+      "language": "en"
+    },
+    {
+      "id": "p3",
+      "entity_type": "product",
+      "entity_id": "IP-21",
+      "predicate": "power_loss",
+      "sites": [
+        "plant-ashvale",
+        "plant-corrowfield",
+        "plant-fennick"
+      ],
+      "start_week": 38,
+      "weeks": 6,
+      "rate_per_week": 2,
+      "visibility": "narrative_only",
+      "language": "en"
+    }
+  ],
+  "decoys": [
+    {
+      "id": "d-echo",
+      "class": "echo_marked",
+      "entity_type": "component",
+      "predicate": "leak",
+      "sites": [
+        "plant-ashvale"
+      ],
+      "start_week": 30,
+      "weeks": 8,
+      "rate_per_week": 3,
+      "language": "en",
+      "entity_id": "ALARM-SPEAKER",
+      "copy_sites": [
+        "plant-brindlemoor",
+        "plant-corrowfield"
+      ]
+    },
+    {
+      "id": "d-dup",
+      "class": "same_site_duplicates",
+      "entity_type": "component",
+      "predicate": "detachment",
+      "sites": [
+        "werk-dornhagen"
+      ],
+      "start_week": 32,
+      "weeks": 8,
+      "rate_per_week": 4,
+      "language": "en",
+      "entity_id": "ALARM-SPEAKER"
+    },
+    {
+      "id": "d-copies",
+      "class": "cross_site_unmarked_copies",
+      "entity_type": "product",
+      "predicate": "inaccurate_reading",
+      "sites": [
+        "plant-brindlemoor"
+      ],
+      "start_week": 36,
+      "weeks": 8,
+      "rate_per_week": 2,
+      "language": "en",
+      "entity_id": "SD-12",
+      "copy_sites": [
+        "plant-corrowfield",
+        "werk-erlenbruch"
+      ]
+    },
+    {
+      "id": "d-reporter",
+      "class": "single_reporter",
+      "entity_type": "product",
+      "predicate": "alarm_failure",
+      "sites": [
+        "plant-brindlemoor",
+        "werk-erlenbruch"
+      ],
+      "start_week": 40,
+      "weeks": 8,
+      "rate_per_week": 3,
+      "language": "en",
+      "entity_id": "IP-300"
+    },
+    {
+      "id": "d-stale",
+      "class": "stale_chain",
+      "entity_type": "component",
+      "predicate": "overheat",
+      "sites": [
+        "plant-corrowfield",
+        "plant-fennick"
+      ],
+      "start_week": 14,
+      "weeks": 6,
+      "rate_per_week": 3,
+      "language": "en",
+      "entity_id": "BATTERY-DOOR"
+    },
+    {
+      "id": "d-base-rate",
+      "class": "high_base_rate_everywhere",
+      "entity_type": "component",
+      "predicate": "contamination",
+      "sites": [
+        "plant-ashvale",
+        "plant-brindlemoor",
+        "plant-corrowfield",
+        "werk-dornhagen",
+        "werk-erlenbruch"
+      ],
+      "start_week": 42,
+      "weeks": 6,
+      "rate_per_week": 3,
+      "language": "en",
+      "entity_ids": [
+        "INFUSION-TUBING",
+        "LUER-CONNECTOR",
+        "PUMP-HOUSING"
+      ]
+    },
+    {
+      "id": "d-burst",
+      "class": "single_site_burst",
+      "entity_type": "component",
+      "predicate": "crack",
+      "sites": [
+        "werk-erlenbruch"
+      ],
+      "start_week": 36,
+      "weeks": 6,
+      "rate_per_week": 3,
+      "language": "en",
+      "entity_id": "INFUSION-TUBING"
+    },
+    {
+      "id": "d-near-miss",
+      "class": "near_miss_entity",
+      "entity_type": "lot",
+      "predicate": "contamination",
+      "sites": [
+        "plant-ashvale"
+      ],
+      "start_week": 44,
+      "weeks": 6,
+      "rate_per_week": 2,
+      "language": "en",
+      "entity_id": "L20045",
+      "near_miss_id": "L20046",
+      "near_miss_sites": [
+        "werk-dornhagen"
+      ]
+    }
+  ]
+}

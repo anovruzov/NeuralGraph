@@ -1,4 +1,4 @@
-# Founder runbook: week-1 measurements, E1 and G0
+# Founder runbook: week-1 measurements, E1, G0, X1 and the public replay
 
 This runbook covers what you run on your own machines (STRATEGY sections 11.2 and 12):
 
@@ -7,7 +7,10 @@ This runbook covers what you run on your own machines (STRATEGY sections 11.2 an
 - **N1**: how often a device-event narrative carries information the coded fields lack;
 - **freezing a domain pack** before any labelling;
 - **E1**: whether a model inside the boundary extracts claims well enough, against a frontier reference;
-- **G0**: whether planted text leaves a site through the Boundary (text only, synthetic data).
+- **G0**: whether planted text leaves a site through the Boundary (text only, synthetic data);
+- **X1/X2**: the blind planted-pattern test of the frozen detectors against S, R (model-free), U and single-site
+  baselines (synthetic, internal only; section 11);
+- **the openFDA public replay** (STRATEGY section 9.3): signals frozen before any recall is opened (section 12).
 
 None of these produced a number in the sandbox where the code was written. Model weights and api.fda.gov could not
 be reached there, so every figure has to come from your runs. The E1 harness was rehearsed against local fake
@@ -412,7 +415,12 @@ Send these files:
 - `runs/n1/<run-id>/sample.json`, the labelled sheet and `runs/n1/<run-id>/narrative_gain.json`;
 - the four hashes of your frozen pack (section 7);
 - for E1: `prereg.json`, every `run.json` and `e1.json`;
-- for G0: `runs/g0/<run-id>/leakage.json` (never `private/manifest.json`).
+- for G0: `runs/g0/<run-id>/leakage.json` (never `private/manifest.json`);
+- for X1: `runs/x1/<run-id>/prereg.json`, the planter's plant spec, and the run's `labels.json` and
+  `scorecard.json` (never the `work/` directory: it holds the synthetic world's site stores, which are large and
+  add nothing);
+- for the replay: the three run files `prereg.json`, `signals.json` with `phase1.json`, and `replay.json`, plus both
+  caches' `manifest.json` (the pages only if asked; they are public data).
 
 Never send:
 
@@ -423,3 +431,125 @@ Never send:
 The ledger holds numbers and labels only (no prompt, no reply, no record text), so it is safe to send. One label
 comes from the server: `model_served` is the model id each server reported, kept only when it is a short plain
 identifier. Look over that column before you send the ledger if your servers use names you would rather not share.
+
+## 11. X1: the blind planted-pattern test (synthetic, internal only)
+
+X1 (STRATEGY section 11.2) asks whether the cross-site detectors find planted patterns that a single site alone would
+miss, at the same weekly alert budget, without anyone tuning them to the plant. X2 reports the same run against the
+baselines: S (codes only), R (model-free) over the fields allowed to leave, U (an unrestricted reference) and each
+site alone. Everything here is a **synthetic, same-author world**: the scorecard says `synthetic: true`,
+`internal_only: true` and `measurement: false`, and it is never shown to a buyer (STRATEGY section 9.1).
+
+**Roles.** The **detector author** (whoever wrote `mycelic/collective/detect/`) runs `prereg` and `run`. The
+**planter** is someone else who writes the plant spec without looking at the detectors.
+
+- The planter may read: the run's `prereg.json`, `docs/collective/ARCHITECTURE.md` section 14.2 (the plant spec
+  format) and the pack's `vocabulary.json`, `aliases.json` and `generator.json` (which ids, predicates, templates
+  and sites exist).
+- The planter may not read: `mycelic/collective/detect/`, `ARCHITECTURE.md` section 13 or the pack's
+  `detectors.json`. If they did, they set `planter_saw_detector_code` to true, and the run is not blind.
+- The spec needs at least 20 patterns and 20 decoys (each a JSON object; `fixtures/plant_smoke.json` in each pack
+  shows the shape, though it is a construction smoke, not blind). Spread them over the evaluation weeks; for 40 items
+  use `--weeks 104`.
+- The planter copies the `prereg_sha256` that `check-plant` prints into the spec, so the spec is bound to this
+  prereg and to nothing else.
+
+**Step 1 (detector author): freeze the settings, the pack and the code** before any plant spec exists. Commit
+first; uncommitted evaluation code is refused unless you pass `--allow-dirty` (stamped):
+
+```
+python -m mycelic.collective.evaluate.harness prereg --pack <pack> --seeds <seeds> --weeks 104 --eval-from 26 --eval-to 103 --tie-salt <tie-salt> --detector-author "<detector-author>" --run-id <run-id>
+```
+
+`--eval-from` must leave room for the detectors' window and history (the command says how much); weeks before it
+are burn-in. Send `runs/x1/<run-id>/prereg.json` to the planter.
+
+**Step 2 (planter): check the spec** against the prereg until it prints `plant: ok`. It also prints the prereg's
+sha256 for the spec's `prereg_sha256`:
+
+```
+python -m mycelic.collective.evaluate.harness check-plant --prereg <prereg-file> --plant <plant-file>
+```
+
+Errors name a JSON path and a fixed problem, for example `plant: $.decoys[3].sites: too few sites`.
+
+**Step 3 (detector author): run every seed.** `run` refuses (exit 2, no scorecard) a changed pack or code hash
+(listing every changed name), other seeds, a spec bound to another prereg, an existing run id and uncommitted code:
+
+```
+python -m mycelic.collective.evaluate.harness run --prereg <prereg-file> --plant <plant-file> --seeds <seeds> --run-id <run-id>
+```
+
+It prints one line ending in `(synthetic, internal only, not a measurement)` and writes
+`runs/x1/<run-id>/labels.json` and `scorecard.json`. `--ablation-k1` adds an internal ablation without
+suppression. Ctrl-C exits 130 and leaves a partial run directory; start again under a new run id.
+
+**Reading `scorecard.json`:**
+
+- `x1.eligible` is true only when the run is blind (self-declared), the spec is bound to the prereg, and there are
+  at least 20 patterns and 20 decoys; `x1.reasons` lists every failing condition. Only then is `x1.verdict` filled:
+  `lift_ci_low_above_0` (the 95% cluster-bootstrap interval of `lifts.X_minus_single_site` excludes 0),
+  `precision_at_40_at_least_0_25` and `pass`.
+- `channels.<name>` gives recall (found / patterns x seeds), recall by visibility, median delay and lead in weeks,
+  tie-averaged precision@40 and AP, false alarms per week and how many decoys of each class alerted. Read X against
+  S, R_mf, single_site and U; `rules` is unranked.
+- `by_construction` says what S and R_mf cannot see by construction (narrative-only plants); it is **not a result**.
+- `known_hard_cases` lists unmarked cross-site copies, which count as independent at each site.
+- `warnings` include decoys that were not quiet elsewhere (background noise on their key) and fewer than 10
+  patterns.
+- `content_hash` is reproducible: the same prereg and spec give the same hash on any machine and run id.
+
+## 12. The openFDA public replay (STRATEGY section 9.3)
+
+**Label every use of it: "public data, artificial partitioning, not a confidentiality demonstration."** The
+replay works **within one manufacturer only**, never across manufacturers. The partition into "sites" is artificial
+(an event field, such as the event location) and says nothing about confidentiality. The recall fields the scorer
+uses (`event_date_initiated`, `product_code`, `recalling_firm`, `root_cause_description`) are named in FDA's own
+schema, but their **contents and coverage are unverified** (the sandbox could not reach api.fda.gov); check
+`signals.json`'s coverage block before you trust a run. The built-in `device_quality` pack is an illustrative subset
+whose id formats will not resolve most real model or lot numbers: **freeze a pack copy with this manufacturer's id
+shapes first** (section 7), or `signals` warns `low_resolution`.
+
+**Step 1: fetch the events** for the manufacturer's product codes (section 5):
+
+```
+python -m mycelic.collective.connectors.openfda fetch --dataset event --product-codes <product-codes> --date-from <date-from> --date-to <date-to> --out <events-cache> --api-key-env OPENFDA_API_KEY
+```
+
+**Step 2: pre-register** before you look at any recall. Name the manufacturer exactly as the events spell it
+(repeat `--manufacturer` for each spelling; nothing is merged fuzzily), the field paths of the manufacturer name and
+of the partition, and declare honestly whether you have already seen this manufacturer's recalls:
+
+```
+python -m mycelic.collective.experiments.openfda_replay prereg --pack <pack-dir> --events-cache <events-cache> --manufacturer "<manufacturer>" --manufacturer-field "<manufacturer-field>" --partition-field "<partition-field>" --date-from <date-from> --date-to <date-to> --tie-salt <tie-salt> --saw-recall-outcomes no --run-id <run-id>
+```
+
+**Step 3: compute the signals** from the events alone. They are frozen in `signals.json`, whose sha256 goes into
+`phase1.json`; this command has no recall argument:
+
+```
+python -m mycelic.collective.experiments.openfda_replay signals --prereg <prereg-file> --run-id <run-id>
+```
+
+**Step 4: fetch the recalls** (only now):
+
+```
+python -m mycelic.collective.connectors.openfda fetch --dataset recall --product-codes <product-codes> --date-from <date-from> --date-to <date-to> --out <recalls-cache> --api-key-env OPENFDA_API_KEY
+```
+
+**Step 5: score.** `score` refuses a `signals.json` that differs from `phase1.json` or was made under another
+prereg, before it opens the recall cache:
+
+```
+python -m mycelic.collective.experiments.openfda_replay score --prereg <prereg-file> --signals <signals-dir> --recalls-cache <recalls-cache> --run-id <run-id>
+```
+
+Use a new `--run-id` for each of the three commands. Reading `runs/replay/<run-id>/replay.json`:
+
+- `measurement` is true only when both caches hold public data (`data_label: public`).
+- Per channel (X, S, R_mf): `found` counts recalls with an alert on their product code available before the
+  initiation date, within `--lookback-weeks`; `median_lead_days` is how long before. Alerts after the initiation are
+  counted as `post_recall_alerts` (stimulated reporting) and never as found.
+- `false_alarms_per_week` counts alerts on **every** product code of the manufacturer, not only recalled ones.
+- `recalls.unmatched_product_code` lists recalls of codes with no event in the cache; `not_evaluable` recalls fall
+  before the first evaluated week.

@@ -11,6 +11,8 @@
 * HqImportGuardTests: the HQ detection modules (``mycelic/collective/detect``) import nothing site-side, no harness and
   no model client (static check and a fresh interpreter) (G4).
 * ClockEntropyTests: every ``detect`` module is on the determinism list and reads no clock or entropy (G4).
+* EvaluateImportGuardTests: no ``evaluate`` module and no openFDA replay imports an inference module or a model client
+  (static check) (G5).
 
 ``forbidden_imports``, ``model_name_hits``, ``nondeterminism`` and ``domain_literal_hits`` are importable for
 reviewers' probes.
@@ -81,6 +83,11 @@ STDLIB_ONLY_MODULES = (
     "mycelic.collective.detect.store",
     "mycelic.collective.detect.detectors",
     "mycelic.collective.detect.rules",
+    "mycelic.collective.evaluate",
+    "mycelic.collective.evaluate.plant",
+    "mycelic.collective.evaluate.baselines",
+    "mycelic.collective.evaluate.harness",
+    "mycelic.collective.experiments.openfda_replay",
 )
 CLI_MODULES = (
     ("mycelic.collective.experiments.e3_latency",),
@@ -94,6 +101,12 @@ CLI_MODULES = (
     ("mycelic.collective.experiments.e1_extract", "compare"),
     ("mycelic.collective.packs.loader", "check"),
     ("mycelic.collective.experiments.g0_canary",),
+    ("mycelic.collective.evaluate.harness", "prereg"),
+    ("mycelic.collective.evaluate.harness", "check-plant"),
+    ("mycelic.collective.evaluate.harness", "run"),
+    ("mycelic.collective.experiments.openfda_replay", "prereg"),
+    ("mycelic.collective.experiments.openfda_replay", "signals"),
+    ("mycelic.collective.experiments.openfda_replay", "score"),
 )
 NAME_SCAN_ROOTS = ("mycelic/collective", "docs/collective", "demo/collective", "tests/mycelic/test_collective_*.py",
                    "runs/.gitignore")
@@ -124,6 +137,11 @@ DETERMINISTIC_MODULES = (
     "mycelic/collective/detect/store.py",
     "mycelic/collective/detect/detectors.py",
     "mycelic/collective/detect/rules.py",
+    "mycelic/collective/evaluate/__init__.py",
+    "mycelic/collective/evaluate/plant.py",
+    "mycelic/collective/evaluate/baselines.py",
+    "mycelic/collective/evaluate/harness.py",
+    "mycelic/collective/experiments/openfda_replay.py",
 )
 DETECT_DIR = ROOT / "mycelic" / "collective" / "detect"
 # what the HQ side may never import: the site's raw-record modules, the extractor, the world generator, the harness
@@ -159,7 +177,24 @@ RUNBOOK_PLACEHOLDERS = {
     "partner-file": "{tmp}/missing/partner.jsonl",
     "reference-endpoint": "frontier-ref",
     "run-dirs": "{tmp}/missing/run-1",
+    "seeds": "1,2",
+    "tie-salt": "runbook",
+    "detector-author": "detector-author",
+    "plant-file": "{tmp}/missing/plant.json",
+    "events-cache": "{tmp}/missing/events-cache",
+    "recalls-cache": "{tmp}/missing/recalls-cache",
+    "signals-dir": "{tmp}/missing/signals",
+    "manufacturer": "ACME",
+    "manufacturer-field": "device[].manufacturer_d_name",
+    "partition-field": "event_location",
 }
+EVALUATE_DIR = ROOT / "mycelic" / "collective" / "evaluate"
+EVALUATE_FILES = (*sorted(EVALUATE_DIR.glob("*.py")),
+                  ROOT / "mycelic" / "collective" / "experiments" / "openfda_replay.py")
+# what G5's evaluation may never import: any inference module (edge.site pulls in inference.ledger transitively, which
+# this static check of the modules' own imports allows) and every model client
+EVALUATE_FORBIDDEN = ("mycelic.collective.inference", "openai", "anthropic", "ollama", "llama_cpp", "vllm",
+                      "transformers", "torch")
 
 # --------------------------------------------------------------------------------------------------- import guard
 
@@ -333,7 +368,7 @@ def _run_without_site_packages(*args: str) -> subprocess.CompletedProcess[str]:
 
 class StdlibOnlyTests(unittest.TestCase):
     def test_every_collective_module_imports_without_site_packages(self) -> None:
-        self.assertEqual(len(STDLIB_ONLY_MODULES), 39)
+        self.assertEqual(len(STDLIB_ONLY_MODULES), 44)
         code = "import importlib\n" + "".join(f"importlib.import_module({m!r})\n" for m in STDLIB_ONLY_MODULES)
         r = _run_without_site_packages("-c", code)
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -621,6 +656,63 @@ class HqImportGuardTests(unittest.TestCase):
         self.assertEqual([m for m in loaded if _forbidden(m, FORBIDDEN_LOADED) and not m.startswith("mycelic.")], [])
 
 
+EVALUATE_POSITIVE_IMPORTS = (
+    "from ..inference.runtime import Runtime",
+    "from ..inference import client",
+    "from .. import inference",
+    "import mycelic.collective.inference.fake",
+    "from mycelic.collective.inference.errors import KINDS",
+    "import importlib\nimportlib.import_module('mycelic.collective.inference.client')",
+    "import openai",
+    "from anthropic import Anthropic",
+    "def lazy():\n    import transformers\n",
+    "import torch.nn",
+    "import ollama",
+    "from llama_cpp import server",
+    "import vllm",
+)
+EVALUATE_NEGATIVE_IMPORTS = (
+    "from ..edge.site import EdgeSite",
+    "from ..detect.detectors import detect",
+    "from ..packs.connector import field_values",
+    "from ..connectors.openfda import load_cache",
+    "from .. import stats",
+    "from .baselines import CHANNELS",
+    "import openaiish",
+    "from ..inferences import x",
+)
+
+
+class EvaluateImportGuardTests(unittest.TestCase):
+    def test_the_evaluation_files_exist(self) -> None:
+        self.assertEqual([p.name for p in EVALUATE_FILES],
+                         ["__init__.py", "baselines.py", "harness.py", "plant.py", "openfda_replay.py"])
+
+    def test_no_evaluation_module_imports_an_inference_module_or_a_model_client(self) -> None:
+        for path in EVALUATE_FILES:
+            module = ".".join(path.relative_to(ROOT).with_suffix("").parts)
+            with self.subTest(module=module):
+                self.assertEqual(forbidden_imports(path.read_text(encoding="utf-8"), module, EVALUATE_FORBIDDEN), [])
+
+    def test_checker_flags_every_positive_snippet(self) -> None:
+        for snippet in EVALUATE_POSITIVE_IMPORTS:
+            with self.subTest(snippet=snippet):
+                self.assertTrue(forbidden_imports(snippet, "mycelic.collective.evaluate.harness", EVALUATE_FORBIDDEN))
+
+    def test_checker_passes_every_negative_snippet(self) -> None:
+        for snippet in EVALUATE_NEGATIVE_IMPORTS:
+            with self.subTest(snippet=snippet):
+                self.assertEqual(forbidden_imports(snippet, "mycelic.collective.evaluate.harness",
+                                                   EVALUATE_FORBIDDEN), [])
+
+    def test_checker_flags_an_injected_import_in_a_copy_of_the_harness(self) -> None:
+        source = (EVALUATE_DIR / "harness.py").read_text(encoding="utf-8")
+        for line in ("from ..inference.runtime import Runtime", "import openai"):
+            with self.subTest(line=line):
+                self.assertTrue(forbidden_imports(source + "\n" + line + "\n", "mycelic.collective.evaluate.harness",
+                                                  EVALUATE_FORBIDDEN))
+
+
 class ClockEntropyTests(unittest.TestCase):
     def test_every_detect_module_is_on_the_determinism_list_with_no_hits(self) -> None:
         files = sorted(DETECT_DIR.glob("*.py"))
@@ -706,6 +798,14 @@ class RunbookCommandTests(unittest.TestCase):
     def test_commands_cover_the_g3_cli(self) -> None:
         joined = "\n".join(runbook_commands())
         self.assertIn("mycelic.collective.experiments.g0_canary ", joined)
+
+    def test_commands_cover_the_g5_clis(self) -> None:
+        joined = "\n".join(runbook_commands())
+        for sub in ("prereg", "check-plant", "run"):
+            self.assertIn(f"mycelic.collective.evaluate.harness {sub} ", joined)
+        for sub in ("prereg", "signals", "score"):
+            self.assertIn(f"mycelic.collective.experiments.openfda_replay {sub} ", joined)
+        self.assertIn("mycelic.collective.connectors.openfda fetch --dataset recall ", joined)
 
     def test_every_command_dry_runs_offline_and_creates_nothing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

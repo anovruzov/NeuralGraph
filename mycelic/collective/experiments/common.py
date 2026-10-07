@@ -26,7 +26,7 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Sequence
 
 from ..inference.routing import Endpoint
 from ..jsonio import canonical_dumps, sha256_hex
@@ -77,6 +77,14 @@ def code_paths(root: Path = ROOT) -> list[Path]:
     return sorted((root / "mycelic" / "collective").rglob("*.py"))
 
 
+def code_files(patterns: Iterable[str], root: Path = ROOT) -> list[str]:
+    """The sorted relative POSIX paths of every file matching one of the glob ``patterns`` under ``root``."""
+    files: set[str] = set()
+    for pattern in patterns:
+        files.update(p.relative_to(root).as_posix() for p in root.glob(pattern) if p.is_file())
+    return sorted(files)
+
+
 def code_hash(paths: Iterable[Path] | None = None, root: Path = ROOT) -> str:
     """sha256 over the sorted relative POSIX paths, each as ``path + NUL + 8-byte big-endian length + bytes``."""
     entries = []
@@ -102,8 +110,11 @@ def code_commit() -> str:
     return sha if re.fullmatch(r"[0-9a-f]{40}", sha, re.ASCII) else "unknown"
 
 
-def code_dirty() -> bool | str:
-    r = _git("--no-optional-locks", "-C", str(ROOT), "status", "--porcelain", "--", "mycelic/collective")
+def code_dirty(paths: Sequence[str] | None = None) -> bool | str:
+    """Whether ``git status`` lists a change under ``paths`` (default: ``mycelic/collective``); ``'unknown'`` when
+    git cannot answer."""
+    targets = list(paths) if paths is not None else ["mycelic/collective"]
+    r = _git("--no-optional-locks", "-C", str(ROOT), "status", "--porcelain", "--", *targets)
     if r is None or r.returncode != 0:
         return "unknown"
     return bool(r.stdout.strip())

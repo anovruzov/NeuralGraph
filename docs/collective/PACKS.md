@@ -12,7 +12,8 @@ directory, not new modules.
 ## 1. What a pack holds
 
 A pack is a directory `mycelic/collective/packs/data/<pack_id>/` (built-in) or any directory you pass as a path.
-It contains exactly these files; names starting with `.` are ignored and anything else is refused.
+It contains exactly these files; names starting with `.` are ignored and anything else is refused (G5's plant
+specs, below, are the one exception).
 
 | File | What it holds |
 |---|---|
@@ -29,6 +30,7 @@ It contains exactly these files; names starting with `.` are ignored and anythin
 | `followups.json` | roles and follow-up types: tier (T0 packet, T1 draft, T2 write; T3 is never an action type and an enabled T2 is refused), owner and escalation roles, daily cap, acknowledgement days, an argument DSL (entity id, predicate, conclusion id, enum, integer: no free text) and, for drafts, a JSON schema whose every string has a `maxLength` |
 | `generator.json` | the synthetic world spec: sites, rates, predicate weights, code rates, the id universe and its links, surface weights, narrative templates per language and predicate, entity sentences, filler, person and reporter generators, site master data |
 | `fixtures/records.jsonl` | at least 40 hand-labelled records, each `{"record", "gold"}`; the same line format as E1's `labels.jsonl` |
+| `fixtures/plant_<name>.json` | optional (G5): plant specs for the evaluation harness (`ARCHITECTURE.md` section 14.2), named `plant_` plus 1 to 40 of `[a-z0-9_]`. The listing accepts them, but the loader never reads them and no hash covers them, so adding or editing one changes none of the four hashes; only `evaluate/plant.py` reads them. Each built-in pack ships `plant_smoke.json`, a same-author construction smoke that is not blind and never a result |
 
 The loader (`packs/loader.py`) documents every rule; the brief that defines them is the G2 build brief. A few that
 matter when you extend a pack:

@@ -5,7 +5,9 @@
 A pack is ``pack.json``, ``vocabulary.json``, ``codes.json``, ``aliases.json``, ``mapping.json``, an optional
 ``mapping_openfda.json``, ``egress.json``, ``detectors.json``, ``rules.json``, ``questions.json``,
 ``followups.json``, ``generator.json`` and ``fixtures/records.jsonl``; ``docs/collective/PACKS.md`` documents
-every format. Names starting with ``.`` are ignored; anything else is refused.
+every format. Names starting with ``.`` are ignored; anything else is refused, except plant specs
+``fixtures/plant_<name>.json`` (:data:`PLANT_FIXTURE_RE`, G5): the listing accepts them, but the loader never reads
+them and no hash covers them; only the evaluation harness reads them (``evaluate/plant.py``).
 
 Every file is read with :func:`~mycelic.collective.jsonio.strict_load`. Every object is closed and every listed
 key required. schemacheck cannot express maps with free keys, so map keys are checked here in code against the id
@@ -68,6 +70,7 @@ FILES = ("pack.json", "vocabulary.json", "codes.json", "aliases.json", "mapping.
 OPTIONAL_FILES = ("mapping_openfda.json",)
 FIXTURES_DIR = "fixtures"
 FIXTURES_FILE = "fixtures/records.jsonl"
+PLANT_FIXTURE_RE = re.compile(r"plant_[a-z0-9_]{1,40}\.json", re.ASCII)
 MAPPING_FILES = MappingProxyType({"mapping": "mapping.json", "mapping_openfda": "mapping_openfda.json"})
 DETECTOR_EGRESS_FIELDS = ("k", "suppress_below_days", "count_granularity", "close_lag_days", "min_window_weeks")
 HASH_SCOPES = MappingProxyType({
@@ -679,7 +682,7 @@ def _listing(directory: Path) -> None:
     if FIXTURES_DIR in names and not (directory / FIXTURES_DIR).is_dir():
         raise PackError(FIXTURES_DIR, "$", "must be a directory") from None
     for name in fixture_names:
-        if not name.startswith(".") and name != "records.jsonl":
+        if not name.startswith(".") and name != "records.jsonl" and PLANT_FIXTURE_RE.fullmatch(name) is None:
             raise PackError(f"{FIXTURES_DIR}/{name}", "$", "unexpected file") from None
 
 
