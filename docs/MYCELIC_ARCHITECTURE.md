@@ -119,6 +119,27 @@ then `term`.
   the strongest contribution per child; `support` counts distinct agents and `independent_teams` distinct
   teams in the lineage. A unit with fewer registered child units than the threshold *promotes* its child's
   consolidation unchanged (never a raw note), so the top layers of a small organization are not empty.
+* **What a consolidation says.** Its readers are all members of its unit. Consolidations above team level quote
+  only notes marked `visibility: org` and rule conclusions; team-visibility notes are counted there, never quoted,
+  and no consolidation adds an agent id to what it quotes. The text is a head and the quoted statements
+  (`aggregation.consolidation_statements`). At team level the head is `<topic> — team '<team>': <n> agents.` and the
+  statements are the team's notes, team-visibility and org-visible alike, unprefixed, org-visible ones first so
+  team-private notes never crowd out what may travel upward. Above team the head is `<topic> — <layer> '<unit>': <n>
+  <child layer> sources, <n> agents, <n> team-private observations not quoted.` (the last clause only when there are
+  some) and each statement is prefixed with the child unit it came from, `[<child>] <statement>`, joined by `; `.
+  Every statement is clipped to 220 characters (whitespace runs collapsed, by code point, ending in `…`), and
+  statements that read the same apart from case are quoted once. A consolidation quotes at most 12 statements, and
+  above team at most `max(3, 12 // children)` per child (children in sorted order, later children drop first). The
+  quoted statements are kept, unprefixed, as `metadata.statements` with `metadata.statement_origins` (`team`, `org`
+  or `rule`), and `metadata.private_observations` counts the team-visibility notes beneath it. A consolidation that
+  is a parent contributes its statements, never its text (one derived before statements existed contributes
+  nothing), so a promotion keeps its child's statements under a new head, and a department promoting its one team
+  keeps only the org and rule statements. `(+N more)` ends the text when N > 0, where N is the number of distinct
+  statements its parents offer at this layer that are not shown. Every derived text, consolidation or conclusion, is
+  at most 2,000 characters: statements are dropped from the end until it fits. The text and statements are a
+  function of the parent set alone: parents are ordered by confidence, then a raw note's `observed_at`, then id,
+  never by apply order or the apply-time clock, so a rebuild and a re-derivation reproduce them
+  (`tests/mycelic/test_confidentiality.py`).
 * **Slot composition.** A rule (`deploy/mycelic/rules.json` or `POST /admin/rules`) names required slots,
   a target layer, a topic prefix and minimum distinct agents/teams. The conclusion exists only when every
   slot is covered for the same entity inside the target unit; slot selection is `RuleBasedSynthesizer`
@@ -211,7 +232,7 @@ then `term`.
   memory records how it was derived in `metadata.derivation`: `{v, min_support}` for a consolidation, `{v,
   rule_digest, rule}` for a conclusion (`rule` is the snapshot; agents see `{v, rule_digest}`, administrators the
   snapshot too; agents cannot set the key). `metadata.agg_key` stays the topic or `rule_id:entity`, so one version is
-  active per key and a new derivation supersedes the old one across versions. `DERIVATION_VERSION` (1) is bumped
+  active per key and a new derivation supersedes the old one across versions. `DERIVATION_VERSION` (2) is bumped
   whenever a released builder's output changes; the re-aggregation job then converges stored state. Recomputing the
   parent set from currently active evidence either leaves the active memory as is, supersedes it with a new version
   (old one readable as `previous_versions`), reactivates an earlier version whose exact coalition returned, or
@@ -272,6 +293,14 @@ retraction) and by the smoke test on a live deployment.
 
 Contributions the caller may not read are **redacted, not dropped**: text, agent id, event ids and
 entity are withheld, the unit (team) path, layer, timestamps and confidence remain.
+
+Text of a memory that is not active (superseded or retracted) is returned only to its producer and to
+administrators; everyone else who may read the memory gets an empty `text` and `text_withheld` set to its status.
+In a lineage such a node keeps its shape and every other field (`Principal.can_read_text`, passed to
+`lineage.reconstruct` as `readable_text`), so the nodes, edges and counts are the same for every reader; redacted
+nodes stay as they are (`text` null, no `text_withheld`). `GET /memory/{id}`, `GET /memories?status=` and the MCP
+tools apply the same rule and also drop `metadata.statements` and `statement_origins`; `POST /query` searches active
+memories only.
 
 ## 7. Persistence and recovery
 

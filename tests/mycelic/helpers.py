@@ -289,8 +289,14 @@ async def rebuild(log: list[dict[str, Any]], tmp: str | Path, **overrides: Any) 
 
 
 def memory_history(store: MycelicStore) -> dict[str, tuple]:
-    return {r["memory_id"]: (r["layer"], r["status"], r["support"], json.loads(r["metadata"]).get("version_of"))
-            for r in store._conn.execute("SELECT memory_id, layer, status, support, metadata FROM memories")}
+    """Every row's layer, status, support, version link, text and what it quotes (a rebuild reproduces all of it)."""
+    out = {}
+    for r in store._conn.execute("SELECT memory_id, layer, status, support, text, metadata FROM memories"):
+        meta = json.loads(r["metadata"])
+        out[r["memory_id"]] = (r["layer"], r["status"], r["support"], meta.get("version_of"), r["text"],
+                               json.dumps(meta.get("statements")), json.dumps(meta.get("statement_origins")),
+                               meta.get("private_observations"))
+    return out
 
 
 def lineage_edge_set(store: MycelicStore) -> set[tuple[str, str]]:

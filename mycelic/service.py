@@ -53,7 +53,7 @@ RESERVED_METADATA_KEYS = frozenset({"agg_key", "promoted_from", "version_of", "c
                                     "children", "child_layer", "parent_count", "fragility", "slots", "candidates",
                                     "effective_min_support", "registered_child_units", "status_reason", "reactivated_at",
                                     "roots", "evidence", "corroborated_units", "rule_chain", "fragility_scored_candidates",
-                                    "derivation"})
+                                    "derivation", "statements", "statement_origins", "private_observations"})
 _SLOT_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,100}$")
 _ID_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,200}$")
 #: meta key counting the derived events a replay ignored (summarised in one audit row when the replay completes)
@@ -577,13 +577,15 @@ class MycelicService:
         return hmac.compare_digest(given.encode("utf-8"), expected.encode("utf-8"))
 
     def public_view(self, m: Memory | dict[str, Any], principal: Principal) -> dict[str, Any]:
-        """What a caller may see of a memory: metadata that names other teams' agents is reserved for admins."""
+        """What a caller may see of a memory: metadata that names other teams' agents is reserved for admins, and the
+        text of a memory that is not active is reserved for its producer and admins."""
         d = m.to_dict() if isinstance(m, Memory) else dict(m)
         if principal.is_admin or (d.get("layer") == "agent" and d.get("producer_id") == principal.id):
             return d
         meta = d.get("metadata") or {}
         allowed = {"agg_key", "child_layer", "parent_count", "version_of", "fragility", "contributing_teams", "children",
-                   "promoted_from", "effective_min_support", "corroborated_units", "rule_chain"}
+                   "promoted_from", "effective_min_support", "corroborated_units", "rule_chain", "statements",
+                   "statement_origins", "private_observations"}
         if principal.has("lineage:read"):        # the root ids are exactly what GET /lineage/{id} shows this caller
             allowed.add("roots")
         d["metadata"] = {k: v for k, v in meta.items() if k in allowed}
@@ -591,6 +593,13 @@ class MycelicService:
             # the version and the rule's digest (or min_support); the rule's full snapshot is for administrators
             d["metadata"]["derivation"] = {k: v for k, v in meta["derivation"].items() if k != "rule"}
         d["local_ref"] = None
+        if d.get("status") != "active":
+            # ``Principal.can_read_text`` for a caller that already passed ``can_read``: the memory keeps its shape and
+            # its status, its text is withheld (the key is absent whenever the text is shown)
+            d["text"] = ""
+            d["text_withheld"] = d.get("status")
+            d["metadata"].pop("statements", None)
+            d["metadata"].pop("statement_origins", None)
         return d
 
     # ------------------------------------------------------------------ authentication helpers
@@ -977,7 +986,7 @@ class MycelicService:
         answer = None
         lineage = None
         if hits:
-            top = hits[0].memory
+            top = hits[0].memory               # retrieval indexes active memories only, so its text is never withheld
             summary = self._lineage_summary(principal, top)
             answer = {"memory_id": top.memory_id, "text": top.text, "layer": top.layer, "scope": top.scope,
                       "confidence": top.confidence, "support": top.support, "independent_teams": top.independent_teams,
@@ -991,7 +1000,8 @@ class MycelicService:
 
     def _lineage_summary(self, principal: Principal, m: Memory) -> dict[str, Any]:
         try:
-            g = reconstruct(self.store, m.memory_id, visible=principal.can_read, full=principal.owns)
+            g = reconstruct(self.store, m.memory_id, visible=principal.can_read, full=principal.owns,
+                            readable_text=principal.can_read_text)
         except LineageNotFound:
             return {"available": False}
         return {"available": True, "contributing_agents": len(g["contributing_agents"]) + g["redacted_contributions"],
@@ -1007,7 +1017,8 @@ class MycelicService:
             raise NotFound(memory_id)
         t0 = time.perf_counter()
         try:
-            g = reconstruct(self.store, memory_id, visible=principal.can_read, full=principal.owns)
+            g = reconstruct(self.store, memory_id, visible=principal.can_read, full=principal.owns,
+                            readable_text=principal.can_read_text)
         except Exception:
             self.metrics.lineage_results.labels("failure").inc()
             raise

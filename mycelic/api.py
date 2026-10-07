@@ -11,7 +11,7 @@ GET  /whoami                   the authenticated principal
 POST /memory                   memory:write   store one memory (202 Accepted; aggregation is asynchronous)
 GET  /memory/{id}              memory:read
 POST /memory/{id}/retract      producer or admin, raw observations only (derived memories follow their evidence)
-GET  /memories                 memory:read    ?scope=&layer=&limit=
+GET  /memories                 memory:read    ?scope=&layer=&limit=&status= (active|superseded|retracted)
 POST /events                   events:write   {"events": [...]} (each may embed a "memory")
 POST /query                    memory:read    {"query", "scope"?, "min_layer"?, "k"?, "include_lineage"?}
 GET  /lineage/{id}             lineage:read   (POST /query embeds the lineage only for callers holding it)

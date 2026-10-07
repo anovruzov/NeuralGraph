@@ -16,6 +16,9 @@ Authorization, in full:
   query cannot reveal even the existence of memories outside the caller's view;
 * lineage of a readable memory is returned with unreadable contributions redacted (shape kept, content
   withheld);
+* the text of a memory that is not active (superseded or retracted) is returned only to its producer and to
+  administrators; every other reader gets an empty text and ``text_withheld`` set to its status
+  (:meth:`Principal.can_read_text`), and the memory itself stays readable (existence and 404s do not change);
 * an administrator can read everything on the deployment.
 """
 from __future__ import annotations
@@ -86,6 +89,11 @@ class Principal:
     def owns(self, m: Memory) -> bool:
         """Only a raw observation has an owner; derived memories belong to the organization."""
         return self.is_admin or (m.layer == "agent" and m.producer_id == self.id)
+
+    def can_read_text(self, m: Memory) -> bool:
+        """May the caller read the text of a memory?  An active one's text goes with reading it; a superseded or
+        retracted one's only to its producer and to administrators (a derived memory has no producer among agents)."""
+        return self.is_admin or self.owns(m) or (m.status == "active" and self.can_read(m))
 
     def can_query_scope(self, scope: str) -> bool:
         if self.is_admin:

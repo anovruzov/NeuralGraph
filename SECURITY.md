@@ -33,9 +33,9 @@ to its organization; a deployment may host several.
 | Action | Rule |
 |---|---|
 | `POST /memory`, `POST /events` | agents only, scope `memory:write` / `events:write`; the memory is written **as the caller** at the caller's path; a body naming another agent is refused; the admin token cannot write memories |
-| `GET /memory/{id}`, `POST /query`, `GET /memories` | scope `memory:read`; an agent sees agent-layer memories of **its own team** (or ones the producer marked `visibility: org`) and derived memories of **every unit it belongs to** (the memory's unit is an ancestor-or-self of the agent's path); a query `scope` must be the caller's team or an ancestor unit (403 otherwise); results are filtered by the same rule, so a query never reveals the existence of a memory outside the caller's view, and a `GET` of one returns 404, not 403 |
-| `GET /lineage/{id}` | scope `lineage:read` on a readable memory (`POST /query` embeds the lineage graph only for callers holding it); contributions the caller may not read are **redacted** (text, agent id, event ids, entity and the producer's local reference withheld; unit path, layer, timestamps, confidence kept). A producer's local reference is shown only to that producer and to administrators |
-| `POST /memory/{id}/retract` | the producing agent or the administrator, raw observations only: a derived memory is a function of its evidence and disappears when that evidence is retracted |
+| `GET /memory/{id}`, `POST /query`, `GET /memories` | scope `memory:read`; an agent sees agent-layer memories of **its own team** (or ones the producer marked `visibility: org`) and derived memories of **every unit it belongs to** (the memory's unit is an ancestor-or-self of the agent's path); a query `scope` must be the caller's team or an ancestor unit (403 otherwise); results are filtered by the same rule, so a query never reveals the existence of a memory outside the caller's view, and a `GET` of one returns 404, not 403. Text of a memory that is not active (superseded or retracted) is returned only to its producer and to administrators; everyone else who may read the memory gets an empty `text` and `text_withheld` set to its status. The memory keeps every other field (its `metadata.statements` and `statement_origins` are dropped), and `GET /memories?status=superseded` or `?status=retracted` lists such memories the same way; `POST /query` searches active memories only |
+| `GET /lineage/{id}` | scope `lineage:read` on a readable memory (`POST /query` embeds the lineage graph only for callers holding it); contributions the caller may not read are **redacted** (text, agent id, event ids, entity and the producer's local reference withheld; unit path, layer, timestamps, confidence kept). A readable node that is superseded or retracted, and that the caller did not produce, is **withheld**: it keeps its shape and every other field, with an empty `text` and `text_withheld` set to its status; the nodes, edges and counts are those of any other reader. A producer's local reference is shown only to that producer and to administrators |
+| `POST /memory/{id}/retract` | the producing agent or the administrator, raw observations only: a derived memory is a function of its evidence and is withdrawn (retracted, not deleted) when that evidence is retracted. Retraction withdraws a note from answers but does not erase it. Its text stays in the database, the event log and the stream, readable by its producer and administrators |
 | `/admin/*`, `POST /admin/replay`, `POST /admin/reaggregate` | administrator token only; the `admin` scope cannot be granted to an agent key |
 | `/metrics` | `MYCELIC_METRICS_TOKEN` if set, otherwise an admin token or any valid agent key; unauthenticated only on a loopback bind |
 | `/health`, `/ready`, `/` | public, minimal (status, version, transport connected); details need the admin token |
@@ -74,7 +74,7 @@ topic/entity/local reference ≤ 200; slot names `[A-Za-z0-9_.:-]{1,100}`; metad
 ≤ 16 KiB; ≤ 100 events per request; serialized event ≤ `MYCELIC_MAX_EVENT_BYTES` (256 KiB) so an accepted
 event is always publishable; paths are `[a-z0-9][a-z0-9_-]{0,63}` segments; timestamps must parse as
 ISO-8601; kinds and visibility are enumerated; metadata keys the aggregator owns (`agg_key`,
-`promoted_from`, `version_of`, `contributing_agents`, …) are stripped from agent input; cited
+`promoted_from`, `version_of`, `contributing_agents`, `statements`, …) are stripped from agent input; cited
 `source_event_ids` must be events of the caller's own organization (unknown and foreign ids get the same
 error). Rate limiting is a token bucket per peer address before authentication and per principal after it (a
 bad token spends the address bucket, never the claimed agent's); a JSON-RPC batch on `/mcp` is capped at
@@ -101,7 +101,13 @@ leaves through `/query`, the SQL visibility rule behind `GET /memories`, `X-Forw
 identity, MCP batch limits and per-organization MCP status. `tests/mycelic/test_datapath.py`: write-as-self, visibility and lineage redaction,
 idempotent re-sends. `tests/mycelic/test_jetstream.py`: forged/unsigned events on the real broker are
 rejected. `tests/smoke/mycelic_smoke.py`: a sales agent cannot read a logistics raw note (404) while an
-administrator sees every contributor.
+administrator sees every contributor. `tests/mycelic/test_confidentiality.py`: no derived text or quoted
+statement carries an agent id, team-visibility text never rises above its team's consolidation (skip-level
+contributions and promotions included), derived text is bounded and rebuilds identically, the text of
+superseded and retracted memories is withheld from everyone but the producer and administrators (GET, list,
+lineage, MCP), and a database derived by the previous derivation version is re-derived at start; `test_api.py`
+reproduces the withheld view over HTTP and MCP and checks the MCP tool descriptions and the sentences of this
+page.
 
 ## 7. Limitations (read these)
 
@@ -119,9 +125,15 @@ administrator sees every contributor.
    keeps feeding team and higher conclusions until retracted (`POST /memory/{id}/retract` re-derives).
 3. **One administrator token**, no per-admin identity in the audit log, no SSO/OIDC, no RBAC beyond
    agent scopes.
-4. **Consolidation declassifies on purpose.** A team/department/… memory quotes each contributing
-   observation (clipped) to everyone in that unit; a producer can also mark a raw note `visibility: org`.
-   Redaction in lineage withholds attribution and full text, not topic, slot, timing or counts.
+4. **Consolidation declassifies on purpose, by visibility.** A team consolidation quotes its team's notes
+   (each clipped to 220 characters, without agent ids) to that team. Consolidations above team level quote
+   only notes marked `visibility: org` and rule conclusions; team-visibility notes are counted there, never
+   quoted, and no consolidation adds an agent id to what it quotes. A rule whose conclusion template quotes
+   `{slot:...}` publishes the quoted evidence, whatever its visibility, at the rule's target layer and,
+   through consolidations of the conclusion's topic, at every layer above it. Raw text and labels are not
+   scrubbed: an agent id or secret a producer writes into a note is quoted as written. MCP answers carry
+   text written by other agents; treat it as untrusted data. Redaction in lineage withholds attribution and
+   full text, not topic, slot, timing or counts.
 5. **Key hashes travel through the event log** (`agent.registered`, `agent.key_rotated`) so a rebuilt
    database keeps working; treat the `nats-data` volume as sensitive as the database.
 6. **No encryption at rest** for SQLite, the JetStream store or agents' local memory files; use encrypted

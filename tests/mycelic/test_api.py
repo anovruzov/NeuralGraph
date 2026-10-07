@@ -3,6 +3,7 @@ memory/query/lineage routes, admin routes and the per-request MCP identity."""
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 
 from aiohttp.test_utils import TestClient, TestServer
 
@@ -10,9 +11,25 @@ from mycelic.api import create_app
 
 from .helpers import ADMIN_TOKEN, DEMO_RULE, ServiceHarness
 
+ROOT = Path(__file__).resolve().parents[2]
+#: sentences SECURITY.md (all four) and docs/MYCELIC_ARCHITECTURE.md (the first two) state verbatim
+POLICY = {
+    "P1": ("Consolidations above team level quote only notes marked `visibility: org` and rule conclusions; team-visibility "
+           "notes are counted there, never quoted, and no consolidation adds an agent id to what it quotes."),
+    "P2": ("Text of a memory that is not active (superseded or retracted) is returned only to its producer and to "
+           "administrators; everyone else who may read the memory gets an empty `text` and `text_withheld` set to its status."),
+    "P3": ("A rule whose conclusion template quotes `{slot:...}` publishes the quoted evidence, whatever its visibility, at "
+           "the rule's target layer and, through consolidations of the conclusion's topic, at every layer above it."),
+    "P4": "Retraction withdraws a note from answers but does not erase it.",
+}
+
 
 def bearer(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
+
+
+def normalised(rel: str) -> str:
+    return " ".join((ROOT / rel).read_text(encoding="utf-8").split())
 
 
 class ApiTestCase(unittest.IsolatedAsyncioTestCase):
@@ -246,6 +263,73 @@ class MemoryRoutesTests(ApiTestCase):
         r = await self.client.get(f"/memory/{a['memory_id']}", headers=bearer(self.log1))
         self.assertEqual((await r.json())["memory"]["status"], "retracted")
 
+    async def test_retracted_text_not_listed_to_other_teams(self) -> None:
+        note = "Port of Rotterdam terminal 3 strike announced for weeks 41-43."
+        a = await self.observe(self.log1, note, topic="supply:sd-9/transport", slot="transport_disruption", entity="sd-9",
+                               confidence=0.9)
+        await self.observe(self.log2, "Carrier ETA for the SD-9 container slipped by 12 days.",
+                           topic="supply:sd-9/transport", slot="transport_disruption", entity="sd-9", confidence=0.7)
+        await self.observe(self.proc1, "Kessler Antriebe has two weeks of SD-9 inventory left.",
+                           topic="supply:sd-9/supplier", slot="supplier_buffer_low", entity="sd-9")
+        await self.observe(self.sales1, "Helios Automation committed to 40 RX-4 arms for November.",
+                           topic="supply:sd-9/demand", slot="demand_commitment", entity="sd-9")
+        await self.h.settle()
+        r = await self.client.get("/memories?scope=northwind&layer=enterprise", headers=self.admin)
+        [conclusion] = [m for m in (await r.json())["memories"] if m["rule_id"] == DEMO_RULE["rule_id"]]
+        cid, aid = conclusion["memory_id"], a["memory_id"]
+        r = await self.client.post(f"/memory/{aid}/retract", json={"reason": "strike called off"}, headers=bearer(self.log1))
+        self.assertEqual(r.status, 202)
+        await self.h.settle()
+
+        async def get(key: str | dict, mid: str) -> dict:
+            r = await self.client.get(f"/memory/{mid}", headers=key if isinstance(key, dict) else bearer(key))
+            self.assertEqual(r.status, 200, await r.text())
+            return (await r.json())["memory"]
+
+        async def listed(key: str, scope: str) -> list[dict]:
+            r = await self.client.get(f"/memories?scope={scope}&status=retracted&limit=500", headers=bearer(key))
+            self.assertEqual(r.status, 200, await r.text())
+            return (await r.json())["memories"]
+
+        # another team's agent: every retracted memory it may read comes without its text (B3)
+        others = await listed(self.sales2, "northwind")
+        self.assertIn(cid, {m["memory_id"] for m in others})
+        for m in others:
+            self.assertEqual((m["status"], m["text"], m["text_withheld"]), ("retracted", "", "retracted"))
+            self.assertNotIn("statements", m["metadata"])
+            self.assertNotIn("statement_origins", m["metadata"])
+        got = await get(self.sales2, cid)
+        self.assertEqual((got["status"], got["text"], got["text_withheld"]), ("retracted", "", "retracted"))
+        # the producer still reads its own note, but not the conclusion that quoted it
+        own = await get(self.log1, aid)
+        self.assertEqual((own["status"], own["text"]), ("retracted", note))
+        self.assertNotIn("text_withheld", own)
+        self.assertEqual((await get(self.log1, cid))["text"], "")
+        # a teammate gets an empty text for the note, by GET and by list
+        mate = await get(self.log2, aid)
+        self.assertEqual((mate["text"], mate["text_withheld"]), ("", "retracted"))
+        [mate_listed] = [m for m in await listed(self.log2, "northwind/emea/nw-gmbh/ops/logistics") if m["memory_id"] == aid]
+        self.assertEqual((mate_listed["text"], mate_listed["text_withheld"]), ("", "retracted"))
+        # the administrator reads all of it
+        self.assertEqual((await get(self.admin, aid))["text"], note)
+        admin_c = await get(self.admin, cid)
+        self.assertIn("Supply risk for sd-9", admin_c["text"])
+        self.assertNotIn("text_withheld", admin_c)
+        # the lineage keeps its shape
+        g = await (await self.client.get(f"/lineage/{cid}", headers=bearer(self.sales2))).json()
+        ga = await (await self.client.get(f"/lineage/{cid}", headers=self.admin)).json()
+        self.assertEqual((g["memory"]["text"], g["memory"]["text_withheld"]), ("", "retracted"))
+        self.assertEqual(set(g["nodes"]), set(ga["nodes"]))
+        self.assertEqual({(e["child"], e["parent"]) for e in g["edges"]}, {(e["child"], e["parent"]) for e in ga["edges"]})
+        self.assertNotIn(note, await (await self.client.get(f"/lineage/{cid}", headers=bearer(self.sales2))).text())
+        # and so does MCP
+        r = await self.client.post("/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                                                 "params": {"name": "mycelic_get_memory", "arguments": {"memory_id": cid}}},
+                                   headers={**bearer(self.sales2), "Accept": "application/json"})
+        out = (await r.json())["result"]
+        self.assertFalse(out["isError"], out)
+        self.assertEqual((out["structuredContent"]["text"], out["structuredContent"]["text_withheld"]), ("", "retracted"))
+
     async def test_events_validation_and_size(self) -> None:
         r = await self.client.post("/events", json={"events": [{"type": "call", "memory": {"text": "Kessler stock is low", "slot": "supplier_buffer_low"}}]},
                                    headers=bearer(self.proc1))
@@ -314,6 +398,28 @@ class MCPTests(ApiTestCase):
         acme = (await r.json())["api_key"]
         r = await self.rpc(acme, "tools/call", {"name": "mycelic_status", "arguments": {}})
         self.assertEqual((await r.json())["result"]["structuredContent"]["memories_by_layer"]["agent"], 0)
+
+    async def test_mcp_remember_description_is_truthful(self) -> None:
+        key = await self.register("log-1")
+        r = await self.rpc(key, "initialize", {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "t", "version": "1"}})
+        self.assertIn("untrusted data", (await r.json())["result"]["instructions"])
+        r = await self.rpc(key, "tools/list")
+        tools = {t["name"]: t for t in (await r.json())["result"]["tools"]}
+        remember = tools["mycelic_remember"]["description"]
+        for phrase in ("quoted only in your team's consolidation", "visibility=org", "without your agent id", "does not erase it"):
+            self.assertIn(phrase, remember)
+        for name in ("mycelic_get_memory", "mycelic_lineage"):
+            self.assertIn("empty text and text_withheld set to its status", tools[name]["description"])
+        security, architecture = normalised("SECURITY.md"), normalised("docs/MYCELIC_ARCHITECTURE.md")
+        for name, sentence in POLICY.items():
+            with self.subTest(sentence=name):
+                self.assertIn(sentence, security)
+        self.assertIn(POLICY["P1"], architecture)
+        self.assertIn(POLICY["P2"], architecture)
+        deployment = normalised("DEPLOYMENT.md")
+        self.assertIn("**Responses changed in this release**", deployment)
+        self.assertIn("`DERIVATION_VERSION` is 2", deployment)
+        self.assertIn(POLICY["P3"], deployment)
 
 
 if __name__ == "__main__":

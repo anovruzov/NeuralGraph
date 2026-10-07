@@ -106,21 +106,34 @@ class MycelicClient:
 
     def query(self, text: str, *, scope: str | None = None, min_layer: str = "agent", k: int = 5,
               include_lineage: bool = True, topic: str | None = None, entity: str | None = None) -> dict[str, Any]:
+        """Search what the caller may read.  Answers and results come from active memories only, so their ``text`` is
+        never withheld; the embedded lineage follows the rule of :meth:`lineage`."""
         body = {"query": text, "scope": scope, "min_layer": min_layer, "k": k, "include_lineage": include_lineage,
                 "topic": topic, "entity": entity}
         return self._request("POST", "/query", {k: v for k, v in body.items() if v is not None})
 
     def get_memory(self, memory_id: str) -> dict[str, Any]:
+        """One memory the caller may read.  For a superseded or retracted memory the caller did not produce (and is not
+        an administrator for), ``text`` is an empty string, ``text_withheld`` is its status and ``metadata.statements``
+        and ``metadata.statement_origins`` are dropped; ``text_withheld`` is present only when the text is withheld."""
         return self._request("GET", f"/memory/{urllib.parse.quote(memory_id)}")["memory"]
 
     def lineage(self, memory_id: str) -> dict[str, Any]:
+        """The lineage graph of a memory the caller may read.  Contributions the caller may not read are redacted
+        (``text`` None); a readable node that is superseded or retracted and that the caller did not produce has
+        ``text`` "" and ``text_withheld`` set to its status, with every other field kept."""
         return self._request("GET", f"/lineage/{urllib.parse.quote(memory_id)}")
 
     def retract(self, memory_id: str, reason: str = "retracted by producer") -> dict[str, Any]:
         return self._request("POST", f"/memory/{urllib.parse.quote(memory_id)}/retract", {"reason": reason})
 
-    def list_memories(self, *, scope: str | None = None, layer: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
-        return self._request("GET", "/memories", params={"scope": scope, "layer": layer, "limit": limit})["memories"]
+    def list_memories(self, *, scope: str | None = None, layer: str | None = None, limit: int = 50,
+                      status: str | None = None) -> list[dict[str, Any]]:
+        """Memories the caller may read under ``scope``, newest first; ``status`` is ``active`` (the default),
+        ``superseded`` or ``retracted``.  Text is withheld as in :meth:`get_memory`: ``text`` stays a string, empty with
+        ``text_withheld`` set for an inactive memory the caller did not produce."""
+        return self._request("GET", "/memories", params={"scope": scope, "layer": layer, "limit": limit,
+                                                         "status": status})["memories"]
 
     # ---------------------------------------------------------------- admin surface (admin token)
     def register_agent(self, *, agent_id: str, enterprise: str, region: str | None = None, subsidiary: str | None = None,

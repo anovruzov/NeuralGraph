@@ -97,8 +97,8 @@ class RuleLifecycleTests(unittest.IsolatedAsyncioTestCase):
         [c] = of_rule(s.store, DEMO)
         self.assertEqual((c.layer, c.scope, c.support, c.independent_teams), ("enterprise", ORG, 3, 3))
         rule = s.store.get_applied_rule(DEMO)
-        self.assertEqual(DERIVATION_VERSION, 1)
-        self.assertEqual(c.metadata["derivation"], {"v": 1, "rule_digest": rule_digest(rule), "rule": rule_snapshot(rule)})
+        self.assertEqual(DERIVATION_VERSION, 2)
+        self.assertEqual(c.metadata["derivation"], {"v": DERIVATION_VERSION, "rule_digest": rule_digest(rule), "rule": rule_snapshot(rule)})
         self.assertIsNone(c.metadata["version_of"])
         self.assertEqual(s.aggregator.plan_for(c).memory.memory_id, c.memory_id, "settled: re-planning reproduces it")
         self.assertEqual(invariant_violations(s, ORG), [])
@@ -660,11 +660,11 @@ class RuleLifecycleTests(unittest.IsolatedAsyncioTestCase):
         [own] = [m for m in s.store.list_memories(ORG, layers=["agent"], producer_id="log-1") if m.topic == "ops:x"]
         self.assertEqual(own.metadata, {"note": "kept"}, "an agent cannot set the derivation")
         [team] = [m for m in s.store.list_memories(ORG, layers=["team"]) if m.topic == "ops:x"]
-        self.assertEqual(team.metadata["derivation"], {"v": 1, "min_support": 2})
+        self.assertEqual(team.metadata["derivation"], {"v": DERIVATION_VERSION, "min_support": 2})
         [c] = of_rule(s.store, DEMO)
         agent_view = s.public_view(c, h.principal("sales-1"))
-        self.assertEqual(agent_view["metadata"]["derivation"], {"v": 1, "rule_digest": "d76ea7aa716bca15"})
-        self.assertEqual(s.public_view(team, h.principal("sales-1"))["metadata"]["derivation"], {"v": 1, "min_support": 2})
+        self.assertEqual(agent_view["metadata"]["derivation"], {"v": DERIVATION_VERSION, "rule_digest": "d76ea7aa716bca15"})
+        self.assertEqual(s.public_view(team, h.principal("sales-1"))["metadata"]["derivation"], {"v": DERIVATION_VERSION, "min_support": 2})
         self.assertEqual(s.public_view(c, h.admin)["metadata"]["derivation"]["rule"], rule_snapshot(s.store.get_applied_rule(DEMO)))
 
     # ------------------------------------------------------------------ registry changes

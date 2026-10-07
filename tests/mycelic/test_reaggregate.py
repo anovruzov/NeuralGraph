@@ -21,7 +21,7 @@ from aiohttp.test_utils import TestClient, TestServer
 from mycelic import aggregation, cli
 from mycelic.api import create_app
 from mycelic.metrics import Metrics
-from mycelic.models import LineageEdge, Memory, derived_memory_id, now_iso
+from mycelic.models import DERIVATION_VERSION, LineageEdge, Memory, derived_memory_id, now_iso
 from mycelic.sdk import MycelicClient, MycelicError
 from mycelic.service import MycelicService
 from mycelic.store import MycelicStore
@@ -188,7 +188,7 @@ class ReaggregationTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(org=org):
                 active = derived(st, org)
                 self.assertTrue(active)
-                self.assertEqual([m.memory_id for m in active if (m.metadata.get("derivation") or {}).get("v") != 1], [],
+                self.assertEqual([m.memory_id for m in active if (m.metadata.get("derivation") or {}).get("v") != DERIVATION_VERSION], [],
                                  "every active derived memory is derived by this release")
                 self.assertEqual(invariant_violations(s, org), [], "soundness and completeness hold")
                 [row] = [a for a in audits(st, "aggregation.reaggregate") if a["detail"]["org_id"] == org]
@@ -205,12 +205,12 @@ class ReaggregationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(st.get_memory(rows["gone_rule"].memory_id).metadata["status_reason"], "rule deleted")
         self.assertEqual(st.get_memory(rows["null_key"].memory_id).status, "retracted")
         [canonical] = [m for m in derived(st) if m.scope == TEAM and m.topic == TRANSPORT]
-        self.assertEqual(canonical.metadata["derivation"], {"v": 1, "min_support": 2})
+        self.assertEqual(canonical.metadata["derivation"], {"v": DERIVATION_VERSION, "min_support": 2})
         [late] = [m for m in derived(st) if m.rule_id == "late"]
         self.assertEqual((late.scope, late.entity, late.support, late.metadata["version_of"]), (TEAM, "bay-4", 2, None),
                          "the rule that never concluded on its earlier evidence does now")
         self.assertEqual((st.get_meta("reaggregate_pending"), st.get_meta("derivation_version"), st.get_meta("min_support")),
-                         (None, "1", "2"))
+                         (None, str(DERIVATION_VERSION), "2"))
         self.assertGreater(s.metrics.reaggregation_steps._value.get(), 0)
         self.assertIn("mycelic_reaggregation_steps_total", s.metrics.render()[0].decode())
         # a rebuild of the log derives the converged state directly
@@ -366,7 +366,7 @@ class ReaggregationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(resumed._reaggregation["reason"], "pending")
         self.assertTrue(await resumed.wait_idle(30))
         self.assertEqual(resumed._reaggregation["state"], "done")
-        self.assertEqual(resumed.store.get_meta("derivation_version"), "1")
+        self.assertEqual(resumed.store.get_meta("derivation_version"), str(DERIVATION_VERSION))
         result = active_ids(resumed.store)
         await resumed.close()
         uninterrupted = await self.service(h, db_path=str(copy))
@@ -396,12 +396,12 @@ class ReaggregationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(retried._reaggregation["reason"], "derivation_version")
         self.assertTrue(await retried.wait_idle(30))
         self.assertEqual(retried._reaggregation["state"], "done")
-        self.assertEqual(retried.store.get_meta("derivation_version"), "1")
+        self.assertEqual(retried.store.get_meta("derivation_version"), str(DERIVATION_VERSION))
 
     async def test_fresh_database_records_meta_without_a_job(self) -> None:
         h = await self.harness()
         s = h.service
-        self.assertEqual((s.store.get_meta("derivation_version"), s.store.get_meta("min_support")), ("1", "2"))
+        self.assertEqual((s.store.get_meta("derivation_version"), s.store.get_meta("min_support")), (str(DERIVATION_VERSION), "2"))
         self.assertIsNone(s._reaggregate_task)
         self.assertEqual((await s.health())["checks"]["reaggregation"], {"state": "idle"})
         await self.world(h)
@@ -411,7 +411,7 @@ class ReaggregationTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(await rebuilt.wait_idle(15))
         self.assertIsNone(rebuilt._reaggregate_task)
         self.assertEqual(rebuilt._reaggregation["state"], "idle")
-        self.assertEqual(rebuilt.store.get_meta("derivation_version"), "1")
+        self.assertEqual(rebuilt.store.get_meta("derivation_version"), str(DERIVATION_VERSION))
         self.assertEqual(active_ids(rebuilt.store), active_ids(s.store))
         await rebuilt.close()
         # an empty database migrated from schema 2: the migration's pending flag is cleared at start, without a job
@@ -421,7 +421,7 @@ class ReaggregationTests(unittest.IsolatedAsyncioTestCase):
         c.close()
         migrated = await self.service(h, db_path=str(v2))
         self.assertIsNone(migrated._reaggregate_task)
-        self.assertEqual((migrated.store.get_meta("reaggregate_pending"), migrated.store.get_meta("derivation_version")), (None, "1"))
+        self.assertEqual((migrated.store.get_meta("reaggregate_pending"), migrated.store.get_meta("derivation_version")), (None, str(DERIVATION_VERSION)))
         self.assertEqual(migrated._reaggregation["state"], "idle")
 
     # ------------------------------------------------------------------ surfaces
@@ -475,7 +475,7 @@ class ReaggregationTests(unittest.IsolatedAsyncioTestCase):
         res = await asyncio.to_thread(MycelicClient(url, ADMIN_TOKEN, retries=0).reaggregate)
         self.assertEqual(res, {"started": True, "org_id": None})
         self.assertTrue(await s.wait_idle(15))
-        self.assertEqual(s.store.get_meta("derivation_version"), "1")
+        self.assertEqual(s.store.get_meta("derivation_version"), str(DERIVATION_VERSION))
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
             code = await asyncio.to_thread(cli.main, ["reaggregate", "--url", url, "--admin-token", ADMIN_TOKEN, "--org", "acme"])

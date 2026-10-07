@@ -15,7 +15,9 @@ returned as a plain JSON structure that answers, explicitly:
 
 Nodes the caller may not read are *redacted*, not dropped: the shape of the lineage stays truthful (the
 count of contributions, their layer and unit) while text, agent ids and evidence references are withheld.
-That mirrors the ``PolicyStatus.REDACTED`` behaviour of the coordination contracts.
+That mirrors the ``PolicyStatus.REDACTED`` behaviour of the coordination contracts.  A readable node whose text the
+caller may not read (``readable_text``: a superseded or retracted memory it did not produce) keeps every field but its
+text, which is empty, with ``text_withheld`` set to its status.
 """
 from __future__ import annotations
 
@@ -30,7 +32,8 @@ class LineageNotFound(KeyError):
     pass
 
 
-def _node_view(m: Memory, redacted: bool, *, shared_entity: str | None = None, full: bool = False) -> dict[str, Any]:
+def _node_view(m: Memory, redacted: bool, *, shared_entity: str | None = None, full: bool = False,
+               withheld: bool = False) -> dict[str, Any]:
     if redacted:
         return {
             "memory_id": m.memory_id, "layer": m.layer,
@@ -42,7 +45,7 @@ def _node_view(m: Memory, redacted: bool, *, shared_entity: str | None = None, f
             "created_at": m.created_at, "applied_at": m.applied_at, "event_id": None, "source_event_ids": [],
             "local_ref": None, "redacted": True,
         }
-    return {
+    view = {
         "memory_id": m.memory_id, "layer": m.layer, "scope": m.scope, "text": m.text, "topic": m.topic,
         "slot": m.slot, "entity": m.entity, "kind": m.kind, "confidence": m.confidence, "support": m.support,
         "independent_teams": m.independent_teams, "producer_id": m.producer_id, "operator": m.operator,
@@ -50,11 +53,17 @@ def _node_view(m: Memory, redacted: bool, *, shared_entity: str | None = None, f
         "applied_at": m.applied_at, "event_id": m.event_id, "source_event_ids": list(m.source_event_ids),
         "local_ref": m.local_ref if full else None, "fragility": m.metadata.get("fragility"), "redacted": False,
     }
+    if withheld:
+        view["text"] = ""
+        view["text_withheld"] = m.status
+    return view
 
 
 def reconstruct(store: MycelicStore, memory_id: str, *, visible: Callable[[Memory], bool],
-                full: Callable[[Memory], bool] = lambda m: False, max_nodes: int = 2000) -> dict[str, Any]:
-    """``visible`` decides redaction; ``full`` (owner or administrator) additionally reveals the producer's local reference."""
+                full: Callable[[Memory], bool] = lambda m: False, readable_text: Callable[[Memory], bool] = lambda m: True,
+                max_nodes: int = 2000) -> dict[str, Any]:
+    """``visible`` decides redaction; ``full`` (owner or administrator) additionally reveals the producer's local
+    reference; ``readable_text`` decides whether a visible node's text is shown or withheld."""
     root_memory = store.get_memory(memory_id)
     if root_memory is None:
         raise LineageNotFound(memory_id)
@@ -91,7 +100,9 @@ def reconstruct(store: MycelicStore, memory_id: str, *, visible: Callable[[Memor
         frontier = nxt
 
     for mid, m in memories.items():
-        nodes[mid] = _node_view(m, redacted=not visible(m), shared_entity=root_memory.entity, full=full(m))
+        redacted = not visible(m)
+        nodes[mid] = _node_view(m, redacted=redacted, shared_entity=root_memory.entity, full=full(m),
+                                withheld=not redacted and not readable_text(m))
 
     has_parent = {e["child"] for e in edges}
     roots = sorted(mid for mid in memories if mid not in has_parent)

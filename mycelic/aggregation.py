@@ -38,6 +38,18 @@ A derived id is ``sha256(operator, unit, versioned key, sorted parent ids)``: th
 version and ``min_support`` to a topic (:func:`consolidation_id_key`) or the rule's digest to a rule and entity
 (:func:`conclusion_id_key`), so an equal derivation keeps its id and a different one never reuses it.
 
+**What a consolidation says.**  The readers of a derived memory are all members of its unit.  A team consolidation
+(read only by that team) quotes its team's notes, team-visibility and org-visible alike; every consolidation above team
+level quotes only org-visible notes and rule conclusions, and counts the team-visibility notes beneath it without
+quoting them.  No consolidation adds an agent id: a team consolidation quotes without a prefix, one above team prefixes
+each statement with the child unit it came from.  The quoted statements are kept as ``metadata.statements`` with their
+origins (``statement_origins``: ``team``, ``org`` or ``rule``), and a consolidation parent contributes those
+statements, never its text.  Every derived text is at most :data:`MAX_DERIVED_TEXT` characters, and a consolidation's
+text and statements are a function of its parent set alone (:func:`consolidation_statements`), never of apply order
+or the clock, so a rebuild reproduces them.  Raw text and labels are the producer's content and are quoted as written.
+A rule template that quotes ``{slot:...}`` is an operator's decision to publish the quoted evidence, whatever its
+visibility, at the rule's target layer and, through consolidations of the conclusion's topic, at every layer above it.
+
 Confidence of a consolidation is the noisy-OR of the strongest contribution per child
 (``1 - prod(1 - c_i)``): independent sources agreeing raise confidence, a single source cannot exceed its own.
 Confidence of a rule conclusion is the *minimum* over the selected slots, the same conservative choice the
@@ -66,6 +78,11 @@ CONSOLIDATABLE = ("agent_observation", "topic_consolidation", "slot_composition"
 MAX_CASCADE = 8
 REAGGREGATE_PHASES = ("derived", "topics", "rules")
 FRAGILITY_TOP_K = 6        # per-slot claims scored for fragility (the analyzer enumerates their product)
+STATEMENT_CHARS = 220      # a quoted statement is clipped to this many characters
+MAX_STATEMENTS = 12        # statements one consolidation quotes at most
+PER_CHILD_STATEMENTS = 3   # statements per child above team when a unit has more than four children
+MAX_DERIVED_TEXT = 2000    # characters of any derived text (consolidation or conclusion)
+QUOTABLE_ABOVE_TEAM = ("org", "rule")   # statement origins a consolidation above team level may quote
 
 
 @dataclass
@@ -169,28 +186,120 @@ def _candidate_key(m: Memory) -> tuple:
     return m.org_id, m.operator, m.scope, m.slot, m.entity, m.topic, frozenset(rule_chain(m))
 
 
-def render_consolidation(unit: str, topic: str, contributions: dict[str, list[Memory]], support: int) -> str:
+def _plural(n: int, noun: str) -> str:
+    return f"{n} {noun}" if n == 1 else f"{n} {noun}s"
+
+
+def _origin(m: Memory) -> str:
+    """Where a quoted statement comes from: a rule conclusion, an org-visible note, or a team-visibility note."""
+    if m.operator == "slot_composition":
+        return "rule"
+    return "org" if m.visibility == "org" else "team"
+
+
+def _offered(m: Memory) -> list[tuple[str, str]]:
+    """The (statement, origin) pairs a parent offers a consolidation, in its stored order."""
+    if m.operator == "topic_consolidation":
+        # a consolidation offers what it quotes, never its text; one derived before statements existed offers nothing,
+        # since its head or legacy text may carry agent ids or team-visibility text
+        return list(zip(m.metadata.get("statements") or [], m.metadata.get("statement_origins") or []))
+    return [(_clip(m.text, STATEMENT_CHARS), _origin(m))]
+
+
+def private_observations(m: Memory) -> int:
+    """Team-visibility notes a memory stands for that a consolidation above team level counts but never quotes."""
+    if m.operator == "topic_consolidation":
+        return int(m.metadata.get("private_observations") or 0)
+    return 1 if m.operator == "agent_observation" and m.visibility != "org" else 0
+
+
+def _parent_order(m: Memory) -> tuple:
+    """Strongest first; a raw note's ``created_at`` is its producer's ``observed_at`` (the same on a rebuild), a derived
+    memory's is the apply-time clock and never orders anything; the id settles every tie."""
+    return -m.confidence, m.created_at if m.layer == "agent" else "", m.memory_id
+
+
+@dataclass(frozen=True)
+class Statements:
+    """What a consolidation says: its ``text``, the statements it quotes (unprefixed) with their ``origins``, how many
+    distinct statements its parents ``offered`` at this layer (shown or not) and the team-``private`` observations
+    beneath it."""
+
+    text: str
+    statements: list[str]
+    origins: list[str]
+    offered: int
+    private: int
+
+
+def consolidation_statements(unit: str, topic: str, contributions: dict[str, list[Memory]], support: int) -> Statements:
+    """The text and statements of the consolidation of ``topic`` at ``unit`` (pure: a function of the mapping child →
+    set of parents, never of dict or list order).
+
+    At team level every parent is a candidate, org-visible and rule statements first (so team-private ones can never
+    crowd out what may travel upward), unprefixed, at most :data:`MAX_STATEMENTS`.  Above team only org and rule
+    statements are candidates: children in sorted order, each child's parents strongest first, at most
+    ``max(PER_CHILD_STATEMENTS, MAX_STATEMENTS // children)`` per child, each prefixed with the child's leaf.  A
+    statement that reads like an earlier one (``casefold``) is skipped; ``offered`` counts the distinct statements this
+    layer may quote, and ``(+N more)`` says how many of them are not shown.  Items are dropped from the end until the
+    text fits in :data:`MAX_DERIVED_TEXT` characters.
+    """
     layer = layer_of_path(unit)
     leaf = unit.rsplit("/", 1)[-1]
-    child_layer = LAYERS[LAYERS.index(layer) - 1]
-    statements: list[str] = []
+    parents = [m for group in contributions.values() for m in group]
+    private = sum(private_observations(m) for m in parents)
     seen: set[str] = set()
-    for child in sorted(contributions):
-        for m in contributions[child]:
-            key = " ".join(m.text.lower().split())
-            if key in seen:
-                continue
-            seen.add(key)
-            label = child.rsplit("/", 1)[-1]
-            statements.append(f"[{label}] {_clip(m.text)}")
-    head = (f"{topic} — consolidated at {layer} '{leaf}' from {len(contributions)} {child_layer} sources "
-            f"({support} agent{'s' if support != 1 else ''}): ")
-    return head + " ".join(statements)
+    shown: list[tuple[str, str, str]] = []            # (prefix, statement, origin)
+    if layer == "team":
+        candidates = sorted(((0 if origin in QUOTABLE_ABOVE_TEAM else 1, *_parent_order(m), i), statement, origin)
+                            for m in parents for i, (statement, origin) in enumerate(_offered(m)))
+        for _, statement, origin in candidates:
+            if statement.casefold() not in seen:
+                seen.add(statement.casefold())
+                shown.append(("", statement, origin))
+        head = f"{topic} — team '{leaf}': {_plural(support, 'agent')}."
+    else:
+        cap = max(PER_CHILD_STATEMENTS, MAX_STATEMENTS // max(1, len(contributions)))
+        for child in sorted(contributions):
+            prefix, n = child.rsplit("/", 1)[-1], 0
+            for m in sorted(contributions[child], key=_parent_order):
+                for statement, origin in _offered(m):
+                    if origin not in QUOTABLE_ABOVE_TEAM or statement.casefold() in seen:
+                        continue
+                    seen.add(statement.casefold())
+                    if n < cap:                       # beyond the cap a statement is offered but not shown
+                        shown.append((prefix, statement, origin))
+                        n += 1
+        child_layer = LAYERS[LAYERS.index(layer) - 1]
+        head = (f"{topic} — {layer} '{leaf}': {_plural(len(contributions), child_layer + ' source')}, "
+                f"{_plural(support, 'agent')}"
+                + (f", {_plural(private, 'team-private observation')} not quoted" if private else "") + ".")
+    offered = len(seen)
+    shown = shown[:MAX_STATEMENTS]
+
+    def compose(items: list[tuple[str, str, str]]) -> str:
+        more = offered - len(items)
+        quoted = "; ".join(f"[{prefix}] {statement}" if prefix else statement for prefix, statement, _ in items)
+        return head + (" " + quoted if items else "") + (f" (+{more} more)" if more else "")
+
+    text = compose(shown)
+    while shown and len(text) > MAX_DERIVED_TEXT:
+        shown.pop()
+        text = compose(shown)
+    if len(text) > MAX_DERIVED_TEXT:                  # unreachable: a head is a few hundred characters at most
+        text = _clip(text, MAX_DERIVED_TEXT)
+    return Statements(text=text, statements=[s for _, s, _ in shown], origins=[o for _, _, o in shown], offered=offered,
+                      private=private)
+
+
+def render_consolidation(unit: str, topic: str, contributions: dict[str, list[Memory]], support: int) -> str:
+    return consolidation_statements(unit, topic, contributions, support).text
 
 
 def render_conclusion(template: str, entity: str | None, slot_texts: dict[str, str]) -> str:
     out = template.replace("{entity}", entity or "unknown entity")
-    return SLOT_PLACEHOLDER_RE.sub(lambda m: _clip(slot_texts.get(m.group(1), f"<{m.group(1)}: missing>"), 200), out)
+    out = SLOT_PLACEHOLDER_RE.sub(lambda m: _clip(slot_texts.get(m.group(1), f"<{m.group(1)}: missing>"), 200), out)
+    return out if len(out) <= MAX_DERIVED_TEXT else out[:MAX_DERIVED_TEXT - 1].rstrip() + "…"
 
 
 def _claim(m: Memory, rule: Rule, now: str) -> ClaimEnvelope:
@@ -221,8 +330,8 @@ def build_consolidation(org_id: str, unit: str, topic: str, contributions: dict[
                         min_support: int, now: str) -> Memory:
     """The consolidation of ``topic`` at ``unit`` from what each direct child contributes (no store, no clock).
 
-    Each child's list is in apply order: ``render_consolidation`` keeps the first of two statements that read the
-    same, so the order is part of the text.  ``min_support`` is the configured threshold (not the effective one): it
+    The text and statements are a function of the parent set; the order of a child's list does not matter
+    (:func:`consolidation_statements`).  ``min_support`` is the configured threshold (not the effective one): it
     is part of the id, so a deployment that changes it derives new ids rather than reusing ones built under another.
     """
     layer = layer_of_path(unit)
@@ -231,6 +340,7 @@ def build_consolidation(org_id: str, unit: str, topic: str, contributions: dict[
     agents = sorted({a for m in parents for a in contributing_agents(m)})
     teams = sorted({t for m in parents for t in contributing_teams(m)})
     confidence = noisy_or([max(m.confidence for m in group) for group in contributions.values()])
+    st = consolidation_statements(unit, topic, contributions, len(agents))
     return Memory(
         memory_id=derived_memory_id(operator="topic_consolidation", scope=unit, key=consolidation_id_key(topic, min_support),
                                     parent_ids=parent_ids),
@@ -248,6 +358,7 @@ def build_consolidation(org_id: str, unit: str, topic: str, contributions: dict[
             "roots": sorted({r for m in parents for r in lineage_roots(m)}),
             "rule_chain": sorted({r for m in parents for r in rule_chain(m)}),
             "derivation": {"v": DERIVATION_VERSION, "min_support": min_support},
+            "statements": st.statements, "statement_origins": st.origins, "private_observations": st.private,
         },
     )
 

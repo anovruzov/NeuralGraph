@@ -223,6 +223,10 @@ entity, `{slot:Transport_Disruption}` is `{slot:transport_disruption}`). Slots m
 the stored, normalised form. A rule with neither `emits_topic` nor `topic_prefix` gives its conclusions the
 normalised `rule_id` as topic.
 
+Quoting evidence is a publication decision. A rule whose conclusion template quotes `{slot:...}` publishes the
+quoted evidence, whatever its visibility, at the rule's target layer and, through consolidations of the
+conclusion's topic, at every layer above it. A template that names only `{entity}` publishes no note's text.
+
 An upsert or delete shows in `GET /admin/rules` at once, but aggregation uses it only when the consumer applies its
 event, in log order with the notes around it. When the event applies, the rule is applied to everything applied
 before it: a new rule concludes at once on the evidence already there (no new note is needed); a changed rule
@@ -312,11 +316,34 @@ rising), answers may mix memories derived by the old and the new version. An int
 retried at the next start; `python -m mycelic reaggregate` re-runs it on demand. Its derived events are not
 reproduced by a rebuild from the log, which derives the converged state directly.
 
-**Rolling back and forward again.** This release keeps schema 3, so the previous schema-3 release can open a
-database this one has written; it then derives ids without a derivation version, while `meta.derivation_version`
-still records this release's. Rolling forward again therefore starts no re-aggregation on its own: after the
-roll-forward, run `python -m mycelic reaggregate` (or `POST /admin/reaggregate`) once and wait for
-`checks.reaggregation.state` = `done`.
+**Responses changed in this release** (derivation version 2):
+
+* Consolidation text has a new format and no agent ids: `<topic> — team '<team>': <n> agents. <statement>; …` at
+  team level, `<topic> — <layer> '<unit>': <n> <child layer> sources, <n> agents, <n> team-private observations not
+  quoted. [<child>] <statement>; … (+N more)` above it (see `docs/MYCELIC_ARCHITECTURE.md` §5). The quoted statements
+  are in `metadata.statements`, with `metadata.statement_origins` (`team`, `org`, `rule`) and
+  `metadata.private_observations`; every derived text is at most 2,000 characters, and above team nothing is
+  quoted except notes marked `visibility: org` and rule conclusions. Clients that parsed the old
+  head must read the new one or `metadata.statements`.
+* Text of a memory that is not active (superseded or retracted) is returned only to its producer and to
+  administrators; everyone else who may read the memory gets an empty `text` and `text_withheld` set to its
+  status. This applies to `GET /memory/{id}`, `GET /memories?status=superseded|retracted` (which also drop
+  `metadata.statements` and `statement_origins`), the nodes of `GET /lineage/{id}` (which keep their shape) and
+  the MCP tools. `text` stays a string, and `text_withheld` is absent whenever the text is shown.
+* `DERIVATION_VERSION` is 2, so the first start re-derives everything (`checks.reaggregation.reason` =
+  `derivation_version`). Until `checks.reaggregation.state` = `done`, consolidations derived by the earlier release
+  keep their old text, which may quote team-visibility notes and agent ids above team level, and they are what
+  agents read. Hold agent traffic until then if that matters; once they are superseded their text is withheld
+  from agents like that of any other inactive memory.
+
+**Rolling back and forward again.** This release keeps schema 3, so an earlier schema-3 release can open a
+database this one has written. Whichever it is, an earlier release re-derives with its own renderer, which quotes
+team-visibility notes and agent ids above team level. A release with derivation version 1 sees
+`meta.derivation_version` 2, re-aggregates at its first start and records 1, so rolling forward again re-aggregates
+on its own. A release from before derivation versions derives ids without one, while `meta.derivation_version` still
+records this release's, so rolling forward from it starts no re-aggregation on its own: after the roll-forward, run
+`python -m mycelic reaggregate` (or `POST /admin/reaggregate`) once and wait for `checks.reaggregation.state` =
+`done`.
 
 Upgrading to schema 3 (this release) is one-way: the first start migrates the database in one transaction
 (normalised labels on stored notes and rules, applied-rule and registry state, apply order), and older code cannot
