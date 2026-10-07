@@ -21,6 +21,7 @@ DELETE /admin/agents/{id}      admin          revoke
 POST /admin/agents/{id}/rotate admin          new key (returned once)
 GET/POST /admin/rules, DELETE /admin/rules/{id}   admin
 POST /admin/replay             admin          re-deliver the whole event log to this instance
+POST /admin/reaggregate        admin          {"org_id"?}: re-aggregate one organization or all (202; started false while running)
 GET  /admin/status             admin          full health, settings (secrets masked), transport state
 GET  /admin/audit, GET /admin/events            admin
 *    /mcp                      MCP Streamable HTTP; identity = the Bearer agent key, same as the REST routes
@@ -314,6 +315,11 @@ def create_app(service: MycelicService) -> web.Application:
         admin(request)
         return _json(await service.replay(remote=request["remote"]), 202)
 
+    async def admin_reaggregate(request: web.Request) -> web.Response:
+        admin(request)
+        body = await _body(request) if request.can_read_body else {}
+        return _json(await service.reaggregate(body, remote=request["remote"]), 202)
+
     async def admin_status(request: web.Request) -> web.Response:
         admin(request)
         h = await service.health(live=True)       # refreshed now, bounded by status_timeout per broker call
@@ -363,6 +369,7 @@ def create_app(service: MycelicService) -> web.Application:
     r.add_post("/admin/rules", admin_put_rule)
     r.add_delete("/admin/rules/{id}", admin_delete_rule)
     r.add_post("/admin/replay", admin_replay)
+    r.add_post("/admin/reaggregate", admin_reaggregate)
     r.add_get("/admin/status", admin_status)
     r.add_get("/admin/audit", admin_audit)
     r.add_get("/admin/events", admin_events)

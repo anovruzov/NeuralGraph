@@ -34,11 +34,11 @@ from typing import Any
 from .aggregation import MYCELIC_PRODUCER, Aggregator, Derivation
 from .auth import Authenticator, Principal, RateLimiter, generate_api_key
 from .config import Settings
-from .hierarchy import AgentPath, HierarchyError, LAYERS, layer_index, split_path
+from .hierarchy import AgentPath, HierarchyError, LAYERS, layer_index, split_path, validate_segment
 from .lineage import LineageNotFound, reconstruct
 from .metrics import Metrics
 from .models import (
-    ALL_SCOPES, DEFAULT_AGENT_SCOPES, MEMORY_KINDS, OPERATORS, VISIBILITY, Agent, EventRecord, Memory, Rule,
+    ALL_SCOPES, DEFAULT_AGENT_SCOPES, DERIVATION_VERSION, MEMORY_KINDS, OPERATORS, VISIBILITY, Agent, EventRecord, Memory, Rule,
     canonical_label, canonical_rule_body, content_hash, new_id, now_iso, parse_iso,
 )
 from .retrieval import Retriever
@@ -52,7 +52,8 @@ logger = logging.getLogger(__name__)
 RESERVED_METADATA_KEYS = frozenset({"agg_key", "promoted_from", "version_of", "contributing_agents", "contributing_teams",
                                     "children", "child_layer", "parent_count", "fragility", "slots", "candidates",
                                     "effective_min_support", "registered_child_units", "status_reason", "reactivated_at",
-                                    "roots", "evidence", "corroborated_units", "rule_chain", "fragility_scored_candidates"})
+                                    "roots", "evidence", "corroborated_units", "rule_chain", "fragility_scored_candidates",
+                                    "derivation"})
 _SLOT_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,100}$")
 _ID_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,200}$")
 #: meta key counting the derived events a replay ignored (summarised in one audit row when the replay completes)
@@ -135,6 +136,10 @@ class MycelicService:
     status_interval = 2.0
     #: a broker call slower than this leaves the previous status in place, marked stale (seconds)
     status_timeout = 2.0
+    #: items one re-aggregation step reconciles, in one transaction (see ``Aggregator.reaggregate_step``): 5 keeps a
+    #: step's work under 0.3 s at 5,000 notes in one organization (10 took up to 0.5 s, 50 up to 1.3 s); its commit
+    #: comes on top and can stall on a slow fsync
+    reaggregate_batch = 5
 
     def __init__(self, settings: Settings, *, store: MycelicStore | None = None, transport: Transport | None = None,
                  metrics: Metrics | None = None) -> None:
@@ -172,6 +177,8 @@ class MycelicService:
         self._status_ok = False
         self._db_error: str | None = None
         self._closed = False
+        self._reaggregation: dict[str, Any] = {"state": "idle"}
+        self._reaggregate_task: asyncio.Task | None = None
         self.metrics.info.labels(VERSION).set(1)
 
     # ------------------------------------------------------------------ lifecycle
@@ -179,6 +186,10 @@ class MycelicService:
         self.started_at = now_iso()
         self._stop.clear()
         self.load_rules_file()
+        if self._reaggregate_reason() is not None and not self.store.has_memories():
+            # nothing derived to converge, and a replay into this database derives with this code and configuration
+            async with self.store.transaction() as tx:
+                self._record_derivation_meta(tx)
         try:
             pruned = await self.store.prune_audit(self.settings.audit_retention_days)
             if pruned:
@@ -192,6 +203,11 @@ class MycelicService:
                            asyncio.create_task(self._publisher_loop(), name="mycelic-publisher"),
                            asyncio.create_task(self._consumer_loop(), name="mycelic-consumer"),
                            asyncio.create_task(self._status_loop(), name="mycelic-status")]
+            reason = self._reaggregate_reason()
+            if reason is not None:
+                # derived state from an older release, another MIN_SUPPORT or before a migration: converge it in the
+                # background (it waits for a replay that recovery just started)
+                self._start_reaggregation(None, reason)
         logger.info("mycelic %s started (db=%s, transport=%s)", VERSION, self.store.db_path, self.transport.name)
 
     async def stop(self) -> None:
@@ -518,17 +534,23 @@ class MycelicService:
         except asyncio.TimeoutError:
             pass
 
+    def _reaggregating(self) -> bool:
+        return self._reaggregate_task is not None and not self._reaggregate_task.done()
+
     async def wait_idle(self, timeout: float = 10.0) -> bool:
-        """Wait until the outbox is empty and the consumer has nothing pending (tests, demos, CLI)."""
+        """Wait until the outbox is empty, the consumer has nothing pending and no re-aggregation job runs (tests,
+        demos, CLI)."""
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             info = await self.transport.info()
             pending = self.store.stats()["outbox_pending"]
-            if pending == 0 and self._idle.is_set() and info.get("consumer_pending", 0) == 0 and self._replay_target is None:
+            if (pending == 0 and self._idle.is_set() and info.get("consumer_pending", 0) == 0 and self._replay_target is None
+                    and not self._reaggregating()):
                 # one more fetch round so a just-published event is applied
                 await asyncio.sleep(0.25)
                 info = await self.transport.info()
-                if self.store.stats()["outbox_pending"] == 0 and self._idle.is_set() and info.get("consumer_pending", 0) == 0:
+                if (self.store.stats()["outbox_pending"] == 0 and self._idle.is_set() and info.get("consumer_pending", 0) == 0
+                        and not self._reaggregating()):
                     return True
             await asyncio.sleep(0.1)
         return False
@@ -565,6 +587,9 @@ class MycelicService:
         if principal.has("lineage:read"):        # the root ids are exactly what GET /lineage/{id} shows this caller
             allowed.add("roots")
         d["metadata"] = {k: v for k, v in meta.items() if k in allowed}
+        if isinstance(meta.get("derivation"), dict):
+            # the version and the rule's digest (or min_support); the rule's full snapshot is for administrators
+            d["metadata"]["derivation"] = {k: v for k, v in meta["derivation"].items() if k != "rule"}
         d["local_ref"] = None
         return d
 
@@ -798,42 +823,41 @@ class MycelicService:
                 agent = self._agent_from_payload(payload)
                 if self.store.get_agent(agent.agent_id) is None:
                     tx.insert_agent(agent, str(payload.get("key_hash") or ""))
+                known = self.store.get_agent(agent.agent_id) or agent
+                before = self.aggregator.registry_counts(known.org_id, known.path)
                 # aggregation counts a unit's children from the registry as applied (``log_status``), never from
                 # what the API has already written, so a live node and a rebuild count the same children
                 if not tx.set_agent_log_status(agent.agent_id, "active"):
                     result = "duplicate"
+                else:                           # a unit with one more child unit may no longer promote its only child
+                    derivations = self.aggregator.registry_changed(tx, known.org_id, known.path, before)
             elif kind == "agent.revoked":
-                tx.set_agent_status(str(payload.get("agent_id")), "revoked")
-                tx.set_agent_log_status(str(payload.get("agent_id")), "revoked")
+                agent_id = str(payload.get("agent_id"))
+                known = self.store.get_agent(agent_id)
+                before = self.aggregator.registry_counts(known.org_id, known.path) if known is not None else {}
+                tx.set_agent_status(agent_id, "revoked")
+                if tx.set_agent_log_status(agent_id, "revoked") and known is not None:
+                    # the agent's notes stay evidence; a unit left with fewer child units may promote again
+                    derivations = self.aggregator.registry_changed(tx, known.org_id, known.path, before)
             elif kind == "agent.key_rotated":
                 tx.rotate_agent_key(str(payload.get("agent_id")), str(payload.get("key_hash") or ""), str(payload.get("key_prefix") or ""))
             elif kind == "rule.upserted":
-                # aggregation evaluates the rules as applied, in log order (``applied_rules``)
+                # aggregation evaluates the rules as applied, in log order (``applied_rules``); the rule is applied to
+                # everything applied before it, after it is recorded, so what it retires is re-evaluated under it
                 rule = self._rule_from_body(payload)
                 tx.upsert_applied_rule(rule, self.store.max_apply_seq())
                 if self._writes_admin_table(tx, status, event_id, rule.rule_id):
                     tx.upsert_rule(rule)
+                derivations = self.aggregator.evaluate_rule(tx, rule)
             elif kind == "rule.deleted":
                 rule_id = str(payload.get("rule_id"))
                 tx.delete_applied_rule(rule_id)
                 if self._writes_admin_table(tx, status, event_id, rule_id):
                     tx.delete_rule(rule_id)
+                derivations = self.aggregator.withdraw_rule(tx, rule_id)
             else:
                 result, ignored = "ignored", "unknown_kind"
-            for d in derivations:
-                dev = EventRecord(event_id=f"evt_d{content_hash(d.memory.memory_id)[:22]}", kind="memory.derived",
-                                  org_id=d.memory.org_id, agent_id=None, subject=subject_for(d.memory.org_id, "memory.derived"),
-                                  payload={}, created_at=now)
-                if self._replay_target is not None:
-                    # During a replay the stream already carries the original derived events (they follow the
-                    # observations that produced them), so re-deriving must not append duplicates to the log.
-                    dev.status = "published"
-                    dev.published_at = now
-                d.memory.event_id = dev.event_id
-                dev.payload = d.event_payload()
-                tx.c.execute("UPDATE memories SET event_id=? WHERE memory_id=?", (dev.event_id, d.memory.memory_id))
-                tx.insert_event(dev)
-                self.metrics.derived.labels(d.memory.layer, d.memory.operator).inc()
+            self._emit_derived(tx, derivations, now)
             tx.mark_applied(event_id, seq, now)
             self._progress_in_tx(tx, seq)
         if ignored:
@@ -841,6 +865,23 @@ class MycelicService:
         if derivations:
             self._outbox_wake.set()
         return result
+
+    def _emit_derived(self, tx: Tx, derivations: list[Derivation], now: str) -> None:
+        """Append one ``memory.derived`` event per derivation, in the transaction that persisted it."""
+        for d in derivations:
+            dev = EventRecord(event_id=f"evt_d{content_hash(d.memory.memory_id)[:22]}", kind="memory.derived",
+                              org_id=d.memory.org_id, agent_id=None, subject=subject_for(d.memory.org_id, "memory.derived"),
+                              payload={}, created_at=now)
+            if self._replay_target is not None:
+                # During a replay the stream already carries the original derived events (they follow the
+                # observations that produced them), so re-deriving must not append duplicates to the log.
+                dev.status = "published"
+                dev.published_at = now
+            d.memory.event_id = dev.event_id
+            dev.payload = d.event_payload()
+            tx.c.execute("UPDATE memories SET event_id=? WHERE memory_id=?", (dev.event_id, d.memory.memory_id))
+            tx.insert_event(dev)
+            self.metrics.derived.labels(d.memory.layer, d.memory.operator).inc()
 
     @staticmethod
     def _writes_admin_table(tx: Tx, status: str | None, event_id: str, rule_id: str) -> bool:
@@ -1163,6 +1204,111 @@ class MycelicService:
         await self.store.audit("admin", "replay", None, {"target_seq": self._replay_target}, remote)
         return {"replaying": True, "target_seq": self._replay_target}
 
+    # ------------------------------------------------------------------ re-aggregation (local maintenance)
+    # Derived ids embed the derivation version, MIN_SUPPORT and each rule's digest, so state derived by an older
+    # release or under another MIN_SUPPORT is converged by re-aggregating it.  That is local maintenance, not an
+    # event: a rebuild from the log derives the converged state directly.
+    def _reaggregate_reason(self) -> str | None:
+        """Why the derived state may not be what this code and configuration derive, or None."""
+        if self.store.get_meta("reaggregate_pending") is not None:
+            return "pending"
+        if self.store.get_meta("derivation_version") != str(DERIVATION_VERSION):
+            return "derivation_version"
+        if self.store.get_meta("min_support") != str(self.aggregator.min_support):
+            return "min_support"
+        return None
+
+    def _record_derivation_meta(self, tx: Tx) -> None:
+        tx.set_meta("derivation_version", str(DERIVATION_VERSION))
+        tx.set_meta("min_support", str(self.aggregator.min_support))
+        tx.delete_meta("reaggregate_pending")
+
+    def _start_reaggregation(self, orgs: list[str] | None, reason: str) -> bool:
+        """Start the re-aggregation job unless one is running (False then: the running job is not replaced)."""
+        if self._reaggregating():
+            return False
+        self._reaggregation = {"state": "running", "reason": reason, "scope": orgs or "all", "org_id": None, "phase": None,
+                               "steps": 0, "changed": 0, "started_at": now_iso(), "finished_at": None, "error": None}
+        self._reaggregate_task = asyncio.create_task(self._reaggregate_job(orgs, reason), name="mycelic-reaggregate")
+        # stop() cancels it with the loops; earlier runs that finished are dropped, so repeated runs do not pile up
+        self._tasks = [t for t in self._tasks if not t.done()] + [self._reaggregate_task]
+        return True
+
+    async def _reaggregate_job(self, orgs: list[str] | None, reason: str) -> None:
+        """Re-aggregate ``orgs`` (all organizations when None) in steps of ``reaggregate_batch`` items, one transaction
+        each, yielding to the event loop between steps, so the node keeps serving (and applying) while it converges.
+
+        Nothing runs while a replay is in progress (it derives everything itself, and a step's derived events would be
+        marked published); the job waits and then starts again from the first organization.  A complete run over every
+        organization records the derivation meta; an interrupted or failed one leaves it, so the next start re-runs.
+        """
+        state = self._reaggregation                         # set by _start_reaggregation, reported by health()
+        try:
+            restart = True
+            while restart:
+                restart = False
+                for org in list(orgs) if orgs else self.store.memory_org_ids():
+                    cursor: dict[str, Any] | None = None
+                    steps = changed = 0
+                    state.update(org_id=org, phase="derived")
+                    while True:
+                        if self._replay_target is not None:
+                            state["state"] = "waiting_for_replay"
+                            while self._replay_target is not None:
+                                if self._stop.is_set():
+                                    state.update(state="interrupted", finished_at=now_iso())
+                                    return
+                                await self._sleep(0.5)
+                            state["state"] = "running"
+                            restart = True                  # the replay may have changed what was converged already
+                            break
+                        async with self.store.transaction() as tx:
+                            if self._replay_target is not None:
+                                continue                    # a replay started while this step waited for the lock
+                            derivations, n, cursor = self.aggregator.reaggregate_step(tx, org, cursor, limit=self.reaggregate_batch)
+                            self._emit_derived(tx, derivations, now_iso())
+                            steps += 1
+                            changed += n
+                            if cursor is None:
+                                tx.audit("mycelic", "aggregation.reaggregate", None,
+                                         {"org_id": org, "changed": changed, "steps": steps, "reason": reason})
+                        self.metrics.reaggregation_steps.inc()
+                        state.update(steps=state["steps"] + 1, changed=state["changed"] + n,
+                                     phase=cursor["phase"] if cursor else None)
+                        if derivations:
+                            self._outbox_wake.set()
+                        await asyncio.sleep(0)              # one step at a time: probes and applies run in between
+                        if cursor is None:
+                            break
+                    if restart:
+                        break
+            if orgs is None:
+                async with self.store.transaction() as tx:
+                    self._record_derivation_meta(tx)
+            state.update(state="done", org_id=None, phase=None, finished_at=now_iso())
+            logger.info("re-aggregation (%s) done: %d steps, %d memories changed", reason, state["steps"], state["changed"])
+        except asyncio.CancelledError:
+            state.update(state="interrupted", finished_at=now_iso())
+            raise
+        except Exception as exc:
+            logger.exception("re-aggregation (%s) failed; the next start retries it", reason)
+            state.update(state="failed", error=f"{type(exc).__name__}: {exc}", finished_at=now_iso())
+
+    async def reaggregate(self, body: dict[str, Any], *, remote: str | None = None) -> dict[str, Any]:
+        """Start re-aggregating one organization (``org_id``) or, when it is absent or null, all of them; ``started`` is
+        False while a job runs."""
+        if not isinstance(body, dict):
+            raise ValidationError("body must be a JSON object")
+        org_id = _s(body, "org_id", max_len=64)
+        if org_id is None and body.get("org_id") is not None:
+            # an empty string must not silently widen the run to every organization
+            raise ValidationError("'org_id' must not be empty (omit it to re-aggregate every organization)")
+        if org_id is not None:
+            validate_segment(org_id, "org_id")
+        started = self._start_reaggregation([org_id] if org_id else None, "requested")
+        await self.store.audit("admin", "reaggregate", None, {"org_id": org_id, "started": started}, remote)
+        return {"started": started, "org_id": org_id}
+
     # ------------------------------------------------------------------ health
     async def _transport_info_bounded(self) -> tuple[dict[str, Any], bool]:
         """``transport.info()`` within ``status_timeout``: a stalled broker (SIGSTOP, network black hole) keeps the
@@ -1235,6 +1381,7 @@ class MycelicService:
         checks["publisher"] = {"running": self._publisher_running, "outbox_pending": stats.get("outbox_pending")}
         checks["consumer"] = {"running": self._consumer_running, "last_applied_seq": stats.get("last_applied_seq"),
                               "pending": tinfo.get("consumer_pending"), "replaying_to_seq": self._replay_target}
+        checks["reaggregation"] = dict(self._reaggregation)
         return {"status": self._status(checks["db"], tinfo), "version": VERSION, "instance": self.settings.instance_id, "started_at": self.started_at,
                 "checks": checks, "stats": stats}
 

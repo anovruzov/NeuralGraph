@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Any, AsyncIterator, Iterable
 
 from .hierarchy import LAYERS
-from .models import Agent, EventRecord, LineageEdge, Memory, Rule, canonical_label, canonical_rule_body, now_iso, utcnow
+from .models import OPERATORS, Agent, EventRecord, LineageEdge, Memory, Rule, canonical_label, canonical_rule_body, now_iso, utcnow
 
 try:
     import fcntl
@@ -725,6 +725,67 @@ class MycelicStore:
             "SELECT * FROM memories WHERE org_id=? AND operator=? AND scope=? AND agg_key=? AND status='active' ORDER BY rid DESC LIMIT 1",
             (org_id, operator, scope, agg_key)).fetchone()
         return row_memory(r) if r else None
+
+    # reads that enumerate what aggregation has to reconcile (rule and registry events, the re-aggregation job): all
+    # ordered, evidence read only once applied, prefixes compared with ``substr``
+    def memory_org_ids(self) -> list[str]:
+        return [r["org_id"] for r in self._conn.execute("SELECT DISTINCT org_id FROM memories ORDER BY org_id").fetchall()]
+
+    def has_memories(self) -> bool:
+        return self._conn.execute("SELECT 1 FROM memories LIMIT 1").fetchone() is not None
+
+    def active_conclusions(self, rule_id: str, org_id: str | None = None) -> list[Memory]:
+        """The active conclusions of one rule, in one organization or in all of them."""
+        out: list[Memory] = []
+        for org in [org_id] if org_id is not None else self.memory_org_ids():
+            rows = self._conn.execute("""SELECT * FROM memories WHERE org_id=? AND operator='slot_composition' AND status='active'
+                                         AND rule_id=? ORDER BY scope, agg_key, memory_id""", (org, rule_id)).fetchall()
+            out.extend(row_memory(r) for r in rows)
+        return out
+
+    def distinct_scope_entity(self, org_id: str, *, operators: Iterable[str], slots: Iterable[str],
+                              topic_prefix: str | None = None) -> list[tuple[str, str | None]]:
+        """Distinct (scope, entity) of the applied active memories that could fill one of ``slots``."""
+        ops, ss = list(operators), list(slots)
+        sql = (f"SELECT DISTINCT scope, entity FROM memories WHERE org_id=? AND status='active' AND apply_seq IS NOT NULL "
+               f"AND operator IN ({','.join('?' * len(ops))}) AND slot IN ({','.join('?' * len(ss))})")
+        args: list[Any] = [org_id, *ops, *ss]
+        if topic_prefix:
+            sql += " AND substr(topic, 1, ?)=?"; args += [len(topic_prefix), topic_prefix]
+        return [(r["scope"], r["entity"]) for r in self._conn.execute(sql + " ORDER BY scope, entity", args).fetchall()]
+
+    def distinct_scope_topic(self, org_id: str, *, operators: Iterable[str] = OPERATORS) -> list[tuple[str, str]]:
+        """Distinct (scope, topic) of the applied active memories with a topic that consolidations take as evidence."""
+        ops = list(operators)
+        rows = self._conn.execute(f"""SELECT DISTINCT scope, topic FROM memories WHERE org_id=? AND status='active'
+                                      AND apply_seq IS NOT NULL AND topic IS NOT NULL AND operator IN ({','.join('?' * len(ops))})
+                                      ORDER BY scope, topic""", [org_id, *ops]).fetchall()
+        return [(r["scope"], r["topic"]) for r in rows]
+
+    def promotion_topics(self, org_id: str, unit: str) -> list[str]:
+        """Topics whose consolidation at ``unit`` depends on how many child units it has: those it promotes now, and
+        those of its direct children's consolidations (which it would promote with fewer children)."""
+        rows = self._conn.execute("""SELECT DISTINCT topic FROM memories WHERE org_id=? AND operator='topic_consolidation'
+                                     AND status='active' AND topic IS NOT NULL
+                                     AND ((scope=? AND json_extract(metadata, '$.promoted_from') IS NOT NULL)
+                                          OR (substr(scope, 1, ?)=? AND instr(substr(scope, ?), '/')=0))
+                                     ORDER BY topic""",
+                                  (org_id, unit, len(unit) + 1, unit + "/", len(unit) + 2)).fetchall()
+        return [r["topic"] for r in rows]
+
+    def active_derived_page(self, org_id: str, after: list[Any] | None, limit: int) -> list[tuple[list[Any], Memory]]:
+        """The next ``limit`` active derived memories of an organization after the key ``after``, each with its key
+        (layer rank team=1 … enterprise=5, scope, operator, agg_key or '', memory_id): lower layers first."""
+        rank = "CASE layer " + " ".join(f"WHEN '{layer}' THEN {i}" for i, layer in enumerate(LAYERS) if i) + f" ELSE {len(LAYERS)} END"
+        key = f"({rank}), scope, operator, COALESCE(agg_key, ''), memory_id"
+        sql = (f"SELECT *, {rank} AS layer_rank, COALESCE(agg_key, '') AS agg_key_or_empty FROM memories WHERE org_id=? "
+               "AND status='active' AND operator IN ('topic_consolidation', 'slot_composition')")
+        args: list[Any] = [org_id]
+        if after is not None:
+            sql += f" AND ({key}) > (?, ?, ?, ?, ?)"; args += list(after)
+        sql += f" ORDER BY {key} LIMIT ?"; args.append(int(limit))
+        return [([r["layer_rank"], r["scope"], r["operator"], r["agg_key_or_empty"], r["memory_id"]], row_memory(r))
+                for r in self._conn.execute(sql, args).fetchall()]
 
     def visible_rows(self, org_id: str, *, agent_path: str | None, team_path: str | None, scope: str | None,
                      min_layer_index: int = 0, statuses: tuple[str, ...] = ("active",)) -> list[Memory]:

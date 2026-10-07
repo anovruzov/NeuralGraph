@@ -130,6 +130,26 @@ this repository's CI sandbox with both drivers (6 agents: 8 s process / 25 s com
   backup of section 4 opens its own `sqlite3` connection and still works while the lock is held. Vertical
   capacity is what this slice targets: 10–100 agents, low thousands of memories per day. The scale-out path
   (Postgres for the read model, one consumer per shard) is not part of this release.
+* **Size per organization.** Aggregation runs inside the consumer's apply transaction, on the event loop, so
+  nothing else is served while an event applies, and its cost grows with the evidence of the event's organization
+  and with the rules that read it. Measured at 5,000 active notes in one organization (96 agents in 32 teams across
+  2 regions, 30–50 entities):
+  * with the three rules of `deploy/mycelic/rules.json` (the default `MYCELIC_RULES_FILE`, a regional rule feeding a
+    strategic one), applying one note took a median of 0.41–0.48 s and at most 1.85 s (about 0.3–0.4 s, at most
+    1.2 s, at 3,000 notes); with `component_supply_risk` alone, 0.21 s and at most 0.59 s;
+  * with `component_supply_risk` alone (about 8,100 active memories), a rule change took 1.3–1.9 s for a changed
+    template, which re-derives every conclusion of the rule, and 1.4–2.0 s to re-enable it (0.4–0.7 s for an
+    identical upsert, under 0.2 s to disable it); about 60% of that is scoring the fragility of each conclusion it
+    derives again. A commit waits for the disk (`synchronous=FULL`), so a slow fsync adds to any apply: expect an
+    occasional rule change above 2 s;
+  * a full re-aggregation run took 108–136 s in 1,528 steps. A step's own work (reading, reconciling, emitting)
+    took at most 0.3 s and whole steps usually at most 0.42 s; the rare slower ones (up to 1.2 s) are the commit
+    waiting on the disk: in instrumented runs no step's work exceeded 0.3 s, while one commit took 0.57 s.
+
+  Keep each organization at or below about 5,000 active notes per node in this release (with the shipped rules
+  that is about two notes per second at most), and make rule changes in quiet periods. A re-aggregation run
+  enumerates its organization's keys again at every step, so its duration grows faster than the organization; it
+  yields between steps, so the node keeps serving meanwhile.
 * **One NATS server** with a file-backed JetStream store. A 3-node JetStream cluster is a drop-in change on
   the broker side (`num_replicas` is a stream setting; Mycelic sets 1) and is not covered by this release.
 * **TLS.** Terminate at a reverse proxy or Ingress and set `MYCELIC_ALLOWED_HOSTS` to its hostname and
@@ -173,7 +193,7 @@ All variables have the `MYCELIC_` prefix. Validation runs at start and fails fas
 | `RATE_LIMIT_RPS`, `RATE_LIMIT_BURST` | `50`, `100` | per peer address before auth and per principal after |
 | `MAX_BODY_BYTES`, `MAX_TEXT_CHARS`, `MAX_BATCH`, `MAX_EVENT_BYTES` | `1 MiB`, `4000`, `100`, `256 KiB` | input limits |
 | `AUDIT_RETENTION_DAYS` | `90` | audit rows older than this are pruned at start |
-| `MIN_SUPPORT` | `2` | distinct child units needed for a consolidated memory |
+| `MIN_SUPPORT` | `2` | distinct child units needed for a consolidated memory. Changing it re-derives every consolidation at the next start (the re-aggregation job, section 4). It is deployment configuration, not part of the event log, so a rebuild from the log uses the value the rebuilding node runs with |
 | `RULES_FILE` | | JSON file of slot-composition rules re-applied at every start (`deploy/mycelic/rules.json`); a file rule overrides an API edit to the same `rule_id`, and the override is appended to the event log so a rebuild ends with the same rules. Rule fields are listed in section 3a |
 | `PUBLIC_URL` | | informational |
 
@@ -204,10 +224,19 @@ the stored, normalised form. A rule with neither `emits_topic` nor `topic_prefix
 normalised `rule_id` as topic.
 
 An upsert or delete shows in `GET /admin/rules` at once, but aggregation uses it only when the consumer applies its
-event, in log order with the notes around it: a note applied before the rule's event is not evaluated against the
-rule (re-evaluation on rule changes is not automatic yet). The same holds for agents: a unit's registered children,
-which decide whether it promotes a single child's consolidation, are counted from the registrations and revocations
-the consumer has applied.
+event, in log order with the notes around it. When the event applies, the rule is applied to everything applied
+before it: a new rule concludes at once on the evidence already there (no new note is needed); a changed rule
+re-derives its conclusions (a new version, the old one kept as `superseded`, when it now derives differently; a
+withdrawal, `support below threshold`, when tighter thresholds no longer hold; nothing at all when only `metadata`
+changed); a disabled or deleted rule withdraws its conclusions (`rule disabled`, `rule deleted`); a rule moved to
+another `target_layer` or narrowed to one `org_id` withdraws the conclusions it no longer covers (`rule no longer
+applies here`) and concludes at its new layer. Whatever rested on a withdrawn conclusion (a strategy on regional
+conclusions, say) is withdrawn and re-evaluated with it. Re-enabling a rule, or re-creating a deleted one
+identically, brings back the same conclusions with the same ids. Two edits of one rule that reach the log before the
+first is applied are applied in turn, so a conclusion can get one intermediate version. The same holds for agents:
+a unit's registered children, which decide whether it promotes a single child's consolidation, are counted from the
+registrations and revocations the consumer has applied, and the registration of a unit's second child withdraws its
+promotion (and those above it) when it applies; revoking that child's last agent restores them.
 
 Rules compose and cascade: a conclusion is offered to the rules and consolidations above it as soon as it
 is derived, a rule never feeds on its own conclusions (directly or through other rules; a rule set that would
@@ -267,17 +296,34 @@ before restoring an older database.
 | durable consumer lost (broker state reset) | just start it: the consumer is recreated after the last applied sequence (`kind="consumer_recreated"`; `test_lost_consumer_is_recreated_after_the_last_applied_event`) |
 | stream shorter than the database (purged or recreated) | the database keeps serving; the log restarts from the new sequence and `kind="stream_behind_database"` is counted; restore the stream backup first when you can |
 | force a replay | `python -m mycelic replay` or `POST /admin/replay` (`test_forced_replay_is_idempotent`) |
+| force a re-aggregation | `python -m mycelic reaggregate [--org ORG]` or `POST /admin/reaggregate` with `{"org_id": …}`, or with no body or a null `org_id` for every organization (an empty `org_id` is refused with 400): re-derives every consolidation and conclusion of one organization or all of them in the background while the node keeps serving; `{"started": false}` while a run is in progress. Progress: `GET /admin/status` → `checks.reaggregation`, `mycelic_reaggregation_steps_total`, audit `aggregation.reaggregate` per organization (`test_admin_route_sdk_and_cli`) |
 | poison or rejected event | after `NATS_MAX_DELIVER` attempts it is terminated and recorded (`GET /admin/events?org=…&status=failed`, audit `event.failed`); a terminated or unsigned event counts as consumed, so a replay still completes (`test_poison_event_is_terminated_and_replay_completes`) |
 
 **Upgrades.** Build the new image, `docker compose -f deploy/mycelic/docker-compose.yml up -d --build`. The schema version is stored in the
-database; a newer schema than the code refuses to start. Replays are idempotent across versions as long as
-the aggregation rules are unchanged; changing rules changes future derivations only.
+database; a newer schema than the code refuses to start. Replays are idempotent across versions. Derived ids embed
+the derivation version, `MIN_SUPPORT` and each rule's digest, so after an upgrade that changes how memories are
+derived, or a change of `MIN_SUPPORT`, the conclusions converge automatically: the first start runs the
+re-aggregation job in the background (the node serves and stays ready meanwhile; it waits while a replay runs). Old
+rows are never deleted and stay readable by id. Most are superseded by their new version (`previous_versions` in the
+lineage of the successor); a row that rested on a superseded one and was not replaced along with it is retracted
+(`status_reason` `evidence superseded`) and derived again as a new memory with no `version_of` link. Until
+`GET /admin/status` shows `checks.reaggregation.state` = `done` (and `mycelic_reaggregation_steps_total` stops
+rising), answers may mix memories derived by the old and the new version. An interrupted or failed run is
+retried at the next start; `python -m mycelic reaggregate` re-runs it on demand. Its derived events are not
+reproduced by a rebuild from the log, which derives the converged state directly.
+
+**Rolling back and forward again.** This release keeps schema 3, so the previous schema-3 release can open a
+database this one has written; it then derives ids without a derivation version, while `meta.derivation_version`
+still records this release's. Rolling forward again therefore starts no re-aggregation on its own: after the
+roll-forward, run `python -m mycelic reaggregate` (or `POST /admin/reaggregate`) once and wait for
+`checks.reaggregation.state` = `done`.
 
 Upgrading to schema 3 (this release) is one-way: the first start migrates the database in one transaction
 (normalised labels on stored notes and rules, applied-rule and registry state, apply order), and older code cannot
 open it afterwards, so **back up the database first** (see Backups). Consolidations and conclusions derived before
-the upgrade keep the label spellings they were built under and stay as they are until they are re-aggregated; the
-migration records that need as `reaggregate_pending` in the `meta` table. A rebuild from an older stream applies
+the upgrade keep the label spellings they were built under until they are re-aggregated; the migration records that
+need as `reaggregate_pending` in the `meta` table, and the re-aggregation job at the first start withdraws them and
+derives the canonical ones (an empty database records nothing to do and runs no job). A rebuild from an older stream applies
 its notes in normalised form and ignores the old derived events (one `event.ignored` audit row with their count).
 
 **Retention.** The stream is intentionally unbounded: bounding it (`NATS_MAX_AGE_SECONDS`,

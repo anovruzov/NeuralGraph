@@ -4,6 +4,7 @@
     python -m mycelic mcp --url URL --api-key KEY # MCP over stdio, proxied to a running server (Claude Desktop / Code)
     python -m mycelic register-agent --enterprise northwind --team logistics --agent-id agent-7
     python -m mycelic agents | rules | status | replay | query "delivery risk"
+    python -m mycelic reaggregate [--org northwind]   # re-derive conclusions (progress: status, checks.reaggregation)
 
 Admin commands are HTTP clients of a running server: MYCELIC_URL (default http://127.0.0.1:8080) and
 MYCELIC_ADMIN_TOKEN.  ``query`` uses MYCELIC_API_KEY (an agent key) or the admin token.
@@ -151,6 +152,11 @@ def cmd_replay(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_reaggregate(args: argparse.Namespace) -> int:
+    print(json.dumps(_admin_client(args).reaggregate(args.org)))
+    return 0
+
+
 def cmd_query(args: argparse.Namespace) -> int:
     from .sdk import MycelicClient
 
@@ -208,6 +214,8 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("status", help="full service status (admin)"); common(s); s.set_defaults(fn=cmd_status, is_async=False)
     s = sub.add_parser("replay", help="re-deliver the whole event log to the service (admin)"); common(s)
     s.set_defaults(fn=cmd_replay, is_async=False)
+    s = sub.add_parser("reaggregate", help="re-aggregate one organization or all of them (admin)"); common(s)
+    s.add_argument("--org"); s.set_defaults(fn=cmd_reaggregate, is_async=False)
     s = sub.add_parser("query", help="ask the organization"); common(s)
     s.add_argument("text"); s.add_argument("--api-key"); s.add_argument("--scope"); s.add_argument("--min-layer", default="agent")
     s.add_argument("-k", type=int, default=5); s.add_argument("--lineage", action="store_true")

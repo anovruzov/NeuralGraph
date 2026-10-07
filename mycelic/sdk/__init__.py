@@ -148,6 +148,9 @@ class MycelicClient:
     def replay(self) -> dict[str, Any]:
         return self._request("POST", "/admin/replay", {})
 
+    def reaggregate(self, org_id: str | None = None) -> dict[str, Any]:
+        return self._request("POST", "/admin/reaggregate", {"org_id": org_id} if org_id is not None else {})
+
     def status(self) -> dict[str, Any]:
         return self._request("GET", "/admin/status")
 

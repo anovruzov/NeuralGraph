@@ -102,8 +102,8 @@ use the real broker.
 | `mycelic.<org>.memory-derived` | `memory.derived` | the consumer, for every derived memory | informational: `duplicate` if this node derived it, else ignored and counted (`mycelic_events_ignored_total{reason="derived_not_reproduced"}`), never inserted |
 | `mycelic.<org>.memory-retracted` | `memory.retracted` | `POST /memory/{id}/retract` | retract, retire dependents, re-derive |
 | `mycelic.<org>.agent-event` | `agent.event` | `POST /events` | recorded (evidence) |
-| `mycelic.<org>.agent-registered` / `agent-revoked` / `agent-key-rotated` | admin operations | `/admin/agents` | upsert the registry (key **hashes**, never keys); `agents.log_status` records the registry as applied, which is what aggregation counts (the API writes `status` at once, for authentication and the admin views) |
-| `mycelic.<org>.rule-upserted` / `rule-deleted` | admin operations | `/admin/rules` | update `applied_rules`, which aggregation evaluates; the admin table `rules` is written by the API at once, and by an event only when the event came from the stream alone and no newer local change of that rule is still unapplied |
+| `mycelic.<org>.agent-registered` / `agent-revoked` / `agent-key-rotated` | admin operations | `/admin/agents` | upsert the registry (key **hashes**, never keys); `agents.log_status` records the registry as applied, which is what aggregation counts (the API writes `status` at once, for authentication and the admin views); a registration or revocation that changes how many child units a unit above the agent has re-plans that unit's promotions and everything above them |
+| `mycelic.<org>.rule-upserted` / `rule-deleted` | admin operations | `/admin/rules` | update `applied_rules`, which aggregation evaluates, then apply the rule to everything applied before it: an upsert reconciles the rule's active conclusions (withdrawn, kept or superseded) and composes the rule wherever evidence could satisfy it; a delete withdraws its conclusions; either way dependents are retired and re-evaluated. The admin table `rules` is written by the API at once, and by an event only when the event came from the stream alone and no newer local change of that rule is still unapplied |
 
 Stream `MYCELIC`: file storage, `retention=limits`, `discard=new`, no age/size/count limit by default
 (a bounded stream is logged as an error at connect), duplicate window 2 h, one replica. Consumer
@@ -146,7 +146,36 @@ then `term`.
 * **Log-applied rules and agents.** Aggregation reads `applied_rules` and the registry as of the event being
   applied (`agents.log_status`), never what the API has already written but the consumer has not applied, so a
   live node behind its log and a rebuild of that log derive the same history
-  (`test_rules_and_registry_are_read_in_log_order_and_rebuild_identically`).
+  (`test_rules_and_registry_are_read_in_log_order_and_rebuild_identically`). A conclusion appears when the event
+  that makes it hold applies and disappears when the event that ends it applies, whatever kind of event that is.
+* **Rule lifecycle at apply.** A `rule.upserted` event first records the rule in `applied_rules`, then evaluates it
+  against everything applied so far (`Aggregator.evaluate_rule`): every active conclusion of the rule is reconciled,
+  and the rule is composed at every (unit, entity) where applied evidence could fill one of its slots, so a rule
+  added after its evidence concludes at its own apply, with no new observation. Reconciling withdraws a conclusion
+  whose rule is now disabled (`status_reason` `rule disabled`), no longer covers its organization or no longer
+  targets its layer (`rule no longer applies here`; new conclusions appear at the new layer or only in the remaining
+  organization), or whose support the new thresholds no longer reach (`support below threshold`); it supersedes a
+  conclusion that the rule now derives differently (a new template, threshold, slot, topic or source: a new id, the
+  old one `superseded` with `version_of` kept); and it leaves alone one that the rule derives exactly as before.
+  A `rule.deleted` event withdraws every active conclusion of the rule (`rule deleted`, `Aggregator.withdraw_rule`).
+  Whatever rested on a withdrawn or superseded conclusion (a strategy on regional conclusions, a consolidation of
+  their topic) is retired and re-evaluated, so nothing active rests on a conclusion that is not; a new emitted topic
+  or slot therefore moves the consolidations of the conclusions to the new topic and takes them away from the rules
+  that consumed the old slot. Disabling then
+  re-enabling a rule, or deleting and re-creating it identically, reactivates the same ids. Re-evaluating a retired
+  conclusion uses the rule only where it still applies (`Aggregator.rule_for`), so a conclusion is never rebuilt at a
+  unit whose layer its rule no longer targets. Two upserts of one rule that both reach the log before the first
+  applies are applied in order: the first is evaluated and then superseded by the second, so a key gets at most one
+  intermediate version, and a rebuild reproduces it (`tests/mycelic/test_rule_lifecycle.py`).
+* **Registry changes.** Only promotion depends on how many registered child units a unit has. When an
+  `agent.registered` or `agent.revoked` event changes that number for a unit above the agent (department and above;
+  a team's children are agents and a team never promotes), the topics the unit promotes or could promote (those of
+  its direct children's consolidations) are re-planned from the agent's team up to the enterprise
+  (`Aggregator.registry_changed`). A second team in a department withdraws the department's promotion and the
+  promotions above it; an agent in a brand-new region withdraws the enterprise's promotion; revoking the last agent
+  of the new unit reactivates the same ids. A revoked agent's notes stay evidence, so contributions do not change.
+  A registration into an existing unit, a duplicate registration and a revocation that is replayed or names an
+  unknown agent change no count and do no aggregation work.
 * **Candidates.** Each consolidation and rule reads the newest `max_candidates` (5,000) matching memories in apply
   order (`memories.apply_seq`, which numbers rows in the order the consumer applied them on every node); a child
   unit with its own consolidation contributes only that, so its notes are not read. A full candidate set means
@@ -154,18 +183,75 @@ then `term`.
   is logged once per unit and key (`test_candidate_cap_does_not_freeze_team_or_upper_layers`).
 * **`*` conclusions.** A rule evaluated without an entity concludes only when evidence that names no entity is
   among the selected memories; such a `rule:*` conclusion is re-evaluated when entity-specific evidence arrives
-  (`test_wildcard_conclusion_is_refreshed_by_entity_evidence`).
+  (`test_wildcard_conclusion_is_refreshed_by_entity_evidence`) and when evidence goes away, a retracted note or a
+  withdrawn consolidation or conclusion, since the next strongest memory may name no entity.
+* **Blocking candidates.** A rule selects the strongest memory per slot, so a strong memory that adds no agent can
+  keep a conclusion below its threshold without the conclusion resting on it. When such a memory stops filling the
+  slot, because it is retracted or withdrawn or because it is superseded by a version with another slot, entity or
+  topic (a rule changed what it emits, a note with another slot joined a consolidation), the rules its slot fed are
+  composed again under its old slot, entity and topic (`Aggregator._withdraw`, `Aggregator._superseded`). The
+  conclusion it blocked then appears at once and is offered to everything above it
+  (`test_superseded_candidate_unblocks_conclusions`, `test_withdrawn_candidate_unblocks_conclusions`,
+  `test_consolidation_losing_its_slot_or_entity_unblocks_conclusions`). A version superseded by one that is the
+  same candidate (same slot, entity, topic and rule chain: a note joining a consolidation, a conclusion gaining
+  evidence, by far the most common case) is not composed again, because offering its successor upward has just
+  composed exactly those rule keys (`test_same_candidate_successor_is_not_composed_twice`).
 * **Cascades.** Retiring dependents walks active memories only (nearest first, in id order, at most 100,000);
   a cut walk and a cascade cut at depth 8 are logged as errors and counted
   (`mycelic_aggregation_truncated_total{what="dependents"|"cascade"}`). A derived id already taken by an unrelated
   row, or an earlier version that comes back with different text, is reported
   (`mycelic_aggregation_inconsistency_total{kind}`, audit `aggregation.inconsistency` with text hashes) instead of
   failing the event.
-* **Determinism.** A derived memory's id is `sha256(operator, unit, key, sorted parent ids)`. Recomputing
-  the parent set from currently active evidence either leaves the active memory as is, supersedes it with
-  a new version (old one readable as `previous_versions`), reactivates an earlier version whose exact
-  coalition returned, or retracts it when support falls below the threshold. At most one active derived
-  memory per (unit, operator, key) is enforced by a unique index.
+* **Determinism and versioned ids.** A derived memory's id is `sha256(operator, unit, versioned key, sorted parent
+  ids)`. The versioned key of a consolidation is `<topic>|v<DERIVATION_VERSION>|ms<MIN_SUPPORT>`; that of a
+  conclusion is `<rule_id>:<entity or *>|v<DERIVATION_VERSION>|r<rule digest>`, where the digest is the first 16
+  hex characters of a hash of the rule's deriving fields (`models.rule_snapshot`: `rule_id` and every field except
+  `enabled`, `metadata` and `org_id`, which do not change what a rule derives, so switching a rule off and on,
+  deleting and re-creating it, narrowing it to one organization or editing its metadata keeps its ids). Each derived
+  memory records how it was derived in `metadata.derivation`: `{v, min_support}` for a consolidation, `{v,
+  rule_digest, rule}` for a conclusion (`rule` is the snapshot; agents see `{v, rule_digest}`, administrators the
+  snapshot too; agents cannot set the key). `metadata.agg_key` stays the topic or `rule_id:entity`, so one version is
+  active per key and a new derivation supersedes the old one across versions. `DERIVATION_VERSION` (1) is bumped
+  whenever a released builder's output changes; the re-aggregation job then converges stored state. Recomputing the
+  parent set from currently active evidence either leaves the active memory as is, supersedes it with a new version
+  (old one readable as `previous_versions`), reactivates an earlier version whose exact coalition returned, or
+  retracts it when support falls below the threshold. At most one active derived memory per (unit, operator, key)
+  is enforced by a unique index.
+* **Re-aggregation job.** Local maintenance, not an event (`MycelicService._reaggregate_job`,
+  `Aggregator.reaggregate_step`). It starts in the background at start-up when the database was derived under
+  another `DERIVATION_VERSION` or `MIN_SUPPORT` than this node runs with (`meta.derivation_version`,
+  `meta.min_support`), or a migration flagged it (`meta.reaggregate_pending`), and on demand
+  (`POST /admin/reaggregate`, `python -m mycelic reaggregate [--org]`). A database with no memories records the meta
+  at start without a job, so a fresh volume and a rebuild never run one. Per organization it goes through three
+  phases: `derived` (every active consolidation and conclusion, lower layers first, is reconciled: legacy ids are
+  superseded by their new version, conclusions of deleted, disabled or moved rules and consolidations under legacy
+  label spellings are withdrawn; a legacy row resting on one superseded before it, and not replaced along with it, is
+  retracted as `evidence superseded` and derived again without a `version_of` link; no row is deleted), `topics` (every unit above applied evidence is consolidated, which creates what
+  should exist, for example after `MIN_SUPPORT` is lowered) and `rules` (every enabled rule is composed wherever it
+  has evidence). Each step reconciles at most `reaggregate_batch` (5) items in one transaction and then yields to
+  the event loop, so probes, the API and the consumer keep running in between (at 5,000 notes in one organization a
+  step's work took at most 0.3 s and its slowest item 0.24 s, and a full run forced by a `MIN_SUPPORT` change
+  108–136 s in 1,528 steps; whole steps usually took at most 0.42 s, and the rare slower ones, up to 1.2 s, are the
+  commit waiting on the disk's fsync (`synchronous=FULL`; one instrumented commit took 0.57 s); batches of 10 took up
+  to 0.5 s a step and batches of 50 up to 1.3 s). Every enumeration
+  is recomputed at each step and resumed after the last key processed, so applies between steps are safe; the price
+  is that a run's duration grows faster than linearly with the size of the organization. While a replay is in
+  progress the job runs no step (`checks.reaggregation.state` = `waiting_for_replay`) and starts again from the first
+  organization afterwards. A complete run over all organizations records the meta and clears the pending flag; an
+  organization-scoped run never does; an interrupted run (`interrupted`) or a failed one (`failed`, with the error;
+  the node keeps serving and stays ready) leaves the meta, so the next start runs again from the beginning. Each
+  organization's run writes one audit row `aggregation.reaggregate` (`org_id`, `changed`, `steps`, `reason`) and every
+  step counts `mycelic_reaggregation_steps_total`. The derived events a run emits are not reproduced by a rebuild: a
+  rebuild derives the converged state directly and counts those events as duplicates or ignored
+  (`tests/mycelic/test_reaggregate.py`).
+* **Fixed point.** `tests/mycelic/test_aggregation_invariants.py` applies seeded random sequences of registrations
+  (full, sparse and in a second organization), revocations, notes with random labels, retractions and rule upserts,
+  disables, deletes, re-creations, layer and organization moves, and checks after each operation (or once at the end)
+  that one memory is active per key, every active derived memory rests on active parents, consolidations stand for
+  enough children of their unit, support is that of the roots, re-planning reproduces every active derived memory
+  and every key that holds has its memory, notes reach every unit above them under `MIN_SUPPORT` 1, a rebuild of the
+  log reproduces the history, and a full re-aggregation pass changes nothing (`MYCELIC_INVARIANT_SEEDS` sets the
+  number of seeds).
 
 Verified by `tests/mycelic/test_datapath.py` (consolidation, rule firing, supersession, reactivation,
 retraction) and by the smoke test on a live deployment.
@@ -211,15 +297,18 @@ entity are withheld, the unit (team) path, layer, timestamps and confidence rema
 `retraction_target`, `unknown_kind`), `mycelic_aggregation_inconsistency_total{kind}` (`id_collision`,
 `reactivation_mismatch`), `mycelic_aggregation_truncated_total{what}` (`candidates`, `dependents`, `cascade`),
 `mycelic_retrieval_latency_seconds`,
-`mycelic_aggregation_latency_seconds`, `mycelic_lineage_latency_seconds`,
+`mycelic_aggregation_latency_seconds`, `mycelic_reaggregation_steps_total` (re-aggregation job steps, one
+transaction each), `mycelic_lineage_latency_seconds`,
 `mycelic_lineage_reconstruction_total{result}`, `mycelic_http_requests_total{route,status}`,
 `mycelic_auth_failures_total{reason}`, `mycelic_active_agents`, `mycelic_registered_agents`,
 `mycelic_memories{layer}`, `mycelic_outbox_pending`, `mycelic_transport_connected`,
 `mycelic_consumer_pending` (read from the broker at scrape time), `mycelic_build_info{version}`.
 
 `GET /health` (public: status, version, transport connected, consumer running), `GET /ready`,
-`GET /admin/status` (full checks, stream/consumer positions, masked settings), `GET /admin/audit`,
-`GET /admin/events`.
+`GET /admin/status` (full checks, stream/consumer positions, masked settings, and `checks.reaggregation`: the
+re-aggregation job's `state` (`idle`, `running`, `waiting_for_replay`, `done`, `interrupted`, `failed`), `reason`,
+`scope`, current `org_id` and `phase`, `steps`, `changed`, `started_at`, `finished_at`, `error`), `GET /admin/audit`,
+`GET /admin/events`. The job never affects `/ready`: the node serves while it converges.
 
 ## 9. Mermaid version of the topology
 

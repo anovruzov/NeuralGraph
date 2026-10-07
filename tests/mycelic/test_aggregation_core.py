@@ -258,7 +258,7 @@ class AggregationCoreTests(unittest.IsolatedAsyncioTestCase):
         n1, n2 = await self.team_notes(h, "log-1", "log-2")
         [team] = s.store.list_memories(ORG, layers=["team"])
         n3 = note_id("log-3", "log-3-0")
-        taken = derived_memory_id(operator="topic_consolidation", scope=TEAM, key=TRANSPORT, parent_ids=[n1, n2, n3])
+        taken = derived_memory_id(operator="topic_consolidation", scope=TEAM, key=aggregation.consolidation_id_key(TRANSPORT, 2), parent_ids=[n1, n2, n3])
         squatter = Memory(memory_id=taken, org_id=ORG, layer="agent", scope=f"{TEAM}/log-4", text="unrelated row", topic=None,
                           slot=None, entity=None, kind="observation", confidence=0.5, support=1, independent_teams=1,
                           producer_id="log-4", operator="agent_observation", rule_id=None, event_id=None, created_at=now_iso())
@@ -425,10 +425,12 @@ class AggregationCoreTests(unittest.IsolatedAsyncioTestCase):
         try:
             self.assertTrue(await s2.wait_idle(15))
             self.assertEqual(history(s2.store), live, "the full history is the same on the live node and on a rebuild")
-            self.assertFalse([m for m in s1.store.list_memories(ORG, status=None, limit=1000) if m.rule_id == "lag"],
-                             "the notes were applied before the rule")
-            self.assertEqual(len(s1.store.list_memories(ORG, layers=["enterprise"])), 1,
-                             "the notes were applied while the enterprise had one region")
+            lag = [m for m in s1.store.list_memories(ORG, status=None, limit=1000) if m.rule_id == "lag"]
+            self.assertEqual([(m.status, m.support, m.metadata.get("version_of")) for m in lag], [("active", 2, None)],
+                             "the rule, applied after the notes, concludes on them once, at its own apply")
+            self.assertEqual([m.status for m in s1.store.list_memories(ORG, layers=["enterprise"], status=None, limit=1000)],
+                             ["retracted"], "the notes were applied while the enterprise had one region, and apac-1's "
+                                            "registration withdrew the promotion")
             self.assertEqual([r[0] for r in applied_rules(s1.store)], ["lag"])
             self.assertEqual(applied_rules(s2.store), applied_rules(s1.store))
             self.assertEqual(s2.store.child_units(ORG, "northwind"), s1.store.child_units(ORG, "northwind"))

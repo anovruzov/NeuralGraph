@@ -2,15 +2,19 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from mycelic.aggregation import CONSOLIDATABLE, contributing_agents, lineage_roots
 from mycelic.auth import Principal
 from mycelic.config import Settings
+from mycelic.hierarchy import ancestors, child_unit_of, unit_at_layer
 from mycelic.metrics import Metrics
 from mycelic.service import MycelicService
+from mycelic.store import MycelicStore
 from mycelic.transport import InProcessTransport, Transport
 
 ADMIN_TOKEN = "test-admin-token-0123456789abcdef0123456789"
@@ -226,3 +230,180 @@ class ServiceHarness:
 
     async def settle(self, timeout: float = 10.0) -> None:
         assert await self.service.wait_idle(timeout), "service did not become idle"
+
+
+async def drain_outbox(service: MycelicService, timeout: float = 10.0) -> None:
+    deadline = asyncio.get_running_loop().time() + timeout
+    while service.store.stats()["outbox_pending"]:
+        assert asyncio.get_running_loop().time() < deadline, "outbox did not drain"
+        await asyncio.sleep(0.02)
+
+
+def broken_chains(store: MycelicStore, org_id: str) -> list[str]:
+    """Active memories that rest, directly or anywhere below, on a memory that is not active."""
+    out = []
+    for m in store.list_memories(org_id, status="active", limit=100_000):
+        stack, seen = [m.memory_id], set()
+        while stack:
+            for e in store.parents_of(stack.pop()):
+                if e.parent_id not in seen:
+                    seen.add(e.parent_id)
+                    parent = store.get_memory(e.parent_id)
+                    if parent is None or parent.status != "active":
+                        out.append(f"{m.memory_id} rests on {e.parent_id} ({parent.status if parent else 'missing'})")
+                    stack.append(e.parent_id)
+    return out
+
+
+async def step(service: MycelicService, transport: InProcessTransport) -> dict[str, Any]:
+    """Deliver and apply exactly the next event of the log, whatever ``hold`` says."""
+    [d] = await InProcessTransport.fetch(transport, 1, 1.0)
+    await service._handle_delivery(d)
+    return json.loads(d.data)
+
+
+# ---------------------------------------------------------------------- an inline log, its rebuild, and invariants
+async def pump(service: MycelicService, log: list[dict[str, Any]]) -> None:
+    """Publish and apply every pending event in outbox order, appending each one's wire form to ``log`` (sequence =
+    position in ``log``): the consumer of a service that was never started, so nothing runs in the background."""
+    while True:
+        rows = service.store.pending_events(1000)
+        if not rows:
+            return
+        for ev in rows:
+            seq = len(log) + 1
+            async with service.store.transaction() as tx:
+                tx.mark_published(ev.event_id, seq)
+            log.append(json.loads(json.dumps(service._event_wire(ev))))
+            await service.apply_event(log[-1], seq=seq)
+
+
+async def rebuild(log: list[dict[str, Any]], tmp: str | Path, **overrides: Any) -> MycelicService:
+    """A fresh in-memory node that applied ``log`` in order, as a replay does (derived events published, never queued)."""
+    s = MycelicService(settings(tmp, **overrides), store=MycelicStore(":memory:"), transport=InProcessTransport(), metrics=Metrics())
+    s._replay_target = len(log)
+    for seq, event in enumerate(log, start=1):
+        await s.apply_event(event, seq=seq)
+    s._replay_target = None
+    return s
+
+
+def memory_history(store: MycelicStore) -> dict[str, tuple]:
+    return {r["memory_id"]: (r["layer"], r["status"], r["support"], json.loads(r["metadata"]).get("version_of"))
+            for r in store._conn.execute("SELECT memory_id, layer, status, support, metadata FROM memories")}
+
+
+def lineage_edge_set(store: MycelicStore) -> set[tuple[str, str]]:
+    return {(r["child_id"], r["parent_id"]) for r in store._conn.execute("SELECT child_id, parent_id FROM lineage_edges")}
+
+
+def applied_rule_rows(store: MycelicStore) -> list[tuple]:
+    return [tuple(r) for r in store._conn.execute("SELECT rule_id, org_id, applied_seq, snapshot FROM applied_rules ORDER BY rule_id")]
+
+
+def table_dump(store: MycelicStore, table: str) -> list[tuple]:
+    return [tuple(r) for r in store._conn.execute(f"SELECT * FROM {table} ORDER BY rowid")]
+
+
+def invariant_violations(service: MycelicService, org_id: str) -> list[str]:
+    """I1-I6 over one organization's state as applied (see ``test_aggregation_invariants``).  Every key that should be
+    evaluated is enumerated here from the memories themselves, not with the aggregator's own enumeration helpers."""
+    st, agg, ms = service.store, service.aggregator, service.aggregator.min_support
+    bad: list[str] = []
+    rows = st.list_memories(org_id, status=None, limit=1_000_000)
+    by_id = {m.memory_id: m for m in rows}
+    active = [m for m in rows if m.status == "active"]
+    derived = [m for m in active if m.operator != "agent_observation"]
+    # I1: one active memory per (unit, operator, key)
+    for r in st._conn.execute("""SELECT operator, scope, COALESCE(agg_key, '') AS k, COUNT(*) AS n FROM memories
+                                 WHERE org_id=? AND status='active' AND operator!='agent_observation'
+                                 GROUP BY operator, scope, k HAVING n > 1""", (org_id,)):
+        bad.append(f"I1 {r['n']} active for {r['operator']} {r['scope']} {r['k']}")
+    for m in derived:
+        parents = [by_id.get(e.parent_id) for e in st.parents_of(m.memory_id)]
+        # I2: an active derived memory rests on existing active memories only
+        if not parents or any(p is None or p.status != "active" for p in parents):
+            bad.append(f"I2 {m.memory_id} ({m.operator} {m.scope}) parents {[p.status if p else 'missing' for p in parents]}")
+            continue
+        # I3: a consolidation stands for enough direct children of its unit, on its own topic
+        if m.operator == "topic_consolidation":
+            effective = 1 if m.metadata.get("promoted_from") else ms
+            inside = all(p.scope.startswith(m.scope + "/") and p.topic == m.topic for p in parents)
+            children = sorted({child_unit_of(p.scope, m.scope) for p in parents}) if inside else []
+            if (not inside or len(children) < effective or children != m.metadata.get("children")
+                    or m.metadata.get("effective_min_support") != effective):
+                bad.append(f"I3 {m.memory_id} at {m.scope} on {m.topic}: children {children} (meta {m.metadata.get('children')}), "
+                           f"effective {effective}, parents inside {inside}")
+        # I4: support and teams are those of the roots, and the roots are the parents' roots
+        roots = m.metadata.get("roots") or []
+        root_mems = [by_id.get(r) for r in roots]
+        if (any(r is None for r in root_mems) or set(roots) != {r for p in parents for r in lineage_roots(p)}
+                or m.support != len({a for r in root_mems for a in contributing_agents(r)})
+                or m.independent_teams != len({unit_at_layer(r.scope, "team") for r in root_mems})):
+            bad.append(f"I4 {m.memory_id} support {m.support}/{m.independent_teams} roots {len(roots)}")
+        # I5 soundness: re-planning reproduces it, under an applied, enabled rule covering its org and layer
+        if m.operator == "slot_composition" and agg.rule_for(m) is None:
+            bad.append(f"I5 {m.memory_id} rests on rule {m.rule_id} that no longer applies to it")
+            continue
+        plan = agg.plan_for(m)
+        if plan is None or plan.memory is None or plan.memory.memory_id != m.memory_id:
+            bad.append(f"I5 {m.memory_id} ({m.operator} {m.scope} {m.metadata.get('agg_key')}) re-plans to "
+                       f"{None if plan is None or plan.memory is None else plan.memory.memory_id}")
+    # I5 completeness: wherever an operator holds there is a memory with its id, and nowhere else
+    evidence = [m for m in st.list_memories(org_id, status="active", latest=True, limit=1_000_000)]
+    topic_keys = sorted({(unit, m.topic) for m in evidence if m.topic and m.operator in CONSOLIDATABLE
+                         for unit in ancestors(m.scope, include_self=False)})
+    for unit, topic in topic_keys:
+        plan = agg.plan_consolidation(org_id, unit, topic)
+        current = st.current_derived(org_id, "topic_consolidation", unit, topic)
+        if (plan.memory is None) != (current is None) or (current is not None and plan.memory.memory_id != current.memory_id):
+            bad.append(f"I5c consolidation {unit} {topic}: plan {plan.memory.memory_id if plan.memory else None} "
+                       f"current {current.memory_id if current else None}")
+    for rule in st.list_applied_rules(org_id):
+        keys = {(unit_at_layer(m.scope, rule.target_layer), m.entity) for m in evidence
+                if m.operator in rule.sources and m.slot in rule.required_slots
+                and (not rule.topic_prefix or (m.topic or "").startswith(rule.topic_prefix))}
+        for unit, entity in sorted((k for k in keys if k[0]), key=lambda k: (k[0], k[1] is not None, k[1] or "")):
+            plan = agg.plan_rule(rule, org_id, unit, entity)
+            current = st.current_derived(org_id, "slot_composition", unit, f"{rule.rule_id}:{entity or '*'}")
+            if (plan.memory is None) != (current is None) or (current is not None and plan.memory.memory_id != current.memory_id):
+                bad.append(f"I5c rule {rule.rule_id} {unit} {entity}: plan {plan.memory.memory_id if plan.memory else None} "
+                           f"current {current.memory_id if current else None}")
+    # I6: with min_support 1 every shared topical note reaches the consolidation of every unit above it
+    if ms == 1:
+        for m in evidence:
+            if m.operator == "agent_observation" and m.topic:
+                for unit in ancestors(m.scope, include_self=False):
+                    current = st.current_derived(org_id, "topic_consolidation", unit, m.topic)
+                    if current is None or m.memory_id not in current.metadata.get("roots", []):
+                        bad.append(f"I6 {m.memory_id} on {m.topic} does not reach {unit}")
+    return bad
+
+
+def rebuild_differences(live: MycelicService, rebuilt: MycelicService) -> list[str]:
+    """I7: what a rebuild of the log does not reproduce (memories, lineage edges, applied rules)."""
+    out = []
+    a, b = memory_history(live.store), memory_history(rebuilt.store)
+    for mid in sorted(set(a) | set(b)):
+        if a.get(mid) != b.get(mid):
+            out.append(f"I7 {mid}: live {a.get(mid)} rebuilt {b.get(mid)}")
+    if lineage_edge_set(live.store) != lineage_edge_set(rebuilt.store):
+        out.append(f"I7 lineage edges differ: {sorted(lineage_edge_set(live.store) ^ lineage_edge_set(rebuilt.store))[:5]}")
+    if applied_rule_rows(live.store) != applied_rule_rows(rebuilt.store):
+        out.append("I7 applied_rules differ")
+    return out
+
+
+async def full_reaggregation_pass(service: MycelicService) -> int:
+    """Run every step of ``reaggregate_step`` over every organization inline; the number of memories it changed."""
+    changed = 0
+    for org in service.store.memory_org_ids():
+        cursor: dict[str, Any] | None = None
+        while True:
+            async with service.store.transaction() as tx:
+                derivations, n, cursor = service.aggregator.reaggregate_step(tx, org, cursor, limit=service.reaggregate_batch)
+                service._emit_derived(tx, derivations, "2026-10-07T00:00:00+00:00")
+            changed += n
+            if cursor is None:
+                break
+    return changed

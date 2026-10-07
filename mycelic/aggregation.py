@@ -29,6 +29,15 @@ itself offered to the rules and consolidations above it, so an enterprise strate
 conclusions that rest on team consolidations that rest on agents' notes, and the lineage records every hop.
 When evidence is retracted, every dependent conclusion is retired and then re-evaluated on what remains.
 
+**Lifecycle and ids.**  A derived memory exists exactly when its operator holds on what the log has applied.  New
+evidence is offered upward as it applies (:meth:`Aggregator.derive_for`); a rule event applies the rule to everything
+applied before it (:meth:`Aggregator.evaluate_rule`, :meth:`Aggregator.withdraw_rule`); a registry event re-plans the
+promotions whose unit gained or lost a child (:meth:`Aggregator.registry_changed`); and the re-aggregation job
+(:meth:`Aggregator.reaggregate_step`) converges state derived by an older release or under another ``min_support``.
+A derived id is ``sha256(operator, unit, versioned key, sorted parent ids)``: the versioned key adds the derivation
+version and ``min_support`` to a topic (:func:`consolidation_id_key`) or the rule's digest to a rule and entity
+(:func:`conclusion_id_key`), so an equal derivation keeps its id and a different one never reuses it.
+
 Confidence of a consolidation is the noisy-OR of the strongest contribution per child
 (``1 - prod(1 - c_i)``): independent sources agreeing raise confidence, a single source cannot exceed its own.
 Confidence of a rule conclusion is the *minimum* over the selected slots, the same conservative choice the
@@ -44,7 +53,10 @@ from NeuralGraph.research.coordination.contracts import ClaimEnvelope, PolicySta
 from NeuralGraph.research.coordination.core import LineageAnalyzer, RuleBasedSynthesizer, to_jsonable
 
 from .hierarchy import LAYERS, ancestors, child_unit_of, layer_of_path, parent_path, unit_at_layer
-from .models import SLOT_PLACEHOLDER_RE, LineageEdge, Memory, Rule, content_hash, derived_memory_id, now_iso
+from .models import (
+    DERIVATION_VERSION, SLOT_PLACEHOLDER_RE, LineageEdge, Memory, Rule, content_hash, derived_memory_id, now_iso, rule_digest,
+    rule_snapshot,
+)
 from .store import MycelicStore, Tx
 
 logger = logging.getLogger(__name__)
@@ -52,6 +64,7 @@ logger = logging.getLogger(__name__)
 MYCELIC_PRODUCER = "mycelic"
 CONSOLIDATABLE = ("agent_observation", "topic_consolidation", "slot_composition")
 MAX_CASCADE = 8
+REAGGREGATE_PHASES = ("derived", "topics", "rules")
 FRAGILITY_TOP_K = 6        # per-slot claims scored for fragility (the analyzer enumerates their product)
 
 
@@ -84,6 +97,17 @@ class Plan:
     parents: list[Memory]
     current: Memory | None
     contributions: dict[str, list[Memory]]
+
+
+def consolidation_id_key(topic: str, min_support: int) -> str:
+    """The key a consolidation's id is derived under: its topic, the derivation version and the configured
+    ``min_support`` (which decides which coalitions exist and when a unit promotes)."""
+    return f"{topic}|v{DERIVATION_VERSION}|ms{min_support}"
+
+
+def conclusion_id_key(rule: Rule, entity: str | None) -> str:
+    """The key a conclusion's id is derived under: rule and entity, the derivation version and the rule's digest."""
+    return f"{rule.rule_id}:{entity or '*'}|v{DERIVATION_VERSION}|r{rule_digest(rule)}"
 
 
 def _clip(text: str, limit: int = 220) -> str:
@@ -139,6 +163,12 @@ def rule_chain(m: Memory) -> set[str]:
     return chain
 
 
+def _candidate_key(m: Memory) -> tuple:
+    """Everything ``Aggregator._compose_rules`` reads from a memory: two memories with the same key are offered to the
+    same rule keys."""
+    return m.org_id, m.operator, m.scope, m.slot, m.entity, m.topic, frozenset(rule_chain(m))
+
+
 def render_consolidation(unit: str, topic: str, contributions: dict[str, list[Memory]], support: int) -> str:
     layer = layer_of_path(unit)
     leaf = unit.rsplit("/", 1)[-1]
@@ -188,11 +218,12 @@ def _scored_claims(claims: tuple[ClaimEnvelope, ...], slots: tuple[str, ...]) ->
 
 def build_consolidation(org_id: str, unit: str, topic: str, contributions: dict[str, list[Memory]], *, promotion: bool,
                         effective_min_support: int, registered_child_units: int, version_of: str | None,
-                        now: str) -> Memory:
+                        min_support: int, now: str) -> Memory:
     """The consolidation of ``topic`` at ``unit`` from what each direct child contributes (no store, no clock).
 
     Each child's list is in apply order: ``render_consolidation`` keeps the first of two statements that read the
-    same, so the order is part of the text.
+    same, so the order is part of the text.  ``min_support`` is the configured threshold (not the effective one): it
+    is part of the id, so a deployment that changes it derives new ids rather than reusing ones built under another.
     """
     layer = layer_of_path(unit)
     parents = [m for group in contributions.values() for m in group]
@@ -201,7 +232,8 @@ def build_consolidation(org_id: str, unit: str, topic: str, contributions: dict[
     teams = sorted({t for m in parents for t in contributing_teams(m)})
     confidence = noisy_or([max(m.confidence for m in group) for group in contributions.values()])
     return Memory(
-        memory_id=derived_memory_id(operator="topic_consolidation", scope=unit, key=topic, parent_ids=parent_ids),
+        memory_id=derived_memory_id(operator="topic_consolidation", scope=unit, key=consolidation_id_key(topic, min_support),
+                                    parent_ids=parent_ids),
         org_id=org_id, layer=layer, scope=unit, text=render_consolidation(unit, topic, contributions, len(agents)),
         topic=topic, slot=_common(parents, "slot"),      # a consolidation of same-slot evidence is itself evidence
         entity=_common(parents, "entity"), kind=_common(parents, "kind") or "fact", confidence=confidence,
@@ -215,6 +247,7 @@ def build_consolidation(org_id: str, unit: str, topic: str, contributions: dict[
             "promoted_from": parents[0].memory_id if promotion else None,
             "roots": sorted({r for m in parents for r in lineage_roots(m)}),
             "rule_chain": sorted({r for m in parents for r in rule_chain(m)}),
+            "derivation": {"v": DERIVATION_VERSION, "min_support": min_support},
         },
     )
 
@@ -259,7 +292,8 @@ def build_conclusion(rule: Rule, org_id: str, unit: str, entity: str | None, can
     else:
         confidence = round(synthesis.confidence, 4)
     memory = Memory(
-        memory_id=derived_memory_id(operator="slot_composition", scope=unit, key=key, parent_ids=parent_ids),
+        memory_id=derived_memory_id(operator="slot_composition", scope=unit, key=conclusion_id_key(rule, entity),
+                                    parent_ids=parent_ids),
         org_id=org_id, layer=rule.target_layer, scope=unit,
         text=render_conclusion(rule.conclusion, entity, slot_texts),
         topic=rule.conclusion_topic(), slot=rule.emits_slot, entity=entity,
@@ -275,6 +309,7 @@ def build_conclusion(rule: Rule, org_id: str, unit: str, entity: str | None, can
             "corroborated_units": units, "roots": sorted({r for m in evidence for r in lineage_roots(m)}),
             "rule_chain": sorted({rule.rule_id} | {r for m in evidence for r in rule_chain(m)}),
             "version_of": version_of,
+            "derivation": {"v": DERIVATION_VERSION, "rule_digest": rule_digest(rule), "rule": rule_snapshot(rule)},
         },
     )
     return memory, evidence
@@ -329,11 +364,7 @@ class Aggregator:
             for d in list(out):
                 out.extend(self._derive(tx, d.memory, depth=depth + 1))
                 if d.supersedes:
-                    # whatever still rests on the superseded version and was not itself replaced by the cascade (a
-                    # conclusion keyed by an entity the new version no longer carries) is stale: retire it and
-                    # re-evaluate it on active evidence
-                    stale = self.retire_dependents(tx, d.supersedes, "evidence superseded")
-                    out.extend(self.reevaluate(tx, stale, depth=depth + 1))
+                    out.extend(self._superseded(tx, d.supersedes, d.memory, depth=depth + 1))
         elif out:
             logger.error("cascade truncated at depth %d after %s; not re-offered: %s (rules may form a cycle)",
                          depth, memory.memory_id, [d.memory.memory_id for d in out])
@@ -355,12 +386,17 @@ class Aggregator:
             tx.set_memory_status(dep, "retracted", reason=reason)
         return ids
 
-    def _withdraw(self, tx: Tx, current: Memory) -> list[Derivation]:
-        """Support fell below the threshold (a stronger note changed the selection, a child unit appeared, evidence
-        went away): retract it, retire everything built on it and re-evaluate those on what remains."""
-        tx.set_memory_status(current.memory_id, "retracted", reason="support below threshold")
+    def _withdraw(self, tx: Tx, current: Memory, reason: str = "support below threshold") -> list[Derivation]:
+        """The memory no longer holds (support fell below the threshold because a stronger note changed the selection,
+        a child unit appeared or evidence went away; or its rule was deleted, disabled or moved): retract it, retire
+        everything built on it and re-evaluate those on what remains."""
+        tx.set_memory_status(current.memory_id, "retracted", reason=reason)
         retired = self.retire_dependents(tx, current.memory_id, "evidence withdrawn")
-        return self.reevaluate(tx, retired) if retired else []
+        # as for a retracted note: evidence that went away can change which memory is strongest for a rule's slot, so a
+        # conclusion it blocked (selected without adding support) or a '*' conclusion may hold now; neither rested on
+        # it, so neither is among the retired
+        out = self._compose_rules(tx, current) if current.slot else []
+        return out + (self.reevaluate(tx, retired) if retired else [])
 
     def reevaluate(self, tx: Tx, retired_ids: list[str], *, depth: int = 1) -> list[Derivation]:
         """Re-run the operator of each retired derived memory on the evidence that is still active.
@@ -377,13 +413,259 @@ class Aggregator:
                 # consolidations are recomputed for the unit itself and everything above it
                 child_scope = m.scope + "/x"          # any path directly below the unit climbs through it
                 out.extend(self._consolidate_topic(tx, m.org_id, child_scope, m.topic))
-            elif m.operator == "slot_composition" and m.rule_id:
-                rule = self.store.get_applied_rule(m.rule_id)
-                if rule is not None and rule.enabled:
+            elif m.operator == "slot_composition":
+                rule = self.rule_for(m)          # never rebuilt at a unit whose layer its rule no longer targets
+                if rule is not None:
                     out.extend(self._compose_rule(tx, rule, m.org_id, m.scope, m.entity))
+            if m.slot:
+                # if it does not come back, the strongest evidence for a rule's '*' conclusion, which did not rest on
+                # it, may now name no entity
+                out.extend(self._compose_rules(tx, m))
         for d in list(out):
             out.extend(self._derive(tx, d.memory, depth=depth))
         return out
+
+    def _superseded(self, tx: Tx, memory_id: str, successor: Memory, *, depth: int) -> list[Derivation]:
+        """Deal with what a superseded version leaves behind once its successor has been offered upward.
+
+        Whatever still rests on it and was not itself replaced by the cascade (a conclusion keyed by an entity the new
+        version no longer carries) is stale: it is retired and re-evaluated on active evidence.  And the old version
+        stops being a candidate for the rules its slot fed, under its slot, entity and topic, which the new version may
+        not carry (a rule changed what it emits, a note with another slot joined a consolidation): a conclusion it
+        blocked (selected as the strongest for its slot without adding support) may hold now, and did not rest on it,
+        so it is not among the retired.  When the successor is the same candidate (the common case: a note joins a
+        consolidation, a conclusion gains evidence), offering it upward has just composed exactly those rule keys, and
+        whatever the retirement above changed is re-offered by ``reevaluate``, so they are not composed a second time.
+        """
+        stale = self.retire_dependents(tx, memory_id, "evidence superseded")
+        out = self.reevaluate(tx, stale, depth=depth)
+        old = self.store.get_memory(memory_id)
+        if old is not None and old.slot and _candidate_key(old) != _candidate_key(successor):
+            composed = self._compose_rules(tx, old)
+            for d in list(composed):
+                composed.extend(self._derive(tx, d.memory, depth=depth))
+            out.extend(composed)
+        return out
+
+    # ------------------------------------------------------------------ reconciliation
+    # A derived memory exists exactly when its operator holds on the applied evidence, rules and registry.  New
+    # evidence is offered upward by ``derive_for``; everything else that decides whether a memory holds is reconciled
+    # here: a rule event (``evaluate_rule``, ``withdraw_rule``), a registry event (``registry_changed``) and the
+    # re-aggregation job (``reaggregate_step``).
+    def _cascade(self, tx: Tx, out: list[Derivation]) -> list[Derivation]:
+        """Offer each derivation in ``out`` to everything above it and deal with what the version it superseded leaves
+        behind (``_superseded``): what ``_derive`` does for the derivations it makes, for ones made outside it."""
+        for d in list(out):
+            out.extend(self._derive(tx, d.memory, depth=1))
+            if d.supersedes:
+                out.extend(self._superseded(tx, d.supersedes, d.memory, depth=1))
+        return out
+
+    def rule_for(self, m: Memory) -> Rule | None:
+        """The applied rule an existing conclusion is evaluated under now, or None: its rule was deleted or disabled,
+        or no longer covers its organization or targets its layer."""
+        if m.operator != "slot_composition" or not m.rule_id:
+            return None
+        rule = self.store.get_applied_rule(m.rule_id)
+        if rule is None or not rule.enabled or rule.org_id not in (None, m.org_id) or rule.target_layer != m.layer:
+            return None
+        return rule
+
+    def plan_for(self, m: Memory) -> Plan | None:
+        """What the operator of an existing derived memory derives at its unit now (read-only); None when no operator
+        applies to it any more (see :meth:`rule_for`)."""
+        if m.operator == "topic_consolidation" and m.topic:
+            return self.plan_consolidation(m.org_id, m.scope, m.topic)
+        rule = self.rule_for(m)
+        return self.plan_rule(rule, m.org_id, m.scope, m.entity) if rule is not None else None
+
+    def _reconcile_consolidation(self, tx: Tx, org_id: str, unit: str, topic: str) -> list[Derivation]:
+        """Make the consolidation of ``topic`` at ``unit`` what its plan says: withdraw it, keep it, or persist a new version."""
+        plan = self.plan_consolidation(org_id, unit, topic)
+        if plan.memory is None:
+            if plan.current is not None:  # support fell below the threshold (retraction): the memory no longer holds
+                return self._withdraw(tx, plan.current)
+            return []
+        if plan.current is not None and plan.current.memory_id == plan.memory.memory_id:
+            return []
+        d = self._persist(tx, plan.memory, plan.parents, plan.current)
+        return [d] if d is not None else []
+
+    def reconcile(self, tx: Tx, m: Memory) -> list[Derivation]:
+        """Re-run the operator of a derived memory that is still active and offer what changed to everything above it.
+
+        A conclusion whose rule no longer applies is withdrawn with the reason (``rule deleted``, ``rule disabled``,
+        ``rule no longer applies here``); one that its rule derives differently now gets a new version.
+        """
+        m = self.store.get_memory(m.memory_id)
+        if m is None or m.status != "active":
+            return []
+        out: list[Derivation] = []
+        if m.operator == "topic_consolidation" and m.topic:
+            out = self._reconcile_consolidation(tx, m.org_id, m.scope, m.topic)
+        elif m.operator == "slot_composition":
+            rule = self.rule_for(m)
+            if rule is not None:
+                out = self._compose_rule(tx, rule, m.org_id, m.scope, m.entity)
+            else:
+                applied = self.store.get_applied_rule(m.rule_id) if m.rule_id else None
+                reason = ("rule deleted" if applied is None else "rule disabled" if not applied.enabled
+                          else "rule no longer applies here")
+                out = self._withdraw(tx, m, reason=reason)
+        key = m.topic if m.operator == "topic_consolidation" else f"{m.rule_id}:{m.entity or '*'}"
+        current = self.store.current_derived(m.org_id, m.operator, m.scope, key) if key else None
+        if (current is None or current.memory_id != m.memory_id) and self.store.get_memory(m.memory_id).status == "active":
+            # a row outside the one-active-per-key index (written without its key): what the key derives replaces it
+            out.extend(self._withdraw(tx, m, reason="not the current version of its key"))
+        return self._cascade(tx, out)
+
+    def rule_keys(self, rule: Rule, *, org_id: str | None = None) -> list[tuple[str, str, str | None]]:
+        """Every (organization, unit, entity) where ``rule`` has evidence to evaluate: the unit at its target layer above
+        each applied active memory that could fill one of its slots.  Evidence above the target layer gives no key, and
+        a '*' key comes only from evidence that names no entity (a '*' conclusion needs one among its selection)."""
+        if org_id is not None:
+            orgs = [org_id] if rule.org_id in (None, org_id) else []
+        else:
+            orgs = [rule.org_id] if rule.org_id is not None else self.store.memory_org_ids()
+        keys: set[tuple[str, str, str | None]] = set()
+        for org in orgs:
+            for scope, entity in self.store.distinct_scope_entity(org, operators=rule.sources, slots=rule.required_slots,
+                                                                  topic_prefix=rule.topic_prefix):
+                unit = unit_at_layer(scope, rule.target_layer)
+                if unit is not None:
+                    keys.add((org, unit, entity))
+        return sorted(keys, key=lambda k: (k[0], k[1], k[2] is not None, k[2] or ""))
+
+    def evaluate_rule(self, tx: Tx, rule: Rule, *, org_id: str | None = None) -> list[Derivation]:
+        """Apply an upserted rule (already in ``applied_rules``) to everything applied so far.
+
+        Every active conclusion of the rule is reconciled first: withdrawn when the rule is disabled or no longer covers
+        its organization or layer, superseded when the rule derives differently.  Then, if the rule is enabled, it is
+        composed wherever evidence could satisfy it, so a rule added after its evidence concludes at once.  An identical
+        upsert reproduces every id and changes nothing.
+        """
+        out: list[Derivation] = []
+        conclusions = self.store.active_conclusions(rule.rule_id, org_id=org_id)
+        reconciled: set[tuple[str, str, str | None]] = set()
+        for m in conclusions:
+            if self.rule_for(m) is not None and self.store.get_memory(m.memory_id).status == "active":
+                reconciled.add((m.org_id, m.scope, m.entity))     # reconcile composes the rule at this key now
+            out.extend(self.reconcile(tx, m))
+        # a key just reconciled is not composed again: whatever changed its evidence since was offered to the rule
+        keys = [k for k in self.rule_keys(rule, org_id=org_id) if k not in reconciled] if rule.enabled else []
+        composed: list[Derivation] = []
+        for org, unit, entity in keys:
+            composed.extend(self._compose_rule(tx, rule, org, unit, entity))
+        out.extend(self._cascade(tx, composed))
+        logger.info("rule %s evaluated (%s): %d conclusions reconciled, %d other keys composed, %d derivations", rule.rule_id,
+                    "enabled" if rule.enabled else "disabled", len(conclusions), len(keys), len(out))
+        return out
+
+    def withdraw_rule(self, tx: Tx, rule_id: str) -> list[Derivation]:
+        """Apply a rule deletion (already gone from ``applied_rules``): every active conclusion of the rule is withdrawn
+        ('rule deleted') and whatever rested on it is retired and re-evaluated on what remains."""
+        out: list[Derivation] = []
+        conclusions = self.store.active_conclusions(rule_id)
+        for m in conclusions:
+            out.extend(self.reconcile(tx, m))
+        logger.info("rule %s deleted: %d conclusions withdrawn, %d derivations", rule_id, len(conclusions), len(out))
+        return out
+
+    def registry_counts(self, org_id: str, agent_path: str) -> dict[str, int]:
+        """How many registered child units each unit above an agent has, as the log has applied the registry.  Teams
+        are left out: a team's children are agents, so a team never promotes."""
+        return {u: len(self.store.child_units(org_id, u)) for u in ancestors(agent_path, include_self=False)
+                if layer_of_path(u) != "team"}
+
+    def registry_changed(self, tx: Tx, org_id: str, agent_path: str, before: dict[str, int]) -> list[Derivation]:
+        """Apply a registration or revocation whose ``registry_counts`` before it were ``before``.
+
+        Only promotion depends on how many child units a unit has: where a unit above the agent gained or lost one,
+        the topics it promotes or could promote (those of its direct children's consolidations) are re-planned from the
+        agent's team up to the enterprise.  A second child ends a promotion, losing it allows one again.
+        """
+        after = self.registry_counts(org_id, agent_path)
+        changed = [u for u, n in after.items() if before.get(u) != n]
+        if not changed:
+            return []
+        topics = sorted({t for u in changed for t in self.store.promotion_topics(org_id, u)})
+        out: list[Derivation] = []
+        for topic in topics:
+            out.extend(self._consolidate_topic(tx, org_id, agent_path, topic))
+        out = self._cascade(tx, out)
+        logger.info("registry changed under %s: child units changed at %s, %d topics re-planned, %d derivations",
+                    agent_path, changed, len(topics), len(out))
+        return out
+
+    # ------------------------------------------------------------------ re-aggregation (local maintenance)
+    def _topic_keys(self, org_id: str) -> list[tuple[int, str, str]]:
+        """(layer index, unit, topic) of every unit above applied active evidence on a topic, lower layers first.  The
+        scopes are stored paths, so the units above one are its prefixes (no validation: this runs at every step)."""
+        keys: set[tuple[int, str, str]] = set()
+        for scope, topic in self.store.distinct_scope_topic(org_id, operators=CONSOLIDATABLE):
+            parts = scope.split("/")
+            for n in range(1, len(parts)):            # a unit of n segments is at layer index len(LAYERS) - n
+                keys.add((len(LAYERS) - n, "/".join(parts[:n]), topic))
+        return sorted(keys)
+
+    def _rule_keys_of(self, org_id: str) -> tuple[dict[str, Rule], list[tuple[str, str, bool, str]]]:
+        """The enabled rules of an organization and (rule_id, unit, has entity, entity or '') of every key they have
+        evidence for, sorted."""
+        rules = {r.rule_id: r for r in self.store.list_applied_rules(org_id)}
+        keys = sorted((rule_id, unit, entity is not None, entity or "")
+                      for rule_id, rule in rules.items() for _, unit, entity in self.rule_keys(rule, org_id=org_id))
+        return rules, keys
+
+    def reaggregate_step(self, tx: Tx, org_id: str, cursor: dict[str, Any] | None, *,
+                         limit: int = 50) -> tuple[list[Derivation], int, dict[str, Any] | None]:
+        """One bounded step of re-aggregating ``org_id`` on what is applied: ``(derivations, memories changed, next
+        cursor)``, the next cursor None once the last phase is done.
+
+        Three phases, each enumerated afresh at every step and resumed after the last key it processed (never by
+        position), so applies between steps are safe:
+
+        * ``derived``: every active consolidation and conclusion, lower layers first, is reconciled; an id built under
+          another derivation version, ``min_support`` or rule digest becomes a new version (the old one superseded,
+          ``version_of`` kept), and one whose rule was deleted, disabled or moved, or whose topic no evidence carries
+          any more (a legacy spelling), is withdrawn;
+        * ``topics``: every (unit, topic) above applied evidence is consolidated, which creates what should exist and
+          does not (after ``min_support`` was lowered, say);
+        * ``rules``: every enabled rule is composed wherever it has evidence.
+
+        A cursor is JSON: ``{"phase": ..., "after": key or None}``.  A step processes at most ``limit`` items of one
+        phase; one that finds fewer moves on to the start of the next phase.
+        """
+        cursor = cursor or {"phase": "derived", "after": None}
+        phase, after = cursor["phase"], cursor.get("after")
+        before = self.store.revision
+        out: list[Derivation] = []
+        if phase == "derived":
+            page = self.store.active_derived_page(org_id, after, limit)
+            for _, m in page:
+                out.extend(self.reconcile(tx, m))
+            last = page[-1][0] if page else None
+            n = len(page)
+        elif phase == "topics":
+            todo = [k for k in self._topic_keys(org_id) if after is None or k > tuple(after)][:limit]
+            for _, unit, topic in todo:
+                out.extend(self._cascade(tx, self._reconcile_consolidation(tx, org_id, unit, topic)))
+            last = list(todo[-1]) if todo else None
+            n = len(todo)
+        elif phase == "rules":
+            rules, keys = self._rule_keys_of(org_id)
+            todo = [k for k in keys if after is None or k > tuple(after)][:limit]
+            for rule_id, unit, has_entity, entity in todo:
+                out.extend(self._cascade(tx, self._compose_rule(tx, rules[rule_id], org_id, unit, entity if has_entity else None)))
+            last = list(todo[-1]) if todo else None
+            n = len(todo)
+        else:
+            raise ValueError(f"unknown re-aggregation phase {phase!r}")
+        if n >= limit:
+            nxt: dict[str, Any] | None = {"phase": phase, "after": last}
+        else:
+            i = REAGGREGATE_PHASES.index(phase)
+            nxt = {"phase": REAGGREGATE_PHASES[i + 1], "after": None} if i + 1 < len(REAGGREGATE_PHASES) else None
+        return out, self.store.revision - before, nxt
 
     # ------------------------------------------------------------------ topic consolidation
     def plan_consolidation(self, org_id: str, unit: str, topic: str) -> Plan:
@@ -413,23 +695,15 @@ class Aggregator:
         memory = build_consolidation(org_id, unit, topic, contributions, promotion=promotion,
                                      effective_min_support=1 if promotion else self.min_support,
                                      registered_child_units=len(registered_children),
-                                     version_of=current.memory_id if current else None, now=self.clock())
+                                     version_of=current.memory_id if current else None, min_support=self.min_support,
+                                     now=self.clock())
         return Plan(memory=memory, parents=[m for group in contributions.values() for m in group], current=current,
                     contributions=contributions)
 
     def _consolidate_topic(self, tx: Tx, org_id: str, scope: str, topic: str) -> list[Derivation]:
         results: list[Derivation] = []
         for unit in reversed(ancestors(scope, include_self=False)):          # team first, enterprise last
-            plan = self.plan_consolidation(org_id, unit, topic)
-            if plan.memory is None:
-                if plan.current is not None:  # support fell below the threshold (retraction): the memory no longer holds
-                    results.extend(self._withdraw(tx, plan.current))
-                continue
-            if plan.current is not None and plan.current.memory_id == plan.memory.memory_id:
-                continue
-            d = self._persist(tx, plan.memory, plan.parents, plan.current)
-            if d is not None:
-                results.append(d)
+            results.extend(self._reconcile_consolidation(tx, org_id, unit, topic))
         return results
 
     def _contributions(self, unit: str, mems: list[Memory]) -> dict[str, list[Memory]]:

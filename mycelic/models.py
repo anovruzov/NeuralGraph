@@ -6,6 +6,7 @@ comparison orders them, the same convention ``NeuralGraph.chat_memory.models`` u
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import unicodedata
 import uuid
@@ -244,3 +245,20 @@ class Rule:
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+#: version of the derivation semantics, part of every derived id: bump it when a released builder's output changes
+DERIVATION_VERSION = 1
+#: rule fields that do not change what a rule derives: switching a rule off and on, deleting and re-creating it,
+#: narrowing it to one organization or editing its metadata keeps its digest, so its conclusions keep their ids
+_RULE_NON_DERIVING = ("enabled", "metadata", "org_id")
+
+
+def rule_snapshot(rule: Rule) -> dict[str, Any]:
+    """The fields of a rule that decide its conclusions (``rule_id`` and the twelve deriving fields)."""
+    return {k: v for k, v in rule.to_dict().items() if k not in _RULE_NON_DERIVING}
+
+
+def rule_digest(rule: Rule) -> str:
+    """A short hash of :func:`rule_snapshot`: conclusion ids embed it, so a rule that derives differently derives new ids."""
+    return content_hash(json.dumps(rule_snapshot(rule), sort_keys=True, ensure_ascii=False))[:16]
