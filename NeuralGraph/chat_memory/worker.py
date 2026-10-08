@@ -150,8 +150,14 @@ class MemoryWorker:
             if remaining is not None and remaining <= 0:
                 return False
             self._wake.set()
+            step = min(0.2, remaining) if remaining is not None else 0.2
+            if self._idle.is_set():
+                # jobs pending but none in flight yet: sleep so the workers get a turn. On Python 3.12+
+                # wait_for() on an already-set Event returns without yielding, which would spin this loop forever.
+                await asyncio.sleep(min(0.05, step))
+                continue
             try:
-                await asyncio.wait_for(self._idle.wait(), timeout=min(0.2, remaining) if remaining is not None else 0.2)
+                await asyncio.wait_for(self._idle.wait(), timeout=step)
             except asyncio.TimeoutError:
                 pass
 

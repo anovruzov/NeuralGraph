@@ -55,22 +55,45 @@ What makes it different from a vector store with a nice wrapper:
 
 ### 60 seconds, no model required
 
+**macOS / Linux**
+
 ```bash
 git clone https://github.com/anovruzov/NeuralGraph.git
 cd NeuralGraph
 
-# python3 must be 3.11+ (macOS ships 3.9 — use python3.11/python3.12 if so)
-python3 -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\Activate.ps1
+python3 --version        # must be 3.11 or newer — if not, use python3.11 or python3.12 on the next line
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 
 # Watch memory get built, live, with a deterministic stand-in model
 python demo/chat_memory_live_demo.py --fake-llm
 ```
 
+**Windows (PowerShell)**
+
+```powershell
+git clone https://github.com/anovruzov/NeuralGraph.git
+cd NeuralGraph
+
+py -3.11 -m venv .venv   # or py -3.12, any 3.11+
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+
+python demo/chat_memory_live_demo.py --fake-llm
+```
+
+If PowerShell refuses to run `Activate.ps1`, allow local scripts once with
+`Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
+
 `--fake-llm` runs the entire extraction and retrieval pipeline with a deterministic
-stand-in, so you can see the machinery work before downloading a single weight.
+stand-in, so you can see the machinery work before downloading a single weight. Open
+**http://127.0.0.1:8765/** while it runs; it keeps serving after the story ends, so stop it
+with `Ctrl+C` (or pass `--no-serve` to exit when it is done).
 
 ### With a real local model
+
+With [Ollama](https://ollama.com) running:
 
 ```bash
 ollama pull qwen2.5:7b-instruct        # generation
@@ -83,16 +106,29 @@ export EMBED_MODEL=nomic-embed-text
 python -m NeuralGraph.chat_memory serve --user-name "Your Name"
 ```
 
+On Windows PowerShell, set the variables with `$env:` instead of `export`:
+
+```powershell
+$env:LLM_BASE_URL = "http://localhost:11434"
+$env:LLM_MODEL    = "qwen2.5:7b-instruct"
+$env:EMBED_MODEL  = "nomic-embed-text"
+```
+
+These variables only last for the terminal you set them in. Without them, NeuralGraph
+looks for **LM Studio** at `http://127.0.0.1:1234`, not Ollama. With LM Studio, load a
+generation model and an embedding model, start its local server, and set the same three
+variables to its URL and model names.
+
 Open **http://127.0.0.1:8765/** — the dashboard shows the queue draining, memories
 appearing, tokens saved and a five-axis health grade in real time.
 
-| Default | Value |
-|---|---|
-| Generation model | `qwen2.5:7b-instruct` (Ollama) |
-| Embedding model | `nomic-embed-text` |
-| Model endpoint | `http://localhost:11434` |
-| Database | `~/.neuralgraph/chat_memory.db` |
-| Dashboard / API / MCP | `http://127.0.0.1:8765/`, `/api/*`, `/mcp` |
+| Setting | Built-in default | Set above for Ollama |
+|---|---|---|
+| Model endpoint (`LLM_BASE_URL`) | `http://127.0.0.1:1234` (LM Studio) | `http://localhost:11434` |
+| Generation model (`LLM_MODEL`) | `google/gemma-4-e4b` | `qwen2.5:7b-instruct` |
+| Embedding model (`EMBED_MODEL`) | `text-embedding-nomic-embed-text-v1.5` | `nomic-embed-text` |
+| Database | `~/.neuralgraph/chat_memory.db` | |
+| Dashboard / API / MCP | `http://127.0.0.1:8765/`, `/api/*`, `/mcp` | |
 
 ---
 
@@ -124,20 +160,42 @@ clients and **Streamable HTTP** for everything else, negotiating protocol `2025-
 }
 ```
 
-Use absolute paths — the client inherits neither your `PATH` nor your working directory.
-`PYTHONPATH` must point at the repository root; without it the server exits with
-`No module named 'NeuralGraph'`.
+Replace `/absolute/path/to/NeuralGraph` with the folder you cloned into (run `pwd` there to
+see it). Use absolute paths — the client inherits neither your `PATH` nor your working
+directory. `PYTHONPATH` must point at the repository root; without it the server exits with
+`No module named 'NeuralGraph'`. On Windows the interpreter lives in `.venv\Scripts\`, so
+`command` becomes `"C:\\path\\to\\NeuralGraph\\.venv\\Scripts\\python.exe"` (JSON needs the
+backslashes doubled). Restart Claude Desktop after saving the file.
 
 ### Claude Code
 
-```bash
-claude mcp add neuralgraph-memory -e PYTHONPATH=/absolute/path/to/NeuralGraph \
-  -- /absolute/path/to/NeuralGraph/.venv/bin/python -m NeuralGraph.chat_memory mcp --user-name "Your Name"
+Run this **from the repository root**, with the venv created as in Quick Start —
+`$(pwd)` fills in the absolute paths for you:
 
-# ...or against an already-running HTTP server
-claude mcp add --transport http neuralgraph-memory http://127.0.0.1:8765/mcp \
+```bash
+claude mcp add -s user neuralgraph-memory \
+  -e PYTHONPATH="$(pwd)" \
+  -e LLM_BASE_URL=http://localhost:11434 \
+  -e LLM_MODEL=qwen2.5:7b-instruct \
+  -e EMBED_MODEL=nomic-embed-text \
+  -- "$(pwd)/.venv/bin/python" -m NeuralGraph.chat_memory mcp --user-name "Your Name"
+```
+
+`-s user` makes the memory available in every project, not just this folder. With LM
+Studio, swap in its URL and model names; to try it with no model at all, drop the three
+model variables and add `--fake-llm` at the end.
+
+Or point Claude Code at an already-running `serve`:
+
+```bash
+claude mcp add -s user --transport http neuralgraph-memory http://127.0.0.1:8765/mcp
+
+# if you started serve with --mcp-token / NEURALGRAPH_MCP_TOKEN, pass it as a header
+claude mcp add -s user --transport http neuralgraph-memory http://127.0.0.1:8765/mcp \
   --header "Authorization: Bearer $NEURALGRAPH_MCP_TOKEN"
 ```
+
+Check the connection with `claude mcp get neuralgraph-memory` — it should say `Connected`.
 
 Ask Claude *"what do you remember about me?"* — if `memory_status` comes back, you are wired up.
 
@@ -364,6 +422,9 @@ python -m NeuralGraph.chat_memory search "where does Ali live" --history
 python -m NeuralGraph.chat_memory stats
 ```
 
+Run these with the venv active and the three model variables from Quick Start set in the
+same terminal, or add `--fake-llm` to try them with no model server.
+
 Common flags on every command: `--db`, `--model`, `--base-url`, `--embed-model`,
 `--parallel`, `--workers`, `--batch-size`, `--debounce`, `--user-name`,
 `--extract-assistant`, `--fake-llm`, `-v`.
@@ -400,9 +461,9 @@ to what. You can search memory and feed it a chat turn straight from the page.
 | `NEURALGRAPH_MEMORY_DB` | `~/.neuralgraph/chat_memory.db` | Database path |
 | `NEURALGRAPH_MCP_TOKEN` | unset | Bearer token required on `/mcp` |
 | `NEURALGRAPH_API_TOKEN` | unset | Bearer token required on `/api/*` |
-| `LLM_BASE_URL` | LM Studio default | Model server URL |
-| `LLM_MODEL` | backend default | Generation model |
-| `EMBED_MODEL` | backend default | Embedding model |
+| `LLM_BASE_URL` | `http://127.0.0.1:1234` (LM Studio) | Model server URL; port `11434` selects the Ollama API |
+| `LLM_MODEL` | `google/gemma-4-e4b` | Generation model |
+| `EMBED_MODEL` | `text-embedding-nomic-embed-text-v1.5` | Embedding model |
 | `OLLAMA_NUM_PARALLEL` | — | Match `--parallel` when using Ollama |
 
 Command-line flags override environment variables.
@@ -431,9 +492,15 @@ and the MCP server.
 
 ## Deployment
 
+From the repository root:
+
 ```bash
 # Container — memory server + Ollama, volumes for both
-docker compose -f deploy/chat_memory/docker-compose.yml up
+docker compose -f deploy/chat_memory/docker-compose.yml up -d
+
+# First run only: the Ollama container starts empty, so pull the two models into it
+docker compose -f deploy/chat_memory/docker-compose.yml exec ollama ollama pull qwen2.5:7b-instruct
+docker compose -f deploy/chat_memory/docker-compose.yml exec ollama ollama pull nomic-embed-text
 
 # Or build just the server
 docker build -f deploy/chat_memory/Dockerfile -t neuralgraph-memory .
@@ -441,7 +508,14 @@ docker build -f deploy/chat_memory/Dockerfile -t neuralgraph-memory .
 
 For an always-on laptop or mini-PC, `deploy/chat_memory/neuralgraph-memory.service` runs
 `serve` as a systemd user service beside a local Ollama. One Python process, one SQLite
-file, no other services.
+file, no other services. The unit expects the clone at `~/NeuralGraph` with its venv at
+`~/NeuralGraph/.venv`; edit its paths if yours differ, then:
+
+```bash
+mkdir -p ~/.config/systemd/user
+cp deploy/chat_memory/neuralgraph-memory.service ~/.config/systemd/user/
+systemctl --user daemon-reload && systemctl --user enable --now neuralgraph-memory
+```
 
 ---
 
@@ -470,7 +544,7 @@ python -m unittest NeuralGraph.tests.test_chat_memory_mcp
 
 | Symptom | Fix |
 |---|---|
-| Model server unreachable | `ollama serve`; confirm `LLM_BASE_URL` (default `http://localhost:11434`) |
+| Model server unreachable (`Cannot connect to host 127.0.0.1:1234`) | `LLM_BASE_URL` is unset, so it is looking for LM Studio. For Ollama, `ollama serve` and `export LLM_BASE_URL=http://localhost:11434` |
 | Model not found | `ollama list`, then `ollama pull qwen2.5:7b-instruct` / `nomic-embed-text` |
 | Import errors | Activate the venv, re-run `pip install -r requirements.txt` |
 | MCP client cannot connect | Run `python -m NeuralGraph.chat_memory mcp` in a terminal first; then check the **absolute** interpreter path in your client config |
