@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "purpose": "Check run, the first real run: download and verify the pinned llama-server archive and the four local model files of the main run (a-0p5b, a-1p5b, a-4b, b-2b), start each on a shared 4-vCPU GitHub-hosted runner, warm it up and time three requests per E3 workload at concurrency 1. It proves the pins before the smoke run; its timings are this runner's, not site hardware's.",
+  "provider": "llama-server",
+  "models": [
+    "a-0p5b",
+    "a-1p5b",
+    "a-4b",
+    "b-2b"
+  ],
+  "job_minutes": 45,
+  "max_parallel": 4,
+  "retention_days": 14,
+  "experiments": {
+    "e3": {
+      "minutes": 20,
+      "concurrency": [
+        1
+      ],
+      "requests": 3,
+      "warmup": 0,
+      "workloads": [
+        "extraction",
+        "short"
+      ],
+      "seed": 1
+    }
+  }
+}
