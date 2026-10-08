@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "purpose": "Main run after the plumbing, check and smoke runs: the four local models served by the pinned server on runner CPUs. E1 on generator text with the largest local model as reference, E2 pushdown for the two smallest models, E3 latency, G0 canary scans, the six-site simulation on the small plant and the model-free X1 baseline. Set the sim, G0 and E1 minutes from the smoke report first, each the largest among its block's models. Copy to lab/requests/main-001.json and push.",
+  "provider": "llama-server",
+  "models": [
+    "a-0p5b",
+    "a-1p5b",
+    "a-4b",
+    "b-2b"
+  ],
+  "job_minutes": 330,
+  "max_parallel": 12,
+  "retention_days": 30,
+  "experiments": {
+    "e1": {
+      "minutes": 100,
+      "labels": {
+        "source": "generator",
+        "pack": "device_quality",
+        "n": 150,
+        "seed": 1
+      },
+      "reference": "a-4b",
+      "margin_points": 5,
+      "runs": 3,
+      "seed": 1
+    },
+    "e2": {
+      "models": [
+        "a-0p5b",
+        "a-1p5b"
+      ],
+      "minutes": 120,
+      "pack": "device_quality",
+      "plant": "plant_e2_smoke",
+      "seeds": [
+        1
+      ],
+      "weeks": 52,
+      "eval_from": 20,
+      "eval_to": 51,
+      "top_n": 10,
+      "min_candidates": 5
+    },
+    "e3": {
+      "minutes": 20,
+      "concurrency": [
+        1,
+        4
+      ],
+      "requests": 16,
+      "warmup": 2,
+      "workloads": [
+        "extraction",
+        "short"
+      ],
+      "seed": 1
+    },
+    "g0": {
+      "minutes": 60,
+      "pack": "device_quality",
+      "records": 200,
+      "seed": 1
+    },
+    "sim": {
+      "minutes": 240,
+      "plant": "sim_small",
+      "weeks": 34,
+      "top_n": 10,
+      "seeds": [
+        1
+      ]
+    },
+    "x1": {
+      "minutes": 10,
+      "pack": "device_quality",
+      "plant": "plant_smoke",
+      "seeds": [
+        1,
+        2,
+        3
+      ],
+      "weeks": 52,
+      "eval_from": 26,
+      "eval_to": 51
+    }
+  }
+}

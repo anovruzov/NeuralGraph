@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "purpose": "Plumbing check of the hosted provider: one hosted E1 endpoint beside a fake model.",
+  "provider": "fake",
+  "models": [
+    "fake-a",
+    "h-a"
+  ],
+  "job_minutes": 60,
+  "max_parallel": 2,
+  "retention_days": 1,
+  "experiments": {
+    "e1": {
+      "minutes": 5,
+      "labels": {
+        "source": "generator",
+        "pack": "device_quality",
+        "n": 40,
+        "seed": 1
+      },
+      "reference": "fake-a",
+      "margin_points": 5,
+      "runs": 3,
+      "seed": 1,
+      "bootstrap_b": 1000
+    }
+  },
+  "hosted": {
+    "h-a": {
+      "max_calls": 300
+    }
+  }
+}

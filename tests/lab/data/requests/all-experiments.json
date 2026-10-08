@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "purpose": "Plumbing check of every experiment adapter against the fake server and an openFDA stub; nothing here is a measurement.",
+  "provider": "fake",
+  "models": [
+    "fake-a",
+    "fake-b"
+  ],
+  "job_minutes": 120,
+  "max_parallel": 4,
+  "retention_days": 1,
+  "experiments": {
+    "e1": {
+      "minutes": 5,
+      "labels": {
+        "source": "generator",
+        "pack": "device_quality",
+        "n": 40,
+        "seed": 1
+      },
+      "reference": "fake-b",
+      "margin_points": 5,
+      "runs": 3,
+      "seed": 1,
+      "bootstrap_b": 1000
+    },
+    "e2": {
+      "models": [
+        "fake-a"
+      ],
+      "minutes": 10,
+      "pack": "device_quality",
+      "plant": "plant_e2_smoke",
+      "seeds": [
+        1
+      ],
+      "weeks": 52,
+      "eval_from": 20,
+      "eval_to": 51,
+      "top_n": 5,
+      "min_candidates": 5,
+      "bootstrap_b": 1000
+    },
+    "e3": {
+      "minutes": 5,
+      "concurrency": [
+        1
+      ],
+      "requests": 3,
+      "warmup": 0,
+      "workloads": [
+        "short"
+      ],
+      "seed": 7
+    },
+    "g0": {
+      "models": [
+        "fake-b"
+      ],
+      "minutes": 10,
+      "pack": "device_quality",
+      "records": 200,
+      "seed": 7
+    },
+    "sim": {
+      "models": [
+        "fake-a"
+      ],
+      "minutes": 15,
+      "plant": "sim_small",
+      "weeks": 34,
+      "top_n": 5,
+      "seeds": [
+        1
+      ]
+    },
+    "x1": {
+      "minutes": 10,
+      "pack": "device_quality",
+      "plant": "plant_smoke",
+      "seeds": [
+        1
+      ],
+      "weeks": 52,
+      "eval_from": 26,
+      "eval_to": 51,
+      "bootstrap_b": 1000
+    },
+    "openfda": {
+      "minutes": 10,
+      "pack": "device_quality",
+      "product_codes": [
+        "AAA",
+        "BBB",
+        "CCC"
+      ],
+      "date_from": "20240101",
+      "date_to": "20241229",
+      "max_records_per_code": 2000,
+      "manufacturers": [
+        "ACME Devices"
+      ],
+      "manufacturer_field": "device[].manufacturer_d_name",
+      "partition_field": "event_location",
+      "saw_recall_outcomes": "no",
+      "n1_sheet": {
+        "n": 30,
+        "seed": 1
+      },
+      "e1_sheet": {
+        "n": 20,
+        "seed": 1
+      }
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "purpose": "First real run: provision the pinned server and the smallest model, start it on the runner and time a few short requests. Copy to lab/requests/check-001.json and push.",
+  "provider": "llama-server",
+  "models": [
+    "a-0p5b"
+  ],
+  "job_minutes": 45,
+  "max_parallel": 1,
+  "retention_days": 7,
+  "experiments": {
+    "e3": {
+      "minutes": 5,
+      "concurrency": [
+        1
+      ],
+      "requests": 3,
+      "warmup": 0,
+      "workloads": [
+        "extraction",
+        "short"
+      ],
+      "seed": 1
+    }
+  }
+}

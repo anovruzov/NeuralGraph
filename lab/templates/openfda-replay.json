@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "purpose": "Model-free openFDA public replay plus the labelling sheets for a person to fill in: no model runs, so the one listed model is never served. Replace every placeholder in the openfda block (product codes, dates, the exact manufacturer spelling, the partition field and whether you saw recall outcomes first), then copy to lab/requests/openfda-replay-001.json and push.",
+  "provider": "llama-server",
+  "models": [
+    "a-0p5b"
+  ],
+  "job_minutes": 60,
+  "max_parallel": 1,
+  "retention_days": 30,
+  "experiments": {
+    "openfda": {
+      "minutes": 30,
+      "pack": "device_quality",
+      "product_codes": [
+        "<code>",
+        "<code>",
+        "<code>"
+      ],
+      "date_from": "<YYYYMMDD>",
+      "date_to": "<YYYYMMDD>",
+      "max_records_per_code": 2000,
+      "manufacturers": [
+        "<exact manufacturer spelling>"
+      ],
+      "manufacturer_field": "device[].manufacturer_d_name",
+      "partition_field": "<field path>",
+      "saw_recall_outcomes": "<yes or no>",
+      "n1_sheet": {
+        "n": 300,
+        "seed": 1
+      },
+      "e1_sheet": {
+        "n": 600,
+        "seed": 1
+      }
+    }
+  }
+}

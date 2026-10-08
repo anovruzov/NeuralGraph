@@ -1,0 +1,31 @@
+{
+  "kind": "plant_spec",
+  "schema_version": 1,
+  "pack": "device_quality",
+  "prereg_sha256": null,
+  "planted_by": "mycelic lab (same author as the detector code)",
+  "planter_saw_detector_code": true,
+  "notes": "Lab simulation plant: synthetic, same-author, not blind, never a result. Sized for one runner job: 6 sites, 34 weeks, evaluation weeks 19 to 33.",
+  "patterns": [
+    {"id": "p1", "entity_type": "component", "entity_id": "PRESSURE-SENSOR", "predicate": "overheat",
+     "sites": ["plant-ashvale", "plant-brindlemoor", "plant-corrowfield"], "start_week": 20, "weeks": 6,
+     "rate_per_week": 2, "visibility": "narrative_only", "language": "en"},
+    {"id": "p2", "entity_type": "lot", "entity_id": "L20046", "predicate": "crack",
+     "sites": ["plant-ashvale", "plant-corrowfield"], "start_week": 22, "weeks": 6,
+     "rate_per_week": 2, "visibility": "narrative_only", "language": "en"},
+    {"id": "p3", "entity_type": "component", "entity_id": "O-RING-SEAL", "predicate": "occlusion",
+     "sites": ["werk-dornhagen", "werk-erlenbruch"], "start_week": 21, "weeks": 6,
+     "rate_per_week": 2, "visibility": "narrative_only", "language": "de"},
+    {"id": "p4", "entity_type": "product", "entity_id": "IP-21", "predicate": "power_loss",
+     "sites": ["plant-brindlemoor", "plant-fennick"], "start_week": 24, "weeks": 6,
+     "rate_per_week": 2, "visibility": "both", "language": "en"}
+  ],
+  "decoys": [
+    {"id": "d-near-miss", "class": "near_miss_entity", "entity_type": "lot", "predicate": "contamination",
+     "sites": ["plant-ashvale"], "start_week": 21, "weeks": 6, "rate_per_week": 2, "language": "en",
+     "entity_id": "L20045", "near_miss_id": "L20046", "near_miss_sites": ["werk-dornhagen"]},
+    {"id": "d-echo", "class": "echo_marked", "entity_type": "component", "predicate": "leak",
+     "sites": ["plant-fennick"], "start_week": 23, "weeks": 6, "rate_per_week": 3, "language": "en",
+     "entity_id": "ALARM-SPEAKER", "copy_sites": ["plant-ashvale", "plant-corrowfield"]}
+  ]
+}

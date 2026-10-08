@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "purpose": "Hosted comparison: E1 with a hosted model as the reference and E2 with a hosted central comparator, against the two smallest local models. It needs the big-hosted entry (with context_tokens) in lab/models.json and both hosted repository secrets; without the secrets the plan skips every unit and nothing is billed. The host bills every call. Copy to lab/requests/hosted-comparison-001.json and push.",
+  "provider": "llama-server",
+  "models": [
+    "a-0p5b",
+    "a-1p5b",
+    "big-hosted"
+  ],
+  "job_minutes": 330,
+  "max_parallel": 4,
+  "retention_days": 30,
+  "experiments": {
+    "e1": {
+      "minutes": 90,
+      "labels": {
+        "source": "generator",
+        "pack": "device_quality",
+        "n": 200,
+        "seed": 1
+      },
+      "reference": "big-hosted",
+      "margin_points": 5,
+      "runs": 3,
+      "seed": 1
+    },
+    "e2": {
+      "models": [
+        "a-1p5b"
+      ],
+      "minutes": 120,
+      "pack": "device_quality",
+      "plant": "plant_e2_smoke",
+      "seeds": [
+        1
+      ],
+      "weeks": 52,
+      "eval_from": 20,
+      "eval_to": 51,
+      "top_n": 10,
+      "min_candidates": 5,
+      "central": "big-hosted"
+    }
+  },
+  "hosted": {
+    "big-hosted": {
+      "max_calls": 1300
+    }
+  }
+}

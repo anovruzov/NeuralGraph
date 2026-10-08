@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "hf_base": "https://huggingface.co",
+  "server": {
+    "program": "llama-server",
+    "tag": "b11476",
+    "asset": "llama-b11476-bin-ubuntu-x64.tar.gz",
+    "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11476/llama-b11476-bin-ubuntu-x64.tar.gz",
+    "archive_root": "llama-b11476",
+    "binary": "llama-server",
+    "format": "tar.gz",
+    "args": [],
+    "cache_ram_mib": 1024,
+    "threads": "physical"
+  },
+  "models": {
+    "a-0p5b": {
+      "kind": "gguf",
+      "alias": "lab-a-0p5b",
+      "gguf": {
+        "repo": "Qwen/Qwen2.5-0.5B-Instruct-GGUF",
+        "file": "qwen2.5-0.5b-instruct-q4_k_m.gguf",
+        "revision": "main",
+        "license": "apache-2.0"
+      },
+      "response_format": "json_schema",
+      "transport_schema": "full",
+      "ctx_per_slot": 16384,
+      "e3_ctx_per_slot": 4096,
+      "e2_ctx_per_slot": 32768,
+      "server_args": []
+    },
+    "a-1p5b": {
+      "kind": "gguf",
+      "alias": "lab-a-1p5b",
+      "gguf": {
+        "repo": "Qwen/Qwen2.5-1.5B-Instruct-GGUF",
+        "file": "qwen2.5-1.5b-instruct-q4_k_m.gguf",
+        "revision": "main",
+        "license": "apache-2.0"
+      },
+      "response_format": "json_schema",
+      "transport_schema": "full",
+      "ctx_per_slot": 16384,
+      "e3_ctx_per_slot": 4096,
+      "e2_ctx_per_slot": 32768,
+      "server_args": []
+    },
+    "a-4b": {
+      "kind": "gguf",
+      "alias": "lab-a-4b",
+      "gguf": {
+        "repo": "Qwen/Qwen3-4B-GGUF",
+        "file": "Qwen3-4B-Q4_K_M.gguf",
+        "revision": "main",
+        "license": "apache-2.0"
+      },
+      "response_format": "json_schema",
+      "transport_schema": "full",
+      "ctx_per_slot": 16384,
+      "e3_ctx_per_slot": 4096,
+      "e2_ctx_per_slot": 32768,
+      "server_args": ["--reasoning", "off"]
+    },
+    "b-2b": {
+      "kind": "gguf",
+      "alias": "lab-b-2b",
+      "gguf": {
+        "repo": "ibm-granite/granite-3.3-2b-instruct-GGUF",
+        "file": "granite-3.3-2b-instruct-Q4_K_M.gguf",
+        "revision": "main",
+        "license": "apache-2.0"
+      },
+      "response_format": "json_schema",
+      "transport_schema": "full",
+      "ctx_per_slot": 16384,
+      "e3_ctx_per_slot": 4096,
+      "e2_ctx_per_slot": 32768,
+      "server_args": []
+    },
+    "fake-a": {
+      "kind": "fake",
+      "alias": "lab-fake-a",
+      "persona": "valid",
+      "response_format": "json_schema",
+      "transport_schema": "full"
+    },
+    "fake-b": {
+      "kind": "fake",
+      "alias": "lab-fake-b",
+      "persona": "valid",
+      "response_format": "json_schema",
+      "transport_schema": "reduced"
+    }
+  }
+}
