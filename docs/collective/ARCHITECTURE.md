@@ -973,7 +973,22 @@ Alert events are `{week, rank, key, score, site}`; events before the evaluation 
 - **Lifts** `X_minus_single_site` (the collective lift), `X_minus_S` and `X_minus_R_mf`: per pattern, the list over
   seeds of `net_found_a - net_found_b` (`basis`: "found in the planted world and not found as early or earlier in
   the same seed's no-plant control world"); the estimate is the pooled mean; the 95% interval is `stats.cluster_bootstrap_mean`
-  (whole patterns resampled, B and seed from the prereg, seed string `x1:<seed>:<name>`).
+  (whole patterns resampled, B and seed from the prereg, seed string `x1:<seed>:<name>`). **B2:** each lift also
+  carries `alpha_adjusted` (`0.05 / family_size`, from the prereg) and `ci_low_adjusted` / `ci_high_adjusted`, from a
+  second call with the same seed string, so the same replicates: the adjusted interval nests the 95% one, and with
+  `family_size` 1 it equals it. `x1.verdict` reads the unadjusted interval (STRATEGY section 11.2).
+- **Channel intervals (B2).** `harness.interval_blocks` adds four 95% blocks to every channel block, the ablation's
+  included (`channel_block` itself is unchanged), each null or `{estimate, ci_low, ci_high, B, seed, method,
+  clusters, n_clusters}` from `stats.cluster_bootstrap_mean` with seed string `x1:<seed>:<channel>:<metric>`:
+  `recall_net_ci` resamples whole patterns, each holding its per-seed net found (the lifts' input; `clusters:
+  "patterns"`, null without patterns), and its estimate is `recall_net` exactly; `precision_at_40_ci`,
+  `average_precision_ci` and `false_alarms_per_week_ci` resample the seeds whose per-seed value is not null
+  (`clusters: "seeds"`), null when none has one (rules), and their estimates are the channel's values (false alarms
+  per week to within 1e-12, a mean of per-seed rates against a pooled rate). With few seeds the seed intervals are
+  coarse.
+- **Rate strata (B2).** Each scorecard pattern carries its `rate_per_week` (the plant format's one rate: the exact
+  records per counted site per week), and `by_rate_per_week` holds one row per distinct rate, ascending:
+  `{rate_per_week, patterns, units, channels: {<channel>: {found_net, recall_net}}}` over `CHANNELS`, on net found.
 - **Minimum detectable rate** (analytic, pack only): for a constant weekly background `b` in `0..2k` at a site with
   full history, the smallest weekly rate `r` for which G4's D2 site test certainly exceeds, with `c = window_weeks x
   lb(b + r)` against `max(lambda_floor, ub(b))`, at the pack's k and with k=1. For `device_quality` (k=3) the rates
@@ -995,12 +1010,28 @@ seeds (1 to 100 unique ints, sorted), sites, weeks (at least `baseline_weeks + w
 the detector author and the bootstrap's B (at least 1000) and seed. Uncommitted or unknown code state under
 `EVAL_DIRTY_PATHS` is refused without `--allow-dirty`, which is stamped.
 
+**B2 prereg keys.** The prereg also pins `family_size` (1 to `MAX_FAMILY_SIZE` = 100, `--family-size`, default 1:
+how many primary tests share the run's error rate) and `planter_relation` (one of `PLANTER_RELATIONS`:
+`independent`, `same_system_procedural`, `unstated`; `--planter-relation`, default `unstated`). Both are required in
+the closed `PREREG_SCHEMA`; `cmd_prereg` refuses other values with a `UsageError` (`error: ...`, exit 2, nothing
+written; no argparse `choices`, so the refusal has the CLI's own form). The flags are optional, so earlier argv works;
+a prereg made before B2 lacks the keys and `read_prereg`, which E2 shares, refuses it.
+
 `run` checks, in this order, and exits 2 writing no scorecard: the run id and a new run directory; the prereg's
 closed structure; `--seeds` equal to the prereg's; the pack; the pins (`config_hash`, `vocabulary_hash`,
 `detector_hash`, `fixtures_hash` and the code hash; every differing name is listed); the dirty rule; the plant spec
 (`parse_plant` and `check_plant`) and its binding: a non-null `prereg_sha256` must equal the sha256 of the prereg
 file. `check-plant` prints that sha256 for the planter and writes nothing. Ctrl-C exits 130 and leaves a partial run
 directory that a later run with the same id refuses.
+
+**B2 check-plant.** `check-plant` refuses a foreign binding with `run`'s message (`check_binding`), so a planter who
+pastes a wrong sha256 learns it at once. `--construct` then builds the plant into every prereg seed's world, in seed
+order (`generate`, then `plant`; `construct_every_seed`), and prints a third line, `construction: ok (seeds=<n>)`; a
+`PlantError` or `GeneratorError` exits 2 with its text plus ` (seed <seed>)`, and nothing is printed on stdout. It is
+construction only (no pipeline, no detection, no outcome), so it is a check, not an evaluation. `plant`'s RNG is
+seeded by the spec's sha256 and the world seed, so a failure such as `narrative uniqueness exhausted` can depend on the
+seed and on the spec's exact bytes; without `--construct` it first appears in `run`. A dry run with `--construct`
+checks everything but constructs nothing. Without `--construct` the output is unchanged.
 
 ### 14.6 Scorecard and content hash
 
@@ -1022,6 +1053,17 @@ quiet elsewhere), the `x1` block and notes.
 detector author, compared case-folded with whitespace collapsed), a plant bound to the prereg, and at least 20
 patterns and 20 decoys; `reasons` lists every failing condition and `verdict` is null unless eligible
 (`lift_ci_low_above_0` for `X_minus_single_site`, `precision_at_40_at_least_0_25`, `pass`).
+
+**B2 additions.** `x1` also holds `family_size` and `planter_relation` (echoed from the prereg), `independent`
+(`planter_relation == "independent"`), `counts_as_strategy_x1` (eligible, independent, and a verdict that passes) and
+`caveats`: `SAME_SYSTEM_CAVEAT` ("Procedural blinding only: the planter and the detector author are the same AI
+system.") for `same_system_procedural`, `UNSTATED_CAVEAT` ("The prereg does not state the planter's relation to the
+detector author, so this run cannot count as STRATEGY's X1.") for `unstated`, none for `independent`. `eligible`,
+`reasons` and `verdict` are computed exactly as before. Each pattern carries `rate_per_week`, every channel block the
+four interval blocks, every lift its adjusted interval, and the top level `by_rate_per_week` (14.4). `NOTES` gains
+two sentences: the seed intervals resample seeds and are coarse with few seeds, and each lift's adjusted interval
+comes from the same replicates while `x1.verdict` reads the unadjusted 95% one. `SCORECARD_SCHEMA` and
+`PREREG_SCHEMA` stay closed.
 
 `content_hash` is the sha256 of the canonical JSON without `$.content_hash`, `$.created_at`, `$.run_id`, `$.paths`
 and `$.timings` (`content_hash_excludes`, written in the file). The pipeline clock is constant, every RNG is seeded
@@ -1081,7 +1123,9 @@ synthetic data, not a measurement).
 
 - **Synthetic, same-author worlds.** The pack, the world generator, the planted templates and the detector were
   written by one author; a planted pattern uses the pack's own templates, which the lexical extractor reads
-  perfectly. A smoke run is not blind, and blindness is self-declared even when it is claimed.
+  perfectly. A smoke run is not blind, and blindness is self-declared even when it is claimed. When the planter is
+  the same AI system as the detector author (B2), blindness is procedural at best: `planter_relation` says so, and
+  `counts_as_strategy_x1` stays false.
 - **Penalty decoys alert when the budget is free.** G4 penalises echo, few reporters and a high base rate in the
   ranker; with budget to spare they alert, and the scorecard reports it.
 - **R-mf is not R.** STRATEGY's R includes a frontier model reading the allowed fields; E2 (G6) approximates it.
@@ -1091,6 +1135,18 @@ synthetic data, not a measurement).
   synthetic cache served by a local stub.
 
 Nothing is ported from `origin/claude/mycelic-implementation-vr034p` in G5 (`INTEGRATION.md`).
+
+### 14.9 The sealed X1 run (B2)
+
+`docs/collective/x1/` holds the sealed, procedurally blind X1 run on both built-in packs: `PLANTER_BRIEF.md` (the
+planter's whole prompt, frozen at B2a: what it may read and run, the world, the spec format, the rules check-plant
+enforces and the brief's own rules) and `RESULTS_TEMPLATE.md` (frozen at B2a: the fixed sentences, the
+interpretation sentences and the conditions that select them, and the pointer rows `RESULTS.md` will show). Later
+commits add the seeds, the preregs, the wrapper template, the seal and the results. The planter and the detector
+author are the same AI system, so the blinding is procedural only and STRATEGY 11.2's X1 is not met; the results are
+synthetic and internal only. The protocol is RUNBOOK section 11.1; the commits and commands are in `INTEGRATION.md`,
+section B2. `tests/mycelic/test_collective_x1_sealed.py` checks the brief, the brief's own rules (`brief_problems`,
+also run by the sandbox's wrapper) and the template's helpers.
 
 ## 15. G6: pushdown verification
 

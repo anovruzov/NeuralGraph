@@ -97,6 +97,34 @@ def lb(n: int | None) -> int:
     return 1 if n is None else n
 
 
+def assert_interval_blocks(test: unittest.TestCase, card: Mapping[str, Any], *, B: int = 10000, seed: int = 1) -> None:
+    """B2: every channel block (the ablation's too) carries its four interval blocks with the specified shape: net
+    recall over patterns; precision@40, AP and false alarms per week over the seeds with a value (null where none)."""
+    blocks = dict(card["channels"])
+    if card["ablation"] is not None:
+        blocks.update(card["ablation"]["channels"])
+    for name, block in blocks.items():
+        with test.subTest(channel=name):
+            for metric in H.INTERVAL_METRICS:
+                ci = block[f"{metric}_ci"]
+                values = ([r[metric] for r in block["per_seed"] if r[metric] is not None]
+                          if metric != "recall_net" else card["patterns"])
+                if metric in ("precision_at_40", "average_precision") and not block["ranked"]:
+                    test.assertIsNone(ci)
+                    continue
+                test.assertIsNotNone(ci, metric)
+                test.assertEqual((ci["B"], ci["seed"], ci["method"]),
+                                 (B, f"x1:{seed}:{name}:{metric}", "cluster percentile"))
+                test.assertEqual((ci["clusters"], ci["n_clusters"]),
+                                 ("patterns" if metric == "recall_net" else "seeds", len(values)))
+                if metric == "false_alarms_per_week":
+                    test.assertLessEqual(abs(ci["estimate"] - block[metric]), 1e-12)
+                else:
+                    test.assertEqual(ci["estimate"], block[metric])
+                test.assertLessEqual(ci["ci_low"], ci["estimate"] + 1e-12)
+                test.assertLessEqual(ci["estimate"], ci["ci_high"] + 1e-12)
+
+
 # =================================================================================================== plant specs
 
 def base_spec() -> dict[str, Any]:
@@ -876,6 +904,7 @@ class PlantedConstructionTests(ConstructionCase):
         self.assertTrue(self.card["stamps"]["ablation_k1"])
         self.assertEqual(self.card["ablation"]["label"], B.ABLATION_LABEL)
         self.assertEqual(sorted(self.card["ablation"]["channels"]), ["S_k1", "X_k1"])
+        assert_interval_blocks(self, self.card)
         self.assertEqual(self.card["min_detectable_rate"]["k"], 3)
         self.assertEqual([(r["rate_at_k"], r["rate_unsuppressed"]) for r in self.card["min_detectable_rate"]["rows"]],
                          [(1, 1), (3, 1), (2, 2), (2, 2), (2, 2), (2, 2), (3, 3)])
@@ -1327,13 +1356,100 @@ class MetricTests(unittest.TestCase):
     def test_x1_eligibility_and_verdict(self) -> None:
         lift = {"ci_low": 0.1}
         block = H.x1_block(blind=True, bound=True, n_patterns=20, n_decoys=20, lift_x=lift, precision_x=0.25)
+        # B2: the defaults state no planter relation, so even a passing verdict does not count as STRATEGY's X1
         self.assertEqual(block, {"eligible": True, "reasons": [], "verdict": {
-            "lift_ci_low_above_0": True, "precision_at_40_at_least_0_25": True, "pass": True}})
+            "lift_ci_low_above_0": True, "precision_at_40_at_least_0_25": True, "pass": True},
+            "family_size": 1, "planter_relation": "unstated", "independent": False, "counts_as_strategy_x1": False,
+            "caveats": [H.UNSTATED_CAVEAT]})
         block = H.x1_block(blind=True, bound=True, n_patterns=20, n_decoys=20, lift_x={"ci_low": 0.0},
                            precision_x=0.3)
         self.assertFalse(block["verdict"]["pass"])
         block = H.x1_block(blind=False, bound=False, n_patterns=19, n_decoys=3, lift_x=lift, precision_x=1.0)
         self.assertEqual((block["eligible"], len(block["reasons"]), block["verdict"]), (False, 4, None))
+
+    def test_x1_relation_family_size_and_caveats(self) -> None:
+        # B2: only an independent planter's eligible, passing verdict counts as STRATEGY's X1; eligible and the
+        # verdict are computed exactly as before
+        passing, failing = {"ci_low": 0.1}, {"ci_low": 0.0}
+        cases = (("independent", True, passing, True), ("same_system_procedural", True, passing, False),
+                 ("unstated", True, passing, False), ("independent", False, passing, False),
+                 ("independent", True, failing, False), ("same_system_procedural", True, failing, False))
+        for relation, blind, lift, counts in cases:
+            with self.subTest(relation=relation, blind=blind, lift=lift):
+                block = H.x1_block(blind=blind, bound=True, n_patterns=20, n_decoys=20, lift_x=lift,
+                                   precision_x=0.3, planter_relation=relation, family_size=2)
+                before = H.x1_block(blind=blind, bound=True, n_patterns=20, n_decoys=20, lift_x=lift,
+                                    precision_x=0.3)
+                self.assertEqual({k: block[k] for k in ("eligible", "reasons", "verdict")},
+                                 {k: before[k] for k in ("eligible", "reasons", "verdict")})
+                self.assertEqual((block["planter_relation"], block["family_size"]), (relation, 2))
+                self.assertEqual(block["independent"], relation == "independent")
+                self.assertEqual(block["counts_as_strategy_x1"], counts)
+                self.assertEqual(block["verdict"] is None, not blind)
+        self.assertEqual({r: H.x1_block(blind=True, bound=True, n_patterns=20, n_decoys=20, lift_x=passing,
+                                        precision_x=0.3, planter_relation=r)["caveats"] for r in H.PLANTER_RELATIONS},
+                         {"independent": [],
+                          "same_system_procedural": ["Procedural blinding only: the planter and the detector author "
+                                                     "are the same AI system."],
+                          "unstated": ["The prereg does not state the planter's relation to the detector author, so "
+                                       "this run cannot count as STRATEGY's X1."]})
+
+    def test_interval_blocks_on_hand_built_inputs(self) -> None:
+        block = {"per_seed": [{"precision_at_40": 0.5, "average_precision": None, "false_alarms_per_week": 0.25},
+                              {"precision_at_40": None, "average_precision": None, "false_alarms_per_week": 0.25},
+                              {"precision_at_40": 0.25, "average_precision": None, "false_alarms_per_week": 0.25}]}
+        net = {"p2": [True, False, False], "p1": [True, True, True]}
+        out = H.interval_blocks("X", block, net, B=1000, seed=7)
+        self.assertEqual(out, H.interval_blocks("X", block, net, B=1000, seed=7))
+        self.assertEqual(sorted(out), ["average_precision_ci", "false_alarms_per_week_ci", "precision_at_40_ci",
+                                       "recall_net_ci"])
+        recall = out["recall_net_ci"]
+        boot = stats.cluster_bootstrap_mean([[1, 1, 1], [1, 0, 0]], B=1000, seed="x1:7:X:recall_net")
+        self.assertEqual(recall, {"estimate": 4 / 6, "ci_low": boot["ci_low"], "ci_high": boot["ci_high"], "B": 1000,
+                                  "seed": "x1:7:X:recall_net", "method": "cluster percentile",
+                                  "clusters": "patterns", "n_clusters": 2})
+        precision = out["precision_at_40_ci"]           # the seed without a value is dropped
+        self.assertEqual((precision["estimate"], precision["clusters"], precision["n_clusters"], precision["seed"]),
+                         (0.375, "seeds", 2, "x1:7:X:precision_at_40"))
+        self.assertLessEqual(precision["ci_low"], precision["estimate"])
+        self.assertLessEqual(precision["estimate"], precision["ci_high"])
+        self.assertIsNone(out["average_precision_ci"])  # no seed has a value
+        same = out["false_alarms_per_week_ci"]          # all-equal clusters give a degenerate interval
+        self.assertEqual((same["estimate"], same["ci_low"], same["ci_high"], same["n_clusters"]),
+                         (0.25, 0.25, 0.25, 3))
+        self.assertIsNone(H.interval_blocks("X", block, {}, B=1000, seed=7)["recall_net_ci"])
+        self.assertNotEqual(H.interval_blocks("S", block, net, B=1000, seed=7)["recall_net_ci"]["seed"],
+                            recall["seed"])
+
+    def test_lifts_carry_an_adjusted_interval_from_the_same_replicates(self) -> None:
+        a = {"p1": [True, True, False], "p2": [False, True, True], "p3": [True, False, False], "p4": [True, True, True]}
+        b = {"p1": [False, False, False], "p2": [False, True, False], "p3": [True, True, False],
+             "p4": [False, True, False]}
+        one = H.lift("X_minus_S", a, b, B=2000, seed=3)
+        self.assertEqual((one["alpha_adjusted"], one["ci_low_adjusted"], one["ci_high_adjusted"]),
+                         (0.05, one["ci_low"], one["ci_high"]))
+        two = H.lift("X_minus_S", a, b, B=2000, seed=3, family_size=2)
+        unadjusted = ("estimate", "ci_low", "ci_high", "B", "seed", "method", "basis", "n_patterns", "n_seeds",
+                      "n_units")
+        self.assertEqual({k: two[k] for k in unadjusted}, {k: one[k] for k in unadjusted})
+        self.assertEqual(two["alpha_adjusted"], 0.025)
+        self.assertLessEqual(two["ci_low_adjusted"], two["ci_low"])
+        self.assertGreaterEqual(two["ci_high_adjusted"], two["ci_high"])
+        clusters = [[int(x) - int(y) for x, y in zip(a[p], b[p])] for p in sorted(a)]
+        boot = stats.cluster_bootstrap_mean(clusters, B=2000, seed="x1:3:X_minus_S", alpha=0.025)
+        self.assertEqual((two["ci_low_adjusted"], two["ci_high_adjusted"]), (boot["ci_low"], boot["ci_high"]))
+
+    def test_rate_strata_split_net_recall_by_planted_rate(self) -> None:
+        patterns = [{"id": "a", "rate_per_week": 1}, {"id": "b", "rate_per_week": 3}, {"id": "c", "rate_per_week": 1}]
+        found = {name: {"a": [True, False], "b": [False, False], "c": [True, True]} for name in B.CHANNELS}
+        found["S"] = {"a": [False, False], "b": [True, False], "c": [False, False]}
+        rows = H.rate_strata(patterns, found, 2)
+        self.assertEqual([(r["rate_per_week"], r["patterns"], r["units"]) for r in rows], [(1, 2, 4), (3, 1, 2)])
+        self.assertEqual(sorted(rows[0]["channels"]), sorted(B.CHANNELS))
+        self.assertEqual(rows[0]["channels"]["X"], {"found_net": 3, "recall_net": 0.75})
+        self.assertEqual(rows[0]["channels"]["S"], {"found_net": 0, "recall_net": 0.0})
+        self.assertEqual(rows[1]["channels"]["X"], {"found_net": 0, "recall_net": 0.0})
+        self.assertEqual(rows[1]["channels"]["S"], {"found_net": 1, "recall_net": 0.5})
 
     def test_min_detectable_rate_of_the_device_pack(self) -> None:
         rows = H.min_detectable_rate(DQ)["rows"]
@@ -1358,8 +1474,9 @@ class HarnessTests(unittest.TestCase):
     def tearDown(self) -> None:
         self._tmp.cleanup()
 
-    def prereg(self, pack: Any = "device_quality", run_id: str = "pre", *extra: Any) -> Path:
-        code, _, err = cli(H.main, prereg_argv(pack, self.runs, run_id, *extra))
+    def prereg(self, pack: Any = "device_quality", run_id: str = "pre", *extra: Any,
+               seeds: str = str(DQ_SEED)) -> Path:
+        code, _, err = cli(H.main, prereg_argv(pack, self.runs, run_id, *extra, seeds=seeds))
         self.assertEqual(code, 0, err)
         return self.runs / "x1" / run_id / "prereg.json"
 
@@ -1400,6 +1517,97 @@ class HarnessTests(unittest.TestCase):
                 self.assertEqual(code, 2, (flag, value))
                 self.assertTrue(err.startswith("error: "))
         self.assertEqual(path_snapshot(self.tmp), before)
+
+    def test_prereg_pins_the_family_size_and_the_planter_relation(self) -> None:
+        # B2: optional flags, so earlier argv keeps working; the defaults state no relation and one primary test
+        doc = json.loads(self.prereg().read_text(encoding="utf-8"))
+        self.assertEqual((doc["family_size"], doc["planter_relation"]), (1, "unstated"))
+        for size, relation in ((2, "same_system_procedural"), (100, "independent"), (1, "unstated")):
+            with self.subTest(size=size, relation=relation):
+                path = self.prereg("device_quality", f"flags-{size}-{relation}", "--family-size", size,
+                                   "--planter-relation", relation)
+                doc = json.loads(path.read_text(encoding="utf-8"))
+                self.assertEqual((doc["family_size"], doc["planter_relation"]), (size, relation))
+                H.read_prereg(path)
+        self.assertEqual(H.PLANTER_RELATIONS, ("independent", "same_system_procedural", "unstated"))
+        before = path_snapshot(self.tmp)
+        for flag, value in (("--family-size", 0), ("--family-size", 101), ("--family-size", "x"),
+                            ("--family-size", "-1"), ("--family-size", "2.0"), ("--family-size", "\u0662"),
+                            ("--planter-relation", "other"), ("--planter-relation", "Independent"),
+                            ("--planter-relation", "")):
+            with self.subTest(flag=flag, value=value):
+                code, out, err = cli(H.main, prereg_argv("device_quality", self.runs, "refused", flag, value))
+                self.assertEqual((code, out), (2, ""))
+                self.assertTrue(err.startswith(f"error: {flag} must be "), err)
+        self.assertEqual(path_snapshot(self.tmp), before)
+
+    def test_read_prereg_refuses_a_prereg_without_or_with_a_bad_family_size_or_relation(self) -> None:
+        path = self.prereg()
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        cases = [({k: v for k, v in doc.items() if k != "family_size"}, "$.family_size required"),
+                 ({k: v for k, v in doc.items() if k != "planter_relation"}, "$.planter_relation required"),
+                 ({**doc, "family_size": 0}, "$.family_size minimum"),
+                 ({**doc, "family_size": 101}, "$.family_size maximum"),
+                 ({**doc, "planter_relation": "other"}, "$.planter_relation enum")]
+        for i, (bad, problem) in enumerate(cases):
+            with self.subTest(problem=problem):
+                bad_path = self.tmp / f"prereg-{i}.json"
+                bad_path.write_text(json.dumps(bad), encoding="utf-8")
+                with self.assertRaises(H.UsageError) as cm:
+                    H.read_prereg(bad_path)
+                self.assertEqual(str(cm.exception), f"prereg {bad_path} is not an x1 prereg.json ({problem})")
+                code, _, err = cli(H.main, run_argv(bad_path, DQ_SMOKE, self.runs, f"bad-{i}", "--allow-dirty"))
+                self.assertEqual(code, 2)
+                self.assertIn("is not an x1 prereg.json", err)
+                self.assertFalse((self.runs / "x1" / f"bad-{i}").exists())
+
+    def test_check_plant_refuses_a_foreign_binding_and_accepts_a_matching_or_null_one(self) -> None:
+        # B2: check-plant refused only a malformed binding before; a wrong one first failed in run
+        prereg = self.prereg()
+        sha = sha256_hex(prereg.read_bytes())
+        for value, ok in ((None, True), (sha, True), ("f" * 64, False)):
+            with self.subTest(value=value):
+                path = self.tmp / f"plant-{value}.json"
+                path.write_text(json.dumps({**smoke(), "prereg_sha256": value}), encoding="utf-8")
+                for extra in ((), ("--construct",), ("--dry-run",)):
+                    code, out, err = cli(H.main, ["check-plant", "--prereg", prereg, "--plant", path, *extra])
+                    if ok:
+                        self.assertEqual(code, 0, err)
+                    else:
+                        self.assertEqual((code, out), (2, ""))
+                        self.assertEqual(err.strip(), "error: the plant spec's prereg_sha256 is not the sha256 of "
+                                                      "this prereg file")
+
+    def test_check_plant_construct_builds_every_prereg_seed_and_writes_nothing(self) -> None:
+        prereg = self.prereg("device_quality", "two-seeds", seeds="11,12")
+        before = path_snapshot(self.tmp)
+        code, out, err = cli(H.main, ["check-plant", "--construct", "--prereg", prereg, "--plant", DQ_SMOKE])
+        self.assertEqual(code, 0, err)
+        self.assertEqual(out.splitlines(), [f"prereg_sha256: {sha256_hex(prereg.read_bytes())}",
+                                            "plant: ok (patterns=3 decoys=8)", "construction: ok (seeds=2)"])
+        code, out, err = cli(H.main, ["check-plant", "--construct", "--prereg", prereg, "--plant", DQ_SMOKE,
+                                      "--dry-run"])
+        self.assertEqual((code, out), (0, "dry-run: evaluate.harness check-plant\n"), err)
+        self.assertEqual(path_snapshot(self.tmp), before)
+
+    def test_check_plant_construct_names_the_seed_of_a_construction_failure(self) -> None:
+        # a codes_only plant has filler-only text; with the loader's minimum of five 'de' filler sentences there are
+        # 5 + 20 + 60 = 85 distinct texts, fewer than the plant's 100 records, so construction fails at the first
+        # seed. plant() raises it; parse and check cannot see it
+        filler = DQ.generator["filler"]["de"][:5]
+        pack = pack_copy(self.tmp, "device_quality", {("generator.json", "filler", "de"): filler})
+        prereg = self.prereg(pack, "few-filler", seeds="12,11")
+        raw = base_spec()
+        raw["patterns"][0].update({"visibility": "codes_only", "language": "de", "rate_per_week": 10, "weeks": 5})
+        path = self.tmp / "plant_de.json"
+        path.write_text(json.dumps(raw), encoding="utf-8")
+        code, out, err = cli(H.main, ["check-plant", "--prereg", prereg, "--plant", path])
+        self.assertEqual((code, out.splitlines()[1:]), (0, ["plant: ok (patterns=1 decoys=0)"]), err)
+        code, out, err = cli(H.main, ["check-plant", "--construct", "--prereg", prereg, "--plant", path])
+        self.assertEqual((code, out), (2, ""))
+        self.assertEqual(err.strip(), "error: plant: $.patterns[0]: narrative uniqueness exhausted (seed 11)")
+        code, out, err = cli(H.main, ["check-plant", "--construct", "--prereg", prereg, "--plant", path, "--dry-run"])
+        self.assertEqual((code, out), (0, "dry-run: evaluate.harness check-plant\n"), err)
 
     def test_dirty_code_needs_allow_dirty_which_is_stamped(self) -> None:
         for state in (True, "unknown"):
@@ -1556,6 +1764,37 @@ class ScorecardSchemaTests(unittest.TestCase):
         self.assertTrue(all(Path(p).is_absolute() for p in card["paths"].values()))
         self.assertEqual(card["stamps"]["same_author_pack"], True)
 
+    def test_every_channel_carries_its_intervals_and_the_rate_strata(self) -> None:
+        card = self.card
+        assert_interval_blocks(self, card)
+        for name in B.CHANNELS:
+            ranked = card["channels"][name]["ranked"]
+            for metric in ("recall_net", "false_alarms_per_week"):
+                self.assertIsNotNone(card["channels"][name][f"{metric}_ci"])
+            for metric in ("precision_at_40", "average_precision"):
+                self.assertEqual(card["channels"][name][f"{metric}_ci"] is None, not ranked)
+        self.assertFalse(card["channels"]["rules"]["ranked"])
+        self.assertEqual([p["rate_per_week"] for p in card["patterns"]], [2, 2, 2])
+        self.assertEqual([(r["rate_per_week"], r["patterns"], r["units"]) for r in card["by_rate_per_week"]],
+                         [(2, 3, 3)])
+        for name in B.CHANNELS:
+            self.assertEqual(card["by_rate_per_week"][0]["channels"][name],
+                             {"found_net": card["channels"][name]["found_net"],
+                              "recall_net": card["channels"][name]["recall_net"]})
+        for lift in card["lifts"].values():
+            self.assertEqual((lift["alpha_adjusted"], lift["ci_low_adjusted"], lift["ci_high_adjusted"]),
+                             (0.05, lift["ci_low"], lift["ci_high"]))
+        self.assertEqual({k: card["x1"][k] for k in ("family_size", "planter_relation", "independent",
+                                                      "counts_as_strategy_x1", "caveats")},
+                         {"family_size": 1, "planter_relation": "unstated", "independent": False,
+                          "counts_as_strategy_x1": False, "caveats": [H.UNSTATED_CAVEAT]})
+        self.assertIn("recall_net_ci resamples whole patterns; precision_at_40_ci, average_precision_ci and "
+                      "false_alarms_per_week_ci resample seeds (n_clusters), so with few seeds they are coarse.",
+                      card["notes"])
+        self.assertIn("Each lift also carries an interval at alpha_adjusted = 0.05 / family_size from the same "
+                      "bootstrap replicates; x1.verdict reads the unadjusted 95% interval (STRATEGY section 11.2).",
+                      card["notes"])
+
     def test_the_schema_rejects_tampering(self) -> None:
         tampered = (
             ({**self.card, "extra": 1}, ("$", "additionalProperties")),
@@ -1568,6 +1807,20 @@ class ScorecardSchemaTests(unittest.TestCase):
              ("$.channel_labels.R_mf", "const")),
             ({**self.card, "code": {**self.card["code"], "code_dirty": None}}, ("$.code.code_dirty", "type")),
             ({**self.card, "code": {**self.card["code"], "code_dirty": "maybe"}}, ("$.code.code_dirty", "type")),
+            ({**self.card, "channels": {**self.card["channels"], "X": {
+                k: v for k, v in self.card["channels"]["X"].items() if k != "recall_net_ci"}}},
+             ("$.channels.X.recall_net_ci", "required")),
+            ({**self.card, "channels": {**self.card["channels"], "S": {
+                **self.card["channels"]["S"], "precision_at_40_ci": {"estimate": 0.5}}}},
+             ("$.channels.S.precision_at_40_ci.ci_low", "required")),
+            ({**self.card, "lifts": {**self.card["lifts"], "X_minus_S": {
+                k: v for k, v in self.card["lifts"]["X_minus_S"].items() if k != "ci_low_adjusted"}}},
+             ("$.lifts.X_minus_S.ci_low_adjusted", "required")),
+            ({**self.card, "x1": {**self.card["x1"], "planter_relation": "other"}}, ("$.x1.planter_relation", "enum")),
+            ({**self.card, "x1": {**self.card["x1"], "caveats": ["looks fine"]}}, ("$.x1.caveats[0]", "enum")),
+            ({k: v for k, v in self.card.items() if k != "by_rate_per_week"}, ("$.by_rate_per_week", "required")),
+            ({**self.card, "patterns": [{k: v for k, v in self.card["patterns"][0].items() if k != "rate_per_week"}]},
+             ("$.patterns[0].rate_per_week", "required")),
         )
         for doc, problem in tampered:
             with self.subTest(problem=problem):
@@ -1583,7 +1836,8 @@ class DeterminismTests(unittest.TestCase):
     def test_two_processes_with_other_hash_seeds_give_the_same_content_hash(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
-            assert cli(H.main, prereg_argv("device_quality", tmp_path / "pre-runs"))[0] == 0
+            assert cli(H.main, prereg_argv("device_quality", tmp_path / "pre-runs", "pre", "--family-size", 2,
+                                           "--planter-relation", "same_system_procedural"))[0] == 0
             prereg = tmp_path / "pre-runs" / "x1" / "pre" / "prereg.json"
             bound = tmp_path / "plant_bound.json"
             bound.write_text(json.dumps({**smoke(), "prereg_sha256": sha256_hex(prereg.read_bytes())}),
@@ -1603,6 +1857,21 @@ class DeterminismTests(unittest.TestCase):
             self.assertTrue(a["stamps"]["plant_bound_to_prereg"])
             self.assertNotIn("the plant spec is not bound to the prereg (prereg_sha256 is null)", a["x1"]["reasons"])
             self.assertFalse(a["x1"]["eligible"])
+            # B2: the new blocks are part of the content hash and equal across processes
+            self.assertEqual(a["x1"], b["x1"])
+            self.assertEqual({k: a["x1"][k] for k in ("family_size", "planter_relation", "independent",
+                                                       "counts_as_strategy_x1", "caveats")},
+                             {"family_size": 2, "planter_relation": "same_system_procedural", "independent": False,
+                              "counts_as_strategy_x1": False, "caveats": [H.SAME_SYSTEM_CAVEAT]})
+            self.assertEqual((a["lifts"], a["by_rate_per_week"]), (b["lifts"], b["by_rate_per_week"]))
+            for lift in a["lifts"].values():
+                self.assertEqual(lift["alpha_adjusted"], 0.025)
+                self.assertLessEqual(lift["ci_low_adjusted"], lift["ci_low"])
+                self.assertGreaterEqual(lift["ci_high_adjusted"], lift["ci_high"])
+            for name in B.CHANNELS:
+                for metric in H.INTERVAL_METRICS:
+                    self.assertEqual(a["channels"][name][f"{metric}_ci"], b["channels"][name][f"{metric}_ci"])
+            assert_interval_blocks(self, a)
 
 
 if __name__ == "__main__":

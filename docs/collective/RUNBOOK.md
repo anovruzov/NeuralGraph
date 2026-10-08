@@ -573,6 +573,23 @@ python -m mycelic.collective.evaluate.harness prereg --pack <pack> --seeds <seed
 `--eval-from` must leave room for the detectors' window and history (the command says how much); weeks before it
 are burn-in. Send `runs/x1/<run-id>/prereg.json` to the planter.
 
+Two optional flags state what the run is (B2), and both are pinned in the prereg and echoed in the scorecard's `x1`
+block:
+
+- `--planter-relation` says who planted: `independent` (not the detector author, and not the same AI system: the
+  only relation whose passing verdict counts as STRATEGY's X1), `same_system_procedural` (the same AI system, blinded
+  only by procedure) or `unstated` (the default, which carries a caveat and can never count);
+- `--family-size` is the number of primary tests that share the run's error rate (default 1). Each lift then also
+  carries an interval at `0.05 / family-size` from the same bootstrap replicates; `x1.verdict` still reads the
+  unadjusted 95% interval (STRATEGY section 11.2). With one primary test per pack over two packs, use 2:
+
+```
+python -m mycelic.collective.evaluate.harness prereg --pack <pack> --seeds <seeds> --weeks 104 --eval-from 26 --eval-to 103 --tie-salt <tie-salt> --detector-author "<detector-author>" --family-size 2 --planter-relation same_system_procedural --run-id <run-id>
+```
+
+A family size outside 1 to 100 or another relation is refused (`error: ...`, exit 2). A prereg made before B2 has
+neither key and is refused by `check-plant` and `run`; make it again.
+
 **Step 2 (planter): check the spec** against the prereg until it prints `plant: ok`. It also prints the prereg's
 sha256 for the spec's `prereg_sha256`:
 
@@ -580,7 +597,16 @@ sha256 for the spec's `prereg_sha256`:
 python -m mycelic.collective.evaluate.harness check-plant --prereg <prereg-file> --plant <plant-file>
 ```
 
-Errors name a JSON path and a fixed problem, for example `plant: $.decoys[3].sites: too few sites`.
+Errors name a JSON path and a fixed problem, for example `plant: $.decoys[3].sites: too few sites`. A spec whose
+`prereg_sha256` is not null and not this prereg's sha256 is refused here too, as `run` refuses it. With
+`--construct`, check-plant also builds the plant into every prereg seed's world (construction only: no pipeline, no
+detection, no outcome) and prints a third line, `construction: ok (seeds=<n>)`; a seed-dependent construction
+failure (for example `narrative uniqueness exhausted`, too many reports sharing too few possible texts) exits 2 and
+names its seed, so it shows before a spec is sealed rather than in `run`:
+
+```
+python -m mycelic.collective.evaluate.harness check-plant --construct --prereg <prereg-file> --plant <plant-file>
+```
 
 **Step 3 (detector author): run every seed.** `run` refuses (exit 2, no scorecard) a changed pack or code hash
 (listing every changed name), other seeds, a spec bound to another prereg, an existing run id and uncommitted code:
@@ -598,7 +624,14 @@ suppression. Ctrl-C exits 130 and leaves a partial run directory; start again un
 - `x1.eligible` is true only when the run is blind (self-declared), the spec is bound to the prereg, and there are
   at least 20 patterns and 20 decoys; `x1.reasons` lists every failing condition. Only then is `x1.verdict` filled:
   `lift_ci_low_above_0` (the 95% cluster-bootstrap interval of `lifts.X_minus_single_site` excludes 0),
-  `precision_at_40_at_least_0_25` and `pass`.
+  `precision_at_40_at_least_0_25` and `pass`. `x1` also echoes the prereg's `planter_relation` and `family_size`:
+  `counts_as_strategy_x1` is true only for an eligible, passing run whose planter is `independent`, and `caveats`
+  says why a `same_system_procedural` or `unstated` run cannot count.
+- Every channel carries 95% cluster-bootstrap intervals: `recall_net_ci` resamples whole patterns;
+  `precision_at_40_ci`, `average_precision_ci` and `false_alarms_per_week_ci` resample seeds, so with few seeds
+  they are coarse (null where no seed has a value: rules is unranked). Each lift also carries `alpha_adjusted`,
+  `ci_low_adjusted` and `ci_high_adjusted`. `by_rate_per_week` splits each channel's net recall by the patterns'
+  planted rate, and each pattern carries its `rate_per_week`.
 - `channels.<name>` gives recall (found / patterns x seeds), recall by visibility, median delay and lead in weeks,
   tie-averaged precision@40 and AP, false alarms per week, how many decoys of each class alerted
   (`decoys_alerted`) and how many failed (`decoys_failed`: the same, except that a stale chain also fails a channel
@@ -622,6 +655,43 @@ suppression. Ctrl-C exits 130 and leaves a partial run directory; start again un
 - `warnings` include decoys that were not quiet elsewhere (background noise on their key) and fewer than 10
   patterns.
 - `content_hash` is reproducible: the same prereg and spec give the same hash on any machine and run id.
+
+### 11.1 The sealed protocol (B2)
+
+B2 runs X1 on both built-in packs as properly as is honest without an outside planter. **The planter and the
+detector author are the same AI system, so the blinding is procedural only and STRATEGY 11.2's X1 is not met**;
+the planted text comes from the detector author's own pack templates; the results are synthetic and internal only.
+Everything lives in `docs/collective/x1/` (the brief, the results template, and later the seeds, the preregs, the
+seal and the results); the sealed specs will ship as `fixtures/plant_x1_sealed.json` in each pack.
+
+**Roles.** The orchestrator spawns the agents and authorises each commit. The engineer (the detector author) writes
+the code, the preregs and the seal, runs the evaluation and never writes or edits a spec, a declaration or a call log.
+The planter is a fresh agent whose prompt is exactly `docs/collective/x1/PLANTER_BRIEF.md` plus one line naming its
+sandbox; it may read only the files the brief lists (never a prereg) and may run only the sandbox's `check-plant`
+wrapper. The reviewer checks each commit and never modifies tracked files.
+
+**The sandbox** (tmpfs, built from the committed tree after the prereg commit): `BRIEF.md` (the brief, byte-identical),
+`packs/<pack>/` with the seven pack files the brief lists, an empty `specs/`, and `check-plant`, the wrapper made from
+`docs/collective/x1/check-plant.sh.in` (added with the preregs): it runs `check-plant --construct` against the committed
+prereg, then the brief's own rules (`brief_main` in `tests/mycelic/test_collective_x1_sealed.py`), and appends each call
+to a log kept outside the sandbox.
+
+**The four commits**, in this order, each a local commit the orchestrator authorises:
+
+1. **B2a freeze**: the evaluation code (`harness.py` is the only file under `mycelic/` that changes), the planter
+   brief and the results template, with every outcome's sentence written in advance.
+2. **B2b preregs**: ten fresh seeds derived from the B2a commit (`seeds.json`), one prereg per pack made on the clean
+   B2a tree with `--family-size 2 --planter-relation same_system_procedural`, and the wrapper template.
+3. **B2c seal**: the planter's specs (byte-identical, bound to the preregs), its declaration and the wrapper's call
+   log, sealed in `SEAL.json` before any evaluation.
+4. **B2d results**: one `run` per pack at the seal commit on a clean tree, the scorecards, and `RESULTS.md` written
+   from the template.
+
+**The rules.** No harness `run` with the B2 preregs, seeds or specs before the seal commit (`check-plant
+--construct` is construction only and allowed). Never `--allow-dirty`. The first evaluation is the result: no re-run
+with changed code or settings, no re-seed, no re-plant; any later run is post-hoc and reported beside it. Claim words
+follow `x1.verdict.pass` and are never "X1 passed"; `counts_as_strategy_x1` stays false for a same-system planter.
+The exact commands and commit records are in `docs/collective/INTEGRATION.md`, section B2.
 
 ## 12. The openFDA public replay (STRATEGY section 9.3)
 

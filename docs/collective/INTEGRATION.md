@@ -2213,3 +2213,170 @@ Changed, never weakened:
   draft fail `out_of_scope_id`, visibly, never pass.
 - **`LEAKAGE.md` section 11's committed-run figure** said 49,452 run-file bytes while the G8 run's own `leakage.json`
   says 49,571; it now quotes the B1a run's own value.
+
+## B2 (round 4, gate 2 of 4): sealed, procedurally blind X1
+
+B2 runs X1 (STRATEGY 11.2) on both built-in packs as properly as is honest in this sandbox, in four local commits the
+orchestrator authorises in order: **B2a** freezes the evaluation code, the planter brief and the results template;
+**B2b** derives ten fresh seeds and makes one prereg per pack on the clean B2a tree; a fresh planter agent, given only
+the brief, writes the specs in a tmpfs sandbox; **B2c** seals them; **B2d** runs the harness once per pack and writes
+`RESULTS.md` from the template. **The planter and the detector author are the same AI system: the blinding is
+procedural only, STRATEGY 11.2's X1 is not met, and every result is synthetic and internal only.**
+
+### B2a: the freeze (harness, brief, template, tests, docs)
+
+**Base.** Branch `mycelic-collective-phase2` at d8feab1 (B1a), a clean worktree. Nothing is committed by the
+engineer. No seed, prereg or sealed spec of B2 exists in this tree, no harness `run` used any of them, and the
+engineer has not opened any planter file (see "A planter run before B2a" below).
+
+**Scope.** Under `mycelic/` only `mycelic/collective/evaluate/harness.py` changed (`git diff --name-only d8feab1 --
+mycelic/`). `plant.py`, `baselines.py`, `detect/`, `edge/`, `packs/*.py`, `stats.py`, `jsonio.py`,
+`schemacheck.py` and `experiments/common.py` are unchanged, and `DETECT_SHA256` still matches. Also changed:
+`tests/mycelic/test_collective_evaluate.py`, `docs/collective/{RUNBOOK,ARCHITECTURE,INTEGRATION}.md`. Added:
+`tests/mycelic/test_collective_x1_sealed.py`, `docs/collective/x1/PLANTER_BRIEF.md`,
+`docs/collective/x1/RESULTS_TEMPLATE.md`. No RUNBOOK placeholder was added, so `test_collective_guards.py` is unchanged.
+
+| Part | What changed | Tests |
+|---|---|---|
+| Channel intervals | `interval_blocks` merges `recall_net_ci` (patterns resampled; the lifts' per-seed net found), `precision_at_40_ci`, `average_precision_ci` and `false_alarms_per_week_ci` (seeds with a value resampled) into every channel block, the ablation's included; seed string `x1:<seed>:<channel>:<metric>`; null without a cluster; `channel_block`'s signature is unchanged | `MetricTests::test_interval_blocks_on_hand_built_inputs`, `ScorecardSchemaTests::test_every_channel_carries_its_intervals_and_the_rate_strata`, the ablation in `PlantedConstructionTests`, `assert_interval_blocks` |
+| Adjusted lifts | `lift(family_size=1)`: `alpha_adjusted = 0.05 / family_size`, `ci_low_adjusted`, `ci_high_adjusted` from a second call with the same seed string (same replicates, nested); `x1.verdict` reads the unadjusted interval | `MetricTests::test_lifts_carry_an_adjusted_interval_from_the_same_replicates` |
+| Prereg keys | `family_size` (1 to `MAX_FAMILY_SIZE` = 100, `--family-size`, default 1) and `planter_relation` (`PLANTER_RELATIONS`, `--planter-relation`, default `unstated`), required in the closed `PREREG_SCHEMA`, validated in `cmd_prereg` with `UsageError` | `HarnessTests::test_prereg_pins_the_family_size_and_the_planter_relation`, `test_read_prereg_refuses_a_prereg_without_or_with_a_bad_family_size_or_relation` |
+| x1 block | `family_size`, `planter_relation`, `independent`, `counts_as_strategy_x1`, `caveats` (`SAME_SYSTEM_CAVEAT`, `UNSTATED_CAVEAT`); `eligible`, `reasons` and `verdict` unchanged; keyword defaults keep earlier callers working | `MetricTests::test_x1_relation_family_size_and_caveats` (the full truth table) |
+| Rate strata | each scorecard pattern carries `rate_per_week`; `by_rate_per_week` rows (ascending) of `found_net` and `recall_net` per channel | `MetricTests::test_rate_strata_split_net_recall_by_planted_rate` |
+| check-plant | refuses a non-null `prereg_sha256` that is not the prereg file's sha256 (`run`'s message, `check_binding`); `--construct` builds every prereg seed's world and plant (`construct_every_seed`) and prints `construction: ok (seeds=N)`, or exits 2 with the error plus ` (seed <s>)` and no stdout; a dry run constructs nothing; without the flag the output is unchanged | `HarnessTests::test_check_plant_refuses_a_foreign_binding_and_accepts_a_matching_or_null_one`, `test_check_plant_construct_builds_every_prereg_seed_and_writes_nothing`, `test_check_plant_construct_names_the_seed_of_a_construction_failure`; `test_check_plant_prints_the_prereg_sha_and_writes_nothing` unchanged |
+| Schemas, notes | `SCORECARD_SCHEMA` and `PREREG_SCHEMA` stay closed; `NOTES` gains the two B2 sentences; docstring and CLI help | `ScorecardSchemaTests::test_the_schema_rejects_tampering` (new cases), `DeterminismTests` (B2 prereg flags; the new blocks equal across processes) |
+| Planter brief | `docs/collective/x1/PLANTER_BRIEF.md`: the planter's whole prompt (role, permitted reads, forbidden reads, commands, outputs, world, format with a skeleton, decoy classes, the rules check-plant enforces, the brief's own rules, procedure, names and paths) | `PlanterBriefTests` (forbidden words, classes, `PLANTED_BY`, `PERMITTED_READS`, bands, k, the 4-of-6 rule against the packs and against `check_plant`, portability, model names) |
+| Brief rules | `brief_problems` and `brief_main` in `test_collective_x1_sealed.py` (fixed messages, never a value) | `BriefRuleTests` (smoke specs, a passing spec, each rule alone, `brief_main`) |
+| Results template | `docs/collective/x1/RESULTS_TEMPLATE.md`: the catalog (six `always` sentences with the corrected blind sentence, the governing-interval and multiple-comparisons texts, ten interpretations in order with their conditions, ten row groups, the format) and the sections `RESULTS.md` follows | `TemplateTests` (closed shape, pinned texts, evaluator, expander, renderer, formatter), `TemplateOnAScorecardTests` (every scorecard row and condition pointer resolves on a one-seed smoke scorecard) |
+
+**The brief audit (for the reviewer).** The brief states only the world shape (six sites, 104 weeks, `start`,
+evaluation weeks 26 to 103), k (3 and 5), the stale bands (19 to 21 and 19 to 20), the 4-of-6 sites rule, master
+data, template, alias and code availability, and the class shapes, all of which check-plant reveals. It names no
+prereg as readable (the wrapper hands the prereg to check-plant, which prints its sha256), and adds `mapping.json`
+to the permitted reads (structured entity types). `PLANTED_BY` is 77 characters.
+
+**Pre-stated for B2b to B2d** (written before any seed, prereg or spec of B2 exists):
+
+- **Seed rule.** `seed_i = 1 + int(sha256(f'x1-sealed:{B2a}:{i}'.encode()).hexdigest()[:8], 16) % 100000` for
+  `i = 0, 1, ...`, where `{B2a}` is the B2a commit's 40-hex sha. A candidate is excluded when it repeats an earlier
+  candidate (`duplicate`) or when this prints anything (`found: <path>:<line>`, the first hit):
+
+  ```
+  git -C <worktree> grep -n -w -e <value> <B2a> -- tests docs demo mycelic/collective
+  ```
+
+  The first 10 accepted values, sorted, are the seeds; `docs/collective/x1/seeds.json` records every candidate up to
+  the tenth accepted one.
+- **B2b prereg command**, per pack, on the clean B2a tree, with `TMPDIR=/dev/shm/b2/tmp`, then `cp` byte-identical to
+  `docs/collective/x1/<pack>/prereg.json`:
+
+  ```
+  python -m mycelic.collective.evaluate.harness prereg --pack <pack> --seeds <seeds> --weeks 104 --eval-from 26 --eval-to 103 --grace-weeks 4 --tie-salt x1-sealed-<pack> --detector-author 'mycelic collective engineer agent' --family-size 2 --planter-relation same_system_procedural --bootstrap-b 10000 --bootstrap-seed 1 --run-id x1-sealed-<pack>-prereg --runs-dir /dev/shm/b2/runs
+  ```
+
+- **Sandbox** (built from the committed B2b tree; nobody changes the worktree from the B2b commit until the planter
+  finishes): `/dev/shm/b2/planter/BRIEF.md` (byte-identical to `PLANTER_BRIEF.md`), `packs/<pack>/<the seven pack
+  files>` (byte-identical), an empty `specs/`, and `check-plant` (mode 755) made from
+  `docs/collective/x1/check-plant.sh.in` with `@REPO@` set to the worktree and `@LOG@` to
+  `/dev/shm/b2/check_plant_calls.jsonl`, outside the sandbox. Every sandbox file's sha256 goes into SEAL.
+- **Prompt form.** Exactly the bytes of `PLANTER_BRIEF.md` followed by `\nSandbox: /dev/shm/b2/planter\n`;
+  `prompt_sha256` is the sha256 of the exact text the orchestrator passed to the spawn call.
+- **B2d run command**, per pack, at HEAD == B2c on a clean tree, never `--allow-dirty`, with `TMPDIR=/dev/shm/b2/tmp`:
+
+  ```
+  python -m mycelic.collective.evaluate.harness run --prereg docs/collective/x1/<pack>/prereg.json --plant mycelic/collective/packs/data/<pack>/fixtures/plant_x1_sealed.json --seeds <the ten seeds> --run-id x1-sealed-<pack> --runs-dir /dev/shm/b2/runs
+  ```
+
+**Code hashes that change** (`harness.py` is in each file list; first 32 hex, d8feab1 then this worktree; the B2a
+values are recomputed on the committed tree by the reviewer, since any later edit of `harness.py` changes them):
+
+| Hash | d8feab1 | B2a |
+|---|---|---|
+| X1 (`harness.EVAL_CODE_FILES`) | `58be1775321f1ee74abdff055b71a09f` | `e7d5d82e3b9805358718b5927b6cca89` |
+| E2 (`e2_pushdown.E2_CODE_FILES`) | `73183f3e994195d990ae494748194ce8` | `7428e57c6c9e2b5f4e7d7a93d80a45bc` |
+| openFDA replay (`openfda_replay.REPLAY_CODE_FILES`) | `2a0125d962aeead5b8693f3ac1d6f8c8` | `452219e81aa711fb97387d8bc5da9663` |
+| E1 (`e1_extract.E1_CODE_FILES`, no `harness.py`) | `07c08295d7eeeff6eadcaa1db80ee500` | unchanged |
+
+No pack file changed: every pack hash is B1's.
+
+**Test counts (sandbox timing, not a product figure).** Both suites with `TMPDIR` on tmpfs and `nats-server` on the
+path; the d8feab1 column is B1a's recorded run.
+
+| Command | d8feab1 | B2a (this worktree) |
+|---|---|---|
+| `python -m pytest tests/mycelic -q -p no:warnings` | 1033 passed (27,480 subtests), 0 skipped, in 798 s | 1061 passed (27,620 subtests) = 1033 + 28 new, 0 skipped, in 761 s |
+| `python -m pytest NeuralGraph/tests -q -p no:warnings` | 222 passed, 1 skipped (119 subtests) | 222 passed, 1 skipped (119 subtests) in 5 s; the skip is the pre-existing one |
+
+The 28 new tests are 10 in `test_collective_evaluate.py` (the module: 75 tests in 80 s on its own) and 18 in
+`test_collective_x1_sealed.py` (9 s on its own, most of it the one-seed smoke scorecard of
+`TemplateOnAScorecardTests`).
+
+**Earlier tests whose expectation changed** (changed, never weakened):
+
+- `test_collective_evaluate.py`: `MetricTests::test_x1_eligibility_and_verdict` compared the whole x1 block; it now
+  includes the five new keys at their defaults (`family_size` 1, `unstated`, `independent` false,
+  `counts_as_strategy_x1` false, `[UNSTATED_CAVEAT]`). `DeterminismTests` makes its prereg with `--family-size 2
+  --planter-relation same_system_procedural` and also asserts the x1 additions, the adjusted lifts, the interval blocks
+  and `by_rate_per_week` equal across the two processes. `ScorecardSchemaTests::test_the_schema_rejects_tampering` gains
+  seven cases; `PlantedConstructionTests::test_the_x1_block_lifts_and_ablation` also checks the ablation's interval
+  blocks. `HarnessTests.prereg` gained a `seeds` keyword (a helper, no expectation).
+- `test_collective_e2.py` is unchanged and passes: its preregs come from the harness CLI, so the defaults fill the new
+  keys.
+
+**Merge notes.**
+
+1. **No fabric change and no fabric integration point.**
+2. **Every X1, E2 and openFDA-replay prereg made before B2a is refused** (the code hashes above; an X1 or E2 prereg
+   also lacks the two required keys). Re-make them on this commit; E1 preregs are unaffected.
+3. **Prereg and scorecard keys are added** (both schemas closed): the prereg's `family_size` and `planter_relation`; the
+   scorecard's four channel interval blocks, the lifts' adjusted fields, the x1 additions, `patterns[].rate_per_week`
+   and `by_rate_per_week`. A scorecard written before B2a fails the new schema; a consumer that copies the schema needs
+   the new keys.
+4. **check-plant refuses a mismatched binding** (before, only `run` did) and has `--construct`. The lab's argv keeps
+   working (both prereg flags are optional); a lab-made prereg gets `unstated` and family size 1, so its scorecard
+   carries `UNSTATED_CAVEAT` and `counts_as_strategy_x1` false.
+
+**A planter run before B2a (out of procedure; recorded, not used).** Before this freeze existed, the orchestrator
+spawned a planter that wrote one spec per pack and a declaration under `<scratchpad>/sealed_plants/` (outside the
+repository). As the orchestrator relayed the planter's report: it was given the full B2 design brief rather than
+`PLANTER_BRIEF.md` (which did not exist yet), and that text names detector mechanisms (through the forbidden-word
+list), the alert cut, the channels and the grace weeks; a listing of `loader.py` showed it detector setting names; so
+it set `planter_saw_detector_code` to true in both specs. There was no sandbox, no wrapper and no call log, and
+`prereg_sha256` is null in both specs because no prereg existed. The engineer has not opened these files; it only
+checked their sha256 against the relayed values (`sha256sum`, equal):
+
+| File | Bytes | sha256 |
+|---|---|---|
+| `specs/device_quality.json` | 19407 | `b34159af684607d836bd4b5379f0f8b6a94eec6f480de33cc9bd27d9e183db3f` |
+| `specs/claims_integrity.json` | 20035 | `24b8d490ddca5134c8279eb20daed21a20026952bfafa204c27c25d072223c6a` |
+| `declaration.json` | 4119 | `904bae9b16fc55059198399f698fe56627b050ddee2ef001af7d1386d5b8fe25` |
+
+They cannot be sealed as they are: an unbound spec fails the brief's rules, binding means changing `prereg_sha256`,
+which only a planter may do (after B2b, and it changes the bytes and so `plant`'s RNG, so construction must be
+re-checked at the prereg seeds), and a run on them would be ineligible (`planter_saw_detector_code` true). An
+eligible run needs the designed procedure: a fresh agent given exactly `PLANTER_BRIEF.md` in the B2b sandbox. Either
+way the run is recorded in `SEAL.json` `history` at B2c.
+
+### Disagreements and residuals, for the reviewer
+
+- **The construction-failure test uses five `de` filler sentences, not one.** The loader refuses fewer than five
+  (`S_FILLER` `minItems` 5), so the design's one-sentence pack copy cannot load. With five there are 5 + 20 + 60 = 85
+  filler-only texts, fewer than the 100 records of the test's `codes_only` `de` pattern, so construction fails at the
+  first seed whatever the draw.
+- **A dry run with `--construct` constructs nothing.** It checks the prereg, the pins, the world, the spec and its
+  binding (a foreign binding still exits 2), then emits; construction is the expensive part and writes nothing, so
+  the contract ("creates nothing") holds either way.
+- **On a construction failure check-plant prints nothing on stdout**, so `prereg_sha256:` appears only on success,
+  as the brief's procedure says.
+- **`passing_spec` is a brief-rule fixture**, built from pack ids and predicates; it meets every brief rule with the
+  least slack the single-rule cases need but is not a spec check-plant would accept. The sealed specs themselves are
+  checked against check-plant at B2c.
+- **`x1.caveats` is an enum list** in the schema (only the two caveat sentences), stricter than a free string list.
+- **The template's catalog writes every pointer out** (`/channels/{channel}/recall`, `/channels/{channel}/recall_net`,
+  ...) instead of the design's brace lists, so that only the five named placeholders and `{i}` need expanding. A
+  pointer that passes through null (an ineligible run's `/x1/verdict/pass`, rules' `precision_at_40_ci`) shows `null`;
+  a missing key is an error. Each SEAL row appears once: the packs' prereg and fixture rows are in `Lab handoff`, their
+  pack, pattern and decoy counts in `Protocol`. `By construction and warnings` and `Cost` are row groups of their own
+  in each pack's section.
+- **`==` and `!=` compare a bool only with a bool** in the condition evaluator, and an ordering op on a bool is false,
+  so `true` never equals `1`.
