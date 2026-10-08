@@ -1,4 +1,4 @@
-# NeuralGraph
+#@ NeuralGraph
 
 ### Persistent graph memory for Claude and AI agents — local-first, benchmarked, yours.
 
