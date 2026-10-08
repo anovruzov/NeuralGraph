@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mycelic quality signals</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<style>
+  /* Tokens. Light values here; dark values in the two blocks below. */
+  :root {
+    color-scheme: light;
+    --bg: #F4F6F7;
+    --ink: #17212B;
+    --muted: #4B5967;
+    --line: #7D8B97;
+    --accent: #7A4E00;
+    --on-accent: #FFFFFF;
+
+    --font-display: "Archivo", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    --font-body: "Atkinson Hyperlegible", Verdana, "Segoe UI", system-ui, sans-serif;
+    --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+
+    --step--1: 0.875rem;
+    --step-0: 1.125rem;
+    --lead: clamp(1.125rem, 1rem + 0.6vw, 1.375rem);
+    --step-2: 1.5rem;
+    --step-3: clamp(2.125rem, 1.4rem + 3vw, 3.25rem);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #151B21;
+      --ink: #E7ECEF;
+      --muted: #A9B5BF;
+      --line: #6E7C88;
+      --accent: #E8B84A;
+      --on-accent: #151B21;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #151B21;
+    --ink: #E7ECEF;
+    --muted: #A9B5BF;
+    --line: #6E7C88;
+    --accent: #E8B84A;
+    --on-accent: #151B21;
+  }
+
+  /* Base */
+  *, *::before, *::after { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: var(--step-0);
+    line-height: 1.6;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  h1, h2, p { margin: 0; }
+  figure { margin: 0; }
+  p, li, figcaption { max-width: 65ch; }
+
+  ::selection { background: var(--accent); color: var(--on-accent); }
+
+  a {
+    color: var(--accent);
+    text-decoration-line: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.2em;
+  }
+  a:hover { text-decoration-thickness: 2px; }
+
+  :focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  /* Page frame. The only element that sets the side gutter. */
+  .page {
+    max-width: 60rem;
+    margin-inline: auto;
+    padding-inline: clamp(1.25rem, 4vw, 3rem);
+  }
+
+  .site-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    padding-block: 1.5rem;
+  }
+  .wordmark {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1.25rem;
+    line-height: 1.2;
+  }
+  .tag {
+    font-family: var(--font-mono);
+    font-size: var(--step--1);
+    line-height: 1.5;
+    color: var(--muted);
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    padding: 0.15rem 0.5rem;
+  }
+
+  /* Hero */
+  .hero { padding-block: clamp(2.5rem, 1.5rem + 4vw, 5rem); }
+  h1 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: var(--step-3);
+    line-height: 1.08;
+    letter-spacing: -0.01em;
+    max-width: 20ch;
+  }
+  .lead {
+    margin-top: 1.25rem;
+    max-width: 36em;
+    font-size: var(--lead);
+    line-height: 1.5;
+    color: var(--ink);
+  }
+  .hero-link { margin-top: 1.5rem; }
+
+  /* Document sections: label column and body column on wide screens */
+  .doc {
+    padding-block: clamp(3rem, 2rem + 4vw, 6rem);
+    border-top: 1px solid var(--line);
+  }
+  h2 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: var(--step-2);
+    line-height: 1.2;
+  }
+  .doc h2 { margin: 0 0 1.25rem; }
+  .body p { margin-top: 1rem; }
+  .body p:first-child { margin-top: 0; }
+  .body figure { margin-top: 2rem; }
+
+  @media (min-width: 56rem) {
+    .doc {
+      display: grid;
+      grid-template-columns: 12rem minmax(0, 40rem);
+      column-gap: 3rem;
+      align-items: start;
+    }
+    .doc h2 { grid-column: 1; margin: 0; }
+    .doc .body { grid-column: 2; }
+  }
+
+  /* Steps */
+  ol.steps {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: step;
+  }
+  .steps li {
+    position: relative;
+    padding-inline-start: 2.75rem;
+  }
+  .steps li + li { margin-block-start: 1.5rem; }
+  .steps li::before {
+    counter-increment: step;
+    content: counter(step, decimal-leading-zero);
+    position: absolute;
+    inset-inline-start: 0;
+    top: 0.2em;
+    font-family: var(--font-mono);
+    font-size: var(--step--1);
+    line-height: 1.5;
+    color: var(--muted);
+  }
+  .steps strong {
+    font-family: var(--font-display);
+    font-weight: 600;
+  }
+
+  /* Diagram */
+  figure svg {
+    display: block;
+    width: 100%;
+    max-width: 30rem;
+    height: auto;
+  }
+  figcaption {
+    margin-top: 0.75rem;
+    font-size: var(--step--1);
+    line-height: 1.5;
+    color: var(--muted);
+  }
+  .d-wall { fill: none; stroke: var(--ink); stroke-width: 1.5; }
+  .d-rec { stroke: var(--muted); stroke-width: 2; stroke-linecap: round; }
+  .d-up { stroke: var(--muted); stroke-width: 1.5; }
+  .d-head-up { fill: var(--muted); }
+  .d-chk { stroke: var(--accent); stroke-width: 2; }
+  .d-head-chk { fill: var(--accent); }
+  .d-label { fill: var(--ink); font-family: var(--font-mono); font-size: 13px; }
+
+  /* Call to action */
+  .cta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem 1.5rem;
+    align-items: center;
+    margin-top: 1.5rem;
+  }
+  .button {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0.8rem 1.25rem;
+    border: 2px solid transparent;
+    border-radius: 3px;
+    background: var(--accent);
+    color: var(--on-accent);
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 1rem;
+    line-height: 1.2;
+    text-decoration: none;
+  }
+  .body .note {
+    margin-top: 1rem;
+    font-size: var(--step--1);
+    line-height: 1.5;
+    color: var(--muted);
+  }
+
+  /* Footer */
+  .site-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.5rem;
+    border-top: 1px solid var(--line);
+    padding-block: 2rem 3rem;
+    font-family: var(--font-mono);
+    font-size: var(--step--1);
+    line-height: 1.5;
+    color: var(--muted);
+  }
+  .site-foot p { margin: 0; }
+
+  @media (prefers-reduced-motion: no-preference) {
+    html { scroll-behavior: smooth; }
+    a { transition: text-decoration-thickness 120ms; }
+  }
+</style>
+<meta name="description" content="Spot quality problems that show up at several sites at once. Each site checks its own records, a named person approves the follow-up, and raw records stay at the site.">
+<meta name="color-scheme" content="light dark">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Mycelic quality signals">
+<meta property="og:description" content="Spot quality problems that show up at several sites at once. Each site checks its own records, a named person approves the follow-up, and raw records stay at the site.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2317212B'/%3E%3Crect x='8' y='8' width='16' height='16' rx='2' fill='none' stroke='%23F4F6F7' stroke-width='2'/%3E%3Ccircle cx='16' cy='16' r='3' fill='%23E8B84A'/%3E%3C/svg%3E">
+</head>
+<body>
+<div class="page" lang="en">
+
+<header class="site-head">
+  <p class="wordmark">Mycelic</p>
+  <p class="tag">In development</p>
+</header>
+
+<main>
+
+<section class="hero" aria-labelledby="top-h">
+  <h1 id="top-h">Spot quality problems that show up at several sites at once.</h1>
+  <p class="lead">Each site checks its own records, a named person approves the follow-up, and raw records stay at the site.</p>
+  <p class="hero-link"><a href="#pilot">About the pilot</a></p>
+</section>
+
+<section id="how" class="doc" aria-labelledby="how-h">
+  <h2 id="how-h">How it works</h2>
+  <div class="body">
+    <ol class="steps" role="list">
+      <li><strong>Each site counts.</strong> A small model on the site's own hardware reads complaint records and counts them by product, lot and failure mode.</li>
+      <li><strong>HQ looks across sites.</strong> It flags a failure mode that rises above its usual level at several sites, with no rule written in advance.</li>
+      <li><strong>Sites check.</strong> HQ asks each site to check its own records. Each answers yes, no or unknown, with a rough count. No complaint text leaves the site.</li>
+      <li><strong>A person approves.</strong> Mycelic drafts the follow-up, such as a CAPA initiation, for a named owner to approve. Every step is logged, and each site can trace its answer to its own records.</li>
+    </ol>
+    <figure>
+      <svg viewBox="0 0 360 236" role="img" aria-labelledby="fig-t" aria-describedby="fig-d">
+        <title id="fig-t">Records stay at each site while checks travel</title>
+        <desc id="fig-d">HQ at the top and three sites below. Each site sends counts up to HQ. HQ sends a question down to each site and gets an answer back. The records stay inside each site.</desc>
+        <rect class="d-wall" x="10" y="8" width="340" height="40" rx="3"/>
+        <text class="d-label" x="22" y="33">HQ</text>
+
+        <rect class="d-wall" x="10" y="156" width="100" height="72" rx="3"/>
+        <text class="d-label" x="20" y="176">Site A</text>
+        <line class="d-rec" x1="20" y1="192" x2="100" y2="192"/>
+        <line class="d-rec" x1="20" y1="204" x2="84" y2="204"/>
+        <line class="d-rec" x1="20" y1="216" x2="92" y2="216"/>
+
+        <rect class="d-wall" x="130" y="156" width="100" height="72" rx="3"/>
+        <text class="d-label" x="140" y="176">Site B</text>
+        <line class="d-rec" x1="140" y1="192" x2="220" y2="192"/>
+        <line class="d-rec" x1="140" y1="204" x2="204" y2="204"/>
+        <line class="d-rec" x1="140" y1="216" x2="212" y2="216"/>
+
+        <rect class="d-wall" x="250" y="156" width="100" height="72" rx="3"/>
+        <text class="d-label" x="260" y="176">Site C</text>
+        <line class="d-rec" x1="260" y1="192" x2="340" y2="192"/>
+        <line class="d-rec" x1="260" y1="204" x2="324" y2="204"/>
+        <line class="d-rec" x1="260" y1="216" x2="332" y2="216"/>
+
+        <line class="d-up" x1="48" y1="150" x2="48" y2="62"/>
+        <path class="d-head-up" d="M48 54 L52 62 L44 62 Z"/>
+        <line class="d-up" x1="168" y1="150" x2="168" y2="62"/>
+        <path class="d-head-up" d="M168 54 L172 62 L164 62 Z"/>
+        <line class="d-up" x1="288" y1="150" x2="288" y2="62"/>
+        <path class="d-head-up" d="M288 54 L292 62 L284 62 Z"/>
+
+        <line class="d-chk" x1="72" y1="62" x2="72" y2="142"/>
+        <path class="d-head-chk" d="M72 54 L76 62 L68 62 Z"/>
+        <path class="d-head-chk" d="M72 150 L68 142 L76 142 Z"/>
+        <line class="d-chk" x1="192" y1="62" x2="192" y2="142"/>
+        <path class="d-head-chk" d="M192 54 L196 62 L188 62 Z"/>
+        <path class="d-head-chk" d="M192 150 L188 142 L196 142 Z"/>
+        <line class="d-chk" x1="312" y1="62" x2="312" y2="142"/>
+        <path class="d-head-chk" d="M312 54 L316 62 L308 62 Z"/>
+        <path class="d-head-chk" d="M312 150 L308 142 L316 142 Z"/>
+      </svg>
+      <figcaption>One-headed arrows carry counts up. Two-headed arrows carry a question down and the answer back.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section id="why" class="doc" aria-labelledby="why-h">
+  <h2 id="why-h">Why it runs inside your walls</h2>
+  <div class="body">
+    <p>Your complaint text may not be allowed to leave a site or a country. So the model runs on your own hardware, with no outside model service.</p>
+    <p>A central system cannot check records it is not allowed to hold. Each site can. If your complaint text already sits in one place, you may not need Mycelic.</p>
+  </div>
+</section>
+
+<section id="who" class="doc" aria-labelledby="who-h">
+  <h2 id="who-h">Who it is for</h2>
+  <div class="body">
+    <p>Quality and safety teams at multi-site manufacturers, starting with medical devices.</p>
+  </div>
+</section>
+
+<section id="pilot" class="doc" aria-labelledby="pilot-h">
+  <h2 id="pilot-h">Status and pilot</h2>
+  <div class="body">
+    <p>Each step is built and tested on synthetic records, with a stand-in for the model. There are no customer results yet, and no measurements with a real model.</p>
+    <!-- PUBLIC CODE NOTE: delete the next paragraph once the code for the four quality steps is on the public repository's default branch. -->
+    <p>The code for these steps is not public yet.</p>
+    <p>The pilot is a 4 to 6 week signal audit for design partners. It runs on your historical complaint and CAPA exports, inside your environment, before any deployment. We compare what it flags with your past CAPAs. It writes nothing to your quality system.</p>
+    <div class="cta">
+      <!-- CONTACT LINK: the only place the pilot-request link is set. Replace this href to change where requests go, and update the note below if requests stop being public GitHub issues. -->
+      <a class="button" href="https://github.com/anovruzov/NeuralGraph/issues/new?title=Pilot%20request">Request a pilot</a>
+      <a href="https://github.com/anovruzov/NeuralGraph">See the public repository</a>
+    </div>
+    <p class="note">Requests are public GitHub issues and need a GitHub account. Leave out anything confidential.</p>
+  </div>
+</section>
+
+</main>
+
+<footer class="site-foot">
+  <p>Mycelic</p>
+  <p>MIT License</p>
+  <p><a href="https://github.com/anovruzov/NeuralGraph">Source on GitHub</a></p>
+</footer>
+
+</div>
+</body>
+</html>
