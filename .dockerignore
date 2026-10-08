@@ -12,3 +12,6 @@ deploy/mycelic/.env
 *.db-wal
 *.db-shm
 NeuralGraph/research/retrieval/en_thesaurus.jsonl
+# the pre-pilot collective layer stays out of the service image: the service never imports it
+# (tests/mycelic/test_collective_guards.py ImportGuardTests; tests/mycelic/test_packaging.py)
+mycelic/collective/

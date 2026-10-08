@@ -41,6 +41,9 @@ The assistant and the research are kept apart, and the import graph enforces it:
 - **`mycelic/`** — the deployable organizational-memory service. It may import
   `NeuralGraph.research.coordination` (the contracts it productizes) and
   `NeuralGraph.chat_memory.mcp_server` / `textutil`; nothing in `NeuralGraph/` imports `mycelic`.
+- **`mycelic/collective/`** — the pre-pilot collective layer (internal evidence only). Standard
+  library only, and the service never imports it: `tests/mycelic/test_collective_guards.py` enforces
+  both. The service image leaves it out (`.dockerignore`).
 
 A quick check that the separation still holds:
 

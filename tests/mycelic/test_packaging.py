@@ -116,6 +116,14 @@ class PinnedDependencyTests(unittest.TestCase):
         self.assertIn("COPY requirements-lock.txt /app/requirements-lock.txt", dockerfile)
         self.assertIn("pip install --no-cache-dir --require-hashes -r /app/requirements-lock.txt", dockerfile)
 
+    def test_the_image_leaves_out_the_collective_layer(self) -> None:
+        # the image copies mycelic/ whole, so .dockerignore keeps the pre-pilot collective layer out of it
+        self.assertIn("COPY mycelic /app/mycelic", (ROOT / "deploy" / "mycelic" / "Dockerfile").read_text())
+        lines = (ROOT / ".dockerignore").read_text().splitlines()
+        self.assertIn("mycelic/collective/", lines)
+        # an exception line ('!mycelic', '!mycelic/collective/...') would put the layer back in
+        self.assertEqual([line for line in lines if line.lstrip().startswith("!") and "mycelic" in line], [])
+
     def test_ci_installs_the_lock_and_runs_the_broker_that_ships(self) -> None:
         import yaml
 

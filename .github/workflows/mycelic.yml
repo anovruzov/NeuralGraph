@@ -10,7 +10,7 @@ jobs:
   tests:
     name: unit, API, MCP, JetStream integration and process smoke test
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     env:
       NATS_VERSION: v2.10.29      # the broker version the compose file and the Kubernetes manifests ship
     steps:

@@ -48,3 +48,9 @@ the compose deployment instead. If the stack cannot start, the script says why a
 command; if a live run fails midway, the console stays up with the error and the same command. Presenter notes
 open at `?presenter`; `--record PATH` records a new trace headless. The script's docstring describes the trace
 format and the HTTP endpoints.
+
+## Collective layer demo (internal)
+
+`demo/collective/` runs the pre-pilot collective layer end to end for a fictional multi-site company: synthetic
+same-author data, internal use only, never a measurement. Its [`README.md`](collective/README.md) has the commands
+and the recorded run.

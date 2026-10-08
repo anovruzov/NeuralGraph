@@ -1015,7 +1015,8 @@ python -m mycelic serve
 ```
 
 `python -m pytest tests/mycelic -q` runs the unit, API, MCP, JetStream integration and smoke tests
-(the JetStream and smoke modules skip themselves without the binary). The steps of this page that use Docker (the
+(the JetStream and smoke modules skip themselves without the binary), and the tests of the pre-pilot collective
+layer (`test_collective_*`, which the service does not depend on). The steps of this page that use Docker (the
 compose smoke test and demo, `docker compose … config`, the snapshot of section 4a) need a Docker daemon: they are
 release checks, and CI runs them in its compose job.
 

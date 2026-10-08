@@ -574,6 +574,7 @@ More, client by client, in the
 | **[Chat Memory Design](docs/CHAT_MEMORY.md)** | Why extraction is gated, how channels fuse, how commits are fenced |
 | **[Benchmarks](docs/BENCHMARKS.md)** | Every number across the coordination, retrieval and baseline tracks, with evidence classes |
 | **[Enterprise Hierarchy (Mycelic)](docs/MYCELIC_ENTERPRISE.md)** | The enterprise-hierarchy benchmark report; code and raw runs in [research/mycelic/](research/mycelic/) |
+| **[Collective layer (pre-pilot)](docs/collective/ARCHITECTURE.md)** | Cross-site detection, pushdown verification and approval-routed follow-up in `mycelic/collective/`. Pre-pilot, internal evidence only: synthetic, same-author data and fakes, never a measurement. Not in the service image, and the service never imports it |
 | **[Research](research/README.md)** | The research track: how to reproduce every number |
 | **[Experiment Reports](research/reports/README.md)** | 18 experiments, including the ones that failed |
 | **[System Architecture](docs/ARCHITECTURE.md)** | The v1 research engine design (December 2025) |

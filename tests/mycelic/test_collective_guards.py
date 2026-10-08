@@ -49,7 +49,8 @@ ROOT = Path(__file__).resolve().parents[2]
 # --------------------------------------------------------------------------------------------------- lists
 
 CORE_FILES = tuple(ROOT / "mycelic" / f"{name}.py"
-                   for name in ("service", "aggregation", "store", "transport", "lineage"))
+                   for name in ("service", "aggregation", "store", "transport", "lineage",
+                                "verification", "integrity"))
 FORBIDDEN_IMPORTS = ("mycelic.collective", "openai", "anthropic", "ollama", "llama_cpp", "vllm", "transformers",
                      "torch", "NeuralGraph.llm_backend", "NeuralGraph.chat_memory.llm")
 # importing mycelic.service loads NeuralGraph.chat_memory (and with it chat_memory.llm) through mycelic.retrieval,
@@ -558,7 +559,8 @@ class ImportGuardTests(unittest.TestCase):
         self.assertEqual(injected["importers"]["NeuralGraph.chat_memory"], ["__main__"])
 
     def test_core_without_service_loads_no_chat_memory(self) -> None:
-        loaded = self.loaded(("mycelic.store", "mycelic.transport", "mycelic.lineage", "mycelic.aggregation"))
+        loaded = self.loaded(("mycelic.store", "mycelic.transport", "mycelic.lineage", "mycelic.aggregation",
+                              "mycelic.verification", "mycelic.integrity"))
         self.assertEqual([m for m in loaded if m.startswith("NeuralGraph.chat_memory")], [])
         self.assertEqual([m for m in loaded if _forbidden(m)], [])
 
