@@ -1,6 +1,7 @@
 """The cloud lab workflow, read as data: triggers, permissions, pinned actions, run blocks that hold no expression and
-only lab commands, the token in one step, job and step conditions, artifact names, the job clock and the cache paths.
-Every lab command in it must parse with that module's own argument parser.
+only lab commands, the token in one step, the openFDA key secret in exactly two step environments, the preregistration
+step, job and step conditions, artifact names, the job clock and the cache paths. Every lab command in it must parse
+with that module's own argument parser.
 
 PyYAML reads the ``on:`` key as the boolean True, so the triggers are ``wf.get("on", wf.get(True))``. PyYAML is used
 here only; the lab itself never imports it.
@@ -134,10 +135,20 @@ class WorkflowTests(unittest.TestCase):
                          [SELF_TEST, STAMP])
 
     def test_secrets_and_token_only_in_provision_server_step(self) -> None:
+        holders = []
         for path, value in scalars(WF):
             if "secrets." in value:
                 self.assertEqual((path[0], path[2], path[4]), ("jobs", "steps", "env"), path)
-        self.assertNotIn("secrets.", TEXT)
+                holders.append((path[1], steps(path[1])[path[3]].get("id"), path[5], value))
+        self.assertEqual(holders, [
+            ("plan", "plan", "LAB_HAS_OPENFDA_KEY", "${{ secrets.MYCELIC_LAB_OPENFDA_API_KEY != '' }}"),
+            ("run", "run", "MYCELIC_LAB_OPENFDA_API_KEY",
+             "${{ matrix.openfda && secrets.MYCELIC_LAB_OPENFDA_API_KEY || '' }}")])
+        self.assertEqual(TEXT.count("secrets."), 2)
+        self.assertEqual(re.findall(r"secrets\.([A-Z_]+)", TEXT), ["MYCELIC_LAB_OPENFDA_API_KEY"] * 2)
+        self.assertEqual(TEXT.count("LAB_HAS_OPENFDA_KEY"), 1)
+        self.assertEqual(TEXT.count("MYCELIC_LAB_OPENFDA_API_KEY:"), 1)
+        self.assertNotIn("--openfda-base-url", TEXT)
         self.assertEqual(TEXT.count("github.token"), 1)
         self.assertEqual(TEXT.count("GH_TOKEN"), 1)
         self.assertEqual(step("provision", "server")["env"]["GH_TOKEN"], "${{ github.token }}")
@@ -153,8 +164,8 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(JOBS["provision"]["if"], "needs.plan.outputs.has_provision == 'true'")
         self.assertEqual(JOBS["provision"]["needs"], "plan")
         for name in ("run", "aggregate"):
-            self.assertIn(CANCELLED, JOBS[name]["if"])
-            self.assertIn("needs.plan.outputs.has_units == 'true'", JOBS[name]["if"])
+            self.assertEqual(JOBS[name]["if"], "${{ !cancelled() && needs.plan.result == 'success' && "
+                                               "needs.plan.outputs.has_units == 'true' }}")
         self.assertEqual(JOBS["run"]["needs"], ["plan", "provision"])
         self.assertEqual(JOBS["aggregate"]["needs"], ["plan", "provision", "run"])
         for name, output in (("provision", "provision_matrix"), ("run", "matrix")):
@@ -269,9 +280,28 @@ class WorkflowTests(unittest.TestCase):
                     module._parser().parse_args(args[3:])
                 except SystemExit as exc:
                     self.fail(f"{command} does not parse ({exc})")
-        self.assertEqual(modules, {"lab.plan", "lab.provision server", "lab.provision gguf", "lab.shard cache-keys",
-                                   "lab.shard prepare", "lab.shard run", "lab.shard seal", "lab.summary plan",
-                                   "lab.summary shard", "lab.summary report", "lab.aggregate"})
+        self.assertEqual(modules, {"lab.plan", "lab.prereg", "lab.provision server", "lab.provision gguf",
+                                   "lab.shard cache-keys", "lab.shard prepare", "lab.shard run", "lab.shard seal",
+                                   "lab.summary plan", "lab.summary shard", "lab.summary report", "lab.aggregate"})
+
+    def test_prereg_step_before_any_shard(self) -> None:
+        plan_steps = steps("plan")
+        prereg = step("plan", "prereg")
+        self.assertEqual(prereg, {"id": "prereg", "if": "steps.plan.outputs.has_units == 'true'",
+                                  "timeout-minutes": 20,
+                                  "run": 'python -m lab.prereg --plan "$RUNNER_TEMP/lab-plan/plan.json"'})
+        order = [s.get("id") or s.get("uses", s.get("run", ""))[:30] for s in plan_steps]
+        at = plan_steps.index(prereg)
+        self.assertEqual(plan_steps[at - 1].get("id"), "plan")
+        later = plan_steps[at + 1:]
+        self.assertTrue(any("lab.summary plan" in s.get("run", "") for s in later), order)
+        self.assertTrue(any(uses(s) == "actions/upload-artifact" for s in later), order)
+        self.assertEqual(JOBS["plan"]["timeout-minutes"], 30)
+        self.assertEqual(step("plan", "plan")["env"], {"LAB_HAS_OPENFDA_KEY":
+                                                       "${{ secrets.MYCELIC_LAB_OPENFDA_API_KEY != '' }}"})
+        self.assertEqual(JOBS["run"]["needs"], ["plan", "provision"])
+        upload = next(s for s in plan_steps if uses(s) == "actions/upload-artifact")
+        self.assertEqual(upload["with"]["path"], "${{ runner.temp }}/lab-plan")
 
 
 if __name__ == "__main__":

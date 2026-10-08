@@ -10,11 +10,19 @@ requires ``lab/requests/<name>.json``.
 A unit is one experiment on one model: ``<experiment>-<model>`` (``unit_id``), run under the run id
 ``<unit>-<8 hex of sha256(request sha256 | unit)>``; a sim unit is one model and one seed, ``sim-<model>-s<seed>``,
 whose params are the plant, its pack, the weeks, ``lab.sim.world_settings`` (evaluation weeks and grace), the sim's
-tie salt, bootstrap settings, ``top_n`` and the seed. A shard is the set of units one runner job executes, all on
-one model: units are grouped by model (``none`` for model-free units), and inside a group placed first-fit
-decreasing by minutes into shards of ``job_minutes - SHARD_OVERHEAD_MINUTES`` minutes, E3 units last, ties broken
-by unit id. Shards are numbered ``sNNN-<label>`` in creation order; a shard runs its units in the order they were
-placed, and its job timeout is its planned minutes plus the overhead.
+tie salt, bootstrap settings, ``top_n`` and the seed. An E1 unit is one model and one repeat, ``e1-<model>-r<k>``
+(params: the labels' pack, the labels, the model as ``endpoint``, the reference, ``repeat``, ``runs``,
+``margin_points``, ``seed`` and ``bootstrap_b``); an E2 unit is one model, ``e2-<model>`` (params: the block's world
+and harness settings, the plant's repository path ``plant_path``, the pack's site count ``sites``, the sorted seeds and
+the first of them as ``seed``); ``x1`` and ``openfda`` are one model-free unit each (model None, kind ``none``; X1
+takes E2's params without ``top_n``, ``min_candidates`` and ``central``, openFDA the normalised block plus
+``requests_estimate``). A shard is the set of units one runner job executes, all on one model: units are grouped by
+model (``none`` for model-free units), and inside a group placed first-fit decreasing into shards of ``job_minutes -
+SHARD_OVERHEAD_MINUTES`` minutes by (serving class rank, -minutes, unit id), the classes (:func:`serving_class`)
+ranked ``quality``, ``e2``, ``e3``. Shards are numbered ``sNNN-<label>`` in creation order; a shard runs its units in
+the order they were placed, and its job timeout is its planned minutes plus the overhead.
+
+Nothing from the preregistration (``lab.prereg``, which the workflow runs right after this) goes into the plan.
 
 ``DIR/plan.json`` (canonical JSON; no clock, host or environment value, so two plans of the same request at the
 same commit are byte-identical)::
@@ -29,6 +37,9 @@ same commit are byte-identical)::
      "skipped": [], "matrix": {"include": [...]},
      "provision": [{"target": "server" | "gguf", "key": "" | "<model key>", "entry", "cache_path", "cache_key",
                     "restore_key", "restore_prefix"}]}
+
+A matrix entry's ``openfda`` is true exactly when its shard holds the openFDA unit (the run step then passes the
+openFDA key secret, when there is one, to that shard only).
 
 ``provision`` lists what the provision matrix downloads and verifies once per run: the server first, then each gguf
 model the plan uses in sorted key order; empty when no shard serves a gguf model. ``entry`` (``server`` or
@@ -46,24 +57,29 @@ bytes (:func:`check_outputs_size`). When the event runs nothing, no plan is writ
 (``{"schema_version": 1, "kind": "lab_plan_nothing", "notice": <the first notice, a fixed sentence>, "requests":
 [<request paths of a merge that brought several>]}``; never a branch name or a command) records why, the notices are
 printed as ``::notice`` lines and the outputs say so (``has_units=false``, ``has_provision=false``); exit 0. Any
-problem writes ``DIR/plan-error.json``, prints ``error: <path>: <problem>`` as the first stderr line and an
-``::error`` workflow command, and exits 2.
+problem writes ``DIR/plan-error.json`` (:func:`write_plan_error`, which ``lab.prereg`` uses too), prints ``error:
+<path>: <problem>`` as the first stderr line and an ``::error`` workflow command, and exits 2. The openFDA fetch budget
+depends on whether the repository has the openFDA key secret: the workflow says so in ``LAB_HAS_OPENFDA_KEY``
+(``true`` or anything else), never with the key itself.
 """
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 
 from mycelic.collective.experiments.common import RUN_ID_RE, write_json_atomic
 from mycelic.collective.jsonio import canonical_dumps, sha256_hex
 
-from . import EXIT_OK, EXIT_USAGE, LabError, display_path, gh_data, gh_property, safe_path, shown_path
+from . import EXIT_OK, EXIT_USAGE, ROOT, LabError, display_path, gh_data, gh_property, safe_path, shown_path
 from .discover import REQUEST_PATH_RE, DiscoveryError, discover, git
 from .manifest import Manifest, ManifestError, cache_dir, cache_key, cache_prefix, load_manifest
-from .request import EXPERIMENTS, SHARD_OVERHEAD_MINUTES, Request, RequestError, load_request
+from mycelic.collective.packs import loader
+
+from .request import EXPERIMENTS, SHARD_OVERHEAD_MINUTES, Request, RequestError, load_request, openfda_requests
 from .sim import BOOTSTRAP_B, BOOTSTRAP_SEED, PLANTS, TIE_SALT, world_settings
 
 MAX_SHARDS = 256
@@ -73,6 +89,7 @@ MAX_UNIT_ID = 55
 UNIT_ID_RE = re.compile(r"[a-z0-9][a-z0-9-]*", re.ASCII)
 SHARD_ID_RE = re.compile(r"s[0-9]{3}-[a-z0-9][a-z0-9-]{0,23}", re.ASCII)
 NO_MODEL = "none"
+CLASS_RANK = {"quality": 0, "e2": 1, "e3": 2}
 OUTPUT_KEYS = ("has_provision", "has_units", "matrix", "max_parallel", "plan_sha256", "provision_matrix",
                "retention_days", "result_class")
 
@@ -100,6 +117,11 @@ def run_id(uid: str, request_sha256: str) -> str:
 
 # --------------------------------------------------------------------------------------------------- units and shards
 
+def serving_class(experiment: str) -> str:
+    """Which model-server start a unit needs: ``e3`` (the E3 slots), ``e2`` (one long-context slot) or ``quality``."""
+    return experiment if experiment in ("e3", "e2") else "quality"
+
+
 def _params(experiment: str, block: dict[str, Any], seed: int) -> dict[str, Any]:
     if experiment == "e3":
         return {k: block[k] for k in ("concurrency", "requests", "warmup", "workloads", "seed")}
@@ -111,19 +133,56 @@ def _params(experiment: str, block: dict[str, Any], seed: int) -> dict[str, Any]
     return {k: block[k] for k in ("pack", "records", "seed")}
 
 
+def _world_params(block: dict[str, Any]) -> dict[str, Any]:
+    """The params E2 and X1 units share: the world, the plant and the harness settings."""
+    pack = loader.load_pack(block["pack"])
+    plant_path = (loader.BUILTIN_ROOT / block["pack"] / "fixtures" / f"{block['plant']}.json").relative_to(ROOT)
+    seeds = sorted(block["seeds"])
+    return {"pack": block["pack"], "plant": block["plant"], "plant_path": plant_path.as_posix(),
+            "sites": len(pack.generator["sites"]), "seeds": seeds, "seed": seeds[0],
+            **{k: block[k] for k in ("weeks", "eval_from", "eval_to", "grace_weeks", "tie_salt", "detector_author")}}
+
+
+def _unit(request: Request, manifest: Manifest, experiment: str, model: str | None, suffix: str, minutes: int,
+          params: dict[str, Any], seeds: list[int]) -> dict[str, Any]:
+    uid = unit_id(experiment, model, suffix)
+    return {"unit": uid, "run_id": run_id(uid, request.sha256), "experiment": experiment, "model": model,
+            "kind": manifest.models[model]["kind"] if model is not None else NO_MODEL, "minutes": minutes,
+            "params": params, "seeds": seeds, "needs_secret": False, "env": [], "shard": None}
+
+
 def build_units(request: Request, manifest: Manifest) -> list[dict[str, Any]]:
     units = []
     for experiment in EXPERIMENTS:
         block = request.data["experiments"].get(experiment)
         if block is None:
             continue
-        for model in block["models"]:
-            for seed in (block["seeds"] if experiment == "sim" else [block["seed"]]):
-                uid = unit_id(experiment, model, f"s{seed}" if experiment == "sim" else "")
-                units.append({"unit": uid, "run_id": run_id(uid, request.sha256), "experiment": experiment,
-                              "model": model, "kind": manifest.models[model]["kind"], "minutes": block["minutes"],
-                              "params": _params(experiment, block, seed), "seeds": [seed], "needs_secret": False,
-                              "env": [], "shard": None})
+        if experiment == "e1":
+            common = {"pack": block["labels"]["pack"], "labels": block["labels"]}
+            for model in block["models"]:
+                for k in range(1, block["runs"] + 1):
+                    params = {**common, "endpoint": model, "reference": block["reference"], "repeat": k,
+                              **{key: block[key] for key in ("runs", "margin_points", "seed", "bootstrap_b")}}
+                    units.append(_unit(request, manifest, "e1", model, f"r{k}", block["minutes"], params,
+                                       [block["seed"]]))
+        elif experiment == "e2":
+            params = {**_world_params(block), **{key: block[key] for key in ("top_n", "min_candidates", "central",
+                                                                              "bootstrap_b", "bootstrap_seed")}}
+            for model in block["models"]:
+                units.append(_unit(request, manifest, "e2", model, "", block["minutes"], dict(params),
+                                   list(params["seeds"])))
+        elif experiment == "x1":
+            params = {**_world_params(block), **{key: block[key] for key in ("bootstrap_b", "bootstrap_seed")}}
+            units.append(_unit(request, manifest, "x1", None, "", block["minutes"], params, list(params["seeds"])))
+        elif experiment == "openfda":
+            params = {**block, "requests_estimate": openfda_requests(block["product_codes"],
+                                                                      block["max_records_per_code"])}
+            units.append(_unit(request, manifest, "openfda", None, "", block["minutes"], params, []))
+        else:
+            for model in block["models"]:
+                for seed in (block["seeds"] if experiment == "sim" else [block["seed"]]):
+                    units.append(_unit(request, manifest, experiment, model, f"s{seed}" if experiment == "sim" else "",
+                                       block["minutes"], _params(experiment, block, seed), [seed]))
     units.sort(key=lambda u: u["unit"])
     run_ids = [u["run_id"] for u in units]
     if len(set(run_ids)) != len(run_ids) or len({u["unit"] for u in units}) != len(units):
@@ -141,7 +200,7 @@ def pack_shards(units: list[dict[str, Any]], capacity: int) -> list[dict[str, An
     for label, needs_secret in sorted(groups):
         mine: list[dict[str, Any]] = []
         for unit in sorted(groups[(label, needs_secret)],
-                           key=lambda u: (u["experiment"] == "e3", -u["minutes"], u["unit"])):
+                           key=lambda u: (CLASS_RANK[serving_class(u["experiment"])], -u["minutes"], u["unit"])):
             if unit["minutes"] > capacity:
                 raise PlanError("$.experiments", "a unit needs more minutes than a shard holds") from None
             target = next((s for s in mine if remaining[s["shard"]] >= unit["minutes"]), None)
@@ -203,7 +262,8 @@ def build_plan(request: Request, manifest: Manifest, git_sha: str) -> dict[str, 
         unit["shard"] = shard_of[unit["unit"]]
     matrix = {"include": [{"shard": s["shard"], "model": s["model"] or "", "kind": s["kind"],
                            "timeout_minutes": s["timeout_minutes"],
-                           "gguf_key": s["model"] if s["kind"] == "gguf" else "", "hosted": False, "openfda": False}
+                           "gguf_key": s["model"] if s["kind"] == "gguf" else "", "hosted": False,
+                           "openfda": any(u == "openfda" for u in s["units"])}
                           for s in shards]}
     check_matrix_size(matrix)
     used = sorted({u["model"] for u in units if u["model"]})
@@ -255,23 +315,30 @@ def git_sha() -> str:
     return sha if r.returncode == 0 and re.fullmatch(r"[0-9a-f]{40}", sha) else "unknown"
 
 
+def write_plan_error(out: Path, source: str, request_path: str | None, path: str, problem: str,
+                     hints: Sequence[str] = ()) -> int:
+    """``out/plan-error.json``, ``error: <path>: <problem>`` as the first stderr line (then the hints) and one
+    ``::error`` workflow command; returns the usage exit code. ``path`` must already be a safe path."""
+    shown = f"{source} {path}" if source in ("manifest", "lock") else path
+    out.mkdir(parents=True, exist_ok=True)
+    write_json_atomic(out / "plan-error.json", {"schema_version": 1, "kind": "lab_plan_error", "source": source,
+                                                "request": request_path, "path": path, "problem": problem})
+    print(f"error: {shown}: {problem}", file=sys.stderr)
+    for line in hints:
+        print(gh_data(line), file=sys.stderr)
+    file_property = f" file={gh_property(request_path)}" if request_path else ""
+    print(f"::error{file_property}::{gh_data(chr(10).join([f'{shown}: {problem}', *hints]))}")
+    return EXIT_USAGE
+
+
 def _report(out: Path, err: LabError, request_path: str | None) -> int:
     if isinstance(err, ManifestError):
         source, path = err.source, safe_path(err.json_path)
     else:
         source = {RequestError: "request", DiscoveryError: "event"}.get(type(err), "plan")
         path = safe_path(err.path)
-    shown = f"{source} {path}" if source in ("manifest", "lock") else path
     hints = list(err.hints) if isinstance(err, DiscoveryError) else []
-    out.mkdir(parents=True, exist_ok=True)
-    write_json_atomic(out / "plan-error.json", {"schema_version": 1, "kind": "lab_plan_error", "source": source,
-                                                "request": request_path, "path": path, "problem": err.problem})
-    print(f"error: {shown}: {err.problem}", file=sys.stderr)
-    for line in hints:
-        print(gh_data(line), file=sys.stderr)
-    file_property = f" file={gh_property(request_path)}" if request_path else ""
-    print(f"::error{file_property}::{gh_data(chr(10).join([f'{shown}: {err.problem}', *hints]))}")
-    return EXIT_USAGE
+    return write_plan_error(out, source, request_path, path, err.problem, hints)
 
 
 # --------------------------------------------------------------------------------------------------- CLI
@@ -318,7 +385,8 @@ def main(argv: list[str] | None = None) -> int:
                 return EXIT_OK
             path, strict = found.request, True
         request_path = shown_path(display_path(path))
-        request = load_request(path, manifest, strict_location=strict)
+        request = load_request(path, manifest, strict_location=strict,
+                               openfda_key=os.environ.get("LAB_HAS_OPENFDA_KEY") == "true")
         plan = build_plan(request, manifest, git_sha())
     except LabError as err:
         return _report(out, err, request_path)

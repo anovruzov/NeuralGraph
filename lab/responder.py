@@ -5,7 +5,9 @@ sends (``response_format.json_schema.name``, which is the task name):
 
 * ``extract_claims``: the pack's lexical extractor, as model reply items (``edge.extract.lexical_handler``);
 * ``judge_record``: the pack's lexical judge (``edge.verify.lexical_judge``);
-* ``e3_extraction_like`` and ``e3_short_answer``: a fixed reply that satisfies the E3 workload schema.
+* ``e3_extraction_like`` and ``e3_short_answer``: a fixed reply that satisfies the E3 workload schema;
+* ``judge_candidate_raw`` and ``judge_candidate_allowed`` (E2's central comparator): ``{"score": <the payload's
+  canonical sha256 as an integer, mod 101>}``, deterministic and pack-free (a plumbing answer, not a judgement).
 
 A request without a well-formed ``response_format``, with an unknown name, without a task payload, or a pack task
 when the responder has no pack, raises :class:`ResponderError` (a fixed message; nothing from the request). The fake
@@ -19,7 +21,9 @@ from typing import Any, Callable, Mapping
 from mycelic.collective.edge.extract import TASK_NAME, lexical_handler
 from mycelic.collective.edge.verify import JUDGE_TASK, lexical_judge
 from mycelic.collective.experiments.e3_latency import WORKLOADS
+from mycelic.collective.experiments.e2_pushdown import CENTRAL_TASKS
 from mycelic.collective.inference.fakeserver import request_payload
+from mycelic.collective.jsonio import canonical_bytes, sha256_hex
 from mycelic.collective.packs.canonical import Canonicaliser
 from mycelic.collective.packs.loader import FrozenPack
 
@@ -54,6 +58,8 @@ class Responder:
             raise ResponderError()
         if name in E3_REPLIES:
             return dict(E3_REPLIES[name])
+        if name in CENTRAL_TASKS:
+            return {"score": int(sha256_hex(canonical_bytes(payload)), 16) % 101}
         handler = self._handlers.get(name)
         if handler is None:
             raise ResponderError()

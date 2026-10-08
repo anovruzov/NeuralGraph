@@ -62,15 +62,34 @@ def run_plan(argv: list[str]) -> tuple[int, str, str]:
     return code, out.getvalue(), err.getvalue()
 
 
+PREREG_EXPERIMENTS = ("e1", "e2", "x1")
+
+
+def run_prereg(plan_path: Path) -> tuple[int, str, str]:
+    """``lab.prereg.main`` in-process with stdout and stderr captured."""
+    from lab import prereg
+
+    out, err = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        code = prereg.main(["--plan", str(plan_path)])
+    return code, out.getvalue(), err.getvalue()
+
+
 def make_plan(directory: Path, request: dict[str, Any], manifest: Path = MANIFEST_TEST,
               name: str = "lab-test") -> tuple[dict[str, Any], Path]:
-    """Plan ``request`` (written to ``directory/<name>.json``) into ``directory/plan``; returns (plan, plan path)."""
+    """Plan ``request`` (written to ``directory/<name>.json``) into ``directory/plan`` and, when it has E1, E2 or X1
+    units, preregister it as the plan job does; returns (plan, plan path)."""
     path = write_json(directory / f"{name}.json", request)
     code, out, err = run_plan(["--request", str(path), "--manifest", str(manifest), "--out", str(directory / "plan")])
     if code != 0:
         raise AssertionError(f"plan failed: {err}")
     plan_path = directory / "plan" / "plan.json"
-    return json.loads(plan_path.read_text(encoding="utf-8")), plan_path
+    plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    if any(u["experiment"] in PREREG_EXPERIMENTS for u in plan["units"]):
+        code, out, err = run_prereg(plan_path)
+        if code != 0:
+            raise AssertionError(f"prereg failed: {err}")
+    return plan, plan_path
 
 
 def lab_env(**extra: str) -> dict[str, str]:
@@ -419,9 +438,14 @@ def canonical_json(obj: Any) -> bytes:
     return (json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False) + "\n").encode("utf-8")
 
 
-def dry_run(out: Path, request: Path, manifest: Path | None = None) -> subprocess.CompletedProcess[str]:
-    return lab_cli("lab.dryrun", "--request", str(request), "--out", str(out),
-                   *(["--manifest", str(manifest)] if manifest is not None else []))
+def dry_run(out: Path, request: Path, manifest: Path | None = None, openfda_base_url: str | None = None,
+            **env: str) -> subprocess.CompletedProcess[str]:
+    """``lab.dryrun`` as a subprocess; ``env`` adds environment variables (the openFDA key sentinel)."""
+    return subprocess.run([sys.executable, "-m", "lab.dryrun", "--request", str(request), "--out", str(out),
+                           *(["--manifest", str(manifest)] if manifest is not None else []),
+                           *([f"--openfda-base-url={openfda_base_url}"] if openfda_base_url is not None else [])],
+                          cwd=ROOT, env=lab_env(**env), capture_output=True, text=True, timeout=900,
+                          stdin=subprocess.DEVNULL)
 
 
 class DryTree:

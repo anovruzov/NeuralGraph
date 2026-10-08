@@ -1,5 +1,6 @@
 """Merge one run's shard artifacts into one report: which artifact counts for each shard, what each unit gave, the
-E3, G0, sim, sizing and latency rows, the provision records and the lock candidate.
+E3, G0, sim, sizing, E2, X1, openFDA and latency rows, the E1 comparison, the provision records and the lock
+candidate.
 
     python -m lab.aggregate --plan FILE --provision DIR --shards DIR --manifest FILE --out DIR
 
@@ -31,7 +32,29 @@ unit with a record, whatever its status (a skipped or timed-out one included), a
 its collected ``scorecard.json`` or, failing that, ``progress.json`` reads: records done of all, the measured
 extraction and judge medians in seconds, the estimate and the suggested minutes for the next request.
 ``notes.sim_world_digest`` groups the sim rows by (plant, seed, weeks): one world digest per group is
-``consistent``.
+``consistent``. G0 rows also carry the protocol's record count (:data:`G0_PROTOCOL_RECORDS`, STRATEGY 11.2) and
+whether the scan was below it.
+
+E2 rows (one per ``e2.json``) copy its stamps, the protocol minimums, the central comparator, the candidates, the
+conditions' AP and precision at k, the ratio, the raw text bytes, the pushdown statuses and resolvability share and the
+bar verdict with its withheld reason; every E2 unit record with a projection also gets an ``e2_sizing`` row. X1 rows
+copy the scorecard's stamps, channels, lifts, eligibility, plant counts and warnings; openFDA rows the replay's data
+label and declaration, channels, recall counts and warnings, each fetch's per-code totals and the two sheets' sizes,
+and every step's status. No row copies an item, a key, a record or a sheet row.
+
+**E1** (``e1``; null without E1 units) compares the models' repeats with the harness's own ``compare``. The plan's
+preregistration must verify (``lab.prereg.load_prereg``, else the reason is :data:`~lab.notes.PREREG_MISSING`). A
+model is complete when every repeat ``1..runs`` is ``ok`` and its files verify (a unit whose files differ from its
+record is excluded); an incomplete reference means no comparison (:data:`~lab.notes.E1_NO_REFERENCE`). Otherwise each
+complete model's ``run.json``, ``predictions.jsonl`` and ``ledger.jsonl`` are copied byte for byte to
+``DIR/e1/runs/<run id>/`` and the prereg to ``DIR/e1/prereg.json``, and ``e1_extract compare`` runs over them (run
+id ``compare``, ``--runs-dir DIR/e1``, ``--allow-incomplete`` exactly when a non-reference model was left out; its log
+in ``DIR/e1/compare.stdout.log`` and ``.stderr.log``); a refusal is :data:`~lab.notes.E1_COMPARE_FAILED`. The block
+holds the labels, the prereg's thresholds, every repeat's status, the excluded models, the endpoints without runs,
+``measurement`` and ``verdicts_shown`` (a measurement shown in the ``model`` class only), the pooled F1 blocks per
+model and the paired comparison against the reference, never e1.json's clock or paths (``e1_json`` is its path
+relative to ``DIR``). Its ``display_class`` is ``plumbing`` when any compared unit is, ``model`` when all are, else
+``unverified``.
 
 The lock: ``not_computed`` when the manifest or lock no longer hashes as the plan recorded or the provision records
 are ambiguous; otherwise the verified records of this plan are merged into the current lock
@@ -39,7 +62,8 @@ are ambiguous; otherwise the verified records of this plan are merged into the c
 ``lock-candidate.json`` written for the team to commit.
 
 ``DIR`` must be absent or empty; it receives ``report.json`` (canonical JSON, no clock value: the same inputs give the
-same bytes), ``plan.json`` (a byte copy) and ``lock-candidate.json``. stdout is one line::
+same bytes), ``plan.json`` (a byte copy), ``lock-candidate.json`` and the E1 comparison's ``e1/``. stdout is one
+line::
 
     lab: aggregate units <n> shards <n> class <plumbing|real> measurements <true|false> lock <status>
 
@@ -57,15 +81,18 @@ from pathlib import Path
 from typing import Any
 
 from mycelic.collective.experiments.common import RUN_ID_RE, write_json_atomic
+from mycelic.collective.experiments.e2_pushdown import PROTOCOL_MIN_CANDIDATES, PROTOCOL_MIN_SEEDS
 from mycelic.collective.jsonio import StrictJsonError, sha256_hex, strict_load
 from mycelic.collective.stats import percentile
 
-from . import EXIT_OK, EXIT_USAGE, forbidden_root
+from . import EXIT_OK, EXIT_USAGE, ROOT, forbidden_root
 from . import provision as lab_provision
+from . import units as lab_units
 from .manifest import ManifestError, load_manifest, lock_path
-from .notes import (ALTERED, AMBIGUOUS_ARTIFACTS, FILES_DIFFER, NO_ARTIFACT, NOT_RUN, OTHER_PLAN, PLUMBING_BANNER,
-                    STEP_FAILED, UNIT_RECORD_INVALID, UNSEALED)
+from .notes import (ALTERED, AMBIGUOUS_ARTIFACTS, E1_COMPARE_FAILED, E1_NO_REFERENCE, FILES_DIFFER, NO_ARTIFACT,
+                    NOT_RUN, OTHER_PLAN, PLUMBING_BANNER, PREREG_MISSING, STEP_FAILED, UNIT_RECORD_INVALID, UNSEALED)
 from .plan import SHARD_ID_RE, UNIT_ID_RE
+from .prereg import PreregError, load_prereg
 from .units import ADAPTERS, display_class, ledger_rows
 
 ARTIFACT_RE = re.compile(r"lab-run-[0-9]{1,20}-[0-9]{1,6}-" + SHARD_ID_RE.pattern, re.ASCII)
@@ -79,6 +106,17 @@ G0_FIELDS = ("pack", "pack_version", "seed", "records", "passed", "canaries_plan
              "shingle_overlap_bytes", "world_digest")
 SIM_CHANNEL_FIELDS = ("found", "units", "recall", "precision_at_40", "average_precision", "alerts", "false_alarms")
 SIM_LIFT_FIELDS = ("estimate", "ci_low", "ci_high")
+G0_PROTOCOL_RECORDS = 1000
+E1_MODULE = "mycelic.collective.experiments.e1_extract"
+E1_FILES = ("run.json", "predictions.jsonl", "ledger.jsonl")
+E1_COMPARE_TIMEOUT_S = 1200
+E1_JSON = "e1/e1/compare/e1.json"
+E1_F1 = ("field_f1", "claim_f1", "entity_f1", "predicate_f1")
+E2_CONDITION_FIELDS = ("ap", "ap_ci_low", "ap_ci_high", "precision_at_k")
+OPENFDA_CHANNEL_FIELDS = ("in_scope", "found", "recall_rate", "median_lead_days", "post_recall_alerts", "false_alarms",
+                          "false_alarms_per_week")
+OPENFDA_RECALL_COUNTS = ("cache_records", "duplicates", "bad_record", "other_firm", "bad_date", "out_of_range",
+                         "not_evaluable")
 
 
 class AggregateError(ValueError):
@@ -293,11 +331,210 @@ def _g0_row(row: dict[str, Any], root: Path) -> dict[str, Any] | None:
     if not isinstance(result, dict) or result.get("kind") != "g0_leakage":
         return None
     control = result.get("positive_control")
+    records = result.get("records")
     return {"unit": row["unit"], "model": row["model"], "display_class": row["display_class"],
             **{k: result.get(k) for k in G0_FIELDS},
             "positive_control": ({"canary_hits": control.get("canary_hits"),
                                   "shingle_overlap_bytes": control.get("shingle_overlap_bytes")}
-                                 if isinstance(control, dict) else None)}
+                                 if isinstance(control, dict) else None),
+            "protocol_records": G0_PROTOCOL_RECORDS,
+            "below_protocol": records < G0_PROTOCOL_RECORDS if _is_int(records) else None}
+
+
+def _e2_row(row: dict[str, Any], root: Path, unit: dict[str, Any]) -> dict[str, Any] | None:
+    result = _read(root / "runs" / "e2" / row["run_id"] / "e2.json")
+    if not isinstance(result, dict) or result.get("kind") != "e2_pushdown":
+        return None
+    conditions = result.get("conditions") if isinstance(result.get("conditions"), dict) else {}
+    pushdown = result.get("pushdown")
+    return {"unit": row["unit"], "model": row["model"], "cpu_model": row["cpu_model"],
+            "display_class": row["display_class"], "measurement": _get(result, "stamps", "measurement"),
+            "below_protocol_minimum": _get(result, "stamps", "below_protocol_minimum"),
+            "same_author_pack": _get(result, "stamps", "same_author_pack"),
+            "protocol_min_candidates": PROTOCOL_MIN_CANDIDATES, "protocol_min_seeds": PROTOCOL_MIN_SEEDS,
+            "central": _get(unit, "params", "central"),
+            "candidates": {k: _get(result, "candidates", k) for k in ("total", "seeds", "by_label")},
+            "conditions": {name: {k: _get(block, k) for k in E2_CONDITION_FIELDS}
+                           for name, block in sorted(conditions.items())},
+            "ratio": {k: _get(result, "ratio", k) for k in ("estimate", "ci_low", "ci_high")},
+            "raw_text_bytes": result.get("raw_text_bytes"),
+            "pushdown": {"statuses": _get(pushdown, "statuses"),
+                         "resolvability_share": _get(pushdown, "resolvability", "share")},
+            "verdict": result.get("verdict"), "withheld_reason": result.get("withheld_reason"),
+            "top_n": _get(result, "settings", "top_n"), "seeds": _get(result, "settings", "seeds")}
+
+
+def _e2_sizing_row(row: dict[str, Any], record: dict[str, Any]) -> dict[str, Any] | None:
+    projection = record.get("projection")
+    if not isinstance(projection, dict):
+        return None
+    return {"unit": row["unit"], "model": row["model"], "cpu_model": row["cpu_model"], "status": row["status"],
+            "display_class": row["display_class"],
+            **{k: projection.get(k) for k in ("projected_s", "budget_s", "share", "exceeds", "suggested_minutes")}}
+
+
+def _x1_row(row: dict[str, Any], root: Path) -> dict[str, Any] | None:
+    result = _read(root / "runs" / "x1" / row["run_id"] / "scorecard.json")
+    if not isinstance(result, dict) or result.get("kind") != "x1_scorecard":
+        return None
+    channels = result.get("channels") if isinstance(result.get("channels"), dict) else {}
+    lifts = result.get("lifts") if isinstance(result.get("lifts"), dict) else {}
+    return {"unit": row["unit"], "display_class": row["display_class"],
+            "stamps": {k: _get(result, "stamps", k) for k in ("measurement", "blind", "extractor",
+                                                               "same_author_pack")},
+            "channels": {name: {k: _get(block, k) for k in SIM_CHANNEL_FIELDS}
+                         for name, block in sorted(channels.items())},
+            "lifts": {name: {k: _get(block, k) for k in SIM_LIFT_FIELDS} for name, block in sorted(lifts.items())},
+            "x1": {"eligible": _get(result, "x1", "eligible"), "reasons": _get(result, "x1", "reasons")},
+            "plant": {k: _get(result, "plant", k) for k in ("n_patterns", "n_decoys")},
+            "warnings": result.get("warnings")}
+
+
+def _openfda_row(row: dict[str, Any], root: Path, record: dict[str, Any]) -> dict[str, Any] | None:
+    base = root / "runs" / "openfda" / row["run_id"]
+    replay = _read(base / "runs" / "replay" / "score" / "replay.json")
+    if not isinstance(replay, dict) or replay.get("kind") != "openfda_replay":
+        return None
+    channels = replay.get("channels") if isinstance(replay.get("channels"), dict) else {}
+    fetch = {}
+    for dataset, rel in (("event", "cache/events/manifest.json"), ("recall", "cache/recalls/manifest.json")):
+        per_code = _get(_read(base / rel), "per_code")
+        fetch[dataset] = ({code: {k: _get(info, k) for k in ("total", "fetched", "truncated", "reason")}
+                           for code, info in sorted(per_code.items())} if isinstance(per_code, dict) else None)
+    n1 = _read(base / "runs" / "n1" / "n1" / "sample.json")
+    e1 = _read(base / "runs" / "e1" / "e1" / "prepare.json")
+    steps = record.get("steps") if isinstance(record.get("steps"), list) else []
+    items = _get(replay, "recalls", "items")
+    return {"unit": row["unit"], "display_class": row["display_class"], "data_label": replay.get("data_label"),
+            "recall_outcomes_seen_before_prereg": replay.get("recall_outcomes_seen_before_prereg"),
+            "channels": {name: {**{k: _get(block, "summary", k) for k in OPENFDA_CHANNEL_FIELDS},
+                                "reason": _get(block, "reason")} for name, block in sorted(channels.items())},
+            "recalls": {**{k: _get(replay, "recalls", k) for k in OPENFDA_RECALL_COUNTS},
+                        "items": len(items) if isinstance(items, list) else None},
+            "warnings": replay.get("warnings"), "fetch": fetch,
+            "sheets": {"n1": ({k: n1.get(k) for k in ("n_requested", "n_sampled")} if isinstance(n1, dict) else None),
+                       "e1": ({k: e1.get(k) for k in ("n_requested", "n_written")} if isinstance(e1, dict) else None)},
+            "steps": {s.get("step"): s.get("status") for s in steps if isinstance(s, dict)}}
+
+
+# --------------------------------------------------------------------------------------------------- E1 comparison
+
+def _class_of(classes: list[str], fallback: str) -> str:
+    if not classes:
+        return fallback
+    if "plumbing" in classes:
+        return "plumbing"
+    return "model" if all(c == "model" for c in classes) else "unverified"
+
+
+def _e1_endpoint(block: Any) -> dict[str, Any]:
+    exact = _get(block, "exact_match")
+    return {"runs": _get(block, "runs"),
+            **{name: {k: _get(block, name, k) for k in ("value", "ci_low", "ci_high")} for name in E1_F1},
+            "json_validity_rate": _get(block, "json_validity_rate"),
+            "valid_after_repair_rate": _get(block, "valid_after_repair_rate"),
+            "exact_match": ({t: {k: _get(entry, k) for k in ("n", "matches", "rate")}
+                             for t, entry in sorted(exact.items())} if isinstance(exact, dict) else None),
+            "latency_ms_p50": _get(block, "latency_ms_p50"), "latency_ms_p95": _get(block, "latency_ms_p95"),
+            "model_mismatch": _get(block, "model_mismatch")}
+
+
+def _e1_paired(entry: Any) -> dict[str, Any]:
+    ci = _get(entry, "ci95")
+    ci = ci if isinstance(ci, list) and len(ci) == 2 else [None, None]
+    return {"against": _get(entry, "against"), "n": _get(entry, "n"), "mean_diff": _get(entry, "mean_diff"),
+            "ci_low": ci[0], "ci_high": ci[1], "sign_p": _get(entry, "sign_p"),
+            "underpowered": _get(entry, "underpowered"), "non_inferior": _get(entry, "non_inferior"),
+            "kill_flag": _get(entry, "kill_flag")}
+
+
+def e1_compare_argv(prereg: Path, run_dirs: list[Path], out: Path, allow_incomplete: bool) -> list[str]:
+    """``e1_extract compare`` over absolute run directories (sorted by run id); ``--run-dirs`` is the harness's one
+    option that takes several values, so the directories follow it as separate elements."""
+    return [sys.executable, "-m", E1_MODULE, "compare", lab_units.flag("prereg", prereg), "--run-dirs",
+            *(str(Path(os.path.abspath(d))) for d in sorted(run_dirs, key=lambda d: Path(d).name)),
+            lab_units.flag("run-id", "compare"), lab_units.flag("runs-dir", out),
+            *(["--allow-incomplete"] if allow_incomplete else [])]
+
+
+E1Source = tuple[dict[str, Any], dict[str, Any] | None, Path | None]
+
+
+def e1_block(plan: dict[str, Any], plan_path: Path, sources: dict[str, E1Source], out: Path) -> dict[str, Any] | None:
+    """The report's E1 comparison; ``sources`` maps each E1 unit to (its row, its record, its shard root)."""
+    units = sorted((u for u in plan["units"] if u["experiment"] == "e1"), key=lambda u: u["unit"])
+    if not units:
+        return None
+    fallback = "plumbing" if plan.get("result_class") == "plumbing" else "unverified"
+    block: dict[str, Any] = {
+        "compared": False, "reason": None, "label": None, "display_class": None, "labels": None,
+        "underpowered_below": None, "kill_below": None, "margin": None, "runs": None, "reference": None,
+        "units": [{"unit": u["unit"], "model": u["model"], "repeat": u["params"]["repeat"],
+                   "status": sources[u["unit"]][0]["status"], "display_class": sources[u["unit"]][0]["display_class"],
+                   "included": False} for u in units],
+        "excluded": [], "allow_incomplete": False, "endpoints_without_runs": [], "measurement": None,
+        "verdicts_shown": False, "e1_json": None, "endpoints": {}, "paired": {}}
+    shown = [r["display_class"] for r in block["units"] if r["display_class"] != "no-result"]
+    block["display_class"] = _class_of(shown, fallback)
+    try:
+        prereg = load_prereg(plan_path)
+        manifest = prereg.manifest["e1"]
+        prereg_bytes = (prereg.dir / manifest["prereg"]).read_bytes()
+        e1_prereg = strict_load(prereg_bytes)
+    except (PreregError, OSError, StrictJsonError, KeyError, TypeError):
+        block["reason"] = PREREG_MISSING
+        return block
+    labels = manifest["labels"]
+    block.update(label="generator_text" if labels["source"] == "generator" else "fixtures",
+                 labels={k: labels[k] for k in ("source", "pack", "n", "seed", "records", "claims", "sha256")},
+                 **{k: e1_prereg.get(k) for k in ("underpowered_below", "kill_below", "margin", "runs", "reference")})
+    reference, runs = manifest["reference"], e1_prereg.get("runs")
+    complete = []
+    for model in manifest["endpoints"]:
+        mine = {u["params"]["repeat"]: u for u in units if u["model"] == model}
+        if sorted(mine) == list(range(1, (runs or 0) + 1)) and all(
+                sources[u["unit"]][0]["status"] == "ok" for u in mine.values()):
+            complete.append(model)
+    block["excluded"] = [m for m in manifest["endpoints"] if m not in complete]
+    if reference not in complete:
+        block["reason"] = E1_NO_REFERENCE
+        return block
+    target = out / "e1"
+    run_dirs = []
+    for row in block["units"]:
+        if row["model"] not in complete:
+            continue
+        row["included"] = True
+        unit = next(u for u in units if u["unit"] == row["unit"])
+        _, record, root = sources[row["unit"]]
+        dest = target / "runs" / unit["run_id"]
+        dest.mkdir(parents=True)
+        for name in E1_FILES:
+            rel = f"runs/e1/{unit['run_id']}/{name}"
+            if root is not None and record is not None and rel in record.get("files", {}):
+                (dest / name).write_bytes((root / rel).read_bytes())
+        run_dirs.append(dest)
+    block["display_class"] = _class_of([r["display_class"] for r in block["units"] if r["included"]], fallback)
+    (target / "prereg.json").write_bytes(prereg_bytes)
+    allow_incomplete = bool(block["excluded"])
+    argv = e1_compare_argv(target / "prereg.json", run_dirs, target, allow_incomplete)
+    stdout, stderr = target / "compare.stdout.log", target / "compare.stderr.log"
+    result = lab_units.run_process(argv, lab_units.subprocess_env(os.environ, []), cwd=ROOT,
+                                   timeout_s=E1_COMPARE_TIMEOUT_S, stdout_path=stdout, stderr_path=stderr)
+    lab_units.cap_log(stdout)
+    lab_units.cap_log(stderr)
+    doc = _read(out / E1_JSON)
+    if result.exit_code != 0 or result.timed_out or not isinstance(doc, dict) or doc.get("kind") != "e1":
+        block["reason"] = E1_COMPARE_FAILED
+        return block
+    endpoints = doc.get("endpoints") if isinstance(doc.get("endpoints"), dict) else {}
+    paired = doc.get("paired") if isinstance(doc.get("paired"), dict) else {}
+    block.update(compared=True, measurement=doc.get("measurement"), allow_incomplete=doc.get("allow_incomplete"),
+                 endpoints_without_runs=doc.get("endpoints_without_runs"), e1_json=E1_JSON,
+                 endpoints={name: _e1_endpoint(b) for name, b in sorted(endpoints.items())},
+                 paired={name: _e1_paired(e) for name, e in sorted(paired.items())})
+    block["verdicts_shown"] = block["measurement"] is True and block["display_class"] == "model"
+    return block
 
 
 def _sim_files(row: dict[str, Any], root: Path) -> tuple[Any, Any]:
@@ -454,7 +691,8 @@ def lock_status(plan: dict[str, Any], manifest_path: str,
 # --------------------------------------------------------------------------------------------------- report
 
 def build_report(plan: dict[str, Any], plan_bytes: bytes, provision_dir: Path, shards_dir: Path,
-                 manifest_path: str) -> tuple[dict[str, Any], dict[str, Any] | None]:
+                 manifest_path: str, plan_path: Path, out: Path) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    """The report; ``out`` receives the E1 comparison's files (``plan_path`` locates the preregistration)."""
     plan_sha256 = sha256_hex(plan_bytes)
     roots = find_roots(shards_dir)
     states: dict[str, tuple[str, _Root | None]] = {}
@@ -466,11 +704,19 @@ def build_report(plan: dict[str, Any], plan_bytes: bytes, provision_dir: Path, s
     planned = {s["shard"] for s in plan["shards"]}
     ignored = sorted({r.artifact for r in roots if r.shard not in planned and r.artifact is not None})
     units, e3, g0, sim, sim_sizing = [], [], [], [], []
+    e2, e2_sizing, x1, openfda = [], [], [], []
+    e1_sources: dict[str, E1Source] = {}
     samples: dict[tuple[Any, ...], list[float]] = {}
     for unit in sorted(plan["units"], key=lambda u: u["unit"]):
         state, root = states.get(unit["shard"], ("no_artifact", None))
         row, record = _unit_row(unit, state, root)
         units.append(row)
+        if unit["experiment"] == "e1":
+            e1_sources[unit["unit"]] = (row, record, root.path if root is not None else None)
+        if unit["experiment"] == "e2" and record is not None:
+            sizing_row = _e2_sizing_row(row, record)
+            if sizing_row is not None:
+                e2_sizing.append(sizing_row)
         scorecard = None
         if unit["experiment"] == "sim" and record is not None and root is not None:
             scorecard, progress = _sim_files(row, root.path)
@@ -489,6 +735,10 @@ def build_report(plan: dict[str, Any], plan_bytes: bytes, provision_dir: Path, s
             g0_row = _g0_row(row, root.path)
             if g0_row is not None:
                 g0.append(g0_row)
+        new_row = {"e2": lambda: _e2_row(row, root.path, unit), "x1": lambda: _x1_row(row, root.path),
+                   "openfda": lambda: _openfda_row(row, root.path, record)}.get(unit["experiment"], lambda: None)()
+        if new_row is not None:
+            {"e2": e2, "x1": x1, "openfda": openfda}[unit["experiment"]].append(new_row)
         for ledger in ledger_rows(unit, root.path) or []:
             latency = ledger.get("latency_ms")
             if ledger.get("ok") is True and isinstance(latency, (int, float)) and not isinstance(latency, bool):
@@ -512,7 +762,8 @@ def build_report(plan: dict[str, Any], plan_bytes: bytes, provision_dir: Path, s
         "plan": {"sha256": plan_sha256, **{k: plan.get(k) for k in ("git_sha", "provider", "job_minutes",
                                                                      "max_parallel", "retention_days")}},
         "unit_count": len(units), "shard_count": len(shard_rows), "shards": shard_rows, "units": units,
-        "e3": e3, "g0": g0, "sim": sim, "sim_sizing": sim_sizing, "latency": latency_rows(samples),
+        "e3": e3, "g0": g0, "sim": sim, "sim_sizing": sim_sizing, "e1": e1_block(plan, plan_path, e1_sources, out),
+        "e2": e2, "e2_sizing": e2_sizing, "x1": x1, "openfda": openfda, "latency": latency_rows(samples),
         "provision": provision_rows(records, plan_sha256), "lock": lock,
         "notes": {"cpu_models": cpu_models, "world_digest": world_digest_groups(g0),
                   "sim_world_digest": sim_world_groups(sim)},
@@ -549,8 +800,9 @@ def main(argv: list[str] | None = None) -> int:
     except AggregateError as err:
         print(f"error: {err}", file=sys.stderr)
         return EXIT_USAGE
-    report, merged = build_report(plan, plan_bytes, Path(args.provision), Path(args.shards), args.manifest)
     out.mkdir(parents=True, exist_ok=True)
+    report, merged = build_report(plan, plan_bytes, Path(args.provision), Path(args.shards), args.manifest,
+                                  Path(args.plan), out)
     (out / "plan.json").write_bytes(plan_bytes)
     if merged is not None:
         lab_provision.write_lock(out / "lock-candidate.json", merged)

@@ -53,11 +53,15 @@ def _request(models: list[str], *, e3: bool = True, g0: bool = True) -> dict[str
 
 
 HARNESS_MODULES = ("mycelic.collective.experiments.e3_latency", "mycelic.collective.experiments.g0_canary", "lab.sim")
+RUN_MODULES = ("mycelic.collective.experiments.e1_extract", "mycelic.collective.experiments.e2_pushdown",
+               "mycelic.collective.evaluate.harness")
 
 
 def _argv_ok(argv: list[str]) -> bool:
-    return (len(argv) > 3 and argv[1] == "-m" and argv[2] in HARNESS_MODULES
-            and all(ARG_RE.fullmatch(a) for a in argv[3:]) and not any("allow-dirty" in a for a in argv))
+    """``python -m <module> [run] --flag=value ...``: the E1, E2 and X1 harnesses take the ``run`` subcommand."""
+    flags = argv[4:] if len(argv) > 3 and argv[2] in RUN_MODULES and argv[3] == "run" else argv[3:]
+    return (len(argv) > 3 and argv[1] == "-m" and argv[2] in (*HARNESS_MODULES, *RUN_MODULES) and flags
+            and all(ARG_RE.fullmatch(a) for a in flags) and not any("allow-dirty" in a for a in argv))
 
 
 def _json(path: Path) -> Any:
@@ -73,8 +77,13 @@ class TempDirTest(unittest.TestCase):
 
 # --------------------------------------------------------------------------------------------------- dry runs
 
+PLUMBING_UNITS = ["sim-fake-a-s1", "e1-fake-a-r1", "e1-fake-a-r2", "e1-fake-a-r3", "e2-fake-a", "e3-fake-a",
+                  "g0-fake-b", "e1-fake-b-r1", "e1-fake-b-r2", "e1-fake-b-r3", "e3-fake-b", "x1"]
+PLUMBING_SHARDS = ["s001-fake-a", "s002-fake-a", "s003-fake-b", "s004-fake-b", "s005-none"]
+
+
 class PlumbingDryRunTests(unittest.TestCase):
-    """The shipped plumbing request (``lab/requests/plumbing-001.json``): E3, G0 and the simulation."""
+    """The shipped plumbing request (``lab/requests/plumbing-001.json``): E1, E2, E3, G0, the simulation and X1."""
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -94,27 +103,38 @@ class PlumbingDryRunTests(unittest.TestCase):
         self.assertEqual(self.done.returncode, 0, self.done.stderr)
         stdout = self.done.stdout.splitlines()
         lines = [line for line in stdout if line.startswith("lab: unit ")]
-        self.assertEqual(len(lines), 4)
+        self.assertEqual(len(lines), 12)
         self.assertTrue(all(STATUS_LINE_RE.fullmatch(line) for line in lines), lines)
-        self.assertEqual([line.split()[2] for line in lines], ["sim-fake-a-s1", "e3-fake-a", "g0-fake-b", "e3-fake-b"])
+        self.assertEqual([line.split()[2] for line in lines], PLUMBING_UNITS)
         self.assertTrue(lines[0].startswith("lab: unit sim-fake-a-s1 status ok class plumbing exit 0 "), lines[0])
-        self.assertEqual(stdout, ["plan: 4 units in 2 shards (plumbing)", *lines,
-                                  "lab: aggregate units 4 shards 2 class plumbing measurements false lock unchanged"])
+        self.assertTrue(lines[-1].startswith("lab: unit x1 status ok class no-model exit 0 "), lines[-1])
+        self.assertEqual(stdout, ["plan: 12 units in 5 shards (plumbing)", "prereg: e1 yes x1 yes e2 yes", *lines,
+                                  "lab: aggregate units 12 shards 5 class plumbing measurements false lock unchanged"])
 
     def test_units_are_ok_plumbing(self) -> None:
         records = self._units()
-        self.assertEqual(sorted(r["unit"] for r in records), ["e3-fake-a", "e3-fake-b", "g0-fake-b", "sim-fake-a-s1"])
+        self.assertEqual(sorted(r["unit"] for r in records), sorted(PLUMBING_UNITS))
         for r in records:
             with self.subTest(unit=r["unit"]):
+                self.assertEqual(r["exit_code"], 0)
+                self.assertTrue(_argv_ok(r["argv"]), r["argv"])
+                self.assertIn("synthetic", r["notes"])
+                if r["unit"] == "x1":
+                    self.assertEqual((r["status"], r["measurement_class"], r["class_reason"], r["kind"]),
+                                     ("ok", "no-model", "no_model", "none"))
+                    self.assertEqual((r["notes"], r["fake_rows"], r["ledger_rows"], r["participation"]),
+                                     (["synthetic"], 0, 0, None))
+                    continue
                 self.assertEqual((r["status"], r["measurement_class"], r["class_reason"]), ("ok", "plumbing",
                                                                                           "fake_kind"))
                 self.assertIn("plumbing", r["notes"])
-                self.assertIn("synthetic", r["notes"])
-                self.assertEqual(r["exit_code"], 0)
-                self.assertTrue(_argv_ok(r["argv"]), r["argv"])
                 self.assertGreater(r["fake_rows"], 0)
                 self.assertEqual(r["fake_rows"], r["ledger_rows"])
                 self.assertIsNotNone(r["participation"])
+        e1 = [r for r in records if r["experiment"] == "e1"]
+        self.assertEqual(len(e1), 6)
+        self.assertTrue(all(r["notes"] == ["plumbing", "synthetic", "runner_hardware"] and r["harness_measurement"]
+                            is False and r["participation"]["required"] == ["extract_claims"] for r in e1))
         e3 = [r for r in records if r["experiment"] == "e3"]
         self.assertTrue(all("runner_hardware" in r["notes"] and r["harness_measurement"] is False for r in e3))
         (sim,) = [r for r in records if r["experiment"] == "sim"]
@@ -129,7 +149,8 @@ class PlumbingDryRunTests(unittest.TestCase):
 
     def test_shards_have_status_and_provenance(self) -> None:
         shards = sorted(self.out.glob("shards/*"))
-        self.assertEqual([s.name for s in shards], ["s001-fake-a", "s002-fake-b"])
+        self.assertEqual([s.name for s in shards], PLUMBING_SHARDS)
+        prereg_sha = hashlib.sha256((self.out / "plan" / "prereg" / "prereg.json").read_bytes()).hexdigest()
         for shard in shards:
             with self.subTest(shard=shard.name):
                 provenance = _json(shard / "provenance.json")
@@ -139,7 +160,12 @@ class PlumbingDryRunTests(unittest.TestCase):
                 self.assertTrue(provenance["complete"])
                 self.assertFalse(provenance["interrupted"])
                 self.assertEqual(provenance["exit_code"], 0)
-                self.assertEqual(provenance["server"]["implementation"], "FakeOpenAIServer")
+                self.assertEqual(provenance["prereg"], {"sha256": prereg_sha})
+                self.assertIsNone(provenance["openfda"])
+                if shard.name == "s005-none":
+                    self.assertEqual((provenance["server"], provenance["model"]), ({"kind": "none"}, None))
+                else:
+                    self.assertEqual(provenance["server"]["implementation"], "FakeOpenAIServer")
                 self.assertIs(provenance["code"]["collective"]["code_dirty"], False)
                 status = _json(shard / "status.json")
                 self.assertEqual(tuple(sorted(status)), tuple(sorted(lab_shard.STATUS_KEYS)))
@@ -170,13 +196,23 @@ class PlumbingDryRunTests(unittest.TestCase):
         self.assertGreater(checked, 10)
 
     def test_nothing_private_or_scratch_is_kept(self) -> None:
+        # the one work/ path kept: E2's site ledgers, which the harness writes into its run's work directory
+        e2_ledgers = re.compile(r"shards/[^/]+/runs/e2/[A-Za-z0-9._-]+/work(/seed-[0-9]+(/edge(/site-[a-z0-9-]+"
+                                r"\.ledger\.jsonl)?)?)?")
+        kept = []
         for path in self.out.rglob("*"):
             rel = path.relative_to(self.out).as_posix()
-            self.assertNotRegex(rel, r"(^|/)(private|work|followup)(/|$)")
+            if e2_ledgers.fullmatch(rel):
+                kept.append(rel)
+                continue
+            self.assertNotRegex(rel, r"(^|/)(private|work|followup|pages)(/|$)")
             self.assertNotIn(".sqlite3", rel)
+        self.assertEqual(len([k for k in kept if k.endswith(".ledger.jsonl")]), 6)
         routing = [p.relative_to(self.out).as_posix() for p in self.out.rglob("*") if "routing" in p.parts]
         self.assertTrue(routing)
-        self.assertTrue(all(re.fullmatch(r"shards/[^/]+/routing(/[a-z0-9-]+\.json)?", r) for r in routing), routing)
+        self.assertTrue(all(re.fullmatch(r"shards/[^/]+/routing(/[a-z0-9-]+\.json|/e2-fake-a(/central\.json|/sites"
+                                         r"(/[a-z0-9-]+\.json)?)?)?", r) for r in routing), routing)
+        self.assertEqual(len([r for r in routing if "/sites/" in r]), 6)
         dirty = git("status", "--porcelain", "--", "mycelic", cwd=ROOT)
         self.assertEqual(dirty, "")
 

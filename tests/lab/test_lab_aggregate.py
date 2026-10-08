@@ -432,6 +432,11 @@ class AggregateTests(unittest.TestCase):
         self.assertEqual({s["state"] for s in report["shards"]}, {"sealed"})
         self.assertEqual({u["display_class"] for u in report["units"]}, {"plumbing"})
         self.assertEqual(report["ignored_artifacts"], [])
+        self.assertEqual((report["e1"], report["e2"], report["e2_sizing"], report["x1"], report["openfda"]),
+                         (None, [], [], [], []))
+        self.assertEqual([(g["unit"], g["records"], g["protocol_records"], g["below_protocol"]) for g in report["g0"]],
+                         [("g0-fake-a", 50, 1000, True), ("g0-fake-b", 50, 1000, True)])
+        self.assertFalse((report_dir / "e1").exists())
         # no clock value in the report; precision_at_40 (precision in the top forty) is the one non-time match
         keys = [k for k in _keys(report) if re.search(r"(^|_)(at|time|date|epoch|ts)(_|$)", k)]
         self.assertEqual(sorted(set(keys)), ["precision_at_40"])

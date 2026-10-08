@@ -14,6 +14,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from typing import Any, Callable
+from unittest import mock
 
 from lab import ROOT, check_keys, gh_data, gh_property, safe_path
 from lab.manifest import (ARGS_CROSS, ARGS_PROBLEM, ARGS_REPEAT, REPIN, REVISION_PROBLEM, ManifestError,
@@ -87,6 +88,32 @@ class _Delete:
 
 _DELETE = _Delete()
 _VALID_TEXT = json.dumps(plumbing_min())
+E1 = {"minutes": 5, "labels": {"source": "generator", "pack": "device_quality", "n": 40, "seed": 1},
+      "reference": "fake-b", "margin_points": 5, "runs": 3, "seed": 1}
+E2 = {"minutes": 5, "pack": "device_quality", "plant": "plant_e2_smoke", "seeds": [1], "weeks": 52, "eval_from": 20,
+      "eval_to": 51, "top_n": 5}
+X1 = {"minutes": 5, "pack": "device_quality", "plant": "plant_smoke", "seeds": [1], "weeks": 52, "eval_from": 26,
+      "eval_to": 51}
+OPENFDA = {"minutes": 5, "pack": "device_quality", "product_codes": ["AAA", "BBB", "CCC"], "date_from": "20240101",
+           "date_to": "20241229", "max_records_per_code": 2000, "manufacturers": ["ACME Devices"],
+           "manufacturer_field": "device[].manufacturer_d_name", "partition_field": "event_location",
+           "saw_recall_outcomes": "no"}
+
+
+def _block(name: str, base: dict[str, Any], **changes: Any) -> Callable[[str], bytes]:
+    """plumbing-min plus the block ``name`` (``base`` with ``changes``; a value ``_DELETE`` drops the key), the sentinel
+    in the purpose (checked before every block), and ``<S>`` in any value replaced by it."""
+    block = copy.deepcopy(base)
+    for key, value in changes.items():
+        if value is _DELETE:
+            block.pop(key, None)
+        else:
+            block[key] = value
+    return _with((f"experiments.{name}", block), sentinel_at="purpose")
+
+
+def _e1_labels(**changes: Any) -> dict[str, Any]:
+    return {**E1["labels"], **changes}
 
 # (label, body builder, expected path, expected problem prefix)
 CASES: list[tuple[str, Callable[[str], bytes], str, str]] = [
@@ -135,9 +162,9 @@ CASES: list[tuple[str, Callable[[str], bytes], str, str]] = [
     ("retention-zero", _with(("retention_days", 0)), "$.retention_days", "must be an int in [1, 90]"),
     ("experiments-missing", _with(("experiments", _DELETE), sentinel_at="purpose"), "$.experiments", "required"),
     ("experiments-empty", _with(("experiments", {}), sentinel_at="purpose"), "$.experiments",
-     "needs at least one of e3, g0, sim"),
-    ("experiment-e1", _with(("experiments.e1", {"seed": "<S>"})), "$.experiments.e1", "unknown experiment"),
-    ("experiment-e2", _with(("experiments.e2", "<S>")), "$.experiments.e2", "unknown experiment"),
+     "needs at least one of e1, e2, e3, g0, sim, x1, openfda"),
+    ("experiment-e4", _with(("experiments.e4", {"seed": "<S>"})), "$.experiments.e4", "unknown experiment"),
+    ("experiment-n1", _with(("experiments.n1", "<S>")), "$.experiments.n1", "unknown experiment"),
     ("sim-not-object", _with(("experiments.sim", "<S>"), sentinel_at=None), "$.experiments.sim", "must be an object"),
     ("sim-unknown-key", _with(("experiments.sim", {**sim_block(), "speed": "<S>"}), sentinel_at="purpose"),
      "$.experiments.sim.speed", "unknown key"),
@@ -210,6 +237,113 @@ CASES: list[tuple[str, Callable[[str], bytes], str, str]] = [
      "must be an int in [50, 2000]"),
     ("g0-records-bool", _with(("experiments.g0.records", False), sentinel_at="purpose"), "$.experiments.g0.records",
      "must be an int in [50, 2000]"),
+    ("e1-unknown-key", _block("e1", E1, speed="<S>"), "$.experiments.e1.speed", "unknown key"),
+    ("e1-missing-reference", _block("e1", E1, reference=_DELETE), "$.experiments.e1.reference", "required"),
+    ("e1-one-model", _block("e1", E1, models=["fake-a"], reference="fake-a"), "$.experiments.e1.models",
+     "E1 needs at least 2 models"),
+    ("e1-one-request-model", lambda s: _with(("models", ["fake-a"]), ("experiments", {"e1": {**E1,
+                                                                                              "reference": "fake-a"}}),
+                                             sentinel_at="purpose")(s), "$.experiments.e1",
+     "E1 needs at least 2 models"),
+    ("e1-reference-outside", _block("e1", E1, models=["fake-a", "fake-b"], reference="fake-fail"),
+     "$.experiments.e1.reference", "must be one of the E1 models"),
+    ("e1-runs-below-three", _block("e1", E1, runs=2), "$.experiments.e1.runs", "must be an int in [3, 5]"),
+    ("e1-margin-above-twenty", _block("e1", E1, margin_points=21), "$.experiments.e1.margin_points",
+     "must be an int in [1, 20]"),
+    ("e1-bootstrap-low", _block("e1", E1, bootstrap_b=999), "$.experiments.e1.bootstrap_b",
+     "must be an int in [1000, 20000]"),
+    ("e1-labels-source", _block("e1", E1, labels=_e1_labels(source="human")), "$.experiments.e1.labels.source",
+     "must be one of fixtures, generator"),
+    ("e1-fixtures-with-n", _block("e1", E1, labels={"source": "fixtures", "pack": "device_quality", "n": 40}),
+     "$.experiments.e1.labels.n", "only for generator labels"),
+    ("e1-fixtures-with-seed", _block("e1", E1, labels={"source": "fixtures", "pack": "device_quality", "seed": 1}),
+     "$.experiments.e1.labels.seed", "only for generator labels"),
+    ("e1-generator-without-n", _block("e1", E1, labels={"source": "generator", "pack": "device_quality", "seed": 1}),
+     "$.experiments.e1.labels.n", "required"),
+    ("e1-labels-n-low", _block("e1", E1, labels=_e1_labels(n=39)), "$.experiments.e1.labels.n",
+     "must be an int in [40, 2000]"),
+    ("e1-labels-pack", _block("e1", E1, labels=_e1_labels(pack="no_such_pack")), "$.experiments.e1.labels.pack",
+     PACK_PROBLEM),
+    ("e2-bad-plant-name", _block("e2", E2, plant="plant_<S>"), "$.experiments.e2.plant",
+     "must name a plant fixture of the pack"),
+    ("e2-plant-path", _block("e2", E2, plant="../device_quality/fixtures/plant_e2_smoke"), "$.experiments.e2.plant",
+     "must name a plant fixture of the pack"),
+    ("e2-plant-of-another-pack", _block("e2", E2, pack="claims_integrity"), "$.experiments.e2.plant",
+     "must name a plant fixture of the pack"),
+    ("e2-eval-from-below-nineteen", _block("e2", E2, eval_from=18), "$.experiments.e2.eval_from",
+     "must be an int in [19, 51]"),
+    ("e2-eval-to-before-from", _block("e2", E2, eval_to=19), "$.experiments.e2.eval_to",
+     "must be an int in [20, 51]"),
+    ("e2-weeks-above-104", _block("e2", E2, weeks=105), "$.experiments.e2.weeks", "must be an int in [34, 104]"),
+    ("e2-tie-salt-space", _block("e2", E2, tie_salt="lab e2"), "$.experiments.e2.tie_salt",
+     "must match [A-Za-z0-9._-]{1,64}"),
+    ("e2-author-81", _block("e2", E2, detector_author="a" * 81), "$.experiments.e2.detector_author",
+     "must be 1 to 80 characters"),
+    ("e2-author-nbsp", _block("e2", E2, detector_author="mycelic\u00a0engineering"),
+     "$.experiments.e2.detector_author", "must be printable characters"),
+    ("e2-top-n-low", _block("e2", E2, top_n=4), "$.experiments.e2.top_n", "must be an int in [5, 60]"),
+    ("e2-min-candidates-above-top-n", _block("e2", E2, min_candidates=6), "$.experiments.e2.min_candidates",
+     "must be an int in [1, 5]"),
+    ("e2-central-not-self", _block("e2", E2, central="hosted"), "$.experiments.e2.central", "must be self"),
+    ("e2-seeds-six", _block("e2", E2, seeds=[1, 2, 3, 4, 5, 6]), "$.experiments.e2.seeds",
+     "must be a list of 1 to 5 seeds"),
+    ("e2-grace-high", _block("e2", E2, grace_weeks=9), "$.experiments.e2.grace_weeks", "must be an int in [0, 8]"),
+    ("x1-models-key", _block("x1", X1, models=["fake-a"]), "$.experiments.x1.models", "unknown key"),
+    ("x1-seeds-eleven", _block("x1", X1, seeds=list(range(11))), "$.experiments.x1.seeds",
+     "must be a list of 1 to 10 seeds"),
+    ("x1-missing-plant", _block("x1", X1, plant=_DELETE), "$.experiments.x1.plant", "required"),
+    ("openfda-pack-without-mapping", _block("openfda", OPENFDA, pack="claims_integrity"),
+     "$.experiments.openfda.pack", "must be a built-in pack with an openFDA mapping"),
+    ("openfda-code-lowercase", _block("openfda", OPENFDA, product_codes=["aaa", "BBB", "CCC"]),
+     "$.experiments.openfda.product_codes[0]", "must be three upper-case letters"),
+    ("openfda-two-codes", _block("openfda", OPENFDA, product_codes=["AAA", "BBB"]),
+     "$.experiments.openfda.product_codes", "must be a list of 3 to 5 product codes"),
+    ("openfda-code-duplicate", _block("openfda", OPENFDA, product_codes=["AAA", "BBB", "AAA"]),
+     "$.experiments.openfda.product_codes[2]", "duplicate"),
+    ("openfda-date-not-calendar", _block("openfda", OPENFDA, date_from="20240230"), "$.experiments.openfda.date_from",
+     "must be a calendar date YYYYMMDD"),
+    ("openfda-date-dashed", _block("openfda", OPENFDA, date_to="2024-12-29"), "$.experiments.openfda.date_to",
+     "must be a calendar date YYYYMMDD"),
+    ("openfda-date-to-before-from", _block("openfda", OPENFDA, date_to="20231229"), "$.experiments.openfda.date_to",
+     "must be after date_from"),
+    ("openfda-span-too-short", _block("openfda", OPENFDA, date_to="20240301"), "$.experiments.openfda.date_to",
+     "the date range must span at least 21 ISO weeks"),
+    ("openfda-manufacturer-leading-dash", _block("openfda", OPENFDA, manufacturers=["-ACME"]),
+     "$.experiments.openfda.manufacturers[0]", "must not start with '-'"),
+    ("openfda-manufacturer-newline", _block("openfda", OPENFDA, manufacturers=["ACME\nDevices"]),
+     "$.experiments.openfda.manufacturers[0]", "control or format character"),
+    ("openfda-manufacturer-nbsp", _block("openfda", OPENFDA, manufacturers=["ACME\u00a0Devices"]),
+     "$.experiments.openfda.manufacturers[0]", "must be printable characters"),
+    ("openfda-manufacturer-duplicate", _block("openfda", OPENFDA, manufacturers=["ACME", "ACME"]),
+     "$.experiments.openfda.manufacturers[1]", "duplicate"),
+    ("openfda-manufacturers-eleven", _block("openfda", OPENFDA, manufacturers=[f"M{i}" for i in range(11)]),
+     "$.experiments.openfda.manufacturers", "must be a list of 1 to 10 names"),
+    ("openfda-firm-too-long", _block("openfda", OPENFDA, recalling_firms=["x" * 121]),
+     "$.experiments.openfda.recalling_firms[0]", "must be 1 to 120 characters"),
+    ("openfda-field-dot-dot", _block("openfda", OPENFDA, manufacturer_field="device..manufacturer_d_name"),
+     "$.experiments.openfda.manufacturer_field", "must be a field path such as device[].manufacturer_d_name"),
+    ("openfda-field-trailing-dot", _block("openfda", OPENFDA, partition_field="event_location."),
+     "$.experiments.openfda.partition_field", "must be a field path such as device[].manufacturer_d_name"),
+    ("openfda-missing-saw", _block("openfda", OPENFDA, saw_recall_outcomes=_DELETE),
+     "$.experiments.openfda.saw_recall_outcomes", "required"),
+    ("openfda-saw-maybe", _block("openfda", OPENFDA, saw_recall_outcomes="maybe"),
+     "$.experiments.openfda.saw_recall_outcomes", "must be yes or no"),
+    ("openfda-coverage-zero", _block("openfda", OPENFDA, min_partition_coverage=0),
+     "$.experiments.openfda.min_partition_coverage", "must be a number in (0, 1]"),
+    ("openfda-coverage-bool", _block("openfda", OPENFDA, min_partition_coverage=True),
+     "$.experiments.openfda.min_partition_coverage", "must be a number in (0, 1]"),
+    ("openfda-post-weeks-zero", _block("openfda", OPENFDA, post_weeks=0), "$.experiments.openfda.post_weeks",
+     "must be an int in [1, 104]"),
+    ("openfda-n1-sheet-large", _block("openfda", OPENFDA, n1_sheet={"n": 1001, "seed": 1}),
+     "$.experiments.openfda.n1_sheet.n", "must be an int in [1, 1000]"),
+    ("openfda-e1-sheet-no-seed", _block("openfda", OPENFDA, e1_sheet={"n": 20}), "$.experiments.openfda.e1_sheet.seed",
+     "required"),
+    ("openfda-records-above-cap", _block("openfda", OPENFDA, max_records_per_code=25001),
+     "$.experiments.openfda.max_records_per_code", "must be an int in [1, 25000]"),
+    ("openfda-budget-without-key", _block("openfda", OPENFDA, product_codes=["AAA", "BBB", "CCC", "DDD", "EEE"],
+                                          max_records_per_code=25000),
+     "$.experiments.openfda.max_records_per_code", "the fetch would make about 250 openFDA requests, more than the "
+                                                   "100 allowed without an API key"),
     ("json-bom", lambda s: b"\xef\xbb\xbf" + _VALID_TEXT.replace("Plumbing", s).encode(), "$", "invalid JSON (bom)"),
     ("json-not-utf8", lambda s: _VALID_TEXT.replace("Plumbing", s).encode().replace(b"check", b"\xff\xfe"), "$",
      "invalid JSON (encoding)"),
@@ -281,6 +415,77 @@ class MalformedRequestTests(unittest.TestCase):
         with self.assertRaises(RequestError) as caught:
             validate(obj, MANIFEST)
         self.assertNotIn("Qz99SnTl", str(caught.exception))
+
+
+class ExperimentBlockTests(unittest.TestCase):
+    """The E1, E2, X1 and openFDA blocks' normalised form: every key present, the documented defaults filled in."""
+
+    def blocks(self, *, openfda_key: bool = False, **blocks: Any) -> dict[str, Any]:
+        obj = plumbing_min()
+        obj["experiments"] = blocks
+        return validate(obj, MANIFEST, openfda_key=openfda_key)["experiments"]
+
+    def test_defaults(self) -> None:
+        got = self.blocks(e1=E1, e2=E2, x1=X1, openfda=OPENFDA)
+        self.assertEqual(list(got), ["e1", "e2", "x1", "openfda"])
+        self.assertEqual(got["e1"], {**E1, "models": ["fake-a", "fake-b"], "bootstrap_b": 10000})
+        self.assertEqual(list(got["e1"]), ["models", "minutes", "labels", "reference", "margin_points", "runs", "seed",
+                                           "bootstrap_b"])
+        self.assertEqual(got["e2"], {**E2, "models": ["fake-a", "fake-b"], "grace_weeks": 4, "tie_salt": "lab-e2",
+                                     "detector_author": "mycelic engineering", "min_candidates": 5, "central": "self",
+                                     "bootstrap_b": 10000, "bootstrap_seed": 1})
+        self.assertEqual(got["x1"], {**X1, "grace_weeks": 4, "tie_salt": "lab-x1",
+                                     "detector_author": "mycelic engineering", "bootstrap_b": 10000,
+                                     "bootstrap_seed": 1})
+        self.assertEqual(got["openfda"], {**OPENFDA, "recalling_firms": ["ACME Devices"], "lookback_weeks": 26,
+                                          "post_weeks": 26, "min_partition_coverage": 0.5, "tie_salt": "lab-replay",
+                                          "n1_sheet": None, "e1_sheet": None})
+
+    def test_given_values_are_kept(self) -> None:
+        got = self.blocks(e2={**E2, "models": ["fake-b"], "min_candidates": 3, "tie_salt": "s.1", "seeds": [3, 1]},
+                          openfda={**OPENFDA, "recalling_firms": ["ACME Devices, Inc."], "min_partition_coverage": 1,
+                                   "n1_sheet": {"n": 30, "seed": 2}, "manufacturers": ["A&B Co.", "ACME Devices"]})
+        self.assertEqual((got["e2"]["models"], got["e2"]["min_candidates"], got["e2"]["tie_salt"], got["e2"]["seeds"]),
+                         (["fake-b"], 3, "s.1", [3, 1]))
+        self.assertEqual((got["openfda"]["recalling_firms"], got["openfda"]["min_partition_coverage"],
+                          got["openfda"]["n1_sheet"], got["openfda"]["manufacturers"]),
+                         (["ACME Devices, Inc."], 1, {"n": 30, "seed": 2}, ["A&B Co.", "ACME Devices"]))
+
+    def test_fixtures_labels_have_no_n_or_seed(self) -> None:
+        got = self.blocks(e1={**E1, "labels": {"source": "fixtures", "pack": "claims_integrity"}})
+        self.assertEqual(got["e1"]["labels"], {"source": "fixtures", "pack": "claims_integrity", "n": None,
+                                               "seed": None})
+
+    def test_budget_with_and_without_the_key(self) -> None:
+        big = {**OPENFDA, "product_codes": ["AAA", "BBB", "CCC", "DDD", "EEE"], "max_records_per_code": 25000}
+        self.assertEqual(self.blocks(openfda=big, openfda_key=True)["openfda"]["max_records_per_code"], 25000)
+        with self.assertRaises(RequestError) as caught:
+            self.blocks(openfda=big)
+        self.assertEqual(caught.exception.path, "$.experiments.openfda.max_records_per_code")
+        self.assertIn("about 250 openFDA requests", caught.exception.problem)
+        self.assertEqual(self.blocks(openfda={**OPENFDA, "max_records_per_code": 16000})["openfda"]
+                         ["max_records_per_code"], 16000)
+        with self.assertRaises(RequestError) as caught:
+            self.blocks(openfda={**OPENFDA, "max_records_per_code": 17000})
+        self.assertIn("about 102 openFDA requests, more than the 100 allowed without an API key",
+                      caught.exception.problem)
+
+    def test_model_kinds_for_e1_and_e2(self) -> None:
+        from lab import request as lab_request
+        with mock.patch.object(lab_request, "SIM_KINDS", ("gguf",)):
+            for name, block in (("e1", E1), ("e2", E2)):
+                with self.subTest(name=name), self.assertRaises(RequestError) as caught:
+                    self.blocks(**{name: block})
+                self.assertEqual((caught.exception.path, caught.exception.problem),
+                                 ("$.models[0]", f"{name.upper()} runs only gguf or fake models"))
+
+    def test_block_order(self) -> None:
+        with self.assertRaises(RequestError) as caught:
+            self.blocks(x1={**X1, "seeds": []}, e1={**E1, "runs": 2})
+        self.assertEqual(caught.exception.path, "$.experiments.e1.runs")
+        with self.assertRaises(RequestError) as caught:
+            self.blocks(openfda={**OPENFDA, "pack": "claims_integrity", "date_to": "x"})
+        self.assertEqual(caught.exception.path, "$.experiments.openfda.pack")
 
 
 class LoadTests(unittest.TestCase):

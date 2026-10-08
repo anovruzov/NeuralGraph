@@ -24,7 +24,7 @@ env:
 jobs:
   plan:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     outputs:
       has_units: ${{ steps.plan.outputs.has_units }}
       has_provision: ${{ steps.plan.outputs.has_provision }}
@@ -46,9 +46,15 @@ jobs:
       - name: lab self-test (request and plan)
         run: python -m unittest tests.lab.test_lab_request tests.lab.test_lab_plan
       - id: plan
+        env:
+          LAB_HAS_OPENFDA_KEY: ${{ secrets.MYCELIC_LAB_OPENFDA_API_KEY != '' }}
         run: >-
           python -m lab.plan --event-path "$GITHUB_EVENT_PATH" --event-name "$GITHUB_EVENT_NAME"
           --manifest lab/models.json --out "$RUNNER_TEMP/lab-plan" --github-output "$GITHUB_OUTPUT"
+      - id: prereg
+        if: steps.plan.outputs.has_units == 'true'
+        timeout-minutes: 20
+        run: python -m lab.prereg --plan "$RUNNER_TEMP/lab-plan/plan.json"
       - if: ${{ !cancelled() }}
         run: >-
           python -m lab.summary plan --dir "$RUNNER_TEMP/lab-plan" --append-to "$GITHUB_STEP_SUMMARY"
@@ -127,7 +133,7 @@ jobs:
 
   run:
     needs: [plan, provision]
-    if: ${{ !cancelled() && needs.plan.outputs.has_units == 'true' }}
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.has_units == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: ${{ matrix.timeout_minutes }}
     strategy:
@@ -195,6 +201,7 @@ jobs:
         timeout-minutes: ${{ fromJSON(steps.prepare.outputs.shard_minutes) }}
         env:
           LAB_DEADLINE: ${{ steps.prepare.outputs.deadline_epoch }}
+          MYCELIC_LAB_OPENFDA_API_KEY: ${{ matrix.openfda && secrets.MYCELIC_LAB_OPENFDA_API_KEY || '' }}
         run: >-
           python -m lab.shard run --plan "$RUNNER_TEMP/lab-plan/plan.json" --shard "$LAB_SHARD"
           --out "$RUNNER_TEMP/lab-shard" --deadline-epoch "$LAB_DEADLINE"
@@ -227,7 +234,7 @@ jobs:
 
   aggregate:
     needs: [plan, provision, run]
-    if: ${{ !cancelled() && needs.plan.outputs.has_units == 'true' }}
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.has_units == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:

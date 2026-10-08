@@ -3,7 +3,9 @@
 A founder writes a request (``lab/requests/<name>.json``, see ``request.py``) naming experiments and models from the
 lab's model manifest (``lab/models.json``, see ``manifest.py``) and pushes it. The workflow's plan job finds the
 request the push added (``discover.py``), validates it and expands it into units, shards and the files to provision
-(``plan.py``); the provision matrix downloads and verifies the pinned server archive and model files once per run
+(``plan.py``), and preregisters what E1, X1 and E2 will be judged against before any model runs (``prereg.py``:
+labels, harness preregistrations and a model-free E2 rehearsal, hashed into a manifest every later job verifies); the
+provision matrix downloads and verifies the pinned server archive and model files once per run
 (``provision.py`` over ``download.py``); each shard job restores exactly the cached files its run's provision
 records name, prepares its server binary from them, runs its units against the model server it starts on loopback
 (``shard.py``, ``server.py``, ``warmup.py``, ``units.py``) by a deadline taken from the job's own clock, and seals
@@ -13,11 +15,26 @@ says when nothing in it measures a model. ``dryrun.py`` runs the same plan, shar
 this sandbox against the collective's fake OpenAI-compatible server, so every gate is testable without model
 weights; the workflow is ``.github/workflows/mycelic-lab.yml``.
 
-Modules: ``notes`` (every fixed sentence), ``request``, ``manifest``, ``discover``, ``plan``, ``download``,
-``provision``, ``server``, ``warmup``, ``responder`` (the fake server's reply function), ``hostinfo``, ``units``,
-``shard``, ``sim`` (the multi-site simulation harness the lab adds to the collective's), ``aggregate``, ``summary``
-and ``dryrun``; ``plants/`` holds the lab's plant specs. The lab imports only the standard library, ``mycelic`` and
-itself.
+Modules: ``notes`` (every fixed sentence), ``request``, ``manifest``, ``discover``, ``plan``, ``goldlabels`` (E1's
+generator or fixture labels), ``prereg``, ``download``, ``provision``, ``server``, ``warmup``, ``responder`` (the
+fake server's reply function), ``hostinfo``, ``units`` (the harness adapters: E1, E2, E3, G0, sim, X1, openFDA),
+``openfda`` (the openFDA unit's fetch, replay and sheet steps), ``shard``, ``sim`` (the multi-site simulation harness
+the lab adds to the collective's), ``aggregate``, ``summary`` and ``dryrun``; ``plants/`` holds the lab's plant
+specs. The lab imports only the standard library, ``mycelic`` and itself.
+
+Integration notes for the collective layer (the lab never edits ``mycelic/``; each is a hook or a risk to resolve when
+the branches merge):
+
+1. ``experiments.e2_pushdown`` lets an ``InferenceError`` from a central or site call escape: it exits 1 with a
+   traceback. The lab maps that exit to :data:`~lab.notes.E2_ABORTED` and keeps the ledgers it wrote.
+2. ``lab.warmup.e2_worst_payloads`` mirrors the private payload shape of ``e2_pushdown._central_raw``; a test pins it
+   against the harness's own requests, and a public payload builder upstream would remove the copy.
+3. E2's site ledgers live under the run's ``work/seed-*/edge/``; the lab collects exactly those ledgers from ``work/``.
+4. ``e1_extract compare --run-dirs`` is the one harness option taking several values, so its directories follow it as
+   separate argv elements (absolute, lab-made paths); every other option is one ``--flag=value`` element.
+5. Audit r2's verifier and extractor circuit breaker changes the judge call counts the E2 projection multiplies, and
+   the runtime's checked synthetic exemptions are a merge risk for the lab's synthetic-labelled runs: re-run the
+   all-experiments dry run (``tests/lab/data/requests/all-experiments.json``) on the trial merge.
 
 Exit codes, the same for every lab CLI:
 

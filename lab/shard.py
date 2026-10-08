@@ -4,6 +4,7 @@
     python -m lab.shard prepare --plan PLAN --shard ID --provision-records R --cache-root C --out OUT
         [--job-start-epoch S --job-timeout-minutes J] [--github-output F]
     python -m lab.shard run --plan PLAN --shard ID --out OUT [--provider fake] [--deadline-epoch N]
+        [--openfda-base-url URL]
     python -m lab.shard seal --out OUT [--shard ID] [--plan PLAN] --step-outcome NAME=VALUE [--step-outcome ...]
 
 The shard root ``OUT`` holds ``provision/`` and ``server/`` (written by ``prepare``), ``routing/``,
@@ -30,16 +31,22 @@ usage error (exit 2, nothing written).
 
 ``run`` refuses (exit 2) an unreadable plan, an unknown shard, an ``OUT`` holding anything but ``provision/`` and
 ``server/``, an ``OUT`` inside ``mycelic/``, ``research/``, ``NeuralGraph/`` or ``.github/``, and a gguf shard
-(neither the plan nor ``--provider`` fake) without a ``prepare.json`` for this shard and plan (``not prepared``). It
-then runs the units in plan order, each with ``min(minutes, deadline - now - 120 s)`` of time; once that is under
-60 s, this unit and every later one are skipped (``shard budget exhausted``). The deadline is ``--deadline-epoch``,
-else now plus the shard capacity. SIGTERM or SIGINT stops the running unit's process group (or the server being
-started), records the unit as interrupted and skips the rest. Each unit prints exactly one line::
+(neither the plan nor ``--provider`` fake) without a ``prepare.json`` for this shard and plan (``not prepared``); a
+model-free shard (kind ``none``) needs no prepare. When the shard holds E1, E2 or X1 units it verifies the plan's
+preregistration once (``lab.prereg.load_prereg``); if that fails, exactly those units fail with ``the
+preregistration is missing or differs from the plan's`` and nothing is started for them. ``--openfda-base-url``
+(tests only: an ``http://`` or ``https://`` URL without spaces; the workflow never passes it) points the
+openFDA unit's fetches at a stub. It then runs the units in plan order, each with ``min(minutes, deadline - now -
+120 s)`` of time; once that is under 60 s, this unit and every later one are skipped (``shard budget exhausted``).
+The deadline is ``--deadline-epoch``, else now plus the shard capacity. SIGTERM or SIGINT stops the running unit's
+process group (or the server being started), records the unit as interrupted and skips the rest. Each unit prints
+exactly one line::
 
     lab: unit <unit> status <status> class <class> exit <code|none> wall_s <seconds>
 
 A gguf shard serves its units from the prepared model server (:class:`_ModelServing`). Consecutive units of one
-serving class share a start: ``quality`` (G0 and sim: one slot of ``ctx_per_slot``) and ``e3`` (as many slots as
+serving class (``lab.plan.serving_class``) share a start: ``quality`` (G0, E1 and sim: one slot of ``ctx_per_slot``),
+``e2`` (one slot of ``e2_ctx_per_slot``, for the central comparator's long payloads) and ``e3`` (as many slots as
 the shard's highest E3 concurrency, each of ``e3_ctx_per_slot``); the seed is the first served unit's. Each start is
 health-checked, its settings asserted and warmed up (``warmup.py``, within the shard budget less what one unit
 needs) before a unit runs; a start that fails skips the class's units with its reason, a warm-up finding skips the
@@ -51,8 +58,10 @@ unplanned exit. The server is stopped at every class change, at the end and on a
 
 ``provenance.json`` (keys :data:`PROVENANCE_KEYS`) is written before the first unit and after each one: the plan,
 request, manifest and lock hashes, the commit and code hashes, the host, the provider, the server (for a gguf shard:
-the pinned archive, how it was verified and every start record), the model (its pinned file and commit), the
-provision record hashes, the deadline, wall times, the planned units and each unit's status and class.
+the pinned archive, how it was verified and every start record; ``{"kind": "none"}`` for a model-free shard), the
+model (its pinned file and commit), the provision record hashes, the preregistration's sha256 (or null), whether the
+openFDA key was present and the base URL override (null without an openFDA unit), the deadline, wall times, the
+planned units and each unit's status and class.
 ``result_class`` is ``plumbing`` whenever a fake served the shard, and ``banner`` then carries the plumbing banner.
 Exit 1 when a unit is invalid, failed, timed out, interrupted or skipped; else 0 (a harness FAIL verdict,
 ``result_fail``, is a valid result).
@@ -85,20 +94,22 @@ from mycelic.collective.experiments.common import (RUN_ID_RE, code_commit, code_
 from mycelic.collective.jsonio import StrictJsonError, sha256_hex, strict_load
 
 from . import EXIT_OK, EXIT_UNIT, EXIT_USAGE, ROOT, LabError, display_path, forbidden_root, hostinfo
+from . import openfda as lab_openfda
 from . import provision as lab_provision
 from . import server as lab_server
 from .download import UrlMap
-from .notes import (BUDGET_EXHAUSTED, NOT_PREPARED, PLUMBING_BANNER, SERVER_NOTE_MODEL, SERVER_UNAVAILABLE,
-                    SERVER_UNHEALTHY_AFTER, SHARD_INTERRUPTED)
-from .plan import SHARD_ID_RE, UNIT_ID_RE, write_github_output
+from .notes import (BUDGET_EXHAUSTED, NOT_PREPARED, PLUMBING_BANNER, PREREG_MISSING, SERVER_NOTE_MODEL,
+                    SERVER_UNAVAILABLE, SERVER_UNHEALTHY_AFTER, SHARD_INTERRUPTED)
+from .plan import SHARD_ID_RE, UNIT_ID_RE, serving_class, write_github_output
+from .prereg import Prereg, PreregError, load_prereg
 from .server import HEALTH_DEADLINE_S, ModelServer, ServerError, ServerSpec, thread_counts
-from .units import FAILING, Serving, ShardInterrupted, run_unit, unit_record
+from .units import FAILING, PREREG_EXPERIMENTS, Serving, ShardInterrupted, run_unit, unit_record
 from .warmup import warm_tasks, warm_up
 
 PROVENANCE_KEYS = ("schema_version", "kind", "shard", "complete", "interrupted", "result_class", "banner", "plan",
                    "request", "manifest_sha256", "lock_sha256", "git", "code", "host", "provider", "server", "model",
-                   "provision", "deadline_epoch", "started_at", "finished_at", "wall_s", "planned_units", "units",
-                   "exit_code")
+                   "provision", "prereg", "openfda", "deadline_epoch", "started_at", "finished_at", "wall_s",
+                   "planned_units", "units", "exit_code")
 STATUS_KEYS = ("schema_version", "kind", "shard", "out_existed", "run_attempt", "plan_sha256", "steps", "failed_step",
                "prepare", "provenance", "units", "missing_units", "counts", "files", "sealed_at")
 PREPARED_DIRS = ("provision", "server")
@@ -108,6 +119,7 @@ DEADLINE_MARGIN_S = 120
 STEP_NAME_RE = re.compile(r"[a-z][a-z0-9-]{0,31}", re.ASCII)
 STEP_VALUES = ("success", "failure", "cancelled", "skipped")
 TEMPORARY_RE = re.compile(r"\..+\.[0-9]+\.tmp", re.ASCII)   # write_json_atomic's temporary files
+BASE_URL_RE = re.compile(r"https?://\S+", re.ASCII)
 JOB_TAIL_MINUTES = 10
 MAX_JOB_MINUTES = 360
 
@@ -210,11 +222,18 @@ def _status_line(record: dict[str, Any]) -> str:
 
 
 def _provenance(plan: dict[str, Any], plan_path: str, plan_bytes: bytes, shard: dict[str, Any], out: Path,
-                provider_override: str | None, deadline: float, prepared: dict[str, Any] | None) -> dict[str, Any]:
+                provider_override: str | None, deadline: float, prepared: dict[str, Any] | None,
+                prereg: Prereg | None = None, openfda_base_url: str | None = None) -> dict[str, Any]:
     plumbing = plan["provider"] == "fake" or provider_override == "fake"
     entry = plan["models"].get(shard["model"]) if shard["model"] else None
     persona = entry["persona"] if entry is not None and entry["kind"] == "fake" else "valid"
     server: dict[str, Any] = {"kind": "fake", "implementation": "FakeOpenAIServer", "persona": persona}
+    if shard["kind"] == "none":
+        server = {"kind": "none"}
+    openfda = None
+    if "openfda" in shard["units"]:
+        openfda = {"api_key": "present" if lab_openfda.key_present(os.environ) else "absent",
+                   "base_url_override": openfda_base_url}
     model = {"key": shard["model"], "kind": entry["kind"], "alias": entry["alias"]} if entry is not None else None
     provision = None
     if prepared is not None:
@@ -241,13 +260,10 @@ def _provenance(plan: dict[str, Any], plan_path: str, plan_bytes: bytes, shard: 
         "code": {"collective": code_stamps(), "lab_code_hash": code_hash(sorted((ROOT / "lab").rglob("*.py")), ROOT)},
         "host": hostinfo.collect(out), "provider": "fake" if provider_override == "fake" else plan["provider"],
         "server": server, "model": model, "provision": provision,
+        "prereg": {"sha256": prereg.sha256} if prereg is not None else None, "openfda": openfda,
         "deadline_epoch": deadline, "started_at": utc_clock(), "finished_at": None, "wall_s": None,
         "planned_units": list(shard["units"]), "units": [], "exit_code": None,
     }
-
-
-def serving_class(unit: dict[str, Any]) -> str:
-    return "e3" if unit["experiment"] == "e3" else "quality"
 
 
 class _ModelServing:
@@ -255,9 +271,9 @@ class _ModelServing:
     warm-up, the watch handle each unit gets, the health check after it, and the restart budget."""
 
     def __init__(self, plan: dict[str, Any], shard: dict[str, Any], out: Path, signals: _Signals, deadline: float,
-                 prepared: dict[str, Any], provenance: dict[str, Any]) -> None:
+                 prepared: dict[str, Any], provenance: dict[str, Any], prereg: Prereg | None = None) -> None:
         self.plan, self.shard, self.out, self.signals, self.deadline = plan, shard, out, signals, deadline
-        self.prepared, self.provenance = prepared, provenance
+        self.prepared, self.provenance, self.prereg = prepared, provenance, prereg
         self.units = [u for uid in shard["units"] for u in plan["units"] if u["unit"] == uid]
         self.entry = plan["models"][shard["model"]]
         self.server: ModelServer | None = None
@@ -273,7 +289,7 @@ class _ModelServing:
         """A serving handle for the unit, or the reason it is skipped. May start the server (interruptible)."""
         if self.unavailable:
             return SERVER_UNAVAILABLE
-        cls = serving_class(unit)
+        cls = serving_class(unit["experiment"])
         if cls != self.cls:
             self.stop()
             self.cls, self.failure, self.skips = cls, None, {}
@@ -291,11 +307,11 @@ class _ModelServing:
                        start=self.server.index, class_name=cls)
 
     def _start(self, unit: dict[str, Any]) -> None:
-        cls = serving_class(unit)
+        cls = serving_class(unit["experiment"])
         index = self.units.index(unit)
         block = []
         for later in self.units[index:]:
-            if serving_class(later) != cls:
+            if serving_class(later["experiment"]) != cls:
                 break
             block.append(later)
         health_deadline = min(HEALTH_DEADLINE_S, self.deadline - time.time() - DEADLINE_MARGIN_S)
@@ -305,8 +321,11 @@ class _ModelServing:
         prepare, srec = self.prepared["prepare"], self.prepared["server_record"]
         block_server = srec["server"]
         if cls == "e3":
-            slots = max(c for u in self.units if serving_class(u) == "e3" for c in u["params"]["concurrency"])
+            slots = max(c for u in self.units if serving_class(u["experiment"]) == "e3"
+                        for c in u["params"]["concurrency"])
             ctx, field = self.entry["e3_ctx_per_slot"], "e3_ctx_per_slot"
+        elif cls == "e2":
+            slots, ctx, field = 1, self.entry["e2_ctx_per_slot"], "e2_ctx_per_slot"
         else:
             slots, ctx, field = 1, self.entry["ctx_per_slot"], "ctx_per_slot"
         threads, threads_batch = thread_counts(self.provenance["host"], block_server.get("threads", "physical"))
@@ -331,7 +350,7 @@ class _ModelServing:
         try:
             server.start()
             self.server = server
-            record, self.skips, stop_all = warm_up(server, self.entry, warm_tasks(block, self.plan),
+            record, self.skips, stop_all = warm_up(server, self.entry, warm_tasks(block, self.plan, self.prereg),
                                                    ctx_per_slot=ctx, ctx_field=field, out=self.out,
                                                    start_index=server.index, meminfo=hostinfo.mem_available,
                                                    budget_s=self.deadline - time.time() - DEADLINE_MARGIN_S
@@ -389,16 +408,22 @@ class _ModelServing:
 
 
 def run_shard(plan_path: str, shard_id: str, out: Path, provider_override: str | None,
-              deadline_epoch: float | None) -> int:
+              deadline_epoch: float | None, openfda_base_url: str | None = None) -> int:
     plan, plan_bytes = _load_plan(plan_path)
     shard = next((s for s in plan["shards"] if s["shard"] == shard_id), None)
     if shard is None:
         raise ShardError("$", "the shard is not in the plan") from None
     _check_out(out)
     prepared = None
-    if shard["kind"] != "fake" and plan["provider"] != "fake" and provider_override != "fake":
+    if shard["kind"] == "gguf" and plan["provider"] != "fake" and provider_override != "fake":
         prepared = _load_prepared(out, shard_id, sha256_hex(plan_bytes))
     units = {u["unit"]: u for u in plan["units"]}
+    prereg: Prereg | None = None
+    if any(units[uid]["experiment"] in PREREG_EXPERIMENTS for uid in shard["units"]):
+        try:
+            prereg = load_prereg(plan_path)
+        except PreregError:
+            prereg = None
     provider = "fake" if provider_override == "fake" else plan["provider"]
     out.mkdir(parents=True, exist_ok=True)
     t0 = time.monotonic()
@@ -407,10 +432,11 @@ def run_shard(plan_path: str, shard_id: str, out: Path, provider_override: str |
     previous = {sig: signal.signal(sig, signals) for sig in (signal.SIGTERM, signal.SIGINT)}
     serving: _ModelServing | None = None
     try:
-        provenance = _provenance(plan, plan_path, plan_bytes, shard, out, provider_override, deadline, prepared)
+        provenance = _provenance(plan, plan_path, plan_bytes, shard, out, provider_override, deadline, prepared,
+                                 prereg, openfda_base_url)
         write_json_atomic(out / "provenance.json", provenance)
         if prepared is not None:
-            serving = _ModelServing(plan, shard, out, signals, deadline, prepared, provenance)
+            serving = _ModelServing(plan, shard, out, signals, deadline, prepared, provenance, prereg)
         skip_reason: str | None = None
         for uid in shard["units"]:
             unit = units[uid]
@@ -420,6 +446,9 @@ def run_shard(plan_path: str, shard_id: str, out: Path, provider_override: str |
                 skip_reason = BUDGET_EXHAUSTED
             if skip_reason is not None:
                 record = unit_record(unit, shard_id, provider, provider_override, status_reason=skip_reason)
+            elif unit["experiment"] in PREREG_EXPERIMENTS and prereg is None:
+                record = unit_record(unit, shard_id, provider, provider_override, status="failed",
+                                     status_reason=PREREG_MISSING)
             else:
                 record = None
                 try:
@@ -433,7 +462,7 @@ def run_shard(plan_path: str, shard_id: str, out: Path, provider_override: str |
                         record = unit_record(unit, shard_id, provider, provider_override, status_reason=reason)
                     else:
                         record = run_unit(unit, plan, out, timeout_s=timeout_s, provider_override=provider_override,
-                                          serving=handle)
+                                          serving=handle, prereg=prereg, openfda_base_url=openfda_base_url)
                         if serving is not None:
                             serving.after_unit(record)
                     signals.armed = False
@@ -610,6 +639,7 @@ def _parser() -> argparse.ArgumentParser:
     r.add_argument("--out", required=True)
     r.add_argument("--provider", choices=("fake",), help="serve every unit from the fake server (plumbing)")
     r.add_argument("--deadline-epoch", type=float, help="the shard's deadline (seconds since the epoch)")
+    r.add_argument("--openfda-base-url", help="tests only: serve the openFDA unit's fetches from this stub")
     s = sub.add_parser("seal", help="write status.json for a shard root, whatever state it is in")
     s.add_argument("--out", required=True)
     s.add_argument("--shard")
@@ -668,8 +698,12 @@ def main(argv: list[str] | None = None, *, url_map: UrlMap | None = None,
     if args.deadline_epoch is not None and not math.isfinite(args.deadline_epoch):
         print("error: --deadline-epoch must be a finite number of seconds", file=sys.stderr)
         return EXIT_USAGE
+    if args.openfda_base_url is not None and BASE_URL_RE.fullmatch(args.openfda_base_url) is None:
+        print("error: --openfda-base-url must be an http(s) URL", file=sys.stderr)
+        return EXIT_USAGE
     try:
-        return run_shard(args.plan, args.shard, Path(args.out), args.provider, args.deadline_epoch)
+        return run_shard(args.plan, args.shard, Path(args.out), args.provider, args.deadline_epoch,
+                         args.openfda_base_url)
     except ShardError as err:
         print(f"error: {err.problem}", file=sys.stderr)
         return EXIT_USAGE

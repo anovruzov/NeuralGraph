@@ -162,6 +162,50 @@ SIM_WORLD_SAME = "Simulation units of the same plant, seed and weeks saw the sam
 SIM_WORLD_DIFFERS = ("Simulation units of the same plant, seed and weeks saw different synthetic worlds; their results "
                      "are not comparable.")
 
+# the experiment adapters (prereg.py, units.py, openfda.py) and their unit outcomes; experiment ids are the
+# placeholders e_one, e_two, x_one and n_one (in braces), filled with code spans where a summary renders the sentence
+PREREG_MISSING = "the preregistration is missing or differs from the plan's"
+E2_ABORTED = ("the pushdown harness stopped with an uncaught error, often a central or site call that failed after "
+              "its retries; the files it kept are partial")
+OPENFDA_UNREACHABLE = "openFDA stayed unreachable from this runner after the connector's retries"
+OPENFDA_RATE_LIMITED = ("openFDA kept refusing requests as too many after the connector's retries: add the "
+                        "MYCELIC_LAB_OPENFDA_API_KEY repository secret, lower max_records_per_code or product_codes, "
+                        "or run again later")
+OPENFDA_FETCH_REFUSED = "the openFDA fetch was refused: an HTTP error the connector does not retry, or a bad query"
+STEP_SKIPPED = "skipped: a step it needs did not succeed"
+E1_NO_REFERENCE = "the reference model has no complete set of valid repeats, so no comparison was run"
+E1_COMPARE_FAILED = "the comparison harness refused the runs; its log is in the report artifact beside the copied runs"
+E1_ENDPOINT_EXCLUDED = ("A model without a complete set of valid repeats was left out: the comparison is stamped "
+                        "incomplete and lists it among the endpoints without runs.")
+E1_VERDICTS_WITHHELD = ("Verdicts withheld: non-inferiority and the kill flag are shown only for a model measurement, "
+                        "beneath the label above.")
+E1_LABELS = {
+    "generator_text": "{e_one} here scores extraction against generator ground truth on template text. It is not the "
+                      "STRATEGY {e_one} decision, which needs human-labelled public narratives.",
+    "fixtures": "{e_one} here scores extraction against the pack's author-written fixture records. It is not the "
+                "STRATEGY {e_one} decision, which needs human-labelled public narratives.",
+}
+E2_LABELS = {
+    "synthetic": "{e_two} here runs on planted synthetic worlds; the pack, the detectors and the plant were written by "
+                 "one author, so the plant is not blind. Internal only, never a result to show buyers.",
+    "below_protocol": "Below the protocol minimum of candidates and seeds: the conditions and the ratio are not "
+                      "interpretable as estimates.",
+    "self_central": "The central comparator is the model under test itself, so the ratio compares the model with "
+                    "itself; the bar verdict is not shown.",
+}
+X1_LABEL = ("{x_one} here runs the model-free evaluation harness on a same-author plant fixture that is not blind; the "
+            "extractor is lexical and no model runs. It is not STRATEGY's blind {x_one} test.")
+OPENFDA_LABEL = "Public data, artificial partitioning, not a confidentiality demonstration; no model in this pipeline."
+OPENFDA_PUBLIC_FLAG = ("The replay's measurement flag says only that both caches came from the public openFDA host; it "
+                       "measures no model.")
+SHEETS_LABEL = ("No labels were generated: {n_one} and openFDA {e_one} have no result until a human labels and "
+                "commits the sheet.")
+G0_BELOW_PROTOCOL = ("Some canary scans used fewer records than the protocol scan, whose size the protocol records "
+                     "column gives: they are smaller checks, not the protocol scan.")
+E2_SIZING_NOTE = ("Pushdown sizing: the model-free rehearsal's call counts times this runner's warm-up latencies, "
+                  "against the share of the unit's budget the projection may use; a projection above it skips the "
+                  "unit, and the suggested minutes are a quarter above the projection, rounded up.")
+
 CLASS_REASONS = {
     "fake_kind": "the manifest entry is a fake model",
     "provider_override": "the shard ran with the fake provider in place of the model server",
@@ -189,6 +233,8 @@ NOTES = {
     "model_measurement": "Model measurement: a verified model file answered through a verified server on one shared "
                          "GitHub-hosted runner; quality numbers describe this model on synthetic data, and timings "
                          "describe this runner, not site hardware.",
+    "public_data": "Public data: openFDA records under an artificial partitioning; no model ran, and nothing here is "
+                   "confidential or a confidentiality demonstration.",
 }
 
 # summaries (summary.py) and the aggregate report (aggregate.py); identifiers are rendered in code spans beside them
@@ -248,6 +294,19 @@ HEADINGS = {
     "sim-lifts": "Simulation lifts, bootstrapped over patterns",
     "sim-pushdown": "Simulation pushdown verification",
     "sizing": "Simulation sizing for the next request",
+    "prereg": "Preregistration, fixed before any model runs",
+    "e1": "Extraction compared across models",
+    "e1-endpoints": "Extraction per model, pooled over repeats",
+    "e1-paired": "Extraction paired against the reference",
+    "e2": "Pushdown verification against central reading: conditions",
+    "e2-ratio": "Pushdown ratio and verdict",
+    "e2-candidates": "Pushdown candidates",
+    "e2-sizing": "Pushdown sizing",
+    "x1": "Evaluation harness on a plant fixture: channels",
+    "x1-lifts": "Evaluation harness lifts, bootstrapped over patterns",
+    "openfda": "openFDA public replay: recalls found per channel",
+    "openfda-fetch": "openFDA fetches",
+    "sheets": "Labelling sheets for a human",
     "lock": "Lock",
     "notes": "Notes",
 }
@@ -376,4 +435,61 @@ COLUMNS = {
     "suggested_minutes": "suggested minutes",
     "plant": "plant",
     "weeks": "weeks",
+    "labels": "labels",
+    "claims": "claims",
+    "prereg": "prereg sha",
+    "rehearsal": "Model-free rehearsal",
+    "judge_calls": "site judge calls",
+    "raw_max": "most records in one central reading",
+    "field_f1": "field F one",
+    "claim_f1": "claim F one",
+    "json_validity": "valid JSON share",
+    "p50_ms": "median ms",
+    "mismatch": "model mismatch",
+    "against": "against",
+    "mean_diff": "mean difference",
+    "sign_p": "sign test p",
+    "underpowered": "underpowered",
+    "non_inferior": "non-inferior",
+    "kill_flag": "kill flag",
+    "margin": "margin",
+    "reference": "reference",
+    "runs": "repeats",
+    "condition": "condition",
+    "p_at_k": "precision in the top k",
+    "ratio": "pushdown over central raw",
+    "pushdown_raw": "pushdown raw text bytes",
+    "verdict": "bar verdict",
+    "withheld": "withheld because",
+    "central": "central",
+    "protocol_min": "protocol minimum",
+    "decoy": "decoy",
+    "background": "background",
+    "projected_minutes": "projected minutes",
+    "budget_minutes": "unit minutes",
+    "share": "share the projection may use",
+    "seeds": "seeds",
+    "channel_reason": "why no alerts",
+    "label_source": "source",
+    "pairs": "paired records",
+    "underpowered_below": "underpowered below",
+    "kill_below": "kill flag below",
+    "exceeds": "exceeds",
+    "eligible": "eligible",
+    "blind": "blind",
+    "extractor": "extractor",
+    "in_scope": "recalls in scope",
+    "recall_rate": "recall rate",
+    "lead_days": "median lead days",
+    "post_alerts": "post-recall alerts",
+    "per_week": "false alarms per week",
+    "dataset": "dataset",
+    "code": "code",
+    "total": "total",
+    "fetched": "fetched",
+    "truncated": "truncated",
+    "sheet": "sheet",
+    "requested": "requested",
+    "written": "written",
+    "protocol_records": "protocol records",
 }

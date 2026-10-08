@@ -1,11 +1,13 @@
 """Run a whole request locally, every shard against the fake server: the lab's plumbing check without weights.
 
-    python -m lab.dryrun --request PATH --out DIR [--manifest lab/models.json]
+    python -m lab.dryrun --request PATH --out DIR [--manifest lab/models.json] [--openfda-base-url URL]
 
 ``DIR`` must be absent or empty. The steps are the workflow's, in the same order and with the same files:
 
-1. the plan goes to ``DIR/plan`` (``lab.plan``, in-process);
-2. each shard runs as ``python -m lab.shard run --provider=fake`` into ``DIR/shards/<shard>``, is sealed with the
+1. the plan goes to ``DIR/plan`` (``lab.plan``, in-process), and its preregistration to ``DIR/plan/prereg``
+   (``lab.prereg``, in-process; it runs the harnesses' own prereg steps and E2's model-free rehearsal);
+2. each shard runs as ``python -m lab.shard run --provider=fake`` into ``DIR/shards/<shard>`` (with
+   ``--openfda-base-url`` when given: a test stub in place of api.fda.gov), is sealed with the
    run step's outcome and the plan (``seal --plan``), and its summary is rendered to
    ``DIR/shards/<shard>/summary/summary.md`` and ``summary.sources.json``, as the run job does after its seal;
 3. the plan summary is rendered to ``DIR/plan/summary.md`` and ``summary.sources.json``;
@@ -13,11 +15,12 @@
    provision records, absent in a dry run) and the report summary rendered to ``DIR/report/report.md`` and
    ``report.sources.json``.
 
-Every record says ``plumbing``: a dry run never measures a model. stdout is the plan line, one line per unit and the
-aggregate line.
+Every record says ``plumbing``: a dry run never measures a model. stdout is the plan line, the prereg line, one line
+per unit and the aggregate line. Without ``--openfda-base-url`` an openFDA unit fetches from api.fda.gov itself.
 
-Exit 2 when the plan, the aggregate or a summary fails (or ``DIR`` is not empty); 1 when a unit did not run to a
-valid result (invalid, failed, timed out, interrupted or skipped, or a shard that did not finish); else 0.
+Exit 2 when the plan, the preregistration, the aggregate or a summary fails (or ``DIR`` is not empty); 1 when a unit
+did not run to a valid result (invalid, failed, timed out, interrupted or skipped, or a shard that did not finish);
+else 0.
 """
 from __future__ import annotations
 
@@ -33,6 +36,7 @@ from mycelic.collective.jsonio import StrictJsonError, strict_load
 from . import EXIT_OK, EXIT_UNIT, EXIT_USAGE, ROOT
 from . import aggregate as lab_aggregate
 from . import plan as lab_plan
+from . import prereg as lab_prereg
 from . import summary as lab_summary
 
 DEFAULT_MANIFEST = ROOT / "lab" / "models.json"
@@ -44,6 +48,7 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--request", required=True)
     p.add_argument("--out", required=True)
     p.add_argument("--manifest", default=os.path.relpath(DEFAULT_MANIFEST))
+    p.add_argument("--openfda-base-url", help="tests only: an openFDA stub for the openFDA unit's fetches")
     return p
 
 
@@ -75,12 +80,16 @@ def main(argv: list[str] | None = None) -> int:
     plan_path = plan_dir / "plan.json"
     if lab_plan.main(["--request", args.request, "--manifest", args.manifest, "--out", str(plan_dir)]) != EXIT_OK:
         return EXIT_USAGE
+    sys.stdout.flush()
+    if lab_prereg.main(["--plan", str(plan_path)]) != EXIT_OK:
+        return EXIT_USAGE
     plan = strict_load(plan_path.read_bytes())
     failing, summaries_ok = False, True
+    openfda = [f"--openfda-base-url={args.openfda_base_url}"] if args.openfda_base_url is not None else []
     for shard in plan["shards"]:
         shard_dir = out / "shards" / shard["shard"]
         code = _shard("run", f"--plan={plan_path}", f"--shard={shard['shard']}", f"--out={shard_dir}",
-                      "--provider=fake")
+                      "--provider=fake", *openfda)
         outcome = "success" if code == EXIT_OK else "failure"
         sealed = _shard("seal", f"--out={shard_dir}", f"--shard={shard['shard']}", f"--plan={plan_path}",
                         f"--step-outcome=run={outcome}")

@@ -993,7 +993,7 @@ class RequestAndPlanTests(unittest.TestCase):
                 self.assertEqual(self._error(self._sim(**changes))[0], path)
         obj = plumbing_min()
         obj["experiments"] = {}
-        self.assertEqual(self._error(obj), ("$.experiments", "needs at least one of e3, g0, sim"))
+        self.assertEqual(self._error(obj), ("$.experiments", "needs at least one of e1, e2, e3, g0, sim, x1, openfda"))
 
     def test_unit_params(self) -> None:
         with tempfile.TemporaryDirectory(prefix="lab-sim-plan-") as tmp:
@@ -1018,8 +1018,11 @@ class RequestAndPlanTests(unittest.TestCase):
         plan = build_plan(request, manifest, "unknown")
         self.assertEqual([(s["shard"], s["units"], s["planned_minutes"], s["timeout_minutes"])
                           for s in plan["shards"]],
-                         [("s001-fake-a", ["sim-fake-a-s1", "e3-fake-a"], 20, 45),
-                          ("s002-fake-b", ["g0-fake-b", "e3-fake-b"], 15, 40)])
+                         [("s001-fake-a", ["sim-fake-a-s1", "e1-fake-a-r1"], 20, 45),
+                          ("s002-fake-a", ["e1-fake-a-r2", "e1-fake-a-r3", "e2-fake-a", "e3-fake-a"], 20, 45),
+                          ("s003-fake-b", ["g0-fake-b", "e1-fake-b-r1", "e1-fake-b-r2"], 20, 45),
+                          ("s004-fake-b", ["e1-fake-b-r3", "e3-fake-b"], 10, 35),
+                          ("s005-none", ["x1"], 5, 30)])
 
     def test_smoke_template(self) -> None:
         manifest = load_manifest(LAB_MANIFEST)

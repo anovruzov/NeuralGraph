@@ -65,8 +65,8 @@ class DryRunSummaryTests(unittest.TestCase):
         self.work = Path(tempfile.mkdtemp(prefix="lab-summary-t-", dir=self.tmp))
 
     def test_sources_match_files_dry_run(self) -> None:
-        self.assertEqual(len(self.summaries), 4)
-        modes = ["plan", "shard", "shard", "report"]
+        self.assertEqual(len(self.summaries), 7)
+        modes = ["plan", "shard", "shard", "shard", "shard", "shard", "report"]
         for (root, md_path, sources_path), mode in zip(self.summaries, modes):
             with self.subTest(summary=md_path.relative_to(self.out).as_posix()):
                 md = md_path.read_text(encoding="utf-8")
@@ -82,8 +82,8 @@ class DryRunSummaryTests(unittest.TestCase):
     def _model_tree(self) -> tuple[DryTree, Path]:
         tree = DryTree(self.out, self.work / "T", manifest=LAB_MANIFEST)
         tree.set_plan(lambda plan: plan.update(result_class="real", provider="llama-server"))
-        tree.make_real("s001-fake-a", model_units=("e3-fake-a",))
-        tree.make_real("s002-fake-b", units=("g0-fake-b",))
+        tree.make_real("s002-fake-a", model_units=("e3-fake-a",))
+        tree.make_real("s003-fake-b", units=("g0-fake-b",))
         report_dir = self.work / "R"
         code, stdout, stderr, report = tree.aggregate(report_dir)
         self.assertEqual(code, 0, stderr)
@@ -98,12 +98,16 @@ class DryRunSummaryTests(unittest.TestCase):
         self.assertIn("`e3-fake-a`", model)
         self.assertNotIn("`g0-fake-b`", model)
         self.assertIn("`g0-fake-b`", _section(md, notes.HEADINGS["unverified"]))
-        for shard in ("s001-fake-a", "s002-fake-b"):
+        for shard in ("s002-fake-a", "s003-fake-b"):
             text, shard_entries = summary.render_shard(tree.path(shard))
             check_sources(self, text, shard_entries, tree.path(shard))
-        first = summary.render_shard(tree.path("s001-fake-a"))[0].splitlines()[0]
-        second = summary.render_shard(tree.path("s002-fake-b"))[0].splitlines()[0]
-        self.assertEqual((first, second), (f"## {notes.HEADINGS['shard']} `s001-fake-a`", notes.NO_MEASUREMENT_LINE))
+        first = summary.render_shard(tree.path("s002-fake-a"))[0].splitlines()[0]
+        second = summary.render_shard(tree.path("s003-fake-b"))[0].splitlines()[0]
+        self.assertEqual((first, second), (f"## {notes.HEADINGS['shard']} `s002-fake-a`", notes.NO_MEASUREMENT_LINE))
+        # the changed plan no longer matches its preregistration, so E1 is not compared, and says why
+        report = _json(report_dir / "report.json")
+        self.assertEqual((report["e1"]["compared"], report["e1"]["reason"]), (False, notes.PREREG_MISSING))
+        self.assertIn(notes.PREREG_MISSING, _section(md, notes.HEADINGS["e1"]).splitlines())
 
     def test_sim_tables_in_the_dry_run(self) -> None:
         report = _json(self.out / "report" / "report.json")
@@ -133,10 +137,36 @@ class DryRunSummaryTests(unittest.TestCase):
         shard_md = (self.out / "shards" / "s001-fake-a" / "summary" / "summary.md").read_text(encoding="utf-8")
         self.assertIn("`sim-fake-a-s1`", shard_md)
 
+    def test_experiment_sections_in_the_dry_run(self) -> None:
+        report = _json(self.out / "report" / "report.json")
+        self.assertEqual((report["e1"]["compared"], report["e1"]["display_class"]), (True, "plumbing"))
+        self.assertEqual([r["unit"] for r in report["e2"]], ["e2-fake-a"])
+        self.assertEqual([r["unit"] for r in report["x1"]], ["x1"])
+        self.assertEqual((report["openfda"], report["e2_sizing"]), ([], []))
+        md = self.summaries[-1][1].read_text(encoding="utf-8")
+        plumbing = _section(md, notes.HEADINGS["plumbing"])
+        for key in ("e1", "e1-endpoints", "e1-paired", "e2", "e2-ratio", "e2-candidates", "x1", "x1-lifts"):
+            self.assertIn(f"#### {notes.HEADINGS[key]}", plumbing.splitlines(), key)
+        self.assertNotIn(notes.HEADINGS["openfda"], md)
+        self.assertIn(summary.ids(notes.E1_LABELS["generator_text"]), plumbing.splitlines())
+        self.assertIn(notes.E1_VERDICTS_WITHHELD, plumbing.splitlines())
+        self.assertIn(summary.ids(notes.X1_LABEL), plumbing.splitlines())
+        self.assertIn(notes.G0_BELOW_PROTOCOL, _section(plumbing, notes.HEADINGS["g0"]).splitlines())
+        plan_md = self.summaries[0][1].read_text(encoding="utf-8")
+        prereg = _section(plan_md, notes.HEADINGS["prereg"])
+        self.assertIn("`E1` labels: source `generator`, records 40, claims ", prereg)
+        self.assertIn("`X1` prereg sha `", prereg)
+        self.assertIn("`E2` prereg sha `", prereg)
+        pointers = {e["pointer"] for e in _json(self.summaries[0][2])["sources"] if e["file"] == "prereg/prereg.json"}
+        self.assertEqual(pointers, {"/e1/labels/records", "/e1/labels/claims", "/e2/rehearsal/candidates/total",
+                                    "/e2/rehearsal/candidates/seeds", "/e2/rehearsal/calls/judge_record",
+                                    "/e2/rehearsal/central_raw_records/max"})
+
     def test_plumbing_first_line_and_heading(self) -> None:
-        self.assertEqual(self.done.stdout.splitlines()[0], "plan: 4 units in 2 shards (plumbing)")
+        self.assertEqual(self.done.stdout.splitlines()[:2], ["plan: 12 units in 5 shards (plumbing)",
+                                                             "prereg: e1 yes x1 yes e2 yes"])
         self.assertEqual(self.done.stdout.splitlines()[-1],
-                         "lab: aggregate units 4 shards 2 class plumbing measurements false lock unchanged")
+                         "lab: aggregate units 12 shards 5 class plumbing measurements false lock unchanged")
         for _, md_path, _ in self.summaries:
             with self.subTest(summary=md_path.name):
                 self.assertEqual(md_path.read_text(encoding="utf-8").splitlines()[0], PLUMBING)
@@ -151,17 +181,26 @@ class DryRunSummaryTests(unittest.TestCase):
     def test_no_measurement_first_line(self) -> None:
         tree = DryTree(self.out, self.work / "T", manifest=LAB_MANIFEST)
         tree.set_plan(lambda plan: plan.update(result_class="real", provider="llama-server"))
-        tree.make_real("s001-fake-a", units=("sim-fake-a-s1", "e3-fake-a"))
-        tree.make_real("s002-fake-b", units=("g0-fake-b", "e3-fake-b"))
+        shards = {"s001-fake-a": ("sim-fake-a-s1", "e1-fake-a-r1"),
+                  "s002-fake-a": ("e1-fake-a-r2", "e1-fake-a-r3", "e2-fake-a", "e3-fake-a"),
+                  "s003-fake-b": ("g0-fake-b", "e1-fake-b-r1", "e1-fake-b-r2"),
+                  "s004-fake-b": ("e1-fake-b-r3", "e3-fake-b"), "s005-none": ()}
+        for shard, units in shards.items():
+            tree.make_real(shard, units=units)
+        # a real run's model-free unit: the shard's provider, no fake rows, class no-model
+        tree.edit("s005-none", "units/x1/unit.json", lambda r: r.update(provider="llama-server"))
+        tree.reseal("s005-none")
         code, _, stderr, report = tree.aggregate(self.work / "R")
         self.assertEqual(code, 0, stderr)
-        self.assertEqual({u["display_class"] for u in report["units"]}, {"unverified"})
+        classes = {u["unit"]: u["display_class"] for u in report["units"]}
+        self.assertEqual(classes, {**{u: "unverified" for units in shards.values() for u in units}, "x1": "no-model"})
         self.assertEqual((report["result_class"], report["contains_measurements"]), ("real", False))
+        self.assertEqual(report["e1"]["display_class"], "unverified")
         md, entries = summary.render_report(self.work / "R")
         self.assertEqual(md.splitlines()[0], notes.NO_MEASUREMENT_LINE)
         self.assertNotIn(notes.HEADINGS["model"], md)
         check_sources(self, md, entries, self.work / "R")
-        for shard in ("s001-fake-a", "s002-fake-b"):
+        for shard in shards:
             self.assertEqual(summary.render_shard(tree.path(shard))[0].splitlines()[0], notes.NO_MEASUREMENT_LINE)
 
     def test_class_separation(self) -> None:
@@ -195,17 +234,21 @@ class DryRunSummaryTests(unittest.TestCase):
                 self.assertEqual(display_class(record, provenance), expected)
         tree = DryTree(self.out, self.work / "T", manifest=LAB_MANIFEST)
         tree.set_plan(lambda plan: plan.update(result_class="real", provider="llama-server"))
-        tree.make_real("s001-fake-a", model_units=("e3-fake-a",))
-        tree.make_real("s002-fake-b", model_units=("g0-fake-b", "e3-fake-b"))
-        tree.edit("s002-fake-b", "units/g0-fake-b/unit.json", lambda r: r.update(fake_rows=5))
-        tree.edit("s002-fake-b", "units/e3-fake-b/unit.json",
+        tree.make_real("s002-fake-a", model_units=("e3-fake-a",))
+        tree.make_real("s003-fake-b", model_units=("g0-fake-b",))
+        tree.make_real("s004-fake-b", model_units=("e3-fake-b",))
+        tree.edit("s003-fake-b", "units/g0-fake-b/unit.json", lambda r: r.update(fake_rows=5))
+        tree.edit("s004-fake-b", "units/e3-fake-b/unit.json",
                   lambda r: r["class_checks"].update(model_served=False))
-        tree.reseal("s002-fake-b")
+        tree.reseal("s003-fake-b")
+        tree.reseal("s004-fake-b")
         code, _, stderr, report = tree.aggregate(self.work / "R")
         self.assertEqual(code, 0, stderr)
         classes = {u["unit"]: u["display_class"] for u in report["units"]}
+        others = {u: "plumbing" for u in ("e1-fake-a-r1", "e1-fake-a-r2", "e1-fake-a-r3", "e1-fake-b-r1",
+                                          "e1-fake-b-r2", "e1-fake-b-r3", "e2-fake-a", "x1")}
         self.assertEqual(classes, {"e3-fake-a": "model", "g0-fake-b": "plumbing", "e3-fake-b": "unverified",
-                                   "sim-fake-a-s1": "plumbing"})
+                                   "sim-fake-a-s1": "plumbing", **others})
         self.assertEqual([(r["unit"], r["display_class"]) for r in report["sim"]], [("sim-fake-a-s1", "plumbing")])
         md, _ = summary.render_report(self.work / "R")
         model = _section(md, notes.HEADINGS["model"])

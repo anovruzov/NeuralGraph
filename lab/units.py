@@ -2,9 +2,12 @@
 
 Inside a shard's output directory ``OUT``, a unit writes::
 
-    routing/<unit>.json                      the routing file the harness reads (one endpoint, ``lab``)
+    routing/<unit>.json                      the routing file the harness reads (one endpoint, ``lab``; E1: the
+                                             model's key, pinned by the preregistration)
+    routing/<unit>/sites/<site>.json         E2: one routing file per site of the preregistered world, and
+    routing/<unit>/central.json              the central comparator's routing file
     units/<unit>/{stdout.log,stderr.log}     the harness output, each cut to its last 64 KiB; never printed
-    runs/<e3|g0|sim>/<run id>/...            the allowlisted harness outputs, copied from the scratch directory
+    runs/<experiment>/<run id>/...           the allowlisted harness outputs, copied from the scratch directory
     work/<unit>/                             the harness scratch directory, deleted when the unit ends
 
 and returns the record the shard writes to ``units/<unit>/unit.json``. The model server is either the shard's
@@ -14,20 +17,36 @@ entries and the ``--provider fake`` override, the collective's ``FakeOpenAIServe
 ``openai_compat`` endpoint (E3 refuses fake routing by design), so the harness talks HTTP to it the same way. While
 a model server serves the unit, the harness is watched: if the server process exits, the harness group is stopped,
 and a unit whose server exited while it ran (seen by the watch or right after the harness ended) is ``invalid``
-(``server exited with ...``; SIGKILL adds the out-of-memory hint).
+(``server exited with ...``; SIGKILL adds the out-of-memory hint). The model-free units (kind ``none``: X1 and
+openFDA) get no server and no routing.
 
-Adapters (``ADAPTERS``): ``e3`` runs ``experiments.e3_latency`` (boundary ``central``) and keeps ``e3.json`` and
+Adapters (``ADAPTERS``; every harness writes under ``work/<unit>/<experiment>/<run id>``, its kind being the
+experiment): ``e3`` runs ``experiments.e3_latency`` (boundary ``central``) and keeps ``e3.json`` and
 ``ledger.jsonl``; ``g0`` runs ``experiments.g0_canary --mode routing`` (boundary ``any-simulated``, both routed
 tasks on the endpoint) and keeps ``leakage.json`` and ``edge/site-*.ledger.jsonl``; ``sim`` runs ``lab.sim`` (the
 same routing as G0, with ``--budget-seconds`` the unit's whole seconds less :data:`SIM_BUDGET_MARGIN_S`, at least 1)
-and keeps ``scorecard.json``, ``progress.json``, ``labels.json`` and ``edge/site-*.ledger.jsonl``. Nothing else is
-collected: no ``private/``, no ``work/``, no SQLite file, no ``hq*`` or ``followup/`` directory.
+and keeps ``scorecard.json``, ``progress.json``, ``labels.json`` and ``edge/site-*.ledger.jsonl``; ``e1`` runs
+``experiments.e1_extract run`` (the preregistered prereg and labels, one repeat of one model) and keeps ``run.json``,
+``predictions.jsonl`` and ``ledger.jsonl``; ``e2`` runs ``experiments.e2_pushdown run`` (the preregistered X1 prereg,
+site routing at ``any-simulated`` and a central endpoint at ``central`` on the same server: central is the model
+itself) and keeps ``e2.json``, ``central.ledger.jsonl`` and ``work/seed-*/edge/site-*.ledger.jsonl``; ``x1`` runs
+``evaluate.harness run`` and keeps ``scorecard.json`` and ``labels.json``; ``openfda`` is ``lab.openfda``'s steps
+(caches' manifests, the replay's prereg, signals and score, and the sheets). Nothing else is collected: no
+``private/``, no other ``work/``, no SQLite file, no ``pages/``, no ``hq*`` or ``followup/`` directory. E1, E2 and X1
+need the preregistration (:mod:`lab.prereg`): without it they fail with :data:`~lab.notes.PREREG_MISSING` and nothing
+starts. An E2 unit behind a model server is first projected (:func:`e2_projection`): the rehearsal's call counts
+times the warm-up's latencies, against :data:`lab.sim.PROJECTION_SHARE` of the unit's time; above it the unit is
+``skipped`` with the projection recorded and no harness started.
 
 Status, from :func:`harness_status` and then the participation check:
 
 * ``timed_out`` whenever the wait timed out; ``interrupted`` for exit 130 or SIGINT; ``failed`` for another signal,
   for exit 2 (the harness refused its configuration) and for any exit the adapter does not expect;
 * E3: exit 0 with an ``e3.json`` of kind ``e3`` is ``ok``, anything else ``failed``;
+* E1: exit 0 with a ``run.json`` of kind ``e1_run`` that says ``complete: true`` is ``ok``, else ``failed``;
+* E2: exit 0 with an ``e2.json`` of kind ``e2_pushdown`` is ``ok``; exit 1 (an uncaught error, the ledgers kept) is
+  ``failed`` with :data:`~lab.notes.E2_ABORTED`;
+* X1: exit 0 with a ``scorecard.json`` of kind ``x1_scorecard`` is ``ok``;
 * G0: exit 0 with ``passed: true`` is ``ok``, exit 1 with ``passed: false`` is ``result_fail`` (a valid FAIL
   verdict), any other pairing of exit 0/1 and ``leakage.json`` (missing, unreadable, contradicting) is ``failed``;
 * sim: exit 0 or 1 with a ``scorecard.json`` of kind ``lab_sim_scorecard``, else ``failed``. A ``skipped_projection``
@@ -37,10 +56,11 @@ Status, from :func:`harness_status` and then the participation check:
   pairing is ``failed``;
 * participation: an ``ok`` or ``result_fail`` unit with a model is ``invalid`` unless the model answered. Per task
   in the ledgers, ``attempted`` counts calls (rows with attempt 0 or 1; a repair or escalation row is part of the
-  same call) and ``ok`` the rows that succeeded. A required task (the E3 workload tasks; G0's and the sim's
-  ``extract_claims``) with no call, a sim whose scorecard says its extraction did not pass (lexical fallback share
-  above 0.05, :data:`~lab.notes.SIM_LOW_PARTICIPATION`), any task with an ok share below 0.95, or an E3 run with more
-  than 5% failed measured requests makes the unit invalid, checked in that order. A harness that exits 0 although
+  same call) and ``ok`` the rows that succeeded. A required task (the E3 workload tasks; G0's, E1's and the sim's
+  ``extract_claims``; E2's ``judge_record`` and ``judge_candidate_raw``) with no call, a sim whose scorecard says
+  its extraction did not pass (lexical fallback share above 0.05, :data:`~lab.notes.SIM_LOW_PARTICIPATION`), any
+  task with an ok share below 0.95, or an E3 run with more than 5% failed measured requests makes the unit invalid,
+  checked in that order. A harness that exits 0 although
   the model never answered (E3 counts its failures, G0 and the sim fall back to the lexical extractor) can therefore
   never be ``ok``.
 
@@ -52,8 +72,8 @@ this order: the model file was verified by the hub or the lock and its record is
 ``server_first_use``); every download connection reached the host it named and none was private
 (``download_hosts``); the server reported the verified file as its model (``model_path``); every ledger row went to
 the started server (``ledger_host``) and every answer named the alias (``model_served``); the harness counted the
-run as a measurement (``harness_measurement``, E3 and the sim: its result says ``measurement: true``, in the sim's
-``stamps``; :func:`harness_verdict`); and the unit ran to a valid result (``participation``).
+run as a measurement (``harness_measurement``, E1, E2, E3 and the sim: its result says ``measurement: true``, in the
+sim's and E2's ``stamps``; :func:`harness_verdict`); and the unit ran to a valid result (``participation``).
 Otherwise ``unverified``, naming the first condition that failed (``no_evidence`` without a model server). G0's own
 ``models_fake`` is ignored: in routing mode it is false even against the fake HTTP server.
 
@@ -84,6 +104,7 @@ from typing import Any, Callable, Mapping
 from mycelic.collective.edge.extract import TASK_NAME
 from mycelic.collective.edge.verify import JUDGE_TASK
 from mycelic.collective.experiments.common import utc_clock, write_json_atomic
+from mycelic.collective.experiments.e2_pushdown import CENTRAL_TASKS
 from mycelic.collective.experiments.e3_latency import WORKLOADS
 from mycelic.collective.inference.client import is_private_host
 from mycelic.collective.inference.ledger import read_ledger
@@ -92,10 +113,13 @@ from mycelic.collective.jsonio import StrictJsonError, sha256_hex, strict_load
 from mycelic.collective.packs.loader import load_pack
 
 from . import ROOT
-from .notes import (E3_FAILURES, FAKE_SERVER_NOTE, HARNESS_INTERRUPTED, HARNESS_USAGE, KILLED_BY_SIGNAL, LAB_ROUTING,
-                    LOW_PARTICIPATION, NO_MODEL_CALLS, RESULT_CONTRADICTS_EXIT, RESULT_MISSING, SHARD_INTERRUPTED,
-                    SIM_LOW_PARTICIPATION, SIM_PROJECTED, TIMED_OUT, UNEXPECTED_EXIT)
+from . import prereg as lab_prereg
+from .notes import (E2_ABORTED, E3_FAILURES, FAKE_SERVER_NOTE, HARNESS_INTERRUPTED, HARNESS_USAGE, KILLED_BY_SIGNAL,
+                    LAB_ROUTING, LOW_PARTICIPATION, NO_MODEL_CALLS, PREREG_MISSING, RESULT_CONTRADICTS_EXIT,
+                    RESULT_MISSING, SHARD_INTERRUPTED, SIM_LOW_PARTICIPATION, SIM_PROJECTED, TIMED_OUT,
+                    UNEXPECTED_EXIT)
 from .server import EXIT_GRACE_S, WATCH_INTERVAL_S, FakeServer, exit_reason
+from .sim import PROJECTION_SHARE, suggested_minutes
 
 ENV_ALLOWLIST = ("PATH", "HOME", "LANG", "LC_ALL", "TMPDIR", "SSL_CERT_FILE", "SSL_CERT_DIR", "HTTP_PROXY",
                  "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy")
@@ -108,6 +132,11 @@ SIM_BUDGET_MARGIN_S = 30
 LOG_CAP_BYTES = 65536
 TERM_GRACE_S = 10
 ENDPOINT = "lab"
+CENTRAL_ENDPOINT = "lab-central"
+CENTRAL_DEADLINE_S = 3600
+E2_DEADLINE_SECONDS = 3600
+PREREG_EXPERIMENTS = ("e1", "e2", "x1")
+WARMUP_LEDGER = "server/warmup.ledger.jsonl"
 FLAG_NAME_RE = re.compile(r"[a-z][a-z0-9-]*", re.ASCII)
 CHECK_KEYS = ("model_verified", "server_verified", "download_hosts", "model_path", "ledger_host", "model_served",
               "harness_measurement", "participation")
@@ -159,8 +188,15 @@ class Adapter:
     result_file: str
     collect: tuple[str, ...]        # glob patterns under the harness run directory
     ledgers: tuple[str, ...]        # the ledger files among them
+    subcommand: str = ""            # the harness subcommand, the first argument after the module
 
 
+E2_SITE_LEDGERS = "work/seed-*/edge/site-*.ledger.jsonl"
+OPENFDA_COLLECT = ("cache/events/manifest.json", "cache/recalls/manifest.json", "runs/replay/prereg/prereg.json",
+                   "runs/replay/signals/signals.json", "runs/replay/signals/phase1.json",
+                   "runs/replay/score/replay.json", "runs/n1/n1/sample.json", "runs/n1/n1/sheet.csv",
+                   "runs/n1/n1/sheet.jsonl", "runs/e1/e1/prepare.json", "runs/e1/e1/records.jsonl",
+                   "runs/e1/e1/sheet.csv")
 ADAPTERS = {
     "e3": Adapter("e3", "mycelic.collective.experiments.e3_latency", (), "central", 3600, "e3.json",
                   ("e3.json", "ledger.jsonl"), ("ledger.jsonl",)),
@@ -169,6 +205,14 @@ ADAPTERS = {
     "sim": Adapter("sim", "lab.sim", (TASK_NAME, JUDGE_TASK), "any-simulated", 900, "scorecard.json",
                    ("scorecard.json", "progress.json", "labels.json", "edge/site-*.ledger.jsonl"),
                    ("edge/site-*.ledger.jsonl",)),
+    "e1": Adapter("e1", "mycelic.collective.experiments.e1_extract", (), "", 900, "run.json",
+                  ("run.json", "predictions.jsonl", "ledger.jsonl"), ("ledger.jsonl",), "run"),
+    "e2": Adapter("e2", "mycelic.collective.experiments.e2_pushdown", (JUDGE_TASK,), "any-simulated", 900, "e2.json",
+                  ("e2.json", "central.ledger.jsonl", E2_SITE_LEDGERS), ("central.ledger.jsonl", E2_SITE_LEDGERS),
+                  "run"),
+    "x1": Adapter("x1", "mycelic.collective.evaluate.harness", (), "", 0, "scorecard.json",
+                  ("scorecard.json", "labels.json"), (), "run"),
+    "openfda": Adapter("openfda", "lab.openfda", (), "", 0, "runs/replay/score/replay.json", OPENFDA_COLLECT, ()),
 }
 
 
@@ -177,6 +221,8 @@ ADAPTERS = {
 def required_tasks(unit: Mapping[str, Any]) -> list[str]:
     if unit["experiment"] == "e3":
         return [WORKLOADS[w][0].name for w in unit["params"]["workloads"]]
+    if unit["experiment"] == "e2":
+        return [JUDGE_TASK, CENTRAL_TASKS[0]]
     return [TASK_NAME]
 
 
@@ -192,12 +238,34 @@ def flag(name: str, value: Any) -> str:
     return f"--{name}={value}"
 
 
-def build_argv(unit: Mapping[str, Any], out: Path, routing_path: Path,
-               server_note: str = FAKE_SERVER_NOTE, budget_s: int | None = None) -> list[str]:
-    """``[python, -m, <module>, --flag=value ...]``: every option in one element, never a bare value, and never
-    the harness option that accepts a dirty tree. A sim unit needs ``budget_s`` (its ``--budget-seconds``)."""
+def build_argv(unit: Mapping[str, Any], out: Path, routing_path: Path, server_note: str = FAKE_SERVER_NOTE,
+               budget_s: int | None = None, prereg: Path | None = None) -> list[str]:
+    """``[python, -m, <module>, (<subcommand>,) --flag=value ...]``: every option in one element, never a bare value,
+    and never the harness option that accepts a dirty tree. A sim unit needs ``budget_s`` (its ``--budget-seconds``);
+    E1, E2 and X1 need ``prereg``, the directory holding the plan and its ``prereg/``."""
     p = unit["params"]
-    if unit["experiment"] == "sim":
+    runs_dir = Path(out) / "work" / unit["unit"]
+    adapter = ADAPTERS[unit["experiment"]]
+    if unit["experiment"] in PREREG_EXPERIMENTS and prereg is None:
+        raise ValueError("E1, E2 and X1 units need the preregistration directory") from None
+    if unit["experiment"] == "e1":
+        flags = [("prereg", prereg / "prereg" / "e1" / "prereg" / "prereg.json"),
+                 ("labels", prereg / "prereg" / "e1" / "labels.jsonl"), ("routing", routing_path),
+                 ("endpoint", unit["model"]), ("repeat", p["repeat"]), ("run-id", unit["run_id"]),
+                 ("runs-dir", runs_dir)]
+    elif unit["experiment"] == "e2":
+        flags = [("x1-prereg", prereg / "prereg" / "x1" / "e2" / "prereg.json"), ("plant", ROOT / p["plant_path"]),
+                 ("run-id", unit["run_id"]), ("top-n", p["top_n"]), ("min-candidates", p["min_candidates"]),
+                 ("site-routing", Path(out) / "routing" / unit["unit"] / "sites"),
+                 ("central-routing", Path(out) / "routing" / unit["unit"] / "central.json"),
+                 ("allow-external-raw", "synthetic"), ("data-label", "synthetic"),
+                 ("deadline-seconds", E2_DEADLINE_SECONDS), ("bootstrap-b", p["bootstrap_b"]),
+                 ("bootstrap-seed", p["bootstrap_seed"]), ("runs-dir", runs_dir)]
+    elif unit["experiment"] == "x1":
+        flags = [("prereg", prereg / "prereg" / "x1" / "x1" / "prereg.json"), ("plant", ROOT / p["plant_path"]),
+                 ("seeds", ",".join(str(s) for s in sorted(p["seeds"]))), ("run-id", unit["run_id"]),
+                 ("runs-dir", runs_dir)]
+    elif unit["experiment"] == "sim":
         if budget_s is None:
             raise ValueError("a sim unit needs its budget in seconds") from None
         flags = [("plant", p["plant"]), ("seed", p["seed"]), ("weeks", p["weeks"]), ("eval-from", p["eval_from"]),
@@ -214,17 +282,66 @@ def build_argv(unit: Mapping[str, Any], out: Path, routing_path: Path,
     else:
         flags = [("pack", p["pack"]), ("records", p["records"]), ("seed", p["seed"]), ("out", harness_dir(unit, out)),
                  ("mode", "routing"), ("routing", routing_path)]
-    return [sys.executable, "-m", ADAPTERS[unit["experiment"]].module, *(flag(n, v) for n, v in flags)]
+    head = [adapter.subcommand] if adapter.subcommand else []
+    return [sys.executable, "-m", adapter.module, *head, *(flag(n, v) for n, v in flags)]
+
+
+def _endpoint(entry: Mapping[str, Any], base_url: str, boundary: str, deadline_s: int) -> dict[str, Any]:
+    return {"provider": "openai_compat", "boundary": boundary, "base_url": base_url, "model": entry["alias"],
+            "response_format": entry["response_format"], "transport_schema": entry["transport_schema"],
+            "connect_timeout_s": 5, "deadline_s": deadline_s, "max_retries": 1}
 
 
 def routing_doc(unit: Mapping[str, Any], entry: Mapping[str, Any], base_url: str) -> dict[str, Any]:
     adapter = ADAPTERS[unit["experiment"]]
-    endpoint = {"provider": "openai_compat", "boundary": adapter.boundary, "base_url": base_url,
-                "model": entry["alias"], "response_format": entry["response_format"],
-                "transport_schema": entry["transport_schema"], "connect_timeout_s": 5,
-                "deadline_s": adapter.deadline_s, "max_retries": 1}
+    endpoint = _endpoint(entry, base_url, adapter.boundary, adapter.deadline_s)
     return {"schema_version": 1, "endpoints": {ENDPOINT: endpoint},
             "routes": {task: {"endpoint": ENDPOINT} for task in adapter.routed_tasks}}
+
+
+def e2_routing_docs(entry: Mapping[str, Any], base_url: str,
+                    site_ids: list[str]) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+    """({site id: the site's routing}, the central routing): every site judges with the model inside
+    ``any-simulated``, and the central comparator is the same server at ``central``."""
+    adapter = ADAPTERS["e2"]
+    site = {"schema_version": 1, "endpoints": {ENDPOINT: _endpoint(entry, base_url, adapter.boundary,
+                                                                   adapter.deadline_s)},
+            "routes": {JUDGE_TASK: {"endpoint": ENDPOINT}}}
+    central = {"schema_version": 1,
+               "endpoints": {CENTRAL_ENDPOINT: _endpoint(entry, base_url, "central", CENTRAL_DEADLINE_S)},
+               "routes": {task: {"endpoint": CENTRAL_ENDPOINT} for task in CENTRAL_TASKS}}
+    return {sid: site for sid in site_ids}, central
+
+
+def write_routing(unit: Mapping[str, Any], plan: Mapping[str, Any], entry: Mapping[str, Any], base_url: str,
+                  out: Path, prereg: Any) -> tuple[str | None, dict[str, str] | None, bool]:
+    """Write and validate the unit's routing: (routing_sha256, routing_files, valid). E1's routing comes from the one
+    builder the preregistration also uses; E2's site list from its preregistered world."""
+    out = Path(out)
+    files: list[tuple[Path, dict[str, Any], tuple[str, ...]]] = []
+    if unit["experiment"] == "e1":
+        files.append((out / "routing" / f"{unit['unit']}.json",
+                      lab_prereg.e1_routing_doc(plan["models"], [unit["model"]], base_url), ()))
+    elif unit["experiment"] == "e2":
+        doc = strict_load((prereg.dir / prereg.manifest["e2"]["prereg"]).read_bytes())
+        sites, central = e2_routing_docs(entry, base_url, list(doc["world"]["site_ids"]))
+        base = out / "routing" / unit["unit"]
+        files += [(base / "sites" / f"{sid}.json", body, (JUDGE_TASK,)) for sid, body in sites.items()]
+        files.append((base / "central.json", central, CENTRAL_TASKS))
+    else:
+        files.append((out / "routing" / f"{unit['unit']}.json", routing_doc(unit, entry, base_url),
+                      ADAPTERS[unit["experiment"]].routed_tasks))
+    hashes: dict[str, str] = {}
+    valid = True
+    for path, body, tasks in files:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        hashes[path.relative_to(out).as_posix()] = write_json_atomic(path, body)
+        try:
+            load_routing(path, tasks=tasks, check_env=False)
+        except ConfigError:
+            valid = False
+    main = files[-1][0].relative_to(out).as_posix()
+    return hashes[main], (dict(sorted(hashes.items())) if unit["experiment"] == "e2" else None), valid
 
 
 def subprocess_env(environ: Mapping[str, str], extras: list[str]) -> dict[str, str]:
@@ -253,6 +370,15 @@ def harness_status(experiment: str, exit_code: int | None, timed_out: bool,
         if exit_code != 0:
             return "failed", UNEXPECTED_EXIT
         good = isinstance(result, dict) and result.get("kind") == "e3" and isinstance(result.get("cells"), list)
+        return ("ok", None) if good else ("failed", RESULT_MISSING)
+    if experiment == "e2" and exit_code == 1:
+        return "failed", E2_ABORTED
+    if experiment in ("e1", "e2", "x1"):
+        if exit_code != 0:
+            return "failed", UNEXPECTED_EXIT
+        kind = result.get("kind") if isinstance(result, dict) else None
+        good = {"e1": kind == "e1_run" and result.get("complete") is True, "e2": kind == "e2_pushdown",
+                "x1": kind == "x1_scorecard"}[experiment]
         return ("ok", None) if good else ("failed", RESULT_MISSING)
     if exit_code not in (0, 1):
         return "failed", UNEXPECTED_EXIT
@@ -339,22 +465,23 @@ def participation(experiment: str, rows: list[dict[str, Any]], required: list[st
 
 
 def harness_measurement(experiment: str, result: Any) -> Any:
-    """What the harness's result says about being a measurement, as recorded: E3's ``measurement``, the sim's
-    ``stamps.measurement``; None for G0 or a result that is not an object."""
+    """What the harness's result says about being a measurement, as recorded: E1's and E3's ``measurement``, the
+    sim's, E2's and X1's ``stamps.measurement``; None for G0, openFDA or a result that is not an object."""
     if not isinstance(result, dict):
         return None
-    if experiment == "e3":
+    if experiment in ("e1", "e3"):
         return result.get("measurement")
-    if experiment == "sim":
+    if experiment in ("sim", "e2", "x1"):
         stamps = result.get("stamps")
         return stamps.get("measurement") if isinstance(stamps, dict) else None
     return None
 
 
 def harness_verdict(experiment: str, result: Any) -> bool | None:
-    """E3's and the sim's own verdict that the run was a measurement, for :func:`model_checks`: only ``measurement:
-    true`` counts (a missing key or result does not); None for a harness that gives no such verdict (G0)."""
-    if experiment not in ("e3", "sim"):
+    """E1's, E2's, E3's and the sim's own verdict that the run was a measurement, for :func:`model_checks`: only
+    ``measurement: true`` counts (a missing key or result does not); None for a harness that gives no such verdict
+    (G0, X1, openFDA)."""
+    if experiment not in ("e1", "e2", "e3", "sim"):
         return None
     return harness_measurement(experiment, result) is True
 
@@ -453,10 +580,12 @@ def display_class(record: Mapping[str, Any], provenance: Mapping[str, Any] | Non
 
 def unit_notes(experiment: str, measurement: str) -> list[str]:
     notes = ["plumbing"] if measurement == "plumbing" else ["model_measurement"] if measurement == "model" else []
+    if experiment == "openfda":
+        return [*notes, "public_data"]
     notes.append("synthetic")
-    if experiment in ("e3", "sim"):
+    if experiment in ("e1", "e2", "e3", "sim"):
         notes.append("runner_hardware")
-    if experiment != "e3":
+    if experiment in ("e2", "g0", "sim"):
         notes.append("text_only_scan")
     return notes
 
@@ -474,12 +603,59 @@ def unit_record(unit: Mapping[str, Any], shard: str, provider: str, provider_ove
         "notes": unit_notes(unit["experiment"], measurement), "routing_sha256": None, "files": {},
         "fake_rows": None, "ledger_rows": None, "participation": None, "harness_measurement": None, "logs": None,
         "serving": None, "server_exit": None, "server_after": None, "class_checks": None, "class_flags": [],
+        "routing_files": None, "steps": None, "projection": None,
     }
     unknown = set(fields) - set(record)
     if unknown:
         raise ValueError(f"unknown unit.json keys {sorted(unknown)}") from None
     record.update(fields)
     return record
+
+
+def e2_projection(rehearsal: Mapping[str, Any], rows: list[dict[str, Any]],
+                  timeout_s: float) -> dict[str, Any] | None:
+    """The E2 run's projected seconds on this server, or None when the warm-up has no successful row for one of the
+    three tasks (the unit then runs unprojected). ``rows`` are the start's successful warm-up ledger rows; each
+    task's latency is the slowest of them. The rehearsal ran the same candidates without a model, so::
+
+        projected_s = pipeline_s + calls.judge_record x judge_s
+                      + (central_raw_records.sum / central_raw_records.max) x raw_s
+                      + calls.judge_candidate_allowed x allowed_s
+
+    where ``raw_s`` was measured on the worst-case payload of ``central_raw_records.max`` records, so the raw term
+    scales it by the records the run reads. ``exceeds`` when above :data:`~lab.sim.PROJECTION_SHARE` of
+    ``timeout_s``."""
+    latency: dict[str, float] = {}
+    for row in rows:
+        value = row.get("latency_ms")
+        if row.get("ok") is True and _number(value):
+            latency[row["task"]] = max(latency.get(row["task"], 0.0), value / 1000)
+    if any(task not in latency for task in (JUDGE_TASK, *CENTRAL_TASKS)):
+        return None
+    calls, raw = rehearsal["calls"], rehearsal["central_raw_records"]
+    inputs = {"pipeline_s": rehearsal["pipeline_s"], "judge_record_calls": calls["judge_record"],
+              "judge_s": latency[JUDGE_TASK], "raw_records_sum": raw["sum"], "raw_records_max": raw["max"],
+              "raw_s": latency[CENTRAL_TASKS[0]], "allowed_calls": calls["judge_candidate_allowed"],
+              "allowed_s": latency[CENTRAL_TASKS[1]]}
+    raw_calls = inputs["raw_records_sum"] / inputs["raw_records_max"] if inputs["raw_records_max"] else 0.0
+    projected = (inputs["pipeline_s"] + inputs["judge_record_calls"] * inputs["judge_s"] + raw_calls * inputs["raw_s"]
+                 + inputs["allowed_calls"] * inputs["allowed_s"])
+    return {"projected_s": round(projected, 3), "budget_s": round(timeout_s, 3), "share": PROJECTION_SHARE,
+            "exceeds": projected > PROJECTION_SHARE * timeout_s, "suggested_minutes": suggested_minutes(projected),
+            "inputs": inputs}
+
+
+def warmup_rows(out: Path, start: int) -> list[dict[str, Any]]:
+    """The successful rows of one server start's warm-up (run id ``warmup-<start>``)."""
+    path = Path(out) / WARMUP_LEDGER
+    failed = False
+    try:
+        rows = read_ledger(path) if path.exists() else []
+    except (OSError, ValueError):
+        failed = True
+    if failed:
+        return []
+    return [r for r in rows if r["run_id"] == f"warmup-{start}" and r["ok"] is True]
 
 
 # --------------------------------------------------------------------------------------------------- processes
@@ -649,12 +825,23 @@ def ledger_rows(unit: Mapping[str, Any], out: Path) -> list[dict[str, Any]] | No
 
 def run_unit(unit: dict[str, Any], plan: dict[str, Any], out: Path, *, timeout_s: float,
              provider_override: str | None, on_start: Callable[[int], None] | None = None,
-             serving: Serving | None = None) -> dict[str, Any]:
+             serving: Serving | None = None, prereg: Any = None,
+             openfda_base_url: str | None = None) -> dict[str, Any]:
+    """Run one unit and return its record. ``prereg`` is the shard's verified :class:`~lab.prereg.Prereg` (E1, E2
+    and X1 fail without it); ``openfda_base_url`` replaces api.fda.gov for the openFDA unit (tests only)."""
     out = Path(out)
-    adapter = ADAPTERS[unit["experiment"]]
-    entry = plan["models"][unit["model"]]
-    persona = entry["persona"] if entry["kind"] == "fake" else "valid"
+    experiment = unit["experiment"]
     provider = "fake" if provider_override == "fake" else plan["provider"]
+    if experiment == "openfda":
+        from . import openfda as lab_openfda
+        return lab_openfda.run_unit(unit, plan, out, timeout_s=timeout_s, base_url_override=openfda_base_url,
+                                    provider_override=provider_override)
+    if experiment in PREREG_EXPERIMENTS and prereg is None:
+        return unit_record(unit, unit["shard"], provider, provider_override, status="failed",
+                           status_reason=PREREG_MISSING)
+    adapter = ADAPTERS[experiment]
+    entry = plan["models"][unit["model"]] if unit["model"] is not None else None
+    persona = entry["persona"] if entry is not None and entry["kind"] == "fake" else "valid"
     server_exit = None
     work = out / "work" / unit["unit"]
     unit_dir = out / "units" / unit["unit"]
@@ -662,28 +849,36 @@ def run_unit(unit: dict[str, Any], plan: dict[str, Any], out: Path, *, timeout_s
     started_at, t0 = utc_clock(), time.monotonic()
     proc: ProcessResult | None = None
     argv: list[str] = []
-    routing_sha256 = None
+    routing_sha256: str | None = None
+    routing_files: dict[str, str] | None = None
+    projection: dict[str, Any] | None = None
     status: str | None = None
     reason: str | None = None
     interrupted = False
     server: FakeServer | None = None
+    server_note = FAKE_SERVER_NOTE
     try:
-        if serving is None:
-            pack = load_pack(unit["params"]["pack"]) if unit["experiment"] in ("g0", "sim") else None
-            server = FakeServer(persona, pack)
-            server.start()
-            base_url, server_note = server.base_url, FAKE_SERVER_NOTE
-        else:
-            base_url, server_note = serving.base_url, serving.server_note
-        routing_path.parent.mkdir(parents=True, exist_ok=True)
-        routing_sha256 = write_json_atomic(routing_path, routing_doc(unit, entry, base_url))
-        try:
-            load_routing(routing_path, tasks=adapter.routed_tasks, check_env=False)
-        except ConfigError:
-            status, reason = "failed", LAB_ROUTING
+        if entry is not None:
+            if serving is None:
+                with_pack = experiment in ("e1", "e2", "g0", "sim")
+                server = FakeServer(persona, load_pack(unit["params"]["pack"]) if with_pack else None)
+                server.start()
+                base_url = server.base_url
+            else:
+                base_url, server_note = serving.base_url, serving.server_note
+            routing_sha256, routing_files, valid = write_routing(unit, plan, entry, base_url, out, prereg)
+            if not valid:
+                status, reason = "failed", LAB_ROUTING
+        if status is None and experiment == "e2" and serving is not None:
+            projection = e2_projection(prereg.manifest["e2"]["rehearsal"], warmup_rows(out, serving.start), timeout_s)
+            if projection is not None and projection["exceeds"]:
+                status = "skipped"
+                reason = SIM_PROJECTED.format(projected=f"{projection['projected_s'] / 60:.1f}",
+                                              budget=f"{projection['share'] * projection['budget_s'] / 60:.1f}")
         if status is None:
-            budget_s = max(1, math.floor(timeout_s) - SIM_BUDGET_MARGIN_S) if unit["experiment"] == "sim" else None
-            argv = build_argv(unit, out, routing_path, server_note, budget_s=budget_s)
+            budget_s = max(1, math.floor(timeout_s) - SIM_BUDGET_MARGIN_S) if experiment == "sim" else None
+            argv = build_argv(unit, out, routing_path, server_note, budget_s=budget_s,
+                              prereg=prereg.dir if prereg is not None else None)
             work.mkdir(parents=True, exist_ok=True)
             unit_dir.mkdir(parents=True, exist_ok=True)
             proc = run_process(argv, subprocess_env(os.environ, unit["env"]), cwd=ROOT, timeout_s=timeout_s,
@@ -707,14 +902,14 @@ def run_unit(unit: dict[str, Any], plan: dict[str, Any], out: Path, *, timeout_s
         # the server died while the harness ran: whatever the harness made of it, nothing here was served
         status, reason = "invalid", exit_reason(server_exit or {})
     elif proc is not None:
-        status, reason = harness_status(unit["experiment"], proc.exit_code, proc.timed_out, result)
+        status, reason = harness_status(experiment, proc.exit_code, proc.timed_out, result)
     rows = ledger_rows(unit, out)
     record_participation = None
     if status in ("ok", "result_fail") and unit["kind"] != "none":
         if rows is None:
             status, reason = "failed", RESULT_MISSING
         else:
-            record_participation, problem = participation(unit["experiment"], rows, required_tasks(unit), result)
+            record_participation, problem = participation(experiment, rows, required_tasks(unit), result)
             if problem is not None:
                 status, reason = "invalid", problem
     if serving is not None and proc is not None and server_exit is None and not interrupted \
@@ -725,7 +920,7 @@ def run_unit(unit: dict[str, Any], plan: dict[str, Any], out: Path, *, timeout_s
             status, reason = "invalid", exit_reason(server_exit)
     checks, flags = None, []
     if serving is not None:
-        checks, flags = model_checks(serving.evidence, rows or [], status, harness_verdict(unit["experiment"], result),
+        checks, flags = model_checks(serving.evidence, rows or [], status, harness_verdict(experiment, result),
                                      serving.alias, serving.host_label)
     measurement, class_reason = measurement_class(unit["kind"], provider_override, rows or [], checks)
     logs = {name: cap_log(unit_dir / f"{name}.log") for name in ("stdout", "stderr")}
@@ -736,11 +931,11 @@ def run_unit(unit: dict[str, Any], plan: dict[str, Any], out: Path, *, timeout_s
         wall_s=proc.wall_s if proc is not None else round(time.monotonic() - t0, 3),
         exit_code=proc.exit_code if proc is not None else None,
         signal=proc.signal_name if proc is not None else None, status=status, status_reason=reason,
-        measurement_class=measurement, class_reason=class_reason, notes=unit_notes(unit["experiment"], measurement),
-        routing_sha256=routing_sha256, files=files,
+        measurement_class=measurement, class_reason=class_reason, notes=unit_notes(experiment, measurement),
+        routing_sha256=routing_sha256, routing_files=routing_files, projection=projection, files=files,
         fake_rows=sum(1 for r in rows if r["fake_marker"]) if rows is not None else None,
         ledger_rows=len(rows) if rows is not None else None, participation=record_participation,
-        harness_measurement=harness_measurement(unit["experiment"], result), logs=logs,
+        harness_measurement=harness_measurement(experiment, result), logs=logs,
         serving=({"start": serving.start, "host": serving.host_label, "alias": serving.alias,
                   "class": serving.class_name} if serving is not None else None),
         server_exit=server_exit, class_checks=checks, class_flags=flags)

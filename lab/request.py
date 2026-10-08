@@ -1,7 +1,8 @@
 """A lab request: the one file a founder writes to ask for a run, validated strictly before anything runs.
 
 ``lab/requests/<name>.json``, where ``<name>`` matches ``[a-z0-9][a-z0-9-]{0,39}``; at most 64 KiB of strict JSON.
-Every key below is required unless marked optional; unknown keys are refused at every level::
+Every key below is required unless marked optional (an optional key's default is given as ``default X``); unknown keys
+are refused at every level::
 
     {"schema_version": 1,
      "purpose": "<why this run, 1..500 characters>",
@@ -10,27 +11,80 @@ Every key below is required unless marked optional; unknown keys are refused at 
      "job_minutes": 45..330,                           # the time limit of each shard job
      "max_parallel": 1..16,                            # shard jobs that may run at once
      "retention_days": 1..90,                          # how long the result artifacts are kept
-     "experiments": {                                  # at least one of e3, g0, sim
-         "e3": {"models": [...],                       # optional: a subset of $.models (default: all of them)
-                "minutes": 1..capacity,                # capacity = job_minutes - SHARD_OVERHEAD_MINUTES
-                "concurrency": [1..8, ...],            # 1..4 distinct levels, run in the given order
-                "requests": 3..200, "warmup": 0..requests-1,
-                "workloads": ["extraction" | "short", ...], "seed": 0..2147483647},
-         "g0": {"models": [...], "minutes": 1..capacity, "pack": "<built-in pack id>", "records": 50..2000,
-                "seed": 0..2147483647},
-         "sim": {"models": [...],                      # optional; gguf or fake models only (SIM_KINDS)
-                 "minutes": 1..capacity,               # per unit: one unit per model and seed
-                 "plant": "plant_smoke" | "sim_small", # lab.sim.PLANTS
-                 "weeks": min_weeks..52,               # baseline_weeks + window_weeks of the plant's pack (34)
-                 "top_n": 1..60,                       # candidates verified by pushdown
-                 "seeds": [0..2147483647, ...]}}}      # 1..5 distinct; the plant must fit every seed's world
+     "experiments": {                                  # at least one of e1, e2, e3, g0, sim, x1, openfda
+         "e1": {...}, "e2": {...}, "e3": {...}, "g0": {...}, "sim": {...}, "x1": {...}, "openfda": {...}}}
+
+``capacity`` below is ``job_minutes - SHARD_OVERHEAD_MINUTES``; a seed is an int in ``0..2147483647``. The blocks:
+
+``e1``, extraction F1 of two or more models against labelled records (one unit per model and repeat)::
+
+    {"models": [...],                     # default $.models; gguf or fake models only; at least 2
+     "minutes": 1..capacity,              # per repeat unit
+     "labels": {"source": "generator" | "fixtures", "pack": "<built-in pack id>",
+                "n": 40..2000, "seed": <seed>},   # n and seed for generator labels only, and then required
+     "reference": "<one of the E1 models>", "margin_points": 1..20, "runs": 3..5, "seed": <seed>,
+     "bootstrap_b": 1000..20000}          # default 10000
+
+``e2``, pushdown verification against central reading on a planted synthetic world (one unit per model)::
+
+    {"models": [...],                     # default $.models; gguf or fake models only
+     "minutes": 1..capacity, "pack": "<built-in pack id>",
+     "plant": "plant_<name>",             # a fixture of the pack: packs/data/<pack>/fixtures/<plant>.json
+     "seeds": [<seed>, ...],              # 1..5 distinct
+     "weeks": min_weeks..104,             # min_weeks = baseline_weeks + window_weeks of the pack
+     "eval_from": low..weeks-1,           # low = window_weeks + min_history_weeks - 1
+     "eval_to": eval_from..weeks-1,
+     "grace_weeks": 0..8,                 # default 4
+     "tie_salt": "[A-Za-z0-9._-]{1,64}",  # default "lab-e2"
+     "detector_author": "<1..80 printable characters>",   # default "mycelic engineering"
+     "top_n": 5..60,                      # candidates per seed
+     "min_candidates": 1..top_n,          # default top_n
+     "central": "self",                   # default "self": the central comparator is the model under test
+     "bootstrap_b": 1000..20000,          # default 10000
+     "bootstrap_seed": <seed>}            # default 1
+
+``x1``, the model-free evaluation harness on a plant fixture (one unit, no model): ``e2``'s keys without
+``models``, ``top_n``, ``min_candidates`` and ``central``, with 1..10 seeds and ``tie_salt`` default ``"lab-x1"``.
+
+``e3`` and ``g0`` (one unit per model) and ``sim`` (one unit per model and seed)::
+
+    "e3": {"models": [...],               # optional: a subset of $.models (default: all of them)
+           "minutes": 1..capacity, "concurrency": [1..8, ...],   # 1..4 distinct levels, run in the given order
+           "requests": 3..200, "warmup": 0..requests-1, "workloads": ["extraction" | "short", ...], "seed": <seed>}
+    "g0": {"models": [...], "minutes": 1..capacity, "pack": "<built-in pack id>", "records": 50..2000,
+           "seed": <seed>}
+    "sim": {"models": [...],              # optional; gguf or fake models only
+            "minutes": 1..capacity,       # per unit: one unit per model and seed
+            "plant": "plant_smoke" | "sim_small",   # lab.sim.PLANTS
+            "weeks": min_weeks..52, "top_n": 1..60,
+            "seeds": [<seed>, ...]}       # 1..5 distinct; the plant must fit every seed's world
+
+``openfda``, the public replay and the labelling sheets (one unit, no model; it reaches api.fda.gov)::
+
+    {"minutes": 1..capacity, "pack": "<a built-in pack with an openFDA mapping>",
+     "product_codes": ["ABC", ...],       # 3..5 distinct, three upper-case letters each
+     "date_from": "YYYYMMDD", "date_to": "YYYYMMDD",   # calendar dates; the span must cover enough ISO weeks
+     "max_records_per_code": 1..25000,
+     "manufacturers": ["<name>", ...],    # 1..10 distinct exact spellings, each 1..120 printable characters
+     "manufacturer_field": "device[].manufacturer_d_name", "partition_field": "<field path>",
+     "recalling_firms": [...],            # default the manufacturers
+     "lookback_weeks": 1..104, "post_weeks": 1..104,   # default 26 each
+     "min_partition_coverage": 0.5,       # default 0.5; a number in (0, 1]
+     "tie_salt": "...",                   # default "lab-replay"
+     "saw_recall_outcomes": "yes" | "no", # always required: did the requester see recall outcomes first?
+     "n1_sheet": {"n": 1..1000, "seed": <seed>},       # optional: the N1 labelling sheet
+     "e1_sheet": {"n": 1..2000, "seed": <seed>}}       # optional: the openFDA E1 labelling sheet
+
+The fetch budget is checked last: ``product_codes x 2 x ceil(max_records_per_code / 1000)`` requests
+(:func:`openfda_requests`) may be at most :data:`OPENFDA_CAP` (100 without the ``MYCELIC_LAB_OPENFDA_API_KEY``
+secret, 1000 with it; the plan job is told which by ``LAB_HAS_OPENFDA_KEY``).
 
 A fake model needs provider ``fake`` and a gguf model needs the server provider. ``provider: "fake"`` makes the whole
-run a plumbing check: nothing it writes measures a model. The sim block is checked in this order: keys, models (a
-kind outside :data:`SIM_KINDS` is refused at ``$.experiments.sim.models[i]``, or at ``$.models[j]`` when the block
-names none), minutes, plant, weeks, top_n, seeds, then for each seed in order whether the plant fits that world under
-``lab.sim.world_settings`` (``the plant does not fit these weeks (<the plant check's problem>)`` at
-``$.experiments.sim.weeks``).
+run a plumbing check: nothing it writes measures a model. A model kind outside :data:`SIM_KINDS` is refused for
+``e1``, ``e2`` and ``sim`` at ``$.experiments.<block>.models[i]``, or at ``$.models[j]`` when the block names none.
+After the keys, ``sim`` checks models, minutes, plant, weeks, top_n, seeds, then for each seed in order whether the
+plant fits that world under ``lab.sim.world_settings`` (``the plant does not fit these weeks (<the plant check's
+problem>)`` at ``$.experiments.sim.weeks``); every other block checks its values in the order listed above.
 
 Every string leaf, wherever it sits (an int position included), is checked in this order and the first failure
 wins: string type, a ``<...>`` placeholder, a control or format character (Unicode categories Cc, Cf, Cs, Co, Cn,
@@ -39,20 +93,24 @@ sorted order; a key is named only when the resulting JSON path is safe), then mi
 above, then each value in that order. No message ever holds the offending value; every error is a
 :class:`RequestError` whose path is a JSON path, ``$``, or ``request`` for a file problem.
 
-The loaded :class:`Request` holds the normalised data (block ``models`` filled in) and the sha256 of the file bytes.
+The loaded :class:`Request` holds the normalised data (every block key present, defaults filled in) and the sha256 of
+the file bytes.
 """
 from __future__ import annotations
 
 import functools
+import math
 import os
 import re
 import stat
 import unicodedata
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 from typing import Any
 
 from mycelic.collective.experiments.e3_latency import WORKLOADS
+from mycelic.collective.experiments.openfda_replay import OPENFDA_MAPPING, replay_weeks
 from mycelic.collective.jsonio import StrictJsonError, sha256_hex, strict_load
 from mycelic.collective.packs import loader
 
@@ -67,16 +125,52 @@ MAX_BYTES = 65536
 SHARD_OVERHEAD_MINUTES = 25
 SEED_MAX = 2147483647
 BAD_CATEGORIES = frozenset({"Cc", "Cf", "Cs", "Co", "Cn", "Zl", "Zp"})
-EXPERIMENTS = ("e3", "g0", "sim")
+EXPERIMENTS = ("e1", "e2", "e3", "g0", "sim", "x1", "openfda")
 SIM_KINDS = ("gguf", "fake")
 MAX_MODELS = 8
+LABEL_SOURCES = ("fixtures", "generator")
+PLANT_RE = re.compile(r"plant_[a-z0-9_]{1,40}", re.ASCII)
+TIE_SALT_RE = re.compile(r"[A-Za-z0-9._-]{1,64}", re.ASCII)
+CODE_RE = re.compile(r"[A-Z]{3}", re.ASCII)
+DATE_RE = re.compile(r"[0-9]{8}", re.ASCII)
+MAX_E2_WEEKS = 104
+MAX_GRACE_WEEKS = 8
+MAX_AUTHOR = 80
+MAX_NAME = 120
+MAX_FIELD_PATH = 200
+MAX_RECORDS_PER_CODE = 25000
+OPENFDA_PAGE = 1000
+OPENFDA_CAP = {False: 100, True: 1000}
+DEFAULT_BOOTSTRAP_B = 10000
+DEFAULT_AUTHOR = "mycelic engineering"
+DEFAULT_TIE_SALTS = {"e2": "lab-e2", "x1": "lab-x1", "openfda": "lab-replay"}
 
 _TOP_KEYS = ("schema_version", "purpose", "provider", "models", "job_minutes", "max_parallel", "retention_days",
              "experiments")
+_E1_KEYS = ("models", "minutes", "labels", "reference", "margin_points", "runs", "seed", "bootstrap_b")
+_E1_REQUIRED = ("minutes", "labels", "reference", "margin_points", "runs", "seed")
+_LABELS_KEYS = ("source", "pack", "n", "seed")
+_E2_KEYS = ("models", "minutes", "pack", "plant", "seeds", "weeks", "eval_from", "eval_to", "grace_weeks", "tie_salt",
+            "detector_author", "top_n", "min_candidates", "central", "bootstrap_b", "bootstrap_seed")
+_E2_REQUIRED = ("minutes", "pack", "plant", "seeds", "weeks", "eval_from", "eval_to", "top_n")
+_X1_KEYS = ("minutes", "pack", "plant", "seeds", "weeks", "eval_from", "eval_to", "grace_weeks", "tie_salt",
+            "detector_author", "bootstrap_b", "bootstrap_seed")
+_X1_REQUIRED = ("minutes", "pack", "plant", "seeds", "weeks", "eval_from", "eval_to")
+_OPENFDA_KEYS = ("minutes", "pack", "product_codes", "date_from", "date_to", "max_records_per_code", "manufacturers",
+                 "manufacturer_field", "partition_field", "recalling_firms", "lookback_weeks", "post_weeks",
+                 "min_partition_coverage", "tie_salt", "saw_recall_outcomes", "n1_sheet", "e1_sheet")
+_OPENFDA_REQUIRED = ("minutes", "pack", "product_codes", "date_from", "date_to", "max_records_per_code",
+                     "manufacturers", "manufacturer_field", "partition_field", "saw_recall_outcomes")
+_SHEET_KEYS = ("n", "seed")
 _E3_KEYS = ("models", "minutes", "concurrency", "requests", "warmup", "workloads", "seed")
 _G0_KEYS = ("models", "minutes", "pack", "records", "seed")
 _SIM_KEYS = ("models", "minutes", "plant", "weeks", "top_n", "seeds")
 PACK_PROBLEM = "must be a built-in pack id"
+PLANT_PROBLEM = "must name a plant fixture of the pack"
+OPENFDA_PACK_PROBLEM = "must be a built-in pack with an openFDA mapping"
+PRINTABLE_PROBLEM = "must be printable characters"
+FIELD_PATH_PROBLEM = "must be a field path such as device[].manufacturer_d_name"
+DATE_PROBLEM = "must be a calendar date YYYYMMDD"
 LOCATION_PROBLEM = "must be lab/requests/<name>.json"
 
 
@@ -230,27 +324,45 @@ def _g0(raw: Any, models: list[str], capacity: int) -> dict[str, Any]:
     check_keys(block, _G0_KEYS, _G0_KEYS[1:], path, RequestError)
     out: dict[str, Any] = {"models": _block_models(block, path, models),
                            "minutes": _minutes(block["minutes"], f"{path}.minutes", capacity)}
-    pack = block["pack"]
-    if not isinstance(pack, str):
-        raise RequestError(f"{path}.pack", "must be a string") from None
-    _no_hazard(pack, f"{path}.pack")
-    if not builtin_pack(pack):
-        raise RequestError(f"{path}.pack", PACK_PROBLEM) from None
-    out["pack"] = pack
+    out["pack"] = _pack(block["pack"], f"{path}.pack")
     out["records"] = _int(block["records"], f"{path}.records", 50, 2000)
     out["seed"] = _int(block["seed"], f"{path}.seed", 0, SEED_MAX)
     return out
+
+
+def _model_kinds(block: dict[str, Any], path: str, models: list[str], manifest: Manifest, name: str) -> list[str]:
+    """The block's models (default: $.models), each of a kind in :data:`SIM_KINDS`; ``name`` names the experiment
+    in the problem."""
+    chosen = _block_models(block, path, models)
+    for i, key in enumerate(chosen):
+        if manifest.models[key]["kind"] not in SIM_KINDS:
+            at = f"{path}.models[{i}]" if "models" in block else f"$.models[{models.index(key)}]"
+            raise RequestError(at, f"{name} runs only gguf or fake models") from None
+    return chosen
+
+
+def _pack(value: Any, path: str) -> str:
+    if not isinstance(value, str):
+        raise RequestError(path, "must be a string") from None
+    _no_hazard(value, path)
+    if not builtin_pack(value):
+        raise RequestError(path, PACK_PROBLEM) from None
+    return value
+
+
+def _seed(value: Any, path: str) -> int:
+    return _int(value, path, 0, SEED_MAX)
+
+
+def _optional(block: dict[str, Any], key: str, default: Any, check: Any) -> Any:
+    return check(block[key]) if key in block else default
 
 
 def _sim(raw: Any, models: list[str], capacity: int, manifest: Manifest) -> dict[str, Any]:
     path = "$.experiments.sim"
     block = _object(raw, path)
     check_keys(block, _SIM_KEYS, _SIM_KEYS[1:], path, RequestError)
-    chosen = _block_models(block, path, models)
-    for i, key in enumerate(chosen):
-        if manifest.models[key]["kind"] not in SIM_KINDS:
-            at = f"{path}.models[{i}]" if "models" in block else f"$.models[{models.index(key)}]"
-            raise RequestError(at, "the simulation runs only gguf or fake models") from None
+    chosen = _model_kinds(block, path, models, manifest, "the simulation")
     out: dict[str, Any] = {"models": chosen, "minutes": _minutes(block["minutes"], f"{path}.minutes", capacity)}
     plant = block["plant"]
     if not isinstance(plant, str):
@@ -270,7 +382,247 @@ def _sim(raw: Any, models: list[str], capacity: int, manifest: Manifest) -> dict
     return out
 
 
-def validate(obj: Any, manifest: Manifest) -> dict[str, Any]:
+def _bootstrap_b(block: dict[str, Any], path: str) -> int:
+    return _optional(block, "bootstrap_b", DEFAULT_BOOTSTRAP_B,
+                     lambda v: _int(v, f"{path}.bootstrap_b", 1000, 20000))
+
+
+def _labels(raw: Any, path: str) -> dict[str, Any]:
+    block = _object(raw, path)
+    check_keys(block, _LABELS_KEYS, ("source", "pack"), path, RequestError)
+    source = _string(block["source"], f"{path}.source", 16)
+    if source not in LABEL_SOURCES:
+        raise RequestError(f"{path}.source", f"must be one of {', '.join(LABEL_SOURCES)}") from None
+    out: dict[str, Any] = {"source": source, "pack": _pack(block["pack"], f"{path}.pack"), "n": None, "seed": None}
+    if source == "generator":
+        for key in _LABELS_KEYS[2:]:
+            if key not in block:
+                raise RequestError(f"{path}.{key}", "required") from None
+        out["n"] = _int(block["n"], f"{path}.n", 40, 2000)
+        out["seed"] = _seed(block["seed"], f"{path}.seed")
+    else:
+        for key in _LABELS_KEYS[2:]:
+            if key in block:
+                raise RequestError(f"{path}.{key}", "only for generator labels") from None
+    return out
+
+
+def _e1(raw: Any, models: list[str], capacity: int, manifest: Manifest) -> dict[str, Any]:
+    path = "$.experiments.e1"
+    block = _object(raw, path)
+    check_keys(block, _E1_KEYS, _E1_REQUIRED, path, RequestError)
+    chosen = _model_kinds(block, path, models, manifest, "E1")
+    if len(chosen) < 2:
+        raise RequestError(f"{path}.models" if "models" in block else path, "E1 needs at least 2 models") from None
+    out: dict[str, Any] = {"models": chosen, "minutes": _minutes(block["minutes"], f"{path}.minutes", capacity),
+                           "labels": _labels(block["labels"], f"{path}.labels")}
+    reference = _string(block["reference"], f"{path}.reference", 24)
+    if reference not in chosen:
+        raise RequestError(f"{path}.reference", "must be one of the E1 models") from None
+    out["reference"] = reference
+    out["margin_points"] = _int(block["margin_points"], f"{path}.margin_points", 1, 20)
+    out["runs"] = _int(block["runs"], f"{path}.runs", 3, 5)
+    out["seed"] = _seed(block["seed"], f"{path}.seed")
+    out["bootstrap_b"] = _bootstrap_b(block, path)
+    return out
+
+
+def _plant(value: Any, path: str, pack: str) -> str:
+    name = _string(value, path, 64)
+    fixture = loader.BUILTIN_ROOT / pack / "fixtures" / f"{name}.json"
+    ok = PLANT_RE.fullmatch(name) is not None
+    try:
+        ok = ok and name + ".json" in os.listdir(fixture.parent) and stat.S_ISREG(os.lstat(fixture).st_mode)
+    except OSError:
+        ok = False
+    if not ok:
+        raise RequestError(path, PLANT_PROBLEM) from None
+    return name
+
+
+def _tie_salt(block: dict[str, Any], path: str, default: str) -> str:
+    def check(value: Any) -> str:
+        salt = _string(value, f"{path}.tie_salt", 64)
+        if TIE_SALT_RE.fullmatch(salt) is None:
+            raise RequestError(f"{path}.tie_salt", f"must match {TIE_SALT_RE.pattern}") from None
+        return salt
+
+    return _optional(block, "tie_salt", default, check)
+
+
+def _printable(value: Any, path: str, cap: int) -> str:
+    text = _string(value, path, cap)
+    if not text.isprintable():
+        raise RequestError(path, PRINTABLE_PROBLEM) from None
+    return text
+
+
+def _world(block: dict[str, Any], path: str, capacity: int, max_seeds: int, default_salt: str) -> dict[str, Any]:
+    """The keys E2 and X1 share, checked in the order listed in the module docstring."""
+    out: dict[str, Any] = {"minutes": _minutes(block["minutes"], f"{path}.minutes", capacity)}
+    out["pack"] = _pack(block["pack"], f"{path}.pack")
+    out["plant"] = _plant(block["plant"], f"{path}.plant", out["pack"])
+    out["seeds"] = _distinct(_list(block["seeds"], f"{path}.seeds", 1, max_seeds, "seeds"), f"{path}.seeds", _seed)
+    pack = loader.load_pack(out["pack"])
+    out["weeks"] = _int(block["weeks"], f"{path}.weeks", min_weeks(pack), MAX_E2_WEEKS)
+    low = pack.detectors["window_weeks"] + pack.detectors["min_history_weeks"] - 1
+    out["eval_from"] = _int(block["eval_from"], f"{path}.eval_from", low, out["weeks"] - 1)
+    out["eval_to"] = _int(block["eval_to"], f"{path}.eval_to", out["eval_from"], out["weeks"] - 1)
+    out["grace_weeks"] = _optional(block, "grace_weeks", 4,
+                                   lambda v: _int(v, f"{path}.grace_weeks", 0, MAX_GRACE_WEEKS))
+    out["tie_salt"] = _tie_salt(block, path, default_salt)
+    out["detector_author"] = _optional(block, "detector_author", DEFAULT_AUTHOR,
+                                       lambda v: _printable(v, f"{path}.detector_author", MAX_AUTHOR))
+    return out
+
+
+def _e2(raw: Any, models: list[str], capacity: int, manifest: Manifest) -> dict[str, Any]:
+    path = "$.experiments.e2"
+    block = _object(raw, path)
+    check_keys(block, _E2_KEYS, _E2_REQUIRED, path, RequestError)
+    out: dict[str, Any] = {"models": _model_kinds(block, path, models, manifest, "E2")}
+    out.update(_world(block, path, capacity, MAX_SEEDS, DEFAULT_TIE_SALTS["e2"]))
+    out["top_n"] = _int(block["top_n"], f"{path}.top_n", 5, MAX_TOP_N)
+    out["min_candidates"] = _optional(block, "min_candidates", out["top_n"],
+                                      lambda v: _int(v, f"{path}.min_candidates", 1, out["top_n"]))
+
+    def central(value: Any) -> str:
+        if _string(value, f"{path}.central", 16) != "self":
+            raise RequestError(f"{path}.central", "must be self") from None
+        return "self"
+
+    out["central"] = _optional(block, "central", "self", central)
+    out["bootstrap_b"] = _bootstrap_b(block, path)
+    out["bootstrap_seed"] = _optional(block, "bootstrap_seed", 1, lambda v: _seed(v, f"{path}.bootstrap_seed"))
+    return out
+
+
+def _x1(raw: Any, capacity: int) -> dict[str, Any]:
+    path = "$.experiments.x1"
+    block = _object(raw, path)
+    check_keys(block, _X1_KEYS, _X1_REQUIRED, path, RequestError)
+    out = _world(block, path, capacity, 10, DEFAULT_TIE_SALTS["x1"])
+    out["bootstrap_b"] = _bootstrap_b(block, path)
+    out["bootstrap_seed"] = _optional(block, "bootstrap_seed", 1, lambda v: _seed(v, f"{path}.bootstrap_seed"))
+    return out
+
+
+def openfda_requests(codes: list[str], max_records: int) -> int:
+    """The openFDA requests a fetch of both datasets may make: per code and dataset, one per page of 1000 records."""
+    return len(codes) * 2 * math.ceil(max_records / OPENFDA_PAGE)
+
+
+def _compact_date(value: Any, path: str) -> date:
+    text = _string(value, path, 32)
+    day = None
+    if DATE_RE.fullmatch(text) is not None:
+        try:
+            day = date(int(text[:4]), int(text[4:6]), int(text[6:]))
+        except ValueError:
+            day = None
+    if day is None:
+        raise RequestError(path, DATE_PROBLEM) from None
+    return day
+
+
+def _names(value: Any, path: str) -> list[str]:
+    _no_hazard(value, path)
+    if not isinstance(value, list) or not 1 <= len(value) <= 10:
+        raise RequestError(path, "must be a list of 1 to 10 names") from None
+    return _distinct(value, path, lambda v, p: _printable(v, p, MAX_NAME))
+
+
+def _field_path(value: Any, path: str) -> str:
+    text = _string(value, path, MAX_FIELD_PATH)
+    if loader.PATH_RE.fullmatch(text) is None:
+        raise RequestError(path, FIELD_PATH_PROBLEM) from None
+    return text
+
+
+def _sheet(value: Any, path: str, high: int) -> dict[str, int]:
+    block = _object(value, path)
+    check_keys(block, _SHEET_KEYS, _SHEET_KEYS, path, RequestError)
+    return {"n": _int(block["n"], f"{path}.n", 1, high), "seed": _seed(block["seed"], f"{path}.seed")}
+
+
+def _coverage(value: Any, path: str) -> int | float:
+    _no_hazard(value, path)
+    ok = (isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+          and 0 < value <= 1)
+    if not ok:
+        raise RequestError(path, "must be a number in (0, 1]") from None
+    return value
+
+
+def _openfda(raw: Any, capacity: int, openfda_key: bool) -> dict[str, Any]:
+    path = "$.experiments.openfda"
+    block = _object(raw, path)
+    check_keys(block, _OPENFDA_KEYS, _OPENFDA_REQUIRED, path, RequestError)
+    out: dict[str, Any] = {"minutes": _minutes(block["minutes"], f"{path}.minutes", capacity)}
+    pack_id = block["pack"]
+    if not isinstance(pack_id, str):
+        raise RequestError(f"{path}.pack", "must be a string") from None
+    _no_hazard(pack_id, f"{path}.pack")
+    if not builtin_pack(pack_id) or OPENFDA_MAPPING not in loader.load_pack(pack_id).mappings:
+        raise RequestError(f"{path}.pack", OPENFDA_PACK_PROBLEM) from None
+    out["pack"] = pack_id
+    codes = block["product_codes"]
+    _no_hazard(codes, f"{path}.product_codes")
+    if not isinstance(codes, list) or not 3 <= len(codes) <= 5:
+        raise RequestError(f"{path}.product_codes", "must be a list of 3 to 5 product codes") from None
+
+    def code(value: Any, p: str) -> str:
+        text = _string(value, p, 16)
+        if CODE_RE.fullmatch(text) is None:
+            raise RequestError(p, "must be three upper-case letters") from None
+        return text
+
+    out["product_codes"] = _distinct(codes, f"{path}.product_codes", code)
+    first = _compact_date(block["date_from"], f"{path}.date_from")
+    last = _compact_date(block["date_to"], f"{path}.date_to")
+    if last <= first:
+        raise RequestError(f"{path}.date_to", "must be after date_from") from None
+    pack = loader.load_pack(pack_id)
+    need = pack.detectors["window_weeks"] + pack.detectors["min_history_weeks"] + 1
+    if len(replay_weeks(first.isoformat(), last.isoformat())) < need:
+        raise RequestError(f"{path}.date_to", f"the date range must span at least {need} ISO weeks") from None
+    out["date_from"], out["date_to"] = block["date_from"], block["date_to"]
+    out["max_records_per_code"] = _int(block["max_records_per_code"], f"{path}.max_records_per_code", 1,
+                                       MAX_RECORDS_PER_CODE)
+    out["manufacturers"] = _names(block["manufacturers"], f"{path}.manufacturers")
+    out["manufacturer_field"] = _field_path(block["manufacturer_field"], f"{path}.manufacturer_field")
+    out["partition_field"] = _field_path(block["partition_field"], f"{path}.partition_field")
+    out["recalling_firms"] = _optional(block, "recalling_firms", list(out["manufacturers"]),
+                                       lambda v: _names(v, f"{path}.recalling_firms"))
+    for key in ("lookback_weeks", "post_weeks"):
+        out[key] = _optional(block, key, 26, lambda v, key=key: _int(v, f"{path}.{key}", 1, 104))
+    out["min_partition_coverage"] = _optional(block, "min_partition_coverage", 0.5,
+                                              lambda v: _coverage(v, f"{path}.min_partition_coverage"))
+    out["tie_salt"] = _tie_salt(block, path, DEFAULT_TIE_SALTS["openfda"])
+    saw = _string(block["saw_recall_outcomes"], f"{path}.saw_recall_outcomes", 16)
+    if saw not in ("yes", "no"):
+        raise RequestError(f"{path}.saw_recall_outcomes", "must be yes or no") from None
+    out["saw_recall_outcomes"] = saw
+    out["n1_sheet"] = _optional(block, "n1_sheet", None, lambda v: _sheet(v, f"{path}.n1_sheet", 1000))
+    out["e1_sheet"] = _optional(block, "e1_sheet", None, lambda v: _sheet(v, f"{path}.e1_sheet", 2000))
+    problem = openfda_budget_problem(openfda_requests(out["product_codes"], out["max_records_per_code"]), openfda_key)
+    if problem is not None:
+        raise RequestError(f"{path}.max_records_per_code", problem) from None
+    return out
+
+
+def openfda_budget_problem(estimate: int, key: bool) -> str | None:
+    """The problem when ``estimate`` openFDA requests exceed :data:`OPENFDA_CAP` for the key state, else None."""
+    cap = OPENFDA_CAP[key]
+    if estimate <= cap:
+        return None
+    remedy = ("allowed with an API key; lower max_records_per_code or product_codes" if key else
+              "allowed without an API key; add the MYCELIC_LAB_OPENFDA_API_KEY repository secret, or lower "
+              "max_records_per_code or product_codes")
+    return f"the fetch would make about {estimate} openFDA requests, more than the {cap} {remedy}"
+
+
+def validate(obj: Any, manifest: Manifest, *, openfda_key: bool = False) -> dict[str, Any]:
     """The normalised request, or :class:`RequestError` for the first problem in the documented order."""
     top = _object(obj, "$")
     check_keys(top, _TOP_KEYS, _TOP_KEYS, "$", RequestError)
@@ -297,14 +649,12 @@ def validate(obj: Any, manifest: Manifest) -> dict[str, Any]:
     if not experiments:
         raise RequestError("$.experiments", f"needs at least one of {', '.join(EXPERIMENTS)}") from None
     capacity = out["job_minutes"] - SHARD_OVERHEAD_MINUTES
-    blocks: dict[str, Any] = {}
-    if "e3" in experiments:
-        blocks["e3"] = _e3(experiments["e3"], models, capacity)
-    if "g0" in experiments:
-        blocks["g0"] = _g0(experiments["g0"], models, capacity)
-    if "sim" in experiments:
-        blocks["sim"] = _sim(experiments["sim"], models, capacity, manifest)
-    out["experiments"] = blocks
+    checks = {"e1": lambda raw: _e1(raw, models, capacity, manifest),
+              "e2": lambda raw: _e2(raw, models, capacity, manifest),
+              "e3": lambda raw: _e3(raw, models, capacity), "g0": lambda raw: _g0(raw, models, capacity),
+              "sim": lambda raw: _sim(raw, models, capacity, manifest), "x1": lambda raw: _x1(raw, capacity),
+              "openfda": lambda raw: _openfda(raw, capacity, openfda_key)}
+    out["experiments"] = {name: checks[name](experiments[name]) for name in EXPERIMENTS if name in experiments}
     return out
 
 
@@ -332,7 +682,7 @@ def _read(absolute: Path) -> bytes:
 
 
 def load_request(path: str | os.PathLike[str], manifest: Manifest, *, strict_location: bool = False,
-                 root: str | os.PathLike[str] | None = None) -> Request:
+                 root: str | os.PathLike[str] | None = None, openfda_key: bool = False) -> Request:
     root_dir = Path(os.path.abspath(root if root is not None else os.getcwd()))
     absolute = Path(os.path.abspath(path))
     shown = display_path(absolute, root_dir)
@@ -365,4 +715,5 @@ def load_request(path: str | os.PathLike[str], manifest: Manifest, *, strict_loc
         obj = strict_load(data)
     except StrictJsonError as err:
         raise RequestError(safe_path(err.path), f"invalid JSON ({err.reason})") from None
-    return Request(path=shown, name=absolute.stem, sha256=sha256_hex(data), data=validate(obj, manifest))
+    return Request(path=shown, name=absolute.stem, sha256=sha256_hex(data),
+                   data=validate(obj, manifest, openfda_key=openfda_key))

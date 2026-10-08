@@ -92,13 +92,18 @@ class DeterminismTests(TempDirTest):
 
 
 class ShardPackingTests(unittest.TestCase):
-    def test_first_fit_decreasing_with_e3_last_and_id_ties(self) -> None:
+    def test_first_fit_decreasing_by_serving_class_then_minutes_and_id_ties(self) -> None:
         units = [_unit("g0-m", "m", 5), _unit("e1-m", "m", 10, "e1"), _unit("e3-m", "m", 10, "e3"),
                  _unit("e2-m", "m", 10, "e2"), _unit("x1-m", "m", 4, "x1")]
         shards = pack_shards(units, 20)
         self.assertEqual([(s["shard"], s["units"], s["planned_minutes"]) for s in shards],
-                         [("s001-m", ["e1-m", "e2-m"], 20), ("s002-m", ["g0-m", "x1-m", "e3-m"], 19)])
-        self.assertEqual([s["timeout_minutes"] for s in shards], [45, 44])
+                         [("s001-m", ["e1-m", "g0-m", "x1-m"], 19), ("s002-m", ["e2-m", "e3-m"], 20)])
+        self.assertEqual([s["timeout_minutes"] for s in shards], [44, 45])
+        # g0, sim and e3 alone keep G4's placement: e3 last, then -minutes, then the unit id
+        units = [_unit("g0-m", "m", 5), _unit("sim-m-s1", "m", 10, "sim"), _unit("e3-m", "m", 10, "e3"),
+                 _unit("g0-n", "m", 5), _unit("sim-m-s2", "m", 10, "sim")]
+        self.assertEqual([s["units"] for s in pack_shards(units, 20)],
+                         [["sim-m-s1", "sim-m-s2"], ["g0-m", "g0-n", "e3-m"]])
 
     def test_groups_none_label_and_global_numbering(self) -> None:
         units = [_unit("g0-b", "b", 10), _unit("g0-a", "a", 10), _unit("sim", None, 5), _unit("g0-a2", "a", 15)]
@@ -357,8 +362,12 @@ class OutputBudgetTests(TempDirTest):
         self.assertEqual(request.path, "lab/requests/plumbing-001.json")
         self.assertEqual([(s["shard"], s["kind"], s["units"], s["planned_minutes"], s["timeout_minutes"])
                           for s in plan["shards"]],
-                         [("s001-fake-a", "fake", ["sim-fake-a-s1", "e3-fake-a"], 20, 45),
-                          ("s002-fake-b", "fake", ["g0-fake-b", "e3-fake-b"], 15, 40)])
+                         [("s001-fake-a", "fake", ["sim-fake-a-s1", "e1-fake-a-r1"], 20, 45),
+                          ("s002-fake-a", "fake", ["e1-fake-a-r2", "e1-fake-a-r3", "e2-fake-a", "e3-fake-a"], 20, 45),
+                          ("s003-fake-b", "fake", ["g0-fake-b", "e1-fake-b-r1", "e1-fake-b-r2"], 20, 45),
+                          ("s004-fake-b", "fake", ["e1-fake-b-r3", "e3-fake-b"], 10, 35),
+                          ("s005-none", "none", ["x1"], 5, 30)])
+        self.assertEqual([e["openfda"] for e in plan["matrix"]["include"]], [False] * 5)
         self.assertEqual((plan["result_class"], plan["provision"], plan["retention_days"]), ("plumbing", [], 7))
         self.assertEqual(sorted(p.name for p in (ROOT / "lab" / "requests").iterdir()), ["plumbing-001.json"])
 

@@ -16,10 +16,22 @@ request's purpose only into a code span of its own paragraph, booleans are the w
 sentence comes from ``notes`` (which holds no digit). A value that is missing renders ``n/a`` and one of the wrong type
 ``invalid``; neither is a source.
 
+A plan summary adds, when the plan's ``prereg/prereg.json`` exists, what was preregistered: the E1 labels, the X1
+and E2 prereg hashes and the E2 rehearsal's candidates, judge calls and largest central reading (every number from
+that file).
+
 A report's class sections hold, for its sim rows, a channels table (each channel key's meaning listed under it), a
-lifts table and a pushdown table; after the class sections, a sizing table of every sim unit (whatever its result)
-with what it measured and the minutes it suggests for the next request; the notes add the sim world-digest groups and
-the sim notes the rows carry.
+lifts table and a pushdown table; then E2 (its labels first: synthetic, below the protocol minimum when a row is, the
+central comparator being the model itself; then the conditions, ratio and candidates tables; the bar verdict only for
+a row whose central comparator is not the model itself), X1 (its label, then the channels and lifts tables), openFDA
+(its label and what its measurement flag means, then the channels and fetch tables, then the sheets label and the
+sheets table) and, once, in the class section of its display class, E1: its label, then the endpoints table, then the
+paired table, whose non-inferiority and kill-flag columns appear only when the block's ``verdicts_shown`` (a model
+measurement) and are otherwise replaced by the withheld sentence; a block that was not compared shows its reason
+instead. A G0 table gains a protocol records column, after its note, when a scan was below the protocol size. After
+the class sections, a sizing table of every sim unit (whatever its result) with what it measured and the minutes it
+suggests for the next request, then the E2 sizing table; the notes add the sim world-digest groups and the sim notes
+the rows carry.
 
 The first line says what the numbers are not: ``PLUMBING CHECK: no model was run`` for a plumbing plan, shard or
 report, ``NO MEASUREMENT: ...`` for a real shard or report without a unit of display class ``model``
@@ -45,10 +57,13 @@ from mycelic.collective.jsonio import StrictJsonError, strict_load
 
 from . import EXIT_OK, EXIT_USAGE, forbidden_root
 from .notes import (BRANCH_DELETED, COLUMNS, CPU_MODELS_DIFFER, DEFAULT_BRANCH, DELETE_ONLY, DISPATCH_BY_HAND,
-                    HEADINGS, LOCK_CONFLICT_NOTE, LOCK_NEW, LOCK_NOT_COMPUTED, LOCK_UNCHANGED, MERGE_SEVERAL,
-                    NO_MEASUREMENT_LINE, NO_PLAN, NO_REPORT, NOT_A_BRANCH, NOT_PINNED, NOTES, PLAN_FIX_HINT,
-                    PLUMBING_CHECK_LINE, SIM_CHANNEL_LABELS, SIM_LIFT_LABELS, SIM_NOTES, SIM_WORLD_DIFFERS,
-                    SIM_WORLD_SAME, SIZING_NOTE, TRUNCATED, UNSEALED, WORLD_DIGEST_DIFFERS, WORLD_DIGEST_SAME)
+                    E1_COMPARE_FAILED, E1_ENDPOINT_EXCLUDED, E1_LABELS, E1_NO_REFERENCE, E1_VERDICTS_WITHHELD,
+                    E2_LABELS, E2_SIZING_NOTE, G0_BELOW_PROTOCOL, HEADINGS, LOCK_CONFLICT_NOTE, LOCK_NEW,
+                    LOCK_NOT_COMPUTED, LOCK_UNCHANGED, MERGE_SEVERAL, NO_MEASUREMENT_LINE, NO_PLAN, NO_REPORT,
+                    NOT_A_BRANCH, NOT_PINNED, NOTES, OPENFDA_LABEL, OPENFDA_PUBLIC_FLAG, PLAN_FIX_HINT,
+                    PLUMBING_CHECK_LINE, PREREG_MISSING, SHEETS_LABEL, SIM_CHANNEL_LABELS, SIM_LIFT_LABELS, SIM_NOTES,
+                    SIM_WORLD_DIFFERS, SIM_WORLD_SAME, SIZING_NOTE, TRUNCATED, UNSEALED, WORLD_DIGEST_DIFFERS,
+                    WORLD_DIGEST_SAME, X1_LABEL)
 from .units import display_class
 
 MAX_SUMMARY_BYTES = 900_000
@@ -66,6 +81,13 @@ KNOWN_NOTICES = (DELETE_ONLY, BRANCH_DELETED, DEFAULT_BRANCH, NOT_A_BRANCH, MERG
 LOCK_SENTENCES = {"unchanged": LOCK_UNCHANGED, "new_entries": LOCK_NEW, "conflict": LOCK_CONFLICT_NOTE,
                   "not_computed": LOCK_NOT_COMPUTED}
 CLASS_ORDER = ("model", "unverified", "plumbing", "no-model")
+E1_REASONS = (PREREG_MISSING, E1_NO_REFERENCE, E1_COMPARE_FAILED)
+PREREG_FILE = "prereg/prereg.json"
+
+
+def ids(sentence: str) -> str:
+    """A notes sentence with its experiment-id placeholders filled with code spans."""
+    return sentence.format(e_one=code("E1"), e_two=code("E2"), x_one=code("X1"), n_one=code("N1"))
 _INDEX_RE = re.compile(r"0|[1-9][0-9]*", re.ASCII)
 _BACKTICKS_RE = re.compile(r"`+")
 
@@ -318,6 +340,39 @@ def _render_plan_body(doc: _Doc, src: Sources, plan: Any) -> None:
         _heading(doc, "provision", 3)
         doc.table(["entry", "cache_key"], lambda: ([code(_get(p, "entry"), table=True),
                                                    code(_get(p, "cache_key"), table=True)] for p in provision))
+    if (src.root / PREREG_FILE).exists():
+        _prereg_section(doc, src)
+
+
+def _prereg_section(doc: _Doc, src: Sources) -> None:
+    f = PREREG_FILE
+    manifest = src.doc(f)
+    _heading(doc, "prereg", 3)
+    files = _get(manifest, "files")
+
+    def sha(rel: str) -> str:
+        return code(short(_get(files, rel, "sha256")))
+
+    names = {"e1": code("E1"), "x1": code("X1"), "e2": code("E2")}
+    e1 = _get(manifest, "e1")
+    if isinstance(e1, dict):
+        records, claims = src.num(f, "/e1/labels/records", "int"), src.num(f, "/e1/labels/claims", "int")
+        source = code(_get(e1, "labels", "source"))
+        doc.add(f"\n- {names['e1']} {COLUMNS['labels']}: {COLUMNS['label_source']} {source}, "
+                f"{COLUMNS['records']} {records}, {COLUMNS['claims']} {claims}, {COLUMNS['sha']} "
+                f"{code(short(_get(e1, 'labels', 'sha256')))}; {COLUMNS['prereg']} {sha(str(_get(e1, 'prereg')))}")
+    for name in ("x1", "e2"):
+        block = _get(manifest, name)
+        if isinstance(block, dict):
+            doc.add(f"- {names[name]} {COLUMNS['prereg']} {sha(str(_get(block, 'prereg')))}")
+    rehearsal = _get(manifest, "e2", "rehearsal")
+    if isinstance(rehearsal, dict):
+        at = ("e2", "rehearsal")
+        counts = [src.num(f, pointer(*at, *keys), "int") for keys in (("candidates", "total"), ("candidates", "seeds"),
+                                                                       ("calls", "judge_record"),
+                                                                       ("central_raw_records", "max"))]
+        doc.add(f"- {COLUMNS['rehearsal']}: {COLUMNS['candidates']} {counts[0]}, {COLUMNS['seeds']} {counts[1]}, "
+                f"{COLUMNS['judge_calls']} {counts[2]}, {COLUMNS['raw_max']} {counts[3]}")
 
 
 # --------------------------------------------------------------------------------------------------- shard
@@ -436,12 +491,16 @@ def render_report(root: Path, cap: int = MAX_SUMMARY_BYTES) -> tuple[str, list[d
                                                          code(u.get("status"), table=True),
                                                          code(u.get("status_reason"), table=True)]
                                                         for _, u in no_result))
+    e1 = report.get("e1") if isinstance(report.get("e1"), dict) else None
     for cls in CLASS_ORDER:
-        if any(u.get("display_class") == cls for _, u in units):
-            _class_section(doc, src, cls, units, rows)
+        if any(u.get("display_class") == cls for _, u in units) or (e1 is not None and e1.get("display_class") == cls):
+            _class_section(doc, src, cls, units, rows, e1)
     sizing = rows("sim_sizing")
     if sizing:
         _sizing_section(doc, src, sizing)
+    e2_sizing = rows("e2_sizing")
+    if e2_sizing:
+        _e2_sizing_section(doc, src, e2_sizing)
 
     provision = rows("provision")
     if provision:
@@ -473,7 +532,7 @@ def render_report(root: Path, cap: int = MAX_SUMMARY_BYTES) -> tuple[str, list[d
 
 
 def _class_section(doc: _Doc, src: Sources, cls: str, units: list[tuple[int, dict[str, Any]]],
-                   rows: Callable[[str], list[tuple[int, dict[str, Any]]]]) -> None:
+                   rows: Callable[[str], list[tuple[int, dict[str, Any]]]], e1: dict[str, Any] | None = None) -> None:
     f = "report.json"
     _heading(doc, cls, 3)
     mine = [(i, u) for i, u in units if u.get("display_class") == cls]
@@ -501,24 +560,40 @@ def _class_section(doc: _Doc, src: Sources, cls: str, units: list[tuple[int, dic
     g0 = [(i, r) for i, r in rows("g0") if r.get("display_class") == cls]
     if g0:
         _heading(doc, "g0", 4)
+        below = any(r.get("below_protocol") is True for _, r in g0)
+        if below:
+            doc.add("\n" + G0_BELOW_PROTOCOL)
 
         def g0_rows() -> Any:
             for i, r in g0:
                 at = ("g0", i)
-                yield [code(r.get("unit"), table=True), code(r.get("model"), table=True),
-                       code(r.get("pack"), table=True), src.num(f, pointer(*at, "seed"), "int"),
-                       src.num(f, pointer(*at, "records"), "int"), yes_no(r.get("passed")),
+                head = [code(r.get("unit"), table=True), code(r.get("model"), table=True),
+                        code(r.get("pack"), table=True), src.num(f, pointer(*at, "seed"), "int"),
+                        src.num(f, pointer(*at, "records"), "int")]
+                protocol = [src.num(f, pointer(*at, "protocol_records"), "int")] if below else []
+                yield [*head, *protocol, yes_no(r.get("passed")),
                        src.num(f, pointer(*at, "canaries_planted"), "int"),
                        src.num(f, pointer(*at, "hit_count"), "int"),
                        src.num(f, pointer(*at, "shingle_overlap_bytes"), "int"),
                        src.num(f, pointer(*at, "positive_control", "canary_hits"), "int"),
                        code(short(r.get("world_digest")), table=True)]
 
-        doc.table(["unit", "model", "pack", "seed", "records", "passed", "canaries", "hits", "shingle_bytes",
-                   "control_hits", "world"], g0_rows)
+        doc.table(["unit", "model", "pack", "seed", "records", *(["protocol_records"] if below else []), "passed",
+                   "canaries", "hits", "shingle_bytes", "control_hits", "world"], g0_rows)
     sim = [(i, r) for i, r in rows("sim") if r.get("display_class") == cls]
     if sim:
         _sim_tables(doc, src, sim)
+    e2 = [(i, r) for i, r in rows("e2") if r.get("display_class") == cls]
+    if e2:
+        _e2_tables(doc, src, e2)
+    x1 = [(i, r) for i, r in rows("x1") if r.get("display_class") == cls]
+    if x1:
+        _x1_tables(doc, src, x1)
+    openfda = [(i, r) for i, r in rows("openfda") if r.get("display_class") == cls]
+    if openfda:
+        _openfda_tables(doc, src, openfda)
+    if e1 is not None and e1.get("display_class") == cls:
+        _e1_tables(doc, src, e1)
     latency = [(i, r) for i, r in rows("latency") if r.get("display_class") == cls]
     if latency:
         _heading(doc, "latency", 4)
@@ -585,6 +660,202 @@ def _sim_tables(doc: _Doc, src: Sources, sim: list[tuple[int, dict[str, Any]]]) 
     _heading(doc, "sim-pushdown", 4)
     doc.table(["unit", "candidates", "true", "supported", "ap_pushdown", "ap_stats", "raw_text", "fallback_share"],
               pushdown_rows)
+
+
+def _e2_tables(doc: _Doc, src: Sources, e2: list[tuple[int, dict[str, Any]]]) -> None:
+    """E2's labels, then its conditions, ratio and candidates tables (and the bar verdict, never for a central
+    comparator that is the model itself)."""
+    f = "report.json"
+    _heading(doc, "e2", 4)
+    doc.add("\n" + ids(E2_LABELS["synthetic"]))
+    if any(r.get("below_protocol_minimum") is not False for _, r in e2):
+        doc.add("\n" + E2_LABELS["below_protocol"])
+    if any(r.get("central") == "self" for _, r in e2):
+        doc.add("\n" + E2_LABELS["self_central"])
+
+    def condition_rows() -> Any:
+        for i, r in e2:
+            conditions = r.get("conditions") if isinstance(r.get("conditions"), dict) else {}
+            for name in sorted(conditions):
+                at = ("e2", i, "conditions", name)
+                yield [code(r.get("unit"), table=True), code(name, table=True), src.num(f, pointer(*at, "ap"), "f3"),
+                       src.num(f, pointer(*at, "ap_ci_low"), "f3"), src.num(f, pointer(*at, "ap_ci_high"), "f3"),
+                       src.num(f, pointer(*at, "precision_at_k"), "f3")]
+
+    doc.table(["unit", "condition", "ap", "ci_low", "ci_high", "p_at_k"], condition_rows)
+    _heading(doc, "e2-ratio", 4)
+    doc.table(["unit", "central", "ratio", "ci_low", "ci_high", "pushdown_raw"], lambda: (
+        [code(r.get("unit"), table=True), code(r.get("central"), table=True),
+         src.num(f, pointer("e2", i, "ratio", "estimate"), "f3"), src.num(f, pointer("e2", i, "ratio", "ci_low"), "f3"),
+         src.num(f, pointer("e2", i, "ratio", "ci_high"), "f3"),
+         src.num(f, pointer("e2", i, "raw_text_bytes", "pushdown"), "int")] for i, r in e2))
+    judged = [(i, r) for i, r in e2 if r.get("central") != "self"]
+    if judged:
+        doc.table(["unit", "verdict", "withheld"], lambda: (
+            [code(r.get("unit"), table=True), yes_no(_get(r, "verdict", "pass")),
+             code(r.get("withheld_reason"), table=True)] for _, r in judged))
+    _heading(doc, "e2-candidates", 4)
+    doc.table(["unit", "candidates", "seeds", "true", "decoy", "background", "protocol_min"], lambda: (
+        [code(r.get("unit"), table=True), src.num(f, pointer("e2", i, "candidates", "total"), "int"),
+         src.num(f, pointer("e2", i, "candidates", "seeds"), "int"),
+         *(src.num(f, pointer("e2", i, "candidates", "by_label", label), "int")
+           for label in ("true", "decoy", "background")),
+         src.num(f, pointer("e2", i, "protocol_min_candidates"), "int")] for i, r in e2))
+
+
+def _x1_tables(doc: _Doc, src: Sources, x1: list[tuple[int, dict[str, Any]]]) -> None:
+    f = "report.json"
+    _heading(doc, "x1", 4)
+    doc.add("\n" + ids(X1_LABEL))
+
+    def channel_rows() -> Any:
+        for i, r in x1:
+            channels = r.get("channels") if isinstance(r.get("channels"), dict) else {}
+            for name in sorted(channels):
+                at = ("x1", i, "channels", name)
+                yield [code(r.get("unit"), table=True), code(name, table=True),
+                       src.num(f, pointer(*at, "found"), "int"), src.num(f, pointer(*at, "units"), "int"),
+                       src.num(f, pointer(*at, "recall"), "f3"), src.num(f, pointer(*at, "precision_at_40"), "f3"),
+                       src.num(f, pointer(*at, "average_precision"), "f3"), src.num(f, pointer(*at, "alerts"), "int"),
+                       src.num(f, pointer(*at, "false_alarms"), "int")]
+
+    doc.table(["unit", "channel", "found", "patterns", "recall", "p_at_forty", "ap", "alerts", "false_alarms"],
+              channel_rows)
+
+    def lift_rows() -> Any:
+        for i, r in x1:
+            lifts = r.get("lifts") if isinstance(r.get("lifts"), dict) else {}
+            for name in sorted(lifts):
+                at = ("x1", i, "lifts", name)
+                yield [code(r.get("unit"), table=True), code(name, table=True),
+                       src.num(f, pointer(*at, "estimate"), "f3"), src.num(f, pointer(*at, "ci_low"), "f3"),
+                       src.num(f, pointer(*at, "ci_high"), "f3")]
+
+    _heading(doc, "x1-lifts", 4)
+    doc.table(["unit", "lift", "estimate", "ci_low", "ci_high"], lift_rows)
+    for _, r in x1:
+        reasons = _get(r, "x1", "reasons")
+        listed = ", ".join(code(reason) for reason in reasons) if isinstance(reasons, list) and reasons else "n/a"
+        doc.add(f"\n- {code(r.get('unit'))}: {COLUMNS['eligible']} {yes_no(_get(r, 'x1', 'eligible'))}; "
+                f"{COLUMNS['blind']} {yes_no(_get(r, 'stamps', 'blind'))}; {COLUMNS['extractor']} "
+                f"{code(_get(r, 'stamps', 'extractor'))}; {COLUMNS['reason']}: {listed}")
+
+
+def _openfda_tables(doc: _Doc, src: Sources, rows_: list[tuple[int, dict[str, Any]]]) -> None:
+    f = "report.json"
+    _heading(doc, "openfda", 4)
+    doc.add("\n" + OPENFDA_LABEL)
+    doc.add("\n" + OPENFDA_PUBLIC_FLAG)
+
+    def channel_rows() -> Any:
+        for i, r in rows_:
+            channels = r.get("channels") if isinstance(r.get("channels"), dict) else {}
+            for name in sorted(channels):
+                at = ("openfda", i, "channels", name)
+                yield [code(r.get("unit"), table=True), code(name, table=True),
+                       src.num(f, pointer(*at, "in_scope"), "int"), src.num(f, pointer(*at, "found"), "int"),
+                       src.num(f, pointer(*at, "recall_rate"), "f3"),
+                       src.num(f, pointer(*at, "median_lead_days"), "f1"),
+                       src.num(f, pointer(*at, "post_recall_alerts"), "int"),
+                       src.num(f, pointer(*at, "false_alarms"), "int"),
+                       src.num(f, pointer(*at, "false_alarms_per_week"), "f3"),
+                       code(_get(channels, name, "reason"), table=True)]
+
+    doc.table(["unit", "channel", "in_scope", "found", "recall_rate", "lead_days", "post_alerts", "false_alarms",
+               "per_week", "channel_reason"], channel_rows)
+
+    def fetch_rows() -> Any:
+        for i, r in rows_:
+            fetch = r.get("fetch") if isinstance(r.get("fetch"), dict) else {}
+            for dataset in sorted(fetch):
+                codes = fetch[dataset] if isinstance(fetch[dataset], dict) else {}
+                for product in sorted(codes):
+                    at = ("openfda", i, "fetch", dataset, product)
+                    yield [code(dataset, table=True), code(product, table=True),
+                           src.num(f, pointer(*at, "total"), "int"), src.num(f, pointer(*at, "fetched"), "int"),
+                           yes_no(_get(codes, product, "truncated")), code(_get(codes, product, "reason"), table=True)]
+
+    _heading(doc, "openfda-fetch", 4)
+    doc.table(["dataset", "code", "total", "fetched", "truncated", "reason"], fetch_rows)
+    _heading(doc, "sheets", 4)
+    doc.add("\n" + ids(SHEETS_LABEL))
+
+    def sheet_rows() -> Any:
+        for i, r in rows_:
+            for sheet, done in (("n1", "n_sampled"), ("e1", "n_written")):
+                if isinstance(_get(r, "sheets", sheet), dict):
+                    at = ("openfda", i, "sheets", sheet)
+                    yield [code(sheet.upper(), table=True), src.num(f, pointer(*at, "n_requested"), "int"),
+                           src.num(f, pointer(*at, done), "int")]
+
+    doc.table(["sheet", "requested", "written"], sheet_rows)
+
+
+def _e1_tables(doc: _Doc, src: Sources, e1: dict[str, Any]) -> None:
+    """E1's label first, then its endpoints and paired tables; the verdict columns only when ``verdicts_shown``."""
+    f = "report.json"
+    _heading(doc, "e1", 4)
+    if e1.get("label") in E1_LABELS:
+        doc.add("\n" + ids(E1_LABELS[e1["label"]]))
+    if e1.get("compared") is not True:
+        reason = e1.get("reason")
+        doc.add("\n" + (reason if reason in E1_REASONS else f"{COLUMNS['reason']}: {code(reason)}"))
+        return
+    doc.add(f"\n- {COLUMNS['labels']}: {COLUMNS['label_source']} {code(_get(e1, 'labels', 'source'))}, "
+            f"{COLUMNS['pack']} {code(_get(e1, 'labels', 'pack'))}, {COLUMNS['records']} "
+            f"{src.num(f, '/e1/labels/records', 'int')}, {COLUMNS['claims']} {src.num(f, '/e1/labels/claims', 'int')}, "
+            f"{COLUMNS['sha']} {code(short(_get(e1, 'labels', 'sha256')))}")
+    doc.add(f"- {COLUMNS['reference']} {code(e1.get('reference'))}; {COLUMNS['margin']} "
+            f"{src.num(f, '/e1/margin', 'f3')}; {COLUMNS['runs']} {src.num(f, '/e1/runs', 'int')}; "
+            f"{COLUMNS['underpowered_below']} {src.num(f, '/e1/underpowered_below', 'int')} {COLUMNS['pairs']}; "
+            f"{COLUMNS['kill_below']} {src.num(f, '/e1/kill_below', 'f3')}")
+    endpoints = e1.get("endpoints") if isinstance(e1.get("endpoints"), dict) else {}
+    _heading(doc, "e1-endpoints", 4)
+    doc.table(["model", "runs", "field_f1", "ci_low", "ci_high", "claim_f1", "json_validity", "p50_ms", "mismatch"],
+              lambda: ([code(name, table=True), src.num(f, pointer("e1", "endpoints", name, "runs"), "int"),
+                        src.num(f, pointer("e1", "endpoints", name, "field_f1", "value"), "f3"),
+                        src.num(f, pointer("e1", "endpoints", name, "field_f1", "ci_low"), "f3"),
+                        src.num(f, pointer("e1", "endpoints", name, "field_f1", "ci_high"), "f3"),
+                        src.num(f, pointer("e1", "endpoints", name, "claim_f1", "value"), "f3"),
+                        src.num(f, pointer("e1", "endpoints", name, "json_validity_rate"), "f3"),
+                        src.num(f, pointer("e1", "endpoints", name, "latency_ms_p50"), "f1"),
+                        yes_no(_get(endpoints, name, "model_mismatch"))] for name in sorted(endpoints)))
+    paired = e1.get("paired") if isinstance(e1.get("paired"), dict) else {}
+    shown = e1.get("verdicts_shown") is True
+    _heading(doc, "e1-paired", 4)
+
+    def paired_rows() -> Any:
+        for name in sorted(paired):
+            at = ("e1", "paired", name)
+            verdicts = [yes_no(_get(paired, name, "non_inferior")), yes_no(_get(paired, name, "kill_flag"))]
+            yield [code(name, table=True), code(_get(paired, name, "against"), table=True),
+                   src.num(f, pointer(*at, "n"), "int"), src.num(f, pointer(*at, "mean_diff"), "f3"),
+                   src.num(f, pointer(*at, "ci_low"), "f3"), src.num(f, pointer(*at, "ci_high"), "f3"),
+                   src.num(f, pointer(*at, "sign_p"), "f3"), yes_no(_get(paired, name, "underpowered")),
+                   *(verdicts if shown else [])]
+
+    doc.table(["model", "against", "pairs", "mean_diff", "ci_low", "ci_high", "sign_p", "underpowered",
+               *(["non_inferior", "kill_flag"] if shown else [])], paired_rows)
+    if not shown:
+        doc.add("\n" + E1_VERDICTS_WITHHELD)
+    left_out = e1.get("endpoints_without_runs")
+    if isinstance(left_out, list) and left_out:
+        doc.add("\n" + E1_ENDPOINT_EXCLUDED)
+        doc.add(f"\n- {COLUMNS['model']}: " + ", ".join(code(m) for m in left_out))
+
+
+def _e2_sizing_section(doc: _Doc, src: Sources, sizing: list[tuple[int, dict[str, Any]]]) -> None:
+    f = "report.json"
+    _heading(doc, "e2-sizing", 3)
+    doc.table(["unit", "model", "cpu", "status", "class", "projected_minutes", "budget_minutes", "share", "exceeds",
+               "suggested_minutes"], lambda: (
+        [code(r.get("unit"), table=True), code(r.get("model"), table=True), code(r.get("cpu_model"), table=True),
+         code(r.get("status"), table=True), code(r.get("display_class"), table=True),
+         src.num(f, pointer("e2_sizing", i, "projected_s"), "min1"),
+         src.num(f, pointer("e2_sizing", i, "budget_s"), "min1"), src.num(f, pointer("e2_sizing", i, "share"), "f1"),
+         yes_no(r.get("exceeds")), src.num(f, pointer("e2_sizing", i, "suggested_minutes"), "int")]
+        for i, r in sizing))
+    doc.add("\n" + E2_SIZING_NOTE)
 
 
 def _sizing_section(doc: _Doc, src: Sources, sizing: list[tuple[int, dict[str, Any]]]) -> None:
