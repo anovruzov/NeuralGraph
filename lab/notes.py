@@ -113,6 +113,55 @@ GIT_FAILED = "a git command failed unexpectedly"
 # what the harness is told about the server it measures
 FAKE_SERVER_NOTE = "fake OpenAI-compatible server inside the shard process; plumbing only"
 
+# the multi-site simulation (sim.py) and its unit outcomes
+SIM_PROJECTED = "projected {projected} min > budget {budget} min"
+SIM_LOW_PARTICIPATION = "model participation below threshold"
+SIM_CHANNEL_LABELS = {
+    "X_model": "X with the model: each site's in-boundary model extracted claims from its own narratives; HQ ran the "
+               "detectors over the codes and text-only cells that left the sites, k-suppressed",
+    "X_lexical": "X with the lexical extractor: the same pipeline with the pack's lexicon in place of the model; "
+                 "exact on generator text by construction",
+    "S": "S: codes cells only (no model, no narrative); the same detectors over the same k-suppressed cells",
+    "R_mf": "R, model-free: the same detectors over record-level, unsuppressed counts of the fields the pack allows "
+            "to leave (codes and structured ids, never narrative); not the strategy's R, which may read those fields "
+            "with a frontier model",
+    "U": "U, a reference: every claim of the model channel at record level, unsuppressed, with exact roots and "
+         "reporters; not a deployable system",
+    "single_site": "single site: each site alone, a per-site exceedance test over its own exact counts, sharing the "
+                   "same weekly alert budget",
+    "rules": "rules: the pack's hand-written rules over the model channel's cells (episode starts, unranked)",
+}
+SIM_LIFT_LABELS = {
+    "X_model_minus_S": "patterns X with the model found minus patterns S found, bootstrapped over patterns",
+    "X_model_minus_R_mf": "patterns X with the model found minus patterns model-free R found, bootstrapped over "
+                          "patterns",
+    "X_model_minus_X_lexical": "patterns X with the model found minus patterns X with the lexical extractor found; at "
+                               "or below zero by construction, since the lexical extractor is exact on generator "
+                               "text",
+}
+SIM_NOTES = {
+    "synthetic_internal": "Simulation: a seeded synthetic world with planted patterns, written by the same author as "
+                          "the detectors; internal only, never a result to show buyers.",
+    "lexical_exact": "The lexical extractor is exact on generator text by construction, so X with the model can only "
+                     "match or trail X with the lexical extractor here: the difference measures extraction fidelity "
+                     "on synthetic text, not the value of reading real narratives.",
+    "few_patterns": "Few planted patterns: recall, average precision and the lift intervals rest on a handful of "
+                    "patterns and one seed, so they are not interpretable as estimates.",
+    "r_model_free": "R here is model-free: the same detectors over the fields allowed to leave, with no model; it is "
+                    "not the strategy's R.",
+}
+SIM_MEASUREMENT_REASONS = {
+    "fake_model": "a fake model answered: a fake endpoint, a fake model listing or a fake-server marker",
+    "low_participation": "the share of records the lexical fallback extracted was above the threshold",
+    "skipped_projection": "the run stopped after the projection check, before any result",
+}
+SIZING_NOTE = ("Sizing: the per-call medians measured on this runner and the minutes they suggest for the next "
+               "request's sim block, a quarter above the estimate and rounded up; a skipped or timed-out unit's "
+               "estimate is projected, not measured.")
+SIM_WORLD_SAME = "Simulation units of the same plant, seed and weeks saw the same synthetic world."
+SIM_WORLD_DIFFERS = ("Simulation units of the same plant, seed and weeks saw different synthetic worlds; their results "
+                     "are not comparable.")
+
 CLASS_REASONS = {
     "fake_kind": "the manifest entry is a fake model",
     "provider_override": "the shard ran with the fake provider in place of the model server",
@@ -195,6 +244,10 @@ HEADINGS = {
     "e3": "Latency and throughput cells",
     "g0": "Canary leakage scans",
     "latency": "Model call latency from the ledgers",
+    "sim": "Multi-site simulation: planted patterns found per channel",
+    "sim-lifts": "Simulation lifts, bootstrapped over patterns",
+    "sim-pushdown": "Simulation pushdown verification",
+    "sizing": "Simulation sizing for the next request",
     "lock": "Lock",
     "notes": "Notes",
 }
@@ -297,4 +350,30 @@ COLUMNS = {
     "consistent": "consistent",
     "unit_count": "Units",
     "shard_count": "Shards",
+    "channel": "channel",
+    "found": "found",
+    "patterns": "patterns",
+    "recall": "recall",
+    "p_at_forty": "precision in the top forty",
+    "ap": "average precision",
+    "alerts": "alerts",
+    "false_alarms": "false alarms",
+    "lift": "lift",
+    "estimate": "estimate",
+    "ci_low": "interval low",
+    "ci_high": "interval high",
+    "candidates": "candidates",
+    "true": "true",
+    "supported": "supported",
+    "ap_pushdown": "pushdown average precision",
+    "ap_stats": "detector-score average precision",
+    "raw_text": "raw text bytes crossed",
+    "fallback_share": "lexical fallback share",
+    "records_done": "records done",
+    "extract_median_s": "extraction median s",
+    "judge_median_s": "judge median s",
+    "estimate_minutes": "estimated minutes",
+    "suggested_minutes": "suggested minutes",
+    "plant": "plant",
+    "weeks": "weeks",
 }

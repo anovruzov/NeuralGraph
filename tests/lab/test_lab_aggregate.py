@@ -1,7 +1,7 @@
 """The aggregate report: which shard artifact counts (newest attempt, ambiguous, other plan, altered, unsealed, no
 artifact), what each unit gave, the E3, G0 and latency rows read from the shards' own files, the provision rows and
-the lock candidate. Trees are copies of one dry run, mutated and re-sealed as the workflow would have sealed them;
-lock tests provision against the loopback stubs. Nothing here measures a model.
+the lock candidate. Trees are copies of one dry run (E3, G0 and the simulation), mutated and re-sealed as the
+workflow would have sealed them; lock tests provision against the loopback stubs. Nothing here measures a model.
 """
 from __future__ import annotations
 
@@ -21,10 +21,11 @@ from lab.notes import (AMBIGUOUS_ARTIFACTS, ALTERED, FILES_DIFFER, LOCK_CONFLICT
 from mycelic.collective.inference.ledger import read_ledger
 from mycelic.collective.stats import percentile
 from tests.lab.helpers import (MANIFEST_TEST, ROOT, DryTree, StubWorld, call_main, canonical_json, dry_run,
-                               kill_mentioning, plumbing_min, write_json)
+                               kill_mentioning, plumbing_min, sim_block, write_json)
 
 SHARDS = ("s001-fake-a", "s002-fake-b")
-UNITS = ("e3-fake-a", "e3-fake-b", "g0-fake-a", "g0-fake-b")
+UNITS = ("e3-fake-a", "e3-fake-b", "g0-fake-a", "g0-fake-b", "sim-fake-a-s1")
+SIM_UNIT = "sim-fake-a-s1"
 
 
 def _json(path: Path) -> Any:
@@ -54,6 +55,7 @@ class AggregateTests(unittest.TestCase):
         cls.tmp = Path(tempfile.mkdtemp(prefix="lab-aggregate-"))
         request = plumbing_min()
         request["experiments"]["g0"]["models"] = ["fake-a", "fake-b"]
+        request["experiments"]["sim"] = sim_block(models=["fake-a"])
         cls.request = write_json(cls.tmp / "both-g0.json", request)
         cls.out = cls.tmp / "D"
         cls.done = dry_run(cls.out, cls.request, MANIFEST_TEST)
@@ -114,21 +116,24 @@ class AggregateTests(unittest.TestCase):
         shard = self.shard(report, "s001-fake-a")
         self.assertEqual((shard["state"], shard["state_reason"], shard["artifact"]),
                          ("ambiguous", AMBIGUOUS_ARTIFACTS, None))
-        for uid in ("e3-fake-a", "g0-fake-a"):
+        for uid in ("e3-fake-a", "g0-fake-a", SIM_UNIT):
             self.assertEqual((self.unit(report, uid)["status"], self.unit(report, uid)["status_reason"],
                               self.unit(report, uid)["display_class"]), ("excluded", AMBIGUOUS_ARTIFACTS, "no-result"))
+        self.assertEqual((report["sim"], report["sim_sizing"]), ([], []))
         self.assertEqual(self.unit(report, "e3-fake-b")["status"], "ok")
 
     def test_single_artifact_layout_and_missing_dirs(self) -> None:
         report = self.aggregate(shards=self.tree.path("s002-fake-b"))
         self.assertEqual([s["state"] for s in report["shards"]], ["no_artifact", "sealed"])
         self.assertEqual({u["unit"]: u["status"] for u in report["units"]},
-                         {"e3-fake-a": "not_run", "e3-fake-b": "ok", "g0-fake-a": "not_run", "g0-fake-b": "ok"})
+                         {"e3-fake-a": "not_run", "e3-fake-b": "ok", "g0-fake-a": "not_run", "g0-fake-b": "ok",
+                          SIM_UNIT: "not_run"})
         self.assertIsNone(self.shard(report, "s002-fake-b")["artifact"])
         report = self.aggregate(shards=self.work / "absent", provision=self.work / "absent-too")
         self.assertEqual([s["state"] for s in report["shards"]], ["no_artifact", "no_artifact"])
         self.assertEqual({(u["status"], u["status_reason"]) for u in report["units"]}, {("not_run", NO_ARTIFACT)})
-        self.assertEqual((report["e3"], report["g0"], report["latency"], report["provision"]), ([], [], [], []))
+        self.assertEqual((report["e3"], report["g0"], report["sim"], report["sim_sizing"], report["latency"],
+                          report["provision"]), ([], [], [], [], [], []))
         self.assertEqual(report["notes"]["cpu_models"], [])
 
     def test_missing_shard_and_prepare_failure_reasons(self) -> None:
@@ -141,14 +146,15 @@ class AggregateTests(unittest.TestCase):
         self.tree.reseal("s001-fake-a", steps={"prepare": "failure", "run": "skipped"})
         status = _json(failed / "status.json")
         self.assertEqual(status["prepare"], {"present": True, "needed": None, "prepared": False, "problem": problem})
-        self.assertEqual(status["missing_units"], ["g0-fake-a", "e3-fake-a"])
+        self.assertEqual(status["missing_units"], ["g0-fake-a", SIM_UNIT, "e3-fake-a"])
         report = self.aggregate()
         shard = self.shard(report, "s001-fake-a")
         self.assertEqual((shard["state"], shard["prepare_problem"], shard["failed_step"]),
                          ("sealed", problem, "prepare"))
-        for uid in ("e3-fake-a", "g0-fake-a"):
+        for uid in ("e3-fake-a", "g0-fake-a", SIM_UNIT):
             self.assertEqual((self.unit(report, uid)["status"], self.unit(report, uid)["status_reason"]),
                              ("not_run", problem))
+        self.assertEqual(report["sim_sizing"], [])
         for uid in ("e3-fake-b", "g0-fake-b"):
             self.assertEqual((self.unit(report, uid)["status"], self.unit(report, uid)["status_reason"]),
                              ("not_run", NO_ARTIFACT))
@@ -203,7 +209,8 @@ class AggregateTests(unittest.TestCase):
                 report = self.aggregate()
                 shard = self.shard(report, "s001-fake-a")
                 self.assertEqual((shard["state"], shard["state_reason"]), ("altered", ALTERED))
-                self.assertEqual({self.unit(report, u)["status"] for u in ("e3-fake-a", "g0-fake-a")}, {"excluded"})
+                self.assertEqual({self.unit(report, u)["status"] for u in ("e3-fake-a", "g0-fake-a", SIM_UNIT)},
+                                 {"excluded"})
                 for path in (base / "extra.txt", base / ".provenance.json.123.tmp", base / "link"):
                     if path.is_symlink() or path.exists():
                         path.unlink()
@@ -256,6 +263,29 @@ class AggregateTests(unittest.TestCase):
                     self.assertEqual((row["measurement"], row["display_class"], row["model"]),
                                      (False, "plumbing", unit["model"]))
                     cells += 1
+            elif unit["experiment"] == "sim":
+                scorecard = _json(root / "runs" / "sim" / unit["run_id"] / "scorecard.json")
+                (row,) = [r for r in report["sim"] if r["unit"] == unit["unit"]]
+                for name, block in scorecard["channels"].items():
+                    for key in lab_aggregate.SIM_CHANNEL_FIELDS:
+                        self.assertEqual(row["channels"][name][key], block[key], (name, key))
+                for name, block in scorecard["lifts"].items():
+                    for key in lab_aggregate.SIM_LIFT_FIELDS:
+                        self.assertEqual(row["lifts"][name][key], block[key], (name, key))
+                pushdown = scorecard["pushdown"]
+                self.assertEqual(row["pushdown"], {"n": pushdown["n"], "n_true": pushdown["n_true"],
+                                                   "supported": pushdown["statuses"]["supported"],
+                                                   "ap_pushdown": pushdown["ap_pushdown"],
+                                                   "ap_stats_only": pushdown["ap_stats_only"]})
+                world = scorecard["world"]
+                self.assertEqual((row["plant"], row["seed"], row["weeks"], row["records"], row["world_digest"]),
+                                 (world["plant"], world["seed"], world["weeks"], world["records"]["total"],
+                                  world["world_digest"]))
+                self.assertEqual((row["raw_text_crossed"], row["fallback_share"], row["notes"], row["measurement"],
+                                  row["display_class"]),
+                                 (scorecard["raw_text_crossed"], scorecard["extraction"]["fallback_share"],
+                                  scorecard["notes"], False, "plumbing"))
+                self.assertNotIn("items", json.dumps(row))
             else:
                 leakage = _json(root / "runs" / "g0" / unit["run_id"] / "leakage.json")
                 (row,) = [r for r in report["g0"] if r["unit"] == unit["unit"]]
@@ -267,7 +297,8 @@ class AggregateTests(unittest.TestCase):
                 self.assertNotIn("shingle_hits", row)
         self.assertEqual(cells, 8)
         self.assertEqual(report["shard_count"], 2)
-        self.assertEqual(report["unit_count"], 4)
+        self.assertEqual(report["unit_count"], 5)
+        self.assertEqual(len(report["sim"]), 1)
         self.assertEqual(report["plan"]["sha256"], self.tree.plan_sha256())
 
     def test_latency_percentiles_from_ledgers(self) -> None:
@@ -322,6 +353,47 @@ class AggregateTests(unittest.TestCase):
         self.assertIn("f" * 64, group["digests"])
         self.assertEqual((group["pack"], group["seed"], group["records"]), ("device_quality", 7, 50))
 
+    def test_sim_sizing_rows(self) -> None:
+        report = self.aggregate()
+        record = _json(self.tree.path("s001-fake-a", f"units/{SIM_UNIT}/unit.json"))
+        run = f"runs/sim/{record['run_id']}"
+        scorecard = _json(self.tree.path("s001-fake-a", f"{run}/scorecard.json"))
+        (sizing,) = report["sim_sizing"]
+        projection = scorecard["projection"]
+        self.assertEqual(sizing, {
+            "unit": SIM_UNIT, "model": "fake-a", "cpu_model": self.unit(report, SIM_UNIT)["cpu_model"],
+            "status": "ok", "display_class": "plumbing", "source": "scorecard", "records_done": 1031,
+            "records_total": 1031, "extract_record_s_p50": projection["measured"]["extract_record_s_p50"],
+            "judge_s_p50": projection["measured"]["judge_s_p50"], "estimate_s": projection["estimate_s"],
+            "suggested_minutes": projection["suggested_minutes"]})
+        (group,) = report["notes"]["sim_world_digest"]
+        self.assertEqual(group, {"plant": "sim_small", "seed": 1, "weeks": 34,
+                                 "digests": [scorecard["world"]["world_digest"]], "units": [SIM_UNIT],
+                                 "consistent": True})
+
+        # a timed-out unit has no result row, but its sizing row reads the progress file it left
+        self.tree.edit("s001-fake-a", f"units/{SIM_UNIT}/unit.json",
+                       lambda r: r.update(status="timed_out", status_reason="timed out"))
+        self.tree.replace_unit_file("s001-fake-a", SIM_UNIT, f"{run}/scorecard.json", canonical_json({"kind": "x"}))
+        self.tree.reseal("s001-fake-a")
+        report = self.aggregate()
+        self.assertEqual(self.unit(report, SIM_UNIT)["display_class"], "no-result")
+        self.assertEqual((report["sim"], report["notes"]["sim_world_digest"]), ([], []))
+        (sizing,) = report["sim_sizing"]
+        progress = _json(self.tree.path("s001-fake-a", f"{run}/progress.json"))
+        self.assertEqual(sizing, {
+            "unit": SIM_UNIT, "model": "fake-a", "cpu_model": self.unit(report, SIM_UNIT)["cpu_model"],
+            "status": "timed_out", "display_class": "no-result", "source": "progress",
+            "records_done": progress["records"]["done"], "records_total": progress["records"]["total"],
+            "extract_record_s_p50": progress["latency_s"]["extract_record"]["p50"],
+            "judge_s_p50": progress["latency_s"]["judge_record"]["p50"], "estimate_s": progress["estimate_s"],
+            "suggested_minutes": progress["suggested_minutes"]})
+
+        # nothing that reads as either file: no sizing row
+        self.tree.replace_unit_file("s001-fake-a", SIM_UNIT, f"{run}/progress.json", b"{")
+        self.tree.reseal("s001-fake-a")
+        self.assertEqual(self.aggregate()["sim_sizing"], [])
+
     def test_deterministic_report_bytes(self) -> None:
         self.aggregate()
         self.aggregate()
@@ -348,7 +420,7 @@ class AggregateTests(unittest.TestCase):
 
     def test_plumbing_dry_run_report(self) -> None:
         self.assertEqual(self.done.stdout.splitlines()[-1],
-                         "lab: aggregate units 4 shards 2 class plumbing measurements false lock unchanged")
+                         "lab: aggregate units 5 shards 2 class plumbing measurements false lock unchanged")
         report_dir = self.out / "report"
         report = _json(report_dir / "report.json")
         self.assertEqual((report["kind"], report["result_class"], report["contains_measurements"], report["banner"]),
@@ -360,7 +432,9 @@ class AggregateTests(unittest.TestCase):
         self.assertEqual({s["state"] for s in report["shards"]}, {"sealed"})
         self.assertEqual({u["display_class"] for u in report["units"]}, {"plumbing"})
         self.assertEqual(report["ignored_artifacts"], [])
-        self.assertEqual([k for k in _keys(report) if re.search(r"(^|_)(at|time|date|epoch|ts)(_|$)", k)], [])
+        # no clock value in the report; precision_at_40 (precision in the top forty) is the one non-time match
+        keys = [k for k in _keys(report) if re.search(r"(^|_)(at|time|date|epoch|ts)(_|$)", k)]
+        self.assertEqual(sorted(set(keys)), ["precision_at_40"])
 
 
 # --------------------------------------------------------------------------------------------------- provision and lock

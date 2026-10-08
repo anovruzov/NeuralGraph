@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "purpose": "Smoke run on one runner job: the smallest model served by the pinned server for latency (E3), the canary leakage scan with the model in the loop (G0) and the six-site simulation on the small plant (sim). Copy to lab/requests/smoke-001.json and push.",
+  "provider": "llama-server",
+  "models": [
+    "a-0p5b"
+  ],
+  "job_minutes": 330,
+  "max_parallel": 1,
+  "retention_days": 14,
+  "experiments": {
+    "e3": {
+      "minutes": 20,
+      "concurrency": [
+        1,
+        4
+      ],
+      "requests": 8,
+      "warmup": 2,
+      "workloads": [
+        "extraction",
+        "short"
+      ],
+      "seed": 1
+    },
+    "g0": {
+      "minutes": 45,
+      "pack": "device_quality",
+      "records": 200,
+      "seed": 1
+    },
+    "sim": {
+      "minutes": 240,
+      "plant": "sim_small",
+      "weeks": 34,
+      "top_n": 10,
+      "seeds": [
+        1
+      ]
+    }
+  }
+}

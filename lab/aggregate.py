@@ -1,5 +1,5 @@
 """Merge one run's shard artifacts into one report: which artifact counts for each shard, what each unit gave, the
-E3, G0 and latency rows, the provision records and the lock candidate.
+E3, G0, sim, sizing and latency rows, the provision records and the lock candidate.
 
     python -m lab.aggregate --plan FILE --provision DIR --shards DIR --manifest FILE --out DIR
 
@@ -23,9 +23,15 @@ longer hashes as recorded the unit is ``excluded`` (``a unit file differs from t
 without the unit's record gives ``not_run`` (the prepare problem, else the failed step, as the reason); a shard
 without an artifact gives ``not_run`` and any other state ``excluded``, with the state's sentence as the reason. Units
 that ran to a result give one E3 row per cell of their ``e3.json``, one G0 row per ``leakage.json`` (never its hit
-lists) and their ledgers' successful calls, grouped into latency rows by display class, model, CPU model,
-experiment and task (CPU models are never pooled): ``n`` and the 50th and 95th percentiles in ms
-(``stats.percentile``, rounded to 3 places).
+lists), one sim row per complete ``scorecard.json`` (:data:`SIM_CHANNEL_FIELDS` of each channel, the lifts, the
+pushdown summary, the raw text crossed and the fallback share; never an item or a key) and their ledgers' successful
+calls, grouped into latency rows by display class, model, CPU model, experiment and task (CPU models are never
+pooled): ``n`` and the 50th and 95th percentiles in ms (``stats.percentile``, rounded to 3 places). Every planned sim
+unit with a record, whatever its status (a skipped or timed-out one included), also gets a ``sim_sizing`` row when
+its collected ``scorecard.json`` or, failing that, ``progress.json`` reads: records done of all, the measured
+extraction and judge medians in seconds, the estimate and the suggested minutes for the next request.
+``notes.sim_world_digest`` groups the sim rows by (plant, seed, weeks): one world digest per group is
+``consistent``.
 
 The lock: ``not_computed`` when the manifest or lock no longer hashes as the plan recorded or the provision records
 are ambiguous; otherwise the verified records of this plan are merged into the current lock
@@ -71,6 +77,8 @@ UNIT_FIELDS = ("status", "status_reason", "measurement_class", "class_reason", "
 E3_FIELDS = ("workload", "task", "concurrency", "measured", "ok", "ttft_s", "e2e_s", "decode_tok_s", "throughput")
 G0_FIELDS = ("pack", "pack_version", "seed", "records", "passed", "canaries_planted", "hit_count",
              "shingle_overlap_bytes", "world_digest")
+SIM_CHANNEL_FIELDS = ("found", "units", "recall", "precision_at_40", "average_precision", "alerts", "false_alarms")
+SIM_LIFT_FIELDS = ("estimate", "ci_low", "ci_high")
 
 
 class AggregateError(ValueError):
@@ -292,6 +300,65 @@ def _g0_row(row: dict[str, Any], root: Path) -> dict[str, Any] | None:
                                  if isinstance(control, dict) else None)}
 
 
+def _sim_files(row: dict[str, Any], root: Path) -> tuple[Any, Any]:
+    """(the collected scorecard, the collected progress.json), each None unless it reads as its kind."""
+    run = root / "runs" / "sim" / row["run_id"]
+    scorecard, progress = _read(run / "scorecard.json"), _read(run / "progress.json")
+    return (scorecard if isinstance(scorecard, dict) and scorecard.get("kind") == "lab_sim_scorecard" else None,
+            progress if isinstance(progress, dict) and progress.get("kind") == "lab_sim_progress" else None)
+
+
+def _sizing_row(row: dict[str, Any], scorecard: Any, progress: Any) -> dict[str, Any] | None:
+    head = {"unit": row["unit"], "model": row["model"], "cpu_model": row["cpu_model"], "status": row["status"],
+            "display_class": row["display_class"]}
+    if scorecard is not None:
+        projection = _get(scorecard, "projection")
+        measured = _get(projection, "measured")
+        done = _get(scorecard, "extraction", "records")
+        if done is None and _get(projection, "exceeds") is True:
+            done = _get(projection, "after_records")
+        judge = _get(measured, "judge_s_p50")
+        return {**head, "source": "scorecard", "records_done": done,
+                "records_total": _get(scorecard, "world", "records", "total"),
+                "extract_record_s_p50": _get(measured, "extract_record_s_p50"),
+                "judge_s_p50": judge if judge is not None else _get(projection, "judge_s_p50"),
+                "estimate_s": _get(projection, "estimate_s"),
+                "suggested_minutes": _get(projection, "suggested_minutes")}
+    if progress is not None:
+        latency = _get(progress, "latency_s")
+        judge = _get(latency, "judge_record", "p50")
+        return {**head, "source": "progress", "records_done": _get(progress, "records", "done"),
+                "records_total": _get(progress, "records", "total"),
+                "extract_record_s_p50": _get(latency, "extract_record", "p50"),
+                "judge_s_p50": judge if judge is not None else _get(latency, "judge_warmup", "p50"),
+                "estimate_s": _get(progress, "estimate_s"),
+                "suggested_minutes": _get(progress, "suggested_minutes")}
+    return None
+
+
+def _sim_row(row: dict[str, Any], scorecard: Any) -> dict[str, Any] | None:
+    if scorecard is None or scorecard.get("status") != "complete":
+        return None
+    channels = scorecard.get("channels") if isinstance(scorecard.get("channels"), dict) else {}
+    lifts = scorecard.get("lifts") if isinstance(scorecard.get("lifts"), dict) else {}
+    pushdown = scorecard.get("pushdown")
+    return {"unit": row["unit"], "model": row["model"], "cpu_model": row["cpu_model"],
+            "display_class": row["display_class"], "measurement": _get(scorecard, "stamps", "measurement"),
+            "plant": _get(scorecard, "world", "plant"), "seed": _get(scorecard, "world", "seed"),
+            "weeks": _get(scorecard, "world", "weeks"), "records": _get(scorecard, "world", "records", "total"),
+            "world_digest": _get(scorecard, "world", "world_digest"),
+            "channels": {name: {k: _get(block, k) for k in SIM_CHANNEL_FIELDS}
+                         for name, block in sorted(channels.items())},
+            "lifts": {name: {k: _get(block, k) for k in SIM_LIFT_FIELDS} for name, block in sorted(lifts.items())},
+            "pushdown": {"n": _get(pushdown, "n"), "n_true": _get(pushdown, "n_true"),
+                         "supported": _get(pushdown, "statuses", "supported"),
+                         "ap_pushdown": _get(pushdown, "ap_pushdown"),
+                         "ap_stats_only": _get(pushdown, "ap_stats_only")},
+            "raw_text_crossed": scorecard.get("raw_text_crossed"),
+            "fallback_share": _get(scorecard, "extraction", "fallback_share"),
+            "notes": list(scorecard["notes"]) if isinstance(scorecard.get("notes"), list) else []}
+
+
 def _sort_key(values: tuple[Any, ...]) -> tuple[str, ...]:
     return tuple("" if v is None else str(v) for v in values)
 
@@ -305,6 +372,23 @@ def latency_rows(samples: dict[tuple[Any, ...], list[float]]) -> list[dict[str, 
                      "n": len(values), "p50_ms": round(percentile(values, 50), 3),
                      "p95_ms": round(percentile(values, 95), 3)})
     return rows
+
+
+def sim_world_groups(sim: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The sim rows grouped by (plant, seed, weeks): each group's digests and units, consistent with one digest."""
+    groups: dict[tuple[Any, ...], dict[str, Any]] = {}
+    for row in sim:
+        key = (row["plant"], row["seed"], row["weeks"])
+        group = groups.setdefault(key, {"plant": row["plant"], "seed": row["seed"], "weeks": row["weeks"],
+                                        "digests": set(), "units": []})
+        group["digests"].add(row["world_digest"])
+        group["units"].append(row["unit"])
+    out = []
+    for key in sorted(groups, key=_sort_key):
+        group = groups[key]
+        digests = sorted(group["digests"], key=lambda d: "" if d is None else str(d))
+        out.append({**group, "digests": digests, "units": sorted(group["units"]), "consistent": len(digests) == 1})
+    return out
 
 
 def world_digest_groups(g0: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -381,14 +465,24 @@ def build_report(plan: dict[str, Any], plan_bytes: bytes, provision_dir: Path, s
         shard_rows.append(_shard_row(shard, state, root, attempt))
     planned = {s["shard"] for s in plan["shards"]}
     ignored = sorted({r.artifact for r in roots if r.shard not in planned and r.artifact is not None})
-    units, e3, g0 = [], [], []
+    units, e3, g0, sim, sim_sizing = [], [], [], [], []
     samples: dict[tuple[Any, ...], list[float]] = {}
     for unit in sorted(plan["units"], key=lambda u: u["unit"]):
         state, root = states.get(unit["shard"], ("no_artifact", None))
         row, record = _unit_row(unit, state, root)
         units.append(row)
+        scorecard = None
+        if unit["experiment"] == "sim" and record is not None and root is not None:
+            scorecard, progress = _sim_files(row, root.path)
+            sizing = _sizing_row(row, scorecard, progress)
+            if sizing is not None:
+                sim_sizing.append(sizing)
         if record is None or root is None or row["display_class"] == "no-result":
             continue
+        if unit["experiment"] == "sim":
+            sim_row = _sim_row(row, scorecard)
+            if sim_row is not None:
+                sim.append(sim_row)
         if unit["experiment"] == "e3":
             e3 += _e3_rows(row, root.path)
         if unit["experiment"] == "g0":
@@ -418,9 +512,10 @@ def build_report(plan: dict[str, Any], plan_bytes: bytes, provision_dir: Path, s
         "plan": {"sha256": plan_sha256, **{k: plan.get(k) for k in ("git_sha", "provider", "job_minutes",
                                                                      "max_parallel", "retention_days")}},
         "unit_count": len(units), "shard_count": len(shard_rows), "shards": shard_rows, "units": units,
-        "e3": e3, "g0": g0, "latency": latency_rows(samples),
+        "e3": e3, "g0": g0, "sim": sim, "sim_sizing": sim_sizing, "latency": latency_rows(samples),
         "provision": provision_rows(records, plan_sha256), "lock": lock,
-        "notes": {"cpu_models": cpu_models, "world_digest": world_digest_groups(g0)},
+        "notes": {"cpu_models": cpu_models, "world_digest": world_digest_groups(g0),
+                  "sim_world_digest": sim_world_groups(sim)},
         "skipped": plan.get("skipped", []), "ignored_artifacts": ignored,
     }
     return report, merged

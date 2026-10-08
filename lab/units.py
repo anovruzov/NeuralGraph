@@ -4,7 +4,7 @@ Inside a shard's output directory ``OUT``, a unit writes::
 
     routing/<unit>.json                      the routing file the harness reads (one endpoint, ``lab``)
     units/<unit>/{stdout.log,stderr.log}     the harness output, each cut to its last 64 KiB; never printed
-    runs/<e3|g0>/<run id>/...                the allowlisted harness outputs, copied from the scratch directory
+    runs/<e3|g0|sim>/<run id>/...            the allowlisted harness outputs, copied from the scratch directory
     work/<unit>/                             the harness scratch directory, deleted when the unit ends
 
 and returns the record the shard writes to ``units/<unit>/unit.json``. The model server is either the shard's
@@ -18,8 +18,10 @@ and a unit whose server exited while it ran (seen by the watch or right after th
 
 Adapters (``ADAPTERS``): ``e3`` runs ``experiments.e3_latency`` (boundary ``central``) and keeps ``e3.json`` and
 ``ledger.jsonl``; ``g0`` runs ``experiments.g0_canary --mode routing`` (boundary ``any-simulated``, both routed
-tasks on the endpoint) and keeps ``leakage.json`` and ``edge/site-*.ledger.jsonl``. Nothing else is collected: no
-``private/``, no SQLite file, no ``hq*`` or ``followup/`` directory.
+tasks on the endpoint) and keeps ``leakage.json`` and ``edge/site-*.ledger.jsonl``; ``sim`` runs ``lab.sim`` (the
+same routing as G0, with ``--budget-seconds`` the unit's whole seconds less :data:`SIM_BUDGET_MARGIN_S`, at least 1)
+and keeps ``scorecard.json``, ``progress.json``, ``labels.json`` and ``edge/site-*.ledger.jsonl``. Nothing else is
+collected: no ``private/``, no ``work/``, no SQLite file, no ``hq*`` or ``followup/`` directory.
 
 Status, from :func:`harness_status` and then the participation check:
 
@@ -28,12 +30,19 @@ Status, from :func:`harness_status` and then the participation check:
 * E3: exit 0 with an ``e3.json`` of kind ``e3`` is ``ok``, anything else ``failed``;
 * G0: exit 0 with ``passed: true`` is ``ok``, exit 1 with ``passed: false`` is ``result_fail`` (a valid FAIL
   verdict), any other pairing of exit 0/1 and ``leakage.json`` (missing, unreadable, contradicting) is ``failed``;
+* sim: exit 0 or 1 with a ``scorecard.json`` of kind ``lab_sim_scorecard``, else ``failed``. A ``skipped_projection``
+  scorecard with exit 1 is ``skipped`` (:data:`~lab.notes.SIM_PROJECTED`, the projected and allowed minutes); a
+  ``complete`` one must exit 0 exactly when its scan and its extraction both passed, and is ``result_fail`` when the
+  scan failed (raw text crossed), else ``ok`` (the participation check below judges the extraction); any other
+  pairing is ``failed``;
 * participation: an ``ok`` or ``result_fail`` unit with a model is ``invalid`` unless the model answered. Per task
   in the ledgers, ``attempted`` counts calls (rows with attempt 0 or 1; a repair or escalation row is part of the
-  same call) and ``ok`` the rows that succeeded. A required task (the E3 workload tasks; G0's ``extract_claims``)
-  with no call, any task with an ok share below 0.95, or an E3 run with more than 5% failed measured requests
-  makes the unit invalid. A harness that exits 0 although the model never answered (E3 counts its failures, G0
-  falls back to the lexical extractor) can therefore never be ``ok``.
+  same call) and ``ok`` the rows that succeeded. A required task (the E3 workload tasks; G0's and the sim's
+  ``extract_claims``) with no call, a sim whose scorecard says its extraction did not pass (lexical fallback share
+  above 0.05, :data:`~lab.notes.SIM_LOW_PARTICIPATION`), any task with an ok share below 0.95, or an E3 run with more
+  than 5% failed measured requests makes the unit invalid, checked in that order. A harness that exits 0 although
+  the model never answered (E3 counts its failures, G0 and the sim fall back to the lexical extractor) can therefore
+  never be ``ok``.
 
 The measurement class (:func:`measurement_class`) says what the numbers are: ``plumbing`` when a fake answered (a
 fake manifest entry, the ``--provider fake`` override, or any ledger row carrying the fake-server marker),
@@ -43,8 +52,8 @@ this order: the model file was verified by the hub or the lock and its record is
 ``server_first_use``); every download connection reached the host it named and none was private
 (``download_hosts``); the server reported the verified file as its model (``model_path``); every ledger row went to
 the started server (``ledger_host``) and every answer named the alias (``model_served``); the harness counted the
-run as a measurement (``harness_measurement``, E3 only: its result says ``measurement: true``,
-:func:`harness_verdict`); and the unit ran to a valid result (``participation``).
+run as a measurement (``harness_measurement``, E3 and the sim: its result says ``measurement: true``, in the sim's
+``stamps``; :func:`harness_verdict`); and the unit ran to a valid result (``participation``).
 Otherwise ``unverified``, naming the first condition that failed (``no_evidence`` without a model server). G0's own
 ``models_fake`` is ignored: in routing mode it is false even against the fake HTTP server.
 
@@ -59,6 +68,7 @@ stragglers.
 """
 from __future__ import annotations
 
+import math
 import os
 import re
 import shutil
@@ -84,7 +94,7 @@ from mycelic.collective.packs.loader import load_pack
 from . import ROOT
 from .notes import (E3_FAILURES, FAKE_SERVER_NOTE, HARNESS_INTERRUPTED, HARNESS_USAGE, KILLED_BY_SIGNAL, LAB_ROUTING,
                     LOW_PARTICIPATION, NO_MODEL_CALLS, RESULT_CONTRADICTS_EXIT, RESULT_MISSING, SHARD_INTERRUPTED,
-                    TIMED_OUT, UNEXPECTED_EXIT)
+                    SIM_LOW_PARTICIPATION, SIM_PROJECTED, TIMED_OUT, UNEXPECTED_EXIT)
 from .server import EXIT_GRACE_S, WATCH_INTERVAL_S, FakeServer, exit_reason
 
 ENV_ALLOWLIST = ("PATH", "HOME", "LANG", "LC_ALL", "TMPDIR", "SSL_CERT_FILE", "SSL_CERT_DIR", "HTTP_PROXY",
@@ -93,6 +103,8 @@ STATUSES = ("ok", "result_fail", "invalid", "failed", "timed_out", "interrupted"
 FAILING = ("invalid", "failed", "timed_out", "interrupted")
 MIN_MODEL_OK_SHARE = 0.95
 MAX_E3_FAILED_SHARE = 0.05
+MAX_SIM_FALLBACK_SHARE = 0.05
+SIM_BUDGET_MARGIN_S = 30
 LOG_CAP_BYTES = 65536
 TERM_GRACE_S = 10
 ENDPOINT = "lab"
@@ -154,6 +166,9 @@ ADAPTERS = {
                   ("e3.json", "ledger.jsonl"), ("ledger.jsonl",)),
     "g0": Adapter("g0", "mycelic.collective.experiments.g0_canary", (TASK_NAME, JUDGE_TASK), "any-simulated", 900,
                   "leakage.json", ("leakage.json", "edge/site-*.ledger.jsonl"), ("edge/site-*.ledger.jsonl",)),
+    "sim": Adapter("sim", "lab.sim", (TASK_NAME, JUDGE_TASK), "any-simulated", 900, "scorecard.json",
+                   ("scorecard.json", "progress.json", "labels.json", "edge/site-*.ledger.jsonl"),
+                   ("edge/site-*.ledger.jsonl",)),
 }
 
 
@@ -166,7 +181,8 @@ def required_tasks(unit: Mapping[str, Any]) -> list[str]:
 
 
 def harness_dir(unit: Mapping[str, Any], out: Path) -> Path:
-    """Where the harness writes: E3 under ``--runs-dir`` (``e3/<run id>``), G0 at ``--out``; the same shape."""
+    """Where the harness writes: E3 and the sim under ``--runs-dir`` (``<kind>/<run id>``), G0 at ``--out``; the
+    same shape."""
     return Path(out) / "work" / unit["unit"] / unit["experiment"] / unit["run_id"]
 
 
@@ -177,11 +193,19 @@ def flag(name: str, value: Any) -> str:
 
 
 def build_argv(unit: Mapping[str, Any], out: Path, routing_path: Path,
-               server_note: str = FAKE_SERVER_NOTE) -> list[str]:
+               server_note: str = FAKE_SERVER_NOTE, budget_s: int | None = None) -> list[str]:
     """``[python, -m, <module>, --flag=value ...]``: every option in one element, never a bare value, and never
-    the harness option that accepts a dirty tree."""
+    the harness option that accepts a dirty tree. A sim unit needs ``budget_s`` (its ``--budget-seconds``)."""
     p = unit["params"]
-    if unit["experiment"] == "e3":
+    if unit["experiment"] == "sim":
+        if budget_s is None:
+            raise ValueError("a sim unit needs its budget in seconds") from None
+        flags = [("plant", p["plant"]), ("seed", p["seed"]), ("weeks", p["weeks"]), ("eval-from", p["eval_from"]),
+                 ("eval-to", p["eval_to"]), ("grace-weeks", p["grace_weeks"]), ("tie-salt", p["tie_salt"]),
+                 ("top-n", p["top_n"]), ("bootstrap-b", p["bootstrap_b"]), ("bootstrap-seed", p["bootstrap_seed"]),
+                 ("routing", routing_path), ("run-id", unit["run_id"]), ("runs-dir", Path(out) / "work" / unit["unit"]),
+                 ("budget-seconds", budget_s)]
+    elif unit["experiment"] == "e3":
         flags = [("routing", routing_path), ("endpoint", ENDPOINT), ("run-id", unit["run_id"]),
                  ("runs-dir", Path(out) / "work" / unit["unit"]), ("boundary", "central"),
                  ("concurrency", ",".join(str(c) for c in p["concurrency"])), ("requests", p["requests"]),
@@ -232,6 +256,8 @@ def harness_status(experiment: str, exit_code: int | None, timed_out: bool,
         return ("ok", None) if good else ("failed", RESULT_MISSING)
     if exit_code not in (0, 1):
         return "failed", UNEXPECTED_EXIT
+    if experiment == "sim":
+        return _sim_status(exit_code, result)
     passed = result.get("passed") if isinstance(result, dict) and result.get("kind") == "g0_leakage" else None
     if not isinstance(passed, bool):
         return "failed", RESULT_MISSING
@@ -240,6 +266,37 @@ def harness_status(experiment: str, exit_code: int | None, timed_out: bool,
     if exit_code == 1 and not passed:
         return "result_fail", None
     return "failed", RESULT_CONTRADICTS_EXIT
+
+
+def _number(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+
+
+def _sim_status(exit_code: int, result: Any) -> tuple[str, str | None]:
+    """The sim's reading of exit 0 or 1 and its scorecard (see the module docstring)."""
+    if not isinstance(result, dict) or result.get("kind") != "lab_sim_scorecard":
+        return "failed", RESULT_MISSING
+    if result.get("status") == "skipped_projection":
+        projected = result.get("projection")
+        values = [projected.get(k) if isinstance(projected, dict) else None
+                  for k in ("projected_s", "threshold", "remaining_budget_s")]
+        if not all(_number(v) for v in values):
+            return "failed", RESULT_MISSING
+        if exit_code != 1:
+            return "failed", RESULT_CONTRADICTS_EXIT
+        projected_s, threshold, remaining = values
+        return "skipped", SIM_PROJECTED.format(projected=f"{projected_s / 60:.1f}",
+                                               budget=f"{threshold * remaining / 60:.1f}")
+    if result.get("status") != "complete":
+        return "failed", RESULT_MISSING
+    scan = result.get("scan")
+    extraction = result.get("extraction")
+    passed = [block.get("passed") if isinstance(block, dict) else None for block in (scan, extraction)]
+    if not all(isinstance(v, bool) for v in passed):
+        return "failed", RESULT_MISSING
+    if exit_code != (0 if all(passed) else 1):
+        return "failed", RESULT_CONTRADICTS_EXIT
+    return ("ok", None) if passed[0] else ("result_fail", None)
 
 
 def participation(experiment: str, rows: list[dict[str, Any]], required: list[str],
@@ -261,10 +318,18 @@ def participation(experiment: str, rows: list[dict[str, Any]], required: list[st
         failed = sum(sum(c.get("failures", {}).values()) for c in cells)
         e3 = {"measured": measured, "failed": failed, "share": round(failed / measured, 6) if measured else None,
               "max_share": MAX_E3_FAILED_SHARE}
-    record = {"threshold": MIN_MODEL_OK_SHARE, "required": list(required), "tasks": tasks, "e3": e3}
+    record: dict[str, Any] = {"threshold": MIN_MODEL_OK_SHARE, "required": list(required), "tasks": tasks, "e3": e3,
+                              "sim": None}
     for task in required:
         if counts[task]["attempted"] == 0:
             return record, f"{NO_MODEL_CALLS}: {task}"
+    if experiment == "sim":
+        extraction = result.get("extraction") if isinstance(result, dict) else None
+        share = extraction.get("fallback_share") if isinstance(extraction, dict) else None
+        record["sim"] = {"fallback_share": share, "max_share": MAX_SIM_FALLBACK_SHARE}
+        if not isinstance(extraction, dict) or extraction.get("passed") is not True:
+            return record, (f"{SIM_LOW_PARTICIPATION}: lexical fallback share {share} above "
+                            f"{MAX_SIM_FALLBACK_SHARE}")
     for task, c in sorted(counts.items()):
         if c["attempted"] and c["ok"] * 100 < round(MIN_MODEL_OK_SHARE * 100) * c["attempted"]:
             return record, f"{LOW_PARTICIPATION}: {task} ok share {tasks[task]['share']} below {MIN_MODEL_OK_SHARE}"
@@ -273,12 +338,25 @@ def participation(experiment: str, rows: list[dict[str, Any]], required: list[st
     return record, None
 
 
-def harness_verdict(experiment: str, result: Any) -> bool | None:
-    """E3's own verdict that its run was a measurement, for :func:`model_checks`: only ``measurement: true`` in its
-    result counts (a missing key or result does not); None for a harness that gives no such verdict (G0)."""
-    if experiment != "e3":
+def harness_measurement(experiment: str, result: Any) -> Any:
+    """What the harness's result says about being a measurement, as recorded: E3's ``measurement``, the sim's
+    ``stamps.measurement``; None for G0 or a result that is not an object."""
+    if not isinstance(result, dict):
         return None
-    return isinstance(result, dict) and result.get("measurement") is True
+    if experiment == "e3":
+        return result.get("measurement")
+    if experiment == "sim":
+        stamps = result.get("stamps")
+        return stamps.get("measurement") if isinstance(stamps, dict) else None
+    return None
+
+
+def harness_verdict(experiment: str, result: Any) -> bool | None:
+    """E3's and the sim's own verdict that the run was a measurement, for :func:`model_checks`: only ``measurement:
+    true`` counts (a missing key or result does not); None for a harness that gives no such verdict (G0)."""
+    if experiment not in ("e3", "sim"):
+        return None
+    return harness_measurement(experiment, result) is True
 
 
 def model_checks(evidence: Mapping[str, Any], rows: list[dict[str, Any]], status: str | None,
@@ -376,7 +454,10 @@ def display_class(record: Mapping[str, Any], provenance: Mapping[str, Any] | Non
 def unit_notes(experiment: str, measurement: str) -> list[str]:
     notes = ["plumbing"] if measurement == "plumbing" else ["model_measurement"] if measurement == "model" else []
     notes.append("synthetic")
-    notes.append("runner_hardware" if experiment == "e3" else "text_only_scan")
+    if experiment in ("e3", "sim"):
+        notes.append("runner_hardware")
+    if experiment != "e3":
+        notes.append("text_only_scan")
     return notes
 
 
@@ -588,7 +669,7 @@ def run_unit(unit: dict[str, Any], plan: dict[str, Any], out: Path, *, timeout_s
     server: FakeServer | None = None
     try:
         if serving is None:
-            pack = load_pack(unit["params"]["pack"]) if unit["experiment"] == "g0" else None
+            pack = load_pack(unit["params"]["pack"]) if unit["experiment"] in ("g0", "sim") else None
             server = FakeServer(persona, pack)
             server.start()
             base_url, server_note = server.base_url, FAKE_SERVER_NOTE
@@ -601,7 +682,8 @@ def run_unit(unit: dict[str, Any], plan: dict[str, Any], out: Path, *, timeout_s
         except ConfigError:
             status, reason = "failed", LAB_ROUTING
         if status is None:
-            argv = build_argv(unit, out, routing_path, server_note)
+            budget_s = max(1, math.floor(timeout_s) - SIM_BUDGET_MARGIN_S) if unit["experiment"] == "sim" else None
+            argv = build_argv(unit, out, routing_path, server_note, budget_s=budget_s)
             work.mkdir(parents=True, exist_ok=True)
             unit_dir.mkdir(parents=True, exist_ok=True)
             proc = run_process(argv, subprocess_env(os.environ, unit["env"]), cwd=ROOT, timeout_s=timeout_s,
@@ -641,9 +723,6 @@ def run_unit(unit: dict[str, Any], plan: dict[str, Any], out: Path, *, timeout_s
         server_exit = serving.poll(EXIT_GRACE_S)
         if server_exit is not None:
             status, reason = "invalid", exit_reason(server_exit)
-    harness_measurement = None
-    if unit["experiment"] == "e3" and isinstance(result, dict):
-        harness_measurement = result.get("measurement")
     checks, flags = None, []
     if serving is not None:
         checks, flags = model_checks(serving.evidence, rows or [], status, harness_verdict(unit["experiment"], result),
@@ -661,7 +740,7 @@ def run_unit(unit: dict[str, Any], plan: dict[str, Any], out: Path, *, timeout_s
         routing_sha256=routing_sha256, files=files,
         fake_rows=sum(1 for r in rows if r["fake_marker"]) if rows is not None else None,
         ledger_rows=len(rows) if rows is not None else None, participation=record_participation,
-        harness_measurement=harness_measurement, logs=logs,
+        harness_measurement=harness_measurement(unit["experiment"], result), logs=logs,
         serving=({"start": serving.start, "host": serving.host_label, "alias": serving.alias,
                   "class": serving.class_name} if serving is not None else None),
         server_exit=server_exit, class_checks=checks, class_flags=flags)

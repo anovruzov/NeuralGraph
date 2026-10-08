@@ -8,7 +8,9 @@ Paths are relative to the current directory; in event mode that is the repositor
 requires ``lab/requests/<name>.json``.
 
 A unit is one experiment on one model: ``<experiment>-<model>`` (``unit_id``), run under the run id
-``<unit>-<8 hex of sha256(request sha256 | unit)>``. A shard is the set of units one runner job executes, all on
+``<unit>-<8 hex of sha256(request sha256 | unit)>``; a sim unit is one model and one seed, ``sim-<model>-s<seed>``,
+whose params are the plant, its pack, the weeks, ``lab.sim.world_settings`` (evaluation weeks and grace), the sim's
+tie salt, bootstrap settings, ``top_n`` and the seed. A shard is the set of units one runner job executes, all on
 one model: units are grouped by model (``none`` for model-free units), and inside a group placed first-fit
 decreasing by minutes into shards of ``job_minutes - SHARD_OVERHEAD_MINUTES`` minutes, E3 units last, ties broken
 by unit id. Shards are numbered ``sNNN-<label>`` in creation order; a shard runs its units in the order they were
@@ -62,6 +64,7 @@ from . import EXIT_OK, EXIT_USAGE, LabError, display_path, gh_data, gh_property,
 from .discover import REQUEST_PATH_RE, DiscoveryError, discover, git
 from .manifest import Manifest, ManifestError, cache_dir, cache_key, cache_prefix, load_manifest
 from .request import EXPERIMENTS, SHARD_OVERHEAD_MINUTES, Request, RequestError, load_request
+from .sim import BOOTSTRAP_B, BOOTSTRAP_SEED, PLANTS, TIE_SALT, world_settings
 
 MAX_SHARDS = 256
 MAX_MATRIX_BYTES = 1000000
@@ -97,9 +100,14 @@ def run_id(uid: str, request_sha256: str) -> str:
 
 # --------------------------------------------------------------------------------------------------- units and shards
 
-def _params(experiment: str, block: dict[str, Any]) -> dict[str, Any]:
+def _params(experiment: str, block: dict[str, Any], seed: int) -> dict[str, Any]:
     if experiment == "e3":
         return {k: block[k] for k in ("concurrency", "requests", "warmup", "workloads", "seed")}
+    if experiment == "sim":
+        plant = PLANTS[block["plant"]]
+        return {"plant": plant.name, "pack": plant.pack, "weeks": block["weeks"],
+                **world_settings(plant, block["weeks"]), "tie_salt": TIE_SALT, "top_n": block["top_n"],
+                "bootstrap_b": BOOTSTRAP_B, "bootstrap_seed": BOOTSTRAP_SEED, "seed": seed}
     return {k: block[k] for k in ("pack", "records", "seed")}
 
 
@@ -110,11 +118,12 @@ def build_units(request: Request, manifest: Manifest) -> list[dict[str, Any]]:
         if block is None:
             continue
         for model in block["models"]:
-            uid = unit_id(experiment, model)
-            units.append({"unit": uid, "run_id": run_id(uid, request.sha256), "experiment": experiment,
-                          "model": model, "kind": manifest.models[model]["kind"], "minutes": block["minutes"],
-                          "params": _params(experiment, block), "seeds": [block["seed"]], "needs_secret": False,
-                          "env": [], "shard": None})
+            for seed in (block["seeds"] if experiment == "sim" else [block["seed"]]):
+                uid = unit_id(experiment, model, f"s{seed}" if experiment == "sim" else "")
+                units.append({"unit": uid, "run_id": run_id(uid, request.sha256), "experiment": experiment,
+                              "model": model, "kind": manifest.models[model]["kind"], "minutes": block["minutes"],
+                              "params": _params(experiment, block, seed), "seeds": [seed], "needs_secret": False,
+                              "env": [], "shard": None})
     units.sort(key=lambda u: u["unit"])
     run_ids = [u["run_id"] for u in units]
     if len(set(run_ids)) != len(run_ids) or len({u["unit"] for u in units}) != len(units):

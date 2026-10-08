@@ -20,7 +20,7 @@ from pathlib import Path
 
 from lab import notes
 from lab.units import build_argv
-from tests.lab.helpers import MANIFEST_TEST, ROOT, make_plan, plumbing_min
+from tests.lab.helpers import MANIFEST_TEST, ROOT, make_plan, plumbing_min, sim_block
 from tests.mycelic.test_collective_guards import model_name_hits
 
 LAB = ROOT / "lab"
@@ -113,13 +113,17 @@ class LabGuardTests(unittest.TestCase):
             self.assertNotIn(DIRTY_OVERRIDE, path.read_text(encoding="utf-8"), path.name)
 
     def test_build_argv_is_flag_equals_value_only(self) -> None:
+        request = plumbing_min()
+        request["experiments"]["sim"] = sim_block(models=["fake-a"])
         with tempfile.TemporaryDirectory(prefix="lab-guard-") as tmp:
-            plan, _ = make_plan(Path(tmp), plumbing_min())
-        self.assertEqual({u["experiment"] for u in plan["units"]}, {"e3", "g0"})
+            plan, _ = make_plan(Path(tmp), request)
+        self.assertEqual({u["experiment"] for u in plan["units"]}, {"e3", "g0", "sim"})
+        modules = {"mycelic.collective.experiments.e3_latency", "mycelic.collective.experiments.g0_canary", "lab.sim"}
         for unit in plan["units"]:
-            argv = build_argv(unit, Path("/out"), Path("/out/routing/x.json"))
+            budget = 870 if unit["experiment"] == "sim" else None
+            argv = build_argv(unit, Path("/out"), Path("/out/routing/x.json"), budget_s=budget)
             self.assertEqual(argv[:2], [sys.executable, "-m"])
-            self.assertTrue(argv[2].startswith("mycelic.collective.experiments."))
+            self.assertIn(argv[2], modules)
             for arg in argv[3:]:
                 self.assertRegex(arg, r"\A--[a-z][a-z0-9-]*=.*\Z")
             self.assertNotIn(DIRTY_OVERRIDE, " ".join(argv))

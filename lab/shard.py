@@ -39,8 +39,8 @@ started), records the unit as interrupted and skips the rest. Each unit prints e
     lab: unit <unit> status <status> class <class> exit <code|none> wall_s <seconds>
 
 A gguf shard serves its units from the prepared model server (:class:`_ModelServing`). Consecutive units of one
-serving class share a start: ``quality`` (G0: one slot of ``ctx_per_slot``) and ``e3`` (as many slots as the
-shard's highest E3 concurrency, each of ``e3_ctx_per_slot``); the seed is the first served unit's. Each start is
+serving class share a start: ``quality`` (G0 and sim: one slot of ``ctx_per_slot``) and ``e3`` (as many slots as
+the shard's highest E3 concurrency, each of ``e3_ctx_per_slot``); the seed is the first served unit's. Each start is
 health-checked, its settings asserted and warmed up (``warmup.py``, within the shard budget less what one unit
 needs) before a unit runs; a start that fails skips the class's units with its reason, a warm-up finding skips the
 units that depend on it. The server is watched during every unit and asked ``/health`` after it; an unplanned exit

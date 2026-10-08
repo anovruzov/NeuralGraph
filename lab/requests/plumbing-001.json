@@ -32,6 +32,18 @@
       "pack": "device_quality",
       "records": 50,
       "seed": 7
+    },
+    "sim": {
+      "models": [
+        "fake-a"
+      ],
+      "minutes": 15,
+      "plant": "sim_small",
+      "weeks": 34,
+      "top_n": 10,
+      "seeds": [
+        1
+      ]
     }
   }
 }

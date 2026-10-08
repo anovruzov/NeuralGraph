@@ -15,7 +15,8 @@ weights; the workflow is ``.github/workflows/mycelic-lab.yml``.
 
 Modules: ``notes`` (every fixed sentence), ``request``, ``manifest``, ``discover``, ``plan``, ``download``,
 ``provision``, ``server``, ``warmup``, ``responder`` (the fake server's reply function), ``hostinfo``, ``units``,
-``shard``, ``aggregate``, ``summary`` and ``dryrun``. The lab imports only the standard library, ``mycelic`` and
+``shard``, ``sim`` (the multi-site simulation harness the lab adds to the collective's), ``aggregate``, ``summary``
+and ``dryrun``; ``plants/`` holds the lab's plant specs. The lab imports only the standard library, ``mycelic`` and
 itself.
 
 Exit codes, the same for every lab CLI:

@@ -223,7 +223,12 @@ def stub_manifest(directory: Path, *, revision: str = COMMIT, lock: dict[str, An
     return path
 
 
-def gguf_request(*, e3: bool = True, g0: bool = True, program: str | None = None) -> dict[str, Any]:
+def sim_block(**changes: Any) -> dict[str, Any]:
+    """A sim block that fits a plumbing-min shard (5 minutes): sim_small, 34 weeks, top 10, seed 1."""
+    return {"minutes": 5, "plant": "sim_small", "weeks": 34, "top_n": 10, "seeds": [1], **changes}
+
+
+def gguf_request(*, e3: bool = True, g0: bool = True, sim: bool = False, program: str | None = None) -> dict[str, Any]:
     obj = plumbing_min()
     obj["provider"] = program or json.loads(MANIFEST_TEST.read_text(encoding="utf-8"))["server"]["program"]
     obj["models"] = [MODEL_KEY]
@@ -232,6 +237,8 @@ def gguf_request(*, e3: bool = True, g0: bool = True, program: str | None = None
         blocks["g0"] = {**obj["experiments"]["g0"], "models": [MODEL_KEY]}
     if e3:
         blocks["e3"] = {**obj["experiments"]["e3"]}
+    if sim:
+        blocks["sim"] = sim_block()
     obj["experiments"] = blocks
     return obj
 

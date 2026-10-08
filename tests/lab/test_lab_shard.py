@@ -35,6 +35,7 @@ from tests.lab.helpers import (MANIFEST_TEST, MODEL_KEY, ROOT, StubWorld, call_m
                                make_plan, pids_mentioning, plumbing_min, split_code_spans, wait_until, write_json)
 
 ARG_RE = re.compile(r"--[a-z][a-z0-9-]*=.*")
+SIM_SITES = [s["id"] for s in load_pack("device_quality").generator["sites"][:6]]
 STATUS_LINE_RE = re.compile(r"lab: unit [a-z0-9-]+ status [a-z_]+ class [a-z-]+ exit (-?[0-9]+|none) "
                             r"wall_s [0-9]+\.[0-9]")
 
@@ -51,8 +52,11 @@ def _request(models: list[str], *, e3: bool = True, g0: bool = True) -> dict[str
     return obj
 
 
+HARNESS_MODULES = ("mycelic.collective.experiments.e3_latency", "mycelic.collective.experiments.g0_canary", "lab.sim")
+
+
 def _argv_ok(argv: list[str]) -> bool:
-    return (len(argv) > 3 and argv[1] == "-m" and argv[2].startswith("mycelic.collective.experiments.")
+    return (len(argv) > 3 and argv[1] == "-m" and argv[2] in HARNESS_MODULES
             and all(ARG_RE.fullmatch(a) for a in argv[3:]) and not any("allow-dirty" in a for a in argv))
 
 
@@ -70,12 +74,13 @@ class TempDirTest(unittest.TestCase):
 # --------------------------------------------------------------------------------------------------- dry runs
 
 class PlumbingDryRunTests(unittest.TestCase):
+    """The shipped plumbing request (``lab/requests/plumbing-001.json``): E3, G0 and the simulation."""
+
     @classmethod
     def setUpClass(cls) -> None:
         cls.tmp = Path(tempfile.mkdtemp(prefix="lab-dryrun-"))
         cls.out = cls.tmp / "D"
-        cls.done = lab_cli("lab.dryrun", "--request", "tests/lab/data/requests/plumbing-min.json",
-                           "--out", str(cls.out))
+        cls.done = lab_cli("lab.dryrun", "--request", "lab/requests/plumbing-001.json", "--out", str(cls.out))
 
     @classmethod
     def tearDownClass(cls) -> None:
@@ -89,14 +94,16 @@ class PlumbingDryRunTests(unittest.TestCase):
         self.assertEqual(self.done.returncode, 0, self.done.stderr)
         stdout = self.done.stdout.splitlines()
         lines = [line for line in stdout if line.startswith("lab: unit ")]
-        self.assertEqual(len(lines), 3)
+        self.assertEqual(len(lines), 4)
         self.assertTrue(all(STATUS_LINE_RE.fullmatch(line) for line in lines), lines)
-        self.assertEqual(stdout, ["plan: 3 units in 2 shards (plumbing)", *lines,
-                                  "lab: aggregate units 3 shards 2 class plumbing measurements false lock unchanged"])
+        self.assertEqual([line.split()[2] for line in lines], ["sim-fake-a-s1", "e3-fake-a", "g0-fake-b", "e3-fake-b"])
+        self.assertTrue(lines[0].startswith("lab: unit sim-fake-a-s1 status ok class plumbing exit 0 "), lines[0])
+        self.assertEqual(stdout, ["plan: 4 units in 2 shards (plumbing)", *lines,
+                                  "lab: aggregate units 4 shards 2 class plumbing measurements false lock unchanged"])
 
     def test_units_are_ok_plumbing(self) -> None:
         records = self._units()
-        self.assertEqual(sorted(r["unit"] for r in records), ["e3-fake-a", "e3-fake-b", "g0-fake-b"])
+        self.assertEqual(sorted(r["unit"] for r in records), ["e3-fake-a", "e3-fake-b", "g0-fake-b", "sim-fake-a-s1"])
         for r in records:
             with self.subTest(unit=r["unit"]):
                 self.assertEqual((r["status"], r["measurement_class"], r["class_reason"]), ("ok", "plumbing",
@@ -110,6 +117,15 @@ class PlumbingDryRunTests(unittest.TestCase):
                 self.assertIsNotNone(r["participation"])
         e3 = [r for r in records if r["experiment"] == "e3"]
         self.assertTrue(all("runner_hardware" in r["notes"] and r["harness_measurement"] is False for r in e3))
+        (sim,) = [r for r in records if r["experiment"] == "sim"]
+        self.assertEqual(sim["notes"], ["plumbing", "synthetic", "runner_hardware", "text_only_scan"])
+        self.assertIs(sim["harness_measurement"], False)
+        self.assertEqual(sim["participation"]["sim"], {"fallback_share": 0.0, "max_share": 0.05})
+        self.assertIn("--budget-seconds=870", sim["argv"])
+        run = f"runs/sim/{sim['run_id']}"
+        self.assertEqual(sorted(sim["files"]), sorted([f"{run}/labels.json", f"{run}/progress.json",
+                                                       f"{run}/scorecard.json",
+                                                       *(f"{run}/edge/site-{s}.ledger.jsonl" for s in SIM_SITES)]))
 
     def test_shards_have_status_and_provenance(self) -> None:
         shards = sorted(self.out.glob("shards/*"))

@@ -10,17 +10,27 @@ Every key below is required unless marked optional; unknown keys are refused at 
      "job_minutes": 45..330,                           # the time limit of each shard job
      "max_parallel": 1..16,                            # shard jobs that may run at once
      "retention_days": 1..90,                          # how long the result artifacts are kept
-     "experiments": {                                  # at least one of e3, g0
+     "experiments": {                                  # at least one of e3, g0, sim
          "e3": {"models": [...],                       # optional: a subset of $.models (default: all of them)
                 "minutes": 1..capacity,                # capacity = job_minutes - SHARD_OVERHEAD_MINUTES
                 "concurrency": [1..8, ...],            # 1..4 distinct levels, run in the given order
                 "requests": 3..200, "warmup": 0..requests-1,
                 "workloads": ["extraction" | "short", ...], "seed": 0..2147483647},
          "g0": {"models": [...], "minutes": 1..capacity, "pack": "<built-in pack id>", "records": 50..2000,
-                "seed": 0..2147483647}}}
+                "seed": 0..2147483647},
+         "sim": {"models": [...],                      # optional; gguf or fake models only (SIM_KINDS)
+                 "minutes": 1..capacity,               # per unit: one unit per model and seed
+                 "plant": "plant_smoke" | "sim_small", # lab.sim.PLANTS
+                 "weeks": min_weeks..52,               # baseline_weeks + window_weeks of the plant's pack (34)
+                 "top_n": 1..60,                       # candidates verified by pushdown
+                 "seeds": [0..2147483647, ...]}}}      # 1..5 distinct; the plant must fit every seed's world
 
 A fake model needs provider ``fake`` and a gguf model needs the server provider. ``provider: "fake"`` makes the whole
-run a plumbing check: nothing it writes measures a model.
+run a plumbing check: nothing it writes measures a model. The sim block is checked in this order: keys, models (a
+kind outside :data:`SIM_KINDS` is refused at ``$.experiments.sim.models[i]``, or at ``$.models[j]`` when the block
+names none), minutes, plant, weeks, top_n, seeds, then for each seed in order whether the plant fits that world under
+``lab.sim.world_settings`` (``the plant does not fit these weeks (<the plant check's problem>)`` at
+``$.experiments.sim.weeks``).
 
 Every string leaf, wherever it sits (an int position included), is checked in this order and the first failure
 wins: string type, a ``<...>`` placeholder, a control or format character (Unicode categories Cc, Cf, Cs, Co, Cn,
@@ -49,6 +59,7 @@ from mycelic.collective.packs import loader
 from . import LabError, check_keys, display_path, safe_path
 from .manifest import Manifest
 from .notes import PLACEHOLDER
+from .sim import MAX_SEEDS, MAX_TOP_N, MAX_WEEKS, PLANTS, min_weeks, plant_problem
 
 NAME_RE = re.compile(r"[a-z0-9][a-z0-9-]{0,39}", re.ASCII)
 PLACEHOLDER_RE = re.compile(r"<[^<>]{0,200}>")
@@ -56,13 +67,15 @@ MAX_BYTES = 65536
 SHARD_OVERHEAD_MINUTES = 25
 SEED_MAX = 2147483647
 BAD_CATEGORIES = frozenset({"Cc", "Cf", "Cs", "Co", "Cn", "Zl", "Zp"})
-EXPERIMENTS = ("e3", "g0")
+EXPERIMENTS = ("e3", "g0", "sim")
+SIM_KINDS = ("gguf", "fake")
 MAX_MODELS = 8
 
 _TOP_KEYS = ("schema_version", "purpose", "provider", "models", "job_minutes", "max_parallel", "retention_days",
              "experiments")
 _E3_KEYS = ("models", "minutes", "concurrency", "requests", "warmup", "workloads", "seed")
 _G0_KEYS = ("models", "minutes", "pack", "records", "seed")
+_SIM_KEYS = ("models", "minutes", "plant", "weeks", "top_n", "seeds")
 PACK_PROBLEM = "must be a built-in pack id"
 LOCATION_PROBLEM = "must be lab/requests/<name>.json"
 
@@ -229,6 +242,34 @@ def _g0(raw: Any, models: list[str], capacity: int) -> dict[str, Any]:
     return out
 
 
+def _sim(raw: Any, models: list[str], capacity: int, manifest: Manifest) -> dict[str, Any]:
+    path = "$.experiments.sim"
+    block = _object(raw, path)
+    check_keys(block, _SIM_KEYS, _SIM_KEYS[1:], path, RequestError)
+    chosen = _block_models(block, path, models)
+    for i, key in enumerate(chosen):
+        if manifest.models[key]["kind"] not in SIM_KINDS:
+            at = f"{path}.models[{i}]" if "models" in block else f"$.models[{models.index(key)}]"
+            raise RequestError(at, "the simulation runs only gguf or fake models") from None
+    out: dict[str, Any] = {"models": chosen, "minutes": _minutes(block["minutes"], f"{path}.minutes", capacity)}
+    plant = block["plant"]
+    if not isinstance(plant, str):
+        raise RequestError(f"{path}.plant", "must be a string") from None
+    _no_hazard(plant, f"{path}.plant")
+    if plant not in PLANTS:
+        raise RequestError(f"{path}.plant", f"must be one of {', '.join(sorted(PLANTS))}") from None
+    out["plant"] = plant
+    out["weeks"] = _int(block["weeks"], f"{path}.weeks", min_weeks(loader.load_pack(PLANTS[plant].pack)), MAX_WEEKS)
+    out["top_n"] = _int(block["top_n"], f"{path}.top_n", 1, MAX_TOP_N)
+    out["seeds"] = _distinct(_list(block["seeds"], f"{path}.seeds", 1, MAX_SEEDS, "seeds"), f"{path}.seeds",
+                             lambda v, p: _int(v, p, 0, SEED_MAX))
+    for seed in out["seeds"]:
+        problem = plant_problem(plant, seed, out["weeks"])
+        if problem is not None:
+            raise RequestError(f"{path}.weeks", f"the plant does not fit these weeks ({problem})") from None
+    return out
+
+
 def validate(obj: Any, manifest: Manifest) -> dict[str, Any]:
     """The normalised request, or :class:`RequestError` for the first problem in the documented order."""
     top = _object(obj, "$")
@@ -261,6 +302,8 @@ def validate(obj: Any, manifest: Manifest) -> dict[str, Any]:
         blocks["e3"] = _e3(experiments["e3"], models, capacity)
     if "g0" in experiments:
         blocks["g0"] = _g0(experiments["g0"], models, capacity)
+    if "sim" in experiments:
+        blocks["sim"] = _sim(experiments["sim"], models, capacity, manifest)
     out["experiments"] = blocks
     return out
 

@@ -20,7 +20,7 @@ from lab.manifest import (ARGS_CROSS, ARGS_PROBLEM, ARGS_REPEAT, REPIN, REVISION
                           load_manifest, parse_server_args)
 from lab.notes import PLACEHOLDER
 from lab.request import PACK_PROBLEM, RequestError, load_request, validate
-from tests.lab.helpers import MANIFEST_TEST, PLUMBING_MIN, lab_cli, plumbing_min, run_plan, write_json
+from tests.lab.helpers import MANIFEST_TEST, PLUMBING_MIN, lab_cli, plumbing_min, run_plan, sim_block, write_json
 
 MANIFEST = load_manifest(MANIFEST_TEST)
 LAB_MANIFEST = load_manifest(ROOT / "lab" / "models.json")
@@ -135,9 +135,35 @@ CASES: list[tuple[str, Callable[[str], bytes], str, str]] = [
     ("retention-zero", _with(("retention_days", 0)), "$.retention_days", "must be an int in [1, 90]"),
     ("experiments-missing", _with(("experiments", _DELETE), sentinel_at="purpose"), "$.experiments", "required"),
     ("experiments-empty", _with(("experiments", {}), sentinel_at="purpose"), "$.experiments",
-     "needs at least one of e3, g0"),
+     "needs at least one of e3, g0, sim"),
     ("experiment-e1", _with(("experiments.e1", {"seed": "<S>"})), "$.experiments.e1", "unknown experiment"),
-    ("experiment-sim", _with(("experiments.sim", "<S>")), "$.experiments.sim", "unknown experiment"),
+    ("experiment-e2", _with(("experiments.e2", "<S>")), "$.experiments.e2", "unknown experiment"),
+    ("sim-not-object", _with(("experiments.sim", "<S>"), sentinel_at=None), "$.experiments.sim", "must be an object"),
+    ("sim-unknown-key", _with(("experiments.sim", {**sim_block(), "speed": "<S>"}), sentinel_at="purpose"),
+     "$.experiments.sim.speed", "unknown key"),
+    ("sim-missing-plant", _with(("experiments.sim", sim_block()), ("experiments.sim.plant", _DELETE),
+                                sentinel_at="purpose"), "$.experiments.sim.plant", "required"),
+    ("sim-plant-unknown", _with(("experiments.sim", sim_block(plant="<S>")), sentinel_at="purpose"),
+     "$.experiments.sim.plant", "must be one of plant_smoke, sim_small"),
+    ("sim-plant-path", _with(("experiments.sim", sim_block(plant="lab/plants/device_quality/<S>.json")),
+                             sentinel_at="purpose"), "$.experiments.sim.plant",
+     "must be one of plant_smoke, sim_small"),
+    ("sim-plant-placeholder", _with(("experiments.sim", sim_block(plant="<plant <S>>")), sentinel_at="purpose"),
+     "$.experiments.sim.plant", PLACEHOLDER),
+    ("sim-weeks-low", _with(("experiments.sim", sim_block(weeks=33)), sentinel_at="purpose"),
+     "$.experiments.sim.weeks", "must be an int in [34, 52]"),
+    ("sim-plant-does-not-fit", _with(("experiments.sim", sim_block(plant="plant_smoke")), sentinel_at="purpose"),
+     "$.experiments.sim.weeks", "the plant does not fit these weeks ("),
+    ("sim-top-n-high", _with(("experiments.sim", sim_block(top_n=61)), sentinel_at="purpose"),
+     "$.experiments.sim.top_n", "must be an int in [1, 60]"),
+    ("sim-seeds-duplicate", _with(("experiments.sim", sim_block(seeds=[1, 1])), sentinel_at="purpose"),
+     "$.experiments.sim.seeds[1]", "duplicate"),
+    ("sim-seeds-too-many", _with(("experiments.sim", sim_block(seeds=[1, 2, 3, 4, 5, 6])), sentinel_at="purpose"),
+     "$.experiments.sim.seeds", "must be a list of 1 to 5 seeds"),
+    ("sim-seed-placeholder", _with(("experiments.sim", sim_block(seeds=["<seed <S>>"])), sentinel_at=None),
+     "$.experiments.sim.seeds[0]", PLACEHOLDER),
+    ("sim-models-not-subset", _with(("experiments.sim", sim_block(models=["fake-fail"])), sentinel_at="purpose"),
+     "$.experiments.sim.models[0]", "not one of $.models"),
     ("experiment-unsafe-name", _with(("experiments.<S>\n", {})), "$.experiments",
      "unknown experiment (name not shown)"),
     ("e3-unknown-key", _with(("experiments.e3.speed", "<S>")), "$.experiments.e3.speed", "unknown key"),
@@ -267,6 +293,17 @@ class LoadTests(unittest.TestCase):
         self.assertEqual(request.data["experiments"]["e3"]["models"], ["fake-a", "fake-b"])
         self.assertEqual(request.data["experiments"]["g0"]["models"], ["fake-b"])
         self.assertEqual(request.data["provider"], "fake")
+
+    def test_sim_block_normalised_with_default_models(self) -> None:
+        obj = plumbing_min()
+        obj["experiments"]["sim"] = {"minutes": 5, "plant": "sim_small", "weeks": 34, "top_n": 10, "seeds": [2, 1]}
+        self.assertEqual(validate(obj, MANIFEST)["experiments"]["sim"],
+                         {"models": ["fake-a", "fake-b"], "minutes": 5, "plant": "sim_small", "weeks": 34,
+                          "top_n": 10, "seeds": [2, 1]})
+        obj["experiments"]["sim"]["models"] = ["fake-b"]
+        self.assertEqual(validate(obj, MANIFEST)["experiments"]["sim"]["models"], ["fake-b"])
+        obj["experiments"] = {"sim": {**obj["experiments"]["sim"], "plant": "plant_smoke", "weeks": 52}}
+        self.assertEqual(list(validate(obj, MANIFEST)["experiments"]), ["sim"])
 
     def test_markdown_purpose_is_kept_verbatim(self) -> None:
         obj = plumbing_min()

@@ -1,14 +1,15 @@
 """Warm a started model server up with the real tasks and schemas before any unit is measured on it.
 
-:func:`warm_tasks` lists what a serving class will ask the server: for G0 units the pack's ``extract_claims`` and
-``judge_record`` tasks (not streamed), for E3 units each workload's task (streamed), one :class:`WarmTask` per task
-and pack, sorted by (task name, pack). Each carries a typical payload and a worst case:
+:func:`warm_tasks` lists what a serving class will ask the server: for G0 and sim units the pack's ``extract_claims``
+and ``judge_record`` tasks (not streamed), for E3 units each workload's task (streamed), one :class:`WarmTask` per task
+and pack (shared by the G0 and sim units of that pack; the first such unit's seed picks the record), sorted by (task
+name, pack). Each carries a typical payload and a worst case:
 
 * extraction: from ``generate(pack, <unit seed>, 1, baseline_weeks + window_weeks)``, the record with the longest
   narrative among the first 50 (ties by ``record_ref``) as ``model_payload`` builds it; the worst case is that
   record's narrative repeated past ``max_input_chars`` and cut as ``extract.truncate`` cuts it;
-* judge: ``judge_payload`` for that record, asked about its first entity (the first sorted entity type with a value,
-  that type's first value) and the pack's first sorted predicate, with the typical or the worst narrative;
+* judge: :func:`judge_example` for that record (``judge_payload`` asked about its first entity and the pack's first
+  sorted predicate), with the typical or the worst narrative;
 * E3: the workload's seeded filler (``warmup:<seed>:<workload>``), for both.
 
 :func:`warm_up` then, in order:
@@ -94,7 +95,10 @@ def _worst_text(narrative: str, cap: int) -> str:
     return truncate(repeated, cap)[0]
 
 
-def _judge(pack: FrozenPack, record: Mapping[str, Any], narrative: str) -> dict[str, Any]:
+def judge_example(pack: FrozenPack, record: Mapping[str, Any], narrative: str) -> dict[str, Any]:
+    """A judge payload for a generated record: asked about its first entity (the first sorted entity type with a
+    value, that type's first value; else the first sorted type and ``unknown``) and the pack's first sorted predicate,
+    with ``narrative`` as the record's text. ``lab.sim`` warms its judge up with it."""
     entities = record["entities"]
     entity_type = next((t for t in sorted(entities) if entities[t] and t in pack.entity_types), None)
     if entity_type is None:
@@ -112,7 +116,7 @@ def warm_tasks(units: list[Mapping[str, Any]], plan: Mapping[str, Any]) -> list[
     """The tasks a serving class's units will send, each with the units that depend on it."""
     found: dict[tuple[str, str], dict[str, Any]] = {}
     for unit in units:
-        if unit["experiment"] == "g0":
+        if unit["experiment"] in ("g0", "sim"):
             pack_id = unit["params"]["pack"]
             if (TASK_NAME, pack_id) not in found:
                 pack = load_pack(pack_id)
@@ -124,8 +128,9 @@ def warm_tasks(units: list[Mapping[str, Any]], plan: Mapping[str, Any]) -> list[
                     "task": extraction_task(pack), "schema": extraction_schema(pack), "payload": typical,
                     "worst": {"language": record["language"], "text": worst_text}, "stream": False, "units": []}
                 found[(judge.name, pack_id)] = {
-                    "task": judge, "schema": judge_schema(), "payload": _judge(pack, record, record["narrative"]),
-                    "worst": _judge(pack, record, worst_text), "stream": False, "units": []}
+                    "task": judge, "schema": judge_schema(),
+                    "payload": judge_example(pack, record, record["narrative"]),
+                    "worst": judge_example(pack, record, worst_text), "stream": False, "units": []}
             keys = [(TASK_NAME, pack_id), (judge_task().name, pack_id)]
         else:
             keys = []

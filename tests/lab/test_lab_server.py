@@ -424,6 +424,23 @@ class WarmupTests(TempDirTest):
         self.assertEqual(record["mem_available_after_load"], 1 << 30)
         self.assertIsNone(self._warm(meminfo=lambda: None)[3])
 
+    def test_warm_tasks_with_sim(self) -> None:
+        plan, _ = make_plan(self.tmp / "s", gguf_request(sim=True))
+        by_experiment = {u["experiment"]: u for u in plan["units"]}
+        sim = by_experiment["sim"]
+        self.assertEqual(sim["unit"], f"sim-{MODEL_KEY}-s1")
+        tasks = warm_tasks([by_experiment["g0"], sim, by_experiment["e3"]], plan)
+        self.assertEqual([(t.task.name, t.pack) for t in tasks],
+                         [("e3_extraction_like", ""), ("e3_short_answer", ""), ("extract_claims", "device_quality"),
+                          ("judge_record", "device_quality")])
+        for t in tasks[2:]:
+            self.assertEqual(t.units, (by_experiment["g0"]["unit"], sim["unit"]))
+        self.assertEqual(lab_shard.serving_class(sim), lab_shard.serving_class(by_experiment["g0"]))
+        alone = warm_tasks([sim], plan)
+        self.assertEqual([(t.task.name, t.pack, t.units) for t in alone],
+                         [("extract_claims", "device_quality", (sim["unit"],)),
+                          ("judge_record", "device_quality", (sim["unit"],))])
+
     def test_warm_tasks_payloads_deterministic(self) -> None:
         first = warm_tasks([self.units["g0"], self.units["e3"]], self.plan)
         second = warm_tasks([self.units["e3"], self.units["g0"]], self.plan)

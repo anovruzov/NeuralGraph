@@ -105,10 +105,38 @@ class DryRunSummaryTests(unittest.TestCase):
         second = summary.render_shard(tree.path("s002-fake-b"))[0].splitlines()[0]
         self.assertEqual((first, second), (f"## {notes.HEADINGS['shard']} `s001-fake-a`", notes.NO_MEASUREMENT_LINE))
 
+    def test_sim_tables_in_the_dry_run(self) -> None:
+        report = _json(self.out / "report" / "report.json")
+        (row,) = report["sim"]
+        (sizing,) = report["sim_sizing"]
+        self.assertEqual((row["unit"], row["display_class"], row["measurement"]), ("sim-fake-a-s1", "plumbing", False))
+        self.assertEqual((sizing["unit"], sizing["status"], sizing["source"]), ("sim-fake-a-s1", "ok", "scorecard"))
+        (group,) = report["notes"]["sim_world_digest"]
+        self.assertEqual((group["units"], group["consistent"]), (["sim-fake-a-s1"], True))
+        md, entries = self.summaries[-1][1].read_text(encoding="utf-8"), _json(self.summaries[-1][2])["sources"]
+        plumbing = _section(md, notes.HEADINGS["plumbing"])
+        for key in ("sim", "sim-lifts", "sim-pushdown"):
+            self.assertIn(f"#### {notes.HEADINGS[key]}", plumbing.splitlines())
+            self.assertIn("`sim-fake-a-s1`", _section(plumbing, notes.HEADINGS[key]))
+        sizing_md = _section(md, notes.HEADINGS["sizing"])
+        self.assertIn("`sim-fake-a-s1`", sizing_md)
+        self.assertIn(notes.SIZING_NOTE, sizing_md)
+        self.assertIn(notes.SIM_WORLD_SAME, md)
+        self.assertNotIn(notes.SIM_WORLD_DIFFERS, md)
+        for key in row["notes"]:
+            self.assertIn(notes.SIM_NOTES[key], md)
+        pointers = {e["pointer"] for e in entries}
+        for name in row["channels"]:
+            self.assertIn(f"/sim/0/channels/{name}/found", pointers)
+        for key in ("records_done", "estimate_s", "suggested_minutes"):
+            self.assertIn(f"/sim_sizing/0/{key}", pointers)
+        shard_md = (self.out / "shards" / "s001-fake-a" / "summary" / "summary.md").read_text(encoding="utf-8")
+        self.assertIn("`sim-fake-a-s1`", shard_md)
+
     def test_plumbing_first_line_and_heading(self) -> None:
-        self.assertEqual(self.done.stdout.splitlines()[0], "plan: 3 units in 2 shards (plumbing)")
+        self.assertEqual(self.done.stdout.splitlines()[0], "plan: 4 units in 2 shards (plumbing)")
         self.assertEqual(self.done.stdout.splitlines()[-1],
-                         "lab: aggregate units 3 shards 2 class plumbing measurements false lock unchanged")
+                         "lab: aggregate units 4 shards 2 class plumbing measurements false lock unchanged")
         for _, md_path, _ in self.summaries:
             with self.subTest(summary=md_path.name):
                 self.assertEqual(md_path.read_text(encoding="utf-8").splitlines()[0], PLUMBING)
@@ -123,7 +151,7 @@ class DryRunSummaryTests(unittest.TestCase):
     def test_no_measurement_first_line(self) -> None:
         tree = DryTree(self.out, self.work / "T", manifest=LAB_MANIFEST)
         tree.set_plan(lambda plan: plan.update(result_class="real", provider="llama-server"))
-        tree.make_real("s001-fake-a", units=("e3-fake-a",))
+        tree.make_real("s001-fake-a", units=("sim-fake-a-s1", "e3-fake-a"))
         tree.make_real("s002-fake-b", units=("g0-fake-b", "e3-fake-b"))
         code, _, stderr, report = tree.aggregate(self.work / "R")
         self.assertEqual(code, 0, stderr)
@@ -176,12 +204,18 @@ class DryRunSummaryTests(unittest.TestCase):
         code, _, stderr, report = tree.aggregate(self.work / "R")
         self.assertEqual(code, 0, stderr)
         classes = {u["unit"]: u["display_class"] for u in report["units"]}
-        self.assertEqual(classes, {"e3-fake-a": "model", "g0-fake-b": "plumbing", "e3-fake-b": "unverified"})
+        self.assertEqual(classes, {"e3-fake-a": "model", "g0-fake-b": "plumbing", "e3-fake-b": "unverified",
+                                   "sim-fake-a-s1": "plumbing"})
+        self.assertEqual([(r["unit"], r["display_class"]) for r in report["sim"]], [("sim-fake-a-s1", "plumbing")])
         md, _ = summary.render_report(self.work / "R")
         model = _section(md, notes.HEADINGS["model"])
         self.assertNotIn("`g0-fake-b`", model)
         self.assertNotIn("`e3-fake-b`", model)
-        self.assertIn("`g0-fake-b`", _section(md, notes.HEADINGS["plumbing"]))
+        self.assertNotIn("`sim-fake-a-s1`", model)
+        self.assertNotIn(notes.HEADINGS["sim"], model)
+        plumbing = _section(md, notes.HEADINGS["plumbing"])
+        self.assertIn("`g0-fake-b`", plumbing)
+        self.assertIn("`sim-fake-a-s1`", _section(plumbing, notes.HEADINGS["sim"]))
         self.assertIn("`e3-fake-b`", _section(md, notes.HEADINGS["unverified"]))
 
     def test_size_cap(self) -> None:
@@ -354,6 +388,25 @@ class DryRunSummaryTests(unittest.TestCase):
                 self.assertIsNone(re.search(r"[0-9`<\[|]", value))
         for word in ("p50", "p95", "P50", "P95"):
             self.assertNotIn(word, " ".join(notes.COLUMNS.values()))
+        sim_names = ("SIM_PROJECTED", "SIM_LOW_PARTICIPATION", "SIZING_NOTE", "SIM_WORLD_SAME", "SIM_WORLD_DIFFERS")
+        sim_values = [(name, getattr(notes, name)) for name in sim_names]
+        for table in ("SIM_CHANNEL_LABELS", "SIM_LIFT_LABELS", "SIM_NOTES", "SIM_MEASUREMENT_REASONS"):
+            sim_values += [(f"{table}.{k}", v) for k, v in getattr(notes, table).items()]
+        for name, value in sim_values:
+            with self.subTest(name=name):
+                self.assertIsInstance(value, str)
+                self.assertIsNone(re.search(r"[0-9`<\[|]", value))
+        new_keys = ("sim", "sim-lifts", "sim-pushdown", "sizing", "channel", "found", "patterns", "recall",
+                    "p_at_forty", "ap", "alerts", "false_alarms", "lift", "estimate", "ci_low", "ci_high",
+                    "candidates", "true", "supported", "ap_pushdown", "ap_stats", "raw_text", "fallback_share",
+                    "records_done", "extract_median_s", "judge_median_s", "estimate_minutes", "suggested_minutes",
+                    "plant", "weeks")
+        for key in new_keys:
+            with self.subTest(key=key):
+                self.assertIn(key, {**notes.HEADINGS, **notes.COLUMNS})
+                self.assertIsNone(re.search(r"[0-9]", key))
+        self.assertEqual(list(notes.SIM_CHANNEL_LABELS), ["X_model", "X_lexical", "S", "R_mf", "U", "single_site",
+                                                          "rules"])
         for key in ("plan", "refused", "nothing", "shard", "report", "shards", "units", "no-result", "model",
                     "unverified", "plumbing", "no-model", "e3", "g0", "latency", "provision", "lock", "notes"):
             self.assertIn(key, notes.HEADINGS)

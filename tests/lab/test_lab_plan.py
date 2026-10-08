@@ -355,9 +355,10 @@ class OutputBudgetTests(TempDirTest):
             os.chdir(cwd)
         plan = lab_plan.build_plan(request, manifest, "unknown")
         self.assertEqual(request.path, "lab/requests/plumbing-001.json")
-        self.assertEqual([(s["shard"], s["kind"], s["units"], s["timeout_minutes"]) for s in plan["shards"]],
-                         [("s001-fake-a", "fake", ["e3-fake-a"], 30),
-                          ("s002-fake-b", "fake", ["g0-fake-b", "e3-fake-b"], 40)])
+        self.assertEqual([(s["shard"], s["kind"], s["units"], s["planned_minutes"], s["timeout_minutes"])
+                          for s in plan["shards"]],
+                         [("s001-fake-a", "fake", ["sim-fake-a-s1", "e3-fake-a"], 20, 45),
+                          ("s002-fake-b", "fake", ["g0-fake-b", "e3-fake-b"], 15, 40)])
         self.assertEqual((plan["result_class"], plan["provision"], plan["retention_days"]), ("plumbing", [], 7))
         self.assertEqual(sorted(p.name for p in (ROOT / "lab" / "requests").iterdir()), ["plumbing-001.json"])
 
@@ -373,6 +374,16 @@ class OutputBudgetTests(TempDirTest):
                          [("server", "server"), ("gguf", "gguf-a-0p5b")])
         for entry in plan["provision"]:
             self.assertEqual(entry["cache_key"], entry["restore_key"] or entry["restore_prefix"] + "unlocked")
+
+        shutil.copy(ROOT / "lab" / "templates" / "smoke.json", requests / "smoke-001.json")
+        request = load_request(requests / "smoke-001.json", manifest, strict_location=True, root=self.tmp)
+        plan = lab_plan.build_plan(request, manifest, "unknown")
+        (model,) = request.data["models"]
+        experiments = {u["unit"]: u["experiment"] for u in plan["units"]}
+        self.assertEqual([(s["kind"], s["model"], [experiments[u] for u in s["units"]], s["planned_minutes"],
+                           s["timeout_minutes"]) for s in plan["shards"]],
+                         [("gguf", model, ["sim", "g0", "e3"], 305, 330)])
+        self.assertEqual(sorted(p.name for p in (ROOT / "lab" / "templates").iterdir()), ["check.json", "smoke.json"])
 
 
 # --------------------------------------------------------------------------------------------------- discovery

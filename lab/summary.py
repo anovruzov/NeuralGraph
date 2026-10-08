@@ -10,10 +10,16 @@ job's ``GITHUB_STEP_SUMMARY``), ``--md-out`` writes it, ``--sources-out`` writes
     {"schema_version": 1, "kind": "lab_summary_sources", "mode", "sources": [{"text", "file", "pointer", "style"}]}
 
 in the order the numbers appear: ``file`` is relative to ``DIR``, ``pointer`` an RFC 6901 JSON pointer into it and
-``STYLES[style](value) == text``. Nothing else in a summary is a number: every identifier, path, hash, date, version,
-CPU name, step name and reason goes into a code span (:func:`code`), the request's purpose only into a code span of
-its own paragraph, booleans are the words yes and no, and every fixed sentence comes from ``notes`` (which holds no
-digit). A value that is missing renders ``n/a`` and one of the wrong type ``invalid``; neither is a source.
+``STYLES[style](value) == text`` (``min1`` shows seconds as minutes). Nothing else in a summary is a number: every
+identifier, path, hash, date, version, CPU name, step name and reason goes into a code span (:func:`code`), the
+request's purpose only into a code span of its own paragraph, booleans are the words yes and no, and every fixed
+sentence comes from ``notes`` (which holds no digit). A value that is missing renders ``n/a`` and one of the wrong type
+``invalid``; neither is a source.
+
+A report's class sections hold, for its sim rows, a channels table (each channel key's meaning listed under it), a
+lifts table and a pushdown table; after the class sections, a sizing table of every sim unit (whatever its result)
+with what it measured and the minutes it suggests for the next request; the notes add the sim world-digest groups and
+the sim notes the rows carry.
 
 The first line says what the numbers are not: ``PLUMBING CHECK: no model was run`` for a plumbing plan, shard or
 report, ``NO MEASUREMENT: ...`` for a real shard or report without a unit of display class ``model``
@@ -41,7 +47,8 @@ from . import EXIT_OK, EXIT_USAGE, forbidden_root
 from .notes import (BRANCH_DELETED, COLUMNS, CPU_MODELS_DIFFER, DEFAULT_BRANCH, DELETE_ONLY, DISPATCH_BY_HAND,
                     HEADINGS, LOCK_CONFLICT_NOTE, LOCK_NEW, LOCK_NOT_COMPUTED, LOCK_UNCHANGED, MERGE_SEVERAL,
                     NO_MEASUREMENT_LINE, NO_PLAN, NO_REPORT, NOT_A_BRANCH, NOT_PINNED, NOTES, PLAN_FIX_HINT,
-                    PLUMBING_CHECK_LINE, TRUNCATED, UNSEALED, WORLD_DIGEST_DIFFERS, WORLD_DIGEST_SAME)
+                    PLUMBING_CHECK_LINE, SIM_CHANNEL_LABELS, SIM_LIFT_LABELS, SIM_NOTES, SIM_WORLD_DIFFERS,
+                    SIM_WORLD_SAME, SIZING_NOTE, TRUNCATED, UNSEALED, WORLD_DIGEST_DIFFERS, WORLD_DIGEST_SAME)
 from .units import display_class
 
 MAX_SUMMARY_BYTES = 900_000
@@ -53,6 +60,7 @@ STYLES: dict[str, Callable[[Any], str]] = {
     "f1": "{:.1f}".format,
     "f3": "{:.3f}".format,
     "gib1": lambda v: "{:.1f}".format(v / 2 ** 30),
+    "min1": lambda v: "{:.1f}".format(v / 60),
 }
 KNOWN_NOTICES = (DELETE_ONLY, BRANCH_DELETED, DEFAULT_BRANCH, NOT_A_BRANCH, MERGE_SEVERAL)
 LOCK_SENTENCES = {"unchanged": LOCK_UNCHANGED, "new_entries": LOCK_NEW, "conflict": LOCK_CONFLICT_NOTE,
@@ -431,6 +439,9 @@ def render_report(root: Path, cap: int = MAX_SUMMARY_BYTES) -> tuple[str, list[d
     for cls in CLASS_ORDER:
         if any(u.get("display_class") == cls for _, u in units):
             _class_section(doc, src, cls, units, rows)
+    sizing = rows("sim_sizing")
+    if sizing:
+        _sizing_section(doc, src, sizing)
 
     provision = rows("provision")
     if provision:
@@ -505,6 +516,9 @@ def _class_section(doc: _Doc, src: Sources, cls: str, units: list[tuple[int, dic
 
         doc.table(["unit", "model", "pack", "seed", "records", "passed", "canaries", "hits", "shingle_bytes",
                    "control_hits", "world"], g0_rows)
+    sim = [(i, r) for i, r in rows("sim") if r.get("display_class") == cls]
+    if sim:
+        _sim_tables(doc, src, sim)
     latency = [(i, r) for i, r in rows("latency") if r.get("display_class") == cls]
     if latency:
         _heading(doc, "latency", 4)
@@ -513,6 +527,84 @@ def _class_section(doc: _Doc, src: Sources, cls: str, units: list[tuple[int, dic
              code(r.get("experiment"), table=True), code(r.get("task"), table=True),
              src.num(f, pointer("latency", i, "n"), "int"), src.num(f, pointer("latency", i, "p50_ms"), "f1"),
              src.num(f, pointer("latency", i, "p95_ms"), "f1")] for i, r in latency))
+
+
+def _sim_tables(doc: _Doc, src: Sources, sim: list[tuple[int, dict[str, Any]]]) -> None:
+    """The channels, lifts and pushdown tables of one class's sim rows, each followed by what its keys mean."""
+    f = "report.json"
+
+    def present(key: str, order: dict[str, str]) -> list[str]:
+        found = {name for _, r in sim if isinstance(r.get(key), dict) for name in r[key]}
+        return [name for name in order if name in found]
+
+    channels = present("channels", SIM_CHANNEL_LABELS)
+
+    def channel_rows() -> Any:
+        for i, r in sim:
+            for name in channels:
+                if not isinstance(_get(r, "channels", name), dict):
+                    continue
+                at = ("sim", i, "channels", name)
+                yield [code(r.get("unit"), table=True), code(r.get("model"), table=True), code(name, table=True),
+                       src.num(f, pointer(*at, "found"), "int"), src.num(f, pointer(*at, "units"), "int"),
+                       src.num(f, pointer(*at, "recall"), "f3"), src.num(f, pointer(*at, "precision_at_40"), "f3"),
+                       src.num(f, pointer(*at, "average_precision"), "f3"), src.num(f, pointer(*at, "alerts"), "int"),
+                       src.num(f, pointer(*at, "false_alarms"), "int")]
+
+    _heading(doc, "sim", 4)
+    doc.table(["unit", "model", "channel", "found", "patterns", "recall", "p_at_forty", "ap", "alerts", "false_alarms"],
+              channel_rows)
+    for name in channels:
+        doc.add(("\n" if name == channels[0] else "") + f"- {code(name)}: {SIM_CHANNEL_LABELS[name]}")
+    lifts = present("lifts", SIM_LIFT_LABELS)
+
+    def lift_rows() -> Any:
+        for i, r in sim:
+            for name in lifts:
+                if not isinstance(_get(r, "lifts", name), dict):
+                    continue
+                at = ("sim", i, "lifts", name)
+                yield [code(r.get("unit"), table=True), code(name, table=True),
+                       src.num(f, pointer(*at, "estimate"), "f3"), src.num(f, pointer(*at, "ci_low"), "f3"),
+                       src.num(f, pointer(*at, "ci_high"), "f3")]
+
+    _heading(doc, "sim-lifts", 4)
+    doc.table(["unit", "lift", "estimate", "ci_low", "ci_high"], lift_rows)
+    for name in lifts:
+        doc.add(("\n" if name == lifts[0] else "") + f"- {code(name)}: {SIM_LIFT_LABELS[name]}")
+
+    def pushdown_rows() -> Any:
+        for i, r in sim:
+            at = ("sim", i, "pushdown")
+            yield [code(r.get("unit"), table=True), src.num(f, pointer(*at, "n"), "int"),
+                   src.num(f, pointer(*at, "n_true"), "int"), src.num(f, pointer(*at, "supported"), "int"),
+                   src.num(f, pointer(*at, "ap_pushdown"), "f3"), src.num(f, pointer(*at, "ap_stats_only"), "f3"),
+                   src.num(f, pointer("sim", i, "raw_text_crossed"), "int"),
+                   src.num(f, pointer("sim", i, "fallback_share"), "f3")]
+
+    _heading(doc, "sim-pushdown", 4)
+    doc.table(["unit", "candidates", "true", "supported", "ap_pushdown", "ap_stats", "raw_text", "fallback_share"],
+              pushdown_rows)
+
+
+def _sizing_section(doc: _Doc, src: Sources, sizing: list[tuple[int, dict[str, Any]]]) -> None:
+    f = "report.json"
+    _heading(doc, "sizing", 3)
+
+    def sizing_rows() -> Any:
+        for i, r in sizing:
+            at = ("sim_sizing", i)
+            yield [code(r.get("unit"), table=True), code(r.get("model"), table=True),
+                   code(r.get("cpu_model"), table=True), code(r.get("status"), table=True),
+                   code(r.get("display_class"), table=True), src.num(f, pointer(*at, "records_done"), "int"),
+                   src.num(f, pointer(*at, "records_total"), "int"),
+                   src.num(f, pointer(*at, "extract_record_s_p50"), "f1"),
+                   src.num(f, pointer(*at, "judge_s_p50"), "f1"), src.num(f, pointer(*at, "estimate_s"), "min1"),
+                   src.num(f, pointer(*at, "suggested_minutes"), "int")]
+
+    doc.table(["unit", "model", "cpu", "status", "class", "records_done", "records", "extract_median_s",
+               "judge_median_s", "estimate_minutes", "suggested_minutes"], sizing_rows)
+    doc.add("\n" + SIZING_NOTE)
 
 
 def _report_notes(doc: _Doc, src: Sources, report: dict[str, Any], units: list[tuple[int, dict[str, Any]]]) -> None:
@@ -536,9 +628,27 @@ def _report_notes(doc: _Doc, src: Sources, report: dict[str, Any], units: list[t
                 + ", ".join(code(short(d)) for d in digests) + f"; {COLUMNS['units']} "
                 + ", ".join(code(u) for u in listed) + f"; {COLUMNS['consistent']} {yes_no(group.get('consistent'))}")
         doc.add("\n" + (WORLD_DIGEST_SAME if group.get("consistent") is True else WORLD_DIGEST_DIFFERS))
+    sim_groups = notes.get("sim_world_digest") if isinstance(notes.get("sim_world_digest"), list) else []
+    for i, group in enumerate(sim_groups):
+        if not isinstance(group, dict):
+            continue
+        at = ("notes", "sim_world_digest", i)
+        digests = group.get("digests") if isinstance(group.get("digests"), list) else []
+        listed = group.get("units") if isinstance(group.get("units"), list) else []
+        doc.add(f"\n- {COLUMNS['plant']} {code(group.get('plant'))}, {COLUMNS['seed']} "
+                f"{src.num(f, pointer(*at, 'seed'), 'int')}, {COLUMNS['weeks']} "
+                f"{src.num(f, pointer(*at, 'weeks'), 'int')}: {COLUMNS['digests']} "
+                + ", ".join(code(short(d)) for d in digests) + f"; {COLUMNS['units']} "
+                + ", ".join(code(u) for u in listed) + f"; {COLUMNS['consistent']} {yes_no(group.get('consistent'))}")
+        doc.add("\n" + (SIM_WORLD_SAME if group.get("consistent") is True else SIM_WORLD_DIFFERS))
     present = {n for _, u in units if isinstance(u.get("notes"), list) for n in u["notes"]}
     for key, sentence in NOTES.items():
         if key in present:
+            doc.add("\n" + sentence)
+    sim_rows = report.get("sim") if isinstance(report.get("sim"), list) else []
+    sim_present = {n for r in sim_rows if isinstance(r, dict) and isinstance(r.get("notes"), list) for n in r["notes"]}
+    for key, sentence in SIM_NOTES.items():
+        if key in sim_present:
             doc.add("\n" + sentence)
     ignored = report.get("ignored_artifacts")
     if isinstance(ignored, list) and ignored:
