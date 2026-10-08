@@ -85,6 +85,50 @@ def build_embedding_provider(settings: Any) -> EmbeddingProvider:
     raise ValueError(f"unknown embedding provider {kind!r} (expected hash | openai)")
 
 
+class MeteredEmbeddings:
+    """An ``EmbeddingProvider`` that records every call in the usage ledger (tier and purpose ``embed``) for one tenant,
+    so paid embedding endpoints show up in ``model_usage`` like every other model call (DECISIONS D7). The deterministic
+    ``hash`` provider costs nothing and is not recorded."""
+
+    def __init__(self, provider: EmbeddingProvider, ledger: UsageLedger, *, tenant_id: str | None, purpose: str = "embed",
+                 prices: PriceTable | None = None) -> None:
+        self.provider = provider
+        self.ledger = ledger
+        self.tenant_id = tenant_id
+        self.purpose = purpose
+        self.prices = prices or PriceTable.from_env()
+        self.name = getattr(provider, "name", "embedding")
+        self.model = getattr(provider, "model", "")
+
+    @property
+    def dim(self) -> int | None:
+        return getattr(self.provider, "dim", None)
+
+    async def embed(self, texts: list[str]) -> list[list[float]]:
+        if self.name == "hash":
+            return await self.provider.embed(texts)
+        t0 = time.perf_counter()
+        ok, error, tokens = True, None, 0
+        try:
+            if hasattr(self.provider, "embed_with_usage"):
+                vecs, tokens = await self.provider.embed_with_usage(texts)
+            else:
+                vecs = await self.provider.embed(texts)
+                tokens = sum(len(t.split()) for t in texts)      # estimate when the endpoint reports no usage
+            return vecs
+        except ModelError as exc:
+            ok, error = False, str(exc)
+            raise
+        finally:
+            await self.ledger.record(ModelCall(tenant_id=self.tenant_id, provider=self.name, model=self.model, tier="embed", purpose=self.purpose,
+                                               goal_id=None, question_id=None, input_tokens=int(tokens), output_tokens=0,
+                                               cost_usd=self.prices.cost(self.model, int(tokens), 0), latency_ms=int((time.perf_counter() - t0) * 1000),
+                                               ok=ok, error=error))
+
+    async def close(self) -> None:
+        return None          # the shared provider is closed by its owner
+
+
 def _repair_note(task: str, problems: list[str], previous: str) -> str:
     spec = TASKS[task]
     props = spec.output_schema.get("properties", {})

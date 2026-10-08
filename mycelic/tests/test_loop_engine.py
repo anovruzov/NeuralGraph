@@ -52,11 +52,11 @@ class MemoryTransport:
                 await handler(env)
         return True
 
-    async def subscribe(self, subject: str, *, consumer: str, handler: Any, ack_wait: float = 60.0) -> Subscription:
+    async def subscribe(self, subject: str, *, consumer: str, handler: Any, ack_wait: float = 60.0, content_owner: bool = False) -> Subscription:
         self.subs.append((subject, consumer, handler))
         return Subscription(subject, consumer)
 
-    async def request(self, env: Envelope, *, timeout: float = 10.0) -> Envelope:
+    async def request(self, env: Envelope, *, timeout: float = 10.0, sign_key: str | None = None) -> Envelope:
         raise RuntimeError("not used")
 
     async def reply(self, request: Envelope, payload: dict, *, kind: str = "reply") -> None: ...

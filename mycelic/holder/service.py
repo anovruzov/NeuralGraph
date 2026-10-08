@@ -102,7 +102,8 @@ class HolderService:
         if self.running:
             return
         for subject in self.subjects:
-            self._subs.append(await self.transport.subscribe(subject, consumer=self.consumer, handler=self.handle))
+            # the holder is the destination of everything on its own subjects
+            self._subs.append(await self.transport.subscribe(subject, consumer=self.consumer, handler=self.handle, content_owner=True))
         self.running = True
         self.started_at = now_iso()
         await self._safe_heartbeat()          # announce presence now; the loop continues after the first interval

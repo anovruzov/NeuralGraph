@@ -112,9 +112,9 @@ def setup(app: web.Application, prefix: str = "/api") -> None:
                 raise ApiError(503, "no transport configured", "transport")
             env = Envelope.new(Subjects.holder_raw(p.tenant_id, holder["holder_id"]), "raw_request", p.tenant_id,
                                {"ref_id": ref["ref_id"], "holder_id": holder["holder_id"], "grant_token": p.id, "requested_by": p.id})
-            env.sign(rt.org.route_key(holder["holder_id"]))
             try:
-                reply = await rt.transport.request(env, timeout=RAW_TIMEOUT_SECONDS)
+                # signed by the transport once it has chosen the reply subject (reply_to is part of the signature)
+                reply = await rt.transport.request(env, timeout=RAW_TIMEOUT_SECONDS, sign_key=rt.org.route_key(holder["holder_id"]))
             except TransportError as exc:
                 raise ApiError(504, f"the holder did not answer: {exc}", "holder_timeout") from None
             raw = reply.payload if isinstance(reply.payload, dict) and not reply.payload.get("error") else None

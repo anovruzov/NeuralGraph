@@ -41,7 +41,7 @@ import re
 from typing import Any
 
 from ..util import j as _j
-from .base import Envelope, Handler, Subjects, Subscription, TransportError
+from .base import CONTENT_KINDS, Envelope, Handler, Subjects, Subscription, TransportError
 
 logger = logging.getLogger(__name__)
 
@@ -71,8 +71,8 @@ def _require_nats() -> Any:
 class _NatsSubscription(Subscription):
     """A ``Subscription`` that also tears down the pull subscription's inbox on ``close``."""
 
-    def __init__(self, subject: str, consumer: str, durable: str, psub: Any) -> None:
-        super().__init__(subject, consumer)
+    def __init__(self, subject: str, consumer: str, durable: str, psub: Any, *, content_owner: bool = False) -> None:
+        super().__init__(subject, consumer, content_owner=content_owner)
         self.durable = durable
         self.closing = False        # checked by the fetch loop: it must stop even if a cancellation is swallowed
         self._psub = psub
@@ -224,7 +224,8 @@ class NatsTransport:
         return True
 
     # ------------------------------------------------------------------ subscribe
-    async def subscribe(self, subject: str, *, consumer: str, handler: Handler, ack_wait: float = 60.0) -> Subscription:
+    async def subscribe(self, subject: str, *, consumer: str, handler: Handler, ack_wait: float = 60.0,
+                        content_owner: bool = False) -> Subscription:
         """Bind (creating it on first use) the durable pull consumer ``consumer_name(consumer)`` on ``subject``.
 
         An existing durable keeps the ``filter_subject`` and ``ack_wait`` it was created with; change them by
@@ -248,7 +249,7 @@ class NatsTransport:
             psub = await self._js.pull_subscribe(subject, durable=durable, stream=self.stream, config=cfg)
         except nats.errors.Error as e:
             raise TransportError(f"cannot bind consumer {durable} on {subject}: {e} (check $JS.API.CONSUMER permissions)") from e
-        sub = _NatsSubscription(subject, consumer, durable, psub)
+        sub = _NatsSubscription(subject, consumer, durable, psub, content_owner=content_owner)
         sub._task = asyncio.create_task(self._consume(sub, psub, handler, float(ack_wait)), name=f"nats-consumer:{durable}")
         self._subs[key] = sub
         logger.info("nats subscribed consumer=%s durable=%s subject=%s stream=%s", consumer, durable, subject, self.stream)
@@ -305,13 +306,22 @@ class NatsTransport:
             await msg.ack()
         except Exception:
             logger.warning("nats ack failed consumer=%s msg_id=%s; the message will be redelivered", sub.durable, env.msg_id, exc_info=True)
+            return
+        if env.kind in CONTENT_KINDS and sub.content_owner:
+            # document text is not kept in the stream (or its storage) once its holder has handled it
+            try:
+                await self._js.delete_msg(self.stream, msg.metadata.sequence.stream)
+            except Exception:
+                logger.warning("nats could not delete handled %s message msg_id=%s; it expires with the stream's max_age", env.kind, env.msg_id, exc_info=True)
 
     # ------------------------------------------------------------------ request / reply
-    async def request(self, env: Envelope, *, timeout: float = 10.0) -> Envelope:
+    async def request(self, env: Envelope, *, timeout: float = 10.0, sign_key: str | None = None) -> Envelope:
         nats = _require_nats()
         nc = self._require_connection()
         inbox = nc.new_inbox()
         env.reply_to = inbox
+        if sign_key:
+            env.sign(sign_key)
         sub = await nc.subscribe(inbox, max_msgs=1)
         try:
             await self.publish(env)

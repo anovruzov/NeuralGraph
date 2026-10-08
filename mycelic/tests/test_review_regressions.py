@@ -297,3 +297,61 @@ async def test_subgoal_rollup_ignores_unmeasured_subgoals(db, org, auth, authz):
     await s["goals"].recompute_progress(subs[0]["goal_id"])
     prog = s["goals"].get_goal(parent["goal_id"])["progress"]
     assert prog["known"] is True and prog["value"] == 1.0 and prog["partial"] is True and prog["unmeasured_subgoal_ids"] == [subs[1]["goal_id"]]
+
+
+# ------------------------------------------------------------------------------------------------ holder / model review
+async def test_metered_embeddings_reach_the_usage_ledger():
+    from mycelic.models.base import ModelError
+    from mycelic.models.ledger import MemoryUsageLedger
+    from mycelic.models.router import MeteredEmbeddings
+
+    class Paid:
+        name, model, dim = "openai", "text-embedding-3-small", 3
+        fail = False
+
+        async def embed_with_usage(self, texts):
+            if self.fail:
+                raise ModelError("endpoint down")
+            return [[0.1, 0.2, 0.3] for _ in texts], 40
+
+    class Hash:
+        name, model, dim = "hash", "hash-bow-256", 256
+
+        async def embed(self, texts):
+            return [[0.0] * 256 for _ in texts]
+
+    ledger = MemoryUsageLedger()
+    paid = Paid()
+    m = MeteredEmbeddings(paid, ledger, tenant_id="t1")
+    assert len(await m.embed(["a", "b"])) == 2
+    t = ledger.totals("t1")
+    assert t["calls"] == 1 and t["input_tokens"] == 40 and t["cost_usd"] > 0 and "embed" in t["by_tier"]
+    paid.fail = True
+    try:
+        await m.embed(["c"])
+        raise AssertionError("expected a ModelError")
+    except ModelError:
+        pass
+    assert ledger.totals("t1")["failures"] == 1
+    await MeteredEmbeddings(Hash(), ledger, tenant_id="t1").embed(["free"])
+    assert ledger.totals("t1")["calls"] == 2                 # the deterministic hash embedder costs nothing and is not recorded
+
+
+async def test_agent_ignores_malformed_model_citations(db, org, auth, authz):
+    from mycelic.agents.service import AgentService
+    o = await _org(auth, org)
+    ks = KnowledgeService(db, org, authz)
+    p = authz.principal_for_user(o["lead"]["user_id"])
+    q = {"tenant_id": o["t"], "scope_unit_id": o["dept"]["unit_id"], "policy": {"visibility": "unit"}}
+    await ks.upsert_refs(o["t"], o["ha"]["holder_id"], [{"ref_id": "r1", "source_root_id": "rA", "observed_at": plus_seconds(-DAY)}])
+    claim, _ = await ks.commit_claim(p, _cand(o, "Deploy approvals take two days"), evidence=[{"ref_id": "r1"}], question=q, idempotency_key="k1")
+
+    class Router:
+        async def run_task(self, task, payload, **kw):
+            return {"answer": "Approvals take two days.", "citations": [{"type": "claim", "id": [claim["claim_id"]]}, {"type": "claim", "id": {"x": 1}},
+                                                                      "junk", {"type": "claim", "id": "claim_not_in_context"}, {"type": "claim", "id": claim["claim_id"]}]}
+
+    agents = AgentService(db, org, authz, ks, Router())
+    chat = await agents.create_chat(p, "unit", o["dept"]["unit_id"])
+    out = await agents.send(p, chat["chat_id"], "How long do deploy approvals take?")
+    assert [(c["type"], c["id"]) for c in out["citations"]] == [("claim", claim["claim_id"])]

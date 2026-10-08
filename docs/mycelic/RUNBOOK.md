@@ -11,7 +11,7 @@ container: `docker compose exec api python -m mycelic <command>`; on Fly: `fly s
 |---|---|---|---|
 | API | `serve` | HTTP API, SSE fan-out of the event outbox, static UI, `/healthz` `/readyz` `/metrics`; with `MYCELIC_RUN_WORKER_IN_API=1` also the worker; with `MYCELIC_EMBEDDED_HOLDERS=1` also the holders | `coord.db` (read/write), transport |
 | Worker | `worker` | Leases jobs from `coord.db` (`loop.tick`, `question.*`, `claim.reverify`, `goal.progress`, `holder.ingest`, `demo.simulate`, `maintenance`), runs the discovery loop, heartbeats into `workers` | the same `coord.db` as the API, transport, model providers |
-| Holder | `holder --holder-id ... --key ... --core-url ... --data-dir ...` | Owns one evidence store (`<data-dir>/<holder_id>/evidence.db`; `--data-dir` defaults to `<MYCELIC_DATA_DIR>/holders`), answers routed questions from it under its export policy, heartbeats to the API | transport (NATS when remote), its key |
+| Holder | `MYCELIC_HOLDER_KEY=... holder --holder-id ... --core-url ... --data-dir ...` (key via the environment, never argv) | Owns one evidence store (`<data-dir>/<holder_id>/evidence.db`; `--data-dir` defaults to `<MYCELIC_DATA_DIR>/holders`), answers routed questions from it under its export policy, heartbeats to the API | transport (NATS when remote), its key |
 | NATS | `nats-server -c nats.conf -js` | JetStream stream `MYCELIC`, per-user subject permissions | a volume for the stream |
 
 Single-node shape: one `serve` with worker and holders in-process (SQLite transport). Distributed shape: one

@@ -188,11 +188,14 @@ On the holder's machine (the employee's laptop, a team server):
 pip install -r requirements-mycelic.txt
 export MYCELIC_TRANSPORT=nats MYCELIC_NATS_URL=nats://nats.internal:4222
 export MYCELIC_NATS_USER=holder-a MYCELIC_NATS_PASSWORD=...
-python -m mycelic holder --holder-id hold_... --key <key shown once> \
+export MYCELIC_HOLDER_KEY='<key shown once>'      # keep the key out of argv (visible to every local user via ps)
+python -m mycelic holder --holder-id hold_... \
        --core-url https://mycelic.example.com --data-dir ~/.mycelic-holder/holders --local-port 8781
 ```
 
-Every flag has an environment fallback: `MYCELIC_HOLDER_ID`, `MYCELIC_HOLDER_KEY`, `MYCELIC_CORE_URL`,
+Pass the key through `MYCELIC_HOLDER_KEY`, not `--key`: command-line arguments are readable by other local users.
+If you must use the flag, write `--key=VALUE` (a key may start with `-`). Every flag has an environment fallback:
+`MYCELIC_HOLDER_ID`, `MYCELIC_HOLDER_KEY`, `MYCELIC_CORE_URL`,
 `MYCELIC_HOLDER_DATA_DIR`, `MYCELIC_HOLDER_LOCAL_PORT`, `MYCELIC_HOLDER_LOCAL_HOST` (the compose file uses
 them). `--data-dir` defaults to `<MYCELIC_DATA_DIR>/holders`; the store is `<data-dir>/<holder_id>/evidence.db`.
 

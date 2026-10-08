@@ -22,6 +22,13 @@ from .service import HolderService
 logger = logging.getLogger(__name__)
 
 
+class _SharedEmbedding(EmbeddingAdapter):
+    """An adapter over a provider several holders share: closing one holder's store must not close the provider."""
+
+    async def close(self) -> None:
+        return None
+
+
 class EmbeddedHolders:
     """``settings`` only needs ``holders_dir``; ``db`` is the ``CoordDB`` (kept for callers that share one handle);
     ``org`` an ``OrgService``; ``transport`` a started ``Transport``; ``llm_factory`` a zero-argument callable returning
@@ -38,7 +45,7 @@ class EmbeddedHolders:
         self.transport = transport
         self.llm_factory = llm_factory
         self.embedder = embedder
-        self._shared_llm: Any | None = None
+        self._tenant_llms: dict[str, Any] = {}
         self.router = router
         self.heartbeat_interval = float(heartbeat_interval)
         self.extract = bool(extract)
@@ -97,9 +104,18 @@ class EmbeddedHolders:
             if inspect.isawaitable(llm):
                 llm = await llm
         elif self.embedder is not None:
-            if self._shared_llm is None:
-                self._shared_llm = self.embedder if hasattr(self.embedder, "embed_many") else EmbeddingAdapter(self.embedder)
-            llm = self._shared_llm
+            if hasattr(self.embedder, "embed_many"):
+                llm = self.embedder
+            else:
+                # one shared provider, metered per tenant so every paid embedding call reaches the usage ledger
+                if tenant_id not in self._tenant_llms:
+                    provider = self.embedder
+                    ledger = getattr(self.router, "ledger", None)
+                    if ledger is not None:
+                        from ..models.router import MeteredEmbeddings
+                        provider = MeteredEmbeddings(self.embedder, ledger, tenant_id=tenant_id, prices=getattr(self.router, "prices", None))
+                    self._tenant_llms[tenant_id] = _SharedEmbedding(provider)
+                llm = self._tenant_llms[tenant_id]
         store = EvidenceStore(self.store_path(holder_id), holder_id=holder_id, tenant_id=tenant_id, llm=llm, router=self.router,
                               export_policy=jl(row["export_policy"], {}), domains=jl(row["domains"], []), extract=self.extract)
 

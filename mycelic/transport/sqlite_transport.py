@@ -37,9 +37,16 @@ from typing import Any
 from ..db.coord import CoordDB
 from ..util import now_iso, parse_iso, plus_seconds, token
 from ..util import j as _j
-from .base import Envelope, Handler, Subscription, TransportError
+from .base import CONTENT_KINDS, SHORT_LIVED_KINDS, SHORT_LIVED_SECONDS, Envelope, Handler, Subscription, TransportError
 
 logger = logging.getLogger(__name__)
+
+
+def _scrubbed(env: Envelope) -> dict[str, Any]:
+    """The envelope with its content removed (ids and kind kept for the delivery record)."""
+    d = env.to_dict()
+    d["payload"] = {"scrubbed": True, "doc_id": (env.payload or {}).get("doc_id")}
+    return d
 
 DEFAULT_RETENTION_SECONDS = 7 * 24 * 3600
 
@@ -97,8 +104,8 @@ async def _wait_for_wake(wake: asyncio.Event, timeout: float) -> None:
 class _SqliteSubscription(Subscription):
     """``Subscription`` with a ``closing`` flag the consumer loop checks, so it stops even if a cancellation is lost."""
 
-    def __init__(self, subject: str, consumer: str) -> None:
-        super().__init__(subject, consumer)
+    def __init__(self, subject: str, consumer: str, *, content_owner: bool = False) -> None:
+        super().__init__(subject, consumer, content_owner=content_owner)
         self.closing = False
 
     async def close(self) -> None:
@@ -148,7 +155,8 @@ class SqliteTransport:
                 """INSERT INTO transport_messages(subject, msg_id, payload, headers, published_at, expires_at)
                    VALUES (?, ?, ?, ?, ?, ?)
                    ON CONFLICT(msg_id) DO NOTHING""",
-                (env.subject, env.msg_id, _j(env.to_dict()), _j(env.headers), now, plus_seconds(self.retention_seconds)),
+                (env.subject, env.msg_id, _j(env.to_dict()), _j(env.headers), now,
+                 plus_seconds(min(self.retention_seconds, SHORT_LIVED_SECONDS) if env.kind in SHORT_LIVED_KINDS else self.retention_seconds)),
             )
             inserted = cur.rowcount == 1
         if not inserted:
@@ -156,7 +164,8 @@ class SqliteTransport:
         return inserted
 
     # ------------------------------------------------------------------ subscribe
-    async def subscribe(self, subject: str, *, consumer: str, handler: Handler, ack_wait: float = 60.0) -> Subscription:
+    async def subscribe(self, subject: str, *, consumer: str, handler: Handler, ack_wait: float = 60.0,
+                        content_owner: bool = False) -> Subscription:
         """Start (or return the running) durable consumer ``consumer`` on ``subject``.
 
         A new consumer name starts at cursor 0 and receives every retained message on the subject, so a holder
@@ -174,7 +183,7 @@ class SqliteTransport:
         async with self.db.tx() as c:
             c.execute("INSERT OR IGNORE INTO transport_cursors(consumer, subject, last_id, updated_at) VALUES (?, ?, 0, ?)",
                       (consumer, subject, now_iso()))
-        sub = _SqliteSubscription(subject, consumer)
+        sub = _SqliteSubscription(subject, consumer, content_owner=content_owner)
         sub._task = asyncio.create_task(self._consume(sub, handler, float(ack_wait)), name=f"transport-consumer:{consumer}")
         self._subs[key] = sub
         logger.info("transport subscribed consumer=%s subject=%s cursor=%d", consumer, subject, self.cursor(consumer, subject))
@@ -260,6 +269,9 @@ class SqliteTransport:
                 c.execute("INSERT OR IGNORE INTO transport_processed(consumer, msg_id, processed_at) VALUES (?, ?, ?)",
                           (sub.consumer, env.msg_id, now_iso()))
                 self._advance_cursor_sync(c, sub, rid)
+                if env.kind in CONTENT_KINDS and sub.content_owner:
+                    # document / raw text does not stay in the coordination DB (or its backups) once its holder has it
+                    c.execute("UPDATE transport_messages SET payload=? WHERE id=?", (_j(_scrubbed(env)), rid))
             committed = advanced = rid
             sub.delivered += 1
             logger.debug("transport delivered consumer=%s subject=%s msg_id=%s", sub.consumer, env.subject, env.msg_id)
@@ -281,7 +293,7 @@ class SqliteTransport:
             self._advance_cursor_sync(c, sub, last_id)
 
     # ------------------------------------------------------------------ request / reply
-    async def request(self, env: Envelope, *, timeout: float = 10.0) -> Envelope:
+    async def request(self, env: Envelope, *, timeout: float = 10.0, sign_key: str | None = None) -> Envelope:
         """Publish ``env`` with a private ``reply_to`` and wait for the first row on it.
 
         A repeated ``request`` with the same ``msg_id`` is deduplicated by ``publish``; the wait then targets the
@@ -289,6 +301,8 @@ class SqliteTransport:
         """
         inbox = f"_INBOX.{token(12)}"
         env.reply_to = inbox
+        if sign_key:
+            env.sign(sign_key)
         if not await self.publish(env):
             stored = self.db.one("SELECT payload FROM transport_messages WHERE msg_id = ?", (env.msg_id,))
             prior = json.loads(stored["payload"]).get("reply_to") if stored else None
@@ -301,9 +315,14 @@ class SqliteTransport:
         try:
             while True:
                 wake.clear()
-                row = self.db.one("SELECT payload FROM transport_messages WHERE subject = ? ORDER BY id LIMIT 1", (inbox,))
+                row = self.db.one("SELECT id, payload FROM transport_messages WHERE subject = ? ORDER BY id LIMIT 1", (inbox,))
                 if row is not None:
-                    return Envelope.from_dict(json.loads(row["payload"]))
+                    reply = Envelope.from_dict(json.loads(row["payload"]))
+                    if reply.kind in CONTENT_KINDS:
+                        # a raw evidence reply is consumed by its one reader: it is not kept in the coordination DB
+                        async with self.db.tx() as c:
+                            c.execute("DELETE FROM transport_messages WHERE id = ?", (int(row["id"]),))
+                    return reply
                 remaining = deadline - loop.time()
                 if remaining <= 0:
                     raise TransportError(f"no reply on {env.subject} for msg_id={env.msg_id} within {timeout:g}s")

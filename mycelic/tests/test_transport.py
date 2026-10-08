@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 import os
 from pathlib import Path
 from typing import Callable
@@ -18,7 +19,7 @@ import pytest
 from mycelic.db import CoordDB
 from mycelic.transport import Envelope, Subjects, TransportError
 from mycelic.transport.sqlite_transport import SqliteTransport, subject_matches
-from mycelic.util import plus_seconds, token
+from mycelic.util import parse_iso, plus_seconds, token
 
 TENANT = "t1"
 POLL = 0.02
@@ -259,10 +260,57 @@ async def test_request_reply_round_trip(transport: SqliteTransport) -> None:
     rep = await transport.request(req, timeout=5.0)
     assert rep.kind == "raw_reply" and rep.payload == {"excerpt": "policy-approved text", "ref_id": "ref_1"}
     assert rep.subject == req.reply_to and rep.headers["in_reply_to"] == req.msg_id and rep.tenant_id == TENANT
+    # the raw reply was consumed by its reader: its text is not kept in the coordination DB
+    assert transport.db.one("SELECT 1 FROM transport_messages WHERE subject=?", (req.reply_to,)) is None
+    # the request itself (no content) is short-lived
+    exp = transport.db.one("SELECT published_at, expires_at FROM transport_messages WHERE msg_id=?", (req.msg_id,))
+    assert (parse_iso(exp["expires_at"]) - parse_iso(exp["published_at"])).total_seconds() <= 301
+
+
+async def test_request_retry_finds_the_original_reply(transport: SqliteTransport) -> None:
+    async def responder(env: Envelope) -> None:
+        await transport.reply(env, {"stats": 1}, kind="control_reply")
+
+    await transport.subscribe(Subjects.holder_control(TENANT, "h1"), consumer="holder-h1-ctl", handler=responder, ack_wait=ACK_WAIT)
+    req = Envelope.new(Subjects.holder_control(TENANT, "h1"), "control", TENANT, {"action": "stats"})
+    rep = await transport.request(req, timeout=5.0)
     # a retried request (same msg_id) is deduplicated and still finds the reply of the original
     again = Envelope.new(req.subject, req.kind, TENANT, req.payload, msg_id=req.msg_id)
     rep2 = await transport.request(again, timeout=1.0)
     assert rep2.msg_id == rep.msg_id
+
+
+async def test_handled_content_is_scrubbed_and_reply_to_is_signed(transport: SqliteTransport) -> None:
+    got: list[Envelope] = []
+
+    async def holder(env: Envelope) -> None:
+        got.append(env)
+
+    observed: list[Envelope] = []
+
+    async def core_wildcard(env: Envelope) -> None:
+        observed.append(env)
+
+    # a wildcard observer (the core's consumer) handles it too, but only the destination's handling removes the content
+    await transport.subscribe("mycelic.>", consumer="core-inbound", handler=core_wildcard, ack_wait=ACK_WAIT)
+    await transport.subscribe(Subjects.holder_ingest(TENANT, "h1"), consumer="holder-h1-ingest", handler=holder, ack_wait=ACK_WAIT, content_owner=True)
+    await transport.publish(Envelope.new(Subjects.holder_ingest(TENANT, "h1"), "ingest", TENANT, {"doc_id": "d1", "text": "confidential roster"}, msg_id="ing-1"))
+    for _ in range(100):
+        if got:
+            break
+        await asyncio.sleep(0.02)
+    assert got and got[0].payload["text"] == "confidential roster"
+    for _ in range(50):
+        row = transport.db.one("SELECT payload FROM transport_messages WHERE msg_id='ing-1'")
+        if "confidential" not in row["payload"]:
+            break
+        await asyncio.sleep(0.02)
+    assert "confidential" not in row["payload"] and json.loads(row["payload"])["payload"] == {"scrubbed": True, "doc_id": "d1"}
+    signed = Envelope.new("s", "raw_request", TENANT, {"ref_id": "r"}, msg_id="m1")
+    signed.reply_to = "_INBOX.a"
+    signed.sign("k")
+    signed.reply_to = "_INBOX.attacker"
+    assert not signed.verify("k")
 
 
 async def test_request_without_responder_times_out(transport: SqliteTransport) -> None:

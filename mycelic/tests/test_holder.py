@@ -82,7 +82,7 @@ class MemoryTransport:
             except Exception:
                 await asyncio.sleep(0.02)
 
-    async def subscribe(self, subject: str, *, consumer: str, handler: Callable[[Envelope], Any], ack_wait: float = 60.0) -> Subscription:
+    async def subscribe(self, subject: str, *, consumer: str, handler: Callable[[Envelope], Any], ack_wait: float = 60.0, content_owner: bool = False) -> Subscription:
         self._subs.append((subject, consumer, handler))
         return Subscription(subject, consumer)
 
@@ -132,6 +132,12 @@ async def wait_for(pred: Callable[[], bool], timeout: float = 5.0) -> None:
 
 def signed(subject: str, kind: str, payload: dict[str, Any], *, msg_id: str | None = None, key: str = ROUTE_KEY, tenant: str = TENANT) -> Envelope:
     return Envelope.new(subject, kind, tenant, payload, msg_id=msg_id).sign(key)
+
+
+async def signed_request(transport: Any, subject: str, kind: str, payload: dict[str, Any], *, timeout: float, msg_id: str | None = None,
+                         key: str = ROUTE_KEY) -> Envelope:
+    """A request is signed by the transport after it sets reply_to (which the signature covers)."""
+    return await transport.request(Envelope.new(subject, kind, TENANT, payload, msg_id=msg_id), timeout=timeout, sign_key=key)
 
 
 @pytest.fixture
@@ -294,10 +300,10 @@ async def test_raw_request_reply(holder: HolderService, transport) -> None:
     doc = await holder.store.ingest_document("Ops incident log", OPS_LOG)
     resp = await holder.store.answer_question(question("What caused the VPN outage?"))
     ref_id = resp["evidence_refs"][0]["ref_id"]
-    reply = await transport.request(signed(Subjects.holder_raw(TENANT, HOLDER), "raw_request", {"ref_id": ref_id, "grant_token": "gt"}), timeout=3)
+    reply = await signed_request(transport, Subjects.holder_raw(TENANT, HOLDER), "raw_request", {"ref_id": ref_id, "grant_token": "gt"}, timeout=3)
     assert reply.kind == "raw_reply"
     assert reply.payload["doc_id"] == doc["doc_id"] and reply.payload["text"] == OPS_LOG.strip() and reply.payload["version"] == 1
-    missing = await transport.request(signed(Subjects.holder_raw(TENANT, HOLDER), "raw_request", {"ref_id": "ev_nope"}), timeout=3)
+    missing = await signed_request(transport, Subjects.holder_raw(TENANT, HOLDER), "raw_request", {"ref_id": "ev_nope"}, timeout=3)
     assert missing.payload["error"] and missing.payload["ref_id"] == "ev_nope"
     with pytest.raises(TransportError):
         await transport.request(Envelope.new(Subjects.holder_raw(TENANT, HOLDER), "raw_request", TENANT, {"ref_id": ref_id}), timeout=0.3)
@@ -307,13 +313,13 @@ async def test_raw_request_reply(holder: HolderService, transport) -> None:
 
 async def test_control_stats_and_reload_policy(holder: HolderService, transport) -> None:
     await holder.store.ingest_document("Ops incident log", OPS_LOG)
-    reply = await transport.request(signed(Subjects.holder_control(TENANT, HOLDER), "control", {"action": "stats"}), timeout=3)
+    reply = await signed_request(transport, Subjects.holder_control(TENANT, HOLDER), "control", {"action": "stats"}, timeout=3)
     assert reply.kind == "control_reply" and reply.payload["stats"]["documents"] == 1 and reply.payload["stats"]["running"] is True
-    reply = await transport.request(signed(Subjects.holder_control(TENANT, HOLDER), "control",
-                                           {"action": "reload_policy", "export_policy": {"disclosure": "summary"}, "domains": ["ops"]}), timeout=3)
+    reply = await signed_request(transport, Subjects.holder_control(TENANT, HOLDER), "control",
+                                 {"action": "reload_policy", "export_policy": {"disclosure": "summary"}, "domains": ["ops"]}, timeout=3)
     assert reply.payload["export_policy"]["disclosure"] == "summary" and reply.payload["domains"] == ["ops"]
     assert holder.store.export_policy["disclosure"] == "summary"
-    bad = await transport.request(signed(Subjects.holder_control(TENANT, HOLDER), "control", {"action": "explode"}), timeout=3)
+    bad = await signed_request(transport, Subjects.holder_control(TENANT, HOLDER), "control", {"action": "explode"}, timeout=3)
     assert "unknown control action" in bad.payload["error"]
 
 
@@ -322,8 +328,7 @@ async def test_control_manual_response_publishes_a_human_response(holder: Holder
     responses = await collect(transport, Subjects.responses(TENANT), "response")
     q = question("What caused the VPN outage?", route_id="route_9")
     control = {"action": "manual_response", "question": q, "content": "It was the expired gateway certificate; see my log.", "doc_ids": [doc["doc_id"]]}
-    env = signed(Subjects.holder_control(TENANT, HOLDER), "control", control, msg_id="ctl-h1")
-    reply = await transport.request(env, timeout=3)
+    reply = await signed_request(transport, Subjects.holder_control(TENANT, HOLDER), "control", control, msg_id="ctl-h1", timeout=3)
     assert reply.kind == "control_reply" and reply.payload["status"] == "answered" and reply.payload["route_id"] == "route_9"
     await wait_for(lambda: len(responses.items) == 1)
     out = responses.items[0]
@@ -336,7 +341,7 @@ async def test_control_manual_response_publishes_a_human_response(holder: Holder
     await holder.handle(signed(Subjects.holder_control(TENANT, HOLDER), "control", control, msg_id="ctl-h1"))
     await asyncio.sleep(0.1)
     assert len(responses.items) == 1 and holder.counters["replayed"] == 1 and holder.counters["deduplicated"] == 1
-    bad = await transport.request(signed(Subjects.holder_control(TENANT, HOLDER), "control", {"action": "manual_response", "question": {}, "content": "x", "doc_ids": []}), timeout=3)
+    bad = await signed_request(transport, Subjects.holder_control(TENANT, HOLDER), "control", {"action": "manual_response", "question": {}, "content": "x", "doc_ids": []}, timeout=3)
     assert "question_id" in bad.payload["error"]
 
 

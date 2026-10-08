@@ -110,7 +110,7 @@ def cmd_holder(args: argparse.Namespace) -> int:
     for flag, value in (("--holder-id", args.holder_id), ("--key", args.key), ("--core-url", args.core_url), ("--data-dir", args.data_dir),
                         ("--local-host", args.local_host), ("--heartbeat-seconds", args.heartbeat_seconds)):
         if value not in (None, ""):
-            argv += [flag, str(value)]
+            argv.append(f"{flag}={value}")      # one token: a value starting with "-" (a url-safe key can) stays a value
     if args.local_port:
         argv += ["--local-port", str(args.local_port)]
     main = getattr(process, "main", None)

@@ -203,7 +203,7 @@ class OpenAICompatEmbeddings(_HttpBase):
         self.dim = dim
         self.total_tokens = 0
 
-    async def _embed_batch(self, texts: list[str]) -> list[list[float]]:
+    async def _embed_batch(self, texts: list[str]) -> tuple[list[list[float]], int]:
         data = await self._post_with_retries("/embeddings", {"model": self.model, "input": texts}, timeout=self.timeout,
                                              what=f"embeddings {self.model}")
         items = data.get("data") or []
@@ -215,14 +215,22 @@ class OpenAICompatEmbeddings(_HttpBase):
             raise ModelError(f"embeddings {self.model}: empty vector returned")
         self.dim = self.dim or len(vecs[0])
         usage = data.get("usage") or {}
-        self.total_tokens += int(usage.get("total_tokens") or usage.get("prompt_tokens") or 0)
-        return vecs
+        tokens = int(usage.get("total_tokens") or usage.get("prompt_tokens") or 0)
+        self.total_tokens += tokens
+        return vecs, tokens
+
+    async def embed_with_usage(self, texts: list[str]) -> tuple[list[list[float]], int]:
+        """Vectors plus the tokens the endpoint billed for them (what the usage ledger records)."""
+        out: list[list[float]] = []
+        tokens = 0
+        for i in range(0, len(texts), self.batch_size):
+            vecs, n = await self._embed_batch([t if t.strip() else " " for t in texts[i:i + self.batch_size]])
+            out.extend(vecs)
+            tokens += n
+        return out, tokens
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
-        out: list[list[float]] = []
-        for i in range(0, len(texts), self.batch_size):
-            out.extend(await self._embed_batch([t if t.strip() else " " for t in texts[i:i + self.batch_size]]))
-        return out
+        return (await self.embed_with_usage(texts))[0]
 
 
 class HashEmbeddings:

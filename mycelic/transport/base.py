@@ -37,7 +37,7 @@ class TransportError(RuntimeError):
 class Envelope:
     """What travels over the transport. ``payload`` is the artifact (question, response, ingest request ...).
 
-    ``signature`` is an HMAC over (msg_id, subject, kind, tenant_id, payload) with the *holder's route_key* for
+    ``signature`` is an HMAC over (msg_id, subject, kind, tenant_id, payload, reply_to) with the *holder's route_key* for
     core → holder messages, so a holder only acts on envelopes the coordinator produced for it.
     """
     msg_id: str
@@ -57,8 +57,9 @@ class Envelope:
                    reply_to=reply_to, headers=headers or {})
 
     def signing_input(self) -> str:
+        # reply_to is signed too: a replayed request cannot have its (raw evidence) reply redirected to another subject
         return canonical_json({"msg_id": self.msg_id, "subject": self.subject, "kind": self.kind, "tenant_id": self.tenant_id,
-                               "payload": self.payload})
+                               "payload": self.payload, "reply_to": self.reply_to})
 
     def sign(self, key: str) -> "Envelope":
         self.signature = hmac_sign(key, self.signing_input())
@@ -74,6 +75,13 @@ class Envelope:
     def from_dict(cls, d: dict[str, Any]) -> "Envelope":
         return cls(msg_id=d["msg_id"], subject=d["subject"], kind=d["kind"], tenant_id=d["tenant_id"], payload=d.get("payload") or {},
                    sent_at=d.get("sent_at") or now_iso(), reply_to=d.get("reply_to"), signature=d.get("signature"), headers=d.get("headers") or {})
+
+
+# kinds whose payload carries document or raw evidence text: removed from the transport once handled
+CONTENT_KINDS = frozenset({"ingest", "revise", "raw_reply"})
+# request/reply kinds only matter within the request timeout
+SHORT_LIVED_KINDS = frozenset({"raw_request", "raw_reply"})
+SHORT_LIVED_SECONDS = 300.0
 
 
 class Subjects:
@@ -138,12 +146,18 @@ class Transport(Protocol):
         """Durably publish. Returns False when ``msg_id`` was already published (deduplicated)."""
         ...
 
-    async def subscribe(self, subject: str, *, consumer: str, handler: Handler, ack_wait: float = 60.0) -> "Subscription":
-        """Durable subscription. ``subject`` may end in ``.>`` (wildcard). Idempotent per ``consumer`` name."""
+    async def subscribe(self, subject: str, *, consumer: str, handler: Handler, ack_wait: float = 60.0,
+                        content_owner: bool = False) -> "Subscription":
+        """Durable subscription. ``subject`` may end in ``.>`` (wildcard). Idempotent per ``consumer`` name.
+
+        ``content_owner`` marks the consumer as the destination of the content on its subject (a holder on its own
+        subjects): once it has handled a document or raw-evidence message, the transport removes that content. Other
+        consumers that merely observe the subject (the core's wildcard consumer) never cause removal."""
         ...
 
-    async def request(self, env: Envelope, *, timeout: float = 10.0) -> Envelope:
-        """Publish and wait for one reply on a private reply subject."""
+    async def request(self, env: Envelope, *, timeout: float = 10.0, sign_key: str | None = None) -> Envelope:
+        """Publish and wait for one reply on a private reply subject. The transport chooses the reply subject, so a
+        signed request passes ``sign_key`` and is signed after ``reply_to`` is set."""
         ...
 
     async def reply(self, request: Envelope, payload: dict[str, Any], *, kind: str = "reply") -> None: ...
@@ -158,9 +172,10 @@ class Transport(Protocol):
 class Subscription:
     """Handle returned by ``subscribe``; ``await sub.close()`` stops delivery."""
 
-    def __init__(self, subject: str, consumer: str, task: asyncio.Task | None = None) -> None:
+    def __init__(self, subject: str, consumer: str, task: asyncio.Task | None = None, *, content_owner: bool = False) -> None:
         self.subject = subject
         self.consumer = consumer
+        self.content_owner = content_owner
         self._task = task
         self.delivered = 0
         self.failed = 0

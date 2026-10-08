@@ -149,13 +149,16 @@ class HolderProcess:
     def start(self) -> None:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         module = ["-m", "mycelic", "holder"] if (repo_root() / "mycelic" / "__main__.py").exists() else ["-m", "mycelic.holder.process"]
-        self.command = [sys.executable, *module, "--holder-id", self.holder_id, "--key", self.key, "--core-url", self.core_url,
+        # the key goes through the environment, never argv: argv is visible to every local user (ps, /proc), and a
+        # random url-safe key may start with "-", which argparse would read as an option
+        self.command = [sys.executable, *module, "--holder-id", self.holder_id, "--core-url", self.core_url,
                         "--data-dir", str(self.data_dir), "--local-port", str(self.local_port), "--heartbeat-seconds", "2"]
         self._log = open(self.log_path, "w")
-        self.proc = subprocess.Popen(self.command, cwd=str(repo_root()), env=self.env, stdout=self._log, stderr=subprocess.STDOUT)
+        env = {**(self.env or os.environ), "MYCELIC_HOLDER_KEY": self.key}
+        self.proc = subprocess.Popen(self.command, cwd=str(repo_root()), env=env, stdout=self._log, stderr=subprocess.STDOUT)
 
     def redacted_command(self) -> str:
-        return " ".join("<key>" if (i and self.command[i - 1] == "--key") else c for i, c in enumerate(self.command))
+        return "MYCELIC_HOLDER_KEY=<key> " + " ".join(self.command)
 
     async def _client(self):
         import aiohttp
@@ -448,8 +451,8 @@ class ServiceSession:
         holder = self.rt.org.get_holder(ref["holder_id"]) or {}
         self.rt.authz.require(self.rt.authz.can_view_raw_evidence(self.p, holder), "evidence.raw", ref_id, "raw evidence needs the owner or a raw grant")
         env = Envelope.new(Subjects.holder_raw(self.p.tenant_id, ref["holder_id"]), "raw_request", self.p.tenant_id,
-                           {"ref_id": ref_id, "grant_token": f"raw:{self.p.id}:{ref_id}"}, msg_id=f"raw:{ref_id}:{new_id('r')}").sign(self.rt.org.route_key(ref["holder_id"]))
-        reply = await self.rt.transport.request(env, timeout=8.0)
+                           {"ref_id": ref_id, "grant_token": f"raw:{self.p.id}:{ref_id}"}, msg_id=f"raw:{ref_id}:{new_id('r')}")
+        reply = await self.rt.transport.request(env, timeout=8.0, sign_key=self.rt.org.route_key(ref["holder_id"]))
         if not reply.payload or reply.payload.get("error"):
             raise KeyError(ref_id)
         p = reply.payload

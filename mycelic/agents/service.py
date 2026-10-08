@@ -133,7 +133,9 @@ class AgentService:
                                                  policy_tiers=self.org.policy(principal.tenant_id, "model_tiers", {}) or {})
                 answer = str(out.get("answer") or "")
                 allowed_ids = {(it["type"], it["id"]) for it in context}
-                citations = [c for c in (out.get("citations") or []) if isinstance(c, dict) and (c.get("type"), c.get("id")) in allowed_ids]
+                # model output is data: a citation counts only when it names (as plain strings) an item that was in its context
+                citations = [{"type": c["type"], "id": c["id"]} for c in (out.get("citations") or [])
+                             if isinstance(c, dict) and isinstance(c.get("type"), str) and isinstance(c.get("id"), str) and (c["type"], c["id"]) in allowed_ids]
             except ModelError as exc:
                 answer, citations = f"The model call failed: {exc}", []
         labels = {(it["type"], it["id"]): it.get("label", "") for it in knowledge_items + memory_items}
