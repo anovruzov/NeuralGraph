@@ -255,6 +255,86 @@ class IngestRuntime:
             if target != self.import_root and self.import_root not in target.parents:
                 raise ControlError("config.paths must stay inside the holder's import directory")
 
+    # ------------------------------------------------------------------ records and their domains ("why this domain")
+    def _audience(self, actor: str) -> Any:
+        from .acl import Audience
+        owners = set(self.pipeline.evidence.owner_ids or ())
+        return Audience(principal_ids=frozenset([actor]) if actor else frozenset(), complete=bool(actor), owner=bool(actor) and actor in owners)
+
+    def _record_visible(self, actor: str, record_id: str) -> bool:
+        ev = self.pipeline.evidence
+        acl = ev._record_acl_sync(ev.store._conn, record_id)
+        return acl is not None and ev._acl_allows(acl, self._audience(actor))[0]
+
+    def _memberships(self, record_id: str, *, full: bool = False) -> list[dict[str, Any]]:
+        import json as _json
+        from .domains import is_personal
+        c = self.pipeline.store._conn
+        cols = "domain_id, confidence, method, is_primary, model_version, taxonomy_version, evidence, corrected_by, updated_at" if full else \
+            "domain_id, confidence, method, is_primary"
+        out = []
+        for r in c.execute(f"SELECT {cols} FROM domain_memberships WHERE record_id=? AND status='active' ORDER BY is_primary DESC, confidence DESC", (record_id,)):
+            d = dict(r)
+            d["is_primary"] = bool(d["is_primary"])
+            d["personal"] = is_personal(d["domain_id"])
+            d["path"] = self.pipeline.taxonomy.path(d["domain_id"]) if d["domain_id"] in self.pipeline.taxonomy.domains else d["domain_id"]
+            if full:
+                d["evidence"] = _json.loads(d["evidence"] or "{}")
+            out.append(d)
+        return out
+
+    def _records(self, actor: str, p: Mapping[str, Any]) -> list[dict[str, Any]]:
+        """The holder's live records the actor may read (the owner: all), newest first, with their domains. Titles are shown
+        to readers the source ACL admits, and only to them."""
+        c = self.pipeline.store._conn
+        limit = max(1, min(200, int(p.get("limit") or 50)))
+        sql = ("SELECT r.record_id, r.kind, r.source_app, r.source_object_type, r.created_at_src, r.visibility, d.title, substr(d.text, 1, 160) AS snippet FROM ingest_records r "
+               "LEFT JOIN documents d ON d.doc_id = r.record_id WHERE r.deletion_status='live' AND r.kind <> 'conversation'")
+        args: list[Any] = []
+        if p.get("domain_id"):
+            sql += " AND r.record_id IN (SELECT record_id FROM domain_memberships WHERE domain_id=? AND status='active')"
+            args.append(str(p["domain_id"]))
+        if p.get("source_app"):
+            sql += " AND r.source_app=?"
+            args.append(str(p["source_app"]))
+        sql += " ORDER BY COALESCE(r.created_at_src, '') DESC, r.record_id LIMIT ?"
+        args.append(limit * 4)
+        out = []
+        for r in c.execute(sql, args).fetchall():
+            if not self._record_visible(actor, r["record_id"]):
+                continue
+            out.append({"record_id": r["record_id"], "kind": r["kind"], "source_app": r["source_app"], "object_type": r["source_object_type"],
+                        "created_at": r["created_at_src"], "visibility": r["visibility"], "title": r["title"] or "", "snippet": r["snippet"] or "",
+                        "domains": self._memberships(r["record_id"])})
+            if len(out) >= limit:
+                break
+        return out
+
+    def _record_detail(self, actor: str, record_id: str) -> dict[str, Any]:
+        """Why a record sits in its domains: each membership's method, confidence and evidence (rule ids, similarity, a
+        model's rationale; never quotes), the append-only history, and the typed edges it supports."""
+        import json as _json
+        if not record_id or not self._record_visible(actor, record_id):
+            raise ControlError("unknown record")
+        c = self.pipeline.store._conn
+        r = c.execute("SELECT r.record_id, r.kind, r.source_app, r.source_object_type, r.created_at_src, r.visibility, r.source_root_id, r.root_method, "
+                      "d.title, substr(d.text, 1, 400) AS snippet FROM ingest_records r LEFT JOIN documents d ON d.doc_id = r.record_id WHERE r.record_id=?",
+                      (record_id,)).fetchone()
+        history = [{"domain_id": h["domain_id"], "action": h["action"], "method": h["method"], "actor_type": h["actor_type"], "reason": h["reason"], "at": h["at"],
+                    "before": _json.loads(h["before"] or "{}"), "after": _json.loads(h["after"] or "{}")}
+                   for h in c.execute("SELECT * FROM domain_membership_history WHERE record_id=? ORDER BY id DESC LIMIT 50", (record_id,))]
+        edges = [{"subject": e["subject_id"], "predicate": e["predicate"], "object": e["object_id"], "modality": e["modality"], "confidence": e["confidence"],
+                  "status": e["status"]}
+                 for e in c.execute("SELECT rel.subject_id, rel.predicate, rel.object_id, rel.status, ev.modality, ev.confidence FROM relation_evidence ev "
+                                    "JOIN relations rel ON rel.relation_id = ev.relation_id WHERE ev.record_id=? ORDER BY rel.predicate", (record_id,))]
+        entities = [x["entity_id"] for x in c.execute("SELECT entity_id FROM record_entities WHERE record_id=? AND role IN ('mention','reference') ORDER BY entity_id",
+                                                     (record_id,))]
+        return {"record": {"record_id": r["record_id"], "kind": r["kind"], "source_app": r["source_app"], "object_type": r["source_object_type"],
+                           "created_at": r["created_at_src"], "visibility": r["visibility"], "title": r["title"] or "", "snippet": r["snippet"] or "",
+                           "source_root_id": r["source_root_id"],
+                           "root_method": r["root_method"]},
+                "domains": self._memberships(record_id, full=True), "history": history, "edges": edges, "entities": entities}
+
     async def control(self, action: str, p: Mapping[str, Any], *, actor: str, credentials: Mapping[str, Any] | None = None) -> dict[str, Any]:
         """One connector action. ``credentials`` (already decrypted from the transfer envelope) is used once, re-sealed by
         the holder's vault inside :meth:`IngestService.add_connector`, and never returned."""
@@ -333,6 +413,17 @@ class IngestRuntime:
                 if p.get("source_id") not in {s.source_id for s in svc.sources(con["connector_id"])}:
                     raise ControlError("unknown source for this connector")
                 return await svc.delete_source(str(p["source_id"]), actor=actor)
+            if action == "records.list":
+                return {"items": self._records(actor, p)}
+            if action == "record.get":
+                return self._record_detail(actor, str(p.get("record_id") or ""))
+            if action == "record.domains":
+                rid = str(p.get("record_id") or "")
+                if not self._record_visible(actor, rid):
+                    raise ControlError("unknown record")
+                await svc.correct_domains(rid, actor=actor, add=list(p.get("add") or []), remove=list(p.get("remove") or []),
+                                          primary=p.get("primary"), reason=str(p.get("reason") or "")[:300])
+                return self._record_detail(actor, rid)
             if action == "queue.status":
                 return {"classes": self.pipeline.queue.counts_sync(), "dead": self.pipeline.queue.dead_letters_sync(limit=int(p.get("limit") or 50))}
         except PermissionError as exc:

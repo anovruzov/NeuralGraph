@@ -1163,3 +1163,38 @@ export interface TaxonomyResponse {
   items: TaxonomyDomain[];
   aliases: { alias: string; domain_id: string }[];
 }
+
+export interface DomainMembership {
+  domain_id: string;
+  path: string;
+  confidence: number;
+  method: string;
+  is_primary: boolean;
+  personal: boolean;
+  model_version?: string;
+  taxonomy_version?: number;
+  evidence?: Record<string, unknown>;
+  corrected_by?: string | null;
+  updated_at?: string;
+}
+
+export interface IngestRecordRow {
+  record_id: string;
+  kind: string;
+  source_app: string;
+  object_type: string;
+  created_at: string | null;
+  visibility: string;
+  title: string;
+  /** The beginning of the record's text (readers the source ACL admits only). */
+  snippet?: string;
+  domains: DomainMembership[];
+}
+
+export interface IngestRecordDetail {
+  record: IngestRecordRow & { source_root_id: string | null; root_method: string };
+  domains: DomainMembership[];
+  history: { domain_id: string; action: string; method: string; actor_type: string; reason: string; at: string; before: Record<string, unknown>; after: Record<string, unknown> }[];
+  edges: { subject: string; predicate: string; object: string; modality: string; confidence: number; status: string }[];
+  entities: string[];
+}

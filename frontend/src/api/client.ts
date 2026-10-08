@@ -271,6 +271,11 @@ export const integrations = {
     if (replace) form.append('replace', '1');
     return request<{ import: { name: string; bytes: number }; config_hint: { paths: string[] } }>(`/holders/${holder_id}/imports`, { method: 'POST', form });
   },
+  records: (holder_id: string, query: { domain_id?: string; source_app?: string; limit?: number } = {}) =>
+    get<T.ListResponse<T.IngestRecordRow>>(`/holders/${holder_id}/records`, query),
+  record: (holder_id: string, record_id: string) => get<T.IngestRecordDetail>(`/holders/${holder_id}/records/${record_id}`),
+  correctDomains: (holder_id: string, record_id: string, body: { add?: string[]; remove?: string[]; primary?: string; reason?: string }) =>
+    post<T.IngestRecordDetail>(`/holders/${holder_id}/records/${record_id}/domains`, body),
   admin: () => get<T.ListResponse<T.AdminConnectorRow> & { totals: { by_type: Record<string, number>; by_status: Record<string, number> } }>('/admin/integrations'),
   domains: () => get<T.TaxonomyResponse>('/domains'),
   setDomains: (body: { upsert?: { domain_id: string; name?: string; description?: string }[]; deprecate?: string[]; aliases?: { alias: string; domain_id: string }[] }) =>

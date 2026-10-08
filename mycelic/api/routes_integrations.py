@@ -382,6 +382,36 @@ def setup(app: web.Application, prefix: str) -> None:
         require_connector_manager(rt, p, h)
         return json_response(await holder_call(rt, h, "queue.status", {}, actor=p.id))
 
+    # ------------------------------------------------------------------ records and domains ("why this domain")
+    async def list_records(request: web.Request) -> web.Response:
+        p = require_user(request)
+        h = holder_or_404(rt, p, request.match_info["holder_id"])
+        require_connector_manager(rt, p, h)
+        q = {k: request.query.get(k) for k in ("domain_id", "source_app", "limit") if request.query.get(k)}
+        out = await holder_call(rt, h, "records.list", q, actor=p.id)
+        return json_response(listing(out.get("items") or []))
+
+    async def get_record(request: web.Request) -> web.Response:
+        p = require_user(request)
+        h = holder_or_404(rt, p, request.match_info["holder_id"])
+        require_connector_manager(rt, p, h)
+        return json_response(await holder_call(rt, h, "record.get", {"record_id": request.match_info["record_id"]}, actor=p.id))
+
+    async def correct_record_domains(request: web.Request) -> web.Response:
+        p = require_user(request)
+        h = holder_or_404(rt, p, request.match_info["holder_id"])
+        require_connector_manager(rt, p, h)
+        body = await read_json(request)
+        add, remove = opt_list(body, "add") or [], opt_list(body, "remove") or []
+        if not all(isinstance(x, str) for x in add + remove) or len(add) + len(remove) > 10:
+            raise ApiError(400, "add and remove are lists of domain ids")
+        out = await holder_call(rt, h, "record.domains", {"record_id": request.match_info["record_id"], "add": add, "remove": remove,
+                                                           "primary": opt_str(body, "primary", max_len=120), "reason": opt_str(body, "reason", max_len=300) or ""},
+                                actor=p.id)
+        await rt.db.audit(p.tenant_id, "user", p.id, "record.domains", resource_type="holder", resource_id=h["holder_id"],
+                          detail={"added": len(add), "removed": len(remove)}, request_id=request.get("request_id"))
+        return json_response(out)
+
     # ------------------------------------------------------------------ webhook endpoints
     async def create_webhook(request: web.Request) -> web.Response:
         """A signed delivery URL for this connector. GitHub: Mycelic generates the secret, shown once, for the owner to
@@ -689,6 +719,9 @@ def setup(app: web.Application, prefix: str) -> None:
     app.router.add_post(f"{prefix}/holders/{{holder_id}}/connectors/{{connector_id}}/webhook", create_webhook)
     app.router.add_get(f"{prefix}/holders/{{holder_id}}/ingest/queue", queue_status)
     app.router.add_post(f"{prefix}/holders/{{holder_id}}/imports", upload_import)
+    app.router.add_get(f"{prefix}/holders/{{holder_id}}/records", list_records)
+    app.router.add_get(f"{prefix}/holders/{{holder_id}}/records/{{record_id}}", get_record)
+    app.router.add_post(f"{prefix}/holders/{{holder_id}}/records/{{record_id}}/domains", correct_record_domains)
     app.router.add_post(f"{prefix}/webhooks/{{connector_type}}/{{endpoint_id}}", receive_webhook)
     app.router.add_get(f"{prefix}/admin/integrations", admin_integrations)
     app.router.add_get(f"{prefix}/domains", get_domains)

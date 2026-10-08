@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { useLiveRefresh } from '../api/events';
-import type { Connector, ConnectorCatalogItem, ConnectorSource, Holder } from '../api/types';
+import type { Connector, ConnectorCatalogItem, ConnectorSource, Holder, IngestRecordRow, TaxonomyDomain } from '../api/types';
 import { useSession } from '../auth/AuthProvider';
 import { ago, fmtNum, titleCase } from '../components/format';
 import { Badge, Button, Drawer, Empty, ErrorPanel, Field, Input, Loading, PageHeader, Section, Select, StatusBadge, Table, Textarea, confirmAction, type Tone } from '../components/ui';
@@ -157,6 +157,8 @@ export function ConnectedAppsPage() {
               />
             )}
           </Section>
+
+          {connectorRows.length ? <RecordsSection holderId={holderId} /> : null}
 
           <Section title="Connect an app" meta="Status is stated honestly: only “Live verified” has run against the real service.">
             {catalog.error ? <ErrorPanel error={catalog.error} retry={() => void catalog.reload()} /> : null}
@@ -429,6 +431,139 @@ function SourcesDrawer({ connector, holderId, onClose }: { connector: Connector 
           ]}
         />
       )}
+    </Drawer>
+  );
+}
+
+const METHOD_LABEL: Record<string, string> = {
+  source_mapping: 'the source is mapped to it', label: 'a label or tag', rule: 'keyword rules', embedding: 'similarity to the domain',
+  conversation_prior: 'its conversation', llm: 'a model chose it from the candidates', human: 'a person', fallback: 'nothing matched',
+};
+
+/** Records and the domains they were routed to, with the reasons ("why this domain") and owner corrections. */
+function RecordsSection({ holderId }: { holderId: string }) {
+  const [domain, setDomain] = useState('');
+  const records = useAsync(() => api.integrations.records(holderId, { domain_id: domain || undefined, limit: 50 }), [holderId, domain]);
+  const tax = useAsync(() => api.integrations.domains(), []);
+  const [open, setOpen] = useState<IngestRecordRow | null>(null);
+  const seen = useMemo(() => {
+    const ids = new Set<string>();
+    for (const r of records.data?.items ?? []) for (const d of r.domains) ids.add(d.domain_id);
+    return [...ids].sort();
+  }, [records.data]);
+  return (
+    <Section
+      title="Records and domains"
+      meta="Why each record sits where it does; corrections are sticky and teach the classifier."
+      actions={
+        <Select aria-label="Filter by domain" value={domain} onChange={(e) => setDomain(e.target.value)}>
+          <option value="">All domains</option>
+          {(domain && !seen.includes(domain) ? [domain, ...seen] : seen).map((d) => <option key={d} value={d}>{d}</option>)}
+        </Select>
+      }
+    >
+      {records.error ? <ErrorPanel error={records.error} retry={() => void records.reload()} /> : records.loading && !records.data ? <Loading /> : (
+        <Table<IngestRecordRow>
+          rowKey={(r) => r.record_id}
+          rows={records.data?.items ?? []}
+          onRowClick={(r) => setOpen(r)}
+          empty="Nothing ingested yet: include a source and sync."
+          columns={[
+            { key: 'title', header: 'Record', render: (r) => <><b>{r.title && !/ (message|document)$/.test(r.title) ? r.title : (r.snippet || `${r.source_app} ${r.kind}`).slice(0, 110)}</b><div className="xs muted">{r.source_app} · {r.object_type}{r.created_at ? ` · ${ago(r.created_at)}` : ''}</div></> },
+            { key: 'vis', header: 'Access', render: (r) => <Badge tone={VISIBILITY_TONE[r.visibility] ?? 'neutral'}>{titleCase(r.visibility)}</Badge> },
+            { key: 'domains', header: 'Domains', render: (r) => <span className="row" style={{ gap: 4 }}>{r.domains.map((d) => <Badge key={d.domain_id} tone={d.is_primary ? 'accent' : 'outline'} title={`${METHOD_LABEL[d.method] ?? d.method} · ${Math.round(d.confidence * 100)}%`}>{d.domain_id}</Badge>)}</span> },
+          ]}
+        />
+      )}
+      <RecordDrawer holderId={holderId} row={open} taxonomy={tax.data?.items ?? []} onClose={() => { setOpen(null); void records.reload(); }} />
+    </Section>
+  );
+}
+
+function RecordDrawer({ holderId, row, taxonomy, onClose }: { holderId: string; row: IngestRecordRow | null; taxonomy: TaxonomyDomain[]; onClose: () => void }) {
+  const toast = useToast();
+  const detail = useAsync(() => (row ? api.integrations.record(holderId, row.record_id) : Promise.resolve(null)), [holderId, row?.record_id]);
+  const [add, setAdd] = useState('');
+  const [busy, setBusy] = useState(false);
+  if (!row) return null;
+  const d = detail.data;
+
+  async function correct(body: { add?: string[]; remove?: string[]; primary?: string }) {
+    if (!row) return;
+    setBusy(true);
+    try {
+      const res = await api.integrations.correctDomains(holderId, row.record_id, { ...body, reason: 'corrected in Connected apps' });
+      detail.setData(res);
+      setAdd('');
+      toast.push('Domains corrected', 'ok');
+    } catch (err) {
+      toast.error(err);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Drawer open onClose={onClose} title={`${row.source_app} ${row.object_type}`} width={720}>
+      {detail.loading && !d ? <Loading /> : detail.error ? <ErrorPanel error={detail.error} /> : d ? (
+        <div className="stack">
+          {d.record.snippet ? <p className="sm" style={{ margin: 0 }}>{d.record.snippet}</p> : null}
+          <div className="xs muted">{d.record.source_app} · {d.record.object_type} · source root {d.record.root_method}</div>
+          <div>
+            <b className="sm">Why these domains</b>
+            <Table
+              rowKey={(m) => m.domain_id}
+              rows={d.domains}
+              columns={[
+                { key: 'd', header: 'Domain', render: (m) => <><code>{m.domain_id}</code>{m.is_primary ? <> <Badge tone="accent">primary</Badge></> : null}{m.personal ? <> <Badge tone="outline">personal</Badge></> : null}</> },
+                { key: 'why', header: 'Because', render: (m) => <span className="sm">{METHOD_LABEL[m.method] ?? m.method}{m.evidence && Object.keys(m.evidence).length ? <div className="xs muted" style={{ overflowWrap: 'anywhere' }}>{Object.entries(m.evidence).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : String(v)}`).join(' · ')}</div> : null}</span> },
+                { key: 'c', header: 'Confidence', num: true, render: (m) => `${Math.round(m.confidence * 100)}%` },
+                { key: 'a', header: '', render: (m) => (
+                  <span className="row" style={{ gap: 4, justifyContent: 'flex-end' }}>
+                    {!m.is_primary ? <Button size="sm" variant="ghost" disabled={busy} onClick={() => void correct({ primary: m.domain_id })}>Make primary</Button> : null}
+                    <Button size="sm" variant="ghost" disabled={busy} onClick={() => void correct({ remove: [m.domain_id] })}>Remove</Button>
+                  </span>
+                ) },
+              ]}
+            />
+          </div>
+          <form className="row" style={{ alignItems: 'flex-end', gap: 8 }} onSubmit={(e) => { e.preventDefault(); if (add) void correct({ add: [add] }); }}>
+            <Field label="Add a domain">
+              {(id) => (
+                <Select id={id} value={add} onChange={(e) => setAdd(e.target.value)}>
+                  <option value="">Choose…</option>
+                  {taxonomy.filter((t) => t.status === 'active' && !d.domains.some((m) => m.domain_id === t.domain_id)).map((t) => <option key={t.domain_id} value={t.domain_id}>{t.domain_id}</option>)}
+                </Select>
+              )}
+            </Field>
+            <Button type="submit" busy={busy} disabled={!add}>Add</Button>
+          </form>
+          {d.entities.length ? (
+            <div>
+              <b className="sm">Linked across apps</b>
+              <div className="row" style={{ gap: 4, marginTop: 4 }}>{d.entities.map((e) => <Badge key={e} tone="outline">{e}</Badge>)}</div>
+            </div>
+          ) : null}
+          {d.edges.length ? (
+            <div>
+              <b className="sm">What it states</b>
+              <ul className="sm" style={{ margin: '4px 0 0 16px' }}>
+                {d.edges.map((e, i) => (
+                  <li key={i}><code>{e.subject}</code> {e.predicate.replace(/_/g, ' ')} <code>{e.object}</code> <Badge tone={e.modality === 'asserted' ? 'info' : e.modality === 'negated' ? 'danger' : 'warn'}>{e.modality}</Badge></li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {d.history.length ? (
+            <details>
+              <summary className="sm">Routing history ({d.history.length})</summary>
+              <ul className="xs" style={{ margin: '4px 0 0 16px' }}>
+                {d.history.map((h, i) => <li key={i}>{ago(h.at)}: {h.action} <code>{h.domain_id}</code> by {h.actor_type === 'user' ? 'a person' : h.method}{h.reason ? ` (${h.reason})` : ''}</li>)}
+              </ul>
+            </details>
+          ) : null}
+        </div>
+      ) : null}
     </Drawer>
   );
 }

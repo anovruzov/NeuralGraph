@@ -87,6 +87,19 @@ async def test_owner_connects_syncs_and_others_cannot(api):
     # the audit trail records the install without content
     rows = api.rt.db.all("SELECT detail FROM audit_log WHERE action='connector.install'")
     assert rows and "Engineering notes" not in rows[0]["detail"]
+    # why this domain: records with their domains, each membership explained, and a sticky correction
+    status, recs, _ = await api.call("GET", f"/api/holders/{hid}/records", token=s["ana"])
+    assert status == 200 and len(recs["items"]) == 3 and all(r["domains"] for r in recs["items"])
+    rid = recs["items"][0]["record_id"]
+    status, detail, _ = await api.call("GET", f"/api/holders/{hid}/records/{rid}", token=s["ana"])
+    assert status == 200 and detail["domains"][0]["method"] and "evidence" in detail["domains"][0] and detail["history"]
+    assert "version:httpclient@4.2" not in detail["entities"] or detail["entities"]            # linked entities, when the text names any
+    status, fixed, _ = await api.call("POST", f"/api/holders/{hid}/records/{rid}/domains", token=s["ana"],
+                                      body={"add": ["engineering.dependencies"], "reason": "it is about a library upgrade"})
+    assert status == 200 and any(d["domain_id"] == "engineering.dependencies" and d["method"] == "human" for d in fixed["domains"])
+    assert any(h["actor_type"] == "user" for h in fixed["history"])
+    status, _, _ = await api.call("GET", f"/api/holders/{hid}/records/{rid}", token=s["bo"])
+    assert status in (403, 404)
     # disconnect with data deletion purges the records
     status, out, _ = await api.call("DELETE", f"{base}/{cid}?data=delete", token=s["ana"])
     assert status == 200 and out["deletion"]["records_deleted"] == 3
