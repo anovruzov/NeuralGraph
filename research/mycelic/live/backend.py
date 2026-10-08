@@ -54,6 +54,10 @@ class CallResult:
     replayed: bool = False
     backend: str = ""
     attempts: int = 1
+    # where the call was MADE (machine, server build, slots, URL kind), stored
+    # in the cache with the result, so a replay elsewhere still says where the
+    # answer came from
+    recorded: Optional[Dict[str, object]] = None
 
 
 # ---------------------------------------------------------------------------
@@ -163,6 +167,7 @@ class _Backend:
         self.n_live_calls = 0
         self.n_replayed = 0
         self._lock = threading.Lock()
+        self.record_info: Optional[Dict[str, object]] = None   # set by the caller
 
     # request parameters that change the output (all go into the cache key)
     def params(self, job: Job) -> Dict[str, object]:
@@ -196,6 +201,7 @@ class _Backend:
         res = self._call(job, params)
         res["key"] = key
         res["backend"] = self.label
+        res["recorded"] = self.record_info
         if self.cache is not None:
             self.cache.put(key, res)
         with self._lock:
@@ -242,7 +248,7 @@ class LlamaServerBackend(_Backend):
     is_llm = True
 
     def __init__(self, url: str, model_id: str, cache: Optional[ReplayCache] = None,
-                 concurrency: int = 4, timeout: float = 900.0, retries: int = 4,
+                 concurrency: int = 4, timeout: float = 3600.0, retries: int = 4,
                  thinking: bool = False, no_think_tag: bool = False,
                  replay_only: bool = False, temperature: float = 0.0,
                  seed: int = 0, label: str = ""):

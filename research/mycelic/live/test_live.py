@@ -345,7 +345,7 @@ class TestResumeReplay(unittest.TestCase):
             with open(out) as fh:
                 rows.append([json.loads(l) for l in fh])
         strip = lambda rs: [{k: v for k, v in r.items()                      # noqa: E731
-                             if k not in ("tag", "started", "finished", "pipeline_s", "phase_wall_s",
+                             if k not in ("tag", "started", "finished", "pipeline_s", "phase_wall_s", "llm_phase_wall_s",
                                           "runtime_s", "est_wall_s_at_concurrency",
                                           "latency_s", "per_call_latency_s")}
                             for r in rs]
@@ -355,6 +355,69 @@ class TestResumeReplay(unittest.TestCase):
         self.assertTrue(rows[0][0]["mock"])
         with open(os.path.join(self.tmp, "cli0.md")) as fh:
             self.assertIn("NOT LLM results", fh.read())
+
+
+class TestStagesAndPackaging(unittest.TestCase):
+    def test_smoke_stage_preset_env_rows_and_package(self):
+        import tarfile
+        from . import envinfo
+        from .package_results import main as package
+        from .run import main
+        tmp = tempfile.mkdtemp()
+        try:
+            rows = main(["--mock", "--stage", "smoke", "--out-dir", tmp, "--log-every", "1000"])
+            meta = rows[0]
+            self.assertEqual((meta["stage"], meta["scale"], meta["seed"], meta["agents_run"]),
+                             ("smoke", 400, 701, 40))
+            self.assertFalse([r for r in rows if r["kind"] == "system"])
+            out = os.path.join(tmp, "stage_smoke_s701_mock.jsonl")
+            with open(out) as fh:
+                written = [json.loads(l) for l in fh]
+            for r in written:                       # every row says where it came from
+                env = r["run_env"]
+                self.assertIn("cpu", env["machine"])
+                self.assertEqual(env["edge"]["backend_kind"], "mock")
+                self.assertEqual(env["prompt_version"], A.PROMPT_VERSION)
+            res = package(["--out-dir", tmp, "--dest", os.path.join(tmp, "pk")])
+            with tarfile.open(res["results"]) as tf:
+                names = tf.getnames()
+            self.assertIn("results/MANIFEST.json", names)
+            self.assertIn("results/stage_smoke_s701_mock.jsonl", names)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+        self.assertEqual(envinfo.url_kind("http://127.0.0.1:8081"), "loopback")
+        self.assertEqual(envinfo.url_kind("http://192.168.1.5:8081"), "private-network")
+        self.assertEqual(envinfo.url_kind(None), "none")
+
+    def test_preflight_refuses_a_non_llama_server_endpoint(self):
+        from . import envinfo
+
+        class H(BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(404)
+                self.end_headers()
+
+            def log_message(self, *a):
+                pass
+
+        srv = HTTPServer(("127.0.0.1", 0), H)
+        th = threading.Thread(target=srv.serve_forever, daemon=True)
+        th.start()
+        try:
+            with self.assertRaises(SystemExit):
+                envinfo.preflight(f"http://127.0.0.1:{srv.server_port}", "edge")
+        finally:
+            srv.shutdown()
+            srv.server_close()
+
+    def test_projection_reports_later_stages(self):
+        from .run import make_projection
+        rows = []
+        proj = make_projection("edge agents", "smoke", 701, lambda st: 100.0, "agent", rows)
+        proj(2.0, 50, 60)
+        self.assertEqual(rows[0]["kind"], "projection")
+        for st in ("400", "2000", "10000"):
+            self.assertIn(f"stage {st}", rows[0]["text"])
 
 
 if __name__ == "__main__":

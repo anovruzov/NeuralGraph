@@ -17,7 +17,7 @@ NP_LIST=${3:-"1 4 8"}
 AGENTS=${4:-12}
 HERE=$(cd "$(dirname "$0")" && pwd)
 REPO=$(cd "$HERE/../../../.." && pwd)
-LIVE_ROOT=${LIVE_ROOT:-/tmp/claude-0/-home-user-NeuralGraph/94c168c2-a4c1-5555-b6a4-9314f0780495/scratchpad/live}
+LIVE_ROOT=${LIVE_ROOT:-$HOME/mycelic-live}   # holds runtime/llama.cpp/build/bin and models/
 LLAMA_BIN=${LLAMA_BIN:-$LIVE_ROOT/runtime/llama.cpp/build/bin}
 case "$ROLE" in
   edge)   MODEL=$LIVE_ROOT/models/qwen3-1.7b-q4_k_m.gguf;             PORT=8091 ;;
