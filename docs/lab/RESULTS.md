@@ -44,15 +44,20 @@ and the G0 canary leakage scan with a-1p5b.
 | Shard | Model | State | Units | Source |
 |---|---|---|---|---|
 | s001-a-0p5b | a-0p5b | finished, job marked failed (one unit skipped) | `sim-a-0p5b-s1` **ok**, 3,135.7 s, run id `sim-a-0p5b-s1-57a30b54`; `e3-a-0p5b` **skipped**: "warm-up: e3_short_answer stopped at the token limit" | shard summary in job 113530993032 |
-| s002-a-1p5b | a-1p5b | running | e3, sim, g0 | — |
-| s003-a-4b | a-4b | running | e3, sim | — |
+| s002-a-1p5b | a-1p5b | finished, job succeeded (AMD EPYC 9V45) | `sim-a-1p5b-s1` **ok**, 7,288.6 s, run id `sim-a-1p5b-s1-134ba3ae`; `g0-a-1p5b` **ok**, 2,169.3 s; `e3-a-1p5b` **ok**, 247.2 s | shard summary in job 113530992802 |
+| s003-a-4b | a-4b | finished, job marked failed (one unit timed out) (AMD EPYC 9V74) | `sim-a-4b-s1` **ok**, 6,749.3 s, run id `sim-a-4b-s1-f0ebc485`; `e3-a-4b` **timed_out** at its 1,200 s unit limit ("unit timed out", no result) | shard summary in job 113530992829 |
 | s004-b-2b | b-2b | running | e3, sim | — |
 
-**What is already established:** a 0.5B model on a runner CPU completed the whole six-site simulation (every site's
-extraction through the model, the cells, the detectors and the scorecard) in 52 minutes. Its scorecard numbers are in
+**What is already established:** three of the four models completed the whole six-site simulation on a runner CPU
+(every site's extraction through the model, the cells, the detectors, pushdown verification and the scorecard):
+a-0p5b in 52 minutes, a-4b in 1 h 52 min and a-1p5b in 2 h 1 min, each on a different CPU model, so the times are not
+comparable with one another. The canary scan with a-1p5b in the loop (G0) completed too. Its scorecard numbers are in
 the shard's artifact and reach the log only in the run's `aggregate` report, which runs after the last shard; they
 are added here when it does, whatever they show. The 0.5B model again failed the short-answer warm-up, this time by
-running to the token limit; that is a property of the model, recorded as such.
+running to the token limit; that is a property of the model, recorded as such. a-4b's latency unit needs more than
+the 20 minutes the request gave it: 8 requests per workload at concurrency 1 alone take about 1,000 s at run 1's
+medians (40.3 s short, 85.0 s extraction), before concurrency 4; the main run must give it more minutes or fewer
+requests.
 
 ## What has not run
 
