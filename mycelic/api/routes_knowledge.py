@@ -14,7 +14,7 @@ from aiohttp import web
 from ..authz import Forbidden
 from ..transport import Envelope, Subjects, TransportError
 from .middleware import ApiError, json_response, limit_of, listing, need_str, opt_str, read_json, require_user
-from .routes_org import embedded_store
+from .routes_org import embedded_store, is_holder_owner
 
 logger = logging.getLogger(__name__)
 
@@ -102,16 +102,19 @@ def setup(app: web.Application, prefix: str = "/api") -> None:
         if holder is None:
             raise KeyError(ref["holder_id"])
         rt.authz.require(rt.authz.can_view_raw_evidence(p, holder), "evidence.raw", ref["ref_id"], "raw evidence needs ownership of the holder or a raw grant")
+        # the holder re-checks connector records against their source ACL: the owner, or a requester inside the source's members
+        owner = is_holder_owner(rt, p, holder)
         store = await embedded_store(rt, holder)
         if store is not None:
-            raw = await store.raw_for_ref(ref["ref_id"])
+            raw = await store.raw_for_ref(ref["ref_id"], audience={"principal_ids": [p.id], "complete": True, "owner": owner})
         else:
             if holder.get("mode") == "embedded":
                 raise ApiError(503, "the embedded holder is not running on this server", "holder_unavailable")
             if rt.transport is None:
                 raise ApiError(503, "no transport configured", "transport")
             env = Envelope.new(Subjects.holder_raw(p.tenant_id, holder["holder_id"]), "raw_request", p.tenant_id,
-                               {"ref_id": ref["ref_id"], "holder_id": holder["holder_id"], "grant_token": p.id, "requested_by": p.id})
+                               {"ref_id": ref["ref_id"], "holder_id": holder["holder_id"], "grant_token": p.id, "requested_by": p.id,
+                                "requester_is_owner": owner})
             try:
                 # signed by the transport once it has chosen the reply subject (reply_to is part of the signature)
                 reply = await rt.transport.request(env, timeout=RAW_TIMEOUT_SECONDS, sign_key=rt.org.route_key(holder["holder_id"]))

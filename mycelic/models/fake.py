@@ -485,6 +485,26 @@ def classify_document(inp: dict[str, Any]) -> dict[str, Any]:
     return {"domains": domains or ["general"], "summary": summary, "kind": "conversation" if conversation else "note"}
 
 
+def classify_domains(inp: dict[str, Any]) -> dict[str, Any]:
+    record = inp.get("record") if isinstance(inp.get("record"), dict) else {}
+    toks = set(content_tokens(_s(record.get("title")) + " " + _s(record.get("text"))))
+    cap = _int(inp.get("max_domains"), 3) or 3
+    candidates = [c for c in _dicts(inp.get("candidates")) if _s(c.get("domain_id"))]
+    kept = []
+    for c in candidates:
+        matched = []
+        for kw in _list(c.get("keywords")):
+            kt = content_tokens(kw)
+            if kt and all(t in toks for t in kt) and _s(kw) not in matched:
+                matched.append(_s(kw))
+        if matched:
+            kept.append({"domain_id": _s(c["domain_id"]), "confidence": round(min(0.9, 0.5 + 0.1 * len(matched)), 4),
+                         "rationale": "keywords: " + ", ".join(matched[:3])})
+    if not kept and candidates:
+        kept = [{"domain_id": _s(candidates[0]["domain_id"]), "confidence": 0.4, "rationale": "nearest by similarity"}]
+    return {"domains": kept[:cap]}
+
+
 def record_outcome(inp: dict[str, Any]) -> dict[str, Any]:
     discovery = inp.get("discovery") if isinstance(inp.get("discovery"), dict) else {}
     claims = _dicts(discovery.get("claims")) or _dicts(discovery.get("findings"))
@@ -515,6 +535,7 @@ HANDLERS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "aggregate_level": aggregate_level,
     "chat_answer": chat_answer,
     "classify_document": classify_document,
+    "classify_domains": classify_domains,
     "record_outcome": record_outcome,
 }
 

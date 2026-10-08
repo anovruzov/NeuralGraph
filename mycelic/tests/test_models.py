@@ -104,6 +104,16 @@ INPUTS: dict[str, dict[str, Any]] = {
     },
     "classify_document": {"title": "Deployment retro", "text": "Alice: the deploy failed again.\nBob: the approval queue was blocked.",
                           "known_domains": ["deployments", "finance"]},
+    "classify_domains": {
+        "record": {"title": "Rollback after the deploy", "text": "The rollout timed out and we rolled back the deployment.",
+                   "source_app": "teamchat", "container_kind": "channel", "labels": []},
+        "candidates": [
+            {"domain_id": "infrastructure.ci-cd", "name": "Build & Deploy", "path": "Infrastructure/Build & Deploy", "description": "",
+             "keywords": ["deploy", "deployment", "rollout", "rollback"], "similarity": 0.5},
+            {"domain_id": "finance", "name": "Finance", "path": "Finance", "description": "", "keywords": ["budget", "invoice"], "similarity": 0.3},
+        ],
+        "max_domains": 3,
+    },
     "record_outcome": {
         "goal": GOAL,
         "discovery": {"discovery_id": "d1", "claims": [

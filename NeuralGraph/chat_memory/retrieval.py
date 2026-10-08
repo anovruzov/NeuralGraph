@@ -265,7 +265,10 @@ class MemoryRetriever:
         query_embedding: list[float] | None = None,
         channels: str = "VKG",
         touch: bool = True,
+        allowed_ids: set[str] | frozenset[str] | None = None,
     ) -> list[RetrievedMemory]:
+        """``allowed_ids`` (optional) restricts every channel to these memory ids before ranking, so a caller with an
+        access-control or domain allow-set does not lose recall to over-fetching and post-filtering. ``None``: no change."""
         cfg = self.config
         query = normalize_ws(query)
         if not query:
@@ -277,6 +280,8 @@ class MemoryRetriever:
             subject_id = await self.store.resolve_alias(subject) or norm_entity(subject)
         mask = index.mask(subject=subject_id, speaker=speaker, chat_id=chat_id, kinds=kind_set, since=since, until=until,
                           include_superseded=include_superseded)
+        if allowed_ids is not None and len(mask):
+            mask &= np.fromiter((mid in allowed_ids for mid in index.ids), dtype=bool, count=len(index.ids))
         allowed = {index.ids[i] for i in np.nonzero(mask)[0]}
         if not allowed:
             return []

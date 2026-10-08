@@ -15,6 +15,13 @@ What lives here and why:
   raw-grant path.
 * Mutations accept an ``idempotency_key`` (the transport ``msg_id``) so the holder service can commit the effect and
   the processed-message marker in one transaction.
+* Records that arrive through connectors (docs/mycelic/INGESTION.md) are written through the same primitives with a few
+  keyword-only parameters (explicit root, conversation chat, speaker, metadata, and ``extra_sync``, which runs inside the
+  same transaction so the ingestion catalog commits atomically with the content). Each carries its source ACL; the
+  answer, raw and manual-response paths disclose a member-restricted or private record only to an audience entirely
+  inside the source's members, or to the holder owner (:mod:`mycelic.ingest.acl`).
+* Retraction and deletion purge content (text, chunks, FTS rows, embeddings, versions, excerpts) and keep a
+  content-free tombstone; :meth:`raw_for_ref` never returns text of a withdrawn document.
 """
 from __future__ import annotations
 
@@ -22,8 +29,9 @@ import inspect
 import logging
 import re
 import secrets
+import sqlite3
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 from NeuralGraph.chat_memory.llm import fake_embedding
 from NeuralGraph.chat_memory.models import Memory, RetrievedMemory, iso, new_id, now_iso, parse_iso
@@ -31,8 +39,15 @@ from NeuralGraph.chat_memory.retrieval import MemoryRetriever, RetrievalConfig
 from NeuralGraph.chat_memory.textutil import clip, content_hash, fold, norm_entity, normalize_ws, stem, tokenize
 
 from .. import __version__ as HOLDER_VERSION
-from ..util import fingerprint
-from .store import AlreadyProcessed, MycelicMemoryStore
+from ..ingest.acl import Audience, decide
+from ..ingest.domains import Taxonomy, default_taxonomy, domains_overlap, is_personal, load_taxonomy_sync
+from ..ingest.events import Permissions
+from ..ingest.normalize import mask_secrets
+from ..util import fingerprint, j, jl
+from .store import LIVE_DOCUMENT_STATUSES, AlreadyProcessed, MycelicMemoryStore
+
+ExtraSync = Callable[[sqlite3.Connection, dict[str, Any]], Any]
+REF_KIND = {"message": "message", "document": "document", "event": "record", "conversation": "conversation"}
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +55,7 @@ RETRIEVAL_OPERATOR = "neuralgraph.hybrid"
 DISCLOSURE_LEVELS = ("none", "summary", "excerpt")          # least to most disclosing
 DEFAULT_EXPORT_POLICY: dict[str, Any] = {
     "disclosure": "excerpt", "max_excerpt_chars": 480, "answer_scopes": ["unit", "org"], "deny_patterns": [],
-    "max_answer_chars": 1200,
+    "max_answer_chars": 1200, "disclose_source_app": True,
 }
 DEFAULT_CHUNK_CHARS = 600
 RETRIEVAL_K = 8
@@ -303,7 +318,7 @@ class EvidenceStore:
 
     def __init__(self, path: str | Path, *, holder_id: str, tenant_id: str, llm: Any | None = None, router: Any | None = None,
                  export_policy: dict[str, Any] | None = None, domains: Iterable[str] = (), extract: bool = False,
-                 retrieval: RetrievalConfig | None = None, chunk_chars: int = DEFAULT_CHUNK_CHARS) -> None:
+                 retrieval: RetrievalConfig | None = None, chunk_chars: int = DEFAULT_CHUNK_CHARS, owner_ids: Iterable[str] = ()) -> None:
         self.path = str(path)
         self.holder_id = holder_id
         self.tenant_id = tenant_id
@@ -311,12 +326,14 @@ class EvidenceStore:
         self.router = router
         self.extract = bool(extract)
         self.chunk_chars = int(chunk_chars)
+        self.owner_ids: list[str] = [str(o) for o in owner_ids if o]     # principals that own this holder (ACL: always inside)
         self.store = MycelicMemoryStore(path)
         self.retriever = MemoryRetriever(self.store, self.llm, retrieval)
         self.export_policy: dict[str, Any] = {}
         self.domains: list[str] = []
         self._deny: list[re.Pattern[str]] = []
         self._policy_problems: list[str] = []
+        self._taxonomy: Taxonomy | None = None
         self.update_policy(export_policy, list(domains))
 
     # ------------------------------------------------------------------ policy
@@ -342,11 +359,24 @@ class EvidenceStore:
     # ------------------------------------------------------------------ ingestion
     async def ingest_document(self, title: str, text: str, *, kind: str = "note", observed_at: str | None = None,
                               domains: Iterable[str] | None = None, origin_id: str | None = None, uploaded_by: str | None = None,
-                              doc_id: str | None = None, idempotency_key: str | None = None) -> dict[str, Any]:
+                              doc_id: str | None = None, idempotency_key: str | None = None,
+                              source_root_id: str | None = None, root_known: bool = True, conversation_chat_id: str | None = None,
+                              speaker: str | None = None, extra_metadata: dict[str, Any] | None = None,
+                              entities: Iterable[tuple[str, str, str]] | None = None, audit_detail: str = "full", classify: bool = True,
+                              embeddings: list[list[float] | None] | None = None, extra_sync: ExtraSync | None = None) -> dict[str, Any]:
         """Store a document, chunk it, and index every chunk as a memory with provenance. Idempotent on ``doc_id``.
 
         Embeddings and classification (model calls) happen before the transaction; the transaction then writes the
         document, its version-1 row, the chunk messages, the memories, the entities and the last-ingest marker.
+
+        Keyword-only parameters used by connector ingestion (all optional, defaults keep the upload behaviour):
+        ``source_root_id``/``root_known`` (explicit root computed by the connector rules), ``conversation_chat_id`` (chat
+        of the provenance message rows; memories keep ``chat_id = doc_id``), ``speaker``, ``extra_metadata`` (merged into
+        memory and message metadata), ``entities`` (``(entity_id, name, type)`` linked to every chunk memory),
+        ``audit_detail='ids'`` (no title in the audit log), ``classify=False`` (no model call; the rule summary is used),
+        ``embeddings`` (precomputed, one per chunk of ``chunk_text(text)``), and ``extra_sync(conn, write)`` which runs in
+        the same transaction after the content rows, with ``write = {doc, memory_ids, message_ids, chunks, version}``.
+        ``extra_sync`` runs only when this call creates the document.
         """
         title = normalize_ws(title) or "Untitled"
         text = _clean_text(text)
@@ -361,18 +391,24 @@ class EvidenceStore:
             return result
         observed = _norm_time(observed_at)
         now = now_iso()
-        root = fingerprint(origin_id) if origin_id else fingerprint(text)
+        if source_root_id is not None:
+            root = source_root_id
+        else:
+            root = fingerprint(origin_id) if origin_id else fingerprint(text)
         chunks = chunk_text(text, target=self.chunk_chars)
-        embeddings = await self._embed_all(chunks)
-        classified = await self._classify(title, text)
+        if embeddings is None or len(embeddings) != len(chunks):
+            embeddings = await self._embed_all(chunks)
+        classified = await self._classify(title, text) if classify else rule_classify_document(title, text, ())
         doc_domains = [str(d) for d in domains] if domains else list(classified["domains"])
         if kind == "note" and classified.get("kind") == "conversation":
             kind = "conversation"
         doc = {"doc_id": doc_id, "title": title, "kind": kind or "note", "source_root_id": root, "origin_id": origin_id,
                "observed_at": observed, "domains": doc_domains, "summary": classified.get("summary") or "", "status": "active",
-               "version": 1, "chars": len(text), "uploaded_by": uploaded_by, "created_at": now, "updated_at": now}
-        memories = self._build_memories(doc, chunks, embeddings, version=1)
-        speaker = uploaded_by or "document"
+               "version": 1, "chars": len(text), "uploaded_by": uploaded_by, "created_at": now, "updated_at": now,
+               "root_known": bool(root_known and root)}
+        memories = self._build_memories(doc, chunks, embeddings, version=1, extra_metadata=extra_metadata)
+        speaker = speaker or uploaded_by or "document"
+        detail = {"title": title, "chunks": len(chunks), "source_root_id": root} if audit_detail == "full" else {"chunks": len(chunks)}
 
         def fn(c):
             again = self.store._get_document_sync(c, doc_id)
@@ -380,9 +416,13 @@ class EvidenceStore:
                 return self._public_document_sync(c, again)
             self.store._insert_document_sync(c, doc, text)
             self.store._add_version_sync(c, doc_id, 1, text, title, observed, now, "ingest")
-            self._write_chunks_sync(c, doc, chunks, memories, version=1, speaker=speaker)
+            message_ids = self._write_chunks_sync(c, doc, chunks, memories, version=1, speaker=speaker, chat_id=conversation_chat_id,
+                                                  extra_metadata=extra_metadata, entities=entities)
             self.store._set_holder_meta_sync(c, "last_ingest_at", now)
-            self.store._log_sync(c, "document.ingest", doc_id, {"title": title, "chunks": len(chunks), "source_root_id": root})
+            self.store._log_sync(c, "document.ingest", doc_id, detail)
+            if extra_sync is not None:
+                extra_sync(c, {"doc": doc, "memory_ids": [m.memory_id for m in memories], "message_ids": message_ids, "chunks": len(chunks),
+                               "version": 1})
             return self._public_document_sync(c, doc)
 
         try:
@@ -391,52 +431,69 @@ class EvidenceStore:
             return exc.outcome.get("result") or {}
 
     async def revise_document(self, doc_id: str, text: str, *, title: str | None = None, observed_at: str | None = None,
-                              reason: str = "", domains: Iterable[str] | None = None, idempotency_key: str | None = None) -> dict[str, Any]:
+                              reason: str = "", domains: Iterable[str] | None = None, idempotency_key: str | None = None,
+                              source_root_id: str | None = None, root_known: bool = True, conversation_chat_id: str | None = None,
+                              speaker: str | None = None, extra_metadata: dict[str, Any] | None = None,
+                              entities: Iterable[tuple[str, str, str]] | None = None, audit_detail: str = "full", classify: bool = True,
+                              embeddings: list[list[float] | None] | None = None, extra_sync: ExtraSync | None = None) -> dict[str, Any]:
         """New version: old chunk memories are superseded by the new ones (retracted where the new text has fewer
         chunks), the root is recomputed, and the references that pointed at old chunks are reported as
-        ``affected_ref_ids`` so the coordinator can re-verify the claims that cite them."""
+        ``affected_ref_ids`` so the coordinator can re-verify the claims that cite them.
+
+        The keyword-only connector parameters are those of :meth:`ingest_document`. A document whose content was redacted
+        (``status='redacted'``, connector records only) can receive a new version when the source shows content again;
+        retracted and deleted documents cannot be revised."""
         doc = await self.store.get_document(doc_id, with_text=True)
         if doc is None:
             raise KeyError(doc_id)
-        if doc["status"] == "retracted":
-            raise ValueError("document is retracted")
+        if doc["status"] in ("retracted", "deleted", "suspended"):
+            raise ValueError(f"document is {doc['status']}")
         text = _clean_text(text)
         if not text:
             raise ValueError("document text is empty")
         new_title = normalize_ws(title) if title else doc["title"]
         observed = _norm_time(observed_at) if observed_at else doc.get("observed_at")
         now = now_iso()
-        root = fingerprint(doc["origin_id"]) if doc.get("origin_id") else fingerprint(text)
+        if source_root_id is not None:
+            root = source_root_id
+        else:
+            root = fingerprint(doc["origin_id"]) if doc.get("origin_id") else fingerprint(text)
         version = int(doc["version"]) + 1
         chunks = chunk_text(text, target=self.chunk_chars)
-        embeddings = await self._embed_all(chunks)
-        classified = await self._classify(new_title, text)
+        if embeddings is None or len(embeddings) != len(chunks):
+            embeddings = await self._embed_all(chunks)
+        classified = await self._classify(new_title, text) if classify else rule_classify_document(new_title, text, ())
         doc_domains = [str(d) for d in domains] if domains else (doc.get("domains") or list(classified["domains"]))
         new_doc = {**doc, "title": new_title, "source_root_id": root, "observed_at": observed, "domains": doc_domains,
                    "summary": classified.get("summary") or doc.get("summary") or "", "status": "revised", "version": version,
-                   "chars": len(text), "updated_at": now}
+                   "chars": len(text), "updated_at": now, "root_known": bool(root_known and root)}
         new_doc.pop("text", None)
-        memories = self._build_memories(new_doc, chunks, embeddings, version=version)
-        speaker = doc.get("uploaded_by") or "document"
+        memories = self._build_memories(new_doc, chunks, embeddings, version=version, extra_metadata=extra_metadata)
+        speaker = speaker or doc.get("uploaded_by") or "document"
+        detail_extra = {"source_root_id": root} if audit_detail == "full" else {}
 
         def fn(c):
             current = self.store._get_document_sync(c, doc_id)
             if current is None:
                 raise KeyError(doc_id)
-            if current["status"] == "retracted":
-                raise ValueError("document is retracted")
+            if current["status"] in ("retracted", "deleted", "suspended"):
+                raise ValueError(f"document is {current['status']}")
             old_ids = self.store._document_memory_ids_sync(c, doc_id, status="active")
             affected = [e["ref_id"] for e in self.store._exports_for_memories_sync(c, old_ids)]
             self.store._update_document_sync(c, doc_id, title=new_title, text=text, source_root_id=root, observed_at=observed,
                                              domains=doc_domains, summary=new_doc["summary"], status="revised", version=version,
-                                             chars=len(text), updated_at=now)
+                                             chars=len(text), updated_at=now, root_known=1 if new_doc["root_known"] else 0)
             self.store._add_version_sync(c, doc_id, version, text, new_title, observed, now, reason)
-            self._write_chunks_sync(c, new_doc, chunks, memories, version=version, speaker=speaker)
+            message_ids = self._write_chunks_sync(c, new_doc, chunks, memories, version=version, speaker=speaker, chat_id=conversation_chat_id,
+                                                  extra_metadata=extra_metadata, entities=entities)
             for old, new in zip(old_ids, memories):
                 self.store._supersede_sync(c, old, new.memory_id)
             self.store._retract_memories_sync(c, old_ids[len(memories):], f"revised: {reason}" if reason else "revised")
             self.store._log_sync(c, "document.revise", doc_id, {"version": version, "reason": reason, "affected_refs": len(affected),
-                                                                 "source_root_id": root})
+                                                                 **detail_extra})
+            if extra_sync is not None:
+                extra_sync(c, {"doc": new_doc, "memory_ids": [m.memory_id for m in memories], "message_ids": message_ids, "chunks": len(chunks),
+                               "version": version, "superseded_memory_ids": old_ids, "affected_ref_ids": affected})
             return {"document": self._public_document_sync(c, new_doc), "affected_ref_ids": affected,
                     "previous_source_root_id": current["source_root_id"], "new_source_root_id": root, "reason": reason}
 
@@ -446,28 +503,77 @@ class EvidenceStore:
             return exc.outcome.get("result") or {}
 
     async def retract_document(self, doc_id: str, reason: str = "", *, idempotency_key: str | None = None) -> dict[str, Any]:
-        """Retract every chunk memory and mark the document; reports every reference ever exported from it."""
+        """Withdraw a document: its content is purged (text, versions, chunk memories, FTS rows, embeddings, chunk messages,
+        disclosed excerpts) and a content-free tombstone row stays with ``status='retracted'``. Reports every reference
+        ever exported from it. Idempotent: retracting again reports the same references and changes nothing."""
+        return await self._withdraw(doc_id, reason, status="retracted", idempotency_key=idempotency_key, op="retract")
+
+    async def delete_document(self, doc_id: str, reason: str = "", *, purge: bool = True, status: str = "deleted",
+                              idempotency_key: str | None = None, extra_sync: ExtraSync | None = None, optimize: bool = True) -> dict[str, Any]:
+        """Delete a document's content (INGESTION.md §9.6 H1) and keep a content-free tombstone. ``status`` is ``deleted``
+        (deleted at the source or by the owner) or ``redacted`` (identity kept, content removed). ``extra_sync`` runs in the
+        same transaction with ``{doc_id, affected_ref_ids, purged}``. Returns ``{document, affected_ref_ids, purged, reason}``."""
+        if not purge:
+            raise ValueError("deletion always purges content")
+        if status not in ("deleted", "redacted"):
+            raise ValueError("status must be deleted or redacted")
+        return await self._withdraw(doc_id, reason, status=status, idempotency_key=idempotency_key, op="delete", extra_sync=extra_sync,
+                                    optimize=optimize)
+
+    async def _withdraw(self, doc_id: str, reason: str, *, status: str, idempotency_key: str | None, op: str,
+                        extra_sync: ExtraSync | None = None, optimize: bool = True) -> dict[str, Any]:
         doc = await self.store.get_document(doc_id)
         if doc is None:
             raise KeyError(doc_id)
-        now = now_iso()
+        title = {"retracted": "[retracted]", "deleted": "[deleted]", "redacted": "[redacted]"}[status]
 
         def fn(c):
             current = self.store._get_document_sync(c, doc_id)
             if current is None:
                 raise KeyError(doc_id)
-            ids = self.store._document_memory_ids_sync(c, doc_id, status=None)
-            affected = [e["ref_id"] for e in self.store._exports_for_document_sync(c, doc_id)]
-            if ids:
-                self.store._retract_memories_sync(c, ids, reason or "retracted")
-            if current["status"] != "retracted":
-                self.store._update_document_sync(c, doc_id, status="retracted", updated_at=now)
-                current = {**current, "status": "retracted", "updated_at": now}
-                self.store._log_sync(c, "document.retract", doc_id, {"reason": reason, "affected_refs": len(affected)})
-            return {"document": self._public_document_sync(c, current), "affected_ref_ids": affected, "reason": reason}
+            if current["status"] in ("retracted", "deleted") or (current["status"] == "redacted" and status == "redacted"):
+                # already withdrawn: report the same references, purge nothing new
+                affected = [e["ref_id"] for e in self.store._exports_for_document_sync(c, doc_id)]
+                result = {"affected_ref_ids": affected, "purged": {"memories": 0, "messages": 0, "versions": 0, "entities": 0}}
+            else:
+                result = self.store._purge_document_sync(c, doc_id, status=status, title=title, reason=reason)
+                self.store._log_sync(c, f"document.{op}", doc_id, {"reason": reason, "affected_refs": len(result["affected_ref_ids"]),
+                                                                    "purged": result["purged"]})
+            if optimize:
+                self.store._optimize_fts_sync(c)
+            if extra_sync is not None:
+                extra_sync(c, {"doc_id": doc_id, "affected_ref_ids": result["affected_ref_ids"], "purged": result["purged"]})
+            current = self.store._get_document_sync(c, doc_id)
+            return {"document": self._public_document_sync(c, current), "affected_ref_ids": result["affected_ref_ids"],
+                    "purged": result["purged"], "reason": reason}
 
         try:
-            return await self.store.run_in_tx(fn, idempotency_key=idempotency_key, op="retract")
+            result = await self.store.run_in_tx(fn, idempotency_key=idempotency_key, op=op)
+        except AlreadyProcessed as exc:
+            return exc.outcome.get("result") or {}
+        if optimize:
+            await self.store.checkpoint_wal()
+        return result
+
+    async def update_document_metadata(self, doc_id: str, *, domains: Iterable[str] | None = None, extra_sync: ExtraSync | None = None,
+                                       idempotency_key: str | None = None) -> dict[str, Any]:
+        """Metadata-only change (labels, ACL, domains): no new version and no re-embedding; the document's domain list and
+        its active chunk memories' metadata follow."""
+        def fn(c):
+            current = self.store._get_document_sync(c, doc_id)
+            if current is None:
+                raise KeyError(doc_id)
+            if domains is not None:
+                ds = [str(d) for d in domains]
+                self.store._update_document_sync(c, doc_id, domains=ds, updated_at=now_iso())
+                c.execute("UPDATE memories SET metadata=json_set(metadata, '$.domains', json(?)) WHERE chat_id=? AND status='active'",
+                          (j(ds), doc_id))
+            if extra_sync is not None:
+                extra_sync(c, {"doc_id": doc_id})
+            return self._public_document_sync(c, self.store._get_document_sync(c, doc_id))
+
+        try:
+            return await self.store.run_in_tx(fn, idempotency_key=idempotency_key, op="update_metadata")
         except AlreadyProcessed as exc:
             return exc.outcome.get("result") or {}
 
@@ -490,26 +596,39 @@ class EvidenceStore:
         because the owner may see their own store; the coordinator never calls this)."""
         return [self._result_dict(r) for r in await self._retrieve(query, k=k, **filters)]
 
-    async def raw_for_ref(self, ref_id: str) -> dict[str, Any] | None:
+    async def raw_for_ref(self, ref_id: str, *, audience: Any = None) -> dict[str, Any] | None:
         """Resolve an exported reference to its document. The coordinator calls this only after its own raw-grant
-        check, and the holder service only for an envelope signed with its route key."""
+        check, and the holder service only for an envelope signed with its route key.
+
+        Never returns text of a withdrawn document (retracted, deleted, redacted, suspended): the reply is content-free
+        with the document's status. A connector record is re-checked against its source ACL at this moment: unless the
+        ``audience`` (``{"principal_ids", "complete", "owner"}``) is the holder owner or entirely inside the source's
+        members, the reply is content-free with ``status='withheld'``."""
         export = await self.store.get_export(ref_id)
         if export is None:
             return None
         doc = await self.store.get_document(export["doc_id"], with_text=True)
         if doc is None:
             return None
+        base = {"ref_id": ref_id, "doc_id": doc["doc_id"], "observed_at": doc.get("observed_at"), "version": doc["version"],
+                "status": doc["status"], "source_root_id": doc["source_root_id"], "kind": doc["kind"], "question_id": export["question_id"]}
+        if doc["status"] not in LIVE_DOCUMENT_STATUSES:
+            return {**base, "title": doc["title"], "text": "", "chunk_text": None, "withheld": doc["status"]}
+        acl = self._record_acl_sync(self.store._conn, doc["doc_id"])
+        if acl is not None:
+            ok, why = self._acl_allows(acl, Audience.from_payload(audience))
+            if not ok:
+                return {**base, "status": "withheld", "title": f"{acl['source_app']} {acl['kind']}", "text": "", "chunk_text": None,
+                        "withheld": why}
         memory = await self.store.get_memory(export["memory_id"])
-        return {"ref_id": ref_id, "doc_id": doc["doc_id"], "title": doc["title"], "text": doc["text"], "observed_at": doc.get("observed_at"),
-                "version": doc["version"], "status": doc["status"], "source_root_id": doc["source_root_id"], "kind": doc["kind"],
-                "chunk_text": memory.text if memory else None, "question_id": export["question_id"]}
+        return {**base, "title": doc["title"], "text": doc["text"], "chunk_text": memory.text if memory else None}
 
     async def stats(self) -> dict[str, Any]:
         docs = await self.store.document_counts()
         mem = await self.store.memory_counts()
         return {
             "holder_id": self.holder_id,
-            "documents": sum(n for s, n in docs.items() if s != "retracted"),
+            "documents": sum(n for s, n in docs.items() if s in LIVE_DOCUMENT_STATUSES),
             "documents_by_status": docs,
             "memories": int(mem["by_status"].get("active", 0)),
             "memories_by_status": mem["by_status"],
@@ -519,7 +638,85 @@ class EvidenceStore:
             "questions_answered": int(await self.store.get_holder_meta("questions_answered", "0") or 0),
             "last_ingest_at": await self.store.get_holder_meta("last_ingest_at"),
             "holder_version": HOLDER_VERSION,
+            "ingest": self._ingest_stats_sync(self.store._conn),
         }
+
+    # ------------------------------------------------------------------ connector records: ACL and catalog
+    def taxonomy(self) -> Taxonomy:
+        """The holder's copy of the tenant taxonomy plus its personal domains (the defaults until one is installed)."""
+        if self._taxonomy is None:
+            tax = load_taxonomy_sync(self.store._conn)
+            self._taxonomy = tax if tax.domains else default_taxonomy()
+        return self._taxonomy
+
+    def set_taxonomy(self, tax: Taxonomy | None) -> None:
+        self._taxonomy = tax
+
+    def _record_acl_sync(self, c: sqlite3.Connection, doc_id: str) -> dict[str, Any] | None:
+        """The connector record behind a document (``None`` for direct uploads): permissions, source opt-in and state."""
+        r = c.execute("""SELECT r.record_id, r.kind, r.source_app, r.permissions, r.visibility, r.deletion_status, r.sensitivity, r.flags,
+                                r.source_id, s.exportable, s.disclosure, s.access_state, cn.connector_type
+                         FROM ingest_records r LEFT JOIN connector_sources s ON s.source_id = r.source_id
+                         LEFT JOIN connectors cn ON cn.connector_id = r.connector_id WHERE r.record_id=?""", (doc_id,)).fetchone()
+        if r is None:
+            return None
+        perms = Permissions.from_dict(jl(r["permissions"], {}))
+        exportable = bool(r["exportable"]) if r["exportable"] is not None else perms.visibility != "private"
+        return {"record_id": r["record_id"], "kind": r["kind"], "source_app": r["source_app"], "permissions": perms,
+                "visibility": perms.visibility, "deletion_status": r["deletion_status"], "sensitivity": r["sensitivity"],
+                "flags": set(jl(r["flags"], [])), "exportable": exportable, "disclosure": r["disclosure"],
+                "access_state": r["access_state"] or "ok", "connector_type": r["connector_type"] or r["source_app"]}
+
+    def _members_of_ref(self, ref: str) -> list[str]:
+        return [x["member_id"] for x in self.store._conn.execute("SELECT member_id FROM acl_memberships WHERE membership_ref=?", (ref,))]
+
+    def _acl_allows(self, acl: dict[str, Any], audience: Audience | None) -> tuple[bool, str]:
+        owner = audience is not None and audience.owner
+        if acl["deletion_status"] != "live":
+            return False, acl["deletion_status"]
+        if acl["access_state"] != "ok" and not owner:
+            return False, "access_lost"
+        return decide(acl["permissions"], audience, exportable=acl["exportable"], owner_ids=self.owner_ids, resolve_ref=self._members_of_ref)
+
+    def _allowed_memory_ids(self, audience: Audience | None) -> set[str] | None:
+        """The retrieval allow-set for this audience, or ``None`` when nothing in the holder is withheld from it."""
+        if audience is not None and audience.owner:
+            return None
+        c = self.store._conn
+        rows = c.execute("""SELECT r.record_id FROM ingest_records r LEFT JOIN connector_sources s ON s.source_id = r.source_id
+                            WHERE r.visibility <> 'public' OR r.deletion_status <> 'live' OR COALESCE(s.access_state, 'ok') <> 'ok'""").fetchall()
+        denied = []
+        for row in rows:
+            acl = self._record_acl_sync(c, row["record_id"])
+            if acl is not None and not self._acl_allows(acl, audience)[0]:
+                denied.append(row["record_id"])
+        if not denied:
+            return None
+        blocked: set[str] = set()
+        for i in range(0, len(denied), 500):
+            part = denied[i:i + 500]
+            blocked.update(x["memory_id"] for x in c.execute(f"SELECT memory_id FROM memories WHERE chat_id IN ({','.join('?' * len(part))})", part))
+            blocked.update(x["memory_id"] for x in c.execute(f"SELECT memory_id FROM record_memories WHERE record_id IN ({','.join('?' * len(part))})", part))
+        return {x["memory_id"] for x in c.execute("SELECT memory_id FROM memories WHERE status='active'")} - blocked
+
+    def _record_domains_sync(self, c: sqlite3.Connection, record_id: str) -> list[str]:
+        rows = c.execute("SELECT domain_id FROM domain_memberships WHERE record_id=? AND status='active' ORDER BY is_primary DESC, confidence DESC, domain_id",
+                         (record_id,)).fetchall()
+        return [r["domain_id"] for r in rows if not is_personal(r["domain_id"])]
+
+    def _ingest_stats_sync(self, c: sqlite3.Connection, *, min_records_to_publish: int = 5) -> dict[str, Any]:
+        """Counts only (heartbeat E10): never names, titles or personal domains."""
+        records = {r["source_app"]: int(r["n"]) for r in c.execute(
+            "SELECT source_app, COUNT(*) AS n FROM ingest_records WHERE deletion_status='live' GROUP BY source_app")}
+        queue = {r["priority_class"]: int(r["n"]) for r in c.execute(
+            "SELECT priority_class, COUNT(*) AS n FROM ingest_queue WHERE status IN ('queued','leased') GROUP BY priority_class")}
+        queue["dead"] = int(c.execute("SELECT COUNT(*) AS n FROM ingest_queue WHERE status='dead'").fetchone()["n"])
+        domains = {r["domain_id"]: int(r["n"]) for r in c.execute(
+            """SELECT dm.domain_id, COUNT(*) AS n FROM domain_memberships dm JOIN ingest_records r ON r.record_id = dm.record_id
+               WHERE dm.status='active' AND r.deletion_status='live' GROUP BY dm.domain_id""")
+            if not is_personal(r["domain_id"]) and int(r["n"]) >= min_records_to_publish}
+        connectors = int(c.execute("SELECT COUNT(*) AS n FROM connectors WHERE status NOT IN ('disconnected')").fetchone()["n"])
+        return {"connectors": connectors, "records": sum(records.values()), "by_app": records, "queue": queue, "domains": domains}
 
     # ------------------------------------------------------------------ answering
     async def answer_question(self, question: dict[str, Any], *, idempotency_key: str | None = None) -> dict[str, Any]:
@@ -557,28 +754,37 @@ class EvidenceStore:
 
         level = effective_disclosure(self.export_policy["disclosure"], policy.get("disclosure"))
         max_excerpt = int(self.export_policy["max_excerpt_chars"])
-        results = await self._retrieve(text, k=RETRIEVAL_K, since=question.get("valid_from"), until=question.get("valid_to"))
+        audience = Audience.from_payload(question.get("audience"))
+        # records the audience may not see are excluded before ranking (recall), and re-checked per item below (use time)
+        allowed_ids = self._allowed_memory_ids(audience)
+        results = await self._retrieve(text, k=RETRIEVAL_K, since=question.get("valid_from"), until=question.get("valid_to"), allowed_ids=allowed_ids)
         known = await self.store.exports_for_question(qid)
         items: list[dict[str, Any]] = []
         docs: dict[str, dict[str, Any] | None] = {}
+        acls: dict[str, dict[str, Any] | None] = {}
         channels: set[str] = set()
+        conn = self.store._conn
         for r in results:
             m = r.memory
             doc_id = m.metadata.get("doc_id") or m.chat_id
             if doc_id not in docs:
                 docs[doc_id] = await self.store.get_document(doc_id)
-            doc = docs[doc_id]
-            if doc is None or doc["status"] == "retracted":
+                acls[doc_id] = self._record_acl_sync(conn, doc_id) if docs[doc_id] is not None else None
+            doc, acl = docs[doc_id], acls[doc_id]
+            if doc is None or doc["status"] not in LIVE_DOCUMENT_STATUSES:
                 continue
+            if acl is not None and not self._acl_allows(acl, audience)[0]:
+                continue
+            item_level = self._record_level(level, acl)
             channels.update(ch for ch in ("vector", "keyword", "graph") if ch in r.channels)
             # the model (holder-side) reads the whole redacted chunk; the excerpt cap bounds what is *disclosed*
-            redacted = redact(m.text, self._deny)
+            redacted = self._redact(m.text)
             excerpt = clip(redacted, max_excerpt) if max_excerpt else ""
-            disclosed = {"excerpt": excerpt, "summary": clip(redact(doc.get("summary") or "", self._deny), max_excerpt or 140), "none": ""}[level]
+            disclosed = {"excerpt": excerpt, "summary": clip(self._redact(doc.get("summary") or ""), max_excerpt or 140), "none": ""}[item_level]
             items.append({
                 "ref_id": (known.get(m.memory_id) or {}).get("ref_id") or new_ref_id(),
-                "memory_id": m.memory_id, "doc": doc, "model_text": redacted, "disclosed": disclosed,
-                "observed_at": m.observed_at, "kind": doc["kind"], "title": self._disclosed_title(doc, level),
+                "memory_id": m.memory_id, "doc": doc, "acl": acl, "level": item_level, "model_text": redacted, "disclosed": disclosed,
+                "observed_at": m.observed_at, "kind": doc["kind"], "title": self._disclosed_title(doc, item_level, acl=acl, audience=audience),
             })
         provenance["channels"] = sorted(channels)
         provenance["memory_count"] = len(items)
@@ -587,8 +793,10 @@ class EvidenceStore:
                         "freshness_at": None}
             return await self._commit_answer([], response, idempotency_key)
 
+        # a record flagged as carrying instructions never reaches a model: the answer is composed by the rule
+        suspicious = any(i["acl"] is not None and "suspicious_instructions" in i["acl"]["flags"] for i in items)
         model_out = await self._run_answer(text, [{"ref_id": i["ref_id"], "excerpt": i["model_text"], "observed_at": i["observed_at"]} for i in items],
-                                           question_id=qid, provenance=provenance)
+                                           question_id=qid, provenance=provenance, force_rule=suspicious)
         used_ids = [str(x) for x in (model_out.get("used_ref_ids") or [])]
         used = [i for i in items if i["ref_id"] in set(used_ids)]
         answer = normalize_ws(str(model_out.get("answer") or ""))
@@ -597,13 +805,8 @@ class EvidenceStore:
                         "freshness_at": None}
             return await self._commit_answer([], response, idempotency_key)
         max_answer = int(self.export_policy["max_answer_chars"])
-        content = clip(redact(answer, self._deny), max_answer) if max_answer else redact(answer, self._deny)
-        refs = [{
-            "ref_id": i["ref_id"], "source_root_id": i["doc"]["source_root_id"], "root_known": bool(i["doc"]["source_root_id"]),
-            "kind": i["kind"], "title": i["title"], "disclosed_excerpt": i["disclosed"], "disclosure_level": level,
-            # evidence is as fresh as the time its content was observed, not the time it was uploaded or indexed
-            "observed_at": i["observed_at"], "freshness_at": i["observed_at"] or i["doc"].get("observed_at"),
-        } for i in used]
+        content = clip(self._redact(answer), max_answer) if max_answer else self._redact(answer)
+        refs = [self._ref_shape(i) for i in used]
         try:
             confidence = max(0.0, min(1.0, float(model_out.get("confidence") or 0.0)))
         except (TypeError, ValueError):
@@ -611,8 +814,38 @@ class EvidenceStore:
         response = {**base, "status": "answered", "content": content, "confidence": round(confidence, 3), "evidence_refs": refs,
                     "provenance": provenance, "freshness_at": max((r["freshness_at"] for r in refs if r["freshness_at"]), default=None)}
         exports = [{"ref_id": i["ref_id"], "memory_id": i["memory_id"], "doc_id": i["doc"]["doc_id"], "question_id": qid,
-                    "disclosed_excerpt": i["disclosed"], "disclosure_level": level} for i in used]
+                    "disclosed_excerpt": i["disclosed"], "disclosure_level": i["level"]} for i in used]
         return await self._commit_answer(exports, response, idempotency_key)
+
+    def _record_level(self, level: str, acl: dict[str, Any] | None) -> str:
+        """A connector record can lower (never raise) the disclosure: the source's own setting, and ``none`` for restricted records."""
+        if acl is None:
+            return level
+        out = level
+        if acl.get("disclosure") in DISCLOSURE_LEVELS:
+            out = effective_disclosure(out, acl["disclosure"])
+        if acl.get("sensitivity") == "restricted":
+            out = "none"
+        return out
+
+    def _ref_shape(self, i: dict[str, Any]) -> dict[str, Any]:
+        doc, acl = i["doc"], i["acl"]
+        root = doc["source_root_id"]
+        ref = {
+            "ref_id": i["ref_id"], "source_root_id": root, "root_known": bool(root) and bool(doc.get("root_known", 1)),
+            "kind": REF_KIND.get(doc["kind"], doc["kind"]) if acl is not None else i["kind"], "title": i["title"],
+            "disclosed_excerpt": i["disclosed"], "disclosure_level": i["level"],
+            # evidence is as fresh as the time its content was observed, not the time it was uploaded or indexed
+            "observed_at": i["observed_at"], "freshness_at": i["observed_at"] or doc.get("observed_at"),
+        }
+        if acl is not None and self.export_policy.get("disclose_source_app", True):
+            ref["meta"] = {"source_app": acl["source_app"], "record_kind": acl["kind"], "connector_type": acl["connector_type"],
+                           "domain_ids": self._record_domains_sync(self.store._conn, doc["doc_id"])}
+        return ref
+
+    def _redact(self, text: str) -> str:
+        """Owner deny patterns plus the built-in secret detectors, always (INGESTION.md §10.4)."""
+        return mask_secrets(redact(text or "", self._deny))[0]
 
     async def manual_response(self, question: dict[str, Any], content: str, doc_ids: Iterable[str], *,
                               idempotency_key: str | None = None) -> dict[str, Any]:
@@ -634,6 +867,7 @@ class EvidenceStore:
                       "policy": {"disclosure": self.export_policy["disclosure"], "answer_scopes": list(self.export_policy["answer_scopes"])},
                       "memory_count": 0, "answer_method": "human"}
         known = await self.store.exports_for_question(qid)
+        audience = Audience.from_payload(question.get("audience"))
         refs: list[dict[str, Any]] = []
         exports: list[dict[str, Any]] = []
         for doc_id in ids:
@@ -641,34 +875,42 @@ class EvidenceStore:
             if doc is None:
                 raise KeyError(doc_id)
             memory_ids = await self.store.document_memory_ids(doc_id)
-            if doc["status"] == "retracted" or not memory_ids:
+            if doc["status"] not in LIVE_DOCUMENT_STATUSES or not memory_ids:
                 continue
+            acl = self._record_acl_sync(self.store._conn, doc_id)
+            if acl is not None and not self._acl_allows(acl, audience)[0]:
+                continue                       # a person cannot export what the audience may not see either
+            item_level = self._record_level(level, acl)
             memory_id = memory_ids[0]          # the document's first chunk anchors the reference in the export ledger
-            excerpt = clip(redact(doc["text"], self._deny), max_excerpt) if max_excerpt else ""
-            disclosed = {"excerpt": excerpt, "summary": clip(redact(doc.get("summary") or "", self._deny), max_excerpt or 140), "none": ""}[level]
+            excerpt = clip(self._redact(doc["text"]), max_excerpt) if max_excerpt else ""
+            disclosed = {"excerpt": excerpt, "summary": clip(self._redact(doc.get("summary") or ""), max_excerpt or 140), "none": ""}[item_level]
             ref_id = (known.get(memory_id) or {}).get("ref_id") or new_ref_id()
-            refs.append({"ref_id": ref_id, "source_root_id": doc["source_root_id"], "root_known": bool(doc["source_root_id"]), "kind": doc["kind"],
-                         "title": self._disclosed_title(doc, level), "disclosed_excerpt": disclosed, "disclosure_level": level, "observed_at": doc.get("observed_at"),
-                         "freshness_at": doc.get("observed_at")})
+            item = {"ref_id": ref_id, "doc": doc, "acl": acl, "level": item_level, "disclosed": disclosed, "observed_at": doc.get("observed_at"),
+                    "kind": doc["kind"], "title": self._disclosed_title(doc, item_level, acl=acl, audience=audience)}
+            refs.append(self._ref_shape(item))
             exports.append({"ref_id": ref_id, "memory_id": memory_id, "doc_id": doc_id, "question_id": qid, "disclosed_excerpt": disclosed,
-                            "disclosure_level": level})
+                            "disclosure_level": item_level})
         provenance["memory_count"] = len(refs)
         if not content:
             response = {**base, "status": "no_evidence", "content": "", "confidence": 0.0, "evidence_refs": [], "provenance": provenance,
                         "freshness_at": None}
             return await self._commit_answer([], response, idempotency_key, op="manual_response")
         max_answer = int(self.export_policy["max_answer_chars"])
-        response = {**base, "status": "answered", "content": clip(redact(content, self._deny), max_answer) if max_answer else redact(content, self._deny),
+        response = {**base, "status": "answered", "content": clip(self._redact(content), max_answer) if max_answer else self._redact(content),
                     "confidence": 0.8, "evidence_refs": refs, "provenance": provenance,
                     "freshness_at": max((r["freshness_at"] for r in refs if r["freshness_at"]), default=None)}
         return await self._commit_answer(exports, response, idempotency_key, op="manual_response")
 
     # ------------------------------------------------------------------ internals
-    def _disclosed_title(self, doc: dict[str, Any], level: str) -> str:
-        """Titles are disclosure too: redacted like the text, and replaced by the document kind when nothing may be disclosed."""
+    def _disclosed_title(self, doc: dict[str, Any], level: str, *, acl: dict[str, Any] | None = None, audience: Audience | None = None) -> str:
+        """Titles are disclosure too: redacted like the text, and replaced by the document kind when nothing may be disclosed.
+        Email subjects and issue titles are content: a record from a non-public source discloses only ``"<app> <kind>"``
+        unless the audience is the holder owner."""
         if level == "none":
             return str(doc.get("kind") or "document")
-        return redact(str(doc.get("title") or ""), self._deny)
+        if acl is not None and acl["visibility"] != "public" and not (audience is not None and audience.owner):
+            return f"{acl['source_app']} {acl['kind']}"
+        return self._redact(str(doc.get("title") or ""))
 
     async def _commit_answer(self, exports: list[dict[str, Any]], response: dict[str, Any], idempotency_key: str | None,
                              op: str = "question") -> dict[str, Any]:
@@ -682,7 +924,7 @@ class EvidenceStore:
                 # meanwhile, the revise/retract could not have reported this export, so the whole answer is redone instead
                 m = c.execute("SELECT status FROM memories WHERE memory_id=?", (e["memory_id"],)).fetchone()
                 d = c.execute("SELECT status FROM documents WHERE doc_id=?", (e["doc_id"],)).fetchone()
-                if m is None or m["status"] != "active" or d is None or d["status"] == "retracted":
+                if m is None or m["status"] != "active" or d is None or d["status"] not in LIVE_DOCUMENT_STATUSES:
                     raise EvidenceChanged(f"evidence for {e['ref_id']} changed while answering")
                 ref = self.store._record_export_sync(c, created_at=response["answered_at"], **e)
                 if ref != e["ref_id"]:   # a concurrent answer to the same question won the (memory, question) slot
@@ -708,19 +950,27 @@ class EvidenceStore:
         visibility = str((question.get("policy") or {}).get("visibility") or "unit")
         if visibility not in scopes:
             return f"holder policy does not answer {visibility}-scoped questions"
-        mine = set(self.domains)
-        wanted = {str(d) for d in (question.get("candidate_domains") or [])}
-        if mine and wanted and "*" not in mine and "*" not in wanted and not (mine & wanted):
+        mine = {d for d in self.domains if not is_personal(d)}
+        asked = {str(d) for d in (question.get("candidate_domains") or [])}
+        wanted = {d for d in asked if not is_personal(d)}
+        if asked and not wanted:
+            return "personal domains never route questions across the organization"
+        # taxonomy-aware: equal, aliased, or one an ancestor of the other (a question on 'infrastructure' reaches a holder
+        # tagged 'infrastructure.ci-cd'); unknown flat strings still match only themselves, '*' matches everything
+        if mine and wanted and not domains_overlap(mine, wanted, self.taxonomy()):
             return "no matching evidence domain"
         return None
 
     async def _retrieve(self, query: str, *, k: int = 10, since: str | None = None, until: str | None = None,
-                        **filters: Any) -> list[RetrievedMemory]:
+                        allowed_ids: set[str] | None = None, **filters: Any) -> list[RetrievedMemory]:
         """Active chunk memories only: a time window makes the retriever include superseded rows (they were true at
-        the time), but evidence must cite the current version so a reference is not stale on arrival."""
+        the time), but evidence must cite the current version so a reference is not stale on arrival. ``allowed_ids``
+        restricts retrieval to memories the requesting audience may see."""
         query = normalize_ws(query)
         if not query:
             return []
+        if allowed_ids is not None:
+            filters["allowed_ids"] = allowed_ids
         since_iso, until_iso = _norm_time(since), _norm_time(until)
         try:
             results = await self.retriever.search(query, k=max(1, k) * 2, since=since_iso, until=until_iso, **filters)
@@ -763,8 +1013,9 @@ class EvidenceStore:
                 logger.warning("classify_document via router failed (%s); using the rule", exc)
         return rule_classify_document(title, text, self.domains)
 
-    async def _run_answer(self, question: str, evidence: list[dict[str, Any]], *, question_id: str, provenance: dict[str, Any]) -> dict[str, Any]:
-        if self.router is not None:
+    async def _run_answer(self, question: str, evidence: list[dict[str, Any]], *, question_id: str, provenance: dict[str, Any],
+                          force_rule: bool = False) -> dict[str, Any]:
+        if self.router is not None and not force_rule:
             try:
                 out = await self.router.run_task("answer_from_evidence", {"question": question, "evidence": evidence},
                                                  tenant_id=self.tenant_id, question_id=question_id)
@@ -775,7 +1026,8 @@ class EvidenceStore:
         provenance["answer_method"] = "rule"
         return rule_answer_from_evidence(question, evidence)
 
-    def _build_memories(self, doc: dict[str, Any], chunks: list[str], embeddings: list[list[float] | None], *, version: int) -> list[Memory]:
+    def _build_memories(self, doc: dict[str, Any], chunks: list[str], embeddings: list[list[float] | None], *, version: int,
+                        extra_metadata: dict[str, Any] | None = None) -> list[Memory]:
         now = now_iso()
         observed = doc.get("observed_at") or now
         event_time = observed[:10] if doc.get("observed_at") else None
@@ -787,13 +1039,16 @@ class EvidenceStore:
                 chat_id=doc["doc_id"], importance=0.6, confidence=0.9, event_time=event_time,
                 event_time_precision="day" if event_time else "none", observed_at=observed, created_at=now, updated_at=now,
                 text_hash=content_hash(chunk.lower()), embedding=emb,
-                metadata={"doc_id": doc["doc_id"], "chunk_index": i, "source_root_id": doc["source_root_id"],
+                metadata={**(extra_metadata or {}), "doc_id": doc["doc_id"], "chunk_index": i, "source_root_id": doc["source_root_id"],
                           "domains": list(doc.get("domains") or []), "kind": doc.get("kind") or "note", "version": int(version),
-                          "title": doc["title"], "source_kind": "document"},
+                          "title": doc["title"], "source_kind": "document" if not extra_metadata else "record"},
             ))
         return out
 
-    def _write_chunks_sync(self, c, doc: dict[str, Any], chunks: list[str], memories: list[Memory], *, version: int, speaker: str) -> None:
+    def _write_chunks_sync(self, c, doc: dict[str, Any], chunks: list[str], memories: list[Memory], *, version: int, speaker: str,
+                           chat_id: str | None = None, extra_metadata: dict[str, Any] | None = None,
+                           entities: Iterable[tuple[str, str, str]] | None = None) -> list[str]:
+        """Chunk provenance messages (in ``chat_id``, default the document's own chat) and chunk memories. Returns the message ids."""
         subject = norm_entity(doc["title"]) or doc["doc_id"]
         seen_at = doc.get("observed_at") or now_iso()
         self.store._upsert_entity_sync(c, subject, doc["title"], "document", seen_at, mentions=len(chunks))
@@ -803,12 +1058,21 @@ class EvidenceStore:
             if key and key not in entity_ids:
                 self.store._upsert_entity_sync(c, key, str(d), "domain", seen_at, mentions=len(chunks))
                 entity_ids.append(key)
+        for eid, name, etype in entities or ():
+            if eid and eid not in entity_ids:
+                self.store._upsert_entity_sync(c, eid, name or eid, etype or "", seen_at, mentions=len(chunks))
+                entity_ids.append(eid)
+        chat = chat_id or doc["doc_id"]
+        message_ids: list[str] = []
         for i, (chunk, mem) in enumerate(zip(chunks, memories)):
             message_id = f"msg_{content_hash(doc['doc_id'], str(version), str(i))}"
-            self.store._insert_message_sync(c, doc["doc_id"], speaker, chunk, sent_at=doc.get("observed_at"), message_id=message_id,
-                                            metadata={"doc_id": doc["doc_id"], "chunk_index": i, "version": int(version)},
-                                            title=doc["title"], enqueue=self.extract)
+            # a conversation chat keeps its own (container) title; a document's own chat is titled by the document
+            self.store._insert_message_sync(c, chat, speaker, chunk, sent_at=doc.get("observed_at"), message_id=message_id,
+                                            metadata={**(extra_metadata or {}), "doc_id": doc["doc_id"], "chunk_index": i, "version": int(version)},
+                                            title=None if chat_id else doc["title"], enqueue=self.extract)
             self.store._insert_memory_sync(c, mem, [message_id], entity_ids)
+            message_ids.append(message_id)
+        return message_ids
 
     def _public_document_sync(self, c, doc: dict[str, Any]) -> dict[str, Any]:
         chunks = int(c.execute("SELECT COUNT(*) AS n FROM memories WHERE chat_id=? AND status='active'", (doc["doc_id"],)).fetchone()["n"])

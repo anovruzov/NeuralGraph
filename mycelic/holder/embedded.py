@@ -116,8 +116,10 @@ class EmbeddedHolders:
                         provider = MeteredEmbeddings(self.embedder, ledger, tenant_id=tenant_id, prices=getattr(self.router, "prices", None))
                     self._tenant_llms[tenant_id] = _SharedEmbedding(provider)
                 llm = self._tenant_llms[tenant_id]
+        # a user-owned holder's owner is always inside its records' ACLs (connector records, mycelic.ingest.acl)
+        owner_ids = [row["owner_id"]] if row["owner_type"] == "user" and row["owner_id"] else []
         store = EvidenceStore(self.store_path(holder_id), holder_id=holder_id, tenant_id=tenant_id, llm=llm, router=self.router,
-                              export_policy=jl(row["export_policy"], {}), domains=jl(row["domains"], []), extract=self.extract)
+                              export_policy=jl(row["export_policy"], {}), domains=jl(row["domains"], []), extract=self.extract, owner_ids=owner_ids)
 
         async def heartbeat(stats: dict[str, Any]) -> None:
             await self.org.holder_heartbeat(holder_id, stats=_heartbeat_stats(stats))
@@ -169,4 +171,8 @@ def _heartbeat_stats(stats: dict[str, Any]) -> dict[str, Any]:
     svc = stats.get("service") or {}
     out["handled"] = svc.get("handled", 0)
     out["rejected"] = svc.get("rejected", 0)
+    ingest = stats.get("ingest")
+    if isinstance(ingest, dict):
+        # counts only; EvidenceStore.stats already drops personal domains and domains below the publication threshold
+        out["ingest"] = {k: ingest.get(k) for k in ("connectors", "records", "by_app", "queue", "domains") if k in ingest}
     return out

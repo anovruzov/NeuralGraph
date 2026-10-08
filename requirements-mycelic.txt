@@ -2,3 +2,4 @@
 -r requirements.txt
 nats-py>=2.9        # optional at runtime: only imported when MYCELIC_TRANSPORT=nats
 anthropic>=1.12,<2  # official Claude SDK, used by mycelic/models/anthropic_provider.py
+cryptography>=50.0.1,<51  # connector credential encryption (AES-GCM, HKDF), mycelic/ingest/crypto.py

@@ -1,6 +1,6 @@
 # Mycelic ingestion: one private, multi-source memory per holder
 
-Status: **design, nothing in this document is implemented yet** (2026-10-08). Audience: the engineer who builds it.
+Status: **design; Phase A (holder side) is implemented**, see the status block below (2026-10-08). Audience: the engineer who builds it.
 Scope: requirements (1)–(8) of the multi-source memory brief, plus the data contract for the later Integrations UI (9)
 and the acceptance-test plan. The design keeps the existing loop (`mycelic/discovery/engine.py`) unchanged except for the
 small, listed edits in §2.4.
@@ -21,6 +21,21 @@ reference while building.
 >    discovery demo, then **Gmail and Google Drive**; Phase 2 enterprise connectors are scaffolded with an explicit
 >    `scaffold` status until they work. The email-export connector of §11 remains useful as an offline format but is no
 >    longer the second connector of the first slice.
+
+> **Implementation status (Phase A, holder side, 2026-10-08).**
+> * Built: holder migrations (`mycelic/evidence/migrate.py`, `mycelic/evidence/migrations/0002_ingest.sql`, run when a store
+>   opens); `mycelic/ingest/` (`contract`, `events`, `normalize`, `acl`, `crypto`, `domains`, `queue`, `shards`, `store`,
+>   `pipeline`, `service`, `registry`); the `local_export` connector (status `tested-offline`, JSON/JSONL exports, no
+>   third-party app); EvidenceStore E1–E5 and E6 (with the NeuralGraph `allowed_ids` parameter, E14), E10 (heartbeat
+>   counts), E15 `classify_domains` (task, fake rules, fake). Tests: `mycelic/tests/test_ingest_*.py`.
+> * Deviations from this document: record and source permissions follow decision 2 (`visibility: public | members |
+>   private` with `member_ids` and/or `membership_ref`, resolved at use time) instead of §4.7's five visibilities; the
+>   requesting audience travels with a question as `audience: {principal_ids, complete, owner}` and is absent today, so
+>   restricted records are withheld from coordinator questions until the coordinator fills it; `retract_document` purges
+>   content like `delete_document`; deletions publish `evidence_event` `retracted` (the interim value of G10).
+> * Not built yet: provider connectors (GitHub, Slack, Gmail, Drive), `ConnectorHttp`, the webhook API, the per-holder
+>   scheduler/runtime, E9, cross-app linking (§8), shard splits and fan-out (§7.3+), and the coordinator-side items
+>   (E8 `can_route`, E11–E13, `coord.db` additions of §5.3).
 
 ---
 
