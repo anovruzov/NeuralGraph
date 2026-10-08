@@ -333,7 +333,7 @@ async def test_answer_respects_temporal_window(tmp_path: Path) -> None:
 
 
 async def test_answer_redacts_deny_patterns(tmp_path: Path) -> None:
-    policy = {"deny_patterns": [r"password:\s*\S+", r"[\w.-]+@[\w.-]+\.\w+", "(unclosed"], "max_excerpt_chars": 200}
+    policy = {"deny_patterns": [r"password:\s*\S+", r"[\w.-]+@[\w.-]+\.\w+"], "max_excerpt_chars": 200}
     store = make_store(tmp_path, export_policy=policy)
     doc = await store.ingest_document("Ops incident log", OPS_LOG)
     resp = await store.answer_question(question("What happened in the database failover?"))
@@ -345,6 +345,30 @@ async def test_answer_redacts_deny_patterns(tmp_path: Path) -> None:
     await assert_opaque(store, resp, doc["doc_id"])
     # the raw path (owner / raw grant) still returns the unredacted document
     assert "hunter2" in (await store.raw_for_ref(resp["evidence_refs"][0]["ref_id"]))["text"]
+    await store.close()
+
+
+async def test_invalid_policy_declines_instead_of_disclosing(tmp_path: Path) -> None:
+    """An uncompilable deny pattern or an unknown disclosure level must never fall back to a more permissive reading."""
+    store = make_store(tmp_path, export_policy={"deny_patterns": [r"password:\s*\S+", "(unclosed"], "disclosure": "Summary"})
+    await store.ingest_document("Ops incident log", OPS_LOG)
+    resp = await store.answer_question(question("What happened in the database failover?"))
+    assert resp["status"] == "declined" and "export policy is invalid" in resp["reason"]
+    assert resp["evidence_refs"] == [] and resp["content"] == ""
+    from mycelic.evidence.service import normalize_policy, policy_problems
+    assert normalize_policy({"disclosure": "Summary"})["disclosure"] == "none"
+    assert len(policy_problems({"disclosure": "Summary", "deny_patterns": ["(x"], "answer_scopes": "org", "max_excerpt_chars": -1})) == 4
+    await store.close()
+
+
+async def test_titles_are_redacted_and_hidden_at_disclosure_none(tmp_path: Path) -> None:
+    store = make_store(tmp_path, export_policy={"deny_patterns": ["Project Falcon", "Lisbon"]})
+    await store.ingest_document("Project Falcon layoffs - Lisbon", OPS_LOG)
+    resp = await store.answer_question(question("What happened in the database failover?"))
+    assert resp["status"] == "answered" and all("Falcon" not in r["title"] and "Lisbon" not in r["title"] for r in resp["evidence_refs"])
+    store.update_policy({"deny_patterns": [], "disclosure": "none"})
+    resp = await store.answer_question(question("What caused the VPN outage?"))
+    assert all(r["title"] in ("note", "document") for r in resp["evidence_refs"])
     await store.close()
 
 

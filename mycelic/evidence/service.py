@@ -182,6 +182,40 @@ def new_ref_id() -> str:
     return "ev_" + secrets.token_hex(10)
 
 
+ANSWER_SCOPES = ("private", "unit", "org")
+
+
+def policy_problems(export_policy: dict[str, Any] | None) -> list[str]:
+    """Everything wrong with an export policy as written. The API refuses such a policy; a holder that somehow has one
+    declines to answer rather than falling back to a more permissive reading."""
+    p = export_policy or {}
+    problems: list[str] = []
+    if p.get("disclosure") is not None and p["disclosure"] not in DISCLOSURE_LEVELS:
+        problems.append(f"disclosure must be one of {', '.join(DISCLOSURE_LEVELS)}")
+    scopes = p.get("answer_scopes")
+    if scopes is not None and (not isinstance(scopes, list) or any(s not in ANSWER_SCOPES for s in scopes)):
+        problems.append(f"answer_scopes must be a list drawn from {', '.join(ANSWER_SCOPES)}")
+    pats = p.get("deny_patterns")
+    if pats is not None:
+        if not isinstance(pats, list) or any(not isinstance(x, str) for x in pats):
+            problems.append("deny_patterns must be a list of regular expressions")
+        else:
+            for x in pats:
+                try:
+                    re.compile(x)
+                except re.error as exc:
+                    problems.append(f"deny pattern {x!r} does not compile: {exc}")
+    for k in ("max_excerpt_chars", "max_answer_chars"):
+        v = p.get(k)
+        if v is not None and (isinstance(v, bool) or not isinstance(v, int) or v < 0):
+            problems.append(f"{k} must be a non-negative integer")
+    return problems
+
+
+class EvidenceChanged(RuntimeError):
+    """A document was revised or retracted while an answer citing it was being written; the answer is retried."""
+
+
 def normalize_policy(export_policy: dict[str, Any] | None) -> dict[str, Any]:
     policy = dict(DEFAULT_EXPORT_POLICY)
     for k, v in (export_policy or {}).items():
@@ -192,7 +226,7 @@ def normalize_policy(export_policy: dict[str, Any] | None) -> dict[str, Any]:
     policy["max_excerpt_chars"] = max(0, int(policy.get("max_excerpt_chars") or 0))
     policy["max_answer_chars"] = max(0, int(policy.get("max_answer_chars") or 0))
     if policy.get("disclosure") not in DISCLOSURE_LEVELS:
-        policy["disclosure"] = "excerpt"
+        policy["disclosure"] = "none"          # an unreadable setting discloses nothing, never more
     return policy
 
 
@@ -282,12 +316,14 @@ class EvidenceStore:
         self.export_policy: dict[str, Any] = {}
         self.domains: list[str] = []
         self._deny: list[re.Pattern[str]] = []
+        self._policy_problems: list[str] = []
         self.update_policy(export_policy, list(domains))
 
     # ------------------------------------------------------------------ policy
     def update_policy(self, export_policy: dict[str, Any] | None = None, domains: Iterable[str] | None = None) -> None:
         """Hot-reload the export policy and/or the evidence domains (the org registry is the source of truth)."""
         if export_policy is not None:
+            self._policy_problems = policy_problems(export_policy)
             self.export_policy = normalize_policy(export_policy)
             self._deny = compile_deny_patterns(self.export_policy["deny_patterns"])
         elif not self.export_policy:
@@ -511,6 +547,8 @@ class EvidenceStore:
                       "memory_count": 0}
 
         reason = self._policy_reason(question)
+        if not reason and self._policy_problems:
+            reason = "export policy is invalid (" + "; ".join(self._policy_problems) + "); declining until the owner fixes it"
         if reason or not text:
             reason = reason or "question has no text"
             response = {**base, "status": "declined", "content": "", "confidence": 0.0, "evidence_refs": [], "provenance": provenance,
@@ -540,7 +578,7 @@ class EvidenceStore:
             items.append({
                 "ref_id": (known.get(m.memory_id) or {}).get("ref_id") or new_ref_id(),
                 "memory_id": m.memory_id, "doc": doc, "model_text": redacted, "disclosed": disclosed,
-                "observed_at": m.observed_at, "kind": doc["kind"], "title": doc["title"],
+                "observed_at": m.observed_at, "kind": doc["kind"], "title": self._disclosed_title(doc, level),
             })
         provenance["channels"] = sorted(channels)
         provenance["memory_count"] = len(items)
@@ -609,7 +647,7 @@ class EvidenceStore:
             disclosed = {"excerpt": excerpt, "summary": clip(redact(doc.get("summary") or "", self._deny), max_excerpt or 140), "none": ""}[level]
             ref_id = (known.get(memory_id) or {}).get("ref_id") or new_ref_id()
             refs.append({"ref_id": ref_id, "source_root_id": doc["source_root_id"], "root_known": bool(doc["source_root_id"]), "kind": doc["kind"],
-                         "title": doc["title"], "disclosed_excerpt": disclosed, "disclosure_level": level, "observed_at": doc.get("observed_at"),
+                         "title": self._disclosed_title(doc, level), "disclosed_excerpt": disclosed, "disclosure_level": level, "observed_at": doc.get("observed_at"),
                          "freshness_at": doc["updated_at"]})
             exports.append({"ref_id": ref_id, "memory_id": memory_id, "doc_id": doc_id, "question_id": qid, "disclosed_excerpt": disclosed,
                             "disclosure_level": level})
@@ -625,6 +663,12 @@ class EvidenceStore:
         return await self._commit_answer(exports, response, idempotency_key, op="manual_response")
 
     # ------------------------------------------------------------------ internals
+    def _disclosed_title(self, doc: dict[str, Any], level: str) -> str:
+        """Titles are disclosure too: redacted like the text, and replaced by the document kind when nothing may be disclosed."""
+        if level == "none":
+            return str(doc.get("kind") or "document")
+        return redact(str(doc.get("title") or ""), self._deny)
+
     async def _commit_answer(self, exports: list[dict[str, Any]], response: dict[str, Any], idempotency_key: str | None,
                              op: str = "question") -> dict[str, Any]:
         """Exports (the only state a question leaves behind) and the idempotency marker land in one transaction."""
@@ -633,6 +677,12 @@ class EvidenceStore:
 
         def fn(c):
             for e in exports:
+                # the answer was composed outside this transaction: if a cited chunk was superseded or its document retracted
+                # meanwhile, the revise/retract could not have reported this export, so the whole answer is redone instead
+                m = c.execute("SELECT status FROM memories WHERE memory_id=?", (e["memory_id"],)).fetchone()
+                d = c.execute("SELECT status FROM documents WHERE doc_id=?", (e["doc_id"],)).fetchone()
+                if m is None or m["status"] != "active" or d is None or d["status"] == "retracted":
+                    raise EvidenceChanged(f"evidence for {e['ref_id']} changed while answering")
                 ref = self.store._record_export_sync(c, created_at=response["answered_at"], **e)
                 if ref != e["ref_id"]:   # a concurrent answer to the same question won the (memory, question) slot
                     for r in response["evidence_refs"]:

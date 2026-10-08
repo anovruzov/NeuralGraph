@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
 _NUMBER_RE = re.compile(r"\d+(?:\.\d+)?")
 _TASK_RE = re.compile(r"^\s*###\s*TASK:\s*([a-z_]+)", re.IGNORECASE)
-_DATA_RE = re.compile(r"<data>(.*)</data>", re.DOTALL)
+_DATA_RE = re.compile(r"<data>(.*?)</data>", re.DOTALL)   # first block: untrusted text is escaped and cannot close it early
 _SENTENCE_RE = re.compile(r"[.!?\n]")
 _SPEAKER_LINE_RE = re.compile(r"^\s*[A-Za-z][\w .'\-]{0,40}:\s*\S")
 

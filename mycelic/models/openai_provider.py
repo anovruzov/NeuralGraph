@@ -96,7 +96,7 @@ class _HttpBase:
                 session = await self._get_session()
                 async with self._sem:
                     async with session.post(f"{self.base_url}{path}", json=body, headers=self._headers(),
-                                            timeout=aiohttp.ClientTimeout(total=timeout or self.timeout)) as resp:
+                                            timeout=aiohttp.ClientTimeout(total=timeout if timeout else self.timeout)) as resp:
                         status, text, headers = resp.status, await resp.text(), resp.headers
             except asyncio.CancelledError:
                 raise
@@ -169,7 +169,7 @@ class OpenAICompatProvider(_HttpBase):
         return body
 
     async def complete(self, messages: list[dict[str, str]], *, model: str, max_tokens: int = 1024, temperature: float = 0.0,
-                       json_mode: bool = True, timeout: float = 120.0) -> Completion:
+                       json_mode: bool = True, timeout: float | None = None) -> Completion:
         body = self.build_request(messages, model=model, max_tokens=max_tokens, temperature=temperature, json_mode=json_mode)
         t0 = time.perf_counter()
         data = await self._post_with_retries("/chat/completions", body, timeout=timeout, what=f"openai {model}")

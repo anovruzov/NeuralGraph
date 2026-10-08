@@ -17,6 +17,7 @@ from aiohttp import web
 
 from ..authz import Forbidden, Principal
 from ..org import DEFAULT_POLICIES, LEAD_ROLES, ROLES, UNIT_TYPES
+from ..evidence.service import policy_problems
 from ..transport import Envelope, Subjects, TransportError
 from ..util import new_id, now_iso
 from .middleware import (ApiError, json_response, limit_of, listing, need_str, opt_dict, opt_list, opt_str, query_int, read_json, require_admin,
@@ -75,11 +76,18 @@ def holder_or_404(rt: Any, p: Principal, holder_id: str) -> dict[str, Any]:
 
 
 def is_holder_owner(rt: Any, p: Principal, h: dict[str, Any]) -> bool:
-    if p.is_admin:
-        return True
+    """Real ownership only. Administration is not ownership: an administrator never lists, adds, revises or shares
+    someone's evidence (DECISIONS D9). See ``can_manage_holder`` for the narrow administrative powers."""
+    if h.get("tenant_id") != p.tenant_id:
+        return False
     if h.get("owner_type") == "user":
         return h.get("owner_id") == p.id
     return h.get("owner_id") in rt.authz.led_unit_ids(p)
+
+
+def can_manage_holder(rt: Any, p: Principal, h: dict[str, Any]) -> bool:
+    """Owner, or an administrator for incident response only: revoke the holder, rotate its key."""
+    return h.get("tenant_id") == p.tenant_id and (p.is_admin or is_holder_owner(rt, p, h))
 
 
 def can_see_holder(rt: Any, p: Principal, h: dict[str, Any]) -> bool:
@@ -113,9 +121,10 @@ async def embedded_store(rt: Any, h: dict[str, Any]) -> Any | None:
 
 
 def holder_audience(rt: Any, h: dict[str, Any]) -> dict[str, Any]:
-    """The owner and the owner's units (plus administrators for status changes)."""
+    """Who may receive events about a holder's documents: the owner only for a personal holder (titles and document ids
+    are private), the owning unit for a unit holder (whose members may search it)."""
     if h.get("owner_type") == "user":
-        return {"user_ids": [h["owner_id"]], "unit_ids": [m["unit_id"] for m in rt.org.memberships_for_user(h["owner_id"]) if m["role"] != "org_admin"]}
+        return {"user_ids": [h["owner_id"]], "unit_ids": []}
     return {"user_ids": [], "unit_ids": [h["owner_id"]]}
 
 
@@ -710,7 +719,7 @@ def setup(app: web.Application, prefix: str = "/api") -> None:
             row = rt.org.get_user_row(owner_id)
             if row is None or row["tenant_id"] != p.tenant_id:
                 raise KeyError(owner_id)
-            rt.authz.require(owner_id == p.id or p.is_admin, "holder.create", owner_id, "you can only register holders for yourself")
+            rt.authz.require(owner_id == p.id, "holder.create", owner_id, "you can only register holders for yourself")
         else:
             unit_or_404(rt, p, owner_id)
             rt.authz.require(p.is_admin or rt.authz.can_manage_unit_knowledge(p, owner_id), "holder.create", owner_id, "only leads of the unit can register a unit holder")
@@ -722,6 +731,9 @@ def setup(app: web.Application, prefix: str = "/api") -> None:
         domains = opt_list(body, "domains") or []
         if any(not isinstance(d, str) for d in domains):
             raise ApiError(400, "'domains' must be strings")
+        problems = policy_problems(opt_dict(body, "export_policy"))
+        if problems:
+            raise ApiError(400, "invalid export_policy: " + "; ".join(problems))
         holder, key = await rt.org.register_holder(p.tenant_id, owner_type=owner_type, owner_id=owner_id, name=name, mode=mode, domains=domains,
                                                    export_policy=opt_dict(body, "export_policy"))
         await rt.db.audit(p.tenant_id, "user", p.id, "holder.create", resource_type="holder", resource_id=holder["holder_id"], detail={"mode": mode, "owner_type": owner_type},
@@ -740,12 +752,20 @@ def setup(app: web.Application, prefix: str = "/api") -> None:
     async def update_holder(request: web.Request) -> web.Response:
         p = require_user(request)
         h = holder_or_404(rt, p, request.match_info["holder_id"])
-        rt.authz.require(is_holder_owner(rt, p, h), "holder.update", h["holder_id"], "only the holder's owner or an administrator can change it")
         body = await read_json(request)
         export_policy = opt_dict(body, "export_policy")
         domains = opt_list(body, "domains")
         status = opt_str(body, "status", max_len=20)
         name = opt_str(body, "name", max_len=200)
+        if export_policy is not None or domains is not None or name is not None:
+            # what a holder discloses is the owner's decision alone
+            rt.authz.require(is_holder_owner(rt, p, h), "holder.update", h["holder_id"], "only the holder's owner can change its policy, domains or name")
+        else:
+            rt.authz.require(can_manage_holder(rt, p, h), "holder.update", h["holder_id"], "only the holder's owner or an administrator can revoke it")
+        if export_policy is not None:
+            problems = policy_problems({**(h.get("export_policy") or {}), **export_policy})
+            if problems:
+                raise ApiError(400, "invalid export_policy: " + "; ".join(problems))
         if status is not None and status != "revoked":
             raise ApiError(400, "status can only be set to revoked")
         if domains is not None and any(not isinstance(d, str) for d in domains):
@@ -783,9 +803,16 @@ def setup(app: web.Application, prefix: str = "/api") -> None:
     async def rotate_key(request: web.Request) -> web.Response:
         p = require_user(request)
         h = holder_or_404(rt, p, request.match_info["holder_id"])
-        rt.authz.require(is_holder_owner(rt, p, h), "holder.rotate_key", h["holder_id"], "only the holder's owner or an administrator can rotate its key")
+        rt.authz.require(can_manage_holder(rt, p, h), "holder.rotate_key", h["holder_id"], "only the holder's owner or an administrator can rotate its key")
         key = await rt.org.rotate_holder_key(h["holder_id"], actor_id=p.id)
-        return json_response({"key": key})
+        if h.get("mode") == "embedded" and rt.holders is not None:
+            # the signing (route) key rotated with the bearer key: restart the in-process holder so it signs with the new one
+            try:
+                await rt.holders.remove(h["holder_id"])
+                await rt.holders.ensure(h["holder_id"])
+            except Exception:
+                logger.exception("could not restart embedded holder %s after key rotation", h["holder_id"])
+        return json_response({"key": key, "note": "the bearer key and the envelope signing key both rotated; restart an external holder with the new key"})
 
     async def add_document(request: web.Request) -> web.Response:
         p = require_user(request)

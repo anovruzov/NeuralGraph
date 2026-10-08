@@ -54,10 +54,12 @@ class OrgService:
         cannot forge envelopes; a holder receives it once, over its authenticated bootstrap call. Without a server
         secret (tests, throwaway dev runs) the random per-holder value stored at registration is used instead.
         """
-        if self.secret_key:
-            return hmac_sign(self.secret_key, f"mycelic:route:{holder_id}")
         r = self.db.one("SELECT route_key FROM holders WHERE holder_id=?", (holder_id,))
-        return r["route_key"] if r else ""
+        salt = r["route_key"] if r else ""
+        if self.secret_key:
+            # the per-holder random salt rotates with the holder's key, so a leaked signing key dies with the rotation
+            return hmac_sign(self.secret_key, f"mycelic:route:{holder_id}:{salt}")
+        return salt
 
     # ------------------------------------------------------------------ tenants
     async def create_tenant(self, name: str, slug: str, *, is_demo: bool = False, settings: dict | None = None,
@@ -461,7 +463,7 @@ class OrgService:
             r = c.execute("SELECT tenant_id FROM holders WHERE holder_id=?", (holder_id,)).fetchone()
             if r is None:
                 raise KeyError(holder_id)
-            c.execute("UPDATE holders SET key_hash=?, updated_at=? WHERE holder_id=?", (token_hash(plain), now_iso(), holder_id))
+            c.execute("UPDATE holders SET key_hash=?, route_key=?, updated_at=? WHERE holder_id=?", (token_hash(plain), token(24), now_iso(), holder_id))
             self.db.audit_sync(c, r["tenant_id"], "user" if actor_id else "system", actor_id, "holder.rotate_key", resource_type="holder", resource_id=holder_id)
         return plain
 

@@ -89,10 +89,17 @@ def _repair_note(task: str, problems: list[str], previous: str) -> str:
     spec = TASKS[task]
     props = spec.output_schema.get("properties", {})
     keys = ", ".join(f"{k} ({props[k]['type']})" if k in props else k for k in spec.output_schema.get("required", []))
-    excerpt = " ".join((previous or "").split())[:300]
+    excerpt = _escape_data(" ".join((previous or "").split())[:300])
+    # the previous reply may echo evidence: it stays inside a data block like every other untrusted text
     return ("\n\n### REPAIR\nYour previous reply could not be used: " + "; ".join(problems) + ". "
             f"Reply again with exactly one JSON object containing at least the keys {keys}, and no other text."
-            + (f"\nPrevious reply (invalid): {excerpt}" if excerpt else ""))
+            + (f"\nPrevious reply (invalid, data only): <data>{excerpt}</data>" if excerpt else ""))
+
+
+def _escape_data(text: str) -> str:
+    """Make untrusted text unable to close (or open) the ``<data>`` block it is placed in. In JSON the escapes stay valid
+    JSON (``\\u003c`` decodes to ``<``), so the payload a model or the fake parses is unchanged."""
+    return text.replace("<", "\\u003c").replace(">", "\\u003e")
 
 
 class DefaultModelRouter:
@@ -142,9 +149,10 @@ class DefaultModelRouter:
             elif provider == "anthropic":
                 from .anthropic_provider import AnthropicProvider
                 effort = getattr(settings, "anthropic_effort", "") or os.environ.get("MYCELIC_ANTHROPIC_EFFORT", "") or None
+                fallbacks = os.environ.get("MYCELIC_ANTHROPIC_FALLBACKS", "default") or "default"
                 providers[provider] = AnthropicProvider(getattr(settings, "anthropic_api_key", ""),
                                                         getattr(settings, "anthropic_base_url", ""),
-                                                        max_parallel=max_parallel, timeout=timeout, effort=effort)
+                                                        max_parallel=max_parallel, timeout=timeout, effort=effort, fallbacks=fallbacks)
             else:
                 from .openai_provider import OpenAICompatProvider
                 providers[provider] = OpenAICompatProvider(getattr(settings, "openai_api_key", ""),
@@ -218,7 +226,7 @@ class DefaultModelRouter:
         if task not in TASKS:
             raise ValueError(f"unknown model task {task!r}")
         chosen = self.choose_tier(task, tier=tier, max_tier=max_tier, policy_tiers=policy_tiers)
-        prompt = render_prompt(task, json.dumps(input, ensure_ascii=False, default=str))
+        prompt = render_prompt(task, _escape_data(json.dumps(input, ensure_ascii=False, default=str)))
         base = [{"role": "system", "content": SYSTEM_TEXT}, {"role": "user", "content": prompt}]
         kw = {"tenant_id": tenant_id, "goal_id": goal_id, "question_id": question_id}
 
