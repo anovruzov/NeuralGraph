@@ -48,3 +48,7 @@ def authz(db: CoordDB, org: OrgService) -> Authorizer:
 @pytest.fixture
 def jobs(db: CoordDB) -> JobQueue:
     return JobQueue(db)
+
+
+def pytest_configure(config) -> None:
+    config.addinivalue_line("markers", "live: runs against a real provider; skipped unless its credentials are in the environment")

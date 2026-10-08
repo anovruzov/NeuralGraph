@@ -55,6 +55,9 @@ class EmbeddedHolders:
         self._services: dict[str, HolderService] = {}
         self._stores: dict[str, EvidenceStore] = {}
         self._ingest: dict[str, Any] = {}
+        # connectors' HTTP clients (None = the default: https to each manifest's hosts only). Only code sets this, never
+        # configuration: the in-process demonstration points it at loopback mocks
+        self.http_factory: Callable[..., Any] | None = None
         self._vault: Any = None
         self._vault_checked = False
         self.running = False
@@ -188,7 +191,7 @@ class EmbeddedHolders:
             from ..ingest.runtime import IngestRuntime
             svc.ingest = IngestRuntime(store, holder_kind="unit" if row["owner_type"] == "unit" else "user", publisher=svc, vault=self.vault(),
                                        router=self.router, tick_seconds=float(getattr(self.settings, "ingest_tick_seconds", 5.0) or 5.0),
-                                       import_root=self.store_path(holder_id).parent / "imports")
+                                       import_root=self.store_path(holder_id).parent / "imports", http_factory=self.http_factory)
             self._ingest[holder_id] = svc.ingest
             svc.ingest.pipeline.classifier.budget_check = lambda tid=tenant_id: self.classify_budget_left(tid)
         self._stores[holder_id] = store

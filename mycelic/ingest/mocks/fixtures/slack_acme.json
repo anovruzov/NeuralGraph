@@ -1,0 +1,65 @@
+{
+  "_note": "Fictional data for offline tests and demos. Workspace Acme. Tokens and secrets are dummy values that only the local mock accepts.",
+  "now": "2026-10-01T12:00:00Z",
+  "team": {"id": "T0ACME", "name": "Acme", "domain": "acme", "enterprise_id": null},
+  "app": {
+    "app_id": "A0MYCELIC",
+    "client_id": "1111111111.2222222222",
+    "client_secret": "mock-client-secret-not-real",
+    "signing_secret": "mock-signing-secret-not-real",
+    "app_class": "internal",
+    "token_rotation": false,
+    "authorizing_user": "U0ANA"
+  },
+  "users": [
+    {"id": "U0ANA", "name": "ana", "real_name": "Ana Lima", "email": "ana@acme.example"},
+    {"id": "U0BEN", "name": "ben", "real_name": "Ben Okafor", "email": "ben@acme.example"},
+    {"id": "U0CY", "name": "cy", "real_name": "Cy Martin", "email": "cy@acme.example"},
+    {"id": "U0DEE", "name": "dee", "real_name": "Dee Novak", "email": "dee@acme.example"},
+    {"id": "U0DEPLOYBOT", "name": "deploybot", "real_name": "Deploy bot", "is_bot": true}
+  ],
+  "tokens": [
+    {"token": "xoxp-mock-ana-user-token", "user": "U0ANA",
+     "scopes": ["channels:read", "channels:history", "groups:read", "groups:history", "users:read"]},
+    {"token": "xoxp-mock-ana-dm-token", "user": "U0ANA",
+     "scopes": ["channels:read", "channels:history", "groups:read", "groups:history", "im:read", "im:history", "mpim:read", "mpim:history"]},
+    {"token": "xoxp-mock-ana-public-only", "user": "U0ANA", "scopes": ["channels:read", "channels:history"]},
+    {"token": "xoxp-mock-ana-no-history", "user": "U0ANA", "scopes": ["channels:read"]},
+    {"token": "xoxp-mock-dee-user-token", "user": "U0DEE",
+     "scopes": ["channels:read", "channels:history", "groups:read", "groups:history"]},
+    {"token": "xoxb-mock-bot-token", "user": "U0DEPLOYBOT", "bot_id": "B0DEPLOYBOT", "scopes": ["channels:read", "channels:history"]}
+  ],
+  "channels": [
+    {"id": "C0DEPLOY", "name": "deployments", "is_private": false, "members": ["U0ANA", "U0BEN", "U0CY", "U0DEE"], "created": 1700000000,
+     "topic": "Deploy announcements and incidents"},
+    {"id": "C0RANDOM", "name": "random", "is_private": false, "members": ["U0ANA", "U0BEN", "U0CY", "U0DEE"], "created": 1700000100},
+    {"id": "G0INCIDENT", "name": "incident-checkout", "is_private": true, "members": ["U0ANA", "U0BEN"], "created": 1790677000},
+    {"id": "D0ANABEN", "is_im": true, "user": "U0BEN", "members": ["U0ANA", "U0BEN"], "created": 1700000200},
+    {"id": "C0OLDPROJ", "name": "old-project", "is_private": false, "is_archived": true, "members": ["U0ANA"], "created": 1600000000}
+  ],
+  "messages": [
+    {"channel": "C0DEPLOY", "ts": "1790674800.000100", "user": "U0BEN",
+     "text": "Deployment of checkout failed after the dependency upgrade to httpclient 4.2; requests time out"},
+    {"channel": "C0DEPLOY", "ts": "1790675100.000200", "thread_ts": "1790674800.000100", "user": "U0ANA",
+     "text": "Rolling back checkout to httpclient 4.1. I opened <https://github.com/acme/checkout/issues/482|acme/checkout#482> to track the timeout regression."},
+    {"channel": "C0DEPLOY", "ts": "1790675520.000300", "thread_ts": "1790674800.000100", "user": "U0CY",
+     "text": "Rollback finished, checkout is healthy again."},
+    {"channel": "C0DEPLOY", "ts": "1790677800.000400", "bot_id": "B0DEPLOYBOT", "username": "deploybot",
+     "text": "checkout v2.14.1 deployed to production (rollback)"},
+    {"channel": "C0DEPLOY", "ts": "1790679600.000500", "user": "U0CY", "text": "Next deploy window is Thursday 14:00 (moved from 10:00)",
+     "edited": {"user": "U0CY", "ts": "1790679900.000600"}},
+    {"channel": "C0DEPLOY", "ts": "1790611200.000700", "user": "U0DEE", "text": "Can someone review the checkout UI test fix?", "deleted": true},
+    {"channel": "C0DEPLOY", "ts": "1790611500.000800", "thread_ts": "1790611200.000700", "user": "U0BEN", "text": "Looking at the UI test fix now."},
+    {"channel": "C0DEPLOY", "ts": "1790755200.000900", "user": "U0BEN", "text": "The httpclient 4.1 pin is merged, deploys are unblocked."},
+    {"channel": "C0DEPLOY", "ts": "1790756400.001200", "user": "U0DEE", "text": "oops, wrong channel", "deleted": true},
+    {"channel": "C0DEPLOY", "ts": "1789473600.001000", "user": "U0ANA", "text": "Reminder: the release freeze starts Friday."},
+    {"channel": "C0DEPLOY", "ts": "1787220000.001100", "user": "U0BEN", "text": "The platform team owns the rate limiter configuration from now on."},
+    {"channel": "C0RANDOM", "ts": "1790776800.002000", "user": "U0CY", "text": "Anyone up for lunch at 12:30?"},
+    {"channel": "C0RANDOM", "ts": "1790777400.002100", "user": "U0DEE", "text": "The pizza place on 3rd street is open again."},
+    {"channel": "G0INCIDENT", "ts": "1790677800.003000", "user": "U0ANA",
+     "text": "Root cause for the checkout timeouts: httpclient 4.2 changed the default connection pool size, so payment gateway calls queue up. Keep this channel confidential until the postmortem."},
+    {"channel": "G0INCIDENT", "ts": "1790679600.003100", "user": "U0BEN", "text": "Agreed. Postmortem draft due Friday."},
+    {"channel": "D0ANABEN", "ts": "1790776800.004000", "user": "U0BEN", "text": "lunch tomorrow?"},
+    {"channel": "C0OLDPROJ", "ts": "1600000500.005000", "user": "U0ANA", "text": "Archived project kickoff."}
+  ]
+}

@@ -187,9 +187,22 @@ def _connector_in_holder(rt: Any, h: dict[str, Any], connector_id: str) -> None:
 
 
 # ---------------------------------------------------------------------------------------------- routes
+def register_oauth_apps(settings: Any) -> None:
+    """OAuth apps from server configuration (client secrets never leave the server). Tests and the offline demonstration
+    register mock apps directly with :func:`mycelic.ingest.oauth.register_oauth_app`."""
+    from ..ingest.contract import Secret
+    from ..ingest.oauth import OAuthAppConfig, oauth_app, register_oauth_app
+    for ctype in ("github", "slack"):
+        cid = str(getattr(settings, f"{ctype}_client_id", "") or "")
+        if cid and oauth_app(ctype) is None:
+            secret = str(getattr(settings, f"{ctype}_client_secret", "") or "")
+            register_oauth_app(ctype, OAuthAppConfig(client_id=cid, client_secret=Secret(secret) if secret else None))
+
+
 def setup(app: web.Application, prefix: str) -> None:
     rt = app["rt"]
     settings = app["settings"]
+    register_oauth_apps(settings)
 
     def public_base(request: web.Request) -> str:
         return (settings.public_url or f"{request.scheme}://{request.host}").rstrip("/")
@@ -486,8 +499,9 @@ def setup(app: web.Application, prefix: str) -> None:
             notices = []
         routed = 0
         for n in notices:
-            if n.external_account_id and ep["external_account_id"] and n.external_account_id != ep["external_account_id"]:
-                continue                       # a connector endpoint only speaks for its own account
+            if ep["scope"] == "app" and n.external_account_id and ep["external_account_id"] and n.external_account_id != ep["external_account_id"]:
+                continue                       # an app-wide endpoint only speaks for the account it was set up for
+            # (a connector endpoint has its own secret and routes to its own connection only, whatever id the provider uses)
             seen = rt.db.one("SELECT status FROM webhook_deliveries WHERE endpoint_id=? AND delivery_id=?", (endpoint_id, n.delivery_id))
             if seen is not None and seen["status"] == "routed":
                 continue                       # a provider retry or a replay
@@ -516,16 +530,16 @@ def setup(app: web.Application, prefix: str) -> None:
     # ------------------------------------------------------------------ OAuth (terminates at the core; tokens go to the holder)
     async def start_oauth(request: web.Request, p: Principal, h: dict[str, Any], ctype: str, scope: str, config: dict[str, Any]) -> dict[str, Any]:
         from ..ingest.contract import Credentials, Secret
+        from ..ingest.oauth import oauth_app
         cls = _registry().get(ctype)
-        client_id = getattr(settings, f"{ctype}_client_id", "") or ""
-        if not client_id:
+        if oauth_app(ctype) is None:
             raise ApiError(503, f"OAuth for {ctype} is not configured on this server (MYCELIC_{ctype.upper()}_CLIENT_ID)", "oauth_unconfigured")
         state = secrets.token_urlsafe(32)
         redirect_uri = f"{public_base(request)}/api/integrations/oauth/{ctype}/callback"
-        instance = cls()
-        if hasattr(instance, "configure_oauth"):
-            instance.configure_oauth(client_id=client_id, client_secret=getattr(settings, f"{ctype}_client_secret", ""), config=config)
-        start = await instance.authorize(tenant_id=p.tenant_id, holder_id=h["holder_id"], redirect_uri=redirect_uri, state=state)
+        try:
+            start = await cls().authorize(tenant_id=p.tenant_id, holder_id=h["holder_id"], redirect_uri=redirect_uri, state=state)
+        except ConnectorError as exc:
+            raise ApiError(400, f"the authorization could not start: {exc.code}", exc.code) from None
         verifier = start.pkce_verifier.reveal() if start.pkce_verifier else ""
         sealed = _server_vault(rt).seal(tenant_id=SERVER_TENANT, holder_id=h["holder_id"], connector_id="oauth:" + sha256(state),
                                         credentials=Credentials(kind="pkce", access_token=Secret(verifier) if verifier else None, extra={"config": j(config)}))
@@ -558,11 +572,8 @@ def setup(app: web.Application, prefix: str) -> None:
                                     tenant_id=SERVER_TENANT, holder_id=h["holder_id"], connector_id="oauth:" + sha256(state))
         config = jl(pk.extra.get("config"), {}) if pk.extra else {}
         cls = _registry().get(ctype)
-        instance = cls()
-        if hasattr(instance, "configure_oauth"):
-            instance.configure_oauth(client_id=getattr(settings, f"{ctype}_client_id", ""), client_secret=getattr(settings, f"{ctype}_client_secret", ""), config=config)
         try:
-            creds = await instance.complete_authorization(dict(request.query), redirect_uri=row["redirect_uri"], pkce_verifier=pk.access_token)
+            creds = await cls().complete_authorization(dict(request.query), redirect_uri=row["redirect_uri"], pkce_verifier=pk.access_token)
         except ConnectorError as exc:
             raise ApiError(400, f"the app refused the authorization: {exc.code}", exc.code) from None
         payload = creds.to_storable()

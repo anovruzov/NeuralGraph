@@ -98,9 +98,8 @@ class IngestRuntime:
             from .connectors import register_builtin
             registry = register_builtin()
         self.pipeline = IngestPipeline(evidence, holder_kind=holder_kind, registry=registry, vault=vault, router=router, publisher=publisher,
-                                       enabled_connector_types=enabled_connector_types, batch_debounce_seconds=batch_debounce_seconds, clock=clock)
-        if http_factory is not None and hasattr(self.pipeline, "http_factory"):
-            self.pipeline.http_factory = http_factory
+                                       enabled_connector_types=enabled_connector_types, batch_debounce_seconds=batch_debounce_seconds, clock=clock,
+                                       http_factory=http_factory)
         self.service = IngestService(self.pipeline)
         self.holder_id = evidence.holder_id
         # file-based connectors driven from the coordinator may only read inside this directory (the holder's imports)
@@ -127,6 +126,8 @@ class IngestRuntime:
             with contextlib.suppress(asyncio.CancelledError, Exception):
                 await self._task
             self._task = None
+        with contextlib.suppress(Exception):
+            await self.pipeline.aclose()            # the connections' HTTP clients
 
     async def _loop(self) -> None:
         while self.running:

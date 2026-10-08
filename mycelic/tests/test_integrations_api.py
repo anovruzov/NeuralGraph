@@ -6,6 +6,7 @@ computed here; no third-party service is contacted.
 """
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
 import json
@@ -272,3 +273,69 @@ async def test_export_upload_lands_in_the_import_directory_only(api):
     assert (await upload("coord.jsonl", b"{}", s["ana"], replace=True))[0] == 201
     assert (await upload("x.exe", b"MZ", s["ana"]))[0] == 400
     assert (await upload("y.jsonl", b"{}", s["bo"]))[0] in (403, 404)
+
+
+async def test_github_oauth_connect_and_signed_webhook_through_the_api(api):
+    """OAuth against the offline GitHub mock (PKCE, single-use state), then a signed webhook delivery edits a comment:
+    the API verifies the signature, routes a content-free notice, and the holder re-fetches the comment itself."""
+    from urllib.parse import parse_qs, urlparse
+
+    import aiohttp
+
+    from mycelic.ingest.contract import Secret
+    from mycelic.ingest.mocks import load_fixture, loopback_http_factory, start_github_mock
+    from mycelic.ingest.oauth import OAuthAppConfig, register_oauth_app
+
+    fx = load_fixture("github_acme")
+    gh_url, gh = await start_github_mock(fx)
+    # private repositories need the 'repo' scope (it also grants write access, so it is the server's explicit choice)
+    register_oauth_app("github", OAuthAppConfig(client_id=fx["app"]["client_id"], client_secret=Secret(fx["app"]["client_secret"]),
+                                                oauth_base=gh_url, allow_loopback_http=True, scopes=("repo",)))
+    api.rt.holders.http_factory = loopback_http_factory()       # the holder may reach the loopback mock (tests and the demo only)
+    try:
+        s = await _setup(api)
+        hid = s["holder"]["holder_id"]
+        status, out, _ = await api.call("POST", f"/api/holders/{hid}/connectors", token=s["ana"],
+                                        body={"connector_type": "github", "auth": {"kind": "oauth2"},
+                                              "config": {"api_base": gh_url, "auto_include": ["acme/checkout"]}})
+        assert status == 200 and out["next"]["action"] == "redirect", out
+        # the browser goes to the provider, which approves and redirects back with code and state
+        async with aiohttp.ClientSession() as sess:
+            async with sess.get(out["next"]["url"], allow_redirects=False) as r:
+                back = urlparse(r.headers["Location"])
+        q = {k: v[0] for k, v in parse_qs(back.query).items()}
+        status, body, resp = await api.call("GET", f"/api/integrations/oauth/github/callback?code={q['code']}&state={q['state']}", token=s["ana"])
+        assert status == 302 or resp.status == 302 or "connected=" in str(resp.url), (status, body)
+        status, again, _ = await api.call("GET", f"/api/integrations/oauth/github/callback?code={q['code']}&state={q['state']}", token=s["ana"])
+        assert status == 400                                                              # the state is single use
+        status, lst, _ = await api.call("GET", f"/api/holders/{hid}/connectors", token=s["ana"])
+        con = next(c for c in lst["items"] if c["connector_type"] == "github")
+        assert con["status"] == "active" and con["auth_kind"] == "oauth2"
+        assert "gh-" not in json.dumps([dict(r) for r in api.rt.db.all("SELECT * FROM audit_log")]) and "gh-" not in json.dumps([dict(r) for r in api.rt.db.all("SELECT * FROM connector_registry")])
+        cid = con["connector_id"]
+        status, srcs, _ = await api.call("GET", f"/api/holders/{hid}/connectors/{cid}/sources", token=s["ana"])
+        status, out, _ = await api.call("POST", f"/api/holders/{hid}/connectors/{cid}/sync", token=s["ana"], body={"mode": "backfill"})
+        assert status == 202 and out["processed"] > 0 and any(x["selection"] == "included" for x in srcs["items"]), out
+        # live updates: a webhook endpoint with a generated secret, then a signed edit
+        status, hook, _ = await api.call("POST", f"/api/holders/{hid}/connectors/{cid}/webhook", token=s["ana"])
+        assert status == 201 and hook["secret"]
+        path = urlparse(hook["url"]).path
+        payload = gh.edit_comment(880102, "Rolled back httpclient to 4.1; the zebracorn timeouts stopped.")
+        headers, raw = gh.signed_delivery("issue_comment", payload, secret=hook["secret"])
+        bad_headers, bad_raw = gh.signed_delivery("issue_comment", payload, secret=hook["secret"], tamper=True)
+        async with api.client.post(path, data=bad_raw, headers=bad_headers) as r:
+            assert r.status == 401
+        async with api.client.post(path, data=raw, headers=headers) as r:
+            assert r.status == 200 and (await r.json())["routed"] == 1
+        runtime = api.rt.holders.ingest(hid)
+        for _ in range(50):                                                       # the embedded holder consumes the notice
+            hits = await runtime.pipeline.evidence.search("zebracorn timeouts stopped", k=3, audience={"owner": True, "complete": True, "principal_ids": []})
+            if hits:
+                break
+            await asyncio.sleep(0.1)
+        assert hits, "the edited comment was re-fetched and re-indexed"
+        rows = api.rt.db.all("SELECT payload FROM transport_messages WHERE msg_id LIKE 'notice:%'")
+        assert rows and all("zebracorn" not in r["payload"] for r in rows)       # the notice itself carried no content
+    finally:
+        register_oauth_app("github", None)
+        await gh.close()
