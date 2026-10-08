@@ -165,6 +165,40 @@ regained: the reference stops or resumes counting). Claim kinds `hypothesis` and
 | GET | `/admin/workers` | admin |
 | GET | `/notifications?unread=1` / POST `/notifications/read {ids?}` | any user |
 
+## Integrations (connected apps)
+
+Connectors run inside the holder they feed; these endpoints ask the holder to act (an embedded holder in process, an
+external one through a signed, short-lived `connector_control` envelope). A personal holder's connectors belong to
+its owner only; a unit holder's to the unit's leads or an org admin (an organization install). Source names are shown to
+those managers only; the admin view is metadata and counts.
+
+`connector` = `{connector_id, connector_type, display_name, account_label, source_account_id, auth_kind, ownership, mode, status, status_code,
+granted_scopes, created_at, updated_at, last_sync_at, last_success_at, health, config, counts:{sources_included, sources_pending, sources_excluded, records}}`
+`source` = `{source_id, connector_id, source_type, external_id, name, selection: included|excluded|pending_review, selection_reason, visibility: public|members|private,
+exportable, disclosure, default_domain_ids, sensitivity, access_state, members}` (`members` is a count; member ids stay in the holder)
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/integrations/catalog` | → `{items:[{connector_type, display_name, version, status: scaffold\|implemented\|tested-offline\|live-verified, auth_kinds, modes, source_types, scopes:[{scope, required, reason}], capabilities, terms_notes, ownership, enabled_for_tenant, connectable}]}`. Planned connectors (`scaffold`) are listed and cannot be connected. |
+| GET | `/holders/{h}/connectors` | manager → `{items:[connector]}` |
+| POST | `/holders/{h}/connectors` | manager: `{connector_type, auth?:{kind:'pat', token} \| {kind:'oauth2'}, config?, display_name?}` → 201 `{connector, discovered, next:{action:'select_sources'}}`, or `{next:{action:'redirect', url}}` for OAuth. The token goes to the holder once (sealed for it in transit) and is never echoed, stored by the coordinator or audited. File-based connectors read only inside the holder's `imports/` directory. |
+| GET / PATCH / DELETE | `/holders/{h}/connectors/{c}` | get; `{status?: active\|paused, config?}`; `?data=keep\|delete&revoke=1` disconnects (credentials shredded; `delete` purges what it ingested) |
+| GET | `/holders/{h}/connectors/{c}/sources?selection=` | → `{items:[source]}` |
+| POST | `/holders/{h}/connectors/{c}/sources/discover` | → `{discovered, new, pending_review, included, excluded}` (new sources wait for review; DMs default excluded) |
+| PATCH | `/holders/{h}/connectors/{c}/sources` | `{changes:[{source_id, selection?, exportable?, default_domain_ids?, disclosure?, sensitivity?}], existing_records?: keep\|delete}` → `{items:[source]}` |
+| POST | `/holders/{h}/connectors/{c}/sources/{s}/delete` | → `{records_deleted}` |
+| POST | `/holders/{h}/connectors/{c}/sync` | `{mode: incremental\|backfill}` → 202 `{report, processed, published}` |
+| POST | `/holders/{h}/connectors/{c}/webhook` | manager: `{signing_secret?}` (Slack: the app's signing secret) → 201 `{endpoint_id, url, connector_type, secret?}` (a generated secret is shown once) |
+| GET | `/holders/{h}/ingest/queue` | manager → `{classes, dead:[{item_id, connector_id, kind, priority_class, attempts, last_error_code, updated_at}]}` |
+| GET | `/integrations/oauth/{type}/callback?code&state` | the signed-in user who started the flow; single-use state, PKCE verifier sealed server-side; 302 → `/app/memory/integrations?connected=<id>` |
+| POST | `/webhooks/{type}/{endpoint_id}` | public: signature checked on the raw body (401 + audit `webhook.rejected` otherwise), deliveries de-duplicated, reduced to content-free notices routed to the holders that hold the connector (`connector_notice`); Slack `url_verification` → `{challenge}` after verification |
+| GET | `/admin/integrations` | admin → `{items:[{connector_id, holder_id, holder_name, scope, connector_type, status, status_code, mode, sources_included, sources_pending, records, last_sync_at, last_success_at, created_at, granted_scopes}], totals:{by_type, by_status}}` |
+| GET | `/domains` | → `{taxonomy_version, configured, items:[{domain_id, parent_id, name, path, description, status}], aliases:[{alias, domain_id}]}` (tenant taxonomy; personal domains never appear) |
+| PUT | `/admin/domains` | admin `{upsert:[{domain_id, name?, description?}], deprecate:[domain_id], aliases:[{alias, domain_id}]}` → the taxonomy; the first change copies the defaults into the tenant |
+
+Documents: `POST /holders/{h}/documents` multipart also accepts `.jsonl`, `.docx` and `.pdf` (text PDFs; scans are refused with a
+reason). CSV rows become `column: value` lines and JSON leaves `path: value` lines.
+
 ## Live updates
 
 `GET /api/events/stream?since=<id>` — Server-Sent Events. Each event: `id: <n>`, `event: <kind>`, `data: {tenant_id, kind, ref_type, ref_id, payload, at}`. Kinds:

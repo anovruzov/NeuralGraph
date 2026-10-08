@@ -194,3 +194,28 @@ A claim committed from evidence revised after the holder answered is born `stale
   claims and sends that list with the question; the holder compares it with each source's members
   and withholds member-restricted records otherwise. The audience is fixed at routing time (see the
   limitation in INGESTION.md).
+
+## D15. Connectors run in the holder; the coordinator only asks
+
+- **Where tokens live.** A credential is sealed by the vault of the holder that uses it (server key for embedded
+  holders, `MYCELIC_HOLDER_SECRET` for standalone ones). A token typed into the coordinator UI travels once, sealed
+  with a key derived from the holder's route key and bound to the envelope id, in a scrubbed, short-lived
+  `connector_control` envelope. The coordinator never stores it, and OAuth client secrets stay server-side.
+- **What the coordinator knows.** It mirrors connector metadata (type, status, scopes, counts) for owners and
+  administrators. Source names travel only in replies to the connector's managers, and content never travels.
+- **Webhooks notify, holders fetch.** The public webhook endpoint verifies the signature on the raw body,
+  de-duplicates the delivery, keeps ids only and forwards a notice. The holder fetches the object with its own grant.
+  Polling remains the source of correctness.
+- **Honest status.** A connector is `scaffold`, `implemented`, `tested-offline` or `live-verified`. Scaffolds are
+  listed and refused, and nothing is called supported until it has run against the real service.
+
+## D16. Cross-app links are deterministic and conservative
+
+- Canonical entities (issues, repositories, components and versions, services, symptoms, organizations, events)
+  are extracted by patterns. The same id in two apps links their records' memories, so retrieval's graph channel
+  connects them without special cases.
+- Edges carry a modality: "after" is temporal and never causal, hedged causes are hypotheses, and negations are
+  recorded as negated. An edge is traversable only with public, non-negated evidence, and deleting a record
+  withdraws the evidence it gave.
+- Causal conclusions are never drawn inside a holder. They are claims at the coordinator, capped by kind (E13).
+
