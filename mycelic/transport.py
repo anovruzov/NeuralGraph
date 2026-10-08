@@ -17,7 +17,10 @@ JetStream specifics that matter for correctness:
 * the consumer is a *durable pull* consumer with explicit acks: a message is acked only after the apply
   transaction committed, so a crash in between redelivers it and the second apply is a no-op;
 * a message that keeps failing is ``term``-ed after ``max_deliver`` attempts and recorded as failed, so one
-  poison event cannot stall the log.
+  poison event cannot stall the log;
+* nats-py reconnects on its own, so a broker that comes back with its JetStream state reset (volume lost or recreated,
+  stream deleted) is noticed by the reconnect, a publish that finds no stream, or a status read that finds no stream or
+  consumer (``resync_needed``); the service then calls :meth:`JetStreamTransport.resync`, which recreates what is missing.
 """
 from __future__ import annotations
 
@@ -215,6 +218,7 @@ class JetStreamTransport:
         self.last_error: str | None = None
         self.filter_subject = f"{SUBJECT_PREFIX}.>"
         self.stream_bounded = False
+        self.resync_needed = False      # the stream or the consumer may be gone: the service calls resync()
 
     @property
     def connected(self) -> bool:
@@ -278,6 +282,7 @@ class JetStreamTransport:
     async def _reconnected_cb(self) -> None:
         self.reconnects += 1
         logger.info("NATS reconnected (%d)", self.reconnects)
+        self.resync_needed = True       # the broker may have come back without its JetStream state
         self._set_connected(True)
 
     async def _closed_cb(self) -> None:
@@ -373,10 +378,42 @@ class JetStreamTransport:
         self._set_connected(False)
 
     async def publish(self, subject: str, payload: bytes, msg_id: str, headers: dict[str, str] | None = None) -> int | None:
+        from nats.js.errors import NoStreamResponseError
+
         if self._js is None:
             raise ConnectionError("transport not connected")
-        ack = await self._js.publish(subject, payload, timeout=5.0, headers={**(headers or {}), "Nats-Msg-Id": msg_id})
+        try:
+            ack = await self._js.publish(subject, payload, timeout=5.0, headers={**(headers or {}), "Nats-Msg-Id": msg_id})
+        except NoStreamResponseError:
+            self.resync_needed = True
+            raise
         return int(ack.seq) if ack and ack.seq is not None else None
+
+    async def resync(self) -> bool:
+        """Make sure the stream and the durable consumer exist, creating whichever is missing (a broker that came back
+        with its JetStream state reset); True when something was created.  Nothing is touched when both exist, so a
+        plain reconnect costs two info requests."""
+        from nats.js.errors import NotFoundError
+
+        if self._js is None:
+            raise ConnectionError("transport not connected")
+        created = False
+        try:
+            await self._js.stream_info(self.s.nats_stream)
+        except NotFoundError:
+            logger.error("stream %s does not exist (the broker's JetStream state was reset?): creating it", self.s.nats_stream)
+            await self._ensure_stream()
+            created = True
+        if not created:
+            try:
+                await self._js.consumer_info(self.s.nats_stream, self.s.nats_consumer)
+            except NotFoundError:
+                logger.error("durable consumer %s does not exist: creating it", self.s.nats_consumer)
+                created = True
+        if created:
+            await self._ensure_consumer(reset=False)
+        self.resync_needed = False
+        return created
 
     async def fetch(self, batch: int, timeout: float) -> list[Delivery]:
         import nats.errors
@@ -421,7 +458,11 @@ class JetStreamTransport:
             out["consumer_delivered_seq"] = int(ci.delivered.stream_seq) if ci.delivered else 0
             out["consumer_ack_floor_seq"] = int(ci.ack_floor.stream_seq) if ci.ack_floor else 0
         except Exception as exc:  # broker mid-restart: report, do not raise
+            from nats.js.errors import NotFoundError
+
             out["error"] = f"{type(exc).__name__}: {exc}"
+            if isinstance(exc, NotFoundError):
+                self.resync_needed = True       # the stream or the consumer is gone
         return out
 
     async def stream_message_count(self) -> int | None:

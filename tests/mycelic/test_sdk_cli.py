@@ -1,6 +1,7 @@
 """Downward verification from the agent side, against a live server: ``MycelicClient.verify`` and ``query(verify=True)``,
 ``python -m mycelic verify`` (its output and its exit status per verdict) and ``query --verify``, and the stdio MCP
-proxy's ``mycelic_verify`` against this server and against one that predates the route."""
+proxy's ``mycelic_verify`` against this server and against one that predates the route.  And what an agent's local
+store and the reference agent process send: only notes the agent asked to share, as it asked."""
 from __future__ import annotations
 
 import asyncio
@@ -23,7 +24,8 @@ from NeuralGraph.chat_memory.mcp_server import ToolError
 from mycelic import cli, mcp, verification
 from mycelic.api import create_app
 from mycelic.models import utcnow
-from mycelic.sdk import MycelicClient, MycelicError
+from mycelic.sdk import LocalMemory, MycelicClient, MycelicError
+from mycelic.sdk import agent as reference_agent
 
 from .helpers import ADMIN_TOKEN, ServiceHarness
 from .test_verification import demo
@@ -202,6 +204,145 @@ class SdkCliTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(str(ctx.exception).startswith("MycelicError: HTTP 404"), str(ctx.exception))
         finally:
             await old.close()
+
+
+class LocalMemoryTests(unittest.IsolatedAsyncioTestCase):
+    """A note leaves the agent's disk only when the agent asked to share it, at the visibility it asked for."""
+
+    async def asyncSetUp(self) -> None:
+        self.h = await ServiceHarness().start()
+        self.server = TestServer(create_app(self.h.service), host="127.0.0.1")
+        await self.server.start_server()
+        self.url = str(self.server.make_url("")).rstrip("/")
+        await self.h.register("bot-1", team="logistics")
+        await self.h.register("bot-2", team="logistics")
+        await self.h.settle()
+        self.db = os.path.join(self.h.tmp.name, "bot-1-local.db")
+
+    async def asyncTearDown(self) -> None:
+        await self.server.close()
+        await self.h.close()
+
+    def local(self) -> LocalMemory:
+        local = LocalMemory(self.db)
+        self.addCleanup(local.close)
+        return local
+
+    async def share(self, local_id: str, **kwargs: Any) -> dict[str, Any]:
+        """``LocalMemory.share`` as bot-1 against this server, from a thread with its own handle on the local store."""
+        def run() -> dict[str, Any]:
+            local = LocalMemory(self.db)
+            try:
+                return local.share(MycelicClient(self.url, self.h.keys["bot-1"], retries=0), local_id, **kwargs)
+            finally:
+                local.close()
+
+        res = await asyncio.to_thread(run)
+        await self.h.settle()
+        return res
+
+    async def run_agent(self, *observations: dict[str, Any]) -> list[str]:
+        """One run of the reference agent process for bot-1 (with these observations, if any); its log lines."""
+        argv = ["--url", self.url, "--api-key", self.h.keys["bot-1"], "--local-db", self.db]
+        if observations:
+            path = Path(self.h.tmp.name) / f"obs-{len(os.listdir(self.h.tmp.name))}.jsonl"
+            path.write_text("".join(json.dumps(o) + "\n" for o in observations), encoding="utf-8")
+            argv += ["--observations", str(path)]
+        out = io.StringIO()
+
+        def run() -> int:
+            with contextlib.redirect_stdout(out):
+                return reference_agent.main(argv)
+
+        self.assertEqual(await asyncio.to_thread(run), 0)
+        await self.h.settle()
+        return out.getvalue().splitlines()
+
+    def held(self) -> list[tuple[str, str]]:
+        """(visibility, text) of every memory bot-1 produced, whatever its status."""
+        return sorted((m.visibility, m.text) for m in self.h.service.store.list_memories("northwind", status=None, limit=100)
+                      if m.producer_id == "bot-1")
+
+    async def test_a_note_never_shared_stays_local_when_the_agent_starts(self) -> None:
+        local = self.local()
+        local.note("CFO said we will miss Q4 guidance; do not share", topic="finance:q4")
+        lines = await self.run_agent()
+        self.assertEqual(self.held(), [])
+        self.assertFalse([line for line in lines if "re-sent" in line], lines)
+        self.assertEqual(local.pending(), [])
+        self.assertEqual(local.counts(), {"local": 1, "shared": 0, "local_only": 1})
+
+    async def test_a_reused_local_id_never_publishes_the_earlier_note(self) -> None:
+        await self.run_agent({"text": "PRIVATE salary data", "share": False, "local_id": "n1"})
+        lines = await self.run_agent({"text": "public: dock 4 closed", "share": True, "local_id": "n1", "visibility": "org"})
+        self.assertEqual(self.held(), [])
+        self.assertTrue([line for line in lines if "observation skipped" in line and "'n1'" in line], lines)
+        # the same note again under its id is the same note: a replayed observations file shares it once
+        obs = {"text": "Dock 4 closed.", "share": True, "local_id": "n2", "visibility": "org"}
+        await self.run_agent(obs)
+        await self.run_agent(obs)
+        self.assertEqual(self.held(), [("org", "Dock 4 closed.")])
+        # and a share:false observation under an id that was shared is not turned private, nor shared again with new text
+        await self.run_agent({"text": "Dock 4 closed.", "share": False, "local_id": "n2"})
+        await self.run_agent({"text": "Dock 4 is open again.", "share": True, "local_id": "n2"})
+        self.assertEqual(self.held(), [("org", "Dock 4 closed.")])
+
+    async def test_note_and_share_refuse_what_would_leak(self) -> None:
+        local = self.local()
+        private = local.note("PRIVATE salary data", tags=["private"], local_id="p1")
+        with mock.patch.object(MycelicClient, "_request") as spy:
+            with self.assertRaises(ValueError):
+                await self.share(private, visibility="org")
+            spy.assert_not_called()
+        self.assertEqual((local.pending(), self.held()), ([], []))
+        with self.assertRaises(ValueError):
+            local.note("public: dock 4 closed", local_id="p1")
+        self.assertEqual(local.get("p1")["text"], "PRIVATE salary data")
+        self.assertEqual(local.note("PRIVATE salary data", tags=["private"], local_id="p1"), "p1")
+
+    async def test_an_unacknowledged_share_is_resent_as_it_was_asked_for(self) -> None:
+        local = self.local()
+        nid = local.note("Dock 4 closed.", topic="ops:docks")
+        local.note("Never asked to share.", topic="ops:docks")
+        down = MycelicClient("http://127.0.0.1:9", self.h.keys["bot-1"], retries=0)
+        with self.assertRaises(MycelicError):
+            local.share(down, nid, visibility="org", expires_at="2030-01-01T00:00:00+00:00")
+        pending = local.pending()
+        self.assertEqual([(n["local_id"], n["share_request"]) for n in pending],
+                         [(nid, {"visibility": "org", "expires_at": "2030-01-01T00:00:00+00:00", "supersedes": None})])
+        lines = await self.run_agent()
+        self.assertTrue([line for line in lines if f"re-sent unacknowledged note {nid}" in line], lines)
+        self.assertEqual(self.held(), [("org", "Dock 4 closed.")])
+        m = next(m for m in self.h.service.store.list_memories("northwind", limit=100) if m.producer_id == "bot-1")
+        self.assertEqual((m.local_ref, m.expires_at), (nid, "2030-01-01T00:00:00+00:00"))
+        self.assertEqual(local.pending(), [])
+        await self.run_agent()                       # acknowledged: nothing is sent again
+        self.assertEqual(self.held(), [("org", "Dock 4 closed.")])
+
+    async def test_a_store_from_an_earlier_sdk_keeps_its_unshared_notes_local(self) -> None:
+        import sqlite3
+        c = sqlite3.connect(self.db)
+        c.executescript("""
+            CREATE TABLE notes (
+                local_id   TEXT PRIMARY KEY,
+                text       TEXT NOT NULL,
+                topic      TEXT, slot TEXT, entity TEXT,
+                kind       TEXT NOT NULL DEFAULT 'observation',
+                confidence REAL NOT NULL DEFAULT 0.8,
+                tags       TEXT NOT NULL DEFAULT '[]',
+                created_at TEXT NOT NULL,
+                shared_memory_id TEXT, shared_event_id TEXT, shared_at TEXT
+            );
+            INSERT INTO notes(local_id, text, topic, created_at) VALUES ('old-1', 'Kept locally before the upgrade.', 'ops:x',
+                                                                         '2026-09-01T00:00:00+00:00');
+        """)
+        c.close()
+        local = self.local()
+        self.assertEqual((local.get("old-1")["share_request"], local.pending()), (None, []))
+        await self.run_agent()
+        self.assertEqual(self.held(), [])
+        await self.share("old-1")
+        self.assertEqual(self.held(), [("team", "Kept locally before the upgrade.")])
 
 
 if __name__ == "__main__":

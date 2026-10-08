@@ -98,18 +98,21 @@ class MycelicClient:
                  kind: str = "observation", confidence: float = 0.8, visibility: str = "team",
                  idempotency_key: str | None = None, observed_at: str | None = None, local_ref: str | None = None,
                  source_event_ids: list[str] | None = None, metadata: dict[str, Any] | None = None,
-                 expires_at: str | None = None, supersedes: str | None = None) -> dict[str, Any]:
-        """Share one memory as the calling agent.  ``expires_at`` (ISO-8601, in the future, at most ten years ahead):
-        answers stop using it then, and the service retracts it through the log shortly after.  ``supersedes``: the id
-        of one of the caller's own active memories that this one corrects; this one is the complete note (nothing is
-        inherited) and needs its own idempotency key.  409 (:class:`MycelicError`) while a retraction or another update
-        of that memory is still on its way through the log.  507, never retried, when the organization is at the
-        operator's limit of active notes (``MYCELIC_MAX_ACTIVE_MEMORIES_PER_ORG``): retract notes it no longer needs (a
-        retraction counts once it has been applied); an update and a resend of a stored note are never refused."""
+                 expires_at: str | None = None, supersedes: str | None = None, value: str | None = None) -> dict[str, Any]:
+        """Share one memory as the calling agent.  ``value``: what the note claims for its slot and entity ("closed"),
+        stored as ``metadata.value``; notes whose values differ for one slot and entity dispute each other, and their
+        consolidation is flagged ``metadata.conflict`` instead of gaining confidence.  ``expires_at`` (ISO-8601, in the
+        future, at most ten years ahead): answers stop using it then, and the service retracts it through the log shortly
+        after.  ``supersedes``: the id of one of the caller's own active memories that this one corrects; this one is the
+        complete note (nothing is inherited) and needs its own idempotency key.  409 (:class:`MycelicError`) while a
+        retraction or another update of that memory is still on its way through the log.  507, never retried, when the
+        organization is at the operator's limit of active notes (``MYCELIC_MAX_ACTIVE_MEMORIES_PER_ORG``): retract notes
+        it no longer needs (a retraction counts once it has been applied); an update and a resend of a stored note are
+        never refused."""
         body = {"text": text, "topic": topic, "slot": slot, "entity": entity, "kind": kind, "confidence": confidence,
                 "visibility": visibility, "idempotency_key": idempotency_key, "observed_at": observed_at,
                 "local_ref": local_ref, "source_event_ids": source_event_ids, "metadata": metadata,
-                "expires_at": expires_at, "supersedes": supersedes}
+                "expires_at": expires_at, "supersedes": supersedes, "value": value}
         return self._request("POST", "/memory", {k: v for k, v in body.items() if v is not None})
 
     def publish_events(self, events: list[dict[str, Any]]) -> dict[str, Any]:
@@ -226,6 +229,13 @@ class LocalMemory:
     Every note gets a local id; sharing sends that id as the idempotency key, so a crash between the request and
     the acknowledgement cannot duplicate a memory on the server, and ``mark_shared`` records the server ids so the
     agent can later ask for the lineage of what it contributed to.
+
+    A note leaves the machine only through :meth:`share`, which refuses a note tagged ``private``.  :meth:`share`
+    records the request (visibility, expiry, supersedes) before it is sent, so a note whose share was never
+    acknowledged is listed by :meth:`pending` and can be sent again exactly as it was asked for; a note that was never
+    shared is never pending.  A local store written by an SDK older than this record has none: its unacknowledged
+    notes stay local until they are shared again.  A local id names one note for good: :meth:`note` with the id of a
+    different note raises.
     """
 
     def __init__(self, path: str | Path = "~/.mycelic/local_memory.db") -> None:
@@ -244,19 +254,31 @@ class LocalMemory:
                 confidence REAL NOT NULL DEFAULT 0.8,
                 tags       TEXT NOT NULL DEFAULT '[]',
                 created_at TEXT NOT NULL,
-                shared_memory_id TEXT, shared_event_id TEXT, shared_at TEXT
+                shared_memory_id TEXT, shared_event_id TEXT, shared_at TEXT,
+                share_request TEXT
             );
         """)
+        # a store from before the share request was recorded: add the column (NULL: no share pending)
+        if "share_request" not in {r["name"] for r in self._c.execute("PRAGMA table_info(notes)").fetchall()}:
+            self._c.execute("ALTER TABLE notes ADD COLUMN share_request TEXT")
 
     def close(self) -> None:
         self._c.close()
 
     def note(self, text: str, *, topic: str | None = None, slot: str | None = None, entity: str | None = None,
              kind: str = "observation", confidence: float = 0.8, tags: list[str] | None = None, local_id: str | None = None) -> str:
+        """Keep a note locally; returns its local id.  Noting the same note again under its id (a replayed observation)
+        returns the id and changes nothing; a different note under an existing id raises :class:`ValueError`, so a
+        reused id can never make :meth:`share` send what the earlier note said."""
         local_id = local_id or f"note_{uuid.uuid4().hex[:16]}"
-        self._c.execute("INSERT OR IGNORE INTO notes(local_id, text, topic, slot, entity, kind, confidence, tags, created_at) "
-                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                        (local_id, text, topic, slot, entity, kind, float(confidence), json.dumps(tags or []), _now()))
+        values = (text, topic, slot, entity, kind, float(confidence), json.dumps(tags or []))
+        cur = self._c.execute("INSERT OR IGNORE INTO notes(local_id, text, topic, slot, entity, kind, confidence, tags, created_at) "
+                              "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", (local_id, *values, _now()))
+        if cur.rowcount == 0:
+            r = self._c.execute("SELECT text, topic, slot, entity, kind, confidence, tags FROM notes WHERE local_id=?",
+                                (local_id,)).fetchone()
+            if tuple(r) != values:
+                raise ValueError(f"local id {local_id!r} already holds a different note")
         return local_id
 
     def get(self, local_id: str) -> dict[str, Any] | None:
@@ -277,6 +299,13 @@ class LocalMemory:
                                (like, like, like, limit)).fetchall()
         return [self._row(r) for r in rows]
 
+    def pending(self) -> list[dict[str, Any]]:
+        """Notes whose share was requested (:meth:`share`) but never acknowledged, oldest first; each carries the
+        request as ``share_request`` (``visibility``, ``expires_at``, ``supersedes``)."""
+        rows = self._c.execute("SELECT * FROM notes WHERE share_request IS NOT NULL AND shared_memory_id IS NULL "
+                               "ORDER BY created_at, local_id").fetchall()
+        return [self._row(r) for r in rows]
+
     def counts(self) -> dict[str, int]:
         total = int(self._c.execute("SELECT COUNT(*) FROM notes").fetchone()[0])
         shared = int(self._c.execute("SELECT COUNT(*) FROM notes WHERE shared_memory_id IS NOT NULL").fetchone()[0])
@@ -290,10 +319,17 @@ class LocalMemory:
               supersedes: str | None = None) -> dict[str, Any]:
         """Share a local note (its local id is the idempotency key).  To correct a note already shared, write the
         correction as a new local note and share it with ``supersedes`` set to the shared note's memory id: a new local
-        note gets a new idempotency key, which an update needs."""
+        note gets a new idempotency key, which an update needs.
+
+        A note tagged ``private`` is refused with :class:`ValueError` and nothing is sent.  The request is recorded
+        before it is sent, so until the server acknowledges it the note is :meth:`pending`."""
         n = self.get(local_id)
         if n is None:
             raise KeyError(local_id)
+        if "private" in n["tags"]:
+            raise ValueError(f"local note {local_id!r} is private and is never shared")
+        request = {"visibility": visibility, "expires_at": expires_at, "supersedes": supersedes}
+        self._c.execute("UPDATE notes SET share_request=? WHERE local_id=?", (json.dumps(request), local_id))
         res = client.remember(n["text"], topic=n["topic"], slot=n["slot"], entity=n["entity"], kind=n["kind"],
                               confidence=n["confidence"], visibility=visibility, idempotency_key=local_id,
                               observed_at=n["created_at"], local_ref=local_id, expires_at=expires_at, supersedes=supersedes)
@@ -304,5 +340,6 @@ class LocalMemory:
     def _row(r: sqlite3.Row) -> dict[str, Any]:
         d = dict(r)
         d["tags"] = json.loads(d.get("tags") or "[]")
+        d["share_request"] = json.loads(d["share_request"]) if d.get("share_request") else None
         d["shared"] = d.get("shared_memory_id") is not None
         return d

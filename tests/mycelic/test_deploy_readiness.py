@@ -301,6 +301,197 @@ class HealthTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await self.get_json("/ready"))[0], 503)
 
 
+class LoopResilienceTests(unittest.IsolatedAsyncioTestCase):
+    """A database error never ends the publisher or the consumer: each logs it, counts it, backs off and goes on; a
+    publish that keeps failing reads degraded; a loop that ended anyway fails /health, so the liveness probe restarts
+    the process."""
+
+    async def asyncSetUp(self) -> None:
+        self.h = await ServiceHarness(nats_max_deliver=2).start()
+        self.addAsyncCleanup(self.h.close)
+        await self.h.register("a-1", team="team-a")
+        await self.h.settle()
+
+    def errors(self, loop: str) -> float:
+        return self.h.service.metrics.loop_errors.labels(loop)._value.get()
+
+    async def test_a_database_error_never_stops_the_publisher(self) -> None:
+        from mycelic.store import Tx
+        s, real = self.h.service, Tx.mark_published
+        calls: list[str] = []
+
+        def once(tx: Tx, event_id: str, js_seq: int | None) -> None:
+            calls.append(event_id)
+            if len(calls) == 1:
+                raise sqlite3.OperationalError("database or disk is full")
+            real(tx, event_id, js_seq)
+
+        with self.assertLogs("mycelic.service", "ERROR") as logs, mock.patch.object(Tx, "mark_published", once):
+            mid = await self.h.observe("a-1", "Dock 4 is closed.", topic="ops:docks")
+            await self.h.settle()
+        self.assertTrue(any("publisher loop failed" in line and "database or disk is full" in line for line in logs.output))
+        self.assertEqual(calls[0], s.store.get_memory(mid).event_id)
+        self.assertIsNotNone(s.store.get_memory(mid).applied_at)
+        # and the loop still publishes what comes next
+        later = await self.h.observe("a-1", "Dock 5 is closed.", topic="ops:docks")
+        await self.h.settle()
+        self.assertIsNotNone(s.store.get_memory(later).applied_at)
+        self.assertEqual(s.store.stats()["outbox_pending"], 0)
+        self.assertTrue(s._publisher_running)
+        self.assertEqual(self.errors("publisher"), 1)
+        self.assertEqual((await s.health())["status"], "ok")
+        self.assertTrue((await s.ready())[0])
+
+    async def test_a_database_error_never_stops_the_consumer(self) -> None:
+        from mycelic.store import Tx
+        s, real_apply, real_audit = self.h.service, self.h.service.apply_event, Tx.audit
+        fault = {"on": True, "hits": 0}
+
+        async def apply_event(event: dict, *, seq: int | None = None) -> str:
+            if fault["on"]:
+                raise sqlite3.OperationalError("database or disk is full")
+            return await real_apply(event, seq=seq)
+
+        def audit(tx: Tx, principal: str, action: str, *args, **kwargs) -> None:
+            if fault["on"] and action == "event.failed":
+                fault["hits"] += 1
+                raise sqlite3.OperationalError("database or disk is full")
+            real_audit(tx, principal, action, *args, **kwargs)
+
+        with self.assertLogs("mycelic.service", "ERROR") as logs, mock.patch.object(s, "apply_event", apply_event), \
+                mock.patch.object(Tx, "audit", audit):
+            await self.h.observe("a-1", "Dock 4 is closed.", topic="ops:docks")
+            deadline = time.monotonic() + 10
+            while not fault["hits"]:
+                self.assertLess(time.monotonic(), deadline, "the terminate path never failed")
+                await asyncio.sleep(0.05)
+            await asyncio.sleep(0.2)
+            fault["on"] = False
+            mid = await self.h.observe("a-1", "Dock 5 is closed.", topic="ops:docks")
+            await self.h.settle()
+        self.assertTrue(any("consumer loop failed" in line and "database or disk is full" in line for line in logs.output))
+        self.assertTrue(s._consumer_running)
+        self.assertGreaterEqual(self.errors("consumer"), 1)
+        self.assertIsNotNone(s.store.get_memory(mid).applied_at, "the consumer kept applying the log")
+        self.assertNotEqual((await s.health())["status"], "failing")
+        self.assertTrue((await s.ready())[0])
+
+    async def test_a_publish_that_keeps_failing_is_degraded(self) -> None:
+        s = self.h.service
+        self.assertEqual((await s.health())["status"], "ok")
+
+        async def refuse(*args, **kwargs) -> int:
+            raise ConnectionError("no stream")
+
+        with mock.patch.object(s.transport, "publish", refuse):
+            await self.h.observe("a-1", "Dock 4 is closed.", topic="ops:docks")
+            deadline = time.monotonic() + 5
+            while s._publish_error is None:
+                self.assertLess(time.monotonic(), deadline, "the publish never failed")
+                await asyncio.sleep(0.02)
+            h = await s.health()
+            self.assertEqual(h["status"], "degraded")
+            self.assertEqual(h["checks"]["publisher"]["last_error"], "ConnectionError: no stream")
+            self.assertGreaterEqual(h["checks"]["publisher"]["failing_seconds"], 0)
+        await self.h.settle(20)
+        h = await s.health()
+        self.assertEqual(h["status"], "ok")
+        self.assertNotIn("last_error", h["checks"]["publisher"])
+
+    @staticmethod
+    def failing_info(transport: InProcessTransport, state: dict) -> object:
+        """``info()`` as JetStreamTransport answers it while ``state['fails']``: stream_info timed out (JetStream not ready
+        after a broker restart, say) while the client reads connected, so there is an ``error`` and no ``last_seq``."""
+        real = transport.info
+
+        async def info() -> dict:
+            out = await real()
+            if not state["fails"]:
+                return out
+            state["calls"] = state.get("calls", 0) + 1
+            return {"transport": out["transport"], "connected": True, "error": "TimeoutError: nats: timeout"}
+        return info
+
+    def judgements(self) -> list[str]:
+        return [r["action"] for r in self.h.service.store.recent_audit(100) if r["action"].startswith("recovery.")]
+
+    async def test_a_resync_while_the_broker_cannot_report_its_stream_judges_nothing(self) -> None:
+        s = self.h.service
+        for i in range(3):
+            await self.h.observe("a-1", f"Dock {i} is closed.", topic="ops:docks")
+        await self.h.settle()
+        applied = s.store.get_meta("last_applied_seq")
+        state, real_handle = {"fails": True, "handle_fails": True}, s._handle_delivery
+
+        async def handle(d) -> None:
+            if state["handle_fails"]:
+                state["handle_fails"] = False
+                raise ConnectionError("ack failed: connection lost")
+            await real_handle(d)
+
+        with mock.patch.object(s.transport, "info", self.failing_info(s.transport, state)), \
+                mock.patch.object(s, "_handle_delivery", handle), self.assertLogs("mycelic.service", "WARNING") as logs:
+            await self.h.observe("a-1", "Dock 3 is closed.", topic="ops:docks")
+            deadline = time.monotonic() + 10
+            # the handling error, then resyncs the broker cannot answer (or, judged on no answer, a 'purged' stream)
+            while self.errors("consumer") < 3 and not self.judgements():
+                self.assertLess(time.monotonic(), deadline, "the consumer never retried its resync")
+                await asyncio.sleep(0.05)
+            self.assertEqual(self.judgements(), [])
+            self.assertEqual(s.store.get_meta("last_applied_seq"), applied, "a stream of unknown length is not 'purged'")
+            self.assertEqual(s.metrics.recoveries.labels("stream_behind_database")._value.get(), 0)
+            self.assertFalse(any("purged or recreated" in line for line in logs.output))
+            state["fails"] = False
+            later = await self.h.observe("a-1", "Dock 4 is closed.", topic="ops:docks")
+            await self.h.settle()
+        self.assertTrue(any("did not report the stream" in line for line in logs.output))
+        self.assertIsNotNone(s.store.get_memory(later).applied_at, "the consumer went on once the broker answered")
+        self.assertGreater(int(s.store.get_meta("last_applied_seq")), int(applied))
+        self.assertEqual(self.judgements(), [])
+        self.assertFalse(s._resync_pending)
+
+    async def test_a_start_while_the_broker_cannot_report_its_stream_judges_once_it_can(self) -> None:
+        """A fresh database over a log that holds events must replay it; a start that cannot read the stream's length
+        leaves that judgement to the consumer, which makes it before its first fetch once the broker answers."""
+        transport = self.h.service.transport
+        mid = await self.h.observe("a-1", "Dock 4 is closed.", topic="ops:docks")
+        await self.h.settle()
+        await self.h.service.stop()                       # its log stays in the shared in-process transport
+        state = {"fails": True}
+        h2 = ServiceHarness(transport=transport)
+        self.addAsyncCleanup(h2.close)
+        with mock.patch.object(transport, "info", self.failing_info(transport, state)), \
+                self.assertLogs("mycelic.service", "WARNING") as logs:
+            await h2.start()
+            deadline = time.monotonic() + 10
+            while state.get("calls", 0) < 4:
+                self.assertLess(time.monotonic(), deadline, "the consumer never retried")
+                await asyncio.sleep(0.05)
+            self.assertIsNone(h2.service.store.get_memory(mid))
+            state["fails"] = False
+            deadline = time.monotonic() + 10
+            while h2.service.store.get_memory(mid) is None:
+                self.assertLess(time.monotonic(), deadline, "the fresh database never replayed the log")
+                await asyncio.sleep(0.05)
+            await h2.settle()
+        self.assertTrue(any("did not report the stream" in line for line in logs.output))
+        self.assertEqual(h2.service.store.get_memory(mid).status, "active")
+        self.assertTrue((await h2.service.ready())[0])
+
+    async def test_a_loop_that_ended_fails_health(self) -> None:
+        s = self.h.service
+        client = TestClient(TestServer(create_app(s)))
+        await client.start_server()
+        self.addAsyncCleanup(client.close)
+        publisher = next(t for t in s._tasks if t.get_name() == "mycelic-publisher")
+        publisher.cancel()
+        await asyncio.gather(publisher, return_exceptions=True)
+        r = await client.get("/health")
+        self.assertEqual((r.status, (await r.json())["status"]), (503, "failing"))
+        self.assertEqual((await s.health())["checks"]["dead_loops"], ["mycelic-publisher"])
+        self.assertEqual((await client.get("/ready")).status, 503)
+
+
 # ---------------------------------------------------------------------------------------------------------- manifests
 
 
@@ -1399,7 +1590,7 @@ class DocsTests(unittest.TestCase):
         self.assertIn("\n### 4a. Rollback\n", deployment)
         rollback = deployment.split("### 4a. Rollback", 1)[1].split("\n## 5.", 1)[0]
         flat_rollback = " ".join(rollback.split())
-        self.assertIn("database schema 5 is newer than this code", flat_rollback)
+        self.assertIn("database schema 6 is newer than this code", flat_rollback)
         for phrase in ("mycelic_mycelic-data", "mycelic_nats-data", "alpine tar czf", "tar xzf /b/mycelic-data.tgz", "0.1.0",
                        "IntegrityError", "unknown_kind"):
             with self.subTest(phrase=phrase):
@@ -1409,7 +1600,7 @@ class DocsTests(unittest.TestCase):
         self.assertNotIn("**What a rollback loses.**", flat)
         self.assertNotIn("start the earlier image on it. It re-delivers from the stream", flat)
         troubleshooting = deployment.split("## 7. Troubleshooting", 1)[1]
-        for phrase in ('"reason": "signature_rejections', "507", "is at its limit of", "database schema 5 is newer than this code",
+        for phrase in ('"reason": "signature_rejections', "507", "is at its limit of", "database schema 6 is newer than this code",
                        "another Mycelic process"):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, troubleshooting)

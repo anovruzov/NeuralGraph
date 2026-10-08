@@ -11,18 +11,21 @@ is stored now and its lineage edges; G6's downward verification is built on it.
 * every row: :data:`CONTENT_FIELDS` as stored, and ``confidence`` rounded to 6 places (so float noise such as
   ``0.1 + 0.2`` is not an edit); :data:`OPTIONAL_FIELDS` only when a row has them and they are not None, so adding such
   a field in a later release leaves every existing digest valid: a raw note's ``expires_at`` and ``attested_at``
-  (schema 5) are covered when they are set.  ``attested_at`` is the one covered field written after insert: a
-  producer's re-attestation sets it and signs the row again (``store.Tx.set_attested``), only once the row's digest
-  checked ``ok``, so an edited row is never re-signed;
+  (schema 5) are covered when they are set.  The lifecycle (:data:`LIFECYCLE_FIELDS`, schema 6): ``status`` when it is
+  not ``active`` and ``superseded_by`` when it is set, so an active row's form is the one its insert signed.  These are
+  the covered fields written after insert: a status change (``store.Tx.set_memory_status``, ``reactivate_memory``) and
+  a producer's re-attestation (``store.Tx.set_attested``) sign the row again, each only once the row's digest checked
+  ``ok`` as it was stored, so an edited row is never re-signed and a status edited in the database reads ``mismatch``;
 * a raw observation (``operator='agent_observation'``): also ``created_at`` (the producer's ``observed_at``),
   ``event_id``, ``local_ref``, ``source_event_ids`` (sorted, not de-duplicated) and the agent's metadata without the
   :data:`LIFECYCLE_METADATA` keys;
 * a derived memory: also the ids of its parents (its lineage edges: sorted, de-duplicated) and the metadata keys in
   :data:`DERIVED_METADATA`, each a function of the parent set (a missing key and an explicit null are the same, which
-  covers derived rows written before a key existed).
+  covers derived rows written before a key existed), and those in :data:`OPTIONAL_DERIVED_METADATA` when a row has
+  them and they are not None (``conflict``, ``value``: added later, so every digest written before them stays valid).
 
-**Not covered**, because it changes after insert or differs between a live node and a rebuild: ``status``,
-``superseded_by``, ``applied_at``, ``apply_seq``, a derived memory's ``created_at`` and ``event_id`` (the apply-time
+**Not covered**, because it changes after insert or differs between a live node and a rebuild: ``applied_at``,
+``apply_seq``, a derived memory's ``created_at`` and ``event_id`` (the apply-time
 clock; the event id is set after the insert), and the metadata ``version_of``, ``fragility``, ``candidates``,
 ``fragility_scored_candidates``, ``registered_child_units``, ``reactivated_at`` and ``status_reason``.  A derived
 memory's ``source_event_ids`` and ``local_ref`` are always empty and are not in its form either.  Lineage edges'
@@ -54,6 +57,8 @@ KEY_ID_DOMAIN = b"mycelic-key-id\x1f"
 UNKEYED = "none"
 #: fields a later release may add; in the canonical form only when a row has them and they are not None
 OPTIONAL_FIELDS = ("expires_at", "attested_at")
+#: the lifecycle a row is signed with: ``status`` unless it is ``active``, ``superseded_by`` when it is set (schema 6)
+LIFECYCLE_FIELDS = ("status", "superseded_by")
 CONTENT_FIELDS = ("memory_id", "org_id", "layer", "scope", "text", "topic", "slot", "entity", "kind",
                   "support", "independent_teams", "producer_id", "operator", "rule_id", "visibility")
 RAW_FIELDS = ("created_at", "event_id", "local_ref")
@@ -64,6 +69,8 @@ DERIVED_METADATA = ("agg_key", "child_layer", "children", "contributing_agents",
                     "corroborated_units", "derivation", "effective_min_support", "evidence", "parent_count",
                     "private_observations", "promoted_from", "roots", "rule_chain", "slots",
                     "statement_origins", "statements")
+#: derived metadata a later release added; in the canonical form only when a row has it and it is not None
+OPTIONAL_DERIVED_METADATA = ("conflict", "value")
 
 
 def _encode(d: dict[str, Any]) -> bytes:
@@ -76,6 +83,10 @@ def _content(m: Any, form: str) -> dict[str, Any]:
         value = getattr(m, name, None)
         if value is not None:
             d[name] = value
+    if getattr(m, "status", "active") != "active":
+        d["status"] = m.status
+    if getattr(m, "superseded_by", None) is not None:
+        d["superseded_by"] = m.superseded_by
     return d
 
 
@@ -93,6 +104,7 @@ def canonical_derived(m: Any, parent_ids: Iterable[str]) -> bytes:
     d = _content(m, "derived")
     d["parent_ids"] = sorted(set(parent_ids))
     d["metadata"] = {k: m.metadata.get(k) for k in DERIVED_METADATA}
+    d["metadata"].update({k: m.metadata[k] for k in OPTIONAL_DERIVED_METADATA if m.metadata.get(k) is not None})
     return _encode(d)
 
 

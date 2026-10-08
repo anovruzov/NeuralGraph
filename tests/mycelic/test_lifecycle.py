@@ -34,7 +34,7 @@ from .helpers import (
     ADMIN_TOKEN, HeldTransport, ServiceHarness, broken_chains, drain_outbox, invariant_violations, rebuild, rebuild_differences,
     table_dump,
 )
-from .test_verification import TRANSPORT, World, codes, demo, detail, view
+from .test_verification import TRANSPORT, World, codes, demo, detail, resign, view
 
 ORG = "northwind"
 K = "lifecycle-signing-key-0123456789abcdef0123"
@@ -260,6 +260,9 @@ class AgentRemovalTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((r["verdict"], codes(r, "mem_late_1")), ("stale", ["node_retracted"]))
         # a status flip is still caught: an active note of a removed producer, a retracted one with nothing applied
         r = w.tampered(ids["log-1"], [("UPDATE memories SET status='active' WHERE memory_id=?", (ids["log-1"],))])
+        self.assertEqual((r["verdict"], codes(r, ids["log-1"])), ("failed", ["integrity_mismatch", "status_inconsistent"]))
+        r = w.tampered(ids["log-1"], [("UPDATE memories SET status='active' WHERE memory_id=?", (ids["log-1"],)),
+                                      lambda: resign(st, ids["log-1"])])        # signed as it stands: the log still disagrees
         self.assertEqual((r["verdict"], codes(r, ids["log-1"])), ("failed", ["status_inconsistent"]))
         r = w.tampered(ids["log-1"], [("UPDATE events SET status='failed' WHERE kind='agent.removed'", ())])
         self.assertEqual((r["verdict"], codes(r, ids["log-1"])), ("failed", ["status_inconsistent", "node_retracted"]))

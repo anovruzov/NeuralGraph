@@ -51,8 +51,8 @@ customer; they never talk to the broker.
 |---|---|
 | `mycelic/hierarchy.py` | Layers `agent → team → department → subsidiary → region → enterprise`; unit paths; ancestor/subtree relations |
 | `mycelic/config.py` | `MYCELIC_*` environment variables, validated at start (secrets never in source; placeholder values refused) |
-| `mycelic/store.py` | SQLite schema (version 4: per-row digests; forward-only migrations in one transaction, including label normalisation of stored observations and rules) and transactions (`BEGIN IMMEDIATE`, one writer, `synchronous=FULL`) |
-| `mycelic/integrity.py` | Canonical form of a memory row (content, parents and derivation metadata), its keyed digest, written by the insert and reproduced by a rebuild, and the keyring of current and previous signing keys that signs digests and events |
+| `mycelic/store.py` | SQLite schema (version 6: per-row digests that cover the lifecycle; forward-only migrations in one transaction, including label normalisation of stored observations and rules) and transactions (`BEGIN IMMEDIATE`, one writer, `synchronous=FULL`) |
+| `mycelic/integrity.py` | Canonical form of a memory row (content, lifecycle, parents and derivation metadata), its keyed digest, written by the insert, signed again at each status change and reproduced by a rebuild, and the keyring of current and previous signing keys that signs digests and events |
 | `mycelic/transport.py` | `JetStreamTransport` (nats-py) and `InProcessTransport` (unit tests) |
 | `mycelic/aggregation.py` | Topic consolidation and slot-composition rules: read-only planners (`plan_consolidation`, `plan_rule`) over pure builders (`build_consolidation`, `build_conclusion`: no store, no clock); deterministic derived ids; supersession |
 | `mycelic/lineage.py` | Lineage graph reconstruction with per-principal redaction |
@@ -121,10 +121,31 @@ then `term`.
 
 * **Topic consolidation.** Unit U gets a memory on topic T when at least `MYCELIC_MIN_SUPPORT` (default 2)
   of its direct children contribute on T. A child's contribution is its own consolidation on T if it has
-  one, otherwise the best material in its subtree, down to raw observations. Confidence is the noisy-OR of
+  one, otherwise the best material in its subtree, down to raw observations, and in either case every rule
+  conclusion on T sitting at the child itself: a conclusion is never part of its own unit's consolidation, so it
+  travels up next to it, and neither one stands in for the other (a rule whose `topic_prefix` is the topic its
+  evidence is written on and that sets no `emits_topic` concludes on that topic; its conclusion reaches every
+  consolidation of the topic above its unit). Confidence is the noisy-OR of
   the strongest contribution per child; `support` counts distinct agents and `independent_teams` distinct
-  teams in the lineage. A unit with fewer registered child units than the threshold *promotes* its child's
-  consolidation unchanged (never a raw note), so the top layers of a small organization are not empty.
+  teams in the lineage. A unit with fewer registered child units than the threshold *promotes* a child's own
+  consolidation (never a raw note on its own), together with whatever its other children contribute, so the top
+  layers of a small organization are not empty and one more corroborating note from a sibling never takes the
+  promotion away (`metadata.promoted_from` names the first child consolidation it promotes). A rule's conclusion is
+  composed before the units above its evidence consolidate that evidence's topic, so each of them derives one version
+  per applied note.
+* **Disputes.** A note may carry a structured claim for its slot and entity, `value` (`POST /memory`, MCP
+  `mycelic_remember`, `client.remember(..., value=...)`; stored as `metadata.value` in canonical label form, and
+  compared in that form, so a `metadata.value` an earlier client stored as "Open" agrees with "open"; a
+  `metadata.value` that is not a string of at most 200 characters claims nothing and is kept as sent). Notes
+  with different values for one slot and entity dispute each other: their consolidation carries
+  `metadata.conflict: true`, takes the confidence of its strongest contribution instead of the noisy-OR, and claims
+  no slot (no rule takes a disputed consolidation as evidence). The flag travels up through every consolidation built
+  on it. A consolidation whose value-carrying parents agree carries `metadata.value`, computed from org-visible notes
+  and child consolidations only, so the value of a team-visibility note never leaves its team (a dispute between such
+  notes of two teams is not flagged above them). A rule with `corroborate` does not raise a slot's confidence over
+  evidence with different values, and flags its conclusion `metadata.conflict`. Free text is never compared: notes
+  without a `value` never dispute anything. Support still counts every agent on the topic, both sides of a dispute
+  (`tests/mycelic/test_aggregation_upward.py`).
 * **What a consolidation says.** Its readers are all members of its unit. Consolidations above team level quote
   only notes marked `visibility: org` and rule conclusions; team-visibility notes are counted there, never quoted,
   and no consolidation adds an agent id to what it quotes. The text is a head and the quoted statements
@@ -246,7 +267,7 @@ then `term`.
   memory records how it was derived in `metadata.derivation`: `{v, min_support}` for a consolidation, `{v,
   rule_digest, rule}` for a conclusion (`rule` is the snapshot; agents see `{v, rule_digest}`, administrators the
   snapshot too; agents cannot set the key). `metadata.agg_key` stays the topic or `rule_id:entity`, so one version is
-  active per key and a new derivation supersedes the old one across versions. `DERIVATION_VERSION` (2) is bumped
+  active per key and a new derivation supersedes the old one across versions. `DERIVATION_VERSION` (3) is bumped
   whenever a released builder's output changes; the re-aggregation job then converges stored state. Recomputing the
   parent set from currently active evidence either leaves the active memory as is, supersedes it with a new version
   (old one readable as `previous_versions`), reactivates an earlier version whose exact coalition returned, or
@@ -323,13 +344,14 @@ read the memory, by walking its derivation DAG (`lineage_edges`) down to the raw
 It is aggregation run backwards: the same pure builders that derived a consolidation or a conclusion
 (`build_consolidation`, `build_conclusion`) recompute it from its stored parents, and the same planner that derives
 memories now (`Aggregator.planner()`, which counts nothing in the aggregation metrics) says whether it is still the
-current one. `MycelicService.verify` runs it under the store lock, so the walk only sees committed states.
+current one. `MycelicService.verify` runs it in a worker thread on a read-only snapshot (`MycelicStore.snapshot_reader`
+inside one read transaction), so the walk only sees committed states and never holds the event loop.
 
 | Surface | Form |
 |---|---|
 | REST | `GET /verify/{id}[?max_leaf_age=N]` (N from 1 to 315,360,000 seconds): the report as the body, 200 for every verdict |
 | REST | `POST /query` with `"verify": true`: `answer.verification` holds `verdict`, `derived_correctly`, `still_true` and the report-level `reasons`; without the flag (or with `false`) the response is unchanged |
-| MCP | `mycelic_verify(memory_id, max_leaf_age_seconds?)`, over HTTP and through the stdio proxy |
+| MCP | `mycelic_verify(memory_id, max_leaf_age_seconds?, detail?)`, over HTTP and through the stdio proxy: by default (`detail` `summary`) the report with only the nodes that did not pass and the first warnings, at most 50 of each (`nodes_omitted`, `warnings_omitted`); `detail` `full` every node. `mycelic_query(..., verify=true)` adds `answer.verification` as `POST /query` does |
 | SDK | `MycelicClient.verify(memory_id, max_leaf_age=None)`, `MycelicClient.query(..., verify=True)` |
 | CLI | `python -m mycelic verify MEMORY_ID [--max-leaf-age N] [--json]` (exit 0 verified, 3 stale, 4 failed, 5 unverifiable, 1 on an HTTP error, 2 on a usage error), `python -m mycelic query --verify` |
 
@@ -440,13 +462,14 @@ before and after a rebuild.
 **Cost and limits.** About 0.1 ms per node plus one planner run per active derived memory, and one read of the
 organization's retractions logged since the oldest raw note's event, one of its agent removals and one of its updates
 not applied yet; measured through `MycelicService.verify` in
-this repository's idle sandbox, 0.10–0.20 s for 1,005 nodes and 0.56–0.85 s for 5,005 nodes. The walk holds the store lock
-and the event loop. `MYCELIC_VERIFY_MAX_NODES` bounds it (`walk_truncated` beyond). A verification costs the caller
-1 + ceil(nodes / 250) rate-limit tokens: the request's token at the door and the walk's share after the walk
-(`RateLimiter.take`), which may put the principal's bucket into debt, at most one burst deep; a principal in debt
-is refused before anything is read (`RateLimiter.in_debt`; 429, or an error result inside an MCP batch), so a
-JSON-RPC batch of verify calls walks at most once past solvency. The debt check and the charge run under the store
-lock. Each successful verification is counted (§9) and audited (`memory.verify`, with the codes before redaction);
+this repository's idle sandbox, 0.10–0.20 s for 1,005 nodes and 0.56–0.85 s for 5,005 nodes. The walk runs in a
+worker thread on a read-only snapshot, never on the event loop; at most `MycelicService.verify_concurrency` (2) walks
+run at once, one per caller at a time. `MYCELIC_VERIFY_MAX_NODES` bounds it (`walk_truncated` beyond). A verification
+costs the caller the request's token at the door and, after the walk, the larger of ceil(nodes / 250) and
+ceil(2 × seconds walked × rps) tokens (`RateLimiter.take`, `VERIFY_TIME_PRICE`), which may put the principal's bucket
+into debt, at most one burst deep; a principal in debt is refused before anything is read and again when its turn to
+walk comes (`RateLimiter.in_debt`; 429, or an error result inside an MCP batch), so a JSON-RPC batch of verify calls
+walks at most once past solvency. Each successful verification is counted (§9) and audited (`memory.verify`, with the codes before redaction);
 refused ones are neither. The reason counter takes the codes of the caller's own report (`hidden_*` for a node it
 may not read, none of that node's warnings): `/metrics` accepts any agent key while `MYCELIC_METRICS_TOKEN` is unset,
 and diffing it around a verification must not tell an agent what its report withheld.
@@ -468,11 +491,13 @@ statuses, stdio proxy against new and old servers), `tests/mycelic/test_integrit
 | database restored from backup | `last_applied_seq` behind the consumer's ack floor ⇒ consumer recreated at `last_applied_seq + 1` | `test_restored_backup_receives_the_events_it_missed` |
 | durable consumer lost | a brand-new consumer facing a database that applied events ⇒ recreated at `last_applied_seq + 1` | `test_lost_consumer_is_recreated_after_the_last_applied_event` |
 | forced replay, poison events | `POST /admin/replay` re-delivers everything idempotently; an event that fails `max_deliver` times, or fails the signature check, is terminated, recorded and counted as consumed so the replay still completes | `test_forced_replay_is_idempotent`, `test_poison_event_is_terminated_and_replay_completes` |
-| agent restart | local notes persist; re-sending uses the local id as idempotency key | smoke step 9 |
+| agent restart | local notes persist; only shares that were requested and never acknowledged are re-sent (`LocalMemory.pending`), with the visibility they were asked with and the local id as idempotency key; a note never shared, or tagged `private`, never leaves the agent | smoke step 9, `LocalMemoryTests` |
 | forged / unsigned events on the stream | HMAC-SHA256 signature checked before apply; producer must match the registry | `test_unsigned_events_are_rejected` |
 | rebuild with the wrong signing key (regenerated in place, previous key dropped) | each replay delivery is counted in `meta` in the transaction that consumes it, signature rejections separately; when the replay completes with more than `MYCELIC_REPLAY_MAX_REJECT_RATIO` rejected, `meta.ready_block` is written: `/ready` 503 (`signature_rejections`), `/health` 200 `degraded`, audit `recovery.signature_rejections`, `mycelic_recovery_total{kind="replay_signature_rejections"}`. Nothing deletes the block: a rebuild into a fresh database with the corrected keyring is ready, a replay into the same database is not; a ratio raised to the recorded one lifts it at the next start | `test_wrong_signing_key_replay_blocks_readiness_until_fresh_rebuild`, `SignatureReadinessTests` |
 | organization at its note limit | `MYCELIC_MAX_ACTIVE_MEMORIES_PER_ORG`: a new note past it is refused with 507 inside the write's transaction; resends, updates and everything the consumer applies are never capped | `QuotaTests`, `QuotaApiTests` |
 | rollback to this release from a later one | unknown event kinds applied as `ignored` (`unknown_kind`), unknown payload fields ignored, missing ones defaulted from the event, so a rebuild reproduces every row; 0.1.0 must never consume this release's stream (DEPLOYMENT.md §4a) | `test_unknown_kinds_and_missing_optional_fields_apply_for_rollback` |
+| broker back without its JetStream state while the service runs | the reconnect (or a publish or status read finding no stream or consumer) sets `resync_needed`; the transport keeper recreates the missing stream and consumer, audits `recovery.broker_state_reset` and runs the start-up recovery, so the outbox drains without a restart; until then `/health` is `degraded` (transport error, failing publishes) | `test_broker_state_reset_is_recovered_without_a_restart` |
+| database error under a background loop (disk full, I/O error) | the publisher, consumer and transport loops catch it, log it with its traceback, count `mycelic_loop_errors_total{loop}` and back off; after an error while handling a delivery the consumer runs the start-up recovery, so an event the broker settled but the database did not record is delivered again; a loop task that ends anyway makes `/health` 503 (`checks.dead_loops`) | `LoopResilienceTests`, `test_a_database_error_while_terminating_loses_no_event` |
 | lost NATS volume with intact database | **not covered**: the database keeps serving, but the log cannot be replayed until new events accumulate (see DEPLOYMENT.md, backups) | — |
 
 ## 9. Observability
@@ -482,6 +507,8 @@ statuses, stdio proxy against new and old servers), `tests/mycelic/test_integrit
 `mycelic_events_failed_total{stage}`, `mycelic_replay_events_total`, `mycelic_recovery_total{kind}` (among them
 `mycelic_recovery_total{kind="replay_signature_rejections"}`: a replay blocked readiness; alert on any increase),
 `mycelic_quota_rejections_total` (writes refused at `MYCELIC_MAX_ACTIVE_MEMORIES_PER_ORG`),
+`mycelic_loop_errors_total{loop}` (`publisher`, `consumer`, `transport`: an error a background loop caught and backed
+off from; alert on any increase),
 `mycelic_memories_derived_total{layer,operator}`, `mycelic_events_ignored_total{reason}` (`derived_not_reproduced`,
 `retraction_target`, `unknown_kind`, `attestation_target`, `attestation_not_newer`, `attestation_integrity`),
 `mycelic_aggregation_inconsistency_total{kind}` (`id_collision`, `reactivation_mismatch`),

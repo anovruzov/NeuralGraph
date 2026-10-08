@@ -27,9 +27,10 @@ import logging
 import math
 import re
 import time
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, AsyncIterator
 
 from . import verification
 from .aggregation import MYCELIC_PRODUCER, Aggregator, Derivation
@@ -40,8 +41,9 @@ from .integrity import Keyring
 from .lineage import LineageNotFound, reconstruct
 from .metrics import Metrics
 from .models import (
-    ALL_SCOPES, DEFAULT_AGENT_SCOPES, DERIVATION_VERSION, MEMORY_KINDS, OPERATORS, VISIBILITY, Agent, EventRecord, Memory, Rule,
-    canonical_label, canonical_rule_body, content_hash, new_id, now_iso, parse_iso, utc_seconds, utcnow,
+    ALL_SCOPES, DEFAULT_AGENT_SCOPES, DERIVATION_VERSION, MAX_VALUE_CHARS, MEMORY_KINDS, OPERATORS, VISIBILITY, Agent,
+    EventRecord, Memory, Rule, canonical_label, canonical_rule_body, canonical_value, content_hash, new_id, now_iso, parse_iso,
+    utc_seconds, utcnow,
 )
 from .retrieval import Retriever
 from .store import MycelicStore, Tx, acquire_db_lock, release_db_lock
@@ -79,8 +81,12 @@ def _recorded_ratio(rejected: int, seen: int) -> float:
     this value, as written, lifts it, where a ratio rounded down (2/7 to 0.285714) would not."""
     return -(-rejected * 10**6 // seen) / 10**6
 #: a verification costs one rate-limit token per this many nodes walked, on top of its request's own token: at about
-#: 0.1 ms per node (verification.py, Cost) a token buys about 25 ms of walk
+#: 0.15 ms per node (verification.py, Cost) a token buys about 37 ms of walk
 VERIFY_NODES_PER_TOKEN = 250
+#: and at least this many tokens per ``1 / rps`` seconds the walk took, so a principal that keeps walking is charged
+#: twice what its bucket refills meanwhile and is in debt (refused) after its first walk past solvency, whatever the
+#: walk's size per node
+VERIFY_TIME_PRICE = 2.0
 #: how far ahead a note's ``expires_at`` may be (ten years, the bound of ``max_leaf_age``)
 MAX_EXPIRY_SECONDS = verification.MAX_LEAF_AGE_SECONDS
 
@@ -210,6 +216,9 @@ class MycelicService:
     #: expired notes one sweep queues a retraction for, in one transaction (``sweep_expired``): at the default
     #: MYCELIC_EXPIRY_SWEEP_SECONDS of 30, 200 a minute
     expiry_batch = 100
+    #: downward verifications that walk at once, all callers together, each in a worker thread on its own read snapshot
+    #: (one more per caller waits for that caller's previous walk, the rest queue)
+    verify_concurrency = 2
 
     def __init__(self, settings: Settings, *, store: MycelicStore | None = None, transport: Transport | None = None,
                  metrics: Metrics | None = None) -> None:
@@ -254,6 +263,12 @@ class MycelicService:
         self._expiry_cursor: tuple[str, int] | None = None      # (expires_at, rid) after which the next sweep reads
         self._expiry: dict[str, Any] = {"last_sweep_at": None, "last_queued": None}
         self._replay_judgement: tuple[int, int, bool] | None = None   # (seen, rejected, blocked) until its commit is noted
+        self._publish_error: tuple[str, float] | None = None           # (last error, monotonic time of the first) while failing
+        # the database has not been judged against the stream since a failed recovery (a broker that could not report its
+        # stream, a delivery the database may not have recorded): the consumer does so before it fetches again
+        self._resync_pending = False
+        self._verify_slots = asyncio.Semaphore(self.verify_concurrency)
+        self._verify_callers: dict[str, list[Any]] = {}                # limiter key -> [lock, verifications holding or awaiting it]
         # read here and after every replay completes, so /ready answers from memory and the block survives a restart
         self._ready_block = self._load_ready_block()
         self.metrics.info.labels(VERSION).set(1)
@@ -280,6 +295,7 @@ class MycelicService:
                          self._ready_block.get("seen", "?"), self._ready_block.get("ratio", "?"),
                          self._ready_block.get("at", "time unknown"), _BLOCK_REMEDY)
         await self._backfill_integrity()              # before the loops: /health answers meanwhile, /ready does not
+        await self._resign_lifecycle()
         await self._connect_with_retry(first=True)
         await self.refresh_status()                   # the first /ready already answers from a warm snapshot
         if background:
@@ -355,7 +371,12 @@ class MycelicService:
             self.metrics.transport_connected.set(0)
             return False
         self.metrics.transport_connected.set(1)
-        await self._recover_if_needed()
+        try:
+            await self._recover_if_needed()
+        except Exception as exc:
+            logger.warning("could not bring the database in step with the stream yet (%s: %s); the consumer does so "
+                           "before it fetches", type(exc).__name__, exc)
+            self._resync_pending = True
         return True
 
     async def _note_signing_keys(self) -> None:
@@ -417,6 +438,44 @@ class MycelicService:
         if refused:
             logger.error("%d memories written after digests were introduced have no digest; they are not re-signed: digests "
                          "were removed from the database", refused)
+        return signed
+
+    async def _resign_lifecycle(self) -> int:
+        """The upgrade to schema 6, whose digests cover a row's lifecycle (status, ``superseded_by``): sign again every
+        row that existed before it and is not active or is superseded, ``backfill_batch`` rows per transaction, each only
+        if its digest checks in the form it was signed in (``Tx.resign_lifecycle``); returns the rows signed.
+
+        Runs once: the migration records ``meta.lifecycle_resign_below`` and the last batch deletes it.  Like the
+        backfill (:meth:`_backfill_integrity`), someone who can write the database could record it again and have rows
+        re-signed at the next start; what they cannot avoid is this step, which is logged and audited
+        (``integrity.lifecycle_resign``), so any such row after the upgrade's own means the database was edited."""
+        below = self.store.get_meta("lifecycle_resign_below")
+        if below is None:
+            return 0
+        signed = left = batches = 0
+        after = 0
+        while True:
+            async with self.store.transaction() as tx:
+                start = after
+                n, bad, after = tx.resign_lifecycle(after_rid=after, below_rid=int(below), limit=self.backfill_batch)
+                signed += n
+                left += bad
+                batches += 1
+                last = after == start              # no row after the previous batch is left to look at
+                if last:
+                    tx.delete_meta("lifecycle_resign_below")
+                    tx.audit("mycelic", "integrity.lifecycle_resign", None, {"rows": signed, "left": left, "batches": batches,
+                                                                            "key_id": self.keyring.key_id})
+            if last:
+                break
+            await asyncio.sleep(0)
+        if signed:
+            logger.warning("signed the lifecycle of %d memories that were not active before the upgrade to schema 6 (key %s): "
+                           "expected once, at that upgrade; at any other time the database was edited", signed,
+                           self.keyring.key_id)
+        if left:
+            logger.error("%d memories that were not active before the upgrade to schema 6 do not match their digest and were "
+                         "not signed again: they were edited before the upgrade", left)
         return signed
 
     async def _set_replay_target(self, target: int | None) -> None:
@@ -516,6 +575,11 @@ class MycelicService:
         """
         last = self.store.get_meta("last_applied_seq")
         info = await self.transport.info()
+        if info.get("error") or "last_seq" not in info:
+            # the broker did not say how long the stream is (a timeout, JetStream not ready yet after a restart): judged on
+            # that, the database would look ahead of a purged stream, so judge nothing; the consumer judges before its
+            # next fetch (``_resync_pending``)
+            raise ConnectionError(f"the broker did not report the stream's state: {info.get('error') or 'not connected'}")
         count = info.get("stream_messages") or 0
         last_seq = int(info.get("last_seq") or count or 0)
         if last is None:
@@ -593,20 +657,50 @@ class MycelicService:
 
     # ------------------------------------------------------------------ background loops
     async def _transport_keeper(self) -> None:
-        """Establish the transport when there is no live client; a client that is reconnecting is left alone."""
+        """Establish the transport when there is no live client; a client that is reconnecting is left alone.  Once a
+        client is back (or a publish or status read found no stream), make sure the stream and the durable consumer
+        still exist (:meth:`_resync_transport`).  An error it did not expect is logged, counted
+        (``mycelic_loop_errors_total{loop="transport"}``) and retried at the next round."""
         delay = 1.0
         while not self._stop.is_set():
-            if getattr(self.transport, "needs_connect", not self.transport.connected):
-                ok = await self._connect_with_retry(first=False)
-                delay = 1.0 if ok else min(15.0, delay * 2)
-                if ok:
-                    self.metrics.recoveries.labels("transport_reconnect").inc()
+            try:
+                if getattr(self.transport, "needs_connect", not self.transport.connected):
+                    ok = await self._connect_with_retry(first=False)
+                    delay = 1.0 if ok else min(15.0, delay * 2)
+                    if ok:
+                        self.metrics.recoveries.labels("transport_reconnect").inc()
+                if self.transport.connected and getattr(self.transport, "resync_needed", False):
+                    await self._resync_transport()
+            except Exception:
+                logger.exception("the transport keeper failed; retrying")
+                self.metrics.loop_errors.labels("transport").inc()
+                delay = min(15.0, delay * 2)
             try:
                 await asyncio.wait_for(self._stop.wait(), timeout=delay if not self.transport.connected else 2.0)
             except asyncio.TimeoutError:
                 pass
 
+    async def _resync_transport(self) -> None:
+        """A broker that came back without its JetStream state (volume lost, stream deleted) has no stream and no durable
+        consumer: recreate them and bring the database in step with the new log, as a start would
+        (:meth:`_recover_if_needed`: the stream is shorter than the database, so the log restarts from its new sequence),
+        so the outbox drains without a restart.  A reconnect to a broker that kept its state changes nothing."""
+        if await self.transport.resync():
+            self.metrics.recoveries.labels("broker_state_reset").inc()
+            async with self.store.transaction() as tx:
+                tx.audit("mycelic", "recovery.broker_state_reset", None, {"stream": self.settings.nats_stream,
+                                                                          "consumer": self.settings.nats_consumer})
+            try:
+                await self._recover_if_needed()
+            except Exception:
+                self._resync_pending = True             # the consumer judges before its next fetch
+                raise
+            self._outbox_wake.set()
+
     async def _publisher_loop(self) -> None:
+        """Publish the outbox in order.  Nothing ends the loop but ``stop``: an error it did not expect (the database
+        full or failing, say) is logged with its traceback, counted (``mycelic_loop_errors_total{loop="publisher"}``) and
+        backed off from, and the next round starts again from the outbox, which the failed transaction left as it was."""
         self._publisher_running = True
         backoff = self.settings.publish_interval_seconds
         try:
@@ -614,38 +708,12 @@ class MycelicService:
                 if not self.transport.connected:
                     await self._sleep(1.0)
                     continue
-                rows = self.store.pending_events(self.settings.publish_batch)
-                if not rows:
-                    self._outbox_wake.clear()
-                    try:
-                        await asyncio.wait_for(self._outbox_wake.wait(), timeout=self.settings.publish_interval_seconds)
-                    except asyncio.TimeoutError:
-                        pass
-                    continue
-                failed = False
-                for ev in rows:
-                    wire = json.dumps(self._event_wire(ev), ensure_ascii=False).encode("utf-8")
-                    try:
-                        seq = await self.transport.publish(ev.subject, wire, ev.event_id, headers=self._sign(wire))
-                    except Exception as exc:
-                        name = type(exc).__name__
-                        if name in ("MaxPayloadError", "BadRequestError") or len(wire) > self.settings.max_event_bytes:
-                            # permanent: the broker will never take this event; record it and move on so the log continues
-                            async with self.store.transaction() as tx:
-                                tx.mark_failed(ev.event_id, f"{name}: {exc}")
-                                tx.audit("mycelic", "event.unpublishable", ev.event_id, {"error": f"{name}: {exc}", "bytes": len(wire)})
-                            self.metrics.events_failed.labels("publish_permanent").inc()
-                            logger.error("event %s cannot be published (%s: %s); marked failed", ev.event_id, name, exc)
-                            continue
-                        failed = True
-                        async with self.store.transaction() as tx:
-                            tx.mark_publish_failed(ev.event_id, f"{name}: {exc}")
-                        self.metrics.events_failed.labels("publish").inc()
-                        logger.warning("publish of %s failed: %s: %s", ev.event_id, name, exc)
-                        break
-                    async with self.store.transaction() as tx:
-                        tx.mark_published(ev.event_id, seq)
-                    self.metrics.events_published.labels(ev.kind).inc()
+                try:
+                    failed = await self._publish_pending()
+                except Exception:
+                    logger.exception("the publisher loop failed; backing off and retrying")
+                    self.metrics.loop_errors.labels("publisher").inc()
+                    failed = True
                 if failed:
                     await self._sleep(min(10.0, backoff))
                     backoff = min(10.0, backoff * 2)
@@ -654,7 +722,54 @@ class MycelicService:
         finally:
             self._publisher_running = False
 
+    async def _publish_pending(self) -> bool:
+        """One round of the publisher: publish the oldest pending events, or wait for new ones.  True when a publish failed
+        (the caller backs off); the failure is kept in ``_publish_error`` until a publish succeeds."""
+        rows = self.store.pending_events(self.settings.publish_batch)
+        if not rows:
+            self._outbox_wake.clear()
+            try:
+                await asyncio.wait_for(self._outbox_wake.wait(), timeout=self.settings.publish_interval_seconds)
+            except asyncio.TimeoutError:
+                pass
+            return False
+        for ev in rows:
+            wire = json.dumps(self._event_wire(ev), ensure_ascii=False).encode("utf-8")
+            try:
+                seq = await self.transport.publish(ev.subject, wire, ev.event_id, headers=self._sign(wire))
+            except Exception as exc:
+                name = type(exc).__name__
+                if name in ("MaxPayloadError", "BadRequestError") or len(wire) > self.settings.max_event_bytes:
+                    # permanent: the broker will never take this event; record it and move on so the log continues
+                    async with self.store.transaction() as tx:
+                        tx.mark_failed(ev.event_id, f"{name}: {exc}")
+                        tx.audit("mycelic", "event.unpublishable", ev.event_id, {"error": f"{name}: {exc}", "bytes": len(wire)})
+                    self.metrics.events_failed.labels("publish_permanent").inc()
+                    logger.error("event %s cannot be published (%s: %s); marked failed", ev.event_id, name, exc)
+                    continue
+                if self._publish_error is None:
+                    self._publish_error = (f"{name}: {exc}", time.monotonic())
+                else:
+                    self._publish_error = (f"{name}: {exc}", self._publish_error[1])
+                async with self.store.transaction() as tx:
+                    tx.mark_publish_failed(ev.event_id, f"{name}: {exc}")
+                self.metrics.events_failed.labels("publish").inc()
+                logger.warning("publish of %s failed: %s: %s", ev.event_id, name, exc)
+                return True
+            self._publish_error = None
+            async with self.store.transaction() as tx:
+                tx.mark_published(ev.event_id, seq)
+            self.metrics.events_published.labels(ev.kind).inc()
+        return False
+
     async def _consumer_loop(self) -> None:
+        """Fetch and apply the log in order.  Nothing ends the loop but ``stop``: an error it did not expect while handling
+        a delivery (the database full or failing while it records a rejected or terminated event, say) is logged with its
+        traceback, counted (``mycelic_loop_errors_total{loop="consumer"}``) and backed off from.  The broker may have
+        settled that delivery although the database did not record it, so before fetching again the consumer is brought
+        back in step with the database exactly as at a start (:meth:`_recover_if_needed`: whatever the database has not
+        recorded is delivered again).  A recovery the broker could not answer (at a start, after a broker state reset or
+        here) is retried the same way, and nothing is fetched until it has run (``_resync_pending``)."""
         self._consumer_running = True
         backoff = 0.5
         try:
@@ -662,6 +777,16 @@ class MycelicService:
                 if not self.transport.connected:
                     await self._sleep(0.5)
                     continue
+                if self._resync_pending:
+                    try:
+                        await self._recover_if_needed()
+                        self._resync_pending = False
+                    except Exception:
+                        logger.exception("the consumer could not resynchronise with the database; backing off and retrying")
+                        self.metrics.loop_errors.labels("consumer").inc()
+                        await self._sleep(backoff)
+                        backoff = min(10.0, backoff * 2)
+                        continue
                 try:
                     deliveries = await self.transport.fetch(self.settings.consume_batch, timeout=1.0)
                 except Exception as exc:
@@ -669,13 +794,22 @@ class MycelicService:
                     await self._sleep(backoff)
                     backoff = min(10.0, backoff * 2)
                     continue
-                backoff = 0.5
                 if not deliveries:
+                    backoff = 0.5
                     self._idle.set()
                     continue
                 self._idle.clear()
-                for d in deliveries:
-                    await self._handle_delivery(d)
+                try:
+                    for d in deliveries:
+                        await self._handle_delivery(d)
+                    backoff = 0.5
+                except Exception:
+                    logger.exception("the consumer loop failed while handling a delivery; backing off, then resynchronising "
+                                     "with the database")
+                    self.metrics.loop_errors.labels("consumer").inc()
+                    self._resync_pending = True
+                    await self._sleep(backoff)
+                    backoff = min(10.0, backoff * 2)
                 self._idle.set()
         finally:
             self._consumer_running = False
@@ -803,6 +937,10 @@ class MycelicService:
         allowed = {"agg_key", "child_layer", "parent_count", "version_of", "fragility", "contributing_teams", "children",
                    "promoted_from", "effective_min_support", "corroborated_units", "rule_chain", "statements",
                    "statement_origins", "private_observations"}
+        if d.get("operator") != "agent_observation":
+            # what the aggregator derived; a raw note's own metadata (free-form, so an earlier client's 'value' or
+            # 'conflict' may be anything) stays its producer's and the administrators', as in earlier releases
+            allowed |= {"value", "conflict"}
         if principal.has("lineage:read"):        # the root ids are exactly what GET /lineage/{id} shows this caller
             allowed.add("roots")
         d["metadata"] = {k: v for k, v in meta.items() if k in allowed}
@@ -861,6 +999,14 @@ class MycelicService:
         if supersedes is not None and not allow_supersedes:
             raise ValidationError("'supersedes' is accepted by POST /memory only")
         meta = {k: v for k, v in _small_dict(body, "metadata", 4096).items() if k not in RESERVED_METADATA_KEYS}
+        # the note's structured claim for its slot and entity, kept as metadata.value: aggregation compares it (a dispute
+        # is never corroboration).  metadata was free-form before, so a metadata.value sent without 'value' is stored as
+        # sent, whatever it is, and claims something only if it is a short string (``models.canonical_value``)
+        value = _label(body, "value", max_len=MAX_VALUE_CHARS)
+        if value is not None:
+            if "value" in meta and canonical_value(meta["value"]) != value:
+                raise ValidationError("'value' and 'metadata.value' differ")
+            meta["value"] = value
         if supersedes is not None:
             meta["version_of"] = supersedes             # reserved: only an update sets it, and the digest covers it
         observed_at = _iso(body, "observed_at") or now_iso()
@@ -1473,15 +1619,21 @@ class MycelicService:
         it still true?  Unknown and unreadable ids are the same NotFound, as for lineage.  ``max_leaf_age`` (seconds)
         also checks how long ago each readable raw note was ingested; ``now`` is a test hook.
 
-        The walk is priced after the fact: ``ceil(nodes / VERIFY_NODES_PER_TOKEN)`` tokens from the caller's rate-limit
-        bucket (:meth:`RateLimiter.take`), on top of the request's own token, into debt if need be.  A caller in debt is
-        refused (:class:`RateLimited`) before anything is read, so a JSON-RPC batch, whose messages run back to back with
-        no middleware between them, walks at most once past solvency.  The debt check and the charge both run under the
-        store lock, so concurrent verifications by one caller are serialised on them.  A successful call is charged,
-        counted by verdict and reason and audited; a refused one (Forbidden, ValidationError, NotFound, RateLimited) is
-        none of these.  The reason counters take the codes of the caller's own report (``hidden_*`` for a node it may not
-        read, no hidden warning), because ``/metrics`` answers any agent key when ``MYCELIC_METRICS_TOKEN`` is unset; the
-        audit row keeps the codes before redaction."""
+        The walk never holds the event loop: it runs in a worker thread on a read-only snapshot of the database
+        (:meth:`MycelicStore.snapshot_reader`; an in-memory database is walked on the loop, under the store lock), at most
+        ``verify_concurrency`` at once for all callers and one at a time per caller, so /health, /ready and every other
+        request keep answering while a large DAG is walked.
+
+        The walk is priced after the fact, on top of the request's own token, into debt if need be: the larger of
+        ``ceil(nodes / VERIFY_NODES_PER_TOKEN)`` and ``ceil(VERIFY_TIME_PRICE * seconds walked * rps)`` tokens from the
+        caller's rate-limit bucket (:meth:`RateLimiter.take`), so a caller that keeps walking pays more than its bucket
+        refills.  A caller in debt is refused (:class:`RateLimited`) before anything is read, and again once its turn to
+        walk comes, so a JSON-RPC batch, whose messages run back to back with no middleware between them, and concurrent
+        requests of one caller walk at most once past solvency.  A successful call is charged, counted by verdict and
+        reason and audited; a refused one (Forbidden, ValidationError, NotFound, RateLimited) is none of these.  The reason
+        counters take the codes of the caller's own report (``hidden_*`` for a node it may not read, no hidden warning),
+        because ``/metrics`` answers any agent key when ``MYCELIC_METRICS_TOKEN`` is unset; the audit row keeps the codes
+        before redaction."""
         if not principal.has("lineage:read"):
             raise Forbidden("missing scope lineage:read")
         if not isinstance(memory_id, str) or not _ID_RE.fullmatch(memory_id):
@@ -1490,18 +1642,20 @@ class MycelicService:
                                          or not 1 <= max_leaf_age <= verification.MAX_LEAF_AGE_SECONDS):
             raise ValidationError(f"'max_leaf_age' must be an integer between 1 and {verification.MAX_LEAF_AGE_SECONDS} seconds")
         t0 = time.perf_counter()
-        # nothing in here awaits, so the walk never sees a transaction half-way through its body
+        key = principal.limiter_key
+        # nothing in here awaits, so the lookup never sees a transaction half-way through its body
         async with self.store._lock:
-            if self.limiter.in_debt(principal.limiter_key):
-                self.metrics.auth_failures.labels("rate_limited").inc()
-                raise RateLimited("rate limit exceeded")
+            self._refuse_if_in_debt(key)
             m = self.store.get_memory(memory_id)
             if m is None or not principal.can_read(m):
                 raise NotFound(memory_id)
-            result = verification.verify(self.store, self.aggregator.planner(), self.keyring, memory_id,
-                                         principal=principal, now=now or utcnow(), max_nodes=self.settings.verify_max_nodes,
-                                         max_leaf_age=max_leaf_age)
-            self.limiter.take(principal.limiter_key, math.ceil(result.report["summary"]["nodes"] / VERIFY_NODES_PER_TOKEN))
+        async with self._verification_turn(key):
+            self._refuse_if_in_debt(key)            # a walk of this caller that ran while it waited may have spent it all
+            walk_t0 = time.perf_counter()
+            result = await self._walk(principal, memory_id, now=now or utcnow(), max_leaf_age=max_leaf_age)
+            walked = time.perf_counter() - walk_t0
+            self.limiter.take(key, max(math.ceil(result.report["summary"]["nodes"] / VERIFY_NODES_PER_TOKEN),
+                                       math.ceil(VERIFY_TIME_PRICE * walked * max(0.0, self.limiter.rps))))
         verdict = result.report["verdict"]
         self.metrics.verification_latency.observe(time.perf_counter() - t0)
         self.metrics.verifications.labels(verdict).inc()
@@ -1514,6 +1668,52 @@ class MycelicService:
                                                                           "nodes": result.report["summary"]["nodes"],
                                                                           "reasons": result.codes}, remote)
         return result.report
+
+    def _refuse_if_in_debt(self, key: str) -> None:
+        if self.limiter.in_debt(key):
+            self.metrics.auth_failures.labels("rate_limited").inc()
+            raise RateLimited("rate limit exceeded")
+
+    @asynccontextmanager
+    async def _verification_turn(self, key: str) -> AsyncIterator[None]:
+        """One walk at a time per caller (``key``), ``verify_concurrency`` at a time for everyone."""
+        entry = self._verify_callers.setdefault(key, [asyncio.Lock(), 0])
+        entry[1] += 1
+        try:
+            async with entry[0], self._verify_slots:
+                yield
+        finally:
+            entry[1] -= 1
+            if not entry[1]:
+                del self._verify_callers[key]
+
+    async def _walk(self, principal: Principal, memory_id: str, *, now: datetime,
+                    max_leaf_age: int | None) -> verification.VerificationResult:
+        """``verification.verify`` on a committed snapshot, in a worker thread (an in-memory database: on the loop, under
+        the store lock).  A memory is never deleted, so the id found under the lock is in the snapshot."""
+        def run(store: MycelicStore) -> verification.VerificationResult:
+            planner = Aggregator(store, min_support=self.aggregator.min_support, clock=self.aggregator.clock,
+                                 max_candidates=self.aggregator.max_candidates, max_dependents=self.aggregator.max_dependents)
+            planner._cap_warned = self.aggregator._cap_warned
+            return verification.verify(store, planner, self.keyring, memory_id, principal=principal, now=now,
+                                       max_nodes=self.settings.verify_max_nodes, max_leaf_age=max_leaf_age)
+
+        if self.store.db_path == ":memory:":
+            async with self.store._lock:
+                return run(self.store)
+
+        def in_snapshot() -> verification.VerificationResult:
+            reader = self.store.snapshot_reader()
+            try:
+                reader._conn.execute("BEGIN")
+                try:
+                    return run(reader)
+                finally:
+                    reader._conn.execute("ROLLBACK")
+            finally:
+                reader._conn.close()
+
+        return await asyncio.to_thread(in_snapshot)
 
     async def query_and_verify(self, principal: Principal, body: dict[str, Any], *, remote: str | None = None) -> dict[str, Any]:
         """POST /query: :meth:`query`, and with ``"verify": true`` the answer's verification summary (``verdict``, both
@@ -1942,12 +2142,21 @@ class MycelicService:
             check["error"] = error
         return check
 
+    def _dead_loops(self) -> list[str]:
+        """Background loops that ended although the service was not stopped (each loop catches its own errors, so only a
+        defect gets here): /health then answers 503, so the liveness probe restarts the process.  The re-aggregation job
+        is not a loop: it ends when it is done."""
+        return sorted(t.get_name() for t in self._tasks
+                      if t.done() and t is not self._reaggregate_task and t.get_name() != "mycelic-reaggregate"
+                      and not self._stop.is_set())
+
     def _status(self, db: dict[str, Any], tinfo: dict[str, Any]) -> str:
-        if not db["ok"]:
+        if not db["ok"] or self._dead_loops():
             return "failing"
-        # a readiness block is degraded, never failing: /health stays 200, so the probes on it never restart the pod
+        # a readiness block is degraded, never failing: /health stays 200, so the probes on it never restart the pod;
+        # so is a transport error (the stream missing after a broker state reset, say) and a publish that keeps failing
         if (not tinfo["connected"] or tinfo["stale"] or not self._consumer_running or not self._publisher_running
-                or self._ready_block is not None):
+                or self._ready_block is not None or tinfo.get("error") or self._publish_error is not None):
             return "degraded"
         return "ok"
 
@@ -1961,6 +2170,12 @@ class MycelicService:
         tinfo = self.transport_check()
         checks: dict[str, Any] = {"db": self._db_check(), "transport": tinfo}
         checks["publisher"] = {"running": self._publisher_running, "outbox_pending": stats.get("outbox_pending")}
+        if self._publish_error is not None:
+            checks["publisher"]["last_error"] = self._publish_error[0]
+            checks["publisher"]["failing_seconds"] = round(time.monotonic() - self._publish_error[1], 1)
+        dead = self._dead_loops()
+        if dead:
+            checks["dead_loops"] = dead
         checks["consumer"] = {"running": self._consumer_running, "last_applied_seq": stats.get("last_applied_seq"),
                               "pending": tinfo.get("consumer_pending"), "replaying_to_seq": self._replay_target,
                               "ready_block": self._ready_block}

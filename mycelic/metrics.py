@@ -47,6 +47,8 @@ class Metrics:
                                             registry=r)
         self.memories_expired = Counter("mycelic_memories_expired_total", "Expired notes the sweep queued a retraction for",
                                         registry=r)
+        self.loop_errors = Counter("mycelic_loop_errors_total", "Errors a background loop caught, logged and backed off from "
+                                   "(the loop keeps running)", ["loop"], registry=r)
         self.quota_rejections = Counter("mycelic_quota_rejections_total",
                                         "Writes refused because the organization is at MYCELIC_MAX_ACTIVE_MEMORIES_PER_ORG",
                                         registry=r)
@@ -81,6 +83,8 @@ class Metrics:
         for kind in ("id_collision", "reactivation_mismatch"):
             self.aggregation_inconsistency.labels(kind)
         self.recoveries.labels("replay_signature_rejections")     # alert on any increase: readiness is blocked
+        for loop in ("publisher", "consumer", "transport"):
+            self.loop_errors.labels(loop)                        # alert on any increase: the database or the broker failed
         for what in ("dependents", "cascade", "candidates"):
             self.aggregation_truncated.labels(what)
         for verdict in VERDICTS:

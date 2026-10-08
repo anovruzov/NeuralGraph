@@ -205,7 +205,7 @@ async def scenario(s: MycelicService, log: list[dict[str, Any]]) -> dict[str, st
 
 class CanonicalFormTests(unittest.TestCase):
     def test_canonical_form_golden_vectors(self) -> None:
-        raw, der = golden_raw(), golden_derived()
+        raw, der = golden_raw(), dataclasses.replace(golden_derived(), status="active", superseded_by=None)
         self.assertEqual(canonical_raw(raw), RAW_CANONICAL)
         self.assertEqual(canonical(raw), RAW_CANONICAL)
         self.assertEqual(canonical_derived(der, DER_PARENTS), DER_CANONICAL)
@@ -222,8 +222,11 @@ class CanonicalFormTests(unittest.TestCase):
         self.assertEqual(keyed.event_signature(b"{}"), EVENT_SIGNATURE)
         # the pre-keyring formula, so streams written before schema 4 verify unchanged
         self.assertEqual(EVENT_SIGNATURE, "v1=" + hmac.new(K.encode(), b"{}", hashlib.sha256).hexdigest())
+        # the lifecycle of a row that is not active enters the form (schema 6), right after "slot" in key order
+        self.assertEqual(canonical(golden_derived(), DER_PARENTS),
+                         DER_CANONICAL.replace(b',"support":2,', b',"status":"superseded","superseded_by":"mem_dnext","support":2,'))
         # fields a later release adds enter the form only when set
-        for m, form in ((golden_raw(), RAW_CANONICAL), (golden_derived(), DER_CANONICAL)):
+        for m, form in ((golden_raw(), RAW_CANONICAL), (der, DER_CANONICAL)):
             m.expires_at = None
             m.attested_at = None
             self.assertEqual(canonical(m, DER_PARENTS), form)
@@ -267,11 +270,17 @@ class CanonicalFormTests(unittest.TestCase):
         for name in DERIVED_METADATA:
             with self.subTest(metadata=name):
                 differ(canonical(dataclasses.replace(der, metadata={**der.metadata, name: "changed"}), DER_PARENTS), D)
-        # lifecycle and apply-time fields are not covered
-        for changes in ({"status": "active"}, {"status": "retracted"}, {"superseded_by": None}, {"applied_at": now_iso()}):
+        # apply-time fields are not covered; the lifecycle is (schema 6), and an active row's form is its insert's
+        with self.subTest(changes={"applied_at": now_iso()}):
+            same(canonical(dataclasses.replace(raw, applied_at=now_iso())), R)
+            same(canonical(dataclasses.replace(der, applied_at=now_iso()), DER_PARENTS), D)
+        same(canonical(dataclasses.replace(raw, status="active", superseded_by=None)), R)
+        for changes in ({"status": "retracted"}, {"status": "superseded"}, {"superseded_by": "mem_x"}):
             with self.subTest(changes=changes):
-                same(canonical(dataclasses.replace(raw, **changes)), R)
-                same(canonical(dataclasses.replace(der, **changes), DER_PARENTS), D)
+                differ(canonical(dataclasses.replace(raw, **changes)), R)
+        for changes in ({"status": "active"}, {"status": "retracted"}, {"superseded_by": None}, {"superseded_by": "mem_y"}):
+            with self.subTest(changes=changes):
+                differ(canonical(dataclasses.replace(der, **changes), DER_PARENTS), D)
         same(canonical(dataclasses.replace(der, created_at=now_iso(), event_id=None), DER_PARENTS), D)
         lifecycle = ("version_of", "fragility", "candidates", "fragility_scored_candidates", "registered_child_units",
                      "reactivated_at", "status_reason")
@@ -479,13 +488,14 @@ class IntegrityTests(unittest.IsolatedAsyncioTestCase):
             (raw, [edit(raw, "digest=?, digest_key_id='none'", Keyring().sign(canonical(st.get_memory(raw)))[0])], "downgraded"),
             (raw, [edit(raw, "digest_key_id='0123456789ab'")], "unknown_key"),
             (raw, [edit(raw, "digest=NULL")], "missing"),
-            # lifecycle columns are not covered
-            (raw, [edit(raw, "status='retracted'")], "ok"),
-            (raw, [edit(raw, "superseded_by='mem_x'")], "ok"),
+            # the lifecycle columns are covered (schema 6): a status set in the database is an edit
+            (raw, [edit(raw, "status='retracted'")], "mismatch"),
+            (raw, [edit(raw, "superseded_by='mem_x'")], "mismatch"),
+            (team.memory_id, [edit(team.memory_id, "status='superseded', superseded_by='mem_x'")], "mismatch"),
+            # apply-time columns and the reason of a status are not
             (raw, [edit(raw, "applied_at=NULL")], "ok"),
             (raw, [edit(raw, "apply_seq=apply_seq+1000")], "ok"),
             (raw, [edit(raw, "metadata=json_set(metadata, '$.status_reason', 'withdrawn')")], "ok"),
-            (team.memory_id, [edit(team.memory_id, "status='superseded', superseded_by='mem_x'")], "ok"),
             (team.memory_id, [edit(team.memory_id, "event_id='evt_other'")], "ok"),
             (team.memory_id, [edit(team.memory_id, "metadata=json_set(metadata, '$.status_reason', 'x', '$.version_of', 'mem_x')")], "ok"),
         ]
@@ -522,7 +532,14 @@ class IntegrityTests(unittest.IsolatedAsyncioTestCase):
         await s2.ingest_memory(s2.authenticate(f"Bearer {keys['log-3']}"), {"text": "strike seen by log-3", "topic": TRANSPORT})
         await pump(s2, log)
         now = digest_map(s2.store)
-        self.assertEqual({m: now[m] for m in signed_by_a}, signed_by_a)
+        # the one row whose lifecycle changed since (the team consolidation the new note superseded) is signed again,
+        # by the current key; every other row keeps the digest A signed
+        resigned = {m for m in signed_by_a if now[m] != signed_by_a[m]}
+        self.assertEqual([(s2.store.get_memory(m).layer, s2.store.get_memory(m).status) for m in resigned],
+                         [("team", "superseded")])
+        self.assertEqual({now[m][1] for m in resigned}, {ID_B})
+        self.assertEqual({m: now[m] for m in signed_by_a if m not in resigned}, {m: v for m, v in signed_by_a.items()
+                                                                               if m not in resigned})
         new = set(now) - set(signed_by_a)
         self.assertEqual(len(new), 2, "the note and the grown team consolidation")
         self.assertEqual({now[m][1] for m in new}, {ID_B})
@@ -535,8 +552,8 @@ class IntegrityTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(any(ID_A in line and "MYCELIC_EVENT_SIGNING_KEYS_PREVIOUS" in line for line in logs.output), logs.output)
         self.assertFalse(any(KEY_A in line or KEY_B in line for line in logs.output))
         outcomes = integrity_outcomes(s3.store)
-        self.assertEqual({outcomes[m] for m in signed_by_a}, {"unknown_key"}, "never ok once A is not listed")
-        self.assertEqual({outcomes[m] for m in new}, {"ok"})
+        self.assertEqual({outcomes[m] for m in signed_by_a if m not in resigned}, {"unknown_key"}, "never ok once A is not listed")
+        self.assertEqual({outcomes[m] for m in new | resigned}, {"ok"})
         self.assertEqual(json.loads(s3.store.get_meta("known_key_ids")), [ID_A, ID_B])
         await shut(s3)
 
@@ -650,7 +667,9 @@ class IntegrityTests(unittest.IsolatedAsyncioTestCase):
         back = s2.store.get_memory(c1.memory_id)
         self.assertEqual(back.status, "active", "the earlier coalition is current again")
         self.assertIn("reactivated_at", back.metadata)
-        self.assertEqual(s2.store.integrity_of([c1.memory_id])[c1.memory_id], before, "its digest columns are untouched")
+        after = s2.store.integrity_of([c1.memory_id])[c1.memory_id]
+        self.assertNotEqual(after[0], before[0], "its lifecycle changed, so it is signed again")
+        self.assertEqual(after[1:], (ID_B, "write"), "by the current key, under its origin")
         self.assertEqual(outcome(s2.store, c1.memory_id), "ok")
         self.assertEqual(set(integrity_outcomes(s2.store).values()), {"ok"})
         now = digest_map(s2.store)
@@ -865,8 +884,8 @@ class BackfillTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(row["detail"], {"rows": total - 2, "batches": (total - 2) // 2 + 1, "refused": 0, "key_id": ID_K})
         self.assertEqual(counter(s.metrics.integrity_backfilled), total)
 
-        # lifecycle writes on backfilled rows keep their digest columns: retracting the last note supersedes nothing
-        # new and reactivates the consolidations it had grown, which the backfill signed
+        # lifecycle writes on backfilled rows sign them again under their origin: retracting the last note supersedes
+        # nothing new and reactivates the consolidations it had grown, which the backfill signed
         statuses = {m: st.get_memory(m).status for m in written}
         columns = st.integrity_of(list(written))
         event = await s.retract(s.authenticate(f"Bearer {ADMIN_TOKEN}"), notes["n4"], "withdrawn after the upgrade")
@@ -879,7 +898,12 @@ class BackfillTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIn("reactivated_at", st.get_memory(m).metadata)
                 self.assertEqual(columns[m][1:], (ID_K, "backfill"))
                 self.assertEqual(outcome(st, m), "ok")
-        self.assertEqual(st.integrity_of(list(written)), columns, "no lifecycle write touched a digest, key id or origin")
+        changed = {m for m in written if st.get_memory(m).status != statuses[m]}
+        self.assertTrue(set(reactivated) <= changed)
+        self.assertEqual({m: v for m, v in st.integrity_of(list(written)).items() if m not in changed},
+                         {m: v for m, v in columns.items() if m not in changed}, "a row whose lifecycle did not change is untouched")
+        self.assertEqual({v[1:] for m, v in st.integrity_of(list(changed)).items()}, {(ID_K, "backfill")},
+                         "one whose lifecycle changed keeps its key id and origin")
         self.assertEqual(set(integrity_outcomes(st).values()), {"ok"})
         self.assertLessEqual({v[1:] for m, v in st.integrity_of(list(digest_map(st))).items() if m not in written}, {(ID_K, "write")},
                              "whatever the retraction derived is signed at insert")
@@ -899,6 +923,57 @@ class BackfillTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(await s2._backfill_integrity(), 0)
         finally:
             await s2.close()
+
+    async def test_upgrade_to_schema_6_signs_the_lifecycle_once(self) -> None:
+        s, log, notes = await self.live_state()
+        st = s.store
+        inactive = [r["memory_id"] for r in st._conn.execute("SELECT memory_id FROM memories WHERE status != 'active' "
+                                                              "OR superseded_by IS NOT NULL ORDER BY rid")]
+        self.assertGreaterEqual(len(inactive), 3)
+        # the database as schema 5 left it: every row signed without its lifecycle; and one inactive row edited before
+        edited = inactive[0]
+        for mid in inactive:
+            r = st._conn.execute("SELECT * FROM memories WHERE memory_id=?", (mid,)).fetchone()
+            before = dataclasses.replace(row_memory(r), status="active", superseded_by=None)
+            if mid == edited:
+                before.text += " (edited before the upgrade)"
+            digest, _ = s.keyring.sign(canonical(before, [e.parent_id for e in st.parents_of(mid)]), origin=r["digest_origin"])
+            st._conn.execute("UPDATE memories SET digest=? WHERE memory_id=?", (digest, mid))
+        st._conn.execute("UPDATE meta SET value='5' WHERE key='schema_version'")
+        self.assertEqual({integrity_outcomes(st)[m] for m in inactive}, {"mismatch"}, "the new form does not check them yet")
+        await shut(s)
+
+        s2 = node(self.tmp.name, key=K)
+        self.assertEqual(s2.store.get_meta("schema_version"), "6")
+        self.assertIsNotNone(s2.store.get_meta("lifecycle_resign_below"))
+        self.assertEqual(s2.store.get_meta("reaggregate_pending"), "1")
+        s2.backfill_batch = 2
+        with self.assertLogs("mycelic.service", "WARNING") as logs:
+            await s2.start()
+        try:
+            outcomes = integrity_outcomes(s2.store)
+            self.assertEqual({outcomes[m] for m in inactive if m != edited}, {"ok"})
+            self.assertEqual(outcomes[edited], "mismatch", "an edited row is never signed again")
+            self.assertEqual({o for m, o in outcomes.items() if m not in inactive}, {"ok"})
+            self.assertIsNone(s2.store.get_meta("lifecycle_resign_below"))
+            [row] = audits(s2.store, "integrity.lifecycle_resign")
+            self.assertEqual((row["detail"]["rows"], row["detail"]["left"]), (len(inactive) - 1, 1))
+            self.assertTrue(any(f"signed the lifecycle of {len(inactive) - 1} memories" in line for line in logs.output), logs.output)
+            self.assertTrue(any("1 memories that were not active before the upgrade" in line for line in logs.output))
+            # a status set in the database after the upgrade is an edit
+            ok = next(m for m in inactive if m != edited)
+            s2.store._conn.execute("UPDATE memories SET status=CASE status WHEN 'retracted' THEN 'superseded' ELSE 'retracted' "
+                                   "END WHERE memory_id=?", (ok,))
+            self.assertEqual(outcome(s2.store, ok), "mismatch")
+        finally:
+            await s2.close()
+        s3 = node(self.tmp.name, key=K)
+        await s3.start()
+        try:
+            self.assertEqual(len(audits(s3.store, "integrity.lifecycle_resign")), 1, "a second start does nothing")
+            self.assertEqual(outcome(s3.store, ok), "mismatch", "and never launders an edit made after the upgrade")
+        finally:
+            await s3.close()
 
     async def test_start_runs_the_backfill_before_the_consumer(self) -> None:
         fresh = tempfile.TemporaryDirectory()

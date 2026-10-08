@@ -94,6 +94,22 @@ def canonical_label(s: str | None) -> str | None:
     return " ".join(unicodedata.normalize("NFKC", unicodedata.normalize("NFKC", s).casefold()).split()) or None
 
 
+#: the longest claim (``value``) a note may make, counted in its canonical spelling
+MAX_VALUE_CHARS = 200
+
+
+def canonical_value(v: Any) -> str | None:
+    """The claim a note's ``metadata.value`` makes, spelled like a label (:func:`canonical_label`), or None.
+
+    ``metadata`` was free-form before notes had a ``value``, so what an earlier client stored there is kept as it was
+    sent: only a string of at most :data:`MAX_VALUE_CHARS` characters once canonical claims anything, and ``'Open'``
+    and ``'open'`` claim the same thing.  A number, an object, an empty or a longer string claims nothing."""
+    if not isinstance(v, str):
+        return None
+    c = canonical_label(v)
+    return c if c is not None and len(c) <= MAX_VALUE_CHARS else None
+
+
 def _is_count(v: Any) -> bool:
     return isinstance(v, int) and not isinstance(v, bool)
 
@@ -262,7 +278,8 @@ class Rule:
 
 #: version of the derivation semantics, part of every derived id: bump it when a released builder's output changes
 #: 2: consolidations quote by visibility (metadata.statements) and derived text is bounded
-DERIVATION_VERSION = 2
+#: 3: consolidations and corroborated conclusions read claimed values (metadata.value, metadata.conflict)
+DERIVATION_VERSION = 3
 #: rule fields that do not change what a rule derives: switching a rule off and on, deleting and re-creating it,
 #: narrowing it to one organization or editing its metadata keeps its digest, so its conclusions keep their ids
 _RULE_NON_DERIVING = ("enabled", "metadata", "org_id")

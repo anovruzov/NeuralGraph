@@ -43,7 +43,7 @@ except ImportError:  # pragma: no cover
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 _DDL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -329,18 +329,35 @@ class Tx:
         self._store._bump()
         return True
 
+    def _lifecycle(self, memory_id: str, status: str, superseded_by: str | None, metadata: dict[str, Any],
+                   extra: dict[str, Any] | None = None) -> bool:
+        """Write a row's status, ``superseded_by``, metadata and ``extra`` columns, and sign it again under its digest's
+        origin (the digest covers the lifecycle, ``integrity.LIFECYCLE_FIELDS``), only if its digest checks ``ok`` as it
+        is stored now: an edited row is never re-signed, and a row without a digest is left to the backfill."""
+        r = self.c.execute("SELECT * FROM memories WHERE memory_id=?", (memory_id,)).fetchone()
+        if r is None:
+            return False
+        keyring, m = self._store.keyring, row_memory(r)
+        parents = [] if m.operator == "agent_observation" else [
+            e["parent_id"] for e in self.c.execute("SELECT parent_id FROM lineage_edges WHERE child_id=?", (memory_id,))]
+        columns = {"status": status, "superseded_by": superseded_by, "metadata": _j(metadata), **(extra or {})}
+        if check_memory(keyring, m, parents, r["digest"], r["digest_key_id"], r["digest_origin"]) == "ok":
+            m.status, m.superseded_by, m.metadata = status, superseded_by, metadata
+            columns["digest"], columns["digest_key_id"] = keyring.sign(canonical(m, parents), origin=r["digest_origin"])
+        self.c.execute(f"UPDATE memories SET {', '.join(f'{k}=?' for k in columns)} WHERE memory_id=?",
+                       (*columns.values(), memory_id))
+        self._store._bump()
+        return True
+
     def set_memory_status(self, memory_id: str, status: str, *, superseded_by: str | None = None,
                           reason: str | None = None) -> bool:
-        row = self.c.execute("SELECT metadata FROM memories WHERE memory_id=?", (memory_id,)).fetchone()
+        row = self.c.execute("SELECT metadata, superseded_by FROM memories WHERE memory_id=?", (memory_id,)).fetchone()
         if row is None:
             return False
         meta = _jl(row["metadata"], {})
         if reason:
             meta["status_reason"] = reason
-        self.c.execute("UPDATE memories SET status=?, superseded_by=COALESCE(?, superseded_by), metadata=? WHERE memory_id=?",
-                       (status, superseded_by, _j(meta), memory_id))
-        self._store._bump()
-        return True
+        return self._lifecycle(memory_id, status, superseded_by if superseded_by is not None else row["superseded_by"], meta)
 
     def set_attested(self, memory_id: str, attested_at: str) -> bool:
         """Record a producer's re-attestation of a raw note and sign the row again with origin ``write``: the one write of
@@ -361,9 +378,7 @@ class Tx:
 
     def reactivate_memory(self, memory_id: str, *, applied_at: str, metadata: dict[str, Any]) -> None:
         """A derived memory whose exact coalition returns (after a retraction) becomes the active version again."""
-        self.c.execute("UPDATE memories SET status='active', superseded_by=NULL, applied_at=?, metadata=? WHERE memory_id=?",
-                       (applied_at, _j(metadata), memory_id))
-        self._store._bump()
+        self._lifecycle(memory_id, "active", None, metadata, {"applied_at": applied_at})
 
     def set_applied(self, memory_id: str, applied_at: str) -> None:
         self.c.execute(f"UPDATE memories SET applied_at=COALESCE(applied_at, ?), apply_seq=COALESCE(apply_seq, {_NEXT_APPLY_SEQ}) "
@@ -390,6 +405,39 @@ class Tx:
         self.c.executemany("UPDATE memories SET digest=?, digest_key_id=?, digest_origin='backfill' WHERE rid=? AND digest IS NULL",
                            signed)
         return len(signed), rows[-1]["rid"]
+
+    def resign_lifecycle(self, *, after_rid: int, below_rid: int, limit: int) -> tuple[int, int, int]:
+        """The schema-6 upgrade: sign again, in the form that covers the lifecycle, up to ``limit`` rows after
+        ``after_rid`` and below ``below_rid`` (the rows that existed before the upgrade) that are not active or are
+        superseded, each only if its digest checks ``ok`` in the form it was signed in before (the lifecycle left out),
+        under its own origin; a row that already checks in the new form (signed by the start-up backfill after an upgrade
+        from schema 3) is left alone.  Returns (rows signed, rows that check in neither form and were left as they are,
+        last rid seen)."""
+        rows = self.c.execute("SELECT * FROM memories WHERE rid > ? AND rid < ? AND digest IS NOT NULL "
+                              "AND (status != 'active' OR superseded_by IS NOT NULL) ORDER BY rid LIMIT ?",
+                              (after_rid, below_rid, int(limit))).fetchall()
+        if not rows:
+            return 0, 0, after_rid
+        parents: dict[str, list[str]] = {}
+        ids = [r["memory_id"] for r in rows]
+        for e in self.c.execute(f"SELECT child_id, parent_id FROM lineage_edges WHERE child_id IN ({','.join('?' * len(ids))})",
+                                ids).fetchall():
+            parents.setdefault(e["child_id"], []).append(e["parent_id"])
+        keyring, signed, left = self._store.keyring, [], 0
+        for r in rows:
+            m = row_memory(r)
+            ps = () if m.operator == "agent_observation" else parents.get(m.memory_id, ())
+            if check_memory(keyring, m, ps, r["digest"], r["digest_key_id"], r["digest_origin"]) == "ok":
+                continue
+            before = row_memory(r)
+            before.status, before.superseded_by = "active", None
+            if check_memory(keyring, before, ps, r["digest"], r["digest_key_id"], r["digest_origin"]) != "ok":
+                left += 1
+                continue
+            digest, kid = keyring.sign(canonical(m, ps), origin=r["digest_origin"])
+            signed.append((digest, kid, r["rid"]))
+        self.c.executemany("UPDATE memories SET digest=?, digest_key_id=? WHERE rid=?", signed)
+        return len(signed), left, rows[-1]["rid"]
 
     def add_lineage_edges(self, edges: Iterable[LineageEdge]) -> None:
         self.c.executemany(
@@ -595,6 +643,11 @@ class MycelicStore:
         * 4: memories.digest, digest_key_id, digest_origin (NULL for existing rows until the start-up backfill signs
           them: the service holds the key, the store does not).
         * 5: memories.expires_at and attested_at, NULL for existing rows, so their digests are unchanged.
+        * 6: digests cover the lifecycle (``integrity.LIFECYCLE_FIELDS``).  No column changes: ``meta.lifecycle_resign_below``
+          records the first rid after the rows that existed, and the start-up step (the service holds the key) signs
+          again those of them that are not active (``Tx.resign_lifecycle``), then deletes it; and, when derived memories
+          exist, ``meta.reaggregate_pending``, because a conclusion now travels up next to its unit's consolidation and a
+          unit with fewer registered children than MIN_SUPPORT keeps what it promotes.
         """
         c = self._conn
         c.execute("BEGIN IMMEDIATE")
@@ -639,12 +692,39 @@ class MycelicStore:
                 for name in ("expires_at", "attested_at"):
                     if name not in have:
                         c.execute(f"ALTER TABLE memories ADD COLUMN {name} TEXT")
+            if from_version < 6:
+                below = int(c.execute("SELECT COALESCE(MAX(rid), 0) + 1 AS n FROM memories").fetchone()["n"])
+                if c.execute("SELECT 1 FROM memories WHERE status != 'active' OR superseded_by IS NOT NULL LIMIT 1").fetchone():
+                    c.execute("INSERT INTO meta(key, value) VALUES ('lifecycle_resign_below', ?) "
+                              "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (str(below),))
+                if c.execute("SELECT 1 FROM memories WHERE operator != 'agent_observation' LIMIT 1").fetchone():
+                    c.execute("INSERT INTO meta(key, value) VALUES ('reaggregate_pending', '1') "
+                              "ON CONFLICT(key) DO UPDATE SET value=excluded.value")
             c.execute("UPDATE meta SET value=? WHERE key='schema_version'", (str(SCHEMA_VERSION),))
         except BaseException:
             c.execute("ROLLBACK")
             raise
         c.execute("COMMIT")
         logger.info("migrated database schema %d -> %d", from_version, SCHEMA_VERSION)
+
+    def snapshot_reader(self) -> "MycelicStore":
+        """A read-only store on its own connection to the same file, for a read that runs in another thread (downward
+        verification): every read method works on it, and inside ``BEGIN`` on its connection they all see one committed
+        snapshot (WAL), whatever the writer does meanwhile.  Create, use and close it (``reader._conn.close()``) in one
+        thread; never for ``:memory:``, whose second connection would be another, empty database."""
+        if self.db_path == ":memory:":
+            raise ValueError("an in-memory database has no second connection")
+        reader = object.__new__(MycelicStore)
+        reader._lock_fd = None
+        reader.db_path = self.db_path
+        reader._conn = sqlite3.connect(self.db_path, isolation_level=None)
+        reader._conn.row_factory = sqlite3.Row
+        reader._conn.execute("PRAGMA query_only=ON")
+        reader._conn.execute("PRAGMA busy_timeout=5000")
+        reader._lock = asyncio.Lock()
+        reader.revision = self.revision
+        reader.keyring = self.keyring
+        return reader
 
     @property
     def is_open(self) -> bool:

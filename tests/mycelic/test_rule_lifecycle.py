@@ -97,7 +97,7 @@ class RuleLifecycleTests(unittest.IsolatedAsyncioTestCase):
         [c] = of_rule(s.store, DEMO)
         self.assertEqual((c.layer, c.scope, c.support, c.independent_teams), ("enterprise", ORG, 3, 3))
         rule = s.store.get_applied_rule(DEMO)
-        self.assertEqual(DERIVATION_VERSION, 2)
+        self.assertEqual(DERIVATION_VERSION, 3)
         self.assertEqual(c.metadata["derivation"], {"v": DERIVATION_VERSION, "rule_digest": rule_digest(rule), "rule": rule_snapshot(rule)})
         self.assertIsNone(c.metadata["version_of"])
         self.assertEqual(s.aggregator.plan_for(c).memory.memory_id, c.memory_id, "settled: re-planning reproduces it")

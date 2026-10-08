@@ -105,7 +105,7 @@ class MigrationTests(unittest.TestCase):
             cols = {r["name"] for r in store._conn.execute("PRAGMA table_info(rules)").fetchall()}
             self.assertTrue({"sources", "emits_slot", "emits_topic", "min_units", "corroborate"} <= cols)
             self.assertEqual(store.get_meta("schema_version"), str(SCHEMA_VERSION))
-            self.assertEqual(SCHEMA_VERSION, 5)
+            self.assertEqual(SCHEMA_VERSION, 6)
             rule = store.get_rule("legacy")
             self.assertEqual(rule.required_slots, ["a", "b"])
             self.assertEqual(rule.sources, ["agent_observation"])
@@ -117,7 +117,7 @@ class MigrationTests(unittest.TestCase):
             store._conn.close()
         again = MycelicStore(self.db)
         try:
-            self.assertEqual(again.get_meta("schema_version"), "5")
+            self.assertEqual(again.get_meta("schema_version"), "6")
             self.assertEqual(again.get_rule("legacy").sources, ["agent_observation"])
         finally:
             again._conn.close()
@@ -138,7 +138,7 @@ class MigrationTests(unittest.TestCase):
         self.write_v2(V2_ROWS)
         store = MycelicStore(self.db)
         try:
-            self.assertEqual(store.get_meta("schema_version"), "5")
+            self.assertEqual(store.get_meta("schema_version"), "6")
             self.assertEqual(store.get_meta("reaggregate_pending"), "1")
             rows = {m.memory_id: m for m in store.list_memories("northwind", status=None, limit=100)}
             labels = {mid: (m.topic, m.slot, m.entity) for mid, m in rows.items()}
@@ -207,7 +207,7 @@ class MigrationTests(unittest.TestCase):
         c.close()
         store = MycelicStore(self.db)
         try:
-            self.assertEqual(store.get_meta("schema_version"), "5")
+            self.assertEqual(store.get_meta("schema_version"), "6")
             self.assertEqual(store.get_meta("reaggregate_pending"), "1")
             upper = store.get_rule("Upper")
             self.assertEqual((upper.required_slots, upper.conclusion, upper.topic_prefix), (["a", "b"], "{slot:a} and {slot:b}", "ops:"))
@@ -223,7 +223,7 @@ class MigrationTests(unittest.TestCase):
             store._conn.close()
         again = MycelicStore(self.db)
         try:
-            self.assertEqual(again.get_meta("schema_version"), "5")
+            self.assertEqual(again.get_meta("schema_version"), "6")
             self.assertEqual(again.get_rule("Upper").required_slots, ["a", "b"])
         finally:
             again._conn.close()
@@ -242,7 +242,7 @@ class MigrationTests(unittest.TestCase):
         self.assertEqual(self.raw("SELECT * FROM meta WHERE key='reaggregate_pending'"), [])
         store = MycelicStore(self.db)
         try:
-            self.assertEqual(store.get_meta("schema_version"), "5")
+            self.assertEqual(store.get_meta("schema_version"), "6")
             self.assertEqual(store.get_memory("mem_a").topic, "supply:sd-9/transport")
             self.assertEqual(store.get_applied_rule("mixed").required_slots, ["transport_disruption", "risk:a"])
         finally:
@@ -252,7 +252,7 @@ class MigrationTests(unittest.TestCase):
         self.write_v2()
         store = MycelicStore(self.db)
         try:
-            self.assertEqual(store.get_meta("schema_version"), "5")
+            self.assertEqual(store.get_meta("schema_version"), "6")
             self.assertEqual(store.get_meta("reaggregate_pending"), "1")
             self.assertEqual(store.list_applied_rules("northwind"), [])
             self.assertEqual(store.max_apply_seq(), 0)
@@ -279,7 +279,7 @@ class MigrationTests(unittest.TestCase):
 
         store = MycelicStore(self.db)
         try:
-            self.assertEqual(store.get_meta("schema_version"), "5")
+            self.assertEqual(store.get_meta("schema_version"), "6")
             self.assertTrue(DIGEST_COLUMNS <= {r["name"] for r in table(store, "PRAGMA table_info(memories)")})
             self.assertTrue(EXPIRY_COLUMNS <= {r["name"] for r in table(store, "PRAGMA table_info(memories)")})
             self.assertIn("idx_memories_expiry", {r["name"] for r in table(store, "PRAGMA index_list(memories)")})
@@ -289,7 +289,8 @@ class MigrationTests(unittest.TestCase):
             self.assertEqual([r["memory_id"] for r in rows], ["mem_a", "mem_r", "mem_b", "mem_d1"])
             self.assertEqual({(r["digest"], r["digest_key_id"], r["digest_origin"]) for r in rows}, {(None, None, None)})
             self.assertIsNone(store.get_meta("integrity_backfill_complete"), "the backfill decides at start, with the key")
-            self.assertIsNone(store.get_meta("reaggregate_pending"), "digests change nothing that was derived")
+            self.assertEqual(store.get_meta("reaggregate_pending"), "1",
+                             "digests change nothing that was derived; schema 6 does (conclusions travel up)")
             self.assertEqual(store.get_meta("last_applied_seq"), "7")
             self.assertEqual(store.backfill_bound(), None, "nothing was signed at insert yet")
             before = (table(store, "SELECT * FROM memories ORDER BY rid"), table(store, "SELECT * FROM meta ORDER BY key"),
@@ -321,12 +322,14 @@ class MigrationTests(unittest.TestCase):
     def test_v4_to_v5_adds_expiry_column(self) -> None:
         c = sqlite3.connect(self.db)
         c.executescript(V4_SCHEMA + V3_ROWS)
-        # every row signed at insert, as schema 4 wrote it: the canonical form of a row without an expiry is the same
+        # every row signed at insert, as schema 4 wrote it: the canonical form of a row without an expiry is the same,
+        # and schema 4's form leaves the lifecycle out (an active row's form is the same)
         keyring = Keyring("migration-signing-key-0123456789abcdef")
         c.row_factory = sqlite3.Row
         for r in c.execute("SELECT * FROM memories").fetchall():
             parents = [e["parent_id"] for e in c.execute("SELECT parent_id FROM lineage_edges WHERE child_id=?", (r["memory_id"],))]
-            digest, kid = keyring.sign(canonical(row_memory({**dict(r), "expires_at": None, "attested_at": None}), parents))
+            digest, kid = keyring.sign(canonical(row_memory({**dict(r), "expires_at": None, "attested_at": None,
+                                                             "status": "active", "superseded_by": None}), parents))
             c.execute("UPDATE memories SET digest=?, digest_key_id=?, digest_origin='write' WHERE rid=?", (digest, kid, r["rid"]))
         c.execute("INSERT INTO meta(key, value) VALUES ('integrity_backfill_complete', '1')")
         c.commit()
@@ -347,19 +350,23 @@ class MigrationTests(unittest.TestCase):
         store = MycelicStore(self.db)
         store.keyring = keyring
         try:
-            self.assertEqual(store.get_meta("schema_version"), "5")
+            self.assertEqual(store.get_meta("schema_version"), "6")
             self.assertTrue(EXPIRY_COLUMNS <= {r["name"] for r in table(store, "PRAGMA table_info(memories)")})
             self.assertIn("idx_memories_expiry", {r["name"] for r in table(store, "PRAGMA index_list(memories)")})
             rows = table(store, "SELECT * FROM memories ORDER BY rid")
             self.assertEqual([tuple(r[k] for k in r if k not in EXPIRY_COLUMNS) for r in rows], [tuple(r) for r in before],
                              "every row and its digest as it was")
             self.assertEqual({(r["expires_at"], r["attested_at"]) for r in rows}, {(None, None)})
-            self.assertIsNone(store.get_meta("reaggregate_pending"), "an expiry column changes nothing that was derived")
+            self.assertEqual(store.get_meta("reaggregate_pending"), "1",
+                             "an expiry column changes nothing that was derived; schema 6 does (conclusions travel up)")
             for r in store._conn.execute("SELECT * FROM memories ORDER BY rid"):
                 parents = [e.parent_id for e in store.parents_of(r["memory_id"])]
                 with self.subTest(memory=r["memory_id"]):
                     self.assertEqual(check_memory(keyring, row_memory(r), parents, r["digest"], r["digest_key_id"],
-                                                  r["digest_origin"]), "ok", "a digest written before schema 5 still checks")
+                                                  r["digest_origin"]),
+                                     "ok" if r["status"] == "active" else "mismatch",
+                                     "a digest written before schema 5 still checks; a retracted row's until schema 6's "
+                                     "start-up step signs its lifecycle (test_v5_to_v6_signs_the_lifecycle)")
             snapshot = (table(store, "SELECT * FROM memories ORDER BY rid"), table(store, "SELECT * FROM meta ORDER BY key"))
 
             # a note written after the upgrade: its expiry is covered by its digest

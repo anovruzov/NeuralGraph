@@ -10,14 +10,16 @@ import itertools
 import json
 import re
 import tempfile
+import time
 import unittest
 from datetime import timedelta
 from pathlib import Path
+from typing import Any
 from unittest import mock
 
 from aiohttp.test_utils import TestClient, TestServer
 
-from mycelic import verification
+from mycelic import mcp, verification
 from mycelic.api import create_app
 from mycelic.auth import RateLimiter
 from mycelic.models import now_iso, utcnow
@@ -193,7 +195,175 @@ class RateLimitTests(ApiTestCase):
         self.assertEqual((await self.client.get("/whoami", headers={**bearer(key2), **xff(3)})).status, 429)
 
 
+async def wide_world(test: unittest.IsolatedAsyncioTestCase, notes: int = 100, **overrides: Any) -> tuple[World, Any]:
+    """test_wide_fan_in_verifies_within_budget's fast path, 10 agents x ``notes`` org-visible notes: the world and the
+    enterprise consolidation, whose DAG has ``10 * notes + 5`` nodes."""
+    tmp = tempfile.TemporaryDirectory()
+    test.addCleanup(tmp.cleanup)
+    w = World(tmp.name, **overrides)
+    test.addAsyncCleanup(w.close)
+    await boot(w.service)
+    s = w.service
+    for j in range(10):
+        await w.register(f"a{j}", team="t1", department="acme", subsidiary="acme", region="acme", enterprise="acme")
+    await w.settle()
+    for j in range(10):
+        p = w.principal(f"a{j}")
+        for n in range(notes):
+            await s.ingest_memory(p, {"text": f"note {n} by a{j}", "topic": "supply:x", "visibility": "org", "confidence": 0.6})
+    now = now_iso()
+    async with s.store.transaction() as tx:
+        for ev in s.store.pending_events(1_000_000):
+            w.log.append({})
+            tx.mark_applied(ev.event_id, len(w.log), now)
+            tx.set_applied(ev.payload["memory_id"], now)
+    await full_reaggregation_pass(s)
+    await w.settle()
+    [top] = s.store.list_memories("acme", layers=["enterprise"])
+    return w, top
+
+
 class VerifyLimitTests(unittest.IsolatedAsyncioTestCase):
+    async def test_verification_never_holds_the_event_loop(self) -> None:
+        asyncio.get_running_loop().set_debug(False)       # a timing test: without the test runner's debug bookkeeping
+        w, top = await wide_world(self, 300, trust_proxy_headers=True)
+        s = w.service
+        s.limiter = RateLimiter(rps=50.0, burst=100)          # the shipped defaults
+        for j in range(6):
+            w.principal(f"a{j}")                               # each agent's last-seen touch is written now, not below
+        await asyncio.sleep(0.05)
+        s.store._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")    # nor the checkpoint of the build's writes
+        peers = itertools.count()
+
+        def headers(agent_id: str) -> dict[str, str]:
+            # a new proxy-observed address per request, so only the principal's bucket counts
+            n = next(peers)
+            return {**bearer(w.keys[agent_id]), "X-Forwarded-For": f"203.0.{n // 250}.{n % 250}"}
+
+        t0 = time.perf_counter()
+        walk = verification.verify(s.store, s.aggregator.planner(), s.keyring, top.memory_id, principal=w.admin,
+                                   now=utcnow(), max_nodes=s.settings.verify_max_nodes)
+        walk_seconds = time.perf_counter() - t0
+        self.assertEqual(walk.report["summary"]["nodes"], 3005)
+        client = TestClient(TestServer(create_app(s)))
+        await client.start_server()
+        self.addAsyncCleanup(client.close)
+        audits = len(verify_audits(s))
+        gaps: list[float] = []
+        done = asyncio.Event()
+
+        async def ticker() -> None:
+            last = time.perf_counter()
+            while not done.is_set():
+                await asyncio.sleep(0.002)
+                now = time.perf_counter()
+                gaps.append(now - last)
+                last = now
+
+        tick = asyncio.ensure_future(ticker())
+        health: list[float] = []
+
+        async def probe() -> None:
+            while not done.is_set():
+                t = time.perf_counter()
+                r = await client.get("/health")
+                self.assertEqual(r.status, 200)
+                health.append(time.perf_counter() - t)
+                await asyncio.sleep(0.01)
+
+        probing = asyncio.ensure_future(probe())
+        # one MCP batch of 100 verifications of the 3005-node DAG by one agent, and five agents verifying it at once
+        batch = [{"jsonrpc": "2.0", "id": i, "method": "tools/call",
+                  "params": {"name": "mycelic_verify", "arguments": {"memory_id": top.memory_id}}} for i in range(100)]
+        t0 = time.perf_counter()
+        responses = await asyncio.gather(
+            client.post("/mcp", json=batch, headers={**headers("a0"), "Accept": "application/json"}),
+            *[client.get(f"/verify/{top.memory_id}", headers=headers(f"a{j}")) for j in range(1, 6)])
+        elapsed = time.perf_counter() - t0
+        done.set()
+        await asyncio.gather(tick, probing)
+        results = [m["result"] for m in await responses[0].json()]
+        walked = sum(not x["isError"] for x in results)
+        self.assertEqual([x["content"][0]["text"] for x in results if x["isError"]], ["rate limit exceeded"] * (100 - walked))
+        # each walk is charged at least twice what the bucket refills while it runs, so the batch is refused after a few
+        self.assertLessEqual(walked, 10, f"{walked} of 100 walked")
+        self.assertEqual([r.status for r in responses[1:]], [200] * 5)
+        self.assertEqual(len(verify_audits(s)) - audits, walked + 5)
+        # the walks ran in worker threads: the loop kept turning and /health kept answering throughout
+        self.assertGreater(len(health), 0)
+        self.assertLess(max(gaps), walk_seconds / 2, f"the loop stalled {max(gaps):.3f}s (one walk takes {walk_seconds:.3f}s)")
+        self.assertLess(max(health), walk_seconds / 2 + 0.05)
+        self.assertLess(elapsed, 20 * walk_seconds + 5)
+
+    async def test_mcp_verification_is_bounded_and_query_can_verify(self) -> None:
+        w, top = await wide_world(self, 50)
+        s = w.service
+        client = TestClient(TestServer(create_app(s)))
+        await client.start_server()
+        self.addAsyncCleanup(client.close)
+        headers = {**bearer(w.keys["a1"]), "Accept": "application/json"}
+
+        async def call(name: str, **arguments) -> tuple[dict, int]:
+            r = await client.post("/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                                                "params": {"name": name, "arguments": arguments}}, headers=headers)
+            self.assertEqual(r.status, 200)
+            body = await r.read()
+            return json.loads(body)["result"], len(body)
+
+        full = await s.verify(w.principal("a1"), top.memory_id)
+        self.assertEqual((full["verdict"], full["summary"]["nodes"]), ("verified", 505))
+        # the default: every key of the report, the nodes that did not pass (none here), a few kilobytes
+        out, size = await call("mycelic_verify", memory_id=top.memory_id)
+        self.assertFalse(out["isError"], out)
+        report = out["structuredContent"]
+        self.assertLess(size, 10_000)
+        self.assertEqual((report["detail"], report["nodes"], report["nodes_omitted"], report["warnings_omitted"]),
+                         ("summary", [], 505, 0))
+        # each call verifies anew, so verified_at (to the second) may differ; every other key is the same
+        same = [k for k in full if k not in ("nodes", "verified_at")]
+        self.assertEqual({k: report[k] for k in same}, {k: full[k] for k in same})
+        self.assertGreaterEqual(report["verified_at"], full["verified_at"])
+        out, size = await call("mycelic_verify", memory_id=top.memory_id, detail="full")
+        self.assertEqual(len(out["structuredContent"]["nodes"]), 505)
+        self.assertGreater(size, 100_000)
+        out, _ = await call("mycelic_verify", memory_id=top.memory_id, detail="everything")
+        self.assertTrue(out["isError"])
+        self.assertEqual(out["content"][0]["text"], "'detail' must be 'summary' or 'full'")
+        # a failing node is listed, at most SUMMARY_ITEMS of them, upper layers first
+        leaves = [n["memory_id"] for n in full["nodes"] if n["layer"] == "agent"]
+        s.store._conn.execute(f"UPDATE memories SET text=text||'!' WHERE memory_id IN ({','.join('?' * 60)})", leaves[:60])
+        out, size = await call("mycelic_verify", memory_id=top.memory_id)
+        report = out["structuredContent"]
+        self.assertEqual(report["verdict"], "failed")
+        self.assertEqual(len(report["nodes"]), mcp.SUMMARY_ITEMS)
+        self.assertEqual(report["nodes_omitted"], 505 - mcp.SUMMARY_ITEMS)
+        self.assertTrue(all(not n["ok"] for n in report["nodes"]))
+        self.assertLess(size, 50_000)
+        s.store._conn.execute(f"UPDATE memories SET text=substr(text, 1, length(text) - 1) WHERE memory_id IN "
+                              f"({','.join('?' * 60)})", leaves[:60])
+        # mycelic_query answers the verdict with the answer, as POST /query does
+        out, _ = await call("mycelic_query", query="note", scope="acme", min_layer="enterprise", verify=True)
+        self.assertFalse(out["isError"], out)
+        answer = out["structuredContent"]["answer"]
+        self.assertEqual(answer["memory_id"], top.memory_id)
+        self.assertEqual(answer["verification"], {"verdict": "verified", "derived_correctly": True, "still_true": True,
+                                                  "reasons": []})
+        out, _ = await call("mycelic_query", query="note", scope="acme", min_layer="enterprise")
+        self.assertNotIn("verification", out["structuredContent"]["answer"])
+        out, _ = await call("mycelic_query", query="note", scope="acme", verify="yes")
+        self.assertTrue(out["isError"])
+        # the stdio proxy does the same over HTTP
+        server = TestServer(create_app(s), host="127.0.0.1")
+        await server.start_server()
+        self.addAsyncCleanup(server.close)
+        proxy = mcp.ProxyTools(MycelicClient(str(server.make_url("")).rstrip("/"), w.keys["a1"], retries=0))
+        report = await proxy.call("mycelic_verify", {"memory_id": top.memory_id})
+        self.assertEqual((report["detail"], report["nodes"], report["nodes_omitted"]), ("summary", [], 505))
+        report = await proxy.call("mycelic_verify", {"memory_id": top.memory_id, "detail": "full"})
+        self.assertEqual(len(report["nodes"]), 505)
+        res = await proxy.call("mycelic_query", {"query": "note", "scope": "acme", "min_layer": "enterprise", "verify": True})
+        self.assertEqual(res["answer"]["verification"]["verdict"], "verified")
+
     async def test_verify_is_cost_weighted_by_the_rate_limiter(self) -> None:
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
@@ -752,7 +922,7 @@ class MCPTests(ApiTestCase):
         self.assertIn(POLICY["P2"], architecture)
         deployment = normalised("DEPLOYMENT.md")
         self.assertIn("**Responses changed in this release**", deployment)
-        self.assertIn("`DERIVATION_VERSION` is 2", deployment)
+        self.assertIn("`DERIVATION_VERSION` is 3", deployment)
         self.assertIn(POLICY["P3"], deployment)
 
     async def test_mcp_verify_tool_identity_and_redaction(self) -> None:

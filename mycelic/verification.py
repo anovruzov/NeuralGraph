@@ -68,10 +68,11 @@ changes nothing.
 (None without one): until then no expiry the caller can see makes the memory stale.  ``valid_until_partial`` says the
 walk was truncated or holds raw notes the caller may not read, whose expiries it does not show.
 
-**Cost.**  About 0.1 ms per node plus one planner run per active derived memory, bounded by ``MYCELIC_VERIFY_MAX_NODES``
-(``walk_truncated`` beyond it), plus one read of the organization's retractions logged since the oldest raw note's event
-(all of them when a note's event row is gone), one of its agent removals and one of its updates not applied yet; the walk
-holds the store lock and the event loop meanwhile.
+**Cost.**  About 0.1 to 0.15 ms per node plus one planner run per active derived memory, bounded by
+``MYCELIC_VERIFY_MAX_NODES`` (``walk_truncated`` beyond it), plus one read of the organization's retractions logged since
+the oldest raw note's event (all of them when a note's event row is gone), one of its agent removals and one of its
+updates not applied yet.  The service runs it in a worker thread on a read-only snapshot and prices it by its size and
+its duration (``MycelicService.verify``).
 
 **Unkeyed deployments** (``integrity_mode: unkeyed``).  Without ``MYCELIC_EVENT_SIGNING_KEY`` a digest detects
 corruption, not edits: whoever can write the database can re-hash a row.  A re-hashed raw note is still caught by the
@@ -103,7 +104,9 @@ from .aggregation import (
 )
 from .auth import Principal
 from .hierarchy import LAYER_INDEX, child_unit_of, is_ancestor_or_self, parent_path, unit_at_layer
-from .integrity import CONTENT_FIELDS, DERIVED_METADATA, LIFECYCLE_METADATA, Keyring, check_memory
+from .integrity import (
+    CONTENT_FIELDS, DERIVED_METADATA, LIFECYCLE_METADATA, OPTIONAL_DERIVED_METADATA, Keyring, check_memory,
+)
 from .models import (
     DERIVATION_VERSION, MEMORY_STATUS, LineageEdge, Memory, Rule, canonical_label, parse_iso, rule_digest, utc_seconds,
 )
@@ -475,16 +478,20 @@ class _Verification:
         effective = 1 if promotion else min_support
         child_of = {scope: child_unit_of(scope, m.scope) for scope in {p.scope for p in parents if p.memory_id not in outside}}
         children = set(child_of.values())
-        # plan_consolidation's rule: fewer than min_support child units contribute (and are registered), each exactly its
-        # own consolidation; with min_support 3 a unit whose two children both have one promotes both
-        promoted_ok = (0 < len(children) == len(parents) < min_support
-                       and (m.metadata.get("registered_child_units") or 0) < min_support
-                       and all(p.operator == "topic_consolidation" and parent_path(p.scope) == m.scope for p in parents))
+        # plan_consolidation's rule: fewer than min_support child units contribute (and are registered), and one of them
+        # contributes its own consolidation, next to whatever the others contribute; a child that contributes its own
+        # consolidation contributes nothing else but the conclusions sitting at the child itself
+        own = {p.scope for p in parents if p.operator == "topic_consolidation" and parent_path(p.scope) == m.scope}
+        promoted_ok = (0 < len(children) < min_support
+                       and (m.metadata.get("registered_child_units") or 0) < min_support and bool(own)
+                       and all(p.scope == child_of[p.scope] and p.operator in ("topic_consolidation", "slot_composition")
+                               for p in parents if child_of.get(p.scope) in own))
         if len(children) < effective or (promotion and not promoted_ok):
             self.add(mid, "below_min_support", {"children": len(children), "required": effective})
         if outside:
             return                                  # evidence outside the unit has no child unit to be grouped under
-        # grouped in child order as the aggregator builds them: a promotion's promoted_from is its first parent
+        # grouped in child order as the aggregator builds them: a promotion's promoted_from is the first child's own
+        # consolidation
         contributions: dict[str, list[Memory]] = {}
         for p in sorted(parents, key=lambda p: (child_of[p.scope], p.memory_id)):
             contributions.setdefault(child_of[p.scope], []).append(p)
@@ -547,7 +554,8 @@ class _Verification:
         if round(float(r.confidence), 6) != round(float(m.confidence), 6):
             self.add(mid, "confidence_mismatch", {"stored": round(float(m.confidence), 6), "recomputed": round(float(r.confidence), 6)})
         fields = [f for f in CONTENT_FIELDS if f not in ("memory_id", "text") and getattr(r, f) != getattr(m, f)]
-        fields += [f"metadata.{k}" for k in DERIVED_METADATA if r.metadata.get(k) != m.metadata.get(k)]
+        fields += [f"metadata.{k}" for k in (*DERIVED_METADATA, *OPTIONAL_DERIVED_METADATA)
+                   if r.metadata.get(k) != m.metadata.get(k)]
         if fields:
             self.add(mid, "content_mismatch", {"fields": fields})
 

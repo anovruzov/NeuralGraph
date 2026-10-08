@@ -84,14 +84,17 @@ the caller's view only, so memories outside it influence neither the results nor
   independent teams, visibility, producer, operator and rule; for a raw note also its observation time, event,
   local reference, cited events and metadata, and its expiry and last re-attestation when it has them), its parents
   (the ids its lineage edges name) and its derivation metadata (roots, statements, children, slots, evidence and the
-  other keys listed in `mycelic/integrity.py`). The statement that inserts the row writes the digest, and a rebuild
-  from the stream under the same key reproduces it byte for byte; a producer's re-attestation is the one later write
-  of covered content, and it signs the row again only after the row's digest checked (`Tx.set_attested`). With
+  other keys listed in `mycelic/integrity.py`), and its lifecycle: its `status` unless it is `active`, and
+  `superseded_by` (schema 6). The statement that inserts the row writes the digest, and a rebuild from the stream
+  under the same key reproduces it byte for byte; a status change (a retraction, a supersession, a reactivation) and a
+  producer's re-attestation are the later writes of covered content, and each signs the row again only after the
+  row's digest checked as it was stored (`Tx.set_memory_status`, `Tx.reactivate_memory`, `Tx.set_attested`), so an
+  edited row is never re-signed and a status set in the database without the key reads `integrity_mismatch`. With
   `MYCELIC_EVENT_SIGNING_KEY` set the digest is an HMAC under a subkey of that key, so an edit by
   anyone who does not hold the key is detected, including one that rewrites the key id, recomputes an unkeyed hash
   or relabels the origin; without a key it is a plain SHA-256 that detects corruption only, and once a key is set
-  such a row reads `downgraded`. Not covered: a memory's status, supersession and applied columns (`status`,
-  `superseded_by`, `applied_at`, `apply_seq` and the `status_reason`/`reactivated_at` metadata), a derived memory's
+  such a row reads `downgraded`. Not covered: a memory's applied columns (`applied_at`, `apply_seq`) and the
+  `status_reason`/`reactivated_at` metadata, a derived memory's
   `created_at` and `event_id` and its metadata outside the derivation keys (`version_of`, `fragility`, candidate
   counts), the `events`, `agents`, `rules`, `applied_rules`, `audit_log` and `meta` tables, and lineage edges'
   `contributed_by` and `parent_layer`. Rows that existed before schema 4 are signed at the first start after the upgrade by the
@@ -111,7 +114,12 @@ the caller's view only, so memories outside it influence neither the results nor
   writes no audit row), any backfill WARNING or ERROR, any `integrity.backfill` audit row and any rise of
   `mycelic_integrity_backfilled_total` means digests were removed from the database; in an upgraded database, any
   after the start that completed the upgrade's backfill does. Audit rows are pruned after
-  `MYCELIC_AUDIT_RETENTION_DAYS` and can be edited by the same person, so alert on the log and the metric. Downward
+  `MYCELIC_AUDIT_RETENTION_DAYS` and can be edited by the same person, so alert on the log and the metric. The
+  upgrade to schema 6 signs again, once, the lifecycle of every row that existed before it and was not active, each
+  only if its digest checks in the form it was signed in; its bound (`meta.lifecycle_resign_below`) is in the database
+  too, so whoever can write it can record it again and have such a row (one from before the upgrade) signed with an
+  edited status at the next start, which is logged at WARNING and audited (`integrity.lifecycle_resign`): after the
+  upgrade's own, any such line or audit row means the database was edited. Downward
   verification (`GET /verify/{id}`, §2 and §6) runs this check on every row it walks and reports the outcome as a
   reason code (`integrity_mismatch`, `integrity_downgraded`, `integrity_unknown_key`, …), never the digest.
 * TLS: `MYCELIC_TLS_CERT_FILE/KEY_FILE` (direct) or a TLS-terminating proxy with `MYCELIC_ALLOWED_HOSTS`;
@@ -121,11 +129,13 @@ the caller's view only, so memories outside it influence neither the results nor
 ## 4. Input validation and limits
 
 JSON only (415 otherwise); body ≤ `MYCELIC_MAX_BODY_BYTES` (1 MiB, 413); memory text ≤ 4000 characters;
-topic/entity/local reference ≤ 200; slot names `[A-Za-z0-9_.:-]{1,100}`; metadata ≤ 4 KiB; event payload
+topic/entity/local reference/`value` ≤ 200; slot names `[A-Za-z0-9_.:-]{1,100}`; metadata ≤ 4 KiB; event payload
 ≤ 16 KiB; ≤ 100 events per request; serialized event ≤ `MYCELIC_MAX_EVENT_BYTES` (256 KiB) so an accepted
 event is always publishable; paths are `[a-z0-9][a-z0-9_-]{0,63}` segments; timestamps must parse as
 ISO-8601; kinds and visibility are enumerated; metadata keys the aggregator owns (`agg_key`,
-`promoted_from`, `version_of`, `contributing_agents`, `statements`, …) are stripped from agent input; cited
+`promoted_from`, `version_of`, `contributing_agents`, `statements`, …) are stripped from agent input
+(`metadata.value` and `metadata.conflict` are not: they stay the agent's own, a raw note's `conflict` flags nothing
+and its `value` claims only when it is a string of at most 200 characters); cited
 `source_event_ids` must be events of the caller's own organization (unknown and foreign ids get the same
 error); a note's `expires_at` must be a string that parses as ISO-8601 (at most 40 characters; without an offset it
 is taken as UTC), it is stored in UTC to the second, and the stored value must lie in the future and at most
@@ -143,15 +153,18 @@ the write's transaction so concurrent writes cannot pass it together; a `POST /e
 refused whole. Resends of stored notes and updates are never refused, notes count until their retraction applies,
 and nothing the consumer applies is capped, so a rebuild is never cut short (DEPLOYMENT.md §4, "Volume cap").
 
-Downward verification is priced by its walk: 1 + ceil(nodes / 250) tokens from the caller's principal bucket, the
-walk's share charged after the walk, which may take the bucket into debt (never deeper than one burst, so it is
-repaid within (burst + 1) / rps seconds). A principal in debt is refused with 429 before anything is read. Inside a
-JSON-RPC batch on `/mcp`, whose messages run back to back without the middleware between them, every message is
-charged its token up front and every `mycelic_verify` message its walk, so once the bucket is in debt the remaining
-verify messages get an error result without walking, and the next request is 429. The debt check and the charge
-both run under the store lock, so two concurrent verifications by one principal cannot both walk on one token. A
-walk reads at most `MYCELIC_VERIFY_MAX_NODES` (25,000) nodes and holds the event loop while it runs; the charge
-is a brake proportional to the walk, not a CPU cap (DEPLOYMENT.md §4, "Verifying a conclusion"). `max_leaf_age` must
+Downward verification is priced by its walk: the request's token, then the larger of ceil(nodes / 250) and
+ceil(2 × seconds walked × rps) tokens from the caller's principal bucket, charged after the walk, which may take the
+bucket into debt (never deeper than one burst, so it is repaid within (burst + 1) / rps seconds). A caller that keeps
+walking pays twice what its bucket refills meanwhile. A principal in debt is refused with 429 before anything is read,
+and again when its turn to walk comes. Inside a JSON-RPC batch on `/mcp`, whose messages run back to back without the
+middleware between them, every message is charged its token up front and every `mycelic_verify` message its walk, so
+once the bucket is in debt the remaining verify messages get an error result without walking, and the next request is
+429. A principal walks one verification at a time, and at most two walks run at once for everyone, so two concurrent
+verifications by one principal cannot both walk on one token and no caller can hold every walker. A walk reads at most
+`MYCELIC_VERIFY_MAX_NODES` (25,000) nodes, in a worker thread on a read-only snapshot of the database: it never holds
+the event loop, so health probes and every other request keep answering while it runs (DEPLOYMENT.md §4, "Verifying a
+conclusion"). `max_leaf_age` must
 be an integer from 1 to 315,360,000 and a memory id must match `[A-Za-z0-9_.:-]{1,200}` (400 otherwise, also for an
 id sent with `%2F` in it, which aiohttp decodes before the check).
 
@@ -264,9 +277,16 @@ It does not prove:
   code to `/metrics`; the code itself is in the reports of callers who may read the node (administrators among
   them), in the `/metrics` totals their verifications add (§2), and in the `memory.verify` audit row;
 * rows derived by an older release: they are `unverifiable` (`legacy_derivation`) until re-aggregated;
-* that a superseded note was not set back to active with its `superseded_by` cleared: the note itself then reads as
-  any active note, because finding the update that superseded it would mean reading every later observation in the
-  log; the memories that rest on its successor read `not_current` (stale), since the planner then counts both.
+* that a row was not set back, as a whole, to an earlier state it was signed in: the digests cover each row's
+  content and lifecycle as it is now, not its history, so a row whose status and digest columns are both restored
+  from an earlier copy of the database (a backup) reads `ok`. A status set in the database alone (a retracted note or
+  conclusion set active again, a superseded note with its `superseded_by` cleared) breaks the row's digest
+  (`integrity_mismatch`), and the retraction and removal events that a raw note's status is checked against are rows
+  of the `events` table, which no digest covers;
+* that two notes agree: only notes that carry a `value` for the same slot and entity are compared, and those with
+  different values are flagged (`metadata.conflict`) and never corroborate each other (docs/MYCELIC_ARCHITECTURE.md
+  §5); free text is never compared, and the value of a team-visibility note never leaves its team, so a dispute
+  between such notes of two teams is not flagged above them.
 
 ## 7. Limitations (read these)
 

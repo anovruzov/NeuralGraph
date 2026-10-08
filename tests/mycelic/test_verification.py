@@ -472,10 +472,15 @@ class VerificationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(w.store.get_memory(ids["log-2"]).status, "retracted")
         r = w.engine(ids["log-2"])
         self.assertEqual((r["verdict"], codes(r, ids["log-2"])), ("stale", ["node_retracted"]), "a retraction the log applied")
+        # a status set in the database breaks the row's digest (schema 6 signs the lifecycle) ...
         r = w.tampered(ids["log-2"], [edit(ids["log-2"], "status='active'")])
         self.assertEqual(r["verdict"], "failed")
+        self.assertEqual(codes(r, ids["log-2"]), ["integrity_mismatch", "status_inconsistent"])
+        # ... and one signed again as it stands (the key holder, or an aggregation bug) still disagrees with the log
+        r = w.tampered(ids["log-2"], [edit(ids["log-2"], "status='active'"), lambda: resign(w.store, ids["log-2"])])
+        self.assertEqual(r["verdict"], "failed")
         self.assertEqual(codes(r, ids["log-2"]), ["status_inconsistent"])
-        r = w.tampered(ids["conclusion"], [edit(ids["proc-1"], "status='retracted'")])
+        r = w.tampered(ids["conclusion"], [edit(ids["proc-1"], "status='retracted'"), lambda: resign(w.store, ids["proc-1"])])
         self.assertEqual(r["verdict"], "failed")
         self.assertEqual(codes(r, ids["proc-1"]), ["status_inconsistent", "node_retracted"])
         r = w.tampered(ids["conclusion"], [retraction_event(ids["proc-1"], "applied")])
@@ -494,17 +499,40 @@ class VerificationTests(unittest.IsolatedAsyncioTestCase):
                          {ids["log-2"]: [(e.event_id, "applied") for e in w.store.list_events(ORG, kind="memory.retracted")]})
         for status in ("superseded", "archived"):
             with self.subTest(status=status):
-                r = w.tampered(ids["conclusion"], [edit(ids["proc-1"], "status=?", status)])
+                r = w.tampered(ids["conclusion"], [edit(ids["proc-1"], "status=?", status), lambda: resign(w.store, ids["proc-1"])])
                 self.assertEqual(r["verdict"], "failed")
                 self.assertIn("status_inconsistent", codes(r, ids["proc-1"]))
         sw = await self.world()
         sids = await strategic(sw)
-        r = sw.tampered(sids["strategic"], [edit(sids["emea"], "status='retracted'")])
+        r = sw.tampered(sids["strategic"], [edit(sids["emea"], "status='retracted'"), lambda: resign(sw.store, sids["emea"])])
         self.assertEqual((r["verdict"], r["derived_correctly"], r["still_true"]), ("stale", True, False))
         self.assertEqual(codes(r, sids["emea"]), ["node_retracted"])
         self.assertEqual(codes(r, sids["strategic"]), ["not_current"])
         # what the planner derives now rests on the enterprise consolidation of both regions' conclusions instead
         self.assertNotIn(detail(r, sids["strategic"], "not_current")["planned_id"], (None, sids["strategic"]))
+
+    async def test_a_retraction_undone_in_the_database_never_verifies(self) -> None:
+        # someone who can write the database but lacks the signing key brings a retracted conclusion back: the note's
+        # retraction event re-pointed elsewhere, the note and the conclusion set active again
+        w = await self.world()
+        ids = await demo(w)
+        s, st, c = w.service, w.store, ids["conclusion"]
+        self.assertTrue(s.keyring.keyed)
+        await s.retract(w.principal("sales-1"), ids["sales-1"], "order cancelled")
+        await w.settle()
+        self.assertEqual((st.get_memory(c).status, st.get_memory(ids["sales-1"]).status), ("retracted", "retracted"))
+        self.assertEqual((await s.verify(w.admin, c))["verdict"], "stale")
+        st._conn.execute("UPDATE events SET payload=json_set(payload, '$.memory_id', 'mem_nothing') "
+                         "WHERE kind='memory.retracted' AND json_extract(payload, '$.memory_id')=?", (ids["sales-1"],))
+        st._conn.execute(*edit(ids["sales-1"], "status='active'"))
+        st._conn.execute(*edit(c, "status='active', superseded_by=NULL"))
+        for who, principal in (("admin", w.admin), ("sales-2", w.principal("sales-2"))):
+            with self.subTest(viewer=who):
+                r = await s.verify(principal, c)
+                self.assertEqual((r["verdict"], r["derived_correctly"], r["still_true"]), ("failed", False, None))
+        r = await s.verify(w.admin, c)
+        self.assertEqual(codes(r, c)[0], "integrity_mismatch")
+        self.assertEqual(codes(r, ids["sales-1"])[0], "integrity_mismatch")
 
     async def test_retraction_pending_then_settled(self) -> None:
         transport = HeldTransport(hold=False)
@@ -672,7 +700,9 @@ class VerificationTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(top(r), [code])
                 if at is not None:
                     self.assertEqual(codes(r, at), [code])
-        r = w.tampered(C, [("DELETE FROM events WHERE event_id=?", (event_of(w.store, L1),)), edit(L1, "status='retracted'")])
+        # a retraction signed as such (the lifecycle is covered: schema 6) whose event row is gone
+        r = w.tampered(C, [("DELETE FROM events WHERE event_id=?", (event_of(w.store, L1),)), edit(L1, "status='retracted'"),
+                           lambda: resign(w.store, L1)])
         self.assertEqual(codes(r, L1), ["source_event_missing", "node_retracted"], "a pruned log: the status is not judged")
         self.assertEqual(detail(r, L1, "source_event_missing"), {"event_id": event_of(w.store, L1)})
         # retractions are read from the first leaf event on (a retraction follows its note); with a leaf's own row pruned
@@ -793,10 +823,12 @@ class VerificationTests(unittest.IsolatedAsyncioTestCase):
             for i in range(3):
                 await w.register(f"{team}-a{i}", team=team, department="ops", subsidiary="solo", region="solo", enterprise="solo")
         await w.settle()
+        # the idempotency keys fix the note ids, and with them the team consolidations' ids (which also embed
+        # DERIVATION_VERSION): these make the second team's id sort first, which the assertion below checks
         for team in ("t1", "t2"):
             for i in range(3):
                 await w.observe(f"{team}-a{i}", f"Crane {i} of {team} is down.", topic="ops:cranes", confidence=0.6 + i / 10,
-                                idempotency_key=f"n{i}")
+                                idempotency_key=f"note-{i}")
         await w.settle()
         chain = {m.layer: m for m in w.store.list_memories("solo", operator="topic_consolidation") if m.layer != "team"}
         teams = {m.scope.rsplit("/", 1)[1]: m.memory_id for m in w.store.list_memories("solo", layers=["team"])}

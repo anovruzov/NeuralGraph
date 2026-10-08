@@ -342,12 +342,17 @@ class JetStreamTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(await s2.wait_idle(10))
         self.assertEqual(json.loads(s2.store.get_meta("known_key_ids")), [id_a, id_b])
         old = digest_map(s2.store)
+        statuses = {mid: s2.store.get_memory(mid).status for mid in old}
         m, _ = await s2.ingest_memory(s2.authenticate(f"Bearer {keys['log-1']}"), {
             "text": "Customs backlog of two weeks reported at Rotterdam.", "topic": "supply:sd-9/transport",
             "slot": "transport_disruption", "entity": "sd-9", "confidence": 0.95})
         self.assertTrue(await s2.wait_idle(20))
         now = digest_map(s2.store)
-        self.assertEqual({mid: now[mid] for mid in old}, old, "rows signed by A keep their digests")
+        moved = {mid for mid in old if s2.store.get_memory(mid).status != statuses[mid]}
+        self.assertTrue(moved, "the note superseded derived memories")
+        self.assertEqual({mid: now[mid] for mid in old if mid not in moved}, {mid: v for mid, v in old.items() if mid not in moved},
+                         "rows signed by A whose lifecycle did not change keep their digests")
+        self.assertEqual({now[mid][1] for mid in moved}, {id_b}, "a status change signs the row again, with the current key")
         self.assertEqual(now[m.memory_id][1], id_b)
         self.assertGreater(len(set(now) - set(old)), 1, "the note changed derived memories too")
         self.assertEqual({now[mid][1] for mid in set(now) - set(old)}, {id_b})
@@ -501,6 +506,71 @@ class JetStreamTests(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(1.5)
         self.assertIsNone(s.store.get_memory("mem_forged"))
         self.assertGreater(s.metrics.events_failed.labels("signature")._value.get(), 0)
+
+    async def test_broker_state_reset_is_recovered_without_a_restart(self) -> None:
+        s = await self.new_service()
+        s.status_interval = 0.2
+        keys = await self.seed(s)
+        applied_before = int(s.store.get_meta("last_applied_seq"))
+        self.nats.stop(kill=True)
+        shutil.rmtree(self.root / "js")          # the broker's volume is lost: it comes back with no stream at all
+        self.nats.start()
+        p = s.authenticate(f"Bearer {keys['log-2']}")
+        mids = []
+        for n in range(3):
+            m, _ = await s.ingest_memory(p, {"text": f"Customs backlog report {n}.", "topic": "ops:customs"})
+            mids.append(m.memory_id)
+        deadline = time.monotonic() + 30
+        while any(s.store.get_memory(mid).applied_at is None for mid in mids):
+            self.assertLess(time.monotonic(), deadline, "the notes written after the reset were never applied")
+            await asyncio.sleep(0.2)
+        self.assertTrue(await s.wait_idle(20))
+        self.assertEqual(s.store.stats()["outbox_pending"], 0)
+        self.assertGreaterEqual(s.metrics.recoveries.labels("broker_state_reset")._value.get(), 1)
+        self.assertGreaterEqual(s.metrics.recoveries.labels("stream_behind_database")._value.get(), 1)
+        info = await s.transport.info()
+        self.assertNotIn("error", info)
+        self.assertLess(int(s.store.get_meta("last_applied_seq")), applied_before, "the log restarted from its new sequence")
+        self.assertIn("recovery.broker_state_reset", {row["action"] for row in s.store.recent_audit(50)})
+        await s.refresh_status()
+        self.assertEqual((await s.health())["status"], "ok")
+        self.assertTrue((await s.ready())[0])
+
+    async def test_a_database_error_while_terminating_loses_no_event(self) -> None:
+        import sqlite3
+        from unittest import mock
+
+        from mycelic.store import Tx
+
+        s = await self.new_service(nats_max_deliver=2)
+        keys = await self.seed(s)
+        real_apply, real_audit = s.apply_event, Tx.audit
+        fault = {"on": True, "hits": 0}
+
+        async def apply_event(event: dict, *, seq: int | None = None) -> str:
+            if fault["on"]:
+                raise sqlite3.OperationalError("database or disk is full")
+            return await real_apply(event, seq=seq)
+
+        def audit(tx: Tx, principal: str, action: str, *args, **kwargs) -> None:
+            if fault["on"] and action == "event.failed":
+                fault["hits"] += 1
+                raise sqlite3.OperationalError("database or disk is full")
+            real_audit(tx, principal, action, *args, **kwargs)
+
+        p = s.authenticate(f"Bearer {keys['log-2']}")
+        with mock.patch.object(s, "apply_event", apply_event), mock.patch.object(Tx, "audit", audit):
+            m, _ = await s.ingest_memory(p, {"text": "Customs backlog of two weeks.", "topic": "ops:customs"})
+            deadline = time.monotonic() + 30
+            while fault["hits"] < 2:             # terminated, not recorded, delivered again, terminated again
+                self.assertLess(time.monotonic(), deadline, "the event was not delivered again after the failed terminate")
+                await asyncio.sleep(0.1)
+            fault["on"] = False                  # the disk has room again
+            self.assertTrue(await s.wait_idle(30))
+        self.assertIsNotNone(s.store.get_memory(m.memory_id).applied_at, "the terminated event was delivered and applied")
+        self.assertTrue(s._consumer_running)
+        self.assertGreaterEqual(s.metrics.loop_errors.labels("consumer")._value.get(), 2)
+        self.assertNotIn("event.failed", {row["action"] for row in s.store.recent_audit(50)})
 
 
 if __name__ == "__main__":

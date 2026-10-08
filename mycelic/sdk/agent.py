@@ -4,9 +4,13 @@
         --observations observations.jsonl --watch "delivery risk sd-9" --watch-scope northwind
 
 ``observations.jsonl`` holds one JSON object per line: ``{"text": ..., "topic"?, "slot"?, "entity"?,
-"confidence"?, "share": true|false, "delay"?: seconds}``.  Notes with ``share: false`` stay in the local store only
-(the demo uses them to show what never left the agent).  The process exits when the file is consumed unless
-``--stay`` keeps it alive polling the watched query, printing every new conclusion it sees.
+"confidence"?, "share": true|false, "visibility"?, "local_id"?, "delay"?: seconds}``.  Notes with ``share: false``
+stay in the local store only, tagged ``private`` (the demo uses them to show what never left the agent).  An observation
+whose ``local_id`` already names a different local note is skipped and logged, never shared.  The process exits when
+the file is consumed unless ``--stay`` keeps it alive polling the watched query, printing every new conclusion it sees.
+
+At start it re-sends what it asked to share and the server never acknowledged (``LocalMemory.pending``), with the
+visibility, expiry and supersedes of the original request; a local note it was never asked to share stays local.
 """
 from __future__ import annotations
 
@@ -48,14 +52,13 @@ def main(argv: list[str] | None = None) -> int:
     agent_id = me["id"]
     _log(agent_id, f"connected to {args.url} as {me['path']} (local notes: {local.counts()['local']})")
 
-    # 1. resume: anything noted but never acknowledged by the server is re-sent (idempotent by local id)
-    for n in local.all(shared=False):
-        if n["tags"] and "private" in n["tags"]:
-            continue
+    # 1. resume: a share that was requested but never acknowledged is re-sent as it was asked for (idempotent by
+    #    local id); a note that was never shared stays local
+    for n in local.pending():
         try:
-            res = local.share(client, n["local_id"])
+            res = local.share(client, n["local_id"], **n["share_request"])
             _log(agent_id, f"re-sent unacknowledged note {n['local_id']} -> {res['memory_id']}")
-        except MycelicError as exc:
+        except (MycelicError, ValueError) as exc:
             _log(agent_id, f"could not re-send {n['local_id']}: {exc}")
 
     # 2. observe
@@ -67,9 +70,13 @@ def main(argv: list[str] | None = None) -> int:
             if obs.get("delay"):
                 time.sleep(float(obs["delay"]))
             share = bool(obs.get("share", True))
-            local_id = local.note(obs["text"], topic=obs.get("topic"), slot=obs.get("slot"), entity=obs.get("entity"),
-                                  kind=obs.get("kind", "observation"), confidence=float(obs.get("confidence", 0.8)),
-                                  tags=[] if share else ["private"], local_id=obs.get("local_id"))
+            try:
+                local_id = local.note(obs["text"], topic=obs.get("topic"), slot=obs.get("slot"), entity=obs.get("entity"),
+                                      kind=obs.get("kind", "observation"), confidence=float(obs.get("confidence", 0.8)),
+                                      tags=[] if share else ["private"], local_id=obs.get("local_id"))
+            except ValueError as exc:
+                _log(agent_id, f"observation skipped, nothing shared: {exc}")
+                continue
             if not share:
                 _log(agent_id, f"noted locally only: {obs['text'][:70]}")
                 continue

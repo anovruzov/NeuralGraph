@@ -468,7 +468,9 @@ class AggregationCoreTests(unittest.IsolatedAsyncioTestCase):
                        for m in s2.store.list_memories(ORG, status=None, limit=10_000)}
             self.assertEqual(rebuilt, live)
             self.assertEqual(len(s1.store.list_memories(ORG, layers=["enterprise"])), 1, "the cap froze nothing")
-            self.assertEqual(len([m for m in live.values() if m[0] == "enterprise"]), 16, "one version per note")
+            # one version per note from the second on (the first note is one team's: no coalition yet), never two: the
+            # rule's conclusion on the note's topic is in place before the units above consolidate the topic
+            self.assertEqual(len([m for m in live.values() if m[0] == "enterprise"]), 15, "one version per note")
             self.assertGreater(counter(s1.metrics.aggregation_truncated, "candidates"), 0)
         finally:
             await s2.close()

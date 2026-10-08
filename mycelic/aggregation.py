@@ -9,10 +9,27 @@ reads the evidence, rules and registry as the log has applied them, and a pure b
 **Topic consolidation** (``operator='topic_consolidation'``).  A unit U at layer L gets a memory on topic T
 when at least ``min_support`` of its *direct children* contribute something on T.  A child's contribution
 is its own consolidation on T if it has one, otherwise the best material in its subtree (recursively down to
-the raw agent observations).  Parents of the derived memory are exactly those contributions, so the lineage
+the raw agent observations), and in either case every rule conclusion on T that sits at the child itself: neither
+replaces the other.  Parents of the derived memory are exactly those contributions, so the lineage
 records the chain of units the knowledge passed through, and ``support``/``independent_teams`` count the
 distinct agents and teams underneath.  When more evidence arrives the coalition grows, a new derived memory
 (new deterministic id) supersedes the old one, and the old one stays readable as a previous version.
+
+A unit with fewer registered child units than ``min_support`` (a subsidiary with one department) also holds once one
+of its children contributes that child's own consolidation (which already stands for ``min_support`` agents): it
+*promotes* it, together with whatever its other children contribute, so more evidence never takes a consolidation
+away.  A raw note is never promoted on its own.
+
+**Disputes.**  A note may carry a structured claim, ``metadata.value``, for its slot and entity ("closed", "open"),
+compared in its canonical spelling (``models.canonical_value``: "Open" and "open" agree; a value that is not a string of
+at most 200 characters, which an earlier client may have stored, claims nothing).
+Notes on the same slot and entity whose values differ dispute each other: their consolidation carries
+``metadata.conflict`` (true), takes the confidence of its strongest contribution instead of raising it, and claims no
+slot, so no rule takes a disputed consolidation as evidence; the flag travels up with every consolidation built on it,
+and a corroborating rule does not raise a slot's confidence over evidence whose values differ.  A consolidation whose
+value-carrying parents agree carries that ``value``, counted only from what may travel upward (org-visible notes and the
+values of child consolidations): a team-visibility note's value never leaves its team.  Free text is never compared,
+so notes without a value never dispute anything.
 
 **Slot composition** (``operator='slot_composition'``).  A :class:`~mycelic.models.Rule` names the slots a
 conclusion needs (for example ``transport_disruption``, ``supplier_buffer_low``, ``demand_commitment``).  The
@@ -51,7 +68,8 @@ A rule template that quotes ``{slot:...}`` is an operator's decision to publish 
 visibility, at the rule's target layer and, through consolidations of the conclusion's topic, at every layer above it.
 
 Confidence of a consolidation is the noisy-OR of the strongest contribution per child
-(``1 - prod(1 - c_i)``): independent sources agreeing raise confidence, a single source cannot exceed its own.
+(``1 - prod(1 - c_i)``): independent sources raise confidence, a single source cannot exceed its own, and a disputed
+consolidation (above) stays at its strongest contribution.
 Confidence of a rule conclusion is the *minimum* over the selected slots, the same conservative choice the
 research synthesizer makes: a conclusion is only as certain as its weakest required piece.
 """
@@ -65,10 +83,10 @@ from NeuralGraph.research.coordination.contracts import ClaimEnvelope, PolicySta
 from NeuralGraph.research.coordination.core import LineageAnalyzer, RuleBasedSynthesizer, to_jsonable
 
 from .hierarchy import LAYERS, ancestors, child_unit_of, layer_of_path, parent_path, unit_at_layer
-from .integrity import DERIVED_METADATA
+from .integrity import DERIVED_METADATA, OPTIONAL_DERIVED_METADATA
 from .models import (
-    DERIVATION_VERSION, SLOT_PLACEHOLDER_RE, LineageEdge, Memory, Rule, content_hash, derived_memory_id, now_iso, rule_digest,
-    rule_snapshot,
+    DERIVATION_VERSION, SLOT_PLACEHOLDER_RE, LineageEdge, Memory, Rule, canonical_value, content_hash, derived_memory_id,
+    now_iso, rule_digest, rule_snapshot,
 )
 from .store import MycelicStore, Tx
 
@@ -326,6 +344,47 @@ def _scored_claims(claims: tuple[ClaimEnvelope, ...], slots: tuple[str, ...]) ->
     return tuple(scored)
 
 
+def _claimed_value(m: Memory) -> str | None:
+    """The value a note or a consolidation claims for its slot and entity (``metadata.value`` in canonical form, so a
+    value stored as an earlier release received it compares like today's), or None."""
+    v = m.metadata.get("value") if m.operator in ("agent_observation", "topic_consolidation") else None
+    return canonical_value(v) if m.slot is not None and m.entity is not None else None
+
+
+def consolidation_claims(parents: list[Memory]) -> tuple[bool, str | None]:
+    """``(conflict, value)`` of a consolidation of ``parents`` (pure).  ``conflict``: a derived parent is disputed already,
+    or two parents claim different values for the same slot and entity (a raw note's own ``metadata.conflict`` is the
+    agent's, and flags nothing).  ``value``: the one value every value-carrying parent that may travel upward (an
+    org-visible note, a consolidation) claims, when there is no conflict and they all speak of one slot and entity."""
+    claimed: dict[tuple[str, str], set[str]] = {}
+    public: dict[tuple[str, str], set[str]] = {}
+    conflict = False
+    for m in parents:
+        conflict = conflict or (m.operator != "agent_observation" and bool(m.metadata.get("conflict")))
+        v = _claimed_value(m)
+        if v is None:
+            continue
+        claimed.setdefault((m.slot, m.entity), set()).add(v)        # type: ignore[arg-type]
+        if m.operator == "topic_consolidation" or m.visibility == "org":
+            public.setdefault((m.slot, m.entity), set()).add(v)     # type: ignore[arg-type]
+    conflict = conflict or any(len(values) > 1 for values in claimed.values())
+    if conflict or len(public) != 1:
+        return conflict, None
+    [values] = public.values()
+    return False, next(iter(values)) if len(values) == 1 else None
+
+
+def promoted_child(contributions: dict[str, list[Memory]]) -> Memory | None:
+    """The consolidation a promotion is named after: the first child (in unit order) that contributes its own
+    consolidation (the smallest id if it somehow had two), or None."""
+    for child in sorted(contributions):
+        own = sorted((m for m in contributions[child] if m.operator == "topic_consolidation" and m.scope == child),
+                     key=lambda m: m.memory_id)
+        if own:
+            return own[0]
+    return None
+
+
 def build_consolidation(org_id: str, unit: str, topic: str, contributions: dict[str, list[Memory]], *, promotion: bool,
                         effective_min_support: int, registered_child_units: int, version_of: str | None,
                         min_support: int, now: str) -> Memory:
@@ -340,27 +399,38 @@ def build_consolidation(org_id: str, unit: str, topic: str, contributions: dict[
     parent_ids = sorted(m.memory_id for m in parents)
     agents = sorted({a for m in parents for a in contributing_agents(m)})
     teams = sorted({t for m in parents for t in contributing_teams(m)})
-    confidence = noisy_or([max(m.confidence for m in group) for group in contributions.values()])
+    strongest = [max(m.confidence for m in group) for group in contributions.values()]
+    conflict, value = consolidation_claims(parents)
+    # a dispute is not corroboration: its consolidation is as certain as its strongest contribution, no more
+    confidence = round(min(0.99, max(strongest)), 4) if conflict else noisy_or(strongest)
+    # a consolidation of same-slot evidence is itself evidence, unless that evidence disputes the slot's value
+    slot = None if conflict else _common(parents, "slot")
+    entity = _common(parents, "entity")
     st = consolidation_statements(unit, topic, contributions, len(agents))
+    promoted = promoted_child(contributions) if promotion else None
+    metadata: dict[str, Any] = {
+        "agg_key": topic, "contributing_agents": agents, "contributing_teams": teams,
+        "children": sorted(contributions), "child_layer": LAYERS[LAYERS.index(layer) - 1],
+        "parent_count": len(parents), "version_of": version_of,
+        "effective_min_support": effective_min_support, "registered_child_units": registered_child_units,
+        "promoted_from": promoted.memory_id if promoted is not None else None,
+        "roots": sorted({r for m in parents for r in lineage_roots(m)}),
+        "rule_chain": sorted({r for m in parents for r in rule_chain(m)}),
+        "derivation": {"v": DERIVATION_VERSION, "min_support": min_support},
+        "statements": st.statements, "statement_origins": st.origins, "private_observations": st.private,
+    }
+    if conflict:
+        metadata["conflict"] = True
+    if value is not None and slot is not None and entity is not None:
+        metadata["value"] = value
     return Memory(
         memory_id=derived_memory_id(operator="topic_consolidation", scope=unit, key=consolidation_id_key(topic, min_support),
                                     parent_ids=parent_ids),
         org_id=org_id, layer=layer, scope=unit, text=render_consolidation(unit, topic, contributions, len(agents)),
-        topic=topic, slot=_common(parents, "slot"),      # a consolidation of same-slot evidence is itself evidence
-        entity=_common(parents, "entity"), kind=_common(parents, "kind") or "fact", confidence=confidence,
+        topic=topic, slot=slot, entity=entity, kind=_common(parents, "kind") or "fact", confidence=confidence,
         support=len(agents), independent_teams=len(teams), producer_id=MYCELIC_PRODUCER,
         operator="topic_consolidation", rule_id=None, event_id=None, visibility="org", created_at=now,
-        applied_at=now, source_event_ids=[], metadata={
-            "agg_key": topic, "contributing_agents": agents, "contributing_teams": teams,
-            "children": sorted(contributions), "child_layer": LAYERS[LAYERS.index(layer) - 1],
-            "parent_count": len(parents), "version_of": version_of,
-            "effective_min_support": effective_min_support, "registered_child_units": registered_child_units,
-            "promoted_from": parents[0].memory_id if promotion else None,
-            "roots": sorted({r for m in parents for r in lineage_roots(m)}),
-            "rule_chain": sorted({r for m in parents for r in rule_chain(m)}),
-            "derivation": {"v": DERIVATION_VERSION, "min_support": min_support},
-            "statements": st.statements, "statement_origins": st.origins, "private_observations": st.private,
-        },
+        applied_at=now, source_event_ids=[], metadata=metadata,
     )
 
 
@@ -389,17 +459,26 @@ def build_conclusion(rule: Rule, org_id: str, unit: str, entity: str | None, can
         return None         # a '*' conclusion stands for evidence that names no entity, not for one entity's conclusion
     parent_ids = sorted(m.memory_id for m in evidence)
     slot_texts = {m.slot: m.text for m in selected if m.slot}
+    disputed = False
     if rule.corroborate:
-        # confidence per slot rises with independent corroboration (noisy-OR over the units filling it);
+        # confidence per slot rises with independent corroboration (noisy-OR over the units filling it), unless the
+        # memories filling it claim different values (a dispute is not corroboration: the strongest one counts);
         # the conclusion is as certain as its weakest slot
         per_slot = []
         for slot in slots:
             best_by_unit: dict[str, float] = {}
+            values = set()
             for m in evidence:
                 if m.slot == slot:
                     u = m.scope if m.layer != "agent" else (unit_at_layer(m.scope, "team") or m.scope)
                     best_by_unit[u] = max(best_by_unit.get(u, 0.0), m.confidence)
-            per_slot.append(noisy_or(list(best_by_unit.values())))
+                    if _claimed_value(m) is not None:
+                        values.add((m.entity, _claimed_value(m)))
+            if len(values) > len({e for e, _ in values}):
+                disputed = True
+                per_slot.append(round(min(0.99, max(best_by_unit.values())), 4))
+            else:
+                per_slot.append(noisy_or(list(best_by_unit.values())))
         confidence = round(min(per_slot), 4) if per_slot else 0.0
     else:
         confidence = round(synthesis.confidence, 4)
@@ -424,6 +503,8 @@ def build_conclusion(rule: Rule, org_id: str, unit: str, entity: str | None, can
             "derivation": {"v": DERIVATION_VERSION, "rule_digest": rule_digest(rule), "rule": rule_snapshot(rule)},
         },
     )
+    if disputed:
+        memory.metadata["conflict"] = True
     return memory, evidence
 
 
@@ -474,10 +555,12 @@ class Aggregator:
 
     def _derive(self, tx: Tx, memory: Memory, *, depth: int) -> list[Derivation]:
         out: list[Derivation] = []
-        if memory.topic and memory.operator in CONSOLIDATABLE:
-            out.extend(self._consolidate_topic(tx, memory.org_id, memory.scope, memory.topic))
+        # rules first: a conclusion on the memory's own topic is then already in place when the units above consolidate
+        # that topic, so each of them derives one version for this memory, not one without the conclusion and one with it
         if memory.slot:
             out.extend(self._compose_rules(tx, memory))
+        if memory.topic and memory.operator in CONSOLIDATABLE:
+            out.extend(self._consolidate_topic(tx, memory.org_id, memory.scope, memory.topic))
         if depth < MAX_CASCADE:
             # a derived memory is evidence for whatever sits above it: rules that take conclusions, consolidations
             # of conclusions across sibling units, and so on up to the enterprise
@@ -818,21 +901,26 @@ class Aggregator:
         if layer_of_path(unit) != "team":             # a team's children are agents: nothing below it consolidates
             consolidations = [m for m in self._latest(org_id, unit, topic, topic=topic, operators=("topic_consolidation",))
                               if m.scope != unit]
-        # a child with its own consolidation contributes exactly that, so its leaves are not read at all and the
-        # newest leaves are those of the children that still need them
+        # a child with its own consolidation contributes exactly that and the conclusions sitting at the child itself,
+        # so its leaves below are not read at all and the newest leaves are those of the children that still need them
         consolidated = sorted(m.scope for m in consolidations if parent_path(m.scope) == unit)
         leaves = [m for m in self._latest(org_id, unit, topic, topic=topic, operators=("agent_observation", "slot_composition"),
                                           exclude_subtrees=consolidated) if m.scope != unit]
+        if consolidated:
+            at_child = set(consolidated)
+            leaves += [m for m in self._latest(org_id, unit, topic, topic=topic, operators=("slot_composition",))
+                       if m.scope in at_child]
         contributions = self._contributions(unit, consolidations + leaves)
         # A unit with fewer registered child units than min_support (a subsidiary with one department, an
-        # enterprise with one region) would otherwise never get a memory.  Such a unit *promotes* its child's
-        # own consolidation unchanged, which keeps the chain of transformations explicit in the lineage instead
-        # of leaving the top layers empty.  A raw observation is never promoted: a team memory always means at
-        # least ``min_support`` agents agreed, and a solo agent's note stays discoverable through subtree search.
+        # enterprise with one region) would otherwise never get a memory.  Such a unit *promotes* a child's own
+        # consolidation (which already stands for at least ``min_support`` agents), together with whatever its other
+        # children contribute, so one more note from a sibling never takes it away; that keeps the chain of
+        # transformations explicit in the lineage instead of leaving the top layers empty.  A raw observation is
+        # never promoted on its own: a team memory always means at least ``min_support`` agents agreed, and a solo
+        # agent's note stays discoverable through subtree search.
         registered_children = self.store.child_units(org_id, unit)
         promotion = (0 < len(contributions) < self.min_support and len(registered_children) < self.min_support
-                     and all(len(group) == 1 and group[0].operator == "topic_consolidation" and group[0].scope == child
-                             for child, group in contributions.items()))
+                     and promoted_child(contributions) is not None)
         current = self.store.current_derived(org_id, "topic_consolidation", unit, topic)
         if len(contributions) < self.min_support and not promotion:
             return Plan(memory=None, parents=[], current=current, contributions=contributions)
@@ -851,10 +939,12 @@ class Aggregator:
         return results
 
     def _contributions(self, unit: str, mems: list[Memory]) -> dict[str, list[Memory]]:
-        """What each direct child of ``unit`` contributes on the topic: its own consolidation, or its subtree's best.
+        """What each direct child of ``unit`` contributes on the topic: its own consolidation, or its subtree's best,
+        and the rule conclusions sitting exactly at the child.
 
-        Leaves are raw observations and rule conclusions (anything that is not itself a consolidation); a
-        conclusion sitting exactly at a child unit represents that unit.
+        Leaves are raw observations and rule conclusions (anything that is not itself a consolidation).  A conclusion
+        at a unit is never part of that unit's own consolidation (whose parents lie strictly below it), so it travels
+        upward next to it: neither one stands in for the other.
         """
         derived_by_scope = {m.scope: m for m in mems if m.operator == "topic_consolidation"}
         leaves = [m for m in mems if m.operator != "topic_consolidation"]
@@ -872,15 +962,15 @@ class Aggregator:
         return out
 
     def _best_in_subtree(self, unit: str, derived_by_scope: dict[str, Memory], leaves: list[Memory]) -> list[Memory]:
+        here = [m for m in leaves if m.scope == unit]          # an agent's notes, or the conclusions at a unit
         if unit in derived_by_scope:
-            return [derived_by_scope[unit]]
-        here = [m for m in leaves if m.scope == unit]
-        if here or layer_of_path(unit) == "agent":
+            return [derived_by_scope[unit], *here]
+        if layer_of_path(unit) == "agent":
             return here
         # grandchildren come from consolidations too: a capped leaf set must not hide a consolidation below
         children = sorted({child_unit_of(s, unit) for s in [*(m.scope for m in leaves), *derived_by_scope]
                            if s.startswith(unit + "/")})
-        out: list[Memory] = []
+        out: list[Memory] = list(here)
         for child in children:
             out.extend(self._best_in_subtree(child, derived_by_scope, leaves))
         return out
@@ -987,7 +1077,7 @@ class Aggregator:
             version_of = current.memory_id if current is not None else existing.metadata.get("version_of")
             meta = {**existing.metadata, **memory.metadata, "version_of": version_of, "reactivated_at": now}
             meta.pop("status_reason", None)          # the reason it was retired does not describe an active memory
-            for k in DERIVED_METADATA:
+            for k in (*DERIVED_METADATA, *OPTIONAL_DERIVED_METADATA):
                 # keep what the digest signed: equal in every consistent case, and a recomputation that differs was
                 # reported as reactivation_mismatch above, so verification sees a derivation mismatch, not tampering
                 if k in existing.metadata:
