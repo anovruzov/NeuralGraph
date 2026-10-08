@@ -145,7 +145,27 @@ Each would remove a copy, a private-name dependency or a parse:
 
 ## 6. The research simulator
 
-`research/mycelic` is a numpy benchmark of a synthetic enterprise. Its `models.py` declares model tiers as assumed
-capability vectors ("assumed placements", in its own words) and it has no model client: no OpenAI-compatible
-endpoint, base URL or HTTP call. It cannot use a model server, so the lab does not run it; its numbers are not
-measurements of any model.
+`research/mycelic` holds two kinds of numbers.
+
+- The benchmark (`experiments.py` and the modules it runs) simulates a synthetic enterprise in numpy. Its
+  `models.py` declares model tiers as assumed capability vectors ("assumed placements", in its own words), so the
+  benchmark's numbers are not measurements of any model. No module of the package calls a model: there is no
+  OpenAI-compatible client, base URL or HTTP call in it.
+- Its live measurements are measurements of real models. `live_tasks.py` (five primitive operators, scored by
+  `score_live.py`) and `live_rank.py` (candidate discrimination: rank the candidates of a real benchmark run and pick
+  the genuine cross-organisational risks, with the evidence statistics only or with the raw work notes too) write a
+  task file to `artifacts/` and its answer key to `keys/`. A model's answers go into `artifacts/` as a JSON file
+  (`live_rank_answers_<name>.json`, with `ranking` and `real` lists of candidate ids, for `live_rank.py`), and
+  `python -m research.mycelic.live_rank score` scores every such file by average precision and selection F1 against
+  the key, beside the simulator's own logistic and random ranking. The committed answers came from three hosted
+  model tiers pointed at the task file (two runs each for the ranking task; no code in the package made those
+  calls); `live_rank_results.json` and `live_rank_results_rich.json` hold their scores, and
+  `docs/MYCELIC_ENTERPRISE.md` section 23 reports them. STRATEGY section 11.2 names `live_rank.py` as E2's harness.
+
+The lab runs neither. The lab's E2 is the collective's pushdown harness on a planted world, not `live_rank.py`. The
+package's README gives the lack of local inference as the reason its model tiers are assumed positions; the lab now
+provides local inference. A lab-side adapter could drive the live measurements without editing `research/**`: send
+the committed task file to the shard's model server (or a hosted entry), write the answers file into a scratch copy
+of the package, and score it there, since `live_rank.py score` writes its results into the package's own
+`artifacts/`, which the lab never writes. That adapter needs a request block, a unit kind and report rows of its
+own; it is an open item, not built.

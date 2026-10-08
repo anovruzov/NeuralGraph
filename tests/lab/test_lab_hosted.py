@@ -37,9 +37,8 @@ from lab.responder import Responder
 from mycelic.collective.inference.fakeserver import FakeOpenAIServer
 from mycelic.collective.inference.ledger import read_ledger
 from mycelic.collective.packs.loader import load_pack
-from tests.lab.helpers import (DATA, LAB_MANIFEST, MANIFEST_TEST, MODEL_KEY, DryTree, StubWorld, call_main,
-                               check_sources, dry_run, kill_mentioning, make_plan, plumbing_min, run_plan, run_prereg,
-                               sim_block, write_json)
+from tests.lab.helpers import (DATA, MANIFEST_TEST, MODEL_KEY, DryTree, StubWorld, call_main, check_sources, dry_run,
+                               kill_mentioning, make_plan, plumbing_min, run_plan, run_prereg, sim_block, write_json)
 from tests.lab.stubs.hosted_stub import PrefixFront
 from tests.lab.test_lab_server import _evidence
 
@@ -209,11 +208,6 @@ class ManifestTests(unittest.TestCase):
                        MANIFEST.models)
         self.assertEqual(caught.exception.path, "$.models")
         self.assertTrue(caught.exception.problem.startswith(REPIN))
-
-    def test_lab_manifest_ships_no_hosted_entry(self) -> None:
-        manifest = load_manifest(LAB_MANIFEST)
-        self.assertTrue(manifest.models)
-        self.assertNotIn("hosted", {m["kind"] for m in manifest.models.values()})
 
 
 # --------------------------------------------------------------------------------------------------- the request
@@ -666,12 +660,32 @@ class DryRunSentinelTests(unittest.TestCase):
             self.assertEqual((record["status"], record["measurement_class"], record["class_reason"]),
                              ("ok", "plumbing", "provider_override"))
             self.assertEqual(record["hosted"]["role"], "endpoint")
-            self.assertIn("hosted_raw", record["notes"])
-            self.assertNotIn("hosted_api", record["notes"])
-            self.assertNotIn("runner_hardware", record["notes"])
+            self.assertEqual(record["notes"], ["plumbing_hosted", "synthetic", "hosted_raw"])
         report = _json(self.out / "report" / "report.json")
         self.assertEqual({u["display_class"] for u in report["units"]}, {"plumbing"})
         self.assertEqual(report["contains_hosted"], False)
+
+    def test_no_summary_says_a_fake_answered_every_call(self) -> None:
+        plan = _json(self.out / "plan" / "plan.json")
+        hosted_id = hosted_shard(plan)
+        (local,) = [s["shard"] for s in plan["shards"] if s["shard"] != hosted_id]
+        report = _json(self.out / "report" / "report.json")
+        self.assertGreater(report["hosted"]["h-a"]["calls"], 0)
+        self.assertEqual(report["banner"], notes.PLUMBING_HOSTED_BANNER)
+        shards = self.out / "shards"
+        self.assertEqual(_json(shards / hosted_id / "provenance.json")["banner"], notes.PLUMBING_HOSTED_BANNER)
+        self.assertEqual(_json(shards / local / "provenance.json")["banner"], notes.PLUMBING_BANNER)
+        for path in (self.out / "plan" / "summary.md", shards / hosted_id / "summary" / "summary.md",
+                     self.out / "report" / "report.md"):
+            with self.subTest(summary=path.relative_to(self.out).as_posix()):
+                md = path.read_text(encoding="utf-8")
+                self.assertEqual(md.splitlines()[0], notes.PLUMBING_HOSTED_LINE)
+                self.assertNotIn(notes.PLUMBING_BANNER, md)
+        md = (self.out / "report" / "report.md").read_text(encoding="utf-8")
+        self.assertIn(notes.PLUMBING_HOSTED_BANNER, md.splitlines())
+        self.assertIn(notes.NOTES["plumbing_hosted"], md.splitlines())
+        local_md = (shards / local / "summary" / "summary.md").read_text(encoding="utf-8")
+        self.assertEqual(local_md.splitlines()[0], notes.PLUMBING_CHECK_LINE)
 
     def test_calls_and_cost_equal_the_wire_and_the_ledgers(self) -> None:
         report = _json(self.out / "report" / "report.json")
@@ -994,13 +1008,17 @@ class ClassTests(TempTest):
 
     def test_unit_notes_per_role(self) -> None:
         self.assertEqual(units.unit_notes("e1", "hosted-api", "endpoint"), ["synthetic", "hosted_api", "hosted_raw"])
-        self.assertEqual(units.unit_notes("e1", "plumbing", "endpoint"), ["plumbing", "synthetic", "hosted_raw"])
+        self.assertEqual(units.unit_notes("e1", "plumbing", "endpoint"), ["plumbing_hosted", "synthetic", "hosted_raw"])
+        self.assertEqual(units.unit_notes("e2", "plumbing", "central"),
+                         ["plumbing_hosted", "synthetic", "runner_hardware", "text_only_scan", "central_hosted",
+                          "hosted_raw"])
+        self.assertEqual(units.unit_notes("e1", "plumbing"), ["plumbing", "synthetic", "runner_hardware"])
         self.assertEqual(units.unit_notes("e1", "unverified", "endpoint"), ["synthetic", "hosted_api", "hosted_raw"])
         self.assertEqual(units.unit_notes("e2", "model", "central"),
                          ["model_measurement", "synthetic", "runner_hardware", "text_only_scan", "central_hosted",
                           "hosted_raw"])
         self.assertEqual(units.unit_notes("e1", "model"), ["model_measurement", "synthetic", "runner_hardware"])
-        for key in ("hosted_api", "hosted_raw", "central_hosted"):
+        for key in ("hosted_api", "hosted_raw", "central_hosted", "plumbing_hosted"):
             self.assertIn(key, notes.NOTES)
 
     def test_model_checks_with_hosted_central_rows(self) -> None:
@@ -1016,6 +1034,56 @@ class ClassTests(TempTest):
         self.assertEqual((checks["ledger_host"], checks["model_served"]), (False, True))
         checks, _ = units.model_checks(evidence, [*rows, *central], "ok", True, "alias", "127.0.0.1:9")
         self.assertEqual((checks["ledger_host"], checks["model_served"]), (False, False))
+
+
+class PlumbingRunWithAHostTests(TempTest):
+    """hosted-e1.json (provider fake, a hosted E1 endpoint) run as the workflow runs it, with no ``--provider``: the
+    hosted units call the configured host for real and bill it, so no summary may say that no model ran or that a
+    fake answered every call."""
+
+    def test_the_first_lines_and_banners_name_the_host(self) -> None:
+        shared = _Sentinel.get()
+        self.assertEqual(shared.done.returncode, 0, shared.done.stdout + shared.done.stderr)
+        tree = DryTree(shared.out, self.tmp / "T")
+        hosted_id = hosted_shard(tree.plan)
+        (local,) = [s["shard"] for s in tree.plan["shards"] if s["shard"] != hosted_id]
+        shutil.rmtree(tree.path(hosted_id))
+        front = self.front(self.fake(), strip_fake=True)
+        code, _, stderr, _ = run_shard(tree.plan_path, hosted_id, tree.path(hosted_id),
+                                       _env(**{KEY_VAR: KEY, BASE_URL_VAR: front.base_url}))
+        self.assertEqual(code, 0, stderr)
+        self.assertEqual(lab_shard.seal(tree.path(hosted_id), hosted_id, {"run": "success"}, str(tree.plan_path)), 0)
+        provenance = tree.read(hosted_id, "provenance.json")
+        self.assertEqual((provenance["result_class"], provenance["provider"], provenance["banner"]),
+                         ("plumbing", "fake", notes.PLUMBING_HOSTED_BANNER))
+        for unit in HOSTED_UNITS:
+            record = unit_json(tree.path(hosted_id), unit)
+            self.assertEqual((record["status"], record["measurement_class"], record["notes"]),
+                             ("ok", "hosted-api", ["synthetic", "hosted_api", "hosted_raw"]), record["status_reason"])
+            self.assertEqual(units.display_class(record, provenance), "plumbing")
+        self.assertEqual(tree.read(local, "provenance.json")["banner"], notes.PLUMBING_BANNER)
+
+        md, sources = summary.render_shard(tree.path(hosted_id))
+        check_sources(self, md, sources, tree.path(hosted_id))
+        self.assertEqual(md.splitlines()[0], notes.PLUMBING_HOSTED_LINE)
+        md, _ = summary.render_shard(tree.path(local))
+        self.assertEqual(md.splitlines()[0], notes.PLUMBING_CHECK_LINE)
+        md, _ = summary.render_plan(tree.root / "plan")
+        self.assertEqual(md.splitlines()[0], notes.PLUMBING_HOSTED_LINE)
+
+        code, _, stderr, report = tree.aggregate(self.tmp / "R")
+        self.assertEqual(code, 0, stderr)
+        self.assertEqual(report["banner"], notes.PLUMBING_HOSTED_BANNER)
+        self.assertEqual(report["hosted"]["h-a"]["calls"], len(front.chat_requests))
+        self.assertGreater(report["hosted"]["h-a"]["calls"], 0)
+        md, sources = summary.render_report(self.tmp / "R")
+        check_sources(self, md, sources, self.tmp / "R")
+        lines = md.splitlines()
+        self.assertEqual(lines[0], notes.PLUMBING_HOSTED_LINE)
+        self.assertIn(notes.PLUMBING_HOSTED_BANNER, lines)
+        self.assertIn(notes.NOTES["hosted_api"], lines)
+        self.assertNotIn(notes.PLUMBING_BANNER, md)
+        self.assertNotIn(notes.PLUMBING_CHECK_LINE, lines)
 
 
 # --------------------------------------------------------------------------------------------------- E2 central

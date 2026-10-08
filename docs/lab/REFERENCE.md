@@ -23,7 +23,8 @@ capacity of a shard is `job_minutes` less the shard overhead of 25 minutes; ever
 | `hosted` | per hosted model key, `{"max_calls": 1..1000000}` | `{}` |
 
 A fake model needs provider `fake`, a gguf model the server provider; a hosted model goes with either. Provider
-`fake` makes the whole run a plumbing check.
+`fake` makes the whole run a plumbing check; its hosted units still call the configured host, which bills those calls,
+and its summaries then say so (`PLUMBING_HOSTED_LINE`, `PLUMBING_HOSTED_BANNER`).
 
 `e1`, extraction F1 of two or more models against labelled records, one unit per model and repeat:
 
@@ -191,7 +192,7 @@ A shard's artifact holds (`lab/shard.py`):
 | `complete` | whether the shard finished writing it |
 | `interrupted` | whether a signal stopped the shard |
 | `result_class` | `plumbing` when a fake served the shard, else `real` |
-| `banner` | the plumbing banner, or null |
+| `banner` | the plumbing banner (`PLUMBING_HOSTED_BANNER` when the shard holds hosted units), or null |
 | `plan` | the plan's sha256 and path |
 | `request` | the request's path, name and sha256 |
 | `manifest_sha256` | the manifest's sha256 |
@@ -258,8 +259,9 @@ from the sealed list), `other_plan` (another plan's), `ambiguous` (two artifacts
 
 A report's display classes (`lab.units.DISPLAY_CLASSES`): `model` (a measurement on the runner: a verified model
 file served by a verified server, every check passing), `hosted-api` (a result of the configured host, never a
-measurement on the runner), `unverified` (a real run whose checks did not all pass), `plumbing` (a fake answered),
-`no-model` (a model-free unit) and `no-result` (no result).
+measurement on the runner), `unverified` (a real run whose checks did not all pass), `plumbing` (a fake answered, or
+the unit ran in a plumbing check, where a hosted unit's calls still go to the configured host), `no-model` (a
+model-free unit) and `no-result` (no result).
 
 A unit record's measurement class is `model`, `hosted-api`, `unverified`, `plumbing` or `no-model`, with a class
 reason from `CLASS_REASONS` (below). A plan's and a report's result class is `plumbing` (provider `fake`) or `real`.
@@ -287,7 +289,9 @@ Every fixed sentence the summaries print comes from `lab/notes.py`. Braces stand
 The first lines and the plumbing banner:
 
 - `PLUMBING_BANNER`: Plumbing check: a fake model answered every call. These records test the lab, not any model.
+- `PLUMBING_HOSTED_BANNER`: Plumbing check: a fake model answered every call except any hosted unit's calls, which go to the configured host and are billed by it. These records test the lab, not any model.
 - `PLUMBING_CHECK_LINE`: PLUMBING CHECK: no model was run
+- `PLUMBING_HOSTED_LINE`: PLUMBING CHECK: no model was run on this runner, but any hosted unit's calls go to the configured host
 - `NO_MEASUREMENT_LINE`: NO MEASUREMENT: no unit here passed every model check, so nothing below measures a model
 
 The experiments' labels:
@@ -327,6 +331,7 @@ The lock:
 A unit's notes, printed once under the report's notes:
 
 - `NOTES.plumbing`: Plumbing: a fake model answered; nothing here measures a model.
+- `NOTES.plumbing_hosted`: Plumbing: this unit's hosted calls went to the configured host and any other call to a fake model; it ran in a plumbing check, so nothing here measures a model.
 - `NOTES.synthetic`: Synthetic data: every record and narrative was generated from a seed; no real record was used.
 - `NOTES.runner_hardware`: Latency was measured on a shared GitHub-hosted runner, not on site hardware; it says how this runner performed, not what a site would see.
 - `NOTES.text_only_scan`: The canary scan covers text only: it reads the bytes that crossed a boundary, not timing, sizes or other side channels.
@@ -625,7 +630,7 @@ Every section heading of the summaries (`lab.notes.HEADINGS`):
 | Model on runner CPU | units of display class model: measurements on this runner |
 | Hosted API results: not measured on this runner | units of display class hosted-api |
 | Unverified: not measurements | units of a real run whose provenance did not verify |
-| Plumbing checks (fake provider): not model measurements | units a fake answered |
+| Plumbing checks (fake provider): not model measurements | units a fake answered, or units of a plumbing run (a hosted unit's calls go to the configured host) |
 | Units without a model | model-free units (X1, openFDA) |
 | Latency and throughput cells | E3's cells |
 | Canary leakage scans | G0's scans |

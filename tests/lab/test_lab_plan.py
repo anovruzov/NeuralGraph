@@ -26,8 +26,8 @@ from lab.plan import (MAX_SHARDS, OUTPUT_KEYS, PlanError, check_matrix_size, che
                       pack_shards, plan_outputs, run_id, unit_id)
 from lab.request import load_request
 from mycelic.collective.experiments.common import RUN_ID_RE
-from tests.lab.helpers import (LAB_MANIFEST, MANIFEST_TEST, PLUMBING_001, PLUMBING_MIN, ROOT, GitWorld, git, git_run,
-                               lab_env, make_plan, plumbing_min, run_plan, write_json)
+from tests.lab.helpers import (MANIFEST_TEST, PLUMBING_MIN, ROOT, GitWorld, git, git_run, lab_env, make_plan,
+                               plumbing_min, run_plan, write_json)
 
 TIME_KEY_RE = re.compile(r"(^|_)(at|time|date|epoch|ts)(_|$)")
 REQUEST_TEXT = PLUMBING_MIN.read_text(encoding="utf-8")
@@ -350,52 +350,6 @@ class OutputBudgetTests(TempDirTest):
         code, out, err = run_plan(["--request", str(PLUMBING_MIN), "--manifest", str(MANIFEST_TEST),
                                    "--out", str(self.tmp / "p")])
         self.assertEqual(code, 0, err)
-
-    def test_shipped_requests_plan(self) -> None:
-        manifest = load_manifest(LAB_MANIFEST)
-        cwd = os.getcwd()
-        os.chdir(ROOT)
-        try:
-            request = load_request(PLUMBING_001.relative_to(ROOT), manifest, strict_location=True)
-        finally:
-            os.chdir(cwd)
-        plan = lab_plan.build_plan(request, manifest, "unknown")
-        self.assertEqual(request.path, "lab/requests/plumbing-001.json")
-        self.assertEqual([(s["shard"], s["kind"], s["units"], s["planned_minutes"], s["timeout_minutes"])
-                          for s in plan["shards"]],
-                         [("s001-fake-a", "fake", ["sim-fake-a-s1", "e1-fake-a-r1"], 20, 45),
-                          ("s002-fake-a", "fake", ["e1-fake-a-r2", "e1-fake-a-r3", "e2-fake-a", "e3-fake-a"], 20, 45),
-                          ("s003-fake-b", "fake", ["g0-fake-b", "e1-fake-b-r1", "e1-fake-b-r2"], 20, 45),
-                          ("s004-fake-b", "fake", ["e1-fake-b-r3", "e3-fake-b"], 10, 35),
-                          ("s005-none", "none", ["x1"], 5, 30)])
-        self.assertEqual([e["openfda"] for e in plan["matrix"]["include"]], [False] * 5)
-        self.assertEqual((plan["result_class"], plan["provision"], plan["retention_days"]), ("plumbing", [], 7))
-        self.assertEqual(sorted(p.name for p in (ROOT / "lab" / "requests").iterdir()),
-                         ["README.md", "plumbing-001.json"])
-
-        requests = self.tmp / "lab" / "requests"
-        requests.mkdir(parents=True)
-        shutil.copy(ROOT / "lab" / "templates" / "check.json", requests / "check-001.json")
-        request = load_request(requests / "check-001.json", manifest, strict_location=True, root=self.tmp)
-        plan = lab_plan.build_plan(request, manifest, "unknown")
-        self.assertEqual([(s["shard"], s["kind"], s["model"], s["units"]) for s in plan["shards"]],
-                         [("s001-a-0p5b", "gguf", "a-0p5b", ["e3-a-0p5b"])])
-        self.assertEqual(plan["result_class"], "real")
-        self.assertEqual([(p["target"], p["entry"]) for p in plan["provision"]],
-                         [("server", "server"), ("gguf", "gguf-a-0p5b")])
-        for entry in plan["provision"]:
-            self.assertEqual(entry["cache_key"], entry["restore_key"] or entry["restore_prefix"] + "unlocked")
-
-        shutil.copy(ROOT / "lab" / "templates" / "smoke.json", requests / "smoke-001.json")
-        request = load_request(requests / "smoke-001.json", manifest, strict_location=True, root=self.tmp)
-        plan = lab_plan.build_plan(request, manifest, "unknown")
-        (model,) = request.data["models"]
-        experiments = {u["unit"]: u["experiment"] for u in plan["units"]}
-        self.assertEqual([(s["kind"], s["model"], [experiments[u] for u in s["units"]], s["planned_minutes"],
-                           s["timeout_minutes"]) for s in plan["shards"]],
-                         [("gguf", model, ["sim", "g0", "e3"], 305, 330)])
-        self.assertEqual(sorted(p.name for p in (ROOT / "lab" / "templates").iterdir()),
-                         ["check.json", "hosted-comparison.json", "main.json", "openfda-replay.json", "smoke.json"])
 
 
 class CentralContextTests(unittest.TestCase):

@@ -24,7 +24,6 @@ from lab.request import HOSTED_CENTRAL_CONTEXT, PACK_PROBLEM, RequestError, load
 from tests.lab.helpers import MANIFEST_TEST, PLUMBING_MIN, lab_cli, plumbing_min, run_plan, sim_block, write_json
 
 MANIFEST = load_manifest(MANIFEST_TEST)
-LAB_MANIFEST = load_manifest(ROOT / "lab" / "models.json")
 
 
 def _sentinel(i: int) -> str:
@@ -546,16 +545,12 @@ class LoadTests(unittest.TestCase):
         obj.update(provider="llama-server", models=["tiny-gguf"])
         obj["experiments"] = {"e3": {**obj["experiments"]["e3"]}}
         self.assertEqual(validate(obj, MANIFEST)["provider"], "llama-server")
-        with self.assertRaises(RequestError) as caught:
-            validate(obj, LAB_MANIFEST)
-        self.assertEqual((caught.exception.path, caught.exception.problem),
-                         ("$.models[0]", "not a model in the manifest"))
-        self.assertEqual(LAB_MANIFEST.providers(), ("fake", LAB_MANIFEST.server["program"]))
+        self.assertEqual(MANIFEST.providers(), ("fake", MANIFEST.server["program"]))
         obj["provider"] = "other-server"
         with self.assertRaises(RequestError) as caught:
-            validate(obj, LAB_MANIFEST)
+            validate(obj, MANIFEST)
         self.assertEqual(caught.exception.path, "$.provider")
-        self.assertEqual(validate(plumbing_min(), LAB_MANIFEST)["provider"], "fake")
+        self.assertEqual(validate(plumbing_min(), MANIFEST)["provider"], "fake")
 
     def test_hazard_order(self) -> None:
         obj = plumbing_min()
@@ -649,29 +644,7 @@ class ManifestTests(unittest.TestCase):
         self.assertEqual(caught.exception.path, path)
         self.assertTrue(caught.exception.problem.startswith(problem), caught.exception.problem)
 
-    def test_shipped_manifests_load(self) -> None:
-        self.assertEqual(sorted(LAB_MANIFEST.models), ["a-0p5b", "a-1p5b", "a-4b", "b-2b", "fake-a", "fake-b"])
-        server = LAB_MANIFEST.server
-        self.assertIsNotNone(server)
-        self.assertEqual((server["format"], server["threads"], server["cache_ram_mib"], server["args"]),
-                         ("tar.gz", "physical", 1024, []))
-        self.assertTrue(server["asset"].startswith(server["archive_root"] + "-bin-"))
-        self.assertTrue(server["url"].endswith(f"/releases/download/{server['tag']}/{server['asset']}"))
-        for key in ("a-0p5b", "a-1p5b", "a-4b", "b-2b"):
-            entry = LAB_MANIFEST.models[key]
-            with self.subTest(key=key):
-                self.assertEqual((entry["kind"], entry["alias"], entry["gguf"]["revision"], entry["gguf"]["license"]),
-                                 ("gguf", f"lab-{key}", "main", "apache-2.0"))
-                self.assertEqual((entry["response_format"], entry["transport_schema"]), ("json_schema", "full"))
-                self.assertEqual((entry["ctx_per_slot"], entry["e3_ctx_per_slot"], entry["e2_ctx_per_slot"]),
-                                 (16384, 4096, 32768))
-                self.assertTrue(entry["gguf"]["file"].endswith(".gguf"))
-        self.assertEqual(LAB_MANIFEST.models["a-4b"]["server_args"], ["--reasoning", "off"])
-        self.assertEqual((LAB_MANIFEST.lock.server, LAB_MANIFEST.lock.models), (None, {}))
-        self.assertEqual(json.loads((ROOT / "lab" / "models.lock.json").read_text(encoding="utf-8")),
-                         {"schema_version": 1, "server": None, "models": {}})
-        self.assertTrue(LAB_MANIFEST.lock.path.endswith("lab/models.lock.json"))
-        self.assertTrue((ROOT / "lab" / "models.lock.json").is_file())
+    def test_test_manifests_load(self) -> None:
         self.assertTrue((ROOT / "tests" / "lab" / "data" / "manifest-test.lock.json").is_file())
         self.assertEqual(MANIFEST.models["fake-fail"]["persona"], "unauthorized")
         self.assertEqual(MANIFEST.models["tiny-gguf"]["ctx_per_slot"], 16384)

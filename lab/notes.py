@@ -8,6 +8,8 @@ reader sees.
 from __future__ import annotations
 
 PLUMBING_BANNER = "Plumbing check: a fake model answered every call. These records test the lab, not any model."
+PLUMBING_HOSTED_BANNER = ("Plumbing check: a fake model answered every call except any hosted unit's calls, which "
+                          "go to the configured host and are billed by it. These records test the lab, not any model.")
 PLACEHOLDER = "placeholder: fill in"
 
 # unit and shard outcomes
@@ -260,6 +262,8 @@ CLASS_REASONS = {
 
 NOTES = {
     "plumbing": "Plumbing: a fake model answered; nothing here measures a model.",
+    "plumbing_hosted": "Plumbing: this unit's hosted calls went to the configured host and any other call to a fake "
+                       "model; it ran in a plumbing check, so nothing here measures a model.",
     "synthetic": "Synthetic data: every record and narrative was generated from a seed; no real record was used.",
     "runner_hardware": "Latency was measured on a shared GitHub-hosted runner, not on site hardware; it says how "
                        "this runner performed, not what a site would see.",
@@ -281,6 +285,8 @@ NOTES = {
 
 # summaries (summary.py) and the aggregate report (aggregate.py); identifiers are rendered in code spans beside them
 PLUMBING_CHECK_LINE = "PLUMBING CHECK: no model was run"
+PLUMBING_HOSTED_LINE = ("PLUMBING CHECK: no model was run on this runner, but any hosted unit's calls go to the "
+                        "configured host")
 NO_MEASUREMENT_LINE = "NO MEASUREMENT: no unit here passed every model check, so nothing below measures a model"
 TRUNCATED = "Truncated: the rest did not fit in this summary; every value is in the artifact's files."
 NO_PLAN = "No plan was written: the plan step failed before it could record why; read the plan job's log."

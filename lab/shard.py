@@ -74,7 +74,9 @@ openFDA key was present and the base URL override (null without an openFDA unit)
 transport, share, calls used, the model listing's counts and the preflight; null without hosted units; a hosted
 shard's server is ``{"kind": "hosted"}``), the deadline, wall times, the planned units and each unit's status and
 class.
-``result_class`` is ``plumbing`` whenever a fake served the shard, and ``banner`` then carries the plumbing banner.
+``result_class`` is ``plumbing`` whenever a fake served the shard, and ``banner`` then carries the plumbing banner:
+``PLUMBING_HOSTED_BANNER`` when the shard holds hosted units (``needs_secret``; their calls go to the configured host
+even in a plumbing check), else ``PLUMBING_BANNER``.
 Exit 1 when a unit is invalid, failed, timed out, interrupted or skipped; else 0 (a harness FAIL verdict,
 ``result_fail``, is a valid result).
 
@@ -111,8 +113,8 @@ from . import openfda as lab_openfda
 from . import provision as lab_provision
 from . import server as lab_server
 from .download import UrlMap
-from .notes import (BUDGET_EXHAUSTED, NOT_PREPARED, PLUMBING_BANNER, PREREG_MISSING, SERVER_NOTE_MODEL,
-                    SERVER_UNAVAILABLE, SERVER_UNHEALTHY_AFTER, SHARD_INTERRUPTED)
+from .notes import (BUDGET_EXHAUSTED, NOT_PREPARED, PLUMBING_BANNER, PLUMBING_HOSTED_BANNER, PREREG_MISSING,
+                    SERVER_NOTE_MODEL, SERVER_UNAVAILABLE, SERVER_UNHEALTHY_AFTER, SHARD_INTERRUPTED)
 from .plan import SHARD_ID_RE, UNIT_ID_RE, serving_class, write_github_output
 from .prereg import Prereg, PreregError, load_prereg
 from .server import HEALTH_DEADLINE_S, ModelServer, ServerError, ServerSpec, thread_counts
@@ -267,7 +269,7 @@ def _provenance(plan: dict[str, Any], plan_path: str, plan_bytes: bytes, shard: 
     return {
         "schema_version": 1, "kind": "lab_provenance", "shard": shard["shard"], "complete": False,
         "interrupted": False, "result_class": "plumbing" if plumbing else "real",
-        "banner": PLUMBING_BANNER if plumbing else None,
+        "banner": (PLUMBING_HOSTED_BANNER if shard["needs_secret"] else PLUMBING_BANNER) if plumbing else None,
         "plan": {"path": display_path(plan_path), "sha256": sha256_hex(plan_bytes)},
         "request": {k: plan["request"][k] for k in ("path", "name", "sha256")},
         "manifest_sha256": plan["manifest"]["sha256"], "lock_sha256": plan["lock"]["sha256"],

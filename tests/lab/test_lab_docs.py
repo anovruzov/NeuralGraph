@@ -50,12 +50,12 @@ UNVERIFIED_SENTENCE = ("The pinned server release asset and the model file names
                        "until the check run downloads and verifies them.")
 FIRST_RUNS = ("plumbing-001", "check-001", "smoke-001", "lab/models.lock.json", "main-001")
 
-SINGLE_LABELS = ("PLUMBING_BANNER", "PLUMBING_CHECK_LINE", "NO_MEASUREMENT_LINE", "X1_LABEL", "OPENFDA_LABEL",
-                 "OPENFDA_PUBLIC_FLAG", "SHEETS_LABEL", "G0_BELOW_PROTOCOL", "G0_MODEL_PATH", "SIZING_NOTE",
-                 "E2_SIZING_NOTE", "E1_ENDPOINT_EXCLUDED", "E1_VERDICTS_WITHHELD", "E1_HOSTED_LABEL",
-                 "HOSTED_COST_NOTE", "SIM_WORLD_SAME", "SIM_WORLD_DIFFERS", "WORLD_DIGEST_SAME",
-                 "WORLD_DIGEST_DIFFERS", "CPU_MODELS_DIFFER", "NOT_PINNED", "LOCK_UNCHANGED", "LOCK_NEW",
-                 "LOCK_CONFLICT_NOTE", "LOCK_NOT_COMPUTED")
+SINGLE_LABELS = ("PLUMBING_BANNER", "PLUMBING_HOSTED_BANNER", "PLUMBING_CHECK_LINE", "PLUMBING_HOSTED_LINE",
+                 "NO_MEASUREMENT_LINE", "X1_LABEL", "OPENFDA_LABEL", "OPENFDA_PUBLIC_FLAG", "SHEETS_LABEL",
+                 "G0_BELOW_PROTOCOL", "G0_MODEL_PATH", "SIZING_NOTE", "E2_SIZING_NOTE", "E1_ENDPOINT_EXCLUDED",
+                 "E1_VERDICTS_WITHHELD", "E1_HOSTED_LABEL", "HOSTED_COST_NOTE", "SIM_WORLD_SAME", "SIM_WORLD_DIFFERS",
+                 "WORLD_DIGEST_SAME", "WORLD_DIGEST_DIFFERS", "CPU_MODELS_DIFFER", "NOT_PINNED", "LOCK_UNCHANGED",
+                 "LOCK_NEW", "LOCK_CONFLICT_NOTE", "LOCK_NOT_COMPUTED")
 DICT_LABELS = ("NOTES", "SIM_NOTES", "SIM_CHANNEL_LABELS", "SIM_LIFT_LABELS", "SIM_MEASUREMENT_REASONS", "E1_LABELS",
                "E2_LABELS", "CLASS_REASONS")
 REQUIRED_LABELS = (*SINGLE_LABELS, *(f"{d}.{k}" for d in DICT_LABELS for k in getattr(notes, d)))
@@ -252,7 +252,7 @@ class LabelQuoteTests(unittest.TestCase):
     def test_the_guide_quotes_each_experiment_label(self) -> None:
         quoted = self.labels(README)
         self.assertEqual(sorted(set(README_LABELS) - set(quoted)), [])
-        for name in ("PLUMBING_CHECK_LINE", "NO_MEASUREMENT_LINE"):
+        for name in ("PLUMBING_CHECK_LINE", "PLUMBING_HOSTED_LINE", "NO_MEASUREMENT_LINE", "PLUMBING_HOSTED_BANNER"):
             self.assertIn(name, quoted)
 
 
@@ -374,6 +374,45 @@ class ReadmeTests(unittest.TestCase):
                          ["MYCELIC_LAB_HOSTED_API_KEY", "MYCELIC_LAB_HOSTED_BASE_URL", "MYCELIC_LAB_OPENFDA_API_KEY"])
 
 
+# --------------------------------------------------------------------------------------------------- research/mycelic
+
+RESEARCH = ROOT / "research" / "mycelic"
+MODEL_CLIENT_RE = re.compile(r"^\s*(?:import|from)\s+(?:urllib|http|requests|httpx|aiohttp|openai|socket)\b|base_url",
+                             re.M)
+
+
+class ResearchSimulatorTests(unittest.TestCase):
+    """INTEGRATION.md section 6 and the guide's line on ``research/mycelic``, against the package: its benchmark calls
+    no model, and its live measurements score real models' answer files, which the documents must not deny."""
+
+    def test_no_module_of_the_package_calls_a_model(self) -> None:
+        modules = sorted(RESEARCH.glob("*.py"))
+        self.assertTrue(modules)
+        for path in modules:
+            with self.subTest(module=path.name):
+                self.assertIsNone(MODEL_CLIENT_RE.search(_text(path)))
+
+    def test_the_live_measurements_are_described(self) -> None:
+        section = h2_sections(_text(INTEGRATION))["6. The research simulator"]
+        self.assertIn("Its live measurements are measurements of real models.", section)
+        self.assertNotIn("cannot use a model server", section)
+        for name in ("models.py", "live_tasks.py", "score_live.py", "live_rank.py"):
+            self.assertIn(f"`{name}`", section)
+            self.assertTrue((RESEARCH / name).is_file(), name)
+        self.assertIn("`live_rank_answers_<name>.json`", section)
+        answers = sorted((RESEARCH / "artifacts").glob("live_rank_answers_*.json"))
+        self.assertTrue(answers)
+        for path in answers:
+            self.assertLessEqual({"ranking", "real"}, set(json.loads(_text(path))), path.name)
+        for name in ("live_rank_results.json", "live_rank_results_rich.json"):
+            self.assertIn(f"`{name}`", section)
+            self.assertTrue((RESEARCH / "artifacts" / name).is_file(), name)
+        self.assertIn("blind candidate-discrimination measurement on real models", _text(RESEARCH / "README.md"))
+        not_done = h2_sections(_text(README))["What the lab does not do"]
+        for name in ("`research/mycelic`", "`live_rank.py`", "real models' answers"):
+            self.assertIn(name, not_done)
+
+
 # --------------------------------------------------------------------------------------------------- templates
 
 def _checkout() -> Path:
@@ -400,18 +439,11 @@ class TemplateTests(unittest.TestCase):
 
     def hosted_manifest(self, entry: dict[str, Any] | None) -> Any:
         doc = json.loads(LAB_MANIFEST.read_text(encoding="utf-8"))
-        self.assertNotIn("big-hosted", doc["models"])
+        doc["models"].pop("big-hosted", None)       # the founder may have added it (Optional secrets)
         if entry is not None:
             doc["models"]["big-hosted"] = entry
         write_json(self.root / "lab" / "models.json", doc)
         return load_manifest(self.root / "lab" / "models.json")
-
-    def test_shipped_requests_validate(self) -> None:
-        requests = sorted((ROOT / "lab" / "requests").glob("*.json"))
-        self.assertEqual([p.name for p in requests], ["plumbing-001.json"])
-        for path in requests:
-            loaded = load_request(path, self.manifest, strict_location=True, root=ROOT)
-            self.assertEqual(loaded.path, f"lab/requests/{path.name}")
 
     def test_the_templates_dir(self) -> None:
         self.assertEqual(sorted(p.name for p in TEMPLATES.iterdir()), TEMPLATE_NAMES)

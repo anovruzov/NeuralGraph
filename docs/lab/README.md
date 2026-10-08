@@ -161,11 +161,16 @@ per shard (its runner, server and units) and the report summary (everything merg
 The first line of a summary says what its numbers are not:
 
 - `PLUMBING_CHECK_LINE`: PLUMBING CHECK: no model was run
+- `PLUMBING_HOSTED_LINE`: PLUMBING CHECK: no model was run on this runner, but any hosted unit's calls go to the configured host
 - `NO_MEASUREMENT_LINE`: NO MEASUREMENT: no unit here passed every model check, so nothing below measures a model
 
-A plumbing report also carries this banner:
+A plumbing report also carries a banner:
 
 - `PLUMBING_BANNER`: Plumbing check: a fake model answered every call. These records test the lab, not any model.
+- `PLUMBING_HOSTED_BANNER`: Plumbing check: a fake model answered every call except any hosted unit's calls, which go to the configured host and are billed by it. These records test the lab, not any model.
+
+The hosted variants mark a plumbing run that names a hosted model (Optional secrets): its hosted units call the
+configured host for real, which bills those calls, and their numbers are still filed as plumbing.
 
 A report sorts its units into display classes, each in its own section, and only `model` is a measurement on the
 runner:
@@ -174,7 +179,8 @@ runner:
 - `hosted-api`: a model on the configured hosted provider answered; a result of the host, never a measurement on
   this runner;
 - `unverified`: a real run in which some provenance check failed; its class reason says which;
-- `plumbing`: a fake answered;
+- `plumbing`: a fake answered, or the unit ran in a plumbing run (provider `fake`), where a hosted unit's calls
+  still go to the configured host;
 - `no-model`: a model-free unit (X1, openFDA);
 - `no-result`: the unit did not run to a result.
 
@@ -252,6 +258,8 @@ Safety:
 - The secrets reach only the shards that need them; the plan job learns only whether they are set.
 - Raw synthetic text is sent to the host, never partner data, and hosted models never run in the canary scan or the
   simulation.
+- A request with provider `fake` may name a hosted model too: the run is then a plumbing check whose hosted units
+  still call the host and are billed; its summaries open with `PLUMBING_HOSTED_LINE`.
 - GitHub Models is retired (`content/github-models/index.md`: fully retired on 30 July 2026); the lab has no code for
   it. Use any OpenAI-compatible host.
 
@@ -259,8 +267,9 @@ Safety:
 
 - It makes no human labels. N1 and the openFDA E1 sheet wait for a person to label and commit them; the lab only
   writes the sheets.
-- It does not run `research/mycelic`: that is a numpy simulator whose `models.py` holds assumed capability vectors
-  and has no model client.
+- It does not run `research/mycelic`. Its benchmark is a numpy simulator whose `models.py` holds assumed capability
+  vectors, so the benchmark's numbers measure no model; its live measurements (`live_tasks.py`, `live_rank.py`) do
+  score real models' answers, but the lab has no adapter for them yet ([INTEGRATION.md](INTEGRATION.md), section 6).
 - It has no GitHub Models provider and reads no partner data.
 - E5 and the X4 follow-up are not adapted to the lab yet ([INTEGRATION.md](INTEGRATION.md)).
 

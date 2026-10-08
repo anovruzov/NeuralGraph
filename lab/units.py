@@ -98,8 +98,9 @@ Summaries and the aggregate report never trust a record's ``measurement_class`` 
 the record and its shard's provenance and puts each unit in one of :data:`DISPLAY_CLASSES`; ``model`` needs every
 fact that admits a measurement to hold at once, and so does ``hosted-api``. Hosted units' notes (:func:`unit_notes`)
 drop ``runner_hardware`` and add ``hosted_api`` and ``hosted_raw``; a hosted central comparator adds
-``central_hosted`` and ``hosted_raw``. The record's ``hosted`` block names the key, role, model id, scheme, host,
-transport, the shard's share and the calls before and after the unit (never the base URL).
+``central_hosted`` and ``hosted_raw``; a plumbing unit with a hosted role says ``plumbing_hosted``, not ``plumbing``
+(its hosted calls went to the configured host). The record's ``hosted`` block names the key, role, model id, scheme,
+host, transport, the shard's share and the calls before and after the unit (never the base URL).
 
 The harness runs with an allowlisted environment (:data:`ENV_ALLOWLIST` plus ``PYTHONUNBUFFERED=1``, plus the
 unit's ``env`` only through a hosted handle: the hosted key for a unit that calls the host, and nothing else), in its
@@ -679,8 +680,10 @@ def display_class(record: Mapping[str, Any], provenance: Mapping[str, Any] | Non
 def unit_notes(experiment: str, measurement: str, hosted_role: str | None = None) -> list[str]:
     """The note keys (``notes.NOTES``) of a unit. A hosted E1 endpoint (``hosted_role`` ``endpoint``) drops
     ``runner_hardware`` and adds ``hosted_api`` (unless plumbing) and ``hosted_raw``; a hosted central comparator
-    (``central``) adds ``central_hosted`` and ``hosted_raw``."""
-    notes = ["plumbing"] if measurement == "plumbing" else ["model_measurement"] if measurement == "model" else []
+    (``central``) adds ``central_hosted`` and ``hosted_raw``. A plumbing unit with a hosted role gets
+    ``plumbing_hosted`` in place of ``plumbing``: its hosted calls went to the configured host, not to a fake."""
+    plumbing = "plumbing" if hosted_role is None else "plumbing_hosted"
+    notes = [plumbing] if measurement == "plumbing" else ["model_measurement"] if measurement == "model" else []
     if experiment == "openfda":
         return [*notes, "public_data"]
     notes.append("synthetic")

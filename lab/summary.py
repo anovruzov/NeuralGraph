@@ -44,14 +44,16 @@ with what it measured and the minutes it suggests for the next request, then the
 keys) the hosted calls and estimated cost table followed by its note; the notes add the sim world-digest groups and the
 sim notes the rows carry.
 
-The first line says what the numbers are not: ``PLUMBING CHECK: no model was run`` for a plumbing plan, shard or
-report, ``NO MEASUREMENT: ...`` for a real shard or report without a unit of display class ``model`` or
-``hosted-api`` (``units.display_class``; for a report, ``contains_measurements`` and ``contains_hosted`` both not
-true); otherwise (such a unit present, or the class unknown: no provenance, plan or report) the summary starts with
-its heading. That first line is always kept. After it a
-summary holds whole rows only, while its size plus the next row stays under the cap less :data:`RESERVE_BYTES` (the
-cap is :data:`MAX_SUMMARY_BYTES`; GitHub takes at most 1 MiB per step); the first row that does not fit is replaced
-by the truncation sentence, which ends the summary. The sentence holds no count: totals are elsewhere, sourced.
+The first line says what the numbers are not. For a plumbing plan, shard or report it is ``PLUMBING CHECK: no model
+was run``, or :data:`~lab.notes.PLUMBING_HOSTED_LINE` when it holds hosted units, whose calls go to the configured
+host even in a plumbing check (a plan shard with ``needs_secret``, a shard provenance with a ``hosted`` block, a
+report with ``hosted`` keys). It is ``NO MEASUREMENT: ...`` for a real shard or report without a unit of display
+class ``model`` or ``hosted-api`` (``units.display_class``; for a report, ``contains_measurements`` and
+``contains_hosted`` both not true); otherwise (such a unit present, or the class unknown: no provenance, plan or
+report) the summary starts with its heading. That first line is always kept. After it a summary holds whole rows
+only, while its size plus the next row stays under the cap less :data:`RESERVE_BYTES` (the cap is
+:data:`MAX_SUMMARY_BYTES`; GitHub takes at most 1 MiB per step); the first row that does not fit is replaced by the
+truncation sentence, which ends the summary. The sentence holds no count: totals are elsewhere, sourced.
 
 Exit 2 for a bad argument, an output that cannot be written or an output inside ``mycelic/``, ``research/``,
 ``NeuralGraph/`` or ``.github/``; else 0. Nothing is printed on stdout.
@@ -74,9 +76,9 @@ from .notes import (BRANCH_DELETED, COLUMNS, CPU_MODELS_DIFFER, DEFAULT_BRANCH, 
                     G0_BELOW_PROTOCOL, HEADINGS, HOSTED_COST_NOTE, HOSTED_SECRETS_MISSING, LOCK_CONFLICT_NOTE, LOCK_NEW,
                     LOCK_NOT_COMPUTED, LOCK_UNCHANGED, MERGE_SEVERAL, NO_MEASUREMENT_LINE, NO_PLAN, NO_REPORT,
                     NOT_A_BRANCH, NOT_PINNED, NOTES, OPENFDA_LABEL, OPENFDA_PUBLIC_FLAG, PLAN_FIX_HINT,
-                    PLUMBING_CHECK_LINE, PREREG_MISSING, SHEETS_LABEL, SIM_CHANNEL_LABELS, SIM_LIFT_LABELS, SIM_NOTES,
-                    SIM_WORLD_DIFFERS, SIM_WORLD_SAME, SIZING_NOTE, TRUNCATED, UNSEALED, WORLD_DIGEST_DIFFERS,
-                    WORLD_DIGEST_SAME, X1_LABEL)
+                    PLUMBING_CHECK_LINE, PLUMBING_HOSTED_LINE, PREREG_MISSING, SHEETS_LABEL, SIM_CHANNEL_LABELS,
+                    SIM_LIFT_LABELS, SIM_NOTES, SIM_WORLD_DIFFERS, SIM_WORLD_SAME, SIZING_NOTE, TRUNCATED, UNSEALED,
+                    WORLD_DIGEST_DIFFERS, WORLD_DIGEST_SAME, X1_LABEL)
 from .units import display_class
 
 MAX_SUMMARY_BYTES = 900_000
@@ -247,9 +249,9 @@ class _Doc:
         return "\n".join(self.lines) + "\n"
 
 
-def _first_line(doc: _Doc, plumbing: bool, measured: bool | None) -> None:
+def _first_line(doc: _Doc, plumbing: bool, measured: bool | None, hosted: bool = False) -> None:
     if plumbing:
-        doc.add(PLUMBING_CHECK_LINE, keep=True)
+        doc.add(PLUMBING_HOSTED_LINE if hosted else PLUMBING_CHECK_LINE, keep=True)
     elif measured is False:
         doc.add(NO_MEASUREMENT_LINE, keep=True)
 
@@ -291,7 +293,9 @@ def render_plan(root: Path, cap: int = MAX_SUMMARY_BYTES) -> tuple[str, list[dic
 
 def _render_plan_body(doc: _Doc, src: Sources, plan: Any) -> None:
     f = "plan.json"
-    _first_line(doc, _get(plan, "result_class") == "plumbing", None)
+    shards = _get(plan, "shards")
+    hosted = isinstance(shards, list) and any(_get(s, "needs_secret") is True for s in shards)
+    _first_line(doc, _get(plan, "result_class") == "plumbing", None, hosted)
     _heading(doc, "plan")
     request = _get(plan, "request")
     doc.add(f"\n- {COLUMNS['request']}: {code(_get(request, 'path'))}, {COLUMNS['name']} "
@@ -423,7 +427,8 @@ def render_shard(root: Path, cap: int = MAX_SUMMARY_BYTES) -> tuple[str, list[di
     sealed = isinstance(status, dict) and status.get("kind") == "lab_shard_status"
     records = [(rel, src.doc(rel)) for rel in _unit_files(root)] if sealed else []
     classes = [display_class(r, prov) if isinstance(r, dict) else "no-result" for _, r in records]
-    _first_line(doc, plumbing, ("model" in classes or "hosted-api" in classes) if prov is not None else None)
+    _first_line(doc, plumbing, ("model" in classes or "hosted-api" in classes) if prov is not None else None,
+                prov is not None and prov.get("hosted") is not None)
     shard = _get(status, "shard") if sealed else _get(prov, "shard")
     _heading(doc, "shard", suffix=f" {code(shard)}")
     if not sealed:
@@ -516,7 +521,8 @@ def render_report(root: Path, cap: int = MAX_SUMMARY_BYTES) -> tuple[str, list[d
 
     units = rows("units")
     _first_line(doc, report.get("result_class") == "plumbing",
-                report.get("contains_measurements") is True or report.get("contains_hosted") is True)
+                report.get("contains_measurements") is True or report.get("contains_hosted") is True,
+                isinstance(report.get("hosted"), dict) and bool(report["hosted"]))
     _heading(doc, "report")
     if isinstance(report.get("banner"), str):
         doc.add("\n" + report["banner"])

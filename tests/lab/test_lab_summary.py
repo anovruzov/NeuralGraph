@@ -415,15 +415,16 @@ class DryRunSummaryTests(unittest.TestCase):
         self.assertIn(notes.NO_REPORT, (self.work / "r.md").read_text(encoding="utf-8"))
 
     def test_new_notes_constants_digit_free(self) -> None:
-        names = ("PLUMBING_CHECK_LINE", "NO_MEASUREMENT_LINE", "TRUNCATED", "NO_PLAN", "NO_REPORT", "UNSEALED",
-                 "NOT_RUN", "NO_ARTIFACT", "OTHER_PLAN", "ALTERED", "AMBIGUOUS_ARTIFACTS", "FILES_DIFFER",
-                 "UNIT_RECORD_INVALID", "STEP_FAILED", "CPU_MODELS_DIFFER", "WORLD_DIGEST_DIFFERS", "WORLD_DIGEST_SAME",
-                 "NOT_PINNED", "DISPATCH_BY_HAND", "PLAN_FIX_HINT", "LOCK_UNCHANGED", "LOCK_NEW",
+        names = ("PLUMBING_CHECK_LINE", "PLUMBING_HOSTED_LINE", "NO_MEASUREMENT_LINE", "TRUNCATED", "NO_PLAN",
+                 "NO_REPORT", "UNSEALED", "NOT_RUN", "NO_ARTIFACT", "OTHER_PLAN", "ALTERED", "AMBIGUOUS_ARTIFACTS",
+                 "FILES_DIFFER", "UNIT_RECORD_INVALID", "STEP_FAILED", "CPU_MODELS_DIFFER", "WORLD_DIGEST_DIFFERS",
+                 "WORLD_DIGEST_SAME", "NOT_PINNED", "DISPATCH_BY_HAND", "PLAN_FIX_HINT", "LOCK_UNCHANGED", "LOCK_NEW",
                  "LOCK_CONFLICT_NOTE", "LOCK_NOT_COMPUTED", "G0_MODEL_PATH")
         values = [(name, getattr(notes, name)) for name in names]
         values += [(f"HEADINGS.{k}", v) for k, v in notes.HEADINGS.items()]
         values += [(f"COLUMNS.{k}", v) for k, v in notes.COLUMNS.items()]
         values += [(f"NOTES.{k}", v) for k, v in notes.NOTES.items()] + [("PLUMBING_BANNER", notes.PLUMBING_BANNER)]
+        values += [("PLUMBING_HOSTED_BANNER", notes.PLUMBING_HOSTED_BANNER)]
         self.assertEqual(notes.PLUMBING_CHECK_LINE, "PLUMBING CHECK: no model was run")
         for name, value in values:
             with self.subTest(name=name):

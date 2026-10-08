@@ -83,10 +83,11 @@ secret, 1000 with it; the plan job is told which by ``LAB_HAS_OPENFDA_KEY``).
 
 A fake model needs provider ``fake`` and a gguf model needs the server provider; a hosted model goes with either.
 ``provider: "fake"`` makes the whole run a plumbing check: nothing it writes measures a model (its hosted units still
-call the configured host, labelled plumbing). A hosted model runs only as an ``e1`` model or as ``e2.central``: one in
-``e2.models``, ``sim``, ``e3`` or ``g0`` is refused (:data:`HOSTED_PLACE`), and any other model kind outside
-:data:`SIM_KINDS` is refused for ``e1`` (where hosted is allowed), ``e2`` and ``sim``; each at
-``$.experiments.<block>.models[i]``, or at ``$.models[j]`` when the block names none.
+call the configured host, labelled plumbing, and the summaries say so with ``PLUMBING_HOSTED_LINE``). A hosted model
+runs only as an ``e1`` model or as ``e2.central``: one in ``e2.models``, ``sim``, ``e3`` or ``g0`` is refused
+(:data:`HOSTED_PLACE`), and any other model kind outside :data:`SIM_KINDS` is refused for ``e1`` (where hosted is
+allowed), ``e2`` and ``sim``; each at ``$.experiments.<block>.models[i]``, or at ``$.models[j]`` when the block names
+none.
 
 ``hosted`` is checked after every experiment block: it is required exactly when ``e1`` or ``e2.central`` uses a hosted
 model and then names exactly those models (unknown keys first, in sorted order, then each used key in sorted order),

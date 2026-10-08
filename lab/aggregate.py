@@ -108,7 +108,8 @@ from . import provision as lab_provision
 from . import units as lab_units
 from .manifest import ManifestError, load_manifest, lock_path
 from .notes import (ALTERED, AMBIGUOUS_ARTIFACTS, E1_COMPARE_FAILED, E1_NO_REFERENCE, FILES_DIFFER, NO_ARTIFACT,
-                    NOT_RUN, OTHER_PLAN, PLUMBING_BANNER, PREREG_MISSING, STEP_FAILED, UNIT_RECORD_INVALID, UNSEALED)
+                    NOT_RUN, OTHER_PLAN, PLUMBING_BANNER, PLUMBING_HOSTED_BANNER, PREREG_MISSING, STEP_FAILED,
+                    UNIT_RECORD_INVALID, UNSEALED)
 from .plan import SHARD_ID_RE, UNIT_ID_RE
 from .prereg import PreregError, load_prereg
 from .units import ADAPTERS, E2_SITE_LEDGERS, display_class, ledger_rows
@@ -852,12 +853,14 @@ def build_report(plan: dict[str, Any], plan_bytes: bytes, provision_dir: Path, s
     e1 = e1_block(plan, plan_path, e1_sources, out)
     sealed = [root.path for state, root in (states[s["shard"]] for s in plan["shards"])
               if state == "sealed" and root is not None]
+    hosted = hosted_totals(plan, sealed, hosted_sources)
     report = {
         "schema_version": 1, "kind": "lab_report", "result_class": plan.get("result_class"),
         "contains_measurements": any(u["display_class"] == "model" for u in units),
         "contains_hosted": (any(u["display_class"] == "hosted-api" for u in units)
                             or (e1 is not None and e1["display_class"] == "hosted-api")),
-        "banner": PLUMBING_BANNER if plan.get("result_class") == "plumbing" else None,
+        "banner": ((PLUMBING_HOSTED_BANNER if hosted else PLUMBING_BANNER) if plan.get("result_class") == "plumbing"
+                   else None),
         "request": {k: request.get(k) for k in ("path", "name", "sha256", "purpose")},
         "plan": {"sha256": plan_sha256, **{k: plan.get(k) for k in ("git_sha", "provider", "job_minutes",
                                                                      "max_parallel", "retention_days")}},
@@ -868,7 +871,7 @@ def build_report(plan: dict[str, Any], plan_bytes: bytes, provision_dir: Path, s
         "notes": {"cpu_models": cpu_models, "world_digest": world_digest_groups(g0),
                   "sim_world_digest": sim_world_groups(sim)},
         "skipped": plan.get("skipped", []), "ignored_artifacts": ignored,
-        "hosted": hosted_totals(plan, sealed, hosted_sources),
+        "hosted": hosted,
     }
     return report, merged
 

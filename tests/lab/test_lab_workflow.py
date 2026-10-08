@@ -2,7 +2,8 @@
 only lab commands, the token in one step, the openFDA key and the two hosted secrets each in exactly the plan step's
 presence flag and the run step's environment (the run step's only for the shards that need them), the preregistration
 step, job and step conditions, artifact names, the job clock and the cache paths. Every lab command in it must parse
-with that module's own argument parser.
+with that module's own argument parser. The plan job's self-test reads none of the files the founder is told to change:
+it passes in a copy of the checkout after those edits, and after they are broken.
 
 PyYAML reads the ``on:`` key as the boolean True, so the triggers are ``wf.get("on", wf.get(True))``. PyYAML is used
 here only; the lab itself never imports it.
@@ -10,15 +11,22 @@ here only; the lab itself never imports it.
 from __future__ import annotations
 
 import importlib
+import json
+import os
 import re
 import shlex
+import shutil
+import subprocess
+import tempfile
 import unittest
+from pathlib import Path
 from typing import Any, Iterator
 
 import yaml
 
 from lab import discover
-from tests.lab.helpers import ROOT
+from lab.manifest import load_manifest
+from tests.lab.helpers import ROOT, write_json
 from tests.mycelic.test_collective_guards import model_name_hits
 
 WORKFLOW = ROOT / ".github" / "workflows" / "mycelic-lab.yml"
@@ -323,6 +331,105 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(JOBS["run"]["needs"], ["plan", "provision"])
         upload = next(s for s in plan_steps if uses(s) == "actions/upload-artifact")
         self.assertEqual(upload["with"]["path"], "${{ runner.temp }}/lab-plan")
+
+
+# --------------------------------------------------------------------------------------------------- the self-test
+
+def checkout_copy(root: Path) -> Path:
+    """A checkout at ``root`` whose ``lab/``, ``mycelic/`` and ``tests/lab/`` are copies of this one's (the lab finds
+    the collective's packs under its own root) and whose other entries link to this one's, so a test can change the
+    lab's data files without touching the repository."""
+    root.mkdir()
+    ignore = shutil.ignore_patterns("__pycache__")
+    for entry in ROOT.iterdir():
+        if entry.name in ("lab", "mycelic"):
+            shutil.copytree(entry, root / entry.name, ignore=ignore)
+        elif entry.name not in (".git", "tests"):
+            (root / entry.name).symlink_to(entry)
+    (root / "tests").mkdir()
+    for entry in (ROOT / "tests").iterdir():
+        if entry.name == "lab":
+            shutil.copytree(entry, root / "tests" / "lab", ignore=ignore)
+        elif entry.name != "__pycache__":
+            (root / "tests" / entry.name).symlink_to(entry)
+    return root
+
+
+def founder_edits(root: Path) -> None:
+    """The edits the founder's guide asks for, made in the checkout at ``root``: the requests of The first runs, in
+    order (check-001, smoke-001, main-001, then the optional openFDA replay with its placeholders filled and the hosted
+    comparison), the committed lock, a hosted entry (Optional secrets), a new model (MODELS.md, Adding a model), and a
+    raised and a lowered context setting (Troubleshooting)."""
+    lab = root / "lab"
+    for name in ("check", "smoke", "main", "hosted-comparison"):
+        shutil.copy(lab / "templates" / f"{name}.json", lab / "requests" / f"{name}-001.json")
+    replay = json.loads((lab / "templates" / "openfda-replay.json").read_text(encoding="utf-8"))
+    replay["experiments"]["openfda"].update(product_codes=["AAA", "BBB", "CCC"], date_from="20240101",
+                                            date_to="20241229", manufacturers=["ACME Devices"],
+                                            partition_field="event_location", saw_recall_outcomes="no")
+    write_json(lab / "requests" / "openfda-replay-001.json", replay)
+    manifest = json.loads((lab / "models.json").read_text(encoding="utf-8"))
+    models = manifest["models"]
+    models["big-hosted"] = {"kind": "hosted", "model": "lab-hosted-test", "context_tokens": 32768,
+                            "response_format": "json_schema", "price": {"per_mtok_in": 1.0, "per_mtok_out": 2.0},
+                            "deadline_s": 300, "max_retries": 2}
+    models["c-1b"] = {"kind": "gguf", "alias": "lab-c-1b",
+                      "gguf": {"repo": "lab-test/c-1b", "file": "c-1b.gguf", "revision": "main", "license": "mit"}}
+    models["a-0p5b"]["ctx_per_slot"] *= 2
+    models["b-2b"]["e2_ctx_per_slot"] //= 2
+    write_json(lab / "models.json", manifest)
+    server, gguf = manifest["server"], models["a-0p5b"]["gguf"]
+    write_json(lab / "models.lock.json", {
+        "schema_version": 1, "server": {"tag": server["tag"], "asset": server["asset"], "sha256": "a" * 64},
+        "models": {"a-0p5b": {"repo": gguf["repo"], "file": gguf["file"], "revision": gguf["revision"],
+                              "commit": "b" * 40, "sha256": "c" * 64, "size": 1}}})
+
+
+class SelfTestTests(unittest.TestCase):
+    """The plan job runs ``SELF_TEST`` before it plans; a failure skips the plan and so every later job. It must
+    therefore pass whatever the founder did to ``lab/models.json``, ``lab/models.lock.json`` and ``lab/requests/``."""
+
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp(prefix="lab-selftest-"))
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.root = checkout_copy(self.tmp / "checkout")
+        self.env = {**os.environ, "PYTHONPATH": str(self.root), "PYTHONDONTWRITEBYTECODE": "1"}
+
+    def run_in_copy(self, argv: list[str]) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(argv, cwd=self.root, env=self.env, capture_output=True, text=True, timeout=900,
+                              stdin=subprocess.DEVNULL)
+
+    def test_the_self_test_is_the_plan_jobs_first_command(self) -> None:
+        commands = [s["run"] for s in steps("plan") if "run" in s]
+        self.assertEqual(commands[0], SELF_TEST)
+        self.assertEqual(steps("plan")[steps("plan").index(step("plan", "plan")) - 1].get("run"), SELF_TEST)
+
+    def test_after_the_founders_edits(self) -> None:
+        founder_edits(self.root)
+        manifest = load_manifest(self.root / "lab" / "models.json")
+        self.assertIsNotNone(manifest.lock.server)
+        self.assertEqual(sorted(manifest.lock.models), ["a-0p5b"])
+        self.assertLessEqual({"big-hosted", "c-1b"}, set(manifest.models))
+        self.assertEqual(len(list((self.root / "lab" / "requests").glob("*.json"))), 6)
+        done = self.run_in_copy(shlex.split(SELF_TEST))
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        done = self.run_in_copy(["python", "-m", "unittest", "tests.lab.test_lab_shipped",
+                                 "tests.lab.test_lab_docs.TemplateTests"])
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        done = self.run_in_copy(["python", "-m", "lab.plan", "--request", "lab/requests/check-001.json",
+                                 "--manifest", "lab/models.json", "--out", str(self.tmp / "plan")])
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        plan = json.loads((self.tmp / "plan" / "plan.json").read_text(encoding="utf-8"))
+        self.assertEqual([(p["entry"], bool(p["restore_key"])) for p in plan["provision"]],
+                         [("server", True), ("gguf-a-0p5b", True)])
+
+    def test_with_the_founders_files_broken(self) -> None:
+        lab = self.root / "lab"
+        (lab / "models.json").write_text("not json\n", encoding="utf-8")
+        (lab / "models.lock.json").write_text("not json\n", encoding="utf-8")
+        shutil.rmtree(lab / "requests")
+        done = self.run_in_copy(shlex.split(SELF_TEST))
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
 
 
 if __name__ == "__main__":

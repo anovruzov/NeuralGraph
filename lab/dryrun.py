@@ -20,7 +20,8 @@ per unit and the aggregate line. Without ``--openfda-base-url`` an openFDA unit 
 The plan reads ``LAB_HAS_HOSTED`` from the environment as the workflow's plan step does: unless it is ``true``, the
 hosted units are skipped. With it, and with the two hosted variables set (``lab.hosted``: the key and the base URL),
 the hosted units call the configured host for real (``--provider fake`` replaces only the local model server), and
-are still labelled plumbing.
+are still labelled plumbing; the summaries and the report then open with the hosted plumbing line and banner
+(``PLUMBING_HOSTED_LINE``, ``PLUMBING_HOSTED_BANNER``), never the claim that a fake answered every call.
 
 Exit 2 when the plan, the preregistration, the aggregate or a summary fails (or ``DIR`` is not empty); 1 when a unit
 did not run to a valid result (invalid, failed, timed out, interrupted or skipped, or a shard that did not finish);
