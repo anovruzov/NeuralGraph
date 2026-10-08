@@ -2529,3 +2529,247 @@ every control holding. No attack outcome of a rehearsal is reported anywhere: th
   a mismatch is a harness error, never a result.
 - **`run` names pin differences in two steps**: the code and pack hashes first (no world is built), then the copies'
   and the worlds' (after building them in the work directory).
+
+## B4 (round 4, gate 4 of 4): a third field as a data-only pack (it_incidents)
+
+B4 builds `it_incidents`, a built-in pack for the multi-site IT operations incidents of a fictional group (six
+subsidiaries, English and German), **as data only**, and records what the data could and could not express. It is the
+internal generality proxy of STRATEGY section 4.4: **same author as the generic code; internal only; not X3 by a
+non-author; not a buyer claim.** The AI system that wrote the generic code wrote the requirements, the pack and these
+tests, having read that code, so nothing here measures X3 (STRATEGY section 11.2) and no figure of it goes to a buyer.
+
+### B4a and B4b
+
+**B4a** (`b2bf466`, parent `1cee431`, the B3a commit) adds only `docs/collective/x3/REQUIREMENTS.md`: requirements
+R01 to R27 of the field, written before any file of the pack existed (`git ls-tree -r b2bf466 --
+mycelic/collective/packs/data/it_incidents` is empty). It is not edited afterwards; no requirement was added later
+(`effort.json` `requirements_added_after_b4a` is empty).
+
+**B4b** (the commit after B4a) adds the pack directory
+`mycelic/collective/packs/data/it_incidents/` (copied from `device_quality`, then every file rewritten; the openFDA
+mapping and the E2 plant spec deleted), `tests/mycelic/test_collective_x3.py`, the evidence under `docs/collective/x3/`
+(`scenario.json`, `effort.json`, `g0/leakage.json`, `x1_smoke/{prereg,labels,scorecard}.json` and the six demo run
+files under `demo/x3-it-incidents-demo/`), generalised loops in ten collective test modules, and this section, `PACKS.md`
+sections 1 to 4 and `ARCHITECTURE.md` section 11.5.
+
+**Zero code change.** `git diff --numstat 1cee431 -- mycelic demo ':(exclude)mycelic/collective/packs/data/it_incidents'`
+is empty and so is `git ls-files --others --exclude-standard` over the same pathspec: no file under `mycelic/` or
+`demo/` outside the pack directory was changed or added. No gap blocked the loader check, G0, the X1 smoke or the demo,
+so none was fixed. `EffortTests` recomputes this.
+
+**The it_incidents hashes** (`B4_HASHES` in `tests/mycelic/test_collective_pushdown.py`; `PACKS.md` section 2):
+
+| Hash | Value |
+|---|---|
+| `config_hash` | `946becb0adece13f2274bf70eb33af81541a98e0587efbd43377c51b52cb29ac` |
+| `vocabulary_hash` | `95f71002cfe225ff5e7254c7d3dec34d9aa0aad351fdc1312ea62d5152afc6b5` |
+| `detector_hash` | `8dfb97e3ddc76743dc217da9e4cbd712e90f54322616780107f13f4f03b99ffb` |
+| `fixtures_hash` | `f562c907631d25d9a7ccd64752df69d1bb5cbffcdac488f8a335818af45ac14e` |
+
+**Unchanged hashes.** The code hashes equal B3a's: X1 (`harness.eval_code_hash()`)
+`e7d5d82e3b9805358718b5927b6cca89bb4912c733fccd7f14c89f61a9234161`, E1 (`e1_extract.e1_code_hash()`)
+`07c08295d7eeeff6eadcaa1db80ee5004b3dacf3ceb415c1e3ae126ca67ec229`, E2 (`e2_pushdown.e2_code_hash()`)
+`7428e57c6c9e2b5f4e7d7a93d80a45bc4a06694a3d01b274c12617e69b1d32be`, the openFDA replay
+(`openfda_replay.replay_code_hash()`) `452219e81aa711fb97387d8bc5da9663e7765af8f8f5b17ae6617e8acb0b9525` and X5
+(`x5_inference.x5_code_hash()`) `dea481ca619129e1f42f685256834e81ec76e27995287fb21b54c33025d01816`; none of them hashes
+pack data. `device_quality` and `claims_integrity` keep their G5 hashes with B1's config hash
+(`test_every_builtin_pack_is_pinned`). The X1 smoke prereg's `code_hash` equals `harness.eval_code_hash()`.
+
+**The pack, in short.** Entity types `it_service` (alias-only, eight services, English and German phrasings and
+acronyms as aliases), `config_item` (host names `aaa-bb(bb)-nnnn`, lower case, **the first built-in type that never
+leaves a site**: `egress` false, `entities.config_item` a never field, counted by `build_cells` as `non_egress_type`),
+`software_release` (`REL/nnnn/nn`, with slashes), `vendor` (`VND-nnnn`, names as aliases) and `change_request`
+(`CHG` plus seven digits); eleven failure-mode predicates and the generic `incident_unspecified`; codes `ITC-*` mapped
+from tool labels; an export mapping with a journal filter (work notes and comments only); k 3, close lag 14 days;
+`detectors.json` a byte copy of the template's; three rules, none on (`software_release`, `crash_after_update`);
+follow-ups `evidence_packet`, `problem_record_draft` (owner `problem_manager`) and `vendor_escalation_draft` (owner
+`vendor_manager`, proposable only on vendor keys); 46 hand-labelled fixtures; `fixtures/plant_smoke.json` (three
+patterns, one decoy per class, a construction smoke, not blind, never a result). No pack term had to be renamed
+(`effort.json` `term_renames` is empty); the data choices made to fit the generic code are `fit_to_code_choices`.
+
+### B4 effort and evidence (pointers)
+
+Every effort and evidence figure is in the committed files; this table only points at them (`PointerTests` resolves
+each row).
+
+| Pointer | What it holds |
+|---|---|
+| `docs/collective/x3/effort.json#/totals` | files, lines and bytes of the pack directory, and its lines changed against the template |
+| `docs/collective/x3/effort.json#/files` | the same per file |
+| `docs/collective/x3/effort.json#/code_lines_changed` | code lines changed outside the pack directory |
+| `docs/collective/x3/effort.json#/code_numstat` | the numstat those lines come from |
+| `docs/collective/x3/effort.json#/test_lines_added` | test lines added and deleted, per test module |
+| `docs/collective/x3/effort.json#/docs_lines_added` | doc lines added and deleted under `docs/collective/*.md` |
+| `docs/collective/x3/effort.json#/requirements` | per requirement: status and how |
+| `docs/collective/x3/effort.json#/gaps` | the generality gaps |
+| `docs/collective/x3/effort.json#/presentation_gaps` | device nouns in the demo's screen texts |
+| `docs/collective/x3/effort.json#/logic_gaps` | demo checks whose meaning does not fit the field |
+| `docs/collective/x3/effort.json#/fixture_lexical_f1` | the lexical extractor on the fixtures (hand-labelled by the same author; not a measurement) |
+| `docs/collective/x3/effort.json#/fixture_disagreements` | the fixtures where it differs from the labels |
+| `docs/collective/x3/effort.json#/attempts` | every G0, X1 smoke and demo attempt |
+| `docs/collective/x3/effort.json#/wall_clock` | the AI agent's wall clock per milestone, not engineer-hours |
+| `docs/collective/x3/g0/leakage.json#/hits` | G0's canary hits (1,000 records, seed 11) |
+| `docs/collective/x3/g0/leakage.json#/shingle_overlap_bytes` | G0's narrative overlap |
+| `docs/collective/x3/g0/leakage.json#/positive_control` | the scanner's positive control |
+| `docs/collective/x3/x1_smoke/scorecard.json#/channels` | the X1 construction smoke per channel (synthetic, same author, not a measurement) |
+| `docs/collective/x3/x1_smoke/scorecard.json#/x1` | why the smoke does not count as X1 |
+| `docs/collective/x3/demo/x3-it-incidents-demo/scorecard.json#/checks` | the demo's checks |
+| `docs/collective/x3/demo/x3-it-incidents-demo/scorecard.json#/hero/detection` | X, S, R-mf, U and single site on the demo's hero key |
+
+### Gaps, by name
+
+**Generality gaps** (`effort.json` `gaps`; each symptom is reproduced by `GapTests` on a copy of the pack; none
+blocking, none fixed): G4-01 a separator other than `-` or `/` (addresses, FQDNs, host:port; R03); G4-02 dotted
+versions (R04); G4-03 two-hop links (R06); G4-04 sub-day timestamps (R10); G4-05 priority as a field or a code (R09);
+G4-06 an alias-only id as its own acronym (R05); G4-07 change windows (R07); G4-08 alert storms in the background world
+(R11); G4-09 a rising generic-code rate in the background world (R15); G4-10 locales as languages (R26); G4-11 HTML
+paragraphs as one sentence (R18); G4-12 German separable verbs, G4-13 unlisted inflections and compounds, G4-14
+negation beyond the token window (all R13); G4-15 sentence-level pairing (R17); G4-16 per-subsidiary host universes
+(R02); G4-17 the generator's ticket-number form (R01); G4-18 forwards re-keyed without their origin (R12).
+
+**Presentation gaps** (`effort.json` `presentation_gaps`, recomputed by `EffortTests` from the files): device-field
+nouns ("plant", "complaint") in `demo/collective/screen.py` (`SINGLE_NO_LATER`, `SINGLE_LATER`, `NOT_ASKED`,
+`PREPARING`, `TASK_TEXTS`, `ROLE_TEXTS` and texts of `_problem`, `_check` and `_followup`) and in
+`collective_demo.CHECK_TEXTS`; `console.html` holds none. The IT demo's screen therefore says "plants" for
+subsidiaries and "complaints" for tickets. Not fixed in this gate (the brief: never fixed here); the number lint passes.
+
+**Logic gaps**: none; every check of the demo is ok.
+
+### Evidence runs, allow-dirty and attempts
+
+- **Loader check**: `python -m mycelic.collective.packs.loader check it_incidents` printed `pack: it_incidents 0.1.0
+  (source builtin)` and the four hashes above.
+- **G0**: `--pack it_incidents --records 1000 --seed 11` passed; `leakage.json` is copied byte-identical. Its
+  `known_limitation` is empty (the pack has `require_master_data` on).
+- **X1 smoke**: `prereg`, `check-plant --construct` and `run` (run ids `x3-smoke-prereg`, `x3-smoke-run`, one seed,
+  104 weeks, evaluation weeks 26 to 103) each exited 0. **The pack was untracked when it ran, so the harness needed
+  `--allow-dirty`**: the prereg and the scorecard stamp it (`allow_dirty` true, `code.code_dirty` true). It is a
+  construction smoke on a same-author plant, not an evaluation and not X1. `prereg.json` and `labels.json` are
+  byte-identical copies; in `scorecard.json` only `paths` was rewritten to repository-relative or `<runs-dir>/...`
+  strings (`paths` is outside `content_hash`, which recomputes unchanged). **In this smoke X did not beat single-site
+  or U**: X recalled fewer of the planted patterns than single-site and U, which recalled all of them, and S and R-mf
+  recalled none (`/channels`). On a same-author plant that says nothing about X1 either way.
+- **Demo**: `docs/collective/x3/scenario.json` (schema version 1 keys only) puts a desktop-client release
+  (`software_release`) crashing after an update, written only in ticket narratives in English and German, at three
+  subsidiaries, with a sibling, a generic-category rise, a marked echo and an alert storm as decoys. Its illustration
+  says it is a constructed illustration for an internal generality check of a third field, not evidence that codes
+  miss such cases. `--record` passed every check and `lint_numbers.py` passes on the committed copy; a fresh
+  `--record` reproduces its `content_hash` (`DemoTests`).
+- **Attempts**: one G0 trial at 200 records before the evidence run and two evidence runs; two X1 smoke attempts;
+  four demo recordings, every check ok each time: a trial from a scratch copy of the scenario, the same bytes from
+  `docs/collective/x3/scenario.json` (the same `content_hash`), a run after two decoy labels were reworded to hold no
+  number word (the lint had passed, since decoy labels are run-file values, not static screen text), and the committed
+  run. The second G0 evidence run, the second X1 smoke attempt and the fourth recording were made in review round 1,
+  after fixture `INC0100045` was relabelled (below): the fixtures hash changed, the X1 prereg and scorecard and the
+  demo scorecard carry it, and a generated world's parameters carry it too, so G0's `world_digest` changed. G0's
+  result, the X1 channel results and the demo's checks are the same as before. All are listed in `effort.json`
+  `attempts`.
+- **Review round 1 changes to the evidence**: fixture `INC0100045` (a certificate expired on a host overnight, "with
+  no impact on the mail service") had labelled the mail service with a negated certificate expiry; the text negates
+  an impact, not an expiry, so the mail service is now an entity-only claim (predicate null). The lexical extractor
+  still disagrees (it gives the mail service the expiry), so the disagreement stays, now under R17 (G4-15). R03 is
+  `not_expressible` (addresses, host:port pairs and fully qualified host names cannot be recognised at all; they stay
+  in only because the narrative never leaves) and R05 `approximated` (the ids are descriptive because an id cannot be
+  its own acronym, G4-06). `wall_clock` `end` is the end of the review round's revision, so the span from
+  `evidence_done` to `end` includes the time the work waited for review.
+
+### Scope and the shallow-clone behaviour
+
+**B2's sealed X1 stays scoped to `device_quality` and `claims_integrity`.** `docs/collective/x1/PLANTER_BRIEF.md`
+(frozen at B2a) names "the two built-in packs" and those two; so do `RESULTS_TEMPLATE.md`, `b1/PREREG.md`, LEAKAGE
+section 12 and the B2 and B3 RUNBOOK sections. None was edited. `it_incidents` is outside B2's and B3's frozen scope;
+`LoopCoverageTests` excludes `test_collective_x1_sealed.py` and `test_collective_x5.py` by name for that reason.
+
+**The git checks of `EffortTests`** compare base `1cee431` with the commit that added `docs/collective/x3/effort.json`
+(`git log --diff-filter=A --format=%H -- docs/collective/x3/effort.json`), or with the worktree plus its untracked
+files while that commit does not exist yet, so later commits never change them. In a shallow clone without the base
+commit (the main CI's `checkout@v4` fetches depth 1), they assert that `git rev-parse --is-shallow-repository` prints
+`true` and then check only the internal consistency of the recorded numbers.
+
+### Test counts (sandbox timing, not a product figure)
+
+Both suites with `TMPDIR` on tmpfs and `nats-server` on the path; the 1cee431 column is the same command on an export
+of that commit (B3a), run in this sandbox the same day, directly after the B4b run. Both runs in the table had the
+sandbox to themselves and are review round 1's.
+
+| Command | 1cee431 | B4b (this worktree) |
+|---|---|---|
+| `python -m pytest tests/mycelic -q -p no:warnings` | 1122 passed (27,940 subtests), 0 skipped, in 754 s | 1158 passed (39,772 subtests) = 1122 + 36 new, 0 skipped, in 806 s |
+| `python -m pytest NeuralGraph/tests -q -p no:warnings` | 222 passed, 1 skipped (119 subtests) in 5 s | 222 passed, 1 skipped (119 subtests) in 4 s; the skip is the pre-existing one |
+
+The suite takes 53 s longer (806 s against 754 s). Run-to-run noise here is of the same order: the first round's runs
+gave 752 s and 728 s for 1cee431 (the second while other work shared the sandbox) and 814 s for B4b, so the added time
+is known only to within that noise. The 36 new tests are 32 in `test_collective_x3.py` (18 s on its own, 11 s of it
+the fresh demo recording of `DemoTests` and 2 s the small G0 run of `PipelineTests`), the three `LoopCoverageTests` in
+`test_collective_guards.py` (2 s) and `test_every_builtin_pack_is_pinned` in `test_collective_packs.py`. The ten
+renamed tests (below) are counted once each, not as new. The 11,832 further subtests are the generalised loops running
+on `it_incidents` too and the subtests of the new tests. No test was skipped, removed or weakened.
+
+In the first round, a full run on this worktree ended with 1 failed and 1157 passed:
+`EffortTests::test_closed_header_statement_and_labels` failed on a provisional `effort.json` whose `end` had been logged
+before a re-logged `evidence_done`. The test was right; `end` was logged again and `effort.json` regenerated. In
+review round 1 the full runs above were made before the last edits, which were a docstring in
+`test_collective_guards.py` and this section's figures; `effort.json` was regenerated after them, and
+`test_collective_x3.py` and `test_collective_guards.py` were run again (both pass).
+
+### Earlier tests whose expectation changed
+
+- `test_collective_guards.py`: `test_terms_cover_both_packs` became `test_terms_cover_every_builtin_pack` (each
+  built-in pack's own terms are non-empty and in the scanned set, plus the old assertions); `pack_terms` reads every
+  built-in pack; new `BUILTIN_PACKS` and `LoopCoverageTests` (the generalised collections and tables equal the built-in
+  packs; an AST scan finds every for loop or comprehension over a literal tuple, list or set whose elements name two
+  or more distinct built-in packs anywhere inside them, as bare ids, table rows, call arguments or module-level names
+  bound to a pack, and each one must be in `PACK_SPECIFIC_LOOPS`, keyed by file and the qualified name of its
+  enclosing function, with its reason). Review round 1 found that the scan's first version looked only at a row's
+  first element, so it missed two literal loops of `G0RunnerTests` in `test_collective_leakage.py`; the scan now
+  walks every element, and its self-test flags rows like `("dq-on", "device_quality")` and calls like
+  `args("claims_integrity", ...)`.
+- Generalised to every built-in pack (each loop or table now also runs on `it_incidents`): `test_collective_packs.py`
+  (`PACKS`, `EGRESS_EXPECTED`, the hash subprocess, new `test_every_builtin_pack_is_pinned`),
+  `test_collective_extract.py` and `test_collective_e1.py` (`PACKS`, `WORLDS`; `test_claims_integrity_reduced_smoke`
+  became `test_reduced_smoke_on_every_other_builtin_pack`, with the exact-match types read from each pack and still
+  `[clinic, repair_shop]` for the claims pack), `test_collective_edge.py` and `test_collective_leakage.py` (`PACK_IDS`,
+  `KEY`; `test_every_class_on_both_packs` renamed), `test_collective_pushdown.py` (`PACKS`, template coverage, the
+  judge on fixtures and on a world, the G0 pushdown-stage runs;
+  `test_both_packs_pass_with_every_pushdown_artifact_scanned` renamed), `test_collective_detect.py` (`PACKS`, `VOCAB`,
+  new `DETECTOR_DEFAULTS`; `test_both_packs_load_with_the_documented_values` and `test_generated_worlds_of_both_packs`
+  renamed), `test_collective_followup.py` (the G0 follow-up-stage runs and the E5 smoke over `E5_INJECTIONS`;
+  `test_both_packs_pass_with_every_follow_up_artifact_scanned` renamed), `test_collective_evaluate.py`
+  (`SMOKE_FIXTURES`; `test_both_smoke_fixtures_parse_and_check` became
+  `test_every_builtin_smoke_fixture_parses_and_checks`; the stale-chain test and the plant-file listing test),
+  `test_collective_leakage.py` `G0RunnerTests` (the master-data-on G0 run of every built-in pack, `ON_RUNS`, one more
+  1,000-record run for `it_incidents`; `test_master_data_on_for_both_packs` became
+  `test_master_data_on_for_every_builtin_pack` and `test_run_files_stage_both_packs` became
+  `test_run_files_stage_every_builtin_pack`).
+- Unchanged and pack-specific (`PACK_SPECIFIC_LOOPS`): the hash-history tests of the two original packs, the G6
+  pushdown values and follow-up settings, the device pack's supplier-keyed draft, the store-mismatch cases, and
+  `G0RunnerTests`' single-pack option cases (master data off on the device pack, the claims pack's default, lexical
+  mode).
+
+### Merge notes
+
+1. **The lab is untouched.** Nothing under `lab/` or `.github/` changed; the new pack is simply available to any
+   harness that takes `--pack`, and the cloud lab can run its fixtures as they are.
+2. **Existing hashes are unchanged**, code and pack (above), so no prereg is invalidated and no recorded run changes;
+   `demo/collective/recorded/**` and `demo/collective/scenario.json` were not touched.
+3. **Suites take longer**: every generic per-pack test now also runs on `it_incidents` (one more G0 run in each of the
+   pushdown and follow-up stage classes and in `G0RunnerTests`, one more E5 smoke, one more E1 reduced smoke, more
+   worlds), plus
+   `test_collective_x3.py` (one demo recording, one small G0 run, an in-test prereg). The measured time is above.
+4. **A merge that adds a fourth built-in pack** fails `LoopCoverageTests` until the pack's rows are added to the
+   generalised tables, and `test_every_builtin_pack_is_pinned` until its hashes are pinned.
+
+### Disagreements and residuals, for the reviewer
+
+- **No numeric floor on the fixtures' lexical F1.** A floor would pull labels toward the extractor; the fixtures are
+  labelled from the text and the five disagreements are recorded with their gaps (`fixture_disagreements`).
+- **The background world cannot show storms or a rising generic category** (G4-08, G4-09); the X1 plant and the demo
+  scenario construct them. The generator's ticket numbers are not INC numbers (G4-17), while the fixtures and the
+  export test use INC numbers.
+- **Presentation gaps are left as they are**: the demo's screen speaks of plants and complaints for an IT group. A
+  generic fix (pack-supplied site and record nouns) would change `screen.py`, which this gate may not.
+- **The demo's background is the pack's generic world**: R-mf does not catch the hero key, but its related alerts hold
+  a generic-code key of one of the hero's services at rank 1 (`hero/detection` in the demo scorecard). The IT scenario
+  is an illustration for this generality check, not B1's codes-miss case.
+- **`effort.json` is evidence of the same author's work**; the wall clock is an AI agent's, not engineer-hours, and
+  says nothing about X3.

@@ -53,6 +53,7 @@ from mycelic.collective.jsonio import canonical_bytes, sha256_hex, strict_load
 from mycelic.collective.packs.canonical import Canonicaliser
 from mycelic.collective.packs.loader import BUILTIN_ROOT, FrozenPack, freeze, load_pack, thaw
 from tests.mycelic.test_collective_edge import pack_copy, record, universe_master
+from tests.mycelic.test_collective_guards import BUILTIN_PACKS
 from tests.mycelic.test_collective_leakage import run_main
 from tests.mycelic.test_collective_pushdown import (AS_OF, B1_CONFIG_HASHES, G5_HASHES, G6_CONFIG_HASHES,
                                                     G7_CONFIG_HASHES, R2_CONFIG_HASHES, Clock, MiniWorld,
@@ -2626,6 +2627,11 @@ def e5_argv(pack: str, out: Path, entity_type: str, injected: str, *extra: str) 
             injected, "--out", str(out), *extra]
 
 
+# per built-in pack: the egress id-format type and the canonical id the smoke injects (in no world and no config text)
+E5_INJECTIONS = {"device_quality": ("supplier", "V9999"), "claims_integrity": ("repair_shop", "RS-99999"),
+                 "it_incidents": ("vendor", "VND-9999")}
+
+
 class InjectionSmokeTests(unittest.TestCase):
     """E5 as a synthetic plumbing smoke (not E5): the lexical extractor or a fake replaying it, simulated approvals."""
 
@@ -2634,8 +2640,7 @@ class InjectionSmokeTests(unittest.TestCase):
         cls._tmp = tempfile.TemporaryDirectory()
         cls.tmp = Path(cls._tmp.name)
         cls.runs = {}
-        for pack, entity_type, injected in (("device_quality", "supplier", "V9999"),
-                                            ("claims_integrity", "repair_shop", "RS-99999")):
+        for pack, (entity_type, injected) in E5_INJECTIONS.items():
             out = cls.tmp / pack
             cls.runs[pack] = (run_e5(e5_argv(pack, out, entity_type, injected)), out)
 
@@ -2644,8 +2649,7 @@ class InjectionSmokeTests(unittest.TestCase):
         cls._tmp.cleanup()
 
     def test_no_injected_id_reaches_any_follow_up_artifact(self) -> None:
-        for pack, (entity_type, injected) in (("device_quality", ("supplier", "V9999")),
-                                              ("claims_integrity", ("repair_shop", "RS-99999"))):
+        for pack, (entity_type, injected) in E5_INJECTIONS.items():
             with self.subTest(pack=pack):
                 (code, out, err), path = self.runs[pack]
                 self.assertEqual(code, 0, out + err)
@@ -2745,7 +2749,7 @@ class LeakageStageTests(unittest.TestCase):
         cls._tmp = tempfile.TemporaryDirectory()
         cls.tmp = Path(cls._tmp.name)
         cls.runs = {}
-        for name in ("device_quality", "claims_integrity"):
+        for name in BUILTIN_PACKS:
             argv = g0_argv(name, cls.tmp / name)
             code, out, err = run_main(argv)
             cls.runs[name] = (code, out + err, cls.tmp / name)
@@ -2754,8 +2758,8 @@ class LeakageStageTests(unittest.TestCase):
     def tearDownClass(cls) -> None:
         cls._tmp.cleanup()
 
-    def test_both_packs_pass_with_every_follow_up_artifact_scanned(self) -> None:
-        for name in ("device_quality", "claims_integrity"):
+    def test_every_builtin_pack_passes_with_every_follow_up_artifact_scanned(self) -> None:
+        for name in BUILTIN_PACKS:
             with self.subTest(pack=name):
                 code, output, out = self.runs[name]
                 self.assertEqual(code, 0, output)
@@ -2784,7 +2788,7 @@ class LeakageStageTests(unittest.TestCase):
                                  len([r for r in read_log(out / "hq" / "receive.jsonl")
                                       if r["artifact_type"] == "packet"]))
                 approvers = json.loads((out / "followup" / "approvers.json").read_text(encoding="utf-8"))
-                pack = DQ if name == "device_quality" else CI
+                pack = load_pack(name)
                 self.assertEqual([a["person_label"] for a in approvers["approvers"]],
                                  [f"g0-{role}" for role in sorted(pack.roles)])
                 for line in (out / "followup" / "outbox.jsonl").read_bytes().splitlines():

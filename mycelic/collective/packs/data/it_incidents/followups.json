@@ -1,0 +1,160 @@
+{
+  "roles": {
+    "it_operations_lead": {
+      "label": "IT operations lead"
+    },
+    "problem_manager": {
+      "label": "Problem manager"
+    },
+    "vendor_manager": {
+      "label": "Vendor manager"
+    }
+  },
+  "types": {
+    "evidence_packet": {
+      "label": "Evidence packet assembled at each subsidiary",
+      "tier": "T0",
+      "enabled": true,
+      "executor": "packet",
+      "args_schema": {
+        "conclusion": {
+          "kind": "conclusion_id"
+        }
+      },
+      "draft_schema": null,
+      "template": null,
+      "owner_role": "problem_manager",
+      "daily_cap": 50,
+      "ack_days": 2,
+      "escalate_to_role": null
+    },
+    "problem_record_draft": {
+      "label": "Draft a problem record for the problem manager",
+      "tier": "T1",
+      "enabled": true,
+      "executor": "draft",
+      "args_schema": {
+        "conclusion": {
+          "kind": "conclusion_id"
+        },
+        "impact": {
+          "kind": "enum",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      },
+      "draft_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "affected_releases",
+          "affected_services",
+          "problem_statement",
+          "title",
+          "workaround"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "problem_statement": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "workaround": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "affected_releases": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          "affected_services": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        }
+      },
+      "template": {
+        "title": "headline",
+        "problem_statement": [
+          "summary",
+          "evidence"
+        ],
+        "workaround": "for_owner",
+        "affected_releases": "entity_ids:software_release",
+        "affected_services": "entity_ids:it_service"
+      },
+      "owner_role": "problem_manager",
+      "daily_cap": 10,
+      "ack_days": 5,
+      "escalate_to_role": "it_operations_lead"
+    },
+    "vendor_escalation_draft": {
+      "label": "Draft a vendor escalation for the vendor manager",
+      "tier": "T1",
+      "enabled": true,
+      "executor": "draft",
+      "args_schema": {
+        "conclusion": {
+          "kind": "conclusion_id"
+        },
+        "vendor_id": {
+          "kind": "entity_id",
+          "entity_type": "vendor"
+        }
+      },
+      "draft_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "issue_summary",
+          "requested_actions",
+          "title"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "issue_summary": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "requested_actions": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "type": "string",
+              "maxLength": 400
+            }
+          }
+        }
+      },
+      "template": {
+        "title": "headline",
+        "issue_summary": [
+          "summary",
+          "evidence"
+        ],
+        "requested_actions": "for_owner"
+      },
+      "owner_role": "vendor_manager",
+      "daily_cap": 5,
+      "ack_days": 10,
+      "escalate_to_role": "it_operations_lead"
+    }
+  }
+}

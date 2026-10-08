@@ -1,0 +1,67 @@
+{
+  "ITC-1100": {
+    "label": "Application error after an update, illustrative placeholder",
+    "predicate": "crash_after_update",
+    "specific": true
+  },
+  "ITC-1200": {
+    "label": "Certificate problem, illustrative placeholder",
+    "predicate": "certificate_expiry",
+    "specific": true
+  },
+  "ITC-1300": {
+    "label": "Storage capacity, illustrative placeholder",
+    "predicate": "disk_full",
+    "specific": true
+  },
+  "ITC-1400": {
+    "label": "Application memory problem, illustrative placeholder",
+    "predicate": "memory_leak",
+    "specific": true
+  },
+  "ITC-1500": {
+    "label": "Authentication problem, illustrative placeholder",
+    "predicate": "login_failure",
+    "specific": true
+  },
+  "ITC-1600": {
+    "label": "Backup job failure, illustrative placeholder",
+    "predicate": "backup_failure",
+    "specific": true
+  },
+  "ITC-1700": {
+    "label": "Performance degradation, illustrative placeholder",
+    "predicate": "latency_degradation",
+    "specific": true
+  },
+  "ITC-1800": {
+    "label": "Network packet loss, illustrative placeholder",
+    "predicate": "packet_loss",
+    "specific": true
+  },
+  "ITC-1900": {
+    "label": "Data synchronisation problem, illustrative placeholder",
+    "predicate": "data_sync_failure",
+    "specific": true
+  },
+  "ITC-2000": {
+    "label": "Licence capacity, illustrative placeholder",
+    "predicate": "license_exhausted",
+    "specific": true
+  },
+  "ITC-2100": {
+    "label": "Failed change, illustrative placeholder",
+    "predicate": "failed_change",
+    "specific": true
+  },
+  "ITC-9000": {
+    "label": "Incident, other or unspecified (illustrative)",
+    "predicate": "incident_unspecified",
+    "specific": false
+  },
+  "ITC-9100": {
+    "label": "Incident without an identified cause (illustrative)",
+    "predicate": "incident_unspecified",
+    "specific": false
+  }
+}

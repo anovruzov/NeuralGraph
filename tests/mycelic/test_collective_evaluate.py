@@ -39,7 +39,7 @@ from mycelic.collective.packs.connector import record_problems
 from mycelic.collective.packs.generator import generate
 from mycelic.collective.packs.loader import BUILTIN_ROOT, PackError, load_pack
 from tests.mycelic.test_collective_edge import _SQL_STATEMENT, Clock, db_rows, pack_copy, string_constants
-from tests.mycelic.test_collective_guards import EVALUATE_FILES, path_snapshot
+from tests.mycelic.test_collective_guards import BUILTIN_PACKS, EVALUATE_FILES, path_snapshot
 from tests.mycelic.test_collective_pushdown import B1_CONFIG_HASHES, G7_CONFIG_HASHES, R2_CONFIG_HASHES
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -49,6 +49,11 @@ DQ_SMOKE = BUILTIN_ROOT / "device_quality" / "fixtures" / "plant_smoke.json"
 CI_SMOKE = BUILTIN_ROOT / "claims_integrity" / "fixtures" / "plant_smoke.json"
 DQ_SITES = [s["id"] for s in DQ.generator["sites"]]
 DQ_SEED, CI_SEED = 11, 5
+# per built-in pack: its smoke plant spec, the world seed its check uses and the end weeks a stale chain may have with
+# eval_from 26 (device and it_incidents: stale_days 42, lag 14, so end <= 21; claims: 56 and 21, so end <= 20)
+SMOKE_FIXTURES = {"device_quality": (DQ_SMOKE, DQ_SEED, (19, 20, 21)),
+                  "claims_integrity": (CI_SMOKE, CI_SEED, (19, 20)),
+                  "it_incidents": (BUILTIN_ROOT / "it_incidents" / "fixtures" / "plant_smoke.json", 7, (19, 20, 21))}
 EVAL_FROM, EVAL_TO, WEEKS = 26, 51, 52
 W = B.world_weeks(DQ.generator["start"], WEEKS)
 R_MF_LABEL = ("R (model-free): the same detectors over record-level, unsuppressed counts built only from the pack's "
@@ -295,8 +300,9 @@ class PlantCase(unittest.TestCase):
 
 
 class PlantSpecTests(PlantCase):
-    def test_both_smoke_fixtures_parse_and_check(self) -> None:
-        for pack, path, seed in ((DQ, DQ_SMOKE, DQ_SEED), (CI, CI_SMOKE, CI_SEED)):
+    def test_every_builtin_smoke_fixture_parses_and_checks(self) -> None:
+        for pid, (path, seed, _) in SMOKE_FIXTURES.items():
+            pack = load_pack(pid)
             with self.subTest(pack=pack.id):
                 spec = P.load_plant(path, pack)
                 self.check(spec, pack, generate(pack, seed, 6, WEEKS))
@@ -308,7 +314,7 @@ class PlantSpecTests(PlantCase):
                 self.assertEqual({p.visibility for p in spec.patterns}, {"narrative_only"})
 
     def test_the_loader_accepts_plant_files_and_hashes_none_of_them(self) -> None:
-        for pid in ("device_quality", "claims_integrity"):
+        for pid in BUILTIN_PACKS:
             with self.subTest(pack=pid):
                 base = load_pack(pid)
                 copy_pack = pack_copy(self.tmp, pid)
@@ -542,8 +548,8 @@ class PlantSpecTests(PlantCase):
         # of its watch span, so window arithmetic, not G4's stale filter, kept it quiet. Now its last week must be
         # stale at eval_from's own as_of (at least Sunday + close_lag_days) and its first week inside eval_from's
         # window. Device (stale_days 42, lag 14): end <= 21; claims (stale_days 56, lag 21): end <= 20; both start >= 19
-        for pack, path, seed, legal_ends in ((DQ, DQ_SMOKE, DQ_SEED, (19, 20, 21)),
-                                             (CI, CI_SMOKE, CI_SEED, (19, 20))):
+        for pid, (path, seed, legal_ends) in SMOKE_FIXTURES.items():
+            pack = load_pack(pid)
             world = generate(pack, seed, 6, WEEKS)
             raw = json.loads(path.read_text(encoding="utf-8"))
             index = next(i for i, d in enumerate(raw["decoys"]) if d["class"] == "stale_chain")

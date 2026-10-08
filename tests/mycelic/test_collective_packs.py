@@ -1,6 +1,6 @@
 """Domain packs: loading, freezing and hashing, malformed packs, id formats, the canonicaliser, the disclaimer, the
-seeded world generator and the connector. Everything runs on the two built-in packs or on copies of them in a
-temporary directory; nothing touches the network.
+seeded world generator and the connector. Everything runs on the built-in packs (every generic check on each of
+them, B4) or on copies of them in a temporary directory; nothing touches the network.
 """
 from __future__ import annotations
 
@@ -28,9 +28,13 @@ from mycelic.collective.packs.connector import ConnectorError, check_record, map
 from mycelic.collective.packs.generator import GeneratorError, generate, world_digest
 from mycelic.collective.packs.loader import (BUILTIN_ROOT, FILES, HASH_SCOPES, PackError, RESERVED, compute_hashes,
                                              load_pack, load_pack_dir)
+from tests.mycelic.test_collective_guards import BUILTIN_PACKS
 
 ROOT = Path(__file__).resolve().parents[2]
-PACKS = ("device_quality", "claims_integrity")
+PACKS = BUILTIN_PACKS
+# per built-in pack: k and the verdict count buckets
+EGRESS_EXPECTED = {"device_quality": (3, [3, 10, 50]), "claims_integrity": (5, [5, 10, 50]),
+                   "it_incidents": (3, [3, 10, 50])}
 HEX64 = re.compile(r"[0-9a-f]{64}")
 ID = re.compile(r"[a-z][a-z0-9_]{1,40}")
 _LOADED: dict[str, loader.FrozenPack] = {}
@@ -134,8 +138,7 @@ class LoadTests(TempCase):
                                  {t for t, et in p.entity_types.items() if et.egress})
 
     def test_egress_and_detector_values(self) -> None:
-        expected = {"device_quality": (3, [3, 10, 50]), "claims_integrity": (5, [5, 10, 50])}
-        for pid, (k, buckets) in expected.items():
+        for pid, (k, buckets) in EGRESS_EXPECTED.items():
             p = pack(pid)
             with self.subTest(pack=pid):
                 self.assertEqual(p.egress.k, k)
@@ -355,7 +358,7 @@ def _parsed(pid: str) -> tuple[dict[str, Any], list[Any]]:
 class HashTests(TempCase):
     def test_stable_across_processes_and_hash_seeds(self) -> None:
         code = ("import json; from mycelic.collective.packs.loader import load_pack;"
-                "print(json.dumps([load_pack(p).hashes() for p in ('device_quality', 'claims_integrity')]))")
+                f"print(json.dumps([load_pack(p).hashes() for p in {PACKS!r}]))")
         outputs = []
         for seed in ("0", "4242"):
             r = subprocess.run([sys.executable, "-c", code], cwd=ROOT, capture_output=True, text=True, timeout=120,
@@ -748,11 +751,21 @@ class TemplateLoaderTests(TempCase):
 
     def test_only_the_config_hash_differs_from_g5(self) -> None:
         from tests.mycelic.test_collective_pushdown import B1_CONFIG_HASHES, G5_HASHES
-        for pid in PACKS:
+        for pid in ("device_quality", "claims_integrity"):           # the G5 history; B4_HASHES pins it_incidents
             with self.subTest(pack=pid):
                 hashes = pack(pid).hashes()
                 self.assertEqual({k for k in hashes if hashes[k] != G5_HASHES[pid][k]}, {"config_hash"})
                 self.assertEqual(hashes["config_hash"], B1_CONFIG_HASHES[pid])
+
+    def test_every_builtin_pack_is_pinned(self) -> None:
+        # B4: device and claims are pinned by their G5 hashes with B1's config hash, it_incidents by B4_HASHES
+        from tests.mycelic.test_collective_pushdown import B1_CONFIG_HASHES, B4_HASHES, G5_HASHES
+        pins = {pid: {**G5_HASHES[pid], "config_hash": B1_CONFIG_HASHES[pid]} for pid in G5_HASHES}
+        pins.update(B4_HASHES)
+        self.assertEqual(set(pins), set(PACKS))
+        for pid in PACKS:
+            with self.subTest(pack=pid):
+                self.assertEqual(pack(pid).hashes(), pins[pid])
 
 
 # =================================================================================================== id formats

@@ -1,0 +1,194 @@
+{
+  "kind": "plant_spec",
+  "schema_version": 1,
+  "pack": "it_incidents",
+  "prereg_sha256": null,
+  "planted_by": "mycelic engineering (same author as the detector code)",
+  "planter_saw_detector_code": true,
+  "notes": "construction smoke, not blind, never a result",
+  "patterns": [
+    {
+      "id": "p1",
+      "entity_type": "software_release",
+      "entity_id": "REL/2403/12",
+      "predicate": "memory_leak",
+      "sites": [
+        "it-ashcombe",
+        "it-brackenford",
+        "it-calderwick"
+      ],
+      "start_week": 30,
+      "weeks": 8,
+      "rate_per_week": 2,
+      "visibility": "narrative_only",
+      "language": "en"
+    },
+    {
+      "id": "p2",
+      "entity_type": "vendor",
+      "entity_id": "VND-0733",
+      "predicate": "data_sync_failure",
+      "sites": [
+        "it-ashcombe",
+        "it-calderwick"
+      ],
+      "start_week": 34,
+      "weeks": 8,
+      "rate_per_week": 2,
+      "visibility": "narrative_only",
+      "language": "en"
+    },
+    {
+      "id": "p3",
+      "entity_type": "it_service",
+      "entity_id": "SERVICE-PORTAL",
+      "predicate": "latency_degradation",
+      "sites": [
+        "it-ashcombe",
+        "it-calderwick",
+        "it-farrowdale"
+      ],
+      "start_week": 38,
+      "weeks": 6,
+      "rate_per_week": 2,
+      "visibility": "narrative_only",
+      "language": "en"
+    }
+  ],
+  "decoys": [
+    {
+      "id": "d-echo",
+      "class": "echo_marked",
+      "entity_type": "it_service",
+      "predicate": "packet_loss",
+      "sites": [
+        "it-ashcombe"
+      ],
+      "start_week": 30,
+      "weeks": 8,
+      "rate_per_week": 3,
+      "language": "en",
+      "entity_id": "PRINT-SERVICE",
+      "copy_sites": [
+        "it-brackenford",
+        "it-calderwick"
+      ]
+    },
+    {
+      "id": "d-dup",
+      "class": "same_site_duplicates",
+      "entity_type": "it_service",
+      "predicate": "login_failure",
+      "sites": [
+        "it-dornfeld"
+      ],
+      "start_week": 32,
+      "weeks": 8,
+      "rate_per_week": 4,
+      "language": "en",
+      "entity_id": "MAIL-SERVICE"
+    },
+    {
+      "id": "d-copies",
+      "class": "cross_site_unmarked_copies",
+      "entity_type": "software_release",
+      "predicate": "license_exhausted",
+      "sites": [
+        "it-brackenford"
+      ],
+      "start_week": 36,
+      "weeks": 8,
+      "rate_per_week": 2,
+      "language": "en",
+      "entity_id": "REL/2402/03",
+      "copy_sites": [
+        "it-calderwick",
+        "it-eichenau"
+      ]
+    },
+    {
+      "id": "d-reporter",
+      "class": "single_reporter",
+      "entity_type": "it_service",
+      "predicate": "latency_degradation",
+      "sites": [
+        "it-brackenford",
+        "it-eichenau"
+      ],
+      "start_week": 40,
+      "weeks": 8,
+      "rate_per_week": 3,
+      "language": "en",
+      "entity_id": "ERP-FINANCE"
+    },
+    {
+      "id": "d-stale",
+      "class": "stale_chain",
+      "entity_type": "it_service",
+      "predicate": "disk_full",
+      "sites": [
+        "it-calderwick",
+        "it-farrowdale"
+      ],
+      "start_week": 19,
+      "weeks": 3,
+      "rate_per_week": 3,
+      "language": "en",
+      "entity_id": "BACKUP-SERVICE"
+    },
+    {
+      "id": "d-base-rate",
+      "class": "high_base_rate_everywhere",
+      "entity_type": "it_service",
+      "predicate": "data_sync_failure",
+      "sites": [
+        "it-ashcombe",
+        "it-brackenford",
+        "it-calderwick",
+        "it-dornfeld",
+        "it-eichenau"
+      ],
+      "start_week": 42,
+      "weeks": 6,
+      "rate_per_week": 3,
+      "language": "en",
+      "entity_ids": [
+        "FILE-SHARE",
+        "REMOTE-ACCESS",
+        "SIGN-IN"
+      ]
+    },
+    {
+      "id": "d-burst",
+      "class": "single_site_burst",
+      "entity_type": "software_release",
+      "predicate": "crash_after_update",
+      "sites": [
+        "it-eichenau"
+      ],
+      "start_week": 36,
+      "weeks": 6,
+      "rate_per_week": 3,
+      "language": "en",
+      "entity_id": "REL/2405/02"
+    },
+    {
+      "id": "d-near-miss",
+      "class": "near_miss_entity",
+      "entity_type": "change_request",
+      "predicate": "packet_loss",
+      "sites": [
+        "it-ashcombe"
+      ],
+      "start_week": 44,
+      "weeks": 6,
+      "rate_per_week": 2,
+      "language": "en",
+      "entity_id": "CHG0040488",
+      "near_miss_id": "CHG0040489",
+      "near_miss_sites": [
+        "it-dornfeld"
+      ]
+    }
+  ]
+}

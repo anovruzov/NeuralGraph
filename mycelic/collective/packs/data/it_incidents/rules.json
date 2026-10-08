@@ -1,0 +1,28 @@
+{
+  "rules": {
+    "multi_site_certificate_expiry": {
+      "label": "The same certificate expiry on one service at several subsidiaries",
+      "entity_type": "it_service",
+      "predicate": "certificate_expiry",
+      "min_sites": 2,
+      "min_count_per_site": 1,
+      "window_weeks": 8
+    },
+    "vendor_backup_failure": {
+      "label": "Backup failures with one vendor at several subsidiaries",
+      "entity_type": "vendor",
+      "predicate": "backup_failure",
+      "min_sites": 2,
+      "min_count_per_site": 1,
+      "window_weeks": 12
+    },
+    "multi_site_failed_change": {
+      "label": "One change failing at several subsidiaries",
+      "entity_type": "change_request",
+      "predicate": "failed_change",
+      "min_sites": 2,
+      "min_count_per_site": 1,
+      "window_weeks": 8
+    }
+  }
+}

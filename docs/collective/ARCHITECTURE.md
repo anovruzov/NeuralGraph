@@ -191,7 +191,7 @@ Replies are validated locally against the full schema, even when the wire carrie
 | Stdlib only | All 60 collective modules import (G8 adds `runfiles`), and the twenty CLIs (G2 adds the five E1 subcommands and `packs.loader check`; G3 adds `experiments.g0_canary`; G4 adds none; G5 adds `evaluate.harness` `prereg`, `check-plant` and `run` and `experiments.openfda_replay` `prereg`, `signals` and `score`; G6 adds `experiments.e2_pushdown run`; G7 adds `experiments.e5_injection` and `followup.ledger verify`) answer `--help`, under `python -S`; so do the demo's two scripts, `demo/collective/collective_demo.py` and `lint_numbers.py` (G8), and `demo/collective/{scenario,screen}.py` import there |
 | No model names | No model-family name in collective code, docs or tests. The matcher holds sha256 digests only. Example tags live only in `docs/collective/examples/`. |
 | Determinism | No wall clock or unseeded randomness in `jsonio`, `schemacheck`, `stats`, the runtime modules, the pack modules, `edge/{extract,weeks,records,egress,site,verify}.py`, `leakage.py`, every `detect/*.py` and every `pushdown/*.py` (`ClockEntropyTests` checks by glob that each detect and pushdown module is listed), every `evaluate/*.py`, `experiments/openfda_replay.py`, `experiments/e2_pushdown.py`, every `followup/*.py` and `edge/packets.py` (`ClockEntropyTests` checks the follow-up modules by glob too; the harnesses stamp `created_at` through `common.utc_clock` and time with `time.perf_counter`, both allowed), `runfiles.py` and the demo's `scenario.py`, `screen.py` and `lint_numbers.py` (G8) |
-| Domain literals (G2, G8) | No pack term (entity type, predicate, code, rule, template, follow-up type or role id of either built-in pack) is an identifier or a whole string constant in generic collective code or in any `demo/collective/*.py` (G8: every domain value of the demo comes from `scenario.json` or the pack), no string constant there contains `ILL-`, and no openFDA field name is a string constant in the pack, extraction or E1 code (one documented exemption: `text`, the payload key the brief fixes) |
+| Domain literals (G2, G8) | No pack term (entity type, predicate, code, rule, template, follow-up type or role id of any built-in pack) is an identifier or a whole string constant in generic collective code or in any `demo/collective/*.py` (G8: every domain value of the demo comes from `scenario.json` or the pack), no string constant there contains `ILL-`, and no openFDA field name is a string constant in the pack, extraction or E1 code (one documented exemption: `text`, the payload key the brief fixes) |
 | Runbook | Every RUNBOOK command runs with `--dry-run`, with the network blocked, and creates nothing |
 | HQ imports (G4, G6) | No `detect/*.py` and no `pushdown/*.py` imports `edge.records`, `edge.site`, `edge.extract`, `edge.verify` (the site verifier, G6), `packs.generator`, `evaluate`, `leakage`, `experiments`, any `inference` module or a model client (AST check with relative imports resolved); a fresh interpreter importing every detect and pushdown module loads none of them except `inference` and `inference.errors`, which the Boundary's validator pulls in. `test_collective_pushdown.py::PushdownImportGuardTests` repeats it for pushdown and pins `detect/{detectors,rules,org}.py` to their G5 bytes |
 | Evaluation imports (G5) | No `evaluate/*.py` and not `experiments/openfda_replay.py` imports any `mycelic.collective.inference` module or a model client (`EvaluateImportGuardTests`, the same AST check; `edge.site` pulls in `inference.ledger` transitively, which is allowed). G5 makes no model call: X uses the lexical extractor |
@@ -290,7 +290,7 @@ never folded); leftmost-longest matches bounded by non-alphanumerics and never f
 alphanumeric (`SD-9-B` is rejected, `SD-90` is never `SD-9`); a lookalike with a non-ASCII letter or digit is
 unresolved and counted (`homoglyph`, `non_ascii_digit`); a space-separated form resolves only to an id the site
 knows (alias targets plus its master data), else it is counted as `space_unknown`; then alias phrases. Every span
-indexes the original text. Exact matches carry confidence 1.0, aliases 0.95 and variants 0.9 in both packs.
+indexes the original text. Exact matches carry confidence 1.0, aliases 0.95 and variants 0.9 in every built-in pack.
 
 ### 11.3 Extraction and its post-processing
 
@@ -304,7 +304,7 @@ find nothing there), `no_entity` (a predicate with no entity and no primary) or 
 `res_conf` is that of the text's own occurrence, not of the model's spelling. An out-of-enum type or predicate is a
 schema failure (one repair, then the lexical fallback, or an empty result in E1), not a drop. A boundary refusal
 propagates. The fake provider's `lexical_handler` reproduces the lexical extractor's claims byte for byte, which
-the tests check on every fixture of both packs.
+the tests check on every fixture of every built-in pack.
 
 The lexical extractor pairs per distinct entity and distinct (predicate, negated) in a sentence, carrying their
 multiplicities, so its work is linear in the narrative with a factor the pack bounds (at most two per predicate) and
@@ -330,6 +330,20 @@ a paired percentile bootstrap over records (`stats.paired_bootstrap_f1`); the pe
 an exact sign test are reported beside it as secondary (a claim-free record scores 1.0 on both sides there, so it
 dilutes that difference; audit round 3 moved the verdict off it). With `measurement: false` the verdicts are
 withheld (null).
+
+### 11.5 B4: a third built-in pack, as data only
+
+B4 added `it_incidents` (multi-site IT operations incidents at a fictional group; `PACKS.md` section 3) as a pack
+directory and nothing else: **no file under `mycelic/` or `demo/` outside `mycelic/collective/packs/data/it_incidents/`
+changed or was added**, so every code hash (X1, E1, E2, the openFDA replay, X5) is unchanged and the two earlier packs'
+hashes are too. What the data could not express is recorded, not fixed, as generality gaps in
+`docs/collective/x3/effort.json` (none blocked the loader, G0, the X1 smoke or the demo): an id separator other than
+`-` or `/`, two-hop links, sub-day timestamps, record fields such as priority or a change window, locales as
+languages, a varying generic-code rate or reporter storm in the background world, per-site id universes, and the
+lexical extractor's contiguous terms, token-window negation, sentence-level pairing and sentence split. It is the
+first built-in pack with an entity type that never leaves a site (`config_item`, `egress` false): its claims stay in
+the site store and `build_cells` counts them as `non_egress_type`. Same author as the generic code: internal evidence
+that a new field can be configuration, not X3.
 
 ## 12. G3: the site boundary
 
@@ -757,7 +771,7 @@ At the built-in packs' synthetic volumes every weekly cell is `'<k'` (G3 merge n
 - **Few reporters and `res_conf` are invisible**: both need an int `n`. Echo cannot be shown either, since a
   `'<k'` `n` caps `root_ratio_ub` at 1.0.
 
-The end-to-end test runs generated worlds of both packs through `EdgeSite`, the receive log, the store and both
+The end-to-end test runs generated worlds of every built-in pack through `EdgeSite`, the receive log, the store and both
 runs. What it printed in this sandbox, quoted only as **synthetic, same-author world, not a measurement** (seed 4, 40
 weeks, six sites): `device_quality` X 3,155 cells, 27 candidates (12 from the detectors), 12 alerts, 18 rule hits;
 S 1,367 cells, 9 candidates (2), 2 alerts, 7 rule hits. `claims_integrity` X 2,854 cells, 20 candidates (11),
@@ -925,8 +939,8 @@ The scorecard carries each channel's label verbatim. The R-mf label states the g
 
 **What R-mf reads (amendment A5).** A record is read only through `record[field]` for an allowed top-level field and
 `record["entities"][t]` for an allowed `entities.t`; it is never iterated and its narrative, persons, reporter and
-origin are never read (a test uses a record that fails on any other access). Both built-in packs allow `codes`,
-`entities.*`, `received_date` and `site`, and the reporter is a mandatory never field, so R-mf cannot drop forwarded
+origin are never read (a test uses a record that fails on any other access). Every built-in pack allows `codes`,
+`entities.*` of its egress types, `received_date` and `site`, and the reporter is a mandatory never field, so R-mf cannot drop forwarded
 copies and counts every record as its own root and reporter (`n_roots = n_reporters = n`). It applies exactly the
 cells' egress-type and master-data rules, so it differs from S only by record level, no suppression and no forwarded
 removal. **The exact channels (U, R-mf, the k=1 ablation) can never raise G4's `few_reporters` flag**, which is
@@ -1139,7 +1153,8 @@ Nothing is ported from `origin/claude/mycelic-implementation-vr034p` in G5 (`INT
 
 ### 14.9 The sealed X1 run (B2)
 
-`docs/collective/x1/` holds the sealed, procedurally blind X1 run on both built-in packs: `PLANTER_BRIEF.md` (the
+`docs/collective/x1/` holds the sealed, procedurally blind X1 run on the two packs B2 names, `device_quality` and
+`claims_integrity` (B4's `it_incidents` is outside its frozen scope): `PLANTER_BRIEF.md` (the
 planter's whole prompt, frozen at B2a: what it may read and run, the world, the spec format, the rules check-plant
 enforces and the brief's own rules) and `RESULTS_TEMPLATE.md` (frozen at B2a: the fixed sentences, the
 interpretation sentences and the conditions that select them, and the pointer rows `RESULTS.md` will show). Later
@@ -1236,7 +1251,7 @@ the entity-records bucket and a reference; an unknown has no bucket, week or ref
 `truncated` false, `secret_mode` is `none` exactly when the reason is `no_secret`, and `verdict_id` is the sha256 of
 the canonical body without `verdict_id` and `evidence_ref`.
 
-**Buckets.** `verdict_buckets(pack)` is `('<k', 'k-9', '10-49', '50+')` for both built-in packs (`k` is 3 or 5),
+**Buckets.** `verdict_buckets(pack)` is `('<k', 'k-9', '10-49', '50+')` for every built-in pack (`k` is 3 or 5),
 `bucket_of(n)` maps an int `n >= 1` (a bool, a float or 0 is a `ValueError`) and `bucket_lower` gives 1 for `'<k'`
 and the low end otherwise.
 
@@ -1356,7 +1371,7 @@ a malformed secret file (`VerifyError`, no value in its text). `answer(question)
 lexical extractor and `pair`: `mentions_entity` is yes when the entity is a codes-channel entity or in any text claim
 (negated and entity-only claims included), `describes_predicate` when the triple is a paired claim; for a language
 the pack does not cover, every answer that is not yes is `unclear`. Every claim a site stored for a record makes it
-answer yes/yes on that record (tested on both packs' fixtures and a generated world). A narrative that writes a JSON
+answer yes/yes on that record (tested on every built-in pack's fixtures and a generated world). A narrative that writes a JSON
 answer without the predicate stays at no; with a real model that is an E5 item (prompt injection through record
 text).
 

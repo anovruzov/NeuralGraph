@@ -34,6 +34,7 @@ from mycelic.collective.inference.ledger import read_ledger
 from mycelic.collective.jsonio import canonical_dumps, load_json_file, sha256_hex
 from mycelic.collective.packs.generator import generate
 from mycelic.collective.packs.loader import BUILTIN_ROOT, load_pack
+from tests.mycelic.test_collective_guards import BUILTIN_PACKS
 
 ROOT = Path(__file__).resolve().parents[2]
 EXAMPLE_PREREG = ROOT / "docs" / "collective" / "examples" / "e1.prereg.example.json"
@@ -55,7 +56,7 @@ def tearDownModule() -> None:
     socket.create_connection = _real_create_connection
 
 
-PACKS = {pid: load_pack(pid) for pid in ("device_quality", "claims_integrity")}
+PACKS = {pid: load_pack(pid) for pid in BUILTIN_PACKS}
 WORLDS = {pid: generate(PACKS[pid], seed=7, sites=6, weeks=52) for pid in PACKS}
 
 
@@ -860,14 +861,25 @@ class E1SmokeTests(E1Case):
                 for i in range(0, max(1, len(text) - 30), 15):
                     self.assertNotIn(text[i:i + 30], body)
 
-    def test_claims_integrity_reduced_smoke(self) -> None:
-        self.pid = "claims_integrity"
-        env = self.flow(40)
-        dirs = self.all_runs(env)
-        doc = load_json_file(self.compare(env["prereg"], dirs)[0])
-        self.assertEqual(doc["endpoints"]["model-a"]["field_f1"]["value"], 1.0)
-        self.assertEqual(sorted(doc["endpoints"]["model-a"]["exact_match"]), ["clinic", "repair_shop"])
-        self.assertIs(doc["measurement"], False)
+    def test_reduced_smoke_on_every_other_builtin_pack(self) -> None:
+        # B4: was the claims pack's reduced smoke; the exact-match types are now read from each pack
+        others = [pid for pid in BUILTIN_PACKS if pid != "device_quality"]
+        self.assertIn("claims_integrity", others)
+        base = self.dir
+        for pid in others:
+            with self.subTest(pack=pid):
+                self.pid, self.dir = pid, base / pid                  # each pack's own files and runs
+                self.dir.mkdir()
+                self.runs = self.dir / "runs"
+                exact_match = sorted(t for t, et in PACKS[pid].entity_types.items() if et.exact_match_metric)
+                if pid == "claims_integrity":
+                    self.assertEqual(exact_match, ["clinic", "repair_shop"])
+                env = self.flow(40)
+                dirs = self.all_runs(env)
+                doc = load_json_file(self.compare(env["prereg"], dirs)[0])
+                self.assertEqual(doc["endpoints"]["model-a"]["field_f1"]["value"], 1.0)
+                self.assertEqual(sorted(doc["endpoints"]["model-a"]["exact_match"]), exact_match)
+                self.assertIs(doc["measurement"], False)
 
 
 def plain_server(respond: Callable[[dict], dict], *, fail_every: int = 0) -> ThreadingHTTPServer:

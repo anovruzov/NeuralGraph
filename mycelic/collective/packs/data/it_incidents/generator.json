@@ -1,0 +1,685 @@
+{
+  "start": "2024-01-01",
+  "sites": [
+    {
+      "id": "it-ashcombe",
+      "label": "Ashcombe Freight IT (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        3,
+        7
+      ],
+      "reporters": 6
+    },
+    {
+      "id": "it-brackenford",
+      "label": "Brackenford Retail IT (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        2,
+        6
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "it-calderwick",
+      "label": "Calderwick Logistics IT (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        2,
+        5
+      ],
+      "reporters": 4
+    },
+    {
+      "id": "it-dornfeld",
+      "label": "Dornfeld Handel IT (fictional)",
+      "language": "de",
+      "weekly_volume": [
+        3,
+        6
+      ],
+      "reporters": 5
+    },
+    {
+      "id": "it-eichenau",
+      "label": "Eichenau Werke IT (fictional)",
+      "language": "de",
+      "weekly_volume": [
+        2,
+        5
+      ],
+      "reporters": 4
+    },
+    {
+      "id": "it-farrowdale",
+      "label": "Farrowdale Services IT (fictional)",
+      "language": "en",
+      "weekly_volume": [
+        2,
+        6
+      ],
+      "reporters": 5
+    }
+  ],
+  "forwarding_rate": 0.08,
+  "mixed_language_rate": 0.05,
+  "negated_sentence_rate": 0.3,
+  "second_predicate_rate": 0.25,
+  "entity_sentence_rate": 0.3,
+  "zero_claim_rate": 0.05,
+  "predicate_weights": {
+    "backup_failure": 1,
+    "certificate_expiry": 1,
+    "crash_after_update": 1.5,
+    "data_sync_failure": 1,
+    "disk_full": 1,
+    "failed_change": 1,
+    "incident_unspecified": 0.5,
+    "latency_degradation": 1.5,
+    "license_exhausted": 1,
+    "login_failure": 1,
+    "memory_leak": 1,
+    "packet_loss": 1
+  },
+  "codes": {
+    "specific_rate": 0.5,
+    "generic_rate": 0.3,
+    "generic_code": "ITC-9000"
+  },
+  "fill_rates": {
+    "change_request": 0.15,
+    "config_item": 0.6,
+    "it_service": 0.95,
+    "software_release": 0.3,
+    "vendor": 0.2
+  },
+  "universe": {
+    "change_request": [
+      "CHG0040112",
+      "CHG0040257",
+      "CHG0040391",
+      "CHG0040488",
+      "CHG0040489",
+      "CHG0040502"
+    ],
+    "config_item": [
+      "ash-bak-0201",
+      "ash-mx-0101",
+      "ash-web-0701",
+      "brk-fin-0301",
+      "brk-idp-0801",
+      "brk-prn-0501",
+      "cal-fs-0401",
+      "cal-gw-0601",
+      "dor-bak-0202",
+      "dor-mx-0102",
+      "dor-web-0702",
+      "eic-fin-0302",
+      "eic-idp-0802",
+      "eic-prn-0502",
+      "far-fs-0402",
+      "far-gw-0602"
+    ],
+    "it_service": [
+      "BACKUP-SERVICE",
+      "ERP-FINANCE",
+      "FILE-SHARE",
+      "MAIL-SERVICE",
+      "PRINT-SERVICE",
+      "REMOTE-ACCESS",
+      "SERVICE-PORTAL",
+      "SIGN-IN"
+    ],
+    "software_release": [
+      "REL/2401/07",
+      "REL/2402/03",
+      "REL/2403/12",
+      "REL/2404/21",
+      "REL/2405/02",
+      "REL/2406/15",
+      "REL/2407/09"
+    ],
+    "vendor": [
+      "VND-0412",
+      "VND-0413",
+      "VND-0518",
+      "VND-0733",
+      "VND-0907"
+    ]
+  },
+  "links": {
+    "config_item": {
+      "parent": "it_service",
+      "map": {
+        "BACKUP-SERVICE": [
+          "ash-bak-0201",
+          "dor-bak-0202"
+        ],
+        "ERP-FINANCE": [
+          "brk-fin-0301",
+          "eic-fin-0302"
+        ],
+        "FILE-SHARE": [
+          "cal-fs-0401",
+          "far-fs-0402"
+        ],
+        "MAIL-SERVICE": [
+          "ash-mx-0101",
+          "dor-mx-0102"
+        ],
+        "PRINT-SERVICE": [
+          "brk-prn-0501",
+          "eic-prn-0502"
+        ],
+        "REMOTE-ACCESS": [
+          "cal-gw-0601",
+          "far-gw-0602"
+        ],
+        "SERVICE-PORTAL": [
+          "ash-web-0701",
+          "dor-web-0702"
+        ],
+        "SIGN-IN": [
+          "brk-idp-0801",
+          "eic-idp-0802"
+        ]
+      }
+    },
+    "software_release": {
+      "parent": "vendor",
+      "map": {
+        "VND-0412": [
+          "REL/2401/07",
+          "REL/2403/12"
+        ],
+        "VND-0413": [
+          "REL/2406/15"
+        ],
+        "VND-0518": [
+          "REL/2402/03",
+          "REL/2405/02"
+        ],
+        "VND-0733": [
+          "REL/2404/21"
+        ],
+        "VND-0907": [
+          "REL/2406/15",
+          "REL/2407/09"
+        ]
+      }
+    }
+  },
+  "surface": {
+    "exact": 6,
+    "lower": 1,
+    "underscore": 1,
+    "en_dash": 1,
+    "fullwidth": 0.5,
+    "space": 0.5,
+    "alias": 2
+  },
+  "narratives": {
+    "en": {
+      "crash_after_update": {
+        "affirmed": [
+          "The {it_service} client crashed after the update to {software_release}.",
+          "Release {software_release} crashed after the update on several desktops.",
+          "The application on {config_item} crashes after the patch from {vendor}.",
+          "Users reported that {it_service} crashed after updating."
+        ],
+        "negated": [
+          "The {software_release} build did not crash after the update in the test lab."
+        ]
+      },
+      "certificate_expiry": {
+        "affirmed": [
+          "The certificate expired on {config_item} overnight.",
+          "Users of {it_service} saw a warning because the certificate has expired.",
+          "An expired certificate blocked connections to {it_service}."
+        ],
+        "negated": [
+          "No expired certificate was found on {config_item}."
+        ]
+      },
+      "disk_full": {
+        "affirmed": [
+          "The disk is full on {config_item}.",
+          "Logging on {it_service} stopped because the disk was full.",
+          "The {it_service} host ran out of disk space."
+        ],
+        "negated": [
+          "No disk full condition was seen on {config_item}."
+        ]
+      },
+      "memory_leak": {
+        "affirmed": [
+          "A memory leak in {software_release} slowed down {config_item}.",
+          "Release {software_release} has a memory leak in its background process.",
+          "The process on {config_item} kept leaking memory."
+        ],
+        "negated": [
+          "No memory leak was found in {software_release}."
+        ]
+      },
+      "login_failure": {
+        "affirmed": [
+          "Several users were unable to sign in to {it_service}.",
+          "The login failed for users of {it_service} after the password reset.",
+          "Sign-in failures were reported on {config_item}.",
+          "Requester {person:requester_name} was unable to sign in to {it_service} this morning."
+        ],
+        "negated": [
+          "No login failure was reported for {it_service} today."
+        ]
+      },
+      "backup_failure": {
+        "affirmed": [
+          "The nightly backup failed for {config_item}.",
+          "Backup jobs failed on {it_service} on consecutive nights.",
+          "A backup failure was logged by {vendor} support."
+        ],
+        "negated": [
+          "No backup failure was recorded for {it_service} this week."
+        ]
+      },
+      "latency_degradation": {
+        "affirmed": [
+          "Users reported slow response times on {it_service}.",
+          "Monitoring showed high latency on {config_item} during the morning peak.",
+          "Latency spikes on {it_service} started after lunch.",
+          "Requester {person:requester_email} reported slow responses from {it_service}."
+        ],
+        "negated": [
+          "There was no high latency on {it_service} during the check."
+        ]
+      },
+      "packet_loss": {
+        "affirmed": [
+          "Packet loss was measured between {config_item} and the core switch.",
+          "Users of {it_service} saw dropped packets on the branch link.",
+          "Packet loss started after change {change_request}.",
+          "The {it_service} link was dropping packets."
+        ],
+        "negated": [
+          "No packet loss was seen on {config_item}."
+        ]
+      },
+      "data_sync_failure": {
+        "affirmed": [
+          "The data sync failed between {it_service} and the warehouse system.",
+          "Records from {vendor} were out of sync after the import.",
+          "Synchronisation failed for {config_item} overnight."
+        ],
+        "negated": [
+          "No sync failure was found for {it_service}."
+        ]
+      },
+      "license_exhausted": {
+        "affirmed": [
+          "New users of {it_service} were blocked because the licence limit was reached.",
+          "Release {software_release} ran out of licences on the terminal hosts.",
+          "Licences exhausted on {config_item} during the month-end run."
+        ],
+        "negated": [
+          "No licence limit was reached for {software_release}."
+        ]
+      },
+      "failed_change": {
+        "affirmed": [
+          "Change {change_request} failed and was rolled back.",
+          "The failed change on {config_item} left {it_service} degraded.",
+          "The change was rolled back on {it_service} after errors."
+        ],
+        "negated": [
+          "Change {change_request} was not rolled back."
+        ]
+      },
+      "incident_unspecified": {
+        "affirmed": [
+          "{it_service} went down for most users this morning.",
+          "There was an outage of {it_service} at the main office.",
+          "The application on {config_item} stopped working."
+        ],
+        "negated": [
+          "There was no outage of {it_service} during the window."
+        ]
+      }
+    },
+    "de": {
+      "crash_after_update": {
+        "affirmed": [
+          "Der Dienst {it_service} ist nach dem Update abgestürzt.",
+          "Release {software_release} ist auf {config_item} nach dem Update abgestürzt.",
+          "Ein Absturz nach dem Update trat auf {config_item} auf."
+        ],
+        "negated": [
+          "Kein Absturz nach dem Update bei Release {software_release}."
+        ]
+      },
+      "certificate_expiry": {
+        "affirmed": [
+          "Auf {config_item} ist das Zertifikat abgelaufen.",
+          "Ein abgelaufenes Zertifikat blockiert den Zugriff auf {it_service}."
+        ],
+        "negated": [
+          "Auf {config_item} wurde kein abgelaufenes Zertifikat gefunden."
+        ]
+      },
+      "disk_full": {
+        "affirmed": [
+          "Auf {config_item} ist die Festplatte voll.",
+          "Der Dienst {it_service} meldet Speicherplatz erschöpft."
+        ],
+        "negated": [
+          "Auf {config_item} gab es keine volle Festplatte."
+        ]
+      },
+      "memory_leak": {
+        "affirmed": [
+          "Release {software_release} hat ein Speicherleck.",
+          "Auf {config_item} wurde ein Speicherleck festgestellt."
+        ],
+        "negated": [
+          "Bei Release {software_release} wurde kein Speicherleck gefunden."
+        ]
+      },
+      "login_failure": {
+        "affirmed": [
+          "Beim Dienst {it_service} ist die Anmeldung fehlgeschlagen.",
+          "Mehrere Benutzer melden Anmeldefehler auf {config_item}."
+        ],
+        "negated": [
+          "Beim Dienst {it_service} gab es keine Anmeldefehler."
+        ]
+      },
+      "backup_failure": {
+        "affirmed": [
+          "Auf {config_item} ist die Datensicherung fehlgeschlagen.",
+          "Der Dienst {it_service} meldet Sicherungsfehler."
+        ],
+        "negated": [
+          "Beim Dienst {it_service} gab es keine Sicherungsfehler."
+        ]
+      },
+      "latency_degradation": {
+        "affirmed": [
+          "Benutzer melden langsame Antwortzeiten beim Dienst {it_service}.",
+          "Auf {config_item} wurde hohe Latenz gemessen."
+        ],
+        "negated": [
+          "Beim Dienst {it_service} gab es keine hohe Latenz."
+        ]
+      },
+      "packet_loss": {
+        "affirmed": [
+          "Zwischen {config_item} und dem Kernswitch gibt es Paketverlust.",
+          "Benutzer des Dienstes {it_service} melden Paketverluste."
+        ],
+        "negated": [
+          "Auf {config_item} wurde kein Paketverlust gemessen."
+        ]
+      },
+      "data_sync_failure": {
+        "affirmed": [
+          "Für den Dienst {it_service} wurde ein Synchronisationsfehler gemeldet.",
+          "Beim Hersteller {vendor} ist die Synchronisation fehlgeschlagen."
+        ],
+        "negated": [
+          "Für den Dienst {it_service} wurde kein Synchronisationsfehler gemeldet."
+        ]
+      },
+      "license_exhausted": {
+        "affirmed": [
+          "Für Release {software_release} sind die Lizenzen erschöpft.",
+          "Beim Dienst {it_service} ist das Lizenzlimit erreicht."
+        ],
+        "negated": [
+          "Beim Dienst {it_service} ist kein Lizenzlimit erreicht."
+        ]
+      },
+      "failed_change": {
+        "affirmed": [
+          "Change {change_request} wurde zurückgerollt.",
+          "Auf {config_item} ist die Änderung fehlgeschlagen."
+        ],
+        "negated": [
+          "Change {change_request} wurde nicht zurückgerollt."
+        ]
+      },
+      "incident_unspecified": {
+        "affirmed": [
+          "Der Dienst {it_service} ist ausgefallen.",
+          "Auf {config_item} gab es eine Störung."
+        ],
+        "negated": [
+          "Beim Dienst {it_service} gab es keinen Ausfall."
+        ]
+      }
+    }
+  },
+  "entity_sentences": {
+    "en": [
+      "The ticket concerns {it_service}.",
+      "Release {software_release} is installed on {config_item}.",
+      "Vendor {vendor} shipped release {software_release}.",
+      "The incident was linked to change {change_request}.",
+      "Host {config_item} supports {it_service}."
+    ],
+    "de": [
+      "Betroffen ist der Dienst {it_service}.",
+      "Release {software_release} ist auf {config_item} installiert.",
+      "Hersteller {vendor} hat Release {software_release} geliefert.",
+      "Das Ticket wurde mit Change {change_request} verknüpft."
+    ]
+  },
+  "filler": {
+    "en": [
+      "The ticket was assigned to the second-level team.",
+      "The requester was asked for a screenshot.",
+      "A workaround was shared with the requester.",
+      "The ticket was added to the weekly operations review.",
+      "The assignee asked the requester for more details.",
+      "The issue was escalated to the on-call engineer.",
+      "The requester confirmed the time of the first report.",
+      "Further analysis is ongoing.",
+      "The knowledge base was checked for a known error.",
+      "The ticket was updated after a call with the requester.",
+      "The affected users were informed by the service desk.",
+      "A status update was posted on the intranet."
+    ],
+    "de": [
+      "Das Ticket wurde an den Second-Level-Support übergeben.",
+      "Der Anfragende wurde um einen Screenshot gebeten.",
+      "Ein Workaround wurde dem Anfragenden mitgeteilt.",
+      "Das Ticket wurde für die wöchentliche Betriebsbesprechung vorgemerkt.",
+      "Die Analyse läuft noch.",
+      "Der Fall wurde an die Rufbereitschaft eskaliert.",
+      "Die betroffenen Benutzer wurden informiert.",
+      "Der Anfragende hat den Zeitpunkt der Meldung bestätigt.",
+      "Die Wissensdatenbank wurde geprüft."
+    ]
+  },
+  "persons": {
+    "assignee_name": {
+      "kind": "name",
+      "first": [
+        "Anna",
+        "Jonas",
+        "Maria",
+        "Lukas",
+        "Sofia",
+        "Elena",
+        "Tobias",
+        "Clara",
+        "Peter",
+        "Hannah",
+        "Omar",
+        "Priya",
+        "Daniel",
+        "Ingrid",
+        "Mateo",
+        "Aisha"
+      ],
+      "last": [
+        "Berger",
+        "Hoffmann",
+        "Lindqvist",
+        "Okafor",
+        "Novak",
+        "Brandt",
+        "Kessler",
+        "Moreau",
+        "Whitfield",
+        "Ferreira",
+        "Tanaka",
+        "Albrecht",
+        "Castillo",
+        "Duarte"
+      ]
+    },
+    "requester_email": {
+      "kind": "choice",
+      "values": [
+        "anna.berger@corp.example",
+        "jonas.hoffmann@corp.example",
+        "maria.lindqvist@corp.example",
+        "lukas.okafor@corp.example",
+        "sofia.novak@corp.example",
+        "elena.brandt@corp.example",
+        "tobias.kessler@corp.example",
+        "clara.moreau@corp.example",
+        "peter.whitfield@corp.example",
+        "hannah.ferreira@corp.example",
+        "omar.tanaka@corp.example",
+        "priya.albrecht@corp.example"
+      ]
+    },
+    "requester_name": {
+      "kind": "name",
+      "first": [
+        "Anna",
+        "Jonas",
+        "Maria",
+        "Lukas",
+        "Sofia",
+        "Elena",
+        "Tobias",
+        "Clara",
+        "Peter",
+        "Hannah",
+        "Omar",
+        "Priya",
+        "Daniel",
+        "Ingrid",
+        "Mateo",
+        "Aisha"
+      ],
+      "last": [
+        "Berger",
+        "Hoffmann",
+        "Lindqvist",
+        "Okafor",
+        "Novak",
+        "Brandt",
+        "Kessler",
+        "Moreau",
+        "Whitfield",
+        "Ferreira",
+        "Tanaka",
+        "Albrecht",
+        "Castillo",
+        "Duarte"
+      ]
+    },
+    "requester_phone": {
+      "kind": "pattern",
+      "segments": [
+        {
+          "digit": [
+            3,
+            3
+          ]
+        },
+        {
+          "sep": "required"
+        },
+        {
+          "digit": [
+            3,
+            3
+          ]
+        },
+        {
+          "sep": "required"
+        },
+        {
+          "digit": [
+            4,
+            4
+          ]
+        }
+      ],
+      "separator": "-",
+      "case": "upper"
+    }
+  },
+  "reporter": {
+    "kind": "choice",
+    "values": [
+      "Service desk, phone",
+      "Service desk, web form",
+      "Monitoring agent",
+      "Event correlation engine",
+      "Network operations centre",
+      "On-call engineer",
+      "Application support",
+      "Infrastructure team",
+      "Field technician"
+    ]
+  },
+  "master_data": {
+    "it-ashcombe": {
+      "change_request": "all",
+      "software_release": "all",
+      "vendor": "all"
+    },
+    "it-brackenford": {
+      "change_request": "all",
+      "software_release": [
+        "REL/2401/07",
+        "REL/2402/03",
+        "REL/2403/12"
+      ],
+      "vendor": "all"
+    },
+    "it-calderwick": {
+      "change_request": "all",
+      "software_release": "all",
+      "vendor": [
+        "VND-0412",
+        "VND-0518",
+        "VND-0733"
+      ]
+    },
+    "it-dornfeld": {
+      "change_request": "all",
+      "software_release": "all",
+      "vendor": "all"
+    },
+    "it-eichenau": {
+      "change_request": [
+        "CHG0040112",
+        "CHG0040257",
+        "CHG0040391"
+      ],
+      "software_release": "all",
+      "vendor": "all"
+    },
+    "it-farrowdale": {
+      "change_request": "all",
+      "software_release": "all",
+      "vendor": "all"
+    }
+  }
+}

@@ -43,10 +43,10 @@ from mycelic.collective.packs.canonical import Canonicaliser
 from mycelic.collective.packs.connector import RECORD_KEYS
 from mycelic.collective.packs.generator import generate
 from mycelic.collective.packs.loader import BUILTIN_ROOT, FrozenPack, load_pack
-from tests.mycelic.test_collective_guards import path_snapshot
+from tests.mycelic.test_collective_guards import BUILTIN_PACKS, path_snapshot
 
 ROOT = Path(__file__).resolve().parents[2]
-PACK_IDS = ("device_quality", "claims_integrity")
+PACK_IDS = BUILTIN_PACKS
 PACKS = {pid: load_pack(pid) for pid in PACK_IDS}
 DQ = PACKS["device_quality"]
 # per pack: (a specific code, its predicate, an id-format type, five ids of that type in the universe)
@@ -54,6 +54,8 @@ KEY = {
     "device_quality": ("ILL-0101", "crack", "product", ("SD-9", "SD-12", "SD-40", "IP-7", "IP-21")),
     "claims_integrity": ("FLAG-01", "supplement_after_teardown", "repair_shop",
                          ("RS-42", "RS-5", "RS-310", "RS-1077", "RS-2290")),
+    "it_incidents": ("ITC-2100", "failed_change", "change_request",
+                     ("CHG0040112", "CHG0040257", "CHG0040391", "CHG0040488", "CHG0040502")),
 }
 T_MID_W11 = "2026-03-11T08:00:00.000Z"                 # a Wednesday in 2026-W11
 PLANTED = "Qzxvmrbl hinge split, wobbly"               # narrative text pushed at the Boundary

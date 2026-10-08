@@ -33,9 +33,10 @@ from mycelic.collective.leakage import (CANARY_PREFIX, CANARY_WINDOW, CORE_LETTE
 from mycelic.collective.packs.canonical import Canonicaliser, folded, term_regex
 from mycelic.collective.packs.generator import generate
 from mycelic.collective.packs.loader import BUILTIN_ROOT, FrozenPack, load_pack
+from tests.mycelic.test_collective_guards import BUILTIN_PACKS
 
 ROOT = Path(__file__).resolve().parents[2]
-PACK_IDS = ("device_quality", "claims_integrity")
+PACK_IDS = BUILTIN_PACKS
 PACKS = {pid: load_pack(pid) for pid in PACK_IDS}
 DQ, CI = PACKS["device_quality"], PACKS["claims_integrity"]
 LOOPBACK = ("127.0.0.1", "::1", "localhost")
@@ -102,7 +103,7 @@ class ScriptedRng(random.Random):
 # --------------------------------------------------------------------------------------------------- planting
 
 class CanaryPlantTests(unittest.TestCase):
-    def test_every_class_on_both_packs(self) -> None:
+    def test_every_class_on_every_builtin_pack(self) -> None:
         for pack in PACKS.values():
             with self.subTest(pack=pack.id):
                 records = world_records(pack)
@@ -488,6 +489,10 @@ def args(pack: str, out: Path, *extra: str, records: int = 1000, seed: int = 11)
     return ["--pack", pack, "--records", str(records), "--seed", str(seed), "--out", str(out), *extra]
 
 
+# the run name of every built-in pack's master-data-on G0 run (the device pack's goes through the CLI subprocess)
+ON_RUNS = {"device_quality": "dq-on", "claims_integrity": "ci-on", "it_incidents": "ii-on"}
+
+
 class G0RunnerTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -499,8 +504,13 @@ class G0RunnerTests(unittest.TestCase):
                             *args("device_quality", out, "--require-master-data", "on")], cwd=ROOT,
                            capture_output=True, text=True, timeout=600, env={**os.environ, "PYTHONPATH": str(ROOT)})
         cls.runs["dq-on"] = (r.returncode, r.stdout + r.stderr, out)
-        for name, argv in (("ci-on", args("claims_integrity", cls.tmp / "ci-on", "--require-master-data", "on")),
-                           ("dq-off", args("device_quality", cls.tmp / "dq-off", "--require-master-data", "off")),
+        for pid in PACK_IDS:
+            if pid != "device_quality":
+                name = ON_RUNS[pid]
+                code, stdout, stderr = run_main(args(pid, cls.tmp / name, "--require-master-data", "on"))
+                cls.runs[name] = (code, stdout + stderr, cls.tmp / name)
+        # single-pack cases of G0's options: master data off, the pack's default, lexical mode
+        for name, argv in (("dq-off", args("device_quality", cls.tmp / "dq-off", "--require-master-data", "off")),
                            ("ci-default", args("claims_integrity", cls.tmp / "ci-default", records=300)),
                            ("dq-lexical", args("device_quality", cls.tmp / "dq-lexical", "--mode", "lexical",
                                                records=300))):
@@ -523,8 +533,8 @@ class G0RunnerTests(unittest.TestCase):
         for c in manifest.canaries:
             self.assertNotIn(c.token.lower(), text)
 
-    def test_master_data_on_for_both_packs(self) -> None:
-        for name, pid in (("dq-on", "device_quality"), ("ci-on", "claims_integrity")):
+    def test_master_data_on_for_every_builtin_pack(self) -> None:
+        for pid, name in ON_RUNS.items():
             with self.subTest(run=name):
                 d = self.result(name)
                 self.assertEqual((d["kind"], d["pack"], d["synthetic"], d["data_label"]),
@@ -708,9 +718,9 @@ class G0RunnerTests(unittest.TestCase):
                     self.assertTrue(output.startswith("dry-run: experiments.g0_canary"), output)
         self.assertEqual(sorted(str(p) for p in self.tmp.rglob("*")), before)
 
-    def test_run_files_stage_both_packs(self) -> None:
+    def test_run_files_stage_every_builtin_pack(self) -> None:
         # G8: the run_files stage writes the four G0 run files under run/, and each crosses as class run_files
-        for name in ("dq-on", "ci-on"):
+        for name in ON_RUNS.values():
             with self.subTest(run=name):
                 d, out = self.result(name), self.runs[name][2]
                 self.assertEqual(d["stages"][-1], "run_files")

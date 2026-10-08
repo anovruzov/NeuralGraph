@@ -87,7 +87,8 @@ week is never stale). There is deliberately no relation between `min_history_wee
 | `ranker.bias` | number | the ranker's intercept |
 | `ranker.weights` | a number for each of `burst_surprise`, `pmi_rise`, `log_independent_roots`, `supporting_sites`, `low_res_conf`, `echo`, `few_reporters_share`, `high_base_rate` | the ranker's default weights |
 
-**Both built-in packs use the same author's defaults, not fitted values:** budget 5 (4 for `claims_integrity`),
+**The built-in packs use the same author's defaults, not fitted values** (`it_incidents`'s `detectors.json` is a
+byte copy of `device_quality`'s, B4): budget 5 (4 for `claims_integrity`),
 cooldown 4, baseline 26, window 8, minimum history 12; `alpha_site` 0.01, `lambda_floor` 0.01, `p_min` 0.01, `p_max`
 0.25, burst and co-occurrence `min_sites` 2; `pmi_smoothing` 0.5, `pmi_delta` 1.0; `res_conf_min` 0.95;
 `echo_min_ratio` 0.5; `stale_days` 42 (56 for `claims_integrity`, whose `close_lag_days` is 21);
@@ -116,17 +117,19 @@ key a cell can name. Templates are chosen in sorted id order: the first whose `e
 `predicates` are null or hold the predicate.
 
 **Built-in values (the same author's defaults, not fitted):** `device_quality` 2, 3, 3, 42, 2; `claims_integrity`
-2, 3, 3, 56, 2 (in the table's order). `claims_integrity`'s one template also covers `damage_area` since G6.
+2, 3, 3, 56, 2; `it_incidents` (B4, copied from the device pack) 2, 3, 3, 42, 2 (in the table's order).
+`claims_integrity`'s one template also covers `damage_area` since G6.
 
 **Verdict buckets** (`egress.json`'s `verdict_count_buckets`). The first edge must equal `k`. A verdict carries a
 count only as a label: `'<k'` for 1 to `k - 1`, then `lo-hi` per edge up to the next edge minus 1 (or `lo` alone
 when that is `lo`), then `last+`. G6 set the edges to `[k, 10, 50]` in both packs: `device_quality` `[3, 10, 50]`
 (`'<k'`, `3-9`, `10-49`, `50+`) and `claims_integrity` `[5, 10, 50]` (`'<k'`, `5-9`, `10-49`, `50+`). Only
-`config_hash` changed; the other three hashes are byte-identical to G5 (`INTEGRATION.md`, G6). `egress.json`'s
+`config_hash` changed; the other three hashes are byte-identical to G5 (`INTEGRATION.md`, G6). `it_incidents` (B4)
+has `[3, 10, 50]`. `egress.json`'s
 `verify_max_records` caps the records a site judges for one question (newest first; the verdict says `truncated`)
 and `question_budget_per_entity_per_day` caps the distinct questions a site answers about one entity per day of its
 own clock (`LEAKAGE.md` section 9). Audit round 2 added `question_entities_per_site_per_day` (1 to 1,000; 50 in both
-packs), the distinct entities a site answers questions about per day, so guessing many ids is capped too; it changed
+packs then, and in `it_incidents`), the distinct entities a site answers questions about per day, so guessing many ids is capped too; it changed
 only `config_hash` (`device_quality` `ac59c4cb...`, `claims_integrity` `12d62cdf...`).
 
 ### 1.3 Follow-up types: `followups.json` (G7)
@@ -145,6 +148,9 @@ in G2:
 | `device_quality` | `scar_draft` | T1 | `{conclusion: conclusion_id, supplier_id: entity_id supplier}` (was also `component_id`) |
 | `claims_integrity` | `evidence_packet` | T0 | `{conclusion: conclusion_id}` (was also `shop_id`, `pattern`, `max_files`) |
 | `claims_integrity` | `siu_referral_draft` | T1 | `{conclusion: conclusion_id, priority: enum [routine, urgent]}` (was also `area`) |
+| `it_incidents` (B4) | `evidence_packet` | T0 | `{conclusion: conclusion_id}` |
+| `it_incidents` (B4) | `problem_record_draft` | T1 | `{conclusion: conclusion_id, impact: enum [low, medium, high]}` |
+| `it_incidents` (B4) | `vendor_escalation_draft` | T1 | `{conclusion: conclusion_id, vendor_id: entity_id vendor}` |
 
 Why: a packet's target is the conclusion's own key, so a product, failure-mode or shop arg could only repeat it or
 contradict it; and generic code cannot tell which integer arg is a record cap (the cap is `egress.json`'s
@@ -155,8 +161,9 @@ only with args inside that conclusion: every `conclusion_id` arg must equal the 
 `predicate` arg the conclusion's key predicate, and every `entity_id` arg's (type, value) must be the conclusion's key
 entity or an entity of its lineage cells (which are cells of the same key). Anything else is refused
 (`args_out_of_scope`). So **a type whose entity arg names another entity type than the conclusion's key can never be
-proposed on that conclusion**: `scar_draft` (a `supplier` arg) is proposable only on supplier-keyed conclusions, and
-every other built-in type on any supported conclusion. When you design a pack's follow-up types, give each type at
+proposed on that conclusion**: `scar_draft` (a `supplier` arg) is proposable only on supplier-keyed conclusions,
+`it_incidents`'s `vendor_escalation_draft` (a `vendor` arg) only on vendor-keyed ones, and every other built-in type on
+any supported conclusion. When you design a pack's follow-up types, give each type at
 most one `entity_id` arg, of the entity type it is meant for; `enum` and `integer` args are free choices the system
 fills (G0's harness takes an enum's first value and an integer's minimum, a harness choice, not a system one), and
 there is still no free-text arg kind.
@@ -186,6 +193,9 @@ word. The built-in templates:
 | `device_quality` | `scar_draft` | `title: headline`, `nonconformance: [summary, evidence]`, `requested_actions: for_owner` |
 | `claims_integrity` | `evidence_packet` | `null` |
 | `claims_integrity` | `siu_referral_draft` | `title: headline`, `pattern_summary: [summary, evidence]`, `requested_checks: for_owner` |
+| `it_incidents` (B4) | `evidence_packet` | `null` |
+| `it_incidents` (B4) | `problem_record_draft` | `title: headline`, `problem_statement: [summary, evidence]`, `workaround: for_owner`, `affected_releases: entity_ids:software_release`, `affected_services: entity_ids:it_service` |
+| `it_incidents` (B4) | `vendor_escalation_draft` | `title: headline`, `issue_summary: [summary, evidence]`, `requested_actions: for_owner` |
 
 Only `config_hash` changed (`INTEGRATION.md`, B1). Up to B1 the template drafter wrote `'<type label>: <summary>'` into
 every required string and `[]` into every array, so a CAPA draft's title, problem statement and containment were the
@@ -216,7 +226,7 @@ have any name; that is how you freeze an extended copy before labelling. Check a
 python -m mycelic.collective.packs.loader check <pack-dir>
 ```
 
-## 3. The two built-in packs
+## 3. The built-in packs
 
 **`device_quality`** is the device-quality pack: products, alias-only components, lots and suppliers; ten
 failure-mode predicates and a generic one (English, with a German subset); placeholder codes; a fictional six-plant device maker as
@@ -235,19 +245,73 @@ holds no device literal. **It is not evidence of generality.** It was written by
 it cannot measure X3 (a second pack built by someone else, with the engineer-hours recorded; STRATEGY section 11.2).
 Its disclaimer says so, and it is never used in external material.
 
+**`it_incidents`** (B4) is a third pack in another unrelated field: multi-site IT operations incidents at the six
+subsidiaries of a fictional group, in English and German. Its entity types are IT services (alias-only: mail, remote
+access, sign-in, finance ERP, file share, backup, printing, the self-service portal), configuration items (host names;
+the first entity type of a built-in pack that never leaves a site, `egress` false, so `entities.config_item` is a
+never field), software releases (`REL/nnnn/nn`, with slashes), vendors and change requests; eleven failure-mode
+predicates and a generic one; follow-ups `evidence_packet` (T0), `problem_record_draft` and `vendor_escalation_draft`
+(T1). It was built as data only, from requirements written before any of its files existed
+(`docs/collective/x3/REQUIREMENTS.md`), with zero lines of code changed; what the data could not express is recorded
+as generality gaps in `docs/collective/x3/effort.json` (section 4.1). **It is not X3 either**: the same AI system wrote
+it and the generic code, so it is internal evidence that a new field can be configuration, never a buyer claim. Its
+`pack.json` says so:
+
+> This pack is an illustrative vocabulary for the IT operations incidents of a fictional group, written for testing. Its ITC- codes are invented placeholders, and its services, vendors, releases, changes, hosts, subsidiaries and people are fictional. It was written by the same author as the generic code, as an internal generality measurement (B4); it is not X3 by a non-author and it is never used externally.
+
 ## 4. How to add a pack
 
-1. Copy the pack closest to your field to a new directory and change `pack.json` (id, title, languages, version,
-   `illustrative`, `disclaimer`).
-2. Write the vocabulary before you look at any outcome: entity types and their id shapes, predicates and their
-   lexicon per language, negation cues. Freeze it (step 6) before anyone names an incident.
-3. Write `mapping.json` against a real export's field names; never-leave fields (narrative, reporter, every person
-   field) go into `egress.json`'s `never_fields`.
-4. Write `generator.json` so the generic generator can build a world: every universe id must be canonical, every
-   alias-only id needs an alias, templates must be single sentences with slots on word boundaries.
-5. Hand-label at least 40 fixtures that cover every predicate twice, negation, aliases, id variants, near-miss ids,
-   attached and entity-only claims, zero-claim records, person names in text, HTML and codes that disagree with the
-   narrative.
-6. Run `python -m mycelic.collective.packs.loader check <pack-dir>` until it prints the four hashes, and record
-   them. If a test or the domain-literal guard fails because the generic code needs a new literal, the pack has
-   found a gap in the generic code: fix the code generically, never by naming the field.
+These are the steps B4 followed for `it_incidents` (same author as the generic code; section 3). Each names what the
+generic code expects of the data, so the next pack can follow them.
+
+1. **Write the field's requirements first** and commit them alone, before any pack file exists
+   (`docs/collective/x3/REQUIREMENTS.md`, B4a). A requirement found missing later is listed as post hoc, never added to
+   that file.
+2. **Copy the pack closest to your field** to `mycelic/collective/packs/data/<pack_id>/` (or any directory, loaded by
+   path) and delete what has no counterpart (B4 copied `device_quality`, which has two languages, an alias-only type
+   and linked types, and deleted `mapping_openfda.json` and `fixtures/plant_e2_smoke.json`). Rewrite `pack.json` (id,
+   title, languages, version, `illustrative`, `disclaimer`, `same_author_as_code`).
+3. **Write the vocabulary before you look at any outcome**: entity types and their id shapes, predicates and their
+   lexicon per language with every inflected form listed, negation cues. Ids must avoid reserved words and every
+   identifier of the generic code (`DomainLiteralTests`); an alias may not fold to its own target, so give an
+   alias-only id a descriptive name and its acronym as an alias; an id format's separator is `-`, `/` or none.
+4. **Write `mapping.json` against the export's field names**, with a `value_map` for tool labels and a `where` filter
+   for the narrative parts that people wrote. Never-leave fields (narrative, reporter, every person field, and
+   `entities.<type>` of a type with `egress` false) go into `egress.json`'s `never_fields`.
+5. **Write `generator.json`** so the generic generator can build a world whose gold equals lexical extraction on every
+   record: every universe id canonical and every alias-only id with an alias; templates single sentences with slots on
+   word boundaries, each using a lexicon phrase exactly; a negated template with its cue within `negation_window`
+   tokens before the term; no alias word inside another id (a host named after a service is read as that service);
+   volumes and template variety enough for unique narratives over 104 weeks.
+6. **Hand-label at least 40 fixtures** from the text, as a careful person would, covering every predicate twice,
+   negation in each language, aliases, id variants, near-miss ids, attached and entity-only claims, zero-claim records,
+   person names in text, HTML, codes that disagree with the narrative and a mixed-language record. Where the lexical
+   extractor disagrees, record the disagreement; never relabel toward it.
+7. **Write `fixtures/plant_smoke.json`** (three patterns, one decoy per class) so `check_plant` passes for a 52-week
+   world and a 104-week world, both with `eval_from` 26.
+8. **Run `python -m mycelic.collective.packs.loader check <pack-dir>`** until it prints the four hashes, pin them
+   (`B4_HASHES` in `tests/mycelic/test_collective_pushdown.py`), and add the pack's row to every per-pack test table
+   (`LoopCoverageTests` in `tests/mycelic/test_collective_guards.py` fails until every table covers every built-in
+   pack).
+9. **Run G0, the X1 construction smoke and a demo scenario** on the pack (`docs/collective/x3`).
+10. **Anything only code could fix is a generality gap**: record it with its exact error line, fix it only if it
+    blocks one of the runs above, generically and without naming the field.
+
+### 4.1 As measured for it_incidents (B4)
+
+Every effort figure of B4 is in `docs/collective/x3/effort.json`; this table only points at it. It is the same
+author's effort with the generic code in mind, an AI agent's wall clock and file sizes, not engineer-hours by a
+non-author (X3).
+
+| Pointer | What it holds |
+|---|---|
+| `docs/collective/x3/effort.json#/totals` | files, lines and bytes of the pack directory, and its lines changed against the template pack |
+| `docs/collective/x3/effort.json#/files` | the same per file |
+| `docs/collective/x3/effort.json#/code_lines_changed` | lines changed under `mycelic/` and `demo/` outside the pack directory |
+| `docs/collective/x3/effort.json#/code_files_changed` | those files |
+| `docs/collective/x3/effort.json#/test_lines_added` | test lines added and deleted (generalised loops and the new module) |
+| `docs/collective/x3/effort.json#/requirements` | per requirement: expressible, approximated or not expressible, and how |
+| `docs/collective/x3/effort.json#/gaps` | the generality gaps, each with its exact error line or observed behaviour |
+| `docs/collective/x3/effort.json#/term_renames` | pack terms renamed because a check refused them |
+| `docs/collective/x3/effort.json#/fit_to_code_choices` | data choices made to fit the generic code |
+| `docs/collective/x3/effort.json#/wall_clock` | the AI agent's wall clock per milestone, not engineer-hours |
