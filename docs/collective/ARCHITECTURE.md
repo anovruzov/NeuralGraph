@@ -2175,9 +2175,8 @@ the product under the generic code at the top rank in X's own week, and S flags 
 byte-identical, as `docs/collective/evidence/superseded/collective-halvern-g10/`, with a README pointing into its
 scorecard). B1 keeps the first scenario unchanged and adds, in its first commit (B1a), what the review found missing
 around it. A second commit (B1b) was to add the constructed codes-miss scenario that `docs/collective/b1/PREREG.md`
-fixed before any of its worlds existed. **B1b built it, and its first attempt does not illustrate the case**
-(section 17.10): R (model-free) and S flag the hero's lot under the generic code in the case's first week, a week
-before X. What B1a changed:
+fixed before any of its worlds existed. **B1b built it, and none of its three pre-registered attempts illustrates
+the case** (section 17.10). What B1a changed:
 
 - **The draft** is filled from the conclusion and the ok packets through the pack template, each field with its source
   (section 16.9); the screen leaves the `for_owner` field to the owner.
@@ -2229,10 +2228,14 @@ generic code on every complaint from one detector window before the case to the 
   no-later-than-X lines with the first key each flagged, the robustness and grid counts and the strict reading; every
   value is an item read from the scorecard.
 - **Attempts.** At most three, each under `docs/collective/b1/attempts/attempt-<n>/` with its scenario bytes and the
-  first recording's six run files, and listed in `INTEGRATION.md` (B1b). **Attempt 1 does not illustrate the case**:
-  X caught the hero a week after its first week and the gate says supported, but R (model-free) and S both flag
-  `lot:L10002:malfunction_unspecified` in the hero's first week (R reads record-level counts of the allowed fields,
-  and the hero's lot field is filled at the generator's 60%); 4 of 8 robustness seeds and 1 of 6 grid cells hold.
+  first recording's six run files, a plan committed before any alert from the second on, and listed in
+  `INTEGRATION.md` (B1b). **No attempt illustrates the case.** Attempt 1 (the cast as fixed): R (model-free) and S
+  flag `lot:L10002:malfunction_unspecified` in the hero's first week, a week before X (R reads record-level counts of
+  the allowed fields, and the hero's lot field is filled at the generator's 60%). Attempt 2 (a high-volume lot): R
+  flags the hero's product instead, and the gate goes stale (the hero's last week ended more than 42 days before the
+  check). Attempt 3 (the last; the hero starts two weeks later): on its own world X catches the case, the gate says
+  supported, all 12 checks pass and neither baseline flags a case key by X's week, but 0 of 8 robustness seeds hold,
+  so `holds` is false. The committed scenario is attempt 3's.
 
 ## 18. B3: X5, leakage beyond text
 

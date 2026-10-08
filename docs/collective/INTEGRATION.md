@@ -2894,12 +2894,15 @@ read the committed attempt files. The real `detect_only` path was exercised once
 |---|---|---|---|
 | 1 | `c534c9b76d956daad5bea2b274f41e66` | Nothing: the pre-registered cast | **Does not hold.** X caught the hero (`x_caught` true, first alert `2024-W32`, the hero's first week is `2024-W31`), gate `supported`; R (model-free) and S both have an attributed alert of `lot:L10002:malfunction_unspecified` in `2024-W31` (rank 1 and 2), so `holds_main` false and `holds` false. `robust_holding` 4 of 8 (`holds_robust` true), `grid_holding` 1 of 6, `holds_strict` false. |
 | 2 | `5a92c52827c79f43174fbd268402db3d` | The hero lot, `L10002` to `L20045` (product `SD-12` by the generator's link), by a rule stated in `attempt-2/PLAN.md` before any alert: the lot R3 allows at all three hero plants with the most background records there (42 against 12 and 10). Why: attempt 1's R and S flagged the low-volume lot under the generic code in the hero's first week. Plan pushed in `5a15a99` before recording. | **Does not hold, and attempt-fatal.** X caught the hero (rank 1, `2024-W32`), but the gate is `stale` ("the newest confirming week 2024-W36 ended more than 42 days before 2024-10-28"); R has an attributed alert of `product:SD-12:malfunction_unspecified` in `2024-W31`; S's first attributed alert is `2024-W34`. `robust_holding` 4 of 8, `grid_holding` 1 of 6; 8 of 12 run checks pass (the gate and the three follow-up checks fail). |
+| 3 | `5578b5500d2edc4001d9a635b10a61df` | Against the pre-registered cast, the hero start week 30 to 32 (the shift follows by R8, 24), by a rule stated in `attempt-3/PLAN.md` before any alert: the earliest start week whose last week ends within the gate's 42 days of the as-of date (50, 43, then 36 days). Why: attempt 2's gate went stale on the hero's own records. The lot returns to `L10002`, since attempt 2's lot change did not hide the case from R. Plan pushed in `5f85e21` before recording. | **Does not hold (final).** X caught the hero (rank 1, `2024-W34`, a week after its first week), gate `supported`, 12 of 12 checks; neither R nor S has an attributed alert by X's week (`holds_main` true), but R held the hero's lot and product cooling in X's week (`strict_no_later` true for both), and `robust_holding` is **0 of 8** (`holds_robust` false), so `holds` and `holds_strict` are false. `grid_holding` 1 of 6. |
 
-Attempt 1 is in `docs/collective/b1/attempts/attempt-1/` (scenario bytes, the six run files of its first recording,
-and a README read from its scorecard). Its attempt-fatal checks pass (X caught, gate supported); `holds` is false, so
-the PREREG allows another attempt within R1 to R8, adjusting only the hero lot, the hero sites and languages, the hero
-rate, the hero start week and the hero templates. **What every page now says:** the scenario exists and its first
-attempt does not illustrate the case; no committed run shows a case the fields allowed to leave miss.
+Each attempt is in `docs/collective/b1/attempts/attempt-<n>/` (scenario bytes, the six run files of its first
+recording and a README read from its scorecard; attempts 2 and 3 also a `PLAN.md` committed and pushed before any
+alert on their digest). The three attempts the PREREG allows are used, and **none illustrates the case**. The committed
+scenario is attempt 3's, byte-identical. **What every page now says:** the scenario exists, no attempt illustrates the
+case, and no committed run shows a case the fields allowed to leave miss; on this constructed world the structured
+fields, filled at the generator's rates, carry the case about as early as X does (across the 42 logged worlds, R or S
+flags a key of the case within about two weeks of X in most of them).
 
 **Why it fails, as far as the scorecard shows.** R reads record-level counts of the allowed fields with no
 k-suppression, and the hero's lot field is filled in 60% of the hero records (R4 fixes the generator's rate), so the
@@ -2924,7 +2927,11 @@ every complaint. X's own key first alerted a week later.
 
 - **Agent review is owed.** This gate was built without the reviewer agent; the review runs when the agents are
   available again.
-- **Attempt 1 is the committed scenario.** Whether to spend attempt 2 (and on what adjustment) is open; any attempt
-  must cite this scorecard and stay within R1 to R8.
+- **The illustration does not exist, and the PREREG allows no further attempt.** A new codes-miss illustration would
+  be a new pre-registration, not an edit of this one; the evidence from the 42 logged worlds says a case the allowed
+  fields miss needs structured fields that are absent or wrong in the case's records, which R4 (the generator's own
+  fill rates) rules out here. Whether real cases look like that is N1's question.
+- **Attempt 2's lot rule looked only at background volume.** It did not foresee R flagging the product instead; that
+  is recorded, not corrected, since the attempt is logged as made.
 - **The robustness and grid variants run with the main run's routing.** With the stand-in (no `--routing`) that is the
   lexical handler everywhere, as here; with a model every variant calls it too (26 detection-only prepares).

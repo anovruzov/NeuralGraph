@@ -18,10 +18,10 @@ portability and model-name scans of every other file under `docs/collective/`.
 It is superseded by the B1a run under `demo/collective/recorded/` (`collective-halvern-b1a`: the same scenario
 re-recorded with a filled draft and per-field sources), whose own scorecard says what it shows: R (model-free) still
 flags a key of the case in X's week, so it shows no case the allowed fields miss either. **B1's constructed codes-miss
-scenario exists (B1b), and its first attempt does not illustrate the case either**: under the rule
-`docs/collective/b1/PREREG.md` fixed in advance, R (model-free) and S flag the hero's lot under the generic code in the
-case's first week, a week before X (`docs/collective/b1/attempts/attempt-1/`, and `docs/collective/INTEGRATION.md`,
-B1b).
+scenario exists (B1b), and none of its three pre-registered attempts illustrates the case either**: under the rule
+`docs/collective/b1/PREREG.md` fixed in advance, R (model-free) or S flags a key of the case no later than X, on the
+main world of the first two attempts and on every robustness seed of the third (`docs/collective/b1/attempts/`, and
+`docs/collective/INTEGRATION.md`, B1b).
 
 ## Where to look in `scorecard.json`
 

@@ -53,15 +53,24 @@ screen shows both. So this run does not show a case that the fields allowed to l
 9.2's cut needs. The G8 recording that the final review read is kept, byte-identical, as superseded evidence
 (`docs/collective/evidence/superseded/collective-halvern-g10/`).
 
-**The constructed codes-miss scenario (B1b) exists, and its first attempt does not illustrate the case.**
-`scenario_codes_miss.json` is the cast `docs/collective/b1/PREREG.md` fixed before any of its worlds existed (a
-fictional Tarnwick Devices, where a new complaint-intake form at five plants writes the generic code on every
-complaint), as the last attempt adjusted it (attempt 2 moved the failure to another lot and did not hold either; attempt 3,
-the last, is planned in `docs/collective/b1/attempts/attempt-3/PLAN.md`). Its first recording, `docs/collective/b1/attempts/attempt-1/`, is judged by the pre-registered rule
-(`codes_miss.py`), and its own scorecard says the rule does not hold: X caught the case and the check with the sites
-says supported, but R (model-free) and S both flag the hero's lot under the generic code in the case's first week, a
-week before X. So no committed run shows a case the fields allowed to leave miss. Every screen of that scenario
-carries the two pre-registered sentences:
+**The constructed codes-miss scenario (B1b) exists; none of its three pre-registered attempts illustrates the
+case.** `scenario_codes_miss.json` is the cast `docs/collective/b1/PREREG.md` fixed before any of its worlds existed
+(a fictional Tarnwick Devices, where a new complaint-intake form at five plants writes the generic code on every
+complaint), as the third and last attempt adjusted it (the hero starts two weeks later, so the check is not stale).
+Each attempt is judged by the pre-registered rule (`codes_miss.py`) and committed under `docs/collective/b1/attempts/`
+with its plan and its first recording:
+
+- **attempt 1**: R (model-free) and S flag the hero's lot under the generic code in the case's first week, a week
+  before X;
+- **attempt 2** (the case moved to a high-volume lot): R flags the hero's product instead, still in the first week,
+  and the check with the sites goes stale;
+- **attempt 3** (the last): on its own world X catches the case, the sites confirm it, and neither R nor S flags a key
+  of the case by X's week; but on **0 of the 8 robustness seeds** does that hold, so the rule says the run does not
+  illustrate the case.
+
+So no committed run shows a case the fields allowed to leave miss: on this constructed world the structured fields,
+filled at realistic rates, carry the case about as early as X does. Every screen of that scenario carries the two
+pre-registered sentences:
 
 > Constructed illustration of the case codes miss. Whether such cases occur in real data is exactly what N1 and the Phase-1 signal audit measure.
 
@@ -69,7 +78,8 @@ carries the two pre-registered sentences:
 
 and the rule's verdict, whichever way it falls, after the gate: whether X caught the case, whether R and S resolved it
 no later than X (with the first key each flagged), how many robustness seeds and grid cells hold, and the strict
-reading. Replay it with `python demo/collective/collective_demo.py --replay docs/collective/b1/attempts/attempt-1`.
+reading. Replay the committed scenario's run with
+`python demo/collective/collective_demo.py --replay docs/collective/b1/attempts/attempt-3`.
 
 ## Modes
 
