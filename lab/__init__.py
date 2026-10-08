@@ -17,7 +17,8 @@ weights; the workflow is ``.github/workflows/mycelic-lab.yml``.
 
 Modules: ``notes`` (every fixed sentence), ``request``, ``manifest``, ``discover``, ``plan``, ``goldlabels`` (E1's
 generator or fixture labels), ``prereg``, ``download``, ``provision``, ``server``, ``warmup``, ``responder`` (the
-fake server's reply function), ``hostinfo``, ``units`` (the harness adapters: E1, E2, E3, G0, sim, X1, openFDA),
+fake server's reply function), ``hostinfo``, ``hosted`` (the optional OpenAI-compatible hosted provider: its two
+secrets, routing, preflight and call shares), ``units`` (the harness adapters: E1, E2, E3, G0, sim, X1, openFDA),
 ``openfda`` (the openFDA unit's fetch, replay and sheet steps), ``shard``, ``sim`` (the multi-site simulation harness
 the lab adds to the collective's), ``aggregate``, ``summary`` and ``dryrun``; ``plants/`` holds the lab's plant
 specs. The lab imports only the standard library, ``mycelic`` and itself.
@@ -35,6 +36,19 @@ the branches merge):
 5. Audit r2's verifier and extractor circuit breaker changes the judge call counts the E2 projection multiplies, and
    the runtime's checked synthetic exemptions are a merge risk for the lab's synthetic-labelled runs: re-run the
    all-experiments dry run (``tests/lab/data/requests/all-experiments.json``) on the trial merge.
+6. E2's central task has ``max_tokens`` 64. A hosted reasoning model can exhaust it on thinking; the hosted preflight
+   catches a ``finish_reason`` of ``length`` on the canary and fails the key (:data:`~lab.notes.HOSTED_LENGTH`).
+7. The client always sends ``temperature`` 0 and, for ``json_schema``, a strict schema. A hosted model that refuses
+   either fails the preflight with HTTP 400 (the remedy names ``json_object`` and ``none``, which helps only for the
+   schema); a runtime hook to omit ``temperature`` would admit those models.
+8. ``e1_extract run`` writes the host's whole ``/models`` listing into ``run.json`` (``models_listed``), which is part
+   of a public artifact and may list account-specific model ids; ``e2.json`` records ``central_routing_sha256`` over
+   the scratch routing file that holds the base URL (a hash, not the URL). A hook that records only whether the
+   requested model was listed would remove the first.
+9. The hosted call bound (``lab.request``, ``lab.plan``) assumes one repair per ``runtime.run`` call and at most
+   ``top_n`` central candidates per seed: re-check it on the trial merge with the audit's circuit breaker changes.
+
+GitHub Models is not built: the lab has no code for it and the workflow asks for no ``models`` permission.
 
 Exit codes, the same for every lab CLI:
 

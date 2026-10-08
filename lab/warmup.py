@@ -1,8 +1,10 @@
 """Warm a started model server up with the real tasks and schemas before any unit is measured on it.
 
 :func:`warm_tasks` lists what a serving class will ask the server: for G0 and sim units the pack's ``extract_claims``
-and ``judge_record`` tasks (not streamed), for E1 units only ``extract_claims``, for E2 units ``judge_record`` and
-the central comparator's ``judge_candidate_raw`` and ``judge_candidate_allowed``, for E3 units each workload's task
+and ``judge_record`` tasks (not streamed), for E1 units only ``extract_claims``, for E2 units ``judge_record`` and,
+when the central comparator is the model itself (``central: self``), its ``judge_candidate_raw`` and
+``judge_candidate_allowed`` (a hosted central comparator is never warmed or fitted on this server; ``lab.hosted``'s
+preflight sends it the same payloads), for E3 units each workload's task
 (streamed), one :class:`WarmTask` per task and pack (shared by the units of that pack; the first such unit's seed
 picks the record), sorted by (task name, pack). Each carries a typical payload, a worst case and its deadline:
 
@@ -184,7 +186,8 @@ def warm_tasks(units: list[Mapping[str, Any]], plan: Mapping[str, Any], prereg: 
             pack_tasks(unit, pack_id)
             keys = {"e1": [(TASK_NAME, pack_id)], "e2": [(judge_task().name, pack_id)]}.get(
                 unit["experiment"], [(TASK_NAME, pack_id), (judge_task().name, pack_id)])
-            if unit["experiment"] == "e2" and prereg is not None and prereg.manifest.get("e2") is not None:
+            if (unit["experiment"] == "e2" and unit["params"]["central"] == "self" and prereg is not None
+                    and prereg.manifest.get("e2") is not None):
                 raw, allowed = e2_worst_payloads(unit, prereg.manifest["e2"]["rehearsal"])
                 for name, payload in zip(CENTRAL_TASKS, (raw, allowed)):
                     if (name, pack_id) not in found:

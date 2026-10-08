@@ -12,13 +12,14 @@ are refused at every level::
      "max_parallel": 1..16,                            # shard jobs that may run at once
      "retention_days": 1..90,                          # how long the result artifacts are kept
      "experiments": {                                  # at least one of e1, e2, e3, g0, sim, x1, openfda
-         "e1": {...}, "e2": {...}, "e3": {...}, "g0": {...}, "sim": {...}, "x1": {...}, "openfda": {...}}}
+         "e1": {...}, "e2": {...}, "e3": {...}, "g0": {...}, "sim": {...}, "x1": {...}, "openfda": {...}},
+     "hosted": {"<hosted model key>": {"max_calls": 1..1000000}, ...}}   # optional, default {}; see below
 
 ``capacity`` below is ``job_minutes - SHARD_OVERHEAD_MINUTES``; a seed is an int in ``0..2147483647``. The blocks:
 
 ``e1``, extraction F1 of two or more models against labelled records (one unit per model and repeat)::
 
-    {"models": [...],                     # default $.models; gguf or fake models only; at least 2
+    {"models": [...],                     # default $.models; gguf, fake or hosted models; at least 2
      "minutes": 1..capacity,              # per repeat unit
      "labels": {"source": "generator" | "fixtures", "pack": "<built-in pack id>",
                 "n": 40..2000, "seed": <seed>},   # n and seed for generator labels only, and then required
@@ -39,7 +40,7 @@ are refused at every level::
      "detector_author": "<1..80 printable characters>",   # default "mycelic engineering"
      "top_n": 5..60,                      # candidates per seed
      "min_candidates": 1..top_n,          # default top_n
-     "central": "self",                   # default "self": the central comparator is the model under test
+     "central": "self" | "<a hosted model of $.models>",   # default "self": the model under test itself
      "bootstrap_b": 1000..20000,          # default 10000
      "bootstrap_seed": <seed>}            # default 1
 
@@ -79,9 +80,24 @@ The fetch budget is checked last: ``product_codes x 2 x ceil(max_records_per_cod
 (:func:`openfda_requests`) may be at most :data:`OPENFDA_CAP` (100 without the ``MYCELIC_LAB_OPENFDA_API_KEY``
 secret, 1000 with it; the plan job is told which by ``LAB_HAS_OPENFDA_KEY``).
 
-A fake model needs provider ``fake`` and a gguf model needs the server provider. ``provider: "fake"`` makes the whole
-run a plumbing check: nothing it writes measures a model. A model kind outside :data:`SIM_KINDS` is refused for
-``e1``, ``e2`` and ``sim`` at ``$.experiments.<block>.models[i]``, or at ``$.models[j]`` when the block names none.
+A fake model needs provider ``fake`` and a gguf model needs the server provider; a hosted model goes with either.
+``provider: "fake"`` makes the whole run a plumbing check: nothing it writes measures a model (its hosted units still
+call the configured host, labelled plumbing). A hosted model runs only as an ``e1`` model or as ``e2.central``: one in
+``e2.models``, ``sim``, ``e3`` or ``g0`` is refused (:data:`HOSTED_PLACE`), and any other model kind outside
+:data:`SIM_KINDS` is refused for ``e1`` (where hosted is allowed), ``e2`` and ``sim``; each at
+``$.experiments.<block>.models[i]``, or at ``$.models[j]`` when the block names none.
+
+``hosted`` is checked after every experiment block: it is required exactly when ``e1`` or ``e2.central`` uses a hosted
+model and then names exactly those models (unknown keys first, in sorted order, then each used key in sorted order),
+each with ``{"max_calls": 1..1000000}``; it is refused when no hosted model is used, unless empty. Last, each used key's
+``max_calls`` must be at least the most model calls the request can make on the host (``lab.hosted``'s constants)::
+
+    bound = [K in e1.models] x (PREFLIGHT_MAX_CALLS + e1.runs x records x 2)
+          + [e2.central == K] x len(e2.models) x (2 x PREFLIGHT_MAX_CALLS + 2 x top_n x len(seeds) x 2)
+
+where ``records`` is ``labels.n`` for generator labels, else the pack's fixture records (:func:`e1_records`): a
+preflight of up to ``PREFLIGHT_MAX_CALLS`` calls per canary task and shard, then one call and one repair per E1 record
+and per E2 central call. The bound does not depend on whether the secrets are present.
 After the keys, ``sim`` checks models, minutes, plant, weeks, top_n, seeds, then for each seed in order whether the
 plant fits that world under ``lab.sim.world_settings`` (``the plant does not fit these weeks (<the plant check's
 problem>)`` at ``$.experiments.sim.weeks``); every other block checks its values in the order listed above.
@@ -115,6 +131,8 @@ from mycelic.collective.jsonio import StrictJsonError, sha256_hex, strict_load
 from mycelic.collective.packs import loader
 
 from . import LabError, check_keys, display_path, safe_path
+from .goldlabels import build_labels
+from .hosted import PREFLIGHT_MAX_CALLS, preflight_tasks, unit_bound
 from .manifest import Manifest
 from .notes import PLACEHOLDER
 from .sim import MAX_SEEDS, MAX_TOP_N, MAX_WEEKS, PLANTS, min_weeks, plant_problem
@@ -172,6 +190,9 @@ PRINTABLE_PROBLEM = "must be printable characters"
 FIELD_PATH_PROBLEM = "must be a field path such as device[].manufacturer_d_name"
 DATE_PROBLEM = "must be a calendar date YYYYMMDD"
 LOCATION_PROBLEM = "must be lab/requests/<name>.json"
+HOSTED_PLACE = ("a hosted model runs only in e1 or as e2.central: the simulation and the canary scan run each site's "
+                "model inside the runner, and E3 measures this runner")
+MAX_HOSTED_CALLS = 1000000
 
 
 class RequestError(LabError):
@@ -294,11 +315,11 @@ def _minutes(value: Any, path: str, capacity: int) -> int:
     return value
 
 
-def _e3(raw: Any, models: list[str], capacity: int) -> dict[str, Any]:
+def _e3(raw: Any, models: list[str], capacity: int, manifest: Manifest) -> dict[str, Any]:
     path = "$.experiments.e3"
     block = _object(raw, path)
     check_keys(block, _E3_KEYS, _E3_KEYS[1:], path, RequestError)
-    out: dict[str, Any] = {"models": _block_models(block, path, models),
+    out: dict[str, Any] = {"models": _no_hosted(block, path, models, manifest),
                            "minutes": _minutes(block["minutes"], f"{path}.minutes", capacity)}
     out["concurrency"] = _distinct(_list(block["concurrency"], f"{path}.concurrency", 1, 4, "ints"),
                                    f"{path}.concurrency", lambda v, p: _int(v, p, 1, 8))
@@ -318,11 +339,11 @@ def _e3(raw: Any, models: list[str], capacity: int) -> dict[str, Any]:
     return out
 
 
-def _g0(raw: Any, models: list[str], capacity: int) -> dict[str, Any]:
+def _g0(raw: Any, models: list[str], capacity: int, manifest: Manifest) -> dict[str, Any]:
     path = "$.experiments.g0"
     block = _object(raw, path)
     check_keys(block, _G0_KEYS, _G0_KEYS[1:], path, RequestError)
-    out: dict[str, Any] = {"models": _block_models(block, path, models),
+    out: dict[str, Any] = {"models": _no_hosted(block, path, models, manifest),
                            "minutes": _minutes(block["minutes"], f"{path}.minutes", capacity)}
     out["pack"] = _pack(block["pack"], f"{path}.pack")
     out["records"] = _int(block["records"], f"{path}.records", 50, 2000)
@@ -330,14 +351,31 @@ def _g0(raw: Any, models: list[str], capacity: int) -> dict[str, Any]:
     return out
 
 
-def _model_kinds(block: dict[str, Any], path: str, models: list[str], manifest: Manifest, name: str) -> list[str]:
-    """The block's models (default: $.models), each of a kind in :data:`SIM_KINDS`; ``name`` names the experiment
-    in the problem."""
+def _model_at(block: dict[str, Any], path: str, models: list[str], key: str, i: int) -> str:
+    return f"{path}.models[{i}]" if "models" in block else f"$.models[{models.index(key)}]"
+
+
+def _no_hosted(block: dict[str, Any], path: str, models: list[str], manifest: Manifest) -> list[str]:
+    """The block's models (default: $.models), none of them hosted (:data:`HOSTED_PLACE`)."""
     chosen = _block_models(block, path, models)
     for i, key in enumerate(chosen):
-        if manifest.models[key]["kind"] not in SIM_KINDS:
-            at = f"{path}.models[{i}]" if "models" in block else f"$.models[{models.index(key)}]"
-            raise RequestError(at, f"{name} runs only gguf or fake models") from None
+        if manifest.models[key]["kind"] == "hosted":
+            raise RequestError(_model_at(block, path, models, key, i), HOSTED_PLACE) from None
+    return chosen
+
+
+def _model_kinds(block: dict[str, Any], path: str, models: list[str], manifest: Manifest, problem: str,
+                 allowed: tuple[str, ...] | None = None) -> list[str]:
+    """The block's models (default: $.models), each of a kind in ``allowed`` (default :data:`SIM_KINDS`, read at call
+    time); a hosted model where hosted is not allowed is :data:`HOSTED_PLACE`, any other kind ``problem``."""
+    allowed = SIM_KINDS if allowed is None else allowed
+    chosen = _block_models(block, path, models)
+    for i, key in enumerate(chosen):
+        kind = manifest.models[key]["kind"]
+        if kind == "hosted" and kind not in allowed:
+            raise RequestError(_model_at(block, path, models, key, i), HOSTED_PLACE) from None
+        if kind not in allowed:
+            raise RequestError(_model_at(block, path, models, key, i), problem) from None
     return chosen
 
 
@@ -362,7 +400,7 @@ def _sim(raw: Any, models: list[str], capacity: int, manifest: Manifest) -> dict
     path = "$.experiments.sim"
     block = _object(raw, path)
     check_keys(block, _SIM_KEYS, _SIM_KEYS[1:], path, RequestError)
-    chosen = _model_kinds(block, path, models, manifest, "the simulation")
+    chosen = _model_kinds(block, path, models, manifest, "the simulation runs only gguf or fake models")
     out: dict[str, Any] = {"models": chosen, "minutes": _minutes(block["minutes"], f"{path}.minutes", capacity)}
     plant = block["plant"]
     if not isinstance(plant, str):
@@ -411,7 +449,8 @@ def _e1(raw: Any, models: list[str], capacity: int, manifest: Manifest) -> dict[
     path = "$.experiments.e1"
     block = _object(raw, path)
     check_keys(block, _E1_KEYS, _E1_REQUIRED, path, RequestError)
-    chosen = _model_kinds(block, path, models, manifest, "E1")
+    chosen = _model_kinds(block, path, models, manifest, "E1 runs only gguf, fake or hosted models",
+                          allowed=(*SIM_KINDS, "hosted"))
     if len(chosen) < 2:
         raise RequestError(f"{path}.models" if "models" in block else path, "E1 needs at least 2 models") from None
     out: dict[str, Any] = {"models": chosen, "minutes": _minutes(block["minutes"], f"{path}.minutes", capacity),
@@ -480,16 +519,17 @@ def _e2(raw: Any, models: list[str], capacity: int, manifest: Manifest) -> dict[
     path = "$.experiments.e2"
     block = _object(raw, path)
     check_keys(block, _E2_KEYS, _E2_REQUIRED, path, RequestError)
-    out: dict[str, Any] = {"models": _model_kinds(block, path, models, manifest, "E2")}
+    out: dict[str, Any] = {"models": _model_kinds(block, path, models, manifest, "E2 runs only gguf or fake models")}
     out.update(_world(block, path, capacity, MAX_SEEDS, DEFAULT_TIE_SALTS["e2"]))
     out["top_n"] = _int(block["top_n"], f"{path}.top_n", 5, MAX_TOP_N)
     out["min_candidates"] = _optional(block, "min_candidates", out["top_n"],
                                       lambda v: _int(v, f"{path}.min_candidates", 1, out["top_n"]))
 
     def central(value: Any) -> str:
-        if _string(value, f"{path}.central", 16) != "self":
-            raise RequestError(f"{path}.central", "must be self") from None
-        return "self"
+        name = _string(value, f"{path}.central", 24)
+        if name != "self" and (name not in models or manifest.models[name]["kind"] != "hosted"):
+            raise RequestError(f"{path}.central", "must be self or a hosted model of $.models") from None
+        return name
 
     out["central"] = _optional(block, "central", "self", central)
     out["bootstrap_b"] = _bootstrap_b(block, path)
@@ -504,6 +544,65 @@ def _x1(raw: Any, capacity: int) -> dict[str, Any]:
     out = _world(block, path, capacity, 10, DEFAULT_TIE_SALTS["x1"])
     out["bootstrap_b"] = _bootstrap_b(block, path)
     out["bootstrap_seed"] = _optional(block, "bootstrap_seed", 1, lambda v: _seed(v, f"{path}.bootstrap_seed"))
+    return out
+
+
+def e1_records(labels: dict[str, Any]) -> int:
+    """The records one E1 repeat reads: ``n`` for generator labels, else the pack's fixture records."""
+    if labels["source"] == "generator":
+        return labels["n"]
+    return build_labels("fixtures", labels["pack"])[1]["records"]
+
+
+def hosted_bound(experiments: dict[str, Any], key: str) -> int:
+    """The most model calls the normalised experiments can make on the host for ``key``; see the module docstring.
+    ``lab.plan`` splits the same calls into per-shard shares."""
+    bound = 0
+    e1, e2 = experiments.get("e1"), experiments.get("e2")
+    if e1 is not None and key in e1["models"]:
+        bound += (PREFLIGHT_MAX_CALLS * preflight_tasks("e1")
+                  + e1["runs"] * unit_bound("e1", records=e1_records(e1["labels"])))
+    if e2 is not None and e2["central"] == key:
+        bound += len(e2["models"]) * (PREFLIGHT_MAX_CALLS * preflight_tasks("e2")
+                                      + unit_bound("e2", top_n=e2["top_n"], seeds=len(e2["seeds"])))
+    return bound
+
+
+def hosted_used(experiments: dict[str, Any], manifest: Manifest) -> list[str]:
+    """The hosted models the normalised experiments use: E1 models of kind hosted and a hosted ``e2.central``."""
+    used = {k for k in experiments.get("e1", {}).get("models", []) if manifest.models[k]["kind"] == "hosted"}
+    central = experiments.get("e2", {}).get("central", "self")
+    if central != "self":
+        used.add(central)
+    return sorted(used)
+
+
+def _hosted(top: dict[str, Any], experiments: dict[str, Any], manifest: Manifest) -> dict[str, Any]:
+    """The ``hosted`` block, checked after every experiment block; the bound is checked last."""
+    path = "$.hosted"
+    used = hosted_used(experiments, manifest)
+    if "hosted" not in top:
+        if used:
+            raise RequestError(path, "required: the hosted models e1 or e2.central uses need max_calls") from None
+        return {}
+    block = _object(top["hosted"], path)
+    if not used:
+        if block:
+            raise RequestError(path, "only for the hosted models e1 or e2.central uses") from None
+        return {}
+    check_keys(block, used, used, path, RequestError, unknown="not a hosted model e1 or e2.central uses")
+    out: dict[str, Any] = {}
+    for key in used:
+        entry = _object(block[key], f"{path}.{key}")
+        check_keys(entry, ("max_calls",), ("max_calls",), f"{path}.{key}", RequestError)
+        out[key] = {"max_calls": _int(entry["max_calls"], f"{path}.{key}.max_calls", 1, MAX_HOSTED_CALLS)}
+    for key in used:
+        bound = hosted_bound(experiments, key)
+        if out[key]["max_calls"] < bound:
+            raise RequestError(f"{path}.{key}.max_calls", (
+                f"must be at least {bound}, the most model calls this request can make on the host (a preflight of up "
+                f"to {PREFLIGHT_MAX_CALLS} calls per task and shard, and one repair per call); lower e1.runs, "
+                "e1.labels.n, e2.top_n or e2.seeds, or raise max_calls")) from None
     return out
 
 
@@ -625,7 +724,7 @@ def openfda_budget_problem(estimate: int, key: bool) -> str | None:
 def validate(obj: Any, manifest: Manifest, *, openfda_key: bool = False) -> dict[str, Any]:
     """The normalised request, or :class:`RequestError` for the first problem in the documented order."""
     top = _object(obj, "$")
-    check_keys(top, _TOP_KEYS, _TOP_KEYS, "$", RequestError)
+    check_keys(top, (*_TOP_KEYS, "hosted"), _TOP_KEYS, "$", RequestError)
     _int(top["schema_version"], "$.schema_version", 1, 1, "must be 1")
     out: dict[str, Any] = {"schema_version": 1, "purpose": _string(top["purpose"], "$.purpose", 500)}
     provider = _string(top["provider"], "$.provider", 32)
@@ -651,10 +750,12 @@ def validate(obj: Any, manifest: Manifest, *, openfda_key: bool = False) -> dict
     capacity = out["job_minutes"] - SHARD_OVERHEAD_MINUTES
     checks = {"e1": lambda raw: _e1(raw, models, capacity, manifest),
               "e2": lambda raw: _e2(raw, models, capacity, manifest),
-              "e3": lambda raw: _e3(raw, models, capacity), "g0": lambda raw: _g0(raw, models, capacity),
+              "e3": lambda raw: _e3(raw, models, capacity, manifest),
+              "g0": lambda raw: _g0(raw, models, capacity, manifest),
               "sim": lambda raw: _sim(raw, models, capacity, manifest), "x1": lambda raw: _x1(raw, capacity),
               "openfda": lambda raw: _openfda(raw, capacity, openfda_key)}
     out["experiments"] = {name: checks[name](experiments[name]) for name in EXPERIMENTS if name in experiments}
+    out["hosted"] = _hosted(top, out["experiments"], manifest)
     return out
 
 

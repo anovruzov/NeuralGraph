@@ -206,6 +206,31 @@ E2_SIZING_NOTE = ("Pushdown sizing: the model-free rehearsal's call counts times
                   "against the share of the unit's budget the projection may use; a projection above it skips the "
                   "unit, and the suggested minutes are a quarter above the projection, rounded up.")
 
+# the optional hosted provider (hosted.py, plan.py, shard.py): one OpenAI-compatible host named by two secrets
+HOSTED_SECRETS_MISSING = "secret MYCELIC_LAB_HOSTED_API_KEY or MYCELIC_LAB_HOSTED_BASE_URL not set"
+E1_WITHOUT_HOSTED = ("the extraction comparison keeps fewer than two models or loses its reference without its hosted "
+                     "models; secret MYCELIC_LAB_HOSTED_API_KEY or MYCELIC_LAB_HOSTED_BASE_URL not set")
+E2_CENTRAL_HOSTED_SKIPPED = ("the hosted central comparator needs secrets MYCELIC_LAB_HOSTED_API_KEY and "
+                             "MYCELIC_LAB_HOSTED_BASE_URL, which are not set; the lab never replaces it with the model "
+                             "itself")
+HOSTED_NOTICE_TITLE = "lab hosted skipped"
+HOSTED_SECRET_NOT_SET = "secret {name} is not set"
+HOSTED_SECRET_BLANK = "secret {name} is blank"
+HOSTED_KEY_NOT_TOKEN = "secret MYCELIC_LAB_HOSTED_API_KEY is not a printable ASCII token"
+HOSTED_BASE_URL_INVALID = ("secret MYCELIC_LAB_HOSTED_BASE_URL is not a base URL the lab accepts: https to a public "
+                           "host (http only to a loopback address), with no credentials, query or fragment")
+HOSTED_PREFLIGHT_FAILED = ("hosted preflight failed: HTTP {status}; check the key or model id, or switch "
+                           "response_format from json_schema to json_object to none in lab/models.json")
+HOSTED_UNAVAILABLE = "hosted endpoint unavailable: {detail} after {calls} preflight calls; run the request again later"
+HOSTED_LENGTH = ("hosted preflight: {task} stopped at the token limit; a reasoning model spends the task's small "
+                 "budget thinking, so choose one without reasoning")
+HOSTED_MAX_CALLS = "max_calls reached: this shard's share of the hosted calls is used up"
+HOSTED_COST_NOTE = ("Estimated cost: the token counts the host reported times the manifest's prices. The host's bill "
+                    "is the real cost; calls without token counts are left out, and max_calls caps only the units a "
+                    "shard starts, so prepaid credits are the hard limit.")
+E1_HOSTED_LABEL = ("Hosted endpoints answered {e_one} over the network: their scores are not deterministic across "
+                   "repeats, and raw synthetic text was sent to the configured host.")
+
 CLASS_REASONS = {
     "fake_kind": "the manifest entry is a fake model",
     "provider_override": "the shard ran with the fake provider in place of the model server",
@@ -221,6 +246,8 @@ CLASS_REASONS = {
     "harness_measurement": "the harness itself did not count the run as a measurement",
     "participation": "the unit did not run to a valid result",
     "verified": "every provenance condition held: a verified model file served by a verified server on this runner",
+    "hosted_host": "a hosted call went to a host other than the configured one",
+    "hosted_verified": "the configured host answered every call: a hosted API result, not a measurement on this runner",
 }
 
 NOTES = {
@@ -235,6 +262,13 @@ NOTES = {
                          "describe this runner, not site hardware.",
     "public_data": "Public data: openFDA records under an artificial partitioning; no model ran, and nothing here is "
                    "confidential or a confidentiality demonstration.",
+    "hosted_api": "Hosted API: a model on the configured OpenAI-compatible host answered over the network. It is not "
+                  "deterministic: temperature and seed are requests, not guarantees on shared batched servers. Its "
+                  "latencies include the network and the host's queue and say nothing about this runner.",
+    "hosted_raw": "Raw synthetic text was sent to the configured host under allow_external_raw synthetic; the lab "
+                  "sends no partner data anywhere, and hosted models never run in the canary scan or the simulation.",
+    "central_hosted": "The central comparator was a hosted API model: its scores are not deterministic, so the ratio "
+                      "and the bar verdict compare the model under test with a moving reference.",
 }
 
 # summaries (summary.py) and the aggregate report (aggregate.py); identifiers are rendered in code spans beside them
@@ -284,6 +318,7 @@ HEADINGS = {
     "report": "Lab report",
     "no-result": "Units without a result",
     "model": "Model on runner CPU",
+    "hosted-api": "Hosted API results: not measured on this runner",
     "unverified": "Unverified: not measurements",
     "plumbing": "Plumbing checks (fake provider): not model measurements",
     "no-model": "Units without a model",
@@ -309,6 +344,10 @@ HEADINGS = {
     "sheets": "Labelling sheets for a human",
     "lock": "Lock",
     "notes": "Notes",
+    "hosted": "Hosted calls and estimated cost",
+    "plan-skipped": "Skipped by the plan",
+    "plan-hosted": "Hosted calls: allowed and planned",
+    "shard-hosted": "Hosted endpoint",
 }
 
 COLUMNS = {
@@ -492,4 +531,19 @@ COLUMNS = {
     "requested": "requested",
     "written": "written",
     "protocol_records": "protocol records",
+    "max_calls": "max calls",
+    "bound": "planned bound",
+    "calls_used": "calls used",
+    "shard_share": "shard share",
+    "tokens_in": "tokens in",
+    "tokens_out": "tokens out",
+    "tokens_missing": "calls without token counts",
+    "estimated_usd": "estimated USD",
+    "priced": "priced",
+    "preflight": "preflight",
+    "preflight_calls": "preflight calls",
+    "scheme": "Scheme",
+    "hosted_host": "Host",
+    "listed": "model listed",
+    "model_id": "model id",
 }

@@ -58,6 +58,26 @@
       },
       "response_format": "json_schema",
       "transport_schema": "full"
+    },
+    "h-a": {
+      "kind": "hosted",
+      "model": "lab-hosted-a",
+      "response_format": "json_schema",
+      "transport_schema": "full",
+      "price": {
+        "per_mtok_in": 1.0,
+        "per_mtok_out": 2.0
+      },
+      "deadline_s": 60,
+      "max_retries": 1
+    },
+    "h-b": {
+      "kind": "hosted",
+      "model": "lab-hosted-b",
+      "response_format": "json_schema",
+      "transport_schema": "reduced",
+      "deadline_s": 60,
+      "max_retries": 0
     }
   }
 }

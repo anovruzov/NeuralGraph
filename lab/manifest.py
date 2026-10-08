@@ -15,19 +15,34 @@
                                      "revision": "<40 hex commit>" | "<branch>", "license": "apache-2.0" | "mit"},
                             "response_format": "json_schema" | "json_object" | "none",
                             "transport_schema": "full" | "reduced", "ctx_per_slot": 16384,
-                            "e3_ctx_per_slot": 4096, "e2_ctx_per_slot": 32768, "server_args": [<allowlisted>]}}}
+                            "e3_ctx_per_slot": 4096, "e2_ctx_per_slot": 32768, "server_args": [<allowlisted>]}
+                         | {"kind": "hosted", "model": "<the host's model id>",
+                            "response_format": "json_schema" | "json_object" | "none",   # default json_schema
+                            "transport_schema": "full" | "reduced",                      # default full
+                            "price": {"per_mtok_in": <USD>, "per_mtok_out": <USD>},     # optional
+                            "deadline_s": 10..3600, "max_retries": 0..5}}}              # default 300 and 2
 
 ``server`` is required when any gguf model is listed; a request's provider is ``fake`` or ``server.program``.
-Model keys match ``[a-z0-9][a-z0-9-]{0,23}``; ``none`` is reserved for model-free shard groups. A fake entry must
-use ``json_schema``, because the fake responder dispatches on the schema name. ``binary`` is relative to
-``<extract dir>/<archive_root>``; an empty ``archive_root`` means the archive's top level. A ``revision`` is a 40-hex
-commit or a branch name (``[A-Za-z][A-Za-z0-9._-]{0,63}``; no ``/``, so no ``refs/...``): a branch is resolved to a
-commit once per run by the provision step, and every shard of the run uses that commit.
+Model keys match ``[a-z0-9][a-z0-9-]{0,23}``; ``none`` is reserved for model-free shard groups and ``hosted`` for the
+hosted shard group. A fake entry must use ``json_schema``, because the fake responder dispatches on the schema name.
+
+``binary`` is relative to ``<extract dir>/<archive_root>``; an empty ``archive_root`` means the archive's top level. A
+``revision`` is a 40-hex commit or a branch name (``[A-Za-z][A-Za-z0-9._-]{0,63}``; no ``/``, so no ``refs/...``): a
+branch is resolved to a commit once per run by the provision step, and every shard of the run uses that commit.
 
 ``args`` and each gguf ``server_args`` are token lists of :data:`ARGS_ALLOWLIST` forms only (``--reasoning
 on|off|auto``, ``--reasoning-budget N`` with N in [-1, 32768], ``--jinja``, ``--no-jinja``); each flag appears at most
 once across ``server.args`` plus one model's ``server_args``, and ``--jinja`` excludes ``--no-jinja``. Everything the
 lab itself sets (model, alias, host, port, threads, slots, context, seed, cache, fit) is code-owned and refused here.
+
+A ``hosted`` entry names a model on the one OpenAI-compatible host the two hosted repository secrets point at
+(``lab.hosted``: its base URL and key); it has no alias, no file and no server. ``model`` is the id the host expects
+(the pattern of an alias). ``price`` is the host's USD price per million input and output tokens, each a finite number
+in [0, 1000]; without it the cost is not estimated (null). No hosted entry ships in ``lab/models.json``: the id depends
+on the host and the price on the account. An example::
+
+    "big-hosted": {"kind": "hosted", "model": "<the host's model id>", "response_format": "json_schema",
+                   "price": {"per_mtok_in": 0.5, "per_mtok_out": 1.5}, "deadline_s": 300, "max_retries": 2}
 
 The lock sits next to the manifest as ``<stem>.lock.json``::
 
@@ -49,6 +64,7 @@ manifest value.
 """
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -62,7 +78,7 @@ from . import LabError, check_keys, display_path, safe_path
 
 MAX_BYTES = 1048576
 MODEL_KEY_RE = re.compile(r"[a-z0-9][a-z0-9-]{0,23}", re.ASCII)
-RESERVED_KEY = "none"
+RESERVED_KEYS = {"none": "reserved for model-free shard groups", "hosted": "reserved for the hosted shard group"}
 PROGRAM_RE = re.compile(r"[a-z][a-z0-9-]{0,31}", re.ASCII)
 TAG_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", re.ASCII)
 ASSET_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.tar\.gz", re.ASCII)
@@ -73,7 +89,7 @@ COMMIT_RE = re.compile(r"[0-9a-f]{40}", re.ASCII)
 BRANCH_RE = re.compile(r"[A-Za-z][A-Za-z0-9._-]{0,63}", re.ASCII)
 SHA256_RE = re.compile(r"[0-9a-f]{64}", re.ASCII)
 PERMISSIVE_LICENSES = ("apache-2.0", "mit")
-KINDS = ("gguf", "fake")
+KINDS = ("gguf", "fake", "hosted")
 RESPONSE_FORMATS = ("json_schema", "json_object", "none")
 TRANSPORT_SCHEMAS = ("full", "reduced")
 THREADS = ("physical", "logical")
@@ -87,6 +103,11 @@ _SERVER_REQUIRED = _SERVER_KEYS[:8]
 _FAKE_KEYS = ("kind", "alias", "persona", "response_format", "transport_schema")
 _GGUF_KEYS = ("kind", "alias", "gguf", "response_format", "transport_schema", *CTX_DEFAULTS, "server_args")
 _GGUF_REF_KEYS = ("repo", "file", "revision", "license")
+_HOSTED_KEYS = ("kind", "model", "response_format", "transport_schema", "price", "deadline_s", "max_retries")
+_PRICE_KEYS = ("per_mtok_in", "per_mtok_out")
+PRICE_MAX = 1000
+HOSTED_DEADLINE_S = (10, 3600, 300)
+HOSTED_MAX_RETRIES = (0, 5, 2)
 _LOCK_KEYS = ("schema_version", "server", "models")
 _LOCK_SERVER_KEYS = ("tag", "asset", "sha256")
 _LOCK_MODEL_KEYS = ("repo", "file", "revision", "commit", "sha256", "size")
@@ -293,12 +314,42 @@ def _server(raw: Any) -> dict[str, Any] | None:
     }
 
 
+def _price(raw: Any, path: str) -> dict[str, float | int]:
+    price = _object(raw, path)
+    check_keys(price, _PRICE_KEYS, _PRICE_KEYS, path, ManifestError)
+    for name in _PRICE_KEYS:
+        value = price[name]
+        if (not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value)
+                or not 0 <= value <= PRICE_MAX):
+            raise ManifestError(f"{path}.{name}", f"must be a number in [0, {PRICE_MAX}]") from None
+    return {name: price[name] for name in _PRICE_KEYS}
+
+
+def _hosted(path: str, raw: dict[str, Any]) -> dict[str, Any]:
+    check_keys(raw, _HOSTED_KEYS, ("kind", "model"), path, ManifestError)
+    low, high, default = HOSTED_DEADLINE_S
+    retries_low, retries_high, retries_default = HOSTED_MAX_RETRIES
+    return {
+        "kind": "hosted",
+        "model": _match(raw["model"], ALIAS_RE, f"{path}.model", "must match [A-Za-z0-9][A-Za-z0-9._:/@+-]{0,127}"),
+        "response_format": _choice(raw.get("response_format", "json_schema"), RESPONSE_FORMATS,
+                                   f"{path}.response_format"),
+        "transport_schema": _choice(raw.get("transport_schema", "full"), TRANSPORT_SCHEMAS,
+                                    f"{path}.transport_schema"),
+        "price": _price(raw["price"], f"{path}.price") if "price" in raw else None,
+        "deadline_s": _int(raw.get("deadline_s", default), low, high, f"{path}.deadline_s"),
+        "max_retries": _int(raw.get("max_retries", retries_default), retries_low, retries_high, f"{path}.max_retries"),
+    }
+
+
 def _model(key: str, raw: Any, server_args: tuple[str, ...]) -> dict[str, Any]:
     path = f"$.models.{key}"
     raw = _object(raw, path)
     kind = raw.get("kind")
     if kind not in KINDS:
         raise ManifestError(f"{path}.kind", f"must be one of {', '.join(KINDS)}") from None
+    if kind == "hosted":
+        return _hosted(path, raw)
     required = ("kind", "alias", "gguf") if kind == "gguf" else ("kind", "alias")
     check_keys(raw, _GGUF_KEYS if kind == "gguf" else _FAKE_KEYS, required, path, ManifestError)
     entry = {
@@ -342,8 +393,8 @@ def _models(raw: Any, server_args: tuple[str, ...]) -> dict[str, dict[str, Any]]
         raise ManifestError("$.models", "must list at least one model") from None
     models = {}
     for key in sorted(raw):
-        if key == RESERVED_KEY:
-            raise ManifestError("$.models.none", "reserved for model-free shard groups") from None
+        if key in RESERVED_KEYS:
+            raise ManifestError(f"$.models.{key}", RESERVED_KEYS[key]) from None
         if MODEL_KEY_RE.fullmatch(key) is None:
             raise ManifestError("$.models", "model keys must match [a-z0-9][a-z0-9-]{0,23} (name not shown)") \
                 from None

@@ -16,9 +16,14 @@ request's purpose only into a code span of its own paragraph, booleans are the w
 sentence comes from ``notes`` (which holds no digit). A value that is missing renders ``n/a`` and one of the wrong type
 ``invalid``; neither is a source.
 
-A plan summary adds, when the plan's ``prereg/prereg.json`` exists, what was preregistered: the E1 labels, the X1
-and E2 prereg hashes and the E2 rehearsal's candidates, judge calls and largest central reading (every number from
-that file).
+A plan summary adds the units the plan skipped (unit, experiment, model and reason: a known sentence plain, anything
+else in a code span), the hosted calls each hosted model may make and the plan's bound (``plan.json``'s ``hosted``),
+and, when the plan's ``prereg/prereg.json`` exists, what was preregistered: the E1 labels, the X1 and E2 prereg hashes
+and the E2 rehearsal's candidates, judge calls and largest central reading (every number from that file). A hosted
+model's alias column shows its model id. A shard summary of a shard with hosted units adds its hosted endpoint from
+``provenance.json``: the scheme and ``host:port`` (no path is ever recorded), each secret's state, the problem, and per
+key the model id, the preflight's status and reason, the calls used and the shard's share, and whether the host listed
+the model.
 
 A report's class sections hold, for its sim rows, a channels table (each channel key's meaning listed under it), a
 lifts table and a pushdown table; then E2 (its labels first: synthetic, below the protocol minimum when a row is, the
@@ -27,16 +32,20 @@ a row whose central comparator is not the model itself), X1 (its label, then the
 (its label and what its measurement flag means, then the channels and fetch tables, then the sheets label and the
 sheets table) and, once, in the class section of its display class, E1: its label, then the endpoints table, then the
 paired table, whose non-inferiority and kill-flag columns appear only when the block's ``verdicts_shown`` (a model
-measurement) and are otherwise replaced by the withheld sentence; a block that was not compared shows its reason
-instead. A G0 table gains a protocol records column, after its note, when a scan was below the protocol size. After
-the class sections, a sizing table of every sim unit (whatever its result) with what it measured and the minutes it
-suggests for the next request, then the E2 sizing table; the notes add the sim world-digest groups and the sim notes
-the rows carry.
+measurement, or a hosted API result) and are otherwise replaced by the withheld sentence; a block that was not
+compared shows its reason instead. When hosted models were among the endpoints, the hosted label follows the E1
+label. The class sections come in the order of :data:`CLASS_ORDER`: ``model``, then ``hosted-api`` (hosted API
+results, never measured on this runner), then the rest. A G0 table gains a protocol records column, after its note,
+when a scan was below the protocol size. After the class sections, a sizing table of every sim unit (whatever its
+result) with what it measured and the minutes it suggests for the next request, then the E2 sizing table, then (with
+hosted keys) the hosted calls and estimated cost table followed by its note; the notes add the sim world-digest groups
+and the sim notes the rows carry.
 
 The first line says what the numbers are not: ``PLUMBING CHECK: no model was run`` for a plumbing plan, shard or
-report, ``NO MEASUREMENT: ...`` for a real shard or report without a unit of display class ``model``
-(``units.display_class``); otherwise (a model unit present, or the class unknown: no provenance, plan or report) the
-summary starts with its heading. That first line is always kept. After it a
+report, ``NO MEASUREMENT: ...`` for a real shard or report without a unit of display class ``model`` or
+``hosted-api`` (``units.display_class``; for a report, ``contains_measurements`` and ``contains_hosted`` both not
+true); otherwise (such a unit present, or the class unknown: no provenance, plan or report) the summary starts with
+its heading. That first line is always kept. After it a
 summary holds whole rows only, while its size plus the next row stays under the cap less :data:`RESERVE_BYTES` (the
 cap is :data:`MAX_SUMMARY_BYTES`; GitHub takes at most 1 MiB per step); the first row that does not fit is replaced
 by the truncation sentence, which ends the summary. The sentence holds no count: totals are elsewhere, sourced.
@@ -57,8 +66,9 @@ from mycelic.collective.jsonio import StrictJsonError, strict_load
 
 from . import EXIT_OK, EXIT_USAGE, forbidden_root
 from .notes import (BRANCH_DELETED, COLUMNS, CPU_MODELS_DIFFER, DEFAULT_BRANCH, DELETE_ONLY, DISPATCH_BY_HAND,
-                    E1_COMPARE_FAILED, E1_ENDPOINT_EXCLUDED, E1_LABELS, E1_NO_REFERENCE, E1_VERDICTS_WITHHELD,
-                    E2_LABELS, E2_SIZING_NOTE, G0_BELOW_PROTOCOL, HEADINGS, LOCK_CONFLICT_NOTE, LOCK_NEW,
+                    E1_COMPARE_FAILED, E1_ENDPOINT_EXCLUDED, E1_HOSTED_LABEL, E1_LABELS, E1_NO_REFERENCE,
+                    E1_VERDICTS_WITHHELD, E1_WITHOUT_HOSTED, E2_CENTRAL_HOSTED_SKIPPED, E2_LABELS, E2_SIZING_NOTE,
+                    G0_BELOW_PROTOCOL, HEADINGS, HOSTED_COST_NOTE, HOSTED_SECRETS_MISSING, LOCK_CONFLICT_NOTE, LOCK_NEW,
                     LOCK_NOT_COMPUTED, LOCK_UNCHANGED, MERGE_SEVERAL, NO_MEASUREMENT_LINE, NO_PLAN, NO_REPORT,
                     NOT_A_BRANCH, NOT_PINNED, NOTES, OPENFDA_LABEL, OPENFDA_PUBLIC_FLAG, PLAN_FIX_HINT,
                     PLUMBING_CHECK_LINE, PREREG_MISSING, SHEETS_LABEL, SIM_CHANNEL_LABELS, SIM_LIFT_LABELS, SIM_NOTES,
@@ -74,13 +84,15 @@ STYLES: dict[str, Callable[[Any], str]] = {
     "int": str,
     "f1": "{:.1f}".format,
     "f3": "{:.3f}".format,
+    "f6": "{:.6f}".format,
     "gib1": lambda v: "{:.1f}".format(v / 2 ** 30),
     "min1": lambda v: "{:.1f}".format(v / 60),
 }
 KNOWN_NOTICES = (DELETE_ONLY, BRANCH_DELETED, DEFAULT_BRANCH, NOT_A_BRANCH, MERGE_SEVERAL)
 LOCK_SENTENCES = {"unchanged": LOCK_UNCHANGED, "new_entries": LOCK_NEW, "conflict": LOCK_CONFLICT_NOTE,
                   "not_computed": LOCK_NOT_COMPUTED}
-CLASS_ORDER = ("model", "unverified", "plumbing", "no-model")
+CLASS_ORDER = ("model", "hosted-api", "unverified", "plumbing", "no-model")
+PLAN_SKIP_REASONS = (HOSTED_SECRETS_MISSING, E1_WITHOUT_HOSTED, E2_CENTRAL_HOSTED_SKIPPED)
 E1_REASONS = (PREREG_MISSING, E1_NO_REFERENCE, E1_COMPARE_FAILED)
 PREREG_FILE = "prereg/prereg.json"
 
@@ -301,7 +313,8 @@ def _render_plan_body(doc: _Doc, src: Sources, plan: Any) -> None:
                 pin = f"{code(lock.get('commit'), table=True)} {code(short(lock.get('sha256')), table=True)}"
             else:
                 pin = NOT_PINNED
-            yield [code(key, table=True), code(_get(entry, "kind"), table=True), code(_get(entry, "alias"), table=True),
+            alias = _get(entry, "model") if _get(entry, "kind") == "hosted" else _get(entry, "alias")
+            yield [code(key, table=True), code(_get(entry, "kind"), table=True), code(alias, table=True),
                    code(_get(gguf, "repo"), table=True), code(_get(gguf, "file"), table=True),
                    code(_get(gguf, "revision"), table=True), pin]
 
@@ -334,6 +347,22 @@ def _render_plan_body(doc: _Doc, src: Sources, plan: Any) -> None:
 
     _heading(doc, "units", 3)
     doc.table(["unit", "experiment", "model", "minutes", "seed", "shard"], unit_rows)
+
+    skipped = _get(plan, "skipped")
+    skipped = [s for s in skipped if isinstance(s, dict)] if isinstance(skipped, list) else []
+    if skipped:
+        _heading(doc, "plan-skipped", 3)
+        doc.table(["unit", "experiment", "model", "reason"], lambda: (
+            [code(s.get("unit"), table=True), code(s.get("experiment"), table=True), code(s.get("model"), table=True),
+             s["reason"] if s.get("reason") in PLAN_SKIP_REASONS else code(s.get("reason"), table=True)]
+            for s in skipped))
+    hosted = _get(plan, "hosted")
+    if isinstance(hosted, dict) and hosted:
+        _heading(doc, "plan-hosted", 3)
+        doc.table(["key", "model_id", "max_calls", "bound"], lambda: (
+            [code(key, table=True), code(_get(hosted, key, "model"), table=True),
+             src.num(f, pointer("hosted", key, "max_calls"), "int"), src.num(f, pointer("hosted", key, "bound"), "int")]
+            for key in sorted(hosted)))
 
     provision = _get(plan, "provision")
     if isinstance(provision, list) and provision:
@@ -391,7 +420,7 @@ def render_shard(root: Path, cap: int = MAX_SUMMARY_BYTES) -> tuple[str, list[di
     sealed = isinstance(status, dict) and status.get("kind") == "lab_shard_status"
     records = [(rel, src.doc(rel)) for rel in _unit_files(root)] if sealed else []
     classes = [display_class(r, prov) if isinstance(r, dict) else "no-result" for _, r in records]
-    _first_line(doc, plumbing, ("model" in classes) if prov is not None else None)
+    _first_line(doc, plumbing, ("model" in classes or "hosted-api" in classes) if prov is not None else None)
     shard = _get(status, "shard") if sealed else _get(prov, "shard")
     _heading(doc, "shard", suffix=f" {code(shard)}")
     if not sealed:
@@ -430,6 +459,8 @@ def render_shard(root: Path, cap: int = MAX_SUMMARY_BYTES) -> tuple[str, list[di
                     f"{code(_get(model, 'file'))}; {COLUMNS['model_commit']}: {code(_get(model, 'commit'))}; "
                     f"{COLUMNS['model_sha']}: {code(short(_get(model, 'sha256')))}; {COLUMNS['verified_by']} "
                     f"{code(_get(model, 'verified_by'))}")
+        if isinstance(_get(prov, "hosted"), dict):
+            _hosted_section(doc, src, prov["hosted"])
 
     def unit_rows() -> Any:
         for (rel, record), cls in zip(records, classes):
@@ -440,6 +471,28 @@ def render_shard(root: Path, cap: int = MAX_SUMMARY_BYTES) -> tuple[str, list[di
     _heading(doc, "units", 3)
     doc.table(["unit", "status", "class", "exit_code", "wall_s", "reason"], unit_rows)
     return doc.text(), src.entries
+
+
+def _hosted_section(doc: _Doc, src: Sources, hosted: dict[str, Any]) -> None:
+    """The shard's hosted endpoint from ``provenance.json``: the secrets' states, scheme and host (never a path), the
+    problem, and per key the preflight, the calls used and the shard's share."""
+    p = "provenance.json"
+    _heading(doc, "shard-hosted", 3)
+    secrets = hosted.get("secrets") if isinstance(hosted.get("secrets"), dict) else {}
+    doc.add(f"\n- {COLUMNS['scheme']}: {code(hosted.get('scheme'))}; {COLUMNS['hosted_host']}: "
+            f"{code(hosted.get('host'))}")
+    if secrets:
+        doc.add("- " + ", ".join(f"{code(name)} {code(secrets[name])}" for name in sorted(secrets)))
+    if hosted.get("problem") is not None:
+        doc.add(f"- {COLUMNS['problem']}: {code(hosted.get('problem'))}")
+    keys = hosted.get("keys") if isinstance(hosted.get("keys"), dict) else {}
+    doc.table(["key", "model_id", "preflight", "reason", "calls_used", "shard_share", "listed"], lambda: (
+        [code(key, table=True), code(_get(keys, key, "model"), table=True),
+         code(_get(keys, key, "preflight", "status"), table=True),
+         code(_get(keys, key, "preflight", "reason"), table=True),
+         src.num(p, pointer("hosted", "keys", key, "calls_used"), "int"),
+         src.num(p, pointer("hosted", "keys", key, "share"), "int"),
+         yes_no(_get(keys, key, "models_list", "model_listed"))] for key in sorted(keys)))
 
 
 # --------------------------------------------------------------------------------------------------- report
@@ -459,7 +512,8 @@ def render_report(root: Path, cap: int = MAX_SUMMARY_BYTES) -> tuple[str, list[d
         return [(i, r) for i, r in enumerate(items) if isinstance(r, dict)] if isinstance(items, list) else []
 
     units = rows("units")
-    _first_line(doc, report.get("result_class") == "plumbing", report.get("contains_measurements") is True)
+    _first_line(doc, report.get("result_class") == "plumbing",
+                report.get("contains_measurements") is True or report.get("contains_hosted") is True)
     _heading(doc, "report")
     if isinstance(report.get("banner"), str):
         doc.add("\n" + report["banner"])
@@ -501,6 +555,8 @@ def render_report(root: Path, cap: int = MAX_SUMMARY_BYTES) -> tuple[str, list[d
     e2_sizing = rows("e2_sizing")
     if e2_sizing:
         _e2_sizing_section(doc, src, e2_sizing)
+    if isinstance(report.get("hosted"), dict) and report["hosted"]:
+        _hosted_cost_section(doc, src, report["hosted"])
 
     provision = rows("provision")
     if provision:
@@ -797,6 +853,8 @@ def _e1_tables(doc: _Doc, src: Sources, e1: dict[str, Any]) -> None:
     _heading(doc, "e1", 4)
     if e1.get("label") in E1_LABELS:
         doc.add("\n" + ids(E1_LABELS[e1["label"]]))
+    if isinstance(e1.get("hosted_endpoints"), list) and e1["hosted_endpoints"]:
+        doc.add("\n" + ids(E1_HOSTED_LABEL))
     if e1.get("compared") is not True:
         reason = e1.get("reason")
         doc.add("\n" + (reason if reason in E1_REASONS else f"{COLUMNS['reason']}: {code(reason)}"))
@@ -842,6 +900,19 @@ def _e1_tables(doc: _Doc, src: Sources, e1: dict[str, Any]) -> None:
     if isinstance(left_out, list) and left_out:
         doc.add("\n" + E1_ENDPOINT_EXCLUDED)
         doc.add(f"\n- {COLUMNS['model']}: " + ", ".join(code(m) for m in left_out))
+
+
+def _hosted_cost_section(doc: _Doc, src: Sources, hosted: dict[str, Any]) -> None:
+    f = "report.json"
+    _heading(doc, "hosted", 3)
+    doc.table(["key", "model_id", "max_calls", "bound", "n", "preflight_calls", "tokens_in", "tokens_out",
+               "tokens_missing", "priced", "estimated_usd"], lambda: (
+        [code(key, table=True), code(_get(hosted, key, "model"), table=True),
+         *(src.num(f, pointer("hosted", key, name), "int")
+           for name in ("max_calls", "bound", "calls", "preflight_calls", "tokens_in", "tokens_out", "tokens_missing")),
+         yes_no(_get(hosted, key, "priced")), src.num(f, pointer("hosted", key, "estimated_usd"), "f6")]
+        for key in sorted(hosted)))
+    doc.add("\n" + HOSTED_COST_NOTE)
 
 
 def _e2_sizing_section(doc: _Doc, src: Sources, sizing: list[tuple[int, dict[str, Any]]]) -> None:

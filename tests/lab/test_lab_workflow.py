@@ -1,5 +1,6 @@
 """The cloud lab workflow, read as data: triggers, permissions, pinned actions, run blocks that hold no expression and
-only lab commands, the token in one step, the openFDA key secret in exactly two step environments, the preregistration
+only lab commands, the token in one step, the openFDA key and the two hosted secrets each in exactly the plan step's
+presence flag and the run step's environment (the run step's only for the shards that need them), the preregistration
 step, job and step conditions, artifact names, the job clock and the cache paths. Every lab command in it must parse
 with that module's own argument parser.
 
@@ -95,6 +96,9 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(WF["permissions"], {"contents": "read"})
         for name, job in JOBS.items():
             self.assertNotIn("permissions", job, name)
+        self.assertNotIn("models: read", TEXT)
+        self.assertIsNone(re.search(r"^\s*models\s*:", TEXT, re.M))
+        self.assertNotIn("models", set(keys(WF)))
         self.assertNotIn("concurrency", set(keys(WF)))
         self.assertEqual(WF["defaults"], {"run": {"shell": "bash"}})
 
@@ -142,12 +146,27 @@ class WorkflowTests(unittest.TestCase):
                 holders.append((path[1], steps(path[1])[path[3]].get("id"), path[5], value))
         self.assertEqual(holders, [
             ("plan", "plan", "LAB_HAS_OPENFDA_KEY", "${{ secrets.MYCELIC_LAB_OPENFDA_API_KEY != '' }}"),
+            ("plan", "plan", "LAB_HAS_HOSTED",
+             "${{ secrets.MYCELIC_LAB_HOSTED_API_KEY != '' && secrets.MYCELIC_LAB_HOSTED_BASE_URL != '' }}"),
             ("run", "run", "MYCELIC_LAB_OPENFDA_API_KEY",
-             "${{ matrix.openfda && secrets.MYCELIC_LAB_OPENFDA_API_KEY || '' }}")])
-        self.assertEqual(TEXT.count("secrets."), 2)
-        self.assertEqual(re.findall(r"secrets\.([A-Z_]+)", TEXT), ["MYCELIC_LAB_OPENFDA_API_KEY"] * 2)
+             "${{ matrix.openfda && secrets.MYCELIC_LAB_OPENFDA_API_KEY || '' }}"),
+            ("run", "run", "MYCELIC_LAB_HOSTED_API_KEY",
+             "${{ matrix.hosted && secrets.MYCELIC_LAB_HOSTED_API_KEY || '' }}"),
+            ("run", "run", "MYCELIC_LAB_HOSTED_BASE_URL",
+             "${{ matrix.hosted && secrets.MYCELIC_LAB_HOSTED_BASE_URL || '' }}")])
+        self.assertEqual(TEXT.count("secrets."), 6)
+        self.assertEqual(set(re.findall(r"secrets\.([A-Z_]+)", TEXT)),
+                         {"MYCELIC_LAB_OPENFDA_API_KEY", "MYCELIC_LAB_HOSTED_API_KEY", "MYCELIC_LAB_HOSTED_BASE_URL"})
+        self.assertEqual(sorted(re.findall(r"secrets\.([A-Z_]+)", TEXT)),
+                         ["MYCELIC_LAB_HOSTED_API_KEY"] * 2 + ["MYCELIC_LAB_HOSTED_BASE_URL"] * 2
+                         + ["MYCELIC_LAB_OPENFDA_API_KEY"] * 2)
         self.assertEqual(TEXT.count("LAB_HAS_OPENFDA_KEY"), 1)
-        self.assertEqual(TEXT.count("MYCELIC_LAB_OPENFDA_API_KEY:"), 1)
+        self.assertEqual(TEXT.count("LAB_HAS_HOSTED"), 1)
+        for name in ("MYCELIC_LAB_OPENFDA_API_KEY:", "MYCELIC_LAB_HOSTED_API_KEY:", "MYCELIC_LAB_HOSTED_BASE_URL:"):
+            self.assertEqual(TEXT.count(name), 1, name)
+        self.assertEqual(set(step("plan", "plan")["env"]), {"LAB_HAS_OPENFDA_KEY", "LAB_HAS_HOSTED"})
+        self.assertEqual(set(step("run", "run")["env"]), {"LAB_DEADLINE", "MYCELIC_LAB_OPENFDA_API_KEY",
+                                                          "MYCELIC_LAB_HOSTED_API_KEY", "MYCELIC_LAB_HOSTED_BASE_URL"})
         self.assertNotIn("--openfda-base-url", TEXT)
         self.assertEqual(TEXT.count("github.token"), 1)
         self.assertEqual(TEXT.count("GH_TOKEN"), 1)
@@ -297,8 +316,10 @@ class WorkflowTests(unittest.TestCase):
         self.assertTrue(any("lab.summary plan" in s.get("run", "") for s in later), order)
         self.assertTrue(any(uses(s) == "actions/upload-artifact" for s in later), order)
         self.assertEqual(JOBS["plan"]["timeout-minutes"], 30)
-        self.assertEqual(step("plan", "plan")["env"], {"LAB_HAS_OPENFDA_KEY":
-                                                       "${{ secrets.MYCELIC_LAB_OPENFDA_API_KEY != '' }}"})
+        self.assertEqual(step("plan", "plan")["env"], {
+            "LAB_HAS_OPENFDA_KEY": "${{ secrets.MYCELIC_LAB_OPENFDA_API_KEY != '' }}",
+            "LAB_HAS_HOSTED": "${{ secrets.MYCELIC_LAB_HOSTED_API_KEY != '' && secrets.MYCELIC_LAB_HOSTED_BASE_URL "
+                              "!= '' }}"})
         self.assertEqual(JOBS["run"]["needs"], ["plan", "provision"])
         upload = next(s for s in plan_steps if uses(s) == "actions/upload-artifact")
         self.assertEqual(upload["with"]["path"], "${{ runner.temp }}/lab-plan")

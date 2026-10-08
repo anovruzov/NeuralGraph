@@ -27,7 +27,10 @@ that ran to a result give one E3 row per cell of their ``e3.json``, one G0 row p
 lists), one sim row per complete ``scorecard.json`` (:data:`SIM_CHANNEL_FIELDS` of each channel, the lifts, the
 pushdown summary, the raw text crossed and the fallback share; never an item or a key) and their ledgers' successful
 calls, grouped into latency rows by display class, model, CPU model, experiment and task (CPU models are never
-pooled): ``n`` and the 50th and 95th percentiles in ms (``stats.percentile``, rounded to 3 places). Every planned sim
+pooled): ``n`` and the 50th and 95th percentiles in ms (``stats.percentile``, rounded to 3 places). A hosted unit's
+CPU model is null (its calls ran on the host), and the central rows of an E2 unit with a hosted central comparator
+form rows of their own: the central key, CPU null, and class ``hosted-api`` when the unit is a model measurement
+(else the unit's own class, so a plumbing run's host latencies stay plumbing). Every planned sim
 unit with a record, whatever its status (a skipped or timed-out one included), also gets a ``sim_sizing`` row when
 its collected ``scorecard.json`` or, failing that, ``progress.json`` reads: records done of all, the measured
 extraction and judge medians in seconds, the estimate and the suggested minutes for the next request.
@@ -51,10 +54,20 @@ complete model's ``run.json``, ``predictions.jsonl`` and ``ledger.jsonl`` are co
 id ``compare``, ``--runs-dir DIR/e1``, ``--allow-incomplete`` exactly when a non-reference model was left out; its log
 in ``DIR/e1/compare.stdout.log`` and ``.stderr.log``); a refusal is :data:`~lab.notes.E1_COMPARE_FAILED`. The block
 holds the labels, the prereg's thresholds, every repeat's status, the excluded models, the endpoints without runs,
-``measurement`` and ``verdicts_shown`` (a measurement shown in the ``model`` class only), the pooled F1 blocks per
-model and the paired comparison against the reference, never e1.json's clock or paths (``e1_json`` is its path
-relative to ``DIR``). Its ``display_class`` is ``plumbing`` when any compared unit is, ``model`` when all are, else
-``unverified``.
+``measurement`` and ``verdicts_shown`` (a measurement shown in the ``model`` or ``hosted-api`` class only), the
+pooled F1 blocks per model, the paired comparison against the reference and ``hosted_endpoints`` (the hosted models
+among the endpoints), never e1.json's clock or paths (``e1_json`` is its path relative to ``DIR``). Its
+``display_class`` is ``plumbing`` when any compared unit is, ``model`` when all are, ``hosted-api`` when all are
+``model`` or ``hosted-api``, else ``unverified``.
+
+**Hosted calls** (``hosted``; ``{}`` without hosted units): per key of the plan's ``hosted``, its model id,
+``max_calls``, ``bound`` and whether the manifest prices it, and from the sealed shards only: ``calls`` (the rows with
+attempt 1 or more of every sealed shard's preflight ledger for the key, plus the hosted ledgers, E1's
+``ledger.jsonl`` or E2's ``central.ledger.jsonl``, that a recorded unit of the key lists among its verified files),
+``preflight_calls`` (the preflight's share of them), ``tokens_in`` and ``tokens_out`` (the reported counts),
+``tokens_missing`` (calls lacking either count), ``estimated_usd`` (the rows' ``cost_usd`` summed and rounded to 6
+places; null when unpriced) and ``unreadable_ledgers``. ``contains_hosted`` says whether a unit or the E1 block is
+of display class ``hosted-api``.
 
 The lock: ``not_computed`` when the manifest or lock no longer hashes as the plan recorded or the provision records
 are ambiguous; otherwise the verified records of this plan are merged into the current lock
@@ -82,10 +95,12 @@ from typing import Any
 
 from mycelic.collective.experiments.common import RUN_ID_RE, write_json_atomic
 from mycelic.collective.experiments.e2_pushdown import PROTOCOL_MIN_CANDIDATES, PROTOCOL_MIN_SEEDS
+from mycelic.collective.inference.ledger import read_ledger
 from mycelic.collective.jsonio import StrictJsonError, sha256_hex, strict_load
 from mycelic.collective.stats import percentile
 
 from . import EXIT_OK, EXIT_USAGE, ROOT, forbidden_root
+from . import hosted as lab_hosted
 from . import provision as lab_provision
 from . import units as lab_units
 from .manifest import ManifestError, load_manifest, lock_path
@@ -93,7 +108,7 @@ from .notes import (ALTERED, AMBIGUOUS_ARTIFACTS, E1_COMPARE_FAILED, E1_NO_REFER
                     NOT_RUN, OTHER_PLAN, PLUMBING_BANNER, PREREG_MISSING, STEP_FAILED, UNIT_RECORD_INVALID, UNSEALED)
 from .plan import SHARD_ID_RE, UNIT_ID_RE
 from .prereg import PreregError, load_prereg
-from .units import ADAPTERS, display_class, ledger_rows
+from .units import ADAPTERS, E2_SITE_LEDGERS, display_class, ledger_rows
 
 ARTIFACT_RE = re.compile(r"lab-run-[0-9]{1,20}-[0-9]{1,6}-" + SHARD_ID_RE.pattern, re.ASCII)
 STATE_REASONS = {"other_plan": OTHER_PLAN, "altered": ALTERED, "ambiguous": AMBIGUOUS_ARTIFACTS,
@@ -311,7 +326,7 @@ def _unit_row(unit: dict[str, Any], state: str, root: _Root | None) -> tuple[dic
         return row, None
     row.update({k: record.get(k) for k in UNIT_FIELDS})
     row.update(display_class=display_class(record, root.provenance),
-               cpu_model=_get(root.provenance, "host", "cpu", "model_name"))
+               cpu_model=None if unit.get("kind") == "hosted" else _get(root.provenance, "host", "cpu", "model_name"))
     return row, record
 
 
@@ -420,11 +435,15 @@ def _openfda_row(row: dict[str, Any], root: Path, record: dict[str, Any]) -> dic
 # --------------------------------------------------------------------------------------------------- E1 comparison
 
 def _class_of(classes: list[str], fallback: str) -> str:
+    """``plumbing`` if any class is, ``model`` if all are, ``hosted-api`` if all are model or hosted-api, else
+    ``unverified``; ``fallback`` for none."""
     if not classes:
         return fallback
     if "plumbing" in classes:
         return "plumbing"
-    return "model" if all(c == "model" for c in classes) else "unverified"
+    if all(c == "model" for c in classes):
+        return "model"
+    return "hosted-api" if all(c in ("model", "hosted-api") for c in classes) else "unverified"
 
 
 def _e1_endpoint(block: Any) -> dict[str, Any]:
@@ -473,7 +492,8 @@ def e1_block(plan: dict[str, Any], plan_path: Path, sources: dict[str, E1Source]
                    "status": sources[u["unit"]][0]["status"], "display_class": sources[u["unit"]][0]["display_class"],
                    "included": False} for u in units],
         "excluded": [], "allow_incomplete": False, "endpoints_without_runs": [], "measurement": None,
-        "verdicts_shown": False, "e1_json": None, "endpoints": {}, "paired": {}}
+        "verdicts_shown": False, "e1_json": None, "endpoints": {}, "paired": {},
+        "hosted_endpoints": sorted({u["model"] for u in units if u.get("kind") == "hosted"})}
     shown = [r["display_class"] for r in block["units"] if r["display_class"] != "no-result"]
     block["display_class"] = _class_of(shown, fallback)
     try:
@@ -533,7 +553,7 @@ def e1_block(plan: dict[str, Any], plan_path: Path, sources: dict[str, E1Source]
                  endpoints_without_runs=doc.get("endpoints_without_runs"), e1_json=E1_JSON,
                  endpoints={name: _e1_endpoint(b) for name, b in sorted(endpoints.items())},
                  paired={name: _e1_paired(e) for name, e in sorted(paired.items())})
-    block["verdicts_shown"] = block["measurement"] is True and block["display_class"] == "model"
+    block["verdicts_shown"] = block["measurement"] is True and block["display_class"] in ("model", "hosted-api")
     return block
 
 
@@ -594,6 +614,48 @@ def _sim_row(row: dict[str, Any], scorecard: Any) -> dict[str, Any] | None:
             "raw_text_crossed": scorecard.get("raw_text_crossed"),
             "fallback_share": _get(scorecard, "extraction", "fallback_share"),
             "notes": list(scorecard["notes"]) if isinstance(scorecard.get("notes"), list) else []}
+
+
+def _hosted_rows(path: Path, endpoint_name: str | None = None) -> list[dict[str, Any]]:
+    """The calls (attempt 1 or more) of a ledger, those of ``endpoint_name`` only when given; raises for an unreadable
+    ledger."""
+    return [r for r in read_ledger(path)
+            if r["attempt"] >= 1 and (endpoint_name is None or r["endpoint"] == endpoint_name)]
+
+
+def hosted_totals(plan: dict[str, Any], sealed: list[Path], sources: list[tuple[str, Path]]) -> dict[str, Any]:
+    """Per hosted key of the plan: the calls made on the host in the sealed shards (each sealed root's preflight
+    ledger rows of the key, and the hosted ledgers ``sources`` lists: (key, ledger path) of the recorded units of the
+    key), their token sums, the calls without a token count, and the estimated cost (the sum of the rows'
+    ``cost_usd``, null for an unpriced model)."""
+    out: dict[str, Any] = {}
+    hosted = plan.get("hosted") if isinstance(plan.get("hosted"), dict) else {}
+    for key in sorted(hosted):
+        meta = hosted[key] if isinstance(hosted[key], dict) else {}
+        priced = _get(plan, "models", key, "price") is not None
+        rows: list[dict[str, Any]] = []
+        preflight, unreadable = 0, 0
+        paths = [(root / lab_hosted.PREFLIGHT_LEDGER, key) for root in sealed]
+        paths += [(path, None) for k, path in sources if k == key]
+        for path, endpoint_name in paths:
+            if not path.exists():
+                continue
+            try:
+                got = _hosted_rows(path, endpoint_name)
+            except (OSError, ValueError):
+                unreadable += 1
+                continue
+            rows += got
+            preflight += len(got) if endpoint_name is not None else 0
+        costs = [r["cost_usd"] for r in rows if isinstance(r["cost_usd"], (int, float))]
+        out[key] = {"model": meta.get("model"), "max_calls": meta.get("max_calls"), "bound": meta.get("bound"),
+                    "priced": priced, "calls": len(rows), "preflight_calls": preflight,
+                    "tokens_in": sum(r["tokens_in"] for r in rows if _is_int(r["tokens_in"])),
+                    "tokens_out": sum(r["tokens_out"] for r in rows if _is_int(r["tokens_out"])),
+                    "tokens_missing": sum(1 for r in rows if not (_is_int(r["tokens_in"])
+                                                                   and _is_int(r["tokens_out"]))),
+                    "estimated_usd": round(sum(costs), 6) if priced else None, "unreadable_ledgers": unreadable}
+    return out
 
 
 def _sort_key(values: tuple[Any, ...]) -> tuple[str, ...]:
@@ -707,10 +769,17 @@ def build_report(plan: dict[str, Any], plan_bytes: bytes, provision_dir: Path, s
     e2, e2_sizing, x1, openfda = [], [], [], []
     e1_sources: dict[str, E1Source] = {}
     samples: dict[tuple[Any, ...], list[float]] = {}
+    hosted_sources: list[tuple[str, Path]] = []
+    models = plan.get("models") if isinstance(plan.get("models"), dict) else {}
     for unit in sorted(plan["units"], key=lambda u: u["unit"]):
         state, root = states.get(unit["shard"], ("no_artifact", None))
         row, record = _unit_row(unit, state, root)
         units.append(row)
+        hosted_role = lab_hosted.role(unit, models)
+        if hosted_role is not None and record is not None and root is not None:
+            rel = f"runs/{unit['experiment']}/{unit['run_id']}/{lab_hosted.HOSTED_LEDGERS[unit['experiment']]}"
+            if rel in (record.get("files") or {}):
+                hosted_sources.append((hosted_role[1], root.path / rel))
         if unit["experiment"] == "e1":
             e1_sources[unit["unit"]] = (row, record, root.path if root is not None else None)
         if unit["experiment"] == "e2" and record is not None:
@@ -739,11 +808,18 @@ def build_report(plan: dict[str, Any], plan_bytes: bytes, provision_dir: Path, s
                    "openfda": lambda: _openfda_row(row, root.path, record)}.get(unit["experiment"], lambda: None)()
         if new_row is not None:
             {"e2": e2, "x1": x1, "openfda": openfda}[unit["experiment"]].append(new_row)
-        for ledger in ledger_rows(unit, root.path) or []:
-            latency = ledger.get("latency_ms")
-            if ledger.get("ok") is True and isinstance(latency, (int, float)) and not isinstance(latency, bool):
-                key = (row["display_class"], row["model"], row["cpu_model"], unit["experiment"], ledger.get("task"))
-                samples.setdefault(key, []).append(latency)
+        groups = [(ledger_rows(unit, root.path), (row["display_class"], row["model"], row["cpu_model"]))]
+        if hosted_role is not None and hosted_role[0] == "central":
+            # the central comparator answered from the host: its latencies are not this runner's
+            central_class = "hosted-api" if row["display_class"] in ("model", "hosted-api") else row["display_class"]
+            groups = [(ledger_rows(unit, root.path, (E2_SITE_LEDGERS,)), groups[0][1]),
+                      (ledger_rows(unit, root.path, (lab_hosted.HOSTED_LEDGERS["e2"],)),
+                       (central_class, hosted_role[1], None))]
+        for ledgers, head in groups:
+            for ledger in ledgers or []:
+                latency = ledger.get("latency_ms")
+                if ledger.get("ok") is True and isinstance(latency, (int, float)) and not isinstance(latency, bool):
+                    samples.setdefault((*head, unit["experiment"], ledger.get("task")), []).append(latency)
     try:
         records: dict[tuple[str, str], tuple[dict[str, Any], bytes]] | None = \
             lab_provision.load_records(provision_dir)
@@ -754,20 +830,26 @@ def build_report(plan: dict[str, Any], plan_bytes: bytes, provision_dir: Path, s
                          if row["state"] == "sealed" and isinstance(row["host"], dict)
                          and isinstance(row["host"]["cpu_model"], str)})
     request = plan["request"]
+    e1 = e1_block(plan, plan_path, e1_sources, out)
+    sealed = [root.path for state, root in (states[s["shard"]] for s in plan["shards"])
+              if state == "sealed" and root is not None]
     report = {
         "schema_version": 1, "kind": "lab_report", "result_class": plan.get("result_class"),
         "contains_measurements": any(u["display_class"] == "model" for u in units),
+        "contains_hosted": (any(u["display_class"] == "hosted-api" for u in units)
+                            or (e1 is not None and e1["display_class"] == "hosted-api")),
         "banner": PLUMBING_BANNER if plan.get("result_class") == "plumbing" else None,
         "request": {k: request.get(k) for k in ("path", "name", "sha256", "purpose")},
         "plan": {"sha256": plan_sha256, **{k: plan.get(k) for k in ("git_sha", "provider", "job_minutes",
                                                                      "max_parallel", "retention_days")}},
         "unit_count": len(units), "shard_count": len(shard_rows), "shards": shard_rows, "units": units,
-        "e3": e3, "g0": g0, "sim": sim, "sim_sizing": sim_sizing, "e1": e1_block(plan, plan_path, e1_sources, out),
+        "e3": e3, "g0": g0, "sim": sim, "sim_sizing": sim_sizing, "e1": e1,
         "e2": e2, "e2_sizing": e2_sizing, "x1": x1, "openfda": openfda, "latency": latency_rows(samples),
         "provision": provision_rows(records, plan_sha256), "lock": lock,
         "notes": {"cpu_models": cpu_models, "world_digest": world_digest_groups(g0),
                   "sim_world_digest": sim_world_groups(sim)},
         "skipped": plan.get("skipped", []), "ignored_artifacts": ignored,
+        "hosted": hosted_totals(plan, sealed, hosted_sources),
     }
     return report, merged
 

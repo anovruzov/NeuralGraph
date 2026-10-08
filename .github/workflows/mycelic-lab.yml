@@ -48,6 +48,7 @@ jobs:
       - id: plan
         env:
           LAB_HAS_OPENFDA_KEY: ${{ secrets.MYCELIC_LAB_OPENFDA_API_KEY != '' }}
+          LAB_HAS_HOSTED: ${{ secrets.MYCELIC_LAB_HOSTED_API_KEY != '' && secrets.MYCELIC_LAB_HOSTED_BASE_URL != '' }}
         run: >-
           python -m lab.plan --event-path "$GITHUB_EVENT_PATH" --event-name "$GITHUB_EVENT_NAME"
           --manifest lab/models.json --out "$RUNNER_TEMP/lab-plan" --github-output "$GITHUB_OUTPUT"
@@ -202,6 +203,8 @@ jobs:
         env:
           LAB_DEADLINE: ${{ steps.prepare.outputs.deadline_epoch }}
           MYCELIC_LAB_OPENFDA_API_KEY: ${{ matrix.openfda && secrets.MYCELIC_LAB_OPENFDA_API_KEY || '' }}
+          MYCELIC_LAB_HOSTED_API_KEY: ${{ matrix.hosted && secrets.MYCELIC_LAB_HOSTED_API_KEY || '' }}
+          MYCELIC_LAB_HOSTED_BASE_URL: ${{ matrix.hosted && secrets.MYCELIC_LAB_HOSTED_BASE_URL || '' }}
         run: >-
           python -m lab.shard run --plan "$RUNNER_TEMP/lab-plan/plan.json" --shard "$LAB_SHARD"
           --out "$RUNNER_TEMP/lab-shard" --deadline-epoch "$LAB_DEADLINE"

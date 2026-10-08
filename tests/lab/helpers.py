@@ -228,15 +228,17 @@ def gguf_blob(size: int, seed: int = 1) -> bytes:
 
 
 def stub_manifest(directory: Path, *, revision: str = COMMIT, lock: dict[str, Any] | None = None,
-                  model: dict[str, Any] | None = None, server: dict[str, Any] | None = None) -> Path:
-    """The test manifest with the stub server (non-empty archive root) and one gguf model, plus its lock."""
+                  model: dict[str, Any] | None = None, server: dict[str, Any] | None = None,
+                  extra_models: dict[str, Any] | None = None) -> Path:
+    """The test manifest with the stub server (non-empty archive root) and one gguf model (plus ``extra_models``, by
+    key), and its lock."""
     manifest = json.loads(MANIFEST_TEST.read_text(encoding="utf-8"))
     base = manifest["server"]
     manifest["server"] = {**base, "archive_root": ARCHIVE_ROOT, "binary": BINARY, **(server or {})}
     entry = manifest["models"][MODEL_KEY]
     entry["gguf"]["revision"] = revision
     entry.update(model or {})
-    manifest["models"] = {MODEL_KEY: entry}
+    manifest["models"] = {MODEL_KEY: entry, **(extra_models or {})}
     path = write_json(directory / "manifest.json", manifest)
     write_json(directory / "manifest.lock.json", lock or {"schema_version": 1, "server": None, "models": {}})
     return path
@@ -278,14 +280,16 @@ class StubWorld:
     def __init__(self, tmp: Path, *, server_config: dict[str, Any] | None = None, revision: str = COMMIT,
                  hub_commit: str | None = None, blob_size: int = 65536, request: dict[str, Any] | None = None,
                  lock: Any = None, model: dict[str, Any] | None = None, server: dict[str, Any] | None = None,
-                 release: dict[str, Any] | None = None, unsafe: str | None = None) -> None:
+                 release: dict[str, Any] | None = None, unsafe: str | None = None,
+                 extra_models: dict[str, Any] | None = None) -> None:
         from tests.lab.stubs.fake_server_stub import write_launcher
         from tests.lab.stubs.http_stub import HubStub, make_tarball
 
         self.tmp = Path(tmp)
         self.hub = HubStub().start()
         self.record_dir = self.tmp / "stub-records"
-        self.manifest_path = stub_manifest(self.tmp / "m", revision=revision, model=model, server=server)
+        self.manifest_path = stub_manifest(self.tmp / "m", revision=revision, model=model, server=server,
+                                           extra_models=extra_models)
         self.manifest = json.loads(self.manifest_path.read_text(encoding="utf-8"))
         server = self.manifest["server"]
         self.tag, self.asset = server["tag"], server["asset"]
@@ -521,6 +525,20 @@ class DryTree:
                 measurement_class="model" if model else "unverified",
                 class_reason="verified" if model else "model_path",
                 class_checks={k: model or k != "model_path" for k in CHECK_KEYS}))
+        self.reseal(shard)
+
+    def make_hosted(self, shard: str, units: tuple[str, ...]) -> None:
+        """A hosted shard as a real run against the configured host would have left it: provenance ``real``, the given
+        units of kind hosted without fake rows, class ``hosted-api`` with every hosted check true; re-sealed."""
+        from lab.units import HOSTED_CHECK_KEYS, unit_notes
+
+        self.edit(shard, "provenance.json", lambda p: p.update(result_class="real", provider="llama-server",
+                                                               banner=None))
+        for unit in units:
+            self.edit(shard, f"units/{unit}/unit.json", lambda r: r.update(
+                kind="hosted", provider="llama-server", fake_rows=0, measurement_class="hosted-api",
+                class_reason="hosted_verified", class_checks={k: True for k in HOSTED_CHECK_KEYS},
+                notes=unit_notes(r["experiment"], "hosted-api", "endpoint")))
         self.reseal(shard)
 
     def aggregate(self, out: Path, *, shards: Path | None = None, provision: Path | None = None,

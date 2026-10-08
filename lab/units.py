@@ -9,6 +9,8 @@ Inside a shard's output directory ``OUT``, a unit writes::
     units/<unit>/{stdout.log,stderr.log}     the harness output, each cut to its last 64 KiB; never printed
     runs/<experiment>/<run id>/...           the allowlisted harness outputs, copied from the scratch directory
     work/<unit>/                             the harness scratch directory, deleted when the unit ends
+    work/<unit>/hosted-routing/<name>.json   a routing file naming the hosted provider, the one the harness reads;
+                                             its ``routing/`` twin is redacted (``lab.hosted.redact``)
 
 and returns the record the shard writes to ``units/<unit>/unit.json``. The model server is either the shard's
 started model server (a :class:`Serving` handle: its loopback URL, alias and the provenance evidence) or, for fake
@@ -18,7 +20,12 @@ entries and the ``--provider fake`` override, the collective's ``FakeOpenAIServe
 a model server serves the unit, the harness is watched: if the server process exits, the harness group is stopped,
 and a unit whose server exited while it ran (seen by the watch or right after the harness ended) is ``invalid``
 (``server exited with ...``; SIGKILL adds the out-of-memory hint). The model-free units (kind ``none``: X1 and
-openFDA) get no server and no routing.
+openFDA) get no server and no routing. A unit that calls the hosted provider gets a :class:`lab.hosted.Handle` from
+the shard: an E1 unit of a hosted model starts no server, its routing names the host (``lab.hosted.endpoint``,
+boundary ``external``), and the harness reads the scratch routing, the only file that holds the base URL; an E2
+unit's central comparator is the hosted model the same way, while its sites judge on the shard's server. Their
+harness environment is the handle's (``lab.hosted.unit_environ``): the allowlist plus the unit's ``env``, so the
+stripped key and never the base URL.
 
 Adapters (``ADAPTERS``; every harness writes under ``work/<unit>/<experiment>/<run id>``, its kind being the
 experiment): ``e3`` runs ``experiments.e3_latency`` (boundary ``central``) and keeps ``e3.json`` and
@@ -75,16 +82,24 @@ the started server (``ledger_host``) and every answer named the alias (``model_s
 run as a measurement (``harness_measurement``, E1, E2, E3 and the sim: its result says ``measurement: true``, in the
 sim's and E2's ``stamps``; :func:`harness_verdict`); and the unit ran to a valid result (``participation``).
 Otherwise ``unverified``, naming the first condition that failed (``no_evidence`` without a model server). G0's own
-``models_fake`` is ignored: in routing mode it is false even against the fake HTTP server.
+``models_fake`` is ignored: in routing mode it is false even against the fake HTTP server. A hosted E1 unit (kind
+``hosted``) is judged on :data:`HOSTED_CHECK_KEYS` instead (:func:`hosted_checks`: every ledger row went to the
+configured host, the harness's verdict, the participation) and is at best ``hosted-api`` (``hosted_verified``): a result
+of the configured host, never a measurement on this runner. An E2 unit with a hosted central comparator stays a
+``model`` candidate (the local model is what it measures): ``ledger_host`` and ``model_served`` judge its site rows,
+and ``ledger_host`` also needs every central row to have gone to the configured host.
 
 Summaries and the aggregate report never trust a record's ``measurement_class`` alone: :func:`display_class` re-reads
 the record and its shard's provenance and puts each unit in one of :data:`DISPLAY_CLASSES`; ``model`` needs every
-fact that admits a measurement to hold at once.
+fact that admits a measurement to hold at once, and so does ``hosted-api``. Hosted units' notes (:func:`unit_notes`)
+drop ``runner_hardware`` and add ``hosted_api`` and ``hosted_raw``; a hosted central comparator adds
+``central_hosted`` and ``hosted_raw``. The record's ``hosted`` block names the key, role, model id, scheme, host,
+transport, the shard's share and the calls before and after the unit (never the base URL).
 
-The harness runs with an allowlisted environment (:data:`ENV_ALLOWLIST` plus ``PYTHONUNBUFFERED=1``; no token or
-key), in its own session; on a timeout, a watch that fired or an exception (a shard interrupt included) the whole
-process group gets SIGTERM, then SIGKILL after 10 s, and after every exit the group is SIGKILLed again to remove
-stragglers.
+The harness runs with an allowlisted environment (:data:`ENV_ALLOWLIST` plus ``PYTHONUNBUFFERED=1``, plus the
+unit's ``env`` only through a hosted handle: the hosted key for a unit that calls the host, and nothing else), in its
+own session; on a timeout, a watch that fired or an exception (a shard interrupt included) the whole process group gets
+SIGTERM, then SIGKILL after 10 s, and after every exit the group is SIGKILLed again to remove stragglers.
 """
 from __future__ import annotations
 
@@ -113,6 +128,7 @@ from mycelic.collective.jsonio import StrictJsonError, sha256_hex, strict_load
 from mycelic.collective.packs.loader import load_pack
 
 from . import ROOT
+from . import hosted as lab_hosted
 from . import prereg as lab_prereg
 from .notes import (E2_ABORTED, E3_FAILURES, FAKE_SERVER_NOTE, HARNESS_INTERRUPTED, HARNESS_USAGE, KILLED_BY_SIGNAL,
                     LAB_ROUTING, LOW_PARTICIPATION, NO_MODEL_CALLS, PREREG_MISSING, RESULT_CONTRADICTS_EXIT,
@@ -140,7 +156,9 @@ WARMUP_LEDGER = "server/warmup.ledger.jsonl"
 FLAG_NAME_RE = re.compile(r"[a-z][a-z0-9-]*", re.ASCII)
 CHECK_KEYS = ("model_verified", "server_verified", "download_hosts", "model_path", "ledger_host", "model_served",
               "harness_measurement", "participation")
-DISPLAY_CLASSES = ("model", "unverified", "plumbing", "no-model", "no-result")
+HOSTED_CHECK_KEYS = ("hosted_host", "harness_measurement", "participation")
+DISPLAY_CLASSES = ("model", "hosted-api", "unverified", "plumbing", "no-model", "no-result")
+HOSTED_ROUTING = "hosted-routing"
 MODEL_VERIFIED_BY = ("lock", "hf-api")
 SERVER_VERIFIED_BY = ("lock", "github-api", "first-use")
 
@@ -239,10 +257,12 @@ def flag(name: str, value: Any) -> str:
 
 
 def build_argv(unit: Mapping[str, Any], out: Path, routing_path: Path, server_note: str = FAKE_SERVER_NOTE,
-               budget_s: int | None = None, prereg: Path | None = None) -> list[str]:
+               budget_s: int | None = None, prereg: Path | None = None,
+               central_routing: Path | None = None) -> list[str]:
     """``[python, -m, <module>, (<subcommand>,) --flag=value ...]``: every option in one element, never a bare value,
     and never the harness option that accepts a dirty tree. A sim unit needs ``budget_s`` (its ``--budget-seconds``);
-    E1, E2 and X1 need ``prereg``, the directory holding the plan and its ``prereg/``."""
+    E1, E2 and X1 need ``prereg``, the directory holding the plan and its ``prereg/``. ``central_routing`` replaces
+    E2's ``routing/<unit>/central.json`` (the scratch routing of a hosted central comparator)."""
     p = unit["params"]
     runs_dir = Path(out) / "work" / unit["unit"]
     adapter = ADAPTERS[unit["experiment"]]
@@ -257,7 +277,7 @@ def build_argv(unit: Mapping[str, Any], out: Path, routing_path: Path, server_no
         flags = [("x1-prereg", prereg / "prereg" / "x1" / "e2" / "prereg.json"), ("plant", ROOT / p["plant_path"]),
                  ("run-id", unit["run_id"]), ("top-n", p["top_n"]), ("min-candidates", p["min_candidates"]),
                  ("site-routing", Path(out) / "routing" / unit["unit"] / "sites"),
-                 ("central-routing", Path(out) / "routing" / unit["unit"] / "central.json"),
+                 ("central-routing", central_routing or Path(out) / "routing" / unit["unit"] / "central.json"),
                  ("allow-external-raw", "synthetic"), ("data-label", "synthetic"),
                  ("deadline-seconds", E2_DEADLINE_SECONDS), ("bootstrap-b", p["bootstrap_b"]),
                  ("bootstrap-seed", p["bootstrap_seed"]), ("runs-dir", runs_dir)]
@@ -299,49 +319,66 @@ def routing_doc(unit: Mapping[str, Any], entry: Mapping[str, Any], base_url: str
             "routes": {task: {"endpoint": ENDPOINT} for task in adapter.routed_tasks}}
 
 
-def e2_routing_docs(entry: Mapping[str, Any], base_url: str,
-                    site_ids: list[str]) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+def e2_routing_docs(entry: Mapping[str, Any], base_url: str, site_ids: list[str],
+                    hosted: lab_hosted.Handle | None = None) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
     """({site id: the site's routing}, the central routing): every site judges with the model inside
-    ``any-simulated``, and the central comparator is the same server at ``central``."""
+    ``any-simulated``; the central comparator is the same server at ``central``, or the hosted model of ``hosted``
+    (``lab.hosted.endpoint``, boundary ``external``)."""
     adapter = ADAPTERS["e2"]
     site = {"schema_version": 1, "endpoints": {ENDPOINT: _endpoint(entry, base_url, adapter.boundary,
                                                                    adapter.deadline_s)},
             "routes": {JUDGE_TASK: {"endpoint": ENDPOINT}}}
-    central = {"schema_version": 1,
-               "endpoints": {CENTRAL_ENDPOINT: _endpoint(entry, base_url, "central", CENTRAL_DEADLINE_S)},
+    central_endpoint = (lab_hosted.endpoint(hosted.entry, hosted.base_url) if hosted is not None
+                        else _endpoint(entry, base_url, "central", CENTRAL_DEADLINE_S))
+    central = {"schema_version": 1, "endpoints": {CENTRAL_ENDPOINT: central_endpoint},
                "routes": {task: {"endpoint": CENTRAL_ENDPOINT} for task in CENTRAL_TASKS}}
     return {sid: site for sid in site_ids}, central
 
 
 def write_routing(unit: Mapping[str, Any], plan: Mapping[str, Any], entry: Mapping[str, Any], base_url: str,
-                  out: Path, prereg: Any) -> tuple[str | None, dict[str, str] | None, bool]:
-    """Write and validate the unit's routing: (routing_sha256, routing_files, valid). E1's routing comes from the one
-    builder the preregistration also uses; E2's site list from its preregistered world."""
+                  out: Path, prereg: Any, hosted: lab_hosted.Handle | None = None
+                  ) -> tuple[str | None, dict[str, str] | None, bool, dict[str, Path]]:
+    """Write and validate the unit's routing: (routing_sha256, routing_files, valid, harness_paths). E1's routing
+    comes from the one builder the preregistration also uses; E2's site list from its preregistered world. A routing
+    document that names a hosted endpoint (``hosted``: an E1 hosted model, or E2's hosted central comparator) is
+    written whole only to the scratch path ``work/<unit>/hosted-routing/<name>.json`` (validated there, and handed to
+    the harness through ``harness_paths``: ``routing`` or ``central_routing``); the usual path under ``routing/``
+    gets ``lab.hosted.redact``'s copy, whose hash is the one recorded."""
     out = Path(out)
-    files: list[tuple[Path, dict[str, Any], tuple[str, ...]]] = []
+    files: list[tuple[Path, dict[str, Any], tuple[str, ...], str]] = []
     if unit["experiment"] == "e1":
         files.append((out / "routing" / f"{unit['unit']}.json",
-                      lab_prereg.e1_routing_doc(plan["models"], [unit["model"]], base_url), ()))
+                      lab_prereg.e1_routing_doc(plan["models"], [unit["model"]],
+                                                hosted.base_url if hosted is not None else base_url), (), "routing"))
     elif unit["experiment"] == "e2":
         doc = strict_load((prereg.dir / prereg.manifest["e2"]["prereg"]).read_bytes())
-        sites, central = e2_routing_docs(entry, base_url, list(doc["world"]["site_ids"]))
+        sites, central = e2_routing_docs(entry, base_url, list(doc["world"]["site_ids"]), hosted)
         base = out / "routing" / unit["unit"]
-        files += [(base / "sites" / f"{sid}.json", body, (JUDGE_TASK,)) for sid, body in sites.items()]
-        files.append((base / "central.json", central, CENTRAL_TASKS))
+        files += [(base / "sites" / f"{sid}.json", body, (JUDGE_TASK,), "") for sid, body in sites.items()]
+        files.append((base / "central.json", central, CENTRAL_TASKS, "central_routing"))
     else:
         files.append((out / "routing" / f"{unit['unit']}.json", routing_doc(unit, entry, base_url),
-                      ADAPTERS[unit["experiment"]].routed_tasks))
+                      ADAPTERS[unit["experiment"]].routed_tasks, ""))
     hashes: dict[str, str] = {}
+    harness_paths: dict[str, Path] = {}
     valid = True
-    for path, body, tasks in files:
+    for path, body, tasks, name in files:
+        read = path
+        if lab_hosted.is_hosted_doc(body):
+            read = out / "work" / unit["unit"] / HOSTED_ROUTING / path.name
+            read.parent.mkdir(parents=True, exist_ok=True)
+            write_json_atomic(read, body)
+            harness_paths[name] = read
+            body = lab_hosted.redact(body)
         path.parent.mkdir(parents=True, exist_ok=True)
         hashes[path.relative_to(out).as_posix()] = write_json_atomic(path, body)
         try:
-            load_routing(path, tasks=tasks, check_env=False)
+            load_routing(read, tasks=tasks, check_env=False)
         except ConfigError:
             valid = False
     main = files[-1][0].relative_to(out).as_posix()
-    return hashes[main], (dict(sorted(hashes.items())) if unit["experiment"] == "e2" else None), valid
+    return (hashes[main], (dict(sorted(hashes.items())) if unit["experiment"] == "e2" else None), valid,
+            harness_paths)
 
 
 def subprocess_env(environ: Mapping[str, str], extras: list[str]) -> dict[str, str]:
@@ -487,9 +524,13 @@ def harness_verdict(experiment: str, result: Any) -> bool | None:
 
 
 def model_checks(evidence: Mapping[str, Any], rows: list[dict[str, Any]], status: str | None,
-                 harness_measurement: bool | None, alias: str, host: str) -> tuple[dict[str, bool], list[str]]:
+                 harness_measurement: bool | None, alias: str, host: str,
+                 hosted_rows: list[dict[str, Any]] | None = None,
+                 hosted_host: str | None = None) -> tuple[dict[str, bool], list[str]]:
     """Every condition that admits a model measurement (:data:`CHECK_KEYS`, in order) and the flags; see the module
-    docstring. ``harness_measurement`` is None when the harness has no such verdict (G0), which passes."""
+    docstring. ``harness_measurement`` is None when the harness has no such verdict (G0), which passes. For an E2
+    unit with a hosted central comparator, ``rows`` are the site rows only (``ledger_host`` and ``model_served`` judge
+    the local server on them) and ``hosted_rows`` the central rows, each of which must have gone to ``hosted_host``."""
     flags: list[str] = []
 
     def held(check: Callable[[], bool]) -> bool:
@@ -516,7 +557,8 @@ def model_checks(evidence: Mapping[str, Any], rows: list[dict[str, Any]], status
                                            for c in connections())),
         "model_path": held(lambda: isinstance(start["props"]["model_path"], str)
                            and start["props"]["model_path"] == prepare["model"]["path"]),
-        "ledger_host": held(lambda: all(row["host"] == host for row in rows)),
+        "ledger_host": held(lambda: all(row["host"] == host for row in rows)
+                            and all(row["host"] == hosted_host for row in hosted_rows or [])),
         "model_served": held(lambda: all(row["model_served"] == alias for row in rows if row["http_status"] == 200)),
         "harness_measurement": harness_measurement is None or harness_measurement is True,
         "participation": status in ("ok", "result_fail"),
@@ -526,9 +568,20 @@ def model_checks(evidence: Mapping[str, Any], rows: list[dict[str, Any]], status
     return checks, flags
 
 
+def hosted_checks(rows: list[dict[str, Any]], status: str | None, harness_measurement: bool | None,
+                  host: str) -> dict[str, bool]:
+    """The conditions that admit a hosted API result (:data:`HOSTED_CHECK_KEYS`): every ledger row went to the
+    configured host (``hosted_host``), the harness counted the run as a measurement (None passes) and the unit ran
+    to a valid result."""
+    return {"hosted_host": all(row.get("host") == host for row in rows),
+            "harness_measurement": harness_measurement is None or harness_measurement is True,
+            "participation": status in ("ok", "result_fail")}
+
+
 def measurement_class(kind: str, provider_override: str | None, rows: list[dict[str, Any]],
                       checks: Mapping[str, bool] | None = None) -> tuple[str, str]:
-    """(class, reason key); the reason keys are those of ``notes.CLASS_REASONS``."""
+    """(class, reason key); the reason keys are those of ``notes.CLASS_REASONS``. A hosted unit (kind ``hosted``)
+    is judged on :data:`HOSTED_CHECK_KEYS` and is at best ``hosted-api``, never ``model``."""
     if kind == "none":
         return "no-model", "no_model"
     if kind == "fake":
@@ -539,10 +592,10 @@ def measurement_class(kind: str, provider_override: str | None, rows: list[dict[
         return "plumbing", "fake_marker"
     if checks is None:
         return "unverified", "no_evidence"
-    for key in CHECK_KEYS:
+    for key in (HOSTED_CHECK_KEYS if kind == "hosted" else CHECK_KEYS):
         if checks.get(key) is not True:
             return "unverified", key
-    return "model", "verified"
+    return ("hosted-api", "hosted_verified") if kind == "hosted" else ("model", "verified")
 
 
 def _is_int(value: Any) -> bool:
@@ -558,7 +611,10 @@ def display_class(record: Mapping[str, Any], provenance: Mapping[str, Any] | Non
     3. ``no-model`` for a model-free unit (kind ``none``, class ``no-model``);
     4. ``model`` only when the record says model, its kind is gguf, the provenance is ``real``, it counted zero fake
        rows and every one of :data:`CHECK_KEYS` is exactly true;
-    5. otherwise ``unverified``.
+    5. ``hosted-api`` only when the record says hosted-api, its kind is hosted, the provenance is ``real``, it counted
+       zero fake rows and every one of :data:`HOSTED_CHECK_KEYS` is exactly true: a result of the configured host,
+       never a measurement on this runner;
+    6. otherwise ``unverified``.
     """
     if record.get("status") not in ("ok", "result_fail"):
         return "no-result"
@@ -575,19 +631,41 @@ def display_class(record: Mapping[str, Any], provenance: Mapping[str, Any] | Non
             and prov.get("result_class") == "real" and _is_int(fake_rows) and fake_rows == 0
             and isinstance(checks, Mapping) and all(checks.get(key) is True for key in CHECK_KEYS)):
         return "model"
+    if (record.get("measurement_class") == "hosted-api" and record.get("kind") == "hosted" and prov is not None
+            and prov.get("result_class") == "real" and prov.get("provider") != "fake" and _is_int(fake_rows)
+            and fake_rows == 0 and isinstance(checks, Mapping)
+            and all(checks.get(key) is True for key in HOSTED_CHECK_KEYS)):
+        return "hosted-api"
     return "unverified"
 
 
-def unit_notes(experiment: str, measurement: str) -> list[str]:
+def unit_notes(experiment: str, measurement: str, hosted_role: str | None = None) -> list[str]:
+    """The note keys (``notes.NOTES``) of a unit. A hosted E1 endpoint (``hosted_role`` ``endpoint``) drops
+    ``runner_hardware`` and adds ``hosted_api`` (unless plumbing) and ``hosted_raw``; a hosted central comparator
+    (``central``) adds ``central_hosted`` and ``hosted_raw``."""
     notes = ["plumbing"] if measurement == "plumbing" else ["model_measurement"] if measurement == "model" else []
     if experiment == "openfda":
         return [*notes, "public_data"]
     notes.append("synthetic")
-    if experiment in ("e1", "e2", "e3", "sim"):
+    if experiment in ("e1", "e2", "e3", "sim") and hosted_role != "endpoint":
         notes.append("runner_hardware")
     if experiment in ("e2", "g0", "sim"):
         notes.append("text_only_scan")
+    if hosted_role == "endpoint":
+        notes += [*(["hosted_api"] if measurement != "plumbing" else []), "hosted_raw"]
+    elif hosted_role == "central":
+        notes += ["central_hosted", "hosted_raw"]
     return notes
+
+
+def hosted_role(unit: Mapping[str, Any]) -> str | None:
+    """``endpoint``, ``central`` or None, from the unit alone (its kind comes from the manifest, as
+    ``lab.hosted.role`` reads it)."""
+    if unit["experiment"] == "e1" and unit["kind"] == "hosted":
+        return "endpoint"
+    if unit["experiment"] == "e2" and unit["params"].get("central", "self") != "self":
+        return "central"
+    return None
 
 
 def unit_record(unit: Mapping[str, Any], shard: str, provider: str, provider_override: str | None,
@@ -600,10 +678,10 @@ def unit_record(unit: Mapping[str, Any], shard: str, provider: str, provider_ove
         "argv": [], "seeds": list(unit["seeds"]), "timeout_s": None, "started_at": None, "finished_at": None,
         "wall_s": 0.0, "exit_code": None, "signal": None, "status": "skipped", "status_reason": None,
         "measurement_class": measurement, "class_reason": reason,
-        "notes": unit_notes(unit["experiment"], measurement), "routing_sha256": None, "files": {},
-        "fake_rows": None, "ledger_rows": None, "participation": None, "harness_measurement": None, "logs": None,
-        "serving": None, "server_exit": None, "server_after": None, "class_checks": None, "class_flags": [],
-        "routing_files": None, "steps": None, "projection": None,
+        "notes": unit_notes(unit["experiment"], measurement, hosted_role(unit)), "routing_sha256": None,
+        "files": {}, "fake_rows": None, "ledger_rows": None, "participation": None, "harness_measurement": None,
+        "logs": None, "serving": None, "server_exit": None, "server_after": None, "class_checks": None,
+        "class_flags": [], "routing_files": None, "steps": None, "projection": None, "hosted": None,
     }
     unknown = set(fields) - set(record)
     if unknown:
@@ -807,10 +885,12 @@ def load_result(unit: Mapping[str, Any], out: Path) -> Any:
     return None if failed else obj
 
 
-def ledger_rows(unit: Mapping[str, Any], out: Path) -> list[dict[str, Any]] | None:
-    """Every row of the collected ledgers; None when one cannot be read (a partial line from a killed run)."""
+def ledger_rows(unit: Mapping[str, Any], out: Path,
+                patterns: tuple[str, ...] | None = None) -> list[dict[str, Any]] | None:
+    """Every row of the collected ledgers (or of those matching ``patterns``); None when one cannot be read (a
+    partial line from a killed run)."""
     rows: list[dict[str, Any]] = []
-    for path in _collected(unit, out, ADAPTERS[unit["experiment"]].ledgers):
+    for path in _collected(unit, out, ADAPTERS[unit["experiment"]].ledgers if patterns is None else patterns):
         failed = False
         try:
             rows.extend(read_ledger(path))
@@ -826,9 +906,12 @@ def ledger_rows(unit: Mapping[str, Any], out: Path) -> list[dict[str, Any]] | No
 def run_unit(unit: dict[str, Any], plan: dict[str, Any], out: Path, *, timeout_s: float,
              provider_override: str | None, on_start: Callable[[int], None] | None = None,
              serving: Serving | None = None, prereg: Any = None,
-             openfda_base_url: str | None = None) -> dict[str, Any]:
+             openfda_base_url: str | None = None, hosted: lab_hosted.Handle | None = None) -> dict[str, Any]:
     """Run one unit and return its record. ``prereg`` is the shard's verified :class:`~lab.prereg.Prereg` (E1, E2
-    and X1 fail without it); ``openfda_base_url`` replaces api.fda.gov for the openFDA unit (tests only)."""
+    and X1 fail without it); ``openfda_base_url`` replaces api.fda.gov for the openFDA unit (tests only). ``hosted``
+    is the shard's :class:`lab.hosted.Handle` for a unit that calls the hosted provider: an E1 hosted unit then
+    starts no server and sends its calls to the host, an E2 unit's central comparator is the hosted model, and the
+    harness environment is the handle's (the allowlist plus the unit's ``env``: the stripped key)."""
     out = Path(out)
     experiment = unit["experiment"]
     provider = "fake" if provider_override == "fake" else plan["provider"]
@@ -857,31 +940,42 @@ def run_unit(unit: dict[str, Any], plan: dict[str, Any], out: Path, *, timeout_s
     interrupted = False
     server: FakeServer | None = None
     server_note = FAKE_SERVER_NOTE
+    harness_paths: dict[str, Path] = {}
+    endpoint_role = hosted is not None and hosted.role == "endpoint"
     try:
         if entry is not None:
-            if serving is None:
+            if endpoint_role:
+                base_url = hosted.base_url
+            elif serving is None:
                 with_pack = experiment in ("e1", "e2", "g0", "sim")
                 server = FakeServer(persona, load_pack(unit["params"]["pack"]) if with_pack else None)
                 server.start()
                 base_url = server.base_url
             else:
                 base_url, server_note = serving.base_url, serving.server_note
-            routing_sha256, routing_files, valid = write_routing(unit, plan, entry, base_url, out, prereg)
+            routing_sha256, routing_files, valid, harness_paths = write_routing(unit, plan, entry, base_url, out,
+                                                                                prereg, hosted)
             if not valid:
                 status, reason = "failed", LAB_ROUTING
         if status is None and experiment == "e2" and serving is not None:
-            projection = e2_projection(prereg.manifest["e2"]["rehearsal"], warmup_rows(out, serving.start), timeout_s)
+            warm = warmup_rows(out, serving.start)
+            if hosted is not None:
+                warm += lab_hosted.preflight_rows(out, hosted.key)     # the central latencies, measured on the host
+            projection = e2_projection(prereg.manifest["e2"]["rehearsal"], warm, timeout_s)
             if projection is not None and projection["exceeds"]:
                 status = "skipped"
                 reason = SIM_PROJECTED.format(projected=f"{projection['projected_s'] / 60:.1f}",
                                               budget=f"{projection['share'] * projection['budget_s'] / 60:.1f}")
         if status is None:
             budget_s = max(1, math.floor(timeout_s) - SIM_BUDGET_MARGIN_S) if experiment == "sim" else None
-            argv = build_argv(unit, out, routing_path, server_note, budget_s=budget_s,
-                              prereg=prereg.dir if prereg is not None else None)
+            argv = build_argv(unit, out, harness_paths.get("routing", routing_path), server_note, budget_s=budget_s,
+                              prereg=prereg.dir if prereg is not None else None,
+                              central_routing=harness_paths.get("central_routing"))
             work.mkdir(parents=True, exist_ok=True)
             unit_dir.mkdir(parents=True, exist_ok=True)
-            proc = run_process(argv, subprocess_env(os.environ, unit["env"]), cwd=ROOT, timeout_s=timeout_s,
+            # the unit's env (the hosted key) only through the shard's handle, never from this process's environment
+            env = subprocess_env(hosted.environ, unit["env"]) if hosted is not None else subprocess_env(os.environ, [])
+            proc = run_process(argv, env, cwd=ROOT, timeout_s=timeout_s,
                                stdout_path=unit_dir / "stdout.log", stderr_path=unit_dir / "stderr.log",
                                on_start=on_start,
                                watch=(lambda: serving.poll() is not None) if serving is not None else None)
@@ -919,7 +1013,15 @@ def run_unit(unit: dict[str, Any], plan: dict[str, Any], out: Path, *, timeout_s
         if server_exit is not None:
             status, reason = "invalid", exit_reason(server_exit)
     checks, flags = None, []
-    if serving is not None:
+    if endpoint_role:
+        checks = hosted_checks(rows or [], status, harness_verdict(experiment, result), hosted.host)
+    elif serving is not None and hosted is not None:
+        site_rows = ledger_rows(unit, out, (E2_SITE_LEDGERS,))
+        central_rows = ledger_rows(unit, out, (lab_hosted.HOSTED_LEDGERS["e2"],))
+        checks, flags = model_checks(serving.evidence, site_rows or [], status, harness_verdict(experiment, result),
+                                     serving.alias, serving.host_label, hosted_rows=central_rows or [],
+                                     hosted_host=hosted.host)
+    elif serving is not None:
         checks, flags = model_checks(serving.evidence, rows or [], status, harness_verdict(experiment, result),
                                      serving.alias, serving.host_label)
     measurement, class_reason = measurement_class(unit["kind"], provider_override, rows or [], checks)
@@ -931,11 +1033,23 @@ def run_unit(unit: dict[str, Any], plan: dict[str, Any], out: Path, *, timeout_s
         wall_s=proc.wall_s if proc is not None else round(time.monotonic() - t0, 3),
         exit_code=proc.exit_code if proc is not None else None,
         signal=proc.signal_name if proc is not None else None, status=status, status_reason=reason,
-        measurement_class=measurement, class_reason=class_reason, notes=unit_notes(experiment, measurement),
+        measurement_class=measurement, class_reason=class_reason,
+        notes=unit_notes(experiment, measurement, hosted.role if hosted is not None else None),
         routing_sha256=routing_sha256, routing_files=routing_files, projection=projection, files=files,
         fake_rows=sum(1 for r in rows if r["fake_marker"]) if rows is not None else None,
         ledger_rows=len(rows) if rows is not None else None, participation=record_participation,
         harness_measurement=harness_measurement(experiment, result), logs=logs,
         serving=({"start": serving.start, "host": serving.host_label, "alias": serving.alias,
                   "class": serving.class_name} if serving is not None else None),
-        server_exit=server_exit, class_checks=checks, class_flags=flags)
+        server_exit=server_exit, class_checks=checks, class_flags=flags,
+        hosted=hosted_record(hosted))
+
+
+def hosted_record(hosted: lab_hosted.Handle | None) -> dict[str, Any] | None:
+    """The unit record's ``hosted`` block (no base URL, no path; ``calls_after`` is filled by the shard)."""
+    if hosted is None:
+        return None
+    return {"key": hosted.key, "role": hosted.role, "model": hosted.entry["model"], "scheme": hosted.scheme,
+            "host": hosted.host, "response_format": hosted.entry["response_format"],
+            "transport_schema": hosted.entry["transport_schema"], "share": hosted.share,
+            "calls_before": hosted.calls_before, "calls_after": None}

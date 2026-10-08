@@ -16,30 +16,53 @@ tie salt, bootstrap settings, ``top_n`` and the seed. An E1 unit is one model an
 and harness settings, the plant's repository path ``plant_path``, the pack's site count ``sites``, the sorted seeds and
 the first of them as ``seed``); ``x1`` and ``openfda`` are one model-free unit each (model None, kind ``none``; X1
 takes E2's params without ``top_n``, ``min_candidates`` and ``central``, openFDA the normalised block plus
-``requests_estimate``). A shard is the set of units one runner job executes, all on one model: units are grouped by
-model (``none`` for model-free units), and inside a group placed first-fit decreasing into shards of ``job_minutes -
-SHARD_OVERHEAD_MINUTES`` minutes by (serving class rank, -minutes, unit id), the classes (:func:`serving_class`)
-ranked ``quality``, ``e2``, ``e3``. Shards are numbered ``sNNN-<label>`` in creation order; a shard runs its units in
-the order they were placed, and its job timeout is its planned minutes plus the overhead.
+``requests_estimate``). A unit's ``kind`` is its model's manifest kind (``hosted`` for an E1 unit of a hosted model).
+A unit that calls the hosted provider (``lab.hosted.role``: an E1 unit of a hosted model, an E2 unit whose ``central``
+is hosted) has ``needs_secret`` true and ``env`` ``["MYCELIC_LAB_HOSTED_API_KEY"]``; every other unit false and ``[]``.
+
+A shard is the set of units one runner job executes: units are grouped by (label, needs_secret), the label being the
+model (``none`` for model-free units, ``hosted`` for every hosted unit, whatever its key), and inside a group placed
+first-fit decreasing into shards of ``job_minutes - SHARD_OVERHEAD_MINUTES`` minutes by (serving class rank, -minutes,
+unit id), the classes (:func:`serving_class`) ranked ``quality``, ``e2``, ``e3``. An E2 unit with a hosted central
+comparator therefore gets a shard of its own, apart from its model's other units, so only the jobs that call the host
+get the secrets. Shards are numbered ``sNNN-<label>`` in creation order; a shard runs its units in the order they
+were placed, and its job timeout is its planned minutes plus the overhead. A shard's ``model`` is its units' model
+(None for the ``none`` and ``hosted`` groups) and its ``kind`` theirs; the hosted units must fit one shard
+(``$.experiments.e1.minutes``, exit 2).
+
+**Hosted secrets.** The plan job learns only whether both hosted secrets are set: ``LAB_HAS_HOSTED`` is ``true`` or
+anything else (absent). Without them, :func:`filter_hosted` removes, before packing (so before the
+preregistration), every hosted E1 unit, then every E1 unit when fewer than two E1 models remain or the reference was
+hosted, and every E2 unit with a hosted central comparator (never run with ``self`` in its place); ``skipped`` lists
+them (``{"unit", "experiment", "model", "reason"}``, sorted by unit), the other units keep their run ids, and stdout
+gets one ``::notice title=lab hosted skipped::`` line naming both secrets and the skipped units. A plan left with no
+unit is valid (``has_units=false``, exit 0). With them, ``hosted`` holds per used key ``{"model": <the host's model
+id>, "max_calls", "bound", "shares": {<shard>: <share>}}``: a shard's share is the preflight's
+``PREFLIGHT_MAX_CALLS`` per canary task plus ``lab.hosted.unit_bound`` of each of its units of the key, and ``bound``
+is their sum, the request's own bound (``lab.request``), at most ``max_calls``. ``hosted`` is ``{}`` without hosted
+units.
 
 Nothing from the preregistration (``lab.prereg``, which the workflow runs right after this) goes into the plan.
 
-``DIR/plan.json`` (canonical JSON; no clock, host or environment value, so two plans of the same request at the
-same commit are byte-identical)::
+``DIR/plan.json`` (canonical JSON; no clock, host or environment value, so two plans of the same request, commit and
+secret presence are byte-identical)::
 
     {"schema_version": 1, "kind": "lab_plan", "request": {"path", "name", "sha256", "purpose"}, "provider",
      "result_class": "plumbing" | "real", "manifest": {"path", "sha256"}, "lock": {"path", "sha256"}, "git_sha",
      "job_minutes", "max_parallel", "retention_days", "shard_overhead_minutes", "shard_capacity_minutes",
-     "models": {"<key>": <resolved manifest entry> + {"lock": <lock entry> | null}},
+     "models": {"<key>": <resolved manifest entry> + {"lock": <lock entry> | null}},   # every model a unit uses,
+                                                                                      # hosted centrals included
      "units": [{"unit", "run_id", "experiment", "model", "kind", "minutes", "params", "seeds", "needs_secret",
                 "env", "shard"}],                                         # sorted by unit id
      "shards": [{"shard", "model", "kind", "needs_secret", "units", "planned_minutes", "timeout_minutes"}],
-     "skipped": [], "matrix": {"include": [...]},
+     "skipped": [{"unit", "experiment", "model", "reason"}], "matrix": {"include": [...]},
      "provision": [{"target": "server" | "gguf", "key": "" | "<model key>", "entry", "cache_path", "cache_key",
-                    "restore_key", "restore_prefix"}]}
+                    "restore_key", "restore_prefix"}],
+     "hosted": {"<key>": {"model", "max_calls", "bound", "shares"}}}
 
 A matrix entry's ``openfda`` is true exactly when its shard holds the openFDA unit (the run step then passes the
-openFDA key secret, when there is one, to that shard only).
+openFDA key secret, when there is one, to that shard only), and ``hosted`` is the shard's ``needs_secret`` (the run
+step passes the two hosted secrets to those shards only); a hosted shard's ``model`` and ``gguf_key`` are empty.
 
 ``provision`` lists what the provision matrix downloads and verifies once per run: the server first, then each gguf
 model the plan uses in sorted key order; empty when no shard serves a gguf model. ``entry`` (``server`` or
@@ -79,7 +102,10 @@ from .discover import REQUEST_PATH_RE, DiscoveryError, discover, git
 from .manifest import Manifest, ManifestError, cache_dir, cache_key, cache_prefix, load_manifest
 from mycelic.collective.packs import loader
 
-from .request import EXPERIMENTS, SHARD_OVERHEAD_MINUTES, Request, RequestError, load_request, openfda_requests
+from .hosted import HAS_VAR, KEY_VAR, PREFLIGHT_MAX_CALLS, preflight_tasks, role, unit_bound
+from .notes import E1_WITHOUT_HOSTED, E2_CENTRAL_HOSTED_SKIPPED, HOSTED_NOTICE_TITLE, HOSTED_SECRETS_MISSING
+from .request import (EXPERIMENTS, SHARD_OVERHEAD_MINUTES, Request, RequestError, e1_records, load_request,
+                      openfda_requests)
 from .sim import BOOTSTRAP_B, BOOTSTRAP_SEED, PLANTS, TIE_SALT, world_settings
 
 MAX_SHARDS = 256
@@ -89,6 +115,7 @@ MAX_UNIT_ID = 55
 UNIT_ID_RE = re.compile(r"[a-z0-9][a-z0-9-]*", re.ASCII)
 SHARD_ID_RE = re.compile(r"s[0-9]{3}-[a-z0-9][a-z0-9-]{0,23}", re.ASCII)
 NO_MODEL = "none"
+HOSTED_GROUP = "hosted"
 CLASS_RANK = {"quality": 0, "e2": 1, "e3": 2}
 OUTPUT_KEYS = ("has_provision", "has_units", "matrix", "max_parallel", "plan_sha256", "provision_matrix",
                "retention_days", "result_class")
@@ -183,6 +210,9 @@ def build_units(request: Request, manifest: Manifest) -> list[dict[str, Any]]:
                 for seed in (block["seeds"] if experiment == "sim" else [block["seed"]]):
                     units.append(_unit(request, manifest, experiment, model, f"s{seed}" if experiment == "sim" else "",
                                        block["minutes"], _params(experiment, block, seed), [seed]))
+    for unit in units:
+        if role(unit, manifest.models) is not None:
+            unit.update(needs_secret=True, env=[KEY_VAR])
     units.sort(key=lambda u: u["unit"])
     run_ids = [u["run_id"] for u in units]
     if len(set(run_ids)) != len(run_ids) or len({u["unit"] for u in units}) != len(units):
@@ -190,11 +220,16 @@ def build_units(request: Request, manifest: Manifest) -> list[dict[str, Any]]:
     return units
 
 
+def group_label(unit: dict[str, Any]) -> str:
+    """The shard group of a unit: :data:`HOSTED_GROUP` for every hosted unit, else its model or :data:`NO_MODEL`."""
+    return HOSTED_GROUP if unit["kind"] == "hosted" else unit["model"] or NO_MODEL
+
+
 def pack_shards(units: list[dict[str, Any]], capacity: int) -> list[dict[str, Any]]:
-    """First-fit decreasing per (model label, needs_secret) group; see the module docstring."""
+    """First-fit decreasing per (group label, needs_secret) group; see the module docstring."""
     groups: dict[tuple[str, bool], list[dict[str, Any]]] = {}
     for unit in units:
-        groups.setdefault((unit["model"] or NO_MODEL, unit["needs_secret"]), []).append(unit)
+        groups.setdefault((group_label(unit), unit["needs_secret"]), []).append(unit)
     shards: list[dict[str, Any]] = []
     remaining: dict[str, int] = {}
     for label, needs_secret in sorted(groups):
@@ -207,7 +242,8 @@ def pack_shards(units: list[dict[str, Any]], capacity: int) -> list[dict[str, An
             if target is None:
                 if len(shards) >= MAX_SHARDS:
                     raise PlanError("$.experiments", f"the plan needs more than {MAX_SHARDS} shards") from None
-                target = {"shard": f"s{len(shards) + 1:03d}-{label}", "model": unit["model"], "kind": unit["kind"],
+                target = {"shard": f"s{len(shards) + 1:03d}-{label}",
+                          "model": None if label == HOSTED_GROUP else unit["model"], "kind": unit["kind"],
                           "needs_secret": needs_secret, "units": [], "planned_minutes": 0, "timeout_minutes": 0}
                 shards.append(target)
                 mine.append(target)
@@ -252,21 +288,76 @@ def provision_entries(manifest: Manifest, gguf_keys: list[str]) -> list[dict[str
             *(entry("gguf", key, key, manifest.lock.models.get(key)) for key in sorted(gguf_keys))]
 
 
-def build_plan(request: Request, manifest: Manifest, git_sha: str) -> dict[str, Any]:
+def filter_hosted(units: list[dict[str, Any]], request: Request,
+                  manifest: Manifest) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Without the hosted secrets: (the units that remain, the skipped units). Every hosted E1 unit is skipped
+    (:data:`~lab.notes.HOSTED_SECRETS_MISSING`); then every remaining E1 unit when fewer than two E1 models remain or
+    the reference was hosted (:data:`~lab.notes.E1_WITHOUT_HOSTED`); and every E2 unit whose central comparator is
+    hosted (:data:`~lab.notes.E2_CENTRAL_HOSTED_SKIPPED`), never run with the model itself in its place."""
+    reasons: dict[str, str] = {}
+    for unit in units:
+        found = role(unit, manifest.models)
+        if found is not None:
+            reasons[unit["unit"]] = HOSTED_SECRETS_MISSING if found[0] == "endpoint" else E2_CENTRAL_HOSTED_SKIPPED
+    e1 = request.data["experiments"].get("e1")
+    if e1 is not None:
+        left = {u["model"] for u in units if u["experiment"] == "e1" and u["unit"] not in reasons}
+        if len(left) < 2 or manifest.models[e1["reference"]]["kind"] == "hosted":
+            for unit in units:
+                if unit["experiment"] == "e1" and unit["unit"] not in reasons:
+                    reasons[unit["unit"]] = E1_WITHOUT_HOSTED
+    skipped = [{"unit": u["unit"], "experiment": u["experiment"], "model": u["model"], "reason": reasons[u["unit"]]}
+               for u in units if u["unit"] in reasons]
+    return [u for u in units if u["unit"] not in reasons], sorted(skipped, key=lambda s: s["unit"])
+
+
+def hosted_shares(request: Request, manifest: Manifest, units: list[dict[str, Any]]) -> dict[str, Any]:
+    """``plan.hosted``: per hosted key its model id, ``max_calls``, and each shard's share of the calls (the preflight
+    of every canary task plus ``unit_bound`` of each of the shard's units of the key), whose sum is ``bound``."""
+    shares: dict[str, dict[str, int]] = {}
+    records: int | None = None                  # one E1 block, so one label set for every E1 unit
+    for unit in units:
+        found = role(unit, manifest.models)
+        if found is None:
+            continue
+        key, shard = found[1], unit["shard"]
+        p = unit["params"]
+        if unit["experiment"] == "e1":
+            records = e1_records(p["labels"]) if records is None else records
+            calls = unit_bound("e1", records=records)
+        else:
+            calls = unit_bound("e2", top_n=p["top_n"], seeds=len(p["seeds"]))
+        mine = shares.setdefault(key, {})
+        if shard not in mine:
+            mine[shard] = PREFLIGHT_MAX_CALLS * preflight_tasks(unit["experiment"])
+        mine[shard] += calls
+    return {key: {"model": manifest.models[key]["model"], "max_calls": request.data["hosted"][key]["max_calls"],
+                  "bound": sum(shares[key].values()), "shares": dict(sorted(shares[key].items()))}
+            for key in sorted(shares)}
+
+
+def build_plan(request: Request, manifest: Manifest, git_sha: str, *, has_hosted: bool = False) -> dict[str, Any]:
     data = request.data
     capacity = data["job_minutes"] - SHARD_OVERHEAD_MINUTES
     units = build_units(request, manifest)
+    skipped: list[dict[str, Any]] = []
+    if not has_hosted:
+        units, skipped = filter_hosted(units, request, manifest)
     shards = pack_shards(units, capacity)
+    if sum(1 for s in shards if s["kind"] == "hosted") > 1:
+        raise PlanError("$.experiments.e1.minutes", "the hosted E1 units need more minutes than one shard holds; lower "
+                                                    "e1.minutes or e1.runs, or raise job_minutes") from None
     shard_of = {uid: s["shard"] for s in shards for uid in s["units"]}
     for unit in units:
         unit["shard"] = shard_of[unit["unit"]]
     matrix = {"include": [{"shard": s["shard"], "model": s["model"] or "", "kind": s["kind"],
                            "timeout_minutes": s["timeout_minutes"],
-                           "gguf_key": s["model"] if s["kind"] == "gguf" else "", "hosted": False,
+                           "gguf_key": s["model"] if s["kind"] == "gguf" else "", "hosted": s["needs_secret"],
                            "openfda": any(u == "openfda" for u in s["units"])}
                           for s in shards]}
     check_matrix_size(matrix)
-    used = sorted({u["model"] for u in units if u["model"]})
+    roles = [role(u, manifest.models) for u in units]
+    used = sorted({u["model"] for u in units if u["model"]} | {r[1] for r in roles if r is not None})
     provision = provision_entries(manifest, sorted({s["model"] for s in shards if s["kind"] == "gguf"}))
     check_matrix_size({"include": provision})
     plan = {
@@ -279,7 +370,8 @@ def build_plan(request: Request, manifest: Manifest, git_sha: str) -> dict[str, 
         "retention_days": data["retention_days"], "shard_overhead_minutes": SHARD_OVERHEAD_MINUTES,
         "shard_capacity_minutes": capacity,
         "models": {key: {**manifest.models[key], "lock": manifest.lock.models.get(key)} for key in used},
-        "units": units, "shards": shards, "skipped": [], "matrix": matrix, "provision": provision,
+        "units": units, "shards": shards, "skipped": skipped, "matrix": matrix, "provision": provision,
+        "hosted": hosted_shares(request, manifest, units),
     }
     check_outputs_size(plan_outputs(plan, "0" * 64) | {"plan_artifact": "x" * 64})
     return plan
@@ -304,7 +396,7 @@ def plan_outputs(plan: dict[str, Any] | None, plan_sha256: str) -> dict[str, str
                 "retention_days": "1", "result_class": "none"}
     return {"has_provision": "true" if plan["provision"] else "false",
             "has_units": "true" if plan["units"] else "false", "matrix": canonical_dumps(plan["matrix"]),
-            "max_parallel": str(min(plan["max_parallel"], len(plan["shards"]))), "plan_sha256": plan_sha256,
+            "max_parallel": str(max(1, min(plan["max_parallel"], len(plan["shards"])))), "plan_sha256": plan_sha256,
             "provision_matrix": canonical_dumps({"include": plan["provision"]}),
             "retention_days": str(plan["retention_days"]), "result_class": plan["result_class"]}
 
@@ -387,13 +479,16 @@ def main(argv: list[str] | None = None) -> int:
         request_path = shown_path(display_path(path))
         request = load_request(path, manifest, strict_location=strict,
                                openfda_key=os.environ.get("LAB_HAS_OPENFDA_KEY") == "true")
-        plan = build_plan(request, manifest, git_sha())
+        plan = build_plan(request, manifest, git_sha(), has_hosted=os.environ.get(HAS_VAR) == "true")
     except LabError as err:
         return _report(out, err, request_path)
     out.mkdir(parents=True, exist_ok=True)
     plan_sha256 = write_json_atomic(out / "plan.json", plan)
     if args.github_output:
         write_github_output(args.github_output, plan_outputs(plan, plan_sha256))
+    if plan["skipped"]:
+        notice = f"{HOSTED_SECRETS_MISSING}; skipped: " + ", ".join(s["unit"] for s in plan["skipped"])
+        print(f"::notice title={gh_property(HOSTED_NOTICE_TITLE)}::{gh_data(notice)}")
     print(f"plan: {len(plan['units'])} units in {len(plan['shards'])} shards ({plan['result_class']})")
     return EXIT_OK
 

@@ -121,7 +121,7 @@ CASES: list[tuple[str, Callable[[str], bytes], str, str]] = [
     ("top-string", lambda s: json.dumps(s).encode(), "$", "must be an object"),
     ("unknown-unsafe-key", lambda s: json.dumps({**plumbing_min(), s: 1}).encode(), "$",
      "unknown key (name not shown)"),
-    ("unknown-safe-key-hosted", _with(("hosted", "<S>")), "$.hosted", "unknown key"),
+    ("unknown-safe-key-secrets", _with(("secrets", "<S>")), "$.secrets", "unknown key"),
     ("unknown-key-newline", lambda s: json.dumps({**plumbing_min(), "a\n" + s: 1}).encode(), "$",
      "unknown key (name not shown)"),
     ("missing-models", _with(("models", _DELETE)), "$.models", "required"),
@@ -284,7 +284,8 @@ CASES: list[tuple[str, Callable[[str], bytes], str, str]] = [
     ("e2-top-n-low", _block("e2", E2, top_n=4), "$.experiments.e2.top_n", "must be an int in [5, 60]"),
     ("e2-min-candidates-above-top-n", _block("e2", E2, min_candidates=6), "$.experiments.e2.min_candidates",
      "must be an int in [1, 5]"),
-    ("e2-central-not-self", _block("e2", E2, central="hosted"), "$.experiments.e2.central", "must be self"),
+    ("e2-central-not-self", _block("e2", E2, central="hosted"), "$.experiments.e2.central",
+     "must be self or a hosted model of $.models"),
     ("e2-seeds-six", _block("e2", E2, seeds=[1, 2, 3, 4, 5, 6]), "$.experiments.e2.seeds",
      "must be a list of 1 to 5 seeds"),
     ("e2-grace-high", _block("e2", E2, grace_weeks=9), "$.experiments.e2.grace_weeks", "must be an int in [0, 8]"),
@@ -472,12 +473,12 @@ class ExperimentBlockTests(unittest.TestCase):
 
     def test_model_kinds_for_e1_and_e2(self) -> None:
         from lab import request as lab_request
+        problems = {"e1": "E1 runs only gguf, fake or hosted models", "e2": "E2 runs only gguf or fake models"}
         with mock.patch.object(lab_request, "SIM_KINDS", ("gguf",)):
             for name, block in (("e1", E1), ("e2", E2)):
                 with self.subTest(name=name), self.assertRaises(RequestError) as caught:
                     self.blocks(**{name: block})
-                self.assertEqual((caught.exception.path, caught.exception.problem),
-                                 ("$.models[0]", f"{name.upper()} runs only gguf or fake models"))
+                self.assertEqual((caught.exception.path, caught.exception.problem), ("$.models[0]", problems[name]))
 
     def test_block_order(self) -> None:
         with self.assertRaises(RequestError) as caught:

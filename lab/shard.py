@@ -32,7 +32,8 @@ usage error (exit 2, nothing written).
 ``run`` refuses (exit 2) an unreadable plan, an unknown shard, an ``OUT`` holding anything but ``provision/`` and
 ``server/``, an ``OUT`` inside ``mycelic/``, ``research/``, ``NeuralGraph/`` or ``.github/``, and a gguf shard
 (neither the plan nor ``--provider`` fake) without a ``prepare.json`` for this shard and plan (``not prepared``); a
-model-free shard (kind ``none``) needs no prepare. When the shard holds E1, E2 or X1 units it verifies the plan's
+model-free shard (kind ``none``) and a hosted shard (kind ``hosted``) need no prepare. When the shard holds E1, E2 or
+X1 units it verifies the plan's
 preregistration once (``lab.prereg.load_prereg``); if that fails, exactly those units fail with ``the
 preregistration is missing or differs from the plan's`` and nothing is started for them. ``--openfda-base-url``
 (tests only: an ``http://`` or ``https://`` URL without spaces; the workflow never passes it) points the
@@ -43,6 +44,14 @@ process group (or the server being started), records the unit as interrupted and
 exactly one line::
 
     lab: unit <unit> status <status> class <class> exit <code|none> wall_s <seconds>
+
+A shard whose units call the hosted provider (``lab.hosted.role``) holds a :class:`lab.hosted.Session`, made from the
+two hosted secrets in this process's environment. After the interrupt and budget checks and the preregistration
+check, each such unit passes its gate (``Session.gate``, with the shard's time left less the margin and one unit's
+minimum): the secrets' problem fails it without any network request, a used-up share of the hosted calls skips it
+(``max_calls reached``), and the first unit of a key runs the key's preflight (too little time skips it; a failed
+preflight fails it and every later unit of the key). A unit that passes gets its handle; after it ran, its calls are
+counted into the provenance and its record's ``hosted.calls_after``.
 
 A gguf shard serves its units from the prepared model server (:class:`_ModelServing`). Consecutive units of one
 serving class (``lab.plan.serving_class``) share a start: ``quality`` (G0, E1 and sim: one slot of ``ctx_per_slot``),
@@ -60,8 +69,11 @@ unplanned exit. The server is stopped at every class change, at the end and on a
 request, manifest and lock hashes, the commit and code hashes, the host, the provider, the server (for a gguf shard:
 the pinned archive, how it was verified and every start record; ``{"kind": "none"}`` for a model-free shard), the
 model (its pinned file and commit), the provision record hashes, the preregistration's sha256 (or null), whether the
-openFDA key was present and the base URL override (null without an openFDA unit), the deadline, wall times, the
-planned units and each unit's status and class.
+openFDA key was present and the base URL override (null without an openFDA unit), the hosted block
+(``Session.block``: each secret's state, the scheme and ``host:port``, never the path, and per key its model id,
+transport, share, calls used, the model listing's counts and the preflight; null without hosted units; a hosted
+shard's server is ``{"kind": "hosted"}``), the deadline, wall times, the planned units and each unit's status and
+class.
 ``result_class`` is ``plumbing`` whenever a fake served the shard, and ``banner`` then carries the plumbing banner.
 Exit 1 when a unit is invalid, failed, timed out, interrupted or skipped; else 0 (a harness FAIL verdict,
 ``result_fail``, is a valid result).
@@ -94,6 +106,7 @@ from mycelic.collective.experiments.common import (RUN_ID_RE, code_commit, code_
 from mycelic.collective.jsonio import StrictJsonError, sha256_hex, strict_load
 
 from . import EXIT_OK, EXIT_UNIT, EXIT_USAGE, ROOT, LabError, display_path, forbidden_root, hostinfo
+from . import hosted as lab_hosted
 from . import openfda as lab_openfda
 from . import provision as lab_provision
 from . import server as lab_server
@@ -108,7 +121,7 @@ from .warmup import warm_tasks, warm_up
 
 PROVENANCE_KEYS = ("schema_version", "kind", "shard", "complete", "interrupted", "result_class", "banner", "plan",
                    "request", "manifest_sha256", "lock_sha256", "git", "code", "host", "provider", "server", "model",
-                   "provision", "prereg", "openfda", "deadline_epoch", "started_at", "finished_at", "wall_s",
+                   "provision", "prereg", "openfda", "hosted", "deadline_epoch", "started_at", "finished_at", "wall_s",
                    "planned_units", "units", "exit_code")
 STATUS_KEYS = ("schema_version", "kind", "shard", "out_existed", "run_attempt", "plan_sha256", "steps", "failed_step",
                "prepare", "provenance", "units", "missing_units", "counts", "files", "sealed_at")
@@ -230,6 +243,8 @@ def _provenance(plan: dict[str, Any], plan_path: str, plan_bytes: bytes, shard: 
     server: dict[str, Any] = {"kind": "fake", "implementation": "FakeOpenAIServer", "persona": persona}
     if shard["kind"] == "none":
         server = {"kind": "none"}
+    elif shard["kind"] == "hosted":
+        server = {"kind": "hosted"}
     openfda = None
     if "openfda" in shard["units"]:
         openfda = {"api_key": "present" if lab_openfda.key_present(os.environ) else "absent",
@@ -260,7 +275,7 @@ def _provenance(plan: dict[str, Any], plan_path: str, plan_bytes: bytes, shard: 
         "code": {"collective": code_stamps(), "lab_code_hash": code_hash(sorted((ROOT / "lab").rglob("*.py")), ROOT)},
         "host": hostinfo.collect(out), "provider": "fake" if provider_override == "fake" else plan["provider"],
         "server": server, "model": model, "provision": provision,
-        "prereg": {"sha256": prereg.sha256} if prereg is not None else None, "openfda": openfda,
+        "prereg": {"sha256": prereg.sha256} if prereg is not None else None, "openfda": openfda, "hosted": None,
         "deadline_epoch": deadline, "started_at": utc_clock(), "finished_at": None, "wall_s": None,
         "planned_units": list(shard["units"]), "units": [], "exit_code": None,
     }
@@ -434,6 +449,10 @@ def run_shard(plan_path: str, shard_id: str, out: Path, provider_override: str |
     try:
         provenance = _provenance(plan, plan_path, plan_bytes, shard, out, provider_override, deadline, prepared,
                                  prereg, openfda_base_url)
+        session: lab_hosted.Session | None = None
+        if any(lab_hosted.role(units[uid], plan["models"]) is not None for uid in shard["units"]):
+            session = lab_hosted.Session(plan, shard, out, os.environ, prereg)
+            provenance["hosted"] = session.block
         write_json_atomic(out / "provenance.json", provenance)
         if prepared is not None:
             serving = _ModelServing(plan, shard, out, signals, deadline, prepared, provenance, prereg)
@@ -453,18 +472,29 @@ def run_shard(plan_path: str, shard_id: str, out: Path, provider_override: str |
                 record = None
                 try:
                     signals.armed = True
-                    handle = serving.handle(unit) if serving is not None else None
-                    timeout_s = min(unit["minutes"] * 60, deadline - time.time() - DEADLINE_MARGIN_S)
-                    if isinstance(handle, str) or timeout_s < MIN_UNIT_SECONDS:
-                        reason = handle if isinstance(handle, str) else BUDGET_EXHAUSTED
-                        if reason == BUDGET_EXHAUSTED:
-                            skip_reason = reason
-                        record = unit_record(unit, shard_id, provider, provider_override, status_reason=reason)
+                    gate: lab_hosted.Handle | tuple[str, str] | None = None
+                    if session is not None and lab_hosted.role(unit, plan["models"]) is not None:
+                        gate = session.gate(unit, budget_s=deadline - time.time() - DEADLINE_MARGIN_S
+                                            - MIN_UNIT_SECONDS)
+                    if isinstance(gate, tuple):
+                        record = unit_record(unit, shard_id, provider, provider_override, status=gate[0],
+                                             status_reason=gate[1])
                     else:
-                        record = run_unit(unit, plan, out, timeout_s=timeout_s, provider_override=provider_override,
-                                          serving=handle, prereg=prereg, openfda_base_url=openfda_base_url)
-                        if serving is not None:
-                            serving.after_unit(record)
+                        handle = serving.handle(unit) if serving is not None else None
+                        timeout_s = min(unit["minutes"] * 60, deadline - time.time() - DEADLINE_MARGIN_S)
+                        if isinstance(handle, str) or timeout_s < MIN_UNIT_SECONDS:
+                            reason = handle if isinstance(handle, str) else BUDGET_EXHAUSTED
+                            if reason == BUDGET_EXHAUSTED:
+                                skip_reason = reason
+                            record = unit_record(unit, shard_id, provider, provider_override, status_reason=reason)
+                        else:
+                            record = run_unit(unit, plan, out, timeout_s=timeout_s,
+                                              provider_override=provider_override, serving=handle, prereg=prereg,
+                                              openfda_base_url=openfda_base_url, hosted=gate)
+                            if serving is not None:
+                                serving.after_unit(record)
+                            if session is not None and gate is not None:
+                                session.after_unit(unit, record)
                     signals.armed = False
                 except ShardInterrupted:
                     # the handler disarmed itself; the signal landed outside run_unit's own interrupt handling

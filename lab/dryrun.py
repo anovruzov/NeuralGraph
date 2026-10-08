@@ -17,6 +17,10 @@
 
 Every record says ``plumbing``: a dry run never measures a model. stdout is the plan line, the prereg line, one line
 per unit and the aggregate line. Without ``--openfda-base-url`` an openFDA unit fetches from api.fda.gov itself.
+The plan reads ``LAB_HAS_HOSTED`` from the environment as the workflow's plan step does: unless it is ``true``, the
+hosted units are skipped. With it, and with the two hosted variables set (``lab.hosted``: the key and the base URL),
+the hosted units call the configured host for real (``--provider fake`` replaces only the local model server), and
+are still labelled plumbing.
 
 Exit 2 when the plan, the preregistration, the aggregate or a summary fails (or ``DIR`` is not empty); 1 when a unit
 did not run to a valid result (invalid, failed, timed out, interrupted or skipped, or a shard that did not finish);

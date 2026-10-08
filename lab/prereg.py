@@ -8,8 +8,8 @@
   routing file ``routing.json`` pins every E1 endpoint, in sorted model-key order (:func:`e1_routing_doc` at
   :data:`PLACEHOLDER_BASE_URL`: the pins never include the address, so a shard's routing to its own server matches
   them); then ``e1_extract prereg`` (data label ``synthetic``, boundary :data:`E1_BOUNDARY`; the synthetic raw-text
-  exemption only for an endpoint outside every boundary, which no G5 endpoint is) writes
-  ``D/prereg/e1/prereg/prereg.json``;
+  exemption only when an endpoint lies outside every boundary, which a hosted endpoint does: ``lab.hosted.endpoint``,
+  boundary ``external``) writes ``D/prereg/e1/prereg/prereg.json``;
 * X1: the evaluation harness's prereg (run id ``x1``, ``D/prereg/x1/x1/prereg.json``) and ``check-plant``;
 * E2: the same with run id ``e2`` (``D/prereg/x1/e2/prereg.json``) and ``check-plant``, then a model-free rehearsal:
   ``e2_pushdown run`` without routing (fake site and central judges) in a scratch directory beside ``D``, removed
@@ -47,6 +47,7 @@ from mycelic.collective.inference.ledger import read_ledger
 from mycelic.collective.jsonio import StrictJsonError, sha256_hex, strict_load
 
 from . import EXIT_OK, EXIT_USAGE, ROOT, shown_path
+from . import hosted as lab_hosted
 from . import units as lab_units
 from .goldlabels import GoldLabelsError, build_labels
 from .plan import write_plan_error
@@ -92,7 +93,10 @@ class Prereg:
 # --------------------------------------------------------------------------------------------------- routing pins
 
 def e1_endpoint(entry: Mapping[str, Any], base_url: str) -> dict[str, Any]:
-    """One E1 endpoint: the model's alias and transport inside :data:`E1_BOUNDARY`."""
+    """One E1 endpoint: the model's alias and transport inside :data:`E1_BOUNDARY`, or a hosted model's endpoint
+    (``lab.hosted.endpoint``, boundary ``external``)."""
+    if entry["kind"] == "hosted":
+        return lab_hosted.endpoint(entry, base_url)
     return {"provider": "openai_compat", "boundary": E1_BOUNDARY, "base_url": base_url, "model": entry["alias"],
             "response_format": entry["response_format"], "transport_schema": entry["transport_schema"],
             "connect_timeout_s": 5, "deadline_s": 900, "max_retries": 1}
