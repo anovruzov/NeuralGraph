@@ -40,6 +40,7 @@ from .crypto import TokenVault, VaultUnavailable
 from .domains import (DomainClassifier, Membership, RecordFeatures, Taxonomy, active_memberships_sync, apply_memberships_sync,
                       default_taxonomy, embed_model_name, install_taxonomy_sync, load_taxonomy_sync, publishable)
 from .events import CONTENT_KINDS, CanonicalEvent
+from .linking import drop_record_sync, link_record, write_links_sync
 from .normalize import FLAG_SECRET, detect, mask_secrets
 from .queue import IngestQueue, LostLease, QueueItem, StaleCheckpoint
 from .registry import ConnectorRegistry, registry as default_registry
@@ -657,6 +658,12 @@ class IngestPipeline:
         body = ev.body or ev.title
         conv = ev.conversation_record_id()
         container = ev.hints.get("container_name")
+        # cross-app links (§8): canonical entities shared with other apps' records, and typed edges with modality
+        link = None
+        if outcome in ("new", "update"):
+            link = link_record(ev.title or "", ev.body or "", record_id=ev.record_id, observed_at=changed,
+                               own_repo=str(ev.hints.get("repo") or "") or None, known_keys=ev.hints.get("tracker_keys") or ())
+        visibility = (ev.permissions.visibility if ev.permissions else None) or (src.visibility if src else "private")
 
         if outcome == "new":
             ran = {}
@@ -676,13 +683,15 @@ class IngestPipeline:
                 self._recount_domains_sync(c, active, shard)
                 if conv and container:
                     self.store._upsert_chat_sync(c, conv, title=str(container))
+                write_links_sync(c, store.store, ev.record_id, link, visibility=visibility, chat_id=conv or ev.record_id, seen_at=changed or now_iso(), now=now_iso())
                 IngestStore.note_batch_sync(c, source_app=ev.source_app, domains=publishable(active))
                 ran["ok"] = True
 
             await store.ingest_document(title, body, kind=ev.kind, doc_id=ev.record_id, observed_at=changed, domains=proposed or None,
                                         origin_id=ev.record_key, source_root_id=ev.source_root_id or "", root_known=ev.root_known,
                                         conversation_chat_id=conv, speaker=ev.author_id or ev.source_app, extra_metadata=meta,
-                                        entities=self._entities_for(ev), audit_detail="ids", classify=False, embeddings=embeddings, extra_sync=extra_new)
+                                        entities=self._entities_for(ev) + link.entities(), audit_detail="ids", classify=False, embeddings=embeddings,
+                                        extra_sync=extra_new)
             if not ran:
                 raise PermanentError("a document with this record id already exists", code="record_exists")
             return
@@ -705,6 +714,7 @@ class IngestPipeline:
                 active = self._domains_after_sync(c, ev.record_id)
                 self._recount_domains_sync(c, set(old) | set(active), shard)
                 IngestStore.drop_tombstone_sync(c, ev.record_key)       # content shown again after a redaction
+                write_links_sync(c, store.store, ev.record_id, link, visibility=visibility, chat_id=conv or ev.record_id, seen_at=changed or now_iso(), now=now_iso())
                 self._evidence_event_sync(c, ev, "revised", {"affected_ref_ids": list(w.get("affected_ref_ids") or []),
                                                               "new_source_root_id": ev.source_root_id or "",
                                                               "previous_source_root_id": before.get("source_root_id"),
@@ -712,8 +722,8 @@ class IngestPipeline:
 
             await store.revise_document(ev.record_id, body, title=title, observed_at=changed, reason="source_edit", domains=proposed or None,
                                         source_root_id=ev.source_root_id or "", root_known=ev.root_known, conversation_chat_id=conv,
-                                        speaker=ev.author_id or ev.source_app, extra_metadata=meta, entities=self._entities_for(ev), audit_detail="ids",
-                                        classify=False, embeddings=embeddings, extra_sync=extra_update)
+                                        speaker=ev.author_id or ev.source_app, extra_metadata=meta, entities=self._entities_for(ev) + link.entities(),
+                                        audit_detail="ids", classify=False, embeddings=embeddings, extra_sync=extra_update)
             return
 
         if outcome == "metadata_only":
@@ -747,6 +757,7 @@ class IngestPipeline:
                                   order_key=ev.order_key if outcome == "redaction" else (loc or {}).get("current_order_key"),
                                   content_hash=(loc or {}).get("content_hash"), metadata_hash=(loc or {}).get("metadata_hash"))
                 c.execute("UPDATE ingest_records SET deletion_status=? WHERE record_id=?", (rec_status, ev.record_id))
+                drop_record_sync(c, ev.record_id, now_iso())            # the edges it supported lose its evidence
                 IngestStore.add_version_sync(c, ev, kind="deletion" if outcome == "delete" else "redaction", doc_version=None)
                 affected = list(w.get("affected_ref_ids") or [])
                 IngestStore.upsert_tombstone_sync(c, record_key=ev.record_key, record_id=ev.record_id, reason=reason, order_key=ev.order_key,

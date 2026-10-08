@@ -409,7 +409,9 @@ class MycelicMemoryStore(ChatMemoryStore):
         # the record-level index of multi-source ingestion is keyed by the document id (doc_id == record_id)
         c.execute("DELETE FROM record_entities WHERE record_id=?", (doc_id,))
         c.execute("DELETE FROM record_memories WHERE record_id=?", (doc_id,))
-        c.execute("DELETE FROM relation_evidence WHERE record_id=?", (doc_id,))
+        # cross-app edges it supported lose its evidence and are recomputed (retracted when nothing else supports them)
+        from ..ingest.linking import drop_record_sync
+        drop_record_sync(c, doc_id, now)
         c.execute("DELETE FROM domain_examples WHERE record_id=?", (doc_id,))
         dropped_entities = 0
         for e in sorted(entity_ids):
