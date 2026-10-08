@@ -87,8 +87,8 @@ export function DocumentForm({ holders, defaultHolderId, onDone }: { holders: Ho
           {(id) => <Textarea id={id} required value={text} onChange={(e) => setText(e.target.value)} rows={6} placeholder="Paste notes, a report, a conversation…" />}
         </Field>
       ) : (
-        <Field label="File" hint=".txt, .md, .json or .csv (PDF is not supported)">
-          {(id) => <input id={id} type="file" className="input" accept=".txt,.md,.json,.csv,text/plain,text/markdown,application/json,text/csv" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />}
+        <Field label="File" hint=".txt, .md, .json, .jsonl, .csv, .docx or .pdf (text PDFs; scans need OCR, which is not supported)">
+          {(id) => <input id={id} type="file" className="input" accept=".txt,.md,.json,.jsonl,.csv,.docx,.pdf,text/plain,text/markdown,application/json,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />}
         </Field>
       )}
       <div className="form-row">

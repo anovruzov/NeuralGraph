@@ -10,6 +10,7 @@ takes through ``LoopEngine.on_transport``.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any, Iterable
 
@@ -27,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 GRANT_LEVELS = ("read", "artifact", "raw")
 GRANT_RESOURCES = ("holder", "claim", "discovery", "goal", "evidence_ref")
-UPLOAD_EXTENSIONS = (".txt", ".md", ".markdown", ".json", ".csv", ".log", ".rst")
+UPLOAD_EXTENSIONS = (".txt", ".md", ".markdown", ".json", ".jsonl", ".csv", ".log", ".rst", ".docx", ".pdf")
 
 
 # ---------------------------------------------------------------------------------------------
@@ -338,7 +339,8 @@ def _lineage_node(n: dict[str, Any]) -> dict[str, Any]:
 
 
 async def read_document_body(request: web.Request) -> dict[str, Any]:
-    """JSON ``{title, text, ...}`` or a multipart upload with a text ``file`` (PDF is refused: no extractor)."""
+    """JSON ``{title, text, ...}`` or a multipart upload with a ``file`` (text, Markdown, JSON/JSONL, CSV, DOCX or PDF; see
+    mycelic.evidence.extract for the bounds)."""
     ctype = request.content_type or ""
     if ctype.startswith("multipart/"):
         fields: dict[str, Any] = {}
@@ -348,16 +350,22 @@ async def read_document_body(request: web.Request) -> dict[str, Any]:
             if part is None:
                 break
             if part.name == "file":
+                from ..evidence.extract import ExtractError, extract_text
                 filename = (part.filename or "upload.txt").strip()
-                lower = filename.lower()
-                if lower.endswith(".pdf"):
-                    raise ApiError(400, "PDF is not supported; upload text (.txt, .md, .json, .csv)")
-                if not any(lower.endswith(ext) for ext in UPLOAD_EXTENSIONS):
+                if not any(filename.lower().endswith(ext) for ext in UPLOAD_EXTENSIONS):
                     raise ApiError(400, f"unsupported file type; use one of {', '.join(UPLOAD_EXTENSIONS)}")
                 raw = await part.read(decode=False)
-                fields["text"] = raw.decode("utf-8", errors="replace")
+                try:
+                    # off the event loop: a large PDF takes a while to parse
+                    text, info = await asyncio.get_running_loop().run_in_executor(None, extract_text, filename, bytes(raw))
+                except ExtractError as exc:
+                    raise ApiError(400, str(exc), "unreadable_file") from None
+                if not text.strip():
+                    raise ApiError(400, "the file contains no text", "empty_file")
+                fields["text"] = text
                 fields.setdefault("title", filename.rsplit(".", 1)[0])
                 fields["filename"] = filename
+                fields["extract"] = info
             else:
                 value = (await part.text()).strip()
                 if part.name == "domains":
