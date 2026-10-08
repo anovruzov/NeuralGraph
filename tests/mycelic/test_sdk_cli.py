@@ -103,7 +103,8 @@ class SdkCliTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("verification", plain["answer"])
         self.assertEqual(verified["answer"]["memory_id"], cid)
         self.assertEqual(verified["answer"]["verification"],
-                         {"verdict": "verified", "derived_correctly": True, "still_true": True, "reasons": []})
+                         {"verdict": "verified", "derived_correctly": True, "still_true": True, "reasons": [],
+                          "warnings": [], "disputed": False})
 
     async def test_cli_verdict_exit_codes(self) -> None:
         self.assertEqual([cli.verdict_exit_code(v) for v in ("verified", "stale", "failed", "unverifiable", "bogus", "")],
@@ -184,6 +185,57 @@ class SdkCliTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         for flag in ("--max-leaf-age", "--json", "--api-key"):
             self.assertIn(flag, r.stdout)
+
+    async def test_a_disputed_answer_is_flagged_on_every_query_path(self) -> None:
+        """Logistics says the terminal is closed, procurement says it is open, all org-visible: their department's answer
+        is disputed.  Its verdict stays verified (a dispute is a warning), so every one-call path (POST /query, MCP
+        mycelic_query in process and through the stdio proxy, the SDK and the CLI) must say it is disputed."""
+        h, s = self.h, self.h.service
+        for agent, team in (("l-1", "logistics"), ("l-2", "logistics"), ("p-1", "procurement"), ("p-2", "procurement")):
+            await h.register(agent, team=team)
+        for agent, value in (("l-1", "closed"), ("l-2", "closed"), ("p-1", "open"), ("p-2", "open")):
+            await h.observe(agent, f"Rotterdam terminal 3 is {value} ({agent}).", topic="port:rotterdam-t3",
+                            slot="terminal_status", entity="rotterdam-t3", value=value, visibility="org")
+        await h.settle()
+        query = {"query": "Rotterdam terminal 3", "scope": "northwind", "min_layer": "department", "verify": True}
+        top = s.store.current_derived("northwind", "topic_consolidation", "northwind/emea/nw-gmbh/ops", "port:rotterdam-t3")
+        self.assertTrue(top.metadata["conflict"])
+        full = await s.verify(h.principal("l-1"), top.memory_id)
+        self.assertEqual(full["verdict"], "verified")
+        n_disputed = sum(w["code"] == "disputed" for w in full["warnings"])
+        self.assertGreaterEqual(n_disputed, 1)
+        expected = {"verdict": "verified", "derived_correctly": True, "still_true": True, "reasons": [],
+                    "warnings": [{"code": "disputed", "count": n_disputed}], "disputed": True}
+        # the service (POST /query and MCP mycelic_query answer from it)
+        res = await s.query_and_verify(h.principal("l-1"), dict(query))
+        self.assertEqual((res["answer"]["memory_id"], res["answer"]["conflict"]), (top.memory_id, True))
+        self.assertEqual(res["answer"]["verification"], expected)
+        # MCP in process, as l-1
+        token = mcp._principal.set(h.principal("l-1"))
+        try:
+            out = await mcp.MycelicTools(s).call("mycelic_query", dict(query))
+        finally:
+            mcp._principal.reset(token)
+        self.assertEqual((out["answer"]["conflict"], out["answer"]["verification"]), (True, expected))
+        # the SDK over HTTP, and the stdio proxy on it
+        res = await asyncio.to_thread(self.client("l-1").query, query["query"], scope="northwind",
+                                      min_layer="department", verify=True)
+        self.assertEqual((res["answer"]["conflict"], res["answer"]["verification"]), (True, expected))
+        proxy = mcp.ProxyTools(self.client("l-1"))
+        out = await proxy.call("mycelic_query", dict(query))
+        self.assertEqual((out["answer"]["conflict"], out["answer"]["verification"]), (True, expected))
+        # the CLI
+        code, out, _ = await self.cli("query", query["query"], "--url", self.url, "--api-key", h.keys["l-1"],
+                                      "--scope", "northwind", "--min-layer", "department", "--verify")
+        self.assertEqual(code, 0)
+        self.assertIn("verification: verified (derived_correctly=true, still_true=true), disputed", out)
+        self.assertIn(f"  W disputed x{n_disputed}", out)
+        self.assertTrue(any(line.startswith("conflict: ") for line in out))
+        # an answer nobody disputes says so too
+        res = await s.query_and_verify(h.principal("sales-2"), {"query": "SD-9 supply risk", "scope": "northwind",
+                                                                 "min_layer": "enterprise", "verify": True})
+        self.assertEqual(res["answer"]["memory_id"], self.ids["conclusion"])
+        self.assertEqual((res["answer"]["conflict"], res["answer"]["verification"]["disputed"]), (False, False))
 
     async def test_stdio_proxy_verify_against_new_and_old_servers(self) -> None:
         s, cid, key = self.h.service, self.ids["conclusion"], self.h.keys["sales-2"]

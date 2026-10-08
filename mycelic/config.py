@@ -121,6 +121,9 @@ class Settings:
     verify_max_nodes: int = 25000                     # nodes one downward verification walks at most (5 x max_candidates fan-in)
     # expiry
     expiry_sweep_seconds: float = 30.0                # how often expired notes get their retraction queued (0 disables)
+    # retention: days a superseded or retracted derived memory (a previous version) is kept before it is deleted with its
+    # lineage edges and its derived event (0 keeps every version forever)
+    derived_retention_days: float = 7.0
     # SDK/demo conveniences
     public_url: str | None = None
 
@@ -181,6 +184,7 @@ class Settings:
             rules_file=_str("MYCELIC_RULES_FILE"),
             verify_max_nodes=_int("MYCELIC_VERIFY_MAX_NODES", 25000, minimum=1),
             expiry_sweep_seconds=_float("MYCELIC_EXPIRY_SWEEP_SECONDS", 30.0, minimum=0.0),
+            derived_retention_days=_float("MYCELIC_DERIVED_RETENTION_DAYS", 7.0, minimum=0.0),
             public_url=_str("MYCELIC_PUBLIC_URL"),
         )
         s.validate()

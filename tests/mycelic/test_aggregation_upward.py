@@ -509,7 +509,7 @@ class UpwardTests(unittest.IsolatedAsyncioTestCase):
         await s.close()
 
         s = h.service = MycelicService(h.settings, transport=s.transport, metrics=Metrics())
-        self.assertEqual((s.store.get_meta("schema_version"), s.store.get_meta("reaggregate_pending")), ("6", "1"))
+        self.assertEqual((s.store.get_meta("schema_version"), s.store.get_meta("reaggregate_pending")), ("7", "1"))
         await s.start()
         await h.settle(30)
         self.assertEqual(s._reaggregation["state"], "done", s._reaggregation)

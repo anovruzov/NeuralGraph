@@ -27,7 +27,9 @@ POST /events                   events:write   {"events": [...]} (each may embed 
 POST /query                    memory:read    {"query", "scope"?, "min_layer"?, "k"?, "include_lineage"?}
 GET  /lineage/{id}             lineage:read   (POST /query embeds the lineage only for callers holding it)
 GET  /verify/{id}              lineage:read   ?max_leaf_age=N (1..315360000 s): was it derived correctly, is it still true
-                               (200 for every verdict; POST /query embeds a summary with "verify": true)
+                               (200 for every verdict; POST /query embeds a summary with "verify": true); 503 with
+                               Retry-After when the walk's turn does not come within a few seconds (GET /lineage/{id} and
+                               POST /query too: their walks queue per organization)
 POST /admin/agents             admin          register an agent (the key is returned once)
 GET  /admin/agents             admin
 DELETE /admin/agents/{id}      admin          revoke; ?retract=1 removes the agent: every note it has is retracted
@@ -46,6 +48,7 @@ container address), to a token-checked /metrics (a scrape sends the pod or servi
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -58,7 +61,9 @@ from aiohttp import web
 from .auth import AuthError, Principal
 from .hierarchy import HierarchyError
 from .mcp import MycelicMCPTransport
-from .service import VERSION, Conflict, Forbidden, MycelicService, NotFound, QuotaExceeded, RateLimited, ValidationError
+from .service import (
+    VERSION, Busy, Conflict, Forbidden, MycelicService, NotFound, QuotaExceeded, RateLimited, ValidationError,
+)
 from .verification import MAX_LEAF_AGE_SECONDS
 
 logger = logging.getLogger(__name__)
@@ -202,6 +207,9 @@ def create_app(service: MycelicService) -> web.Application:
             response = _error(f"no visible memory with id {exc.args[0] if exc.args else ''}", 404)
         except RateLimited:
             response = _error("rate limit exceeded", 429)
+        except Busy as exc:
+            response = _error(str(exc), 503)
+            response.headers["Retry-After"] = "1"
         except Conflict as exc:
             response = _error(str(exc), 409)
         except QuotaExceeded as exc:
@@ -383,14 +391,16 @@ def create_app(service: MycelicService) -> web.Application:
         ok = await service.delete_rule(request.match_info["id"], remote=request["remote"])
         return _json({"rule_id": request.match_info["id"], "deleted": ok}, 200 if ok else 404)
 
+    # shielded from handler cancellation: a client that goes away must not leave the consumer reset without its replay
+    # target, or a job started without its audit row
     async def admin_replay(request: web.Request) -> web.Response:
         admin(request)
-        return _json(await service.replay(remote=request["remote"]), 202)
+        return _json(await asyncio.shield(service.replay(remote=request["remote"])), 202)
 
     async def admin_reaggregate(request: web.Request) -> web.Response:
         admin(request)
         body = await _body(request) if request.can_read_body else {}
-        return _json(await service.reaggregate(body, remote=request["remote"]), 202)
+        return _json(await asyncio.shield(service.reaggregate(body, remote=request["remote"])), 202)
 
     async def admin_status(request: web.Request) -> web.Response:
         admin(request)
@@ -469,7 +479,10 @@ async def run_server(service: MycelicService) -> web.AppRunner:
     # on cleanup aiohttp gives running requests shutdown_timeout to finish, cancels them and (recent versions) waits
     # up to shutdown_timeout again; an open GET /mcp stream never ends on its own and uses both.  Half the budget
     # each keeps the HTTP drain within MYCELIC_SHUTDOWN_TIMEOUT_SECONDS.
-    runner = web.AppRunner(app, access_log=None, shutdown_timeout=service.settings.shutdown_timeout_seconds / 2)
+    # handler_cancellation: a request whose client went away (an SDK timeout, say) is cancelled, so a walk it queued for
+    # never runs and one it started is not answered (``MycelicService._off_loop`` keeps its slot until its thread ends)
+    runner = web.AppRunner(app, access_log=None, shutdown_timeout=service.settings.shutdown_timeout_seconds / 2,
+                           handler_cancellation=True)
     await runner.setup()
     site = web.TCPSite(runner, service.settings.host, service.settings.port, ssl_context=ssl_context(service))
     await site.start()

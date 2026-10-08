@@ -944,7 +944,7 @@ class BackfillTests(unittest.IsolatedAsyncioTestCase):
         await shut(s)
 
         s2 = node(self.tmp.name, key=K)
-        self.assertEqual(s2.store.get_meta("schema_version"), "6")
+        self.assertEqual(s2.store.get_meta("schema_version"), "7")
         self.assertIsNotNone(s2.store.get_meta("lifecycle_resign_below"))
         self.assertEqual(s2.store.get_meta("reaggregate_pending"), "1")
         s2.backfill_batch = 2

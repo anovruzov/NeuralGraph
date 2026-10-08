@@ -26,6 +26,7 @@ from unittest import mock
 import yaml
 from aiohttp.test_utils import TestClient, TestServer
 
+from mycelic import mcp
 from mycelic.api import create_app, run_server
 from mycelic.config import ConfigError, Settings
 from mycelic.integrity import Keyring
@@ -349,7 +350,9 @@ class LoopResilienceTests(unittest.IsolatedAsyncioTestCase):
 
         async def apply_event(event: dict, *, seq: int | None = None) -> str:
             if fault["on"]:
-                raise sqlite3.OperationalError("database or disk is full")
+                # an event that fails at every delivery (a database error is never terminated: see the next test), so its
+                # termination is recorded, and the database fails that record
+                raise ValueError("poison event")
             return await real_apply(event, seq=seq)
 
         def audit(tx: Tx, principal: str, action: str, *args, **kwargs) -> None:
@@ -375,6 +378,52 @@ class LoopResilienceTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(s.store.get_memory(mid).applied_at, "the consumer kept applying the log")
         self.assertNotEqual((await s.health())["status"], "failing")
         self.assertTrue((await s.ready())[0])
+
+    async def test_a_database_error_while_applying_never_drops_the_event(self) -> None:
+        """Disk full while a note applies, for more deliveries than MYCELIC_NATS_MAX_DELIVER (2 here): the event is never
+        terminated or marked failed, the consumer delivers it again once the database can take it, and meanwhile
+        /health is degraded with the error and the loop errors count it."""
+        s, real_apply = self.h.service, self.h.service.apply_event
+        await self.h.register("a-2", team="team-b")
+        await self.h.settle()
+        fault = {"left": 5, "seen": 0}
+
+        async def apply_event(event: dict, *, seq: int | None = None) -> str:
+            if event.get("kind") == "memory.observed" and fault["left"] > 0:
+                fault["left"] -= 1
+                fault["seen"] += 1
+                raise sqlite3.OperationalError("database or disk is full")
+            return await real_apply(event, seq=seq)
+
+        await self.h.observe("a-2", "Dock 4 is closed (a-2).", topic="ops:docks")
+        await self.h.settle()
+        failed_before = s.metrics.events_failed.labels("apply")._value.get()
+        with self.assertLogs("mycelic.service", "WARNING") as logs, mock.patch.object(s, "apply_event", apply_event):
+            mid = await self.h.observe("a-1", "Dock 4 is closed (a-1).", topic="ops:docks")
+            deadline = time.monotonic() + 10
+            while fault["seen"] < 2:
+                self.assertLess(time.monotonic(), deadline, "the apply was not retried")
+                await asyncio.sleep(0.02)
+            h = await s.health()
+            self.assertEqual(h["status"], "degraded")
+            self.assertEqual(h["checks"]["consumer"]["last_error"], "OperationalError: database or disk is full")
+            self.assertGreaterEqual(h["checks"]["consumer"]["failing_seconds"], 0)
+            await self.h.settle(40)
+        self.assertEqual(fault["left"], 0, "every fault was hit")
+        self.assertTrue(any("delivering the log again from seq" in line for line in logs.output))
+        m = s.store.get_memory(mid)
+        self.assertIsNotNone(m.applied_at, "the note was applied once the database could take it")
+        self.assertEqual(s.store.get_event(m.event_id).status, "applied")
+        [dept] = s.store.list_memories(ORG, layers=["department"], status="active")
+        self.assertIn(mid, dept.metadata["roots"], "and it reached aggregation")
+        self.assertEqual(s.transport.terminated, [], "never terminated")
+        self.assertEqual(s.metrics.events_failed.labels("apply")._value.get(), failed_before, "never counted as a failed event")
+        self.assertNotIn("event.failed", {r["action"] for r in s.store.recent_audit(100)})
+        self.assertGreaterEqual(self.errors("consumer"), 5)
+        h = await s.health()
+        self.assertEqual(h["status"], "ok")
+        self.assertNotIn("last_error", h["checks"]["consumer"])
+        self.assertIsNone(s._redeliver_from)
 
     async def test_a_publish_that_keeps_failing_is_degraded(self) -> None:
         s = self.h.service
@@ -1633,6 +1682,12 @@ class DocsTests(unittest.TestCase):
         self.assertIn("configuration error: another Mycelic process is using", text)
         self.assertIn("Probes: startup `/health`, readiness `/ready`, liveness `/health`", text)
 
+    def test_deployment_md_lists_every_mcp_tool(self) -> None:
+        """The MCP section's "Tools:" line names what tools/list answers, in its order."""
+        text = (ROOT / "DEPLOYMENT.md").read_text(encoding="utf-8")
+        [line] = re.findall(r"^Tools: .*$", text, re.M)
+        self.assertEqual(re.findall(r"`(mycelic_\w+)`", line), [t["name"] for t in mcp.TOOLS])
+
     def test_every_setting_has_a_configuration_row(self) -> None:
         names = sorted(set(re.findall(r'"MYCELIC_([A-Z_]+)"', (ROOT / "mycelic" / "config.py").read_text(encoding="utf-8"))))
         self.assertIn("MAX_ACTIVE_MEMORIES_PER_ORG", names)
@@ -1648,7 +1703,7 @@ class DocsTests(unittest.TestCase):
         self.assertIn("\n### 4a. Rollback\n", deployment)
         rollback = deployment.split("### 4a. Rollback", 1)[1].split("\n## 5.", 1)[0]
         flat_rollback = " ".join(rollback.split())
-        self.assertIn("database schema 6 is newer than this code", flat_rollback)
+        self.assertIn("database schema 7 is newer than this code", flat_rollback)
         for phrase in ("mycelic_mycelic-data", "mycelic_nats-data", "tar czf /b/mycelic-data.tgz", "tar xzf /b/mycelic-data.tgz", "0.1.0",
                        "IntegrityError", "unknown_kind"):
             with self.subTest(phrase=phrase):
@@ -1658,7 +1713,7 @@ class DocsTests(unittest.TestCase):
         self.assertNotIn("**What a rollback loses.**", flat)
         self.assertNotIn("start the earlier image on it. It re-delivers from the stream", flat)
         troubleshooting = deployment.split("## 7. Troubleshooting", 1)[1]
-        for phrase in ('"reason": "signature_rejections', "507", "is at its limit of", "database schema 6 is newer than this code",
+        for phrase in ('"reason": "signature_rejections', "507", "is at its limit of", "database schema 7 is newer than this code",
                        "another Mycelic process"):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, troubleshooting)

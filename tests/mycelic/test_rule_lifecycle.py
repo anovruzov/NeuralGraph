@@ -822,5 +822,96 @@ class RuleLifecycleTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(invariant_violations(s, "acme"), [])
 
 
+
+class RuleOrganizationTests(unittest.IsolatedAsyncioTestCase):
+    """A rule's ``org_id`` names an organization: anything else is refused where rules come in (admin API, rules file),
+    and an event whose subject the stream can never take (an earlier release accepted such rules) is marked failed
+    instead of holding up the outbox of every organization behind it."""
+
+    TYPO = {"rule_id": "typo_rule", "target_layer": "team", "required_slots": ["x"], "conclusion": "c {entity}"}
+
+    async def harness(self, **kw: Any) -> ServiceHarness:
+        h = await ServiceHarness(**kw).start()
+        self.addAsyncCleanup(h.close)
+        return h
+
+    async def test_org_id_that_is_no_organization_name_is_refused(self) -> None:
+        from mycelic.service import ValidationError
+
+        h = await self.harness()
+        s = h.service
+        before = kinds(s.store).get("rule.upserted", 0)
+        for org_id in ("north wind", "Northwind", "../../etc", "acme.eu", "_", "-acme", "a" * 65, "acme*", "acme>"):
+            with self.assertRaises(ValidationError, msg=org_id):
+                await s.upsert_rule({**self.TYPO, "org_id": org_id})
+        self.assertIsNone(s.store.get_rule("typo_rule"))
+        self.assertEqual(kinds(s.store).get("rule.upserted", 0), before, "nothing was appended to the log")
+        rule = await s.upsert_rule({**self.TYPO, "org_id": "north-wind_2"})
+        self.assertEqual(rule.org_id, "north-wind_2")
+        self.assertIsNone((await s.upsert_rule({**self.TYPO, "org_id": None})).org_id)
+        self.assertIsNone((await s.upsert_rule({**self.TYPO, "org_id": ""})).org_id)
+
+    async def test_rules_file_with_a_bad_org_id_fails_the_start(self) -> None:
+        import tempfile
+
+        from mycelic.service import ValidationError
+
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = Path(tmp.name) / "rules.json"
+        path.write_text(json.dumps({"rules": [{**self.TYPO, "org_id": "North Wind"}]}))
+        s = MycelicService(settings(tmp.name, rules_file=str(path)), metrics=Metrics())
+        self.addAsyncCleanup(s.close)
+        with self.assertRaises(ValidationError) as ctx:
+            s.load_rules_file()
+        self.assertIn("org_id", str(ctx.exception))
+        self.assertIsNone(s.store.get_rule("typo_rule"))
+
+    async def test_a_logged_rule_is_applied_as_written(self) -> None:
+        """The log is authoritative: a rule event an earlier release published with an org_id that is no organization
+        name is applied (it matches no organization), never refused at every delivery."""
+        h = await self.harness()
+        s = h.service
+        rule = {**self.TYPO, "org_id": "Northwind", "enabled": True}
+        self.assertEqual(await s.apply_event(wire("rule.upserted", rule, org_id="Northwind")), "applied")
+        self.assertEqual(s.store.get_applied_rule("typo_rule").org_id, "Northwind")
+
+    async def test_unpublishable_subject_never_blocks_the_outbox(self) -> None:
+        h = await self.harness()
+        s = h.service
+        await h.register("a-1", team="t1")
+        await h.register("a-2", team="t1")
+        await h.register("b-1", team="t1", enterprise="acme")
+        await h.register("b-2", team="t1", enterprise="acme")
+        await h.settle()
+        # what an earlier release wrote for {"org_id": "north wind"}: an event on a subject no stream takes, first in line
+        bad = [("evt_badsubject0000000000001", "mycelic.north wind.rule-upserted"),
+               ("evt_badsubject0000000000002", "mycelic.../../etc.rule-upserted"),
+               ("evt_badsubject0000000000003", "mycelic.acme*.rule-upserted")]
+        async with s.store.transaction() as tx:
+            for event_id, subject in bad:
+                tx.c.execute("INSERT INTO events(event_id, kind, org_id, subject, payload, status, created_at) "
+                             "VALUES (?, 'rule.upserted', 'north wind', ?, ?, 'pending', ?)",
+                             (event_id, subject, json.dumps({**self.TYPO, "org_id": "north wind"}), now_iso()))
+        with self.assertLogs("mycelic.service", "ERROR") as logs:
+            for agent in ("a-1", "a-2"):
+                await h.observe(agent, f"Dock 4 closed ({agent}).", topic="ops:docks")
+            for agent in ("b-1", "b-2"):
+                await h.observe(agent, f"Dock 9 closed ({agent}).", topic="ops:docks")
+            await h.settle()
+        self.assertTrue(any("cannot be published" in line for line in logs.output))
+        for event_id, _ in bad:
+            ev = s.store.get_event(event_id)
+            self.assertEqual(ev.status, "failed")
+            self.assertIn("not one the stream takes", ev.last_error)
+        self.assertEqual(s.store.stats()["outbox_pending"], 0)
+        for org in (ORG, "acme"):
+            self.assertEqual(len(s.store.list_memories(org, layers=["team"], status="active")), 1, org)
+        self.assertEqual(s.metrics.events_failed.labels("publish_permanent")._value.get(), len(bad))
+        self.assertEqual({r["target"] for r in s.store.recent_audit(100) if r["action"] == "event.unpublishable"},
+                         {event_id for event_id, _ in bad})
+        self.assertEqual((await s.health())["status"], "ok")
+
+
 if __name__ == "__main__":
     unittest.main()

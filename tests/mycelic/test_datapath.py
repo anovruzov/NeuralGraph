@@ -1,9 +1,14 @@
 """The complete data path over the in-process transport: observe -> event -> apply -> aggregate -> query -> lineage,
-plus visibility/redaction, idempotency, supersession, retraction and a rebuild from the event log."""
+plus visibility/redaction, idempotency, supersession, retraction and a rebuild from the event log; the answer's lineage
+summary counts the same agents for every viewer."""
 from __future__ import annotations
 
+import re
 import unittest
 
+from aiohttp.test_utils import TestClient, TestServer
+
+from mycelic.api import create_app
 from mycelic.metrics import Metrics
 from mycelic.service import Forbidden, MycelicService, NotFound, ValidationError
 from mycelic.store import MycelicStore
@@ -307,6 +312,58 @@ class DataPathTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse([e for e in s2.store.list_events("northwind", kind="memory.derived", limit=1000) if e.js_seq is None])
         finally:
             await s2.close()
+
+
+class LineageSummaryTests(unittest.IsolatedAsyncioTestCase):
+    async def test_contributing_agents_is_the_answers_support_for_every_viewer(self) -> None:
+        """``answer.lineage.contributing_agents`` (POST /query, MCP mycelic_query, the CLI's "lineage: N agents") is
+        the number of distinct agents beneath the answer, its support, for every viewer.  A caller who may not read some
+        of the notes used to get its visible agents plus every redacted node, derived ones and a hidden author's second
+        note included (here 10 for sales-2 and 7 for log-1 instead of 6); how many agents is not redacted, who they
+        are is."""
+        h = await ServiceHarness().start()
+        self.addAsyncCleanup(h.close)
+        s = h.service
+        for a in ("log-1", "log-2", "log-3"):
+            await h.register(a, team="logistics")
+        for a in ("proc-1", "proc-2"):
+            await h.register(a, team="procurement")
+        for a in ("sales-1", "sales-2"):
+            await h.register(a, team="field-sales", department="commercial")
+        await h.settle()
+        for a, t in (("log-1", "a"), ("log-1", "b"), ("log-2", "c"), ("log-3", "d"), ("proc-1", "e"), ("proc-2", "f"),
+                     ("sales-1", "g")):
+            await h.observe(a, f"port congestion note {t}", topic="ops:port-congestion", confidence=0.7,
+                            **({"visibility": "org"} if a == "sales-1" else {}))
+        await h.settle()
+        query = {"query": "port congestion", "scope": "northwind", "min_layer": "department"}
+        for who in ("sales-2", "log-1", "admin"):
+            with self.subTest(viewer=who):
+                res = s.query(h.admin if who == "admin" else h.principal(who), query)
+                answer = res["answer"]
+                self.assertEqual(answer["layer"], "enterprise")
+                admin_graph = s.lineage(h.admin, answer["memory_id"])
+                self.assertEqual((answer["lineage"]["contributing_agents"], answer["support"],
+                                  len(admin_graph["contributing_agents"])), (6, 6, 6))
+                self.assertEqual(answer["lineage"]["contributing_teams"], 3)
+                if who == "sales-2":
+                    # what the old count added up: redacted derived nodes, and more redacted notes than hidden authors
+                    g = res["lineage"]
+                    redacted = [n for n in g["nodes"].values() if n["redacted"]]
+                    hidden_agents = len(admin_graph["contributing_agents"]) - len(g["contributing_agents"])
+                    self.assertGreaterEqual(sum(n["layer"] != "agent" for n in redacted), 1)
+                    self.assertGreater(sum(n["layer"] == "agent" for n in redacted), hidden_agents)
+        # the CLI reads POST /query: the same count, and still no hidden agent's id
+        client = TestClient(TestServer(create_app(s)))
+        await client.start_server()
+        self.addAsyncCleanup(client.close)
+        r = await client.post("/query", json=query, headers={"Authorization": f"Bearer {h.keys['sales-2']}"})
+        self.assertEqual(r.status, 200)
+        body = await r.text()
+        res = await r.json()
+        self.assertEqual(res["answer"]["lineage"]["contributing_agents"], 6)
+        hidden = ("log-1", "log-2", "log-3", "proc-1", "proc-2")
+        self.assertEqual([a for a in hidden if re.search(rf"\b{a}\b", body)], [])
 
 
 if __name__ == "__main__":

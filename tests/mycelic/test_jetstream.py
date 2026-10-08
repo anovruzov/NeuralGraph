@@ -592,7 +592,9 @@ class JetStreamTests(unittest.IsolatedAsyncioTestCase):
 
         async def apply_event(event: dict, *, seq: int | None = None) -> str:
             if fault["on"]:
-                raise sqlite3.OperationalError("database or disk is full")
+                # an event that fails at every delivery is terminated (a database error never is: the next test), and the
+                # database fails the record of that termination
+                raise ValueError("poison event")
             return await real_apply(event, seq=seq)
 
         def audit(tx: Tx, principal: str, action: str, *args, **kwargs) -> None:
@@ -614,6 +616,49 @@ class JetStreamTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(s._consumer_running)
         self.assertGreaterEqual(s.metrics.loop_errors.labels("consumer")._value.get(), 2)
         self.assertNotIn("event.failed", {row["action"] for row in s.store.recent_audit(50)})
+
+
+    async def test_a_database_error_while_applying_never_drops_the_event(self) -> None:
+        """The disk fills while a retraction applies, for more deliveries than the consumer's max_deliver (2 here, on
+        the broker too): the event is never terminated, so once the database takes writes again the note is retracted
+        and the conclusion resting on it is no longer reported verified."""
+        import sqlite3
+        from unittest import mock
+
+        s = await self.new_service(nats_max_deliver=2)
+        keys = await self.seed(s)
+        [conclusion] = s.store.list_memories("northwind", layers=["enterprise"])
+        self.assertEqual((await s.verify(s.authenticate(f"Bearer {keys['sales-1']}"), conclusion.memory_id))["verdict"],
+                         "verified")
+        [leaf] = [m for m in s.store.list_memories("northwind", layers=["agent"]) if m.producer_id == "proc-1"]
+        real_apply = s.apply_event
+        fault = {"left": 5}
+
+        async def apply_event(event: dict, *, seq: int | None = None) -> str:
+            if event.get("kind") == "memory.retracted" and fault["left"] > 0:
+                fault["left"] -= 1
+                raise sqlite3.OperationalError("database or disk is full")
+            return await real_apply(event, seq=seq)
+
+        p = s.authenticate(f"Bearer {keys['proc-1']}")
+        with mock.patch.object(s, "apply_event", apply_event):
+            ev = await s.retract(p, leaf.memory_id, "the buffer was refilled")
+            deadline = time.monotonic() + 90
+            while s.store.get_memory(leaf.memory_id).status == "active":
+                self.assertLess(time.monotonic(), deadline, "the retraction was never applied")
+                await asyncio.sleep(0.2)
+            self.assertTrue(await s.wait_idle(30))
+        self.assertEqual(fault["left"], 0, "the apply failed more often than max_deliver allows deliveries")
+        self.assertEqual(s.store.get_event(ev.event_id).status, "applied")
+        self.assertEqual(s.store.get_memory(conclusion.memory_id).status, "retracted")
+        report = await s.verify(s.authenticate(f"Bearer {keys['sales-1']}"), conclusion.memory_id)
+        self.assertEqual((report["verdict"], report["still_true"]), ("stale", False))
+        self.assertNotIn("event.failed", {row["action"] for row in s.store.recent_audit(200)})
+        self.assertEqual(s.metrics.events_failed.labels("apply")._value.get(), 0)
+        self.assertGreaterEqual(s.metrics.loop_errors.labels("consumer")._value.get(), 5)
+        await s.refresh_status()
+        self.assertEqual((await s.health())["status"], "ok")
+        self.assertTrue((await s.ready())[0])
 
 
 if __name__ == "__main__":

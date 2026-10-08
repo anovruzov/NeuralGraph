@@ -162,17 +162,22 @@ and nothing the consumer applies is capped, so a rebuild is never cut short (DEP
 
 Downward verification is priced by its walk: the request's token, then the larger of ceil(nodes / 250) and
 ceil(2 × seconds walked × rps) tokens from the caller's principal bucket, charged after the walk, which may take the
-bucket into debt (never deeper than one burst, so it is repaid within (burst + 1) / rps seconds). A caller that keeps
-walking pays twice what its bucket refills meanwhile. A principal in debt is refused with 429 before anything is read,
-and again when its turn to walk comes. Inside a JSON-RPC batch on `/mcp`, whose messages run back to back without the
+bucket into debt as deep as the charge (a walk that ran T seconds keeps its caller refused for about 2T seconds, also
+when its request was abandoned). A caller that keeps walking pays twice what its bucket refills meanwhile, however long
+its walks run. A principal in debt is refused with 429 before anything is read, and again when its turn to walk
+comes. Inside a JSON-RPC batch on `/mcp`, whose messages run back to back without the
 middleware between them, every message is charged its token up front and every `mycelic_verify` message its walk, so
 once the bucket is in debt the remaining verify messages get an error result without walking, and the next request is
-429. A principal walks one verification at a time, and at most two walks run at once for everyone, so two concurrent
-verifications by one principal cannot both walk on one token and no caller can hold every walker. A walk reads at most
+429. A principal walks one verification at a time, at most two walks run at once per organization and four for
+everyone, an organization's walks waiting for each other before they wait for the shared slots, so two concurrent
+verifications by one principal cannot both walk on one token and one organization's agents cannot hold up another
+organization's walks. A walk whose turn has not come within 5 s is refused with 503 (`Retry-After: 1`), and a request
+whose client went away is cancelled before it walks. A walk reads at most
 `MYCELIC_VERIFY_MAX_NODES` (25,000) nodes, in a worker thread on a read-only snapshot of the database: it never holds
 the event loop, so health probes and every other request keep answering while it runs (DEPLOYMENT.md §4, "Verifying a
 conclusion"). Lineage walks (`GET /lineage/{id}`, MCP `mycelic_lineage` and the answer of every `POST /query` and MCP
-`mycelic_query`) run the same way, one per principal at a time among its walks, load at most 2,000 memories and are
+`mycelic_query`) run the same way, with slots of their own, one per principal at a time among its walks, load at
+most 2,000 memories (an MCP `mycelic_lineage` result lists at most 20 of them unless `detail` is `full`) and are
 priced after the walk at the larger of floor(nodes / 250) and floor(2 × seconds walked × rps) tokens, so a small
 lineage costs only its request's token (docs/MYCELIC_ARCHITECTURE.md §6). `max_leaf_age` must
 be an integer from 1 to 315,360,000 and a memory id must match `[A-Za-z0-9_.:-]{1,200}` (400 otherwise, also for an

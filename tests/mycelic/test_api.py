@@ -10,6 +10,7 @@ import itertools
 import json
 import re
 import tempfile
+import threading
 import time
 import unittest
 from datetime import timedelta
@@ -17,6 +18,7 @@ from pathlib import Path
 from typing import Any
 from unittest import mock
 
+import aiohttp
 from aiohttp.test_utils import TestClient, TestServer
 
 from mycelic import mcp, verification
@@ -26,7 +28,8 @@ from mycelic import lineage as lineage_module
 from mycelic.lineage import reconstruct
 from mycelic.models import now_iso, utcnow
 from mycelic.sdk import MycelicClient, MycelicError
-from mycelic.service import RateLimited
+from mycelic.api import run_server
+from mycelic.service import Busy, RateLimited
 
 from .helpers import ADMIN_TOKEN, DEMO_RULE, ServiceHarness, full_reaggregation_pass
 from .test_integrity import boot
@@ -231,6 +234,11 @@ class VerifyLimitTests(unittest.IsolatedAsyncioTestCase):
         w, top = await wide_world(self, 300, trust_proxy_headers=True)
         s = w.service
         s.limiter = RateLimiter(rps=50.0, burst=100)          # the shipped defaults
+        # the queue bound is not under test here: six walks share acme's two slots, so under load a turn can wait
+        # past the shipped 5 s (test_one_organization_never_holds_up_another_organizations_walks and
+        # test_walks_queued_behind_the_callers_own_held_walk_are_refused_busy_over_mcp test it on walks held by an
+        # event)
+        s.verify_queue_seconds = 600.0
         for j in range(6):
             w.principal(f"a{j}")                               # each agent's last-seen touch is written now, not below
         await asyncio.sleep(0.05)
@@ -287,6 +295,7 @@ class VerifyLimitTests(unittest.IsolatedAsyncioTestCase):
         results = [m["result"] for m in await responses[0].json()]
         walked = sum(not x["isError"] for x in results)
         self.assertEqual([x["content"][0]["text"] for x in results if x["isError"]], ["rate limit exceeded"] * (100 - walked))
+        self.assertEqual(s.metrics.walks_refused.labels("verify")._value.get(), 0)
         # each walk is charged at least twice what the bucket refills while it runs, so the batch is refused after a few
         self.assertLessEqual(walked, 10, f"{walked} of 100 walked")
         self.assertEqual([r.status for r in responses[1:]], [200] * 5)
@@ -306,6 +315,10 @@ class VerifyLimitTests(unittest.IsolatedAsyncioTestCase):
         w, top = await wide_world(self, 300, trust_proxy_headers=True)
         s = w.service
         s.limiter = RateLimiter(rps=50.0, burst=100)          # the shipped defaults
+        # the queue bound is not under test here: five agents' walks share acme's two lineage slots and the batch's
+        # walks wait for each other, so on a slower machine a turn can wait past the shipped 5 s
+        # (test_one_organization_never_holds_up_another_organizations_walks tests it on walks held by an event)
+        s.verify_queue_seconds = 600.0
         for j in range(6):
             w.principal(f"a{j}")
         await asyncio.sleep(0.05)
@@ -393,8 +406,9 @@ class VerifyLimitTests(unittest.IsolatedAsyncioTestCase):
             body = json.loads(raw)
             if j in (1, 2):
                 self.assertEqual(len(body["nodes"]), 2000)
-            elif j == 3:
-                self.assertEqual(len(body["result"]["structuredContent"]["nodes"]), 2000)
+            elif j == 3:                        # the whole graph was walked; MCP lists a summary of it
+                graph = body["result"]["structuredContent"]
+                self.assertEqual((len(graph["nodes"]), graph["omitted"]["nodes"]), (mcp.LINEAGE_NODES, 2000 - mcp.LINEAGE_NODES))
             elif j == 4:
                 self.assertEqual((body["answer"]["memory_id"], len(body["lineage"]["nodes"])), (top.memory_id, 2000))
                 self.assertEqual(body["answer"]["lineage"]["roots"], len(body["lineage"]["roots"]))
@@ -411,6 +425,7 @@ class VerifyLimitTests(unittest.IsolatedAsyncioTestCase):
         walked = sum(not x["isError"] for x in results)
         self.assertEqual([x["content"][0]["text"] for x in results if x["isError"]], ["rate limit exceeded"] * (100 - walked))
         self.assertLessEqual(walked, 50.0 * elapsed / 8 + 1, f"{walked} of 100 walked in {elapsed:.2f}s")
+        self.assertEqual(s.metrics.walks_refused.labels("lineage")._value.get(), 0)
 
     async def test_mcp_verification_is_bounded_and_query_can_verify(self) -> None:
         w, top = await wide_world(self, 50)
@@ -464,7 +479,7 @@ class VerifyLimitTests(unittest.IsolatedAsyncioTestCase):
         answer = out["structuredContent"]["answer"]
         self.assertEqual(answer["memory_id"], top.memory_id)
         self.assertEqual(answer["verification"], {"verdict": "verified", "derived_correctly": True, "still_true": True,
-                                                  "reasons": []})
+                                                  "reasons": [], "warnings": [], "disputed": False})
         out, _ = await call("mycelic_query", query="note", scope="acme", min_layer="enterprise")
         self.assertNotIn("verification", out["structuredContent"]["answer"])
         out, _ = await call("mycelic_query", query="note", scope="acme", verify="yes")
@@ -480,6 +495,244 @@ class VerifyLimitTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(report["nodes"]), 505)
         res = await proxy.call("mycelic_query", {"query": "note", "scope": "acme", "min_layer": "enterprise", "verify": True})
         self.assertEqual(res["answer"]["verification"]["verdict"], "verified")
+
+    async def test_mcp_lineage_and_memory_views_are_bounded(self) -> None:
+        """mycelic_lineage, mycelic_get_memory and the results of mycelic_query on a consolidation of 500 notes stay a few
+        tens of kilobytes over MCP (in process and through the stdio proxy), whatever the evidence beneath grows to;
+        detail=full still returns the whole graph, and REST is unchanged."""
+        w, top = await wide_world(self, 50)
+        s = w.service
+        client = TestClient(TestServer(create_app(s)))
+        await client.start_server()
+        self.addAsyncCleanup(client.close)
+        headers = {**bearer(w.keys["a1"]), "Accept": "application/json"}
+
+        async def call(name: str, **arguments) -> tuple[dict, int]:
+            r = await client.post("/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                                                "params": {"name": name, "arguments": arguments}}, headers=headers)
+            self.assertEqual(r.status, 200)
+            body = await r.read()
+            return json.loads(body)["result"], len(body)
+
+        n = mcp.SUMMARY_ITEMS
+        full = s.lineage(w.principal("a1"), top.memory_id)
+        self.assertEqual((len(full["nodes"]), len(full["roots"]), full["complete"]), (505, 500, True))
+        self.assertGreater(len(json.dumps(full)), 200_000)
+        out, size = await call("mycelic_lineage", memory_id=top.memory_id)
+        self.assertFalse(out["isError"], out)
+        graph = out["structuredContent"]
+        self.assertLess(size, 60_000)
+        self.assertEqual(graph["detail"], "summary")
+        self.assertEqual(list(graph["nodes"]), list(full["nodes"])[:mcp.LINEAGE_NODES], "the memory and what it rests on, "
+                         "nearest first")
+        self.assertEqual(graph["memory"], full["memory"])
+        self.assertEqual((graph["roots"], graph["omitted"]["roots"]), (full["roots"][:n], 500 - n))
+        self.assertEqual(graph["omitted"]["nodes"], 505 - mcp.LINEAGE_NODES)
+        self.assertEqual(graph["omitted"]["edges"], len(full["edges"]) - len(graph["edges"]))
+        self.assertTrue(all(e["child"] in graph["nodes"] and e["parent"] in graph["nodes"] for e in graph["edges"]))
+        for key in ("support", "layers", "timeline", "redacted_contributions", "complete", "previous_versions"):
+            self.assertEqual(graph[key], full[key], key)
+        self.assertEqual(graph["evidence"]["reconstructable"], full["evidence"]["reconstructable"])
+        self.assertLessEqual(len(graph["evidence"]["source_event_ids"]), n)
+        out, size = await call("mycelic_lineage", memory_id=top.memory_id, detail="full")
+        self.assertEqual(out["structuredContent"], json.loads(json.dumps(full)))
+        out, _ = await call("mycelic_lineage", memory_id=top.memory_id, detail="everything")
+        self.assertTrue(out["isError"])
+        # a memory view: metadata.roots holds one id per note beneath
+        out, size = await call("mycelic_get_memory", memory_id=top.memory_id)
+        view = out["structuredContent"]
+        self.assertLess(size, 20_000)
+        self.assertEqual(view["metadata"]["roots"], top.metadata["roots"][:n])
+        self.assertEqual(view["omitted"], {"metadata.roots": 500 - n})
+        r = await client.get(f"/memory/{top.memory_id}", headers=bearer(w.keys["a1"]))
+        rest = (await r.json())["memory"]
+        self.assertEqual((len(rest["metadata"]["roots"]), "omitted" in rest), (500, False), "REST is unchanged")
+        out, size = await call("mycelic_query", query="note", scope="acme", k=10)
+        self.assertFalse(out["isError"], out)
+        self.assertLess(size, 60_000)
+        self.assertTrue(all(len(h["metadata"].get("roots") or []) <= n for h in out["structuredContent"]["results"]))
+        # a raw note's view has nothing to cut
+        note = s.store.list_memories("acme", layers=["agent"], limit=1)[0]
+        out, _ = await call("mycelic_get_memory", memory_id=note.memory_id)
+        self.assertNotIn("omitted", out["structuredContent"])
+        # the stdio proxy bounds the same way
+        server = TestServer(create_app(s), host="127.0.0.1")
+        await server.start_server()
+        self.addAsyncCleanup(server.close)
+        proxy = mcp.ProxyTools(MycelicClient(str(server.make_url("")).rstrip("/"), w.keys["a1"], retries=0))
+        graph = await proxy.call("mycelic_lineage", {"memory_id": top.memory_id})
+        self.assertEqual((len(graph["nodes"]), graph["omitted"]["roots"]), (mcp.LINEAGE_NODES, 500 - n))
+        self.assertEqual(len((await proxy.call("mycelic_lineage", {"memory_id": top.memory_id, "detail": "full"}))["nodes"]), 505)
+        self.assertEqual((await proxy.call("mycelic_get_memory", {"memory_id": top.memory_id}))["omitted"],
+                         {"metadata.roots": 500 - n})
+        res = await proxy.call("mycelic_query", {"query": "note", "scope": "acme", "k": 10})
+        self.assertTrue(all(len(h["memory"]["metadata"].get("roots") or []) <= n for h in res["results"]))
+        self.assertLess(len(json.dumps(res)), 60_000)
+
+    async def blocked_walks(self, orgs: dict[str, int]) -> tuple[ServiceHarness, dict[str, list[str]], threading.Event, list]:
+        """A service over a file database with ``orgs[org]`` agents in each organization, each with one note, and
+        verification and lineage walks of organization 'acme' that block in their worker thread until the returned event
+        is set (the list counts the acme walks that started)."""
+        h = await ServiceHarness().start()
+        self.addAsyncCleanup(h.close)
+        agents: dict[str, list[str]] = {}
+        for org, n in orgs.items():
+            for i in range(n):
+                await h.register(f"{org}-{i}", team="t1", enterprise=org)
+                agents.setdefault(org, []).append(f"{org}-{i}")
+        await h.settle()
+        for org, names in agents.items():
+            for a in names:
+                await h.observe(a, f"note by {a}", topic="ops:x")
+        await h.settle()
+        release, started = threading.Event(), []
+        real_verify, real_lineage = verification.verify, h.service.lineage
+
+        def verify(store, planner, keyring, memory_id, *, principal, **kwargs):
+            if principal.org_id == "acme":
+                started.append(memory_id)
+                release.wait(30)
+            return real_verify(store, planner, keyring, memory_id, principal=principal, **kwargs)
+
+        def lineage(principal, memory_id, *, store=None):
+            if principal.org_id == "acme":
+                started.append(memory_id)
+                release.wait(30)
+            return real_lineage(principal, memory_id, store=store)
+
+        self.enterContext(mock.patch.object(verification, "verify", verify))
+        self.enterContext(mock.patch.object(h.service, "lineage", lineage))
+        self.addCleanup(release.set)
+        return h, agents, release, started
+
+    async def test_one_organization_never_holds_up_another_organizations_walks(self) -> None:
+        """Ten acme agents verify or walk lineage at once on long walks: acme walks at most verify_concurrency at a time of
+        each kind and waits at most verify_queue_seconds (503 beyond), while beta's verification, lineage walk and query
+        answer at once."""
+        h, agents, release, started = await self.blocked_walks({"acme": 10, "beta": 1})
+        s = h.service
+        s.verify_queue_seconds = 1.0
+        note = {a: s.store.list_memories(a.split("-")[0], producer_id=a, limit=1)[0].memory_id
+                for names in agents.values() for a in names}
+        acme = [asyncio.ensure_future(s.verify(h.principal(a), note[a])) for a in agents["acme"][:5]]
+        acme += [asyncio.ensure_future(s.walk_lineage(h.principal(a), note[a])) for a in agents["acme"][5:]]
+        deadline = time.monotonic() + 5
+        while len(started) < 2 * s.verify_concurrency:
+            self.assertLess(time.monotonic(), deadline, "acme's walks never started")
+            await asyncio.sleep(0.01)
+        await asyncio.sleep(0.1)
+        self.assertEqual(len(started), 2 * s.verify_concurrency, "acme walks verify_concurrency at a time of each kind")
+        beta = h.principal("beta-0")
+        t0 = time.monotonic()
+        report = await asyncio.wait_for(s.verify(beta, note["beta-0"]), 3.0)
+        graph = await asyncio.wait_for(s.walk_lineage(beta, note["beta-0"]), 3.0)
+        answer = await asyncio.wait_for(s.query_and_verify(beta, {"query": "note", "verify": True}), 3.0)
+        self.assertLess(time.monotonic() - t0, 2.0, "beta never waited for acme")
+        self.assertEqual((report["verdict"], graph["memory_id"]), ("verified", note["beta-0"]))
+        self.assertEqual(answer["answer"]["verification"]["verdict"], "verified")
+        # acme's queue is bounded: whatever did not get a turn within verify_queue_seconds is refused, not queued
+        done, _ = await asyncio.wait(acme, timeout=3.0)
+        refused = [t for t in done if isinstance(t.exception(), Busy)]
+        self.assertEqual(len(refused), len(acme) - 2 * s.verify_concurrency)
+        self.assertEqual(s.metrics.walks_refused.labels("verify")._value.get()
+                         + s.metrics.walks_refused.labels("lineage")._value.get(), len(refused))
+        # over HTTP that is 503 with Retry-After, which the SDK retries
+        client = TestClient(TestServer(create_app(s)))
+        await client.start_server()
+        self.addAsyncCleanup(client.close)
+        r = await client.get(f"/verify/{note['acme-0']}", headers=bearer(h.keys["acme-0"]))
+        self.assertEqual((r.status, r.headers.get("Retry-After")), (503, "1"))
+        self.assertIn("retry", (await r.json())["error"])
+        release.set()
+        results = await asyncio.gather(*acme, return_exceptions=True)
+        self.assertEqual(sum(not isinstance(x, Exception) for x in results), 2 * s.verify_concurrency)
+        self.assertEqual((s._org_slots, s._verify_callers), ({}, {}), "every turn was given back")
+
+    async def test_walks_queued_behind_the_callers_own_held_walk_are_refused_busy_over_mcp(self) -> None:
+        """One MCP batch of three mycelic_verify calls by a solvent agent whose first walk is held: the other two wait
+        on the caller's own turn for verify_queue_seconds and are refused as busy (not rate limited) and unaudited,
+        while the held walk answers once released."""
+        h, agents, release, started = await self.blocked_walks({"acme": 1})
+        s = h.service
+        s.limiter = RateLimiter(rps=50.0, burst=100)          # the caller stays solvent throughout
+        s.verify_queue_seconds = 0.5
+        mid = s.store.list_memories("acme", producer_id="acme-0", limit=1)[0].memory_id
+        client = TestClient(TestServer(create_app(s)))
+        await client.start_server()
+        self.addAsyncCleanup(client.close)
+        self.addCleanup(release.set)                # before the client closes, should an assertion below fail
+        audits = len(verify_audits(s))
+        batch = [{"jsonrpc": "2.0", "id": i, "method": "tools/call",
+                  "params": {"name": "mycelic_verify", "arguments": {"memory_id": mid}}} for i in range(3)]
+        post = asyncio.ensure_future(client.post("/mcp", json=batch,
+                                                 headers={**bearer(h.keys["acme-0"]), "Accept": "application/json"}))
+        self.addCleanup(post.cancel)
+        deadline = time.monotonic() + 10
+        while s.metrics.walks_refused.labels("verify")._value.get() < 2 or not started:
+            self.assertLess(time.monotonic(), deadline, "the queued calls were never refused")
+            await asyncio.sleep(0.01)
+        self.assertEqual(len(started), 1, "the first walk is still held")
+        release.set()
+        r = await post
+        self.assertEqual(r.status, 200)
+        results = [m["result"] for m in await r.json()]
+        walked = [x for x in results if not x["isError"]]
+        self.assertEqual(len(walked), 1)
+        self.assertEqual(walked[0]["structuredContent"]["verdict"], "verified")
+        self.assertEqual([x["content"][0]["text"] for x in results if x["isError"]],
+                         ["too many walks are running or waiting for this organization; retry in a few seconds"] * 2)
+        self.assertEqual(s.metrics.walks_refused.labels("verify")._value.get(), 2)
+        self.assertEqual(len(verify_audits(s)) - audits, 1)
+        self.assertEqual((s._org_slots, s._verify_callers), ({}, {}), "every turn was given back")
+
+    async def test_a_long_walk_is_priced_past_one_burst(self) -> None:
+        """A walk is charged VERIFY_TIME_PRICE times the refill of the time it took, however long: a 0.3 s walk at the
+        shipped 50 tokens/s costs 30 tokens, deeper than a burst of 10 (a debt capped at one burst priced every walk past
+        0.1 s the same)."""
+        h, agents, release, started = await self.blocked_walks({"acme": 1})
+        s = h.service
+        s.limiter = RateLimiter(rps=50.0, burst=10)
+        p = h.principal("acme-0")
+        mid = s.store.list_memories("acme", producer_id="acme-0", limit=1)[0].memory_id
+        walk = asyncio.ensure_future(s.verify(p, mid))
+        await asyncio.sleep(0.3)
+        release.set()
+        await walk
+        self.assertLessEqual(s.limiter._buckets[p.limiter_key].tokens, 10 - 0.3 * 2 * 50 + 1)
+        self.assertTrue(s.limiter.in_debt(p.limiter_key))
+        with self.assertRaises(RateLimited):
+            await s.verify(p, mid)
+
+    async def test_an_abandoned_request_never_walks_on_for_nobody(self) -> None:
+        """The server cancels a request whose client went away (an SDK timeout): its walk is neither answered nor audited,
+        it pays for the time its thread ran, and its slot is held until that thread ends."""
+        h, agents, release, started = await self.blocked_walks({"acme": 1})
+        s = h.service
+        s.limiter = RateLimiter(rps=50.0, burst=100)
+        runner = await run_server(s)
+        self.addAsyncCleanup(runner.cleanup)
+        port = runner.addresses[0][1]
+        p = h.principal("acme-0")
+        mid = s.store.list_memories("acme", producer_id="acme-0", limit=1)[0].memory_id
+        audits = len(verify_audits(s))
+        async with aiohttp.ClientSession() as session:
+            with self.assertRaises(asyncio.TimeoutError):
+                async with session.get(f"http://127.0.0.1:{port}/verify/{mid}", headers=bearer(h.keys["acme-0"]),
+                                       timeout=aiohttp.ClientTimeout(total=0.5)) as r:
+                    await r.read()
+        deadline = time.monotonic() + 5
+        while s._org_slots.get(("verify", "acme")) is None or not started:
+            self.assertLess(time.monotonic(), deadline, "the walk never started")
+            await asyncio.sleep(0.01)
+        await asyncio.sleep(0.3)
+        self.assertIn(("verify", "acme"), s._org_slots, "the cancelled request holds its slot while its thread runs")
+        release.set()
+        deadline = time.monotonic() + 5
+        while s._org_slots or s._verify_callers:
+            self.assertLess(time.monotonic(), deadline, "the slot was never given back")
+            await asyncio.sleep(0.01)
+        self.assertEqual(len(verify_audits(s)), audits, "an abandoned verification is not answered or audited")
+        self.assertLess(s.limiter._buckets[p.limiter_key].tokens, 100 - 2 * 0.5 * 50 + 1, "but it paid for its time")
 
     async def test_verify_is_cost_weighted_by_the_rate_limiter(self) -> None:
         tmp = tempfile.TemporaryDirectory()
@@ -943,7 +1196,8 @@ class MemoryRoutesTests(ApiTestCase):
         self.assertEqual((len(verify_audits(s)), verified._value.get()), (audits, count), "nothing walked without the flag")
         res = await query(self.sales2, {**q, "verify": True})
         v = res["answer"].pop("verification")
-        self.assertEqual(v, {"verdict": "verified", "derived_correctly": True, "still_true": True, "reasons": []})
+        self.assertEqual(v, {"verdict": "verified", "derived_correctly": True, "still_true": True, "reasons": [],
+                             "warnings": [], "disputed": False})
         self.assertEqual((set(res), res["answer"]), (set(plain), plain["answer"]), "the rest of the response is unchanged")
         self.assertEqual((len(verify_audits(s)), verified._value.get()), (audits + 1, count + 1))
         res = await query(self.admin["Authorization"][7:], {**q, "verify": True})

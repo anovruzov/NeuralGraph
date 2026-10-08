@@ -103,7 +103,7 @@ use the real broker.
 | Subject | Kind | Produced by | Applied as |
 |---|---|---|---|
 | `mycelic.<org>.memory-observed` | `memory.observed` | `POST /memory`, `POST /events` (embedded memory), MCP `mycelic_remember` | insert memory if absent, aggregate; a producer's update (`metadata.version_of`, from `supersedes`) first supersedes the note it names when that is still the producer's active raw note (`superseded_by`, reason `updated by producer`), retires what rested on it and re-derives on the new note, else applies as a plain note (audit `memory.update_conflict`) |
-| `mycelic.<org>.memory-derived` | `memory.derived` | the consumer, for every derived memory | informational: `duplicate` if this node derived it, else ignored and counted (`mycelic_events_ignored_total{reason="derived_not_reproduced"}`), never inserted |
+| `mycelic.<org>.memory-derived` | `memory.derived` | the consumer, for every derived memory | informational: `duplicate` if this node derived it, else ignored and counted (`mycelic_events_ignored_total{reason="derived_not_reproduced"}`), never inserted. Its payload (`Derivation.event_payload`) is the memory without what grows with the evidence: no roots, contributing agents or parent edges in it (`parent_count` instead), so it stays a few kilobytes |
 | `mycelic.<org>.memory-retracted` | `memory.retracted` | `POST /memory/{id}/retract`; the expiry sweep (reason `expired`, `by` `mycelic`, event id `evt_x…` derived from the memory id, so a note gets one however often it is swept) | retract, retire dependents, re-derive |
 | `mycelic.<org>.memory-attested` | `memory.attested` | `POST /memory/{id}/attest` with `still_true: true`, MCP `mycelic_attest` | set the raw note's `attested_at` to the attestation's time and sign the row again (`Tx.set_attested`), when the note is the attesting producer's active raw note, the time is not before its ingest and is after its last attestation, and its digest checks; otherwise ignored, audited (`memory.attest_ignored`) and counted (`mycelic_events_ignored_total{reason="attestation_target"|"attestation_not_newer"|"attestation_integrity"}`). Verification's freshness takes the later of ingest and attestation |
 | `mycelic.<org>.agent-event` | `agent.event` | `POST /events` | recorded (evidence) |
@@ -115,7 +115,17 @@ Stream `MYCELIC`: file storage, `retention=limits`, `discard=new`, no age/size/c
 (a bounded stream is logged as an error at connect), duplicate window 2 h, one replica. Consumer
 `mycelic-main`: durable, pull, explicit ack, `max_ack_pending = MYCELIC_CONSUME_BATCH` (default 1, so
 events are applied strictly in stream order and a failed event is redelivered in place), `max_deliver` 8
-then `term`.
+then `term`, except when the database itself failed the apply (`sqlite3.OperationalError`, a full disk, say): such an
+event is never counted or terminated, the consumer is recreated at it (`MycelicService._redeliver_from`) and it is
+delivered again until it applies.
+
+Database retention: raw notes, active memories and their lineage are kept; a derived memory that stopped being active
+(`memories.retired_at`, schema 7, the log time of the event that retired it: `Tx.log_time`) is deleted
+`MYCELIC_DERIVED_RETENTION_DAYS` (7) later by a sweep every 60 s, with its lineage edges and its `memory.derived` row,
+once nothing rests on it (`Tx.prune_retired`, `MycelicService.prune_retired`). Local maintenance, like audit pruning: a
+rebuild derives those versions again, and its replay sweeps on the log's clock instead of the wall clock
+(`MycelicService._replay_sweep`: every 60 s of log time, and at the next event again while a sweep fills its batches),
+so it deletes them again as it passes the point of the log where the live node had deleted them.
 
 ## 5. Aggregation semantics
 
@@ -370,10 +380,14 @@ than that (a team consolidation with thousands of notes): the parents beyond the
 left out and `complete` is false. Every lineage walk (`GET /lineage/{id}`, MCP `mycelic_lineage`, and the answer's
 lineage of `POST /query` and MCP `mycelic_query`, with or without `include_lineage`; reconstructed once per answer)
 runs like a verification walk (§7): in a worker thread on a read-only snapshot, never on the event loop, one per caller
-at a time (lineage and verification alike) and at most `MycelicService.verify_concurrency` (2) lineage walks at once,
-refused while the caller's bucket is in debt, and priced after the walk at the larger of floor(nodes / 250) and
-floor(2 × seconds walked × rps) tokens, so a walk of fewer than 250 nodes that takes less than 1 / (2 × rps) seconds
-costs only its request's token, as before.
+at a time (lineage and verification alike), at most `MycelicService.verify_concurrency` (2) lineage walks at once per
+organization and `verify_total_concurrency` (4) for all of them, refused (503) after `verify_queue_seconds` (5 s)
+without a turn and while the caller's bucket is in debt, and priced after the walk at the larger of floor(nodes / 250)
+and floor(2 × seconds walked × rps) tokens, so a walk of fewer than 250 nodes that takes less than 1 / (2 × rps)
+seconds costs only its request's token, as before. Over MCP, `mycelic_lineage` answers a summary by default
+(`mcp.summarise_lineage`: at most 20 memories, nearest first, the edges between them and the first 50 of each list that
+grows with the evidence, with `omitted` counts), and memory views list at most 50 items of a metadata list
+(`mcp.bounded_view`: `roots` holds one id per raw note beneath); `detail: "full"` and REST return everything.
 
 Text of a memory that is not active (superseded or retracted) is returned only to its producer and to
 administrators; everyone else who may read the memory gets an empty `text` and `text_withheld` set to its status.
@@ -396,7 +410,7 @@ inside one read transaction), so the walk only sees committed states and never h
 | Surface | Form |
 |---|---|
 | REST | `GET /verify/{id}[?max_leaf_age=N]` (N from 1 to 315,360,000 seconds): the report as the body, 200 for every verdict |
-| REST | `POST /query` with `"verify": true`: `answer.verification` holds `verdict`, `derived_correctly`, `still_true` and the report-level `reasons`; without the flag (or with `false`) the response is unchanged |
+| REST | `POST /query` with `"verify": true`: `answer.verification` (`service.verification_summary`) holds `verdict`, `derived_correctly`, `still_true`, the report-level `reasons`, the `warnings` counted per code and `disputed` (a `disputed` warning: evidence beneath claims different values; the verdict stays `verified`); without the flag (or with `false`) the response is unchanged. Every answer carries `conflict`, the same dispute read from the answer's own row |
 | MCP | `mycelic_verify(memory_id, max_leaf_age_seconds?, detail?)`, over HTTP and through the stdio proxy: by default (`detail` `summary`) the report with only the nodes that did not pass and the first warnings, at most 50 of each (`nodes_omitted`, `warnings_omitted`); `detail` `full` every node. `mycelic_query(..., verify=true)` adds `answer.verification` as `POST /query` does |
 | SDK | `MycelicClient.verify(memory_id, max_leaf_age=None)`, `MycelicClient.query(..., verify=True)` |
 | CLI | `python -m mycelic verify MEMORY_ID [--max-leaf-age N] [--json]` (exit 0 verified, 3 stale, 4 failed, 5 unverifiable, 1 on an HTTP error, 2 on a usage error), `python -m mycelic query --verify` |
@@ -511,11 +525,15 @@ before and after a rebuild.
 organization's retractions logged since the oldest raw note's event, one of its agent removals and one of its updates
 not applied yet; measured through `MycelicService.verify` in
 this repository's idle sandbox, 0.10–0.20 s for 1,005 nodes and 0.56–0.85 s for 5,005 nodes. The walk runs in a
-worker thread on a read-only snapshot, never on the event loop; at most `MycelicService.verify_concurrency` (2) walks
-run at once, one per caller at a time. `MYCELIC_VERIFY_MAX_NODES` bounds it (`walk_truncated` beyond). A verification
+worker thread on a read-only snapshot, never on the event loop; one per caller at a time, then at most
+`MycelicService.verify_concurrency` (2) walks per organization and `verify_total_concurrency` (4) for all of them, an
+organization's walks waiting for each other before the shared slots (`_verification_turn`), so one organization never
+holds up another; a turn that has not come within `verify_queue_seconds` (5 s) is refused (`Busy`, 503 with
+`Retry-After`). A request whose client went away is cancelled (aiohttp handler cancellation), and its thread holds the
+slot until it ends. `MYCELIC_VERIFY_MAX_NODES` bounds it (`walk_truncated` beyond). A verification
 costs the caller the request's token at the door and, after the walk, the larger of ceil(nodes / 250) and
 ceil(2 × seconds walked × rps) tokens (`RateLimiter.take`, `VERIFY_TIME_PRICE`), which may put the principal's bucket
-into debt, at most one burst deep; a principal in debt is refused before anything is read and again when its turn to
+into debt as deep as the charge; a principal in debt is refused before anything is read and again when its turn to
 walk comes (`RateLimiter.in_debt`; 429, or an error result inside an MCP batch), so a JSON-RPC batch of verify calls
 walks at most once past solvency. Each successful verification is counted (§9) and audited (`memory.verify`, with the codes before redaction);
 refused ones are neither. The reason counter takes the codes of the caller's own report (`hidden_*` for a node it
@@ -566,7 +584,9 @@ off from; alert on any increase),
 transaction each), `mycelic_lineage_latency_seconds`,
 `mycelic_lineage_reconstruction_total{result}`, `mycelic_verifications_total{verdict}`,
 `mycelic_verification_reasons_total{reason}` (each code once per verification, as the caller saw it),
-`mycelic_verification_latency_seconds`, `mycelic_memories_expired_total` (expired notes the sweep queued a
+`mycelic_verification_latency_seconds`, `mycelic_walks_refused_total{kind}` (verification and lineage walks refused
+with 503 because their turn did not come within 5 s), `mycelic_memories_pruned_total` (previous versions of derived
+memories deleted after `MYCELIC_DERIVED_RETENTION_DAYS`), `mycelic_memories_expired_total` (expired notes the sweep queued a
 retraction for, each once), `mycelic_memories_expiry_overdue` (active notes past their `expires_at`: a backlog when it
 stays up), `mycelic_http_requests_total{route,status}`,
 `mycelic_auth_failures_total{reason}`, `mycelic_active_agents`, `mycelic_registered_agents`,
@@ -577,8 +597,10 @@ stays up), `mycelic_http_requests_total{route,status}`,
 `GET /admin/status` (full checks, stream/consumer positions, masked settings, and `checks.reaggregation`: the
 re-aggregation job's `state` (`idle`, `running`, `waiting_for_replay`, `done`, `interrupted`, `failed`), `reason`,
 `scope`, current `org_id` and `phase`, `steps`, `changed`, `started_at`, `finished_at`, `error`; and `checks.expiry`:
-`enabled`, `interval_seconds`, `overdue`, `last_sweep_at`, `last_queued`; and `checks.consumer.ready_block`: the
-signature-rejection block on readiness, or null), `GET /admin/audit`, `GET /admin/events`.
+`enabled`, `interval_seconds`, `overdue`, `last_sweep_at`, `last_queued`; and `checks.retention`: `enabled`,
+`retention_days`, `interval_seconds`, `last_sweep_at`, `last_pruned`; and `checks.consumer.ready_block`: the
+signature-rejection block on readiness, or null, and `checks.consumer.last_error` and `failing_seconds` while the
+database fails the consumer's applies), `GET /admin/audit`, `GET /admin/events`.
 The job never affects `/ready`: the node serves while it converges. Every successful downward
 verification writes the audit row `memory.verify` (principal, target, organization, verdict, nodes walked and the
 reason codes before redaction).

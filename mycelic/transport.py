@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import ssl
 from dataclasses import dataclass, field
 from typing import Any, Callable, Protocol
@@ -40,6 +41,17 @@ SUBJECT_PREFIX = "mycelic"
 def subject_for(org_id: str, kind: str) -> str:
     """``mycelic.<org>.<kind-with-dashes>`` (a NATS subject token cannot contain dots)."""
     return f"{SUBJECT_PREFIX}.{org_id}.{kind.replace('.', '-')}"
+
+
+_SUBJECT_TOKEN_RE = re.compile(r"[^\s.*>]+")
+
+
+def publishable(subject: str) -> bool:
+    """Can the stream (subjects ``mycelic.>``) take an event on ``subject``: the prefix and at least one more token, none
+    of them empty, holding whitespace or a wildcard?  An event on any other subject is refused by the client or the
+    broker every time it is published."""
+    tokens = subject.split(".") if isinstance(subject, str) else []
+    return len(tokens) >= 2 and tokens[0] == SUBJECT_PREFIX and all(_SUBJECT_TOKEN_RE.fullmatch(t) for t in tokens)
 
 
 class Delivery(Protocol):

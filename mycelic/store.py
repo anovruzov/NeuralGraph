@@ -43,7 +43,7 @@ except ImportError:  # pragma: no cover
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 _DDL = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -106,7 +106,8 @@ CREATE TABLE IF NOT EXISTS memories (
     digest_key_id     TEXT,            -- the key that signed it ('none' when unkeyed)
     digest_origin     TEXT,            -- 'write' (signed by the insert) or 'backfill' (signed at start-up after the upgrade)
     expires_at        TEXT,            -- a raw note's expiry (UTC, seconds); the sweep retracts it through the log after it
-    attested_at       TEXT             -- when the producer last re-attested a raw note (UTC, seconds)
+    attested_at       TEXT,            -- when the producer last re-attested a raw note (UTC, seconds)
+    retired_at        TEXT             -- when the row stopped being active (superseded or retracted); NULL while active
 );
 CREATE INDEX IF NOT EXISTS idx_memories_org_status ON memories(org_id, status);
 CREATE INDEX IF NOT EXISTS idx_memories_org_op_status ON memories(org_id, operator, status);
@@ -191,6 +192,8 @@ CREATE INDEX IF NOT EXISTS idx_audit_at ON audit_log(at);
 _POST_MIGRATION_DDL = """
 CREATE INDEX IF NOT EXISTS idx_memories_apply_seq ON memories(apply_seq);
 CREATE INDEX IF NOT EXISTS idx_memories_expiry ON memories(expires_at, rid) WHERE status='active' AND expires_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_memories_retired ON memories(retired_at, rid)
+    WHERE retired_at IS NOT NULL AND operator != 'agent_observation';
 """
 
 _RULE_FIELDS = frozenset(Rule.__dataclass_fields__)
@@ -266,6 +269,10 @@ class Tx:
     def __init__(self, store: "MycelicStore", conn: sqlite3.Connection) -> None:
         self._store = store
         self.c = conn
+        #: the log time of the event this transaction applies (its ``created_at``, never after now), set by the apply:
+        #: a row it retires counts as retired from then (``retired_at``), so a rebuild from the log stamps the time the
+        #: live node stamped; None (local maintenance) stamps now
+        self.log_time: str | None = None
 
     # ---- agents
     def ensure_org(self, org_id: str, name: str | None = None) -> None:
@@ -340,7 +347,11 @@ class Tx:
         keyring, m = self._store.keyring, row_memory(r)
         parents = [] if m.operator == "agent_observation" else [
             e["parent_id"] for e in self.c.execute("SELECT parent_id FROM lineage_edges WHERE child_id=?", (memory_id,))]
-        columns = {"status": status, "superseded_by": superseded_by, "metadata": _j(metadata), **(extra or {})}
+        # when the row stopped being active, in the log's time (``log_time``), kept through later status changes (the
+        # retention of retired derived rows counts from it), cleared when it is active again
+        retired_at = None if status == "active" else (r["retired_at"] or self.log_time or now_iso())
+        columns = {"status": status, "superseded_by": superseded_by, "metadata": _j(metadata), "retired_at": retired_at,
+                   **(extra or {})}
         if check_memory(keyring, m, parents, r["digest"], r["digest_key_id"], r["digest_origin"]) == "ok":
             m.status, m.superseded_by, m.metadata = status, superseded_by, metadata
             columns["digest"], columns["digest_key_id"] = keyring.sign(canonical(m, parents), origin=r["digest_origin"])
@@ -444,6 +455,32 @@ class Tx:
             "INSERT OR IGNORE INTO lineage_edges(child_id, parent_id, contributed_by, parent_layer, created_at) VALUES (?, ?, ?, ?, ?)",
             [(e.child_id, e.parent_id, e.contributed_by, e.parent_layer, e.created_at) for e in edges],
         )
+
+    def prune_retired(self, cutoff: str, *, limit: int) -> tuple[int, int, int]:
+        """Delete up to ``limit`` derived memories retired (superseded or retracted) at or before ``cutoff`` that no
+        memory rests on any more, with their lineage edges and their ``memory.derived`` event rows; returns (memories,
+        edges, events) deleted.  Raw notes, active rows, a row another one names as a parent (its child is retired later
+        or at the same time, so it goes first and the parent at a later call) and a row whose derived event is still in
+        the outbox are kept.  Local maintenance: a replay from the log derives the deleted versions again, and deletes
+        them again once it reaches the log time they were deleted at here (``MycelicService._replay_sweep``)."""
+        rows = self.c.execute(
+            """SELECT m.memory_id, m.event_id FROM memories m
+               WHERE m.retired_at IS NOT NULL AND m.retired_at <= ? AND m.operator != 'agent_observation'
+                 AND m.status != 'active'
+                 AND NOT EXISTS (SELECT 1 FROM lineage_edges e WHERE e.parent_id = m.memory_id)
+                 AND NOT EXISTS (SELECT 1 FROM events v WHERE v.event_id = m.event_id AND v.status = 'pending')
+               ORDER BY m.retired_at, m.rid LIMIT ?""", (cutoff, int(limit))).fetchall()
+        if not rows:
+            return 0, 0, 0
+        ids = [r["memory_id"] for r in rows]
+        events = [r["event_id"] for r in rows if r["event_id"]]
+        marks = ",".join("?" * len(ids))
+        edges = self.c.execute(f"DELETE FROM lineage_edges WHERE child_id IN ({marks})", ids).rowcount
+        deleted_events = self.c.execute(
+            f"DELETE FROM events WHERE kind='memory.derived' AND status != 'pending' AND event_id IN ({','.join('?' * len(events))})",
+            events).rowcount if events else 0
+        memories = self.c.execute(f"DELETE FROM memories WHERE memory_id IN ({marks})", ids).rowcount
+        return memories, edges, deleted_events
 
     # ---- events / outbox
     def event_status(self, event_id: str) -> str | None:
@@ -684,6 +721,9 @@ class MycelicStore:
           again those of them that are not active (``Tx.resign_lifecycle``), then deletes it; and, when derived memories
           exist, ``meta.reaggregate_pending``, because a conclusion now travels up next to its unit's consolidation and a
           unit with fewer registered children than MIN_SUPPORT keeps what it promotes.
+        * 7: memories.retired_at, when a row stopped being active (not covered by its digest).  Rows that are not active
+          already get the time of the upgrade, so the retention of retired derived rows (``Tx.prune_retired``) counts
+          from it.
         """
         c = self._conn
         c.execute("BEGIN IMMEDIATE")
@@ -736,6 +776,10 @@ class MycelicStore:
                 if c.execute("SELECT 1 FROM memories WHERE operator != 'agent_observation' LIMIT 1").fetchone():
                     c.execute("INSERT INTO meta(key, value) VALUES ('reaggregate_pending', '1') "
                               "ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+            if from_version < 7:
+                if "retired_at" not in {r["name"] for r in c.execute("PRAGMA table_info(memories)").fetchall()}:
+                    c.execute("ALTER TABLE memories ADD COLUMN retired_at TEXT")
+                c.execute("UPDATE memories SET retired_at=? WHERE status != 'active' AND retired_at IS NULL", (now_iso(),))
             c.execute("UPDATE meta SET value=? WHERE key='schema_version'", (str(SCHEMA_VERSION),))
         except BaseException:
             c.execute("ROLLBACK")

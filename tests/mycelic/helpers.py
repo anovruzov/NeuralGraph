@@ -444,6 +444,153 @@ CREATE INDEX IF NOT EXISTS idx_memories_apply_seq ON memories(apply_seq);
 INSERT INTO meta(key, value) VALUES ('schema_version', '4');
 """
 
+#: the schema-6 DDL exactly as released (before retired_at), for migration tests
+V6_SCHEMA = """
+CREATE TABLE IF NOT EXISTS meta (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS orgs (
+    org_id     TEXT PRIMARY KEY,
+    name       TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS agents (
+    agent_id     TEXT PRIMARY KEY,
+    org_id       TEXT NOT NULL REFERENCES orgs(org_id),
+    display_name TEXT NOT NULL,
+    path         TEXT NOT NULL UNIQUE,
+    scopes       TEXT NOT NULL DEFAULT '[]',
+    key_hash     TEXT NOT NULL,
+    key_prefix   TEXT NOT NULL,
+    status       TEXT NOT NULL DEFAULT 'active',
+    created_at   TEXT NOT NULL,
+    last_seen_at TEXT,
+    metadata     TEXT NOT NULL DEFAULT '{}',
+    log_status   TEXT              -- status as of the last applied registry event (NULL: registration not applied yet;
+                                   -- 'removed' is terminal)
+);
+CREATE INDEX IF NOT EXISTS idx_agents_org ON agents(org_id, status);
+
+CREATE TABLE IF NOT EXISTS memories (
+    rid               INTEGER PRIMARY KEY AUTOINCREMENT,
+    memory_id         TEXT NOT NULL UNIQUE,
+    org_id            TEXT NOT NULL,
+    layer             TEXT NOT NULL,
+    scope             TEXT NOT NULL,
+    text              TEXT NOT NULL,
+    topic             TEXT,
+    slot              TEXT,
+    entity            TEXT,
+    kind              TEXT NOT NULL,
+    confidence        REAL NOT NULL,
+    support           INTEGER NOT NULL DEFAULT 1,
+    independent_teams INTEGER NOT NULL DEFAULT 1,
+    producer_id       TEXT NOT NULL,
+    operator          TEXT NOT NULL,
+    rule_id           TEXT,
+    agg_key           TEXT,
+    event_id          TEXT,
+    visibility        TEXT NOT NULL DEFAULT 'team',
+    status            TEXT NOT NULL DEFAULT 'active',
+    superseded_by     TEXT,
+    created_at        TEXT NOT NULL,
+    applied_at        TEXT,
+    source_event_ids  TEXT NOT NULL DEFAULT '[]',
+    local_ref         TEXT,
+    metadata          TEXT NOT NULL DEFAULT '{}',
+    apply_seq         INTEGER,         -- position in apply order (NULL until the consumer applies the memory)
+    digest            TEXT,            -- keyed digest of the row's content and parents (integrity.py), NULL until backfilled
+    digest_key_id     TEXT,            -- the key that signed it ('none' when unkeyed)
+    digest_origin     TEXT,            -- 'write' (signed by the insert) or 'backfill' (signed at start-up after the upgrade)
+    expires_at        TEXT,            -- a raw note's expiry (UTC, seconds); the sweep retracts it through the log after it
+    attested_at       TEXT             -- when the producer last re-attested a raw note (UTC, seconds)
+);
+CREATE INDEX IF NOT EXISTS idx_memories_org_status ON memories(org_id, status);
+CREATE INDEX IF NOT EXISTS idx_memories_org_op_status ON memories(org_id, operator, status);
+CREATE INDEX IF NOT EXISTS idx_memories_scope ON memories(org_id, scope);
+CREATE INDEX IF NOT EXISTS idx_memories_topic ON memories(org_id, topic, status);
+CREATE INDEX IF NOT EXISTS idx_memories_entity ON memories(org_id, entity, status);
+CREATE INDEX IF NOT EXISTS idx_memories_agg ON memories(org_id, operator, scope, agg_key, status);
+-- at most one *active* derived memory per (unit, operator, key): supersession is the only way to replace it
+CREATE UNIQUE INDEX IF NOT EXISTS uq_memories_active_agg ON memories(org_id, operator, scope, agg_key)
+    WHERE status='active' AND agg_key IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS lineage_edges (
+    child_id       TEXT NOT NULL,
+    parent_id      TEXT NOT NULL,
+    contributed_by TEXT NOT NULL,
+    parent_layer   TEXT NOT NULL,
+    created_at     TEXT NOT NULL,
+    PRIMARY KEY (child_id, parent_id)
+);
+CREATE INDEX IF NOT EXISTS idx_lineage_parent ON lineage_edges(parent_id);
+
+CREATE TABLE IF NOT EXISTS events (
+    rid          INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id     TEXT NOT NULL UNIQUE,
+    kind         TEXT NOT NULL,
+    org_id       TEXT NOT NULL,
+    agent_id     TEXT,
+    subject      TEXT NOT NULL,
+    payload      TEXT NOT NULL,
+    status       TEXT NOT NULL DEFAULT 'pending',
+    js_seq       INTEGER,
+    attempts     INTEGER NOT NULL DEFAULT 0,
+    last_error   TEXT,
+    created_at   TEXT NOT NULL,
+    published_at TEXT,
+    applied_at   TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_events_status ON events(status, rid);
+CREATE INDEX IF NOT EXISTS idx_events_org ON events(org_id, kind, rid);
+
+CREATE TABLE IF NOT EXISTS rules (
+    rule_id        TEXT PRIMARY KEY,
+    org_id         TEXT,
+    target_layer   TEXT NOT NULL,
+    required_slots TEXT NOT NULL,
+    conclusion     TEXT NOT NULL,
+    topic_prefix   TEXT,
+    min_agents     INTEGER NOT NULL DEFAULT 2,
+    min_teams      INTEGER NOT NULL DEFAULT 1,
+    kind           TEXT NOT NULL DEFAULT 'risk',
+    enabled        INTEGER NOT NULL DEFAULT 1,
+    metadata       TEXT NOT NULL DEFAULT '{}',
+    updated_at     TEXT NOT NULL,
+    sources        TEXT NOT NULL DEFAULT '["agent_observation"]',
+    emits_slot     TEXT,
+    emits_topic    TEXT,
+    min_units      TEXT NOT NULL DEFAULT '{}',
+    corroborate    INTEGER NOT NULL DEFAULT 0
+);
+
+-- the rules as of the last applied rule event: what aggregation evaluates (``rules`` is what the admin API wrote)
+CREATE TABLE IF NOT EXISTS applied_rules (
+    rule_id     TEXT PRIMARY KEY,
+    org_id      TEXT,
+    snapshot    TEXT NOT NULL,
+    applied_seq INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS audit_log (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    at        TEXT NOT NULL,
+    principal TEXT NOT NULL,
+    action    TEXT NOT NULL,
+    target    TEXT,
+    detail    TEXT NOT NULL DEFAULT '{}',
+    remote    TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_audit_at ON audit_log(at);
+
+CREATE INDEX IF NOT EXISTS idx_memories_apply_seq ON memories(apply_seq);
+CREATE INDEX IF NOT EXISTS idx_memories_expiry ON memories(expires_at, rid) WHERE status='active' AND expires_at IS NOT NULL;
+INSERT INTO meta(key, value) VALUES ('schema_version', '6');
+"""
+
 @dataclass
 class HeldTransport(InProcessTransport):
     """An in-process log whose consumer receives nothing while ``hold`` is set (from construction): publishing

@@ -124,9 +124,11 @@ class MycelicClient:
               include_lineage: bool = True, topic: str | None = None, entity: str | None = None,
               verify: bool = False) -> dict[str, Any]:
         """Search what the caller may read.  Answers and results come from active memories only, so their ``text`` is
-        never withheld; the embedded lineage follows the rule of :meth:`lineage`.  With ``verify`` (and lineage:read)
-        the answer also carries ``verification``: the ``verdict``, ``derived_correctly``, ``still_true`` and ``reasons``
-        of :meth:`verify`."""
+        never withheld; the embedded lineage follows the rule of :meth:`lineage`.  The answer's ``conflict`` is true when
+        the notes beneath it claim different values for one slot and entity.  With ``verify`` (and lineage:read) the
+        answer also carries ``verification``: the ``verdict``, ``derived_correctly``, ``still_true`` and ``reasons`` of
+        :meth:`verify`, its ``warnings`` counted per code, and ``disputed`` (a ``disputed`` warning: the verdict stays
+        ``verified``, but the conclusion is contested; do not act on it before that is resolved)."""
         body = {"query": text, "scope": scope, "min_layer": min_layer, "k": k, "include_lineage": include_lineage,
                 "topic": topic, "entity": entity}
         if verify:

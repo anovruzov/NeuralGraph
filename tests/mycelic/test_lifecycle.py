@@ -29,10 +29,11 @@ from mycelic.retrieval import BM25
 from mycelic.sdk import LocalMemory, MycelicClient, MycelicError
 from mycelic.service import MAX_EXPIRY_SECONDS, Conflict, Forbidden, NotFound, ValidationError
 from mycelic.store import MycelicStore
+from mycelic.transport import InProcessTransport
 
 from .helpers import (
-    ADMIN_TOKEN, HeldTransport, ServiceHarness, broken_chains, drain_outbox, invariant_violations, rebuild, rebuild_differences,
-    table_dump,
+    ADMIN_TOKEN, HeldTransport, ServiceHarness, broken_chains, drain_outbox, invariant_violations, lineage_edge_set, rebuild,
+    rebuild_differences, table_dump,
 )
 from .test_verification import TRANSPORT, World, codes, demo, detail, resign, view
 
@@ -1253,6 +1254,216 @@ class LifecycleRebuildTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual((again["report_digest"], again["dag_digest"]), (live["report_digest"], live["dag_digest"]))
         finally:
             await rebuilt.store.close()
+
+
+
+class RetentionTests(unittest.IsolatedAsyncioTestCase):
+    """Upward aggregation keeps a version of every consolidation above each note it applies.  The log carries a small
+    derived event per version, whatever the topic beneath has grown to, and versions retired longer than
+    MYCELIC_DERIVED_RETENTION_DAYS are deleted with their edges and derived events, so the database stops growing under
+    churn at a constant number of notes, and what stays is exactly what the log derives."""
+
+    TOPIC = "ops:docks"
+    AGENTS = [(f"a-{t}-{i}", f"t{t}") for t in range(3) for i in range(2)]
+
+    async def harness(self, **overrides: Any) -> ServiceHarness:
+        h = await ServiceHarness(event_signing_key=K, **overrides).start()
+        self.addAsyncCleanup(h.close)
+        for agent, team in self.AGENTS:
+            await h.register(agent, team=team)
+        await h.settle()
+        return h
+
+    async def share(self, h: ServiceHarness, rounds: int, start: int = 0) -> list[str]:
+        ids = []
+        for n in range(start, start + rounds):
+            for agent, _ in self.AGENTS:
+                ids.append(await h.observe(agent, f"Dock {n} is closed ({agent}).", topic=self.TOPIC, visibility="org"))
+        await h.settle()
+        return ids
+
+    @staticmethod
+    def derived_event_sizes(h: ServiceHarness) -> tuple[int, int]:
+        """The largest memory.derived event in the database and on the log (its wire bytes), so far."""
+        db = max(len(r["payload"]) for r in h.service.store._conn.execute("SELECT payload FROM events WHERE kind='memory.derived'"))
+        log = max(len(payload) for subject, payload, _, _ in h.service.transport._log if subject.endswith(".memory-derived"))
+        return db, log
+
+    @staticmethod
+    def counts(h: ServiceHarness) -> dict[str, int]:
+        c = h.service.store._conn
+        return {"memories": c.execute("SELECT COUNT(*) FROM memories").fetchone()[0],
+                "derived": c.execute("SELECT COUNT(*) FROM memories WHERE operator != 'agent_observation'").fetchone()[0],
+                "retired_derived": c.execute("SELECT COUNT(*) FROM memories WHERE status != 'active' "
+                                             "AND operator != 'agent_observation'").fetchone()[0],
+                "edges": c.execute("SELECT COUNT(*) FROM lineage_edges").fetchone()[0],
+                "derived_events": c.execute("SELECT COUNT(*) FROM events WHERE kind='memory.derived'").fetchone()[0]}
+
+    def no_dangling_lineage(self, store: MycelicStore) -> None:
+        """Every lineage edge left joins two rows that exist (a version is deleted only after everything resting on it)."""
+        dangling = store._conn.execute(
+            """SELECT e.child_id, e.parent_id FROM lineage_edges e
+               WHERE NOT EXISTS (SELECT 1 FROM memories m WHERE m.memory_id = e.parent_id)
+                  OR NOT EXISTS (SELECT 1 FROM memories m WHERE m.memory_id = e.child_id)""").fetchall()
+        self.assertEqual([tuple(r) for r in dangling], [])
+
+    async def test_derived_events_stay_small_whatever_the_topic_grows_to(self) -> None:
+        h = await self.harness()
+        await self.share(h, 5)                          # 30 notes on the topic
+        early = self.derived_event_sizes(h)
+        await self.share(h, 35, start=5)                # 240
+        late = self.derived_event_sizes(h)
+        [enterprise] = h.service.store.list_memories(ORG, layers=["enterprise"])
+        self.assertEqual(len(enterprise.metadata["roots"]), 240)
+        for before, after in zip(early, late):
+            self.assertLess(after, 4096, "a few kilobytes at most")
+            self.assertLess(after - before, 300, "and not growing with the notes beneath")
+        ev = h.service.store.get_event(enterprise.event_id)
+        self.assertEqual(ev.kind, "memory.derived")
+        payload = ev.payload
+        self.assertEqual((payload["memory_id"], payload["layer"], payload["support"], payload["parent_count"]),
+                         (enterprise.memory_id, "enterprise", 6, 1))
+        self.assertNotIn("roots", payload["metadata"])
+        self.assertNotIn("contributing_agents", payload["metadata"])
+        self.assertNotIn("parents", payload)
+        self.assertEqual(payload["metadata"]["agg_key"], self.TOPIC)
+        # informational as before: this node applied it as a duplicate, and a stranger's copy is still never inserted
+        self.assertEqual(ev.status, "applied")
+
+    async def test_retired_versions_are_deleted_after_the_retention_and_churn_stops_growing(self) -> None:
+        h = await self.harness()
+        s, st = h.service, h.service.store
+        notes = await self.share(h, 10)                 # 60 notes
+        self.assertTrue(any(t.get_name() == "mycelic-retention" for t in s._tasks))
+        self.assertEqual((await s.health())["checks"]["retention"]["retention_days"], 7.0)
+
+        async def churn(cycles: int, start: int) -> None:
+            for n in range(cycles):
+                agent, _ = self.AGENTS[n % len(self.AGENTS)]
+                victim = next(m.memory_id for m in notes_of(st, agent) if m.status == "active")
+                await s.retract(h.principal(agent), victim, "superseded by a fresh report")
+                await h.observe(agent, f"Dock {start + n} reopened ({agent}).", topic=self.TOPIC, visibility="org")
+                await h.settle()
+
+        await churn(12, 100)
+        grown = self.counts(h)
+        self.assertGreater(grown["retired_derived"], 50)
+        superseded = st.list_memories(ORG, layers=["enterprise"], status="superseded", limit=1)[0]
+        top = st.list_memories(ORG, layers=["enterprise"])[0]
+        viewer = h.principal("a-0-0")
+        self.assertEqual((await s.verify(viewer, superseded.memory_id))["current_version"], top.memory_id)
+        # within the retention nothing goes, and with retention off nothing ever does
+        self.assertEqual(await s.prune_retired(), 0)
+        s.settings.derived_retention_days = 0
+        self.assertEqual(await s.prune_retired(now=utcnow() + timedelta(days=365)), 0)
+        s.settings.derived_retention_days = 7
+        # nor during a replay, which re-derives what it replays
+        s._replay_target = 10**9
+        self.assertEqual(await s.prune_retired(now=utcnow() + timedelta(days=8)), 0)
+        s._replay_target = None
+        self.assertEqual(self.counts(h), grown)
+        # a version whose derived event is still in the outbox (a broker outage longer than the retention) stays
+        held = st.list_memories(ORG, layers=["team"], status="superseded", limit=1)[0]
+        st._conn.execute("UPDATE events SET status='pending' WHERE event_id=?", (held.event_id,))
+        # batch by batch: a version goes only once nothing rests on it any more, so no lineage is ever left dangling
+        active_before = {m.memory_id: m for m in st.list_memories(ORG, status="active", limit=10_000)}
+        cutoff = iso(utcnow() + timedelta(days=1))
+        while True:
+            async with st.transaction() as tx:
+                n, _, _ = tx.prune_retired(cutoff, limit=7)
+            self.no_dangling_lineage(st)
+            if not n:
+                break
+        self.assertIsNotNone(st.get_memory(held.memory_id))
+        st._conn.execute("UPDATE events SET status='published' WHERE event_id=?", (held.event_id,))
+        pruned = await s.prune_retired(now=utcnow() + timedelta(days=8))
+        self.assertGreaterEqual(pruned, 1, "the held version, once its event left the outbox")
+        after = self.counts(h)
+        self.assertEqual(after["retired_derived"], 0)
+        self.assertEqual({m.memory_id for m in st.list_memories(ORG, status="active", limit=10_000)}, set(active_before),
+                         "nothing active was touched")
+        self.assertEqual(len(st.list_memories(ORG, status="retracted", operator="agent_observation", limit=10_000)), 12,
+                         "retracted notes stay: they are the log's, and lineage's roots")
+        self.no_dangling_lineage(st)
+        self.assertEqual(broken_chains(st, ORG), [])
+        self.assertEqual(invariant_violations(s, ORG), [])
+        self.assertEqual((await s.verify(viewer, top.memory_id))["verdict"], "verified")
+        with self.assertRaises(NotFound):
+            await s.verify(viewer, superseded.memory_id)
+        self.assertEqual(st.get_event(superseded.event_id), None, "its derived event went with it")
+        self.assertIsNotNone(st.get_event(top.event_id))
+        [row] = audits(st, "memory.pruned")                 # one row per sweep that deleted something
+        self.assertEqual((row["detail"]["memories"], row["detail"]["retention_days"]), (pruned, 7))
+        self.assertEqual(s.metrics.memories_pruned._value.get(), pruned)
+        self.assertEqual(grown["memories"] - after["memories"], grown["retired_derived"])
+        # churn at a constant number of notes no longer grows what aggregation keeps: the same cycles again, pruned, leave
+        # the same number of derived rows, edges and derived events; the log's own rows grow by the 12 retracted notes
+        await churn(12, 200)
+        await s.prune_retired(now=utcnow() + timedelta(days=8))
+        self.assertEqual(self.counts(h), {**after, "memories": after["memories"] + 12})
+        # and what stays is what the log derives: a rebuild holds every row kept here, each with the same digest
+        log = [json.loads(payload) for _, payload, _, _ in s.transport._log]
+        rebuilt = await rebuild(log, h.tmp.name, event_signing_key=K)
+        self.addAsyncCleanup(rebuilt.close)
+        live = {r["memory_id"]: (r["status"], r["digest"]) for r in st._conn.execute("SELECT memory_id, status, digest FROM memories")}
+        again = {r["memory_id"]: (r["status"], r["digest"]) for r in rebuilt.store._conn.execute(
+            "SELECT memory_id, status, digest FROM memories")}
+        self.assertEqual({mid: again.get(mid) for mid in live}, live)
+        edges = lambda store: {tuple(r) for r in store._conn.execute("SELECT child_id, parent_id FROM lineage_edges")}
+        self.assertLessEqual(edges(h.service.store), edges(rebuilt.store))
+
+    async def test_a_rebuild_from_weeks_of_log_keeps_the_retention_not_every_version(self) -> None:
+        """A rebuild after a lost volume replays the whole log into a fresh database.  A version is retired in the log
+        time of the event that retired it, and the replay sweeps on the log's clock, so the rebuild deletes as it goes what
+        the live node had deleted by then: it never holds every version weeks of log derived, and after its first sweep
+        it holds what the live node holds, row for row."""
+        days, per_day = 12, 3
+        start = utcnow() - timedelta(days=days)
+        clock = [start]
+        with mock.patch("mycelic.models.utcnow", lambda: clock[0]), mock.patch("mycelic.service.utcnow", lambda: clock[0]):
+            h = await self.harness()
+            s, st = h.service, h.service.store
+            await self.share(h, 2)
+            for day in range(days):
+                for n in range(per_day):                # a different agent for each cycle of a day
+                    agent, _ = self.AGENTS[(day * per_day + n) % len(self.AGENTS)]
+                    victim = next(m.memory_id for m in notes_of(st, agent) if m.status == "active")
+                    await s.retract(h.principal(agent), victim, "superseded by a fresh report")
+                    await h.observe(agent, f"Dock {day}-{n} reopened ({agent}).", topic=self.TOPIC, visibility="org")
+                await h.settle()
+                clock[0] += timedelta(days=1)
+                await s.prune_retired()                 # the live node's sweep, once a day here
+        retired = lambda store: {r["memory_id"]: r["retired_at"] for r in store._conn.execute(
+            "SELECT memory_id, retired_at FROM memories WHERE status != 'active' AND operator != 'agent_observation'")}
+        live = retired(st)
+        ever = len(live) + s.metrics.memories_pruned._value.get()
+        self.assertGreater(ever, 2 * len(live), "the live node deleted most of the versions the log derived")
+        # the volume is lost: a node on a fresh database replays the stream through its consumer
+        fresh = await ServiceHarness(event_signing_key=K, transport=InProcessTransport(_log=list(s.transport._log))).start()
+        self.addAsyncCleanup(fresh.close)
+        await fresh.settle(60)
+        rebuilt = fresh.service
+        self.assertEqual(rebuilt.metrics.recoveries.labels("replay_fresh_db")._value.get(), 1)
+        again = retired(rebuilt.store)
+        # each version is stamped with the log time of the event that retired it, on the live node and in the rebuild
+        self.assertEqual({mid: again.get(mid) for mid in live}, live)
+        # the replay deleted as it went, on the log's clock: besides what the live node holds it kept only the versions of
+        # the day the live node's last sweep, a day after the log's last event, passed
+        self.assertGreater(rebuilt.metrics.memories_pruned._value.get(), 0)
+        self.assertEqual({again[mid] for mid in set(again) - set(live)}, {iso(start + timedelta(days=days - 7))})
+        self.assertEqual(audits(rebuilt.store, "memory.pruned")[0]["detail"]["retention_days"], 7)
+        # and its first sweep, at the time of the live node's last, leaves the same rows, digests and edges
+        await rebuilt.prune_retired(now=clock[0])
+        rows = lambda store: {r["memory_id"]: tuple(r)[1:] for r in store._conn.execute(
+            "SELECT memory_id, status, digest, retired_at FROM memories")}
+        self.assertEqual(rows(rebuilt.store), rows(st))
+        self.assertEqual(lineage_edge_set(rebuilt.store), lineage_edge_set(st))
+        self.no_dangling_lineage(rebuilt.store)
+        self.assertEqual(broken_chains(rebuilt.store, ORG), [])
+        self.assertEqual(invariant_violations(rebuilt, ORG), [])
+        [top] = rebuilt.store.list_memories(ORG, layers=["enterprise"])
+        self.assertEqual((await rebuilt.verify(rebuilt.authenticate(f"Bearer {ADMIN_TOKEN}"), top.memory_id))["verdict"],
+                         "verified")
 
 
 if __name__ == "__main__":

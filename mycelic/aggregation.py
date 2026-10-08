@@ -13,7 +13,8 @@ the raw agent observations), and in either case every rule conclusion on T that 
 replaces the other.  Parents of the derived memory are exactly those contributions, so the lineage
 records the chain of units the knowledge passed through, and ``support``/``independent_teams`` count the
 distinct agents and teams underneath.  When more evidence arrives the coalition grows, a new derived memory
-(new deterministic id) supersedes the old one, and the old one stays readable as a previous version.
+(new deterministic id) supersedes the old one, and the old one stays readable as a previous version for
+``MYCELIC_DERIVED_RETENTION_DAYS`` (``MycelicService.prune_retired`` deletes it then).
 
 A unit with fewer registered child units than ``min_support`` (a subsidiary with one department) also holds once one
 of its children contributes that child's own consolidation (which already stands for ``min_support`` agents): it
@@ -119,6 +120,9 @@ MAX_DERIVED_TEXT = 2000    # characters of any derived text (consolidation or co
 COALITION_SEARCH_NODES = 20_000   # selections one rule evaluation tries at most when the strongest per slot falls short
 REDACTED = "[REDACTED]"   # a memory whose text is this literal never fills a slot (``RuleBasedSynthesizer``)
 QUOTABLE_ABOVE_TEAM = ("org", "rule")   # statement origins a consolidation above team level may quote
+#: the metadata a ``memory.derived`` event carries (:meth:`Derivation.event_payload`): none of it grows with the evidence
+EVENT_METADATA = ("agg_key", "child_layer", "children", "parent_count", "version_of", "promoted_from",
+                  "effective_min_support", "conflict", "value", "rule_chain")
 
 
 @dataclass
@@ -131,8 +135,18 @@ class Derivation:
     parents: list[Memory] = field(default_factory=list)
 
     def event_payload(self) -> dict[str, Any]:
+        """The ``memory.derived`` event.  It is informational (the consumer never inserts it: ``MycelicService.apply_event``),
+        so it says which memory was derived, where, from how many parents and under which derivation, and leaves out
+        what grows with the evidence beneath it (one root id and one contributing agent per note in the metadata, one
+        lineage edge per parent): an event of a few kilobytes at most however many notes the memory rests on, where the
+        whole memory and its edges made the log grow with the square of a busy topic.  GET /memory/{id} and
+        GET /lineage/{id} answer the rest."""
         payload = self.memory.to_dict()
-        payload["parents"] = [e.to_dict() for e in self.edges]
+        meta = payload.get("metadata") or {}
+        payload["metadata"] = {k: meta[k] for k in EVENT_METADATA if k in meta}
+        if isinstance(meta.get("derivation"), dict):        # the version and the rule's digest, not the rule's snapshot
+            payload["metadata"]["derivation"] = {k: v for k, v in meta["derivation"].items() if k != "rule"}
+        payload["parent_count"] = len(self.edges)
         payload["supersedes"] = self.supersedes
         return payload
 

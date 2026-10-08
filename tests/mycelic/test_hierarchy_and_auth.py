@@ -78,12 +78,14 @@ class AuthTests(unittest.TestCase):
         self.assertFalse(r.in_debt("k", now=2.0))
         self.assertFalse(r.allow("k", now=2.0), "out of debt is not yet solvent")
         self.assertTrue(r.allow("k", now=3.0))
-        # a debt is never deeper than one burst: repaid within (burst + 1) / rps seconds
-        r.take("k", 1_000_000, now=3.0)
-        self.assertEqual(r._buckets["k"].tokens, -10.0)
-        self.assertTrue(r.in_debt("k", now=12.5))
-        self.assertFalse(r.allow("k", now=13.5))
-        self.assertTrue(r.allow("k", now=14.0))
+        # a debt is as deep as the charge, past one burst too (a cap would price every long walk the same): a charge of 25
+        # tokens at 1 token/s keeps the caller refused for 25 s
+        r.take("k", 25, now=3.0)
+        self.assertEqual(r._buckets["k"].tokens, -25.0)
+        self.assertTrue(r.in_debt("k", now=27.5))
+        self.assertFalse(r.in_debt("k", now=28.0))
+        self.assertFalse(r.allow("k", now=28.5))
+        self.assertTrue(r.allow("k", now=29.0))
         # nothing to charge, and an unknown key, create no bucket
         r.take("other", 0, now=0.0)
         r.take("other", -3, now=0.0)

@@ -197,10 +197,16 @@ def cmd_query(args: argparse.Namespace) -> int:
     lin = ans.get("lineage") or {}
     print(f"lineage: {lin.get('contributing_agents')} agents, {lin.get('contributing_teams')} teams, layers {lin.get('layers')}, "
           f"reconstructable={lin.get('reconstructable')}  (memory {ans['memory_id']})")
+    if ans.get("conflict"):
+        print("conflict: notes beneath this answer claim different values (do not act on it before that is resolved)")
     if "verification" in ans:
         v = ans["verification"]
         print(f"verification: {v['verdict']} (derived_correctly={json.dumps(v['derived_correctly'])}, "
-              f"still_true={json.dumps(v['still_true'])})")
+              f"still_true={json.dumps(v['still_true'])})" + (", disputed" if v.get("disputed") else ""))
+        for r in v.get("reasons") or []:
+            print(f"  {r['severity']} {r['code']} x{r['count']}")
+        for w in v.get("warnings") or []:
+            print(f"  W {w['code']} x{w['count']}")
     for h in res["results"][1:]:
         m = h["memory"]
         print(f"  - [{m['layer']}] {m['text'][:120]}")

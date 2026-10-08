@@ -197,13 +197,14 @@ class RateLimiter:
         return False
 
     def take(self, key: str, cost: int, now: float | None = None) -> None:
-        """Charge ``cost`` tokens after the fact (a verification, priced once its walk size is known), into debt if need
-        be; a no-op when limiting is off or ``cost <= 0``.  A debt is never deeper than one burst, so it is repaid in at
-        most ``(burst + 1) / rps`` seconds."""
+        """Charge ``cost`` tokens after the fact (a walk, priced once its size and duration are known), into debt if need
+        be; a no-op when limiting is off or ``cost <= 0``.  The debt is as deep as the charge, so a walk priced at T
+        seconds of refill keeps its caller refused for T seconds, however long it was (a debt capped at one burst would
+        make every walk past it cost the same)."""
         if self.rps <= 0 or cost <= 0:
             return
         b = self._refill(key, self.clock() if now is None else now)
-        b.tokens = max(b.tokens - float(cost), -float(self.burst))
+        b.tokens -= float(cost)
 
     def in_debt(self, key: str, now: float | None = None) -> bool:
         """Has :meth:`take` left the bucket below zero (after refilling it)?  Creates no bucket."""
