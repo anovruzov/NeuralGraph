@@ -178,8 +178,9 @@ async def test_draft_question_rules() -> None:
     out = await run("draft_question")
     assert out["question"] == "What recurring operational blockers related to deployments have you recorded, and what caused them?"
     assert out["kind"] == "gap" and out["candidate_domains"] == ["deployments"]
+    # the text is never dressed up to look new: the caller's duplicate check rejects an identical question
     dup = await run("draft_question", {**INPUTS["draft_question"], "existing_question_texts": [out["question"]]})
-    assert dup["question"].endswith(" (follow-up)")
+    assert dup["question"] == out["question"]
     base = INPUTS["draft_question"]
     v = await run("draft_question", {**base, "gap": {"kind": "verification", "domains": [], "description": "backups run nightly"}})
     assert v["question"] == "What evidence do you hold that confirms or contradicts: backups run nightly?"

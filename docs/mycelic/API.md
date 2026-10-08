@@ -117,7 +117,7 @@ Holder process endpoints (bearer = holder key): `POST /holders/{holder_id}/heart
 
 `claim` = `{claim_id, scope_unit_id, visibility, text, kind, status, confidence, valid_from, valid_to, version, supersedes_claim_id, superseded_by, goal_id, question_id, created_by:{type, id, name}, support:{independent_roots:n, copied_refs:n, unknown_independence:n, holders:[holder_id], roots:[source_root_id]}, freshness_at, created_at, updated_at}`
 
-`evidence_ref` (disclosed view) = `{ref_id, holder_id, holder_name, source_root_id, root_known, kind, title, disclosed_excerpt, disclosure_level, observed_at, freshness_at, status, version, copies_of_same_root:n}`
+`evidence_ref` (disclosed view) = `{ref_id, holder_id, holder_name, source_root_id, root_known, kind, title, disclosed_excerpt, disclosure_level, observed_at, freshness_at, status: active|revised|retracted|unavailable, version, copies_of_same_root:n, role: supports|contradicts|context|superseded, weight, demoted?: reason the gate counts it as context, revised_root_id?}` — only `active` references with role `supports` count as support; `freshness_at` is the observation time
 
 | Method | Path | Notes |
 |---|---|---|
@@ -125,7 +125,7 @@ Holder process endpoints (bearer = holder key): `POST /holders/{holder_id}/heart
 | GET | `/discoveries/{id}` | → `{discovery, claims:[claim], evidence:[evidence_ref], conflicts:[conflict], lineage:{nodes, edges}, followups:[question(summary)], revisions:[revision]}` |
 | POST | `/discoveries/{id}/review` | `{action: reviewed|accepted|dismissed|escalated|comment, note?}` → `{discovery}` (escalate → creates a copy one level up if the caller leads that unit or the parent) |
 | GET | `/claims?scope_unit_id=&status=&goal_id=&q=` | → `{items:[claim]}` |
-| GET | `/claims/{id}` | → `{claim, evidence:[evidence_ref], derivations:[derivation], conflicts:[conflict], revisions:[revision], history:[claim], dependencies:{roots:[{source_root_id, ref_count, holders}], unknown:[ref_id]}, freshness:{freshness_at, age_days, stale:bool}}` |
+| GET | `/claims/{id}` | → `{claim, evidence:[evidence_ref], derivations:[derivation], conflicts:[conflict], revisions:[revision], history:[claim], dependencies:{roots:[{source_root_id, ref_count, holders}], unknown:[ref_id], inactive:[ref_id]}, support_notes:[string], freshness:{freshness_at, age_days, stale:bool}}` |
 | POST | `/claims/{id}/retract` | creator or unit lead `{reason}` |
 | GET | `/evidence/{ref_id}` | → `{evidence_ref, claims:[claim(summary)]}` |
 | GET | `/evidence/{ref_id}/raw` | owner or raw grant → `{ref_id, holder_id, doc_id, title, text, observed_at, version}` fetched from the holder over the transport |

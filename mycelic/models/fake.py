@@ -171,7 +171,13 @@ class _Groups:
 def identify_gap(inp: dict[str, Any]) -> dict[str, Any]:
     goal = inp.get("goal")
     goal_title = _text_of(goal, "title", "name", "objective") or "the goal"
-    observations = _dicts(inp.get("observations"))
+    raw_obs = inp.get("observations")
+    if isinstance(raw_obs, dict):
+        # the loop sends observations grouped by kind ({"open_conflicts": [...], "stale_claims": [...], ...})
+        observations = [{**item, "kind": item.get("kind") or key} for key, items in raw_obs.items() if isinstance(items, list)
+                        for item in items if isinstance(item, dict)]
+    else:
+        observations = _dicts(raw_obs)
     claims = _dicts(inp.get("existing_claims"))
     domains = [str(d).strip() for d in _list(inp.get("candidate_domains")) if _s(d)]
     max_gaps = _int(inp.get("max_gaps"), 5) or 5
@@ -248,9 +254,6 @@ def draft_question(inp: dict[str, Any]) -> dict[str, Any]:
     else:
         kind = "gap"
         question = f"What recurring operational blockers related to {domain} have you recorded, and what caused them?"
-    existing = {_s(t).lower() for t in _list(inp.get("existing_question_texts"))}
-    if question.lower() in existing:
-        question += " (follow-up)"
     days = _int(inp.get("valid_window_days"), 90) or 90
     return {"question": question, "kind": kind, "candidate_domains": domains,
             "uncertainty_note": f"Answer from your own records; answers are considered valid for {days} days."}
@@ -337,7 +340,7 @@ def evaluate_responses(inp: dict[str, Any]) -> dict[str, Any]:
 
 
 def compose_verification_question(inp: dict[str, Any]) -> dict[str, Any]:
-    words = content_words(inp.get("finding_text"), drop_numbers=True)[:6]
+    words = content_words(inp.get("finding_text"), drop_numbers=True)[:5]
     topic = " ".join(words) or _s(inp.get("original_question")) or "this topic"
     return {"question": f"Independently of any other team: what do your own records show about {topic}? Include dates."}
 

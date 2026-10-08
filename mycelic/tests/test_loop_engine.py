@@ -6,6 +6,8 @@ here are tiny scripted responders that follow the same answer_from_evidence rule
 """
 from __future__ import annotations
 
+import json
+
 import asyncio
 from typing import Any
 
@@ -85,6 +87,11 @@ class ScriptedHolder:
         self.answered.append(q["question_id"])
         resp = Envelope.new(Subjects.responses(env.tenant_id), "response", env.tenant_id, payload, msg_id=f"resp:{q['question_id']}:{self.holder['holder_id']}").sign(self.route_key)
         await self.t.publish(resp)
+
+
+def job_errors(db) -> list[str]:
+    """Errors any job raised (a lost lease is the queue working, not an error)."""
+    return [r["last_error"] for r in db.all("SELECT last_error FROM jobs WHERE last_error IS NOT NULL AND last_error NOT LIKE 'lease expired%'")]
 
 
 async def run_until_quiet(s, *, rounds: int = 40) -> int:
@@ -169,6 +176,7 @@ async def test_loop_end_to_end(db, org, auth, authz):
     assert goal["status"] == "active" and goal["loop"]["state"] == "waiting"
     # drive the durable queue until nothing is runnable: tick -> questions -> route -> (holders answer inline) -> collect -> evaluate -> commit -> next tick ...
     await run_until_quiet(s)
+    assert job_errors(db) == [] and s["jobs"].counts().get("dead", 0) == 0
     qs = s["questions"].list(authz.principal_for_system(o["t"]), goal_id=goal["goal_id"], limit=200)
     assert qs, "the loop generated questions automatically"
     assert all(q["asker"]["type"] == "loop" for q in qs) and all(q["priority_breakdown"]["method"] == "heuristic" for q in qs)
@@ -210,8 +218,21 @@ async def test_loop_end_to_end(db, org, auth, authz):
     ver = [q for q in qs if q["kind"] == "verification" and q["parent_question_id"] == cu_q["question_id"]]
     assert ver and ver[0]["status"] == "failed" and ver[0]["result"]["outcome"] == "no_independent_holders"
     assert o["holders"]["rafael"]["holder_id"] in ver[0]["policy"]["exclude_holder_ids"]
-    # the blind verification question never contains the numbers of the finding
-    assert "two" not in ver[0]["text"].split() or True
+    # every verification question is blind: tied to its target claim, worded without the claim's numbers or wording
+    from mycelic.inquiry.service import _longest_run, _NUM
+    all_q = db.all("SELECT question_id, kind, text, trigger, policy FROM questions WHERE goal_id=?", (goal["goal_id"],))
+    for row in all_q:
+        trig, pol = json.loads(row["trigger"]), json.loads(row["policy"])
+        assert not row["text"].endswith("(follow-up)")
+        if row["kind"] == "verification":
+            target = s["knowledge"].get_claim(trig["claim_id"])
+            assert pol["blind_verification"] is True and target is not None
+            assert not (set(_NUM.findall(row["text"])) & set(_NUM.findall(target["text"]))) and _longest_run(row["text"], target["text"]) < 6
+        if row["kind"] == "contradiction":
+            assert trig.get("conflict_id") and pol["blind_verification"] is True
+            for side in ("claim_a_id", "claim_b_id"):
+                cl = s["knowledge"].get_claim(s["knowledge"].get_conflict(trig["conflict_id"])[side])
+                assert not (set(_NUM.findall(row["text"])) & set(_NUM.findall(cl["text"])))
     # budget accounting: usage recorded and charged; questions counted
     g = s["goals"].get_goal(goal["goal_id"])
     assert g["budget_spent"]["questions"] >= 3 and g["budget_spent"]["tokens"] > 0
@@ -223,10 +244,15 @@ async def test_loop_end_to_end(db, org, auth, authz):
     assert len(s["knowledge"].list_discoveries(p_petra, goal_id=goal["goal_id"])) >= 3
     # loop state reflects reality and waits without spending tokens when nothing is useful
     calls_before = len(s["router"].providers["fake"].calls)
-    await s["goals"].enqueue_tick(goal["goal_id"], reason="test", force=True)
-    await s["worker"].drain(max_jobs=5)
+    q_before = len(all_q)
+    for _ in range(3):
+        await s["goals"].enqueue_tick(goal["goal_id"], reason="test", force=True)
+        await s["worker"].drain(max_jobs=5)
     lv = s["goals"].loop_view(goal["goal_id"])
     assert lv["state"] in ("waiting", "active"), lv
+    # once every target has had its question, scheduled checks cost nothing and re-ask nothing
+    assert len(s["router"].providers["fake"].calls) == calls_before, s["router"].providers["fake"].calls[calls_before:]
+    assert int(db.scalar("SELECT COUNT(*) FROM questions WHERE goal_id=?", (goal["goal_id"],), 0)) == q_before
     # pause stops ticks; resume restarts; run_now queues an immediate tick
     await s["goals"].loop_control(p_petra, goal["goal_id"], "pause")
     assert s["goals"].get_loop(goal["goal_id"])["state"] == "paused" and s["jobs"].counts().get("queued", 0) == 0

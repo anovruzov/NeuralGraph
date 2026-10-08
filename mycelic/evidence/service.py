@@ -601,14 +601,15 @@ class EvidenceStore:
         refs = [{
             "ref_id": i["ref_id"], "source_root_id": i["doc"]["source_root_id"], "root_known": bool(i["doc"]["source_root_id"]),
             "kind": i["kind"], "title": i["title"], "disclosed_excerpt": i["disclosed"], "disclosure_level": level,
-            "observed_at": i["observed_at"], "freshness_at": i["doc"]["updated_at"],
+            # evidence is as fresh as the time its content was observed, not the time it was uploaded or indexed
+            "observed_at": i["observed_at"], "freshness_at": i["observed_at"] or i["doc"].get("observed_at"),
         } for i in used]
         try:
             confidence = max(0.0, min(1.0, float(model_out.get("confidence") or 0.0)))
         except (TypeError, ValueError):
             confidence = 0.5
         response = {**base, "status": "answered", "content": content, "confidence": round(confidence, 3), "evidence_refs": refs,
-                    "provenance": provenance, "freshness_at": max(r["freshness_at"] for r in refs)}
+                    "provenance": provenance, "freshness_at": max((r["freshness_at"] for r in refs if r["freshness_at"]), default=None)}
         exports = [{"ref_id": i["ref_id"], "memory_id": i["memory_id"], "doc_id": i["doc"]["doc_id"], "question_id": qid,
                     "disclosed_excerpt": i["disclosed"], "disclosure_level": level} for i in used]
         return await self._commit_answer(exports, response, idempotency_key)
@@ -648,7 +649,7 @@ class EvidenceStore:
             ref_id = (known.get(memory_id) or {}).get("ref_id") or new_ref_id()
             refs.append({"ref_id": ref_id, "source_root_id": doc["source_root_id"], "root_known": bool(doc["source_root_id"]), "kind": doc["kind"],
                          "title": self._disclosed_title(doc, level), "disclosed_excerpt": disclosed, "disclosure_level": level, "observed_at": doc.get("observed_at"),
-                         "freshness_at": doc["updated_at"]})
+                         "freshness_at": doc.get("observed_at")})
             exports.append({"ref_id": ref_id, "memory_id": memory_id, "doc_id": doc_id, "question_id": qid, "disclosed_excerpt": disclosed,
                             "disclosure_level": level})
         provenance["memory_count"] = len(refs)
@@ -659,7 +660,7 @@ class EvidenceStore:
         max_answer = int(self.export_policy["max_answer_chars"])
         response = {**base, "status": "answered", "content": clip(redact(content, self._deny), max_answer) if max_answer else redact(content, self._deny),
                     "confidence": 0.8, "evidence_refs": refs, "provenance": provenance,
-                    "freshness_at": max(r["freshness_at"] for r in refs) if refs else None}
+                    "freshness_at": max((r["freshness_at"] for r in refs if r["freshness_at"]), default=None)}
         return await self._commit_answer(exports, response, idempotency_key, op="manual_response")
 
     # ------------------------------------------------------------------ internals

@@ -24,6 +24,11 @@ LOOP_STATES = ("active", "waiting", "paused", "budget_exhausted", "blocked", "fa
 GOAL_JSON = ("success_criteria", "baseline", "measurement_source", "permitted_actions", "budget", "budget_spent", "dependencies", "progress", "assignees")
 LOOP_JSON = ("config", "stats")
 DEFAULT_PERMITTED_ACTIONS = ["ask_questions", "route_to_holders", "verify", "synthesize", "propose_actions"]
+# question statuses that still have work ahead (mirrors inquiry.LIVE_STATUSES, which imports this module) and the job
+# that performs each one's next step
+LIVE_QUESTION_STATUSES = ("draft", "routed", "collecting", "evaluating", "verifying")
+_STEP_FOR_STATUS = {"draft": "question.route", "routed": "question.route", "collecting": "question.collect", "evaluating": "question.evaluate",
+                    "verifying": "question.commit"}
 
 
 def _clamp(x: float) -> float:
@@ -315,9 +320,11 @@ class GoalService:
                 sub.setdefault("priority", g["priority"])
                 extra["subgoals"].append(await self.create_goal(principal, sub, activate=bool(sg.get("activate", False)), is_demo=bool(g.get("is_demo"))))
         if action in ("activate", "resume"):
+            await self.resume_questions(goal_id)
             await self.enqueue_tick(goal_id, reason=action, priority=2)
         if action in ("complete", "archive", "pause"):
             await self.jobs.cancel(ref_type="goal", ref_id=goal_id)
+            await self.halt_questions(goal_id, cancel=action != "pause", reason=f"goal {new_status}")
         out = self.goal_view(self.get_goal(goal_id))  # type: ignore[arg-type]
         out.update(extra)
         return out
@@ -392,9 +399,12 @@ class GoalService:
             return {"known": True, "value": round(value, 3), "method": "success_criteria", "criteria": per, "measured": len(known), "total": len(per),
                     "note": f"{len(known)} of {len(per)} criteria measured", "computed_at": now}
         if sub_known:
-            value = sum(float(s["progress"]["value"]) for s in sub_known) / len(subs)
+            # the mean over subgoals that report a measurement; unmeasured subgoals are not zero, they are unknown (and named)
+            value = sum(float(s["progress"]["value"]) for s in sub_known) / len(sub_known)
+            unmeasured = [s["goal_id"] for s in subs if s not in sub_known]
             return {"known": True, "value": round(value, 3), "method": "subgoals", "criteria": per, "measured": len(sub_known), "total": len(subs),
-                    "note": f"{len(sub_known)} of {len(subs)} subgoals report progress", "computed_at": now}
+                    "partial": bool(unmeasured), "unmeasured_subgoal_ids": unmeasured,
+                    "note": f"mean of {len(sub_known)} measured subgoal(s); {len(unmeasured)} of {len(subs)} report no measurement yet", "computed_at": now}
         return {"known": False, "method": "none", "criteria": per, "measured": 0, "total": len(per), "note": "no reliable measurement recorded", "computed_at": now}
 
     async def recompute_progress(self, goal_id: str) -> dict[str, Any]:
@@ -449,10 +459,62 @@ class GoalService:
             elif action == "run_now":
                 self._loop_desired_sync(c, g, "active", principal, explanation="run requested by a person; tick queued")
         if action in ("start", "resume", "run_now"):
+            await self.resume_questions(goal_id)
             await self.enqueue_tick(goal_id, reason=action, priority=1 if action == "run_now" else 2, force=action == "run_now")
         else:
             await self.jobs.cancel(ref_type="goal", ref_id=goal_id, kinds=["loop.tick"])
+            await self.halt_questions(goal_id, cancel=action == "stop", reason=f"loop {'stopped' if action == 'stop' else 'paused'}")
         return self.loop_view(goal_id)
+
+    async def halt_questions(self, goal_id: str, *, cancel: bool, reason: str) -> int:
+        """Stop the goal's question pipeline from spending tokens or reaching holders.
+
+        Queued jobs of its live questions are cancelled either way. Pausing keeps the questions (and every response that
+        still arrives) for :meth:`resume_questions`; stopping, completing or archiving cancels them and revokes their open
+        routes. A step already running when this happens checks the goal again before it calls a model or a holder."""
+        rows = self.db.all(f"SELECT question_id, tenant_id, scope_unit_id FROM questions WHERE goal_id=? AND status IN ({','.join('?' * len(LIVE_QUESTION_STATUSES))})",
+                           (goal_id, *LIVE_QUESTION_STATUSES))
+        if not rows:
+            return 0
+        now = now_iso()
+        async with self.db.tx() as c:
+            for r in rows:
+                qid = r["question_id"]
+                c.execute("UPDATE jobs SET status='cancelled', updated_at=?, finished_at=? WHERE ref_type='question' AND ref_id=? AND status='queued'", (now, now, qid))
+                if cancel:
+                    c.execute("UPDATE question_routes SET status='revoked', error=? WHERE question_id=? AND status IN ('pending','delivered')", (reason, qid))
+                    c.execute("UPDATE questions SET status='cancelled', result=?, updated_at=?, resolved_at=? WHERE question_id=?",
+                              (j({"outcome": "cancelled", "reason": reason}), now, now, qid))
+                    self.db.emit_sync(c, r["tenant_id"], "question.resolved", ref_type="question", ref_id=qid, payload={"status": "cancelled", "reason": reason},
+                                      audience={"unit_ids": [r["scope_unit_id"]] if r["scope_unit_id"] else []})
+            self.db.audit_sync(c, rows[0]["tenant_id"], "system", "goals", "goal.questions_halted", resource_type="goal", resource_id=goal_id,
+                               detail={"questions": len(rows), "cancelled": cancel, "reason": reason})
+        return len(rows)
+
+    async def resume_questions(self, goal_id: str) -> int:
+        """Re-queue the next step of every live question of the goal (after a pause). A step that already has a queued or
+        running job is left alone; collection waits for the routes' remaining deadline."""
+        rows = self.db.all(f"SELECT question_id, tenant_id, status FROM questions WHERE goal_id=? AND status IN ({','.join('?' * len(LIVE_QUESTION_STATUSES))})",
+                           (goal_id, *LIVE_QUESTION_STATUSES))
+        if not rows:
+            return 0
+        token = new_id("resume")
+        n = 0
+        async with self.db.tx() as c:
+            for r in rows:
+                qid, kind = r["question_id"], _STEP_FOR_STATUS[r["status"]]
+                if c.execute("SELECT 1 FROM jobs WHERE ref_type='question' AND ref_id=? AND kind=? AND status IN ('queued','leased')", (qid, kind)).fetchone():
+                    continue
+                delay = 0.0
+                if kind == "question.collect":
+                    pend = c.execute("SELECT MAX(deadline_at) AS d, SUM(status IN ('pending','delivered')) AS n FROM question_routes WHERE question_id=?", (qid,)).fetchone()
+                    deadline = parse_iso(pend["d"]) if pend and pend["n"] else None
+                    if deadline is not None:
+                        delay = max(0.0, (deadline - utcnow()).total_seconds())
+                self.jobs.enqueue_sync(c, kind, idempotency_key=f"{kind}:{qid}:{token}", tenant_id=r["tenant_id"], ref_type="question", ref_id=qid,
+                                       priority=3, delay_seconds=delay, max_attempts=5)
+                n += 1
+        return n
 
     async def enqueue_tick(self, goal_id: str, *, reason: str, priority: int = 5, delay_seconds: float = 0.0, force: bool = False) -> int | None:
         """One runnable tick per goal at a time (idempotency key on goal + reason bucket). ``force`` uses a unique key."""
@@ -486,7 +548,7 @@ class GoalService:
         g = self.get_goal(goal_id)
         async with self.db.tx() as c:
             c.execute("UPDATE goal_loops SET state=?, explanation=?, last_worker_id=COALESCE(?, last_worker_id), last_heartbeat_at=CASE WHEN ? IS NULL THEN last_heartbeat_at ELSE ? END, "
-                      "next_check_at=?, last_run_at=CASE WHEN ? THEN ? ELSE last_run_at END, run_count=run_count + ?, stats=?, updated_at=? WHERE goal_id=?",
+                      "next_check_at=COALESCE(?, next_check_at), last_run_at=CASE WHEN ? THEN ? ELSE last_run_at END, run_count=run_count + ?, stats=?, updated_at=? WHERE goal_id=?",
                       (state, explanation[:500], worker_id, worker_id, now, next_check_at, int(ran), now, int(ran), j(stats), now, goal_id))
             if g:
                 self.db.emit_sync(c, g["tenant_id"], "loop.state", ref_type="goal", ref_id=goal_id, payload={"state": state, "explanation": explanation, "next_check_at": next_check_at},

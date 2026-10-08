@@ -85,8 +85,8 @@ _register(TaskSpec(
         "related to <domain> have you recorded, and what caused them?'; verification -> 'What evidence do you hold that confirms or "
         "contradicts: <gap.description>?'; contradiction -> 'Records disagree about <gap.description>. What do your own records show, "
         "with dates?'; relationship -> 'How is <domain> connected to other blockers you have observed?'; hypothesis/prediction -> "
-        "'If <gap.description>, what would your records show? What do they show?'; when the exact text already exists append "
-        "' (follow-up)'."),
+        "'If <gap.description>, what would your records show? What do they show?'. The text is never altered to look new: a "
+        "question identical to an existing one is rejected by the caller's duplicate check."),
 ))
 
 _register(TaskSpec(
@@ -140,8 +140,8 @@ _register(TaskSpec(
         "Write a neutral question that asks an independent holder for their own records about the topic of the finding WITHOUT "
         "stating the finding, any number in it, or the conclusion. Output {question}.\n"
         "<data>{input_json}</data>"),
-    fake_rules="question = 'Independently of any other team: what do your own records show about ' + the first 6 content tokens of "
-               "finding_text (numbers removed) + '? Include dates.'",
+    fake_rules="question = 'Independently of any other team: what do your own records show about ' + the first 5 content words of "
+               "finding_text (numbers removed) + '? Include dates.' (never a run of 6+ of the finding's words, which the caller rejects)",
 ))
 
 _register(TaskSpec(

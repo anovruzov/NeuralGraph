@@ -923,12 +923,17 @@ async def check_k_progress_without_client(ctx: Ctx) -> None:
     bs = rt.goals.budget_status(ctx.gid)
     tokens = int((g.get("budget_spent") or {}).get("tokens") or 0)
     done = int(rt.jobs.counts().get("done", 0))
-    ok = closed >= 1 and tokens > base_tokens and done > base_done and not bs["exhausted"] and (sim is None or sim.status == "done")
+    dead = int(rt.jobs.counts().get("dead", 0))
+    errors = [r["last_error"] for r in rt.db.all("SELECT last_error FROM jobs WHERE last_error IS NOT NULL AND last_error NOT LIKE 'lease expired%' "
+                                                 "AND last_error NOT LIKE 'crash injected%' ORDER BY job_id DESC LIMIT 3")]
+    # progress alone is not enough: the loop must be healthy (not failed) and no job may have died or raised along the way
+    ok = (closed >= 1 and tokens > base_tokens and done > base_done and not bs["exhausted"] and (sim is None or sim.status == "done")
+          and loop.get("state") not in ("failed", "blocked") and dead == 0 and not errors)
     ctx.record("k. the worker progresses within budget with no HTTP client", ok,
                f"closed {closed} client session(s); demo.simulate job {job_id} -> {getattr(sim, 'status', None)} ({(getattr(sim, 'result', None) or {}).get('title')} "
                f"into {(getattr(sim, 'result', None) or {}).get('holder_id')} via {(getattr(sim, 'result', None) or {}).get('delivery')}); after {time.monotonic() - t0:.1f}s: "
                f"jobs done {base_done}->{done}, loop runs {base_runs}->{loop.get('run_count')}, budget_spent.tokens {base_tokens}->{tokens} "
-               f"(budget {g['budget'].get('tokens')}, exhausted={bs['exhausted']}), loop state={loop.get('state')}")
+               f"(budget {g['budget'].get('tokens')}, exhausted={bs['exhausted']}), loop state={loop.get('state')}; dead jobs={dead}; job errors={errors or 'none'}")
 
 
 async def check_j_loop_controls(ctx: Ctx) -> None:

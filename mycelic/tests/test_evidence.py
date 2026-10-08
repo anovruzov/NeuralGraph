@@ -258,9 +258,10 @@ async def test_answer_question_returns_opaque_refs_only(tmp_path: Path, router: 
     ref = resp["evidence_refs"][0]
     assert ref["source_root_id"] == doc["source_root_id"] and ref["root_known"] is True
     assert ref["kind"] == "note" and ref["title"] == "Ops incident log" and ref["disclosure_level"] == "excerpt"
-    assert ref["observed_at"] == doc["observed_at"] and ref["freshness_at"] == doc["updated_at"]
+    # freshness is the time the content was observed, not the upload time (a January roster uploaded today is not fresh)
+    assert ref["observed_at"] == doc["observed_at"] and ref["freshness_at"] == doc["observed_at"] != doc["updated_at"]
     assert "VPN" in ref["disclosed_excerpt"] and len(ref["disclosed_excerpt"]) <= DEFAULT_EXPORT_POLICY["max_excerpt_chars"]
-    assert resp["freshness_at"] == doc["updated_at"]
+    assert resp["freshness_at"] == doc["observed_at"]
     prov = resp["provenance"]
     assert prov["retrieval_operator"] == "neuralgraph.hybrid" and prov["answer_method"] == "model"
     assert set(prov["channels"]) <= {"vector", "keyword", "graph"} and prov["channels"]
@@ -522,8 +523,8 @@ async def test_manual_response_exports_one_ref_per_document(tmp_path: Path) -> N
     assert [r["title"] for r in resp["evidence_refs"]] == ["Ops incident log", "Robots 2026"]
     ops_ref = resp["evidence_refs"][0]
     assert ops_ref["disclosed_excerpt"] == (OPS_LOG.strip()[:159].rstrip() + "…") and ops_ref["disclosure_level"] == "excerpt"
-    assert ops_ref["source_root_id"] == ops["source_root_id"] and ops_ref["observed_at"] == ops["observed_at"] and ops_ref["freshness_at"] == ops["updated_at"]
-    assert resp["freshness_at"] == max(ops["updated_at"], robots["updated_at"])
+    assert ops_ref["source_root_id"] == ops["source_root_id"] and ops_ref["observed_at"] == ops["observed_at"] and ops_ref["freshness_at"] == ops["observed_at"]
+    assert resp["freshness_at"] == max(ops["observed_at"], robots["observed_at"])
     await assert_opaque(store, resp, ops["doc_id"], robots["doc_id"])
     raw = await store.raw_for_ref(ops_ref["ref_id"])
     assert raw["doc_id"] == ops["doc_id"] and raw["question_id"] == q["question_id"]

@@ -82,6 +82,16 @@ the server; the UI only sees provider names and models. Every call is recorded i
 Embeddings are a separate provider (`hash` deterministic fallback, or an OpenAI-compatible
 embedding endpoint) because the Anthropic API has no embedding endpoint.
 
+The Anthropic provider uses the official `anthropic` Python SDK (transport, retries with backoff,
+`retry-after`) with a per-model capability table: `temperature` only for models that accept sampling,
+`output_config.effort` only where accepted (`MYCELIC_ANTHROPIC_EFFORT`), thinking headroom added to
+`max_tokens` for models that think by default, and the server-side refusal fallback
+(`MYCELIC_ANTHROPIC_FALLBACKS=default|off`) for the models that support it. Tier defaults are
+`claude-haiku-5-5` / `claude-sonnet-5-5` / `claude-opus-5-5`.
+
+Budgets are charged from the usage ledger before every model call; a budget may be a total or renew
+per `day` / `week` / `month` (`budget.period`), and an exhausted loop waits for the renewal time.
+
 ## D8. Authentication and sessions without extra dependencies
 
 Passwords are hashed with `hashlib.scrypt` (stdlib). Sessions are random 256-bit tokens stored
@@ -113,6 +123,19 @@ determine the root sets `root_known=0`). A claim's independent support is the nu
 distinct known roots across holders; copied references count once; references with unknown
 roots are reported separately as *unknown independence* and never counted as independent.
 
+Only **active** references count. A reference whose source was revised, retracted or became
+unavailable is shown (`inactive_refs`) but never counted. A revision keeps the reference's original
+root (its excerpt is the old content) and records the new version's root in `meta.revised_root_id`;
+the new content enters as a new reference when a holder answers again.
+
+The gate's per-reference classification (`CommitGate.effective_refs`: revoked or no-longer-authorized
+holder → `context`; observed outside the validity window → `context`) is stored with the claim and
+re-applied by every later recomputation (freshness sweep, verification, conflict resolution), so
+evidence the gate demoted can never count again through another path.
+
+Freshness is the time the content was **observed** (written, recorded, measured) or explicitly
+re-confirmed by its holder (`meta.reconfirmed_at`) — never the upload or disclosure time.
+
 ## D12. Commit gate statuses
 
 `hypothesis` (fewer independent roots than policy requires, or model-only synthesis),
@@ -120,3 +143,36 @@ roots are reported separately as *unknown independence* and never counted as ind
 enough), `contested` (an open conflict object references it), `stale` (evidence revised or
 older than the freshness policy; re-verification scheduled), `retracted` (source retracted or
 a person retracted it). Every transition writes a `revisions` row.
+
+A claim whose supporting evidence changed at its source stays `stale` until re-verification brings
+current evidence; the changed references then become `superseded` (kept for lineage, never counted).
+A claim committed from evidence revised after the holder answered is born `stale`.
+
+## D13. Bounded inquiry is enforced by the loop, not by the model
+
+- **Targets, not text.** Verification, contradiction and deferred follow-up gaps are built
+  deterministically with the id of what they target (`trigger.claim_id` / `trigger.conflict_id` /
+  `trigger.followup_of`); a target is handled once a question about it exists (a stale claim once more
+  after each time it became stale). The model (`identify_gap`) is consulted only for open coverage
+  gaps and only once per distinct set of observations (a fingerprint stored in the loop's stats), so a
+  quiet goal's scheduled checks cost no tokens. Targets that cannot become a question are retried only
+  after the cooldown and at most three times.
+- **Blind verification.** Every verification or contradiction question is written by
+  `compose_verification_question` (topic only), tied to its target, routed away from the claim's
+  supporting holders (unless its source changed and must be re-read), and rejected by
+  `questions.create` if it states a number from the claim or six or more of its words in a row.
+- **Concurrency.** `max_concurrent_questions` holds for every question the goal starts, including
+  verification spawned at evaluation and follow-ups from synthesis; what does not fit is recorded on
+  the question (`deferred_followups`, `verification_deferred`) and asked by a later tick.
+- **Pause / stop.** Every question step checks the goal and its loop first. Pausing cancels queued
+  question jobs and keeps the questions and the responses that still arrive; resuming re-queues each
+  live question's next step (collection waits for the routes' remaining deadline). Stopping,
+  completing or archiving cancels the live questions and revokes their open routes.
+- **Disagreement.** A disagreement side that is already a committed finding *is* that finding (the
+  majority statement becomes contested, never supported beside a copy); each distinct response set is
+  committed once. An investigation retracts a record only when every holder behind it answered (a
+  timeout or decline is not evidence) and the winning side brings a source root it did not already
+  rest on; otherwise the conflict stays under investigation and the goal owner is asked to decide. A
+  conflict closed as `unresolved` leaves both claims as hypotheses.
+- **Routing failures** are recorded on the question with a cooldown; the loop becomes `blocked` only
+  when no authorized holder serves its scope at all, and a blocked loop keeps its scheduled check.

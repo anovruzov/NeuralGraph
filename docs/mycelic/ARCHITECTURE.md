@@ -92,9 +92,11 @@ Per tick (`loop.tick` job for one goal):
 
 1. **Observe** — new evidence refs, revisions, unanswered questions, open conflicts, stale claims, goal
    changes since the last tick (from the coordination DB, no model call).
-2. **Identify the gap** — candidate gaps are scored with the configurable heuristic
-   (`priority_weights`: goal value, uncertainty, impact, missing evidence, expected information gain,
-   cost). Labelled `"method": "heuristic"` everywhere it is shown.
+2. **Identify the gap** — verification, contradiction and deferred follow-up gaps are built
+   deterministically with their target ids; open coverage gaps come from one light-tier `identify_gap`
+   call, made only when the observations changed (DECISIONS D13). Candidate gaps are scored with the
+   configurable heuristic (`priority_weights`: goal value, uncertainty, impact, missing evidence,
+   expected information gain, cost). Labelled `"method": "heuristic"` everywhere it is shown.
 3. **Generate a bounded QuestionArtifact** — model tier `light`; deduplicated by `dedupe_key`
    (normalized text + goal + scope); cooldown and follow-up depth enforced; budget reserved.
 4. **Route** — `Authorizer.can_route` for each candidate holder; signed envelope published to
@@ -102,8 +104,8 @@ Per tick (`loop.tick` job for one goal):
 5. **Collect** — responses arrive on `mycelic.<tenant>.responses`; idempotent on `msg_id`; timeout →
    route `timeout`.
 6. **Evaluate** — support (distinct roots), disagreement, freshness, relevance (tier `standard`).
-7. **Verify** — when policy asks, a blind verification question (the proposed answer is *not* shown) is
-   routed to holders whose roots are not already in the support set.
+7. **Verify** — a blind verification question (topic only: no number, wording or conclusion of the
+   claim) is routed to holders outside the claim's support set, within the goal's free question slots.
 8. **Commit** — the commit gate checks authorization, schema, provenance, temporal validity and support;
    writes claims/derivations/conflicts/discoveries + revisions + events in one transaction, keyed by
    `(question_id, step)` so a replay is a no-op.

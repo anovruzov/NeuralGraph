@@ -16,7 +16,7 @@ from ..db.coord import CoordDB, row_to_dict, rows_to_dicts
 from ..org import LEVEL_FOR_UNIT_TYPE, OrgService
 from ..util import j, jl, new_id, now_iso, sha256
 from .gate import CommitGate, GateResult
-from .support import compute_support, freshness
+from .support import compute_support, freshness, is_active
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +97,8 @@ class KnowledgeService:
                 "source_root_id": ref.get("source_root_id"), "root_known": bool(ref.get("root_known")), "kind": ref.get("kind"), "title": ref.get("title"),
                 "disclosed_excerpt": ref.get("disclosed_excerpt") or "", "disclosure_level": ref.get("disclosure_level"), "observed_at": ref.get("observed_at"),
                 "freshness_at": ref.get("freshness_at"), "status": ref.get("status"), "version": ref.get("version"), "copies_of_same_root": max(0, copies),
-                "role": ref.get("role"), "weight": ref.get("weight")}
+                "role": ref.get("role"), "weight": ref.get("weight"), "demoted": ref.get("demoted"),
+                "revised_root_id": (ref.get("meta") or {}).get("revised_root_id") if isinstance(ref.get("meta"), dict) else None}
 
     # ================================================================== claims
     def get_claim(self, claim_id: str) -> dict[str, Any] | None:
@@ -175,8 +176,9 @@ class KnowledgeService:
                  candidate.get("goal_id"), candidate.get("question_id"), candidate.get("created_by_type", principal.kind), candidate.get("created_by_id", principal.id),
                  j(support), result.freshness.get("freshness_at"), int(bool(candidate.get("is_demo", principal.is_demo))), now, now),
             )
-            for r in ev_rows:
-                c.execute("INSERT OR REPLACE INTO claim_evidence(claim_id, ref_id, role, weight) VALUES (?, ?, ?, ?)", (cid, r["ref_id"], r.get("role", "supports"), r.get("weight", 1.0)))
+            # the role the gate decided (evidence it demoted is stored as context, so no later recomputation counts it again)
+            for r in result.refs:
+                c.execute("INSERT OR REPLACE INTO claim_evidence(claim_id, ref_id, role, weight) VALUES (?, ?, ?, ?)", (cid, r["ref_id"], r.get("role") or "supports", float(r.get("weight", 1.0))))
             d = dict(derivation or {})
             c.execute("INSERT INTO derivations(derivation_id, tenant_id, claim_id, operator, input_claim_ids, input_ref_ids, response_ids, model, contributor_type, contributor_id, rationale, created_at) "
                       "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -270,9 +272,10 @@ class KnowledgeService:
         if claim is None:
             raise KeyError(claim_id)
         self.authz.require(self.authz.can_view_scoped(principal, claim, resource_type="claim"), "claim.view", claim_id)
-        refs = self.refs_for_claim(claim_id)
+        refs, demotions = self.effective_refs_for_claim(claim)
         pol = self.org.policies(claim["tenant_id"])
-        supporting = [r for r in refs if r.get("role") == "supports"]
+        supporting = [r for r in refs if r.get("role") == "supports" and is_active(r)]
+        sup = compute_support(refs)
         history = []
         cur = claim.get("supersedes_claim_id")
         while cur and len(history) < 20:
@@ -288,8 +291,9 @@ class KnowledgeService:
             "conflicts": [self.conflict_view(x, principal) for x in self.conflicts_for_claim(claim_id)],
             "revisions": self.revisions_for("claim", claim_id),
             "history": history,
-            "dependencies": {"roots": compute_support(refs)["roots"], "shared": compute_support(refs)["shared_dependencies"], "unknown": compute_support(refs)["unknown_ref_ids"]},
-            "support": claim.get("support") or compute_support(refs),
+            "dependencies": {"roots": sup["roots"], "shared": sup["shared_dependencies"], "unknown": sup["unknown_ref_ids"], "inactive": sup["inactive_ref_ids"]},
+            "support": claim.get("support") or sup,
+            "support_notes": demotions,
             "freshness": freshness(supporting, freshness_days=float(pol.get("freshness_days", 90))),
         }
 
@@ -398,28 +402,46 @@ class KnowledgeService:
             if outcome == "both_retracted" or (outcome in ("a_wins", "b_wins") and not wins):
                 await self.revise_claim(principal, cl["claim_id"], status="retracted", reason=f"conflict {conflict_id}: {outcome}", event_kind="claim.retracted")
             elif outcome == "unresolved":
-                continue
+                # closed without a decision: neither side may count as supported, but neither stays blocked as contested
+                await self.recompute_status(principal, cl["claim_id"], reason=f"conflict {conflict_id} closed unresolved; uncertainty retained", policy=pol, cap="hypothesis")
             else:
                 await self.recompute_status(principal, cl["claim_id"], reason=f"conflict {conflict_id} resolved: {outcome}", policy=pol)
         return self.get_conflict(conflict_id)  # type: ignore[return-value]
 
-    async def recompute_status(self, principal: Principal, claim_id: str, *, reason: str, policy: Mapping[str, Any] | None = None) -> dict[str, Any]:
-        """Re-run the support/freshness part of the gate for an existing claim (after evidence or conflict changes)."""
+    def _question_for_claim(self, claim: Mapping[str, Any]) -> dict[str, Any] | None:
+        if not claim.get("question_id"):
+            return None
+        return row_to_dict(self.db.one("SELECT question_id, tenant_id, scope_unit_id, policy FROM questions WHERE question_id=?", (claim["question_id"],)), json_fields=("policy",))
+
+    def effective_refs_for_claim(self, claim: Mapping[str, Any]) -> tuple[list[dict[str, Any]], list[str]]:
+        """The claim's references with the role the commit gate's rules give them *now* (authorization, holder status,
+        validity window), so a recomputation can never count evidence the gate would not."""
+        refs, reasons, _known = self.gate.effective_refs(claim["tenant_id"], self.refs_for_claim(claim["claim_id"]), question=self._question_for_claim(claim),
+                                                         valid_from=claim.get("valid_from"), valid_to=claim.get("valid_to"))
+        return refs, reasons
+
+    async def recompute_status(self, principal: Principal, claim_id: str, *, reason: str, policy: Mapping[str, Any] | None = None,
+                               cap: str | None = None) -> dict[str, Any]:
+        """Re-run the gate's support and freshness rules for an existing claim (after evidence or conflict changes).
+
+        A claim with supporting evidence that changed at its source stays ``stale`` until re-verification replaces that
+        support (:meth:`supersede_changed_support`); ``cap='hypothesis'`` keeps the result from being ``supported``."""
         claim = self.get_claim(claim_id)
         if claim is None:
             raise KeyError(claim_id)
         if claim["status"] == "retracted":
             return claim
         pol = policy or self.org.policies(claim["tenant_id"])
-        refs = self.refs_for_claim(claim_id)
-        supporting = [r for r in refs if r.get("role") == "supports" and r.get("status") not in ("retracted", "unavailable")]
+        refs, _reasons = self.effective_refs_for_claim(claim)
+        supporting = [r for r in refs if r.get("role") == "supports" and is_active(r)]
+        changed = [r for r in refs if r.get("role") == "supports" and not is_active(r)]
         support = compute_support(refs)
         fresh = freshness(supporting, freshness_days=float(pol.get("freshness_days", 90)))
         support["freshness"] = fresh
         open_conf = self.conflicts_for_claim(claim_id, status="open") + self.conflicts_for_claim(claim_id, status="investigating")
         if open_conf:
             status = "contested"
-        elif any(r.get("status") in ("retracted", "revised", "unavailable") for r in refs if r.get("role") == "supports") and not supporting:
+        elif changed:
             status = "stale"
         elif fresh["stale"]:
             status = "stale"
@@ -427,10 +449,27 @@ class KnowledgeService:
             status = "supported"
         else:
             status = "hypothesis"
+        if cap == "hypothesis" and status == "supported":
+            status = "hypothesis"
         if status == claim["status"] and (claim.get("support") or {}).get("independent_roots") == support["independent_roots"]:
             return claim
         return await self.revise_claim(principal, claim_id, status=status, reason=reason, support=support, freshness_at=fresh.get("freshness_at"),
                                        event_kind="claim.stale" if status == "stale" else "claim.revised")
+
+    async def supersede_changed_support(self, principal: Principal, claim_id: str, *, reason: str) -> list[str]:
+        """Re-verification found current evidence: supporting references whose source changed stop being support (role
+        ``superseded``, kept for lineage), so the claim's status is computed from current evidence only."""
+        rows = self.db.all("SELECT ce.ref_id FROM claim_evidence ce JOIN evidence_refs e ON e.ref_id=ce.ref_id WHERE ce.claim_id=? AND ce.role='supports' AND e.status<>'active'",
+                           (claim_id,))
+        ids = [r["ref_id"] for r in rows]
+        if not ids:
+            return []
+        claim = self.get_claim(claim_id)
+        async with self.db.tx() as c:
+            c.execute(f"UPDATE claim_evidence SET role='superseded' WHERE claim_id=? AND role='supports' AND ref_id IN ({','.join('?' * len(ids))})", (claim_id, *ids))
+            self.db.audit_sync(c, (claim or {}).get("tenant_id"), principal.kind, principal.id, "claim.support_superseded", resource_type="claim", resource_id=claim_id,
+                               detail={"ref_ids": ids, "reason": reason})
+        return ids
 
     # ================================================================== evidence change propagation
     async def on_evidence_event(self, principal: Principal, tenant_id: str, holder_id: str, event: str, affected_ref_ids: Iterable[str],
@@ -446,26 +485,33 @@ class KnowledgeService:
         changed: list[str] = []
         async with self.db.tx() as c:
             for rid in ids:
-                r = c.execute("SELECT status, version, source_root_id FROM evidence_refs WHERE ref_id=? AND tenant_id=? AND holder_id=?", (rid, tenant_id, holder_id)).fetchone()
+                r = c.execute("SELECT status, version, source_root_id, meta FROM evidence_refs WHERE ref_id=? AND tenant_id=? AND holder_id=?", (rid, tenant_id, holder_id)).fetchone()
                 if r is None:
                     continue
-                if r["status"] == "retracted" or (r["status"] == status and (status == "retracted" or not new_source_root_id or new_source_root_id == r["source_root_id"])):
+                meta = jl(r["meta"], {}) or {}
+                if r["status"] == "retracted" or (r["status"] == status and (status == "retracted" or not new_source_root_id or new_source_root_id == meta.get("revised_root_id"))):
                     continue        # already in this state: a replayed or redundant event
-                c.execute("UPDATE evidence_refs SET status=?, version=version+1, updated_at=?, source_root_id=COALESCE(?, source_root_id) WHERE ref_id=?",
-                          (status, now, new_source_root_id if status == "revised" else None, rid))
+                # the reference keeps the root of the content it disclosed (the excerpt is the old content); the new
+                # version's root is recorded for lineage and arrives as a new reference when a holder answers again
+                if status == "revised":
+                    meta.update({"revised_at": now, **({"revised_root_id": new_source_root_id} if new_source_root_id else {})})
+                else:
+                    meta.update({"retracted_at": now})
+                c.execute("UPDATE evidence_refs SET status=?, version=version+1, updated_at=?, meta=? WHERE ref_id=?", (status, now, j(meta), rid))
                 self._revision_sync(c, tenant_id, "evidence_ref", rid, int(r["version"]) + 1, principal, reason or event, {"status": r["status"]}, {"status": status})
                 changed.append(rid)
             if changed:
                 self.db.audit_sync(c, tenant_id, "holder", holder_id, f"evidence.{event}", resource_type="evidence_ref", resource_id=",".join(changed)[:200], detail={"count": len(changed)})
         if not changed:
             return {"affected_claim_ids": [], "ref_ids": ids, "changed_ref_ids": []}
-        rows = self.db.all(f"SELECT DISTINCT claim_id FROM claim_evidence WHERE ref_id IN ({','.join('?' * len(changed))})", changed)
+        # only claims the reference still supports (context and superseded links do not make a claim stale)
+        rows = self.db.all(f"SELECT DISTINCT claim_id FROM claim_evidence WHERE role='supports' AND ref_id IN ({','.join('?' * len(changed))})", changed)
         affected: list[str] = []
         for r in rows:
             claim = self.get_claim(r["claim_id"])
             if not claim or claim["status"] == "retracted":
                 continue
-            remaining = [x for x in self.refs_for_claim(claim["claim_id"]) if x.get("role") == "supports" and x.get("status") == "active"]
+            remaining = [x for x in self.effective_refs_for_claim(claim)[0] if x.get("role") == "supports" and is_active(x)]
             if status == "retracted" and not remaining:
                 await self.revise_claim(principal, claim["claim_id"], status="retracted", reason=f"all supporting evidence retracted: {reason or 'source deleted'}",
                                         event_kind="claim.retracted")

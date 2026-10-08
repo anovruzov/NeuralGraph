@@ -8,6 +8,7 @@ from a holder that was routed, and its authorization is checked again at use tim
 from __future__ import annotations
 
 import logging
+import re
 import sqlite3
 from typing import Any, Iterable, Mapping
 
@@ -41,8 +42,29 @@ class CooldownActive(ValueError):
         self.existing_id = existing_id
 
 
+_NUM = re.compile(r"\d+(?:\.\d+)?")
+_WORDS = re.compile(r"[a-z0-9]+")
+
+
+def _longest_run(a: str, b: str) -> int:
+    """Length of the longest run of consecutive words two texts share."""
+    wa, wb = _WORDS.findall(a.lower()), _WORDS.findall(b.lower())
+    best = 0
+    prev = [0] * (len(wb) + 1)
+    for x in wa:
+        cur = [0] * (len(wb) + 1)
+        for k, y in enumerate(wb, 1):
+            if x == y:
+                cur[k] = prev[k - 1] + 1
+                best = max(best, cur[k])
+        prev = cur
+    return best
+
+
 def _norm(text: str) -> str:
-    return " ".join(text.lower().split()).rstrip("?.! ")
+    """Dedupe form of a question: case, spacing, end punctuation and a "(follow-up)" marker do not make a new question."""
+    t = " ".join(text.lower().split())
+    return re.sub(r"\s*\(follow-up\)[?.! ]*$", "", t).rstrip("?.! ")
 
 
 def prioritize(goal: Mapping[str, Any] | None, estimates: Mapping[str, Any], weights: Mapping[str, float], *, holders: int = 1) -> tuple[float, dict[str, Any]]:
@@ -199,6 +221,15 @@ class QuestionService:
             raise ValueError("goal not found")
         if goal and goal["tenant_id"] != tenant_id:
             raise Forbidden("question.create", data["goal_id"], "goal belongs to another tenant")
+        if goal is not None and not force:
+            # a paused, completed or archived goal asks nothing; the loop asks only while its goal is active and it is meant
+            # to run (a person may still ask under a draft goal)
+            is_loop = asker_type == "loop" or principal.kind == "loop"
+            if goal["status"] in ("paused", "completed", "archived") or (is_loop and goal["status"] != "active"):
+                raise ValueError(f"the goal is {goal['status']}; activate or resume it to ask questions under it")
+            loop = self.goals.get_loop(goal["goal_id"])
+            if loop is not None and (loop["desired"] == "stopped" or loop["desired"] == "paused" or (is_loop and loop["desired"] != "active")):
+                raise ValueError(f"the goal's loop is {loop['desired']}; resume it to ask questions under the goal")
         scope = data.get("scope_unit_id") or (goal.get("scope_unit_id") if goal else None) or (goal.get("owner_id") if goal and goal.get("owner_type") == "unit" else None)
         if scope is None and principal.is_user:
             mems = principal.memberships
@@ -238,6 +269,10 @@ class QuestionService:
         default_pol = {"visibility": "unit", "disclosure": "excerpt", "blind_verification": kind == "verification",
                        "min_independent_roots": self.org.policy(tenant_id, "min_independent_roots", 2)}
         policy = {**default_pol, **(data.get("policy") or {})}
+        if policy.get("blind_verification"):
+            leak = self._blind_leak(tenant_id, text, data.get("trigger") or {})
+            if leak:
+                raise ValueError(f"a blind verification question must not reveal the claim it checks ({leak})")
         if policy.get("visibility") not in ("unit", "org", "private"):
             raise ValueError("policy.visibility must be unit, org or private")
         if policy["visibility"] == "org" and not (principal.is_system or "executive" in principal.roles):
@@ -257,6 +292,26 @@ class QuestionService:
                 raise DuplicateQuestion(other["question_id"])
             raise
         return self.get(qid)  # type: ignore[return-value]
+
+    def _blind_leak(self, tenant_id: str, text: str, trigger: Mapping[str, Any]) -> str:
+        """Why the question text reveals the claim(s) a blind verification targets: a number from the claim, or a run of
+        six or more of its words. Empty when it does not."""
+        targets: list[str] = []
+        if trigger.get("claim_id"):
+            targets.append(trigger["claim_id"])
+        if trigger.get("conflict_id"):
+            k = self.knowledge.get_conflict(trigger["conflict_id"])
+            if k is not None:
+                targets += [k["claim_a_id"], k["claim_b_id"]]
+        for cl in self.knowledge.claims_by_ids(targets):
+            if cl.get("tenant_id") != tenant_id:
+                continue
+            shared = _NUM.findall(text) and set(_NUM.findall(text)) & set(_NUM.findall(cl["text"]))
+            if shared:
+                return f"states {', '.join(sorted(shared))} from the claim"
+            if _longest_run(text, cl["text"]) >= 6:
+                return "repeats the claim's wording"
+        return ""
 
     async def _insert_question(self, qid, tenant_id, principal, data, asker_type, asker_id, text, kind, scope, estimates, policy, budget, score, breakdown,
                                parent_id, depth, dedupe_key, live, is_demo, now, enqueue_route) -> None:
@@ -421,7 +476,7 @@ class QuestionService:
                                        ref_id=qid, payload={"response_id": rid}, priority=4, max_attempts=5)
             elif pending == 0:
                 # everyone answered: pull the collect job forward
-                c.execute("UPDATE jobs SET available_at=? WHERE idempotency_key=? AND status='queued'", (now, f"question.collect:{qid}"))
+                c.execute("UPDATE jobs SET available_at=? WHERE ref_type='question' AND ref_id=? AND kind='question.collect' AND status='queued'", (now, qid))
         return {"accepted": True, "response_id": rid, "status": status, "all_in": pending == 0, "late": late}
 
     async def human_response(self, principal: Principal, question_id: str, *, content: str, holder_id: str, evidence_refs: Iterable[Mapping[str, Any]] = (),

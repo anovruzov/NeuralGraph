@@ -43,6 +43,12 @@ def _tokens(text: str) -> set[str]:
     return {stem(w) for w in _WORD.findall((text or "").lower()) if w not in _STOP and len(w) > 1}
 
 
+def _norm_text(text: str) -> str:
+    """Question text for duplicate checks: case, spacing and a trailing "(follow-up)" marker do not make a new question."""
+    t = " ".join((text or "").lower().split())
+    return re.sub(r"\s*\(follow-up\)\s*$", "", t).rstrip("?. ")
+
+
 def _numbers(text: str) -> set[str]:
     return set(re.findall(r"\d+(?:\.\d+)?", text or ""))
 
@@ -60,6 +66,13 @@ def _agrees(a: str, b: str) -> bool | None:
     if bool(wa & neg) != bool(wb & neg):
         return False
     return True
+
+
+def _child_policy(parent: Mapping[str, Any] | None, **overrides: Any) -> dict[str, Any]:
+    """A follow-up inherits its parent's visibility and disclosure, never its blind / holder-exclusion settings."""
+    out = {k: v for k, v in (parent or {}).items() if k not in ("exclude_holder_ids", "blind_verification")}
+    out.update(overrides)
+    return out
 
 
 class BudgetExhausted(ModelError):
@@ -133,6 +146,109 @@ class LoopEngine:
         return await self.router.run_task(task, dict(payload), tenant_id=tenant_id, goal_id=(goal or {}).get("goal_id"), question_id=question_id,
                                           max_tier=max_tier, policy_tiers=self.org.policy(tenant_id, "model_tiers", {}) or {})
 
+    # ================================================================== pipeline gate and shared question builders
+    def _pipeline_state(self, goal_id: str | None, *, asker_type: str = "loop") -> str:
+        """``run`` while the goal's pipeline may spend tokens and reach holders, ``hold`` while it is paused (resumed by
+        GoalService.resume_questions), ``stop`` once the goal is completed or archived or its loop is stopped. A question a
+        person asked under a goal that is not yet active (draft) still runs; the loop's own questions need an active goal."""
+        if not goal_id:
+            return "run"
+        g, loop = self.goals.get_goal(goal_id), self.goals.get_loop(goal_id)
+        if g is None or g["status"] in ("completed", "archived") or (loop is not None and loop["desired"] == "stopped"):
+            return "stop"
+        if g["status"] == "paused" or (loop is not None and loop["desired"] == "paused"):
+            return "hold"
+        if g["status"] != "active" and asker_type != "user":
+            return "hold"
+        return "run"
+
+    async def _gate_question_step(self, q: Mapping[str, Any]) -> dict[str, Any] | None:
+        """Checked at the start of every question step: ``None`` to proceed, else the job's result (held or cancelled)."""
+        state = self._pipeline_state(q.get("goal_id"), asker_type=q.get("asker_type") or "loop")
+        if state == "run":
+            return None
+        if state == "stop" and q["status"] in LIVE_STATUSES:
+            await self.questions.cancel(self.authz.principal_for_system(q["tenant_id"], worker_id=self.worker_id), q["question_id"], reason="goal or loop stopped")
+            return {"cancelled": "goal or loop stopped"}
+        return {"held": "goal or loop paused; the step is re-queued on resume"}
+
+    def _live_questions(self, goal_id: str | None) -> int:
+        if not goal_id:
+            return 0
+        return int(self.db.scalar(f"SELECT COUNT(*) FROM questions WHERE goal_id=? AND status IN ({','.join('?' * len(LIVE_STATUSES))})", (goal_id, *LIVE_STATUSES), 0))
+
+    def _free_slots(self, goal_id: str | None) -> int:
+        """Questions the goal may still start under ``max_concurrent_questions`` (the question being processed counts until
+        it resolves, so its children never push the goal over the limit; what does not fit waits for the next tick)."""
+        if not goal_id:
+            return 10**6
+        loop = self.goals.get_loop(goal_id)
+        cfg = {**self.loop_defaults, **((loop or {}).get("config") or {})}
+        return max(0, int(cfg.get("max_concurrent_questions", 2)) - self._live_questions(goal_id))
+
+    def _supporting_holders(self, claim: Mapping[str, Any]) -> list[str]:
+        refs, _ = self.knowledge.effective_refs_for_claim(claim)
+        return sorted({r["holder_id"] for r in refs if r.get("role") == "supports"})
+
+    async def _ask_verification(self, principal: Principal, goal: Mapping[str, Any] | None, claim: Mapping[str, Any], *, trigger_kind: str = "verification",
+                                parent: Mapping[str, Any] | None = None, exclude_supporters: bool = True, force: bool = False,
+                                extra_trigger: Mapping[str, Any] | None = None) -> dict[str, Any]:
+        """Every verification question is blind: written by ``compose_verification_question`` (topic only, no number or
+        conclusion; ``questions.create`` rejects a text that leaks the claim), tied to its target (``trigger.claim_id``), and
+        routed away from the holders that already support the claim unless the source itself changed (re-verification)."""
+        cid = claim["claim_id"]
+        orig = self.questions.get(claim["question_id"]) if claim.get("question_id") else None
+        domains = list((orig or parent or {}).get("candidate_domains") or [])
+        vq = await self._run_task("compose_verification_question", {"finding_text": claim["text"], "original_question": (orig or {}).get("text", ""), "domains": domains},
+                                  tenant_id=claim["tenant_id"], goal=goal, question_id=(parent or {}).get("question_id"))
+        exclude = self._supporting_holders(claim) if exclude_supporters else []
+        lineage = [{"type": "claim", "id": cid}] + ([{"type": "question", "id": parent["question_id"]}] if parent else [])
+        q = await self.questions.create(principal, {
+            "text": vq["question"], "goal_id": claim.get("goal_id"), "scope_unit_id": claim.get("scope_unit_id"), "kind": "verification",
+            "candidate_domains": domains, "parent_question_id": (parent or {}).get("question_id"),
+            "trigger": {"kind": trigger_kind, "claim_id": cid, "ref_type": "claim", "ref_id": cid, **dict(extra_trigger or {})},
+            "motivating_lineage": lineage,
+            "policy": _child_policy((orig or parent or {}).get("policy"), blind_verification=True, exclude_holder_ids=exclude),
+            "valid_from": (orig or parent or {}).get("valid_from"), "valid_to": (orig or parent or {}).get("valid_to")},
+            asker_type="loop", asker_id=principal.id, estimates={"uncertainty": 0.7, "impact": 0.6, "missing_evidence": 0.8, "information_gain": 0.7},
+            holders_estimate=2, is_demo=bool(claim.get("is_demo")), force=force)
+        await self._attach_to_discoveries(claim["tenant_id"], q["question_id"], [cid])
+        return q
+
+    async def _ask_contradiction(self, principal: Principal, goal: Mapping[str, Any] | None, conflict: Mapping[str, Any], *, trigger_kind: str = "contradiction",
+                                 parent: Mapping[str, Any] | None = None, extra_trigger: Mapping[str, Any] | None = None) -> dict[str, Any]:
+        """Investigate a disagreement without telling holders either side's figures: a neutral question on the topic,
+        routed to every authorized holder in scope (including those behind each side, so each side can be re-checked)."""
+        a = self.knowledge.get_claim(conflict["claim_a_id"]) or {}
+        b = self.knowledge.get_claim(conflict["claim_b_id"]) or {}
+        anchor = a or b
+        orig = self.questions.get(anchor["question_id"]) if anchor.get("question_id") else None
+        domains = list((orig or parent or {}).get("candidate_domains") or [])
+        vq = await self._run_task("compose_verification_question", {"finding_text": anchor.get("text", ""), "original_question": (orig or {}).get("text", ""), "domains": domains},
+                                  tenant_id=conflict["tenant_id"], goal=goal, question_id=(parent or {}).get("question_id"))
+        kid = conflict["conflict_id"]
+        q = await self.questions.create(principal, {
+            "text": vq["question"], "goal_id": anchor.get("goal_id") or (goal or {}).get("goal_id"), "scope_unit_id": anchor.get("scope_unit_id"), "kind": "contradiction",
+            "candidate_domains": domains, "parent_question_id": (parent or {}).get("question_id"),
+            "trigger": {"kind": trigger_kind, "conflict_id": kid, "ref_type": "conflict", "ref_id": kid, **dict(extra_trigger or {})},
+            "motivating_lineage": [{"type": "conflict", "id": kid}, {"type": "claim", "id": conflict["claim_a_id"]}, {"type": "claim", "id": conflict["claim_b_id"]}],
+            "policy": _child_policy((orig or parent or {}).get("policy"), blind_verification=True),
+            "valid_from": (orig or parent or {}).get("valid_from"), "valid_to": (orig or parent or {}).get("valid_to")},
+            asker_type="loop", asker_id=principal.id, estimates={"uncertainty": 0.9, "impact": 0.7, "missing_evidence": 0.5, "information_gain": 0.8},
+            holders_estimate=2, is_demo=bool(anchor.get("is_demo")))
+        await self._attach_to_discoveries(conflict["tenant_id"], q["question_id"], [conflict["claim_a_id"], conflict["claim_b_id"]])
+        return q
+
+    async def _attach_to_discoveries(self, tenant_id: str, question_id: str, claim_ids: list[str]) -> None:
+        """A question about a claim (or a disagreement between claims) is a follow-up of every discovery that contains
+        that claim, whichever step asked it: the discovery shows what it led to."""
+        if not claim_ids:
+            return
+        rows = self.db.all(f"SELECT DISTINCT d.discovery_id FROM discoveries d, json_each(d.claim_ids) AS c WHERE d.tenant_id=? AND c.value IN ({','.join('?' * len(claim_ids))})",
+                           (tenant_id, *claim_ids))
+        for r in rows:
+            await self.knowledge.attach_followups(r["discovery_id"], [question_id])
+
     def domains_for_goal(self, goal: Mapping[str, Any]) -> tuple[list[str], list[dict[str, Any]]]:
         """Candidate evidence domains: the goal's declared domains plus those of holders routable for its scope."""
         pseudo = {"tenant_id": goal["tenant_id"], "scope_unit_id": goal.get("scope_unit_id") or (goal["owner_id"] if goal["owner_type"] == "unit" else None),
@@ -163,7 +279,8 @@ class LoopEngine:
         hypotheses = rows_to_dicts(self.db.all("SELECT claim_id, text FROM claims WHERE goal_id=? AND status='hypothesis' LIMIT 50", (gid,)))
         unanswered = rows_to_dicts(self.db.all(
             "SELECT r.route_id, r.holder_id, r.status, q.question_id FROM question_routes r JOIN questions q ON q.question_id=r.question_id WHERE q.goal_id=? AND r.status IN ('pending','delivered') LIMIT 50", (gid,)))
-        goal_changed = int(self.db.scalar("SELECT COUNT(*) FROM revisions WHERE object_type='goal' AND object_id=? AND at >= ? AND reason NOT IN ('created')", (gid, since), 0))
+        goal_revs = self.db.all("SELECT revision_id FROM revisions WHERE object_type='goal' AND object_id=? AND at >= ? AND reason NOT IN ('created') ORDER BY at", (gid, since))
+        goal_changed = len(goal_revs)
         ingested = rows_to_dicts(self.db.all("SELECT id, payload FROM events WHERE tenant_id=? AND kind='document.ingested' AND at >= ? ORDER BY id DESC LIMIT 50", (tid, since)), json_fields=("payload",))
         scope_units = set(self.org.descendants(goal.get("scope_unit_id") or (goal["owner_id"] if goal["owner_type"] == "unit" else ""))) if (goal.get("scope_unit_id") or goal["owner_type"] == "unit") else set()
         docs = []
@@ -171,9 +288,10 @@ class LoopEngine:
             hid = (ev.get("payload") or {}).get("holder_id")
             holder = self.org.get_holder(hid) if hid else None
             if holder and self.authz.can_route({"tenant_id": tid, "scope_unit_id": goal.get("scope_unit_id"), "policy": {"visibility": "unit"}, "candidate_domains": []}, holder)[0]:
-                docs.append({"holder_id": hid, "title": (ev.get("payload") or {}).get("title", ""), "domains": (ev.get("payload") or {}).get("domains", [])})
+                docs.append({"holder_id": hid, "title": (ev.get("payload") or {}).get("title", ""), "domains": (ev.get("payload") or {}).get("domains", []), "event_id": ev["id"]})
         return {"since": since, "new_evidence": new_refs, "revised_evidence": revised, "open_conflicts": conflicts, "stale_claims": stale, "hypotheses": hypotheses,
-                "unanswered_routes": unanswered, "goal_changed": goal_changed, "new_documents": docs, "scope_units": sorted(scope_units)}
+                "unanswered_routes": unanswered, "goal_changed": goal_changed, "goal_revision_ids": [r["revision_id"] for r in goal_revs], "new_documents": docs,
+                "scope_units": sorted(scope_units)}
 
     # ================================================================== loop tick
     async def tick(self, job: Job) -> dict[str, Any]:
@@ -211,18 +329,26 @@ class LoopEngine:
         live = self.db.all(f"SELECT question_id, candidate_domains, text FROM questions WHERE goal_id=? AND status IN ({','.join('?' * len(LIVE_STATUSES))})", (gid, *LIVE_STATUSES))
         slots = int(cfg.get("max_concurrent_questions", 2)) - len(live)
         obs = self.observe(goal, (loop.get("stats") or {}).get("observed_from") or loop.get("last_run_at"))
-        mark = {"observed_from": observed_from}
-        claims = rows_to_dicts(self.db.all("SELECT claim_id, text, status, question_id, support FROM claims WHERE goal_id=? AND status<>'retracted' ORDER BY updated_at DESC LIMIT 100", (gid,)), json_fields=("support",))
+        mark: dict[str, Any] = {"observed_from": observed_from}
+        claims = rows_to_dicts(self.db.all("SELECT claim_id, tenant_id, text, status, question_id, goal_id, scope_unit_id, is_demo, support FROM claims WHERE goal_id=? AND status<>'retracted' "
+                                           "ORDER BY updated_at DESC LIMIT 100", (gid,)), json_fields=("support",))
         q_domains = {r["question_id"]: jl(r["candidate_domains"], []) for r in self.db.all("SELECT question_id, candidate_domains FROM questions WHERE goal_id=?", (gid,))}
         covered = {d for c in claims if c["status"] == "supported" for d in q_domains.get(c["question_id"], [])}
         attempted = {d for r in self.db.all("SELECT candidate_domains FROM questions WHERE goal_id=? AND depth=0 AND kind='gap'", (gid,)) for d in jl(r["candidate_domains"], [])}
         uncovered = [d for d in domains if d not in covered and d not in attempted]
-        # claims and conflicts that already have a question about them are not gaps any more (bounded inquiry)
-        handled_claims = {r["cid"] for r in self.db.all("SELECT json_extract(trigger, '$.claim_id') AS cid FROM questions WHERE goal_id=? AND json_extract(trigger, '$.claim_id') IS NOT NULL", (gid,))}
-        handled_conflicts = {r["kid"] for r in self.db.all("SELECT json_extract(trigger, '$.conflict_id') AS kid FROM questions WHERE goal_id=? AND json_extract(trigger, '$.conflict_id') IS NOT NULL", (gid,))}
-        needs_verification = [c for c in claims if c["status"] in ("hypothesis", "stale") and c["claim_id"] not in handled_claims]
-        open_conflicts = [k for k in obs["open_conflicts"] if k["conflict_id"] not in handled_conflicts]
-        useful = bool(uncovered or obs["revised_evidence"] or open_conflicts or needs_verification or obs["goal_changed"] or obs["new_documents"])
+        # verification, contradiction and deferred follow-up gaps are built here, deterministically, with the id of what they
+        # target; a target counts as handled once a question about it exists (bounded inquiry: one question per target, and
+        # a stale claim once more after each time it became stale). No model call is needed to find them.
+        attempts: dict[str, Any] = dict((loop.get("stats") or {}).get("target_attempts") or {})
+        cooldown = float(cfg.get("cooldown_seconds", 900))
+        targets = [t for t in self._deterministic_gaps(goal, claims, obs, q_domains) if self._may_attempt(attempts, t["target"], cooldown)]
+        # what the model would be asked about, by identity: the observation window overlaps the previous tick on purpose
+        # (nothing is missed), so the same observations must not buy a second model call
+        model_obs = {"uncovered": sorted(uncovered), "revised": sorted(f"{r['ref_id']}:{r['status']}" for r in obs["revised_evidence"]),
+                     "goal_revisions": obs["goal_revision_ids"], "documents": sorted(d["event_id"] for d in obs["new_documents"])}
+        model_fp = hashlib.sha256(j(model_obs).encode()).hexdigest()[:24]
+        needs_model = bool(uncovered or obs["revised_evidence"] or obs["goal_changed"] or obs["new_documents"]) and model_fp != (loop.get("stats") or {}).get("model_obs_fp")
+        useful = bool(needs_model or targets)
         if slots <= 0:
             # observations are not consumed while no question can be asked: the watermark stays where it was
             await self.goals.set_loop_state(gid, "active", f"{len(live)} question(s) in flight; waiting for responses", worker_id=self.worker_id, next_check_at=next_check, ran=True)
@@ -231,68 +357,72 @@ class LoopEngine:
             await self.goals.set_loop_state(gid, "waiting", "nothing useful to ask right now; waiting for new evidence, a revision, or the next scheduled check (no model tokens spent)",
                                             worker_id=self.worker_id, next_check_at=next_check, ran=True, stats_set=mark)
             return {"state": "waiting"}
-        # identify the most useful gaps (one model call, light tier)
-        gap_obs = {k: v for k, v in obs.items() if k not in ("scope_units", "since", "open_conflicts", "hypotheses", "stale_claims", "new_evidence", "unanswered_routes")}
-        gap_obs["open_conflicts"] = open_conflicts
-        gap_obs["stale_claims"] = [c for c in needs_verification if c["status"] == "stale"]
-        gap_input = {
-            "goal": {"goal_id": gid, "title": goal["title"], "objective": goal["objective"], "success_criteria": goal.get("success_criteria") or []},
-            "observations": gap_obs,
-            "existing_claims": [{"claim_id": c["claim_id"], "text": c["text"], "status": c["status"], "domains": q_domains.get(c["question_id"], [])}
-                                for c in claims[:40] if c["status"] != "hypothesis" or c in needs_verification],
-            "open_questions": [{"question_id": r["question_id"], "text": r["text"]} for r in live],
-            "candidate_domains": uncovered, "max_gaps": max(1, slots * 2),
-        }
-        try:
-            gaps = (await self._run_task("identify_gap", gap_input, tenant_id=tid, goal=goal)).get("gaps") or []
-        except BudgetExhausted as exc:
-            await self.goals.set_loop_state(gid, "budget_exhausted", f"{exc}; no further model calls until the budget is raised or renews", worker_id=self.worker_id,
-                                            next_check_at=exc.renews_at or next_check, ran=True)
-            return {"state": "budget_exhausted"}
-        except ModelError as exc:
-            await self.goals.set_loop_state(gid, "failed", f"model call failed: {exc}"[:400], worker_id=self.worker_id, next_check_at=next_check, ran=True)
-            await self._charge(gid, started)
-            return {"state": "failed", "error": str(exc)}
+        gaps: list[dict[str, Any]] = list(targets)
+        goal_brief = {"goal_id": gid, "title": goal["title"], "objective": goal["objective"], "success_criteria": goal.get("success_criteria") or []}
+        if needs_model:
+            # open coverage questions need judgement: one model call (light tier) ranks them; verification / contradiction
+            # gaps it proposes without a target id are dropped, because the deterministic list above already covers them
+            gap_input = {
+                "goal": goal_brief,
+                "observations": {"revised_evidence": obs["revised_evidence"], "goal_changed": obs["goal_changed"],
+                                 "new_documents": [{k: v for k, v in d.items() if k != "event_id"} for d in obs["new_documents"]]},
+                "existing_claims": [{"claim_id": c["claim_id"], "text": c["text"], "status": c["status"], "domains": q_domains.get(c["question_id"], [])}
+                                    for c in claims[:40] if c["status"] == "supported"],
+                "open_questions": [{"question_id": r["question_id"], "text": r["text"]} for r in live],
+                "candidate_domains": uncovered, "max_gaps": max(1, slots * 2),
+            }
+            try:
+                proposed = (await self._run_task("identify_gap", gap_input, tenant_id=tid, goal=goal)).get("gaps") or []
+            except BudgetExhausted as exc:
+                await self.goals.set_loop_state(gid, "budget_exhausted", f"{exc}; no further model calls until the budget is raised or renews", worker_id=self.worker_id,
+                                                next_check_at=exc.renews_at or next_check, ran=True)
+                return {"state": "budget_exhausted"}
+            except ModelError as exc:
+                await self.goals.set_loop_state(gid, "failed", f"model call failed: {exc}"[:400], worker_id=self.worker_id, next_check_at=next_check, ran=True)
+                await self._charge(gid, started)
+                return {"state": "failed", "error": str(exc)}
+            mark["model_obs_fp"] = model_fp
+            for g in proposed:
+                if isinstance(g, dict) and not (g.get("kind") in ("verification", "contradiction") and not (g.get("claim_id") or g.get("conflict_id"))):
+                    gaps.append({**g, "target": f"model:{g.get('kind') or 'gap'}:{','.join(map(str, g.get('domains') or []))}:{g.get('description', '')[:80]}"})
         weights = self.org.policy(tid, "priority_weights", {}) or {}
         from ..inquiry import prioritize
-        scored = sorted(((prioritize(goal, g, weights, holders=len(holders))[0], g) for g in gaps if isinstance(g, dict)), key=lambda x: -x[0])
+        scored = sorted(((prioritize(goal, g, weights, holders=len(holders))[0], i, g) for i, g in enumerate(gaps)), key=lambda x: (-x[0], x[1]))
         created: list[str] = []
-        existing_texts = [r["text"] for r in live]      # only in-flight questions: resolved ones are handled by dedupe + cooldown
-        for score, gap in scored:
+        live_norm = {_norm_text(r["text"]) for r in live}
+        tried: dict[str, Any] = {}
+        for _score, _i, gap in scored:
             if len(created) >= slots:
                 break
             if self.goals.budget_status(gid)["exhausted"]:
                 break
-            lineage = []
-            for k in ("claim_id", "conflict_id", "ref_id"):
-                if gap.get(k):
-                    lineage.append({"type": {"claim_id": "claim", "conflict_id": "conflict", "ref_id": "evidence_ref"}[k], "id": gap[k]})
-            trig_extra = {k: gap[k] for k in ("claim_id", "conflict_id") if gap.get(k)}
-            try:
-                draft = await self._run_task("draft_question", {"goal": gap_input["goal"], "gap": gap, "scope": {"unit_id": goal.get("scope_unit_id"), "domains": domains},
-                                                                "existing_question_texts": existing_texts[:30], "valid_window_days": 365}, tenant_id=tid, goal=goal)
-            except ModelError as exc:
-                logger.warning("draft_question failed for goal %s: %s", gid, exc)
+            if not self._may_attempt(attempts, gap["target"], cooldown):
                 continue
-            kind = draft.get("kind") if draft.get("kind") in ("gap", "verification", "contradiction", "relationship", "hypothesis", "prediction") else (gap.get("kind") or "gap")
-            trig = {"kind": "observation", "gap": gap.get("description"), "rationale": gap.get("rationale"), **trig_extra,
-                    "observed": {k: len(v) if isinstance(v, list) else v for k, v in obs.items() if k not in ("scope_units", "since")}}
+            tried[gap["target"]] = gap
             try:
-                q = await self.questions.create(principal, {"text": draft["question"], "goal_id": gid, "scope_unit_id": goal.get("scope_unit_id") or (goal["owner_id"] if goal["owner_type"] == "unit" else None),
-                                                            "kind": kind, "candidate_domains": list(draft.get("candidate_domains") or gap.get("domains") or []), "trigger": trig,
-                                                            "motivating_lineage": lineage, "uncertainty": {"prior": gap.get("uncertainty", 0.5), "note": draft.get("uncertainty_note", "")},
-                                                            "valid_from": plus_seconds(-365 * 86400), "valid_to": plus_seconds(365 * 86400)},
-                                                asker_type="loop", asker_id=f"goal:{gid}", estimates=gap, holders_estimate=len(holders), is_demo=bool(goal.get("is_demo")))
-                created.append(q["question_id"])
-                existing_texts.append(q["text"])
+                q = await self._ask_for_gap(principal, goal, gap, domains=domains, goal_brief=goal_brief, obs=obs, live_texts=[r["text"] for r in live], live_norm=live_norm)
+            except BudgetExhausted:
+                break
             except (DuplicateQuestion, CooldownActive) as exc:
                 logger.info("tick %s: skipped question (%s)", gid, exc)
+                continue
             except PermissionError as exc:
                 await self.goals.set_loop_state(gid, "blocked", f"the goal's owner can no longer ask in its scope ({exc}); reassign the goal or restore the membership",
                                                 worker_id=self.worker_id, next_check_at=next_check, ran=True, stats_set=mark)
                 return {"state": "blocked", "created": created}
-            except ValueError as exc:
+            except (ValueError, ModelError) as exc:
                 logger.info("tick %s: cannot create question: %s", gid, exc)
+                continue
+            if q is not None:
+                created.append(q["question_id"])
+                live_norm.add(_norm_text(q["text"]))
+        # remember what was tried (created or not), so a target that cannot become a question costs no tokens again until
+        # its cooldown passes, and at most three times in all
+        now_s = now_iso()
+        for key in tried:
+            prev = attempts.get(key) or {}
+            attempts[key] = {"at": now_s, "n": int(prev.get("n", 0)) + 1}
+        mark["target_attempts"] = dict(sorted(attempts.items(), key=lambda kv: kv[1].get("at", ""))[-300:])
         charge = await self._charge(gid, started)
         if charge.get("exhausted"):
             await self.goals.set_loop_state(gid, "budget_exhausted", f"budget exhausted on {', '.join(charge['exhausted_on'])}", worker_id=self.worker_id, ran=True,
@@ -307,21 +437,127 @@ class LoopEngine:
                                         worker_id=self.worker_id, next_check_at=next_check, ran=True, stats_delta={"ticks": 1}, stats_set=mark)
         return {"state": "waiting", "created": []}
 
+    @staticmethod
+    def _may_attempt(attempts: Mapping[str, Any], key: str, cooldown: float) -> bool:
+        a = attempts.get(key)
+        if not a:
+            return True
+        if int(a.get("n", 0)) >= 3:
+            return False
+        at = parse_iso(a.get("at"))
+        return at is None or (utcnow() - at).total_seconds() >= cooldown
+
+    def _deterministic_gaps(self, goal: Mapping[str, Any], claims: list[dict[str, Any]], obs: Mapping[str, Any], q_domains: Mapping[str, list[str]]) -> list[dict[str, Any]]:
+        """Gaps the loop can name without a model: unhandled open conflicts, hypotheses and stale claims without a question
+        about them, and follow-ups an earlier commit deferred because the goal had no free question slot."""
+        gid = goal["goal_id"]
+        asked_claim = {r["cid"]: r["at"] for r in self.db.all("SELECT json_extract(trigger, '$.claim_id') AS cid, MAX(created_at) AS at FROM questions WHERE goal_id=? "
+                                                               "AND json_extract(trigger, '$.claim_id') IS NOT NULL GROUP BY cid", (gid,))}
+        asked_conflict = {r["kid"] for r in self.db.all("SELECT json_extract(trigger, '$.conflict_id') AS kid FROM questions WHERE goal_id=? AND json_extract(trigger, '$.conflict_id') IS NOT NULL", (gid,))}
+        stale_ids = [c["claim_id"] for c in claims if c["status"] == "stale"]
+        stale_since: dict[str, str] = {}
+        if stale_ids:
+            stale_since = {r["object_id"]: r["at"] for r in self.db.all(
+                f"SELECT object_id, MAX(at) AS at FROM revisions WHERE object_type='claim' AND json_extract(after, '$.status')='stale' AND object_id IN ({','.join('?' * len(stale_ids))}) GROUP BY object_id",
+                stale_ids)}
+        gaps: list[dict[str, Any]] = []
+        for k in obs.get("open_conflicts") or []:
+            if k["conflict_id"] in asked_conflict:
+                continue
+            gaps.append({"kind": "contradiction", "conflict_id": k["conflict_id"], "target": f"conflict:{k['conflict_id']}", "description": k.get("summary") or "records disagree",
+                         "uncertainty": 0.9, "impact": 0.7, "missing_evidence": 0.5, "information_gain": 0.8, "rationale": "Records disagree; an open conflict blocks commitment."})
+        for c in claims:
+            last = asked_claim.get(c["claim_id"])
+            if c["status"] == "hypothesis" and last is None:
+                why = "The claim is a hypothesis: independent support is missing."
+            elif c["status"] == "stale" and (last is None or last < stale_since.get(c["claim_id"], "")):
+                why = "The claim's evidence is stale or changed at its source; re-verification is due."
+            else:
+                continue
+            gaps.append({"kind": "verification", "claim_id": c["claim_id"], "target": f"claim:{c['claim_id']}:{stale_since.get(c['claim_id'], '')}",
+                         "description": "independent verification of an existing claim", "domains": q_domains.get(c["question_id"], []),
+                         "uncertainty": 0.7, "impact": 0.6, "missing_evidence": 0.6, "information_gain": 0.7, "rationale": why})
+        done_fu = {r["f"] for r in self.db.all("SELECT json_extract(trigger, '$.followup_of') AS f FROM questions WHERE goal_id=? AND json_extract(trigger, '$.followup_of') IS NOT NULL", (gid,))}
+        for r in self.db.all("SELECT question_id, result FROM questions WHERE goal_id=? AND status IN ('committed','retained_uncertain') "
+                             "AND json_array_length(json_extract(result, '$.deferred_followups')) > 0 ORDER BY resolved_at DESC LIMIT 20", (gid,)):
+            for fu in jl(r["result"], {}).get("deferred_followups") or []:
+                key = f"{r['question_id']}:{fu.get('index')}"
+                if key in done_fu or not isinstance(fu, dict) or not fu.get("question"):
+                    continue
+                gaps.append({"kind": fu.get("kind") or "gap", "followup": fu, "parent_question_id": r["question_id"], "target": f"followup:{key}", "followup_of": key,
+                             "description": fu.get("rationale") or "follow-up", "uncertainty": 0.6, "impact": 0.6, "missing_evidence": 0.6, "information_gain": 0.6})
+        return gaps
+
+    async def _ask_for_gap(self, principal: Principal, goal: Mapping[str, Any], gap: Mapping[str, Any], *, domains: list[str], goal_brief: Mapping[str, Any],
+                           obs: Mapping[str, Any], live_texts: list[str], live_norm: set[str]) -> dict[str, Any] | None:
+        gid = goal["goal_id"]
+        max_depth = int((goal.get("budget") or {}).get("followup_depth") or self.questions.max_followup_depth)
+        if gap.get("claim_id") and gap.get("kind") == "verification":
+            claim = self.knowledge.get_claim(gap["claim_id"])
+            if claim is None or claim["status"] not in ("hypothesis", "stale"):
+                return None
+            if claim["status"] == "stale":
+                # a stale claim's changed source must be re-read: its own holders are asked too
+                return await self._ask_verification(principal, goal, claim, trigger_kind="observation", exclude_supporters=False)
+            # a hypothesis is verified as a follow-up of the question that produced it (the same lineage and depth bound as a
+            # verification spawned at evaluation), or at the top level when that question is already at the depth limit
+            parent = self.questions.get(claim["question_id"]) if claim.get("question_id") else None
+            if parent is not None and int(parent.get("depth") or 0) + 1 > max_depth:
+                parent = None
+            return await self._ask_verification(principal, goal, claim, trigger_kind="observation", parent=parent)
+        if gap.get("conflict_id"):
+            k = self.knowledge.get_conflict(gap["conflict_id"])
+            if k is None or k["status"] == "resolved":
+                return None
+            # investigated as a follow-up of the question where the disagreement surfaced (depth permitting)
+            parent = self.questions.get(k["question_id"]) if k.get("question_id") else None
+            if parent is not None and int(parent.get("depth") or 0) + 1 > max_depth:
+                parent = None
+            return await self._ask_contradiction(principal, goal, k, trigger_kind="observation", parent=parent)
+        if gap.get("followup"):
+            return await self._create_followup(principal, goal, self.questions.get(gap["parent_question_id"]) or {}, gap["followup"], followup_of=gap["followup_of"])
+        draft = await self._run_task("draft_question", {"goal": goal_brief, "gap": {k: v for k, v in gap.items() if k != "target"}, "scope": {"unit_id": goal.get("scope_unit_id"), "domains": domains},
+                                                        "existing_question_texts": live_texts[:30], "valid_window_days": 365}, tenant_id=goal["tenant_id"], goal=goal)
+        if _norm_text(draft.get("question") or "") in live_norm:
+            raise DuplicateQuestion("")
+        kind = draft.get("kind") if draft.get("kind") in ("gap", "relationship", "hypothesis", "prediction") else "gap"
+        trig = {"kind": "observation", "gap": gap.get("description"), "rationale": gap.get("rationale"),
+                "observed": {k: len(v) if isinstance(v, list) else v for k, v in obs.items() if k not in ("scope_units", "since", "goal_revision_ids")}}
+        return await self.questions.create(principal, {"text": draft["question"], "goal_id": gid, "scope_unit_id": goal.get("scope_unit_id") or (goal["owner_id"] if goal["owner_type"] == "unit" else None),
+                                                       "kind": kind, "candidate_domains": list(draft.get("candidate_domains") or gap.get("domains") or []), "trigger": trig,
+                                                       "motivating_lineage": [], "uncertainty": {"prior": gap.get("uncertainty", 0.5), "note": draft.get("uncertainty_note", "")},
+                                                       "policy": {"blind_verification": False},
+                                                       "valid_from": plus_seconds(-365 * 86400), "valid_to": plus_seconds(365 * 86400)},
+                                           asker_type="loop", asker_id=f"goal:{gid}", estimates=gap, holders_estimate=2, is_demo=bool(goal.get("is_demo")))
+
     # ================================================================== question jobs
     async def route_question(self, job: Job) -> dict[str, Any]:
         q = self.questions.get(job.ref_id or "")
         if q is None:
             return {"skipped": "missing"}
+        if q["status"] in ("draft", "routed"):
+            held = await self._gate_question_step(q)
+            if held is not None:
+                return held
         exclude = list((q.get("policy") or {}).get("exclude_holder_ids") or [])
         out = await self.questions.route(q["question_id"], exclude_holder_ids=exclude)
-        if out.get("status") == "failed" and q.get("goal_id"):
-            if exclude or int(q.get("depth") or 0) > 0:
-                # a verification with every supporter excluded may legitimately find no independent holder: uncertainty is retained
-                await self.questions.set_status(q["question_id"], "failed", result={**(q.get("result") or {}), "outcome": "no_independent_holders",
-                                                "note": "no authorized holder outside the current support set; uncertainty retained"}, resolved=True, cooldown=True)
-                await self.goals.enqueue_tick(q["goal_id"], reason="verification could not be routed", priority=5)
-            else:
-                await self.goals.set_loop_state(q["goal_id"], "blocked", "a question could not be routed: no authorized holders in scope", worker_id=self.worker_id)
+        if out.get("status") == "failed":
+            # the question records why it could not be routed, with a cooldown, and the loop carries on with other work
+            outcome = "no_independent_holders" if exclude else "no_authorized_holders"
+            note = ("no authorized holder outside the current support set; uncertainty retained" if exclude
+                    else "no authorized holder in scope serves this question's domains; uncertainty retained")
+            await self.questions.set_status(q["question_id"], "failed", result={**(q.get("result") or {}), "outcome": outcome, "note": note, "rejected": out.get("rejected") or []},
+                                            resolved=True, cooldown=True)
+            goal = self.goals.get_goal(q["goal_id"]) if q.get("goal_id") else None
+            if goal is not None:
+                _domains, holders = self.domains_for_goal(goal)
+                if holders:
+                    await self.goals.enqueue_tick(goal["goal_id"], reason="a question could not be routed", priority=5, delay_seconds=5.0)
+                else:
+                    loop = self.goals.get_loop(goal["goal_id"]) or {}
+                    interval = float({**self.loop_defaults, **(loop.get("config") or {})}.get("check_interval_seconds", 300))
+                    await self.goals.set_loop_state(goal["goal_id"], "blocked", "no authorized evidence holders in the goal's scope; register a holder or widen the scope",
+                                                    worker_id=self.worker_id, next_check_at=plus_seconds(interval))
         return out
 
     async def collect(self, job: Job) -> dict[str, Any]:
@@ -331,6 +567,9 @@ class LoopEngine:
         q = self.questions.get(job.ref_id or "")
         if q is None or q["status"] != "evaluating":
             return {"skipped": q["status"] if q else "missing"}
+        held = await self._gate_question_step(q)
+        if held is not None:
+            return held
         qid, tid = q["question_id"], q["tenant_id"]
         goal = self.goals.get_goal(q["goal_id"]) if q.get("goal_id") else None
         principal = self._principal_for_question(q, goal)
@@ -373,10 +612,19 @@ class LoopEngine:
                 note = f"{len(responses)} holder response(s): {len(sa)} support A, {len(sb)} support B, records still disagree: {still}"
                 await self.knowledge.add_investigation(principal, conflict_id, "responses", note, question_id=qid)
                 outcome = "open"
-                if not still and sa and not sb:
-                    await self.knowledge.resolve_conflict(principal, conflict_id, "a_wins", note=f"investigation {qid}: only A is supported by current records"); outcome = "a_wins"
-                elif not still and sb and not sa:
-                    await self.knowledge.resolve_conflict(principal, conflict_id, "b_wins", note=f"investigation {qid}: only B is supported by current records"); outcome = "b_wins"
+                winner = ("a_wins", a, b, sa) if (not still and sa and not sb) else (("b_wins", b, a, sb) if (not still and sb and not sa) else None)
+                if winner is not None:
+                    verdict, win, lose, win_findings = winner
+                    decisive, why = self._decisive(qid, responses, win, lose, win_findings)
+                    if decisive:
+                        await self.knowledge.resolve_conflict(principal, conflict_id, verdict, note=f"investigation {qid}: only one record is supported by current records ({why})")
+                        outcome = verdict
+                    else:
+                        # not enough to retract anyone: the conflict stays under investigation, uncertainty retained, a person decides
+                        outcome = "needs_review"
+                        note = f"{note}; not resolved automatically: {why}"
+                        await self.knowledge.add_investigation(principal, conflict_id, "needs_review", note, question_id=qid)
+                        await self._notify_conflict_review(goal, k, note)
                 elif not still and not sa and not sb and not responses:
                     outcome = "no_evidence"
                 state["investigated"] = {"conflict_id": conflict_id, "outcome": outcome, "note": note}
@@ -387,6 +635,7 @@ class LoopEngine:
             base = {"tenant_id": tid, "scope_unit_id": q.get("scope_unit_id"), "visibility": (q.get("policy") or {}).get("visibility", "unit"), "goal_id": q.get("goal_id"),
                     "question_id": qid, "created_by_type": "loop" if q["asker_type"] != "user" else "agent", "created_by_id": principal.id, "valid_from": q.get("valid_from"), "valid_to": q.get("valid_to"),
                     "is_demo": bool(q.get("is_demo"))}
+            finding_claims: list[tuple[set[str], str, str]] = []      # (supporting response ids, finding text, claim id)
             for i, f in enumerate(ev.get("findings") or []):
                 if not isinstance(f, dict) or not (f.get("text") or "").strip():
                     continue
@@ -399,27 +648,55 @@ class LoopEngine:
                 gate_notes.append({"finding": i, "status": gate.status, "reasons": gate.reasons})
                 if claim:
                     claim_ids.append(claim["claim_id"])
-            for i, d in enumerate(ev.get("disagreements") or []):
-                if not isinstance(d, dict):
+                    finding_claims.append((set(f.get("supporting_response_ids") or []), f["text"].strip(), claim["claim_id"]))
+
+            def refs_of(ids: Iterable[str]) -> list[dict[str, Any]]:
+                out: list[dict[str, Any]] = []
+                for rid in ids:
+                    for ref in (resp_by_id.get(rid) or {}).get("evidence_ref_ids") or []:
+                        out.append({"ref_id": ref, "role": "supports"})
+                return out
+
+            def existing_side(resp_ids: list[str], text: str) -> str | None:
+                """A disagreement side that is a finding already committed above (its responses are part of that finding's
+                support) is that finding: the majority statement becomes contested instead of supported next to a copy."""
+                ids = set(resp_ids)
+                for rids, ftext, cid in finding_claims:
+                    if (ids and ids <= rids) or (not ids and text.strip() == ftext):
+                        return cid
+                return None
+
+            async def side_claim(resp_ids: list[str], text: str, conflict_with: list[str], summary: str) -> str | None:
+                cid = existing_side(resp_ids, text)
+                if cid is not None:
+                    return cid
+                # one claim per distinct response set, however many disagreement pairs name it
+                key = hashlib.sha256(("|".join(sorted(resp_ids)) or text.strip()).encode()).hexdigest()[:16]
+                cl, g = await self.knowledge.commit_claim(principal, {**base, "text": text, "kind": "finding", "confidence": 0.5}, evidence=refs_of(resp_ids),
+                                                          derivation={"operator": "synthesize", "response_ids": list(resp_ids), "model": model_name, "rationale": "disagreement side"},
+                                                          question=q, idempotency_key=f"claim:{qid}:side:{key}", conflict_with=conflict_with, conflict_summary=summary)
+                gate_notes.append({"disagreement_side": key, "status": g.status, "reasons": g.reasons})
+                if cl is None:
+                    return None
+                finding_claims.append((set(resp_ids), text.strip(), cl["claim_id"]))
+                return cl["claim_id"]
+
+            for d in ev.get("disagreements") or []:
+                if not isinstance(d, dict) or not (d.get("a_text") or "").strip() or not (d.get("b_text") or "").strip():
                     continue
-                def refs_of(ids: Iterable[str]) -> list[dict[str, Any]]:
-                    out: list[dict[str, Any]] = []
-                    for rid in ids:
-                        for ref in (resp_by_id.get(rid) or {}).get("evidence_ref_ids") or []:
-                            out.append({"ref_id": ref, "role": "supports"})
-                    return out
-                ca, ga = await self.knowledge.commit_claim(principal, {**base, "text": d.get("a_text") or "", "kind": "finding", "confidence": 0.5}, evidence=refs_of(d.get("a_response_ids") or []),
-                                                           derivation={"operator": "synthesize", "response_ids": list(d.get("a_response_ids") or []), "model": model_name, "rationale": "disagreement side A"},
-                                                           question=q, idempotency_key=f"claim:{qid}:dis{i}a")
-                cb, gb = await self.knowledge.commit_claim(principal, {**base, "text": d.get("b_text") or "", "kind": "finding", "confidence": 0.5}, evidence=refs_of(d.get("b_response_ids") or []),
-                                                           derivation={"operator": "synthesize", "response_ids": list(d.get("b_response_ids") or []), "model": model_name, "rationale": "disagreement side B"},
-                                                           question=q, idempotency_key=f"claim:{qid}:dis{i}b", conflict_with=[ca["claim_id"]] if ca else [], conflict_summary=d.get("summary") or "responses disagree")
-                for cl in (ca, cb):
-                    if cl:
-                        claim_ids.append(cl["claim_id"])
-                if ca and cb:
-                    k = self.knowledge.conflicts_for_claim(ca["claim_id"])
-                    conflict_ids.extend(x["conflict_id"] for x in k if x["conflict_id"] not in conflict_ids)
+                summary = d.get("summary") or "responses disagree"
+                ra, rb = list(d.get("a_response_ids") or []), list(d.get("b_response_ids") or [])
+                ca = await side_claim(ra, d["a_text"], [], summary)
+                if ca is None:
+                    continue
+                pre_b = existing_side(rb, d["b_text"])
+                cb = pre_b if pre_b is not None else await side_claim(rb, d["b_text"], [ca], summary)
+                if cb is None or cb == ca:
+                    continue
+                kc = await self.knowledge.open_conflict(principal, tid, ca, cb, summary, question_id=qid)
+                claim_ids.extend([ca, cb])
+                if kc["conflict_id"] not in conflict_ids:
+                    conflict_ids.append(kc["conflict_id"])
             claim_ids = list(dict.fromkeys(claim_ids))
             state.update({"claim_ids": claim_ids, "conflict_ids": conflict_ids, "gate_notes": gate_notes})
             await self._save_checkpoint(qid, tid, "claims_committed", state)
@@ -448,6 +725,10 @@ class LoopEngine:
                         c.execute("INSERT OR IGNORE INTO derivations(derivation_id, tenant_id, claim_id, operator, input_claim_ids, input_ref_ids, response_ids, model, contributor_type, contributor_id, rationale, created_at) VALUES (?, ?, ?, 'verify', '[]', ?, ?, ?, 'loop', ?, ?, ?)",
                                   (verify_der, tid, target_id, j([r for f in agree for r in (f.get("supporting_ref_ids") or [])]), j([r for f in agree for r in (f.get("supporting_response_ids") or [])]),
                                    model_name, principal.id, f"independent verification via question {qid}", now_iso()))
+                    fresh_refs = [r for r in self.knowledge.refs_by_ids([x for f in agree for x in (f.get("supporting_ref_ids") or [])]) if (r.get("status") or "active") == "active"]
+                    if fresh_refs:
+                        # current evidence confirms the claim: support whose source changed is superseded (kept for lineage)
+                        await self.knowledge.supersede_changed_support(principal, target_id, reason=f"re-verified by question {qid}")
                     await self.knowledge.recompute_status(principal, target_id, reason=f"independent verification ({qid}) added support")
                     outcome = "confirmed"
                 if disagree:
@@ -463,35 +744,59 @@ class LoopEngine:
             verified = {"outcome": outcome, "target_claim_id": target_id}
             state["verified"] = verified
             await self._save_checkpoint(qid, tid, "verified", state)
-        # spawn blind verification for hypotheses (bounded by depth/budget; not for verification questions themselves)
+        # spawn blind verification for hypotheses (bounded by depth, budget and the goal's free question slots; what does not
+        # fit is picked up by a later tick as a verification gap; never for verification questions themselves)
         spawned: list[str] = list(state.get("verification_questions") or [])
-        if q["kind"] not in ("verification",) and not spawned and self.router is not None:
-            pol = self.org.policies(tid)
+        if q["kind"] not in ("verification",) and "verification_questions" not in state and self.router is not None:
+            room = self._free_slots(q.get("goal_id"))
+            deferred: list[str] = []
             for cid in claim_ids:
                 cl = self.knowledge.get_claim(cid)
                 if not cl or cl["status"] != "hypothesis":
                     continue
-                exclude = list((cl.get("support") or {}).get("holders") or [])
+                if len(spawned) >= room:
+                    deferred.append(cid)
+                    continue
                 try:
-                    vq = await self._run_task("compose_verification_question", {"finding_text": cl["text"], "original_question": q["text"], "domains": q.get("candidate_domains") or []},
-                                              tenant_id=tid, goal=goal, question_id=qid)
-                    child = await self.questions.create(principal, {"text": vq["question"], "goal_id": q.get("goal_id"), "scope_unit_id": q.get("scope_unit_id"), "kind": "verification",
-                                                                    "candidate_domains": q.get("candidate_domains") or [], "parent_question_id": qid,
-                                                                    "trigger": {"kind": "verification", "claim_id": cid, "ref_type": "claim", "ref_id": cid},
-                                                                    "motivating_lineage": [{"type": "claim", "id": cid}, {"type": "question", "id": qid}],
-                                                                    "policy": {**(q.get("policy") or {}), "blind_verification": True, "exclude_holder_ids": exclude},
-                                                                    "valid_from": q.get("valid_from"), "valid_to": q.get("valid_to")},
-                                                        asker_type="loop", asker_id=principal.id, estimates={"uncertainty": 0.7, "impact": 0.6, "missing_evidence": 0.8, "information_gain": 0.7},
-                                                        holders_estimate=2, is_demo=bool(q.get("is_demo")))
+                    child = await self._ask_verification(principal, goal, cl, trigger_kind="verification", parent=q)
                     spawned.append(child["question_id"])
+                except BudgetExhausted:
+                    deferred.append(cid)
                 except (DuplicateQuestion, CooldownActive, ValueError, ModelError) as exc:
                     logger.info("no verification question for %s: %s", cid, exc)
             state["verification_questions"] = spawned
+            state["verification_deferred"] = deferred
             await self._save_checkpoint(qid, tid, "verification_spawned", state)
         await self._charge(q.get("goal_id"), started, question_id=qid)
         async with self.db.tx() as c:
             self.jobs.enqueue_sync(c, "question.commit", idempotency_key=f"question.commit:{qid}", tenant_id=tid, ref_type="question", ref_id=qid, priority=3, max_attempts=4)
         return {"claims": claim_ids, "conflicts": conflict_ids, "verification_questions": spawned, "verified": verified}
+
+    def _decisive(self, qid: str, responses: list[dict[str, Any]], winner: Mapping[str, Any], loser: Mapping[str, Any],
+                  win_findings: list[dict[str, Any]]) -> tuple[bool, str]:
+        """May the investigation retract the losing record? Only when every holder behind it was asked and answered (a
+        timeout or a decline is not evidence against it) and the winning side brings evidence from a source it did not
+        already rest on (the holder that produced it re-asserting it is not an independent check)."""
+        answered = {r["holder_id"] for r in responses}
+        routes = {r["holder_id"]: r["status"] for r in self.questions.routes(qid)}
+        behind_loser = {r["holder_id"] for r in self.knowledge.refs_for_claim(loser["claim_id"]) if r.get("role") == "supports"}
+        silent = sorted(h for h in behind_loser if h not in answered)
+        if silent:
+            states = ", ".join(f"{routes.get(h, 'not routed')}" for h in silent)
+            return False, f"{len(silent)} holder(s) behind the other record did not answer ({states})"
+        had = {r["source_root_id"] for r in self.knowledge.refs_for_claim(winner["claim_id"]) if r.get("role") == "supports" and r.get("root_known") and r.get("source_root_id")}
+        refs = self.knowledge.refs_by_ids([x for f in win_findings for x in (f.get("supporting_ref_ids") or [])])
+        new_roots = {r["source_root_id"] for r in refs if r.get("root_known") and r.get("source_root_id") and (r.get("status") or "active") == "active"} - had
+        if not new_roots:
+            return False, "no evidence independent of the sources the winning record already rested on"
+        return True, f"{len(new_roots)} new independent source root(s); every holder behind the other record answered"
+
+    async def _notify_conflict_review(self, goal: Mapping[str, Any] | None, conflict: Mapping[str, Any], note: str) -> None:
+        if goal is None or goal.get("owner_type") != "user":
+            return
+        async with self.db.tx() as c:
+            self.org.notify_sync(c, conflict["tenant_id"], goal["owner_id"], "conflict", "A disagreement needs a decision", body=note[:300],
+                                 ref_type="conflict", ref_id=conflict["conflict_id"])
 
     async def commit(self, job: Job) -> dict[str, Any]:
         """Commit the evaluated question into knowledge.
@@ -504,6 +809,9 @@ class LoopEngine:
         q = self.questions.get(job.ref_id or "")
         if q is None or q["status"] not in ("evaluating", "verifying"):
             return {"skipped": q["status"] if q else "missing"}
+        held = await self._gate_question_step(q)
+        if held is not None:
+            return held
         qid, tid = q["question_id"], q["tenant_id"]
         goal = self.goals.get_goal(q["goal_id"]) if q.get("goal_id") else None
         principal = self._principal_for_question(q, goal)
@@ -557,40 +865,35 @@ class LoopEngine:
                     logger.info("escalation skipped for %s: %s", discovery_id, exc)
             state["escalation_done"] = True
             await self._save_checkpoint(qid, tid, "escalated", state)
-        # 3. follow-up questions (bounded by depth, dedupe and budget; each routed by its own job)
+        # 3. follow-up questions (bounded by depth, dedupe, budget and the goal's free question slots; each routed by its own
+        # job). Those that do not fit now are recorded on the question and asked by a later tick when a slot frees up.
         if discovery_id and not state.get("followups_done"):
-            for fq in (syn.get("followup_questions") or [])[:max_fu]:
+            deferred_fu: list[dict[str, Any]] = []
+            room = self._free_slots(q.get("goal_id"))
+            for i, fq in enumerate((syn.get("followup_questions") or [])[:max_fu]):
                 if not isinstance(fq, dict) or not fq.get("question"):
                     continue
                 if goal and self.goals.budget_status(goal["goal_id"])["exhausted"]:
                     break
-                kind_f = fq.get("kind") if fq.get("kind") in ("gap", "verification", "contradiction", "relationship", "hypothesis", "prediction") else "gap"
-                trig_f: dict[str, Any] = {"kind": "followup", "discovery_id": discovery_id, "rationale": fq.get("rationale", "")}
-                lineage_f = [{"type": "claim", "id": c["claim_id"]} for c in claims[:5]] + [{"type": "question", "id": qid}]
-                if kind_f == "contradiction" and conflicts:
-                    # link the follow-up to the conflict whose records it names (most shared content tokens)
-                    qt = _tokens(fq["question"])
-                    best = max(conflicts, key=lambda k: len(qt & _tokens((self.knowledge.get_claim(k["claim_a_id"]) or {}).get("text", "") + " " + (self.knowledge.get_claim(k["claim_b_id"]) or {}).get("text", ""))))
-                    trig_f.update({"kind": "contradiction", "conflict_id": best["conflict_id"]})
-                    lineage_f.insert(0, {"type": "conflict", "id": best["conflict_id"]})
-                    if best["conflict_id"] in {((self.questions.get(x) or {}).get("trigger") or {}).get("conflict_id") for x in followups}:
-                        continue
+                fu = {"index": i, "question": fq["question"], "kind": fq.get("kind") or "gap", "rationale": fq.get("rationale", ""), "discovery_id": discovery_id,
+                      "claim_ids": [c["claim_id"] for c in claims[:5]], "conflict_ids": [k["conflict_id"] for k in conflicts]}
+                if len(followups) >= room:
+                    deferred_fu.append(fu)
+                    continue
                 try:
-                    child = await self.questions.create(principal, {"text": fq["question"], "goal_id": q.get("goal_id"), "scope_unit_id": q.get("scope_unit_id"), "kind": kind_f,
-                                                                    "candidate_domains": q.get("candidate_domains") or [], "parent_question_id": qid,
-                                                                    "trigger": trig_f, "motivating_lineage": lineage_f,
-                                                                    "policy": {k: v for k, v in (q.get("policy") or {}).items() if k != "exclude_holder_ids"},
-                                                                    "valid_from": q.get("valid_from"), "valid_to": q.get("valid_to")},
-                                                        asker_type="loop", asker_id=principal.id, estimates={"uncertainty": 0.6, "impact": 0.6, "missing_evidence": 0.6, "information_gain": 0.6},
-                                                        holders_estimate=2, is_demo=bool(q.get("is_demo")))
-                    followups.append(child["question_id"])
+                    child = await self._create_followup(principal, goal, q, fu, followup_of=f"{qid}:{i}")
+                    if child is not None:
+                        followups.append(child["question_id"])
                 except DuplicateQuestion as exc:
                     # created by an earlier attempt of this very step (or an identical live question): link it, do not lose it
-                    if exc.existing_id not in followups:
+                    if exc.existing_id and exc.existing_id not in followups:
                         followups.append(exc.existing_id)
-                except (CooldownActive, ValueError, PermissionError) as exc:
+                except BudgetExhausted:
+                    deferred_fu.append(fu)
+                except (CooldownActive, ValueError, PermissionError, ModelError) as exc:
                     logger.info("follow-up skipped for %s: %s", qid, exc)
             state["followup_ids"] = followups
+            state["deferred_followups"] = deferred_fu
             state["followups_done"] = True
             await self._save_checkpoint(qid, tid, "followups_created", state)
             await self.knowledge.attach_followups(discovery_id, followups)
@@ -613,6 +916,7 @@ class LoopEngine:
             await self._save_checkpoint(qid, tid, "actions_recorded", state)
         investigated = state.get("investigated") or {}
         summary = {"claim_ids": [c["claim_id"] for c in claims], "discovery_id": discovery_id, "followup_ids": followups, "conflict_ids": [k["conflict_id"] for k in conflicts],
+                   "deferred_followups": state.get("deferred_followups") or [], "verification_deferred": state.get("verification_deferred") or [],
                    "gate_notes": state.get("gate_notes") or [], "verified": state.get("verified") or {}, "verification_questions": state.get("verification_questions") or [],
                    "investigated": investigated, "synthesis_method": syn.get("method", "model") if syn else None,
                    "outcome": "investigated" if investigated else ("committed" if claims else "no_findings"),
@@ -632,6 +936,49 @@ class LoopEngine:
         await self.questions.set_status(qid, final, result=summary, resolved=True, cooldown=True)
         await self._save_checkpoint(qid, tid, "done", state)
         return summary
+
+    async def _create_followup(self, principal: Principal, goal: Mapping[str, Any] | None, parent: Mapping[str, Any], fu: Mapping[str, Any], *,
+                               followup_of: str) -> dict[str, Any] | None:
+        """One follow-up from a synthesis. Verification and contradiction follow-ups go through the blind builders (target
+        id, neutral text, supporters excluded) and are skipped when their target already has a question; other kinds are
+        asked as written, without inheriting the parent's blind or exclusion settings."""
+        if not parent:
+            return None
+        kind = fu.get("kind") if fu.get("kind") in ("gap", "verification", "contradiction", "relationship", "hypothesis", "prediction") else "gap"
+        extra = {"followup_of": followup_of, "discovery_id": fu.get("discovery_id")}
+        gid = parent.get("goal_id")
+        asked = lambda key, val: self.db.one(f"SELECT 1 FROM questions WHERE goal_id IS ? AND json_extract(trigger, '$.{key}')=? LIMIT 1", (gid, val)) is not None  # noqa: E731
+        child: dict[str, Any] | None = None
+        qt = _tokens(fu["question"])
+        if kind == "contradiction":
+            conflicts = [k for k in (self.knowledge.get_conflict(x) for x in fu.get("conflict_ids") or []) if k and k["status"] != "resolved"]
+            if not conflicts:
+                return None         # nothing left to investigate
+            best = max(conflicts, key=lambda k: len(qt & _tokens((self.knowledge.get_claim(k["claim_a_id"]) or {}).get("text", "") + " "
+                                                                  + (self.knowledge.get_claim(k["claim_b_id"]) or {}).get("text", ""))))
+            if asked("conflict_id", best["conflict_id"]):
+                return None
+            child = await self._ask_contradiction(principal, goal, best, trigger_kind="followup", parent=parent, extra_trigger=extra)
+        elif kind == "verification":
+            targets = [c for c in self.knowledge.claims_by_ids(fu.get("claim_ids") or []) if c["status"] in ("hypothesis", "stale")]
+            if not targets:
+                return None         # every claim it could check is settled
+            best = max(targets, key=lambda c: len(qt & _tokens(c["text"])))
+            if asked("claim_id", best["claim_id"]):
+                return None
+            child = await self._ask_verification(principal, goal, best, trigger_kind="followup", parent=parent, extra_trigger=extra)
+        else:
+            lineage = [{"type": "claim", "id": c} for c in (fu.get("claim_ids") or [])[:5]] + [{"type": "question", "id": parent["question_id"]}]
+            child = await self.questions.create(principal, {"text": fu["question"], "goal_id": gid, "scope_unit_id": parent.get("scope_unit_id"), "kind": kind,
+                                                            "candidate_domains": parent.get("candidate_domains") or [], "parent_question_id": parent["question_id"],
+                                                            "trigger": {"kind": "followup", "rationale": fu.get("rationale", ""), **extra}, "motivating_lineage": lineage,
+                                                            "policy": _child_policy(parent.get("policy"), blind_verification=False),
+                                                            "valid_from": parent.get("valid_from"), "valid_to": parent.get("valid_to")},
+                                                asker_type="loop", asker_id=principal.id, estimates={"uncertainty": 0.6, "impact": 0.6, "missing_evidence": 0.6, "information_gain": 0.6},
+                                                holders_estimate=2, is_demo=bool(parent.get("is_demo")))
+        if child is not None and fu.get("discovery_id"):
+            await self.knowledge.attach_followups(fu["discovery_id"], [child["question_id"]])
+        return child
 
     @staticmethod
     def _fallback_synthesis(claims: list[dict[str, Any]], conflicts: list[dict[str, Any]]) -> dict[str, Any]:
@@ -690,6 +1037,16 @@ class LoopEngine:
             return {"deferred": "question still being evaluated"}
         if q["status"] in ("cancelled", "expired"):
             return {"skipped": q["status"]}
+        state = self._pipeline_state(q.get("goal_id"), asker_type=q.get("asker_type") or "loop")
+        if state == "stop":
+            return {"skipped": "goal or loop stopped"}
+        if state == "hold":
+            n = int((job.payload or {}).get("n") or 0)
+            if n >= 60:
+                return {"skipped": "goal paused for too long; the response stays stored with the question"}
+            await self.jobs.enqueue("question.late_response", idempotency_key=f"question.late_response:{rid}:{n + 1}", tenant_id=q["tenant_id"], ref_type="question",
+                                    ref_id=q["question_id"], payload={"response_id": rid, "n": n + 1}, priority=6, delay_seconds=600.0)
+            return {"held": "goal or loop paused"}
         qid, tid = q["question_id"], q["tenant_id"]
         goal = self.goals.get_goal(q["goal_id"]) if q.get("goal_id") else None
         principal = self._principal_for_question(q, goal)
@@ -779,19 +1136,14 @@ class LoopEngine:
             return {"skipped": claim["status"] if claim else "missing"}
         tid = claim["tenant_id"]
         goal = self.goals.get_goal(claim["goal_id"]) if claim.get("goal_id") else None
-        if goal and (goal["status"] != "active" or self.goals.budget_status(goal["goal_id"])["exhausted"]):
-            return {"skipped": "goal inactive or budget exhausted"}
+        if goal and (self._pipeline_state(goal["goal_id"]) != "run" or self.goals.budget_status(goal["goal_id"])["exhausted"]):
+            # the next tick finds the claim as a verification gap once the loop runs again
+            return {"skipped": "goal not running or budget exhausted"}
         principal = self.authz.principal_for_loop(tid, goal) if goal else self.authz.principal_for_system(tid, worker_id=self.worker_id)
-        orig = self.questions.get(claim["question_id"]) if claim.get("question_id") else None
         try:
-            vq = await self._run_task("compose_verification_question", {"finding_text": claim["text"], "original_question": (orig or {}).get("text", ""), "domains": (orig or {}).get("candidate_domains") or []},
-                                      tenant_id=tid, goal=goal, question_id=None)
-            q = await self.questions.create(principal, {"text": vq["question"], "goal_id": claim.get("goal_id"), "scope_unit_id": claim.get("scope_unit_id"), "kind": "verification",
-                                                        "candidate_domains": (orig or {}).get("candidate_domains") or [], "parent_question_id": None,
-                                                        "trigger": {"kind": "evidence_revised" if claim["status"] == "stale" else "contradiction", "claim_id": cid, "ref_type": "claim", "ref_id": cid},
-                                                        "motivating_lineage": [{"type": "claim", "id": cid}], "policy": {**((orig or {}).get("policy") or {}), "blind_verification": True, "exclude_holder_ids": []}},
-                                            asker_type="loop", asker_id=principal.id, estimates={"uncertainty": 0.8, "impact": 0.7, "missing_evidence": 0.7, "information_gain": 0.7},
-                                            holders_estimate=2, is_demo=bool(claim.get("is_demo")), force=True)
+            # the source changed: its own holders are asked again (they hold the new version), still without the claim's text
+            q = await self._ask_verification(principal, goal, claim, trigger_kind="evidence_revised" if claim["status"] == "stale" else "contradiction",
+                                             exclude_supporters=False, force=True)
             await self.knowledge.revise_claim(principal, cid, reason=f"re-verification scheduled via question {q['question_id']}")
             return {"question_id": q["question_id"]}
         except (DuplicateQuestion, CooldownActive, ValueError, ModelError) as exc:
