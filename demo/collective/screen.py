@@ -1,6 +1,8 @@
 """screen.json (G8): what the console shows, every value an item with its provenance.
 
-**Fictional company, synthetic data, an illustration, not a measured result; internal and YC use only.**
+**Fictional company, synthetic data, an illustration, not a measured result; internal use only** (STRATEGY
+section 9.1 puts synthetic-fixture results of any kind off the YC demo's screen; showing this run to YC is the
+founder's decision, not this code's).
 
 The screen has static TEXT parts (the constants below: no digit outside the identifier allow-list, no number word)
 and ITEMS. An item is ``{id, beat, label, display, src, fmt}``: ``src`` is ``<primary run file>#<RFC 6901 pointer>``
@@ -16,7 +18,9 @@ scripted run or one driven live in the console); ``approval`` (scripted or live)
 UTC`` from an ISO timestamp with ``Z``. :func:`parse_display` reads a display back to the value the lint compares
 with :func:`comparable`.
 
-``presentation`` is how this screen is shown now, and the console's badge reads it: ``live`` only while the console
+``cut_only`` is true for a live run of the 60-second cut (``--serve --cut``): the console then shows only the cut's
+beats and offers no full version (the engine never enters the follow-up beat). ``presentation`` is how this screen is
+shown now, and the console's badge reads it: ``live`` only while the console
 is attached to the engine that is running the run (``--serve``); ``recorded`` for ``--record``, and always for
 ``--replay`` and ``--export`` (:func:`presented`), whatever mode the run was made in. The footer's ``mode`` item
 keeps how the run was made.
@@ -58,6 +62,11 @@ S_DEFINITION = "S: the same detectors over structured codes only, no model"
 X_DEFINITION = "X: detectors over k-suppressed counts that left the sites, from codes and narratives"
 R_ALSO = "The restricted central baseline also caught this case"
 S_ALSO = "The codes-only baseline also caught this case"
+SINGLE_NO_LATER = ("One plant alone also caught this failure mode, running the same detectors on its own records, no "
+                   "later than X: on this case the cross-site view is not earlier than a single site, so it shows no "
+                   "collective lift")
+SINGLE_LATER = ("One plant alone also caught this failure mode, running the same detectors on its own records, later "
+                "than X")
 R_RELATED = "The restricted central baseline flagged a related key:"
 S_RELATED = "The codes-only baseline flagged a related key:"
 BY_CONSTRUCTION = "By construction, S and R cannot see this key:"
@@ -76,7 +85,7 @@ X4_CAPTION = "approval-routed follow-up — not measured (X4)"
 REAL_DATA = "Real-data result: not yet measured (Phase-1 audit / public replay pending)"
 OUTCOME = "Outcome: not yet checked —"
 FOOTER = "Fictional company · synthetic data · illustration, not a measured result"
-AUDIENCE = "Internal and YC use only"
+AUDIENCE = "Internal use only"
 NO_FOLLOWUP = "No follow-up: only a supported conclusion can propose one"
 NOT_CHECKED = "Not checked: X did not alert this key"
 NOT_ASKED = "Not asked yet: press check with sites, and each plant answers from its own records"
@@ -200,6 +209,7 @@ SCREEN_SCHEMA = _obj({
     "run_id": {"type": "string", "pattern": RUN_ID_PATTERN},
     "mode": {"type": "string", "enum": list(MODES)},
     "presentation": {"type": "string", "enum": list(PRESENTATIONS)},
+    "cut_only": {"type": "boolean"},
     "phase": {"type": "string", "enum": list(PHASES)},
     "beats": _arr(_obj({"id": {"type": "string", "enum": [b for b, _ in BEATS]}, "title": _STR,
                         "in_cut": {"type": "boolean"}})),
@@ -331,11 +341,21 @@ def _alert(b: _Builder, sc: Mapping[str, Any]) -> None:
             [b.text("R · this failure mode · rank "), b.item("r_rank", "alert", "R rank", S + "/R_mf/rank", "rank")]
             + _other_key(b, sc, S, "R_mf", "r"), group="R")
     b.block("alert-r-definition", "alert", "note", [b.text(R_DEFINITION)], group="R")
+    single = [b.text(" (reference, not deployable at HQ) · each site alone · rank "),
+              b.item("single_rank", "alert", "Each site alone rank", S + "/single_site/rank", "rank")]
+    if det["single_site"]["caught"]:
+        single += [b.text(" in week "), b.item("single_week", "alert", "Each site alone first alert week",
+                                               S + "/single_site/detection_week", "text")]
     b.block("alert-references", "alert", "channel_row",
-            [b.text("References: U · rank "), b.item("u_rank", "alert", "U rank", S + "/U/rank", "rank"),
-             b.text(" (reference, not deployable at HQ) · each site alone · rank "),
-             b.item("single_rank", "alert", "Each site alone rank", S + "/single_site/rank", "rank"),
-             b.text(" (each site sees only its own records)")], group="references")
+            [b.text("References: U · rank "), b.item("u_rank", "alert", "U rank", S + "/U/rank", "rank")] + single
+            + [b.text(" (each site sees only its own records)")], group="references")
+    if det["single_site"]["caught"]:
+        # audit round 2: one plant alone flagging the hero key as early as X is the collective lift's own baseline
+        # (STRATEGY section 6.1), so the screen says it as plainly as it says S or R also caught the case
+        x_week, single_week = det["X"]["detection_week"], det["single_site"]["detection_week"]
+        no_later = x_week is None or single_week <= x_week
+        b.block("alert-single-also", "alert", "warning", [b.text(SINGLE_NO_LATER if no_later else SINGLE_LATER)],
+                group="references")
     if det["by_construction"]["S"]:
         b.block("alert-by-construction", "alert", "caption",
                 [b.text(BY_CONSTRUCTION + " " + REASON_TEXTS[det["by_construction"]["reason"]])])
@@ -552,9 +572,9 @@ def _footer(b: _Builder, sc: Mapping[str, Any], trace: Mapping[str, Any]) -> Non
 
 
 def _shell(run_id: str, mode: str, presentation: str, phase: str,
-           controls: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+           controls: Sequence[Mapping[str, Any]], cut_only: bool) -> dict[str, Any]:
     return {"kind": KIND, "schema_version": SCHEMA_VERSION, "run_id": run_id, "mode": mode,
-            "presentation": presentation, "phase": phase,
+            "presentation": presentation, "cut_only": cut_only, "phase": phase,
             "beats": [{"id": i, "title": t, "in_cut": i in CUT_60S} for i, t in BEATS], "cut_60s": list(CUT_60S),
             "controls": [dict(c) for c in controls], "blocks": [], "items": []}
 
@@ -571,14 +591,15 @@ def presented(screen: Mapping[str, Any], presentation: str) -> dict[str, Any]:
 
 
 def build_screen(docs: Mapping[str, Any] | None, *, mode: str, phase: str,
-                 controls: Sequence[Mapping[str, Any]] = (), run_id: str | None = None) -> dict[str, Any]:
+                 controls: Sequence[Mapping[str, Any]] = (), run_id: str | None = None,
+                 cut_only: bool = False) -> dict[str, Any]:
     """The screen for the primary documents (``{file name: document}``; the run id is the scorecard's), or, without
     documents (a run still preparing, or one that failed before it had any), a screen of static texts only for
     ``run_id``. It is presented ``live`` while the engine runs in ``live`` mode, else ``recorded``."""
     if mode not in MODES or phase not in PHASES:
         raise ScreenError("unknown mode or phase") from None
     out = _shell(docs["scorecard.json"]["run_id"] if docs is not None else run_id, mode,
-                 "live" if mode == "live" else "recorded", phase, controls)
+                 "live" if mode == "live" else "recorded", phase, controls, cut_only)
     b = _Builder(docs)
     if docs is None:
         b.block("preparing", "problem", "headline", [b.text(PREPARING)])

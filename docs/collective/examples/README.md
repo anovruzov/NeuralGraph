@@ -39,6 +39,11 @@ OpenAI-compatible base URL, and put the key in the environment variable named by
 the file. The runtime refuses to send raw records to an `external` endpoint unless the runtime was built for public
 or synthetic data (E3 does this; nothing that reads partner records can).
 
+The Ollama and vLLM endpoints turn thinking off (`"reasoning_effort": "none"` and `"chat_template_kwargs":
+{"enable_thinking": false}`): hybrid-thinking models think by default on current servers, and the thinking spends
+the site tasks' small token budgets before any answer (`../RUNBOOK.md`, section 2, "Thinking"). Drop the key only
+when thinking is what you mean to test, and check what your server version accepts.
+
 The route `extract_claims` shows single-hop escalation. A reply that still fails the schema after one repair is
 retried once on `escalate_to`, with the original prompt only. The route `judge_record` (G6) is the site's
 pushdown judge: it answers one question about one of the site's own records, so it must stay at `site:<site-id>`

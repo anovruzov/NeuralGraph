@@ -7,6 +7,7 @@ synthetic and are printed, never asserted.
 from __future__ import annotations
 
 import ast
+import itertools
 import json
 import os
 import random
@@ -24,7 +25,7 @@ from unittest import mock
 
 from mycelic.collective.edge import site as site_mod
 from mycelic.collective.edge.egress import (ARTIFACT_TYPES, CHANNELS, KEYWORDS, LOG_KEYS, SUPPRESSED, Boundary,
-                                            EgressError, artifact_keys, read_log, schema_words)
+                                            EgressError, artifact_keys, check_artifact, read_log, schema_words)
 from mycelic.collective.edge.extract import TASK_NAME, Claim, lexical_handler
 from mycelic.collective.edge.records import TABLES, InputRow, RecordStore, StoreError
 from mycelic.collective.edge.site import (EXTRACT_BATCH, REJECT_REASONS, EdgeSite, SiteError, build_cells,
@@ -33,6 +34,7 @@ from mycelic.collective.edge.weeks import (closed_through, iso_week, local_date,
                                            week_sunday)
 from mycelic.collective.inference.errors import KINDS, InferenceBoundaryError
 from mycelic.collective.inference.fake import FakeProvider
+from mycelic.collective.inference.fakeserver import FakeOpenAIServer
 from mycelic.collective.inference.ledger import read_ledger, summarise, usage_summary
 from mycelic.collective.inference.routing import parse_routing
 from mycelic.collective.inference.runtime import Runtime
@@ -120,6 +122,30 @@ def fake_runtime(pack: FrozenPack, site_id: str, ledger: Path, clock: Callable[[
     return Runtime(config, boundary=f"site:{site_id}", ledger_path=ledger, run_id="g3-test", clock=clock,
                    data_label="synthetic", allow_fake=True, fake=provider, sleep=lambda s: None, environ={},
                    simulation=simulation)
+
+
+def usage_rows(parts: Mapping[str, int], *, untokened: Mapping[str, int] | None = None) -> list[dict[str, Any]]:
+    """One extraction group's ledger rows, with the keys ``summarise`` reads. ``parts`` maps ``ok`` or an error kind
+    to its row count; ``untokened`` maps a part to how many of its rows have no token counts (default: every row of a
+    transport kind, none of the others). A transport failure's latency is a 300 s deadline."""
+    transport = ("timeout", "network", "http_5xx")
+    if untokened is None:
+        untokened = {part: n for part, n in parts.items() if part in transport}
+    rows = []
+    for part, n in parts.items():
+        for i in range(n):
+            bare = i < untokened.get(part, 0)
+            rows.append({"task": TASK_NAME, "endpoint": "site-fake", "ok": part == "ok",
+                         "error_kind": None if part == "ok" else part, "attempt": 1,
+                         "latency_ms": 300000.0 if part in transport else 900.0 + i,
+                         "tokens_in": None if bare else 600 + i, "tokens_out": None if bare else 40,
+                         "fake_marker": True})
+    return rows
+
+
+def usage_body(groups: list[dict[str, Any]]) -> dict[str, Any]:
+    return {"schema_version": 1, "pack": DQ.id, "config_hash": DQ.config_hash, "site": "s1", "as_of": "2026-03-29",
+            "after": None, "closed_through": "2026-W12", "k": 3, "groups": groups}
 
 
 def db_rows(path: Path, sql: str, args: tuple = ()) -> list[tuple]:
@@ -1048,21 +1074,21 @@ class UsageTests(SiteCase):
         s.ingest([coded(DQ, f"r{i}", "s1", day, "SD-9", reporter=f"R{i}") for i in range(n)])
         return s
 
-    def test_errors_are_suppressed_and_tokens_sent_when_calls_reach_k(self) -> None:
+    def test_errors_are_counted_and_tokens_sent_when_calls_reach_k(self) -> None:
         provider = FakeProvider()
         provider.register(TASK_NAME, lexical_handler(DQ, Canonicaliser(DQ)))
-        provider.fail_next(TASK_NAME, ["http_5xx"])
+        provider.fail_next(TASK_NAME, ["json_invalid"] * 3)      # r0 fails twice (attempt and repair), r1 once
         s = self.model_site(6, provider=provider)
         summary = s.extract("model")
-        self.assertEqual(dict(summary.errors), {"http_5xx": 1})
+        self.assertEqual(dict(summary.errors), {"json_invalid": 1})
         self.clock.value = "2026-03-29T08:00:00.000Z"
         usage = s.emit_usage("2026-03-29")
         (group,) = usage.body["groups"]
         self.assertEqual({k: group[k] for k in ("task", "endpoint", "calls", "ok", "errors", "fake",
                                                 "tokens_in_missing", "tokens_out_missing")},
-                         {"task": TASK_NAME, "endpoint": "site-fake", "calls": 6, "ok": 5,
-                          "errors": {"http_5xx": "<k"}, "fake": True, "tokens_in_missing": "<k",
-                          "tokens_out_missing": "<k"})
+                         {"task": TASK_NAME, "endpoint": "site-fake", "calls": 8, "ok": 5,
+                          "errors": {"json_invalid": 3}, "fake": True, "tokens_in_missing": 0,
+                          "tokens_out_missing": 0})
         for key in ("tokens_in", "tokens_out", "latency_ms_p50", "latency_ms_p95"):
             self.assertIn(key, group)
         raw = summarise(read_ledger(s.runtime.ledger.path))["groups"][0]
@@ -1071,6 +1097,167 @@ class UsageTests(SiteCase):
         for leaked in ('"ts"', '"ref"', '"host"', '"run_id"', '"model_requested"', '"model_served"', "g3-test",
                        "in-process", "x:1"):
             self.assertNotIn(leaked, text)
+
+    def test_no_part_below_k_can_be_recovered_by_subtraction(self) -> None:
+        # regression (audit r2): calls 7, ok 6 and errors {http_5xx: '<k'} crossed, so HQ read calls - ok = 1 failure;
+        # (review of audit r2): with ok and the errors withheld, tokens_in_missing still counted the transport
+        # failures (calls 8, ok 2, timeout 6 crossed with tokens_in_missing 6, so ok = 8 - 6 = 2), the token sums
+        # covered the 2 ok rows and the latency p95 interpolated towards the failures' deadline
+        W, ALL = "suppressed", ("latency_ms_p50", "latency_ms_p95", "tokens_in", "tokens_out")
+        cases = [
+            ({"ok": 6, "http_5xx": 1}, None, (7, W, {"http_5xx": W}, W, W), ()),
+            ({"ok": 2, "timeout": 5}, None, (7, W, {"timeout": W}, W, W), ()),
+            ({"timeout": 5, "network": 2}, None, (7, W, {"network": W, "timeout": W}, W, W), ()),
+            ({"ok": 2, "timeout": 6}, None, (8, W, {"timeout": W}, W, W), ()),
+            ({"ok": 7}, None, (7, 7, {}, 0, 0), ALL),
+            ({"ok": 4, "timeout": 3}, None, (7, 4, {"timeout": 3}, 3, 3), ALL),
+            ({"ok": 4, "timeout": 6}, None, (10, 4, {"timeout": 6}, 6, 6), ALL),
+            ({"timeout": 7}, None, (7, 0, {"timeout": 7}, 7, 7), ALL),
+            ({"ok": 4, "json_invalid": 3}, {"json_invalid": 3}, (7, 4, {"json_invalid": 3}, 3, 3), ALL),
+            # one ok reply without usage: tokens_in_missing 4 would be timeout 3 plus that 1 row
+            ({"ok": 5, "timeout": 3}, {"ok": 1, "timeout": 3}, (8, 5, {"timeout": 3}, W, W),
+             ("latency_ms_p50", "latency_ms_p95")),
+        ]
+        for parts, untokened, expected, optional in cases:
+            with self.subTest(parts=parts, untokened=untokened):
+                rows = usage_rows(parts, untokened=untokened)
+                out = site_mod._usage_group(rows, 3)
+                self.assertEqual((out["calls"], out["ok"], out["errors"], out["tokens_in_missing"],
+                                  out["tokens_out_missing"]), expected)
+                self.assertEqual(tuple(key for key in ALL if key in out), optional)
+                raw = summarise(rows)["groups"][0]
+                for key in optional:
+                    self.assertEqual(out[key], raw[key])
+                self.assertIsNone(check_artifact(DQ, "s1", "usage_summary", usage_body([out]), tasks=(TASK_NAME,),
+                                                 endpoints=("site-fake",)))
+        small = site_mod._usage_group(usage_rows({"ok": 1, "timeout": 1}), 3)
+        self.assertEqual((small["calls"], small["ok"], small["errors"], small["tokens_in_missing"]),
+                         ("<k", "<k", {"timeout": "<k"}, "<k"))
+        # every mix of up to three parts and of rows without tokens: the Boundary takes what the site sends, and every
+        # row count HQ can read is 0, at least k, or the sum of whole parts
+        for ok, timeout, invalid, bare_ok, bare_invalid in itertools.product(range(7), range(7), range(5), (0, 1),
+                                                                            (0, 3)):
+            parts = {"ok": ok, "timeout": timeout, "json_invalid": invalid}
+            untokened = {"ok": min(bare_ok, ok), "timeout": timeout, "json_invalid": min(bare_invalid, invalid)}
+            rows = usage_rows(parts, untokened=untokened)
+            if not rows:
+                continue
+            out = site_mod._usage_group(rows, 3)
+            problem = check_artifact(DQ, "s1", "usage_summary", usage_body([out]), tasks=(TASK_NAME,),
+                                     endpoints=("site-fake",))
+            exact = [v for v in (out["ok"], *out["errors"].values(), out["tokens_in_missing"],
+                                 out["tokens_out_missing"]) if isinstance(v, int)]
+            withheld = isinstance(out["calls"], str) or W in (out["ok"], *out["errors"].values())
+            whole = {sum(chosen) for r in range(4)
+                     for chosen in itertools.combinations([n for n in parts.values() if n], r)}
+            with self.subTest(parts=parts, untokened=untokened):
+                self.assertIsNone(problem)
+                if withheld:
+                    self.assertEqual([v for v in exact if v], [])
+                    self.assertFalse(set(out) & set(ALL))
+                else:
+                    self.assertTrue(all(v == 0 or v >= 3 for v in exact))
+                    for field in ("tokens_in_missing", "tokens_out_missing"):
+                        if isinstance(out[field], int):
+                            self.assertIn(out[field], whole)
+                            self.assertIn(out["calls"] - out[field], whole)
+
+    def test_the_boundary_refuses_a_subtractable_or_judge_usage_group(self) -> None:
+        # regression (audit r2): the spec let a '<k' part cross beside an int calls, and a site's usage could name
+        # the judge task, whose calls count the records retrieved for the week's questions; (review of audit r2) it
+        # let the missing-token counts, token sums and latency cross beside a withheld split
+        s = self.site(runtime=self.runtime())
+        group = {"task": TASK_NAME, "endpoint": "site-fake", "calls": 7, "ok": 6, "errors": {"http_5xx": "<k"},
+                 "tokens_in_missing": 0, "tokens_out_missing": 0, "fake": True}
+        W = "suppressed"
+        withheld = {**group, "calls": 8, "ok": W, "errors": {"timeout": W}, "tokens_in_missing": W,
+                    "tokens_out_missing": W}
+        exact = {**group, "ok": 4, "errors": {"timeout": 3}, "tokens_in_missing": 3, "tokens_out_missing": 3}
+        refused = [
+            ({**group}, "$.groups[0].errors.http_5xx", "suppression"),
+            ({**group, "ok": "<k", "errors": {"http_5xx": 5}}, "$.groups[0].ok", "suppression"),
+            ({**group, "ok": W, "errors": {"http_5xx": 5}}, "$.groups[0].errors.http_5xx", "suppression"),
+            ({**group, "calls": "<k", "ok": W, "errors": {"http_5xx": W}}, "$.groups[0].ok", "consistency"),
+            ({**group, "task": "judge_record", "ok": 7, "errors": {}}, "$.groups[0].task", "enum"),
+            ({**withheld, "tokens_in_missing": 6, "tokens_out_missing": 6}, "$.groups[0].tokens_in_missing",
+             "suppression"),
+            ({**withheld, "tokens_out_missing": 0}, "$.groups[0].tokens_out_missing", "suppression"),
+            ({**withheld, "tokens_in": 14, "tokens_out": 8}, "$.groups[0].tokens_in", "suppression"),
+            ({**withheld, "latency_ms_p95": 300000.0}, "$.groups[0].latency_ms_p95", "suppression"),
+            ({**group, "calls": "<k", "ok": "<k", "errors": {"timeout": "<k"}, "tokens_in_missing": W},
+             "$.groups[0].tokens_in_missing", "consistency"),
+            ({**exact, "tokens_in_missing": "<k"}, "$.groups[0].tokens_in_missing", "suppression"),
+            ({**exact, "tokens_in_missing": 5}, "$.groups[0].tokens_in_missing", "suppression"),
+            ({**exact, "tokens_out_missing": 8}, "$.groups[0].tokens_out_missing", "suppression"),
+            ({**exact, "tokens_in_missing": W, "tokens_in": 40}, "$.groups[0].tokens_in", "suppression"),
+            ({**exact, "errors": {"timeout": 4}}, "$.groups[0].calls", "consistency"),
+        ]
+        for g, path, keyword in refused:
+            with self.subTest(group=g), self.assertRaises(EgressError) as ctx:
+                s.boundary.validate("out", "usage_summary", usage_body([g]))
+            self.assertEqual((ctx.exception.path, ctx.exception.keyword), (path, keyword))
+        accepted = [
+            withheld, exact, {**exact, "tokens_in_missing": 0, "tokens_out_missing": 7},
+            {**exact, "tokens_in_missing": 4, "tokens_in": 40},
+            {**exact, "tokens_in_missing": W, "tokens_out_missing": 3, "tokens_out": 9, "latency_ms_p50": 5.0},
+            {**group, "calls": "<k", "ok": 0, "errors": {"timeout": "<k"}, "tokens_in_missing": "<k"},
+        ]
+        for g in accepted:
+            with self.subTest(group=g):
+                s.boundary.validate("out", "usage_summary", usage_body([g]))
+
+    def test_failures_cannot_be_read_from_the_missing_token_counts(self) -> None:
+        # regression (review of audit r2), the finder's probe: three passes each meet a dead server (the breaker
+        # stops each after two timeouts), then a pass answers twice, all in one week; HQ read timeout =
+        # tokens_in_missing = 6 and ok = calls - 6 = 2, below k
+        def week(ok: int, root: Path) -> dict[str, Any]:
+            provider = FakeProvider()
+            provider.register(TASK_NAME, lexical_handler(DQ, Canonicaliser(DQ)))
+            self.clock.value = T_MID_W11
+            s = self.site(runtime=fake_runtime(DQ, "s1", root / "edge" / "site-s1.ledger.jsonl", self.clock,
+                                               provider=provider), root=root)
+            self.addCleanup(s.runtime.close)
+            for p in range(3):
+                provider.fail_next(TASK_NAME, ["timeout", "timeout"])
+                s.ingest([coded(DQ, f"p{p}r{i}", "s1", "2026-03-02", "SD-9", reporter=f"R{i}") for i in range(2)])
+                self.assertEqual(dict(s.extract("model").errors), {"timeout": 2})
+            s.ingest([coded(DQ, f"ok{i}", "s1", "2026-03-03", "SD-9", reporter=f"R{i}") for i in range(ok)])
+            self.assertEqual(dict(s.extract("model").extractors), {"model:site-fake": ok})
+            self.clock.value = "2026-03-29T08:00:00.000Z"
+            s.emit_usage("2026-03-29")
+            (line,) = (root / "hq" / "receive.jsonl").read_bytes().splitlines()
+            (group,) = json.loads(line)["body"]["groups"]
+            return group
+
+        crossed = week(2, self.tmp / "two")
+        self.assertEqual(crossed, {"task": TASK_NAME, "endpoint": "site-fake", "calls": 8, "ok": "suppressed",
+                                   "errors": {"timeout": "suppressed"}, "tokens_in_missing": "suppressed",
+                                   "tokens_out_missing": "suppressed", "fake": True})
+        # with 4 replies every part reaches k: the missing-token counts are exactly the timeouts, the token sums cover
+        # the 4 replies, and nothing HQ can subtract is below k
+        crossed = week(4, self.tmp / "four")
+        self.assertEqual({k: crossed[k] for k in ("calls", "ok", "errors", "tokens_in_missing",
+                                                  "tokens_out_missing")},
+                         {"calls": 10, "ok": 4, "errors": {"timeout": 6}, "tokens_in_missing": 6,
+                          "tokens_out_missing": 6})
+        self.assertTrue({"tokens_in", "tokens_out", "latency_ms_p50", "latency_ms_p95"} <= set(crossed))
+
+    def test_judge_rows_stay_at_the_site(self) -> None:
+        # regression (audit r2): the weekly usage_summary carried judge_record calls, ok and tokens: one call per
+        # retrieved record, so HQ could ask one question in a week and read its exact record counts
+        s = self.model_site(4)
+        s.extract("model")
+        path = s.runtime.ledger.path
+        judge_row = {**read_ledger(path)[0], "task": "judge_record", "ref": "j:0123456789ab:0"}
+        with open(path, "a", encoding="utf-8") as fh:
+            for _ in range(7):
+                fh.write(canonical_dumps(judge_row) + "\n")
+        self.clock.value = "2026-03-29T08:00:00.000Z"
+        usage = s.emit_usage("2026-03-29")
+        self.assertEqual([(g["task"], g["calls"]) for g in usage.body["groups"]], [(TASK_NAME, 4)])
+        self.assertEqual(usage.stats["ledger_rows"], 11)
+        self.assertNotIn("judge_record", canonical_dumps(usage.body))
+        self.assertFalse([line for line in self.hq_lines() if b"judge_record" in line])
 
     def test_fewer_than_k_calls_withholds_tokens_and_latency(self) -> None:
         s = self.model_site(2)
@@ -1135,6 +1322,68 @@ class UsageTests(SiteCase):
         with self.assertRaises(SiteError):
             s.extract("model")
         self.assertEqual((calls, read_ledger(s.runtime.ledger.path)), ([], []))
+
+    def test_a_dead_model_server_costs_an_extraction_pass_two_calls(self) -> None:
+        # regression (audit r2): every record waited out the full deadline before its lexical fallback (a 1000
+        # record pass at a wedged server and a 300 s deadline: about 83 h)
+        for kind in ("timeout", "network", "http_5xx"):
+            with self.subTest(kind=kind):
+                provider = FakeProvider()
+                provider.register(TASK_NAME, lexical_handler(DQ, Canonicaliser(DQ)))
+                provider.fail_next(TASK_NAME, [kind] * 2)        # the rest would answer, were they sent
+                s = self.site(runtime=self.runtime(provider=provider), root=self.tmp / kind)
+                before = len(read_ledger(s.runtime.ledger.path))
+                s.ingest([coded(DQ, f"r{i}", "s1", "2026-03-02", "SD-9", reporter=f"R{i}") for i in range(10)])
+                summary = s.extract("model")
+                self.assertEqual((dict(summary.extractors), dict(summary.errors)),
+                                 ({"fallback": 10}, {kind: 2, "not_sent": 8}))
+                self.assertEqual(len(read_ledger(s.runtime.ledger.path)) - before, 2)
+                self.assertEqual(summary.claims, 10)                 # the lexical fallback still senses each record
+                # the next pass tries the server again
+                s.ingest([coded(DQ, "next", "s1", "2026-03-03", "SD-9")])
+                self.assertEqual(dict(s.extract("model").extractors), {"model:site-fake": 1})
+        # a model reply that fails validation is about the record, not the server: no breaker
+        provider = FakeProvider()
+        provider.register(TASK_NAME, lexical_handler(DQ, Canonicaliser(DQ)))
+        provider.fail_next(TASK_NAME, ["json_invalid"] * 8)
+        s = self.site(runtime=self.runtime(provider=provider), root=self.tmp / "invalid")
+        s.ingest([coded(DQ, f"r{i}", "s1", "2026-03-02", "SD-9", reporter=f"R{i}") for i in range(4)])
+        self.assertEqual(dict(s.extract("model").errors), {"json_invalid": 4})
+
+    def test_an_exempt_external_extraction_only_reads_records_that_carry_the_label(self) -> None:
+        # regression (audit r2): only a simulated runtime was checked, so under allow_external_raw='synthetic' model
+        # extraction sent non-synthetic narratives to an external endpoint and the ledger called them synthetic
+        with FakeOpenAIServer("valid", reply={"claims": []}) as server:
+            def exempt(label: str, site_id: str) -> Runtime:
+                config = parse_routing({"schema_version": 1, "endpoints": {"cloud": {
+                    "provider": "openai_compat", "boundary": "external", "base_url": server.base_url,
+                    "model": "m-tag"}}, "routes": {TASK_NAME: {"endpoint": "cloud"}}}, environ={})
+                rt = Runtime(config, boundary=f"site:{site_id}", ledger_path=self.tmp / f"{label}-{site_id}.jsonl",
+                             run_id="g3-test", clock=self.clock, data_label=label, allow_external_raw=label,
+                             environ={}, sleep=lambda s: None)
+                self.addCleanup(rt.close)
+                return rt
+
+            for label in ("synthetic", "public"):
+                with self.subTest(label=label):
+                    s = self.site(runtime=exempt(label, "s1"), root=self.tmp / f"{label}-s1")
+                    s.ingest([coded(DQ, "syn", "s1", "2026-03-02", "SD-9"),
+                              coded(DQ, "real", "s1", "2026-03-02", "SD-9", synthetic=False)])
+                    with self.assertRaises(SiteError):
+                        s.extract("model")
+                    self.assertEqual((server.chat_requests, read_ledger(s.runtime.ledger.path)), ([], []))
+                    self.assertEqual(s.store.pending_through("2026-W10"), 2)
+            # synthetic records under the synthetic exemption, and the public source's records under the public one
+            s = self.site(runtime=exempt("synthetic", "s1"), root=self.tmp / "ok-s1")
+            s.ingest([coded(DQ, "syn", "s1", "2026-03-02", "SD-9")])
+            self.assertEqual(s.extract("model").records, 1)
+            p = self.site(site_id="public", runtime=exempt("public", "public"), root=self.tmp / "ok-public")
+            p.ingest([coded(DQ, "pub", "public", "2026-03-02", "SD-9", synthetic=False)])
+            self.assertEqual(p.extract("model").records, 1)
+            self.assertEqual(len(server.chat_requests), 2)
+            self.assertEqual([(r["boundary_mode"], r["data_label"]) for r in read_ledger(s.runtime.ledger.path)]
+                             + [(r["boundary_mode"], r["data_label"]) for r in read_ledger(p.runtime.ledger.path)],
+                             [("external_raw_exempt", "synthetic"), ("external_raw_exempt", "public")])
 
 
 # --------------------------------------------------------------------------------------------------- the Boundary

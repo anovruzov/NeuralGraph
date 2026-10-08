@@ -30,6 +30,7 @@ RECORD_KEYS = ("record_ref", "site", "received_date", "language", "codes", "enti
 REJECT_REASONS = ("not_object", "invalid_json", "missing_record_ref", "missing_received_date", "bad_date", "bad_type",
                   "bad_site", "duplicate_record_ref")
 SITE_ID_RE = re.compile(r"[a-z0-9][a-z0-9_.-]{0,63}", re.ASCII)
+PUBLIC_SITE = "public"  # the site of records prepared from a public source (openFDA); only these may be labelled public
 ISO_DATE_RE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", re.ASCII)
 COMPACT_DATE_RE = re.compile(r"[0-9]{8}", re.ASCII)
 MAX_REF = 128

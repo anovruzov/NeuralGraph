@@ -8,7 +8,13 @@ leave, ``out``:
   ``n_roots`` and ``n_reporters``, each an int >= k or the literal ``'<k'``; ``res_conf_min`` only when ``n`` is an
   int. Weeks lie in ``(after, closed_through]``, cells are strictly sorted, ids have their type's canonical form;
 * ``usage_summary``: per (task, endpoint) counts over the ledger rows of closed weeks, suppressed the same way, with
-  token sums and latency percentiles only when ``calls`` is an int;
+  token sums and latency percentiles only when ``calls`` is an int. ``calls = ok + the error counts``, so when
+  ``calls`` is an int no part may be ``'<k'`` (it would be ``calls`` minus the others): complementary suppression
+  sends ``ok``, every error kind and both missing-token counts as ``'suppressed'`` (:data:`PACKET_SUPPRESSED`)
+  instead, with no token sum and no latency. Otherwise an exact missing-token count is a sum of whole parts, and a
+  token sum goes only beside an exact one (:func:`_usage_problem`; review of audit round 2). A site names only its
+  extraction task: the judge's calls are one per retrieved record, so its usage would count the records behind a
+  verdict (audit round 2);
 * ``verdict`` (G6): a site's answer to one question: ``confirm``, ``refute`` or ``unknown``; four count buckets
   (:func:`verdict_buckets`: ``'<k'``, then ranges from the pack's ``verdict_count_buckets``), never an exact count;
   the newest confirming week; one opaque 16-hex ``evidence_ref`` that only the site's auditor can resolve; a wire
@@ -55,6 +61,7 @@ from __future__ import annotations
 import math
 import re
 from dataclasses import dataclass
+from itertools import combinations
 from pathlib import Path
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Callable, Mapping, Sequence
@@ -102,6 +109,7 @@ CELL_OPTIONAL = ("res_conf_min",)
 COUNT_FIELDS = ("n", "n_roots", "n_reporters")
 GROUP_KEYS = ("calls", "endpoint", "errors", "fake", "ok", "task", "tokens_in_missing", "tokens_out_missing")
 GROUP_OPTIONAL = ("latency_ms_p50", "latency_ms_p95", "tokens_in", "tokens_out")
+MISSING_FIELDS = ("tokens_in_missing", "tokens_out_missing")
 QUESTION_KEYS = ("as_of", "candidate_key", "pack", "pack_hash", "params", "question_id", "schema_version",
                  "template_id", "window")
 PARAM_KEYS = ("entity_id", "entity_type", "predicate")
@@ -187,10 +195,12 @@ class _Bool:
 
 @dataclass(frozen=True)
 class _Count:
-    """An int (not bool) in [k, MAX_COUNT], or exactly ``'<k'``; with ``zero``, also the int 0."""
+    """An int (not bool) in [k, MAX_COUNT], or exactly ``'<k'``; with ``zero``, also the int 0; with ``withheld``,
+    also exactly ``'suppressed'`` (complementary suppression: a value of any size held back)."""
 
     k: int
     zero: bool = False
+    withheld: bool = False
 
 
 @dataclass(frozen=True)
@@ -269,7 +279,8 @@ def _check(node: Any, value: Any, path: str) -> tuple[str, str] | None:
     if isinstance(node, _Bool):
         return None if isinstance(value, bool) else (path, "type")
     if isinstance(node, _Count):
-        if (isinstance(value, str) and value == SUPPRESSED) or (node.zero and _is_int(value) and value == 0):
+        if (isinstance(value, str) and value == SUPPRESSED) or (node.zero and _is_int(value) and value == 0) \
+                or (node.withheld and isinstance(value, str) and value == PACKET_SUPPRESSED):
             return None
         return None if _is_int(value) and node.k <= value <= MAX_COUNT else (path, "count")
     if isinstance(node, _Week):
@@ -391,8 +402,9 @@ def _spec(pack: "FrozenPack", site_id: str, artifact_type: str, tasks: Sequence[
                     {"res_conf_min": _Enum((conf.confidence_exact, conf.confidence_alias, conf.confidence_variant))})
         return _obj({**_envelope(pack, site_id), "cells": _Arr(cell)})
     group = _obj({"task": _Enum(tuple(tasks)), "endpoint": _Enum(tuple(endpoints)), "calls": _Count(k),
-                  "ok": _Count(k, zero=True), "tokens_in_missing": _Count(k, zero=True),
-                  "tokens_out_missing": _Count(k, zero=True), "errors": _obj({}, {kind: _Count(k) for kind in KINDS}),
+                  "ok": _Count(k, zero=True, withheld=True),
+                  **{f: _Count(k, zero=True, withheld=True) for f in MISSING_FIELDS},
+                  "errors": _obj({}, {kind: _Count(k, withheld=True) for kind in KINDS}),
                   "fake": _Bool()},
                  {"tokens_in": _Int(0, MAX_TOKENS), "tokens_out": _Int(0, MAX_TOKENS),
                   "latency_ms_p50": _Num(0, MAX_LATENCY_MS), "latency_ms_p95": _Num(0, MAX_LATENCY_MS)})
@@ -467,13 +479,48 @@ def _cells_problem(pack: "FrozenPack", body: dict[str, Any]) -> tuple[str, str] 
     return None
 
 
+def _whole_parts(total: int, parts: Sequence[int]) -> bool:
+    return any(sum(chosen) == total for n in range(len(parts) + 1) for chosen in combinations(parts, n))
+
+
 def _usage_problem(body: dict[str, Any]) -> tuple[str, str] | None:
+    """Per group, the parts being ``ok`` and each error kind (``calls`` is their sum), so that every row count HQ can
+    work out is 0 or at least k:
+
+    * ``calls`` ``'<k'``: no token sum or latency and nothing ``'suppressed'``;
+    * an int ``calls`` with a ``'suppressed'`` part (complementary suppression): every part and both missing-token
+      counts ``'suppressed'``, no token sum and no latency;
+    * an int ``calls`` otherwise: no ``'<k'`` part or missing-token count, ``calls`` the sum of the parts, an int
+      missing-token count a sum of whole parts, and a token sum only beside an int missing-token count."""
     groups = body["groups"]
     for i, g in enumerate(groups):
+        parts = [("ok", g["ok"]), *((f"errors.{kind}", n) for kind, n in sorted(g["errors"].items()))]
+        counts = [*parts, *((f, g[f]) for f in MISSING_FIELDS)]
         if g["calls"] == SUPPRESSED:
             for key in GROUP_OPTIONAL:
                 if key in g:
                     return f"$.groups[{i}].{key}", "consistency"
+            for path, v in counts:
+                if v == PACKET_SUPPRESSED:
+                    return f"$.groups[{i}].{path}", "consistency"
+        elif any(v == PACKET_SUPPRESSED for _, v in parts):
+            for path, v in counts:
+                if v != PACKET_SUPPRESSED:
+                    return f"$.groups[{i}].{path}", "suppression"
+            for key in GROUP_OPTIONAL:
+                if key in g:
+                    return f"$.groups[{i}].{key}", "suppression"
+        else:
+            for path, v in counts:
+                if v == SUPPRESSED:
+                    return f"$.groups[{i}].{path}", "suppression"
+            if g["calls"] != sum(v for _, v in parts):
+                return f"$.groups[{i}].calls", "consistency"
+            for field in MISSING_FIELDS:
+                if _is_int(g[field]) and not _whole_parts(g[field], [v for _, v in parts]):
+                    return f"$.groups[{i}].{field}", "suppression"
+                if g[field] == PACKET_SUPPRESSED and field.removesuffix("_missing") in g:
+                    return f"$.groups[{i}].{field.removesuffix('_missing')}", "suppression"
     for i in range(1, len(groups)):
         if not (groups[i - 1]["task"], groups[i - 1]["endpoint"]) < (groups[i]["task"], groups[i]["endpoint"]):
             return f"$.groups[{i}]", "order"

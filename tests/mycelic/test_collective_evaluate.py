@@ -289,12 +289,12 @@ class PlantSpecTests(PlantCase):
                     self.assertEqual((cm.exception.file, cm.exception.problem), (f"fixtures/{name}", "unexpected file"))
                     (fixtures / name).unlink()
         self.assertEqual(DQ.hashes(), {
-            "config_hash": "285935198ba34f2e194dc175cffd1f8f62c494d03d8fb7400ca1aef709058f2a",
+            "config_hash": "ac59c4cbb418509f02c8cef3cfb738fa65849f659844f6286e90a676f8c2276f",
             "vocabulary_hash": "e46f521154ce94f42136319ade62cebb5c65515ab90a057470495a606f225901",
             "detector_hash": "c9462f62aa90245f2c7cee50078d337554bded58c4630cda7becbf7a8048c7ec",
             "fixtures_hash": "dc4b70b7044b1094baaa669fb5a3582eeae91af290213e13b94180791db5656d"})
         self.assertEqual(CI.hashes(), {
-            "config_hash": "a3a042943452f6ef781f171cf879f3ba5f594f6c4dae5ffef47bfa241bb392da",
+            "config_hash": "12d62cdfcab0c3fab0a0f1f11f1809df08aacce691b7dee41d3a86c7085deb7a",
             "vocabulary_hash": "028b7603f2b6ef3bba203dee299ea8b001880ef89cd4b276de8513d2a1a301f3",
             "detector_hash": "2041fe9b3e141a5603836d893c97d5671eb21cbb3da611969efbd0c2c4514b84",
             "fixtures_hash": "a2e8936b4be26683f0860c8c8799e701f9aedfb78ea167d5420ac891111b8d80"})
@@ -740,9 +740,11 @@ class PlantedConstructionTests(ConstructionCase):
                                                         "ORDER BY record_ref", (r["record_ref"],))
                 self.assertEqual(root, [(r["record_ref"],)])
 
-    def test_the_no_plant_control_runs_per_seed_and_its_finds_are_not_net(self) -> None:
-        # regression: seed 11's world alone (no plant) already alerts single_site on two pattern keys at a planted
-        # site inside their windows; those two units are chance finds, never net
+    def test_the_no_plant_control_runs_per_seed_and_only_its_earlier_finds_are_not_net(self) -> None:
+        # regression: seed 11's world alone (no plant) alerts single_site on two pattern keys at a planted site
+        # inside their windows. Audit r2: both control alerts come strictly after single_site's planted-world find
+        # (the plant's alert came first and its cooldown hid the later background alert), so neither is a chance
+        # find; single_site's three finds are all net and the collective lift on this seed is 0, not 2 / 3
         control_dir = self.run_dir / "work" / f"seed-{self.seed}" / "control"
         self.assertTrue((control_dir / "hq" / "collective.sqlite3").is_file())
         index = {w: i for i, w in enumerate(W)}
@@ -751,18 +753,31 @@ class PlantedConstructionTests(ConstructionCase):
         for name in B.CHANNELS:
             with self.subTest(channel=name):
                 block, items = self.card["channels"][name], control[(self.seed, name)]
-                chance = {p["id"] for p in self.labels["patterns"] if H.pattern_outcome(items, p, index)["found"]}
-                self.assertEqual((block["control_alerts"], block["control_found"]), (len(items), len(chance)))
+                in_control = {p["id"]: H.pattern_outcome(items, p, index) for p in self.labels["patterns"]}
+                found_there = {i for i, o in in_control.items() if o["found"]}
+                self.assertEqual((block["control_alerts"], block["control_found"]), (len(items), len(found_there)))
                 outcomes = {p["id"]: next(o for o in p["outcomes"] if o["channel"] == name)
                             for p in self.card["patterns"]}
-                self.assertEqual({i for i, o in outcomes.items() if o["found_in_control"]}, chance)
+                self.assertEqual({i for i, o in outcomes.items() if o["found_in_control"]}, found_there)
+                chance = {i for i, o in outcomes.items() if o["found"] and i in found_there
+                          and in_control[i]["first_alert_week"] <= o["first_alert_week"]}
+                self.assertEqual({i for i, o in outcomes.items() if o["chance_find"]}, chance)
+                self.assertEqual(block["chance_found"], len(chance))
                 self.assertEqual(block["found_net"],
                                  sum(1 for i, o in outcomes.items() if o["found"] and i not in chance))
         single = self.card["channels"]["single_site"]
-        self.assertEqual((single["found"], single["control_found"], single["found_net"]), (3, 2, 1))
+        self.assertEqual((single["found"], single["control_found"], single["chance_found"], single["found_net"]),
+                         (3, 2, 0, 3))
+        items = control[(self.seed, "single_site")]
+        for p in self.card["patterns"]:
+            o = next(o for o in p["outcomes"] if o["channel"] == "single_site")
+            label = next(lb for lb in self.labels["patterns"] if lb["id"] == p["id"])
+            if o["found_in_control"]:
+                self.assertLess(index[o["first_alert_week"]],
+                                index[H.pattern_outcome(items, label, index)["first_alert_week"]])
         self.assertEqual(self.card["channels"]["X"]["control_found"], 0)
         lift = self.card["lifts"]["X_minus_single_site"]
-        self.assertEqual((lift["estimate"], lift["basis"]), (2 / 3, H.NET_BASIS))
+        self.assertEqual((lift["estimate"], lift["basis"]), (0.0, H.NET_BASIS))
         for e in self.card["by_construction"]:
             self.assertEqual(e["recall_net"], 0.0)
         for item in next(a["items"] for a in self.card["control_alerts"] if a["channel"] == "single_site"):
@@ -1108,13 +1123,14 @@ class MetricTests(unittest.TestCase):
                     2: [_event(W[45], score=0.4)]}
         block = H.channel_block("X", "label", per_seed, self.labels(), self.index, 26, {1: [], 2: []})
         self.assertEqual((block["units"], block["found"], block["recall"]), (4, 1, 0.25))
-        self.assertEqual((block["control_found"], block["found_net"], block["recall_net"]), (0, 1, 0.25))
+        self.assertEqual((block["control_found"], block["chance_found"], block["found_net"], block["recall_net"]),
+                         (0, 0, 1, 0.25))
         self.assertEqual(block["by_visibility"]["narrative_only"],
-                         {"units": 2, "found": 1, "recall": 0.5, "control_found": 0, "found_net": 1,
+                         {"units": 2, "found": 1, "recall": 0.5, "control_found": 0, "chance_found": 0, "found_net": 1,
                           "recall_net": 0.5})
         self.assertEqual(block["by_visibility"]["both"],
-                         {"units": 0, "found": 0, "recall": None, "control_found": 0, "found_net": 0,
-                          "recall_net": None})
+                         {"units": 0, "found": 0, "recall": None, "control_found": 0, "chance_found": 0,
+                          "found_net": 0, "recall_net": None})
         self.assertEqual((block["alerts"], block["false_alarms"]), (5, 3))
         self.assertEqual(block["false_alarms_per_week"], 3 / (26 * 2))
         self.assertEqual(block["decoys_alerted"]["echo_marked"], 1)
@@ -1141,24 +1157,52 @@ class MetricTests(unittest.TestCase):
         self.assertEqual((block["found"], block["false_alarms"]), (0, 1))
         self.assertFalse(H.pattern_outcome(elsewhere[1], label, self.index)["found"])
 
-    def test_a_find_in_the_no_plant_control_is_a_chance_find_and_not_net(self) -> None:
-        # regression: the same alert in the world without the plant makes the planted run's find a chance find
-        planted = {1: [_event(W[32])], 2: [_event(W[33])]}
-        control = {1: [_event(W[35])], 2: []}
+    def test_a_find_the_control_makes_as_early_or_earlier_is_a_chance_find_and_not_net(self) -> None:
+        # regression: the same key alerting in the world without the plant, in the same week or earlier, makes the
+        # planted run's find a chance find
+        planted = {1: [_event(W[32])], 2: [_event(W[33])], 3: [_event(W[34])]}
+        control = {1: [_event(W[32])], 2: [], 3: [_event(W[31]), _event(W[36])]}
         block = H.channel_block("X", "label", planted, self.labels(), self.index, 26, control)
-        self.assertEqual((block["found"], block["control_found"], block["found_net"]), (2, 1, 1))
-        self.assertEqual((block["control_recall"], block["recall_net"], block["control_alerts"]), (0.25, 0.25, 1))
-        self.assertEqual([(r["seed"], r["found"], r["control_found"], r["found_net"], r["control_alerts"])
-                          for r in block["per_seed"]], [(1, 1, 1, 0, 1), (2, 1, 0, 1, 0)])
+        self.assertEqual((block["found"], block["control_found"], block["chance_found"], block["found_net"]),
+                         (3, 2, 2, 1))
+        self.assertEqual((block["control_recall"], block["recall_net"], block["control_alerts"]), (2 / 6, 1 / 6, 3))
+        self.assertEqual([(r["seed"], r["found"], r["control_found"], r["chance_found"], r["found_net"],
+                           r["control_alerts"]) for r in block["per_seed"]],
+                         [(1, 1, 1, 1, 0, 1), (2, 1, 0, 0, 1, 0), (3, 1, 1, 1, 0, 2)])
         label = self.labels()["patterns"][0]
         self.assertFalse(H.net_found(planted[1], control[1], label, self.index))
         self.assertTrue(H.net_found(planted[2], control[2], label, self.index))
+        self.assertTrue(H.chance_find(planted[3], control[3], label, self.index))
+
+    def test_a_control_alert_only_after_the_planted_find_does_not_void_it(self) -> None:
+        # regression (audit r2): a channel that spends its whole budget (single_site) alerts on the plant at W31;
+        # without the plant the same key alerts only at W40, from background the planted world's cooldown
+        # suppressed. That is not a chance find, and removing it gave X a positive "collective lift" over a
+        # single_site that found more patterns, earlier.
+        label = _label()
+        planted = {1: [_event(W[31], site="plant-x"), _event(W[31], site="plant-z")]}
+        control = {1: [_event(W[40], site="plant-z")]}
+        self.assertFalse(H.chance_find(planted[1], control[1], label, self.index))
+        self.assertTrue(H.net_found(planted[1], control[1], label, self.index))
+        block = H.channel_block("single_site", "label", planted, self.labels(), self.index, 26, control)
+        self.assertEqual((block["found"], block["control_found"], block["chance_found"], block["found_net"]),
+                         (1, 1, 0, 1))
+        # the same control alert at or before the planted find is still a chance find
+        for week in (W[31], W[30]):
+            self.assertTrue(H.chance_find(planted[1], [_event(week, site="plant-x")], label, self.index))
+        # a control alert at a site the pattern was never planted at does not count, whatever its week
+        self.assertFalse(H.chance_find(planted[1], [_event(W[30], site="plant-y")], label, self.index))
+        # X found 1 of 1, single_site found 1 of 1: the lift on net found is 0, not 1
+        x = {"p": [H.net_found([_event(W[33])], [], label, self.index)]}
+        single = {"p": [H.net_found(planted[1], control[1], label, self.index)]}
+        self.assertEqual(H.lift("X_minus_single_site", x, single, B=1000, seed=1)["estimate"], 0.0)
 
     def test_lifts_are_cluster_bootstraps_and_equal_recalls_give_zero(self) -> None:
         same = {"p1": [True, False], "p2": [True, True]}
         lift = H.lift("X_minus_S", same, same, B=1000, seed=1)
         self.assertEqual((lift["estimate"], lift["ci_low"], lift["ci_high"]), (0.0, 0.0, 0.0))
-        self.assertEqual(lift["basis"], "found in the planted world and not in the same seed's no-plant control world")
+        self.assertEqual(lift["basis"], "found in the planted world and not found as early or earlier in the same "
+                                        "seed's no-plant control world")
         self.assertTrue(lift["ci_low"] <= 0 <= lift["ci_high"])
         self.assertEqual((lift["n_patterns"], lift["n_seeds"], lift["n_units"], lift["seed"], lift["method"]),
                          (2, 2, 4, "x1:1:X_minus_S", "cluster percentile"))

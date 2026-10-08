@@ -136,6 +136,36 @@ class E3SmokeTests(TempCase):
         texts = [r["json"]["messages"][1]["content"] for r in srv.chat_requests]
         self.assertEqual(len(set(texts)), 10)     # distinct filler per request
 
+    def test_a_thinking_server_is_timed_from_its_first_thinking_token_and_flagged(self) -> None:
+        # regression (audit r2): against Ollama's and vLLM's field name, TTFT waited for the end of the thinking and
+        # decode tokens/s came out about 20 times too high, with nothing in the cell saying a model was thinking
+        timing = {"reply": ANSWER, "first_token_s": 0.0, "token_s": 0.02, "n_chunks": 5, "think_tokens": 20}
+        cells = {}
+        for field in ("reasoning", "reasoning_content"):
+            srv = self.server("stream", think_field=field, **timing)
+            code, result, err = self.e3(srv, "--concurrency", "1", "--requests", "3", "--warmup", "1",
+                                        "--workloads", "short", run_id=f"think-{field.replace('_', '-')}")
+            self.assertEqual(code, 0, err)
+            [cells[field]] = result["cells"]
+        for field, cell in cells.items():
+            with self.subTest(field=field):
+                self.assertEqual((cell["ok"], cell["thinking_requests"], cell["length_cut"]), (2, 2, 0))
+                # 24 tokens over about 24 x 20 ms: about 50 tokens/s whichever field the server uses
+                self.assertLess(cell["ttft_s"]["p50"], 0.2)
+                self.assertLess(cell["decode_tok_s"]["p50"], 100)
+        rates = [cells[field]["decode_tok_s"]["p50"] for field in ("reasoning", "reasoning_content")]
+        self.assertLess(abs(rates[0] - rates[1]), 25)
+
+    def test_thinking_that_spends_the_token_cap_is_counted(self) -> None:
+        srv = self.server("thinks-by-default", reply=ANSWER, first_token_s=0.0, token_s=0.0, think_tokens=300)
+        code, result, err = self.e3(srv, "--concurrency", "1", "--requests", "3", "--warmup", "1", "--workloads",
+                                    "short", run_id="cut")
+        self.assertEqual(code, 0, err)
+        [cell] = result["cells"]
+        self.assertEqual((cell["ok"], cell["failures"], cell["thinking_requests"], cell["length_cut"]),
+                         (0, {"json_invalid": 2}, 2, 2))
+        self.assertTrue(any("length_cut" in note for note in result["notes"]))
+
     def test_transport_retries_are_counted_per_cell(self) -> None:
         """Latencies time the final HTTP try only, so a cell says how many measured requests needed a retry."""
         srv = self.server("429-retry-after", reply=ANSWER, retry_after="0")       # the first chat request gets 429

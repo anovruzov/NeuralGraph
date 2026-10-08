@@ -13,24 +13,38 @@ threads; the orchestrator calls ``answer`` on worker threads):
 1. ``boundary.accept``: the question must pass the closed spec and end at or before the site clock's closed week;
 2. no secret (a missing secret file) gives ``unknown`` with the wire reason ``no_secret`` before anything is read;
 3. a question answered before re-sends its stored bytes (an identical send is a Boundary no-op) and uses no budget;
-4. the per-entity daily budget: when ``question_budget_per_entity_per_day`` distinct questions about the entity were
-   answered on the site-clock day, ``unknown`` with the wire reason ``budget`` (not stored, so a later day answers);
-5. retrieval (:func:`retrieve`): the union of the site's own records (forwarded-in excluded) received in the window
+4. the daily budgets, both ``unknown`` with the wire reason ``budget`` (not stored, so a later day answers): when
+   ``question_budget_per_entity_per_day`` distinct questions about the entity were answered on the site-clock day,
+   or when the question names an entity not yet answered that day and ``question_entities_per_site_per_day``
+   distinct entities were (a cap on guessing many ids, audit round 2);
+5. master data: with the pack's ``require_master_data``, an id that is not the site's master data (the rule the
+   cells apply, ``site.in_master_data``) gets ``unknown`` without a single record read, stored like any answer (its
+   local reason ``not_master_data``), so a question cannot test whether an id the cells would withhold, such as
+   id-shaped person data, is in the site's narratives (audit round 2);
+6. retrieval (:func:`retrieve`): the union of the site's own records (forwarded-in excluded) received in the window
    that hold any stored claim on the entity, whose structured values of the type resolve to it, or whose narrative
-   names it (the canonicaliser's scan); newest first, cut at ``verify_max_records`` (``truncated``);
-6. the judge, per record: ``{mentions_entity, describes_predicate}``, each ``yes``, ``no`` or ``unclear``. The
+   names it (the canonicaliser's scan) other than as one of the record's person values or its reporter (the
+   extractor's ``person_value`` rule; audit round 2); newest first, cut at ``verify_max_records`` (``truncated``);
+7. the judge, per record: ``{mentions_entity, describes_predicate}``, each ``yes``, ``no`` or ``unclear``. The
    payload (:func:`judge_payload`) holds the question's entity, aliases and predicate and the record's language,
    codes, structured entity values and narrative (cut at ``max_input_chars``); never persons, the reporter or a record
    ref, and the ledger ``ref`` is ``j:<question id prefix>:<index>``. A boundary refusal propagates and nothing is
-   stored or sent; any other inference error counts the record as a failure;
-7. the verdict: no record retrieved, ``unknown`` (``no_records``); failures on more than half, ``unknown`` with
+   stored or sent; any other inference error counts the record as a failure. When the judge route leaves the site
+   under an exemption (a simulated endpoint, or an external one with ``allow_external_raw``), every retrieved record
+   must carry its label (:func:`~.records.exempt_records_problem`: synthetic, or the public source's), else the verifier
+   raises :class:`~..inference.errors.InferenceBoundaryError` before any call, and nothing is stored or sent. The
+   judging stops early (audit round 2): as soon as failures are more than half the records (the verdict is then
+   ``degraded`` whatever the rest say), and after :data:`~.extract.BREAKER_AFTER` consecutive failures that say the
+   server is down (timeout, network, 5xx, after the client's retries), when the records not yet judged count as
+   failures; so a dead server costs a question at most that many deadlines, not one per record under the lock;
+8. the verdict: no record retrieved, ``unknown`` (``no_records``); failures on more than half, ``unknown`` with
    quality ``degraded``, which reflects the model server's health rather than the records, so it is sent but not
    stored (its question_log row is ``degraded``, which uses no budget) and the next ask re-judges; any yes/yes,
    ``confirm`` (support, distinct roots, distinct reporters with every unknown reporter one shared reporter, the
    newest week of the yes/yes records); a record that mentions the entity, none that describes the predicate and
    fewer than half unclear, ``refute`` (the mentioning records); else ``unknown`` (``unclear``). Counts leave only
    as :func:`~.egress.bucket_of` labels; the local reason stays in ``verdict_log``;
-8. ``evidence_ref = HMAC-SHA256(secret, verdict_id)[:16]`` for a confirm or a refute, null otherwise; any verdict but
+9. ``evidence_ref = HMAC-SHA256(secret, verdict_id)[:16]`` for a confirm or a refute, null otherwise; any verdict but
    a degraded one is stored with its ``answered`` question_log row in one transaction, then sent.
 
 Secrets: a secret file of exactly 64 lowercase hex characters (one trailing newline allowed), read at construction
@@ -55,10 +69,11 @@ from .. import schemacheck
 from ..inference.errors import InferenceBoundaryError, InferenceError
 from ..inference.tasks import TaskSpec
 from ..jsonio import canonical_bytes, sha256_hex, strict_load
-from ..packs.canonical import Canonicaliser
+from ..packs.canonical import Canonicaliser, folded
 from .egress import EVIDENCE_REF_RE, SCHEMA_VERSION, bucket_of, verdict_id_of
-from .extract import LexicalExtractor, codes_channel, pair, truncate
-from .records import QuestionLogRow, RecordStore, VerdictRow, WindowRecord
+from .extract import BREAKER_AFTER, SERVER_DOWN_KINDS, LexicalExtractor, codes_channel, pair, person_values, truncate
+from .records import QuestionLogRow, RecordStore, VerdictRow, WindowRecord, exempt_records_problem
+from .site import in_master_data
 from .weeks import TS_RE, local_date
 
 if TYPE_CHECKING:
@@ -188,8 +203,10 @@ def retrieve(store: RecordStore, canonicaliser: Canonicaliser, *, entity_type: s
              cache: dict[tuple[str, str], frozenset[str]] | None = None) -> tuple[list[WindowRecord], bool]:
     """The site's own records (forwarded-in excluded) received in the window that hold any stored claim on the entity
     (any predicate or channel), whose structured values of the type resolve exactly to it, or whose narrative names
-    it; newest first, the first ``cap`` kept. Returns ``(records, truncated)``. E2's central_raw condition reads
-    through this function too, so both read the same records.
+    it other than as one of the record's person values or its reporter (a patient reference in the lot format is not
+    the lot, as the extractor's ``person_value`` rule already says); newest first, the first ``cap`` kept. Returns
+    ``(records, truncated)``. E2's central_raw condition reads through this function too, so both read the same
+    records.
 
     ``cache`` is an optional dict the caller keeps for one site store and one canonicaliser: a stored narrative never
     changes, so the ids its scan names per ``(record_ref, entity_type)`` are computed once."""
@@ -209,7 +226,9 @@ def retrieve(store: RecordStore, canonicaliser: Canonicaliser, *, entity_type: s
         key = (rec.record_ref, entity_type)
         named = cache.get(key) if cache is not None else None
         if named is None:
-            named = frozenset(m.entity_id for m in canonicaliser.scan(rec.narrative, types=(entity_type,)).mentions)
+            persons = person_values({"persons": rec.persons or {}, "reporter": rec.reporter_id})
+            named = frozenset(m.entity_id for m in canonicaliser.scan(rec.narrative, types=(entity_type,)).mentions
+                              if folded(m.text) not in persons)
             if cache is not None:
                 cache[key] = named
         if entity_id in named:
@@ -334,22 +353,35 @@ class SiteVerifier:
         judged: list[tuple[WindowRecord, dict[str, str]]] = []
         failures = 0
         prefix = question["question_id"][:12]
+        if self.runtime is not None:
+            label = self.runtime.exemption(self._task)
+            if exempt_records_problem(label, self.site.site_id, sum(1 for r in records if not r.synthetic)):
+                route = self.runtime.config.routes.get(JUDGE_TASK)
+                raise InferenceBoundaryError(task=JUDGE_TASK, endpoint=route.endpoint if route else None) from None
+        down = 0
         for i, rec in enumerate(records):
             payload = judge_payload(self.pack, question, rec)
             if self._lexical is not None:
                 judged.append((rec, self._lexical(payload)))
                 continue
-            reply = None
+            if 2 * failures > len(records):          # degraded whatever the rest say
+                break
+            if down >= BREAKER_AFTER:                # the server is down: the rest are not sent
+                failures += len(records) - i
+                break
+            reply = kind = None
             try:
                 reply = self.runtime.run(self._task, payload, self._schema, ref=f"j:{prefix}:{i}")
             except InferenceBoundaryError:
                 raise
-            except InferenceError:
-                reply = None
+            except InferenceError as err:
+                kind = err.kind
             if reply is None:
                 failures += 1
+                down = down + 1 if kind in SERVER_DOWN_KINDS else 0
             else:
                 judged.append((rec, reply))
+                down = 0
         return judged, failures
 
     def _answer(self, store: RecordStore, question: dict[str, Any]) -> dict[str, Any]:
@@ -364,14 +396,20 @@ class SiteVerifier:
         stored = store.verdict_for_question(qid)
         if stored is not None:
             return boundary.send("out", "verdict", strict_load(stored.body))
-        if store.answered_count(t, eid, day) >= self.pack.egress.question_budget_per_entity_per_day:
+        answered = store.answered_count(t, eid, day)
+        if answered >= self.pack.egress.question_budget_per_entity_per_day or (
+                answered == 0 and store.answered_entities(day) >= self.pack.egress.question_entities_per_site_per_day):
             store.log_question(QuestionLogRow(0, qid, day, t, eid, "budget", ts))
             return boundary.send("out", "verdict", self._body(question, "unknown", reason="budget"))
-        records, truncated = retrieve(store, self.site.canonicaliser, entity_type=t, entity_id=eid,
-                                      window=question["window"], cap=self.pack.egress.verify_max_records,
-                                      cache=self._mentions)
-        judged, failures = self._judge(question, records)
-        outcome = decide(records, judged, failures)
+        if in_master_data(self.pack, self.site.master, t, eid):
+            records, truncated = retrieve(store, self.site.canonicaliser, entity_type=t, entity_id=eid,
+                                          window=question["window"], cap=self.pack.egress.verify_max_records,
+                                          cache=self._mentions)
+            judged, failures = self._judge(question, records)
+            outcome = decide(records, judged, failures)
+        else:
+            records, truncated, judged, failures = [], False, [], 0
+            outcome = _Outcome("unknown", "not_master_data", "ok", (), (), 0)
         parsed = boundary.validate("out", "verdict", self._body(question, outcome.verdict, outcome=outcome,
                                                                 truncated=truncated))
         if outcome.quality == "degraded":

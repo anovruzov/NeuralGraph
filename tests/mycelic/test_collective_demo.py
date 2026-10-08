@@ -55,7 +55,7 @@ SCRIPT = "demo/collective/collective_demo.py"
 LINT = "demo/collective/lint_numbers.py"
 RECORDED = DEMO_DIR / "recorded"
 BASELINE_CHANNELS = ("R_mf", "U", "single_site")
-CHANNEL_KEYS = {"rank", "caught", "related"}
+CHANNEL_KEYS = {"rank", "caught", "detection_week", "related"}
 FEATURE_KEYS = {"logp", "p_s", "expected", "c", "n_ep_lb", "surprise", "features", "score", "count", "n"}
 STUB = "deterministic stand-in, no model"
 HEX16 = re.compile(r"[0-9a-f]{16}")
@@ -517,7 +517,9 @@ class _HeroAssertions:
             self.assertLessEqual(set(e["data"]), {"rank", "caught", "related", "key", "week", "channel"})
         for item in docs["screen.json"]["items"]:
             if any(f"/{c}/" in item["src"] for c in BASELINE_CHANNELS):
-                self.assertRegex(item["src"], r"/(rank|caught|week|key)$", item["id"])
+                # a baseline shows ranks, weeks and keys, never a count or a feature; audit round 2 added the
+                # single-site channel's first alert week (detection_week), which is a week
+                self.assertRegex(item["src"], r"/(rank|caught|week|detection_week|key)$", item["id"])
 
 
 class RecordTests(_HeroAssertions, unittest.TestCase):
@@ -890,6 +892,35 @@ class HonestyTests(unittest.TestCase):
                                 self.assertEqual(bool(blocks), related and bool(base["scorecard.json"]["hero"][
                                     "detection"][channel]["related"]))
 
+    def test_the_single_site_reference_shows_its_week_and_says_when_it_was_no_later(self) -> None:
+        # regression (audit r2): one plant alone flagged the hero key in the same week as X (rank 4 in 2024-W35),
+        # and the screen showed only "each site alone · rank 4", with no week and no warning
+        docs = load(committed_dir())
+        det = docs["scorecard.json"]["hero"]["detection"]
+        self.assertTrue(det["single_site"]["caught"])
+        self.assertLessEqual(det["single_site"]["detection_week"], det["X"]["detection_week"])
+        screen = docs["screen.json"]
+        items = {i["id"]: i for i in screen["items"]}
+        self.assertEqual((items["single_week"]["display"], items["single_week"]["src"]),
+                         (det["single_site"]["detection_week"],
+                          "scorecard.json#/hero/detection/single_site/detection_week"))
+        self.assertTrue(blocks_with_text(screen, scr.SINGLE_NO_LATER))
+        base = self.committed()
+        for week, caught, sentence in ((det["X"]["detection_week"], True, scr.SINGLE_NO_LATER),
+                                       ("2024-W01", True, scr.SINGLE_NO_LATER),
+                                       ("2099-W01", True, scr.SINGLE_LATER), (None, False, None)):
+            variant = copy.deepcopy(base)
+            single = variant["scorecard.json"]["hero"]["detection"]["single_site"]
+            single["caught"], single["detection_week"] = caught, week
+            if not caught:
+                single["rank"] = None
+            built = scr.build_screen(variant, mode="record", phase="complete")
+            texts = " ".join(screen_texts(built))
+            with self.subTest(week=week):
+                self.assertEqual(scr.SINGLE_NO_LATER in texts, sentence == scr.SINGLE_NO_LATER)
+                self.assertEqual(scr.SINGLE_LATER in texts, sentence == scr.SINGLE_LATER)
+                self.assertEqual("single_week" in {i["id"] for i in built["items"]}, caught)
+
     def test_related_keys_are_shown_with_their_own_items(self) -> None:
         docs = load(committed_dir())
         det = docs["scorecard.json"]["hero"]["detection"]
@@ -981,7 +1012,7 @@ class HonestyTests(unittest.TestCase):
             page = page_path.read_text(encoding="utf-8")
         text = json.dumps(screen, ensure_ascii=False)
         for label in ("Fictional company", "synthetic data", scr.MODE_DISPLAY["record"], scr.R_DEFINITION,
-                      "Internal and YC use only", STUB):
+                      "Internal use only", STUB):
             with self.subTest(label=label):
                 self.assertIn(label, text)
                 self.assertIn(label, page)
@@ -1275,6 +1306,52 @@ class ExportReplayTests(unittest.TestCase):
         self.assertTrue(all(c["ok"] for c in sc["checks"]), [c for c in sc["checks"] if not c["ok"]])
         r = run_lint(str(out))
         self.assertEqual(r.returncode, 0, r.stdout)
+
+    def test_the_sixty_second_cut_can_be_given_live(self) -> None:
+        # regression (audit r2): live, the server moved check -> followup -> real data, and real data stayed locked
+        # until the hidden follow-up beat's approvals ran, so the 60-second cut could not be given live
+        port, out = free_port(), self.tmp / "live-cut"
+        self.popen("--serve", "--cut", "--port", str(port), "--no-browser", "--out", str(out), "--exit-after", "240",
+                   "--run-id", "live-cut")
+
+        def at(name: str, extra=lambda s: True):
+            def check() -> Any:
+                s = get_json(port, "/screen")
+                ok = (s["phase"] == "ready" and extra(s)
+                      and next((c["beat"] for c in s["controls"] if c["action"] == "next"), None) == name)
+                return s if ok else None
+            return check
+
+        s = wait_until(at("problem"), what="phase ready")
+        self.assertIs(s["cut_only"], True)
+        self.assertEqual(post_control(port, {"action": "next"})[0], 200)
+        wait_until(at("alert"), what="the alert beat")
+        self.assertEqual(post_control(port, {"action": "next"})[0], 200)
+        wait_until(at("check"), what="the check beat")
+        self.assertEqual(post_control(port, {"action": "check"})[0], 200)
+        wait_until(at("check", lambda s: any(c["action"] == "next" and c["enabled"] for c in s["controls"])),
+                   what="the check to finish")
+        self.assertEqual(post_control(port, {"action": "next"})[0], 200)
+        s = wait_until(at("real_data"), what="the real-data beat, straight after the check")
+        self.assertFalse([c for c in s["controls"] if c["action"] == "approve"])
+        self.assertEqual(post_control(port, {"action": "next"})[0], 200)
+        wait_until(lambda: (lambda x: x if x["phase"] == "complete" else None)(get_json(port, "/screen")),
+                   what="completion")
+        docs = load(out)
+        self.assertEqual(demo.validate_run(docs), [])
+        sc, trace = docs["scorecard.json"], docs["trace.json"]
+        self.assertTrue(all(c["ok"] for c in sc["checks"]), [c for c in sc["checks"] if not c["ok"]])
+        # the follow-ups ran with scripted approval, stamped as such, and the cut never entered their beat
+        self.assertEqual((sc["mode"], sc["stamps"]["approval"], trace["meta"]["approval"]),
+                         ("live", "recorded", "recorded"))
+        self.assertEqual([e["data"]["beat"] for e in trace["events"] if e["type"] == "beat_start"],
+                         list(scr.CUT_60S))
+        self.assertEqual({e["data"]["mode"] for e in trace["events"] if e["type"] == "approval"}, {"recorded"})
+        self.assertIs(docs["screen.json"]["cut_only"], True)
+        console = (DEMO_DIR / "console.html").read_text(encoding="utf-8")
+        self.assertIn("if (screen.cut_only) {", console)
+        self.assertIn("return !cutOnly || beat.in_cut || (live && beat.id === liveBeat);", console)
+        self.assertEqual(run_demo("--record", str(self.tmp / "x"), "--cut").returncode, 2)
 
     def assert_replayed_as_recorded(self, directory: Path) -> None:
         """A replay or an export of a live run is presented recorded: nothing runs behind it, so no LIVE badge,

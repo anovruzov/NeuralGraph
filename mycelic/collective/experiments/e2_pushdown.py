@@ -559,6 +559,10 @@ def _central_raw(s: _Seed, cfg: _Settings, runtime: Runtime, params: Mapping[str
     pool = pool[:CENTRAL_MAX_RECORDS]
     if not pool:
         return 0, 0, truncated, 0, None
+    if not all(r.synthetic for _, r in pool):
+        # the raw text crosses site boundaries only under the synthetic exemption; a record that is not synthetic
+        # never goes, whatever the run's flags say
+        raise InferenceBoundaryError(task=CENTRAL_TASKS[0], endpoint=None) from None
     texts = [truncate(r.narrative, pack.extraction.max_input_chars)[0] for _, r in pool]
     payload = {"question": judge_question(pack, params), "window": dict(window),
                "records": [{"site": sid, "week": r.iso_week, "codes": sorted(r.codes),

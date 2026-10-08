@@ -49,10 +49,11 @@ import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterator, NamedTuple, Sequence
+from typing import Any, Iterator, Mapping, NamedTuple, Sequence
 
 from ..jsonio import canonical_dumps, sha256_hex, strict_load
 from ..packs.canonical import folded
+from ..packs.connector import PUBLIC_SITE
 from .weeks import iso_week, local_date, next_week
 
 SCHEMA_VERSION = 1
@@ -149,8 +150,8 @@ _INSERT_EMISSION = (
     "created_at, sent_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 _MARK_SENT = "UPDATE emitted_weeks SET sent_at = ? WHERE artifact_type = ? AND closed_through = ?"
 _WINDOW_OWN = (
-    "SELECT record_ref, iso_week, root_ref, reporter_id, language, codes, structured, narrative FROM records "
-    "WHERE forwarded_in = 0 AND iso_week >= ? AND iso_week <= ? ORDER BY iso_week DESC, seq DESC")
+    "SELECT record_ref, iso_week, root_ref, reporter_id, language, codes, structured, narrative, synthetic, person "
+    "FROM records WHERE forwarded_in = 0 AND iso_week >= ? AND iso_week <= ? ORDER BY iso_week DESC, seq DESC")
 _CLAIMED = (
     "SELECT DISTINCT c.record_ref FROM claims c JOIN records r ON r.record_ref = c.record_ref "
     "WHERE c.entity_type = ? AND c.entity_id = ? AND r.forwarded_in = 0 AND r.iso_week >= ? AND r.iso_week <= ? "
@@ -159,6 +160,8 @@ _HAS_CLAIM = ("SELECT record_ref FROM claims WHERE record_ref = ? AND entity_typ
               "AND predicate = ? ORDER BY record_ref LIMIT 1")
 _ANSWERED = ("SELECT DISTINCT question_id FROM question_log WHERE entity_type = ? AND entity_id = ? AND day = ? "
              "AND outcome = 'answered' ORDER BY question_id")
+_ANSWERED_ENTITIES = ("SELECT DISTINCT entity_type, entity_id FROM question_log WHERE day = ? AND outcome = 'answered' "
+                      "ORDER BY entity_type, entity_id")
 _INSERT_QUESTION = ("INSERT INTO question_log (question_id, day, entity_type, entity_id, outcome, at) "
                     "VALUES (?, ?, ?, ?, ?, ?)")
 _VERDICT_COLUMNS = ("verdict_id, question_id, evidence_ref, body, sha256, verdict, confirming_refs, entity_refs, "
@@ -212,7 +215,10 @@ class ExtractionRow:
 
 
 class WindowRecord(NamedTuple):
-    """One of the site's own records as a question is answered from it; ``codes`` and ``structured`` parsed."""
+    """One of the site's own records as a question is answered from it; ``codes`` and ``structured`` parsed.
+    ``synthetic`` is the record's flag (False unless the store says so), which an exempt judge endpoint checks;
+    ``persons`` its person fields, which retrieval reads (a narrative mention written as a person value or the
+    reporter does not make the record about the entity) and no payload carries."""
 
     record_ref: str
     iso_week: str
@@ -222,6 +228,24 @@ class WindowRecord(NamedTuple):
     codes: list[str]
     structured: dict[str, list[str]]
     narrative: str
+    synthetic: bool = False
+    persons: Mapping[str, Any] | None = None
+
+
+def exempt_records_problem(label: str | None, site_id: str, non_synthetic: int) -> str | None:
+    """Why records may not reach an endpoint outside the site under the exemption ``label`` (from
+    :meth:`~..inference.runtime.Runtime.exemption`), or None: ``synthetic`` needs every record synthetic
+    (``non_synthetic`` counts those that are not), ``public`` needs the site to be the public source; any other
+    label is never exempt."""
+    if label is None:
+        return None
+    if label == "synthetic":
+        return None if non_synthetic == 0 else "records that are not synthetic cannot go to a simulated or exempt " \
+                                               "endpoint outside the site"
+    if label == "public":
+        return None if site_id == PUBLIC_SITE else "only the public source's records may go to an exempt " \
+                                                   "endpoint as public data"
+    return "partner data is never exempt"
 
 
 class QuestionLogRow(NamedTuple):
@@ -429,8 +453,8 @@ class RecordStore:
     def window_records(self, first_week: str, last_week: str) -> list[WindowRecord]:
         """The site's own records (forwarded-in excluded) received in ``[first_week, last_week]``, newest first."""
         return [WindowRecord(ref, week, root, reporter, language, strict_load(codes), strict_load(structured),
-                             narrative)
-                for ref, week, root, reporter, language, codes, structured, narrative
+                             narrative, bool(synthetic), strict_load(person))
+                for ref, week, root, reporter, language, codes, structured, narrative, synthetic, person
                 in self._conn.execute(_WINDOW_OWN, (first_week, last_week)).fetchall()]
 
     def claimed_refs(self, entity_type: str, entity_id: str, first_week: str, last_week: str) -> list[str]:
@@ -444,6 +468,10 @@ class RecordStore:
     def answered_count(self, entity_type: str, entity_id: str, day: str) -> int:
         """Distinct questions about the entity answered on the site-clock ``day``."""
         return len(self._conn.execute(_ANSWERED, (entity_type, entity_id, day)).fetchall())
+
+    def answered_entities(self, day: str) -> int:
+        """Distinct entities with a question answered on the site-clock ``day``."""
+        return len(self._conn.execute(_ANSWERED_ENTITIES, (day,)).fetchall())
 
     def log_question(self, row: QuestionLogRow) -> None:
         """One question_log row (``row.seq`` is ignored: the store numbers rows)."""

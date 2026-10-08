@@ -39,8 +39,10 @@ from mycelic.collective.edge.verify import (JUDGE_TASK, SiteVerifier, VerifyErro
 from mycelic.collective.edge.weeks import closed_through, week_sunday
 from mycelic.collective.evaluate.baselines import closing_date, org_for_sites, run_pipeline, world_weeks
 from mycelic.collective.evaluate.plant import labels_doc, load_plant, plant
+from mycelic.collective.experiments import e2_pushdown as E2
 from mycelic.collective.inference.errors import InferenceBoundaryError
 from mycelic.collective.inference.fake import FakeProvider
+from mycelic.collective.inference.fakeserver import FakeOpenAIServer
 from mycelic.collective.inference.ledger import read_ledger
 from mycelic.collective.inference.routing import parse_routing
 from mycelic.collective.inference.runtime import Runtime
@@ -80,6 +82,9 @@ G6_CONFIG_HASHES = {"device_quality": "b9e03c14d88100dac6849ba37525059dfb65e6813
 # G7 changed only followups.json's args (D2), so again only config_hash
 G7_CONFIG_HASHES = {"device_quality": "285935198ba34f2e194dc175cffd1f8f62c494d03d8fb7400ca1aef709058f2a",
                     "claims_integrity": "a3a042943452f6ef781f171cf879f3ba5f594f6c4dae5ffef47bfa241bb392da"}
+# audit round 2 added egress.json's question_entities_per_site_per_day, so again only config_hash
+R2_CONFIG_HASHES = {"device_quality": "ac59c4cbb418509f02c8cef3cfb738fa65849f659844f6286e90a676f8c2276f",
+                    "claims_integrity": "12d62cdfcab0c3fab0a0f1f11f1809df08aacce691b7dee41d3a86c7085deb7a"}
 # sha256 of detect/{rules,org}.py at 51f3b09 and of detectors.py after the review fixes (D2's codes test in X, D3's
 # shared nuisance imputation, A3 per entity type; G5 to G8: 7d4ca86b...): detection changes only on purpose, and a
 # change re-pins it here
@@ -287,7 +292,8 @@ class PackPushdownConfigTests(WorldCase):
                                  {k: v for k, v in old.items() if k != "config_hash"})
                 self.assertNotEqual(pack.config_hash, old["config_hash"])
                 self.assertNotEqual(pack.config_hash, G6_CONFIG_HASHES[pack.id])
-                self.assertEqual(pack.config_hash, G7_CONFIG_HASHES[pack.id])
+                self.assertNotEqual(pack.config_hash, G7_CONFIG_HASHES[pack.id])
+                self.assertEqual(pack.config_hash, R2_CONFIG_HASHES[pack.id])
         copy = pack_copy(self.tmp, "device_quality", {("questions.json", "pushdown", "max_sibling_sites"): 3})
         self.assertEqual({k for k in DQ.hashes() if DQ.hashes()[k] != copy.hashes()[k]}, {"config_hash"})
 
@@ -936,6 +942,87 @@ class VerifyTests(WorldCase):
         self.assertEqual(next_day["question_id"], refused["question_id"])
         self.assertEqual([r.outcome for r in s.store.question_log()], ["answered"] * 5 + ["budget", "answered"])
 
+    def test_an_id_outside_master_data_is_answered_without_reading_a_record(self) -> None:
+        # regression (audit r2): a patient reference in the lot format, mirrored in the narrative, never left as a
+        # cell (require_master_data), yet a question about it came back refute or confirm while a wrong guess came
+        # back unknown: a membership oracle on person data
+        self.assertTrue(DQ.egress.require_master_data)
+        patient = "L48213"
+        self.assertNotIn(patient, universe_master(DQ)["lot"])
+        recs = [record(DQ, f"p{i}", "s1", W15_DAYS[i], persons={"patient_ref": patient}, reporter=f"R{i}",
+                       narrative=f"The lot {patient} pump cracked near the hinge, case {i}.") for i in range(4)]
+        s = self.loaded(recs)
+        self.assertFalse([c for c in s.emit_cells(AS_OF).body["cells"] if c["entity_id"] == patient])
+        ledger = self.tmp / "judge.ledger.jsonl"
+        runtime = judge_runtime(DQ, "s1", ledger, self.clock)
+        self.addCleanup(runtime.close)
+        v = SiteVerifier(s, runtime=runtime, clock=self.clock, demo_seed=1)
+        answers = {guess: v.answer(_q(entity_type="lot", entity_id=guess)) for guess in (patient, "L48214")}
+        strip = ("question_id", "verdict_id")
+        self.assertEqual({k: x for k, x in answers[patient].items() if k not in strip},
+                         {k: x for k, x in answers["L48214"].items() if k not in strip})
+        self.assertEqual((answers[patient]["verdict"], answers[patient]["reason"], answers[patient]["quality"]),
+                         ("unknown", None, "ok"))
+        self.assertEqual(read_ledger(ledger), [])                       # not one record went to the judge
+        self.assertEqual(v.audit(answers[patient]["verdict_id"]).local_reason, "not_master_data")
+        # a master-data lot is answered from the records as before
+        lot = universe_master(DQ)["lot"][0]
+        real = self.loaded([record(DQ, f"m{i}", "s1", W15_DAYS[i], reporter=f"R{i}",
+                                   narrative=f"The lot {lot} pump cracked near the hinge, case {i}.")
+                            for i in range(3)])
+        out = SiteVerifier(real, runtime=None, clock=self.clock, demo_seed=1).answer(
+            _q(entity_type="lot", entity_id=lot))
+        self.assertEqual((out["verdict"], out["support_bucket"]), ("confirm", "3-9"))
+
+    def test_a_mention_written_as_a_person_value_does_not_retrieve_the_record(self) -> None:
+        # regression (audit r2): retrieval read the narrative scan's ids, person values included, so without
+        # require_master_data a question could still test whether a patient reference is in the narratives
+        pack = pack_copy(self.tmp, "device_quality", {("egress.json", "require_master_data"): False})
+        patient = "L48213"
+        narrative = "The lot {} pump cracked near the hinge, case {}."
+        as_person = [record(pack, f"p{i}", "s1", W15_DAYS[i], persons={"patient_ref": patient}, reporter=f"R{i}",
+                            narrative=narrative.format(patient, i)) for i in range(4)]
+        as_reporter = [record(pack, f"r{i}", "s1", W15_DAYS[i], reporter=patient,
+                              narrative=narrative.format(patient, i)) for i in range(4)]
+        for name, recs in (("person", as_person), ("reporter", as_reporter)):
+            with self.subTest(written_as=name):
+                s = self.loaded(recs, pack=pack)
+                window = _q(pack)["window"]
+                self.assertEqual(retrieve(s.store, s.canonicaliser, entity_type="lot", entity_id=patient,
+                                          window=window, cap=100), ([], False))
+                out = SiteVerifier(s, runtime=None, clock=self.clock, demo_seed=1).answer(
+                    _q(pack, entity_type="lot", entity_id=patient))
+                self.assertEqual((out["verdict"], out["support_bucket"], out["entity_records_bucket"],
+                                  out["newest_week"]), ("unknown", None, None, None))
+        # the same narratives without the person value are about the lot
+        plain = [record(pack, f"n{i}", "s1", W15_DAYS[i], reporter=f"R{i}", narrative=narrative.format(patient, i))
+                 for i in range(4)]
+        s = self.loaded(plain, pack=pack)
+        out = SiteVerifier(s, runtime=None, clock=self.clock, demo_seed=1).answer(
+            _q(pack, entity_type="lot", entity_id=patient))
+        self.assertEqual((out["verdict"], out["support_bucket"]), ("confirm", "3-9"))
+
+    def test_the_daily_entity_budget_per_site(self) -> None:
+        # regression (audit r2): the only budget was per entity, so 60 different guessed ids crossed in one day
+        pack = pack_copy(self.tmp, "device_quality", {("egress.json", "question_entities_per_site_per_day"): 3})
+        self.assertEqual((DQ.egress.question_entities_per_site_per_day, CI.egress.question_entities_per_site_per_day),
+                         (50, 50))
+        s = self.loaded(crack_records("s1", 3), pack=pack)
+        v = SiteVerifier(s, runtime=None, clock=self.clock, demo_seed=1)
+        lots = universe_master(pack)["lot"]
+        first = [v.answer(_q(pack, entity_type="lot", entity_id=lot)) for lot in lots[:2]]
+        first.append(v.answer(_q(pack, entity_type="lot", entity_id="L99999")))     # not master data: counts too
+        self.assertEqual([o["reason"] for o in first], [None, None, None])
+        refused = v.answer(_q(pack, entity_type="lot", entity_id=lots[2]))
+        self.assertEqual((refused["verdict"], refused["reason"]), ("unknown", "budget"))
+        # an entity already answered today is still within its own budget
+        again = v.answer(_q(pack, entity_type="lot", entity_id=lots[0], predicate="leak"))
+        self.assertIsNone(again["reason"])
+        self.assertEqual(s.store.answered_entities(AS_OF), 3)
+        self.clock.value = "2026-04-27T08:00:00Z"
+        self.assertIsNone(v.answer(_q(pack, entity_type="lot", entity_id=lots[2]))["reason"])
+        self.assertEqual([r.outcome for r in s.store.question_log()], ["answered"] * 3 + ["budget"] + ["answered"] * 2)
+
     def test_an_escalation_to_central_is_refused_before_any_io(self) -> None:
         s = self.loaded(crack_records("s1", 3))
         ledger = self.tmp / "judge.ledger.jsonl"
@@ -952,6 +1039,73 @@ class VerifyTests(WorldCase):
         self.assertEqual(read_log(s.boundary.egress_log), [])
         self.assertEqual(s.store.question_log(), [])
 
+    def test_an_exempt_judge_only_reads_records_that_carry_the_label(self) -> None:
+        # regression (audit r2): the verifier sent every retrieved narrative to a simulated or exempt external judge
+        # without any synthetic check (only extraction had one), and the ledger called the records synthetic
+        real = [{**r, "synthetic": False} for r in crack_records("s1", 3)]
+        with FakeOpenAIServer("valid", reply={"mentions_entity": "yes", "describes_predicate": "yes"}) as server:
+            def judge(boundary: str, ledger: Path, **kw: Any) -> Runtime:
+                config = parse_routing({"schema_version": 1, "endpoints": {"judge": {
+                    "provider": "openai_compat", "boundary": boundary, "base_url": server.base_url,
+                    "model": "m-tag"}}, "routes": {JUDGE_TASK: {"endpoint": "judge"}}}, environ={})
+                rt = Runtime(config, boundary="site:s1", ledger_path=ledger, run_id="g6-test", clock=self.clock,
+                             data_label="synthetic", environ={}, sleep=lambda s: None, **kw)
+                self.addCleanup(rt.close)
+                return rt
+
+            for boundary, kw in (("external", {"allow_external_raw": "synthetic"}),
+                                 ("any-simulated", {"simulation": True})):
+                with self.subTest(boundary=boundary):
+                    s = self.loaded(real)
+                    ledger = self.tmp / f"{boundary}.jsonl"
+                    v = SiteVerifier(s, runtime=judge(boundary, ledger, **kw), clock=self.clock, demo_seed=1)
+                    with self.assertRaises(InferenceBoundaryError):
+                        v.answer(_q())
+                    self.assertEqual((server.chat_requests, read_ledger(ledger)), ([], []))
+                    self.assertIsNone(s.store.verdict_for_question(_q()["question_id"]))
+                    self.assertEqual((read_log(s.boundary.egress_log), s.store.question_log()), ([], []))
+                    # one non-synthetic record among synthetic ones is enough to refuse
+                    mixed = self.loaded(crack_records("s1", 3, start=10) + real[:1])
+                    with self.assertRaises(InferenceBoundaryError):
+                        SiteVerifier(mixed, runtime=judge(boundary, ledger, **kw), clock=self.clock,
+                                     demo_seed=1).answer(_q())
+                    self.assertEqual(server.chat_requests, [])
+            synthetic = self.loaded(crack_records("s1", 3))
+            ledger = self.tmp / "ok.jsonl"
+            out = SiteVerifier(synthetic, runtime=judge("external", ledger, allow_external_raw="synthetic"),
+                               clock=self.clock, demo_seed=1).answer(_q())
+            self.assertEqual((out["verdict"], len(server.chat_requests)), ("confirm", 3))
+            self.assertEqual({(r["boundary_mode"], r["data_label"]) for r in read_ledger(ledger)},
+                             {("external_raw_exempt", "synthetic")})
+            # a judge at the site's own boundary has no exemption to prove: real records are judged there
+            own = self.loaded(real)
+            out = SiteVerifier(own, runtime=judge("site:s1", self.tmp / "own.jsonl"), clock=self.clock,
+                               demo_seed=1).answer(_q())
+            self.assertEqual(out["verdict"], "confirm")
+
+    def test_e2_central_raw_never_sends_a_record_that_is_not_synthetic(self) -> None:
+        # regression (audit r2): E2's central_raw condition pools raw narratives from every site and sends them to
+        # a central endpoint, which only the synthetic exemption allows; the run's flags were the only check
+        params = {"entity_type": "product", "entity_id": "SD-9", "predicate": "crack"}
+        window = _q()["window"]
+        never = mock.Mock(side_effect=AssertionError("no central call may be made"))
+        for name, records in (("all real", [{**r, "synthetic": False} for r in crack_records("s1", 3)]),
+                              ("one real", crack_records("s1", 3) + [{**crack_records("s1", 1, start=9)[0],
+                                                                      "synthetic": False}])):
+            with self.subTest(records=name):
+                seed = mock.Mock(pipeline=mock.Mock(sites={"s1": self.loaded(records)}), mentions={},
+                                 raw_payloads=[])
+                with mock.patch.object(E2, "_judge_central", never), self.assertRaises(InferenceBoundaryError):
+                    E2._central_raw(seed, mock.Mock(pack=DQ), mock.Mock(), params, window, "c:raw:0")
+                self.assertEqual(seed.raw_payloads, [])
+        seed = mock.Mock(pipeline=mock.Mock(sites={"s1": self.loaded(crack_records("s1", 3))}), mentions={},
+                         raw_payloads=[])
+        with mock.patch.object(E2, "_judge_central", return_value=(1, None)):
+            score, n, _, sent, error = E2._central_raw(seed, mock.Mock(pack=DQ), mock.Mock(), params, window,
+                                                       "c:raw:0")
+        self.assertEqual((score, n, error, len(seed.raw_payloads)), (1, 3, None, 1))
+        self.assertGreater(sent, 0)
+
     def test_ledger_refs_are_opaque_and_judge_failures_degrade(self) -> None:
         s = self.loaded(crack_records("s1", 5))
         ledger = self.tmp / "judge.ledger.jsonl"
@@ -960,12 +1114,14 @@ class VerifyTests(WorldCase):
         runtime = judge_runtime(DQ, "s1", ledger, self.clock, provider=provider)
         self.addCleanup(runtime.close)
         v = SiteVerifier(s, runtime=runtime, clock=self.clock, demo_seed=1)
-        provider.fail_next(JUDGE_TASK, ["http_5xx"] * 3)
+        # audit round 2: two 5xx in a row say the server is down, so the other three records are never sent (up to
+        # round 2 three scripted failures were needed, one per record, before the verdict degraded)
+        provider.fail_next(JUDGE_TASK, ["http_5xx"] * 2)
         out = v.answer(_q())
         self.assertEqual((out["verdict"], out["quality"], out["reason"]), ("unknown", "degraded", None))
         # a degraded verdict is sent but not stored (the next ask re-judges), so it has no audit row
         self.assertIsNone(v.audit(out["verdict_id"]))
-        self.assertEqual([(r["ok"], r["error_kind"]) for r in read_ledger(ledger)].count((False, "http_5xx")), 3)
+        self.assertEqual([(r["ok"], r["error_kind"]) for r in read_ledger(ledger)], [(False, "http_5xx")] * 2)
         refs = {r["ref"] for r in read_ledger(ledger)}
         self.assertTrue(all(re.fullmatch(r"j:[0-9a-f]{12}:[0-9]+", ref) for ref in refs), refs)
         self.assertFalse(refs & {r["record_ref"] for r in crack_records("s1", 5)})
@@ -975,9 +1131,32 @@ class VerifyTests(WorldCase):
         provider4.register(JUDGE_TASK, lexical_judge(DQ, s4.canonicaliser))
         runtime4 = judge_runtime(DQ, "s4", self.tmp / "j4.jsonl", self.clock, provider=provider4)
         self.addCleanup(runtime4.close)
-        provider4.fail_next(JUDGE_TASK, ["http_5xx"] * 2)
+        # failures that do not say the server is down (a 4xx is about the request) do not stop the judging
+        provider4.fail_next(JUDGE_TASK, ["http_4xx"] * 2)
         half = SiteVerifier(s4, runtime=runtime4, clock=self.clock, demo_seed=1).answer(_q())
         self.assertEqual((half["verdict"], half["support_bucket"], half["quality"]), ("confirm", "<k", "ok"))
+
+    def test_a_dead_judge_server_costs_a_question_two_calls_not_one_per_record(self) -> None:
+        # regression (audit r2): the verifier called the dead server for every retrieved record, serially and under
+        # its lock (500 records x a 300 s deadline at a wedged site), long after degraded was certain
+        s = self.loaded(crack_records("s1", 9) + crack_records("s1", 3, start=50))
+        cases = [(["timeout"] * 12, 2), (["network"] * 12, 2), (["http_5xx"] * 12, 2),
+                 # failures that do not say the server is down still stop once degraded is certain: 7 > 12 / 2
+                 (["http_4xx"] * 12, 7),
+                 # a failure that is not about the server in between resets the count: timeout, 4xx, timeout, ...
+                 # is never two server-down failures in a row, so only the degraded rule stops it
+                 (["timeout", "http_4xx", "timeout", "http_4xx", "timeout", "http_4xx", "timeout"], 7)]
+        for i, (kinds, calls) in enumerate(cases):
+            with self.subTest(kinds=kinds[:3]):
+                ledger = self.tmp / f"breaker-{i}.jsonl"
+                provider = FakeProvider()
+                provider.register(JUDGE_TASK, lexical_judge(DQ, s.canonicaliser))
+                runtime = judge_runtime(DQ, "s1", ledger, self.clock, provider=provider)
+                self.addCleanup(runtime.close)
+                provider.fail_next(JUDGE_TASK, kinds)
+                out = SiteVerifier(s, runtime=runtime, clock=self.clock, demo_seed=1).answer(_q())
+                self.assertEqual((out["verdict"], out["quality"]), ("unknown", "degraded"))
+                self.assertEqual(len(read_ledger(ledger)), calls)
 
     def test_a_judge_outage_is_not_pinned_the_next_ask_re_judges(self) -> None:
         # regression: a degraded answer (the model server down) used to be stored and re-sent on every re-ask
@@ -988,7 +1167,8 @@ class VerifyTests(WorldCase):
         runtime = judge_runtime(DQ, "s1", ledger, self.clock, provider=provider)
         self.addCleanup(runtime.close)
         v = SiteVerifier(s, runtime=runtime, clock=self.clock, demo_seed=1)
-        provider.fail_next(JUDGE_TASK, ["network"] * 5)
+        # the server is down for this ask: the breaker stops after two network failures (audit round 2)
+        provider.fail_next(JUDGE_TASK, ["network"] * 2)
         down = v.answer(_q())
         self.assertEqual((down["verdict"], down["quality"]), ("unknown", "degraded"))
         calls = len(read_ledger(ledger))
@@ -1890,8 +2070,12 @@ class LeakageStageTests(unittest.TestCase):
                 self.assertTrue(any(row["task"] == JUDGE_TASK for row in judged))
 
     def test_not_covered_names_the_g6_residual_risks_and_leakage_md_lists_every_item(self) -> None:
+        # audit round 2: the per-entity budget alone did not limit guessing many ids; the item now names the per-site
+        # budget and the master-data and person-value rules
         for item in ("Presence or absence of an entity at a site in a question window, revealed by a refute versus an "
-                     "unknown; limited, not prevented, by the per-entity daily question budget (G6, X5).",
+                     "unknown; limited, not prevented, by the per-entity and per-site daily question budgets (G6, X5); "
+                     "with require_master_data only for master-data ids, and never through a person value or the "
+                     "reporter.",
                      "Bucket transitions between overlapping question windows for one key, which can narrow a count "
                      "inside its bucket (G6, X5).",
                      "Differencing between verdict buckets and weekly cells (G6, X5)."):

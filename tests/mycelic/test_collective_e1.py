@@ -584,6 +584,10 @@ class E1PreregTests(E1Case):
                                      ("boundary", "site:b", "boundary differs"),
                                      ("response_format", "json_object", "response_format differs"),
                                      ("transport_schema", "reduced", "transport_schema differs"),
+                                     # regression (audit r2): the thinking controls change what a model returns
+                                     ("reasoning_effort", "none", "reasoning_effort differs"),
+                                     ("chat_template_kwargs", {"enable_thinking": False},
+                                      "chat_template_kwargs differs"),
                                      ("provider", "fake", "fake provider")):
             routing = json.loads(env["routing"].read_text())
             routing["endpoints"]["model-a"][field] = value

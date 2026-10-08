@@ -131,7 +131,11 @@ button { font: inherit; color: inherit; }
   }
 
   function visibleBeats() {
-    return screen.beats.filter(function (beat) { return !cutOnly || beat.in_cut; });
+    // the beat the live engine is on is always shown, cut or not: hiding it left an untitled page whose controls
+    // (and the way on) could not be reached
+    return screen.beats.filter(function (beat) {
+      return !cutOnly || beat.in_cut || (live && beat.id === liveBeat);
+    });
   }
 
   function reachable(beatId) {
@@ -234,6 +238,11 @@ button { font: inherit; color: inherit; }
     if (runId !== null && next.run_id !== runId) { window.location.reload(); return; }
     runId = next.run_id;
     screen = next;
+    if (screen.cut_only) {
+      // a live run of the 60-second cut (--serve --cut): the engine never enters the hidden beat
+      cutOnly = true;
+      document.getElementById("cut").hidden = true;
+    }
     render();
   }
 

@@ -16,9 +16,16 @@ Personas (``n`` counts chat requests to this server, from 0): ``valid``, ``no-us
 ``deep-nesting``, ``rejects-json_schema``, ``rejects-strict-keywords``, ``echoes-prompt-in-error``,
 ``unauthorized``, ``content-parts``, ``empty-choices``, ``tool-calls-only``, ``two-objects``,
 ``think-unterminated``, ``think-closed``, ``think-closing-only``, ``fenced``, ``fenced-bare``, ``prose-around``,
-``truncated``, ``reset-mid-body``, ``stream``, ``stream-stall`` and ``stream-unsupported``. ``valid``, ``no-usage``
-and ``stream`` answer a streaming request with server-sent events: ``n_chunks`` content chunks (fewer only when the
-reply is shorter than that), and by default a usage chunk whose ``completion_tokens`` is the number of chunks sent.
+``truncated``, ``reset-mid-body``, ``stream``, ``stream-stall``, ``stream-unsupported`` and ``thinks-by-default``.
+``valid``, ``no-usage``, ``stream`` and ``thinks-by-default`` answer a streaming request with server-sent events:
+``n_chunks`` content chunks (fewer only when the reply is shorter than that), and by default a usage chunk whose
+``completion_tokens`` is the number of chunks sent.
+
+Thinking, as Ollama and vLLM stream it: with ``think_tokens`` above 0, a request that does not turn thinking off
+(``reasoning_effort: "none"``, or ``chat_template_kwargs.enable_thinking: false``) first gets ``think_tokens``
+thinking deltas (``think_field``, ``reasoning`` by default, with ``content: ""``), one every ``token_s``, counted in
+``completion_tokens``. ``thinks-by-default`` also spends them from ``max_tokens``, as Ollama's ``num_predict`` does:
+when they reach it, the reply is empty with ``finish_reason: "length"`` (streamed or not).
 
 ``responder``, when given, is called with each chat request's parsed JSON and its return value is the reply the
 ``valid`` and ``invalid-then-valid`` personas (and every persona that answers with the good reply) send instead of
@@ -54,7 +61,9 @@ PERSONAS = (
     "rejects-strict-keywords", "echoes-prompt-in-error", "unauthorized", "content-parts", "empty-choices",
     "tool-calls-only", "two-objects", "think-unterminated", "think-closed", "think-closing-only", "fenced",
     "fenced-bare", "prose-around", "truncated", "reset-mid-body", "stream", "stream-stall", "stream-unsupported",
+    "thinks-by-default",
 )
+THINK_FIELDS = ("reasoning", "reasoning_content")
 STRICT_KEYWORDS = ("pattern", "minLength", "maxLength", "minimum", "maximum", "minItems", "maxItems")
 DEFAULT_REPLY = {"answer": "ok"}
 HTTP_DATE = "Wed, 21 Oct 2015 07:28:00 GMT"
@@ -140,9 +149,13 @@ class FakeOpenAIServer:
                  slow_s: float = 5.0, trickle_s: float = 0.4, first_token_s: float = 0.3, token_s: float = 0.02,
                  n_chunks: int = 20, slots: int | None = None, oversize_bytes: int = 2097152,
                  tls: tuple[str, str] | None = None,
-                 responder: Callable[[dict[str, Any]], dict[str, Any]] | None = None) -> None:
+                 responder: Callable[[dict[str, Any]], dict[str, Any]] | None = None, think_tokens: int = 0,
+                 think_field: str = "reasoning") -> None:
         if persona not in PERSONAS:
             raise ValueError(f"unknown persona {persona!r}") from None
+        if think_field not in THINK_FIELDS:
+            raise ValueError(f"unknown think field {think_field!r}") from None
+        self.think_tokens, self.think_field = max(0, int(think_tokens)), think_field
         self.persona = persona
         self.reply = reply if reply is not None else dict(DEFAULT_REPLY)
         self.invalid_reply = invalid_reply
@@ -257,12 +270,12 @@ class FakeOpenAIServer:
         return self._usage
 
     def _completion(self, request: dict[str, Any], content: Any, *, finish: str = "stop", usage: bool = True,
-                    message: dict[str, Any] | None = None) -> bytes:
+                    message: dict[str, Any] | None = None, tokens: int = 45) -> bytes:
         msg = message if message is not None else {"role": "assistant", "content": content}
         obj: dict[str, Any] = {"id": "chatcmpl-fake", "object": "chat.completion", "created": 0,
                                "model": self._model(request),
                                "choices": [{"index": 0, "message": msg, "finish_reason": finish}]}
-        pair = self._usage_pair() if usage else None
+        pair = self._usage_pair(tokens) if usage else None
         if pair is not None:
             obj["usage"] = {"prompt_tokens": pair[0], "completion_tokens": pair[1], "total_tokens": sum(pair)}
         return json.dumps(obj, ensure_ascii=False).encode("utf-8")
@@ -286,6 +299,14 @@ class FakeOpenAIServer:
                 "Conversation roles must alternate user/assistant/user/assistant/...")}})
         good = json.dumps(self.responder(request) if self.responder is not None else self.reply, ensure_ascii=False)
         wants_stream = request.get("stream") is True
+        if persona == "thinks-by-default":
+            budget = request.get("max_tokens")
+            cut = self._thinks(request) and isinstance(budget, int) and self.think_tokens >= budget
+            if wants_stream:
+                return self._stream(h, request, good, usage=True, cut=cut)
+            if cut:
+                return self._send(h, 200, self._completion(request, "", finish="length", tokens=budget))
+            return self._send(h, 200, self._completion(request, good, tokens=45 + self._think_count(request)))
         if persona in ("valid", "stream") and wants_stream:
             return self._stream(h, request, good, usage=True)
         if persona == "no-usage" and wants_stream:
@@ -436,19 +457,35 @@ class FakeOpenAIServer:
         bounds = [len(content) * i // n for i in range(n + 1)]
         return [content[bounds[i]:bounds[i + 1]] for i in range(n)]
 
-    def _stream(self, h: _Handler, request: dict[str, Any], content: str, *, usage: bool) -> None:
+    def _thinks(self, request: dict[str, Any]) -> bool:
+        """Thinking is on unless the request turns it off the way Ollama, vLLM or llama-server read it."""
+        kwargs = request.get("chat_template_kwargs")
+        off = request.get("reasoning_effort") == "none" or (isinstance(kwargs, dict)
+                                                             and kwargs.get("enable_thinking") is False)
+        return self.think_tokens > 0 and not off
+
+    def _think_count(self, request: dict[str, Any]) -> int:
+        return self.think_tokens if self._thinks(request) else 0
+
+    def _stream(self, h: _Handler, request: dict[str, Any], content: str, *, usage: bool, cut: bool = False) -> None:
         self._sse_head(h)
         if self._stop.wait(self.first_token_s):
             return
-        pieces = self._pieces(content)
-        for i, piece in enumerate(pieces):
+        think = request["max_tokens"] if cut else self._think_count(request)
+        for i in range(think):
             if i and self._stop.wait(self.token_s):
                 return
-            delta = {"role": "assistant", "content": piece} if i == 0 else {"content": piece}
+            delta = {"content": "", self.think_field: "t"}
+            self._event(h, self._chunk(request, {"role": "assistant", **delta} if i == 0 else delta))
+        pieces = [] if cut else self._pieces(content)
+        for i, piece in enumerate(pieces):
+            if (i or think) and self._stop.wait(self.token_s):
+                return
+            delta = {"role": "assistant", "content": piece} if i == 0 and not think else {"content": piece}
             self._event(h, self._chunk(request, delta))
-        self._event(h, self._chunk(request, {}, "stop"))
+        self._event(h, self._chunk(request, {}, "length" if cut else "stop"))
         options = request.get("stream_options")
-        pair = self._usage_pair(len(pieces)) if usage else None
+        pair = self._usage_pair(len(pieces) + think) if usage else None
         if pair is not None and isinstance(options, dict) and options.get("include_usage") is True:
             self._event(h, {"id": "chatcmpl-fake", "object": "chat.completion.chunk", "created": 0,
                             "model": self._model(request), "choices": [],

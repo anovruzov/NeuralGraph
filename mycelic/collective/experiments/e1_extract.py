@@ -37,8 +37,9 @@ failures on more than :data:`TRANSPORT_MAX_SHARE` of its record runs, its verdic
 ``withheld_reason``): re-run that endpoint's repeats against a healthy server.
 
 **What is pinned.** ``prereg`` fixes the pack's vocabulary hash, the labels' sha256, the scoring code's hash
-(:data:`E1_CODE_FILES`), every endpoint's model, provider, boundary, response format and transport schema, the
-reference, margin, runs, seed, bootstrap B, boundary, data label and external-raw exemption; ``run`` and ``compare``
+(:data:`E1_CODE_FILES`), every endpoint's model, provider, boundary, response format, transport schema and thinking
+controls (``reasoning_effort``, ``chat_template_kwargs``; a server's default thinking spends the extraction budget,
+so they change what a model returns), the reference, margin, runs, seed, bootstrap B, boundary, data label and external-raw exemption; ``run`` and ``compare``
 refuse any difference before writing anything. Each run stamps the sha256 of its predictions and ledger into
 run.json, and ``compare`` refuses a run whose files differ, a run that never finished writing run.json, and a
 pre-registered endpoint without runs (unless ``--allow-incomplete``, which is stamped and lists it). Raw records go
@@ -71,7 +72,7 @@ from ..inference.routing import ConfigError, Endpoint, key_problem, load_routing
 from ..inference.runtime import DATA_LABELS, EXTERNAL_RAW_LABELS, VALIDATION_KINDS, Runtime, boundary_mode
 from ..jsonio import StrictJsonError, canonical_dumps, sha256_hex, short_digest, strict_load
 from ..packs.canonical import Canonicaliser
-from ..packs.connector import ConnectorError, map_rows, read_jsonl, record_mapping
+from ..packs.connector import PUBLIC_SITE, ConnectorError, map_rows, read_jsonl, record_mapping
 from ..packs.loader import FrozenPack, PackError, load_pack
 from .common import (ROOT, DryRun, UsageError, check_run_id, code_commit, code_dirty, code_hash, fail,
                      measurement_flag, run_dir, utc_clock, write_json_atomic)
@@ -89,7 +90,7 @@ SECONDARY_METRICS = ("claim_f1", "entity_f1", "predicate_f1", "json_validity_rat
 METRICS = ("field", "claim", "entity", "predicate")
 SOURCES = ("openfda", "jsonl", "records")
 OPENFDA_MAPPING = "mapping_openfda"
-OPENFDA_SITE = "public"
+OPENFDA_SITE = PUBLIC_SITE
 E1_CODE_FILES = ("mycelic/collective/edge/extract.py", "mycelic/collective/packs/canonical.py",
                  "mycelic/collective/packs/loader.py", "mycelic/collective/packs/connector.py",
                  "mycelic/collective/inference/*.py", "mycelic/collective/schemacheck.py",
@@ -99,7 +100,8 @@ PREREG_KEYS = ("kind", "schema_version", "experiment", "run_id", "created_at", "
                "code_commit", "code_dirty", "allow_dirty", "labels", "primary_metric", "secondary_metrics", "margin",
                "kill_below", "underpowered_below", "endpoints", "reference", "runs", "seed", "bootstrap_b",
                "boundary", "data_label", "allow_external_raw")
-PINNED_ENDPOINT_FIELDS = ("provider", "boundary", "model", "response_format", "transport_schema")
+PINNED_ENDPOINT_FIELDS = ("provider", "boundary", "model", "response_format", "transport_schema", "reasoning_effort",
+                          "chat_template_kwargs")
 GOLD_ITEM_RE = re.compile(r"(?:(?P<type>[a-z][a-z0-9_]{1,40}):(?P<text>[^@;]+?))?\s*(?:@(?P<neg>!)?"
                           r"(?P<pred>[a-z][a-z0-9_]{1,40}))?", re.ASCII)
 NOTES = [
@@ -747,7 +749,7 @@ def cmd_prereg(args: argparse.Namespace) -> int:
         "labels": {"sha256": sha, "records": len(labels), "claims": sum(len(g) for _, g in labels)},
         "primary_metric": PRIMARY_METRIC, "secondary_metrics": list(SECONDARY_METRICS), "margin": margin,
         "kill_below": KILL_BELOW, "underpowered_below": UNDERPOWERED_BELOW,
-        "endpoints": [{"name": e.name, **{f: getattr(e, f) for f in PINNED_ENDPOINT_FIELDS}} for e in endpoints],
+        "endpoints": [{"name": e.name, **endpoint_pins(e)} for e in endpoints],
         "reference": args.reference, "runs": args.runs, "seed": args.seed, "bootstrap_b": args.bootstrap_b,
         "boundary": args.boundary, "data_label": args.data_label, "allow_external_raw": args.allow_external_raw,
     }
@@ -759,10 +761,21 @@ def cmd_prereg(args: argparse.Namespace) -> int:
 
 # --------------------------------------------------------------------------------------------------- run
 
+def endpoint_pins(endpoint: Endpoint) -> dict[str, Any]:
+    """The endpoint settings a prereg pins, as JSON values. The thinking controls are among them (audit round 2): a
+    server's default thinking spends the extraction budget before any answer, so the same model scores differently
+    with and without them."""
+    pins = {f: getattr(endpoint, f) for f in PINNED_ENDPOINT_FIELDS}
+    if pins["chat_template_kwargs"] is not None:
+        pins["chat_template_kwargs"] = dict(pins["chat_template_kwargs"])
+    return pins
+
+
 def _check_pinned_endpoint(prereg: Mapping[str, Any], endpoint: Endpoint) -> None:
     pinned = next(e for e in prereg["endpoints"] if e["name"] == endpoint.name)
+    now = endpoint_pins(endpoint)
     for f in PINNED_ENDPOINT_FIELDS:
-        _pinned(f"endpoint {endpoint.name} {f}", pinned[f], getattr(endpoint, f))
+        _pinned(f"endpoint {endpoint.name} {f}", pinned[f], now[f])
 
 
 def failure_class(error_kind: str | None) -> str | None:
@@ -898,7 +911,7 @@ def _execute(args: argparse.Namespace, out_dir: Path, prereg: Mapping[str, Any],
         "records_total": len(labels),
         "pinned": {"pack_vocabulary_hash": prereg["pack"]["vocabulary_hash"], "code_hash": prereg["code_hash"],
                    "labels_sha256": prereg["labels"]["sha256"],
-                   **{f: getattr(endpoint, f) for f in PINNED_ENDPOINT_FIELDS}},
+                   **endpoint_pins(endpoint)},
         **_stamps(), "allow_dirty": bool(args.allow_dirty), "data_label": prereg["data_label"],
         "boundary": prereg["boundary"], "allow_external_raw": prereg["allow_external_raw"],
         "model_requested": endpoint.model, "models_listed": None, "listed_fake": None, "started_at": utc_clock(),

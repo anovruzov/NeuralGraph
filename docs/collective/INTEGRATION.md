@@ -768,9 +768,13 @@ of 3, R (model-free) 0 of 3, U 3 of 3, single_site 3 of 3. The lifts over three 
 interpretable (the scorecard warns), and none of these figures may be shown to anyone outside the team. Re-run with
 the review fixes (a no-plant control per seed; single_site counted only at a planted site; "Review fixes" at the end
 of this file), same labels: `device_quality` X 3 of 3 (control 0, net 3), S 0 of 3, R 0 of 3, U 3 of 3 (control 0,
-net 3), single_site 3 of 3 (control 2, net 1); `claims_integrity` X 2 of 3 (control 0, net 2), S 0, R 0, U 3 of 3
-(control 0, net 3), single_site 3 of 3 (control 1, net 2). Two of single_site's three device finds, and one of its
-three claims finds, also happen in the world without the plant: they were chance finds.
+net 3), single_site 3 of 3 (control 2, chance 0, net 3); `claims_integrity` X 2 of 3 (control 0, net 2), S 0, R 0,
+U 3 of 3 (control 0, net 3), single_site 3 of 3 (control 1, chance 0, net 3). In the world without the plant,
+single_site alerts on two of the device pattern keys and one of the claims pattern keys at a planted site, but
+always strictly later than its planted-world find (device seed 11: planted W31 and W39, control W40 and W41). Those
+were plant-driven finds, not chance finds: the planted world's earlier alert came from the plant, and its cooldown
+hid the later background alert. An earlier version of this paragraph called them chance finds and reported
+single_site net 1 and 2 (audit round 2 corrected the rule; "Audit round 2" at the end of this file).
 
 ## G6
 
@@ -1463,8 +1467,9 @@ injected id. Neither is evidence about a model or about E5 itself.
 
 **Base.** Branch `mycelic-collective-phase2` at 3a4c786 (G7), a clean worktree. Nothing is committed by the engineer.
 
-**A fictional company, synthetic data and a constructed illustration; internal and YC use only; never a
-measurement.** G8 runs the loop end to end for one fictional multi-site device maker (Halvern Medical, six plants in
+**A fictional company, synthetic data and a constructed illustration; internal use only; never a measurement.**
+(G8 said "internal and YC use only"; audit round 2 corrected it: STRATEGY 9.1, the YC demo's own rules, puts
+synthetic-fixture results of any kind off the YC screen, and showing this run to YC is the founder's decision.) G8 runs the loop end to end for one fictional multi-site device maker (Halvern Medical, six plants in
 four countries) and shows it on a console whose every number is read from run files (ARCHITECTURE section 17).
 Nothing in the loop changed: `detect/`, `pushdown/`, `followup/`, `edge/`, `evaluate/`, `inference/` and `packs/`
 (pack data and the four hashes per pack) are byte-identical to G7.
@@ -1691,7 +1696,7 @@ data and the four hashes per pack are unchanged.
 | # | Finding | Fix | Regression test |
 |---|---|---|---|
 | 1 | The openFDA replay credits recalls by alert volume | Every channel reports `alerts`, `alerts_per_week`, `found_minus_expected` and a circular-shift null (`chance`: expected found, per-recall share, p-value, median lead); ARCHITECTURE 14.7, RUNBOOK 12 | `OpenFDAReplayTests::test_every_channel_reports_its_alerts_and_a_circular_shift_null`, `test_the_circular_shift_null_by_hand`, `test_alert_volume_alone_is_not_credited_above_chance` |
-| 2 | X1 credits "found" without the plant; single_site at any site | A no-plant control world per seed through the same pipeline; `control_found`, `found_net`, `recall_net` everywhere, lifts on net found; single_site counts only at a planted site | `test_single_site_matches_the_key_only_at_a_planted_site`, `test_a_find_in_the_no_plant_control_is_a_chance_find_and_not_net`, `test_the_no_plant_control_runs_per_seed_and_its_finds_are_not_net` |
+| 2 | X1 credits "found" without the plant; single_site at any site | A no-plant control world per seed through the same pipeline; `control_found`, `found_net`, `recall_net` everywhere, lifts on net found; single_site counts only at a planted site | `test_single_site_matches_the_key_only_at_a_planted_site`, `test_a_find_the_control_makes_as_early_or_earlier_is_a_chance_find_and_not_net`, `test_the_no_plant_control_runs_per_seed_and_only_its_earlier_finds_are_not_net` (renamed in audit round 2, which made the rule timing-aware) |
 | 3 | D3 PMI cannot fire on k-suppressed cells | The key's own count keeps its conservative bounds; the nuisance cells take one shared imputation (`'<k'` as k/2) in window and baseline | `test_d3_fires_on_all_suppressed_cells_where_opposite_marginal_bounds_could_not`, `test_a_steady_suppressed_key_beside_steady_suppressed_cells_does_not_rise` |
 | 4 | X detects later than S on code-visible patterns | X runs S's codes test beside the combined test (Bonferroni over two, a certain-rate floor), shown as `test` in the snapshot | `test_text_only_background_does_not_hide_a_codes_burst_that_s_sees` |
 | 5 | The E2 bar passes an uninformative verifier | Chance AP, the chance-corrected ratio and central_raw's lift over chance; the bar needs the corrected ratio and withholds an uninformative pool; key-cluster bootstrap | `test_a_constant_numerator_keeps_none_of_the_lift_over_chance`, `test_the_lift_ratio_by_hand_and_its_epsilon`, `test_cluster_replicates_draw_whole_labels`, `test_the_bar_needs_the_chance_corrected_ratio_and_an_informative_pool` |
@@ -1773,3 +1778,140 @@ Printed in this sandbox, quoted only as **synthetic, same-author, not a measurem
 - The re-recorded demo run: checks 12 of 12, hero X rank 2 in 2024-W35, gate supported; S's first other case key is
   the lot's generic-malfunction key (rank 1, 2024-W36) and R's the product's (rank 1, 2024-W35), as in G8;
   `ledger.jsonl` holds one HQ row; the final scan's run files are 49,452 bytes.
+
+## Audit round 2 (ten confirmed findings)
+
+**Base.** Branch `mycelic-collective-phase2` at 1fe6cff (audit round 1), a clean worktree. Nothing is committed by the
+engineer.
+
+**Scope: fabric files changed: none.** `git diff --stat HEAD -- mycelic/service.py mycelic/store.py
+mycelic/aggregation.py mycelic/transport.py mycelic/api.py mycelic/lineage.py mycelic/config.py deploy SECURITY.md
+DEPLOYMENT.md NeuralGraph research` is empty. Changed: `mycelic/collective/leakage.py`, `edge/{egress,extract,
+records,site,verify}.py`, `evaluate/harness.py`, `experiments/{e1_extract,e2_pushdown,e3_latency}.py`,
+`inference/{client,fakeserver,routing,runtime}.py`, `packs/{connector,loader}.py`, both packs' `egress.json`,
+`demo/collective/{collective_demo,screen}.py`, `console.html`, `SCRIPT.md`, `README.md`, the committed run
+(re-recorded as `demo/collective/recorded/collective-halvern-g10/`, the g9 directory removed),
+`docs/collective/{ARCHITECTURE,INTEGRATION,LEAKAGE,PACKS,RUNBOOK}.md`, `docs/collective/examples/{README.md,
+routing.example.json,e1.prereg.example.json,e1_models.example.md}` and nine test files. No new SQLite schema.
+
+| # | Finding | Fix | Regression test |
+|---|---|---|---|
+| 1 | X1's net found voided single_site's plant-driven finds when the control alerted weeks later, so `X_minus_single_site` came out positive although single_site found more patterns, earlier | A find is a chance find only when the control's first in-window alert (single_site: at a planted site) is in the same week as the planted world's first or earlier (`harness.chance_find`); `chance_found` beside `control_found` in every block, `chance_find` per pattern outcome; `NET_BASIS` says so; ARCHITECTURE 14.4, RUNBOOK 11; the G5 figures above corrected | `MetricTests::test_a_control_alert_only_after_the_planted_find_does_not_void_it`, `test_a_find_the_control_makes_as_early_or_earlier_is_a_chance_find_and_not_net`, `PlantedConstructionTests::test_the_no_plant_control_runs_per_seed_and_only_its_earlier_finds_are_not_net` |
+| 2 | Real narratives could reach off-site endpoints under the synthetic exemptions: the judge never checked, extraction checked only `simulation` | `simulation=True` needs `data_label='synthetic'`; `Runtime.exemption(task)` names the label records must carry when the route (primary or escalation) leaves the boundary as `simulated` or `external_raw_exempt`; `records.exempt_records_problem` checks it (synthetic: every record; public: the site is `public`); extraction and the judge refuse before any call; `WindowRecord` carries `synthetic`; E2's central_raw refuses a record that is not synthetic; ARCHITECTURE 2 | `BoundaryGuardTests::test_exemption_names_the_label_records_must_carry`, `BoundaryGuardTests::test_construction_rules` (simulated partner or public data), `UsageTests::test_an_exempt_external_extraction_only_reads_records_that_carry_the_label`, `VerifyTests::test_an_exempt_judge_only_reads_records_that_carry_the_label`, `VerifyTests::test_e2_central_raw_never_sends_a_record_that_is_not_synthetic` |
+| 3 | `usage_summary` sent the judge's calls (one per retrieved record, so the counts behind a verdict), and `calls - ok` recovered `'<k'` error counts | A site summarises only its extraction rows (the judge's are consumed, never summarised) and its Boundary lists only the extraction task; complementary suppression: with an int `calls` and any part below k, `ok` and every error kind go as `'suppressed'`; the Boundary refuses a `'<k'` part beside an int `calls` and a partial `'suppressed'`; LEAKAGE 2 and 7 | `UsageTests::test_judge_rows_stay_at_the_site`, `test_no_part_below_k_can_be_recovered_by_subtraction`, `test_the_boundary_refuses_a_subtractable_or_judge_usage_group` |
+| 4 | Pushdown was a membership oracle on guessed ids, person data included; `require_master_data` and the person-value drop did not apply; the per-entity budget did not limit guessing | With `require_master_data`, an id outside master data gets `unknown` without a record read (stored, local reason `not_master_data`, body identical to no records; `site.in_master_data` shared with the cells); retrieval skips a narrative mention written as a person value or the reporter (`extract.person_values`); a per-site budget on distinct entities a day (`question_entities_per_site_per_day`, 50 in both packs); LEAKAGE 7 and 9, ARCHITECTURE 15.4 | `VerifyTests::test_an_id_outside_master_data_is_answered_without_reading_a_record`, `test_a_mention_written_as_a_person_value_does_not_retrieve_the_record`, `test_the_daily_entity_budget_per_site` |
+| 5 | The streaming client ignored the `reasoning` field of Ollama and vLLM, so E3's TTFT waited for the end of the thinking and `decode_tok_s` came out about 20 times too high | A delta with `reasoning` or `reasoning_content` starts the clock and counts in `reasoning_chunks`; E3 cells report `thinking_requests` and `length_cut`; the fake server streams thinking under either name; RUNBOOK 4, ARCHITECTURE 3 | `FakeServerRuntimeTests::test_thinking_deltas_start_the_clock_under_either_field_name`, `E3SmokeTests::test_a_thinking_server_is_timed_from_its_first_thinking_token_and_flagged` |
+| 6 | Server-default thinking could not be turned off and spent the small token budgets | Routing endpoints take `reasoning_effort` and `chat_template_kwargs` (checked, sent only when named); E1 pins both in its prereg; the example routing turns thinking off for Ollama and vLLM; RUNBOOK 2 ("Thinking") and 13 (Ollama's `num_ctx` cannot be set per request); fake persona `thinks-by-default` | `FakeServerRuntimeTests::test_thinking_controls_are_sent_only_when_the_routing_file_names_them`, `test_thinking_control_keys_are_checked`, `E3SmokeTests::test_thinking_that_spends_the_token_cap_is_counted`, `E1PreregTests::test_pinned_values_are_enforced_by_run_and_compare` (the two thinking fields) |
+| 7 | No circuit breaker: during an outage every record paid the full deadline, the verifier kept judging after degraded was certain, all under its lock | The judge stops as soon as failures exceed half the records, and after `BREAKER_AFTER` (2) consecutive server-down failures (`timeout`, `network`, `http_5xx`) counts the rest as failures; extraction senses the rest of the pass lexically without a call (extractor `fallback`, error `not_sent`); ARCHITECTURE 12.2 and 15.4 | `VerifyTests::test_a_dead_judge_server_costs_a_question_two_calls_not_one_per_record`, `UsageTests::test_a_dead_model_server_costs_an_extraction_pass_two_calls` |
+| 8 | The each-site-alone baseline flagged the hero key in X's week and the screen hid that week | Every channel's detection block has `detection_week`; the references row shows the single-site week and a warning when one plant alone was no later than X (or later); README, SCRIPT and ARCHITECTURE 17.4 say this case shows no collective lift | `HonestyTests::test_the_single_site_reference_shows_its_week_and_says_when_it_was_no_later` |
+| 9 | The live 60-second cut was broken: Next after the check landed on the hidden follow-up beat, and real data stayed locked | The console always shows the beat the engine is on; `--serve --cut` walks only the cut's beats and runs the follow-ups with scripted approval after the check (`approval: recorded`), with `cut_only` in `screen.json`; RUNBOOK 15, ARCHITECTURE 17.7 | `ExportReplayTests::test_the_sixty_second_cut_can_be_given_live` |
+| 10 | The demo was labelled for YC use although STRATEGY 9.1 (the YC demo's rules) puts synthetic-fixture results of any kind off the screen | Every label reads "Internal use only"; README, SCRIPT, RUNBOOK, ARCHITECTURE and the G8 header above cite 9.1 correctly and leave the decision to the founder | `HonestyTests::test_labels_present` (the screen and the export carry "Internal use only") |
+
+### Earlier tests whose expectation encoded a finding
+
+Changed, never weakened: each now asserts the fixed behaviour.
+
+- `test_collective_evaluate.py`: `test_a_find_in_the_no_plant_control_is_a_chance_find_and_not_net` counted a W32
+  find against a later W35 control alert as chance; renamed `test_a_find_the_control_makes_as_early_or_earlier_...`,
+  it now plants same-week and earlier control alerts. `test_the_no_plant_control_runs_per_seed_and_its_finds_are_not_net`
+  pinned single_site `(found, control, net) = (3, 2, 1)` and the lift `2/3`; renamed `..._only_its_earlier_finds_...`,
+  it pins `(3, 2, 0, 3)` with `chance_found`, the lift 0 and that both control alerts come strictly later (finding 1).
+- `test_collective_edge.py`: the usage test's group with `ok 5, errors {http_5xx: '<k'}` beside `calls 6` was the
+  subtraction the finding names; it now expects `'suppressed'` (finding 3).
+- `test_collective_pushdown.py`: the degrade tests scripted one 5xx per record; with the breaker two in a row
+  degrade, and the half-failure case uses 4xx, which does not trip it (finding 7). The NOT_COVERED pin quoted the
+  per-entity budget alone (finding 4).
+- `test_collective_extract.py`: the persona count is 34 (finding 6's `thinks-by-default`).
+- `test_collective_demo.py`: a detection block has `detection_week`; the baseline-numbers check accepts that week as a
+  week; the audience label reads "Internal use only" (findings 8, 10).
+- Pack pins (`test_collective_pushdown.py`, `test_collective_evaluate.py`, `test_collective_followup.py`): `config_hash`
+  is `R2_CONFIG_HASHES` (`device_quality` `ac59c4cb...`, `claims_integrity` `12d62cdf...`); the vocabulary, detector
+  and fixtures hashes are unchanged.
+
+### Merge notes
+
+1. **No fabric change and no fabric integration point.** Everything is under `mycelic/collective/`, `demo/collective/`,
+   `docs/collective/` and `tests/mycelic/test_collective_*.py`.
+2. **The committed demo run moved from `collective-halvern-g9` to `collective-halvern-g10`.** The g9 removal is staged
+   and the g10 directory is staged as new (README's re-recording steps). A fresh `--record` reproduces its
+   `content_hash` (`CommittedRunTests`).
+3. **Pack `config_hash` changed** in both packs (`question_entities_per_site_per_day`). Any run file or prereg that
+   pins the G7 `config_hash` must be re-made.
+
+### Disagreements and residuals, for the reviewer
+
+- **Finding 1: the timing rule, not an aggregate correction.** A control alert in the same week as the planted world's
+  first alert still voids the find (conservative); a control alert only later does not. The rule cannot tell a
+  plant-driven find from a chance find when the background alone would have alerted later anyway; it treats the
+  earlier, plant-driven alert as the find, which is what the planted world shows.
+- **Finding 2: the public exemption is tied to the site id `public`** (`connector.PUBLIC_SITE`, the site E1 and the
+  replay give openFDA records), since records carry no public flag. No in-repo caller sent real data before the fix;
+  this closes the API gap the reviewer described.
+- **Finding 3: HQ no longer sees the judge's health in usage.** A degraded verdict still tells HQ that a site's judge
+  is failing; per-kind judge errors stay in the site's ledger. Complementary suppression still sends which error kinds
+  occurred (the keys).
+- **Finding 4: without `require_master_data` (`claims_integrity`)** an id-shaped value that is not written in a person
+  field is still an id to the site; the per-site budget (50 a day, a pack value chosen here) limits how many such ids
+  one site answers about per day, and the owner may tune it. A not-master-data question uses budget like any answer.
+- **Findings 5 and 6 are rehearsed against the fake server only.** No real server ran here; the field names and the
+  thinking defaults come from the reviewers' reading of upstream Ollama and vLLM source. RUNBOOK 2 tells the founder to
+  check what their server version accepts and how to confirm thinking is off (`finish_reason` `stop`, `thinking_requests`
+  and `length_cut` 0).
+- **Finding 7: the breaker is per pass, not remembered across passes.** A wedged judge server costs each question up to
+  two deadlines (at the example routing's `deadline_s` 300, 600 s, which reaches the orchestrator's default 600 s
+  deadline, so HQ may record a timeout); a degraded verdict is not stored, so a re-ask pays it again. A judge endpoint
+  with a deadline under half the orchestrator's keeps a dead server's cost inside one question's deadline.
+- **Finding 8: the screen is honest; the case is unchanged.** The finding's better fix, a hero case that no plant's own
+  baseline flags, is a scenario decision for the owner: on the committed case the collective view is not earlier than
+  one plant, and the screen, README and talk track now say so.
+- **Finding 10 is the founder's decision.** STRATEGY is outside this worktree and was not edited; the docs say what 9.1
+  says and label the run internal until the founder decides.
+
+### Synthetic figures (synthetic, same-author, not a measurement)
+
+Printed in this sandbox, quoted only as **synthetic, same-author, not a measurement**:
+
+- The X1 construction smokes (as at the end of the G5 section above): `device_quality` single_site 3 of 3 (control 2,
+  chance 0, net 3), X 3 of 3 (net 3); `claims_integrity` single_site 3 of 3 (control 1, chance 0, net 3), X 2 of 3
+  (net 2). The collective lift on each is 0 or below, not the 2/3 round 1 reported for the device smoke.
+- The reviewer's 20-seed device repro (seeds 11 to 30, `plant_smoke.json`, tie salt `r2probe`), re-run with the fix:
+  single_site 60 of 60 (control 7, chance 0, net 60, median delay 0), X 57 of 60 (control 0, net 57, median delay 2);
+  `X_minus_single_site` -0.05, interval [-0.05, -0.05] (round 1's rule gave +0.0667, [0.05, 0.10]).
+- G0 (seed 11, 1,000 records, both packs): exit 0, no hit, no overlap; LEAKAGE section 11's table is unchanged (G0's
+  usage summaries are emitted before any question, so they never held judge rows).
+- The re-recorded demo run (`collective-halvern-g10`): checks 12 of 12, gate supported; hero key X rank 2 in 2024-W35,
+  U rank 3 in 2024-W35, each site alone rank 4 in 2024-W35, S and R not alerted on it (each flags a related key at
+  rank 1).
+
+## Audit round 2, review follow-up (finding 3's missing-token counts)
+
+The review of the round-2 fixes found finding 3 only partly fixed. Complementary suppression withheld `ok` and the
+error kinds, but `tokens_in_missing` and `tokens_out_missing` still crossed as exact ints. They count the rows without
+token counts, which are the transport failures, so HQ read them back: three extraction passes against a dead server
+(two timeouts each before the breaker) and one pass with 2 replies sent `calls 8, ok 'suppressed', errors {timeout:
+'suppressed'}, tokens_in_missing 6`, which is timeout 6 and ok 2, below k. Two further fields gave the same split
+back and are fixed with it: the token sums (here over the 2 replies; divided by the known prompt size they count the
+rows) and the latency percentiles (a failure's latency sits at the deadline, and the interpolated p95 moves with the
+number of failures).
+
+| Fix | Regression test |
+|---|---|
+| `site._usage_group` summarises one (task, endpoint) group from its ledger rows. With an int `calls` and a part below k it sends `ok`, every error kind and both missing-token counts as `'suppressed'`, with no token sum and no latency. With no part withheld, a missing-token count is exact only when within each part every row or none lacks the tokens (a sum of whole parts), else `'suppressed'` without its token sum. `egress._usage_problem` enforces the same rules at the Boundary, plus `calls` equal to the sum of the parts. LEAKAGE 2, ARCHITECTURE 4 and 12.6 | `UsageTests::test_failures_cannot_be_read_from_the_missing_token_counts` (the finder's probe, then the same week with 4 replies), `test_no_part_below_k_can_be_recovered_by_subtraction` (the finder's `calls 8, ok 2, timeout 6`, a reply without usage, and every mix of up to three parts with and without rows lacking tokens), `test_the_boundary_refuses_a_subtractable_or_judge_usage_group` (ten new refused groups, six accepted) |
+
+Earlier test whose expectation encoded the finding:
+`UsageTests::test_errors_are_suppressed_and_tokens_sent_when_calls_reach_k` asserted that `calls 6, ok 'suppressed',
+errors {http_5xx: 'suppressed'}` crossed with `tokens_in_missing '<k'`, the token sums and the latency, which is the
+leak. The same shape (one 5xx among the calls) is now a case of the subtraction test, with everything but `calls`
+withheld, and the test, renamed `test_errors_are_counted_and_tokens_sent_when_calls_reach_k`, sends tokens for a split
+with no part below k (`calls 8, ok 5, errors {json_invalid: 3}`).
+
+Mutation checks, each restored: sending the missing-token counts exact beside a withheld split, dropping the
+whole-part rule at the site, and, at the Boundary, letting the missing-token counts, a token sum or latency cross
+beside a withheld split, dropping the whole-part check, a token sum beside a withheld missing-token count, and a
+`calls` that is not the sum of its parts each fail at least one of the tests above.
+
+Residuals: with no part withheld, HQ still reads exact token sums (over no call or at least k calls) and latency
+percentiles over the week's calls (the NOT_COVERED item on usage is unchanged), and which error kinds occurred. The
+committed demo run and G0 are unchanged: their sites' extraction makes no failed call, so every group was already
+exact with no rows lacking tokens. Re-run here (seed 11, 1,000 records, both packs), G0 passes and HQ's receive logs
+are byte-identical to round 2's.

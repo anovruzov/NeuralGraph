@@ -118,7 +118,8 @@ _NARRATIVE_KEYS = ("path", "where")
 _WHERE_KEYS = ("field", "in")
 _EGRESS_KEYS = ("k", "suppress_below_days", "count_granularity", "close_lag_days", "min_window_weeks",
                 "verdict_count_buckets", "egress_entity_types", "require_master_data", "never_fields",
-                "central_allowed_fields", "verify_max_records", "question_budget_per_entity_per_day")
+                "central_allowed_fields", "verify_max_records", "question_budget_per_entity_per_day",
+                "question_entities_per_site_per_day")
 _DETECTOR_KEYS = ("alert_budget_per_week", "cooldown_weeks", "baseline_weeks", "window_weeks", "min_history_weeks",
                   "burst", "cooccurrence", "resolution", "independence", "decoy", "ranker")
 _RANKER_WEIGHTS = ("burst_surprise", "pmi_rise", "log_independent_roots", "supporting_sites", "low_res_conf", "echo",
@@ -271,6 +272,7 @@ class Egress:
     central_allowed_fields: tuple[str, ...]
     verify_max_records: int
     question_budget_per_entity_per_day: int
+    question_entities_per_site_per_day: int
 
 
 @dataclass(frozen=True)
@@ -527,7 +529,8 @@ S_EGRESS = _schema(_closed({
     "egress_entity_types": _ID_LIST, "require_master_data": _BOOL,
     "never_fields": {"type": "array", "items": _string(1, 120), "maxItems": 200},
     "central_allowed_fields": {"type": "array", "items": _string(1, 120), "maxItems": 200},
-    "verify_max_records": _int(1, 10000), "question_budget_per_entity_per_day": _int(1, 100)}))
+    "verify_max_records": _int(1, 10000), "question_budget_per_entity_per_day": _int(1, 100),
+    "question_entities_per_site_per_day": _int(1, 1000)}))
 
 
 def _real(lo: float, hi: float | None = None) -> dict[str, Any]:
@@ -987,7 +990,8 @@ def _egress(b: _Build) -> Egress:
                   egress_entity_types=tuple(types), require_master_data=raw["require_master_data"],
                   never_fields=tuple(raw["never_fields"]), central_allowed_fields=tuple(raw["central_allowed_fields"]),
                   verify_max_records=raw["verify_max_records"],
-                  question_budget_per_entity_per_day=raw["question_budget_per_entity_per_day"])
+                  question_budget_per_entity_per_day=raw["question_budget_per_entity_per_day"],
+                  question_entities_per_site_per_day=raw["question_entities_per_site_per_day"])
 
 
 def _detectors(b: _Build, egress: Egress) -> dict[str, Any]:

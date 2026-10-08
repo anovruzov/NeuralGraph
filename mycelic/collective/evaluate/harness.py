@@ -24,12 +24,16 @@ every channel: X and S from HQ's store, R (model-free), U, rules and single_site
 unsuppressed X and S. Then the same seed's world **without the plant** (the control) runs through the same pipeline
 and channels. Alerts before the evaluation weeks are burn-in and dropped. A pattern is found by a channel when an
 alert names its key inside ``[start, min(end + grace, eval_to)]`` (single_site: at one of the pattern's planted
-sites); repeats count once; every other alert is a false alarm. A unit (pattern, seed) found in the control world is
-a chance find: each channel reports its control finds, and ``found_net`` counts units found with the plant and not
-in the control. Recall is pooled over patterns x seeds; precision@40 and AP are tie-averaged per seed over distinct
-alerted keys (score: the key's best alert) and averaged over seeds; lifts are cluster bootstraps over patterns of
-each pattern's per-seed differences in net found. Diagnostics: the quiet precondition of the structural decoys, the
-X flags at a decoy's detection, suppression shares and the analytic minimum detectable rate of G4's per-site test.
+sites); repeats count once; every other alert is a false alarm. A planted-world find is a chance find when the
+control world also finds the unit no later: its first alert in the window (single_site: at a planted site) is in the
+same week as the planted world's first or earlier. A control alert that comes only later is not one: in the planted
+world the plant's alert came first, and the cooldown after it can suppress that later background alert. Each
+channel reports its control finds (any week in the window) and its chance finds, and ``found_net`` counts the
+planted finds that are not chance finds. Recall is pooled over patterns x seeds; precision@40 and AP are
+tie-averaged per seed over distinct alerted keys (score: the key's best alert) and averaged over seeds; lifts are
+cluster bootstraps over patterns of each pattern's per-seed differences in net found. Diagnostics: the quiet
+precondition of the structural decoys, the X flags at a decoy's detection, suppression shares and the analytic
+minimum detectable rate of G4's per-site test.
 
 **What the scorecard says about itself.** ``stamps`` are ``synthetic: true``, ``internal_only: true`` and
 ``measurement: false``; ``blind`` is self-declared (``blind_basis``). It is validated against
@@ -85,7 +89,8 @@ BY_CONSTRUCTION_LABEL = "by construction, not a result"
 BY_CONSTRUCTION_STATEMENT = ("planted narrative_only records carry no codes and no structured entities, so they add "
                              "nothing to the cells this channel reads")
 KNOWN_HARD_NOTE = "copies without origin markers count as independent at each site (G3 limitation)"
-NET_BASIS = "found in the planted world and not in the same seed's no-plant control world"
+NET_BASIS = ("found in the planted world and not found as early or earlier in the same seed's no-plant "
+             "control world")
 FEW_PATTERNS_WARNING = "fewer than 10 patterns: the lift intervals are unstable"
 MIN_RATE_LABEL = ("analytic: constant weekly counts, G4's per-site D2 tests only (rate_at_k_text_background: X with "
                   "the background in text-only cells and the planted rate in codes cells, two tests at alpha_site / "
@@ -98,8 +103,10 @@ NOTES = [
     "fields allowed to leave, with no model.",
     "The exact channels (U, R_mf and the k=1 ablation) can never raise few_reporters, which G4 defines on a "
     "suppressed reporter count; R_mf also counts every record as its own root and reporter.",
-    "Each seed also runs without the plant (the control): a pattern found there is a chance find. found and recall "
-    "include chance finds; found_net and recall_net do not, and the lifts use found_net.",
+    "Each seed also runs without the plant (the control). A planted-world find is a chance find when the control "
+    "finds the same unit in the same week or earlier; a control alert that comes only later does not void it. "
+    "control_found counts the control's finds in any week of the window; found and recall include chance finds; "
+    "found_net and recall_net do not, and the lifts use found_net.",
 ]
 PREREG_NOTES = ["Settings, code and pack are frozen and hashed here before any plant spec or outcome is seen."]
 
@@ -189,15 +196,16 @@ PREREG_SCHEMA = schemacheck.compile(_O({
 
 _CHANNEL_ENUM = _enum([*CHANNELS, *ABLATION_CHANNELS])
 _EVENT = _O({"week": _WEEK, "rank": _NINT, "key": _STR, "score": _NNUM, "site": _NSTR})
-_VIS_BLOCK = _O({"units": _NAT, "found": _NAT, "recall": _NNUM, "control_found": _NAT, "found_net": _NAT,
-                 "recall_net": _NNUM})
+_VIS_BLOCK = _O({"units": _NAT, "found": _NAT, "recall": _NNUM, "control_found": _NAT, "chance_found": _NAT,
+                 "found_net": _NAT, "recall_net": _NNUM})
 _CHANNEL_BLOCK = _O({
     "label": _STR, "ranked": _BOOL, "units": _NAT, "found": _NAT, "recall": _NNUM, "control_found": _NAT,
-    "control_recall": _NNUM, "control_alerts": _NAT, "found_net": _NAT, "recall_net": _NNUM,
+    "control_recall": _NNUM, "control_alerts": _NAT, "chance_found": _NAT, "found_net": _NAT, "recall_net": _NNUM,
     "by_visibility": _O({v: _VIS_BLOCK for v in VISIBILITIES}), "median_delay_weeks": _NNUM,
     "median_lead_weeks": _NNUM, "precision_at_40": _NNUM, "average_precision": _NNUM, "false_alarms": _NAT,
     "false_alarms_per_week": _NUM, "alerts": _NAT, "decoys_alerted": _O({c: _NAT for c in DECOY_CLASSES}),
-    "per_seed": _A(_O({"seed": _NAT, "found": _NAT, "recall": _NNUM, "control_found": _NAT, "found_net": _NAT,
+    "per_seed": _A(_O({"seed": _NAT, "found": _NAT, "recall": _NNUM, "control_found": _NAT, "chance_found": _NAT,
+                       "found_net": _NAT,
                        "alerts": _NAT, "control_alerts": _NAT, "false_alarms": _NAT, "false_alarms_per_week": _NUM,
                        "precision_at_40": _NNUM, "average_precision": _NNUM}))})
 _LIFT = _O({"estimate": _NUM, "ci_low": _NUM, "ci_high": _NUM, "B": _POS, "seed": _STR, "method": _STR,
@@ -236,7 +244,7 @@ SCORECARD_SCHEMA = schemacheck.compile(_O({
                        "start_week": _WEEK, "end_week": _WEEK,
                        "outcomes": _A(_O({"seed": _NAT, "channel": _CHANNEL_ENUM, "found": _BOOL,
                                           "first_alert_week": _NSTR, "delay_weeks": _NINT, "lead_weeks": _NINT,
-                                          "found_in_control": _BOOL}))})),
+                                          "found_in_control": _BOOL, "chance_find": _BOOL}))})),
     "decoys": _A(_O({"id": _STR, "class": _enum(DECOY_CLASSES), "keys": _A(_STR), "sites": _A(_STR),
                      "watch_from": _WEEK, "watch_to": _WEEK,
                      "outcomes": _A(_O({"seed": _NAT, "channel": _CHANNEL_ENUM, "alerted": _BOOL,
@@ -416,10 +424,23 @@ def _mean(values: Sequence[float | None]) -> float | None:
     return math.fsum(known) / len(known) if known else None
 
 
+def chance_find(events: Sequence[Mapping[str, Any]], control: Sequence[Mapping[str, Any]],
+                label: Mapping[str, Any], index: Mapping[str, int]) -> bool:
+    """The planted world finds the unit and the no-plant control world finds it too, in the same week or earlier.
+
+    A control alert that comes only later does not make the find a chance find: the planted world is the control's
+    records plus the plant's, so its earlier alert came from the plant, and the cooldown after that alert is what
+    suppresses the later background alert there. Removing such finds would penalise exactly the channels that spend
+    their whole budget (single_site) for alerting early."""
+    planted, ctrl = pattern_outcome(events, label, index), pattern_outcome(control, label, index)
+    return (planted["found"] and ctrl["found"]
+            and index[ctrl["first_alert_week"]] <= index[planted["first_alert_week"]])
+
+
 def net_found(events: Sequence[Mapping[str, Any]], control: Sequence[Mapping[str, Any]], label: Mapping[str, Any],
               index: Mapping[str, int]) -> bool:
-    """Found with the plant and not in the no-plant control world (a control find is a chance find)."""
-    return pattern_outcome(events, label, index)["found"] and not pattern_outcome(control, label, index)["found"]
+    """Found with the plant and not a :func:`chance_find`."""
+    return pattern_outcome(events, label, index)["found"] and not chance_find(events, control, label, index)
 
 
 def channel_block(channel: str, label: str, per_seed_events: Mapping[int, Sequence[Mapping[str, Any]]],
@@ -429,7 +450,9 @@ def channel_block(channel: str, label: str, per_seed_events: Mapping[int, Sequen
     seeds = sorted(per_seed_events)
     ranked = channel != "rules"
     outcomes = {(p["id"], s): pattern_outcome(per_seed_events[s], p, index) for p in patterns for s in seeds}
-    chance = {(p["id"], s): pattern_outcome(control_events[s], p, index)["found"] for p in patterns for s in seeds}
+    control = {(p["id"], s): pattern_outcome(control_events[s], p, index)["found"] for p in patterns for s in seeds}
+    chance = {(p["id"], s): chance_find(per_seed_events[s], control_events[s], p, index)
+              for p in patterns for s in seeds}
     net = {u: outcomes[u]["found"] and not chance[u] for u in outcomes}
     found_units = [o for o in outcomes.values() if o["found"]]
     by_visibility = {}
@@ -438,7 +461,8 @@ def channel_block(channel: str, label: str, per_seed_events: Mapping[int, Sequen
         found = sum(1 for u in units if outcomes[u]["found"])
         found_net = sum(1 for u in units if net[u])
         by_visibility[v] = {"units": len(units), "found": found, "recall": _recall(found, len(units)),
-                            "control_found": sum(1 for u in units if chance[u]), "found_net": found_net,
+                            "control_found": sum(1 for u in units if control[u]),
+                            "chance_found": sum(1 for u in units if chance[u]), "found_net": found_net,
                             "recall_net": _recall(found_net, len(units))}
     per_seed = []
     total_alerts = total_false = 0
@@ -448,7 +472,8 @@ def channel_block(channel: str, label: str, per_seed_events: Mapping[int, Sequen
         fa = false_alarms(events, patterns)
         p_at_k, ap = ranking(events, patterns) if ranked else (None, None)
         per_seed.append({"seed": s, "found": found, "recall": _recall(found, len(patterns)),
-                         "control_found": sum(1 for p in patterns if chance[(p["id"], s)]),
+                         "control_found": sum(1 for p in patterns if control[(p["id"], s)]),
+                         "chance_found": sum(1 for p in patterns if chance[(p["id"], s)]),
                          "found_net": sum(1 for p in patterns if net[(p["id"], s)]), "alerts": len(events),
                          "control_alerts": len(control_events[s]), "false_alarms": fa,
                          "false_alarms_per_week": fa / evaluation_weeks, "precision_at_40": p_at_k,
@@ -460,12 +485,13 @@ def channel_block(channel: str, label: str, per_seed_events: Mapping[int, Sequen
         for s in seeds:
             alerted[d["class"]] += int(decoy_outcome(per_seed_events[s], d)["alerted"])
     units = len(patterns) * len(seeds)
-    control_found = sum(1 for found in chance.values() if found)
+    control_found = sum(1 for found in control.values() if found)
     found_net = sum(1 for found in net.values() if found)
     return {"label": label, "ranked": ranked, "units": units, "found": len(found_units),
             "recall": _recall(len(found_units), units), "control_found": control_found,
             "control_recall": _recall(control_found, units),
-            "control_alerts": sum(len(control_events[s]) for s in seeds), "found_net": found_net,
+            "control_alerts": sum(len(control_events[s]) for s in seeds),
+            "chance_found": sum(1 for found in chance.values() if found), "found_net": found_net,
             "recall_net": _recall(found_net, units), "by_visibility": by_visibility,
             "median_delay_weeks": stats.percentile([o["delay_weeks"] for o in found_units], 50),
             "median_lead_weeks": stats.percentile([o["lead_weeks"] for o in found_units], 50),
@@ -720,7 +746,9 @@ def build_scorecard(*, run_id: str, pack: FrozenPack, prereg: Mapping[str, Any],
         "patterns": [{"id": p["id"], "key": p["key"], "visibility": p["visibility"], "sites": list(p["sites"]),
                       "start_week": p["start_week"], "end_week": p["end_week"],
                       "outcomes": [{"seed": s, "channel": name, **pattern_outcome(per_channel[name][s], p, index),
-                                    "found_in_control": pattern_outcome(per_control[name][s], p, index)["found"]}
+                                    "found_in_control": pattern_outcome(per_control[name][s], p, index)["found"],
+                                    "chance_find": chance_find(per_channel[name][s], per_control[name][s], p,
+                                                               index)}
                                    for s in seeds for name in CHANNELS]} for p in patterns],
         "decoys": decoy_docs,
         "suppression": [{"seed": s, **runs[s]["suppression"]} for s in seeds],
@@ -912,7 +940,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         raise AssertionError(f"scorecard fails its schema at {problems[0][0]} ({problems[0][1]}): a bug")
     write_json_atomic(out_dir / "scorecard.json", doc)
     recall = " ".join(f"{name}={doc['channels'][name]['found']}/{doc['channels'][name]['units']} "
-                      f"(control {doc['channels'][name]['control_found']}, net {doc['channels'][name]['found_net']})"
+                      f"(control {doc['channels'][name]['control_found']}, chance "
+                      f"{doc['channels'][name]['chance_found']}, net {doc['channels'][name]['found_net']})"
                       for name in ("X", "S", "R_mf", "U", "single_site"))
     print(f"x1: pack={pack.id} seeds={len(seeds)} patterns={len(spec.patterns)} decoys={len(spec.decoys)} "
           f"blind={str(doc['stamps']['blind']).lower()} recall {recall} -> {out_dir / 'scorecard.json'} "

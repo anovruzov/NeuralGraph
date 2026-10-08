@@ -1,6 +1,8 @@
 # Talk track: the collective demo
 
-Fictional company, synthetic data, an illustration, not a measured result. Internal and YC use only.
+Fictional company, synthetic data, an illustration, not a measured result. Internal use only: the YC demo's own rules
+in STRATEGY put synthetic-fixture results of any kind off its screen, so this cut rehearses the shape of the YC cut on
+fictional data and is not the YC cut itself; whether it may be shown to YC is the founder's decision (`README.md`).
 
 The screen shows only values read from the run files. Name the values ("the X rank", "the R column", "the gate
 status"); never say a value that the screen does not show, and never round or restate one.
@@ -11,6 +13,10 @@ exported page always says RECORDED, also for a run that was once driven live: no
 how the run was made (a scripted run, or one driven live in the console).
 
 ## The 60-second cut
+
+Give it live with `--serve --cut` (the engine walks only the cut's beats; the follow-ups run with scripted approval
+when you press Next after the check), or from a recording. The "Show the 60-second cut" button of a full live run only
+filters the view: the engine still stops at the follow-up beat until you approve both follow-ups.
 
 | Time | Beat | Say | On screen |
 |---|---|---|---|
@@ -23,6 +29,11 @@ Presenter notes:
 
 - Say LIVE or RECORDED out loud, and say that the company and the data are fictional.
 - If the R column or the S column caught the case, say so: the screen then says "also caught this case".
+- Read the each-site-alone reference with its week. In the committed run one plant alone, running the same detectors
+  on its own records, flags this lot in the same week as X, and the screen says so ("One plant alone also caught this
+  failure mode ... no later than X"): on this case the cross-site view is not earlier than a single site, so there is
+  no collective lift to claim. Say that; never present the case as one only the collective could see. Say "the
+  detectors flag this lot", not that only the cross-site view does.
 - Each row's rank is for the failure mode the caption names. The S and R rows also name the first other key of this
   case they flagged, with its rank and week (the lot or the product under the generic code): read it as it stands.
   Never say that the baselines missed the lot.

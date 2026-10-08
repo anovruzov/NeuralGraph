@@ -24,6 +24,13 @@ anything else, ``allow_external_raw`` set              ``external_raw_exempt`` (
 anything else                                          refused
 =====================================================  ==========================================================
 
+``simulated`` and ``external_raw_exempt`` are **exemptions**, and both rest on the runtime's ``data_label``:
+``simulation=True`` needs ``data_label='synthetic'``, and ``allow_external_raw`` must equal the label. The runtime
+cannot see the records behind a payload, so a caller that sends records' raw content checks them first
+(:meth:`Runtime.exemption` names the label they must carry when the task's route leaves the boundary under an
+exemption; ``edge/site.py``'s extraction and ``edge/verify.py``'s judge refuse records that do not carry it, before
+any request). Without that check a ledger row would state a label the records never had.
+
 A refusal writes one ledger row (attempt 0, ``boundary_mode`` refused) and raises
 :class:`~.errors.InferenceBoundaryError` without contacting any endpoint, including when only the escalation
 endpoint is out of bounds.
@@ -59,6 +66,7 @@ logger = logging.getLogger(__name__)
 
 DATA_LABELS = ("synthetic", "public", "partner")
 EXTERNAL_RAW_LABELS = ("synthetic", "public")
+EXEMPT_MODES = ("simulated", "external_raw_exempt")
 REF_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,95}", re.ASCII)
 RUN_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}", re.ASCII)
 VALIDATION_KINDS = ("json_invalid", "schema_invalid")
@@ -79,12 +87,13 @@ def boundary_mode(runtime_boundary: str, endpoint: Endpoint, data_class: str, *,
 
 @dataclass(frozen=True)
 class Attempt:
-    """One logical attempt: its ledger row, the validated output (None on failure) and how many content chunks a
-    streamed reply arrived in (0 when not streamed; not part of the ledger)."""
+    """One logical attempt: its ledger row, the validated output (None on failure) and how many content and
+    thinking chunks a streamed reply arrived in (0 when not streamed; not part of the ledger)."""
 
     row: dict[str, Any]
     output: dict[str, Any] | None
     content_chunks: int = 0
+    reasoning_chunks: int = 0
 
 
 @dataclass(frozen=True)
@@ -107,6 +116,7 @@ class _Result:
     content: str | None
     finish_reason: str | None
     content_chunks: int
+    reasoning_chunks: int = 0
 
 
 class Runtime:
@@ -123,6 +133,9 @@ class Runtime:
             raise ConfigError("allow_external_raw",
                               "must be None, or 'public'/'synthetic' equal to data_label; partner data is never "
                               "exempt") from None
+        if simulation and data_label != "synthetic":
+            raise ConfigError("simulation", "a simulated runtime only reads synthetic data: data_label must be "
+                                            "'synthetic'") from None
         if not isinstance(run_id, str) or RUN_ID_RE.fullmatch(run_id) is None:
             raise ConfigError("run_id", "must match [A-Za-z0-9][A-Za-z0-9_.-]{0,63}") from None
         if any(e.provider == "fake" for e in config.endpoints.values()) and (not allow_fake or fake is None):
@@ -181,7 +194,29 @@ class Runtime:
         plan = self._preflight(task, payload, schema, ref, endpoint, escalate=False)
         result = self._attempt(plan, plan.primary, plan.primary_mode, 1,
                                render_messages(task, payload, plan.schema), stream=stream)
-        return Attempt(row=result.row, output=result.output, content_chunks=result.content_chunks)
+        return Attempt(row=result.row, output=result.output, content_chunks=result.content_chunks,
+                       reasoning_chunks=result.reasoning_chunks)
+
+    def exemption(self, task: TaskSpec, *, endpoint: str | None = None) -> str | None:
+        """The data label every record sent for a ``raw`` task must carry: the runtime's when it is simulated (it
+        reads synthetic data only), or when the call would leave this boundary under an exemption (``simulated`` or
+        ``external_raw_exempt``) on the endpoint ``run`` would try first or escalate to (only ``endpoint`` when
+        given); None otherwise. The caller checks its records against it before calling: the runtime sees payloads,
+        not where their records came from."""
+        if not isinstance(task, TaskSpec):
+            raise TypeError("task must be a TaskSpec") from None
+        if task.data_class != "raw":
+            return None
+        if self.simulation:
+            return self.data_label
+        if endpoint is not None:
+            names = [endpoint] if endpoint in self.config.endpoints else []
+        else:
+            route = self.config.routes.get(task.name)
+            names = [] if route is None else [route.endpoint, *([route.escalate_to] if route.escalate_to else [])]
+        if any(self._mode(self.config.endpoints[name], task) in EXEMPT_MODES for name in names):
+            return self.data_label
+        return None
 
     # ------------------------------------------------------------------ pre-flight and guard
     def _preflight(self, task: TaskSpec, payload: Any, schema: Any, ref: Any, endpoint: str | None, *,
@@ -321,4 +356,5 @@ class Runtime:
         return _Result(row=row, output=output, problems=problems,
                        content=result.content if result is not None else None,
                        finish_reason=result.finish_reason if result is not None else None,
-                       content_chunks=result.content_chunks if result is not None else 0)
+                       content_chunks=result.content_chunks if result is not None else 0,
+                       reasoning_chunks=result.reasoning_chunks if result is not None else 0)

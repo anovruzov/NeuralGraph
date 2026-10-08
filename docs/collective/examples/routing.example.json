@@ -16,6 +16,7 @@
       "base_url": "http://127.0.0.1:11434/v1",
       "model": "qwen3:8b",
       "response_format": "json_schema",
+      "reasoning_effort": "none",
       "deadline_s": 300
     },
     "site-a-vllm": {
@@ -24,6 +25,7 @@
       "base_url": "http://127.0.0.1:8000/v1",
       "model": "Qwen/Qwen3-32B",
       "response_format": "json_schema",
+      "chat_template_kwargs": {"enable_thinking": false},
       "deadline_s": 300
     },
     "external-comparator": {

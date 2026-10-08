@@ -18,9 +18,12 @@
   "underpowered_below": "<600>",
   "endpoints": [
     {"name": "<endpoint-name>", "provider": "openai_compat", "boundary": "site:<site-id>", "model": "<model-tag>",
-     "response_format": "json_schema", "transport_schema": "full"},
+     "response_format": "json_schema", "transport_schema": "full",
+     "reasoning_effort": "<none, minimal, low, medium, high or null>",
+     "chat_template_kwargs": "<an object such as {\"enable_thinking\": false}, or null>"},
     {"name": "<reference-endpoint>", "provider": "openai_compat", "boundary": "external", "model": "<model-tag>",
-     "response_format": "json_schema", "transport_schema": "full"}
+     "response_format": "json_schema", "transport_schema": "full", "reasoning_effort": null,
+     "chat_template_kwargs": null}
   ],
   "reference": "<reference-endpoint>",
   "runs": "<3 or more>",

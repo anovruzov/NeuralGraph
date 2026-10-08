@@ -33,5 +33,6 @@
     "site"
   ],
   "verify_max_records": 500,
-  "question_budget_per_entity_per_day": 5
+  "question_budget_per_entity_per_day": 5,
+  "question_entities_per_site_per_day": 50
 }

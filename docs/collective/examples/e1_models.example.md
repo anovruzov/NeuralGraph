@@ -15,6 +15,12 @@ are **examples you may pass on the command line or put in a routing file**, not 
 
 Check each tag against the server's own model library on the day you pull it; tags change.
 
+**Thinking.** The Qwen3 tags are hybrid-thinking models, and current servers turn their thinking on by default.
+Thinking tokens count against `max_tokens`, so with thinking on a candidate can return empty replies cut at the cap
+and E1 scores them as model failures. Turn thinking off in each such endpoint (`"reasoning_effort": "none"` for
+Ollama, `"chat_template_kwargs": {"enable_thinking": false}` for vLLM and llama-server; `../RUNBOOK.md`, section 2) and
+keep the same setting for every repeat: the routing file's sha256 is pinned in the prereg.
+
 **The frontier reference.** STRATEGY names hosted models (Haiku 4.5 and Opus) as the comparator. Use the exact model
 id your provider documents for its OpenAI-compatible endpoint, in an endpoint with `"boundary": "external"`. E1 sends
 raw records to it only for public or synthetic data, and only with `--allow-external-raw` equal to the data label;

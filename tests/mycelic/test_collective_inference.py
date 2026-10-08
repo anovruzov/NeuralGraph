@@ -1075,6 +1075,66 @@ class FakeServerRuntimeTests(RuntimeCase):
         self.assertEqual((row["tokens_in"], row["tokens_out"], row["finish_reason"]),
                          (123, attempt.content_chunks, "stop"))
 
+    def test_thinking_deltas_start_the_clock_under_either_field_name(self) -> None:
+        # regression (audit r2): only llama-server's reasoning_content counted; Ollama and vLLM stream reasoning, so
+        # TTFT waited for the answer and decode tokens/s divided every token by the answer phase alone
+        timing = {"first_token_s": 0.0, "token_s": 0.03, "think_tokens": 10}
+        ttft = {}
+        for field in ("reasoning", "reasoning_content"):
+            with self.subTest(field=field):
+                _, rt = self.one_server_runtime("stream", server_kwargs={**timing, "think_field": field})
+                attempt = rt.single(TASK, PAYLOAD, SCHEMA, ref="r:1", stream=True)
+                self.assertEqual(attempt.output, REPLY)
+                self.assertEqual((attempt.reasoning_chunks, attempt.row["tokens_out"]),
+                                 (10, attempt.content_chunks + 10))
+                ttft[field] = attempt.row["ttft_ms"]
+                # the thinking takes about 9 x 30 ms before the first answer token: the clock started before it
+                self.assertLess(ttft[field], 200.0)
+                self.assertGreater(attempt.row["latency_ms"] - ttft[field], 250.0)
+        _, rt = self.one_server_runtime("stream", server_kwargs={"first_token_s": 0.0, "token_s": 0.0})
+        self.assertEqual(rt.single(TASK, PAYLOAD, SCHEMA, ref="r:1", stream=True).reasoning_chunks, 0)
+
+    def test_thinking_controls_are_sent_only_when_the_routing_file_names_them(self) -> None:
+        # regression (audit r2): no request could turn a server's default thinking off, and thinking spent the
+        # small token budgets before any answer (empty reply, finish_reason length, a "model" JSON failure)
+        budget = {"think_tokens": 300, "first_token_s": 0.0, "token_s": 0.0}
+        srv, rt = self.one_server_runtime("thinks-by-default", server_kwargs=budget)
+        attempt = rt.single(TASK, PAYLOAD, SCHEMA, ref="r:1")
+        self.assertEqual((attempt.output, attempt.row["error_kind"], attempt.row["finish_reason"],
+                          attempt.row["tokens_out"]), (None, "json_invalid", "length", TASK.max_tokens))
+        self.assertNotIn("reasoning_effort", srv.requests[0]["json"])
+        self.assertNotIn("chat_template_kwargs", srv.requests[0]["json"])
+        for extra, sent in (({"reasoning_effort": "none"}, ("reasoning_effort", "none")),
+                            ({"chat_template_kwargs": {"enable_thinking": False}},
+                             ("chat_template_kwargs", {"enable_thinking": False}))):
+            with self.subTest(extra=extra):
+                srv, rt = self.one_server_runtime("thinks-by-default", server_kwargs=budget, **extra)
+                self.assertEqual(rt.run(TASK, PAYLOAD, SCHEMA, ref="r:1"), REPLY)
+                self.assertEqual(srv.requests[0]["json"][sent[0]], sent[1])
+                streamed = rt.single(TASK, PAYLOAD, SCHEMA, ref="r:2", stream=True)
+                self.assertEqual((streamed.output, streamed.reasoning_chunks), (REPLY, 0))
+
+    def test_thinking_control_keys_are_checked(self) -> None:
+        bad = [
+            ({"reasoning_effort": "off"}, "$.endpoints.a.reasoning_effort"),
+            ({"chat_template_kwargs": {}}, "$.endpoints.a.chat_template_kwargs"),
+            ({"chat_template_kwargs": {"Enable": True}}, "$.endpoints.a.chat_template_kwargs"),
+            ({"chat_template_kwargs": {"enable_thinking": None}}, "$.endpoints.a.chat_template_kwargs.enable_thinking"),
+            ({"chat_template_kwargs": {"x": {"nested": 1}}}, "$.endpoints.a.chat_template_kwargs.x"),
+            ({"chat_template_kwargs": {f"k{i}": True for i in range(9)}}, "$.endpoints.a.chat_template_kwargs"),
+        ]
+        for extra, path in bad:
+            with self.subTest(extra=extra), self.assertRaises(ConfigError) as ctx:
+                self.config({"a": oc("http://127.0.0.1:9/v1", **extra)})
+            self.assertEqual(ctx.exception.path, path)
+        with self.assertRaises(ConfigError) as ctx:
+            self.config({"a": {"provider": "fake", "boundary": "site:a", "reasoning_effort": "none"}}, allow_fake=True)
+        self.assertEqual(ctx.exception.path, "$.endpoints.a.reasoning_effort")
+        ok = self.config({"a": oc("http://127.0.0.1:9/v1", reasoning_effort="low",
+                                  chat_template_kwargs={"enable_thinking": False, "budget": 0, "mode": "fast"})})
+        self.assertEqual(ok.endpoints["a"].chat_template_kwargs,
+                         (("budget", 0), ("enable_thinking", False), ("mode", "fast")))
+
     def test_stream_sends_exactly_n_chunks(self) -> None:
         reply = {"answer": "a routine pump service report"}
         self.assertGreater(len(json.dumps(reply)), 20)
@@ -1304,6 +1364,9 @@ class BoundaryGuardTests(RuntimeCase):
             ({"boundary": "external"}, "boundary"),
             ({"boundary": "any-simulated"}, "boundary"),
             ({"data_label": "secret"}, "data_label"),
+            # regression (audit r2): a simulated runtime labelled partner or public data was accepted
+            ({"simulation": True, "data_label": "partner"}, "simulation"),
+            ({"simulation": True, "data_label": "public"}, "simulation"),
         ]
         for kwargs, path in bad:
             with self.subTest(kwargs=kwargs), self.assertRaises(ConfigError) as ctx:
@@ -1313,6 +1376,30 @@ class BoundaryGuardTests(RuntimeCase):
             Runtime(cfg, boundary="site:a", ledger_path=self.dir / "x.jsonl", run_id="bad id", clock=lambda: CLOCK,
                     data_label="synthetic")
         self.assertEqual(ctx.exception.path, "run_id")
+
+    def test_exemption_names_the_label_records_must_carry(self) -> None:
+        # regression (audit r2): the exemptions rest on a label the caller asserts; exemption() says when a caller
+        # must prove it against its records (edge extraction and the site judge do)
+        local, ext = oc("http://127.0.0.1:9/v1"), oc("http://127.0.0.1:9/v1", boundary="external")
+        sim = oc("http://127.0.0.1:9/v1", boundary="any-simulated")
+        cases = [
+            ({"a": local}, {}, {}, None),
+            ({"a": local}, {}, {"simulation": True}, "synthetic"),
+            ({"a": ext}, {}, {"allow_external_raw": "synthetic"}, "synthetic"),
+            ({"a": ext}, {}, {"allow_external_raw": "public", "data_label": "public"}, "public"),
+            ({"a": sim}, {}, {"simulation": True}, "synthetic"),
+            ({"a": local, "b": ext}, {"probe": {"endpoint": "a", "escalate_to": "b"}},
+             {"allow_external_raw": "synthetic"}, "synthetic"),
+            ({"a": ext}, {}, {}, None),                  # refused by the guard at call time; no exemption to prove
+        ]
+        for endpoints, routes, kwargs, label in cases:
+            with self.subTest(endpoints=sorted(endpoints), kwargs=kwargs):
+                rt = self.runtime(self.config(endpoints, routes or None), **kwargs)
+                self.assertEqual(rt.exemption(TASK), label)
+                self.assertIsNone(rt.exemption(STRUCTURED))
+        rt = self.runtime(self.config({"a": local, "b": ext}), allow_external_raw="synthetic")
+        self.assertIsNone(rt.exemption(TASK))
+        self.assertEqual((rt.exemption(TASK, endpoint="b"), rt.exemption(TASK, endpoint="a")), ("synthetic", None))
 
     def test_run_and_single_take_no_boundary_argument(self) -> None:
         for method in (Runtime.run, Runtime.single):

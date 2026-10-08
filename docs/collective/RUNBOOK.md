@@ -19,7 +19,8 @@ This runbook covers what you run on your own machines (STRATEGY sections 11.2 an
   is unvalidated; nothing here measures it.**
 - **part 2, the collective demo** (G8): one fictional multi-site device maker end to end, recorded, replayed,
   exported or driven live from a console (sections 15 to 17). **Fictional company, synthetic data, an illustration;
-  internal and YC use only; never a measurement.**
+  internal use only (STRATEGY section 9.1 puts synthetic-fixture results off the YC demo's screen; showing it to YC
+  is the founder's decision); never a measurement.**
 
 None of these produced a number in the sandbox where the code was written. Model weights and api.fda.gov could not
 be reached there, so every figure has to come from your runs. The E1 harness was rehearsed against local fake
@@ -99,6 +100,27 @@ vllm serve <model-tag> --host 127.0.0.1 --port 8000
 
 Confirm what your server version supports in its documentation, and write down which setting you used.
 
+**Thinking (turn it off for every site task and every experiment, unless thinking is what you test).** Hybrid-thinking
+models (several of the E1 example tags, `examples/e1_models.example.md`) think by default on current servers: Ollama turns
+thinking on for any model that can, and vLLM and llama-server do when the model's chat template does. The thinking
+tokens count against the request's `max_tokens`, and the JSON format applies only after the thinking ends, while the
+site tasks give small budgets (`judge_record` 256 tokens, E2's central judge 64, E3's workloads 200 and 50). A model
+that thinks past the budget returns an empty reply with `finish_reason` `length`: the runtime records `json_invalid`,
+repairs with the same budget, fails again and escalates; E1 scores it as a model failure, a site judge answers
+`unknown` (degraded) and an E3 cell comes back empty. Turn it off in the routing file, per endpoint (the runtime sends
+nothing unless the file names it, and the file's sha256 is in every prereg and run file):
+
+- Ollama: `"reasoning_effort": "none"` (Ollama's OpenAI-compatible API maps it to think off);
+- vLLM: `"chat_template_kwargs": {"enable_thinking": false}` (the model's template reads it), or
+  `"reasoning_effort": "none"` where your vLLM version accepts it;
+- llama-server: `"chat_template_kwargs": {"enable_thinking": false}` with `--jinja` and a template that reads it.
+
+`reasoning_effort` takes `none`, `minimal`, `low`, `medium` or `high`; `chat_template_kwargs` takes at most eight
+names to booleans, ints or short strings. Check what your server version accepts (an unknown value can be a 400 or
+be ignored) and confirm it worked: in a ledger, `finish_reason` should be `stop` and `tokens_out` well below
+`max_tokens`; in E3, `thinking_requests` and `length_cut` should be 0 (section 4). The example routing file turns
+thinking off for its Ollama and vLLM endpoints.
+
 ## 3. One routing file per site boundary
 
 Copy the example and edit it:
@@ -167,6 +189,13 @@ Reading the result (`runs/e3/<run-id>/e3.json`):
   the prompt may cut the prompt silently, and its timings are then not comparable. If so, raise its context length
   (`-c` for llama-server; the context-length setting for Ollama) and run again under a new run id.
 - `decode_tok_s` is null when the server reports no usage or streams in one chunk; that is not a failure.
+- Check `thinking_requests` and `length_cut` in every cell: both should be 0. Time to first token is the first
+  streamed token of either kind, answer or thinking (`reasoning_content` from llama-server, `reasoning` from Ollama
+  and vLLM), and `decode_tok_s` counts thinking tokens too, so a cell where the model thought timed its thinking; a
+  request cut at the token cap (`length_cut`) is a `json_invalid` failure and is in no latency statistic, so the
+  slowest generations are missing. Turn thinking off (section 2) and run again under a new run id. Up to audit round
+  2 the client ignored Ollama's and vLLM's `reasoning` field: TTFT waited for the end of the thinking and
+  `decode_tok_s` came out about 20 times too high, with `measurement` still true.
 - Failures are counted per kind in each cell (`timeout`, `http_4xx`, ...). The run still exits 0.
 - `ttft_s` and `e2e_s` time each request's final HTTP try only. If `retried` is not 0 in a cell, some requests
   waited for a retry (after a 429 or 5xx answer, or a dropped connection), and the latencies understate what a
@@ -346,7 +375,7 @@ python -m mycelic.collective.experiments.e1_extract run --prereg <prereg-file> -
 
 `<prereg-file>` is `runs/e1/<run-id>/prereg.json` from step 4. `run` refuses, before writing anything, if the labels,
 the pack's vocabulary, the scoring code or any pinned endpoint setting (model, provider, boundary, response format,
-transport schema) changed since `prereg`. Ctrl-C leaves `run.json` with `complete: false`; start a new run id.
+transport schema, thinking controls) changed since `prereg`. Ctrl-C leaves `run.json` with `complete: false`; start a new run id.
 When a run ends, `run.json` records the sha256 of its `predictions.jsonl` and `ledger.jsonl`; do not edit either
 file, or `compare` refuses the run.
 
@@ -528,13 +557,16 @@ suppression. Ctrl-C exits 130 and leaves a partial run directory; start again un
 - `channels.<name>` gives recall (found / patterns x seeds), recall by visibility, median delay and lead in weeks,
   tie-averaged precision@40 and AP, false alarms per week and how many decoys of each class alerted. Read X against
   S, R_mf, single_site and U; `rules` is unranked.
-- **Every seed also runs without the plant** (the control, `work/seed-<seed>/control/`). A pattern a channel finds
-  there is a chance find: its key alerts in its window on the background alone. Each channel reports
-  `control_found`, `control_recall` and `control_alerts` next to `found`, and `found_net` / `recall_net` count only
-  what was found with the plant and not in the control; each pattern outcome says `found_in_control`, and
-  `control_alerts` lists the control's alerts. The lifts compare net found (`lifts.*.basis`). Read `recall_net`, not
-  `recall`, when you compare channels: single_site in particular can "find" a pattern on a busy site's background.
-  single_site counts a find only at one of the pattern's planted sites.
+- **Every seed also runs without the plant** (the control, `work/seed-<seed>/control/`). A channel's find is a
+  chance find when the control finds the same pattern in the same week or earlier: its key alerts that early on the
+  background alone. A control alert that comes only later is not one; the plant's alert came first, and in the
+  planted world its cooldown hides the later background alert. Each channel reports `control_found` (the control's
+  finds, any week of the window), `control_recall`, `control_alerts` and `chance_found` next to `found`, and
+  `found_net` / `recall_net` count the finds that are not chance finds; each pattern outcome says
+  `found_in_control` and `chance_find`, and `control_alerts` lists the control's alerts. The lifts compare net found
+  (`lifts.*.basis`). Read `recall_net`, not `recall`, when you compare channels: single_site in particular can
+  "find" a pattern on a busy site's background. single_site counts a find only at one of the pattern's planted
+  sites.
 - `min_detectable_rate` is arithmetic on the pack's settings: the smallest constant weekly rate each per-site test
   can certainly see over a constant background, at k, unsuppressed, and for X with the background in text-only
   cells (`rate_at_k_text_background`).
@@ -658,8 +690,10 @@ python -m mycelic.collective.experiments.e2_pushdown run --x1-prereg <prereg-fil
 ```
 
 `--central-context-tokens` is required with `--central-routing`: the context one request gets on the central server. For
-Ollama that is the model's `num_ctx` (check what your server uses; set it in a Modelfile or the request options); for
-llama-server it is `-c` divided by `--parallel`, since the slots share the context. A central_raw prompt holds up to 400
+Ollama that is the model's `num_ctx` (check what your server uses; set it with `PARAMETER num_ctx` in a Modelfile or
+with the server's context-length environment variable when you start `ollama serve`: Ollama's OpenAI-compatible API
+takes no request options, so neither the runtime nor the routing file can set it); for llama-server it is `-c`
+divided by `--parallel`, since the slots share the context. A central_raw prompt holds up to 400
 records of raw text and can run to thousands of tokens (the fake's rough estimate, a quarter of the payload's bytes, put
 the rehearsal's longest near ten thousand; a real tokenizer differs), and a server that cuts a prompt silently shows the
 central reference less than it was given. E2 keeps each central_raw call's server-reported prompt tokens and counts
@@ -679,7 +713,9 @@ pack's `verify_max_records`; a question asked again reuses the stored verdict), 
 over the items bounds the site judge calls, give or take the two caps. The central conditions add two calls per
 candidate. Multiply the calls by the per-call latency E3 measured on your hardware at your concurrency (section 4) to
 get an estimate. The per-entity daily question budget (`question_budget_per_entity_per_day`) turns extra questions
-about one entity on one simulated day into `unknown` (budget); `pushdown.budget_unknowns` counts them.
+about one entity on one simulated day into `unknown` (budget), and so does the per-site one
+(`question_entities_per_site_per_day`) for questions about more distinct entities than it allows on one day;
+`pushdown.budget_unknowns` counts both.
 
 **Reading `runs/e2/<run-id>/e2.json`:**
 
@@ -787,8 +823,10 @@ or a fake replaying it, so the injected text is inert by construction. E5 proper
 
 ## 15. The demo: record, lint, replay, export, serve
 
-**Fictional company (Halvern Medical), synthetic data, a constructed illustration. Internal and YC use only: never
-show it to a buyer, never quote a number from it** (STRATEGY sections 9.1 and 12). Every run file says
+**Fictional company (Halvern Medical), synthetic data, a constructed illustration. Internal use only: never show it
+to a buyer, never quote a number from it** (STRATEGY section 12), **and not the YC demo as STRATEGY is written**:
+section 9.1, the YC demo's rules, puts synthetic-fixture results of any kind off the screen. Whether to show it to YC
+is the founder's decision (`demo/collective/README.md`). Every run file says
 `measurement: false`. `demo/collective/README.md` explains what the demo shows and what it does not;
 `demo/collective/SCRIPT.md` is the talk track.
 
@@ -842,6 +880,17 @@ python demo/collective/collective_demo.py --serve
 A control pressed at the wrong time answers 409, pressing one twice answers `done_before` and changes nothing, and a
 failure (an endpoint, a fallback) shows the error and the replay command on the console, which stays up until Ctrl-C.
 
+**The 60-second cut live:** add `--cut`. The engine then walks only the cut's beats (the problem, the alert, the
+check, real data); the console shows only those and offers no full version. The follow-ups still run, with scripted
+approval, when you press Next after the check, so the run files are complete; they say `approval: recorded`, as a
+`--record` run does. Without `--cut` the console's "Show the 60-second cut" button only filters the view: the engine
+still walks the follow-up beat, which stays on screen while it is live, and real data opens once you approve both
+follow-ups (audit round 2: up to then the button hid the live beat and left an untitled page with no way on).
+
+```
+python demo/collective/collective_demo.py --serve --cut
+```
+
 ## 16. Recording with a real local model
 
 The plants can extract and judge with a model you serve (section 2) instead of the stand-in. On one machine every
@@ -887,7 +936,8 @@ the error kinds, and writes nothing.
   how the run was made (`mode`): a **scripted run** (`--record`: the approvals were scripted, `approval: recorded`,
   the screen says "recorded approval (scripted)", and each execution is requested twice to show it runs once) or a
   **run driven live in the console** (`--serve`: the presenter approved each follow-up, acting as the named owner,
-  `approval: live`, and each execution was requested once). Say which one you are showing.
+  `approval: live`, and each execution was requested once; with `--cut` the follow-ups were approved by script,
+  `approval: recorded`). Say which one you are showing.
 - **Simulated:** the plants run in one process; the stand-in model reads the pack's own sentences perfectly; the
   follow-up layer is built ahead of X4 and not measured; the outcome is "not yet checked".
 - **Send back** the six run files of a `--routing` recording, with a note on the server (section 2). They hold no

@@ -83,12 +83,14 @@ NOT_COVERED = (
     "Cross-site duplicates without an origin marker, which each site counts as independent (X5).",
     "A '<k' cell still reveals that an entity had at least one record with that predicate in that week, and entity "
     "ids are emitted in clear by design (STRATEGY section 6.4).",
-    "Usage summaries reveal weekly extraction-call volume and latency per site, with counts of at least k.",
+    "Usage summaries reveal weekly extraction-call volume, token sums and latency per site, with counts of at least "
+    "k (the judge's usage stays at the site).",
     "Encoded or transformed text (hashes, base64, translation, paraphrase).",
     "Fragments shorter than 8 canary-core characters or 24 narrative characters.",
     "Strings split across SQLite pages.",
     "Presence or absence of an entity at a site in a question window, revealed by a refute versus an unknown; "
-    "limited, not prevented, by the per-entity daily question budget (G6, X5).",
+    "limited, not prevented, by the per-entity and per-site daily question budgets (G6, X5); with "
+    "require_master_data only for master-data ids, and never through a person value or the reporter.",
     "Bucket transitions between overlapping question windows for one key, which can narrow a count inside its "
     "bucket (G6, X5).",
     "A packet discloses, for one window, which pack codes and which master-data ids co-occur with the key in at least "

@@ -20,7 +20,15 @@ For every endpoint x workload x concurrency level, ``--requests`` streamed reque
 submitted and are excluded from every statistic. Each cell reports TTFT and end-to-end latency (p50/p95 over ok
 measured requests, final HTTP try only), how many measured requests needed a transport retry, decode tokens/s
 ``(tokens_out - 1) / (e2e - ttft)``, the median prompt length the *server* reported, wall-clock throughput and,
-with ``--energy rapl``, the RAPL energy counter read around the measured window. Results go to
+with ``--energy rapl``, the RAPL energy counter read around the measured window.
+
+Thinking. TTFT is the first streamed token of either kind, answer or thinking (``reasoning_content`` as llama-server
+names it, ``reasoning`` as Ollama and vLLM do; up to audit round 2 the latter started no clock, so TTFT waited for
+the end of the thinking and decode tokens/s divided every token by the answer phase alone, about 20 times too high).
+Each cell also counts ``thinking_requests`` (measured requests that streamed any thinking) and ``length_cut``
+(measured requests that ended at the token cap, ``finish_reason: "length"``): a cell with either above 0 measured a
+thinking model, and only its ok requests are in the statistics. Turn thinking off in the routing file
+(``reasoning_effort`` or ``chat_template_kwargs``, RUNBOOK section 4) for a run meant to time answers. Results go to
 ``runs/e3/<id>/e3.json`` with the usage ledger beside it. Endpoints must be real ``openai_compat`` servers: a
 routing file with a fake provider is refused. Exit 0 even when requests fail (the failures are counted); exit 2 on
 a configuration or usage error.
@@ -89,6 +97,10 @@ NOTES = [
     "one and transport_retries the retries in all; when either is non-zero, the latencies understate what a caller "
     "waited (throughput wall_s includes everything).",
     "Each request carries distinct seeded filler, so a prompt cache can reuse only the shared system prefix.",
+    "TTFT is the first streamed token of either kind, answer or thinking, and decode_tok_s counts every completion "
+    "token the server reports, thinking included. thinking_requests counts the measured requests that streamed any "
+    "thinking and length_cut those that ended at the token cap; when either is above 0 the cell timed a thinking "
+    "model, and the cut requests are not in the latency statistics.",
     "The host block describes the client machine that ran this harness; the server is described by --server-note.",
     "measurement is false whenever a fake server or provider was involved: such a run is a rehearsal, not a result.",
 ]
@@ -222,6 +234,8 @@ def run_cell(rt: Runtime, endpoint: str, workload: str, level: int, *, requests:
     return {
         "endpoint": endpoint, "workload": workload, "task": task.name, "concurrency": level, "sent": requests,
         "warmup": warmup, "measured": len(attempts), "ok": len(ok), "failures": failures,
+        "thinking_requests": sum(1 for a in attempts if a.reasoning_chunks),
+        "length_cut": sum(1 for a in attempts if a.row["finish_reason"] == "length"),
         "retried": sum(1 for r in retries if r), "transport_retries": sum(retries),
         "ttft_s": _pq([a.row["ttft_ms"] / 1000 for a in ok if a.row["ttft_ms"] is not None]),
         "e2e_s": _pq([a.row["latency_ms"] / 1000 for a in ok if a.row["latency_ms"] is not None]),

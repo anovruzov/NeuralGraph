@@ -125,7 +125,9 @@ when that is `lo`), then `last+`. G6 set the edges to `[k, 10, 50]` in both pack
 `config_hash` changed; the other three hashes are byte-identical to G5 (`INTEGRATION.md`, G6). `egress.json`'s
 `verify_max_records` caps the records a site judges for one question (newest first; the verdict says `truncated`)
 and `question_budget_per_entity_per_day` caps the distinct questions a site answers about one entity per day of its
-own clock (`LEAKAGE.md` section 9).
+own clock (`LEAKAGE.md` section 9). Audit round 2 added `question_entities_per_site_per_day` (1 to 1,000; 50 in both
+packs), the distinct entities a site answers questions about per day, so guessing many ids is capped too; it changed
+only `config_hash` (`device_quality` `ac59c4cb...`, `claims_integrity` `12d62cdf...`).
 
 ### 1.3 Follow-up types: `followups.json` (G7)
 

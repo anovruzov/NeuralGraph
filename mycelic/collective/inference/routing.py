@@ -12,8 +12,14 @@ File format (unknown keys are rejected at every level)::
      "routes": {"<task>": {"endpoint": "<name>", "escalate_to": "<name>"}}}
 
 ``base_url`` is stored verbatim (minus one trailing ``/``); ``/v1`` is never added or removed, because servers
-disagree about it. Escalation is single-hop: the escalation endpoint's own route is never followed. Every error
-is a :class:`ConfigError` naming the JSON path of the offending value.
+disagree about it. Two optional ``openai_compat`` keys control a model's thinking, which servers turn on by default
+for hybrid-thinking models and which spends the small token budgets of the site tasks before any answer:
+``reasoning_effort`` (one of :data:`REASONING_EFFORTS`, sent as is: ``"none"`` turns thinking off on Ollama and
+recent vLLM) and ``chat_template_kwargs`` (a flat object of at most 8 names to booleans, ints or short strings, sent
+as is: ``{"enable_thinking": false}`` for vLLM and llama-server with a thinking chat template). Neither is sent
+unless the file names it; the server's default then applies, and the routing file's sha256 records which.
+Escalation is single-hop: the escalation endpoint's own route is never followed. Every error is a
+:class:`ConfigError` naming the JSON path of the offending value.
 """
 from __future__ import annotations
 
@@ -38,10 +44,14 @@ PROVIDERS = ("openai_compat", "fake")
 SHARED_BOUNDARIES = ("central", "external", "any-simulated")
 RESPONSE_FORMATS = ("json_schema", "json_object", "none")
 TRANSPORT_SCHEMAS = ("full", "reduced")
+REASONING_EFFORTS = ("none", "minimal", "low", "medium", "high")
+TEMPLATE_KWARG_RE = re.compile(r"[a-z][a-z0-9_]{0,63}", re.ASCII)
+MAX_TEMPLATE_KWARGS = 8
 
 _TOP_KEYS = {"schema_version", "endpoints", "routes"}
 _ENDPOINT_KEYS = {"provider", "boundary", "base_url", "model", "response_format", "transport_schema", "api_key_env",
-                  "connect_timeout_s", "deadline_s", "max_retries", "max_response_bytes", "ca_file", "price", "seed"}
+                  "connect_timeout_s", "deadline_s", "max_retries", "max_response_bytes", "ca_file", "price", "seed",
+                  "reasoning_effort", "chat_template_kwargs"}
 _ROUTE_KEYS = {"endpoint", "escalate_to"}
 _PRICE_KEYS = {"per_mtok_in", "per_mtok_out", "usd_per_hour"}
 
@@ -89,6 +99,8 @@ class Endpoint:
     ca_file: str | None = None
     price: Price | None = None
     seed: int | None = None
+    reasoning_effort: str | None = None
+    chat_template_kwargs: tuple[tuple[str, Any], ...] | None = None
 
     @property
     def host_label(self) -> str:
@@ -177,6 +189,20 @@ def _check_price(value: Any, path: str) -> Price:
                  usd_per_hour=value.get("usd_per_hour"))
 
 
+def _check_template_kwargs(value: Any, path: str) -> tuple[tuple[str, Any], ...]:
+    if not isinstance(value, dict) or not 1 <= len(value) <= MAX_TEMPLATE_KWARGS:
+        raise ConfigError(path, f"must be an object of 1 to {MAX_TEMPLATE_KWARGS} keys") from None
+    for key in sorted(value, key=str):
+        v = value[key]
+        if not isinstance(key, str) or TEMPLATE_KWARG_RE.fullmatch(key) is None:
+            raise ConfigError(path, "keys must match [a-z][a-z0-9_]{0,63}") from None
+        if not (isinstance(v, bool) or _is_int(v) or (isinstance(v, str) and MODEL_RE.fullmatch(v) is not None
+                                                       and len(v) <= 64)):
+            raise ConfigError(f"{path}.{key}", "must be a boolean, an int or a printable ASCII string of at most 64 "
+                                               "characters") from None
+    return tuple(sorted(value.items()))
+
+
 def _parse_endpoint(name: str, raw: Any, *, allow_fake: bool) -> Endpoint:
     path = f"$.endpoints.{name}"
     if not isinstance(raw, dict):
@@ -244,6 +270,16 @@ def _parse_endpoint(name: str, raw: Any, *, allow_fake: bool) -> Endpoint:
         if not _is_int(raw["seed"]) or raw["seed"] < 0:
             raise ConfigError(f"{path}.seed", "must be an int >= 0") from None
         kwargs["seed"] = raw["seed"]
+    for key in ("reasoning_effort", "chat_template_kwargs"):
+        if key in raw and provider != "openai_compat":
+            raise ConfigError(f"{path}.{key}", "only for openai_compat") from None
+    if "reasoning_effort" in raw:
+        if raw["reasoning_effort"] not in REASONING_EFFORTS:
+            raise ConfigError(f"{path}.reasoning_effort", f"must be one of {', '.join(REASONING_EFFORTS)}") from None
+        kwargs["reasoning_effort"] = raw["reasoning_effort"]
+    if "chat_template_kwargs" in raw:
+        kwargs["chat_template_kwargs"] = _check_template_kwargs(raw["chat_template_kwargs"],
+                                                                f"{path}.chat_template_kwargs")
     return Endpoint(name=name, provider=provider, boundary=boundary, base_url=base_url, model=model, **kwargs)
 
 

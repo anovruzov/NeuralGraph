@@ -20,7 +20,7 @@ comes in, and the packet summary, which leaves (section 10):
 | Artifact | Direction | What it holds | What it never holds |
 |---|---|---|---|
 | `cells_bundle` | out | weekly count cells per (entity type, entity id, predicate, ISO week, channel): `n` records, `n_roots` distinct roots, `n_reporters` distinct reporters, and `res_conf_min` when `n` is exact | narrative, persons, reporters, record refs, dates finer than a week, totals or marginals, forwarded-in records |
-| `usage_summary` | out | per (task, endpoint): calls, ok, errors by kind, missing-token counts, a fake flag; token sums and latency p50/p95 only when calls >= k | `ts`, `ref`, `host`, `run_id`, model names, per-call rows |
+| `usage_summary` | out | per (task, endpoint), extraction only: calls, ok, errors by kind, missing-token counts, a fake flag; token sums and latency p50/p95 only when calls >= k; with an int `calls` and any part below k, `ok`, every error kind and both missing-token counts as `'suppressed'`, with no token sum and no latency; an exact missing-token count only as a sum of whole parts, and a token sum only beside one | `ts`, `ref`, `host`, `run_id`, model names, per-call rows, the judge's usage, a `'<k'` part beside an int `calls`, any count from which a part below k can be worked out |
 | `question` (G6) | in | one candidate key, a pack template id, the params `{entity_type, entity_id, predicate}`, a window of closed ISO weeks, `as_of`, the pack id and hash, the question id | any text (the template's display text stays at HQ), a record ref, a count |
 | `verdict` (G6) | out | `confirm`, `refute` or `unknown`; four count buckets (`'<k'`, `k-9`, `10-49`, `50+`); the newest confirming week; one opaque 16-hex `evidence_ref`; `truncated`, `quality`, `secret_mode`; a reason only for `budget` or `no_secret` | text, an exact count, a record ref or any per-record handle, judged or failure counts, the site's own reason for an unknown |
 | `packet_request` (G7) | in | one follow-up key, the question id, the candidate key, the question's window, `as_of`, the pack id and hash | any text, a record ref, a count |
@@ -67,9 +67,36 @@ A cumulative usage summary sent every week would reveal small deltas (one call i
 discipline: each emission covers the ledger rows whose timestamp falls in a newly closed week and that no earlier
 summary covered (the store records how many rows each summary consumed), so every ledger row is summarised exactly
 once. Counts are suppressed per field (`calls` and each error kind `'<k'` below k; `ok` and the missing-token counts
-may also be 0); tokens and latency are withheld unless `calls` is at least k. A row whose week is still open waits for
-the next window. The per-call ledger never leaves the site, and the run files (section 11) carry a site's usage only
-as these summaries. A site without a model sends no usage.
+may also be 0); tokens and latency are withheld unless `calls` is at least k and no part is withheld (below). A row
+whose week is still open waits for the next window. The per-call ledger never leaves the site, and the run files
+(section 11) carry a site's usage only as these summaries. A site without a model sends no usage.
+
+**Complementary suppression (audit round 2).** `calls` is `ok` plus the error counts, so a `'<k'` part beside an int
+`calls` was not suppressed at all: `calls 7, ok 6, errors {http_5xx: '<k'}` gives exactly one failure. Now, when
+`calls` is an int and any part (`ok` or an error kind) is below k and not 0, `ok` and every error kind go as
+`'suppressed'`, a value of any size held back.
+
+**The rest of the group follows the parts (review of audit round 2).** Round 2 still sent the missing-token counts,
+the token sums and the latency beside a withheld split, and each gave the split back. A transport failure (timeout,
+network, 5xx) carries no token counts, so `calls 8, ok 'suppressed', errors {timeout: 'suppressed'},
+tokens_in_missing 6` read as 6 timeouts and `ok = 8 - 6 = 2`, below k. A token sum divided by the known prompt size
+counts the rows it covers, and a failure's latency at the deadline moves the interpolated p95 by how many failures
+there were. Now a withheld split withholds the whole group: HQ reads `calls`, which error kinds occurred and the fake
+flag, with both missing-token counts `'suppressed'` and no token sum or latency. When no part is withheld, a
+missing-token count goes exact only when, within each part, every row or none lacks the tokens, so it is a sum of
+whole parts, each 0 or at least k; otherwise it goes as `'suppressed'` and its token sum stays home. Every row count
+HQ can then work out (the parts, the rows with and without tokens, their differences) is 0, at least k, or a sum of
+such parts. The Boundary enforces it independently of the site: with an int `calls` no part and no missing-token
+count may be `'<k'`; `'suppressed'` parts come all together and take both missing-token counts with them, with no
+token sum and no latency; otherwise `calls` must equal the sum of the parts, an int missing-token count must be a sum
+of whole parts, and a token sum goes only beside an int missing-token count. `UsageTests` checks every mix of up to
+three parts (with and without rows lacking tokens) against those rules.
+
+**The judge's usage stays at the site (audit round 2).** The judge makes one call per retrieved record, so a week's
+judge calls, `ok` and token sums are the exact counts of records retrieved and judged for that week's questions; HQ
+decides when it asks, so it could ask one question in a week and read the counts the verdict's buckets hide (G6 to
+G8 sent them). A usage summary now names only the extraction task (the Boundary's task list has nothing else), and
+`emit_usage` passes over the judge's rows while still consuming them in the ledger position.
 
 ## 3. The canaries
 
@@ -171,12 +198,14 @@ entries do not fail a run.
 - Cross-site duplicates without an origin marker, which each site counts as independent (X5).
 - A '<k' cell still reveals that an entity had at least one record with that predicate in that week, and entity ids
   are emitted in clear by design (STRATEGY section 6.4).
-- Usage summaries reveal weekly extraction-call volume and latency per site, with counts of at least k.
+- Usage summaries reveal weekly extraction-call volume, token sums and latency per site, with counts of at least k
+  (the judge's usage stays at the site).
 - Encoded or transformed text (hashes, base64, translation, paraphrase).
 - Fragments shorter than 8 canary-core characters or 24 narrative characters.
 - Strings split across SQLite pages.
 - Presence or absence of an entity at a site in a question window, revealed by a refute versus an unknown; limited,
-  not prevented, by the per-entity daily question budget (G6, X5).
+  not prevented, by the per-entity and per-site daily question budgets (G6, X5); with require_master_data only for
+  master-data ids, and never through a person value or the reporter.
 - Bucket transitions between overlapping question windows for one key, which can narrow a count inside its bucket
   (G6, X5).
 - A packet discloses, for one window, which pack codes and which master-data ids co-occur with the key in at least k
@@ -236,7 +265,21 @@ failure and unclear counts, the extraction misses and the site's own reason for 
 entity per day of its own clock (5 in `device_quality`, 3 in `claims_integrity`); further ones get `unknown` with the
 wire reason `budget`, are not stored, and are answered on a later day. Re-delivering a question answered before
 returns the stored bytes and uses no budget. The budget limits how fast HQ can probe one entity with overlapping
-windows; it does not prevent it.
+windows; it does not prevent it. Since audit round 2 a second budget caps the distinct entities a site answers about
+per day (`question_entities_per_site_per_day`, 50 in both packs): a question about one more entity gets `budget` too.
+Up to round 2 nothing limited guessing many ids, since the per-entity budget is keyed by the id guessed.
+
+**Questions about ids the cells would withhold (audit round 2).** The cells withhold an id that is not master data
+(`require_master_data`, on in `device_quality`) and the extractor drops a claim whose entity is written as a person
+value, so id-shaped person data (a patient reference in the lot format, say) never leaves as a cell. The question
+path applied neither: a question about such an id read the narratives that mention it and came back `refute` or
+`confirm` (with a bucket and a week), while a wrong guess came back `unknown`, a per-guess membership oracle on
+person data. Now, with `require_master_data`, a site answers `unknown` for an id outside its master data without
+reading a single record (the same body as an id with no records; the local reason `not_master_data` stays in
+`verdict_log`), and retrieval never takes a record because its narrative names the id as one of the record's person
+values or its reporter. Without `require_master_data` (`claims_integrity`), an id-shaped value that is not written
+in a person field is still an id to the site: keep person identifiers out of id formats, as the known-limitation note
+says.
 
 **Unknown discloses little.** Only two reasons cross: `budget` and `no_secret`. A site's own reason (no record, unclear
 judgements, failures on more than half the records) stays at the site; only `quality: degraded` crosses for the last.
@@ -250,7 +293,7 @@ stamps; they are not secrets. Rotating the file makes every earlier `evidence_re
 the HMAC with the current secret) unless the old file is kept.
 
 **Residual risks (X5), not hidden.** Three remain and are listed in section 7: a refute versus an unknown reveals
-whether a site holds the entity in the window (the budget limits it); bucket transitions between overlapping windows
+whether a site holds the entity in the window (the two budgets limit it); bucket transitions between overlapping windows
 for one key can narrow a count inside its bucket; and verdict buckets can be differenced against weekly cells.
 Verdicts also reveal, by design, which sites hold supporting evidence for a candidate.
 

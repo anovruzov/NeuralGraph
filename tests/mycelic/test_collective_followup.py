@@ -52,7 +52,7 @@ from mycelic.collective.packs.canonical import Canonicaliser
 from mycelic.collective.packs.loader import FrozenPack, load_pack, thaw
 from tests.mycelic.test_collective_edge import pack_copy, record, universe_master
 from tests.mycelic.test_collective_leakage import run_main
-from tests.mycelic.test_collective_pushdown import (AS_OF, G5_HASHES, G6_CONFIG_HASHES, G7_CONFIG_HASHES, Clock,
+from tests.mycelic.test_collective_pushdown import (AS_OF, G5_HASHES, G6_CONFIG_HASHES, R2_CONFIG_HASHES, Clock,
                                                     MiniWorld, crack_records, other_records)
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -277,7 +277,8 @@ class PackFollowupTests(unittest.TestCase):
                 self.assertEqual({k: v for k, v in pack.hashes().items() if k != "config_hash"},
                                  {k: v for k, v in G5_HASHES[pack.id].items() if k != "config_hash"})
                 self.assertNotEqual(pack.config_hash, G6_CONFIG_HASHES[pack.id])
-                self.assertEqual(pack.config_hash, G7_CONFIG_HASHES[pack.id])
+                # G7's hash, changed since only by audit round 2's egress.json key
+                self.assertEqual(pack.config_hash, R2_CONFIG_HASHES[pack.id])
 
     def test_the_new_args_shapes_and_the_unchanged_settings(self) -> None:
         conclusion = {"kind": "conclusion_id"}

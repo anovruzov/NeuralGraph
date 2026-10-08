@@ -78,6 +78,7 @@ class ChatResult:
     ttft_ms: float | None
     fake_marker: bool
     content_chunks: int
+    reasoning_chunks: int = 0
 
 
 class TransportFailure(Exception):
@@ -161,6 +162,7 @@ class _SSE:
         self.model: Any = None
         self.usage: Any = None
         self.chunks = 0
+        self.reasoning_chunks = 0
         self.malformed = False
         self.done = False
 
@@ -200,8 +202,10 @@ class _SSE:
                         self.parts.append(content)
                         self.chunks += 1
                         token = True
-                    reasoning = delta.get("reasoning_content")
-                    if isinstance(reasoning, str) and reasoning:
+                    # thinking deltas: llama-server names them reasoning_content, Ollama and vLLM reasoning;
+                    # either is a token for TTFT (audit round 2: reasoning alone used to start no clock)
+                    if any(isinstance(delta.get(f), str) and delta.get(f) for f in ("reasoning_content", "reasoning")):
+                        self.reasoning_chunks += 1
                         token = True
                 if choices[0].get("finish_reason") is not None:
                     self.finish = choices[0].get("finish_reason")
@@ -486,6 +490,10 @@ def chat(endpoint: Endpoint, messages: list[dict[str, str]], *, max_tokens: int,
         request["response_format"] = response_format
     if endpoint.seed is not None:
         request["seed"] = endpoint.seed
+    if endpoint.reasoning_effort is not None:
+        request["reasoning_effort"] = endpoint.reasoning_effort
+    if endpoint.chat_template_kwargs is not None:
+        request["chat_template_kwargs"] = dict(endpoint.chat_template_kwargs)
     if stream:
         request["stream"] = True
         request["stream_options"] = {"include_usage": True}
@@ -516,7 +524,8 @@ def chat(endpoint: Endpoint, messages: list[dict[str, str]], *, max_tokens: int,
                           tokens_in=_count(usage.get("prompt_tokens")),
                           tokens_out=_count(usage.get("completion_tokens")),
                           http_status=out.status, transport_retries=retries, latency_ms=out.latency_ms,
-                          ttft_ms=out.ttft_ms, fake_marker=fake, content_chunks=sse.chunks)
+                          ttft_ms=out.ttft_ms, fake_marker=fake, content_chunks=sse.chunks,
+                          reasoning_chunks=sse.reasoning_chunks)
     content, finish, model, tokens_in, tokens_out = _parse_body(out.body or b"")
     return ChatResult(content=content, finish_reason=finish, model_served=model, tokens_in=tokens_in,
                       tokens_out=tokens_out, http_status=out.status, transport_retries=retries,

@@ -9,42 +9,52 @@ Rules:
 * **Extract.** Records without extraction are sensed in batches of :data:`EXTRACT_BATCH`, each saved in one
   transaction; the first extraction of a record wins. A claim is stored only when its type, predicate, canonical
   id, channel and confidence are the pack's (:func:`valid_claim`); others are counted as ``invalid_claims``. A model
-  sees a record only through the runtime, which is bound to this site; a simulated runtime refuses to start on
-  records that are not synthetic.
+  sees a record only through the runtime, which is bound to this site. When the extraction route leaves the site
+  under an exemption (a simulated endpoint, or an external one with ``allow_external_raw``), model extraction
+  refuses to start unless every pending record carries the exemption's label (:func:`~.records.exempt_records_problem`):
+  all synthetic for ``synthetic``, this site the public source for ``public``. After
+  :data:`~.extract.BREAKER_AFTER` consecutive records whose model call failed as the server being down (timeout,
+  network, 5xx, after the client's retries), the rest of the pass is sensed lexically without a call (extractor
+  ``fallback``, error ``not_sent``); the next pass tries the server again.
 * **Cells.** :meth:`EdgeSite.emit_cells` sends one ``cells_bundle`` per newly closed span of weeks
   (:func:`~.weeks.closed_through` with the pack's ``close_lag_days``). Cells count the site's own records
   (forwarded-in records excluded) per (entity, predicate, week, channel): records, distinct roots and distinct
   reporters (every unknown reporter is one shared reporter). Each count is the int when it is at least k, else
   ``'<k'``; ``res_conf_min`` is sent only with an int ``n``. With ``require_master_data``, an id of a type with an id
   format must be in the site's master data. A bundle without cells is still sent: it advances the watermark.
-* **Usage.** :meth:`EdgeSite.emit_usage` sends ``usage_summary`` over the ledger rows of closed weeks not yet
-  summarised, suppressed per field like the cells; tokens and latency only when ``calls`` is at least k. Each
-  ledger row is summarised exactly once; the per-call ledger never leaves.
+* **Usage.** :meth:`EdgeSite.emit_usage` sends ``usage_summary`` over the extraction rows of the ledger in closed
+  weeks not yet summarised, suppressed per field like the cells; tokens and latency only when ``calls`` is at least
+  k. ``calls = ok + the error counts``, so with an int ``calls`` and any part below k, ``ok``, every error kind and
+  both missing-token counts go as ``'suppressed'``, with no token sum and no latency (complementary suppression;
+  :func:`_usage_group`); a missing-token count is otherwise exact only as a sum of whole parts, else
+  ``'suppressed'`` without its token sum, so every row count HQ can work out is 0 or at least k (review of audit
+  round 2). Each ledger row is summarised exactly once; the per-call ledger never leaves. The judge's rows are passed
+  over and never leave: the judge makes one call per retrieved record, so its calls and tokens would count the
+  records behind a verdict that the verdict's buckets hide (audit round 2).
 * **Never revised.** An emission is stored (with its exact bytes) before it is sent and re-sent unchanged after a
   failed send; ``as_of`` may not move backwards or past the site clock.
 * **Questions (G6).** The Boundary also takes questions in (``site-<id>.ingress.jsonl`` at the site, HQ's
   ``questions.jsonl`` beside the receive log); ``edge/verify.py``'s ``SiteVerifier`` answers them. Since G7 it also
   takes packet requests in (HQ's ``packet_requests.jsonl``), which ``edge/packets.py``'s ``PacketAssembler``
-  answers. With a runtime, a usage summary may name the judge task as well as extraction, so judge rows in the site's
-  ledger can be summarised.
+  answers. A usage summary names only the extraction task (the Boundary refuses a judge group).
 
 Timestamps (``ingested_at``, ``extracted_at``, emission rows, log rows) come only from the injected clock.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping, Sequence
 
 from ..inference.ledger import read_ledger, summarise
 from ..jsonio import canonical_bytes, sha256_hex, strict_load
 from ..packs.canonical import Canonicaliser
 from ..packs.connector import SITE_ID_RE, record_problems, valid_date
-from .egress import CHANNELS, SCHEMA_VERSION, SUPPRESSED, Boundary
-from .extract import TASK_NAME, Claim, LexicalExtractor, ModelExtractor, sense
-from .records import EmissionRow, ExtractionRow, InputRow, RecordStore
-from .verify import JUDGE_TASK
+from .egress import CHANNELS, PACKET_SUPPRESSED, SCHEMA_VERSION, SUPPRESSED, Boundary
+from .extract import (BREAKER_AFTER, FALLBACK_EXTRACTOR, NOT_SENT, SERVER_DOWN_KINDS, TASK_NAME, Claim,
+                      LexicalExtractor, ModelExtractor, extraction_task, sense)
+from .records import EmissionRow, ExtractionRow, InputRow, RecordStore, exempt_records_problem
 from .weeks import TS_RE, closed_through, iso_week, local_date
 
 if TYPE_CHECKING:
@@ -55,6 +65,7 @@ EXTRACT_MODES = ("lexical", "model")
 EXTRACT_BATCH = 100
 REJECT_REASONS = ("bad_record", "bad_date", "wrong_site")
 CELL_STATS = ("cells", "cells_n_ge_k", "suppressed_fields", "not_master_data", "non_egress_type")
+TOKEN_SUMS = ("tokens_in", "tokens_out")
 _UNKNOWN_REPORTER = object()
 
 
@@ -113,6 +124,15 @@ def _sup0(value: int, k: int) -> int | str:
     return 0 if value == 0 else _sup(value, k)
 
 
+def in_master_data(pack: "FrozenPack", master: Mapping[str, Iterable[str]], entity_type: str, entity_id: str, *,
+                   require: bool | None = None) -> bool:
+    """With ``require`` (default: the pack's ``require_master_data``), an id of a type with an id format must be in
+    ``master``; alias-only types are closed pack vocabularies and always pass, and a type absent from ``master``
+    passes none of its ids. The cells (:func:`build_cells`) and the site judge (``edge/verify.py``) both apply it."""
+    require = pack.egress.require_master_data if require is None else require
+    return not require or pack.entity_types[entity_type].ids is not None or entity_id in master.get(entity_type, ())
+
+
 def build_cells(rows: Iterable[InputRow], pack: "FrozenPack", *, master: Mapping[str, Iterable[str]],
                 require_master_data: bool | None = None,
                 k: int | None = None) -> tuple[list[dict[str, Any]], dict[str, int]]:
@@ -135,8 +155,7 @@ def build_cells(rows: Iterable[InputRow], pack: "FrozenPack", *, master: Mapping
         if row.entity_type not in egress_types:
             stats["non_egress_type"] += 1
             continue
-        if require and pack.entity_types[row.entity_type].ids is None \
-                and row.entity_id not in master.get(row.entity_type, ()):
+        if not in_master_data(pack, master, row.entity_type, row.entity_id, require=require):
             stats["not_master_data"] += 1
             continue
         key = (row.entity_type, row.entity_id, row.predicate, row.count_week, row.channel)
@@ -160,17 +179,35 @@ def build_cells(rows: Iterable[InputRow], pack: "FrozenPack", *, master: Mapping
     return cells, stats
 
 
-def _usage_group(group: Mapping[str, Any], k: int) -> dict[str, Any]:
+def _usage_group(rows: Sequence[Mapping[str, Any]], k: int) -> dict[str, Any]:
+    """One (task, endpoint) group of ledger rows, summarised as it leaves. Its parts are ``ok`` and each error kind,
+    and ``calls`` is their sum, so when ``calls`` is an int and any part is below k (and not 0), every part goes as
+    ``'suppressed'`` (audit round 2), and so do both missing-token counts, with no token sum and no latency (its
+    review): ``calls`` minus the others would give the ``'<k'`` part; a missing-token count is the transport
+    failures, which carry no tokens; a known prompt size divides a token sum into rows; and a failure's latency at the
+    deadline moves the percentiles. Otherwise a missing-token count is exact only when within each part every row or
+    none lacks the tokens, so that it is a sum of whole parts (each 0 or at least k); else it goes as
+    ``'suppressed'`` without its token sum."""
+    (group,) = summarise(rows)["groups"]
     out = {"task": group["task"], "endpoint": group["endpoint"], "calls": _sup(group["calls"], k),
-           "ok": _sup0(group["ok"], k), "tokens_in_missing": _sup0(group["tokens_in_missing"], k),
-           "tokens_out_missing": _sup0(group["tokens_out_missing"], k),
-           "errors": {kind: _sup(n, k) for kind, n in sorted(group["errors"].items())}, "fake": group["fake"]}
-    if group["calls"] >= k:
-        out["tokens_in"] = group["tokens_in"]
-        out["tokens_out"] = group["tokens_out"]
-        for key in ("latency_ms_p50", "latency_ms_p95"):
-            if group[key] is not None:
-                out[key] = group[key]
+           "ok": _sup0(group["ok"], k), "errors": {kind: _sup(n, k) for kind, n in sorted(group["errors"].items())},
+           "fake": group["fake"]}
+    if group["calls"] < k:
+        return {**out, **{f"{field}_missing": _sup0(group[f"{field}_missing"], k) for field in TOKEN_SUMS}}
+    if SUPPRESSED in (out["ok"], *out["errors"].values()):
+        return {**out, "ok": PACKET_SUPPRESSED, "errors": dict.fromkeys(out["errors"], PACKET_SUPPRESSED),
+                **{f"{field}_missing": PACKET_SUPPRESSED for field in TOKEN_SUMS}}
+    for field in TOKEN_SUMS:
+        lacking: dict[str, set[bool]] = {}
+        for row in rows:
+            lacking.setdefault("ok" if row["ok"] else row["error_kind"], set()).add(row[field] is None)
+        if all(len(seen) == 1 for seen in lacking.values()):
+            out[f"{field}_missing"], out[field] = group[f"{field}_missing"], group[field]
+        else:
+            out[f"{field}_missing"] = PACKET_SUPPRESSED
+    for key in ("latency_ms_p50", "latency_ms_p95"):
+        if group[key] is not None:
+            out[key] = group[key]
     return out
 
 
@@ -203,7 +240,7 @@ class EdgeSite:
         workdir.mkdir(parents=True, exist_ok=True)
         self.boundary = Boundary(pack, site_id, egress_log=workdir / f"site-{site_id}.egress.jsonl",
                                  receive_log=Path(hq_dir) / "receive.jsonl", clock=clock,
-                                 tasks=(TASK_NAME, JUDGE_TASK) if runtime is not None else (),
+                                 tasks=(TASK_NAME,) if runtime is not None else (),
                                  endpoints=tuple(sorted(runtime.config.endpoints)) if runtime is not None else (),
                                  ingress_log=workdir / f"site-{site_id}.ingress.jsonl",
                                  question_log=Path(hq_dir) / "questions.jsonl",
@@ -257,12 +294,16 @@ class EdgeSite:
         if mode == "model":
             if self.runtime is None:
                 raise SiteError("model extraction needs a runtime") from None
-            if self.runtime.simulation and self.store.pending_non_synthetic():
-                raise SiteError("a simulated runtime only reads synthetic records") from None
+            problem = exempt_records_problem(self.runtime.exemption(extraction_task(self.pack)), self.site_id,
+                                             self.store.pending_non_synthetic())
+            if problem is not None:
+                raise SiteError(problem) from None
             extractor: LexicalExtractor | ModelExtractor = ModelExtractor(self.pack, self.canonicaliser,
                                                                          self.runtime, fallback=True)
         else:
             extractor = LexicalExtractor(self.pack, self.canonicaliser)
+        lexical = LexicalExtractor(self.pack, self.canonicaliser)
+        down = 0
         n_records = n_claims = invalid = 0
         extractors: dict[str, int] = {}
         errors: dict[str, int] = {}
@@ -273,7 +314,12 @@ class EdgeSite:
                 break
             rows = []
             for seq, record in batch:
-                codes, text, claims = sense(record, self.pack, self.canonicaliser, extractor, ref=f"x:{seq}")
+                if down >= BREAKER_AFTER:            # the server is down for this pass: no call, no deadline
+                    codes, text, claims = sense(record, self.pack, self.canonicaliser, lexical, ref=f"x:{seq}")
+                    text = replace(text, extractor=FALLBACK_EXTRACTOR, error_kind=NOT_SENT)
+                else:
+                    codes, text, claims = sense(record, self.pack, self.canonicaliser, extractor, ref=f"x:{seq}")
+                    down = down + 1 if text.error_kind in SERVER_DOWN_KINDS else 0
                 kept = tuple(c for c in claims if valid_claim(c, self.pack, self.canonicaliser))
                 rows.append(ExtractionRow(
                     record_ref=record["record_ref"], mode=mode, extractor=text.extractor, error_kind=text.error_kind,
@@ -367,6 +413,10 @@ class EdgeSite:
         if not prefix:
             return None
         k = self.pack.egress.k
-        groups = [_usage_group(g, k) for g in summarise(prefix)["groups"]]
+        by_endpoint: dict[str, list[dict[str, Any]]] = {}
+        for row in prefix:
+            if row["task"] == TASK_NAME:
+                by_endpoint.setdefault(row["endpoint"], []).append(row)
+        groups = [_usage_group(by_endpoint[endpoint], k) for endpoint in sorted(by_endpoint)]
         return self._emit("usage_summary", as_of, after, through, {"groups": groups},
                           ledger_rows=start + len(prefix), items=len(groups), stats={"ledger_rows": len(prefix)})

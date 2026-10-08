@@ -67,6 +67,12 @@ TRUNCATE_BACKOFF = 200
 CODES_EXTRACTOR = "codes"
 LEXICAL_EXTRACTOR = "lexical"
 FALLBACK_EXTRACTOR = "fallback"
+# A pass over records (one extraction pass, one question's judging) stops calling the model server after this many
+# consecutive failures of these kinds, each already after the client's own retries: the server is down, and every
+# further record would wait out the same deadline (audit round 2)
+SERVER_DOWN_KINDS = ("timeout", "network", "http_5xx")
+BREAKER_AFTER = 2
+NOT_SENT = "not_sent"
 _TOKEN = re.compile(r"\w+")
 
 
@@ -244,7 +250,8 @@ class _Analyser:
         return sentences, scan.unresolved, supported
 
 
-def _person_values(record: Mapping[str, Any]) -> frozenset[str]:
+def person_values(record: Mapping[str, Any]) -> frozenset[str]:
+    """The record's person values and its reporter, folded: a mention written as one of them is person data."""
     values = [v for v in record["persons"].values() if isinstance(v, str)]
     if isinstance(record["reporter"], str):
         values.append(record["reporter"])
@@ -301,7 +308,7 @@ class LexicalExtractor:
         work is bounded by the distinct pairs and the drop counts equal those of pairing every mention."""
         sentences, unresolved, supported = self.analyser.analyse(record["narrative"], record["language"])
         out = _Claims()
-        persons = _person_values(record)
+        persons = person_values(record)
         for sentence in sentences:
             kept = [m for m in sentence.mentions if folded(m.text) not in persons]
             person_mentions = len(sentence.mentions) - len(kept)
@@ -447,7 +454,7 @@ class ModelExtractor:
         outright. res_conf is that of the occurrence written exactly as entity_text, else the best-written one."""
         out = _Claims()
         sent = fold_phrase(sent_text)[0]
-        persons = _person_values(record)
+        persons = person_values(record)
         occurrences: dict[tuple[str, str, str], dict[str, float]] = {}
         for m in scan.mentions:
             occurrences.setdefault((m.entity_type, m.entity_id, folded(m.text)), {})[m.text] = m.res_conf

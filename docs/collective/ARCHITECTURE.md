@@ -28,7 +28,7 @@ its `measurement` flag. The figures STRATEGY needs come from the founder's runs 
 | Tasks and prompts | `inference/tasks.py` | Task specs, the `<data>` block, the repair message |
 | Reply parsing | `inference/jsonparse.py` | One JSON object out of a reply (reasoning blocks, fences, prose), with a depth cap |
 | Usage ledger | `inference/ledger.py` | One JSON line per logical attempt; numbers and labels only |
-| Fakes | `inference/fake.py`, `inference/fakeserver.py` | Deterministic in-process provider; local OpenAI-compatible server with 33 personas |
+| Fakes | `inference/fake.py`, `inference/fakeserver.py` | Deterministic in-process provider; local OpenAI-compatible server with 34 personas (audit round 2 added `thinks-by-default` and streamed thinking) |
 | Founder tools | `experiments/e3_latency.py`, `connectors/openfda.py`, `experiments/n1_narratives.py` | E3, the openFDA cache, N1 sample and score |
 
 Everything is standard library only and runs under `python -S`. No fabric file changed (`INTEGRATION.md`). After
@@ -55,8 +55,16 @@ text; `structured` means it holds only fields policy allows to leave a site.
 | any other | otherwise | refused |
 
 Partner data can never be exempted: `allow_external_raw` must equal `data_label`, and only `public` and `synthetic`
-are accepted. The guard runs before any I/O, on the primary endpoint and then on the escalation endpoint. A refusal
-does three things:
+are accepted; `simulation=True` needs `data_label` `synthetic` (audit round 2). Both exemptions rest on that label,
+and the runtime sees payloads, not where their records came from, so a caller that sends records checks them first:
+`Runtime.exemption(task)` names the label the records must carry when the runtime is simulated or the task's route
+(primary or escalation) leaves the boundary as `simulated` or `external_raw_exempt`, and
+`edge.records.exempt_records_problem` checks it (`synthetic`: every record synthetic; `public`: the site is the public
+source, `public`, as E1 requires). Model extraction (section 12.2) and the site judge (section 15.4) refuse before
+any call when a record does not carry it, and E2's central_raw refuses a record that is not synthetic. Up to round 2
+only a simulated runtime's extraction checked, so the judge, and extraction under `allow_external_raw`, could send
+real narratives off-site with ledger rows that called them synthetic. The guard runs before any I/O, on the primary
+endpoint and then on the escalation endpoint. A refusal does three things:
 
 - writes one ledger row (attempt 0, mode `refused`, error `boundary`);
 - raises `InferenceBoundaryError`;
@@ -95,6 +103,15 @@ the escalation endpoint:
 Transport retries (429, 5xx and connection failures, never timeouts or TLS-verification failures) happen inside one
 logical attempt. They are counted in that attempt's row, not written as rows of their own.
 
+**Thinking (audit round 2).** Current servers stream a hybrid-thinking model's thinking as deltas whose `content` is
+empty: llama-server names the field `reasoning_content`, Ollama and vLLM `reasoning`. The streaming client counts a
+delta with either field as a token for TTFT and counts them as `reasoning_chunks` (on `ChatResult` and `Attempt`,
+not in the ledger); up to round 2 only `reasoning_content` counted, so against Ollama or vLLM TTFT waited for the end
+of the thinking. Thinking also counts against `max_tokens` and the JSON format applies only after it, so a server's
+default thinking can spend a task's whole budget: the reply is empty, `finish_reason` `length`, and the runtime
+records `json_invalid`. A routing endpoint may therefore send `reasoning_effort` and `chat_template_kwargs`
+(`routing.py`; nothing is sent unless the file names it), and E1 pins both in its prereg.
+
 Errors are `InferenceError(task, endpoint, kind, http_status)`. Each has exactly those four values and no other
 argument. Every raise uses `from None`, so no reason phrase, server body or socket text reaches a message, a
 traceback or a log. Logging is at most one WARNING per failed attempt, naming the task, endpoint, attempt, kind and
@@ -130,13 +147,15 @@ A row never holds a prompt, a completion, an error body, a header, a record id o
 **Only `usage_summary` crosses a boundary.** A site's ledger stays at the site. `usage_summary()` reduces it to
 counts per (task, endpoint): calls, ok, errors by kind, token sums with missing counts, latency p50/p95 and a fake
 flag. It has no `ts`, `ref`, `host`, `run_id` or model name. It is the only ledger-derived artifact meant to leave a
-site. G3 sends it windowed and k-suppressed rather than whole (section 12.6).
+site. G3 sends it windowed and k-suppressed rather than whole (section 12.6); since audit round 2 a site sends only its
+extraction task's groups, with complementary suppression that also covers the missing-token counts, token sums and
+latency (LEAKAGE section 2).
 
 ## 5. Fakes and the measurement flag
 
 - `FakeProvider` is in-process and deterministic. Each task has a handler; `fail_next` scripts the next replies to
   exercise repair and failure paths; it opens no socket. Its rows are priced `fake`.
-- `FakeOpenAIServer` listens on 127.0.0.1 and implements 33 personas: valid, slow, trickling the status line, the
+- `FakeOpenAIServer` listens on 127.0.0.1 and implements 34 personas (`thinks-by-default` since audit round 2): valid, slow, trickling the status line, the
   headers or the body, oversized, deeply nested, echoing the prompt into its error, rejecting `json_schema`,
   streaming, stalling, resetting mid-body, and others. Every response carries `X-Mycelic-Fake: 1`, and its model
   listing says `"fake": true`.
@@ -375,9 +394,13 @@ watermark is late: it counts in `max(ingest week, the week after the watermark)`
 
 Extraction runs over records without stats, 100 per transaction; the first extraction of a record wins. A claim is
 stored only when its type and predicate are the pack's, its id is canonical, its channel is `codes` or `text_only`
-and its `res_conf` is one of the pack's three confidences; others are counted as `invalid_claims`. A simulated
-runtime refuses to start while any pending record is not synthetic; a boundary refusal propagates and saves nothing
-of the batch.
+and its `res_conf` is one of the pack's three confidences; others are counted as `invalid_claims`. Model extraction
+refuses to start while any pending record does not carry the label `Runtime.exemption` names (a simulated runtime, or
+a route that leaves the site under an exemption; section 2); a boundary refusal propagates and saves nothing of the
+batch. After two consecutive records whose model call failed as the server being down (`timeout`, `network`,
+`http_5xx`, after the client's retries), the rest of the pass is sensed lexically without a call (extractor
+`fallback`, error `not_sent`), and the next pass tries the server again (audit round 2: every record used to wait out
+the full deadline before its fallback).
 
 ### 12.3 The cell format
 
@@ -444,10 +467,20 @@ without cells still sends a bundle: it advances the watermark. Received dates ar
 
 `emit_usage(as_of)` follows the same `as_of` rules and sends one `usage_summary` per newly closed span. It reads the
 site's ledger (every row must belong to `site:<id>`), takes the rows after those already summarised (the
-`ledger_rows` count of the last emission) up to the first row whose week is still open, and reduces them with
-`ledger.summarise`. Per group, `calls` and each error kind are `'<k'` below k, `ok` and the missing-token counts may
-also be 0, and tokens and latency percentiles are sent only when `calls` is at least k. Each ledger row is summarised
-exactly once. A site without a runtime sends no usage.
+`ledger_rows` count of the last emission) up to the first row whose week is still open, and reduces the extraction
+rows among them with `ledger.summarise` (audit round 2: the judge's rows are consumed but never summarised, since one
+judge call per retrieved record made a week's judge calls the exact record counts behind its verdicts). Per group,
+`calls` and each error kind are `'<k'` below k, `ok` and the missing-token counts may also be 0, and tokens and latency
+percentiles are sent only when `calls` is at least k. Because `calls = ok + the error counts`, a group whose `calls`
+is an int and that has any part below k (not 0) sends `ok`, every error kind and both missing-token counts as
+`'suppressed'`, with no token sum and no latency (complementary suppression; the Boundary refuses a `'<k'` part beside
+an int `calls`, and anything exact beside a withheld split). Since the review of audit round 2, the missing-token
+counts, token sums and latency follow the parts: a transport failure carries no tokens, so an exact missing-token
+count beside a withheld split gave the split back, and so would a token sum (divided by the prompt size) or the
+interpolated p95 (moved by failures at the deadline). With no part withheld, a missing-token count is exact only when
+within each part every row or none lacks the tokens (a sum of whole parts, which the Boundary checks), else
+`'suppressed'` without its token sum (LEAKAGE section 2). Each ledger row is summarised exactly once. A site without a
+runtime sends no usage.
 
 ## 13. G4: detection at HQ
 
@@ -763,7 +796,7 @@ is no SQL in `evaluate/` or the replay: site stores are read through `RecordStor
                       |
      control, per seed: the same world without the plant, through the same pipeline and channels
                       |
-                      v  alerts in the evaluation weeks, matched to labels.json; a control find is a chance find
+                      v  alerts in the evaluation weeks, matched to labels.json; a find the control makes as early is a chance find
  labels.json, scorecard.json (schema-checked, content_hash)
 ```
 
@@ -867,11 +900,17 @@ Alert events are `{week, rank, key, score, site}`; events before the evaluation 
   alarm, including an event on a pattern key outside its window.
 - **Control and net found.** Each seed runs a second time **without the plant** (the same world records through the
   same pipeline, `work/seed-<seed>/control/`), and every channel's events there are matched to the same labels. A
-  unit (pattern, seed) found in the control is a **chance find**: the key would have alerted in its window without a
-  single planted record. Every channel reports `control_found`, `control_recall` and `control_alerts` next to `found`
-  and `recall`, and `found_net` / `recall_net` count the units found with the plant and not in the control (pooled,
-  by visibility and per seed; each pattern outcome carries `found_in_control`). `found` and `recall` still include
-  chance finds; the lifts and `by_construction` read the net values. The control's alerts are kept in
+  planted-world find is a **chance find** when the control also finds the unit (pattern, seed) **in the same week or
+  earlier**: the key would have alerted that early without a single planted record. A control alert that comes only
+  later does not void the find (audit round 2): the planted world is the control's records plus the plant's, so the
+  planted world's earlier alert came from the plant, and the cooldown after it is what hides the later background
+  alert there. Counting any control alert in the window as chance removed single_site's plant-driven finds (it
+  spends its whole budget, so its control world nearly always alerts somewhere later) and gave X a positive lift
+  over a single_site that found more patterns, earlier. Every channel reports `control_found` (the control's finds,
+  any week in the window), `control_recall`, `control_alerts` and `chance_found` next to `found` and `recall`, and
+  `found_net` / `recall_net` count the planted finds that are not chance finds (pooled, by visibility and per seed;
+  each pattern outcome carries `found_in_control` and `chance_find`). `found` and `recall` still include chance
+  finds; the lifts and `by_construction` read the net values. The control's alerts are kept in
   `control_alerts` per seed and channel. Per pattern, seed and channel: `delay_weeks = first -
   start_index` and `lead_weeks = end_index - first` (negative when found in the grace weeks).
 - **Recall** = found units / (patterns x seeds), pooled and by visibility; median delay and lead (`stats.percentile`
@@ -886,8 +925,8 @@ Alert events are `{week, rank, key, score, site}`; events before the evaluation 
 - `false_alarms_per_week` = false alarms / (evaluation weeks x seeds); `decoys_alerted[class]` counts (decoy, seed)
   instances with an event on any of the decoy's keys inside its watch span.
 - **Lifts** `X_minus_single_site` (the collective lift), `X_minus_S` and `X_minus_R_mf`: per pattern, the list over
-  seeds of `net_found_a - net_found_b` (`basis`: "found in the planted world and not in the same seed's no-plant
-  control world"); the estimate is the pooled mean; the 95% interval is `stats.cluster_bootstrap_mean`
+  seeds of `net_found_a - net_found_b` (`basis`: "found in the planted world and not found as early or earlier in
+  the same seed's no-plant control world"); the estimate is the pooled mean; the 95% interval is `stats.cluster_bootstrap_mean`
   (whole patterns resampled, B and seed from the prereg, seed string `x1:<seed>:<name>`).
 - **Minimum detectable rate** (analytic, pack only): for a constant weekly background `b` in `0..2k` at a site with
   full history, the smallest weekly rate `r` for which G4's D2 site test certainly exceeds, with `c = window_weeks x
@@ -1170,25 +1209,39 @@ a malformed secret file (`VerifyError`, no value in its text). `answer(question)
 2. a new `RecordStore` connection on the site's file, opened in the calling thread and closed afterwards;
 3. no secret (a missing secret file) gives `unknown`, reason `no_secret`, before any read or budget check;
 4. a question answered before re-sends its stored bytes and uses no budget;
-5. `answered_count(type, id, day) >= question_budget_per_entity_per_day` gives `unknown`, reason `budget`, not stored,
-   so a later day answers it;
-6. **retrieval** (`retrieve`, shared with E2's central_raw): the union of the site's own records (forwarded-in
+5. `answered_count(type, id, day) >= question_budget_per_entity_per_day`, or an entity not yet answered that day
+   when `answered_entities(day) >= question_entities_per_site_per_day` (audit round 2: a cap on guessing many ids),
+   gives `unknown`, reason `budget`, not stored, so a later day answers it;
+6. **master data** (audit round 2): with `require_master_data`, an id outside the site's master data
+   (`site.in_master_data`, the cells' rule) gets `unknown` without a record read, stored like any answer with the
+   local reason `not_master_data`; its body is that of an id with no records. Up to round 2 a question could test
+   whether an id the cells withhold (id-shaped person data in a narrative) was in the site's records;
+7. **retrieval** (`retrieve`, shared with E2's central_raw): the union of the site's own records (forwarded-in
    excluded) received in the window that hold any stored claim on the entity, whose structured values of the type
-   resolve exactly to it, or whose narrative names it (the canonicaliser's scan, which also finds extraction misses);
-   newest first, the first `verify_max_records` kept (`truncated` when cut);
-7. **the judge**, per record: the task `judge_record` (data class `raw`, 256 tokens, schema `{mentions_entity,
+   resolve exactly to it, or whose narrative names it (the canonicaliser's scan, which also finds extraction misses)
+   other than as one of the record's person values or its reporter (the extractor's `person_value` rule, since audit
+   round 2); newest first, the first `verify_max_records` kept (`truncated` when cut);
+8. **the judge**, per record: the task `judge_record` (data class `raw`, 256 tokens, schema `{mentions_entity,
    describes_predicate}`, each `yes`, `no` or `unclear`) through the site's runtime with ledger ref
    `j:<question id prefix>:<index>` (never a record ref), or `lexical_judge`. The payload holds the question's
    entity type and label, id, alias phrases, predicate and label, and the record's language, codes, structured entity
    values (D7: inside the boundary, and without them a codes-only record could never confirm) and narrative cut at
-   `max_input_chars`; never persons, the reporter or a record ref. A boundary refusal propagates and nothing is stored
-   or sent; any other inference error counts the record as a failure;
-8. **the rules**, in order: nothing retrieved, `unknown` (local reason `no_records`); failures on more than half,
+   `max_input_chars`; never persons, the reporter or a record ref. When the judge route leaves the site under an
+   exemption (section 2), every retrieved record must carry its label (`WindowRecord.synthetic`, since audit round 2),
+   else `InferenceBoundaryError` before any call. A boundary refusal propagates and nothing is stored or sent; any
+   other inference error counts the record as a failure. Since audit round 2 the judging stops early: once failures
+   are more than half the records (degraded whatever the rest say), and after two consecutive failures that say the
+   server is down (`timeout`, `network`, `http_5xx`, each after the client's retries; `extract.BREAKER_AFTER`), when
+   the records not yet judged count as failures. Up to round 2 a dead server cost one call per retrieved record, all
+   under the verifier's lock (at the shipped `verify_max_records` 500 and the example's 300 s deadline, about 42 h
+   for one question at a wedged site, and every other question queued behind it); now a question costs at most two
+   deadlines;
+9. **the rules**, in order: nothing retrieved, `unknown` (local reason `no_records`); failures on more than half,
    `unknown` with quality `degraded` (see below); any yes/yes, `confirm` (support = yes/yes records, roots = their
    distinct roots, reporters = their distinct reporters with every unknown reporter one shared reporter, newest week); a
    record that mentions the entity, none that describes the predicate and fewer than half unclear, `refute` (the
    mentioning records); otherwise `unknown` (`unclear`). Only `budget` and `no_secret` cross as reasons (D8);
-9. counts leave only as buckets; `evidence_ref = HMAC-SHA256(secret, verdict_id)[:16]` for a confirm or a refute;
+10. counts leave only as buckets; `evidence_ref = HMAC-SHA256(secret, verdict_id)[:16]` for a confirm or a refute;
    the verdict and its `answered` question_log row are stored in one transaction, then sent. A **degraded** verdict
    is the exception: it reflects the model server's health, not the records, so it is sent but never stored (its
    question_log row is `degraded`, which uses no budget, and `audit` has nothing for it), and the next ask of the
@@ -1782,8 +1835,9 @@ also takes the conclusion id and candidate key its result names.
 
 ## 17. G8: the collective demo
 
-**A fictional company, synthetic data and a constructed illustration. Internal and YC use only; never a
-measurement** (STRATEGY sections 9.1 and 12). Every run file says `measurement: false`, and no number from the demo is
+**A fictional company, synthetic data and a constructed illustration. Internal use only; never a measurement**
+(STRATEGY section 12; section 9.1, the YC demo's rules, puts synthetic-fixture results of any kind off the YC screen,
+so showing this run to YC is the founder's decision, `demo/collective/README.md`). Every run file says `measurement: false`, and no number from the demo is
 a product figure.
 
 G8 runs the whole loop once, end to end, for one fictional multi-site device maker (Halvern Medical, six plants in
@@ -1901,6 +1955,14 @@ caption ("By construction, S and R cannot see this key: ...") is shown exactly w
 narrative-only: it is a property of the constructed case, not a result. A scenario copy with a specific code and the
 structured lot always filled makes both baselines catch the hero, and the screen says so (`HonestyTests`).
 
+Every channel's block carries `detection_week`, its first alert week on the hero key (audit round 2; up to then only
+X's did). The references row shows each site alone with its rank and, when it caught the key, its week, and a warning
+says when one plant alone caught it no later than X ("... so it shows no collective lift") or later. In the committed
+run one plant alone flags the hero key in X's own week (2024-W35): STRATEGY 6.1 measures collective lift against
+exactly that baseline, so this constructed case shows none, and it is not a hidden pattern in 6.1's sense. Up to round
+2 the row gave only the rank, and the talk track never said it. Rebuilding the case so that no plant's own baseline
+fires is a scenario decision left open (`INTEGRATION.md`, audit round 2).
+
 ### 17.5 The lint
 
 `lint_numbers.py RUN_DIR` reads the six files, the console, `SCRIPT.md` and `README.md`, and prints one
@@ -1935,7 +1997,13 @@ requested twice to show it runs once). `--serve` runs the same engine behind a `
 changes; a `Last-Event-ID` at or beyond the end restarts from the start), and `POST /control` with `next`, `check` or
 `approve` (by follow-up key). Actions are queued to the main thread; a control at the wrong beat or after completion
 answers 409, a bad body 400, a second press while one runs `busy`, and a repeated check or approval `done_before`
-with no effect. `--replay` serves a recorded run with no engine (every control 409) and `--export` writes it as one
+with no effect. `--serve --cut` gives the 60-second cut live (audit round 2): the server walks only `CUT_60S`
+(problem, alert, check, real data), runs the follow-ups with scripted approval when the presenter presses Next after
+the check (stamped `approval: recorded`, two execute requests each, as in `--record`), and `screen.json` says
+`cut_only: true`, so the console shows only the cut and hides its full-version button. Without `--cut`, the console's
+cut button only filters the view, and the beat the engine is on always stays visible: up to round 2 it hid the live
+follow-up beat, which left an untitled page whose approve buttons and way on to real data could not be reached.
+`--replay` serves a recorded run with no engine (every control 409) and `--export` writes it as one
 standalone page (no network, under 2 MB). A routed endpoint that does not answer `GET /models`, an extraction that
 falls back, or a judge that degrades stops the run with one line naming the endpoint and the replay command, and
 nothing is written; in `--serve` the console shows the error and stays up. Ctrl-C, SIGTERM and SIGHUP exit 130 with

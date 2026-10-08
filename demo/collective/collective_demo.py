@@ -2,12 +2,14 @@
 """The collective demo (G8): one fictional multi-site device maker, from run files only.
 
     python demo/collective/collective_demo.py --record [DIR]           # headless full loop; writes the six run files
-    python demo/collective/collective_demo.py --serve [--out DIR]      # live console; run files written at the end
+    python demo/collective/collective_demo.py --serve [--out DIR] [--cut]   # live console; run files written at the end
     python demo/collective/collective_demo.py --replay [DIR]           # serve a recorded run, no engine
     python demo/collective/collective_demo.py --export PAGE [--run DIR]   # a standalone page of a recorded run
 
-**Fictional company, synthetic data, an illustration, not a measured result; internal and YC use only** (STRATEGY
-sections 9.1 and 12). Every number on screen is read from the run files and ``lint_numbers.py`` fails the build when
+**Fictional company, synthetic data, an illustration, not a measured result; internal use only.** STRATEGY section
+9.1, the YC demo's own rules, puts synthetic-fixture results of any kind off the screen, and section 12 keeps
+synthetic-fixture numbers from buyers even with a label; this run shows such results, so it is internal until the
+founder decides otherwise (README). Every number on screen is read from the run files and ``lint_numbers.py`` fails the build when
 one is not; the sites are simulated in one process.
 
 The loop (``DemoEngine``): **prepare** builds the scenario's world (``scenario.py``; the canary manifest goes to
@@ -18,7 +20,10 @@ U and each site alone over the same world; **check** asks the sites about the he
 run's ``as_of``) and about every decoy key X alerted, and scans what crossed so far; **follow-up** (only on a
 ``supported`` conclusion; built ahead of E2 and X4, not measured) proposes a T0 evidence packet, then a T1 draft for
 the named owner, each approved by that owner (scripted in ``--record``, pressed in the console in ``--serve``) and
-executed at most once; **finish** scans every crossing and the primary run files, builds ``screen.json`` and writes the
+executed at most once; ``--serve --cut`` presents the 60-second cut live (the problem, the alert, the check and real
+data): the follow-up beat is not shown, and its follow-ups run with scripted approval when the presenter moves on
+from the check, stamped ``recorded`` like ``--record``'s (audit round 2: the cut could not be given live before, the
+server gating real data behind the hidden beat's approvals); **finish** scans every crossing and the primary run files, builds ``screen.json`` and writes the
 six files. Every stored timestamp comes from a simulated clock; the wall clock is used only for ``created_at``,
 ``recorded_at``, the timings and the trace's ``t``.
 
@@ -194,7 +199,7 @@ _DATE = {"type": "string", "pattern": "[0-9]{4}-[0-9]{2}-[0-9]{2}"}
 _TS = {"type": "string", "pattern": "[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z"}
 _WINDOW = _obj({"start_week": _WEEK, "end_week": _WEEK})
 _RELATED = _arr(_obj({"key": _S, "week": _WEEK, "rank": _I}))
-_CHANNEL = _obj({"rank": _NI, "caught": _B, "related": _RELATED})
+_CHANNEL = _obj({"rank": _NI, "caught": _B, "detection_week": _NWEEK, "related": _RELATED})
 _CODES = _arr(_obj({"code": _S, "n": _S}))
 _CO = _arr(_obj({"entity_type": _S, "entity_id": _S, "n": _S}))
 _FOLLOWUP_PART = {"key": _S, "type": _S, "type_label": _S, "state": _S, "owner": _NS, "owner_role": _NS,
@@ -614,10 +619,11 @@ class DemoEngine:
     """One run: ``prepare``, ``check``, ``start_followup``, ``approve`` (per follow-up key) and ``finish``."""
 
     def __init__(self, sc: Scenario, *, mode: str, run_id: str, workdir: Path, routing: RoutingConfig | None,
-                 recorder: Recorder, out_dir: Path) -> None:
+                 recorder: Recorder, out_dir: Path, cut: bool = False) -> None:
         self.sc = sc
         self.pack = sc.pack
         self.mode = mode
+        self.cut = cut                      # --serve --cut: the follow-up beat is not shown; approvals scripted
         self.run_id = run_id
         self.workdir = workdir
         self.routing = routing
@@ -817,11 +823,12 @@ class DemoEngine:
             related = [{"key": k, "week": a["week"], "rank": a["rank"]}
                        for k, a in sorted(found.items(), key=lambda kv: (kv[1]["week"], kv[1]["rank"], kv[0]))
                        if k != hero_key]
+            # every channel says when it first flagged the hero key: the screen shows the single-site week beside
+            # X's and says so when one plant alone was no later (audit round 2)
             block: dict[str, Any] = {"rank": own["rank"] if own else None, "caught": own is not None,
-                                     "related": related}
+                                     "detection_week": own["week"] if own else None, "related": related}
             if channel == "X":
                 block["score"] = own["score"] if own else None
-                block["detection_week"] = own["week"] if own else None
             detection[channel] = block
         detection["r_caught"] = detection["R_mf"]["caught"]
         detection["s_caught"] = detection["S"]["caught"]
@@ -1043,12 +1050,18 @@ class DemoEngine:
         """The follow-up keys proposed and not yet approved."""
         return [f.key for f in self.followups if f.key is not None and f.approval is None]
 
+    @property
+    def approval(self) -> str:
+        """``recorded`` (scripted) in ``--record`` and in the live cut, which does not show the follow-up beat;
+        ``live`` when the presenter approves in the console."""
+        return "recorded" if self.mode == "record" or self.cut else "live"
+
     def followups_done(self) -> bool:
         return self.followup_reason is not None or (bool(self.followups) and all(f.executed for f in self.followups))
 
     def approve(self, key: str) -> str:
-        """``approved`` (and executed), or ``done_before`` for a key already approved; record mode executes twice to
-        show at-most-once, live mode once per press."""
+        """``approved`` (and executed), or ``done_before`` for a key already approved; a scripted approval (record
+        mode and the live cut) executes twice to show at-most-once, a live one once per press."""
         f = next((f for f in self.followups if f.key == key), None)
         if f is None:
             raise DemoError("internal: no such follow-up key")
@@ -1062,11 +1075,11 @@ class DemoEngine:
             if exc.code == "terminal":
                 return "done_before"
             raise DemoError(f"the follow-up was refused ({exc.code})") from None
-        f.approval = "recorded" if self.mode == "record" else "live"
+        f.approval = self.approval
         f.approved_version = state.latest_version
         self.rec.emit("approval", {"key": key, "version": state.latest_version, "by": state.owner,
                                    "role": state.owner_role, "mode": f.approval})
-        for request in range(1, (2 if self.mode == "record" else 1) + 1):
+        for request in range(1, (2 if f.approval == "recorded" else 1) + 1):
             done = self.service.execute(key, as_of=self.as_of)
             f.execute_requests += 1
             calls = self.counters[state.executor].calls.get(key, 0)
@@ -1266,7 +1279,7 @@ class DemoEngine:
             "packets_from_contributing": packet_ok,
             "executed_once": bool(fu) and all(
                 f.executed and self.counters[self.pack.followups[f.type_id].executor].calls.get(f.key) == 1
-                and f.execute_requests == (2 if self.mode == "record" else 1) for f in fu),
+                and f.execute_requests == (2 if f.approval == "recorded" else 1) for f in fu),
             "ledger_chain_ok": self.chain_ok is True,
             "no_text_crossed": after is not None and final is not None and all(
                 s["hit_count"] == 0 and s["shingle_overlap_bytes"] == 0 for s in (after, final)),
@@ -1297,7 +1310,7 @@ class DemoEngine:
             "created_at": utc_clock(), "mode": self.mode,
             "stamps": {"fictional": True, "synthetic": True, "internal_only": True, "illustration": True,
                        "measurement": False, "same_author_pack": pack.same_author_as_code,
-                       "approval": "recorded" if self.mode == "record" else "live", "sites_simulated": True,
+                       "approval": self.approval, "sites_simulated": True,
                        "shared_model": self.routing is not None, "secret_mode": "seeded-demo"},
             "company": sc.company, "illustration": sc.illustration,
             "scenario": {"digest": sc.digest, "seed": sc.seed, "weeks": sc.weeks, "first_week": world.weeks[0],
@@ -1360,7 +1373,7 @@ class DemoEngine:
                 "meta": {"run_id": self.run_id, "mode": self.mode, "recorded_at": self.rec.recorded_at,
                          "duration_s": self.rec.elapsed() if final else None, "company": sc.company,
                          "fictional": True, "synthetic": True, "internal_only": True,
-                         "approval": "recorded" if self.mode == "record" else "live",
+                         "approval": self.approval,
                          "sites_note": SITES_NOTE if self.routing is not None else None,
                          "replay_command": f"{PROG} --replay {relative if relative else '<run-dir>'}"},
                 "org": {"enterprise": sc.org.enterprise, "sites": [
@@ -1386,7 +1399,8 @@ class DemoEngine:
 
     def screen(self, phase: str, controls: Sequence[Mapping[str, Any]] = ()) -> dict[str, Any]:
         docs = self.docs()
-        return scr.build_screen(docs, mode=self.mode, phase=phase, controls=controls, run_id=self.run_id)
+        return scr.build_screen(docs, mode=self.mode, phase=phase, controls=controls, run_id=self.run_id,
+                                cut_only=self.cut)
 
     # ------------------------------------------------------------------ finish (step 10)
     def finish(self, *, forbidden: Sequence[str]) -> tuple[dict[str, Any], int]:
@@ -1412,7 +1426,8 @@ class DemoEngine:
         docs = self.docs(final=True)
         checks = docs["scorecard.json"]["checks"]
         phase = "complete"
-        docs["screen.json"] = scr.build_screen(docs, mode=self.mode, phase=phase, run_id=self.run_id)
+        docs["screen.json"] = scr.build_screen(docs, mode=self.mode, phase=phase, run_id=self.run_id,
+                                               cut_only=self.cut)
         self._self_check(docs, forbidden)
         self.finished = True
         return docs, 0 if all(c["ok"] for c in checks) else 1
@@ -1831,12 +1846,12 @@ def run_serve(args: argparse.Namespace) -> int:
     rec = Recorder(run_id=args.run_id, mode="live")
     controller = Controller()
     engine = DemoEngine(sc, mode="live", run_id=args.run_id, workdir=workdir, routing=routing, recorder=rec,
-                        out_dir=out_dir)
+                        out_dir=out_dir, cut=args.cut)
     written: dict[str, Any] = {}
     server = ConsoleServer(args.host, args.port, recorder=rec, controller=controller,
                            trace=lambda: written.get("trace.json") or engine._trace(False))
     deadline = None if args.exit_after is None else time.monotonic() + args.exit_after
-    beats = [b for b, _ in scr.BEATS]
+    beats = list(scr.CUT_60S) if args.cut else [b for b, _ in scr.BEATS]
     code = 2
 
     def publish(phase: str) -> None:
@@ -1846,7 +1861,8 @@ def run_serve(args: argparse.Namespace) -> int:
             controller.checked = engine.checked
             controller.approved = {f.key for f in engine.followups if f.approval is not None}
         rec.publish(engine.screen(phase, controls) if engine.detection is not None
-                    else scr.build_screen(None, mode="live", phase=phase, controls=controls, run_id=args.run_id))
+                    else scr.build_screen(None, mode="live", phase=phase, controls=controls, run_id=args.run_id,
+                                          cut_only=args.cut))
 
     try:
         with interrupts_raise():
@@ -1878,6 +1894,11 @@ def run_serve(args: argparse.Namespace) -> int:
                             engine.approve(key)
                         else:
                             index = beats.index(rec.beat)
+                            if args.cut and rec.beat == "check":
+                                # the cut does not show the follow-up beat: its follow-ups run here, scripted
+                                engine.start_followup()
+                                while engine.awaiting():
+                                    engine.approve(engine.awaiting()[0])
                             if index + 1 < len(beats):
                                 rec.beat_end()
                                 rec.beat_start(beats[index + 1])
@@ -2007,7 +2028,7 @@ def run_dry(args: argparse.Namespace) -> int:
 
 def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog=PROG, description="The collective demo: a fictional multi-site device maker "
-                                                       "(synthetic data; internal and YC use only).")
+                                                       "(synthetic data; internal use only).")
     mode = p.add_mutually_exclusive_group(required=True)
     mode.add_argument("--record", nargs="?", const="", metavar="DIR",
                       help="headless full loop; DIR defaults to runs/collective/<run-id>")
@@ -2016,6 +2037,8 @@ def _parser() -> argparse.ArgumentParser:
                       help="serve a recorded run with no engine (default: the committed run)")
     mode.add_argument("--export", metavar="PAGE", help="write a standalone page of a recorded run")
     p.add_argument("--out", metavar="DIR", help="--serve: where the run files go (default runs/collective/<run-id>)")
+    p.add_argument("--cut", action="store_true",
+                   help="--serve: present the 60-second cut live; the follow-ups run with scripted approval")
     p.add_argument("--run", metavar="DIR", help="--export: the recorded run (default: the committed run)")
     p.add_argument("--scenario", default=str(DEFAULT_SCENARIO), help="the scenario file")
     p.add_argument("--routing", metavar="FILE", help="--record/--serve: a routing file for a real local model")
@@ -2050,6 +2073,8 @@ def main(argv: list[str] | None = None) -> int:
             raise UsageError("--routing goes with --record or --serve") from None
         if args.out and not args.serve:
             raise UsageError("--out goes with --serve") from None
+        if args.cut and not args.serve:
+            raise UsageError("--cut goes with --serve") from None
         if args.run and args.export is None:
             raise UsageError("--run goes with --export") from None
         if args.dry_run:

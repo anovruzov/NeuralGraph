@@ -1,8 +1,16 @@
 # The collective demo (G8)
 
-**A fictional company, synthetic data and a constructed illustration. Internal and YC use only.** Nothing here is a
-measurement: the run files say `measurement: false`, and synthetic-fixture numbers never go to a buyer, not even
-with a label (STRATEGY sections 9.1 and 12).
+**A fictional company, synthetic data and a constructed illustration. Internal use only.** Nothing here is a
+measurement: the run files say `measurement: false`. Synthetic-fixture numbers never go to a buyer, not even with a
+label (STRATEGY section 12), and **STRATEGY section 9.1, the rules of the YC demo itself, lists "synthetic-fixture
+results of any kind" among what is never on screen.** This run's screen shows such results (the X rank and score, the
+S and R rows, the verdicts and the gate status, all on a constructed fixture), so as STRATEGY is written it is not
+the YC demo; it rehearses the shape of STRATEGY 9.2's cut on fictional data. Up to audit round 2 these docs labelled
+the run "Internal and YC use only" and cited 9.1 as if it were a rule about buyers only.
+
+**A decision for the founder, not for these docs:** keep this run internal (the YC cut then needs the partner data or
+the public replay that STRATEGY 9.2 calls for), or change STRATEGY 9.1 to allow a labelled synthetic illustration on
+the YC screen. Until that is decided, the footer says "Internal use only".
 
 ## What it shows
 
@@ -16,7 +24,12 @@ German. This is the narrative-only case, constructed on purpose:
   model). Each row's rank is for the failure mode the screen names; the S and R rows also name the first other key
   of the case they flagged (the lot or the product under the generic code), with its rank and week. The screen says
   so whenever either baseline catches this case, and lists every related key either one flags on the same case. A
-  related key is never called a miss.
+  related key is never called a miss. The references row gives U and each site alone with their ranks, and each
+  site alone with its week; when one plant alone, running the same detectors on its own records, flags the lot no
+  later than X, the screen says so. In the committed run it does, in X's own week: on this constructed case the
+  cross-site view is not earlier than a single plant, so the case shows no collective lift (STRATEGY 6.1's baseline),
+  and it is not a hidden pattern in STRATEGY 6.1's sense. Rebuilding the case so that no plant's own baseline fires is
+  a scenario decision left open (`docs/collective/INTEGRATION.md`, audit round 2).
 - **The check (pushdown verification).** HQ asks the plants one narrow question. Each plant answers from its own
   records with a verdict, count buckets and a reference only it can resolve; a sibling plant that holds the same lot
   without the failure refutes. The commit gate decides the status. The text-overlap scan and the canary scan of
@@ -30,13 +43,15 @@ German. This is the narrative-only case, constructed on purpose:
 ```
 python demo/collective/collective_demo.py --record [DIR]          # headless; writes the six run files
 python demo/collective/collective_demo.py --serve [--out DIR]     # live console at http://127.0.0.1:8765/
+python demo/collective/collective_demo.py --serve --cut           # live, the 60-second cut only
 python demo/collective/collective_demo.py --replay [DIR]          # the committed run, no engine, port 8766
 python demo/collective/collective_demo.py --export page.html      # a standalone page of the committed run
 python demo/collective/lint_numbers.py demo/collective/recorded/<run-id>
 ```
 
 **Live vs recorded.** `--serve` runs the engine now; the presenter presses "check with sites" and approves each
-follow-up as the named owner, and the badge says LIVE. `--record` runs the same engine headless with scripted
+follow-up as the named owner, and the badge says LIVE. `--serve --cut` walks only the 60-second cut's beats live; its
+follow-ups run with scripted approval when the presenter moves on from the check (`approval: recorded`). `--record` runs the same engine headless with scripted
 approvals, and the badge says RECORDED. `--replay` and `--export` show a recorded run and run nothing, so their badge
 says RECORDED whatever mode the run was made in (`screen.json`'s `presentation`); the footer keeps how it was made
 (`mode`: a scripted run, or one driven live in the console). Without

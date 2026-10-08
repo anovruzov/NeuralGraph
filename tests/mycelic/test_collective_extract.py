@@ -675,8 +675,10 @@ class FakeServerResponderTests(Case):
                 self.assertIsNone(request_payload(bad))
 
     def test_the_persona_list_is_unchanged(self) -> None:
-        self.assertEqual(len(PERSONAS), 33)
+        # 33 up to audit round 2, which appended thinks-by-default (a server that thinks unless told not to)
+        self.assertEqual(len(PERSONAS), 34)
         self.assertEqual(PERSONAS[:4], ("valid", "no-usage", "invalid-then-valid", "always-invalid"))
+        self.assertEqual(PERSONAS[-1], "thinks-by-default")
 
 
 if __name__ == "__main__":
