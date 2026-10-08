@@ -152,7 +152,9 @@ class Authorizer:
     def _scopes(self, p: Principal) -> tuple[set[str], set[str]]:
         """(visible_unit_ids, led_closure): units whose 'unit'-visibility knowledge the principal may see, and
         the closure of units it leads (self + descendants)."""
-        key = (f"{p.kind}:{p.id}:{sorted((m['unit_id'], m['role']) for m in p.memberships)!r}", self.db.revision)
+        # data_version changes when another connection (worker, second API process) commits, so a membership or
+        # hierarchy change made elsewhere invalidates this cache too
+        key = (f"{p.kind}:{p.id}:{sorted((m['unit_id'], m['role']) for m in p.memberships)!r}", self.db.revision, self.db.data_version())
         hit = self._scope_cache.get(key)
         if hit is not None:
             return hit
@@ -344,10 +346,12 @@ class Authorizer:
         policy = holder.get("export_policy") or {}
         answer_scopes = set(policy.get("answer_scopes", ["unit", "org"]))
         vis = (question.get("policy") or {}).get("visibility", "unit")
-        if vis not in answer_scopes and "org" not in answer_scopes | {vis}:
-            if vis not in answer_scopes:
-                return False, f"holder policy does not answer {vis}-scoped questions"
+        if vis not in answer_scopes:
+            return False, f"holder policy does not answer {vis}-scoped questions"
         if holder.get("owner_type") == "user":
+            owner = self.org.get_user_row(holder["owner_id"])
+            if owner is None or owner["status"] != "active" or owner["tenant_id"] != holder.get("tenant_id"):
+                return False, "holder owner is not an active member of the tenant"
             owner_units = {m["unit_id"] for m in self.org.memberships_for_user(holder["owner_id"])}
             if not owner_units:
                 return False, "holder owner has no active membership"
@@ -365,7 +369,7 @@ class Authorizer:
         wanted = set(question.get("candidate_domains") or [])
         if domains and wanted and not (domains & wanted) and "*" not in domains:
             return False, "no matching evidence domain"
-        if asker is not None and asker.kind in ("user",) and not asker.is_system:
+        if asker is not None and asker.kind in ("user", "loop") and not asker.is_system:
             # the asker must themselves be allowed to see the question's scope
             if scope and scope not in (self.visible_unit_ids(asker) | self.led_unit_ids(asker)):
                 return False, "asker cannot see the scope"

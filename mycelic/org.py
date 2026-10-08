@@ -139,6 +139,9 @@ class OrgService:
             c.execute("UPDATE users SET status=?, updated_at=? WHERE user_id=?", (status, now_iso(), user_id))
             if status != "active":
                 c.execute("UPDATE sessions SET revoked_at=? WHERE user_id=? AND revoked_at IS NULL", (now_iso(), user_id))
+                c.execute("UPDATE api_keys SET revoked_at=? WHERE principal_type='user' AND principal_id=? AND revoked_at IS NULL", (now_iso(), user_id))
+                c.execute("UPDATE question_routes SET status='revoked', error='owner disabled' WHERE status IN ('pending','delivered') "
+                          "AND holder_id IN (SELECT holder_id FROM holders WHERE owner_type='user' AND owner_id=?)", (user_id,))
             self.db.audit_sync(c, r["tenant_id"], "user", actor_id, "user.status", resource_type="user", resource_id=user_id, detail={"status": status})
 
     async def set_password_hash(self, user_id: str, password_hash: str) -> None:
@@ -307,6 +310,19 @@ class OrgService:
     # ------------------------------------------------------------------ grants
     async def add_grant(self, tenant_id: str, *, grantor_id: str, grantee_type: str, grantee_id: str, resource_type: str,
                         resource_id: str, level: str = "read", reason: str = "", expires_in_seconds: float | None = None) -> dict[str, Any]:
+        if grantee_type not in ("user", "unit"):
+            raise ValueError("grantee_type must be user or unit")
+        if level not in ("read", "artifact", "raw"):
+            raise ValueError("level must be read, artifact or raw")
+        table, col = ("users", "user_id") if grantee_type == "user" else ("org_units", "unit_id")
+        if self.db.one(f"SELECT 1 FROM {table} WHERE {col}=? AND tenant_id=?", (grantee_id, tenant_id)) is None:
+            raise ValueError("grantee is not part of this organization")
+        res_table = {"holder": ("holders", "holder_id"), "claim": ("claims", "claim_id"), "discovery": ("discoveries", "discovery_id"),
+                     "goal": ("goals", "goal_id"), "evidence_ref": ("evidence_refs", "ref_id")}.get(resource_type)
+        if res_table is None:
+            raise ValueError("unknown resource_type")
+        if self.db.one(f"SELECT 1 FROM {res_table[0]} WHERE {res_table[1]}=? AND tenant_id=?", (resource_id, tenant_id)) is None:
+            raise ValueError("resource is not part of this organization")
         gid = new_id("grant")
         now = now_iso()
         async with self.db.tx() as c:
@@ -332,11 +348,12 @@ class OrgService:
         return True
 
     def grants_for(self, *, user_id: str, unit_ids: Iterable[str]) -> list[dict[str, Any]]:
-        """Active, unexpired grants to this user or to any of the units they belong to."""
+        """Active, unexpired grants to this user or to any of the units they belong to, inside the user's own tenant only."""
         ids = list(dict.fromkeys(unit_ids))
         now = now_iso()
-        sql = "SELECT * FROM grants WHERE status='active' AND (expires_at IS NULL OR expires_at > ?) AND ((grantee_type='user' AND grantee_id=?)"
-        args: list[Any] = [now, user_id]
+        sql = ("SELECT * FROM grants WHERE status='active' AND (expires_at IS NULL OR expires_at > ?) "
+               "AND tenant_id = (SELECT tenant_id FROM users WHERE user_id=?) AND ((grantee_type='user' AND grantee_id=?)")
+        args: list[Any] = [now, user_id, user_id]
         if ids:
             sql += f" OR (grantee_type='unit' AND grantee_id IN ({','.join('?' * len(ids))}))"; args.extend(ids)
         sql += ")"
@@ -381,7 +398,9 @@ class OrgService:
         return self.db.one("SELECT * FROM holders WHERE holder_id=?", (holder_id,))
 
     def holder_by_key_hash(self, key_hash: str) -> dict[str, Any] | None:
-        d = row_to_dict(self.db.one("SELECT * FROM holders WHERE key_hash=? AND status<>'revoked'", (key_hash,)), json_fields=("domains", "export_policy", "stats"))
+        d = row_to_dict(self.db.one("SELECT h.* FROM holders h WHERE h.key_hash=? AND h.status<>'revoked' AND (h.owner_type<>'user' OR EXISTS "
+                                    "(SELECT 1 FROM users u WHERE u.user_id=h.owner_id AND u.status='active' AND u.tenant_id=h.tenant_id))", (key_hash,)),
+                        json_fields=("domains", "export_policy", "stats"))
         if d:
             d.pop("key_hash", None)
         return d

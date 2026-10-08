@@ -138,7 +138,16 @@ class AuthService:
         existing = self.org.find_user(inv["tenant_id"], inv["email"])
         if existing is not None:
             user = row_to_dict(existing)
-            if not user["password_hash"]:
+            if user["status"] != "active":
+                raise AuthError("this account is disabled")
+            if user["password_hash"]:
+                # the token alone must not be enough to take over an existing account: an administrator who creates an
+                # invitation sees its token, and administration does not grant access to anyone's evidence
+                if not verify_password(password, user["password_hash"]):
+                    await self.db.audit(inv["tenant_id"], "user", None, "invitation.accept", resource_type="invitation", resource_id=inv["invitation_id"],
+                                        outcome="deny", detail={"reason": "existing account password mismatch"})
+                    raise AuthError("this email already has an account: sign in with its existing password to accept")
+            else:
                 await self.org.set_password_hash(user["user_id"], hash_password(password))
         else:
             user = await self.org.create_user(inv["tenant_id"], inv["email"], name, password_hash=hash_password(password))

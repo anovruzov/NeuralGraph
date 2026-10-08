@@ -154,7 +154,7 @@ def setup(app: web.Application, prefix: str = "/api") -> None:
         if outcome not in CONFLICT_OUTCOMES:
             raise ApiError(400, f"outcome must be one of {', '.join(CONFLICT_OUTCOMES)}")
         out = await rt.knowledge.resolve_conflict(p, k["conflict_id"], outcome, note=opt_str(body, "note", max_len=2000) or "")
-        return json_response({"conflict": rt.knowledge.conflict_view(out)})
+        return json_response({"conflict": rt.knowledge.conflict_view(out, p)})
 
     async def investigate(request: web.Request) -> web.Response:
         p = require_user(request)
@@ -178,7 +178,7 @@ def setup(app: web.Application, prefix: str = "/api") -> None:
                 rt.worker.wake()
             except Exception:
                 pass
-        return json_response({"conflict": rt.knowledge.conflict_view(out), "question": rt.questions.view(q, principal=p)}, 201)
+        return json_response({"conflict": rt.knowledge.conflict_view(out, p), "question": rt.questions.view(q, principal=p)}, 201)
 
     def _domains_of(c: dict[str, Any] | None) -> list[str]:
         if not c or not c.get("question_id"):

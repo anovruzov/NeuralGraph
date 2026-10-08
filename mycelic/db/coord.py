@@ -66,7 +66,12 @@ class CoordDB:
                 c.execute("ROLLBACK")
                 raise
             else:
-                c.execute("COMMIT")
+                try:
+                    c.execute("COMMIT")
+                except BaseException:
+                    if c.in_transaction:
+                        c.execute("ROLLBACK")
+                    raise
                 self.revision += 1
         for w in self._wakers:
             w.set()

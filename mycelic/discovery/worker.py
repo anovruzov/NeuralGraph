@@ -170,7 +170,7 @@ class DiscoveryWorker:
 
     async def _process(self, job: Any) -> None:
         self.metrics.busy += 1
-        hb = asyncio.create_task(self._lease_heartbeat(job.job_id))
+        hb = asyncio.create_task(self._lease_heartbeat(job.job_id, asyncio.current_task()))
         t0 = time.perf_counter()
         try:
             result = await self.engine.handle(job)
@@ -183,8 +183,14 @@ class DiscoveryWorker:
                 self.metrics.note("done", {"job_id": job.job_id, "kind": job.kind, "ref_id": job.ref_id, "seconds": round(time.perf_counter() - t0, 2)})
             self.metrics.last_job_at = now_iso()
         except asyncio.CancelledError:
-            await self.jobs.fail(job.job_id, self.worker_id, "cancelled during shutdown", backoff_base=1.0)
-            raise
+            if self._stop.is_set():
+                await self.jobs.fail(job.job_id, self.worker_id, "cancelled during shutdown", backoff_base=1.0)
+                raise
+            # lease lost: the other worker owns the job now; fail() is fenced and records nothing for us
+            self.metrics.jobs_lost += 1
+            uncancel = getattr(asyncio.current_task(), "uncancel", None)
+            if uncancel is not None:
+                uncancel()
         except Exception as exc:
             status = await self.jobs.fail(job.job_id, self.worker_id, f"{type(exc).__name__}: {exc}")
             self.metrics.jobs_failed += 1
@@ -201,11 +207,19 @@ class DiscoveryWorker:
             hb.cancel()
             self.metrics.busy -= 1
 
-    async def _lease_heartbeat(self, job_id: int) -> None:
+    async def _lease_heartbeat(self, job_id: int, owner: asyncio.Task | None = None) -> None:
+        """Renew the lease; if the lease was lost (expired and taken by another worker), stop the job instead of letting two
+        workers spend model tokens on the same step. Effects are idempotent either way; this only avoids the waste."""
         while True:
             try:
                 await asyncio.sleep(max(1.0, self.lease_seconds / 3))
-                await self.jobs.heartbeat(job_id, self.worker_id, self.lease_seconds)
+                held = await self.jobs.heartbeat(job_id, self.worker_id, self.lease_seconds)
+                if not held:
+                    logger.warning("lease on job %s lost; stopping it in this worker", job_id)
+                    self.metrics.note("lease_lost", {"job_id": job_id})
+                    if owner is not None and not owner.done():
+                        owner.cancel(msg="lease lost")
+                    return
             except asyncio.CancelledError:
                 return
             except Exception as exc:  # pragma: no cover

@@ -130,10 +130,8 @@ def make_handler(rt: Any):
             delivery = "store"
         else:
             # external holder: the request travels over the transport; its ingest_result produces the event and the wake
-            row = rt.org.holder_secret_row(hid)
             env = Envelope.new(Subjects.holder_ingest(tid, hid), "ingest", tid, {**doc, "doc_id": doc_id}, msg_id=f"{JOB_KIND}:{tid}:{run}:ingest")
-            if row is not None:
-                env.sign(row["route_key"])
+            env.sign(rt.org.route_key(hid))
             if rt.transport is None:
                 return {"skipped": "no transport for an external holder", "holder_id": hid}
             await rt.transport.publish(env)

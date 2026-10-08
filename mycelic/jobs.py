@@ -66,6 +66,7 @@ JOB_KINDS = (
     "question.evaluate",    # evaluate support / disagreement / freshness / relevance
     "question.verify",      # independent verification round
     "question.commit",      # commit gate + knowledge update + goal update + follow-ups
+    "question.late_response",  # integrate an answer that arrived after collection closed
     "claim.reverify",       # evidence changed: re-check affected claims
     "goal.progress",        # recompute a goal's progress from outcomes
     "holder.ingest",        # (embedded holders) ingest a document

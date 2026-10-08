@@ -10,7 +10,9 @@ claim goes through the commit gate.
 """
 from __future__ import annotations
 
+import hashlib
 import logging
+from datetime import timedelta
 import re
 import sqlite3
 from typing import Any, Iterable, Mapping
@@ -24,7 +26,7 @@ from ..knowledge import KnowledgeService
 from ..models.base import ModelError, ModelRouter
 from ..org import OrgService
 from ..transport import Envelope, Subjects, Transport
-from ..util import j, jl, new_id, now_iso, parse_iso, plus_seconds, utcnow
+from ..util import iso, j, jl, new_id, now_iso, parse_iso, plus_seconds, utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +60,14 @@ def _agrees(a: str, b: str) -> bool | None:
     if bool(wa & neg) != bool(wb & neg):
         return False
     return True
+
+
+class BudgetExhausted(ModelError):
+    """The goal's budget is spent: no further model call is made for it until the budget is raised or its period renews."""
+
+    def __init__(self, message: str, *, renews_at: str | None = None) -> None:
+        super().__init__(message)
+        self.renews_at = renews_at
 
 
 class LoopEngine:
@@ -111,8 +121,14 @@ class LoopEngine:
         return await self.goals.charge_usage(goal_id)
 
     async def _run_task(self, task: str, payload: Mapping[str, Any], *, tenant_id: str, goal: Mapping[str, Any] | None, question_id: str | None = None) -> dict[str, Any]:
+        """Every model call made for a goal is checked against its budget first (after charging what was spent so far), so
+        spend can exceed the budget by at most the one call that crossed it."""
         if self.router is None:
             raise ModelError("no model provider configured")
+        if goal is not None and goal.get("goal_id"):
+            bs = await self.goals.charge_usage(goal["goal_id"])
+            if bs["exhausted"]:
+                raise BudgetExhausted(f"goal budget exhausted on {', '.join(bs['exhausted_on'])}", renews_at=bs.get("renews_at"))
         max_tier = ((goal or {}).get("budget") or {}).get("model_tier_max")
         return await self.router.run_task(task, dict(payload), tenant_id=tenant_id, goal_id=(goal or {}).get("goal_id"), question_id=question_id,
                                           max_tier=max_tier, policy_tiers=self.org.policy(tenant_id, "model_tiers", {}) or {})
@@ -132,21 +148,23 @@ class LoopEngine:
     # ================================================================== observe
     def observe(self, goal: Mapping[str, Any], since: str | None) -> dict[str, Any]:
         gid, tid = goal["goal_id"], goal["tenant_id"]
+        # ``since`` is the start of the previous tick minus a second, compared inclusively: anything committed while that
+        # tick ran (or in the same second) is observed again rather than missed; re-observing is harmless (dedupe, cooldown)
         since = since or "1970-01-01T00:00:00+00:00"
         new_refs = rows_to_dicts(self.db.all(
             "SELECT e.ref_id, e.title, e.holder_id, e.source_root_id FROM evidence_refs e JOIN responses r ON r.evidence_ref_ids LIKE '%' || e.ref_id || '%' "
-            "JOIN questions q ON q.question_id = r.question_id WHERE q.goal_id=? AND e.created_at > ? LIMIT 50", (gid, since)))
+            "JOIN questions q ON q.question_id = r.question_id WHERE q.goal_id=? AND e.created_at >= ? LIMIT 50", (gid, since)))
         revised = rows_to_dicts(self.db.all(
             "SELECT DISTINCT e.ref_id, e.status, e.title FROM evidence_refs e JOIN claim_evidence ce ON ce.ref_id=e.ref_id JOIN claims c ON c.claim_id=ce.claim_id "
-            "WHERE c.goal_id=? AND e.status IN ('revised','retracted') AND e.updated_at > ? LIMIT 50", (gid, since)))
+            "WHERE c.goal_id=? AND e.status IN ('revised','retracted') AND e.updated_at >= ? LIMIT 50", (gid, since)))
         conflicts = rows_to_dicts(self.db.all(
             "SELECT k.conflict_id, k.summary, k.status FROM conflicts k JOIN claims c ON c.claim_id=k.claim_a_id WHERE c.goal_id=? AND k.status IN ('open','investigating') LIMIT 50", (gid,)))
         stale = rows_to_dicts(self.db.all("SELECT claim_id, text FROM claims WHERE goal_id=? AND status='stale' LIMIT 50", (gid,)))
         hypotheses = rows_to_dicts(self.db.all("SELECT claim_id, text FROM claims WHERE goal_id=? AND status='hypothesis' LIMIT 50", (gid,)))
         unanswered = rows_to_dicts(self.db.all(
             "SELECT r.route_id, r.holder_id, r.status, q.question_id FROM question_routes r JOIN questions q ON q.question_id=r.question_id WHERE q.goal_id=? AND r.status IN ('pending','delivered') LIMIT 50", (gid,)))
-        goal_changed = int(self.db.scalar("SELECT COUNT(*) FROM revisions WHERE object_type='goal' AND object_id=? AND at > ? AND reason NOT IN ('created')", (gid, since), 0))
-        ingested = rows_to_dicts(self.db.all("SELECT id, payload FROM events WHERE tenant_id=? AND kind='document.ingested' AND at > ? ORDER BY id DESC LIMIT 50", (tid, since)), json_fields=("payload",))
+        goal_changed = int(self.db.scalar("SELECT COUNT(*) FROM revisions WHERE object_type='goal' AND object_id=? AND at >= ? AND reason NOT IN ('created')", (gid, since), 0))
+        ingested = rows_to_dicts(self.db.all("SELECT id, payload FROM events WHERE tenant_id=? AND kind='document.ingested' AND at >= ? ORDER BY id DESC LIMIT 50", (tid, since)), json_fields=("payload",))
         scope_units = set(self.org.descendants(goal.get("scope_unit_id") or (goal["owner_id"] if goal["owner_type"] == "unit" else ""))) if (goal.get("scope_unit_id") or goal["owner_type"] == "unit") else set()
         docs = []
         for ev in ingested:
@@ -168,6 +186,7 @@ class LoopEngine:
         interval = float(cfg.get("check_interval_seconds", 300))
         next_check = plus_seconds(interval)
         started = now_iso()
+        observed_from = iso(utcnow() - timedelta(seconds=1))      # the next tick observes from here (see observe())
         if goal["status"] != "active" or loop["desired"] != "active":
             state = "paused" if (loop["desired"] == "paused" or goal["status"] == "paused") else ("stopped" if loop["desired"] == "stopped" else "blocked")
             await self.goals.set_loop_state(gid, state, f"goal is {goal['status']}, loop desired {loop['desired']}", worker_id=self.worker_id)
@@ -176,9 +195,11 @@ class LoopEngine:
             await self.goals.set_loop_state(gid, "completed", "goal completed", worker_id=self.worker_id)
             return {"state": "completed"}
         principal = self.authz.principal_for_loop(tid, goal)
-        bs = self.goals.budget_status(gid)
+        bs = await self.goals.charge_usage(gid)
         if bs["exhausted"]:
-            await self.goals.set_loop_state(gid, "budget_exhausted", f"budget exhausted on {', '.join(bs['exhausted_on'])}; raise the budget or archive the goal", worker_id=self.worker_id)
+            renew = f"; renews {bs['renews_at']}" if bs.get("renews_at") else "; raise the budget to continue"
+            await self.goals.set_loop_state(gid, "budget_exhausted", f"budget exhausted on {', '.join(bs['exhausted_on'])}{renew} (no model tokens spent while exhausted)",
+                                            worker_id=self.worker_id, next_check_at=bs.get("renews_at") or next_check)
             return {"state": "budget_exhausted"}
         if self.router is None:
             await self.goals.set_loop_state(gid, "blocked", "no model provider configured (set MYCELIC_MODEL_* and provider keys)", worker_id=self.worker_id, next_check_at=next_check)
@@ -189,7 +210,8 @@ class LoopEngine:
             return {"state": "blocked"}
         live = self.db.all(f"SELECT question_id, candidate_domains, text FROM questions WHERE goal_id=? AND status IN ({','.join('?' * len(LIVE_STATUSES))})", (gid, *LIVE_STATUSES))
         slots = int(cfg.get("max_concurrent_questions", 2)) - len(live)
-        obs = self.observe(goal, loop.get("last_run_at"))
+        obs = self.observe(goal, (loop.get("stats") or {}).get("observed_from") or loop.get("last_run_at"))
+        mark = {"observed_from": observed_from}
         claims = rows_to_dicts(self.db.all("SELECT claim_id, text, status, question_id, support FROM claims WHERE goal_id=? AND status<>'retracted' ORDER BY updated_at DESC LIMIT 100", (gid,)), json_fields=("support",))
         q_domains = {r["question_id"]: jl(r["candidate_domains"], []) for r in self.db.all("SELECT question_id, candidate_domains FROM questions WHERE goal_id=?", (gid,))}
         covered = {d for c in claims if c["status"] == "supported" for d in q_domains.get(c["question_id"], [])}
@@ -202,11 +224,12 @@ class LoopEngine:
         open_conflicts = [k for k in obs["open_conflicts"] if k["conflict_id"] not in handled_conflicts]
         useful = bool(uncovered or obs["revised_evidence"] or open_conflicts or needs_verification or obs["goal_changed"] or obs["new_documents"])
         if slots <= 0:
+            # observations are not consumed while no question can be asked: the watermark stays where it was
             await self.goals.set_loop_state(gid, "active", f"{len(live)} question(s) in flight; waiting for responses", worker_id=self.worker_id, next_check_at=next_check, ran=True)
             return {"state": "active", "in_flight": len(live)}
         if not useful:
             await self.goals.set_loop_state(gid, "waiting", "nothing useful to ask right now; waiting for new evidence, a revision, or the next scheduled check (no model tokens spent)",
-                                            worker_id=self.worker_id, next_check_at=next_check, ran=True)
+                                            worker_id=self.worker_id, next_check_at=next_check, ran=True, stats_set=mark)
             return {"state": "waiting"}
         # identify the most useful gaps (one model call, light tier)
         gap_obs = {k: v for k, v in obs.items() if k not in ("scope_units", "since", "open_conflicts", "hypotheses", "stale_claims", "new_evidence", "unanswered_routes")}
@@ -222,6 +245,10 @@ class LoopEngine:
         }
         try:
             gaps = (await self._run_task("identify_gap", gap_input, tenant_id=tid, goal=goal)).get("gaps") or []
+        except BudgetExhausted as exc:
+            await self.goals.set_loop_state(gid, "budget_exhausted", f"{exc}; no further model calls until the budget is raised or renews", worker_id=self.worker_id,
+                                            next_check_at=exc.renews_at or next_check, ran=True)
+            return {"state": "budget_exhausted"}
         except ModelError as exc:
             await self.goals.set_loop_state(gid, "failed", f"model call failed: {exc}"[:400], worker_id=self.worker_id, next_check_at=next_check, ran=True)
             await self._charge(gid, started)
@@ -260,18 +287,24 @@ class LoopEngine:
                 existing_texts.append(q["text"])
             except (DuplicateQuestion, CooldownActive) as exc:
                 logger.info("tick %s: skipped question (%s)", gid, exc)
+            except PermissionError as exc:
+                await self.goals.set_loop_state(gid, "blocked", f"the goal's owner can no longer ask in its scope ({exc}); reassign the goal or restore the membership",
+                                                worker_id=self.worker_id, next_check_at=next_check, ran=True, stats_set=mark)
+                return {"state": "blocked", "created": created}
             except ValueError as exc:
                 logger.info("tick %s: cannot create question: %s", gid, exc)
         charge = await self._charge(gid, started)
         if charge.get("exhausted"):
-            await self.goals.set_loop_state(gid, "budget_exhausted", f"budget exhausted on {', '.join(charge['exhausted_on'])}", worker_id=self.worker_id, ran=True, stats_delta={"questions_asked": len(created)})
+            await self.goals.set_loop_state(gid, "budget_exhausted", f"budget exhausted on {', '.join(charge['exhausted_on'])}", worker_id=self.worker_id, ran=True,
+                                            next_check_at=charge.get("renews_at") or next_check, stats_delta={"questions_asked": len(created)}, stats_set=mark)
             return {"state": "budget_exhausted", "created": created}
         if created or live:
             expl = f"asked {len(created)} question(s); {len(live) + len(created)} in flight" if created else f"{len(live)} question(s) in flight"
-            await self.goals.set_loop_state(gid, "active", expl, worker_id=self.worker_id, next_check_at=next_check, ran=True, stats_delta={"questions_asked": len(created), "ticks": 1})
+            await self.goals.set_loop_state(gid, "active", expl, worker_id=self.worker_id, next_check_at=next_check, ran=True,
+                                            stats_delta={"questions_asked": len(created), "ticks": 1}, stats_set=mark)
             return {"state": "active", "created": created}
         await self.goals.set_loop_state(gid, "waiting", "no new question could be formed (duplicates or cooldown); waiting for the next event or scheduled check",
-                                        worker_id=self.worker_id, next_check_at=next_check, ran=True, stats_delta={"ticks": 1})
+                                        worker_id=self.worker_id, next_check_at=next_check, ran=True, stats_delta={"ticks": 1}, stats_set=mark)
         return {"state": "waiting", "created": []}
 
     # ================================================================== question jobs
@@ -315,6 +348,8 @@ class LoopEngine:
             try:
                 ev = await self._run_task("evaluate_responses", {"question": {"question_id": qid, "text": q["text"], "kind": q["kind"]}, "responses": resp_in,
                                                                  "existing_claims": existing, "today": now_iso()[:10]}, tenant_id=tid, goal=goal, question_id=qid)
+            except BudgetExhausted as exc:
+                return await self._defer_for_budget(job, q, goal, exc)
             except ModelError as exc:
                 await self._charge(q.get("goal_id"), started, question_id=qid)
                 raise
@@ -391,9 +426,16 @@ class LoopEngine:
         # verification questions resolve against their target claim
         verified: dict[str, Any] = dict(state.get("verified") or {})
         target_id = (q.get("trigger") or {}).get("claim_id") if q["kind"] in ("verification", "contradiction") else None
+        verify_der = f"der_verify_{qid}"
         if target_id and "outcome" not in verified:
             target = self.knowledge.get_claim(target_id)
             outcome = "no_evidence"
+            # a replay after a crash inside this block finds its own marker and does not repeat derivations or revisions
+            already = self.db.one("SELECT 1 FROM derivations WHERE derivation_id=?", (verify_der,)) is not None or \
+                self.db.one("SELECT 1 FROM revisions WHERE object_type='claim' AND object_id=? AND reason LIKE ?", (target_id, f"%({qid})%")) is not None
+            if already:
+                target = None
+                outcome = "replayed"
             if target and target["status"] != "retracted":
                 findings = [f for f in (ev.get("findings") or []) if isinstance(f, dict) and f.get("text")]
                 agree = [f for f in findings if _agrees(target["text"], f["text"]) is True]
@@ -403,8 +445,8 @@ class LoopEngine:
                         for f in agree:
                             for rid in f.get("supporting_ref_ids") or []:
                                 c.execute("INSERT OR IGNORE INTO claim_evidence(claim_id, ref_id, role, weight) VALUES (?, ?, 'supports', 1.0)", (target_id, rid))
-                        c.execute("INSERT INTO derivations(derivation_id, tenant_id, claim_id, operator, input_claim_ids, input_ref_ids, response_ids, model, contributor_type, contributor_id, rationale, created_at) VALUES (?, ?, ?, 'verify', '[]', ?, ?, ?, 'loop', ?, ?, ?)",
-                                  (new_id("der"), tid, target_id, j([r for f in agree for r in (f.get("supporting_ref_ids") or [])]), j([r for f in agree for r in (f.get("supporting_response_ids") or [])]),
+                        c.execute("INSERT OR IGNORE INTO derivations(derivation_id, tenant_id, claim_id, operator, input_claim_ids, input_ref_ids, response_ids, model, contributor_type, contributor_id, rationale, created_at) VALUES (?, ?, ?, 'verify', '[]', ?, ?, ?, 'loop', ?, ?, ?)",
+                                  (verify_der, tid, target_id, j([r for f in agree for r in (f.get("supporting_ref_ids") or [])]), j([r for f in agree for r in (f.get("supporting_response_ids") or [])]),
                                    model_name, principal.id, f"independent verification via question {qid}", now_iso()))
                     await self.knowledge.recompute_status(principal, target_id, reason=f"independent verification ({qid}) added support")
                     outcome = "confirmed"
@@ -416,6 +458,8 @@ class LoopEngine:
                     outcome = "contradicted" if not agree else "mixed"
                 if not agree and not disagree:
                     await self.knowledge.revise_claim(principal, target_id, reason=f"verification ({qid}) returned no independent evidence; uncertainty retained")
+            elif target and target["status"] == "retracted":
+                outcome = "target_retracted"
             verified = {"outcome": outcome, "target_claim_id": target_id}
             state["verified"] = verified
             await self._save_checkpoint(qid, tid, "verified", state)
@@ -450,6 +494,13 @@ class LoopEngine:
         return {"claims": claim_ids, "conflicts": conflict_ids, "verification_questions": spawned, "verified": verified}
 
     async def commit(self, job: Job) -> dict[str, Any]:
+        """Commit the evaluated question into knowledge.
+
+        Every sub-step is guarded by a checkpoint flag so a replay after a crash at any point resumes exactly where it
+        stopped: discovery (idempotency key), escalation, follow-up questions (dedupe keys), proposed actions (deterministic
+        outcome ids), then progress and loop bookkeeping. The question's resolved status is written last, so a replay is
+        never a no-op while an effect is still missing.
+        """
         q = self.questions.get(job.ref_id or "")
         if q is None or q["status"] not in ("evaluating", "verifying"):
             return {"skipped": q["status"] if q else "missing"}
@@ -460,25 +511,29 @@ class LoopEngine:
         run = self._checkpoint(qid)
         state = dict(run.get("state") or {})
         claims = [c for c in self.knowledge.claims_by_ids(state.get("claim_ids") or []) if c["status"] != "retracted"]
-        conflicts = []
+        conflicts: list[dict[str, Any]] = []
         for cl in claims:
             for k in self.knowledge.conflicts_for_claim(cl["claim_id"]):
-                if k["status"] != "resolved" and k not in conflicts:
+                if k["status"] != "resolved" and k["conflict_id"] not in {x["conflict_id"] for x in conflicts}:
                     conflicts.append(k)
         level = self.authz.unit_level(q.get("scope_unit_id"))
         unit = self.org.get_unit(q["scope_unit_id"]) if q.get("scope_unit_id") else None
         discovery_id: str | None = state.get("discovery_id")
         followups: list[str] = list(state.get("followup_ids") or [])
+        max_fu = int(((goal or {}).get("budget") or {}).get("followups_per_question") or 3)
+        # 1. synthesis + discovery
         if claims and not discovery_id:
             if "synthesis" not in state:
-                max_fu = int(((goal or {}).get("budget") or {}).get("followups_per_question") or 3)
-                syn = await self._run_task("synthesize_discovery", {
-                    "goal": {"title": goal["title"], "objective": goal["objective"]} if goal else None,
-                    "question": {"text": q["text"], "kind": q["kind"]},
-                    "findings": [{"claim_id": c["claim_id"], "text": c["text"], "status": c["status"], "confidence": c["confidence"], "support": c.get("support")} for c in claims],
-                    "conflicts": [{"conflict_id": k["conflict_id"], "summary": k["summary"], "a_text": (self.knowledge.get_claim(k["claim_a_id"]) or {}).get("text", ""),
-                                   "b_text": (self.knowledge.get_claim(k["claim_b_id"]) or {}).get("text", "")} for k in conflicts],
-                    "level": level, "unit_name": unit["name"] if unit else "", "max_followups": max_fu}, tenant_id=tid, goal=goal, question_id=qid)
+                try:
+                    syn = await self._run_task("synthesize_discovery", {
+                        "goal": {"title": goal["title"], "objective": goal["objective"]} if goal else None,
+                        "question": {"text": q["text"], "kind": q["kind"]},
+                        "findings": [{"claim_id": c["claim_id"], "text": c["text"], "status": c["status"], "confidence": c["confidence"], "support": c.get("support")} for c in claims],
+                        "conflicts": [{"conflict_id": k["conflict_id"], "summary": k["summary"], "a_text": (self.knowledge.get_claim(k["claim_a_id"]) or {}).get("text", ""),
+                                       "b_text": (self.knowledge.get_claim(k["claim_b_id"]) or {}).get("text", "")} for k in conflicts],
+                        "level": level, "unit_name": unit["name"] if unit else "", "max_followups": max_fu}, tenant_id=tid, goal=goal, question_id=qid)
+                except BudgetExhausted:
+                    syn = self._fallback_synthesis(claims, conflicts)
                 state["synthesis"] = syn
                 await self._save_checkpoint(qid, tid, "synthesized", state)
             syn = state["synthesis"]
@@ -490,73 +545,232 @@ class LoopEngine:
             discovery_id = disc["discovery_id"]
             state["discovery_id"] = discovery_id
             await self._save_checkpoint(qid, tid, "discovery_created", state)
-            if syn.get("escalate") and disc["status"] == "new":
+        syn = state.get("synthesis") or {}
+        # 2. escalation (best effort, once)
+        if discovery_id and not state.get("escalation_done"):
+            disc = self.knowledge.get_discovery(discovery_id)
+            if syn.get("escalate") and disc and disc["status"] == "new":
                 try:
-                    await self.knowledge.review_discovery(self.authz.principal_for_system(tid, worker_id=self.worker_id), discovery_id, "escalated", note=str(syn.get("escalation_reason") or "escalated by the loop"))
+                    await self.knowledge.review_discovery(self.authz.principal_for_system(tid, worker_id=self.worker_id), discovery_id, "escalated",
+                                                          note=str(syn.get("escalation_reason") or "escalated by the loop"))
                 except Exception as exc:  # escalation is best effort
                     logger.info("escalation skipped for %s: %s", discovery_id, exc)
-            # follow-up questions (bounded by depth and dedupe; routed by their own jobs)
-            for fq in (syn.get("followup_questions") or [])[:int(((goal or {}).get("budget") or {}).get("followups_per_question") or 3)]:
+            state["escalation_done"] = True
+            await self._save_checkpoint(qid, tid, "escalated", state)
+        # 3. follow-up questions (bounded by depth, dedupe and budget; each routed by its own job)
+        if discovery_id and not state.get("followups_done"):
+            for fq in (syn.get("followup_questions") or [])[:max_fu]:
                 if not isinstance(fq, dict) or not fq.get("question"):
                     continue
-                if self.goals.budget_status(goal["goal_id"])["exhausted"] if goal else False:
+                if goal and self.goals.budget_status(goal["goal_id"])["exhausted"]:
                     break
                 kind_f = fq.get("kind") if fq.get("kind") in ("gap", "verification", "contradiction", "relationship", "hypothesis", "prediction") else "gap"
                 trig_f: dict[str, Any] = {"kind": "followup", "discovery_id": discovery_id, "rationale": fq.get("rationale", "")}
                 lineage_f = [{"type": "claim", "id": c["claim_id"]} for c in claims[:5]] + [{"type": "question", "id": qid}]
                 if kind_f == "contradiction" and conflicts:
-                    # link the follow-up to the conflict whose records it names (most shared content tokens), else the first open one
+                    # link the follow-up to the conflict whose records it names (most shared content tokens)
                     qt = _tokens(fq["question"])
                     best = max(conflicts, key=lambda k: len(qt & _tokens((self.knowledge.get_claim(k["claim_a_id"]) or {}).get("text", "") + " " + (self.knowledge.get_claim(k["claim_b_id"]) or {}).get("text", ""))))
                     trig_f.update({"kind": "contradiction", "conflict_id": best["conflict_id"]})
                     lineage_f.insert(0, {"type": "conflict", "id": best["conflict_id"]})
-                    if best["conflict_id"] in {(self.questions.get(x) or {}).get("trigger", {}).get("conflict_id") for x in followups}:
+                    if best["conflict_id"] in {((self.questions.get(x) or {}).get("trigger") or {}).get("conflict_id") for x in followups}:
                         continue
                 try:
                     child = await self.questions.create(principal, {"text": fq["question"], "goal_id": q.get("goal_id"), "scope_unit_id": q.get("scope_unit_id"), "kind": kind_f,
                                                                     "candidate_domains": q.get("candidate_domains") or [], "parent_question_id": qid,
-                                                                    "trigger": trig_f,
-                                                                    "motivating_lineage": lineage_f,
+                                                                    "trigger": trig_f, "motivating_lineage": lineage_f,
                                                                     "policy": {k: v for k, v in (q.get("policy") or {}).items() if k != "exclude_holder_ids"},
                                                                     "valid_from": q.get("valid_from"), "valid_to": q.get("valid_to")},
                                                         asker_type="loop", asker_id=principal.id, estimates={"uncertainty": 0.6, "impact": 0.6, "missing_evidence": 0.6, "information_gain": 0.6},
                                                         holders_estimate=2, is_demo=bool(q.get("is_demo")))
                     followups.append(child["question_id"])
-                except (DuplicateQuestion, CooldownActive, ValueError) as exc:
+                except DuplicateQuestion as exc:
+                    # created by an earlier attempt of this very step (or an identical live question): link it, do not lose it
+                    if exc.existing_id not in followups:
+                        followups.append(exc.existing_id)
+                except (CooldownActive, ValueError, PermissionError) as exc:
                     logger.info("follow-up skipped for %s: %s", qid, exc)
             state["followup_ids"] = followups
+            state["followups_done"] = True
             await self._save_checkpoint(qid, tid, "followups_created", state)
             await self.knowledge.attach_followups(discovery_id, followups)
-            # proposed measurable actions become goal outcomes of kind 'action' (labelled proposed)
-            if goal and any(c["status"] == "supported" for c in claims) and not state.get("actions_recorded"):
-                try:
-                    acts = await self._run_task("record_outcome", {"goal": {"title": goal["title"], "objective": goal["objective"]}, "discovery": {"title": disc["title"], "summary": disc["summary"],
-                                                                    "claims": [{"claim_id": c["claim_id"], "text": c["text"], "status": c["status"]} for c in claims]},
-                                                                    "success_criteria": goal.get("success_criteria") or []}, tenant_id=tid, goal=goal, question_id=qid)
-                    for a in (acts.get("actions") or [])[:3]:
-                        if isinstance(a, dict) and a.get("text"):
-                            await self.goals.add_outcome(principal, goal["goal_id"], kind="action", value={"text": a["text"], "metric": a.get("metric"), "target": a.get("target"), "proposed": True, "discovery_id": discovery_id},
-                                                         claim_ids=list(a.get("evidence_claim_ids") or []))
-                except (ModelError, ValueError) as exc:
-                    logger.info("record_outcome skipped: %s", exc)
-                state["actions_recorded"] = True
-                await self._save_checkpoint(qid, tid, "actions_recorded", state)
+        # 4. proposed measurable actions become goal outcomes of kind 'action', clearly labelled proposed (never progress)
+        if discovery_id and goal and any(c["status"] == "supported" for c in claims) and not state.get("actions_recorded"):
+            disc = self.knowledge.get_discovery(discovery_id) or {}
+            try:
+                acts = await self._run_task("record_outcome", {"goal": {"title": goal["title"], "objective": goal["objective"]},
+                                                               "discovery": {"title": disc.get("title"), "summary": disc.get("summary"),
+                                                                             "claims": [{"claim_id": c["claim_id"], "text": c["text"], "status": c["status"]} for c in claims]},
+                                                               "success_criteria": goal.get("success_criteria") or []}, tenant_id=tid, goal=goal, question_id=qid)
+                for i, a in enumerate((acts.get("actions") or [])[:3]):
+                    if isinstance(a, dict) and a.get("text"):
+                        await self.goals.add_outcome(principal, goal["goal_id"], kind="action", outcome_id=f"out_{qid}_{i}",
+                                                     value={"text": a["text"], "metric": a.get("metric"), "target": a.get("target"), "proposed": True, "discovery_id": discovery_id},
+                                                     claim_ids=list(a.get("evidence_claim_ids") or []))
+            except (ModelError, ValueError) as exc:
+                logger.info("record_outcome skipped: %s", exc)
+            state["actions_recorded"] = True
+            await self._save_checkpoint(qid, tid, "actions_recorded", state)
         investigated = state.get("investigated") or {}
         summary = {"claim_ids": [c["claim_id"] for c in claims], "discovery_id": discovery_id, "followup_ids": followups, "conflict_ids": [k["conflict_id"] for k in conflicts],
                    "gate_notes": state.get("gate_notes") or [], "verified": state.get("verified") or {}, "verification_questions": state.get("verification_questions") or [],
-                   "investigated": investigated,
+                   "investigated": investigated, "synthesis_method": syn.get("method", "model") if syn else None,
                    "outcome": "investigated" if investigated else ("committed" if claims else "no_findings"),
-                   "summary": (state.get("synthesis") or {}).get("summary") or (investigated.get("note") or ("no claims passed the commit gate" if not claims else ""))}
+                   "summary": syn.get("summary") or (investigated.get("note") or ("no claims passed the commit gate" if not claims else ""))}
+        # 5. bookkeeping (idempotent), then the resolved status last
+        if not state.get("finalized"):
+            await self._charge(q.get("goal_id"), started, question_id=qid)
+            if goal:
+                await self.goals.recompute_progress(goal["goal_id"])
+                loop = self.goals.get_loop(goal["goal_id"])
+                await self.goals.set_loop_state(goal["goal_id"], loop["state"] if loop else "active", "committed a knowledge update; scheduling the next tick",
+                                                worker_id=self.worker_id, stats_delta={"discoveries": 1 if discovery_id else 0, "claims": len(claims)})
+                await self.goals.enqueue_tick(goal["goal_id"], reason="knowledge committed", priority=3)
+            state["finalized"] = True
+            await self._save_checkpoint(qid, tid, "finalized", state)
         final = "committed" if (claims or investigated) else "retained_uncertain"
         await self.questions.set_status(qid, final, result=summary, resolved=True, cooldown=True)
         await self._save_checkpoint(qid, tid, "done", state)
-        await self._charge(q.get("goal_id"), started, question_id=qid)
-        if goal:
-            await self.goals.recompute_progress(goal["goal_id"])
-            await self.goals.set_loop_state(goal["goal_id"], self.goals.get_loop(goal["goal_id"])["state"] if self.goals.get_loop(goal["goal_id"]) else "active",
-                                            "committed a knowledge update; scheduling the next tick", worker_id=self.worker_id, stats_delta={"discoveries": 1 if discovery_id else 0, "claims": len(claims)})
-            await self.goals.enqueue_tick(goal["goal_id"], reason="knowledge committed", priority=3)
         return summary
+
+    @staticmethod
+    def _fallback_synthesis(claims: list[dict[str, Any]], conflicts: list[dict[str, Any]]) -> dict[str, Any]:
+        """A discovery written without a model call (the budget ran out after the claims were committed): no follow-ups,
+        no escalation, and labelled as such."""
+        supported = [c for c in claims if c["status"] == "supported"]
+        first = (supported or claims)[0]
+        parts = []
+        if supported:
+            parts.append("Supported: " + " ".join(c["text"] for c in supported))
+        hyps = [c for c in claims if c["status"] != "supported"]
+        if hyps:
+            parts.append("Not yet supported: " + " ".join(c["text"] for c in hyps))
+        if conflicts:
+            parts.append("Disagreement: " + " ".join(k["summary"] for k in conflicts))
+        return {"title": first["text"][:80], "summary": " ".join(parts), "kind": "contradiction" if conflicts else ("finding" if supported else "hypothesis"),
+                "followup_questions": [], "escalate": False, "method": "deterministic_fallback",
+                "note": "written without a model call because the goal's budget was exhausted"}
+
+    async def _defer_for_budget(self, job: Job, q: Mapping[str, Any], goal: Mapping[str, Any] | None, exc: BudgetExhausted) -> dict[str, Any]:
+        """The goal's budget is spent while a question is mid-flight: keep its responses, retry this step when the budget
+        renews (or is raised), and show the real state on the loop."""
+        delay = 900.0
+        if exc.renews_at:
+            renews = parse_iso(exc.renews_at)
+            if renews is not None:
+                delay = max(60.0, min(86400.0, (renews - utcnow()).total_seconds() + 5))
+        bucket = int(utcnow().timestamp() // 600)
+        await self.jobs.enqueue(job.kind, idempotency_key=f"{job.kind}:{q['question_id']}:budget:{bucket}", tenant_id=q["tenant_id"], ref_type="question",
+                                ref_id=q["question_id"], payload=job.payload, priority=6, delay_seconds=delay, max_attempts=job.max_attempts)
+        if goal:
+            await self.goals.set_loop_state(goal["goal_id"], "budget_exhausted", f"{exc}; question {q['question_id']} waits for budget (responses kept)",
+                                            worker_id=self.worker_id, next_check_at=exc.renews_at or plus_seconds(delay))
+        return {"deferred": "budget_exhausted", "retry_in_seconds": round(delay)}
+
+    # ================================================================== late responses
+    async def late_response(self, job: Job) -> dict[str, Any]:
+        """Integrate an answer that arrived after the question's collection closed (slow or reconnecting holder).
+
+        Its evidence is evaluated against the question's committed claims: agreeing findings add support to the existing
+        claim (and the support is recomputed from source roots, so a copy adds nothing), contradicting findings become a
+        claim plus a conflict, unrelated findings become their own claim through the commit gate.
+        """
+        rid = (job.payload or {}).get("response_id")
+        r = self.db.one("SELECT * FROM responses WHERE response_id=?", (rid,)) if rid else None
+        q = self.questions.get(job.ref_id or "")
+        if r is None or q is None:
+            return {"skipped": "missing"}
+        if q["status"] in ("routed", "collecting", "evaluating", "verifying"):
+            # the regular evaluation has not finished: come back shortly (bounded by the job's attempts via a counter)
+            n = int((job.payload or {}).get("n") or 0)
+            if n >= 60:
+                return {"skipped": "question never resolved"}
+            await self.jobs.enqueue("question.late_response", idempotency_key=f"question.late_response:{rid}:{n + 1}", tenant_id=q["tenant_id"], ref_type="question",
+                                    ref_id=q["question_id"], payload={"response_id": rid, "n": n + 1}, priority=5, delay_seconds=5.0)
+            return {"deferred": "question still being evaluated"}
+        if q["status"] in ("cancelled", "expired"):
+            return {"skipped": q["status"]}
+        qid, tid = q["question_id"], q["tenant_id"]
+        goal = self.goals.get_goal(q["goal_id"]) if q.get("goal_id") else None
+        principal = self._principal_for_question(q, goal)
+        holder = self.org.get_holder(r["holder_id"])
+        if holder is None or not self.authz.can_route(q, holder)[0]:
+            return {"skipped": "holder no longer authorized for this question"}
+        refs = self.knowledge.refs_by_ids(jl(r["evidence_ref_ids"], []))
+        existing = [c for c in self.knowledge.list_claims(self.authz.principal_for_system(tid, worker_id=self.worker_id), question_id=qid)]
+        try:
+            ev = await self._run_task("evaluate_responses", {"question": {"question_id": qid, "text": q["text"], "kind": q["kind"]},
+                                                             "responses": [{"response_id": r["response_id"], "holder_id": r["holder_id"], "content": r["content"], "confidence": r["confidence"],
+                                                                            "refs": [{"ref_id": x["ref_id"], "root_id": x.get("source_root_id"), "root_known": bool(x.get("root_known")),
+                                                                                      "observed_at": x.get("observed_at")} for x in refs]}],
+                                                             "existing_claims": [{"claim_id": c["claim_id"], "text": c["text"], "status": c["status"]} for c in existing],
+                                                             "today": now_iso()[:10]}, tenant_id=tid, goal=goal, question_id=qid)
+        except BudgetExhausted as exc:
+            return await self._defer_for_budget(job, q, goal, exc)
+        base = {"tenant_id": tid, "scope_unit_id": q.get("scope_unit_id"), "visibility": (q.get("policy") or {}).get("visibility", "unit"), "goal_id": q.get("goal_id"),
+                "question_id": qid, "created_by_type": "loop", "created_by_id": principal.id, "valid_from": q.get("valid_from"), "valid_to": q.get("valid_to"),
+                "is_demo": bool(q.get("is_demo"))}
+        attached, new_claims = [], []
+        for i, f in enumerate(ev.get("findings") or []):
+            if not isinstance(f, dict) or not f.get("text"):
+                continue
+            ref_ids = list(dict.fromkeys(f.get("supporting_ref_ids") or [x["ref_id"] for x in refs]))
+            agree = next((c for c in existing if _agrees(c["text"], f["text"]) is True), None)
+            disagree = next((c for c in existing if _agrees(c["text"], f["text"]) is False), None)
+            if agree is not None:
+                async with self.db.tx() as c:
+                    for ref in ref_ids:
+                        c.execute("INSERT OR IGNORE INTO claim_evidence(claim_id, ref_id, role, weight) VALUES (?, ?, 'supports', 1.0)", (agree["claim_id"], ref))
+                    c.execute("INSERT OR IGNORE INTO derivations(derivation_id, tenant_id, claim_id, operator, input_claim_ids, input_ref_ids, response_ids, model, contributor_type, contributor_id, rationale, created_at) "
+                              "VALUES (?, ?, ?, 'late_response', '[]', ?, ?, NULL, 'loop', ?, ?, ?)",
+                              (f"der_late_{rid}_{agree['claim_id']}", tid, agree["claim_id"], j(ref_ids), j([rid]), principal.id, f"late response {rid} agrees", now_iso()))
+                await self.knowledge.recompute_status(principal, agree["claim_id"], reason=f"late response {rid} added support")
+                attached.append(agree["claim_id"])
+            else:
+                claim, _gate = await self.knowledge.commit_claim(principal, {**base, "text": f["text"], "kind": "finding", "confidence": float(f.get("confidence", 0.5))},
+                                                                 evidence=[{"ref_id": x, "role": "supports"} for x in ref_ids],
+                                                                 derivation={"operator": "late_response", "response_ids": [rid], "contributor_type": "loop", "contributor_id": principal.id,
+                                                                             "rationale": "answer received after collection closed"},
+                                                                 question=q, idempotency_key=f"claim:late:{rid}:{i}",
+                                                                 conflict_with=[disagree["claim_id"]] if disagree is not None else [],
+                                                                 conflict_summary=f"late response disagrees: {f['text'][:120]}")
+                if claim:
+                    new_claims.append(claim["claim_id"])
+        disc_id = (q.get("result") or {}).get("discovery_id")
+        if disc_id and new_claims:
+            await self.knowledge.add_claims_to_discovery(principal, disc_id, new_claims, reason=f"late response {rid}")
+        await self.db.audit(tid, "worker", self.worker_id, "question.late_response", resource_type="question", resource_id=qid,
+                            detail={"response_id": rid, "attached_to": attached, "new_claims": new_claims})
+        if goal:
+            await self.goals.enqueue_tick(goal["goal_id"], reason="late response integrated", priority=4)
+        return {"attached_to": attached, "new_claims": new_claims}
+
+    # ================================================================== evidence changes
+    async def apply_evidence_change(self, holder: Mapping[str, Any], event: str, affected_ref_ids: Iterable[str], new_root: str | None = None, *,
+                                    doc_id: str | None = None, reason: str = "") -> dict[str, Any]:
+        """One path for revisions and retractions, whether they arrive from a holder process over the transport or from an
+        embedded holder through the API: mark references, stale or retract dependent claims, queue re-verification (keyed
+        by the references that changed, so a redelivered event schedules nothing new), wake the goals."""
+        tid = holder["tenant_id"]
+        p = self.authz.principal_for_system(tid, worker_id=self.worker_id)
+        out = await self.knowledge.on_evidence_event(p, tid, holder["holder_id"], event, list(affected_ref_ids), new_source_root_id=new_root, reason=reason)
+        changed = out.get("changed_ref_ids") or []
+        goals_touched: set[str] = set()
+        if changed:
+            key_refs = hashlib.sha256(",".join(sorted(changed)).encode()).hexdigest()[:16]
+            for cid in out["affected_claim_ids"]:
+                cl = self.knowledge.get_claim(cid)
+                if cl and cl.get("goal_id"):
+                    goals_touched.add(cl["goal_id"])
+                if cl and cl["status"] == "stale":
+                    await self.jobs.enqueue("claim.reverify", idempotency_key=f"claim.reverify:{cid}:{key_refs}", tenant_id=tid, ref_type="claim", ref_id=cid,
+                                            payload={"claim_id": cid, "ref_ids": changed}, priority=4)
+            for gid in goals_touched:
+                await self.goals.enqueue_tick(gid, reason="evidence changed", priority=3)
+            aud = {"user_ids": [holder["owner_id"]] if holder["owner_type"] == "user" else [], "unit_ids": [holder["owner_id"]] if holder["owner_type"] == "unit" else []}
+            await self.db.emit(tid, "document.revised" if event == "revised" else "document.retracted", ref_type="holder", ref_id=holder["holder_id"],
+                               payload={"holder_id": holder["holder_id"], "affected_claims": out["affected_claim_ids"], "doc_id": doc_id}, audience=aud)
+        return out
 
     async def reverify(self, job: Job) -> dict[str, Any]:
         cid = (job.payload or {}).get("claim_id") or job.ref_id
@@ -631,19 +845,9 @@ class LoopEngine:
         if kind == "response":
             await self.questions.handle_response(payload, msg_id=env.msg_id, holder_id=hid)
         elif kind == "evidence_event":
-            p = self.authz.principal_for_system(env.tenant_id, worker_id=self.worker_id)
-            out = await self.knowledge.on_evidence_event(p, env.tenant_id, hid, payload.get("event", "revised"), payload.get("affected_ref_ids") or [],
-                                                         new_source_root_id=payload.get("new_source_root_id"), reason=payload.get("reason", ""))
-            goals_touched = set()
-            for cid in out["affected_claim_ids"]:
-                cl = self.knowledge.get_claim(cid)
-                if cl and cl.get("goal_id"):
-                    goals_touched.add(cl["goal_id"])
-                await self.jobs.enqueue("claim.reverify", idempotency_key=f"claim.reverify:{cid}:{(cl or {}).get('version')}", tenant_id=env.tenant_id, ref_type="claim", ref_id=cid, payload={"claim_id": cid}, priority=4)
-            for gid in goals_touched:
-                await self.goals.enqueue_tick(gid, reason="evidence changed", priority=3)
-            await self.db.emit(env.tenant_id, "document.revised" if payload.get("event") == "revised" else "document.retracted", ref_type="holder", ref_id=hid,
-                               payload={"holder_id": hid, "affected_claims": out["affected_claim_ids"], "doc_id": payload.get("doc_id")}, audience={"user_ids": [holder["owner_id"]] if holder["owner_type"] == "user" else [], "unit_ids": [holder["owner_id"]] if holder["owner_type"] == "unit" else []})
+            if payload.get("event") in ("revised", "retracted"):
+                await self.apply_evidence_change(holder, payload["event"], payload.get("affected_ref_ids") or [], payload.get("new_source_root_id"),
+                                                 doc_id=payload.get("doc_id"), reason=payload.get("reason", ""))
         elif kind == "ingest_result":
             await self.db.emit(env.tenant_id, "document.ingested", ref_type="holder", ref_id=hid, payload={"holder_id": hid, "title": payload.get("title") or (payload.get("document") or {}).get("title"),
                                "domains": payload.get("domains") or (payload.get("document") or {}).get("domains") or [], "doc_id": payload.get("doc_id") or (payload.get("document") or {}).get("doc_id")},
@@ -668,7 +872,8 @@ class LoopEngine:
     # ================================================================== dispatch
     async def handle(self, job: Job) -> dict[str, Any]:
         handlers = {"loop.tick": self.tick, "question.route": self.route_question, "question.collect": self.collect, "question.evaluate": self.evaluate,
-                    "question.commit": self.commit, "claim.reverify": self.reverify, "goal.progress": self.goal_progress, "maintenance": self.maintenance}
+                    "question.commit": self.commit, "question.late_response": self.late_response, "claim.reverify": self.reverify, "goal.progress": self.goal_progress,
+                    "maintenance": self.maintenance}
         h = handlers.get(job.kind) or self.hooks.get(job.kind)
         if h is None:
             raise ValueError(f"no handler for job kind {job.kind}")

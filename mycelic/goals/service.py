@@ -15,7 +15,7 @@ from ..authz import Authorizer, Forbidden, Principal
 from ..db.coord import CoordDB, row_to_dict, rows_to_dicts
 from ..jobs import JobQueue
 from ..org import OrgService
-from ..util import j, new_id, now_iso, parse_iso, plus_seconds, utcnow
+from ..util import j, jl, new_id, now_iso, parse_iso, plus_seconds, utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +96,8 @@ class GoalService:
         return out
 
     def _is_mine(self, p: Principal, g: Mapping[str, Any]) -> bool:
+        if g.get("tenant_id") != p.tenant_id:
+            return False
         if g.get("owner_type") == "user" and g.get("owner_id") == p.id:
             return True
         if g.get("created_by") == p.id:
@@ -109,6 +111,48 @@ class GoalService:
 
     def can_view(self, principal: Principal, goal: Mapping[str, Any]) -> bool:
         return self.authz.can_view_scoped(principal, goal, resource_type="goal") or self._is_mine(principal, goal)
+
+    # ------------------------------------------------------------------ validation
+    def _validate_assignees(self, tenant_id: str, assignees: Any) -> list[dict[str, Any]]:
+        """Assignees must be active users or live units of the same tenant."""
+        out = []
+        for a in list(assignees or []):
+            if not isinstance(a, Mapping) or a.get("type") not in ("user", "unit") or not a.get("id"):
+                raise ValueError("assignees must be [{type: user|unit, id}]")
+            if a["type"] == "user":
+                r = self.db.one("SELECT 1 FROM users WHERE user_id=? AND tenant_id=? AND status='active'", (a["id"], tenant_id))
+            else:
+                r = self.db.one("SELECT 1 FROM org_units WHERE unit_id=? AND tenant_id=? AND archived_at IS NULL", (a["id"], tenant_id))
+            if r is None:
+                raise ValueError(f"assignee {a['id']} is not an active member of this organization")
+            out.append({"type": a["type"], "id": a["id"]})
+        return out
+
+    def _validate_dependencies(self, tenant_id: str, deps: Any, *, self_id: str | None = None) -> list[str]:
+        out = []
+        for d in list(deps or []):
+            if d == self_id or self.db.one("SELECT 1 FROM goals WHERE goal_id=? AND tenant_id=?", (d, tenant_id)) is None:
+                raise ValueError(f"dependency {d} is not a goal of this organization")
+            out.append(d)
+        return out
+
+    def _check_new_owner(self, principal: Principal, tenant_id: str, owner_type: str, owner_id: str, scope_unit_id: str | None) -> None:
+        """Who may receive a goal. The loop acts with the owner's authority, so handing a goal to a unit is only allowed
+        to someone who manages that unit (or is allowed to create goals there), and a user owner must be an active member
+        who can see the goal's scope."""
+        if owner_type == "unit":
+            if self.db.one("SELECT 1 FROM org_units WHERE unit_id=? AND tenant_id=? AND archived_at IS NULL", (owner_id, tenant_id)) is None:
+                raise ValueError("owner unit is not part of this organization")
+            if not principal.is_system:
+                self.authz.require(self.authz.can_manage_unit_knowledge(principal, owner_id), "goal.delegate", owner_id, "you do not manage that unit")
+        elif owner_type == "user":
+            target = self.authz.principal_for_user(owner_id)
+            if target is None or target.tenant_id != tenant_id:
+                raise ValueError("owner is not an active member of this organization")
+            if scope_unit_id and scope_unit_id not in (self.authz.visible_unit_ids(target) | self.authz.led_unit_ids(target)):
+                raise ValueError("the new owner cannot see the goal's scope")
+        else:
+            raise ValueError("owner_type must be user or unit")
 
     # ------------------------------------------------------------------ create / update
     async def create_goal(self, principal: Principal, data: Mapping[str, Any], *, activate: bool = False, is_demo: bool | None = None) -> dict[str, Any]:
@@ -129,6 +173,9 @@ class GoalService:
         objective = (data.get("objective") or "").strip()
         if not title or not objective:
             raise ValueError("title and objective are required")
+        data = dict(data)
+        data["assignees"] = self._validate_assignees(tenant_id, data.get("assignees"))
+        data["dependencies"] = self._validate_dependencies(tenant_id, data.get("dependencies"))
         budget = dict(self.org.policy(tenant_id, "default_goal_budget", {}) or {})
         budget.update({k: v for k, v in (data.get("budget") or {}).items() if v is not None})
         gid = new_id("goal")
@@ -175,6 +222,21 @@ class GoalService:
         bad = set(fields) - allowed
         if bad:
             raise ValueError(f"cannot update {sorted(bad)}")
+        fields = dict(fields)
+        if "assignees" in fields:
+            fields["assignees"] = self._validate_assignees(g["tenant_id"], fields["assignees"])
+        if "dependencies" in fields:
+            fields["dependencies"] = self._validate_dependencies(g["tenant_id"], fields["dependencies"], self_id=goal_id)
+        if "scope_unit_id" in fields and fields["scope_unit_id"] != g.get("scope_unit_id"):
+            # moving the scope changes who the loop may ask: the same rule as creating a goal there
+            self.authz.require(principal.is_system or self.authz.can_create_goal(principal, owner_type=g["owner_type"], owner_id=g["owner_id"], scope_unit_id=fields["scope_unit_id"])
+                               or (g["owner_type"] == "user" and fields["scope_unit_id"] in (self.authz.visible_unit_ids(principal) | self.authz.led_unit_ids(principal))
+                                   and self.authz.can_manage_goal(principal, g)),
+                               "goal.update", goal_id, "you cannot move the goal into that scope")
+        if fields.get("parent_goal_id"):
+            pg = self.get_goal(fields["parent_goal_id"])
+            if pg is None or pg["tenant_id"] != g["tenant_id"] or pg["goal_id"] == goal_id:
+                raise ValueError("parent goal not found")
         sets, args, before, after = ["version=version+1", "updated_at=?"], [now_iso()], {}, {}
         for k, v in fields.items():
             before[k] = g.get(k); after[k] = v
@@ -216,7 +278,7 @@ class GoalService:
                           (new_status, now, new_status, now, new_status, now, goal_id))
                 self._loop_desired_sync(c, g, {"activate": "active", "resume": "active", "pause": "paused", "complete": "stopped", "archive": "stopped"}[action], principal)
             elif action == "assign":
-                assignees = list(params.get("assignees") or [])
+                assignees = self._validate_assignees(g["tenant_id"], params.get("assignees"))
                 c.execute("UPDATE goals SET assignees=?, version=version+1, updated_at=? WHERE goal_id=?", (j(assignees), now, goal_id))
                 for a in assignees:
                     if a.get("type") == "user" and a.get("id") != principal.id:
@@ -227,6 +289,7 @@ class GoalService:
                 nt, ni = params.get("owner_type"), params.get("owner_id")
                 if nt not in ("user", "unit") or not ni:
                     raise ValueError("delegate needs owner_type and owner_id")
+                self._check_new_owner(principal, g["tenant_id"], nt, ni, g.get("scope_unit_id") or (g["owner_id"] if g["owner_type"] == "unit" else None))
                 c.execute("UPDATE goals SET owner_type=?, owner_id=?, version=version+1, updated_at=? WHERE goal_id=?", (nt, ni, now, goal_id))
                 # the delegating owner keeps management rights through an explicit grant (permissions preserved)
                 if g["owner_type"] == "user":
@@ -260,7 +323,8 @@ class GoalService:
         return out
 
     # ------------------------------------------------------------------ outcomes & progress
-    async def add_outcome(self, principal: Principal, goal_id: str, *, kind: str, value: Mapping[str, Any], claim_ids: Iterable[str] = ()) -> dict[str, Any]:
+    async def add_outcome(self, principal: Principal, goal_id: str, *, kind: str, value: Mapping[str, Any], claim_ids: Iterable[str] = (),
+                          outcome_id: str | None = None) -> dict[str, Any]:
         g = self.get_goal(goal_id)
         if g is None:
             raise KeyError(goal_id)
@@ -268,9 +332,12 @@ class GoalService:
             self.authz.require(self.authz.can_manage_goal(principal, g) or self._is_mine(principal, g), "goal.outcome", goal_id)
         if kind not in ("measurement", "milestone", "action", "note"):
             raise ValueError("unknown outcome kind")
-        oid = new_id("out")
+        oid = outcome_id or new_id("out")
+        if outcome_id and self.db.one("SELECT 1 FROM goal_outcomes WHERE outcome_id=?", (outcome_id,)) is not None:
+            return {"outcome": row_to_dict(self.db.one("SELECT * FROM goal_outcomes WHERE outcome_id=?", (oid,)), json_fields=("value", "claim_ids")),
+                    "progress": (self.get_goal(goal_id) or {}).get("progress")}
         async with self.db.tx() as c:
-            c.execute("INSERT INTO goal_outcomes(outcome_id, tenant_id, goal_id, kind, value, claim_ids, recorded_by, recorded_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            c.execute("INSERT OR IGNORE INTO goal_outcomes(outcome_id, tenant_id, goal_id, kind, value, claim_ids, recorded_by, recorded_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                       (oid, g["tenant_id"], goal_id, kind, j(dict(value)), j(list(claim_ids)), principal.id, now_iso()))
             self.db.audit_sync(c, g["tenant_id"], principal.kind, principal.id, "goal.outcome", resource_type="goal", resource_id=goal_id, detail={"kind": kind, "value": dict(value)})
         progress = await self.recompute_progress(goal_id)
@@ -405,7 +472,7 @@ class GoalService:
                                           payload={"reason": reason}, priority=priority, delay_seconds=delay_seconds, max_attempts=3)
 
     async def set_loop_state(self, goal_id: str, state: str, explanation: str, *, worker_id: str | None = None, next_check_at: str | None = None,
-                             stats_delta: Mapping[str, float] | None = None, ran: bool = False) -> None:
+                             stats_delta: Mapping[str, float] | None = None, ran: bool = False, stats_set: Mapping[str, Any] | None = None) -> None:
         if state not in LOOP_STATES:
             raise ValueError(state)
         now = now_iso()
@@ -415,6 +482,7 @@ class GoalService:
         stats = dict(loop.get("stats") or {})
         for k, v in (stats_delta or {}).items():
             stats[k] = stats.get(k, 0) + v
+        stats.update(stats_set or {})
         g = self.get_goal(goal_id)
         async with self.db.tx() as c:
             c.execute("UPDATE goal_loops SET state=?, explanation=?, last_worker_id=COALESCE(?, last_worker_id), last_heartbeat_at=CASE WHEN ? IS NULL THEN last_heartbeat_at ELSE ? END, "
@@ -441,47 +509,84 @@ class GoalService:
         newest = max([t for t in (hb, worker_hb) if t is not None], default=None)
         age = (utcnow() - newest).total_seconds() if newest else None
         active = loop["state"] == "active" and age is not None and age <= 3 * self.heartbeat_seconds
-        budget, spent = g.get("budget") or {}, g.get("budget_spent") or {}
-        remaining = {k: (budget.get(k) - spent.get(k, 0)) if isinstance(budget.get(k), (int, float)) else None for k in ("tokens", "usd", "questions")}
+        bs = self.budget_status(goal_id) if g else {"remaining": {}, "period": "total", "renews_at": None}
+        remaining = {k: bs["remaining"].get(k) for k in ("tokens", "usd", "questions")}
         d = dict(loop)
+        d["budget_period"] = bs["period"]
+        d["budget_renews_at"] = bs["renews_at"]
         d["active_indicator"] = {"active": active, "heartbeat_age_seconds": round(age, 1) if age is not None else None, "worker_id": loop.get("last_worker_id")}
         d["budget_remaining"] = remaining
         return d
 
-    async def charge_budget(self, goal_id: str, *, tokens: int = 0, usd: float = 0.0, questions: int = 0) -> dict[str, Any]:
-        """Add spend to the goal; returns {exhausted: bool, budget, spent, remaining}."""
-        g = self.get_goal(goal_id)
-        if g is None:
+    # ------------------------------------------------------------------ budgets
+    # A budget is {tokens, usd, questions, followup_depth, period?}. ``period`` is "total" (default: one allowance for the
+    # goal's life) or "day" | "week" | "month": the allowance renews at the start of each UTC period, which is what a
+    # persistent deployment needs so a long-running goal is bounded per period instead of exhausted forever. Spend is
+    # kept per period in ``budget_spent`` ({tokens, usd, questions, period_start, usage_cursor, lifetime: {...}}).
+    @staticmethod
+    def _period_start(period: str | None, now: Any = None) -> str | None:
+        now = now or utcnow()
+        if period == "day":
+            start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        elif period == "week":
+            start = (now - __import__("datetime").timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+        elif period == "month":
+            start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        else:
+            return None
+        return start.isoformat(timespec="seconds")
+
+    def _rolled(self, budget: Mapping[str, Any], spent: Mapping[str, Any]) -> dict[str, Any]:
+        """Spend for the current period: counters reset (lifetime totals kept) when the period has rolled over."""
+        out = dict(spent)
+        start = self._period_start(budget.get("period"))
+        if start is not None and out.get("period_start") != start:
+            life = dict(out.get("lifetime") or {})
+            for k in ("tokens", "usd", "questions"):
+                life[k] = round(float(life.get(k, 0)) + float(out.get(k, 0)), 6) if k == "usd" else int(life.get(k, 0)) + int(out.get(k, 0))
+            out.update({"tokens": 0, "usd": 0.0, "questions": 0, "period_start": start, "lifetime": life})
+        return out
+
+    def charge_budget_sync(self, c: sqlite3.Connection, goal_id: str, *, tokens: int = 0, usd: float = 0.0, questions: int = 0) -> None:
+        """Add spend inside the caller's transaction (so the charge commits or rolls back with the effect it pays for)."""
+        r = c.execute("SELECT budget, budget_spent FROM goals WHERE goal_id=?", (goal_id,)).fetchone()
+        if r is None:
             raise KeyError(goal_id)
-        spent = dict(g.get("budget_spent") or {})
+        spent = self._rolled(jl(r["budget"], {}), jl(r["budget_spent"], {}))
         spent["tokens"] = int(spent.get("tokens", 0)) + int(tokens)
         spent["usd"] = round(float(spent.get("usd", 0.0)) + float(usd), 6)
         spent["questions"] = int(spent.get("questions", 0)) + int(questions)
+        c.execute("UPDATE goals SET budget_spent=?, updated_at=? WHERE goal_id=?", (j(spent), now_iso(), goal_id))
+
+    async def charge_budget(self, goal_id: str, *, tokens: int = 0, usd: float = 0.0, questions: int = 0) -> dict[str, Any]:
+        """Add spend to the goal (read and write in one transaction, so concurrent charges never lose an update)."""
         async with self.db.tx() as c:
-            c.execute("UPDATE goals SET budget_spent=?, updated_at=? WHERE goal_id=?", (j(spent), now_iso(), goal_id))
+            self.charge_budget_sync(c, goal_id, tokens=tokens, usd=usd, questions=questions)
         return self.budget_status(goal_id)
 
     async def charge_usage(self, goal_id: str) -> dict[str, Any]:
-        """Charge model usage recorded for this goal since the last charge (cursor on ``model_usage.id``: exact and idempotent,
-        whatever the clock resolution or how many jobs ran in the same second)."""
-        g = self.get_goal(goal_id)
-        if g is None:
-            raise KeyError(goal_id)
-        spent = dict(g.get("budget_spent") or {})
-        cursor = int(spent.get("usage_cursor", 0))
-        r = self.db.one("SELECT COALESCE(MAX(id), 0) AS m, COALESCE(SUM(input_tokens + output_tokens), 0) AS t, COALESCE(SUM(cost_usd), 0) AS c "
-                        "FROM model_usage WHERE goal_id=? AND id > ?", (goal_id, cursor))
-        if r is not None and int(r["m"]) > cursor:
-            spent["tokens"] = int(spent.get("tokens", 0)) + int(r["t"])
-            spent["usd"] = round(float(spent.get("usd", 0.0)) + float(r["c"]), 6)
-            spent["usage_cursor"] = int(r["m"])
-            async with self.db.tx() as c:
+        """Charge model usage recorded for this goal since the last charge. The cursor on ``model_usage.id`` is read and
+        advanced inside the same transaction, so the charge is exact and idempotent under concurrency."""
+        async with self.db.tx() as c:
+            r = c.execute("SELECT budget, budget_spent FROM goals WHERE goal_id=?", (goal_id,)).fetchone()
+            if r is None:
+                raise KeyError(goal_id)
+            spent = self._rolled(jl(r["budget"], {}), jl(r["budget_spent"], {}))
+            cursor = int(spent.get("usage_cursor", 0))
+            u = c.execute("SELECT COALESCE(MAX(id), 0) AS m, COALESCE(SUM(input_tokens + output_tokens), 0) AS t, COALESCE(SUM(cost_usd), 0) AS c "
+                          "FROM model_usage WHERE goal_id=? AND id > ?", (goal_id, cursor)).fetchone()
+            if int(u["m"]) > cursor or spent != jl(r["budget_spent"], {}):
+                if int(u["m"]) > cursor:
+                    spent["tokens"] = int(spent.get("tokens", 0)) + int(u["t"])
+                    spent["usd"] = round(float(spent.get("usd", 0.0)) + float(u["c"]), 6)
+                    spent["usage_cursor"] = int(u["m"])
                 c.execute("UPDATE goals SET budget_spent=?, updated_at=? WHERE goal_id=?", (j(spent), now_iso(), goal_id))
         return self.budget_status(goal_id)
 
     def budget_status(self, goal_id: str) -> dict[str, Any]:
         g = self.get_goal(goal_id) or {}
-        budget, spent = g.get("budget") or {}, g.get("budget_spent") or {}
+        budget = g.get("budget") or {}
+        spent = self._rolled(budget, g.get("budget_spent") or {})
         exhausted = []
         remaining = {}
         for k in ("tokens", "usd", "questions"):
@@ -491,7 +596,21 @@ class GoalService:
                 remaining[k] = rem
                 if rem <= 0:
                     exhausted.append(k)
-        return {"exhausted": bool(exhausted), "exhausted_on": exhausted, "budget": budget, "spent": spent, "remaining": remaining}
+        period = budget.get("period") or "total"
+        renews_at = None
+        if period in ("day", "week", "month"):
+            from datetime import timedelta
+            start = parse_iso(self._period_start(period))
+            if start is not None:
+                if period == "day":
+                    nxt = start + timedelta(days=1)
+                elif period == "week":
+                    nxt = start + timedelta(days=7)
+                else:
+                    nxt = (start.replace(day=28) + timedelta(days=4)).replace(day=1)
+                renews_at = nxt.isoformat(timespec="seconds")
+        return {"exhausted": bool(exhausted), "exhausted_on": exhausted, "budget": budget, "spent": spent, "remaining": remaining,
+                "period": period, "renews_at": renews_at}
 
     def loops_for_tenant(self, tenant_id: str) -> list[dict[str, Any]]:
         return [v for v in (self.loop_view(r["goal_id"]) for r in self.db.all("SELECT goal_id FROM goal_loops WHERE tenant_id=?", (tenant_id,))) if v]
@@ -499,5 +618,8 @@ class GoalService:
     def due_ticks(self, *, now: str | None = None) -> list[str]:
         """Goals whose loop is active and whose scheduled check is due (the worker enqueues ticks for them)."""
         now = now or now_iso()
+        # failed / blocked / budget_exhausted loops are re-checked on their schedule too: a transient model outage, a holder
+        # that comes back, or a budget period that renews must not leave a loop stuck
         return [r["goal_id"] for r in self.db.all("SELECT l.goal_id FROM goal_loops l JOIN goals g ON g.goal_id=l.goal_id WHERE l.desired='active' AND g.status='active' "
-                                                  "AND l.state IN ('active','waiting') AND l.next_check_at IS NOT NULL AND l.next_check_at <= ?", (now,))]
+                                                  "AND l.state IN ('active','waiting','failed','blocked','budget_exhausted') AND l.next_check_at IS NOT NULL "
+                                                  "AND l.next_check_at <= ?", (now,))]

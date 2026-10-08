@@ -338,14 +338,21 @@ async def _create_goal(rt: Any, users: dict[str, str], units: dict[str, str]) ->
         "baseline": {"resolution_time_hours": 52},
         "measurement_source": {"metric": "resolution_time_hours", "source": "Ticket resolution metrics (Sofia Berg's holder)",
                                "domains": list(DEMO_DOMAIN_ORDER)},
-        "budget": {"tokens": 200000, "usd": 5, "questions": 40, "followup_depth": 3},
+        "budget": {"tokens": 400000, "usd": 5, "questions": 60, "followup_depth": 3, "period": "day"},   # renews daily (UTC); fake model costs 0 USD
         "priority": 2,
     }, activate=True)
+    # team subgoals run their own loops (team-scoped questions and discoveries), so every level of the demo has content:
+    # teams see their own findings, departments and above see them aggregated, the region sees the cross-team picture
+    team_budget = {"tokens": 150000, "usd": 2, "questions": 30, "followup_depth": 2, "period": "day"}
     out = await rt.goals.action(petra, goal["goal_id"], "decompose", {"subgoals": [
         {"title": "[Demo] Cut ticket time waiting on approvals", "objective": "Reduce the time support tickets spend waiting on deploy approvals.",
-         "owner_type": "unit", "owner_id": units["support"], "scope_unit_id": units["support"], "assignees": [{"type": "user", "id": users["sofia"]}]},
+         "owner_type": "unit", "owner_id": units["support"], "scope_unit_id": units["support"], "assignees": [{"type": "user", "id": users["sofia"]}],
+         "success_criteria": [{"metric": "resolution_time_hours", "target": 24, "direction": "decrease"}], "baseline": {"resolution_time_hours": 52},
+         "measurement_source": {"metric": "resolution_time_hours", "source": "Ticket resolution metrics", "domains": ["support", "deployments"]},
+         "budget": team_budget, "activate": True},
         {"title": "[Demo] Reduce route-update delay", "objective": "Reduce the delay between a route change and its live update for drivers.",
-         "owner_type": "unit", "owner_id": units["dispatch"], "scope_unit_id": units["dispatch"], "assignees": [{"type": "user", "id": users["jonas"]}]},
+         "owner_type": "unit", "owner_id": units["dispatch"], "scope_unit_id": units["dispatch"], "assignees": [{"type": "user", "id": users["jonas"]}],
+         "measurement_source": {"domains": ["dispatch", "approvals", "on-call"]}, "budget": team_budget, "activate": True},
     ]})
     return goal, list(out.get("subgoals") or [])
 

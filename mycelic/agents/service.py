@@ -81,10 +81,15 @@ class AgentService:
             items.append({"type": "conflict", "id": k_["conflict_id"], "text": f"Disagreement: {k_['summary']}", "status": k_["status"], "label": k_["summary"][:80]})
         memories: list[dict[str, Any]] = []
         if self.memory_search is not None and agent_type == "user":
-            holders = [h for h in self.org.holders_for_user(principal.id)] + [self.org.get_holder(g["resource_id"]) for g in principal.grants if g["resource_type"] == "holder"]
+            candidates = [h for h in self.org.holders_for_user(principal.id)] + [self.org.get_holder(g["resource_id"]) for g in principal.grants if g["resource_type"] == "holder"]
+            seen: set[str] = set()
+            holders = []
+            for h in candidates:
+                # same rule as the memory-search endpoint: own holders, or an artifact/raw grant inside the tenant
+                if h and h["holder_id"] not in seen and self.authz.can_search_holder(principal, h):
+                    seen.add(h["holder_id"])
+                    holders.append(h)
             for h in holders:
-                if not h:
-                    continue
                 try:
                     hits = await self.memory_search(principal, h["holder_id"], query, k)
                 except Exception as exc:

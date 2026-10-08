@@ -340,6 +340,14 @@ async def test_tenant_isolation_and_private_evidence(db, org, auth, authz):
     p_elin = authz.principal_for_user(o["users"]["elin"]["user_id"])
     assert authz.can_view_raw_evidence(p_elin, h) and not authz.can_view_raw_evidence(p_admin, h) and not authz.can_view_raw_evidence(p_petra, h)
     # visibility SQL never leaks across tenants even with a forged grant row for the other tenant's user
-    await org.add_grant(other["tenant"]["tenant_id"], grantor_id=other["user"]["user_id"], grantee_type="user", grantee_id=other["user"]["user_id"], resource_type="claim", resource_id=s["knowledge"].list_claims(sysp)[0]["claim_id"], level="read")
+    meridian_claim = s["knowledge"].list_claims(sysp)[0]["claim_id"]
+    with pytest.raises(ValueError):    # a grant on another tenant's object is refused at write time
+        await org.add_grant(other["tenant"]["tenant_id"], grantor_id=other["user"]["user_id"], grantee_type="user", grantee_id=other["user"]["user_id"],
+                            resource_type="claim", resource_id=meridian_claim, level="read")
+    # ... and a row forged straight into the database is ignored at read time
+    async with db.tx() as c:
+        c.execute("INSERT INTO grants(grant_id, tenant_id, grantor_id, grantee_type, grantee_id, resource_type, resource_id, level, reason, status, created_at) "
+                  "VALUES ('grant_forged', ?, ?, 'user', ?, 'claim', ?, 'raw', 'forged', 'active', '2026-01-01T00:00:00+00:00')",
+                  (o["t"], o["admin"]["user_id"], other["user"]["user_id"], meridian_claim))
     p_other2 = authz.principal_for_user(other["user"]["user_id"])
-    assert s["knowledge"].list_claims(p_other2) == []
+    assert p_other2.grants == [] and s["knowledge"].list_claims(p_other2) == []

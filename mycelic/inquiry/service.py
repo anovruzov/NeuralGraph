@@ -8,6 +8,7 @@ from a holder that was routed, and its authorization is checked again at use tim
 from __future__ import annotations
 
 import logging
+import sqlite3
 from typing import Any, Iterable, Mapping
 
 from ..authz import Authorizer, Forbidden, Principal
@@ -151,12 +152,27 @@ class QuestionService:
         if q is None:
             raise KeyError(question_id)
         self.authz.require(self.can_view(principal, q), "question.view", question_id)
-        resp = [self.response_view(r) for r in self.responses(question_id)]
-        claims = [self.knowledge.claim_summary(c) for c in self.knowledge.claims_by_ids([r["claim_id"] for r in self.db.all("SELECT claim_id FROM claims WHERE question_id=?", (question_id,))])]
-        discs = [self.knowledge.discovery_summary(d) for d in rows_to_dicts(self.db.all("SELECT * FROM discoveries WHERE question_id=?", (question_id,)), json_fields=("claim_ids", "followup_question_ids"))]
+        full = self._full_view(principal, q)
+        mine = set(principal.holder_ids) if principal.is_user else set()
+        resp = [self.response_view(r) for r in self.responses(question_id) if full or r["holder_id"] in mine]
+        claims = [self.knowledge.claim_summary(c) for c in self.knowledge.claims_by_ids([r["claim_id"] for r in self.db.all("SELECT claim_id FROM claims WHERE question_id=?", (question_id,))])
+                  if self.authz.can_view_scoped(principal, c, resource_type="claim")]
+        discs = [self.knowledge.discovery_summary(d) for d in rows_to_dicts(self.db.all("SELECT * FROM discoveries WHERE question_id=?", (question_id,)), json_fields=("claim_ids", "followup_question_ids"))
+                 if self.authz.can_view_scoped(principal, d, resource_type="discovery")]
         children = rows_to_dicts(self.db.all("SELECT question_id, text, kind, status, depth, created_at FROM questions WHERE parent_question_id=? ORDER BY created_at", (question_id,)))
         return {"question": self.view(q, principal=principal), "responses": resp, "claims": claims, "discoveries": discs, "followups": children,
                 "lineage": self.knowledge.lineage_graph(principal, question_id=question_id), "run": row_to_dict(self.db.one("SELECT * FROM question_runs WHERE question_id=?", (question_id,)), json_fields=("state",))}
+
+    def _full_view(self, principal: Principal, q: Mapping[str, Any]) -> bool:
+        """True when the principal sees the question through its scope or its goal, not merely because one of their holders was asked."""
+        row = dict(q)
+        row["visibility"] = (q.get("policy") or {}).get("visibility", "unit")
+        if self.authz.can_view_scoped(principal, row, resource_type="question"):
+            return True
+        if q.get("goal_id"):
+            g = self.goals.get_goal(q["goal_id"])
+            return bool(g) and self.goals.can_view(principal, g)
+        return False
 
     def can_view(self, principal: Principal, q: Mapping[str, Any]) -> bool:
         row = dict(q)
@@ -187,9 +203,10 @@ class QuestionService:
         if scope is None and principal.is_user:
             mems = principal.memberships
             scope = mems[0]["unit_id"] if mems else None
-        if not principal.is_system and principal.kind != "loop":
-            if goal is not None:
+        if not principal.is_system:
+            if goal is not None and principal.kind != "loop":
                 self.authz.require(self.goals.can_view(principal, goal), "question.create", data.get("goal_id", ""), "cannot see that goal")
+            # the loop acts with its goal owner's authority: a membership the owner lost stops the loop asking there too
             if scope and scope not in (self.authz.visible_unit_ids(principal) | self.authz.led_unit_ids(principal)):
                 raise Forbidden("question.create", scope, "cannot ask inside that scope")
         kind = data.get("kind") or "gap"
@@ -221,10 +238,28 @@ class QuestionService:
         default_pol = {"visibility": "unit", "disclosure": "excerpt", "blind_verification": kind == "verification",
                        "min_independent_roots": self.org.policy(tenant_id, "min_independent_roots", 2)}
         policy = {**default_pol, **(data.get("policy") or {})}
+        if policy.get("visibility") not in ("unit", "org", "private"):
+            raise ValueError("policy.visibility must be unit, org or private")
+        if policy["visibility"] == "org" and not (principal.is_system or "executive" in principal.roles):
+            # an org-wide question reaches every holder in the organization: reserved to executive authority
+            raise Forbidden("question.create", "", "org-wide questions need an executive role")
         budget = {"timeout_seconds": self.question_timeout_seconds, "holders": 10, **(data.get("budget") or {})}
         qid = new_id("q")
         now = now_iso()
         # a duplicate-key row from a resolved question must not block the unique index: release it
+        try:
+            await self._insert_question(qid, tenant_id, principal, data, asker_type, asker_id, text, kind, scope, estimates, policy, budget, score, breakdown,
+                                        parent_id, depth, dedupe_key, live, is_demo, now, enqueue_route)
+        except sqlite3.IntegrityError:
+            # a concurrent creator inserted the same question between our check and our insert
+            other = self.db.one("SELECT question_id FROM questions WHERE tenant_id=? AND dedupe_key=?", (tenant_id, dedupe_key))
+            if other is not None:
+                raise DuplicateQuestion(other["question_id"])
+            raise
+        return self.get(qid)  # type: ignore[return-value]
+
+    async def _insert_question(self, qid, tenant_id, principal, data, asker_type, asker_id, text, kind, scope, estimates, policy, budget, score, breakdown,
+                               parent_id, depth, dedupe_key, live, is_demo, now, enqueue_route) -> None:
         async with self.db.tx() as c:
             if live is not None:
                 c.execute("UPDATE questions SET dedupe_key=NULL WHERE question_id=?", (live["question_id"],))
@@ -243,7 +278,6 @@ class QuestionService:
                               audience={"unit_ids": [scope] if scope else [], "visibility": policy["visibility"], "user_ids": [principal.id] if principal.is_user else []})
             if enqueue_route:
                 self.jobs.enqueue_sync(c, "question.route", idempotency_key=f"question.route:{qid}", tenant_id=tenant_id, ref_type="question", ref_id=qid, priority=3, max_attempts=5)
-        return self.get(qid)  # type: ignore[return-value]
 
     # ------------------------------------------------------------------ routing
     def candidate_holders(self, q: Mapping[str, Any], *, exclude: Iterable[str] = (), asker: Principal | None = None) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -258,66 +292,87 @@ class QuestionService:
         return ok, rejected
 
     async def route(self, question_id: str, *, principal: Principal | None = None, exclude_holder_ids: Iterable[str] = ()) -> dict[str, Any]:
+        """Route a question to every authorized holder, then publish the envelopes.
+
+        Two phases so a crash or a transport outage cannot lose a route: the routes, the status change, the collect job
+        and the goal's question charge commit in one transaction; then every route still ``pending`` is published with a
+        deterministic msg id (so republishing is deduplicated by the transport and the holder). When any publish fails the
+        method raises after recording the error, and the job's retry republishes only what is still pending.
+        """
         q = self.get(question_id)
         if q is None:
             raise KeyError(question_id)
-        if q["status"] not in ("draft", "routed"):
-            return {"routed": 0, "skipped": "question is not routable", "status": q["status"]}
-        asker = principal
-        if asker is None and q["asker_type"] == "user":
-            asker = self.authz.principal_for_user(q["asker_id"])
-        holders, rejected = self.candidate_holders(q, exclude=exclude_holder_ids, asker=asker if asker and asker.is_user else None)
-        max_holders = int((q.get("budget") or {}).get("holders") or 10)
-        holders = holders[:max_holders]
-        now = now_iso()
-        timeout = float((q.get("budget") or {}).get("timeout_seconds") or self.question_timeout_seconds)
-        deadline = plus_seconds(timeout)
-        if not holders:
+        routed = 0
+        rejected: list[dict[str, Any]] = []
+        if q["status"] in ("draft", "routed"):
+            asker = principal
+            if asker is None and q["asker_type"] == "user":
+                asker = self.authz.principal_for_user(q["asker_id"])
+            holders, rejected = self.candidate_holders(q, exclude=exclude_holder_ids, asker=asker if asker and asker.kind in ("user", "loop") else None)
+            max_holders = int((q.get("budget") or {}).get("holders") or 10)
+            holders = holders[:max_holders]
+            now = now_iso()
+            timeout = float((q.get("budget") or {}).get("timeout_seconds") or self.question_timeout_seconds)
+            deadline = plus_seconds(timeout)
+            if not holders:
+                async with self.db.tx() as c:
+                    c.execute("UPDATE questions SET status='failed', result=?, updated_at=?, resolved_at=? WHERE question_id=?",
+                              (j({"outcome": "no_authorized_holders", "rejected": rejected}), now, now, question_id))
+                    self.db.audit_sync(c, q["tenant_id"], "worker", "router", "question.route", resource_type="question", resource_id=question_id, outcome="deny", detail={"rejected": rejected})
+                    self.db.emit_sync(c, q["tenant_id"], "question.resolved", ref_type="question", ref_id=question_id, payload={"status": "failed", "reason": "no authorized holders"},
+                                      audience={"unit_ids": [q["scope_unit_id"]] if q.get("scope_unit_id") else []})
+                return {"routed": 0, "rejected": rejected, "status": "failed"}
             async with self.db.tx() as c:
-                c.execute("UPDATE questions SET status='failed', result=?, updated_at=?, resolved_at=? WHERE question_id=?",
-                          (j({"outcome": "no_authorized_holders", "rejected": rejected}), now, now, question_id))
-                self.db.audit_sync(c, q["tenant_id"], "worker", "router", "question.route", resource_type="question", resource_id=question_id, outcome="deny", detail={"rejected": rejected})
-                self.db.emit_sync(c, q["tenant_id"], "question.resolved", ref_type="question", ref_id=question_id, payload={"status": "failed", "reason": "no authorized holders"},
-                                  audience={"unit_ids": [q["scope_unit_id"]] if q.get("scope_unit_id") else []})
-            return {"routed": 0, "rejected": rejected, "status": "failed"}
+                for h in holders:
+                    cur = c.execute("INSERT OR IGNORE INTO question_routes(route_id, tenant_id, question_id, holder_id, status, msg_id, attempts, sent_at, deadline_at) VALUES (?, ?, ?, ?, 'pending', ?, 0, ?, ?)",
+                                    (new_id("route"), q["tenant_id"], question_id, h["holder_id"], f"q:{question_id}:{h['holder_id']}", now, deadline))
+                    routed += cur.rowcount
+                c.execute("UPDATE questions SET status='collecting', updated_at=? WHERE question_id=?", (now, question_id))
+                if q.get("goal_id"):
+                    self.goals.charge_budget_sync(c, q["goal_id"], questions=1)
+                self.db.audit_sync(c, q["tenant_id"], "worker", "router", "question.route", resource_type="question", resource_id=question_id, detail={"holders": [h["holder_id"] for h in holders], "rejected": rejected})
+                self.db.emit_sync(c, q["tenant_id"], "question.routed", ref_type="question", ref_id=question_id, payload={"holders": len(holders)}, audience={"unit_ids": [q["scope_unit_id"]] if q.get("scope_unit_id") else []})
+                self.jobs.enqueue_sync(c, "question.collect", idempotency_key=f"question.collect:{question_id}", tenant_id=q["tenant_id"], ref_type="question", ref_id=question_id,
+                                       priority=4, delay_seconds=timeout, max_attempts=5)
+                for h in holders:
+                    if h["owner_type"] == "user":
+                        self.org.notify_sync(c, q["tenant_id"], h["owner_id"], "question", "A question was routed to your evidence", body=q["text"][:200], ref_type="question", ref_id=question_id)
+            q = self.get(question_id)  # type: ignore[assignment]
+        elif q["status"] != "collecting":
+            return {"routed": 0, "skipped": "question is not routable", "status": q["status"]}
+        published, failed = await self.publish_pending_routes(q)
+        out = {"routed": routed, "published": published, "failed": failed, "rejected": rejected, "status": "collecting"}
+        if failed:
+            # the DB state is committed; raising makes the job retry, and the retry republishes only the pending routes
+            from ..transport import TransportError
+            raise TransportError(f"{failed} route(s) could not be published; will retry")
+        return out
+
+    async def publish_pending_routes(self, q: Mapping[str, Any]) -> tuple[int, int]:
+        """Publish (or republish) every pending route of a collecting question. Returns (published, failed)."""
+        question_id = q["question_id"]
+        pending = rows_to_dicts(self.db.all("SELECT * FROM question_routes WHERE question_id=? AND status='pending'", (question_id,)))
         payload_base = {"question_id": question_id, "text": q["text"], "kind": q["kind"], "goal_id": q.get("goal_id"), "scope_unit_id": q.get("scope_unit_id"),
                         "candidate_domains": q.get("candidate_domains") or [], "valid_from": q.get("valid_from"), "valid_to": q.get("valid_to"),
-                        "policy": q.get("policy") or {}, "budget": {"max_refs": 8}, "asked_at": now, "deadline_at": deadline}
-        routed = 0
-        async with self.db.tx() as c:
-            for h in holders:
-                rid = new_id("route")
-                cur = c.execute("INSERT OR IGNORE INTO question_routes(route_id, tenant_id, question_id, holder_id, status, msg_id, attempts, sent_at, deadline_at) VALUES (?, ?, ?, ?, 'pending', ?, 1, ?, ?)",
-                                (rid, q["tenant_id"], question_id, h["holder_id"], f"q:{question_id}:{h['holder_id']}", now, deadline))
-                if cur.rowcount:
-                    routed += 1
-            c.execute("UPDATE questions SET status='collecting', updated_at=? WHERE question_id=?", (now, question_id))
-            self.db.audit_sync(c, q["tenant_id"], "worker", "router", "question.route", resource_type="question", resource_id=question_id, detail={"holders": [h["holder_id"] for h in holders], "rejected": rejected})
-            self.db.emit_sync(c, q["tenant_id"], "question.routed", ref_type="question", ref_id=question_id, payload={"holders": len(holders)}, audience={"unit_ids": [q["scope_unit_id"]] if q.get("scope_unit_id") else []})
-            self.jobs.enqueue_sync(c, "question.collect", idempotency_key=f"question.collect:{question_id}", tenant_id=q["tenant_id"], ref_type="question", ref_id=question_id,
-                                   priority=4, delay_seconds=timeout, max_attempts=5)
-            for h in holders:
-                self.org.notify_sync(c, q["tenant_id"], h["owner_id"], "question", "A question was routed to your evidence", body=q["text"][:200], ref_type="question", ref_id=question_id) if h["owner_type"] == "user" else None
-        # publish after the DB commit; delivery failures are recorded per route and retried by the job's next attempt
-        failed = 0
-        for h in holders:
-            env = Envelope.new(Subjects.holder_inbox(q["tenant_id"], h["holder_id"]), "question", q["tenant_id"],
-                               {**payload_base, "holder_id": h["holder_id"], "route_id": self.db.scalar("SELECT route_id FROM question_routes WHERE question_id=? AND holder_id=?", (question_id, h["holder_id"]))},
-                               msg_id=f"q:{question_id}:{h['holder_id']}")
-            env.sign(self.org.route_key(h["holder_id"]))
+                        "policy": {k: v for k, v in (q.get("policy") or {}).items() if k != "exclude_holder_ids"}, "budget": {"max_refs": 8}, "asked_at": q.get("updated_at")}
+        published = failed = 0
+        for r in pending:
+            env = Envelope.new(Subjects.holder_inbox(q["tenant_id"], r["holder_id"]), "question", q["tenant_id"],
+                               {**payload_base, "holder_id": r["holder_id"], "route_id": r["route_id"], "deadline_at": r["deadline_at"]},
+                               msg_id=r["msg_id"] or f"q:{question_id}:{r['holder_id']}")
+            env.sign(self.org.route_key(r["holder_id"]))
             try:
                 if self.transport is not None:
                     await self.transport.publish(env)
                 async with self.db.tx() as c:
-                    c.execute("UPDATE question_routes SET status='delivered', delivered_at=? WHERE question_id=? AND holder_id=? AND status='pending'", (now_iso(), question_id, h["holder_id"]))
-            except Exception as exc:  # transport down: keep the route pending; the route job will be retried
+                    c.execute("UPDATE question_routes SET status='delivered', delivered_at=?, attempts=attempts+1, error=NULL WHERE route_id=? AND status='pending'", (now_iso(), r["route_id"]))
+                published += 1
+            except Exception as exc:  # transport down: the route stays pending and the job retries
                 failed += 1
-                logger.warning("route publish failed for %s -> %s: %s", question_id, h["holder_id"], exc)
+                logger.warning("route publish failed for %s -> %s: %s", question_id, r["holder_id"], exc)
                 async with self.db.tx() as c:
-                    c.execute("UPDATE question_routes SET error=?, attempts=attempts+1 WHERE question_id=? AND holder_id=?", (str(exc)[:300], question_id, h["holder_id"]))
-        if q.get("goal_id"):
-            await self.goals.charge_budget(q["goal_id"], questions=1)
-        return {"routed": routed, "failed": failed, "rejected": rejected, "status": "collecting", "deadline_at": deadline}
+                    c.execute("UPDATE question_routes SET error=?, attempts=attempts+1 WHERE route_id=?", (str(exc)[:300], r["route_id"]))
+        return published, failed
 
     # ------------------------------------------------------------------ responses
     async def handle_response(self, payload: Mapping[str, Any], *, msg_id: str, holder_id: str | None = None) -> dict[str, Any]:
@@ -358,10 +413,16 @@ class QuestionService:
             self.db.emit_sync(c, q["tenant_id"], "question.responded", ref_type="question", ref_id=qid, payload={"holder_id": hid, "status": status},
                               audience={"unit_ids": [q["scope_unit_id"]] if q.get("scope_unit_id") else [], "user_ids": [holder["owner_id"]] if holder["owner_type"] == "user" else []})
             pending = c.execute("SELECT COUNT(*) AS n FROM question_routes WHERE question_id=? AND status IN ('pending','delivered')", (qid,)).fetchone()["n"]
-            if pending == 0:
+            late = q["status"] not in ("routed", "collecting")
+            if late and status == "answered" and q["status"] not in ("cancelled", "expired"):
+                # collection already closed (timeout, or the question was resolved): the evidence is not lost, a dedicated
+                # step integrates it into the question's claims once evaluation has finished
+                self.jobs.enqueue_sync(c, "question.late_response", idempotency_key=f"question.late_response:{rid}", tenant_id=q["tenant_id"], ref_type="question",
+                                       ref_id=qid, payload={"response_id": rid}, priority=4, max_attempts=5)
+            elif pending == 0:
                 # everyone answered: pull the collect job forward
                 c.execute("UPDATE jobs SET available_at=? WHERE idempotency_key=? AND status='queued'", (now, f"question.collect:{qid}"))
-        return {"accepted": True, "response_id": rid, "status": status, "all_in": pending == 0}
+        return {"accepted": True, "response_id": rid, "status": status, "all_in": pending == 0, "late": late}
 
     async def human_response(self, principal: Principal, question_id: str, *, content: str, holder_id: str, evidence_refs: Iterable[Mapping[str, Any]] = (),
                              no_evidence: bool = False) -> dict[str, Any]:

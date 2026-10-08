@@ -52,11 +52,17 @@ class KnowledgeService:
                                              disclosure_level, observed_at, freshness_at, status, version, meta, created_at, updated_at)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', 1, ?, ?, ?)
                    ON CONFLICT(ref_id) DO UPDATE SET disclosed_excerpt=excluded.disclosed_excerpt, freshness_at=COALESCE(excluded.freshness_at, evidence_refs.freshness_at),
-                     observed_at=COALESCE(excluded.observed_at, evidence_refs.observed_at), updated_at=excluded.updated_at""",
+                     observed_at=COALESCE(excluded.observed_at, evidence_refs.observed_at), updated_at=excluded.updated_at
+                   WHERE evidence_refs.holder_id = excluded.holder_id AND evidence_refs.tenant_id = excluded.tenant_id""",
                 (rid, tenant_id, holder_id, r.get("source_root_id"), int(bool(r.get("root_known", bool(r.get("source_root_id"))))),
                  r.get("kind") or "document", (r.get("title") or "")[:300], r.get("disclosed_excerpt") or "", r.get("disclosure_level") or "excerpt",
                  r.get("observed_at"), r.get("freshness_at") or r.get("observed_at"), j(r.get("meta") or {}), now, now),
             )
+            owner = c.execute("SELECT holder_id, tenant_id FROM evidence_refs WHERE ref_id=?", (rid,)).fetchone()
+            if owner is None or owner["holder_id"] != holder_id or owner["tenant_id"] != tenant_id:
+                # a reference id already owned by another holder: never let one holder overwrite or borrow another's evidence
+                self.db.audit_sync(c, tenant_id, "holder", holder_id, "evidence.ref_collision", resource_type="evidence_ref", resource_id=rid, outcome="deny")
+                continue
             out.append(rid)
         return out
 
@@ -279,7 +285,7 @@ class KnowledgeService:
             "claim": self.claim_summary(claim),
             "evidence": [self.ref_view(r) for r in refs],
             "derivations": rows_to_dicts(self.db.all("SELECT * FROM derivations WHERE claim_id=? ORDER BY created_at", (claim_id,)), json_fields=DERIVATION_JSON),
-            "conflicts": [self.conflict_view(x) for x in self.conflicts_for_claim(claim_id)],
+            "conflicts": [self.conflict_view(x, principal) for x in self.conflicts_for_claim(claim_id)],
             "revisions": self.revisions_for("claim", claim_id),
             "history": history,
             "dependencies": {"roots": compute_support(refs)["roots"], "shared": compute_support(refs)["shared_dependencies"], "unknown": compute_support(refs)["unknown_ref_ids"]},
@@ -322,11 +328,23 @@ class KnowledgeService:
             sql += " AND status=?"; args.append(status)
         return rows_to_dicts(self.db.all(sql + " ORDER BY created_at DESC", args), json_fields=CONFLICT_JSON)
 
-    def conflict_view(self, conflict: Mapping[str, Any]) -> dict[str, Any]:
+    def conflict_view(self, conflict: Mapping[str, Any], principal: Principal | None = None) -> dict[str, Any]:
+        """A conflict with both sides. With a principal, a side the viewer may not see is reduced to its id and status, and
+        the summary (which may quote it) is replaced, so a visible claim never exposes a private one it disagrees with."""
         d = dict(conflict)
         a, b = self.get_claim(d["claim_a_id"]), self.get_claim(d["claim_b_id"])
-        d["claim_a"] = self.claim_summary(a) if a else None
-        d["claim_b"] = self.claim_summary(b) if b else None
+        hidden = False
+        for key, cl in (("claim_a", a), ("claim_b", b)):
+            if cl is None:
+                d[key] = None
+            elif principal is not None and not self.authz.can_view_scoped(principal, cl, resource_type="claim"):
+                d[key] = {"claim_id": cl["claim_id"], "status": cl["status"], "visible": False, "text": "[not visible to you]"}
+                hidden = True
+            else:
+                d[key] = {**self.claim_summary(cl), "visible": True}
+        if hidden:
+            d["summary"] = "Disagreement with a claim outside your access."
+            d["investigation"] = [{k: v for k, v in step.items() if k in ("at", "step", "outcome")} for step in (d.get("investigation") or [])]
         return d
 
     def list_conflicts(self, principal: Principal, *, status: str | None = None, scope_unit_id: str | None = None, goal_id: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
@@ -340,7 +358,7 @@ class KnowledgeService:
         if goal_id:
             sql += " AND c.goal_id=?"; args.append(goal_id)
         sql += " ORDER BY k.updated_at DESC LIMIT ?"; args.append(int(limit))
-        return [self.conflict_view(d) for d in rows_to_dicts(self.db.all(sql, args), json_fields=CONFLICT_JSON)]
+        return [self.conflict_view(d, principal) for d in rows_to_dicts(self.db.all(sql, args), json_fields=CONFLICT_JSON)]
 
     async def add_investigation(self, principal: Principal, conflict_id: str, step: str, note: str, *, question_id: str | None = None) -> dict[str, Any]:
         k = self.get_conflict(conflict_id)
@@ -417,31 +435,48 @@ class KnowledgeService:
     # ================================================================== evidence change propagation
     async def on_evidence_event(self, principal: Principal, tenant_id: str, holder_id: str, event: str, affected_ref_ids: Iterable[str],
                                 *, new_source_root_id: str | None = None, reason: str = "") -> dict[str, Any]:
-        """A holder revised or retracted evidence: mark references, find derived claims, mark them stale (or retracted when
-        nothing supports them any more), and return the claims that need authorized re-verification."""
+        """A holder revised or retracted evidence. Idempotent: only references whose state actually changes propagate, so a
+        redelivered event changes nothing. Claims citing a changed reference become ``stale`` (re-verification follows), or
+        ``retracted`` when a retraction leaves them with no active supporting evidence; derived claims are marked stale."""
         ids = [r for r in dict.fromkeys(affected_ref_ids)]
         if not ids:
-            return {"affected_claim_ids": [], "ref_ids": []}
+            return {"affected_claim_ids": [], "ref_ids": [], "changed_ref_ids": []}
         status = "retracted" if event == "retracted" else "revised"
         now = now_iso()
+        changed: list[str] = []
         async with self.db.tx() as c:
             for rid in ids:
-                r = c.execute("SELECT status, version FROM evidence_refs WHERE ref_id=? AND tenant_id=? AND holder_id=?", (rid, tenant_id, holder_id)).fetchone()
+                r = c.execute("SELECT status, version, source_root_id FROM evidence_refs WHERE ref_id=? AND tenant_id=? AND holder_id=?", (rid, tenant_id, holder_id)).fetchone()
                 if r is None:
                     continue
-                c.execute("UPDATE evidence_refs SET status=?, version=version+1, updated_at=?, source_root_id=COALESCE(?, source_root_id) WHERE ref_id=?", (status, now, new_source_root_id if status == "revised" else None, rid))
+                if r["status"] == "retracted" or (r["status"] == status and (status == "retracted" or not new_source_root_id or new_source_root_id == r["source_root_id"])):
+                    continue        # already in this state: a replayed or redundant event
+                c.execute("UPDATE evidence_refs SET status=?, version=version+1, updated_at=?, source_root_id=COALESCE(?, source_root_id) WHERE ref_id=?",
+                          (status, now, new_source_root_id if status == "revised" else None, rid))
                 self._revision_sync(c, tenant_id, "evidence_ref", rid, int(r["version"]) + 1, principal, reason or event, {"status": r["status"]}, {"status": status})
-            self.db.audit_sync(c, tenant_id, "holder", holder_id, f"evidence.{event}", resource_type="evidence_ref", resource_id=",".join(ids)[:200], detail={"count": len(ids)})
-        rows = self.db.all(f"SELECT DISTINCT claim_id FROM claim_evidence WHERE ref_id IN ({','.join('?' * len(ids))})", ids)
+                changed.append(rid)
+            if changed:
+                self.db.audit_sync(c, tenant_id, "holder", holder_id, f"evidence.{event}", resource_type="evidence_ref", resource_id=",".join(changed)[:200], detail={"count": len(changed)})
+        if not changed:
+            return {"affected_claim_ids": [], "ref_ids": ids, "changed_ref_ids": []}
+        rows = self.db.all(f"SELECT DISTINCT claim_id FROM claim_evidence WHERE ref_id IN ({','.join('?' * len(changed))})", changed)
         affected: list[str] = []
         for r in rows:
             claim = self.get_claim(r["claim_id"])
             if not claim or claim["status"] == "retracted":
                 continue
-            await self.revise_claim(principal, claim["claim_id"], status="stale", reason=f"evidence {event}: {reason or 'source changed'}", event_kind="claim.stale")
+            remaining = [x for x in self.refs_for_claim(claim["claim_id"]) if x.get("role") == "supports" and x.get("status") == "active"]
+            if status == "retracted" and not remaining:
+                await self.revise_claim(principal, claim["claim_id"], status="retracted", reason=f"all supporting evidence retracted: {reason or 'source deleted'}",
+                                        event_kind="claim.retracted")
+                affected.append(claim["claim_id"])
+                affected.extend(await self._propagate_status(principal, claim["claim_id"], "stale", reason=f"input claim {claim['claim_id']} retracted"))
+                continue
+            if claim["status"] != "stale":
+                await self.revise_claim(principal, claim["claim_id"], status="stale", reason=f"evidence {event}: {reason or 'source changed'}", event_kind="claim.stale")
             affected.append(claim["claim_id"])
             affected.extend(await self._propagate_status(principal, claim["claim_id"], "stale", reason=f"input claim {claim['claim_id']} became stale"))
-        return {"affected_claim_ids": list(dict.fromkeys(affected)), "ref_ids": ids}
+        return {"affected_claim_ids": list(dict.fromkeys(affected)), "ref_ids": ids, "changed_ref_ids": changed}
 
     async def sweep_stale(self, principal: Principal, tenant_id: str) -> list[str]:
         """Scheduled check: claims whose newest supporting evidence is older than the freshness policy become stale."""
@@ -540,6 +575,23 @@ class KnowledgeService:
             self.db.audit_sync(c, d["tenant_id"], principal.kind, principal.id, f"discovery.{action}", resource_type="discovery", resource_id=discovery_id, detail={"note": note})
         return self.get_discovery(discovery_id)  # type: ignore[return-value]
 
+    async def add_claims_to_discovery(self, principal: Principal, discovery_id: str, claim_ids: Iterable[str], *, reason: str) -> dict[str, Any] | None:
+        """Attach claims committed after the discovery was written (a late holder response), with a revision."""
+        d = self.get_discovery(discovery_id)
+        if d is None:
+            return None
+        before = list(d.get("claim_ids") or [])
+        ids = list(dict.fromkeys(before + list(claim_ids)))
+        if ids == before:
+            return d
+        version = int(self.db.scalar("SELECT COALESCE(MAX(version), 1) FROM revisions WHERE object_type='discovery' AND object_id=?", (discovery_id,), 1)) + 1
+        async with self.db.tx() as c:
+            c.execute("UPDATE discoveries SET claim_ids=?, updated_at=? WHERE discovery_id=?", (j(ids), now_iso(), discovery_id))
+            self._revision_sync(c, d["tenant_id"], "discovery", discovery_id, version, principal, reason, {"claim_ids": before}, {"claim_ids": ids})
+            self.db.emit_sync(c, d["tenant_id"], "discovery.updated", ref_type="discovery", ref_id=discovery_id, payload={"action": "claims_added", "claim_ids": ids},
+                              audience={"unit_ids": [d["scope_unit_id"]] if d.get("scope_unit_id") else [], "visibility": d["visibility"]})
+        return self.get_discovery(discovery_id)
+
     async def attach_followups(self, discovery_id: str, question_ids: Iterable[str]) -> None:
         d = self.get_discovery(discovery_id)
         if d is None:
@@ -587,7 +639,7 @@ class KnowledgeService:
         followups = rows_to_dicts(self.db.all(f"SELECT question_id, text, status, kind, priority, created_at FROM questions WHERE question_id IN ({','.join('?' * len(d.get('followup_question_ids') or ['']))})",
                                               d.get("followup_question_ids") or [""]))
         return {"discovery": summary, "claims": [self.claim_summary(x) for x in claims], "evidence": [self.ref_view(r) for r in refs],
-                "conflicts": [self.conflict_view(k) for k in conflicts], "lineage": self.lineage_graph(principal, claim_ids=[x["claim_id"] for x in claims], discovery=d),
+                "conflicts": [self.conflict_view(k, principal) for k in conflicts], "lineage": self.lineage_graph(principal, claim_ids=[x["claim_id"] for x in claims], discovery=d),
                 "followups": followups, "revisions": self.revisions_for("discovery", discovery_id)}
 
     # ================================================================== lineage graph

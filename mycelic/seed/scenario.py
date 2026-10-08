@@ -219,9 +219,8 @@ def build_standin_app(rt: Runtime):
         holder = holder_for(request)
         if holder is None:
             return web.json_response({"error": "unauthorized", "code": "unauthorized"}, status=401)
-        row = rt.org.holder_secret_row(holder["holder_id"])
         return web.json_response({"holder_id": holder["holder_id"], "tenant_id": holder["tenant_id"], "name": holder["name"], "mode": holder["mode"],
-                                  "route_key": row["route_key"], "export_policy": holder.get("export_policy") or {}, "domains": holder.get("domains") or [],
+                                  "route_key": rt.org.route_key(holder["holder_id"]), "export_policy": holder.get("export_policy") or {}, "domains": holder.get("domains") or [],
                                   "heartbeat_seconds": 2, "transport": {"kind": "sqlite", "coord_db": rt.settings.coord_db}})
 
     async def heartbeat(request: web.Request) -> web.Response:
@@ -448,9 +447,8 @@ class ServiceSession:
             raise KeyError(ref_id)
         holder = self.rt.org.get_holder(ref["holder_id"]) or {}
         self.rt.authz.require(self.rt.authz.can_view_raw_evidence(self.p, holder), "evidence.raw", ref_id, "raw evidence needs the owner or a raw grant")
-        row = self.rt.org.holder_secret_row(ref["holder_id"])
         env = Envelope.new(Subjects.holder_raw(self.p.tenant_id, ref["holder_id"]), "raw_request", self.p.tenant_id,
-                           {"ref_id": ref_id, "grant_token": f"raw:{self.p.id}:{ref_id}"}, msg_id=f"raw:{ref_id}:{new_id('r')}").sign(row["route_key"])
+                           {"ref_id": ref_id, "grant_token": f"raw:{self.p.id}:{ref_id}"}, msg_id=f"raw:{ref_id}:{new_id('r')}").sign(self.rt.org.route_key(ref["holder_id"]))
         reply = await self.rt.transport.request(env, timeout=8.0)
         if not reply.payload or reply.payload.get("error"):
             raise KeyError(ref_id)
@@ -479,10 +477,9 @@ class ServiceSession:
     async def holder_revise(self, hid, doc_id, *, params, body):
         h = self._holder(hid)
         self.rt.authz.require(h["owner_type"] == "user" and h["owner_id"] == self.p.id, "holder.revise", hid, "only the owner revises")
-        row = self.rt.org.holder_secret_row(hid)
         env = Envelope.new(Subjects.holder_ingest(self.p.tenant_id, hid), "revise", self.p.tenant_id,
                            {"doc_id": doc_id, "text": body.get("text", ""), "title": body.get("title"), "observed_at": body.get("observed_at"),
-                            "reason": body.get("reason", "")}, msg_id=f"revise:{doc_id}:{new_id('rv')}").sign(row["route_key"])
+                            "reason": body.get("reason", "")}, msg_id=f"revise:{doc_id}:{new_id('rv')}").sign(self.rt.org.route_key(hid))
         await self.rt.transport.publish(env)
         return {"accepted": True, "doc_id": doc_id, "status": "revising"}
 
@@ -695,8 +692,9 @@ async def check_e_level_abstraction(ctx: Ctx) -> None:
             problems.append(f"{key}: level {(body or {}).get('level')!r} != {level!r}")
         seen[key] = {"goals": len(goals), "discoveries": len(discs), "levels": sorted({str(d.get("level")) for d in discs}), "level": (body or {}).get("level"),
                      "goal_ids": [g.get("goal_id") for g in goals]}
-    if seen.get("elin", {}).get("discoveries", 0) != 0 or ctx.gid in seen.get("elin", {}).get("goal_ids", []):
-        problems.append("employee sees region-level discoveries or the region goal")
+    above_team = {"department", "subsidiary", "region", "executive"}
+    if set(seen.get("elin", {}).get("levels", [])) & above_team or ctx.gid in seen.get("elin", {}).get("goal_ids", []):
+        problems.append("employee sees discoveries above her team or the region goal")
     if seen.get("petra", {}).get("discoveries", 0) < 1 or seen.get("ingrid", {}).get("discoveries", 0) < 1:
         problems.append("regional lead / executive see no discoveries")
     if "executive" not in seen.get("ingrid", {}).get("levels", []) and "region" not in seen.get("ingrid", {}).get("levels", []):
@@ -737,7 +735,7 @@ async def check_f_private_evidence(ctx: Ctx) -> None:
     if ref is None:
         raise ScenarioError("no evidence reference from Elin's holder is cited by the deployments claim")
     rid = ref["ref_id"]
-    elin, sofia, tomas = (await ctx.client.login(EMAIL[k]) for k in ("elin", "sofia", "tomas"))
+    elin, sofia, tomas = [await ctx.client.login(EMAIL[k]) for k in ("elin", "sofia", "tomas")]
     s_elin, raw = await elin.get(f"/api/evidence/{rid}/raw")
     s_sofia, _ = await sofia.get(f"/api/evidence/{rid}/raw")
     s_tomas, _ = await tomas.get(f"/api/evidence/{rid}/raw")
@@ -807,10 +805,9 @@ async def check_h_source_revision(ctx: Ctx) -> None:
     path = f"POST /api/holders/{HOLDER_A}/documents/{{doc}}/revise -> {status}"
     if status not in (200, 201, 202):
         # the documented path is the API; when it refuses, send the same signed revise envelope the API sends
-        row = ctx.rt.org.holder_secret_row(HOLDER_A)
         env = Envelope.new(Subjects.holder_ingest(ctx.tid, HOLDER_A), "revise", ctx.tid,
                            {"doc_id": "doc_demo_elin_1", "text": REVISED_ELIN_TEXT, "reason": "the change board now meets daily"},
-                           msg_id=f"revise:doc_demo_elin_1:{new_id('rv')}").sign(row["route_key"])
+                           msg_id=f"revise:doc_demo_elin_1:{new_id('rv')}").sign(ctx.rt.org.route_key(HOLDER_A))
         await ctx.rt.transport.publish(env)
         path += f" ({body}); fell back to the signed revise envelope over the transport"
 
@@ -877,9 +874,11 @@ async def check_i_worker_restart(ctx: Ctx) -> None:
     rt.worker = w3
 
     def committed():
+        # resolved, and the abandoned evaluate job replayed to completion by the new worker
         q = rt.questions.get(qid)
-        return q is not None and q["status"] in ("committed", "retained_uncertain")
-    await wait_until(committed, timeout=25, deadline=ctx.deadline, what="the restart question to be committed")
+        j = rt.jobs.get(job.job_id)
+        return q is not None and q["status"] in ("committed", "retained_uncertain") and j is not None and j.status == "done"
+    await wait_until(committed, timeout=25, deadline=ctx.deadline, what="the restart question to be committed and the abandoned job replayed")
     claims_final = rt.knowledge.list_claims(ctx.sysp, question_id=qid, include_retracted=True)
     discs = rt.knowledge.list_discoveries(ctx.sysp, goal_id=ctx.gid)
     discs_q = [d for d in discs if d.get("question_id") == qid]

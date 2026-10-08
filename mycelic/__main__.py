@@ -171,22 +171,25 @@ def cmd_seed(args: argparse.Namespace) -> int:
 
 
 def cmd_scenario(args: argparse.Namespace) -> int:
-    s = _settings("scenario")
+    """Run the verification scenario. It always builds its own runtime in a temporary data directory (or --data-dir), never
+    in the configured one, so it can be run next to a live deployment without touching its data."""
     try:
-        from .seed.scenario import run_scenario
+        from .seed.scenario import main as scenario_main
     except ImportError as exc:
         print(f"the scenario module is not available in this build ({exc})", file=sys.stderr)
         return 2
-
-    async def go(rt: Any) -> Any:
-        return await _maybe_await(run_scenario(rt))
-
-    out = asyncio.run(_with_runtime(s, go))
-    if isinstance(out, str):
-        print(out)
-    else:
-        _print(out if out is not None else {"ok": True})
-    return 0
+    argv: list[str] = []
+    if args.data_dir:
+        argv += ["--data-dir", args.data_dir]
+    if args.timeout is not None:
+        argv += ["--timeout", str(args.timeout)]
+    if args.keep:
+        argv.append("--keep")
+    if args.json:
+        argv += ["--json", args.json]
+    if args.verbose:
+        argv.append("--verbose")
+    return int(scenario_main(argv) or 0)
 
 
 def cmd_backup(args: argparse.Namespace) -> int:
@@ -279,6 +282,11 @@ def build_parser() -> argparse.ArgumentParser:
     sd.set_defaults(fn=cmd_seed)
 
     sc = sub.add_parser("scenario", help="run the verification scenario end to end and print a report")
+    sc.add_argument("--data-dir", default=None, help="run inside this directory instead of a temporary one (kept afterwards)")
+    sc.add_argument("--timeout", type=float, default=None, help="overall time budget in seconds (default 120)")
+    sc.add_argument("--keep", action="store_true", help="keep the temporary data directory for inspection")
+    sc.add_argument("--json", default=None, help="also write the report as JSON to this path")
+    sc.add_argument("--verbose", action="store_true", help="INFO logs on stderr")
     sc.set_defaults(fn=cmd_scenario)
 
     bp = sub.add_parser("backup", help="consistent online backup of coord.db and every holder store")
