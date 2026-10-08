@@ -299,6 +299,32 @@ function ConnectDrawer({ item, holder, onClose, onDone }: { item: ConnectorCatal
             {(id) => <Input id={id} type="password" autoComplete="off" value={token} onChange={(e) => setToken(e.target.value)} required />}
           </Field>
         ) : null}
+        {item.connector_type === 'local_export' && holder.mode === 'embedded' ? (
+          <Field label="Export file" hint="A .json or .jsonl export; it is stored in this memory’s import directory and added to the configuration.">
+            {(id) => (
+              <input id={id} type="file" className="input" accept=".json,.jsonl,application/json"
+                onChange={async (e) => {
+                  const f = e.target.files?.[0];
+                  if (!f) return;
+                  try {
+                    let res;
+                    try {
+                      res = await api.integrations.uploadImport(holder.holder_id, f);
+                    } catch (err) {
+                      if ((err as { status?: number }).status === 409 && confirmAction(`${f.name} already exists. Replace it?`)) res = await api.integrations.uploadImport(holder.holder_id, f, true);
+                      else throw err;
+                    }
+                    const cfg = (() => { try { return JSON.parse(config || '{}'); } catch { return {}; } })() as { paths?: string[] };
+                    cfg.paths = Array.from(new Set([...(cfg.paths ?? []).filter((x) => x !== 'export.jsonl'), res.import.name]));
+                    setConfig(JSON.stringify(cfg));
+                    toast.push(`Uploaded ${res.import.name}`, 'ok');
+                  } catch (err) {
+                    toast.error(err, 'Upload failed');
+                  }
+                }} />
+            )}
+          </Field>
+        ) : null}
         <Field label="Configuration (JSON)" hint={item.connector_type === 'local_export' ? 'File names inside this memory’s import directory.' : 'Optional connector settings.'}>
           {(id) => <Textarea id={id} rows={4} value={config} onChange={(e) => setConfig(e.target.value)} spellCheck={false} />}
         </Field>

@@ -238,3 +238,24 @@ async def test_runtime_refuses_actions_from_a_non_owner(tmp_path):
     out = await runtime.control("connector.add", {"connector_type": "local_export", "config": {"paths": ["a.jsonl"], "account_id": "a"}}, actor="usr_owner")
     assert out["connector"]["status"] == "active"
     await store.close()
+
+
+async def test_export_upload_lands_in_the_import_directory_only(api):
+    import aiohttp
+    s = await _setup(api)
+    hid = s["holder"]["holder_id"]
+
+    async def upload(name, body, tok, replace=False):
+        form = aiohttp.FormData()
+        form.add_field("file", body, filename=name, content_type="application/json")
+        if replace:
+            form.add_field("replace", "1")
+        async with api.client.post(f"/api/holders/{hid}/imports", data=form, headers={"Cookie": f"mycelic_session={tok}"}) as r:
+            return r.status, await r.json()
+    status, out = await upload("../../../coord.jsonl", b'{"id": "1", "text": "hello"}\n', s["ana"])
+    assert status == 201 and out["import"]["name"] == "coord.jsonl"
+    assert (Path(api.rt.settings.holders_dir) / hid / "imports" / "coord.jsonl").exists()
+    assert (await upload("coord.jsonl", b"{}", s["ana"]))[0] == 409
+    assert (await upload("coord.jsonl", b"{}", s["ana"], replace=True))[0] == 201
+    assert (await upload("x.exe", b"MZ", s["ana"]))[0] == 400
+    assert (await upload("y.jsonl", b"{}", s["bo"]))[0] in (403, 404)

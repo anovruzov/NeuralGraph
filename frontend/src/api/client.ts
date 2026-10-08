@@ -265,6 +265,12 @@ export const integrations = {
       `/holders/${holder_id}/connectors/${connector_id}/webhook`,
       signing_secret ? { signing_secret } : {},
     ),
+  uploadImport: (holder_id: string, file: File, replace = false) => {
+    const form = new FormData();
+    form.append('file', file, file.name);
+    if (replace) form.append('replace', '1');
+    return request<{ import: { name: string; bytes: number }; config_hint: { paths: string[] } }>(`/holders/${holder_id}/imports`, { method: 'POST', form });
+  },
   admin: () => get<T.ListResponse<T.AdminConnectorRow> & { totals: { by_type: Record<string, number>; by_status: Record<string, number> } }>('/admin/integrations'),
   domains: () => get<T.TaxonomyResponse>('/domains'),
   setDomains: (body: { upsert?: { domain_id: string; name?: string; description?: string }[]; deprecate?: string[]; aliases?: { alias: string; domain_id: string }[] }) =>

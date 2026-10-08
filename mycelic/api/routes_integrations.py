@@ -40,6 +40,7 @@ logger = logging.getLogger(__name__)
 CONTROL_TIMEOUT_SECONDS = 30.0
 SYNC_TIMEOUT_SECONDS = 120.0
 WEBHOOK_MAX_BYTES = 5 * 1024 * 1024
+IMPORT_MAX_BYTES = 200 * 1024 * 1024
 SERVER_TENANT = "__server__"          # vault namespace of server-held secrets (webhook signing secrets, PKCE verifiers)
 SOURCE_CHANGE_FIELDS = ("source_id", "selection", "exportable", "default_domain_ids", "disclosure", "sensitivity")
 
@@ -543,6 +544,62 @@ def setup(app: web.Application, prefix: str) -> None:
                           detail={"connector_id": con.get("connector_id"), "connector_type": ctype, "scope": scope, "auth": "oauth2"}, request_id=request.get("request_id"))
         raise web.HTTPFound(f"/app/memory/integrations?connected={con.get('connector_id', '')}")
 
+    # ------------------------------------------------------------------ export files for file-based connectors
+    async def upload_import(request: web.Request) -> web.Response:
+        """A JSON or JSONL export into the holder's ``imports/`` directory, for the ``local_export`` connector (embedded
+        holders; an external holder's owner places files on their own machine). Names are sanitized, nothing outside the
+        directory can be written, and an existing file is replaced only on request."""
+        import re
+        p = require_user(request)
+        h = holder_or_404(rt, p, request.match_info["holder_id"])
+        require_connector_manager(rt, p, h)
+        if h.get("mode") != "embedded" or rt.holders is None:
+            raise ApiError(400, "an external holder's export files are placed on the holder's own machine", "external_holder")
+        if not (request.content_type or "").startswith("multipart/"):
+            raise ApiError(400, "upload the export as multipart 'file'")
+        reader = await request.multipart()
+        replace = False
+        saved = None
+        root = rt.holders.store_path(h["holder_id"]).parent / "imports"
+        root.mkdir(parents=True, exist_ok=True)
+        while True:
+            part = await reader.next()
+            if part is None:
+                break
+            if part.name == "replace":
+                replace = (await part.text()).strip() in ("1", "true", "yes")
+            elif part.name == "file":
+                from urllib.parse import unquote
+                base = re.split(r"[/\\]", unquote(part.filename or "export.jsonl"))[-1]
+                name = re.sub(r"[^A-Za-z0-9._-]+", "-", base).strip(".-") or "export.jsonl"
+                if not name.lower().endswith((".json", ".jsonl")):
+                    raise ApiError(400, "export files are .json or .jsonl")
+                size = 0
+                tmp = root / f".{name}.part"
+                with tmp.open("wb") as f:
+                    while True:
+                        chunk = await part.read_chunk(1 << 16)
+                        if not chunk:
+                            break
+                        size += len(chunk)
+                        if size > IMPORT_MAX_BYTES:
+                            f.close()
+                            tmp.unlink(missing_ok=True)
+                            raise ApiError(413, "export file too large", "too_large")
+                        f.write(chunk)
+                saved = {"name": name, "bytes": size, "tmp": tmp}
+        if saved is None:
+            raise ApiError(400, "multipart upload needs a 'file' part")
+        tmp = saved.pop("tmp")
+        target = root / saved["name"]
+        if target.exists() and not replace:
+            tmp.unlink(missing_ok=True)
+            raise ApiError(409, f"{saved['name']} already exists; send replace=1 to overwrite", "exists")
+        tmp.replace(target)
+        await rt.db.audit(p.tenant_id, "user", p.id, "import.upload", resource_type="holder", resource_id=h["holder_id"],
+                          detail={"bytes": saved["bytes"]}, request_id=request.get("request_id"))
+        return json_response({"import": saved, "config_hint": {"paths": [saved["name"]]}}, status=201)
+
     # ------------------------------------------------------------------ admin: metadata and taxonomy
     async def admin_integrations(request: web.Request) -> web.Response:
         p = require_admin(request)
@@ -631,6 +688,7 @@ def setup(app: web.Application, prefix: str) -> None:
     app.router.add_post(f"{prefix}/holders/{{holder_id}}/connectors/{{connector_id}}/sync", sync_connector)
     app.router.add_post(f"{prefix}/holders/{{holder_id}}/connectors/{{connector_id}}/webhook", create_webhook)
     app.router.add_get(f"{prefix}/holders/{{holder_id}}/ingest/queue", queue_status)
+    app.router.add_post(f"{prefix}/holders/{{holder_id}}/imports", upload_import)
     app.router.add_post(f"{prefix}/webhooks/{{connector_type}}/{{endpoint_id}}", receive_webhook)
     app.router.add_get(f"{prefix}/admin/integrations", admin_integrations)
     app.router.add_get(f"{prefix}/domains", get_domains)
