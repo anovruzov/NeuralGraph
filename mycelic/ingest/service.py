@@ -3,8 +3,10 @@
 * **Who connects what.** Only the holder owner connects a source. Org-wide connectors feed *unit* holders; personal
   connectors feed *user* holders (product decision 2). The pairing is enforced here, whatever the caller.
 * **Nothing is ingested silently.** Discovered sources start ``pending_review`` unless an owner auto-include rule matches;
-  direct messages are excluded by default even under auto-include. Private sources are not exportable until the owner opts
-  them in (:meth:`IngestService.set_source`).
+  direct messages are excluded by default even under auto-include. A connector can make the same request for other
+  sources through ``SourceDescriptor.metadata['default_selection']``: ``excluded`` (a mailbox's spam, trash and drafts)
+  or ``pending_review`` (never auto-included: a mailbox's inbox and sent mail). Private sources are not exportable until
+  the owner opts them in (:meth:`IngestService.set_source`).
 * **Credentials** are sealed with the :class:`~mycelic.ingest.crypto.TokenVault` before they touch the database; disconnecting
   deletes the row, which shreds the per-connector key.
 * **Owner deletions** (a record, a source, a whole connector) run through the same deletion path as provider deletions, at
@@ -29,6 +31,8 @@ from .store import IngestStore, SourceRow
 logger = get_logger(__name__)
 
 DM_SOURCE_TYPES = ("dm", "mpim", "group_dm")
+DEFAULT_SELECTIONS = ("excluded", "pending_review")      # what a connector may ask for a source (never "included")
+ACCOUNT_NOTICE = "*"      # WebhookNotice.source_external_id of an account-wide change notice (no object ids)
 NOTICE_AUTH_STATUS = {"auth_expired": "auth_expired", "auth_revoked": "revoked", "insufficient_scope": "paused"}
 EXCLUSION_SCOPES = ("source_type", "source", "conversation", "author", "label", "title_regex", "body_regex")
 
@@ -122,8 +126,13 @@ class IngestService:
         async for desc in instance.discover_sources(ctx):
             if desc.visibility not in VISIBILITIES:
                 desc = dataclasses.replace(desc, visibility="private")
+            asked = (desc.metadata or {}).get("default_selection")
             if desc.source_type in DM_SOURCE_TYPES:
                 selection, reason = "excluded", "default_dm_excluded"
+            elif asked in DEFAULT_SELECTIONS:
+                # the connector says this source is never included by a rule: excluded by default, or always reviewed
+                selection = asked
+                reason = str((desc.metadata or {}).get("default_reason") or ("default_excluded" if asked == "excluded" else "review_required"))[:60]
             elif auto is True or (isinstance(auto, list) and any(fnmatch.fnmatch(desc.external_id, p) or fnmatch.fnmatch(desc.name, p) for p in auto)):
                 selection, reason = "included", "auto_rule"
             else:
@@ -315,6 +324,11 @@ class IngestService:
                 # a connection-level notice (grant revoked, app uninstalled): no source and nothing to admit; the connector
                 # confirms it and raises the auth error the provider signalled
                 await self._connection_notice(instance, ctx, notice, report)
+            elif notice.source_external_id == ACCOUNT_NOTICE:
+                # an account-wide change notice that names no object (Gmail's Pub/Sub push: a history id; Drive's changes.watch:
+                # channel headers) triggers the incremental sync of the connection's included sources, so the same cursors
+                # advance as on a poll and nothing is fetched twice
+                report = await self.p.sync(connector_id, mode="incremental")
             else:
                 src = self.db.source_by_external(connector_id, notice.source_external_id)
                 if src is None or src.selection != "included" or src.access_state != "ok":

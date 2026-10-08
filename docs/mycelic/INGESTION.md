@@ -3135,7 +3135,7 @@ fixture exists and the connector passes against it. "Live-verified" means it has
 | GitHub (issues, PRs, comments) | pull + webhook | fine-grained PAT, OAuth/GitHub App user token (code + PKCE); installation tokens scaffold | 1 | yes (`connectors/github.py`) | yes (`mocks/github_mock.py`, checked against the OpenAPI subset) | no | §11.2 |
 | Email export (mbox / .eml / zip) | export | none | 1 | no | no | n/a (fixtures are the format) | §11.3 |
 | Slack | pull + Events API (export ZIP not built) | OAuth v2 user token (code + PKCE, rotation) or pasted user token | 1 | yes (`connectors/slack.py`) | yes (`mocks/slack_mock.py`) | no | distributed-app limits enforced client-side (§11.1) |
-| Gmail (API) | pull (history id) + push (Pub/Sub) | OAuth | 2 | no | no | no | reuses the email normalizer |
+| Gmail (API) | pull (labels; history id, 404 → re-list) + push (Pub/Sub, shared-secret URL token; OIDC push auth not built) | OAuth (code + PKCE, `gmail.readonly`) | 1 | yes (`connectors/gmail.py`) | yes (`mocks/gmail_mock.py`) | no | personal only; spam, trash and drafts excluded, inbox and sent never auto-included; `users.watch` renewal not scheduled |
 | Outlook / Exchange (Microsoft Graph) | pull (delta) + webhooks | OAuth | 2 | no | no | no | reuses the email normalizer |
 | Microsoft Teams (Graph) | pull + change notifications | OAuth | 2 | no | no | no | |
 | Google Chat | pull + events | OAuth | 3 | no | no | no | |
@@ -3144,7 +3144,7 @@ fixture exists and the connector passes against it. "Live-verified" means it has
 | GitLab | pull + webhooks | PAT/OAuth | 2 | no | no | no | mirrors GitHub |
 | Linear | pull (GraphQL) + webhooks | API key/OAuth | 2 | no | no | no | |
 | Jira | pull (JQL updated) + webhooks | OAuth/API token | 2 | no | no | no | issue key prefixes feed §8.2 |
-| Google Drive / Docs | pull (changes) + push | OAuth | 2 | no | no | no | `document` kind, revisions |
+| Google Drive / Docs | pull (shared drives + named folders: crawl, then changes) + push (`changes.watch`) | OAuth (code + PKCE, `drive.readonly`) | 1 | yes (`connectors/google_drive.py`) | yes (`mocks/drive_mock.py`) | no | `document` kind; file permissions → record ACLs (groups as membership refs); revisions not kept; channel renewal not scheduled |
 | Notion | pull | OAuth | 3 | no | no | no | |
 | Confluence | pull + webhooks | OAuth/API token | 3 | no | no | no | |
 | SharePoint (Graph) | pull (delta) | OAuth | 3 | no | no | no | |

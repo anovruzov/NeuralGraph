@@ -1,5 +1,6 @@
-"""Helpers shared by the API-backed connectors (GitHub, Slack): principal mapping, URL extraction, time formatting, and
-one credential refresh under the connection's refresh lock. Pure functions apart from :func:`refresh_once`."""
+"""Helpers shared by the API-backed connectors (GitHub, Slack, Gmail, Google Drive): principal mapping, URL extraction, time
+formatting, and one credential refresh under the connection's refresh lock. Pure functions apart from :func:`refresh_once`.
+The Google connectors' OAuth and e-mail principals live in :mod:`._google`."""
 from __future__ import annotations
 
 import re

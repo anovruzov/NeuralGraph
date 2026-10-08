@@ -58,12 +58,6 @@ _GRAPH = ("graph.microsoft.com", "login.microsoftonline.com")
 _GOOGLE = ("oauth2.googleapis.com", "www.googleapis.com")
 
 SCAFFOLD_CONNECTORS: tuple[type[ScaffoldConnector], ...] = (
-    _scaffold("gmail", "Gmail", auth=("oauth2",), scopes=(("https://www.googleapis.com/auth/gmail.readonly", "Read messages and labels you choose to include"),),
-              source_types=("mailbox", "label", "thread"), hosts=_GOOGLE + ("gmail.googleapis.com",), modes=("pull", "webhook"), deletes="webhook",
-              threads=True, ownership=("personal",), notes="Next after GitHub and Slack. Personal mailboxes only; labels are chosen explicitly."),
-    _scaffold("google_drive", "Google Drive", auth=("oauth2",), scopes=(("https://www.googleapis.com/auth/drive.readonly", "Read the files and shared drives you include"),),
-              source_types=("folder", "shared_drive"), hosts=_GOOGLE, modes=("pull", "webhook"), deletes="webhook",
-              notes="Next after GitHub and Slack. File permissions become record ACLs."),
     _scaffold("google_calendar", "Google Calendar", auth=("oauth2",), scopes=(("https://www.googleapis.com/auth/calendar.readonly", "Read events of the calendars you include"),),
               source_types=("calendar",), hosts=_GOOGLE, ownership=("personal",)),
     _scaffold("google_docs", "Google Docs", auth=("oauth2",), scopes=(("https://www.googleapis.com/auth/documents.readonly", "Read the documents you include"),),
