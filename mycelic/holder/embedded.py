@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from ..evidence.service import EmbeddingAdapter, EvidenceStore
-from ..util import jl
+from ..util import jl, now_iso
 from .service import HolderService
 
 logger = logging.getLogger(__name__)
@@ -190,6 +190,7 @@ class EmbeddedHolders:
                                        router=self.router, tick_seconds=float(getattr(self.settings, "ingest_tick_seconds", 5.0) or 5.0),
                                        import_root=self.store_path(holder_id).parent / "imports")
             self._ingest[holder_id] = svc.ingest
+            svc.ingest.pipeline.classifier.budget_check = lambda tid=tenant_id: self.classify_budget_left(tid)
         self._stores[holder_id] = store
         self._services[holder_id] = svc
         await svc.start()
@@ -211,6 +212,14 @@ class EmbeddedHolders:
             except ImportError:
                 logger.warning("connector credentials are disabled: the cryptography package is not installed")
         return self._vault
+
+    def classify_budget_left(self, tenant_id: str) -> bool:
+        """Tenant policy ``ingest_model_budget.classify_calls_per_day`` (default 500) against today's ``classify_domains``
+        calls in the usage ledger, across all of the tenant's embedded holders."""
+        cap = int(((self.org.policy(tenant_id, "ingest_model_budget", {}) or {}).get("classify_calls_per_day")) or 500)
+        used = int(self.db.scalar("SELECT COUNT(*) FROM model_usage WHERE tenant_id=? AND purpose='classify_domains' AND at >= ?",
+                                  (tenant_id, now_iso()[:10]), 0) or 0)
+        return used < cap
 
     def ingest(self, holder_id: str) -> Any:
         return self._ingest.get(holder_id)

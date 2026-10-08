@@ -483,6 +483,9 @@ class DomainClassifier:
         self.llm_calls_today = 0
         self.llm_day = ""
         self.counters: dict[str, int] = {}
+        # optional durable, tenant-wide budget (the coordinator's usage ledger for embedded holders): returns False when
+        # today's classification calls are used up; the per-process daily cap applies in any case
+        self.budget_check: Any = None
 
     def _count(self, key: str) -> None:
         self.counters[key] = self.counters.get(key, 0) + 1
@@ -621,6 +624,14 @@ class DomainClassifier:
         if self.llm_calls_today >= self.config.LLM_DAILY_CALLS:
             self._count("llm_budget_exhausted")
             return False
+        if self.budget_check is not None:
+            try:
+                ok = bool(self.budget_check())
+            except Exception:
+                ok = False                      # an unknown budget is an exhausted one: rules and embeddings still classify
+            if not ok:
+                self._count("llm_budget_exhausted")
+                return False
         return True
 
     async def _llm_stage(self, f: RecordFeatures, cand: _Candidates, top5: list[str]) -> None:
