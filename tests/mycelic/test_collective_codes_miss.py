@@ -28,8 +28,12 @@ PREREG = ROOT / "docs" / "collective" / "b1" / "PREREG.md"
 ATTEMPTS = ROOT / "docs" / "collective" / "b1" / "attempts"
 HALVERN = DEMO_DIR / "recorded" / "collective-halvern-b1a"
 HERO = "hero-overheat"
-HERO_KEY = "lot:L10002:overheat"
-CASE = (HERO_KEY, "lot:L10002:malfunction_unspecified", "product:SD-9:malfunction_unspecified")
+# the hero lot is one of the PREREG's adjustable fields (section 6); its product follows by the generator's links (R4)
+_HERO_RAW = next(i for i in json.loads(SCENARIO.read_text(encoding="utf-8"))["items"] if i["id"] == HERO)
+HERO_LOT = _HERO_RAW["key"]["entity_id"]
+HERO_PRODUCT = next(s["ids"][0] for s in _HERO_RAW["structured"] if s["entity_type"] == "product")
+HERO_KEY = f"lot:{HERO_LOT}:overheat"
+CASE = (HERO_KEY, f"lot:{HERO_LOT}:malfunction_unspecified", f"product:{HERO_PRODUCT}:malfunction_unspecified")
 _SCHEMA = schemacheck.compile(cm.SCHEMA)
 
 
@@ -72,11 +76,32 @@ class ParseTests(unittest.TestCase):
                          (HERO, (HERO_KEY,), "narrative_only", ("ILL-9001",), 30, 6))
         self.assertEqual(hero.sites, (("plant-brindlemoor", "en", 1), ("plant-corrowfield", "en", 1),
                                       ("werk-dornhagen", "de", 1)))
-        self.assertEqual(hero.structured, (("lot", ("L10002",), 0.6), ("product", ("SD-9",), 0.95),
+        self.assertEqual(hero.structured, (("lot", (HERO_LOT,), 0.6), ("product", (HERO_PRODUCT,), 0.95),
                                            ("component", ("PUMP-HOUSING",), 0.3), ("supplier", ("V1001",), 0.2)))
         self.assertEqual([i.id for i in sc.items], [HERO, "sibling-quarantine", "decoy-echo-flood",
                                                     "decoy-single-reporter", "decoy-generic-rise"])
         self.assertEqual(sc.pack.detectors["window_weeks"], 8)
+
+    def test_only_adjustable_fields_differ_from_the_preregistered_cast(self) -> None:
+        """PREREG section 6: between attempts only the hero lot, sites and languages, rate, start week and templates
+        may change. The committed scenario is attempt 1's (the cast as PREREG section 3 fixes it) with the hero lot
+        replaced, its product following the generator's link and the sibling holding the same lot."""
+        first = json.loads((ATTEMPTS / "attempt-1" / "scenario_codes_miss.json").read_text(encoding="utf-8"))
+        hero1 = next(i for i in first["items"] if i["id"] == HERO)
+        lot1 = hero1["key"]["entity_id"]
+        product1 = next(s["ids"][0] for s in hero1["structured"] if s["entity_type"] == "product")
+        self.assertEqual((lot1, product1), ("L10002", "SD-9"))
+        links = self.sc.pack.generator["links"]["lot"]
+        self.assertIn(HERO_LOT, links["map"][HERO_PRODUCT])
+        current = json.loads(SCENARIO.read_text(encoding="utf-8"))
+        for item in current["items"]:
+            if item["id"] in (HERO, "sibling-quarantine"):
+                if item["key"]["entity_id"] == HERO_LOT:
+                    item["key"]["entity_id"] = lot1
+                item["slots"] = {k: (lot1 if v == HERO_LOT else v) for k, v in item["slots"].items()}
+                for entry in item["structured"]:
+                    entry["ids"] = [{HERO_LOT: lot1, HERO_PRODUCT: product1}.get(x, x) for x in entry["ids"]]
+        self.assertEqual(current, first)
 
     def test_the_statement_and_the_author_note_are_the_preregistered_sentences(self) -> None:
         text = PREREG.read_text(encoding="utf-8")
@@ -114,7 +139,7 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(len(hero), 18)
         self.assertTrue(all(r["codes"] == ["ILL-9001"] for r in hero))
         self.assertEqual(world.case_keys, tuple(sorted(
-            f"{t}:{i}:{p}" for t, i in (("component", "PUMP-HOUSING"), ("lot", "L10002"), ("product", "SD-9"),
+            f"{t}:{i}:{p}" for t, i in (("component", "PUMP-HOUSING"), ("lot", HERO_LOT), ("product", HERO_PRODUCT),
                                         ("supplier", "V1001"))
             for p in ("malfunction_unspecified", "overheat"))))
 
@@ -184,7 +209,7 @@ class RealismTests(unittest.TestCase):
 
         def move_and_add(d: dict[str, Any]) -> None:
             move(d)
-            d["master_data_additions"].append({"site": "werk-erlenbruch", "entity_type": "lot", "ids": ["L10002"]})
+            d["master_data_additions"].append({"site": "werk-erlenbruch", "entity_type": "lot", "ids": [HERO_LOT]})
         self.assert_refused(move_and_add, "R3", build=True)
 
     def test_r4_structured_entries(self) -> None:
@@ -197,7 +222,7 @@ class RealismTests(unittest.TestCase):
                 next(s for s in item(d, HERO)["structured"] if s["entity_type"] == t).update(fields)
             return change
         self.assert_refused(entry("lot", fill_rate=0.5), "R4")
-        self.assert_refused(entry("product", ids=["SD-9", "CM-5"]), "R4")
+        self.assert_refused(entry("product", ids=[HERO_PRODUCT, "CM-5"]), "R4")
         self.assert_refused(entry("supplier", ids=["V9999"]), "R4")
         self.assert_refused(entry("product", ids=["CM-5"]), "R4: the ids follow the generator's links")
 
@@ -213,7 +238,7 @@ class RealismTests(unittest.TestCase):
 
     def test_r7_no_decoy_key_is_a_case_key(self) -> None:
         def clash(d: dict[str, Any]) -> None:
-            item(d, "decoy-generic-rise")["structured"][0]["ids"] = ["HV-81", "HV-82", "SD-9"]
+            item(d, "decoy-generic-rise")["structured"][0]["ids"] = ["HV-81", "HV-82", HERO_PRODUCT]
         self.assert_refused(clash, "R7", build=True)
 
     def test_r8_the_shift_starts_a_window_before_the_hero(self) -> None:
@@ -557,9 +582,16 @@ class AttemptTests(unittest.TestCase):
         self.assertLessEqual(len(attempt_dirs()), 3)
 
     def test_each_attempt_has_its_scenario_and_first_scorecard(self) -> None:
-        for d in attempt_dirs():
+        for n, d in enumerate(attempt_dirs(), start=1):
             with self.subTest(attempt=d.name):
                 data = (d / "scenario_codes_miss.json").read_bytes()
+                if n > 1:          # a later attempt states what it changes and why before it is recorded
+                    plan = (d / "PLAN.md").read_text(encoding="utf-8")
+                    self.assertIn(sha256_hex(data)[:32], plan)
+                    self.assertIn(f"attempt-{n - 1}/scorecard.json", plan)
+                if not (d / "scorecard.json").exists():
+                    self.assertEqual(d, attempt_dirs()[-1], "only the last attempt may be planned, not recorded")
+                    continue
                 card = json.loads((d / "scorecard.json").read_text(encoding="utf-8"))
                 self.assertEqual(card["scenario"]["digest"], sha256_hex(data)[:32])
                 self.assertEqual(_SCHEMA.validate(card["codes_miss"]), [])
@@ -571,7 +603,7 @@ class AttemptTests(unittest.TestCase):
         self.assertEqual((last / "scenario_codes_miss.json").read_bytes(), SCENARIO.read_bytes())
 
     def test_distinct_digests(self) -> None:
-        digests = [json.loads((d / "scorecard.json").read_text())["scenario"]["digest"] for d in attempt_dirs()]
+        digests = [sha256_hex((d / "scenario_codes_miss.json").read_bytes())[:32] for d in attempt_dirs()]
         self.assertEqual(len(set(digests)), len(digests))
 
     def test_a_later_attempt_follows_a_failure(self) -> None:
