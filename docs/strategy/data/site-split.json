@@ -1,0 +1,637 @@
+{
+ "dataset": "device/event",
+ "groups": {
+  "ABBOTT": {
+   "countries_with_min_reports": 5,
+   "largest_name_share": 0.4368,
+   "names_with_min_reports": 16,
+   "reports": 90153,
+   "top_countries": [
+    {
+     "country": "US",
+     "reports": 76168
+    },
+    {
+     "country": "UK",
+     "reports": 11511
+    },
+    {
+     "country": "",
+     "reports": 1234
+    },
+    {
+     "country": "EI",
+     "reports": 834
+    },
+    {
+     "country": "GM",
+     "reports": 389
+    },
+    {
+     "country": "IT",
+     "reports": 12
+    },
+    {
+     "country": "NO",
+     "reports": 5
+    }
+   ],
+   "top_names": [
+    {
+     "name": "ABBOTT DIABETES CARE INC",
+     "reports": 39381
+    },
+    {
+     "name": "ABBOTT MEDICAL",
+     "reports": 13679
+    },
+    {
+     "name": "ABBOTT DIABETES CARE LTD",
+     "reports": 11512
+    },
+    {
+     "name": "ABBOTT VASCULAR INC.",
+     "reports": 8424
+    },
+    {
+     "name": "ABBOTT VASCULAR",
+     "reports": 7113
+    },
+    {
+     "name": "ABBOTT",
+     "reports": 5553
+    },
+    {
+     "name": "ABBOTT LABORATORIES",
+     "reports": 907
+    },
+    {
+     "name": "ABBOTT IRELAND DIAGNOSTICS DIVISION",
+     "reports": 834
+    },
+    {
+     "name": "ABBOTT DIAGNOSTICS SCARBOROUGH, INC.",
+     "reports": 736
+    },
+    {
+     "name": "ABBOTT DIABETES CARE INC.",
+     "reports": 383
+    }
+   ]
+  },
+  "BAXTER": {
+   "countries_with_min_reports": 2,
+   "largest_name_share": 0.712,
+   "names_with_min_reports": 2,
+   "reports": 14421,
+   "top_countries": [
+    {
+     "country": "",
+     "reports": 14088
+    },
+    {
+     "country": "US",
+     "reports": 257
+    },
+    {
+     "country": "GM",
+     "reports": 76
+    }
+   ],
+   "top_names": [
+    {
+     "name": "BAXTER HEALTHCARE CORPORATION",
+     "reports": 10268
+    },
+    {
+     "name": "BAXTER INTERNATIONAL INC.",
+     "reports": 3868
+    },
+    {
+     "name": "BAXTER MEDICAL SYSTEMS GMBH + CO. KG",
+     "reports": 79
+    },
+    {
+     "name": "BAXTER INTERNATIONAL INC",
+     "reports": 63
+    },
+    {
+     "name": "BAXTER HEALTHCARE / HILL-ROM, INC.",
+     "reports": 46
+    },
+    {
+     "name": "BAXTER HEALTHCARE/HILL-ROM, INC.",
+     "reports": 23
+    },
+    {
+     "name": "BAXTER HEALTHCARE/ HILL-ROM, INC.",
+     "reports": 13
+    },
+    {
+     "name": "HILL-ROM, INC. / BAXTER HEALTHCARE CORPORATION",
+     "reports": 9
+    },
+    {
+     "name": "BAXTER HEALTHCARE INC./HILL-ROM, INC.",
+     "reports": 8
+    },
+    {
+     "name": "BAXTER HEALTHCARE CORPORATION.",
+     "reports": 6
+    }
+   ]
+  },
+  "BECTON": {
+   "countries_with_min_reports": 6,
+   "largest_name_share": 0.249,
+   "names_with_min_reports": 15,
+   "reports": 14258,
+   "top_countries": [
+    {
+     "country": "US",
+     "reports": 10621
+    },
+    {
+     "country": "UK",
+     "reports": 2125
+    },
+    {
+     "country": "",
+     "reports": 547
+    },
+    {
+     "country": "BR",
+     "reports": 505
+    },
+    {
+     "country": "SP",
+     "reports": 245
+    },
+    {
+     "country": "EI",
+     "reports": 106
+    },
+    {
+     "country": "HU",
+     "reports": 48
+    },
+    {
+     "country": "GM",
+     "reports": 40
+    },
+    {
+     "country": "CH",
+     "reports": 21
+    }
+   ],
+   "top_names": [
+    {
+     "name": "BECTON DICKINSON",
+     "reports": 3550
+    },
+    {
+     "name": "BECTON, DICKINSON AND COMPANY (BD)",
+     "reports": 2121
+    },
+    {
+     "name": "BECTON DICKINSON INFUSION THERAPY SYSTEMS INC.",
+     "reports": 1545
+    },
+    {
+     "name": "BECTON, DICKINSON & CO. (BROKEN BOW)",
+     "reports": 1377
+    },
+    {
+     "name": "BECTON, DICKINSON & CO., (BD)",
+     "reports": 1377
+    },
+    {
+     "name": "BECTON DICKINSON MEDICAL SYSTEMS",
+     "reports": 1046
+    },
+    {
+     "name": "BECTON DICKINSON & CO. (SPARKS)",
+     "reports": 797
+    },
+    {
+     "name": "BECTON, DICKINSON & CO. (SPARKS)",
+     "reports": 322
+    },
+    {
+     "name": "BECTON DICKINSON IND. CIRURGICAS LTDA",
+     "reports": 302
+    },
+    {
+     "name": "BECTON DICKNSON AND CO. - DUN LAOGHAIRE CO, IRELAND",
+     "reports": 270
+    }
+   ]
+  },
+  "BOSTON": {
+   "countries_with_min_reports": 3,
+   "largest_name_share": 0.8701,
+   "names_with_min_reports": 4,
+   "reports": 64739,
+   "top_countries": [
+    {
+     "country": "US",
+     "reports": 63251
+    },
+    {
+     "country": "",
+     "reports": 1154
+    },
+    {
+     "country": "CS",
+     "reports": 331
+    },
+    {
+     "country": "EI",
+     "reports": 3
+    }
+   ],
+   "top_names": [
+    {
+     "name": "BOSTON SCIENTIFIC CORPORATION",
+     "reports": 56327
+    },
+    {
+     "name": "BOSTON SCIENTIFIC NEUROMODULATION",
+     "reports": 5875
+    },
+    {
+     "name": "BOSTON SCIENTIFIC NEUROMODULATION CORPORATION",
+     "reports": 2070
+    },
+    {
+     "name": "BOSTON SCIENTIFIC DE COSTA RICA S.R.L.",
+     "reports": 324
+    },
+    {
+     "name": "BOSTON SCIENTIFIC CORP.",
+     "reports": 44
+    },
+    {
+     "name": "BOSTON SCIENTIFIC",
+     "reports": 43
+    },
+    {
+     "name": "BOSTON SCIENTIFIC - MINN",
+     "reports": 15
+    },
+    {
+     "name": "BOSTON SCIENTIFIC COSTA RICA",
+     "reports": 7
+    },
+    {
+     "name": "GUIDANT / BOSTON SCIENTIFIC CORPORATION",
+     "reports": 6
+    },
+    {
+     "name": "BOSTON SCIENTIFIC CARDIAC DIAGNOSTIC TECHNOLOGIES, INC.",
+     "reports": 3
+    }
+   ]
+  },
+  "GE": {
+   "countries_with_min_reports": 2,
+   "largest_name_share": 0.702,
+   "names_with_min_reports": 2,
+   "reports": 2745,
+   "top_countries": [
+    {
+     "country": "CH",
+     "reports": 1940
+    },
+    {
+     "country": "AU",
+     "reports": 691
+    },
+    {
+     "country": "US",
+     "reports": 72
+    },
+    {
+     "country": "",
+     "reports": 22
+    },
+    {
+     "country": "FR",
+     "reports": 5
+    },
+    {
+     "country": "IS",
+     "reports": 5
+    },
+    {
+     "country": "FI",
+     "reports": 3
+    },
+    {
+     "country": "NO",
+     "reports": 3
+    },
+    {
+     "country": "KS",
+     "reports": 2
+    },
+    {
+     "country": "DA",
+     "reports": 1
+    }
+   ],
+   "top_names": [
+    {
+     "name": "GE MEDICAL SYSTEMS (CHINA) CO., LTD (WUXI)",
+     "reports": 1927
+    },
+    {
+     "name": "GE HEALTHCARE AUSTRIA GMBH & CO OG",
+     "reports": 691
+    },
+    {
+     "name": "GE MEDICAL SYSTEMS, LLC",
+     "reports": 28
+    },
+    {
+     "name": "GE MEDICAL SYSTEMS ULTRASOUND&PRIMARY CARE DIAGLLC",
+     "reports": 25
+    },
+    {
+     "name": "GE HEALTHCARE (TIANJIN) COMPANY LIMITED",
+     "reports": 8
+    },
+    {
+     "name": "GE HANGWEI MEDICAL SYSTEMS CO., LTD.",
+     "reports": 7
+    },
+    {
+     "name": "GE HEALTHCARE",
+     "reports": 6
+    },
+    {
+     "name": "GE MEDICAL SYSTEMS INFORMATION TECHNOLOGIES, INC.",
+     "reports": 6
+    },
+    {
+     "name": "GE MEDICAL SYSTEMS SCS",
+     "reports": 4
+    },
+    {
+     "name": "GE HEALTHCARE / DATEX-OHMEDA, INC.",
+     "reports": 3
+    }
+   ]
+  },
+  "MEDTRONIC": {
+   "countries_with_min_reports": 9,
+   "largest_name_share": 0.6316,
+   "names_with_min_reports": 23,
+   "reports": 274186,
+   "top_countries": [
+    {
+     "country": "US",
+     "reports": 99891
+    },
+    {
+     "country": "*",
+     "reports": 96297
+    },
+    {
+     "country": "",
+     "reports": 55519
+    },
+    {
+     "country": "SN",
+     "reports": 9576
+    },
+    {
+     "country": "SZ",
+     "reports": 5154
+    },
+    {
+     "country": "EI",
+     "reports": 4813
+    },
+    {
+     "country": "MX",
+     "reports": 1736
+    },
+    {
+     "country": "CA",
+     "reports": 680
+    },
+    {
+     "country": "DR",
+     "reports": 458
+    },
+    {
+     "country": "FR",
+     "reports": 27
+    }
+   ],
+   "top_names": [
+    {
+     "name": "MEDTRONIC PUERTO RICO OPERATIONS CO.",
+     "reports": 173163
+    },
+    {
+     "name": "MEDTRONIC MINIMED",
+     "reports": 48518
+    },
+    {
+     "name": "MEDTRONIC SINGAPORE OPERATIONS",
+     "reports": 9574
+    },
+    {
+     "name": "MEDTRONIC HEART VALVES DIVISION",
+     "reports": 7539
+    },
+    {
+     "name": "MEDTRONIC, INC.",
+     "reports": 6326
+    },
+    {
+     "name": "MEDTRONIC EUROPE SARL",
+     "reports": 5159
+    },
+    {
+     "name": "MEDTRONIC IRELAND",
+     "reports": 4846
+    },
+    {
+     "name": "MEDTRONIC NEUROMODULATION",
+     "reports": 4742
+    },
+    {
+     "name": "MEDTRONIC NAVIGATION, INC",
+     "reports": 3895
+    },
+    {
+     "name": "MEDTRONIC XOMED INC.",
+     "reports": 2286
+    }
+   ]
+  },
+  "PHILIPS": {
+   "countries_with_min_reports": 5,
+   "largest_name_share": 0.4996,
+   "names_with_min_reports": 8,
+   "reports": 14845,
+   "top_countries": [
+    {
+     "country": "NL",
+     "reports": 7579
+    },
+    {
+     "country": "US",
+     "reports": 3792
+    },
+    {
+     "country": "CH",
+     "reports": 2043
+    },
+    {
+     "country": "GM",
+     "reports": 1147
+    },
+    {
+     "country": "",
+     "reports": 227
+    },
+    {
+     "country": "IN",
+     "reports": 56
+    },
+    {
+     "country": "IS",
+     "reports": 1
+    }
+   ],
+   "top_names": [
+    {
+     "name": "PHILIPS MEDICAL SYSTEMS NEDERLAND B.V.",
+     "reports": 7416
+    },
+    {
+     "name": "PHILIPS NORTH AMERICA LLC",
+     "reports": 2539
+    },
+    {
+     "name": "PHILIPS GOLDWAY (SHENZHEN) INDUSTRIAL INC.",
+     "reports": 2036
+    },
+    {
+     "name": "PHILIPS MEDIZIN SYSTEME B\u00d6BLINGEN GMBH",
+     "reports": 1044
+    },
+    {
+     "name": "PHILIPS MEDICAL SYSTEMS",
+     "reports": 893
+    },
+    {
+     "name": "PHILIPS ELECTRONICS NEDERLAND B.V.",
+     "reports": 170
+    },
+    {
+     "name": "PHILIPS ULTRASOUND, INC",
+     "reports": 139
+    },
+    {
+     "name": "PHILIPS MEDICAL SYSTEMS DMC GMBH",
+     "reports": 103
+    },
+    {
+     "name": "PHILIPS ORAL HEALTHCARE, LLC",
+     "reports": 97
+    },
+    {
+     "name": "PHILIPS / RESPIRONICS, INC.",
+     "reports": 75
+    }
+   ]
+  },
+  "STRYKER": {
+   "countries_with_min_reports": 5,
+   "largest_name_share": 0.2346,
+   "names_with_min_reports": 10,
+   "reports": 10455,
+   "top_countries": [
+    {
+     "country": "US",
+     "reports": 7620
+    },
+    {
+     "country": "SZ",
+     "reports": 1649
+    },
+    {
+     "country": "EI",
+     "reports": 632
+    },
+    {
+     "country": "",
+     "reports": 411
+    },
+    {
+     "country": "GM",
+     "reports": 139
+    },
+    {
+     "country": "FR",
+     "reports": 2
+    },
+    {
+     "country": "JA",
+     "reports": 2
+    }
+   ],
+   "top_names": [
+    {
+     "name": "STRYKER INSTRUMENTS-A DIVISION OF STRYKER CORP",
+     "reports": 2453
+    },
+    {
+     "name": "STRYKER ORTHOPAEDICS-MAHWAH",
+     "reports": 1783
+    },
+    {
+     "name": "STRYKER GMBH",
+     "reports": 1652
+    },
+    {
+     "name": "STRYKER MEDICAL-KALAMAZOO",
+     "reports": 1428
+    },
+    {
+     "name": "STRYKER ENDOSCOPY-SAN JOSE",
+     "reports": 1011
+    },
+    {
+     "name": "STRYKER NEUROVASCULAR CORK",
+     "reports": 623
+    },
+    {
+     "name": "STRYKER MEDICAL",
+     "reports": 408
+    },
+    {
+     "name": "STRYKER SPINE-US",
+     "reports": 227
+    },
+    {
+     "name": "STRYKER NEUROVASCULAR-UTAH-SALT LAKE CITY",
+     "reports": 223
+    },
+    {
+     "name": "STRYKER LEIBINGER FREIBURG",
+     "reports": 119
+    }
+   ]
+  }
+ },
+ "kind": "openfda_site_split",
+ "min_reports": 100,
+ "note": "a group is every report whose device manufacturer name contains the word; that can include unrelated firms sharing the word (GE, BOSTON), so read the top names before using a split",
+ "year": 2024
+}

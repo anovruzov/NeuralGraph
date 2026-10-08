@@ -9,6 +9,8 @@ each report (``device.manufacturer_d_name``, ``device.manufacturer_d_country``),
 that made the device. For each group (a word matched in ``device.manufacturer_d_name``) it counts the year's reports by
 manufacturer name and by country and reports how many of each carry at least 100 reports, the largest ten of each,
 and the share of the group's reports the largest name holds (a split dominated by one name is not much of a split).
+For the group's most reported product codes it does the same per code: a code that one plant makes gives a cross-site
+view nothing to add, so the replay's codes are best chosen among those several names report.
 
 It reads no recall data and chooses nothing: the replay's manufacturer, codes, window and partition field are the
 founder's choice, made before any recall outcome is looked at. The network side runs where api.fda.gov is reachable
@@ -26,6 +28,8 @@ from typing import Any, Iterable, Mapping
 DEFAULT_GROUPS = ("ABBOTT", "STRYKER", "PHILIPS", "MEDTRONIC", "GE", "BOSTON", "BAXTER", "BECTON")
 MIN_REPORTS = 100
 TOP = 10
+TOP_CODES = 10
+CODE_TOP_NAMES = 3
 
 
 def summarise(by_name: Iterable[Mapping[str, Any]], by_country: Iterable[Mapping[str, Any]],
@@ -41,7 +45,17 @@ def summarise(by_name: Iterable[Mapping[str, Any]], by_country: Iterable[Mapping
             "top_countries": [{"country": n, "reports": c} for n, c in countries[:TOP]]}
 
 
-def probe(year: int, groups: Iterable[str]) -> dict[str, Any]:
+def code_split(code: str, reports: int, by_name: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
+    """One product code within a group (openFDA ``term``/``count`` results by manufacturer name): how many names
+    report it at least ``MIN_REPORTS`` times and the share the largest name holds."""
+    names = sorted(((str(r["term"]), int(r["count"])) for r in by_name), key=lambda kv: (-kv[1], kv[0]))
+    return {"code": code, "reports": reports,
+            "names_with_min_reports": sum(1 for _, c in names if c >= MIN_REPORTS),
+            "largest_name_share": round(names[0][1] / reports, 4) if names and reports else None,
+            "top_names": [{"name": n, "reports": c} for n, c in names[:CODE_TOP_NAMES]]}
+
+
+def probe(year: int, groups: Iterable[str], codes: int = TOP_CODES) -> dict[str, Any]:
     # the HTTP helper and the window are the coverage probe's (same host, same retry rules)
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import openfda_coverage as cov  # noqa: E402
@@ -53,8 +67,15 @@ def probe(year: int, groups: Iterable[str]) -> dict[str, Any]:
         total = cov.total(search)
         names = (cov._get({"search": search, "count": "device.manufacturer_d_name.exact", "limit": 100}) or {})
         countries = (cov._get({"search": search, "count": "device.manufacturer_d_country.exact", "limit": 100}) or {})
-        out["groups"][group] = summarise(names.get("results", []), countries.get("results", []), total)
-        print(f"sites: {group} {total} reports", file=sys.stderr)
+        entry = summarise(names.get("results", []), countries.get("results", []), total)
+        top = cov._get({"search": search, "count": "device.device_report_product_code.exact", "limit": codes}) or {}
+        entry["top_codes"] = []
+        for row in top.get("results", []):
+            per_code = cov._get({"search": f"{search}+AND+device.device_report_product_code:\"{row['term']}\"",
+                                 "count": "device.manufacturer_d_name.exact", "limit": 100}) or {}
+            entry["top_codes"].append(code_split(str(row["term"]), int(row["count"]), per_code.get("results", [])))
+        out["groups"][group] = entry
+        print(f"sites: {group} {total} reports, {len(entry['top_codes'])} codes", file=sys.stderr)
     return out
 
 
@@ -63,8 +84,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--out", required=True)
     p.add_argument("--year", type=int, default=2024)
     p.add_argument("--group", action="append", help="a word of the manufacturer's reported name (repeatable)")
+    p.add_argument("--codes", type=int, default=TOP_CODES, help="product codes per group split by name")
     args = p.parse_args(argv)
-    result = probe(args.year, args.group or DEFAULT_GROUPS)
+    result = probe(args.year, args.group or DEFAULT_GROUPS, args.codes)
     result["note"] = ("a group is every report whose device manufacturer name contains the word; that can include "
                       "unrelated firms sharing the word (GE, BOSTON), so read the top names before using a split")
     text = json.dumps(result, indent=1, sort_keys=True)

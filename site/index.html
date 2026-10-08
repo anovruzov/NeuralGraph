@@ -356,7 +356,8 @@
 <section id="pilot" class="doc" aria-labelledby="pilot-h">
   <h2 id="pilot-h">Status and pilot</h2>
   <div class="body">
-    <p>Each step is built and tested on synthetic records, with a stand-in for the model. There are no customer results yet, and no measurements with a real model.</p>
+    <p>Each step is built and tested on synthetic records. In a cloud test run, a small open model (0.5 billion parameters) on an ordinary CPU played six simulated sites: it read their synthetic complaints and answered HQ&rsquo;s checks. How accurately such models read complaints is not measured yet, and there are no customer results yet.</p>
+    <p>What does leave a site is weekly counts, and they say more than they look. In our own leakage test on synthetic data, someone who already held a particular complaint could tell from the counts whether it was in a site&rsquo;s data and which failure it reported. Complaint text never left a site in our tests, and the counts did not reveal people&rsquo;s names.</p>
     <!-- PUBLIC CODE NOTE: delete the next paragraph once the code for the four quality steps is on the public repository's default branch. -->
     <p>The code for these steps is public on a development branch of the repository, not yet on its main branch.</p>
     <p>The pilot is a 4 to 6 week signal audit for design partners. It runs on your historical complaint and CAPA exports, inside your environment, before any deployment. We compare what it flags with your past CAPAs. It writes nothing to your quality system.</p>

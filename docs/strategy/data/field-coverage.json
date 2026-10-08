@@ -1,0 +1,577 @@
+{
+ "codes": [
+  {
+   "code": "DZE",
+   "field_exists_share": {
+    "catalog_number": 1.0,
+    "device_problem": 0.9999,
+    "lot_number": 1.0,
+    "manufacturer_country": 1.0,
+    "model_number": 1.0,
+    "narrative": 1.0
+   },
+   "reports": 697102,
+   "sample": {
+    "coded_share": 1.0,
+    "generic_only_share_of_coded": 0.15,
+    "narrative_share": 1.0,
+    "real_lot_share": 0.855,
+    "records": 200,
+    "top_problems": [
+     {
+      "problem": "Failure to Osseointegrate",
+      "records": 170
+     },
+     {
+      "problem": "Loss of Osseointegration",
+      "records": 114
+     },
+     {
+      "problem": "Adverse Event Without Identified Device or Use Problem",
+      "records": 58
+     },
+     {
+      "problem": "Use of Device Problem",
+      "records": 22
+     },
+     {
+      "problem": "Difficult to Insert",
+      "records": 16
+     },
+     {
+      "problem": "Positioning Failure",
+      "records": 8
+     },
+     {
+      "problem": "Osseointegration Problem",
+      "records": 6
+     },
+     {
+      "problem": "Fracture",
+      "records": 4
+     }
+    ]
+   }
+  },
+  {
+   "code": "QBJ",
+   "field_exists_share": {
+    "catalog_number": 1.0,
+    "device_problem": 0.9971,
+    "lot_number": 1.0,
+    "manufacturer_country": 1.0,
+    "model_number": 1.0,
+    "narrative": 1.0
+   },
+   "reports": 347117,
+   "sample": {
+    "coded_share": 1.0,
+    "generic_only_share_of_coded": 0.005,
+    "narrative_share": 1.0,
+    "real_lot_share": 0.74,
+    "records": 200,
+    "top_problems": [
+     {
+      "problem": "Wireless Communication Problem",
+      "records": 214
+     },
+     {
+      "problem": "No Device Output",
+      "records": 76
+     },
+     {
+      "problem": "Incorrect, Inadequate or Imprecise Result or Readings",
+      "records": 60
+     },
+     {
+      "problem": "Premature End-of-Life Indicator",
+      "records": 24
+     },
+     {
+      "problem": "Detachment of Device or Device Component",
+      "records": 16
+     },
+     {
+      "problem": "Unintended Application Program Shut Down",
+      "records": 4
+     },
+     {
+      "problem": "Appropriate Device Problem Term/Code Not Available",
+      "records": 2
+     },
+     {
+      "problem": "Device Displays Incorrect Message",
+      "records": 2
+     }
+    ]
+   }
+  },
+  {
+   "code": "QFG",
+   "field_exists_share": {
+    "catalog_number": 1.0,
+    "device_problem": 0.9995,
+    "lot_number": 1.0,
+    "manufacturer_country": 1.0,
+    "model_number": 1.0,
+    "narrative": 1.0
+   },
+   "reports": 273190,
+   "sample": {
+    "coded_share": 1.0,
+    "generic_only_share_of_coded": 0.06,
+    "narrative_share": 1.0,
+    "real_lot_share": 0.115,
+    "records": 200,
+    "top_problems": [
+     {
+      "problem": "Pumping Stopped",
+      "records": 138
+     },
+     {
+      "problem": "Battery Problem",
+      "records": 62
+     },
+     {
+      "problem": "Charging Problem",
+      "records": 42
+     },
+     {
+      "problem": "Incorrect Measurement",
+      "records": 36
+     },
+     {
+      "problem": "Failure to Sense",
+      "records": 26
+     },
+     {
+      "problem": "Loose or Intermittent Connection",
+      "records": 22
+     },
+     {
+      "problem": "Obstruction of Flow",
+      "records": 20
+     },
+     {
+      "problem": "Adverse Event Without Identified Device or Use Problem",
+      "records": 18
+     }
+    ]
+   }
+  },
+  {
+   "code": "OZP",
+   "field_exists_share": {
+    "catalog_number": 1.0,
+    "device_problem": 0.9992,
+    "lot_number": 1.0,
+    "manufacturer_country": 1.0,
+    "model_number": 1.0,
+    "narrative": 0.9999
+   },
+   "reports": 129592,
+   "sample": {
+    "coded_share": 0.995,
+    "generic_only_share_of_coded": 0.0854,
+    "narrative_share": 1.0,
+    "real_lot_share": 0.9,
+    "records": 200,
+    "top_problems": [
+     {
+      "problem": "Power Problem",
+      "records": 114
+     },
+     {
+      "problem": "Break",
+      "records": 112
+     },
+     {
+      "problem": "Appropriate Device Problem Term/Code Not Available",
+      "records": 54
+     },
+     {
+      "problem": "Material Integrity Problem",
+      "records": 36
+     },
+     {
+      "problem": "Wireless Communication Problem",
+      "records": 30
+     },
+     {
+      "problem": "Obstruction of Flow",
+      "records": 28
+     },
+     {
+      "problem": "Adverse Event Without Identified Device or Use Problem",
+      "records": 26
+     },
+     {
+      "problem": "No Display/Image",
+      "records": 20
+     }
+    ]
+   }
+  },
+  {
+   "code": "BZD",
+   "field_exists_share": {
+    "catalog_number": 1.0,
+    "device_problem": 0.9943,
+    "lot_number": 1.0,
+    "manufacturer_country": 1.0,
+    "model_number": 1.0,
+    "narrative": 1.0
+   },
+   "reports": 68264,
+   "sample": {
+    "coded_share": 1.0,
+    "generic_only_share_of_coded": 0.01,
+    "narrative_share": 1.0,
+    "real_lot_share": 0.0,
+    "records": 200,
+    "top_problems": [
+     {
+      "problem": "Degraded",
+      "records": 378
+     },
+     {
+      "problem": "Contamination",
+      "records": 10
+     },
+     {
+      "problem": "Corroded",
+      "records": 10
+     },
+     {
+      "problem": "Adverse Event Without Identified Device or Use Problem",
+      "records": 4
+     },
+     {
+      "problem": "Contamination /Decontamination Problem",
+      "records": 4
+     },
+     {
+      "problem": "Insufficient Device Problem Information",
+      "records": 4
+     },
+     {
+      "problem": "Peeled/Delaminated",
+      "records": 4
+     },
+     {
+      "problem": "Material Integrity Problem",
+      "records": 2
+     }
+    ]
+   }
+  },
+  {
+   "code": "FRN",
+   "field_exists_share": {
+    "catalog_number": 1.0,
+    "device_problem": 0.9886,
+    "lot_number": 1.0,
+    "manufacturer_country": 1.0,
+    "model_number": 1.0,
+    "narrative": 1.0
+   },
+   "reports": 57731,
+   "sample": {
+    "coded_share": 0.995,
+    "generic_only_share_of_coded": 0.005,
+    "narrative_share": 1.0,
+    "real_lot_share": 0.05,
+    "records": 200,
+    "top_problems": [
+     {
+      "problem": "Corroded",
+      "records": 130
+     },
+     {
+      "problem": "Break",
+      "records": 76
+     },
+     {
+      "problem": "Contamination",
+      "records": 42
+     },
+     {
+      "problem": "Device Sensing Problem",
+      "records": 38
+     },
+     {
+      "problem": "Device Alarm System",
+      "records": 30
+     },
+     {
+      "problem": "Crack",
+      "records": 24
+     },
+     {
+      "problem": "Complete Loss of Power",
+      "records": 16
+     },
+     {
+      "problem": "Display Difficult to Read",
+      "records": 16
+     }
+    ]
+   }
+  },
+  {
+   "code": "FPA",
+   "field_exists_share": {
+    "catalog_number": 1.0,
+    "device_problem": 0.9854,
+    "lot_number": 1.0,
+    "manufacturer_country": 1.0,
+    "model_number": 1.0,
+    "narrative": 1.0
+   },
+   "reports": 47209,
+   "sample": {
+    "coded_share": 0.98,
+    "generic_only_share_of_coded": 0.0051,
+    "narrative_share": 1.0,
+    "real_lot_share": 0.62,
+    "records": 200,
+    "top_problems": [
+     {
+      "problem": "Loss of or Failure to Bond",
+      "records": 100
+     },
+     {
+      "problem": "Leak/Splash",
+      "records": 84
+     },
+     {
+      "problem": "Material Twisted/Bent",
+      "records": 76
+     },
+     {
+      "problem": "Fluid/Blood Leak",
+      "records": 30
+     },
+     {
+      "problem": "Defective Component",
+      "records": 16
+     },
+     {
+      "problem": "Complete Blockage",
+      "records": 10
+     },
+     {
+      "problem": "Air/Gas in Device",
+      "records": 8
+     },
+     {
+      "problem": "Detachment of Device or Device Component",
+      "records": 8
+     }
+    ]
+   }
+  },
+  {
+   "code": "QLG",
+   "field_exists_share": {
+    "catalog_number": 1.0,
+    "device_problem": 0.9954,
+    "lot_number": 1.0,
+    "manufacturer_country": 1.0,
+    "model_number": 1.0,
+    "narrative": 1.0
+   },
+   "reports": 35116,
+   "sample": {
+    "coded_share": 1.0,
+    "generic_only_share_of_coded": 0.02,
+    "narrative_share": 1.0,
+    "real_lot_share": 0.01,
+    "records": 200,
+    "top_problems": [
+     {
+      "problem": "Incorrect, Inadequate or Imprecise Result or Readings",
+      "records": 268
+     },
+     {
+      "problem": "Device Displays Incorrect Message",
+      "records": 40
+     },
+     {
+      "problem": "Unable to Obtain Readings",
+      "records": 32
+     },
+     {
+      "problem": "High Readings",
+      "records": 30
+     },
+     {
+      "problem": "Low Readings",
+      "records": 16
+     },
+     {
+      "problem": "Product Quality Problem",
+      "records": 14
+     },
+     {
+      "problem": "Adverse Event Without Identified Device or Use Problem",
+      "records": 8
+     },
+     {
+      "problem": "Detachment of Device or Device Component",
+      "records": 8
+     }
+    ]
+   }
+  },
+  {
+   "code": "LGW",
+   "field_exists_share": {
+    "catalog_number": 1.0,
+    "device_problem": 0.9954,
+    "lot_number": 1.0,
+    "manufacturer_country": 1.0,
+    "model_number": 1.0,
+    "narrative": 0.9999
+   },
+   "reports": 35077,
+   "sample": {
+    "coded_share": 1.0,
+    "generic_only_share_of_coded": 0.185,
+    "narrative_share": 1.0,
+    "real_lot_share": 0.68,
+    "records": 200,
+    "top_problems": [
+     {
+      "problem": "Adverse Event Without Identified Device or Use Problem",
+      "records": 76
+     },
+     {
+      "problem": "Charging Problem",
+      "records": 54
+     },
+     {
+      "problem": "Battery Problem",
+      "records": 48
+     },
+     {
+      "problem": "Migration",
+      "records": 40
+     },
+     {
+      "problem": "Insufficient Device Problem Information",
+      "records": 38
+     },
+     {
+      "problem": "Wireless Communication Problem",
+      "records": 38
+     },
+     {
+      "problem": "High impedance",
+      "records": 36
+     },
+     {
+      "problem": "Failure to Power Up",
+      "records": 30
+     }
+    ]
+   }
+  },
+  {
+   "code": "FTR",
+   "field_exists_share": {
+    "catalog_number": 1.0,
+    "device_problem": 0.9926,
+    "lot_number": 1.0,
+    "manufacturer_country": 1.0,
+    "model_number": 1.0,
+    "narrative": 1.0
+   },
+   "reports": 30284,
+   "sample": {
+    "coded_share": 1.0,
+    "generic_only_share_of_coded": 0.195,
+    "narrative_share": 1.0,
+    "real_lot_share": 0.88,
+    "records": 200,
+    "top_problems": [
+     {
+      "problem": "Material Rupture",
+      "records": 226
+     },
+     {
+      "problem": "Device Appears to Trigger Rejection",
+      "records": 108
+     },
+     {
+      "problem": "Adverse Event Without Identified Device or Use Problem",
+      "records": 78
+     },
+     {
+      "problem": "Device Handling Problem",
+      "records": 6
+     },
+     {
+      "problem": "No Apparent Adverse Event",
+      "records": 6
+     },
+     {
+      "problem": "Migration",
+      "records": 4
+     },
+     {
+      "problem": "Difficult to Open or Remove Packaging Material",
+      "records": 2
+     },
+     {
+      "problem": "Gel Leak",
+      "records": 2
+     }
+    ]
+   }
+  }
+ ],
+ "dataset": "device/event",
+ "definitions": {
+  "field_exists_share": "the API's own _exists_ count over the reports: a placeholder value (UNK, NI) counts as present, so read the sample's shares",
+  "generic_problems": [
+   "adverse event without identified device or use problem",
+   "appropriate device problem term/code not available",
+   "appropriate term/code not available",
+   "insufficient device problem information",
+   "insufficient information",
+   "no apparent adverse event",
+   "no device problem",
+   "unknown (for use when the device problem is not known)",
+   "no known impact or consequence to patient"
+  ],
+  "placeholder_lots": [
+   "",
+   "-",
+   "0",
+   "ask",
+   "asku",
+   "masked",
+   "n.a.",
+   "n/a",
+   "na",
+   "ni",
+   "no information",
+   "none",
+   "not applicable",
+   "not available",
+   "not known",
+   "not provided",
+   "notavailable",
+   "nr",
+   "redacted",
+   "unavailable",
+   "unk",
+   "unknown"
+  ],
+  "sample": "the first --sample reports the API returns for the query and as many from the middle of its result set; not a random sample"
+ },
+ "kind": "openfda_field_coverage",
+ "reports_in_year": 2627151,
+ "year": 2024
+}

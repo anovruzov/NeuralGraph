@@ -130,7 +130,7 @@ detection on one recall pays for years of licence; that is a hypothesis until a 
   [37851835003](https://github.com/anovruzov/NeuralGraph/actions/runs/37851835003), job `count` (113566360497), on
   commit `5a15a99`, 2026-10-08 22:11 UTC. The job log prints the full result between `MARKET-COUNT BEGIN/END` markers
   (the first such block in the log is the offline test's fixture, the second the real count); the JSON is the run's
-  `market-count` artifact.
+  `market-count` artifact, copied from the log into `docs/strategy/data/market-count.json`.
 - **Input:** openFDA's bulk `device/registrationlisting` files, both partitions (`download.open.fda.gov`), as published
   on the day of the run.
 - **Rules:** an establishment is one registration number; its types are the union over its records; a site counts as
@@ -142,7 +142,7 @@ detection on one recall pays for years of licence; that is a hypothesis until a 
 
 The first measurement on real data in this repository describes the reports, not the product
 [COUNT: `tools/market/openfda_coverage.py`, run [37853960251](https://github.com/anovruzov/NeuralGraph/actions/runs/37853960251),
-job 113573533112, 2026-10-08 22:31 UTC]. FDA received **2,627,151** device adverse-event reports in 2024 (openFDA
+job 113573533112, 2026-10-08 22:31 UTC; the output, copied from the log, is `docs/strategy/data/field-coverage.json`]. FDA received **2,627,151** device adverse-event reports in 2024 (openFDA
 MAUDE, `date_received`). For the ten product codes with the most of them, on a sample of 200 reports each (the first
 100 the API returns and 100 from the middle of the result set: not a random sample):
 
@@ -173,6 +173,42 @@ output). What it means for the strategy:
   with FDA; whether internal complaint codes are coarser is what N1 and the Phase-1 audit must measure on a partner's
   own records. **Until then, lead the pitch with verification across sites without pooling text, not with discovery
   the codes miss.**
+
+### 3.6 Can one manufacturer's reports be split into sites? (for the public replay)
+
+The public replay (STRATEGY 9.3) runs inside one manufacturer and needs a field that splits its reports into "sites".
+Each report names the plant or legal entity that made the device (`device.manufacturer_d_name`) and its country
+[COUNT: `tools/market/openfda_sites.py`, run [37854721760](https://github.com/anovruzov/NeuralGraph/actions/runs/37854721760),
+job 113576035422, 2026-10-08 22:39 UTC; the output, copied from the log, is `docs/strategy/data/site-split.json`].
+Reports received in 2024; a group is every report whose manufacturer name contains the word, sorted by how even the
+split by name is:
+
+| Group (word in the name) | Reports | Names with ≥100 reports | Largest name's share | Country values with ≥100 reports | Largest names (reports) |
+|---|---|---|---|---|---|
+| STRYKER | 10,455 | 10 | 23.5% | 5 | Instruments 2,453; Orthopaedics-Mahwah 1,783; GmbH 1,652; Medical-Kalamazoo 1,428 |
+| BECTON | 14,258 | 15 | 24.9% | 6 | "BECTON DICKINSON" 3,550; "BECTON, DICKINSON AND COMPANY (BD)" 2,121; Infusion Therapy Systems 1,545 |
+| ABBOTT | 90,153 | 16 | 43.7% | 5 | Diabetes Care Inc 39,381; Medical 13,679; Diabetes Care Ltd 11,512 |
+| PHILIPS | 14,845 | 8 | 50.0% | 5 | Medical Systems Nederland 7,416; North America 2,539; Goldway (Shenzhen) 2,036 |
+| MEDTRONIC | 274,186 | 23 | 63.2% | 9 | Puerto Rico Operations 173,163; MiniMed 48,518; Singapore Operations 9,574 |
+| GE | 2,745 | 2 | 70.2% | 2 | Medical Systems (China) Wuxi 1,927; Healthcare Austria 691 |
+| BAXTER | 14,421 | 2 | 71.2% | 2 | Healthcare Corporation 10,268; International 3,868 |
+| BOSTON | 64,739 | 4 | 87.0% | 3 | Scientific Corporation 56,327; Scientific Neuromodulation 5,875 |
+
+Names are counted among the 100 largest the API returns; a report with devices of two names counts under both; the
+country values include blank and `*`, as the reports carry them. What it means for the replay (facts for the
+founder's choice, not the choice):
+
+- **The name is a usable site field for some groups.** Stryker's names are mostly plants or divisions
+  (Orthopaedics-Mahwah, Medical-Kalamazoo, Endoscopy-San Jose) and none holds more than a quarter of the reports.
+  Becton's split is as even, but several of its largest names are spellings of one company; the replay matches names
+  exactly and merges nothing, so each spelling would be its own site.
+- **One name dominates elsewhere**: 87.0% for Boston Scientific, 71.2% for Baxter, 63.2% for Medtronic (its Puerto
+  Rico operations). A replay there is mostly one site.
+- **The country is a weaker field**: blank on 14,088 of Baxter's 14,421 reports; for Medtronic, blank on 55,519 and
+  `*` on 96,297. A blank goes to the replay's `unpartitioned` site; `*` would become a site of its own.
+- **The prereg must list every name to include**, since the manufacturer field is matched exactly.
+- A "site" here is the plant named on the report, not a site holding its own records; the replay's label already
+  says so ("public data, artificial partitioning, not a confidentiality demonstration").
 
 ## 4. Why the expansion path is automotive and industrial, then networks
 
@@ -205,7 +241,7 @@ the signal: each field needs its own N1-style audit, on real data, before anyone
 | Open question | How it is answered | What changes |
 |---|---|---|
 | Do narratives carry signal the codes miss? | N1 on real openFDA narratives (the lab's openFDA units) | If not, rank 1 falls and the pitch becomes verification, not discovery. The pre-registered constructed illustration of such a case failed on all three attempts (`docs/collective/b1/attempts/`): with structured fields filled at realistic rates, R or S caught the case about as early as X |
-| Is the constraint real? | X6: 20 discovery calls | The constraint share, and so the beachhead size |
+| Is the constraint real? | X6: 20 discovery calls (questions and decision rules: `DISCOVERY.md`) | The constraint share, and so the beachhead size |
 | What do device makers pay? | X6 asks for current trending and PMS spend and the cost of the last field action | ACV |
 | Does the cross-site view find cases earlier than one site alone? | The Phase-1 signal audit on a partner's data | Whether there is a product |
 

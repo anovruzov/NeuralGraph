@@ -1,0 +1,646 @@
+{
+ "bands_definition": "at least n establishments in at least c countries",
+ "countries": 108,
+ "dataset": "device/registrationlisting",
+ "establishments": 25708,
+ "kind": "openfda_establishment_count",
+ "qualifying_establishments": 23376,
+ "skipped_records": {
+  "iso_country_code": 1,
+  "registration_number": 485
+ },
+ "sources": [
+  "https://download.open.fda.gov/device/registrationlisting/device-registrationlisting-0001-of-0002.json.zip",
+  "https://download.open.fda.gov/device/registrationlisting/device-registrationlisting-0002-of-0002.json.zip"
+ ],
+ "views": {
+  "firm_name/all_types": {
+   "bands": [
+    {
+     "groups": 1598,
+     "min_countries": 1,
+     "min_establishments": 2
+    },
+    {
+     "groups": 433,
+     "min_countries": 2,
+     "min_establishments": 3
+    },
+    {
+     "groups": 204,
+     "min_countries": 2,
+     "min_establishments": 5
+    },
+    {
+     "groups": 168,
+     "min_countries": 3,
+     "min_establishments": 5
+    },
+    {
+     "groups": 70,
+     "min_countries": 3,
+     "min_establishments": 10
+    }
+   ],
+   "groups": 21586,
+   "top": [
+    {
+     "countries": 13,
+     "name": "Philips Medical Systems International BV",
+     "sites": 77
+    },
+    {
+     "countries": 15,
+     "name": "STERIS",
+     "sites": 72
+    },
+    {
+     "countries": 17,
+     "name": "ABBOTT LABORATORIES",
+     "sites": 66
+    },
+    {
+     "countries": 14,
+     "name": "STRYKER CORP.",
+     "sites": 61
+    },
+    {
+     "countries": 13,
+     "name": "Medtronic",
+     "sites": 55
+    },
+    {
+     "countries": 14,
+     "name": "GE HealthCare Technologies Inc.",
+     "sites": 50
+    },
+    {
+     "countries": 24,
+     "name": "Intuitive Surgical, Inc.",
+     "sites": 41
+    },
+    {
+     "countries": 13,
+     "name": "Sotera Health LLC",
+     "sites": 41
+    },
+    {
+     "countries": 14,
+     "name": "Becton Dickinson and Company",
+     "sites": 40
+    },
+    {
+     "countries": 10,
+     "name": "Medline Industries, LP",
+     "sites": 37
+    },
+    {
+     "countries": 8,
+     "name": "Boston Scientific Corporation",
+     "sites": 37
+    },
+    {
+     "countries": 15,
+     "name": "Cardinal Health 200, LLC",
+     "sites": 35
+    },
+    {
+     "countries": 15,
+     "name": "BAXTER HEALTHCARE CORPORATION",
+     "sites": 33
+    },
+    {
+     "countries": 14,
+     "name": "Essilor of America, Inc",
+     "sites": 31
+    },
+    {
+     "countries": 13,
+     "name": "DENTSPLY SIRONA INC",
+     "sites": 31
+    },
+    {
+     "countries": 8,
+     "name": "Jabil Inc.",
+     "sites": 26
+    },
+    {
+     "countries": 10,
+     "name": "Alcon Laboratories, Inc.",
+     "sites": 25
+    },
+    {
+     "countries": 8,
+     "name": "Hoya Optical Labs of America, Inc.",
+     "sites": 24
+    },
+    {
+     "countries": 9,
+     "name": "BECKMAN COULTER, INC.",
+     "sites": 22
+    },
+    {
+     "countries": 8,
+     "name": "Covidien llc",
+     "sites": 22
+    },
+    {
+     "countries": 7,
+     "name": "PROCTER & GAMBLE GMBH",
+     "sites": 22
+    },
+    {
+     "countries": 8,
+     "name": "Solventum US LLC",
+     "sites": 21
+    },
+    {
+     "countries": 8,
+     "name": "THERMO FISHER SCIENTIFIC INC.",
+     "sites": 21
+    },
+    {
+     "countries": 14,
+     "name": "ARTHREX, INC.",
+     "sites": 20
+    },
+    {
+     "countries": 6,
+     "name": "C. R. Bard, Inc.",
+     "sites": 20
+    }
+   ]
+  },
+  "firm_name/manufacturing_or_complaint": {
+   "bands": [
+    {
+     "groups": 1425,
+     "min_countries": 1,
+     "min_establishments": 2
+    },
+    {
+     "groups": 382,
+     "min_countries": 2,
+     "min_establishments": 3
+    },
+    {
+     "groups": 174,
+     "min_countries": 2,
+     "min_establishments": 5
+    },
+    {
+     "groups": 146,
+     "min_countries": 3,
+     "min_establishments": 5
+    },
+    {
+     "groups": 62,
+     "min_countries": 3,
+     "min_establishments": 10
+    }
+   ],
+   "groups": 19831,
+   "top": [
+    {
+     "countries": 11,
+     "name": "Philips Medical Systems International BV",
+     "sites": 74
+    },
+    {
+     "countries": 14,
+     "name": "ABBOTT LABORATORIES",
+     "sites": 63
+    },
+    {
+     "countries": 13,
+     "name": "STRYKER CORP.",
+     "sites": 58
+    },
+    {
+     "countries": 13,
+     "name": "Medtronic",
+     "sites": 53
+    },
+    {
+     "countries": 14,
+     "name": "GE HealthCare Technologies Inc.",
+     "sites": 50
+    },
+    {
+     "countries": 8,
+     "name": "Boston Scientific Corporation",
+     "sites": 37
+    },
+    {
+     "countries": 5,
+     "name": "STERIS",
+     "sites": 37
+    },
+    {
+     "countries": 12,
+     "name": "Becton Dickinson and Company",
+     "sites": 34
+    },
+    {
+     "countries": 15,
+     "name": "BAXTER HEALTHCARE CORPORATION",
+     "sites": 33
+    },
+    {
+     "countries": 12,
+     "name": "DENTSPLY SIRONA INC",
+     "sites": 29
+    },
+    {
+     "countries": 10,
+     "name": "Cardinal Health 200, LLC",
+     "sites": 29
+    },
+    {
+     "countries": 5,
+     "name": "Medline Industries, LP",
+     "sites": 28
+    },
+    {
+     "countries": 13,
+     "name": "Essilor of America, Inc",
+     "sites": 26
+    },
+    {
+     "countries": 8,
+     "name": "Jabil Inc.",
+     "sites": 25
+    },
+    {
+     "countries": 8,
+     "name": "Hoya Optical Labs of America, Inc.",
+     "sites": 24
+    },
+    {
+     "countries": 8,
+     "name": "Alcon Laboratories, Inc.",
+     "sites": 21
+    },
+    {
+     "countries": 8,
+     "name": "BECKMAN COULTER, INC.",
+     "sites": 21
+    },
+    {
+     "countries": 8,
+     "name": "THERMO FISHER SCIENTIFIC INC.",
+     "sites": 21
+    },
+    {
+     "countries": 8,
+     "name": "Covidien llc",
+     "sites": 20
+    },
+    {
+     "countries": 8,
+     "name": "Solventum US LLC",
+     "sites": 20
+    },
+    {
+     "countries": 5,
+     "name": "C. R. Bard, Inc.",
+     "sites": 19
+    },
+    {
+     "countries": 6,
+     "name": "PROCTER & GAMBLE GMBH",
+     "sites": 18
+    },
+    {
+     "countries": 7,
+     "name": "OLYMPUS CORPORATION",
+     "sites": 17
+    },
+    {
+     "countries": 6,
+     "name": "SYBRON DENTAL SPECIALTIES, INC.",
+     "sites": 17
+    },
+    {
+     "countries": 5,
+     "name": "FUJIFILM CORPORATION",
+     "sites": 17
+    }
+   ]
+  },
+  "owner/all_types": {
+   "bands": [
+    {
+     "groups": 1407,
+     "min_countries": 1,
+     "min_establishments": 2
+    },
+    {
+     "groups": 389,
+     "min_countries": 2,
+     "min_establishments": 3
+    },
+    {
+     "groups": 191,
+     "min_countries": 2,
+     "min_establishments": 5
+    },
+    {
+     "groups": 157,
+     "min_countries": 3,
+     "min_establishments": 5
+    },
+    {
+     "groups": 65,
+     "min_countries": 3,
+     "min_establishments": 10
+    }
+   ],
+   "groups": 22031,
+   "top": [
+    {
+     "countries": 17,
+     "name": "ABBOTT LABORATORIES",
+     "sites": 65
+    },
+    {
+     "countries": 14,
+     "name": "STRYKER CORP.",
+     "sites": 61
+    },
+    {
+     "countries": 10,
+     "name": "Philips Medical Systems International BV",
+     "sites": 54
+    },
+    {
+     "countries": 13,
+     "name": "Medtronic, Inc.",
+     "sites": 53
+    },
+    {
+     "countries": 14,
+     "name": "GE HealthCare Technologies Inc.",
+     "sites": 50
+    },
+    {
+     "countries": 24,
+     "name": "Intuitive Surgical, Inc.",
+     "sites": 41
+    },
+    {
+     "countries": 13,
+     "name": "Sotera Health LLC",
+     "sites": 41
+    },
+    {
+     "countries": 8,
+     "name": "Boston Scientific Corporation",
+     "sites": 37
+    },
+    {
+     "countries": 13,
+     "name": "Becton Dickinson and Company",
+     "sites": 36
+    },
+    {
+     "countries": 15,
+     "name": "Cardinal Health 200, LLC",
+     "sites": 35
+    },
+    {
+     "countries": 14,
+     "name": "BAXTER HEALTHCARE CORPORATION",
+     "sites": 32
+    },
+    {
+     "countries": 14,
+     "name": "Essilor of America, Inc",
+     "sites": 31
+    },
+    {
+     "countries": 13,
+     "name": "DENTSPLY SIRONA INC",
+     "sites": 31
+    },
+    {
+     "countries": 10,
+     "name": "Medline Industries, LP",
+     "sites": 31
+    },
+    {
+     "countries": 12,
+     "name": "STERIS Corporation",
+     "sites": 29
+    },
+    {
+     "countries": 8,
+     "name": "Jabil Inc.",
+     "sites": 26
+    },
+    {
+     "countries": 10,
+     "name": "Alcon Laboratories, Inc.",
+     "sites": 25
+    },
+    {
+     "countries": 8,
+     "name": "Hoya Optical Labs of America, Inc.",
+     "sites": 24
+    },
+    {
+     "countries": 9,
+     "name": "BECKMAN COULTER, INC.",
+     "sites": 22
+    },
+    {
+     "countries": 8,
+     "name": "Covidien llc",
+     "sites": 22
+    },
+    {
+     "countries": 8,
+     "name": "Solventum US LLC",
+     "sites": 21
+    },
+    {
+     "countries": 7,
+     "name": "Procter & Gamble",
+     "sites": 21
+    },
+    {
+     "countries": 14,
+     "name": "ARTHREX, INC.",
+     "sites": 20
+    },
+    {
+     "countries": 6,
+     "name": "C. R. Bard, Inc.",
+     "sites": 19
+    },
+    {
+     "countries": 7,
+     "name": "OLYMPUS CORPORATION",
+     "sites": 18
+    }
+   ]
+  },
+  "owner/manufacturing_or_complaint": {
+   "bands": [
+    {
+     "groups": 1266,
+     "min_countries": 1,
+     "min_establishments": 2
+    },
+    {
+     "groups": 344,
+     "min_countries": 2,
+     "min_establishments": 3
+    },
+    {
+     "groups": 165,
+     "min_countries": 2,
+     "min_establishments": 5
+    },
+    {
+     "groups": 139,
+     "min_countries": 3,
+     "min_establishments": 5
+    },
+    {
+     "groups": 53,
+     "min_countries": 3,
+     "min_establishments": 10
+    }
+   ],
+   "groups": 20210,
+   "top": [
+    {
+     "countries": 14,
+     "name": "ABBOTT LABORATORIES",
+     "sites": 62
+    },
+    {
+     "countries": 13,
+     "name": "STRYKER CORP.",
+     "sites": 58
+    },
+    {
+     "countries": 8,
+     "name": "Philips Medical Systems International BV",
+     "sites": 52
+    },
+    {
+     "countries": 13,
+     "name": "Medtronic, Inc.",
+     "sites": 51
+    },
+    {
+     "countries": 14,
+     "name": "GE HealthCare Technologies Inc.",
+     "sites": 50
+    },
+    {
+     "countries": 8,
+     "name": "Boston Scientific Corporation",
+     "sites": 37
+    },
+    {
+     "countries": 14,
+     "name": "BAXTER HEALTHCARE CORPORATION",
+     "sites": 32
+    },
+    {
+     "countries": 11,
+     "name": "Becton Dickinson and Company",
+     "sites": 30
+    },
+    {
+     "countries": 12,
+     "name": "DENTSPLY SIRONA INC",
+     "sites": 29
+    },
+    {
+     "countries": 10,
+     "name": "Cardinal Health 200, LLC",
+     "sites": 29
+    },
+    {
+     "countries": 13,
+     "name": "Essilor of America, Inc",
+     "sites": 26
+    },
+    {
+     "countries": 8,
+     "name": "Jabil Inc.",
+     "sites": 25
+    },
+    {
+     "countries": 8,
+     "name": "Hoya Optical Labs of America, Inc.",
+     "sites": 24
+    },
+    {
+     "countries": 5,
+     "name": "Medline Industries, LP",
+     "sites": 23
+    },
+    {
+     "countries": 8,
+     "name": "Alcon Laboratories, Inc.",
+     "sites": 21
+    },
+    {
+     "countries": 8,
+     "name": "BECKMAN COULTER, INC.",
+     "sites": 21
+    },
+    {
+     "countries": 8,
+     "name": "Solventum US LLC",
+     "sites": 20
+    },
+    {
+     "countries": 8,
+     "name": "Covidien llc",
+     "sites": 20
+    },
+    {
+     "countries": 5,
+     "name": "C. R. Bard, Inc.",
+     "sites": 18
+    },
+    {
+     "countries": 7,
+     "name": "OLYMPUS CORPORATION",
+     "sites": 17
+    },
+    {
+     "countries": 6,
+     "name": "SYBRON DENTAL SPECIALTIES, INC.",
+     "sites": 17
+    },
+    {
+     "countries": 6,
+     "name": "Procter & Gamble",
+     "sites": 17
+    },
+    {
+     "countries": 7,
+     "name": "INSTITUT STRAUMANN AG",
+     "sites": 16
+    },
+    {
+     "countries": 4,
+     "name": "BIOMERIEUX SA",
+     "sites": 16
+    },
+    {
+     "countries": 9,
+     "name": "Vantive US Healthcare LLC",
+     "sites": 15
+    }
+   ]
+  }
+ }
+}

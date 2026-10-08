@@ -22,6 +22,16 @@ class SitesTests(unittest.TestCase):
         self.assertEqual(out["top_names"][0], {"name": "ACME INC", "reports": 600})
         self.assertEqual([c["country"] for c in out["top_countries"]], ["US", "IE", "MX"])
 
+    def test_code_split(self) -> None:
+        names = [{"term": "ACME MEXICO", "count": 40}, {"term": "ACME INC", "count": 150},
+                 {"term": "ACME IRELAND", "count": 150}, {"term": "ACME UK", "count": 10}]
+        out = m.code_split("QFG", 350, names)
+        self.assertEqual((out["code"], out["reports"], out["names_with_min_reports"]), ("QFG", 350, 2))
+        self.assertEqual(out["largest_name_share"], 0.4286)
+        # ties broken by name, and only the largest three kept
+        self.assertEqual([n["name"] for n in out["top_names"]], ["ACME INC", "ACME IRELAND", "ACME MEXICO"])
+        self.assertIsNone(m.code_split("BZD", 0, [])["largest_name_share"])
+
     def test_empty(self) -> None:
         out = m.summarise([], [], 0)
         self.assertEqual((out["reports"], out["largest_name_share"], out["top_names"]), (0, None, []))
