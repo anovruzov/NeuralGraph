@@ -1,0 +1,2 @@
+2026-09-17T19:54:49Z start 20260917T194336-2a01_B6_hier_no_lineage_default_s7 system=B6_hier_no_lineage kind=hierarchy seed=7 condition=default dataset=b90769378a3fd9c5
+2026-09-17T19:55:25Z ok runtime_s=35.74 peak_rss_mb=390 n_accepted=959 recall_global=0.4

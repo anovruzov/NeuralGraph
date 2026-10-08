@@ -1,0 +1,2 @@
+2026-09-18T00:15:04Z start 20260917T231153-5b07_B7_mycelic_order_capped-o3-c1_s10 system=B7_mycelic kind=hierarchy seed=10 condition=order_capped-o3-c1 dataset=d44bd23d1cd8f970
+2026-09-18T00:15:48Z ok runtime_s=43.86 peak_rss_mb=366 n_accepted=656 recall_global=0.9

@@ -1,0 +1,2 @@
+2026-09-17T23:49:44Z start 20260917T231153-5b07_B7_mycelic_claims_only-o2-c1_s5 system=B7_mycelic kind=hierarchy seed=5 condition=claims_only-o2-c1 dataset=038036e877508f4c
+2026-09-17T23:50:05Z ok runtime_s=21.49 peak_rss_mb=348 n_accepted=776 recall_global=0.0

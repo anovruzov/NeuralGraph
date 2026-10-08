@@ -1,0 +1,2 @@
+2026-09-17T22:06:35Z start 20260917T194336-2a01_B2_central_rag_default_s24 system=B2_central_rag kind=baseline seed=24 condition=default dataset=656d6b5de2047a3d
+2026-09-17T22:09:13Z ok runtime_s=157.85 peak_rss_mb=434 n_accepted=435 recall_global=0.7

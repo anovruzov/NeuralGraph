@@ -1,0 +1,2 @@
+2026-09-17T23:06:10Z start 20260917T194336-2a01_B7_mycelic_default_s29 system=B7_mycelic kind=hierarchy seed=29 condition=default dataset=fd8ae041413b655c
+2026-09-17T23:06:52Z ok runtime_s=41.73 peak_rss_mb=413 n_accepted=540 recall_global=0.7

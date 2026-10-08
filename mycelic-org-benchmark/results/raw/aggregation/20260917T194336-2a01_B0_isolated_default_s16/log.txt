@@ -1,0 +1,2 @@
+2026-09-17T20:54:16Z start 20260917T194336-2a01_B0_isolated_default_s16 system=B0_isolated kind=baseline seed=16 condition=default dataset=11995a279465b546
+2026-09-17T20:54:28Z ok runtime_s=11.99 peak_rss_mb=111 n_accepted=0 recall_global=0.0
