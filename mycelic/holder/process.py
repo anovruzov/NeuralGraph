@@ -126,13 +126,13 @@ def build_local_app(store: EvidenceStore, key: str) -> Any:
 
     async def list_documents(request: web.Request) -> web.Response:
         limit = int(request.query.get("limit", "100"))
-        return web.json_response({"items": await store.list_documents(status=request.query.get("status") or None, limit=limit)})
+        return web.json_response({"items": await store.list_documents(status=request.query.get("status") or None, limit=limit, audience=OWNER_AUDIENCE)})
 
     async def get_document(request: web.Request) -> web.Response:
-        doc = await store.document(request.match_info["doc_id"])
+        doc = await store.document(request.match_info["doc_id"], audience=OWNER_AUDIENCE)
         if doc is None:
             raise KeyError(request.match_info["doc_id"])
-        return web.json_response({"document": doc, "text": await store.document_text(doc["doc_id"])})
+        return web.json_response({"document": doc, "text": await store.document_text(doc["doc_id"], audience=OWNER_AUDIENCE)})
 
     async def revise(request: web.Request) -> web.Response:
         p = await body(request)
@@ -147,7 +147,7 @@ def build_local_app(store: EvidenceStore, key: str) -> Any:
     async def search(request: web.Request) -> web.Response:
         q = request.query.get("q", "")
         k = max(1, min(50, int(request.query.get("k", "10"))))
-        return web.json_response({"results": await store.search(q, k=k) if q else []})
+        return web.json_response({"results": await store.search(q, k=k, audience=OWNER_AUDIENCE) if q else []})
 
     async def stats(request: web.Request) -> web.Response:
         return web.json_response(await store.stats())
@@ -199,6 +199,10 @@ def _build_transport(settings: Any) -> tuple[Transport, Any]:
     if hasattr(transport, "manage_stream"):
         transport.manage_stream = False
     return transport, None
+
+
+# the local API is the owner's own interface (holder key, the owner's machine): it reads as the owner
+OWNER_AUDIENCE = {"principal_ids": [], "complete": True, "owner": True}
 
 
 def holder_vault(holder_dir: Path) -> Any:

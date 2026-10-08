@@ -17,6 +17,7 @@ from ..db.coord import CoordDB, row_to_dict, rows_to_dicts
 from ..goals import GoalService
 from ..jobs import JobQueue
 from ..knowledge import KnowledgeService
+from ..knowledge.service import DELETED_TEXT
 from ..org import OrgService
 from ..transport import Envelope, Subjects, Transport
 from ..util import j, jl, new_id, now_iso, plus_seconds, sha256
@@ -412,14 +413,16 @@ class QuestionService:
         pol = q.get("policy") or {}
         row = {"tenant_id": q["tenant_id"], "visibility": pol.get("visibility", "unit"), "scope_unit_id": q.get("scope_unit_id"),
                "asker_id": q["asker_id"] if q.get("asker_type") == "user" else None}
-        key = (q["tenant_id"], row["visibility"], row["scope_unit_id"], row["asker_id"], self.db.revision, self.db.data_version())
+        key = (q["tenant_id"], row["visibility"], row["scope_unit_id"], row["asker_id"], q.get("goal_id"), self.db.revision, self.db.data_version())
         cached = self._audience_cache.get(key)
         if cached is not None:
             return cached
         ids = []
         for u in self.db.all("SELECT user_id FROM users WHERE tenant_id=? AND status='active'", (q["tenant_id"],)):
             p = self.authz.principal_for_user(u["user_id"])
-            if p is not None and self.authz.can_view_scoped(p, row, resource_type="claim"):
+            # everyone who will read what this question produces: its claims (scope and visibility), and its responses in
+            # full (through the question's scope or through its goal, e.g. a unit the goal is assigned to)
+            if p is not None and (self.authz.can_view_scoped(p, row, resource_type="claim") or self._full_view(p, q)):
                 ids.append(u["user_id"])
         out = {"principal_ids": sorted(ids), "complete": True, "owner": False}
         if len(self._audience_cache) > 256:
@@ -485,9 +488,13 @@ class QuestionService:
         now = now_iso()
         async with self.db.tx() as c:
             ref_ids = self.knowledge.upsert_refs_sync(c, q["tenant_id"], hid, refs)
+            content = (payload.get("content") or "")[:8000] if status == "answered" else ""
+            if ref_ids and c.execute(f"SELECT 1 FROM evidence_withdrawals WHERE event='deleted' AND ref_id IN ({','.join('?' * len(ref_ids))}) LIMIT 1",
+                                     ref_ids).fetchone():
+                content = DELETED_TEXT          # it may quote a source deleted before this response arrived
             c.execute("INSERT INTO responses(response_id, tenant_id, question_id, holder_id, route_id, status, content, evidence_ref_ids, provenance, confidence, freshness_at, msg_id, received_at) "
                       "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                      (rid, q["tenant_id"], qid, hid, route["route_id"], status, (payload.get("content") or "")[:8000] if status == "answered" else "", j(ref_ids),
+                      (rid, q["tenant_id"], qid, hid, route["route_id"], status, content, j(ref_ids),
                        j({**(payload.get("provenance") or {}), **({"use_time_check": why} if not allowed else {})}), payload.get("confidence"), payload.get("freshness_at"), msg_id, now))
             c.execute("UPDATE question_routes SET status=?, responded_at=? WHERE route_id=?", (status if status != "answered" else "answered", now, route["route_id"]))
             self.db.audit_sync(c, q["tenant_id"], "holder", hid, "response.accept", resource_type="question", resource_id=qid, outcome="allow" if allowed else "deny",

@@ -16,7 +16,7 @@ from typing import Any, Iterable
 from aiohttp import web
 
 from ..authz import Forbidden, Principal
-from ..org import DEFAULT_POLICIES, LEAD_ROLES, ROLES, UNIT_TYPES
+from ..org import DEFAULT_POLICIES, LEAD_ROLES, ROLES, UNIT_TYPES, routable_domains
 from ..evidence.service import policy_problems
 from ..transport import Envelope, Subjects, TransportError
 from ..util import new_id, now_iso, sha256
@@ -48,6 +48,7 @@ def holder_view(rt: Any, h: dict[str, Any]) -> dict[str, Any]:
                                "created_at", "updated_at")}
     d["stats"] = h.get("stats") or {}
     d["domains"] = list(d.get("domains") or [])
+    d["published_domains"] = list(h.get("published_domains") or [])          # from ingested records (heartbeats)
     if h.get("owner_type") == "user":
         u = rt.org.get_user(h["owner_id"])
         d["owner_name"] = u["name"] if u else ""
@@ -83,6 +84,14 @@ def is_holder_owner(rt: Any, p: Principal, h: dict[str, Any]) -> bool:
     if h.get("owner_type") == "user":
         return h.get("owner_id") == p.id
     return h.get("owner_id") in rt.authz.led_unit_ids(p)
+
+
+def reader_audience(p: Principal, h: dict[str, Any]) -> dict[str, Any]:
+    """Who is reading a holder's content, for the holder's source-ACL check. Only a personal holder's own user is the
+    owner (sees every live record); a unit's lead, a member or a grantee sees a connector record only when its source
+    is public or they are among its members, so leading a unit never opens its private channels."""
+    owner = h.get("owner_type") == "user" and h.get("owner_id") == p.id and h.get("tenant_id") == p.tenant_id
+    return {"principal_ids": [p.id], "complete": True, "owner": owner}
 
 
 def can_manage_holder(rt: Any, p: Principal, h: dict[str, Any]) -> bool:
@@ -861,7 +870,7 @@ def setup(app: web.Application, prefix: str = "/api") -> None:
         store = await embedded_store(rt, h)
         if store is None:
             return json_response(listing([], available=False, note="documents of an external holder are listed on the holder's machine"))
-        docs = await store.list_documents(status=request.query.get("status") or None, limit=limit_of(request, 100))
+        docs = await store.list_documents(status=request.query.get("status") or None, limit=limit_of(request, 100), audience=reader_audience(p, h))
         return json_response(listing([document_view(d) for d in docs]))
 
     async def get_document(request: web.Request) -> web.Response:
@@ -871,12 +880,13 @@ def setup(app: web.Application, prefix: str = "/api") -> None:
         store = await embedded_store(rt, h)
         if store is None:
             raise ApiError(503, "raw documents of an external holder are read on the holder's machine", "external_holder")
-        doc = await store.document(request.match_info["doc_id"])
+        audience = reader_audience(p, h)
+        doc = await store.document(request.match_info["doc_id"], audience=audience)
         if doc is None:
             raise KeyError(request.match_info["doc_id"])
         await rt.db.audit(p.tenant_id, "user", p.id, "document.read", resource_type="holder", resource_id=h["holder_id"], detail={"doc_id": doc["doc_id"]},
                           request_id=request.get("request_id"))
-        return json_response({"document": document_view(doc), "text": await store.document_text(doc["doc_id"])})
+        return json_response({"document": document_view(doc), "text": await store.document_text(doc["doc_id"], audience=audience)})
 
     async def revise_document(request: web.Request) -> web.Response:
         p = require_user(request)
@@ -934,7 +944,7 @@ def setup(app: web.Application, prefix: str = "/api") -> None:
         store = await embedded_store(rt, h)
         if store is None:
             raise ApiError(503, "an external holder is searched on the holder's machine", "external_holder")
-        results = await store.search(q, k=k) if q else []
+        results = await store.search(q, k=k, audience=reader_audience(p, h)) if q else []
         for r in results:
             r["holder_id"], r["holder_name"] = h["holder_id"], h["name"]
         await rt.db.audit(p.tenant_id, "user", p.id, "holder.search", resource_type="holder", resource_id=h["holder_id"], detail={"q": q[:200], "hits": len(results)},
@@ -983,7 +993,7 @@ def setup(app: web.Application, prefix: str = "/api") -> None:
                 if store is None:
                     continue
                 try:
-                    hits = await store.search(q, k=k)
+                    hits = await store.search(q, k=k, audience=reader_audience(p, h))
                 except Exception:
                     logger.exception("memory search failed for %s", h["holder_id"])
                     continue
@@ -1021,7 +1031,7 @@ def setup(app: web.Application, prefix: str = "/api") -> None:
         # only for its owner) and pick the connector ownership it may hold (personal for users, organization for units)
         return json_response({"holder_id": hid, "tenant_id": h["tenant_id"], "name": h["name"], "mode": h.get("mode"), "route_key": rt.org.route_key(hid),
                               "owner_type": h.get("owner_type"), "owner_id": h.get("owner_id"),
-                              "export_policy": h.get("export_policy") or {}, "domains": h.get("domains") or [], "heartbeat_seconds": 20, "transport": transport})
+                              "export_policy": h.get("export_policy") or {}, "domains": routable_domains(h), "heartbeat_seconds": 20, "transport": transport})
 
     async def heartbeat(request: web.Request) -> web.Response:
         hid = request.match_info["holder_id"]
@@ -1035,7 +1045,7 @@ def setup(app: web.Application, prefix: str = "/api") -> None:
         h = rt.org.get_holder(hid) or {}
         # tenant and signing-key fingerprint let a running holder notice that the registry moved under it (a demo reset,
         # a key rotation) and restart with a fresh bootstrap instead of listening on stale subjects
-        return json_response({"ok": True, "export_policy": h.get("export_policy") or {}, "domains": h.get("domains") or [],
+        return json_response({"ok": True, "export_policy": h.get("export_policy") or {}, "domains": routable_domains(h),
                               "tenant_id": h.get("tenant_id"), "route_key_id": sha256(rt.org.route_key(hid))[:16]})
 
     app.router.add_get(f"{prefix}/org", get_org)

@@ -158,12 +158,15 @@ class IngestStore:
         """Returns ``(source_id, created)``. An existing source keeps its owner decisions (selection, opt-ins, mappings);
         its ACL is refreshed from the provider."""
         now = now_iso()
-        r = c.execute("SELECT source_id FROM connector_sources WHERE connector_id=? AND source_type=? AND external_id=?",
+        r = c.execute("SELECT source_id, visibility FROM connector_sources WHERE connector_id=? AND source_type=? AND external_id=?",
                       (connector_id, desc.source_type, desc.external_id)).fetchone()
         if r is not None:
             c.execute("""UPDATE connector_sources SET name=?, parent_external_id=?, visibility=?, member_ids=?, membership_ref=?, metadata=?, updated_at=?
                          WHERE source_id=?""", (desc.name, desc.parent_external_id, desc.visibility, j(sorted(set(desc.member_ids))),
                                                 desc.membership_ref, j(dict(desc.metadata)), now, r["source_id"]))
+            if desc.visibility == "private" and r["visibility"] != "private":
+                # an opt-in given for a public or members channel does not carry over to a private one: the owner decides again
+                c.execute("UPDATE connector_sources SET exportable=0 WHERE source_id=?", (r["source_id"],))
             return r["source_id"], False
         sid = new_id("src")
         c.execute("""INSERT INTO connector_sources(source_id, connector_id, source_type, external_id, name, parent_external_id, selection, selection_reason,

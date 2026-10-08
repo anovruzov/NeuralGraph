@@ -11,6 +11,8 @@ Only *active* references count. A reference whose source was revised, retracted 
 """
 from __future__ import annotations
 
+import json
+
 from typing import Any, Iterable, Mapping
 
 from ..util import parse_iso, utcnow
@@ -19,6 +21,16 @@ from ..util import parse_iso, utcnow
 def is_active(ref: Mapping[str, Any]) -> bool:
     """A reference counts as current support only while its source is unchanged (candidates not yet stored have no status)."""
     return (ref.get("status") or "active") == "active"
+
+
+def _object_key(r: Mapping[str, Any]) -> str | None:
+    meta = r.get("meta")
+    if isinstance(meta, str):
+        try:
+            meta = json.loads(meta)
+        except ValueError:
+            meta = None
+    return str(meta.get("object_key")) if isinstance(meta, Mapping) and meta.get("object_key") else None
 
 
 def compute_support(refs: Iterable[Mapping[str, Any]], *, roles: Iterable[str] = ("supports",)) -> dict[str, Any]:
@@ -32,12 +44,28 @@ def compute_support(refs: Iterable[Mapping[str, Any]], *, roles: Iterable[str] =
         if (r.get("role") or "supports") == "contradicts":
             contradicting.append(r["ref_id"])
     inactive: list[str] = []
+    # one provider object is one source whatever version or holder reported it: roots that share an object identity merge
+    alias: dict[str, str] = {}
+    by_object: dict[str, str] = {}
+
+    def canon(root: str) -> str:
+        while alias.get(root, root) != root:
+            root = alias[root]
+        return root
+    for r in rows:
+        if is_active(r) and r.get("root_known") and r.get("source_root_id"):
+            ok = _object_key(r)
+            if ok:
+                first = by_object.setdefault(ok, r["source_root_id"])
+                a, b = canon(first), canon(r["source_root_id"])
+                if a != b:
+                    alias[max(a, b)] = min(a, b)
     for r in rows:
         if not is_active(r):
             inactive.append(r["ref_id"])
             continue
         if r.get("root_known") and r.get("source_root_id"):
-            roots.setdefault(r["source_root_id"], []).append(r)
+            roots.setdefault(canon(r["source_root_id"]), []).append(r)
         else:
             unknown.append(r["ref_id"])
     independent = len(roots)

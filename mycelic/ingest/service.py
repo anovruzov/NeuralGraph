@@ -309,7 +309,16 @@ class IngestService:
             return report
         instance = self.p.connector(connector_id)
         ctx = self.p.context(con)
-        await self.p._run_stream(instance, ctx, con, src, "webhook", lambda cur: instance.handle_webhook(ctx, notice), "live", "webhook", None, report)
+        key = f"{connector_id}:{notice.delivery_id}"
+        try:
+            await self.p._run_stream(instance, ctx, con, src, "webhook", lambda cur: instance.handle_webhook(ctx, notice), "live", "webhook", None, report)
+        except BaseException:
+            await self.p.store.run_in_tx(lambda c: c.execute("DELETE FROM ingest_deliveries WHERE delivery_key=?", (key,)))
+            raise
+        if report.error_code or report.fenced:
+            # not committed (rate limit, fencing, a fetch error): the claim is released so the provider's redelivery (or the
+            # next notice) is processed instead of being taken for a duplicate; the periodic poll repairs it in any case
+            await self.p.store.run_in_tx(lambda c: c.execute("DELETE FROM ingest_deliveries WHERE delivery_key=?", (key,)))
         return report
 
 

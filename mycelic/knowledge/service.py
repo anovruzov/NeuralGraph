@@ -30,6 +30,7 @@ REVISION_JSON = ("before", "after")
 
 EVIDENCE_EVENTS = ("revised", "retracted", "deleted", "unavailable", "restored")
 DELETED_TEXT = "[removed: source deleted]"
+DELETED_DISCOVERY_TITLE = "[revised: a cited source was deleted]"
 DELETED_TITLE = "[deleted]"
 
 
@@ -70,16 +71,24 @@ class KnowledgeService:
             rid = r.get("ref_id")
             if not rid:
                 continue
+            # a reference its holder already withdrew (the event can overtake a slow or replayed response) is stored withdrawn:
+            # retracted, and for a deletion without its excerpt or title, so it never counts and never shows the content
+            gone = c.execute("SELECT event FROM evidence_withdrawals WHERE ref_id=? AND tenant_id=? AND holder_id=?", (rid, tenant_id, holder_id)).fetchone()
+            deleted = gone is not None and gone["event"] == "deleted"
+            meta = dict(r.get("meta") or {})
+            if gone is not None:
+                meta[f"{gone['event']}_at"] = now
             c.execute(
                 """INSERT INTO evidence_refs(ref_id, tenant_id, holder_id, source_root_id, root_known, kind, title, disclosed_excerpt,
                                              disclosure_level, observed_at, freshness_at, status, version, meta, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', 1, ?, ?, ?)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
                    ON CONFLICT(ref_id) DO UPDATE SET disclosed_excerpt=excluded.disclosed_excerpt, freshness_at=COALESCE(excluded.freshness_at, evidence_refs.freshness_at),
                      observed_at=COALESCE(excluded.observed_at, evidence_refs.observed_at), updated_at=excluded.updated_at
-                   WHERE evidence_refs.holder_id = excluded.holder_id AND evidence_refs.tenant_id = excluded.tenant_id""",
+                   WHERE evidence_refs.holder_id = excluded.holder_id AND evidence_refs.tenant_id = excluded.tenant_id AND evidence_refs.status = 'active'""",
                 (rid, tenant_id, holder_id, r.get("source_root_id"), int(bool(r.get("root_known", bool(r.get("source_root_id"))))),
-                 r.get("kind") or "document", (r.get("title") or "")[:300], r.get("disclosed_excerpt") or "", r.get("disclosure_level") or "excerpt",
-                 r.get("observed_at"), r.get("freshness_at") or r.get("observed_at"), j(r.get("meta") or {}), now, now),
+                 r.get("kind") or "document", DELETED_TITLE if deleted else (r.get("title") or "")[:300], "" if deleted else (r.get("disclosed_excerpt") or ""),
+                 r.get("disclosure_level") or "excerpt", r.get("observed_at"), r.get("freshness_at") or r.get("observed_at"),
+                 "retracted" if gone is not None else "active", j(meta), now, now),
             )
             owner = c.execute("SELECT holder_id, tenant_id FROM evidence_refs WHERE ref_id=?", (rid,)).fetchone()
             if owner is None or owner["holder_id"] != holder_id or owner["tenant_id"] != tenant_id:
@@ -525,6 +534,12 @@ class KnowledgeService:
         excerpt_refs: set[str] = set()
         async with self.db.tx() as c:
             for rid in ids:
+                if event in ("deleted", "retracted"):
+                    # durable, and written for references this coordinator has not stored yet (see upsert_refs_sync)
+                    c.execute("INSERT INTO evidence_withdrawals(ref_id, tenant_id, holder_id, event, reason, at) VALUES (?, ?, ?, ?, ?, ?) "
+                              "ON CONFLICT(ref_id) DO UPDATE SET event=CASE WHEN excluded.event='deleted' THEN 'deleted' ELSE evidence_withdrawals.event END "
+                              "WHERE evidence_withdrawals.tenant_id=excluded.tenant_id AND evidence_withdrawals.holder_id=excluded.holder_id",
+                              (rid, tenant_id, holder_id, event, (reason or "")[:120], now))
                 r = c.execute("SELECT status, version, meta, disclosure_level FROM evidence_refs WHERE ref_id=? AND tenant_id=? AND holder_id=?",
                               (rid, tenant_id, holder_id)).fetchone()
                 if r is None:
@@ -611,6 +626,27 @@ class KnowledgeService:
                 c.execute(f"UPDATE revisions SET {col}=json_set({col}, '$.text', ?) WHERE object_type='claim' AND object_id=? AND json_extract({col}, '$.text') IS NOT NULL",
                           (DELETED_TEXT, claim_id))
             self.db.audit_sync(c, tenant_id, "system", "knowledge", "claim.text_purged", resource_type="claim", resource_id=claim_id, detail={"reason": "source deleted"})
+            # discoveries built on it (escalated copies included) may restate its text: their title and summary are rebuilt from
+            # the claims that still stand, and their copies in revisions, event payloads and notifications go too (§9.6)
+            rows = c.execute("SELECT DISTINCT d.discovery_id, d.claim_ids FROM discoveries d, json_each(d.claim_ids) AS x WHERE d.tenant_id=? AND x.value=?",
+                             (tenant_id, claim_id)).fetchall()
+            for d in rows:
+                ids = [x for x in (jl(d["claim_ids"], []) or []) if x != claim_id]
+                standing = [r["text"] for r in (c.execute(f"SELECT text FROM claims WHERE claim_id IN ({','.join('?' * len(ids))}) AND text<>? AND status<>'retracted'",
+                                                          (*ids, DELETED_TEXT)).fetchall() if ids else [])]
+                summary = "A source this discovery cited was deleted; its content was removed."
+                if standing:
+                    summary += " Findings that still stand: " + "; ".join(t[:200] for t in standing[:3])
+                c.execute("UPDATE discoveries SET title=?, summary=?, updated_at=? WHERE discovery_id=?", (DELETED_DISCOVERY_TITLE, summary, now_iso(), d["discovery_id"]))
+                for col in ("before", "after"):
+                    for key in ("title", "summary"):
+                        c.execute(f"UPDATE revisions SET {col}=json_set({col}, '$.{key}', ?) WHERE object_type='discovery' AND object_id=? "
+                                  f"AND json_extract({col}, '$.{key}') IS NOT NULL", (DELETED_TEXT, d["discovery_id"]))
+                c.execute("UPDATE events SET payload=json_set(payload, '$.title', ?) WHERE ref_type='discovery' AND ref_id=? AND json_extract(payload, '$.title') IS NOT NULL",
+                          (DELETED_TEXT, d["discovery_id"]))
+                c.execute("UPDATE notifications SET body=? WHERE ref_type='discovery' AND ref_id=?", (DELETED_TEXT, d["discovery_id"]))
+                c.execute("UPDATE audit_log SET detail=json_set(detail, '$.title', ?) WHERE resource_type='discovery' AND resource_id=? "
+                          "AND json_extract(detail, '$.title') IS NOT NULL", (DELETED_TEXT, d["discovery_id"]))
 
     async def _touch_discoveries(self, tenant_id: str, claim_ids: list[str], *, action: str) -> None:
         """Discoveries built on changed claims: their (derived) evidence health changed, so viewers are told."""

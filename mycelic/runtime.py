@@ -86,7 +86,10 @@ class Runtime:
         store = self.holders.get(holder_id) if hasattr(self.holders, "get") else None
         if store is None:
             return []
-        return await store.search(query, k=k)
+        from .api.routes_org import reader_audience
+        h = self.org.get_holder(holder_id) or {}
+        # the agent sees what its principal may read: source ACLs apply exactly as in the memory-search endpoint
+        return await store.search(query, k=k, audience=reader_audience(principal, h))
 
 
 def ensure_secret_key(settings: Settings) -> str:

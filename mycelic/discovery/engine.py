@@ -256,7 +256,7 @@ class LoopEngine:
         holders = [h for h in self.org.list_holders(goal["tenant_id"]) if self.authz.can_route(pseudo, h)[0]]
         domains: list[str] = list((goal.get("measurement_source") or {}).get("domains") or [])
         for h in holders:
-            for d in h.get("domains") or []:
+            for d in list(h.get("domains") or []) + list(h.get("published_domains") or []):
                 if d != "*" and d not in domains:
                     domains.append(d)
         return domains, holders
@@ -696,7 +696,13 @@ class LoopEngine:
                     # that is not the finding's own statement becomes its own claim, so the finding is contested by it
                     # instead of supported despite it
                     ftext = next(t for _, t, cid in finding_claims if cid == ea)
-                    a_is_finding = d["a_text"].strip() == ftext or (d["b_text"].strip() != ftext and len(ra) >= len(rb))
+                    agree_a, agree_b = _agrees(ftext, d["a_text"]), _agrees(ftext, d["b_text"])
+                    if d["a_text"].strip() == ftext or (agree_a is not False and agree_b is False):
+                        a_is_finding = True
+                    elif d["b_text"].strip() == ftext or (agree_b is not False and agree_a is False):
+                        a_is_finding = False
+                    else:
+                        a_is_finding = len(ra) >= len(rb)       # nothing tells them apart: the larger side stands for the finding
                     if a_is_finding:
                         ca, cb = ea, await side_claim(rb, d["b_text"], [ea], summary, own=True)
                     else:

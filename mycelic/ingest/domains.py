@@ -116,11 +116,19 @@ class Taxonomy:
 def domains_overlap(a: Iterable[str], b: Iterable[str], tax: Taxonomy) -> bool:
     """True when some x in a and y in b are equal or one is an ancestor of the other (after alias resolution).
     ``*`` on either side matches everything; an empty side means no constraint (the behaviour before taxonomies)."""
-    A = {tax.resolve(x) for x in a if x}
-    B = {tax.resolve(y) for y in b if y}
-    if not A or not B or "*" in A or "*" in B:
+    A0 = {tax.resolve(str(x).strip().lower()) for x in a if x and str(x).strip()}
+    B0 = {tax.resolve(str(y).strip().lower()) for y in b if y and str(y).strip()}
+    if not A0 or not B0 or "*" in A0 or "*" in B0:
         return True
+    # a deprecated domain keeps its members but routes nothing new; a side left with only deprecated domains matches nothing
+    A = {x for x in A0 if not _deprecated(tax, x)}
+    B = {y for y in B0 if not _deprecated(tax, y)}
     return any(x == y or x in tax.ancestors(y) or y in tax.ancestors(x) for x in A for y in B)
+
+
+def _deprecated(tax: Taxonomy, d: str) -> bool:
+    dom = tax.domains.get(d)
+    return dom is not None and dom.status != "active"
 
 
 # (id suffix, name, keywords); top level: (id, name, description, keywords, subdomains)

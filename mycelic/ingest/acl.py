@@ -52,6 +52,9 @@ class Audience:
         return {"principal_ids": sorted(self.principal_ids), "complete": self.complete, "owner": self.owner}
 
 
+REF_SEPARATOR = "&"                       # several membership references on one record: all must hold
+
+
 def narrow(source: Permissions, record: Permissions | None) -> Permissions:
     """A record may be more restricted than its source, never less: the stricter visibility wins and members intersect."""
     if record is None:
@@ -63,20 +66,29 @@ def narrow(source: Permissions, record: Permissions | None) -> Permissions:
         return Permissions(vis, record.member_ids, record.membership_ref, record.acl_version)
     if record.visibility == "public":
         return Permissions(vis, source.member_ids, source.membership_ref, source.acl_version)
-    # both restricted: members must be in both lists; a membership_ref on either side is kept and intersected at use time
+    # both restricted: members must be in both lists; membership_refs on both sides are all kept ('a&b') and intersected
+    # at use time, so a thread inside a channel is visible only to people in both
     if source.member_ids and record.member_ids:
         members = tuple(sorted(set(source.member_ids) & set(record.member_ids)))
     else:
         members = record.member_ids or source.member_ids
-    return Permissions(vis, members, record.membership_ref or source.membership_ref, record.acl_version or source.acl_version)
+    refs = sorted({r for ref in (record.membership_ref, source.membership_ref) if ref for r in ref.split(REF_SEPARATOR) if r})
+    return Permissions(vis, members, REF_SEPARATOR.join(refs) or None, record.acl_version or source.acl_version)
 
 
 def members_of(perms: Permissions, resolve_ref: Callable[[str], Iterable[str]] | None = None) -> frozenset[str]:
     """Explicit member ids plus the members of ``membership_ref``. When both are present the record is visible to the
     intersection (the explicit list narrows the referenced membership)."""
     explicit = frozenset(perms.member_ids)
-    if perms.membership_ref and resolve_ref is not None:
-        referenced = frozenset(resolve_ref(perms.membership_ref))
+    if perms.membership_ref:
+        if resolve_ref is None:
+            return frozenset()                 # an unresolvable membership is no membership (fail closed)
+        referenced: frozenset[str] | None = None
+        for ref in perms.membership_ref.split(REF_SEPARATOR):
+            if ref:
+                got = frozenset(resolve_ref(ref))
+                referenced = got if referenced is None else referenced & got
+        referenced = referenced or frozenset()
         return explicit & referenced if explicit else referenced
     return explicit
 

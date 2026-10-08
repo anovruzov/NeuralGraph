@@ -42,6 +42,30 @@ reference while building.
 >   `deleted`; heartbeats publish ingested tenant-taxonomy domains into `holders.domains` (never personal or unknown
 >   ones, at most 64, off with `export_policy.auto_domains: false`). Tests: `mycelic/tests/test_evidence_events.py`,
 >   `mycelic/tests/test_ingest_integration.py`.
+> * Independent review (2026-10-08): 9 confirmed defects and 5 lower-severity items, all fixed, with one regression test
+>   each in `mycelic/tests/test_review_phase_a.py`. In brief:
+>   * holder reads (search, document lists, single documents, the agent's memory search) take the reader's audience;
+>   * a source's current ACL narrows its records at use time, and a source turning private loses its export opt-in;
+>   * `disclosure: none`, restricted records and `allow_external_models: 0` hold for the answer text and the model call;
+>   * the coordinator keeps a durable withdrawal ledger (`evidence_withdrawals`), so a late response cannot revive a
+>     deleted reference;
+>   * one provider object counts as one root (`meta.object_key`);
+>   * repeated redactions are distinct events, and payloads of deleted records leave the queue;
+>   * discoveries citing a purged claim are rewritten, along with their revisions, events, notifications and audit rows;
+>   * a failed webhook notice releases its claim;
+>   * the question audience includes everyone who gets the full response view;
+>   * membership references intersect;
+>   * deprecated domains route nothing, and matching ignores case;
+>   * published domains are replaced on each heartbeat (`holders.published_domains`, apart from the owner's list);
+>   * key ids use scrypt;
+>   * an owner's retract of a connector record is reported as `deleted`.
+> * Known limitations:
+>   * A source whose ACL *widens* (members-only to public) widens its existing records only when they are re-ingested;
+>     narrowing takes effect immediately.
+>   * With NeuralGraph extraction enabled (off by default), extractor log rows that carry no message or memory id cannot
+>     be attributed to a deleted document.
+>   * For unit holders the holder trusts the coordinator's signed authorization of connector actions (leads or an org
+>     admin). A user holder also checks that the actor is its owner.
 > * Known limitation: the audience is fixed when a question is routed. A grant made later on a claim derived from a
 >   member-restricted record widens who can read that claim's text (not the record itself, which raw access still
 >   re-checks at the holder). Until claims carry the audience they were disclosed to, grants on such claims should be

@@ -225,7 +225,7 @@ class Authorizer:
         try:
             from .ingest.domains import domains_overlap
         except ImportError:  # pragma: no cover - a build without the ingestion package keeps exact matching
-            return False
+            return bool(a & b)
         return domains_overlap(a, b, self.tenant_taxonomy(tenant_id))
 
     def can_view_scoped(self, p: Principal, row: Mapping[str, Any], *, resource_type: str) -> bool:
@@ -390,11 +390,11 @@ class Authorizer:
         elif holder.get("owner_type") == "unit":
             if scope and holder["owner_id"] not in set(self.org.descendants(scope)) and vis != "org":
                 return False, "unit holder is outside the question's scope"
-        domains = set(holder.get("domains") or [])
+        domains = set(holder.get("domains") or []) | set(holder.get("published_domains") or [])
         wanted = set(question.get("candidate_domains") or [])
         # nested domains match through the tenant taxonomy (a question about `engineering` reaches a holder whose
         # records are in `engineering.dependencies`; legacy flat names resolve through aliases)
-        if domains and wanted and "*" not in domains and not (domains & wanted) and not self._domains_overlap(question.get("tenant_id") or holder.get("tenant_id"), domains, wanted):
+        if domains and wanted and "*" not in domains and not self._domains_overlap(question.get("tenant_id") or holder.get("tenant_id"), domains, wanted):
             return False, "no matching evidence domain"
         if asker is not None and asker.kind in ("user", "loop") and not asker.is_system:
             # the asker must themselves be allowed to see the question's scope

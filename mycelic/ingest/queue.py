@@ -262,14 +262,20 @@ class IngestQueue:
         await self.store.run_in_tx(lambda c: self.ack_sync(c, item_id, worker_id, outcome))
 
     async def fail(self, item_id: int, worker_id: str, error_code: str, *, retryable: bool = True) -> str:
-        """Requeue with backoff, or dead-letter. Returns ``queued`` | ``dead`` | ``lost``. ``error_code`` is a code, never content."""
+        """Requeue with backoff, or dead-letter. Returns ``queued`` | ``dead`` | ``discarded`` | ``lost``. ``error_code`` is a code, never content."""
         code = (error_code or "error")[:80]
 
         def fn(c: sqlite3.Connection) -> str:
-            r = c.execute("SELECT attempts, max_attempts, status, worker_id FROM ingest_queue WHERE item_id=?", (item_id,)).fetchone()
+            r = c.execute("SELECT attempts, max_attempts, status, worker_id, record_key, kind FROM ingest_queue WHERE item_id=?", (item_id,)).fetchone()
             if r is None or r["status"] != "leased" or r["worker_id"] != worker_id:
                 return "lost"
             now = now_precise()
+            if r["kind"] not in ("deletion", "redaction") and c.execute(
+                    "SELECT 1 FROM deletion_tombstones WHERE record_key=? AND resurrectable=0", (r["record_key"],)).fetchone():
+                # the record was deleted meanwhile (an owner retract racing this item): its content must not wait in a dead letter
+                c.execute("""UPDATE ingest_queue SET status='discarded', payload=NULL, payload_bytes=0, last_error_code=?, finished_at=?, updated_at=?,
+                             leased_until=NULL, worker_id=NULL WHERE item_id=?""", (code, now, now, item_id))
+                return "discarded"
             if not retryable or int(r["attempts"]) >= int(r["max_attempts"]):
                 c.execute("""UPDATE ingest_queue SET status='dead', last_error_code=?, finished_at=?, updated_at=?, leased_until=NULL, worker_id=NULL
                              WHERE item_id=?""", (code, now, now, item_id))

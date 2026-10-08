@@ -15,7 +15,14 @@ from .util import hmac_sign, j, jl, new_id, now_iso, plus_seconds, token, token_
 UNIT_TYPES = ("executive", "region", "subsidiary", "department", "team", "project")
 HIERARCHY = ("executive", "region", "subsidiary", "department", "team")   # top -> bottom; any level may be omitted
 ROLES = ("employee", "team_lead", "department_lead", "subsidiary_lead", "regional_lead", "executive", "org_admin")
-MAX_HOLDER_DOMAINS = 64                   # routable domains per holder (published from ingestion or set by hand)
+MAX_HOLDER_DOMAINS = 64                   # domains a holder publishes from its ingested records
+
+
+def routable_domains(h: dict) -> list:
+    """What questions are routed to a holder by: the owner's hand-curated domains plus those its records were published in."""
+    out = list(h.get("domains") or [])
+    out += [d for d in (h.get("published_domains") or []) if d not in out]
+    return out
 LEAD_ROLES = frozenset({"team_lead", "department_lead", "subsidiary_lead", "regional_lead", "executive"})
 ROLE_FOR_UNIT_TYPE = {"team": "team_lead", "department": "department_lead", "subsidiary": "subsidiary_lead",
                       "region": "regional_lead", "executive": "executive", "project": "team_lead"}
@@ -392,7 +399,7 @@ class OrgService:
         return self.get_holder(hid), plain  # type: ignore[return-value]
 
     def get_holder(self, holder_id: str) -> dict[str, Any] | None:
-        d = row_to_dict(self.db.one("SELECT * FROM holders WHERE holder_id=?", (holder_id,)), json_fields=("domains", "export_policy", "stats"))
+        d = row_to_dict(self.db.one("SELECT * FROM holders WHERE holder_id=?", (holder_id,)), json_fields=("domains", "published_domains", "export_policy", "stats"))
         if d:
             d.pop("key_hash", None)
         return d
@@ -403,7 +410,7 @@ class OrgService:
     def holder_by_key_hash(self, key_hash: str) -> dict[str, Any] | None:
         d = row_to_dict(self.db.one("SELECT h.* FROM holders h WHERE h.key_hash=? AND h.status<>'revoked' AND (h.owner_type<>'user' OR EXISTS "
                                     "(SELECT 1 FROM users u WHERE u.user_id=h.owner_id AND u.status='active' AND u.tenant_id=h.tenant_id))", (key_hash,)),
-                        json_fields=("domains", "export_policy", "stats"))
+                        json_fields=("domains", "published_domains", "export_policy", "stats"))
         if d:
             d.pop("key_hash", None)
         return d
@@ -418,14 +425,14 @@ class OrgService:
         if status:
             sql += " AND status=?"; args.append(status)
         sql += " ORDER BY name"
-        out = rows_to_dicts(self.db.all(sql, args), json_fields=("domains", "export_policy", "stats"))
+        out = rows_to_dicts(self.db.all(sql, args), json_fields=("domains", "published_domains", "export_policy", "stats"))
         for d in out:
             d.pop("key_hash", None)
         return out
 
     def holders_for_user(self, user_id: str) -> list[dict[str, Any]]:
         out = rows_to_dicts(self.db.all("SELECT * FROM holders WHERE owner_type='user' AND owner_id=? AND status<>'revoked'", (user_id,)),
-                            json_fields=("domains", "export_policy", "stats"))
+                            json_fields=("domains", "published_domains", "export_policy", "stats"))
         for d in out:
             d.pop("key_hash", None)
         return out
@@ -441,22 +448,25 @@ class OrgService:
 
     async def holder_heartbeat(self, holder_id: str, *, stats: dict | None = None, status: str = "online") -> None:
         async with self.db.tx() as c:
-            r = c.execute("SELECT tenant_id, status, domains, export_policy FROM holders WHERE holder_id=?", (holder_id,)).fetchone()
+            r = c.execute("SELECT tenant_id, status, domains, published_domains, export_policy FROM holders WHERE holder_id=?", (holder_id,)).fetchone()
             if r is None or r["status"] == "revoked":
                 return
             c.execute("UPDATE holders SET status=?, last_heartbeat_at=?, stats=CASE WHEN ? THEN ? ELSE stats END, updated_at=? WHERE holder_id=?",
                       (status, now_iso(), int(stats is not None), j(stats), now_iso(), holder_id))
             # domains the holder's ingested records belong to (counts only, tenant taxonomy only, at least the holder's
             # publication threshold) become routable for questions, unless the owner curates the list by hand
-            reported = ((stats or {}).get("ingest") or {}).get("domains") or {}
-            if reported and (jl(r["export_policy"], {}) or {}).get("auto_domains", True) is not False:
-                current = list(jl(r["domains"], []) or [])
+            ingest = (stats or {}).get("ingest")
+            if isinstance(ingest, dict) and "domains" in ingest:
+                reported = ingest.get("domains") or {}
+                auto = (jl(r["export_policy"], {}) or {}).get("auto_domains", True) is not False
                 known = self._taxonomy_ids_sync(c, r["tenant_id"])
-                added = sorted(d for d in reported if isinstance(d, str) and d in known and d not in current)[:max(0, MAX_HOLDER_DOMAINS - len(current))]
-                if added:
-                    c.execute("UPDATE holders SET domains=? WHERE holder_id=?", (j(current + added), holder_id))
+                published = sorted(d for d in reported if isinstance(d, str) and d in known)[:MAX_HOLDER_DOMAINS] if auto else []
+                before = list(jl(r["published_domains"], []) or [])
+                if published != before:
+                    # replaced, not accumulated: a domain whose records were all purged stops routing questions here
+                    c.execute("UPDATE holders SET published_domains=? WHERE holder_id=?", (j(published), holder_id))
                     self.db.audit_sync(c, r["tenant_id"], "holder", holder_id, "holder.domains_published", resource_type="holder", resource_id=holder_id,
-                                       detail={"added": added})
+                                       detail={"added": sorted(set(published) - set(before)), "removed": sorted(set(before) - set(published))})
             if r["status"] != status:
                 self.db.emit_sync(c, r["tenant_id"], "holder.status", ref_type="holder", ref_id=holder_id, payload={"status": status}, audience={"roles": ["org_admin"], "visibility": "org"})
 

@@ -58,6 +58,13 @@ def _aesgcm():
 
 
 def kid_for(master: bytes) -> str:
+    """The key id stored next to every sealed credential. It is derived with scrypt, not a fast hash, so a copy of the
+    database is not a cheap oracle for guessing a weak master key (a strong random key needs no such help)."""
+    return "k" + hashlib.scrypt(master, salt=b"mycelic/kid/v1", n=2 ** 14, r=8, p=1, dklen=12).hex()
+
+
+def legacy_kid_for(master: bytes) -> str:
+    """Key ids written before the scrypt derivation, still accepted for unwrapping (and rewrapped on rotation)."""
     return "k" + hashlib.sha256(master).hexdigest()[:16]
 
 
@@ -79,11 +86,12 @@ class TokenVault:
         if not secret:
             raise VaultUnavailable("no master key configured")
         active = secret.encode("utf-8")
-        masters = {kid_for(active): active}
+        masters = {kid_for(active): active, legacy_kid_for(active): active}
         for p in previous:
             if p:
                 b = p.encode("utf-8")
                 masters.setdefault(kid_for(b), b)
+                masters.setdefault(legacy_kid_for(b), b)
         return cls(masters, kid_for(active))
 
     @classmethod

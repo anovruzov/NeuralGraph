@@ -123,7 +123,11 @@ def version_key(rkey: str, source_version: str, chash: str) -> str:
     return rkey + "@" + H(source_version or chash)[:16]
 
 
-def event_key(rkey: str, kind: str, source_version: str, chash: str, deletion_status: str) -> str:
+def event_key(rkey: str, kind: str, source_version: str, chash: str, deletion_status: str, order_key: str = "") -> str:
+    """Deletions and redactions carry no version and an empty body, so their position (``order_key``) tells a second
+    redaction (after the content was shown again) from a re-delivery of the first."""
+    if kind in ("deletion", "redaction") and order_key:
+        return "ek1_" + H("ek1", rkey, kind, source_version or "", chash, deletion_status, order_key)[:40]
     return "ek1_" + H("ek1", rkey, kind, source_version or "", chash, deletion_status)[:40]
 
 
@@ -268,7 +272,7 @@ class CanonicalEvent:
 
     @property
     def event_key(self) -> str:
-        return event_key(self.record_key, self.kind, self.source_version, self.content_hash, self.deletion_status)
+        return event_key(self.record_key, self.kind, self.source_version, self.content_hash, self.deletion_status, self.order_key)
 
     @property
     def version_key(self) -> str:

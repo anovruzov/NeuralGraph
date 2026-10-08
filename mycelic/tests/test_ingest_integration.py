@@ -82,15 +82,21 @@ async def test_heartbeat_publishes_only_tenant_taxonomy_domains(db, org, auth, a
     hid = o["ha"]["holder_id"]
     stats = {"ingest": {"domains": {"engineering.dependencies": 12, f"personal.{hid}.reading": 4, "made-up": 9, "unclassified": 3}}}
     await org.holder_heartbeat(hid, stats=stats)
-    assert org.get_holder(hid)["domains"] == ["support", "engineering.dependencies"]
+    h = org.get_holder(hid)
+    assert h["published_domains"] == ["engineering.dependencies"] and h["domains"] == ["support"]   # the owner's list is untouched
     assert db.one("SELECT detail FROM audit_log WHERE action='holder.domains_published' AND resource_id=?", (hid,)) is not None
     await org.holder_heartbeat(hid, stats=stats)                                   # idempotent
-    assert org.get_holder(hid)["domains"] == ["support", "engineering.dependencies"]
+    assert org.get_holder(hid)["published_domains"] == ["engineering.dependencies"]
+    q = {"tenant_id": o["t"], "scope_unit_id": None, "policy": {"visibility": "org"}, "candidate_domains": ["engineering"]}
+    assert authz.can_route(q, org.get_holder(hid))[0]
+    # the records are purged: the next heartbeat reports no domains and the holder stops being routed engineering questions
+    await org.holder_heartbeat(hid, stats={"ingest": {"domains": {}}})
+    assert org.get_holder(hid)["published_domains"] == [] and not authz.can_route(q, org.get_holder(hid))[0]
     # an owner who curates the list by hand turns publication off
     hb = o["hb"]["holder_id"]
     await org.update_holder(hb, export_policy={**(org.get_holder(hb).get("export_policy") or {}), "auto_domains": False})
     await org.holder_heartbeat(hb, stats=stats)
-    assert org.get_holder(hb)["domains"] == ["logistics"]
+    assert org.get_holder(hb)["published_domains"] == [] and org.get_holder(hb)["domains"] == ["logistics"]
 
 
 # ------------------------------------------------------------------------------------------------ evaluation

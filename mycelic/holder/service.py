@@ -340,7 +340,12 @@ class HolderService:
             await self._publish(Subjects.ingest_results(t), "ingest_result", payload, msg_id=msg_id)
         elif op in ("revise", "retract"):
             r = result or {}
-            payload = {"event": ("revised" if op == "revise" else "retracted") if result else "error", "holder_id": h,
+            event = ("revised" if op == "revise" else "retracted") if result else "error"
+            doc_id = (r.get("document") or {}).get("doc_id") or (env.payload or {}).get("doc_id")
+            if event == "retracted" and doc_id and self.store.store._conn.execute("SELECT 1 FROM ingest_records WHERE record_id=?", (doc_id,)).fetchone():
+                # retracting a connector record purged its content here: the coordinator purges its copies too
+                event = "deleted"
+            payload = {"event": event, "holder_id": h,
                        "doc_id": (r.get("document") or {}).get("doc_id") or (env.payload or {}).get("doc_id"),
                        "affected_ref_ids": list(r.get("affected_ref_ids") or []), "reason": r.get("reason") or error,
                        "version": (r.get("document") or {}).get("version"), "document": r.get("document"),

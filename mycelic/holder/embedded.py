@@ -175,7 +175,8 @@ class EmbeddedHolders:
         # a user-owned holder's owner is always inside its records' ACLs (connector records, mycelic.ingest.acl)
         owner_ids = [row["owner_id"]] if row["owner_type"] == "user" and row["owner_id"] else []
         store = EvidenceStore(self.store_path(holder_id), holder_id=holder_id, tenant_id=tenant_id, llm=llm, router=self.router,
-                              export_policy=jl(row["export_policy"], {}), domains=jl(row["domains"], []), extract=self.extract, owner_ids=owner_ids)
+                              export_policy=jl(row["export_policy"], {}), domains=jl(row["domains"], []) + [d for d in jl(row["published_domains"], []) if d not in jl(row["domains"], [])],
+                              extract=self.extract, owner_ids=owner_ids)
 
         async def heartbeat(stats: dict[str, Any]) -> None:
             await self.org.holder_heartbeat(holder_id, stats=_heartbeat_stats(stats))
@@ -227,7 +228,8 @@ class EmbeddedHolders:
         h = self.org.get_holder(holder_id)
         if h is None:
             return None
-        return {"export_policy": h.get("export_policy") or {}, "domains": h.get("domains") or []}
+        from ..org import routable_domains
+        return {"export_policy": h.get("export_policy") or {}, "domains": routable_domains(h)}
 
     async def reload_policy(self, holder_id: str) -> None:
         """Push the registry's current policy into the running store (the question path also re-reads it)."""

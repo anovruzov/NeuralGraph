@@ -39,7 +39,7 @@ from NeuralGraph.chat_memory.retrieval import MemoryRetriever, RetrievalConfig
 from NeuralGraph.chat_memory.textutil import clip, content_hash, fold, norm_entity, normalize_ws, stem, tokenize
 
 from .. import __version__ as HOLDER_VERSION
-from ..ingest.acl import Audience, decide
+from ..ingest.acl import Audience, decide, narrow
 from ..ingest.domains import Taxonomy, default_taxonomy, domains_overlap, is_personal, load_taxonomy_sync
 from ..ingest.events import Permissions
 from ..ingest.normalize import mask_secrets
@@ -580,23 +580,38 @@ class EvidenceStore:
             return exc.outcome.get("result") or {}
 
     # ------------------------------------------------------------------ reads
-    async def document(self, doc_id: str) -> dict[str, Any] | None:
-        doc = await self.store.get_document(doc_id)
-        return await self._public_document(doc) if doc else None
+    # Every read below takes the reader's ``audience`` ({"principal_ids", "complete", "owner"}). Connector records are
+    # re-checked against their source ACL for it: a record outside what the audience may see is left out (lists,
+    # search) or reported missing (single reads). With no audience nothing restricted is shown (fail closed); only the
+    # holder's owner (``owner: true``) sees every live record. Direct uploads have no source ACL.
+    def _doc_visible(self, doc_id: str, audience: Any) -> bool:
+        acl = self._record_acl_sync(self.store._conn, doc_id)
+        return acl is None or self._acl_allows(acl, Audience.from_payload(audience))[0]
 
-    async def document_text(self, doc_id: str, version: int | None = None) -> str | None:
+    async def document(self, doc_id: str, *, audience: Any = None) -> dict[str, Any] | None:
+        doc = await self.store.get_document(doc_id)
+        if doc is None or not self._doc_visible(doc_id, audience):
+            return None
+        return await self._public_document(doc)
+
+    async def document_text(self, doc_id: str, version: int | None = None, *, audience: Any = None) -> str | None:
+        if not self._doc_visible(doc_id, audience):
+            return None
         if version is not None:
             return await self.store.document_version_text(doc_id, version)
         doc = await self.store.get_document(doc_id, with_text=True)
         return doc["text"] if doc else None
 
-    async def list_documents(self, *, status: str | None = None, limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:
-        return [await self._public_document(d) for d in await self.store.list_documents(status=status, limit=limit, offset=offset)]
+    async def list_documents(self, *, status: str | None = None, limit: int = 100, offset: int = 0, audience: Any = None) -> list[dict[str, Any]]:
+        docs = await self.store.list_documents(status=status, limit=limit, offset=offset)
+        return [await self._public_document(d) for d in docs if self._doc_visible(d["doc_id"], audience)]
 
-    async def search(self, query: str, k: int = 10, **filters: Any) -> list[dict[str, Any]]:
-        """Hybrid retrieval over this holder's memories (owner/API view: memory and document ids are visible here,
-        because the owner may see their own store; the coordinator never calls this)."""
-        return [self._result_dict(r) for r in await self._retrieve(query, k=k, **filters)]
+    async def search(self, query: str, k: int = 10, *, audience: Any = None, **filters: Any) -> list[dict[str, Any]]:
+        """Hybrid retrieval over this holder's memories for an API reader (memory and document ids are visible here;
+        the coordinator's question path is :meth:`answer_question`). Restricted connector records are filtered out
+        before retrieval, so they neither appear nor influence the ranking."""
+        allowed = self._allowed_memory_ids(Audience.from_payload(audience))
+        return [self._result_dict(r) for r in await self._retrieve(query, k=k, allowed_ids=allowed, **filters)]
 
     async def raw_for_ref(self, ref_id: str, *, audience: Any = None) -> dict[str, Any] | None:
         """Resolve an exported reference to its document. The coordinator calls this only after its own raw-grant
@@ -656,18 +671,24 @@ class EvidenceStore:
 
     def _record_acl_sync(self, c: sqlite3.Connection, doc_id: str) -> dict[str, Any] | None:
         """The connector record behind a document (``None`` for direct uploads): permissions, source opt-in and state."""
-        r = c.execute("""SELECT r.record_id, r.kind, r.source_app, r.permissions, r.visibility, r.deletion_status, r.sensitivity, r.flags,
-                                r.source_id, s.exportable, s.disclosure, s.access_state, cn.connector_type
+        r = c.execute("""SELECT r.record_id, r.object_key, r.kind, r.source_app, r.permissions, r.visibility, r.deletion_status, r.sensitivity, r.flags,
+                                r.source_id, s.exportable, s.disclosure, s.access_state, s.allow_external_models, s.visibility AS source_visibility,
+                                s.member_ids AS source_member_ids, s.membership_ref AS source_membership_ref, cn.connector_type
                          FROM ingest_records r LEFT JOIN connector_sources s ON s.source_id = r.source_id
                          LEFT JOIN connectors cn ON cn.connector_id = r.connector_id WHERE r.record_id=?""", (doc_id,)).fetchone()
         if r is None:
             return None
         perms = Permissions.from_dict(jl(r["permissions"], {}))
+        if r["source_visibility"]:
+            # the source's ACL as it is *now* narrows what was recorded at ingest: a channel turned members-only, or a member
+            # removed, takes effect at the next use without re-ingesting (a source that opens up widens only on re-sync)
+            perms = narrow(Permissions(r["source_visibility"], tuple(jl(r["source_member_ids"], []) or ()), r["source_membership_ref"]), perms)
         exportable = bool(r["exportable"]) if r["exportable"] is not None else perms.visibility != "private"
         return {"record_id": r["record_id"], "kind": r["kind"], "source_app": r["source_app"], "permissions": perms,
                 "visibility": perms.visibility, "deletion_status": r["deletion_status"], "sensitivity": r["sensitivity"],
                 "flags": set(jl(r["flags"], [])), "exportable": exportable, "disclosure": r["disclosure"],
-                "access_state": r["access_state"] or "ok", "connector_type": r["connector_type"] or r["source_app"]}
+                "access_state": r["access_state"] or "ok", "connector_type": r["connector_type"] or r["source_app"],
+                "allow_external_models": r["allow_external_models"], "object_key": r["object_key"]}
 
     def _members_of_ref(self, ref: str) -> list[str]:
         return [x["member_id"] for x in self.store._conn.execute("SELECT member_id FROM acl_memberships WHERE membership_ref=?", (ref,))]
@@ -686,7 +707,8 @@ class EvidenceStore:
             return None
         c = self.store._conn
         rows = c.execute("""SELECT r.record_id FROM ingest_records r LEFT JOIN connector_sources s ON s.source_id = r.source_id
-                            WHERE r.visibility <> 'public' OR r.deletion_status <> 'live' OR COALESCE(s.access_state, 'ok') <> 'ok'""").fetchall()
+                            WHERE r.visibility <> 'public' OR COALESCE(s.visibility, 'public') <> 'public' OR r.deletion_status <> 'live'
+                               OR COALESCE(s.access_state, 'ok') <> 'ok'""").fetchall()
         denied = []
         for row in rows:
             acl = self._record_acl_sync(c, row["record_id"])
@@ -778,6 +800,10 @@ class EvidenceStore:
             if acl is not None and not self._acl_allows(acl, audience)[0]:
                 continue
             item_level = self._record_level(level, acl)
+            if acl is not None and item_level == "none":
+                # a connector record its source (or its sensitivity) keeps at disclosure 'none' never reaches a model or the
+                # answer text: an answer quoting it would disclose exactly what the reference withholds
+                continue
             channels.update(ch for ch in ("vector", "keyword", "graph") if ch in r.channels)
             # the model (holder-side) reads the whole redacted chunk; the excerpt cap bounds what is *disclosed*
             redacted = self._redact(m.text)
@@ -795,10 +821,12 @@ class EvidenceStore:
                         "freshness_at": None}
             return await self._commit_answer([], response, idempotency_key)
 
-        # a record flagged as carrying instructions never reaches a model: the answer is composed by the rule
-        suspicious = any(i["acl"] is not None and "suspicious_instructions" in i["acl"]["flags"] for i in items)
+        # a record flagged as carrying instructions, or from a source whose owner forbids external models, never reaches a
+        # model: the answer is composed by the local rule
+        local_only = any(i["acl"] is not None and ("suspicious_instructions" in i["acl"]["flags"] or i["acl"].get("allow_external_models") == 0)
+                         for i in items)
         model_out = await self._run_answer(text, [{"ref_id": i["ref_id"], "excerpt": i["model_text"], "observed_at": i["observed_at"]} for i in items],
-                                           question_id=qid, provenance=provenance, force_rule=suspicious)
+                                           question_id=qid, provenance=provenance, force_rule=local_only)
         used_ids = [str(x) for x in (model_out.get("used_ref_ids") or [])]
         used = [i for i in items if i["ref_id"] in set(used_ids)]
         answer = normalize_ws(str(model_out.get("answer") or ""))
@@ -840,9 +868,13 @@ class EvidenceStore:
             # evidence is as fresh as the time its content was observed, not the time it was uploaded or indexed
             "observed_at": i["observed_at"], "freshness_at": i["observed_at"] or doc.get("observed_at"),
         }
-        if acl is not None and self.export_policy.get("disclose_source_app", True):
-            ref["meta"] = {"source_app": acl["source_app"], "record_kind": acl["kind"], "connector_type": acl["connector_type"],
-                           "domain_ids": self._record_domains_sync(self.store._conn, doc["doc_id"])}
+        if acl is not None:
+            # the provider object's identity (a one-way hash): two holders' copies of one message, even at different versions,
+            # are one source for independence counting (product decision 2: one canonical identity and root)
+            ref["meta"] = {"object_key": acl["object_key"]}
+            if self.export_policy.get("disclose_source_app", True):
+                ref["meta"].update({"source_app": acl["source_app"], "record_kind": acl["kind"], "connector_type": acl["connector_type"],
+                                    "domain_ids": self._record_domains_sync(self.store._conn, doc["doc_id"])})
         return ref
 
     def _redact(self, text: str) -> str:

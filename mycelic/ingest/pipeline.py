@@ -758,6 +758,11 @@ class IngestPipeline:
                                   content_hash=(loc or {}).get("content_hash"), metadata_hash=(loc or {}).get("metadata_hash"))
                 c.execute("UPDATE ingest_records SET deletion_status=? WHERE record_id=?", (rec_status, ev.record_id))
                 drop_record_sync(c, ev.record_id, now_iso())            # the edges it supported lose its evidence
+                if outcome == "delete":
+                    # content still waiting for this record (queued or dead-lettered) goes with it, document or not
+                    c.execute("UPDATE ingest_queue SET payload=NULL, payload_bytes=0, status='discarded', updated_at=? WHERE record_key=? "
+                              "AND status IN ('queued', 'dead') AND kind NOT IN ('deletion', 'redaction') AND item_id<>?",
+                              (now_iso(), ev.record_key, item.item_id))
                 IngestStore.add_version_sync(c, ev, kind="deletion" if outcome == "delete" else "redaction", doc_version=None)
                 affected = list(w.get("affected_ref_ids") or [])
                 IngestStore.upsert_tombstone_sync(c, record_key=ev.record_key, record_id=ev.record_id, reason=reason, order_key=ev.order_key,

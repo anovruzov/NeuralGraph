@@ -432,6 +432,12 @@ class MycelicMemoryStore(ChatMemoryStore):
             part = mem_ids[i:i + 500]
             c.execute(f"UPDATE exports SET disclosed_excerpt='' WHERE memory_id IN ({self._in(part)})", part)
         c.execute("UPDATE audit_log SET detail=? WHERE ref=?", (j({"scrubbed": True}), doc_id))
+        # NeuralGraph's extractor logs short clips under the message or memory they came from (gate skips, rejects,
+        # duplicates): those rows are scrubbed as well
+        for ids in (msg_ids, mem_ids):
+            for i in range(0, len(ids), 500):
+                part = ids[i:i + 500]
+                c.execute(f"UPDATE audit_log SET detail=? WHERE ref IN ({self._in(part)})", (j({"scrubbed": True}), *part))
         self._retire_ingest_rows_sync(c, doc_id, reason=reason or status, now=now)
         self._scrub_outcomes_sync(c, doc_id, set(affected), tombstone={
             "doc_id": doc_id, "title": title, "status": status, "kind": (doc["kind"] if doc else "note"), "chunks": 0, "chars": 0,

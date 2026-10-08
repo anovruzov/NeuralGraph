@@ -475,7 +475,7 @@ class ServiceSession:
         store = self.rt.holders.get(hid) if self.rt.holders is not None else None
         if store is None:
             return {"items": [], "note": "external holder: its documents live with the holder process"}
-        return {"items": await store.list_documents()}
+        return {"items": await store.list_documents(audience={"principal_ids": [], "complete": True, "owner": True})}
 
     async def holder_revise(self, hid, doc_id, *, params, body):
         h = self._holder(hid)
