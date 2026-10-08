@@ -56,8 +56,8 @@ screen shows both. So this run does not show a case that the fields allowed to l
 **The constructed codes-miss scenario (B1b) exists, and its first attempt does not illustrate the case.**
 `scenario_codes_miss.json` is the cast `docs/collective/b1/PREREG.md` fixed before any of its worlds existed (a
 fictional Tarnwick Devices, where a new complaint-intake form at five plants writes the generic code on every
-complaint), as the last attempt adjusted it (attempt 2, planned in `docs/collective/b1/attempts/attempt-2/PLAN.md`,
-moves the failure to another lot). Its first recording, `docs/collective/b1/attempts/attempt-1/`, is judged by the pre-registered rule
+complaint), as the last attempt adjusted it (attempt 2 moved the failure to another lot and did not hold either; attempt 3,
+the last, is planned in `docs/collective/b1/attempts/attempt-3/PLAN.md`). Its first recording, `docs/collective/b1/attempts/attempt-1/`, is judged by the pre-registered rule
 (`codes_miss.py`), and its own scorecard says the rule does not hold: X caught the case and the check with the sites
 says supported, but R (model-free) and S both flag the hero's lot under the generic code in the case's first week, a
 week before X. So no committed run shows a case the fields allowed to leave miss. Every screen of that scenario

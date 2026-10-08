@@ -67,13 +67,16 @@ class ParseTests(unittest.TestCase):
         self.assertEqual((cmb.statement, cmb.author_note), (scn.STATEMENT, scn.AUTHOR_NOTE))
         self.assertEqual(cmb.robustness_seeds, (31, 37, 41, 43, 47, 53, 59, 61))
         (shift,) = cmb.shifts
-        self.assertEqual((shift.id, shift.start_week, shift.weeks, shift.to_code), ("intake-form", 22, 18, "ILL-9001"))
+        # R8: the shift starts a detector window before the hero (the hero start week is adjustable) and runs to the end
+        self.assertEqual((shift.id, shift.start_week, shift.weeks, shift.to_code),
+                         ("intake-form", sc.hero.start_week - 8, 40 - (sc.hero.start_week - 8), "ILL-9001"))
         self.assertEqual(shift.sites, ("plant-ashvale", "plant-brindlemoor", "plant-corrowfield", "werk-dornhagen",
                                        "werk-erlenbruch"))
         self.assertEqual(shift.label, "A new complaint-intake form sets the generic problem code on every complaint")
         hero = sc.hero
-        self.assertEqual((hero.id, hero.keys, hero.visibility, hero.codes, hero.start_week, hero.weeks),
-                         (HERO, (HERO_KEY,), "narrative_only", ("ILL-9001",), 30, 6))
+        self.assertEqual((hero.id, hero.keys, hero.visibility, hero.codes, hero.weeks),
+                         (HERO, (HERO_KEY,), "narrative_only", ("ILL-9001",), 6))
+        self.assertIn(hero.start_week, range(8, 35))
         self.assertEqual(hero.sites, (("plant-brindlemoor", "en", 1), ("plant-corrowfield", "en", 1),
                                       ("werk-dornhagen", "de", 1)))
         self.assertEqual(hero.structured, (("lot", (HERO_LOT,), 0.6), ("product", (HERO_PRODUCT,), 0.95),
@@ -84,8 +87,9 @@ class ParseTests(unittest.TestCase):
 
     def test_only_adjustable_fields_differ_from_the_preregistered_cast(self) -> None:
         """PREREG section 6: between attempts only the hero lot, sites and languages, rate, start week and templates
-        may change. The committed scenario is attempt 1's (the cast as PREREG section 3 fixes it) with the hero lot
-        replaced, its product following the generator's link and the sibling holding the same lot."""
+        may change. The committed scenario is attempt 1's (the cast as PREREG section 3 fixes it) with at most the
+        hero lot replaced (its product following the generator's link and the sibling holding the same lot) and the
+        hero's start week moved (the shift following by R8)."""
         first = json.loads((ATTEMPTS / "attempt-1" / "scenario_codes_miss.json").read_text(encoding="utf-8"))
         hero1 = next(i for i in first["items"] if i["id"] == HERO)
         lot1 = hero1["key"]["entity_id"]
@@ -94,7 +98,13 @@ class ParseTests(unittest.TestCase):
         links = self.sc.pack.generator["links"]["lot"]
         self.assertIn(HERO_LOT, links["map"][HERO_PRODUCT])
         current = json.loads(SCENARIO.read_text(encoding="utf-8"))
+        start1 = hero1["start_week"]
+        self.assertEqual(start1, 30)
+        for shift in current["codes_miss"]["shifts"]:          # the shift follows the hero's start week (R8)
+            shift["start_week"], shift["weeks"] = start1 - 8, 40 - (start1 - 8)
         for item in current["items"]:
+            if item["id"] == HERO:
+                item["start_week"] = start1
             if item["id"] in (HERO, "sibling-quarantine"):
                 if item["key"]["entity_id"] == HERO_LOT:
                     item["key"]["entity_id"] = lot1
@@ -186,7 +196,8 @@ class RealismTests(unittest.TestCase):
 
     def test_r1_shifts(self) -> None:
         self.assert_refused(lambda d: d["codes_miss"].update(shifts=[]), "R1: at least one shift")
-        self.assert_refused(lambda d: d["codes_miss"]["shifts"][0].update(weeks=17), "R1: a shift runs to the")
+        self.assert_refused(lambda d: d["codes_miss"]["shifts"][0].update(weeks=39 - SHIFT_START),
+                            "R1: a shift runs to the")
 
         def uncover(d: dict[str, Any]) -> None:
             d["codes_miss"]["shifts"][0]["sites"].remove("werk-dornhagen")
@@ -243,19 +254,28 @@ class RealismTests(unittest.TestCase):
 
     def test_r8_the_shift_starts_a_window_before_the_hero(self) -> None:
         def later(d: dict[str, Any]) -> None:
-            d["codes_miss"]["shifts"][0].update(start_week=23, weeks=17)
+            d["codes_miss"]["shifts"][0].update(start_week=SHIFT_START + 1, weeks=39 - SHIFT_START)
         self.assert_refused(later, "R8")
 
 
 # --------------------------------------------------------------------------------------------------- the rule
 
-def W(i: int) -> str:
+HERO_START = _HERO_RAW["start_week"]
+SHIFT_START = HERO_START - 8          # R8, with the pack's window_weeks
+
+
+def _label(i: int) -> str:
     return f"2030-W{i + 1:02d}"
 
 
-WORLD_WEEKS = tuple(W(i) for i in range(40))
-DET_WEEKS = tuple(W(i) for i in range(42))
-LAST = W(41)
+def W(i: int) -> str:
+    """A synthetic week written as if the hero started in week 30 (attempt 1's cast), shifted to the committed start."""
+    return _label(i + HERO_START - 30)
+
+
+WORLD_WEEKS = tuple(_label(i) for i in range(40))
+DET_WEEKS = tuple(_label(i) for i in range(46))
+LAST = _label(45)
 
 
 def channel(alerts=(), candidates=()) -> dict[str, Any]:
@@ -414,11 +434,12 @@ class EvaluateTests(unittest.TestCase):
         self.assertEqual((block["statement"], block["author_note"], block["rule"]),
                          (scn.STATEMENT, scn.AUTHOR_NOTE, cm.RULE))
         # main's counterfactual, each seed with and without the hero, each offset's counterfactual then its rates
-        expected = [(29, HERO, 22, 1)]
+        expected = [(29, HERO, SHIFT_START, 1)]
         for seed in (31, 37, 41, 43, 47, 53, 59, 61):
-            expected += [(seed, None, 22, 1), (seed, HERO, 22, 1)]
+            expected += [(seed, None, SHIFT_START, 1), (seed, HERO, SHIFT_START, 1)]
         for offset in (-8, -4, 0):
-            expected += [(29, HERO, 30 + offset, 1), (29, None, 30 + offset, 1), (29, None, 30 + offset, 2)]
+            expected += [(29, HERO, HERO_START + offset, 1), (29, None, HERO_START + offset, 1),
+                         (29, None, HERO_START + offset, 2)]
         self.assertEqual(calls, expected)
 
     def test_holds_robust_needs_at_least_half(self) -> None:
@@ -473,7 +494,8 @@ class EvaluateTests(unittest.TestCase):
         v = cm.variant(sc, seed=31)
         self.assertEqual((v.seed, v.items, v.codes_miss.shifts), (31, sc.items, sc.codes_miss.shifts))
         v = cm.variant(sc, shift_offset=0)
-        self.assertEqual((v.codes_miss.shifts[0].start_week, v.codes_miss.shifts[0].weeks), (30, 10))
+        self.assertEqual((v.codes_miss.shifts[0].start_week, v.codes_miss.shifts[0].weeks),
+                         (HERO_START, 40 - HERO_START))
         v = cm.variant(sc, hero_rate=2)
         self.assertEqual({rate for _, _, rate in v.hero.sites}, {2})
         self.assertIs(next(i for i in v.items if i.id == HERO), v.hero)
