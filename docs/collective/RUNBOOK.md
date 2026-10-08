@@ -943,7 +943,13 @@ python demo/collective/collective_demo.py --serve --cut
 The plants can extract and judge with a model you serve (section 2) instead of the stand-in. On one machine every
 plant is simulated in one process with one shared model; the screen says "sites simulated in one process, one shared
 model" and names the endpoint and the model tag, and `measurement` stays false. **Never show this run to a buyer
-either:** the world is still synthetic and same-author.
+either:** the world is still synthetic and same-author. When every plant's call went to a local test server that
+marks its answers as fake (the tests' fake server), there is no model to share: the providers read "local test server
+(fake marker), no model", `stamps.shared_model` is false and the screen says "sites simulated in one process; every
+site's calls went to one local test server (fake marker)" (B1; up to B1 such a run also said "one shared model").
+With a model, the by-construction caption for X is gone (`by_construction.X` false: a model's extraction is not the
+author's own sentences read back), and a draft a model wrote shows every field's source as `model`: the model ignores
+the pack's draft template.
 
 The routing file routes `extract_claims` and `judge_record` (and any `escalate_to`) to `openai_compat` endpoints at
 boundary `any-simulated`; `draft_followup` is optional (`central` or `any-simulated`; without it HQ's template drafter
@@ -985,8 +991,10 @@ the error kinds, and writes nothing.
   **run driven live in the console** (`--serve`: the presenter approved each follow-up, acting as the named owner,
   `approval: live`, and each execution was requested once; with `--cut` the follow-ups were approved by script,
   `approval: recorded`). Say which one you are showing.
-- **Simulated:** the plants run in one process; the stand-in model reads the pack's own sentences perfectly; the
-  follow-up layer is built ahead of X4 and not measured; the outcome is "not yet checked".
+- **Simulated:** the plants run in one process; the stand-in model reads the pack's own sentences perfectly (the
+  screen says so in the caption "By construction, X reads this case perfectly"); the follow-up layer is built ahead of
+  X4 and not measured; the CAPA draft is the pack template's, filled from the conclusion and the packets, with its
+  containment left for the named owner; the outcome is "not yet checked".
 - **Send back** the six run files of a `--routing` recording, with a note on the server (section 2). They hold no
   narrative, no path, no host or user name and no key; the run's own scans and the lint check that. `ledger.jsonl`
   holds HQ's own model calls only; a plant's usage is in `scorecard.json` `ledger.site_usage`, only as the

@@ -85,6 +85,9 @@ G7_CONFIG_HASHES = {"device_quality": "285935198ba34f2e194dc175cffd1f8f62c494d03
 # audit round 2 added egress.json's question_entities_per_site_per_day, so again only config_hash
 R2_CONFIG_HASHES = {"device_quality": "ac59c4cbb418509f02c8cef3cfb738fa65849f659844f6286e90a676f8c2276f",
                     "claims_integrity": "12d62cdfcab0c3fab0a0f1f11f1809df08aacce691b7dee41d3a86c7085deb7a"}
+# B1 added followups.json's template key (every type; null where the executor is not draft), so again only config_hash
+B1_CONFIG_HASHES = {"device_quality": "9de50cd4f690ba8876c7e1abb62f6fca886d1c5b96c00b048fa54d0c0c8a9d2d",
+                    "claims_integrity": "0ddf016d5bdb7f345528db831b9d174831fa15327518c3e9ddbd5781008c19a6"}
 # sha256 of detect/{rules,org}.py at 51f3b09 and of detectors.py after the review fixes (D2's codes test in X, D3's
 # shared nuisance imputation, A3 per entity type; G5 to G8: 7d4ca86b...): detection changes only on purpose, and a
 # change re-pins it here
@@ -293,7 +296,8 @@ class PackPushdownConfigTests(WorldCase):
                 self.assertNotEqual(pack.config_hash, old["config_hash"])
                 self.assertNotEqual(pack.config_hash, G6_CONFIG_HASHES[pack.id])
                 self.assertNotEqual(pack.config_hash, G7_CONFIG_HASHES[pack.id])
-                self.assertEqual(pack.config_hash, R2_CONFIG_HASHES[pack.id])
+                self.assertNotEqual(pack.config_hash, R2_CONFIG_HASHES[pack.id])
+                self.assertEqual(pack.config_hash, B1_CONFIG_HASHES[pack.id])
         copy = pack_copy(self.tmp, "device_quality", {("questions.json", "pushdown", "max_sibling_sites"): 3})
         self.assertEqual({k for k in DQ.hashes() if DQ.hashes()[k] != copy.hashes()[k]}, {"config_hash"})
 

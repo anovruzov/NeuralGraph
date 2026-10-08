@@ -161,6 +161,36 @@ most one `entity_id` arg, of the entity type it is meant for; `enum` and `intege
 fills (G0's harness takes an enum's first value and an integer's minimum, a harness choice, not a system one), and
 there is still no free-text arg kind.
 
+**The draft template (B1).** Every type carries the required key `template`, right after `draft_schema`: `null`
+unless the executor is `draft`, and for a draft type an object with exactly one entry per required property of its
+draft schema, naming where the template drafter (`followup/drafts.py`, used whenever no model writes the draft) takes
+that property from. A string property takes `headline` (`'<type label>: <predicate label> on <entity type label>
+<entity id>'`), `summary` (the conclusion in one sentence: supported, how many confirming sites, the weeks and the
+conclusion id), `evidence` (one clause per site packet with status `ok`: its site, verdict and support bucket, its code
+labels and its co-mentioned ids with their count labels) or `for_owner` (left for the named owner to write), or a list
+of one to three distinct entries from `headline`, `summary` and `evidence`, joined with a space. An array of strings
+takes `entity_ids:<type>` (the sorted ids of an egress entity type among the conclusion's entity and the ok packets'
+co-mentions), `confirming_sites` or `for_owner` (an empty list). Strings are cut to `maxLength` (whole evidence clauses
+first, then the evidence part, then at the last space) and arrays to `maxItems`. The loader refuses, each with a fixed
+problem at the template's path: a template on a type that does not draft, or none on one that does (`template is set
+exactly when executor is draft`); a missing or an extra property (`missing key`, `unknown key`); a word or form it does
+not know (`unknown template source`); a list entry named twice (`duplicate template source`); a source on a property
+of the wrong type, a list on an array, or an empty or too-long list (`template source does not fit the property's
+type`); and `entity_ids:` with a type that may not leave a site (`not an egress entity type`). `template` is a reserved
+word. The built-in templates:
+
+| Pack | Type | `template` |
+|---|---|---|
+| `device_quality` | `evidence_packet` | `null` |
+| `device_quality` | `capa_initiation_draft` | `title: headline`, `problem_statement: [summary, evidence]`, `containment: for_owner`, `affected_lots: entity_ids:lot` |
+| `device_quality` | `scar_draft` | `title: headline`, `nonconformance: [summary, evidence]`, `requested_actions: for_owner` |
+| `claims_integrity` | `evidence_packet` | `null` |
+| `claims_integrity` | `siu_referral_draft` | `title: headline`, `pattern_summary: [summary, evidence]`, `requested_checks: for_owner` |
+
+Only `config_hash` changed (`INTEGRATION.md`, B1). Up to B1 the template drafter wrote `'<type label>: <summary>'` into
+every required string and `[]` into every array, so a CAPA draft's title, problem statement and containment were the
+same sentence and its affected lots were empty.
+
 ## 2. Freezing and the four hashes
 
 `load_pack` validates the files, then their cross-references, then hashes the parsed files and freezes the

@@ -2089,3 +2089,127 @@ Mutation check, on a scratch copy outside the worktree: with `pending_non_synthe
 `pending_non_synthetic()` in `edge/site.py`, the new test's non-synthetic case fails ("SiteError not raised"); the
 unmutated code passes it. No fabric file, pack file or SQLite schema changed; only
 `tests/mycelic/test_collective_edge.py` and this file.
+
+## B1 (round 4, gate 1 of 4): an honest codes-miss illustration in the demo
+
+The final review found that the committed demo case is not one the restricted central baseline misses: R
+(model-free) flags the product under the generic code at the top rank in X's own week, and S flags the lot a week
+later. STRATEGY 9.2 names a case that R misses or mis-ranks and pushdown resolves as the cut's centre; this run is not
+one, and the draft it ends with repeated one line and listed no lots. B1 keeps that run as evidence, fixes the draft,
+the attribution and the wording around the first scenario, and adds a second, constructed scenario in two commits:
+**B1a** (sections 1 to 4 of the brief: everything before any codes-miss world exists, including the pre-registration)
+and **B1b** (the scenario, the engine's attribution rule and its screen, the attempts and the re-recordings).
+
+### B1a: the draft template, source attribution, one sites wording, the superseded run and the pre-registration
+
+**Base.** Branch `mycelic-collective-phase2` at b0af5b8 (audit round 3), a clean worktree. Nothing is committed by
+the engineer. No codes-miss world was built, previewed or detected in B1a: `scenario_codes_miss.json` and
+`docs/collective/b1/attempts/` do not exist yet. To write the cast into the pre-registration the engineer read the pack
+data only (the generator's sites, universe, links, fill rates and master data, and `window_weeks`), never a world.
+
+**Scope: fabric files changed: none.** Frozen and unchanged (`git diff --name-only b0af5b8` empty):
+`mycelic/collective/{detect,edge,evaluate}/`, `stats.py`, `jsonio.py`, `schemacheck.py`, `experiments/common.py`;
+`DETECT_SHA256` is unchanged. Changed: `packs/loader.py`, both packs' `followups.json`, `followup/drafts.py`,
+`demo/collective/{collective_demo.py,screen.py,README.md,SCRIPT.md}`, `docs/collective/{ARCHITECTURE,INTEGRATION,
+LEAKAGE,PACKS,RUNBOOK}.md` and five test files. Added: `docs/collective/b1/PREREG.md`,
+`docs/collective/evidence/superseded/collective-halvern-g10/README.md` and the run
+`demo/collective/recorded/collective-halvern-b1a/`. Moved (`git mv`, byte-identical; the six b0af5b8 sha256 values are
+pinned in `SupersededEvidenceTests`): `demo/collective/recorded/collective-halvern-g10/` to
+`docs/collective/evidence/superseded/collective-halvern-g10/`.
+
+| Part | What changed | Tests |
+|---|---|---|
+| Draft template (pack data, loader) | Every follow-up type gains the required key `template`, after `draft_schema`: null unless the executor is `draft`; for a draft type one source per required property (`PACKS.md` 1.3). `FollowupType.template`; `template` joins `RESERVED`. The loader refuses, each with a fixed problem at the template's path: the key set or not against the executor, unknown and missing properties, an unknown source, a duplicate list entry, a source that does not fit the property's type (a list on an array, an empty or too-long list included), and `entity_ids:` of a type that may not leave a site | `TemplateLoaderTests` (every refusal, the built-in templates, other legal forms changing only `config_hash`, `RESERVED`, only `config_hash` differs from G5) |
+| Template drafter (`drafts.py`) | `template_draft` fills `headline`, `summary`, `evidence` (one clause per ok packet), `for_owner` (`FOR_OWNER_TEXT` or `[]`), `entity_ids:<type>` and `confirming_sites`; cuts strings at whole clauses, then the evidence, then the last space, and arrays at `maxItems`; `template_sources`, `SOURCES`, `EVIDENCE_NONE`. `DraftWriter`, the schema check and the scope scan are unchanged; no clause format tripped the scan in either pack | `TemplateDraftTests` (every pack under `BUILTIN_ROOT`, every enabled draft type, every egress entity type, ok, partial and failed packet sets with the packs' own site ids and every bucket label: schema-valid, scope-clean, distinct non-empty strings, the entity-ids rule, confirming sites, the clause-boundary cut on a 120-packet payload, dropping the evidence, the space cut, `EVIDENCE_NONE`, a model draft ignoring the template and still scope-checked) |
+| Source attribution (`collective_demo.py`) | The scorecard's draft block gives each field and list a `source`; `field_sources(ft, label, ledger_source)`: the template's sources when no model wrote the draft (stand-in, template, local test server), `model` for a routed model, else the ledger's (`edited`) | `DraftSourceAndStampTests`; `_HeroAssertions.assert_draft` on the fixture recordings and the committed run (affected lots recomputed from the hero key and the ok packets' co-mentions, distinct title, problem statement and containment, every source) |
+| One sites wording | `sites_stamp(routed, providers)` sets `stamps.shared_model` and the trace's `sites_note`: `SITES_NOTE` only when an extract or judge call went to a model; `TEST_SERVER_SITES_NOTE` for a run routed to a local test server; none without routing | `DraftSourceAndStampTests::test_sites_stamp_*`; `ExportReplayTests::test_routing_fake_server_end_to_end` rewritten |
+| X by construction | `detection.by_construction` gains `X` and `x_reason` (`X_BY_CONSTRUCTION` when the extract label is not a model's); the screen shows "By construction, X reads this case perfectly: " with the reason as an item | `_HeroAssertions.assert_detection`; `HonestyTests::test_screen_sentences_follow_flags` now toggles it too |
+| Screen | A `for_owner` field or list reads "left for the named owner to write"; an empty list from another source "none in the conclusion or the packets"; "none listed" is gone | `DraftSourceAndStampTests::test_the_screen_shows_each_draft_field_by_its_source` |
+| Evidence | The G8 run moved to `docs/collective/evidence/superseded/collective-halvern-g10/` with a README naming why it is superseded and pointing into its scorecard | `SupersededEvidenceTests` (sha256 pins, portability, README pointers resolve, the README's claims checked against the scorecard) |
+| Pre-registration | `docs/collective/b1/PREREG.md`: the Tarnwick cast, the shift, the realism constraints, `CODES_MISS_RULE`, `STATEMENT` and `AUTHOR_NOTE` verbatim, seed 29, the eight robustness seeds, the grid, the attempt rules and the disclosure. Never edited after B1a | `SupersededEvidenceTests::test_the_prereg_is_committed_with_the_cast_and_the_rule` |
+
+**Pack hashes (only `config_hash` changed).** `B1_CONFIG_HASHES` (`test_collective_pushdown.py`, after
+`R2_CONFIG_HASHES`); the vocabulary, detector and fixtures hashes are G5's.
+
+| Pack | `config_hash` (R2) | `config_hash` (B1) |
+|---|---|---|
+| `device_quality` | `ac59c4cbb418509f02c8cef3cfb738fa65849f659844f6286e90a676f8c2276f` | `9de50cd4f690ba8876c7e1abb62f6fca886d1c5b96c00b048fa54d0c0c8a9d2d` |
+| `claims_integrity` | `12d62cdfcab0c3fab0a0f1f11f1809df08aacce691b7dee41d3a86c7085deb7a` | `0ddf016d5bdb7f345528db831b9d174831fa15327518c3e9ddbd5781008c19a6` |
+
+**Code hashes that change** (`packs/loader.py` is in each file list; first 32 hex, b0af5b8 then B1a):
+
+| Hash | b0af5b8 | B1a |
+|---|---|---|
+| X1 (`harness.EVAL_CODE_FILES`) | `e41939185b7f9e4dfc60d83460bac6a5` | `58be1775321f1ee74abdff055b71a09f` |
+| E1 (`e1_extract.E1_CODE_FILES`) | `37073e7a005d4cf2977466d0b8b6b322` | `07c08295d7eeeff6eadcaa1db80ee500` |
+| E2 (`e2_pushdown.E2_CODE_FILES`) | `50199a9d42b29a5df0947c127da3ab37` | `73183f3e994195d990ae494748194ce8` |
+| openFDA replay (`openfda_replay.REPLAY_CODE_FILES`) | `a5283e561bf97889135fac08ce1de0a0` | `2a0125d962aeead5b8693f3ac1d6f8c8` |
+
+**The committed run.** `demo/collective/recorded/collective-halvern-b1a` is the only run under `recorded/`:
+`content_hash` `8e851b4b796fc72165880791866ad11e`, scenario digest `63533d7ef51943361aa3d6f4ecd9d40e` (unchanged from
+G8), every check ok, the lint green. Its detection blocks are the G8 run's: R (model-free) still flags the product
+under the generic code at the top rank in X's week, and the screen and README say so. `--record` took 15.2 s (the
+command's own `record:` line; wall clock 15.5 s with interpreter start-up), sandbox engineering timing, not a product
+figure.
+
+### Test counts (sandbox timing, not a product figure)
+
+Both suites with `TMPDIR` on tmpfs, `nats-server` on the path; the b0af5b8 column is the same command on an export of
+that commit, run in this sandbox the same day.
+
+| Command | b0af5b8 | B1a |
+|---|---|---|
+| `python -m pytest tests/mycelic -q -p no:warnings` | 1017 passed (27,378 subtests), 0 skipped, in 806 s | 1033 passed (27,480 subtests) = 1017 + 16 new, 0 skipped, in 798 s |
+| `python -m pytest NeuralGraph/tests -q -p no:warnings` | not re-run (no file under `NeuralGraph/` changed) | 222 passed, 1 skipped (119 subtests) in 5 s; the skip is the pre-existing one every earlier round lists |
+
+The added suite time is within the run-to-run noise (the B1a run was 8 s faster). The 16 new tests take under a second
+on their own (`TemplateLoaderTests` and `TemplateDraftTests`: 10 tests in 0.7 s); `DraftSourceAndStampTests` and
+`SupersededEvidenceTests` add no recording (their 30 s on their own is the module's two shared recordings in
+`setUpModule`, which the full suite already runs). G0 (`--records 1000 --seed 11`) exits 0 for both packs with `hits`
+empty and `shingle_overlap_bytes` 0 (8.3 s and 8.2 s); the E5 tests pass.
+
+### Earlier tests whose expectation changed
+
+Changed, never weakened:
+
+- `test_collective_followup.py`: `PacketDraftTests::test_drafts_from_structured_inputs_only` checked the template
+  draft against the conclusion's own scope; the evidence now names the packets' co-mentions, so it checks the
+  service's scope (the conclusion's plus the packets' co-mentions, `FollowupService._scope`) and also asserts that the
+  conclusion's scope alone refuses the evidence field (`out_of_scope_id`). Its claims-pack title assertion is the new
+  headline, and the summary is asserted at the start of `pattern_summary`, with `EVIDENCE_NONE` at its end (no packet)
+  and `requested_checks` empty. `PackFollowupTests` pins `B1_CONFIG_HASHES` and asserts the hash differs from G6, G7
+  and R2. The T2 type of the `DQX_EDITS` pack copy gains `"template": null` (the key is required).
+- `test_collective_pushdown.py` (`test_only_config_hash_changed_against_g5`) and `test_collective_evaluate.py`
+  (`test_the_loader_accepts_plant_files_and_hashes_none_of_them`): the pinned config hash is B1's, and each asserts it
+  differs from R2's and G7's.
+- `test_collective_demo.py`: `test_routing_fake_server_end_to_end` asserted "one shared model" for a run routed to the
+  fake server; it now asserts `shared_model` false, `TEST_SERVER_SITES_NOTE`, no "shared model" in any screen text or
+  item, template sources and `by_construction.X`. `HonestyTests::test_screen_sentences_follow_flags` also toggles
+  `by_construction.X`.
+
+### Merge notes
+
+1. **No fabric change and no fabric integration point.**
+2. **Only `config_hash` changed in both packs.** A site store, HQ store or follow-up ledger created with the R2 hash
+   is refused (`config_hash` / `ledger_info mismatch`); rebuild them. A pack copy elsewhere (the lab's fixtures, the
+   third pack of B4) needs the `template` key on every follow-up type, `null` unless it drafts.
+3. **Every X1, E1, E2 and openFDA-replay prereg made before B1 is refused** (the code hashes above): the lab team must
+   re-make its preregs on this commit before a run.
+4. **Scorecard and trace schema.** The demo scorecard's draft fields and lists carry `source`, `by_construction` carries
+   `X` and `x_reason`, and the trace's `sites_note` may be `TEST_SERVER_SITES_NOTE`. The trace's `draft` events are
+   unchanged (no source). The superseded G8 run does not validate against the new scorecard schema and is not linted
+   as a run; its `screen.json` still validates, so `--replay` of that directory works.
+5. **G0 byte figures** in `LEAKAGE.md` sections 10 and 11 are re-measured (the drafts restate the packets' evidence);
+   G0 still exits 0 with `hits` empty and `shingle_overlap_bytes` 0 for both packs.
+
+### Disagreements and residuals, for the reviewer
+
+- **The evidence follows the summary after one space**, as the brief's list rule says, so the problem statement reads
+  "... (conclusion c-... v1) plant-ashvale: confirm, support 3-9, ...". A separator such as " Evidence: " would read
+  better but is not in the brief.
+- **The clause format was not changed** for the scope scan: with the packs' own site ids, every bucket label and
+  every code label, no clause trips it. Synthetic site ids such as `site-ok-000` do (the device pack reads `ok-000` as
+  a product id), so the tests use the packs' site ids or letter-only ids; a real site id of that shape would make the
+  draft fail `out_of_scope_id`, visibly, never pass.
+- **`LEAKAGE.md` section 11's committed-run figure** said 49,452 run-file bytes while the G8 run's own `leakage.json`
+  says 49,571; it now quotes the B1a run's own value.

@@ -8,7 +8,10 @@ key, labels, window, sites, decision unit and support lower bounds, and each T0 
 bucket, code labels and co-mentions); it holds no reasons text and no narrative, so record text never reaches a
 drafter. :class:`DraftWriter` asks a ``central`` runtime for the task :data:`DRAFT_TASK` (data class ``structured``;
 the runtime validates the reply against the type's ``draft_schema``, with one repair) or, without a runtime, fills
-:func:`template_draft` (deterministic; also the fake provider's handler) and checks it against the schema. Either
+:func:`template_draft` (deterministic; also the fake provider's handler) and checks it against the schema. The
+template drafter fills each property from the source the type's pack ``template`` names (B1; :func:`template_sources`):
+the headline, the summary, the evidence of the ok packets, the conclusion's entity ids of one type and the
+co-mentioned ones, the confirming sites, or nothing (``for_owner``: left for the named owner to write). Either
 way the draft must then pass :func:`draft_scope_problem`: no exact or variant mention of an id of a type with an id
 format outside the conclusion's scope ids and the packets' co-mentions, whether written as the id or as one of its
 aliases (a product, supplier, repair shop or clinic named by its name), and no unresolved lookalike (a homoglyph, a
@@ -34,6 +37,7 @@ from ..inference.errors import KINDS, InferenceError
 from ..inference.tasks import TaskSpec
 from ..jsonio import canonical_bytes, canonical_dumps, strict_load
 from ..packs.canonical import Canonicaliser
+from ..packs.loader import TEMPLATE_ARRAY_SOURCES, TEMPLATE_ENTITY_IDS, TEMPLATE_FOR_OWNER, TEMPLATE_STRING_SOURCES
 
 if TYPE_CHECKING:
     from ..inference.runtime import Runtime
@@ -54,6 +58,13 @@ CONCLUSION_KEYS = ("candidate_key", "conclusion_id", "confirming_sites", "decisi
                    "status", "support_lb", "version", "window")
 PACKET_SUMMARY_KEYS = ("co_mentions", "codes", "site", "status", "support_bucket", "verdict")
 _SIMPLE_KEY = re.compile(r"[A-Za-z0-9_-]+", re.ASCII)
+# the words a template source is built from (packs/loader.py validates the forms: a list of text sources, and
+# entity_ids:<egress entity type>)
+SOURCES = (*TEMPLATE_STRING_SOURCES, *(s for s in TEMPLATE_ARRAY_SOURCES if s not in TEMPLATE_STRING_SOURCES),
+           TEMPLATE_ENTITY_IDS.rstrip(":"))
+FOR_OWNER_TEXT = ("For the named owner to write: the template fills only what it can take from the conclusion and "
+                  "the site packets.")
+EVIDENCE_NONE = "no site packet with status ok"
 
 
 class DraftError(ValueError):
@@ -86,30 +97,96 @@ def draft_payload(pack: "FrozenPack", ft: "FollowupType", view: "ConclusionView"
     return strict_load(canonical_bytes(payload))
 
 
+def template_sources(ft: "FollowupType") -> dict[str, str]:
+    """Each templated property's source as one word: a list of text sources joined with ``+`` (``summary+evidence``),
+    ``entity_ids:<type>`` as written; ``{}`` for a type without a template."""
+    if ft.template is None:
+        return {}
+    return {name: source if isinstance(source, str) else "+".join(source)
+            for name, source in sorted(ft.template.items())}
+
+
+def _clause(pack: "FrozenPack", packet: Mapping[str, Any]) -> str:
+    """One ok packet as evidence: its site, verdict and support bucket, then its codes and co-mentions with their
+    count labels."""
+    clause = f"{packet['site']}: {packet['verdict']}, support {packet['support_bucket']}"
+    if packet["codes"]:
+        clause += ", codes: " + ", ".join(f"{pack.codes[c['code']].label} ({c['n']})" for c in packet["codes"])
+    if packet["co_mentions"]:
+        clause += ", named with: " + ", ".join(
+            f"{pack.entity_types[m['entity_type']].label} {m['entity_id']} ({m['n']})" for m in packet["co_mentions"])
+    return clause
+
+
+def _fit(sources: Sequence[str], texts: Mapping[str, str], clauses: Sequence[str], limit: int) -> str:
+    """The sources' texts joined with a space (empty parts left out), at most ``limit`` characters: whole evidence
+    clauses dropped from the end first, then the evidence part, then a cut at the last space (inside a token only
+    when the text has no space)."""
+    clauses = list(clauses)
+
+    def compose(evidence: str) -> str:
+        return " ".join(t for t in (evidence if src == "evidence" else texts[src] for src in sources) if t)
+
+    text = compose("; ".join(clauses) if clauses else EVIDENCE_NONE)
+    if "evidence" in sources:
+        while clauses and len(text) > limit:
+            clauses.pop()
+            text = compose("; ".join(clauses))
+        if len(text) > limit:
+            text = compose("")
+    if len(text) > limit:
+        cut = text.rfind(" ", 0, limit + 1)
+        text = text[:cut] if cut > 0 else text[:limit]
+    return text
+
+
 def template_draft(pack: "FrozenPack") -> Callable[[Mapping[str, Any]], dict[str, Any]]:
-    """The deterministic drafter (and the fake provider's handler): every required string property of the type's
-    draft schema gets ``'<type label>: <summary>'`` cut at its ``maxLength``, every required array ``[]``; other
-    property types are left out (the schema check then refuses the draft). The summary is ``'<predicate label> on
-    <entity type label> <entity id>: supported, <n> confirming site(s), weeks <start> to <end> (conclusion <id>
-    v<version>)'``; it holds no domain literal."""
+    """The deterministic drafter (and the fake provider's handler): every property of the type's ``template`` is
+    filled from its source (B1), strings cut to ``maxLength`` (:func:`_fit`) and arrays to ``maxItems``:
+
+    * ``headline``: ``'<type label>: <predicate label> on <entity type label> <entity id>'``;
+    * ``summary``: ``'<predicate label> on <entity type label> <entity id>: supported, <n> confirming site(s), weeks
+      <start> to <end> (conclusion <id> v<version>)'``;
+    * ``evidence``: one clause per packet with status ``ok``, in payload order (``'<site>: <verdict>, support
+      <bucket>'``, then ``', codes: <code label> (<n>), ...'`` and ``', named with: <entity type label> <id> (<n>),
+      ...'``), joined with ``'; '``; :data:`EVIDENCE_NONE` without an ok packet;
+    * ``for_owner``: :data:`FOR_OWNER_TEXT` for a string, ``[]`` for an array;
+    * ``entity_ids:<type>``: the sorted unique ids of that type among the conclusion's entity and every ok packet's
+      co-mentions;
+    * ``confirming_sites``: the conclusion's confirming sites.
+
+    Structured inputs only; it holds no domain literal."""
 
     def handler(payload: Mapping[str, Any]) -> dict[str, Any]:
         ft = pack.followups[payload["followup_type"]]
         c = payload["conclusion"]
+        subject = f"{c['predicate_label']} on {c['entity_type_label']} {c['entity_id']}"
         # not "supported at <n> site(s)": two letters, a space and a number read as a space-separated id of a
         # two-letter id format, which the id-scope scan rightly counts as an unresolved lookalike
-        summary = (f"{c['predicate_label']} on {c['entity_type_label']} {c['entity_id']}: supported, "
-                   f"{len(c['confirming_sites'])} confirming site(s), weeks {c['window']['start_week']} to "
-                   f"{c['window']['end_week']} (conclusion {c['conclusion_id']} v{c['version']})")
+        texts = {TEMPLATE_FOR_OWNER: FOR_OWNER_TEXT, "headline": f"{payload['type_label']}: {subject}",
+                 "summary": (f"{subject}: supported, {len(c['confirming_sites'])} confirming site(s), weeks "
+                             f"{c['window']['start_week']} to {c['window']['end_week']} (conclusion "
+                             f"{c['conclusion_id']} v{c['version']})")}
+        ok = [p for p in payload["packets"] if p["status"] == "ok"]
+        clauses = [_clause(pack, p) for p in ok]
         schema = ft.draft_json_schema()
         out: dict[str, Any] = {}
-        for name in sorted(schema["required"]):
+        for name, source in sorted((ft.template or {}).items()):
             prop = schema["properties"][name]
-            base = prop["type"] if isinstance(prop["type"], str) else prop["type"][0]
-            if base == "string":
-                out[name] = f"{payload['type_label']}: {summary}"[:prop["maxLength"]]
-            elif base == "array":
+            if isinstance(source, str) and source.startswith(TEMPLATE_ENTITY_IDS):
+                entity_type = source[len(TEMPLATE_ENTITY_IDS):]
+                ids = {c["entity_id"]} if c["entity_type"] == entity_type else set()
+                ids |= {m["entity_id"] for p in ok for m in p["co_mentions"] if m["entity_type"] == entity_type}
+                out[name] = sorted(ids)[:prop.get("maxItems", len(ids))]
+            elif source == "confirming_sites":
+                sites = list(c["confirming_sites"])
+                out[name] = sites[:prop.get("maxItems", len(sites))]
+            elif source == TEMPLATE_FOR_OWNER and (prop["type"] if isinstance(prop["type"], str)
+                                                   else prop["type"][0]) == "array":
                 out[name] = []
+            else:
+                parts = (source,) if isinstance(source, str) else tuple(source)
+                out[name] = _fit(parts, texts, clauses, prop["maxLength"])
         return out
 
     return handler

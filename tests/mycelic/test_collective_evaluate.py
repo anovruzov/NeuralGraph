@@ -40,6 +40,7 @@ from mycelic.collective.packs.generator import generate
 from mycelic.collective.packs.loader import BUILTIN_ROOT, PackError, load_pack
 from tests.mycelic.test_collective_edge import _SQL_STATEMENT, Clock, db_rows, pack_copy, string_constants
 from tests.mycelic.test_collective_guards import EVALUATE_FILES, path_snapshot
+from tests.mycelic.test_collective_pushdown import B1_CONFIG_HASHES, G7_CONFIG_HASHES, R2_CONFIG_HASHES
 
 ROOT = Path(__file__).resolve().parents[2]
 DQ = load_pack("device_quality")
@@ -294,13 +295,16 @@ class PlantSpecTests(PlantCase):
                         load_pack(copy_pack.directory)
                     self.assertEqual((cm.exception.file, cm.exception.problem), (f"fixtures/{name}", "unexpected file"))
                     (fixtures / name).unlink()
+        for pack in (DQ, CI):       # B1's followups.json template key changed only config_hash
+            self.assertNotEqual(pack.config_hash, R2_CONFIG_HASHES[pack.id])
+            self.assertNotEqual(pack.config_hash, G7_CONFIG_HASHES[pack.id])
         self.assertEqual(DQ.hashes(), {
-            "config_hash": "ac59c4cbb418509f02c8cef3cfb738fa65849f659844f6286e90a676f8c2276f",
+            "config_hash": B1_CONFIG_HASHES["device_quality"],
             "vocabulary_hash": "e46f521154ce94f42136319ade62cebb5c65515ab90a057470495a606f225901",
             "detector_hash": "c9462f62aa90245f2c7cee50078d337554bded58c4630cda7becbf7a8048c7ec",
             "fixtures_hash": "dc4b70b7044b1094baaa669fb5a3582eeae91af290213e13b94180791db5656d"})
         self.assertEqual(CI.hashes(), {
-            "config_hash": "12d62cdfcab0c3fab0a0f1f11f1809df08aacce691b7dee41d3a86c7085deb7a",
+            "config_hash": B1_CONFIG_HASHES["claims_integrity"],
             "vocabulary_hash": "028b7603f2b6ef3bba203dee299ea8b001880ef89cd4b276de8513d2a1a301f3",
             "detector_hash": "2041fe9b3e141a5603836d893c97d5671eb21cbb3da611969efbd0c2c4514b84",
             "fixtures_hash": "a2e8936b4be26683f0860c8c8799e701f9aedfb78ea167d5420ac891111b8d80"})

@@ -70,6 +70,10 @@ SINGLE_LATER = ("One plant alone also caught this failure mode, running the same
 R_RELATED = "The restricted central baseline flagged a related key:"
 S_RELATED = "The codes-only baseline flagged a related key:"
 BY_CONSTRUCTION = "By construction, S and R cannot see this key:"
+BY_CONSTRUCTION_X = "By construction, X reads this case perfectly: "
+FOR_OWNER_SOURCE = "for_owner"
+FOR_OWNER = "left for the named owner to write"
+NONE_IN_CONCLUSION = "none in the conclusion or the packets"
 DECOY_NOT_CHECKED_YET = " · not checked with the sites yet: the check comes next"
 DECOY_NOT_ALERTED = " · not checked with the sites: X did not alert it"
 THIS_MODE = "This failure mode: "
@@ -361,6 +365,12 @@ def _alert(b: _Builder, sc: Mapping[str, Any]) -> None:
     if det["by_construction"]["S"]:
         b.block("alert-by-construction", "alert", "caption",
                 [b.text(BY_CONSTRUCTION + " " + REASON_TEXTS[det["by_construction"]["reason"]])])
+    if det["by_construction"]["X"]:
+        # B1: the stand-in reads the author's own sentences; saying so beside the S and R caption keeps the X row
+        # from reading as an extraction result
+        b.block("alert-by-construction-x", "alert", "caption",
+                [b.text(BY_CONSTRUCTION_X), b.item("x_by_construction", "alert", "Why X reads this case",
+                                                   S + "/by_construction/x_reason", "text")])
     if det["R_mf"]["caught"]:
         b.block("alert-r-also", "alert", "warning", [b.text(R_ALSO)], group="R")
     if det["S"]["caught"]:
@@ -530,20 +540,27 @@ def _followup(b: _Builder, sc: Mapping[str, Any], trace: Mapping[str, Any]) -> N
                                                      cb + "/n", "text")]
                 b.block(f"followup-packet-{j}", "followup", "packet_card", parts, group="packet")
         else:
-            for j, _ in enumerate(part["fields"]):
+            for j, field in enumerate(part["fields"]):
                 fb = f"{base}/fields/{j}"
-                b.block(f"followup-field-{j}", "followup", "draft_field",
-                        [b.item(f"draft_field_{j}_name", "followup", "Field", fb + "/name", "text"), b.text(": "),
-                         b.item(f"draft_field_{j}", "followup", "Draft text", fb + "/value", "text")], group="draft")
+                parts = [b.item(f"draft_field_{j}_name", "followup", "Field", fb + "/name", "text"), b.text(": ")]
+                if field["source"] == FOR_OWNER_SOURCE:
+                    parts.append(b.text(FOR_OWNER))
+                else:
+                    parts.append(b.item(f"draft_field_{j}", "followup", "Draft text", fb + "/value", "text"))
+                b.block(f"followup-field-{j}", "followup", "draft_field", parts, group="draft")
             for j, lst in enumerate(part["lists"]):
                 lb = f"{base}/lists/{j}"
                 parts = [b.item(f"draft_list_{j}_name", "followup", "Field", lb + "/name", "text"), b.text(": ")]
-                if not lst["items"]:
-                    parts.append(b.text("none listed"))
-                for m, _ in enumerate(lst["items"]):
-                    if m:
-                        parts.append(b.text(", "))
-                    parts.append(b.item(f"draft_list_{j}_{m}", "followup", "Listed value", f"{lb}/items/{m}", "text"))
+                if lst["source"] == FOR_OWNER_SOURCE:
+                    parts.append(b.text(FOR_OWNER))
+                elif not lst["items"]:
+                    parts.append(b.text(NONE_IN_CONCLUSION))
+                else:
+                    for m, _ in enumerate(lst["items"]):
+                        if m:
+                            parts.append(b.text(", "))
+                        parts.append(b.item(f"draft_list_{j}_{m}", "followup", "Listed value", f"{lb}/items/{m}",
+                                            "text"))
                 b.block(f"followup-list-{j}", "followup", "draft_field", parts, group="draft")
     if fu["ledger_head"] is not None and fu["ledger_entries"] is not None:
         b.block("followup-ledger", "followup", "note",

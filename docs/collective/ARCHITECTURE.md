@@ -1796,9 +1796,32 @@ status, verdict, support_bucket, codes, co_mentions}`: structured only. `DraftWr
 (data class `structured`, 2,048 tokens) on a `central` runtime (a runtime bound elsewhere is refused) with one repair,
 or fills `template_draft` without one; the draft must pass the type's `draft_schema` and the id-scope scan, else
 `draft_failed` with a reason from `DRAFT_FAILURE_REASONS` (the inference error kinds and `out_of_scope_id`). The
-ledger ref is `d:<last 16 of the key>:<attempt>`, never a record ref. The template's summary is `'<predicate label> on
-<entity type label> <entity id>: supported, <n> confirming site(s), weeks <start> to <end> (conclusion <id>
-v<version>)'`, and each required string property gets `'<type label>: <summary>'` cut at its `maxLength`.
+ledger ref is `d:<last 16 of the key>:<attempt>`, never a record ref.
+
+**The template drafter and source attribution (B1).** The template drafter fills each property from the source its
+type's pack `template` names (`PACKS.md` section 1.3; `drafts.template_sources` gives one word per property, a list
+joined with `+`, such as `summary+evidence`): `headline` is `'<type label>: <predicate label> on <entity type label>
+<entity id>'`; `summary` is `'<predicate label> on <entity type label> <entity id>: supported, <n> confirming site(s),
+weeks <start> to <end> (conclusion <id> v<version>)'`; `evidence` is one clause per packet with status `ok`, in payload
+order (`'<site>: <verdict>, support <bucket>'`, then `', codes: <code label> (<n>), ...'` and `', named with: <entity
+type label> <id> (<n>), ...'`), joined with `'; '`, or `drafts.EVIDENCE_NONE` without an ok packet (a refuting or
+silent packet adds no clause); a list joins its parts with a space; `for_owner` is `drafts.FOR_OWNER_TEXT` for a
+string and `[]` for an array; `entity_ids:<type>` is the sorted unique ids of that type among the conclusion's entity
+and every ok packet's co-mentions; `confirming_sites` is the conclusion's confirming sites. A string longer than its
+`maxLength` loses whole evidence clauses from the end, then the evidence part, then is cut at the last space (inside a
+token only when it has none); an array is cut to `maxItems`. The schema check and the id-scope scan apply as before:
+every id the evidence names is the conclusion's or a co-mention already in the scope. Up to B1 every required string
+was `'<type label>: <summary>'` and every array `[]`, so the committed CAPA draft's title, problem statement and
+containment were one sentence and its affected lots were empty, although the conclusion is about a lot (the
+superseded G8 run, `docs/collective/evidence/superseded/collective-halvern-g10/`).
+
+The demo's scorecard gives each draft field and list its **source** (`fields [{name, value, source}]`, `lists [{name,
+items, source}]`; the block's own `source` stays the ledger's, `generated` or `edited`). `collective_demo.field_sources`
+returns the template's sources for a generated draft whose provider label is the stand-in, the template or a local
+test server (no model wrote it), `model` for a generated draft from a routed model (which ignores the template), and
+`edited` for a human edit. The screen shows a field or list sourced `for_owner` as "left for the named owner to write"
+(not its filler value), and an empty list from another source as "none in the conclusion or the packets"; up to B1 an
+empty list read "none listed".
 
 **Outbox** (T1 executor): one canonical line `{schema_version, key, conclusion_id, type, tier, version, draft, owner,
 approved_by, targets, label}` (the built-ahead label), flushed and synced; the result is `{outbox, line_sha256,
@@ -2068,7 +2091,35 @@ nothing written.
 - **R here is model-free.** It is not STRATEGY's R, which includes a frontier model reading the allowed fields; E2's
   `central_allowed` condition approximates that R.
 - **No X4 and no E2.** The follow-up beat is built ahead of X4 and unmeasured; pushdown with a real small model is E2,
-  which has not run. With `--routing` the plants share one model in one process.
+  which has not run. With `--routing` to a model the plants share one model in one process (section 17.9).
 - **Text only.** The scans show that planted text did not cross; they say nothing about what counts and buckets reveal
   (X5, `LEAKAGE.md` section 7).
 - **No fabric wiring.** The console reads run files, not fabric events (`INTEGRATION.md`, G8 merge notes).
+
+### 17.9 B1: the first scenario's run, re-recorded
+
+The final review of phase 2 found that the committed G8 run shows no case the allowed fields miss: R (model-free) flags
+the product under the generic code at the top rank in X's own week, and S flags the lot a week later (the run is kept,
+byte-identical, as `docs/collective/evidence/superseded/collective-halvern-g10/`, with a README pointing into its
+scorecard). B1 keeps the first scenario unchanged and adds, in its first commit (B1a), what the review found missing
+around it; the second commit (B1b) adds the constructed codes-miss scenario that `docs/collective/b1/PREREG.md` fixed
+before any of its worlds existed. What B1a changed:
+
+- **The draft** is filled from the conclusion and the ok packets through the pack template, each field with its source
+  (section 16.9); the screen leaves the `for_owner` field to the owner.
+- **X by construction.** `detection.by_construction` gains `X` (bool) and `x_reason`: `X` is true when the extract
+  provider label is the stand-in, a local test server or the template (none of them a model), with `x_reason` =
+  `collective_demo.X_BY_CONSTRUCTION` ("the hero narratives were written by the scenario author in the pack lexicon
+  and read by the deterministic lexical handler; extraction is not tested here (see E1 and N1)"); otherwise false and
+  null. The screen shows it as a caption beside the S and R one: "By construction, X reads this case perfectly: "
+  followed by the reason as an item. It is a property of the stand-in, not a result: up to B1 the screen said why S and
+  R cannot see the key and nothing about why X could.
+- **One wording for the sites.** `collective_demo.sites_stamp(routed, providers)` gives `stamps.shared_model` and the
+  trace's `sites_note`: a routed run whose extract or judge calls went to a model shares one model across the simulated
+  sites (`SITES_NOTE`, "sites simulated in one process, one shared model"); a routed run whose site calls all went to a
+  local test server shares none (`TEST_SERVER_SITES_NOTE`, "sites simulated in one process; every site's calls went to
+  one local test server (fake marker)", and `shared_model` false); without routing there is no note. Up to B1 any
+  routed run said "one shared model" while its provider labels said "no model".
+- **The committed run** is `demo/collective/recorded/collective-halvern-b1a` (scenario digest unchanged); its
+  detection blocks are the G8 run's, so R (model-free) still flags a key of this case in X's week and the screen still
+  says so. That is why B1b adds a second scenario rather than re-reading this one.

@@ -22,6 +22,7 @@
         }
       },
       "draft_schema": null,
+      "template": null,
       "owner_role": "quality_engineer",
       "daily_cap": 50,
       "ack_days": 2,
@@ -77,6 +78,15 @@
           }
         }
       },
+      "template": {
+        "title": "headline",
+        "problem_statement": [
+          "summary",
+          "evidence"
+        ],
+        "containment": "for_owner",
+        "affected_lots": "entity_ids:lot"
+      },
       "owner_role": "quality_engineer",
       "daily_cap": 10,
       "ack_days": 5,
@@ -122,6 +132,14 @@
             }
           }
         }
+      },
+      "template": {
+        "title": "headline",
+        "nonconformance": [
+          "summary",
+          "evidence"
+        ],
+        "requested_actions": "for_owner"
       },
       "owner_role": "supplier_quality_engineer",
       "daily_cap": 5,

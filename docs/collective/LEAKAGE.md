@@ -368,6 +368,17 @@ without the one it has: device suppliers `V-1001` and `V 1001`, device products 
 pass the scan, and so does a business or product named by a name that is not in the pack's alias table. This is the
 second G7 residual risk below.
 
+**The template draft restates only what already crossed (B1).** Since B1 the template drafter fills each field from
+its pack template (`PACKS.md` section 1.3): the headline and the summary from the conclusion, and the evidence from the
+packets with status `ok`, clause by clause: each such packet's site, verdict and support bucket, its codes by label with
+their count labels, and its co-mentioned ids with their bucket labels; an affected-lots list holds the conclusion's
+entity and the ok packets' co-mentioned ids of that type. Every one of these values is in the conclusion or in a packet
+summary that has already crossed to HQ; the draft adds no count, no id and no text that HQ did not hold, and it still
+reads structured inputs only (no reasons text, no narrative) and still passes the id-scope scan. What changes is where
+they sit: the drafts and the outbox lines now restate the packets' buckets and co-mentioned ids, so a reader of the
+outbox learns what a reader of HQ's receive log already could. A field whose template source is `for_owner` is filled
+with a fixed sentence (or an empty list) and is left for the named owner to write.
+
 **The ledger and the outbox.** The follow-up ledger (`followups.sqlite3`) holds every proposal, assignment, draft,
 decision, execution result (the T0 packets' crossing summaries and the T1 outbox receipts) and outcome; refusals hold
 a code, a schema path and keyword or an arg name, never an arg value. The outbox holds one canonical JSON line per
@@ -393,12 +404,14 @@ measurement**): both exit 0 with `hits` empty and `shingle_overlap_bytes` 0.
 | types skipped (an entity arg of another type: `scar_draft` on product keys) | 4 | 0 |
 | packets (all `ok`), packet codes (of them `'suppressed'`), co-mentions | 21, 43 (42), 5 | 6, 8 (8), 0 |
 | drafts, outbox lines, ledger entries | 4, 4, 44 | 1, 1, 11 |
-| bytes scanned: packets, packet requests, drafts | 14,339, 8,616, 2,611 | 3,971, 2,598, 464 |
-| bytes scanned: ledger file, outbox, central draft ledger | 90,112, 4,728, 2,216 | 61,440, 982, 554 |
+| bytes scanned: packets, packet requests, drafts | 14,339, 8,616, 5,292 | 3,971, 2,598, 908 |
+| bytes scanned: ledger file, outbox, central draft ledger | 94,208, 7,409, 2,272 | 61,440, 1,426, 568 |
 
 `claims_integrity` at its own setting (master data off) still lists the same 660 known-limitation entries as in
 section 9: no packet, draft, ledger entry or outbox line carries a class-c canary. These are synthetic numbers from
-fakes, not measurements.
+fakes, not measurements. The draft, ledger-file, outbox and central-draft-ledger bytes are re-measured at B1 (the same
+runs with B1's template drafter, whose drafts restate the packets' evidence; up to B1 they were 2,611, 90,112, 4,728
+and 2,216 for the device pack and 464, 61,440, 982 and 554 for the claims pack); every other cell is unchanged.
 
 ## 11. Run files (G8)
 
@@ -444,13 +457,14 @@ stages `edge`, `pushdown`, `followup`, `run_files`, `hits` empty and `shingle_ov
 
 | | `device_quality` | `claims_integrity` |
 |---|---|---|
-| run files scanned, bytes | 4, 54,784 | 4, 25,780 |
+| run files scanned, bytes | 4, 57,466 | 4, 26,224 |
 | HQ usage ledger rows: total, written (at most twelve per task) | 4, 4 | 1, 1 |
 | crossed usage groups in `site_usage` | 6 | 6 |
 | follow-up ledger entries in `approvals.jsonl` | 44 | 11 |
 
 Up to G8 the same runs wrote 1,485 and 1,538 usage rows in total (148 and 145 written), nearly all of them the
-sites' own.
+sites' own. The run-file bytes are re-measured at B1 (the template drafter's longer drafts in `approvals.jsonl`; they
+were 54,784 and 25,780 before).
 
 **The demo's two scans.** A collective demo run scans twice, with the scenario's canaries planted at every plant
 (classes a, b and c) and its narratives as the shingle source:
@@ -466,10 +480,11 @@ plant's own database and must find canaries and narrative text. After `screen.js
 scans all six final files and runs the portability check; any hit stops the run with nothing written. Both scans and
 the positive control are in `leakage.json`, and the check beat shows the first one.
 
-On the committed demo run (synthetic, same-author, the deterministic stand-in model, **not a measurement**): both scans
-have `hits` empty and `shingle_overlap_bytes` 0; the final scan covers fourteen classes, `run_files` among them (four
-files, 49,452 bytes; HQ's draft ledger only, the plants' usage as `site_usage`); the positive control finds 952 canary
-hits and 44,050 overlapping bytes in the first plant's database. The committed run's six files also pass a re-scan
+On the committed demo run (B1a: `collective-halvern-b1a`; synthetic, same-author, the deterministic stand-in model,
+**not a measurement**): both scans have `hits` empty and `shingle_overlap_bytes` 0; the final scan covers fourteen
+classes, `run_files` among them (four files, 50,493 bytes; HQ's draft ledger only, the plants' usage as
+`site_usage`); the positive control finds 952 canary hits and 44,050 overlapping bytes in the first plant's
+database. The committed run's six files also pass a re-scan
 against a rebuilt world in the tests (`CommittedRunTests`).
 
 **What the run-file checks do not cover.** They are text checks, as everything here: they cannot show that a run

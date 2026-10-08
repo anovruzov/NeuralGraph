@@ -21,7 +21,7 @@ filters the view: the engine still stops at the follow-up beat until you approve
 | Time | Beat | Say | On screen |
 |---|---|---|---|
 | 0:00–0:08 | The problem | "Several plants each log complaints under the same generic code. The codes do not say what failed." | The company, the plants with the case, the complaint count, the code label and the illustration line. |
-| 0:08–0:22 | The alert | "Each plant counts inside its own boundary, and only suppressed weekly counts leave it. The detectors flag this lot, and no rule was written for it. Here is the X rank for this failure mode, next to the S column and the R column: the same detectors over the codes only, and over the fields allowed to leave. They flag this lot under the generic code; they do not say what failed." | The failure-mode caption; the X row with its rank, score and week; the S and R rows, each with the first other key of this case it flagged; the by-construction caption; every related-key line. |
+| 0:08–0:22 | The alert | "Each plant counts inside its own boundary, and only suppressed weekly counts leave it. The detectors flag this lot, and no rule was written for it. Here is the X rank for this failure mode, next to the S column and the R column: the same detectors over the codes only, and over the fields allowed to leave. They flag this lot under the generic code; they do not say what failed." | The failure-mode caption; the X row with its rank, score and week; the S and R rows, each with the first other key of this case it flagged; both by-construction captions; every related-key line. |
 | 0:22–0:45 | Check with the sites | "HQ asks the plants one narrow question. Each plant answers from its own records: confirm, refute or unknown, with count buckets and a reference that only that plant can open. The sibling plant holds the same lot without the failure, and it refutes. No narrative text crossed." | The question, one card per plant, the gate status and its reasons, and the text-overlap and canary counter. |
 | 0:45–0:60 | Real data | "This is a constructed illustration on a fictional company. The real-data result is not measured yet." | The real-data line. |
 
@@ -41,6 +41,11 @@ Presenter notes:
   shown with its own rank and week. Never call a related flag a miss.
 - The by-construction caption says why S and R cannot see this key in these records. It is a property of the
   constructed case, not a result.
+- The caption beside it says why X reads this case perfectly: the scenario author wrote the narratives in the pack's
+  own words and the plants read them with the deterministic stand-in. Say it: extraction is not tested by this run.
+- On the committed run R (model-free) flags a key of this case, the product under the generic code, in the same week
+  as X, and S flags the lot under that code a week later. So this run does not show a case that the allowed fields
+  miss; say that, and never present it as one.
 - Say what is simulated: the plants run in one process, and the models are the ones the footer names.
 - Never quote a benchmark figure, and never show this run to a buyer.
 
@@ -48,4 +53,4 @@ Presenter notes:
 
 | Time | Beat | Say | On screen |
 |---|---|---|---|
-| after the cut | Approval-routed follow-up | "Only a supported conclusion can propose a follow-up. The evidence packet is assembled inside each plant, and only buckets leave. The CAPA draft is written at HQ from structured inputs only, for a named owner, who approves it. Each approved step runs once, however often it is requested. This layer is not measured: X4 has not run." | The X4 caption, the packet cards, the owner and the acknowledgement date, the draft fields, the approval mode, the execute requests and executor runs, and the outcome line. |
+| after the cut | Approval-routed follow-up | "Only a supported conclusion can propose a follow-up. The evidence packet is assembled inside each plant, and only buckets leave. The CAPA draft is written at HQ from structured inputs only, for a named owner, who approves it: its title, problem statement and affected lots come from the conclusion and the plants' packets, and the containment is left for the owner to write. Each approved step runs once, however often it is requested. This layer is not measured: X4 has not run." | The X4 caption, the packet cards, the owner and the acknowledgement date, the draft fields (the containment reads "left for the named owner to write"), the approval mode, the execute requests and executor runs, and the outcome line. |
