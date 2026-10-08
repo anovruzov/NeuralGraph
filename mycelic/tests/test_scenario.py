@@ -16,7 +16,7 @@ from mycelic.seed.scenario import run_scenario
 
 pytestmark = pytest.mark.skipif(os.environ.get("MYCELIC_SKIP_SCENARIO") == "1", reason="MYCELIC_SKIP_SCENARIO=1")
 
-EXPECTED = [chr(c) for c in range(ord("a"), ord("l") + 1)]
+EXPECTED = [chr(c) for c in range(ord("a"), ord("m") + 1)]           # m: GitHub and Slack (offline mocks) feed one memory
 
 
 async def test_verification_scenario_passes_every_check(tmp_path: Path):

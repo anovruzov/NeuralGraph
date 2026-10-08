@@ -96,7 +96,7 @@ Coverage by area (test files under `mycelic/tests/`):
 
 All data is fictional (DEMO_SCENARIO.md).
 
-**Result: 12 of 12 checks pass.** It passed on each of the last 3 consecutive fresh runs after the ingestion integration, and inside `pytest` (`test_scenario.py`). `--data-dir` must be new or empty: a reused directory is refused, because the idempotent seed would keep the earlier holder keys.
+**Result: 13 of 13 checks pass.** It passed on each of the last 3 consecutive fresh runs after the ingestion integration, and inside `pytest` (`test_scenario.py`). `--data-dir` must be new or empty: a reused directory is refused, because the idempotent seed would keep the earlier holder keys.
 
 | Check | What it proves |
 |---|---|
@@ -112,6 +112,7 @@ All data is fictional (DEMO_SCENARIO.md).
 | j | Pause, resume, budget exhaustion (with its renewal time), restore and stop, through the loop endpoints. |
 | k | The worker makes progress with no HTTP client connected, within budget, with a healthy loop, no dead jobs and no job errors. |
 | l | A fresh login inspects the discovery and its permitted lineage; a team employee gets 403. |
+| m | GitHub and Slack, connected organization-wide by the Platform lead to the Platform team's memory **against offline mocks of both APIs**: both apps are ingested; the Slack thread and issue #482 share entities (`component:httpclient`, `version:httpclient@4.2`, `service:checkout`, `symptom:timeout`); a question gets one answer whose claim cites both apps with 3 independent roots (supported) and a discovery; a tampered Slack event gets 401, the signed edit is routed to the holder, the claim goes `supported → stale → supported` through a blind re-verification question. This is not a live verification of GitHub or Slack. |
 
 ## 3. Container and browser verification (local)
 
@@ -176,7 +177,9 @@ embedded holders, standalone worker, and standalone `holder-a` and `holder-b`, e
 | OpenAI-compatible models / embeddings | **NOT VERIFIED** | No key or endpoint configured. |
 | NATS JetStream transport | **VERIFIED locally** | A real `nats-server` 2.11 with JetStream, in the transport tests and in the full distributed compose topology (section 3). This was on one machine, not across hosts. |
 | Public deployment (Fly.io / Render configs in `deploy/mycelic/`) | **NOT DEPLOYED** | No Fly or Render credentials are configured. AWS credentials exist in the environment but are not an authorized target for this application; using them needs the owner's explicit decision. |
-| Third-party app connectors (GitHub, Slack, Gmail, Drive, …) | **NOT IMPLEMENTED YET** | The framework (Phase A) is built and tested offline with the `local_export` connector only. No third-party platform is claimed as supported. |
+| GitHub connector | **NOT VERIFIED (live)**; tested offline | REST, webhooks, OAuth with PKCE and ACL mapping are exercised against a mock built from GitHub's published OpenAPI description (`github_openapi_subset.json`); a live test runs only with `MYCELIC_LIVE_GITHUB_TOKEN` and `MYCELIC_LIVE_GITHUB_REPO`, which are not set here. |
+| Slack connector | **NOT VERIFIED (live)**; tested offline | Web API, Events API signatures (Slack's documented test vector), OAuth v2 with PKCE and rate-limit classes are exercised against a mock; a live test needs `MYCELIC_LIVE_SLACK_TOKEN` and `MYCELIC_LIVE_SLACK_CHANNEL`. |
+| Other apps (Gmail, Drive, Teams, Notion, Jira, …) | **NOT IMPLEMENTED** | Listed as planned (scaffolds) in the catalog and refused when connecting. |
 
 ## 5. Known limitations
 

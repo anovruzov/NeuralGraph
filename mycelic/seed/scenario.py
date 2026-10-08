@@ -989,6 +989,122 @@ async def check_j_loop_controls(ctx: Ctx) -> None:
     ctx.record("j. pause / resume / budget / stop via the loop endpoints", paused and resumed and exhausted and restored and stopped, "; ".join(steps))
 
 
+async def check_m_cross_app_discovery(ctx: Ctx) -> None:
+    """GitHub and Slack, connected organization-wide to the Platform team's memory (offline mocks of both APIs): the
+    holder links a Slack thread and a GitHub issue that never quote each other, a question gets one answer citing both
+    apps, the commit gate counts them as two independent sources, and a signed Slack edit arriving by webhook makes the
+    claim that cited it stale. Live services are never contacted."""
+    from datetime import datetime, timezone
+    from urllib.parse import urlparse
+
+    from ..ingest.mocks import load_fixture, loopback_http_factory, start_github_mock, start_slack_mock
+    rt = ctx.rt
+    gh_fx, sl_fx = load_fixture("github_acme", now=datetime.now(timezone.utc)), load_fixture("slack_acme", now=datetime.now(timezone.utc))
+    gh_url, gh = await start_github_mock(gh_fx)
+    sl_url, sl = await start_slack_mock(sl_fx)
+    previous_factory = rt.holders.http_factory
+    rt.holders.http_factory = loopback_http_factory()          # the holder may reach the loopback mocks (demonstration only)
+    try:
+        priya = await ctx.client.login("priya@meridian.example")
+        platform = next(u for u in rt.org.list_units(ctx.tid) if u["name"] == "Platform")
+        status, body = await priya.post("/api/holders", {"name": "Platform team memory", "owner_type": "unit", "owner_id": platform["unit_id"],
+                                                         "domains": ["engineering", "infrastructure"]})
+        if status != 201:
+            raise ScenarioError(f"POST /api/holders -> {status} {body}")
+        hid = (body.get("holder") or body)["holder_id"]
+        # the organization's GitHub members, mapped by an administrator: every Meridian account reads acme/checkout
+        users = [u["user_id"] for u in rt.db.all("SELECT user_id FROM users WHERE tenant_id=? ORDER BY email", (ctx.tid,))]
+        ana = rt.db.scalar("SELECT user_id FROM users WHERE tenant_id=? AND email='ana@meridian.example'", (ctx.tid,))
+        gh_map = {"1001": ana, **{str(2000 + i): u for i, u in enumerate(users) if u != ana}}
+        gh_cfg = {"api_base": gh_url, "auto_include": ["acme/checkout"], "principal_map": gh_map, "acl_members": {"acme/checkout": sorted(gh_map)}}
+        status, gcon = await priya.post(f"/api/holders/{hid}/connectors", {"connector_type": "github", "auth": {"kind": "pat", "token": "gh-mock-ana-fine-grained"},
+                                                                          "config": gh_cfg})
+        if status != 201:
+            raise ScenarioError(f"connect GitHub -> {status} {gcon}")
+        status, scon = await priya.post(f"/api/holders/{hid}/connectors", {"connector_type": "slack", "auth": {"kind": "pat", "token": "xoxp-mock-ana-user-token"},
+                                                                          "config": {"api_base": sl_url + "/api", "slack_app_class": "internal",
+                                                                                     "auto_include": ["#deployments"], "principal_map": {"U0ANA": ana}}})
+        if status != 201:
+            raise ScenarioError(f"connect Slack -> {status} {scon}")
+        gid, sid = gcon["connector"]["connector_id"], scon["connector"]["connector_id"]
+        for cid in (gid, sid):
+            for mode in ("backfill", "incremental"):
+                status, out = await priya.post(f"/api/holders/{hid}/connectors/{cid}/sync", {"mode": mode})
+                if status != 202 or (out.get("report") or {}).get("error_code"):
+                    raise ScenarioError(f"sync {cid} {mode} -> {status} {out}")
+        status, recs = await priya.get(f"/api/holders/{hid}/records", limit=200)
+        apps = sorted({r["source_app"] for r in recs.get("items") or []})
+        slack_parent = next((r for r in recs["items"] if r["source_app"] == "slack" and "Deployment of checkout failed" in (r.get("snippet") or "")), None)
+        gh_issue = next((r for r in recs["items"] if r["source_app"] == "github" and "httpclient 4.2 introduced" in (r.get("title") or r.get("snippet") or "")), None)
+        shared: list[str] = []
+        if slack_parent and gh_issue:
+            _, a = await priya.get(f"/api/holders/{hid}/records/{slack_parent['record_id']}")
+            _, b = await priya.get(f"/api/holders/{hid}/records/{gh_issue['record_id']}")
+            shared = sorted(set(a.get("entities") or []) & set(b.get("entities") or []))
+        # a question about the failure reaches the Platform memory through its domains
+        status, body = await priya.post("/api/questions", {"text": "Did the dependency upgrade to httpclient 4.2 make checkout deployments fail with timeouts?",
+                                                           "scope_unit_id": platform["unit_id"], "candidate_domains": ["engineering"]})
+        if status not in (200, 201):
+            raise ScenarioError(f"POST /api/questions -> {status} {body}")
+        qid = ((body or {}).get("question") or body or {}).get("question_id")
+
+        def resolved():
+            q = rt.questions.get(qid)
+            return q is not None and q["status"] in ("committed", "retained_uncertain") and rt.engine._checkpoint(qid).get("state", {}).get("discovery_id")
+        await wait_until(resolved, timeout=30, deadline=ctx.deadline, what="the cross-app question to be committed")
+        state = rt.engine._checkpoint(qid).get("state") or {}
+        claims = rt.knowledge.claims_by_ids(state.get("claim_ids") or [])
+        cited = {cl["claim_id"]: rt.knowledge.refs_for_claim(cl["claim_id"]) for cl in claims}
+        both = [cl for cl in claims if {(r.get("meta") or {}).get("source_app") for r in cited[cl["claim_id"]]} >= {"github", "slack"}]
+        best = both[0] if both else (claims[0] if claims else None)
+        support = (best or {}).get("support") or {}
+        disc = rt.knowledge.get_discovery(state["discovery_id"])
+        # live update: Slack's signed event for an edit of the original message; the holder re-fetches it itself
+        status, hook = await priya.post(f"/api/holders/{hid}/connectors/{sid}/webhook", {"signing_secret": sl_fx["app"]["signing_secret"]})
+        if status != 201:
+            raise ScenarioError(f"webhook endpoint -> {status} {hook}")
+        parent_ts = next(ts for ts, m in sl.messages["C0DEPLOY"].items() if "Deployment of checkout failed" in m.get("text", ""))
+        envelope = sl.edit_message("C0DEPLOY", parent_ts, "Deployment of checkout failed after the dependency upgrade to httpclient 4.2; "
+                                                          "requests time out. Update: the timeouts only happen behind the payment gateway.")
+        headers, raw = sl.signed_event(envelope)
+        bad_headers, bad_raw = sl.signed_event(envelope, tamper=True)
+        import aiohttp
+        async with aiohttp.ClientSession() as http:
+            async with http.post(ctx.client.base_url + urlparse(hook["url"]).path, data=bad_raw, headers=bad_headers) as r:
+                rejected = r.status
+            async with http.post(ctx.client.base_url + urlparse(hook["url"]).path, data=raw, headers=headers) as r:
+                accepted, routed = r.status, (await r.json()).get("routed")
+        slack_refs = [r["ref_id"] for r in (cited.get(best["claim_id"]) if best else []) if (r.get("meta") or {}).get("source_app") == "slack"]
+
+        def went_stale_history() -> list[str]:
+            if not best:
+                return []
+            rows = rt.db.all("SELECT after FROM revisions WHERE object_type='claim' AND object_id=? ORDER BY version", (best["claim_id"],))
+            return [str((json.loads(r["after"] or "{}") or {}).get("status")) for r in rows if (json.loads(r["after"] or "{}") or {}).get("status")]
+        # the revised source makes the claim stale; the loop then re-reads it blindly (a verification question) and the claim
+        # is re-confirmed or not: the history shows the whole sequence, whatever the timing
+        try:
+            await wait_until(lambda: "stale" in went_stale_history(), timeout=20, deadline=ctx.deadline, what="the claim citing the edited Slack message to become stale")
+        except ScenarioError:
+            pass
+        history = went_stale_history()
+        went_stale = "stale" in history
+        reverify = rt.db.all("SELECT question_id, status FROM questions WHERE kind='verification' AND json_extract(trigger, '$.claim_id')=?", (best["claim_id"],)) if best else []
+        ok = apps == ["github", "slack"] and bool(shared) and bool(both) and support.get("independent_roots", 0) >= 2 and disc is not None \
+            and rejected == 401 and accepted == 200 and routed == 1 and went_stale
+        ctx.record("m. GitHub and Slack feed one memory and a discovery cites both apps", ok,
+                   f"Platform memory {hid}: apps {apps}; entities shared by the Slack thread and issue #482: {shared[:6]}; question {qid} -> claim "
+                   f"{best['claim_id'] if best else None} citing {sorted({(r.get('meta') or {}).get('source_app') for r in cited.get(best['claim_id'], [])}) if best else []} "
+                   f"with {support.get('independent_roots')} independent roots (status {best['status'] if best else None}); discovery {state.get('discovery_id')}; "
+                   f"tampered Slack event -> {rejected}, signed edit -> {accepted} routed to {routed} holder(s); claim status history {history} "
+                   f"(re-verification questions {[(r['question_id'], r['status']) for r in reverify]}) "
+                   f"(Slack refs {slack_refs}). Mocks only: NOT a live verification of GitHub or Slack.")
+    finally:
+        rt.holders.http_factory = previous_factory
+        await gh.close()
+        await sl.close()
+
+
 async def check_l_return_and_inspect(ctx: Ctx) -> None:
     dep = ctx.gap_question("deployments")
     disc = next((d for d in ctx.rt.knowledge.list_discoveries(ctx.sysp, goal_id=ctx.gid) if d.get("question_id") == (dep or {}).get("question_id")), None)
@@ -1111,7 +1227,7 @@ async def run_scenario(rt: Runtime | None = None, *, data_dir: str | None = None
         for name, fn in (("b", check_b_automatic_question), ("c", check_c_separate_holders), ("d", check_d_supported_discovery_and_followup),
                          ("g", check_g_copied_evidence), ("e", check_e_level_abstraction), ("f", check_f_private_evidence),
                          ("h", check_h_source_revision), ("i", check_i_worker_restart), ("k", check_k_progress_without_client),
-                         ("j", check_j_loop_controls), ("l", check_l_return_and_inspect)):
+                         ("j", check_j_loop_controls), ("l", check_l_return_and_inspect), ("m", check_m_cross_app_discovery)):
             await run_check(ctx, name, fn)
         report["checks"].sort(key=lambda c: c["name"])
         report["questions"] = len(ctx.questions())
