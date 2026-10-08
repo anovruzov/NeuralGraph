@@ -67,7 +67,7 @@
 
   h1, h2, p { margin: 0; }
   figure { margin: 0; }
-  p, li, figcaption { max-width: 65ch; }
+  p, li, figcaption { max-width: 65ch; text-wrap: pretty; }
 
   ::selection { background: var(--accent); color: var(--on-accent); }
 
@@ -169,17 +169,14 @@
     list-style: none;
     counter-reset: step;
   }
-  .steps li {
-    position: relative;
-    padding-inline-start: 2.75rem;
-  }
+  .steps li { padding-inline-start: 2.75rem; }
   .steps li + li { margin-block-start: 1.5rem; }
   .steps li::before {
     counter-increment: step;
     content: counter(step, decimal-leading-zero);
-    position: absolute;
-    inset-inline-start: 0;
-    top: 0.2em;
+    display: inline-block;
+    width: 2.75rem;
+    margin-inline-start: -2.75rem;
     font-family: var(--font-mono);
     font-size: var(--step--1);
     line-height: 1.5;
@@ -194,10 +191,11 @@
   figure svg {
     display: block;
     width: 100%;
-    max-width: 30rem;
+    max-width: 28.5rem;
     height: auto;
   }
   figcaption {
+    max-width: 28.5rem;
     margin-top: 0.75rem;
     font-size: var(--step--1);
     line-height: 1.5;
@@ -234,6 +232,7 @@
     line-height: 1.2;
     text-decoration: none;
   }
+  .button:hover { background: var(--ink); color: var(--bg); }
   .body .note {
     margin-top: 1rem;
     font-size: var(--step--1);
@@ -257,7 +256,7 @@
 
   @media (prefers-reduced-motion: no-preference) {
     html { scroll-behavior: smooth; }
-    a { transition: text-decoration-thickness 120ms; }
+    a { transition: text-decoration-thickness 120ms, background-color 120ms, color 120ms; }
   }
 </style>
 <meta name="description" content="Spot quality problems that show up at several sites at once. Each site checks its own records, a named person approves the follow-up, and raw records stay at the site.">
@@ -293,7 +292,7 @@
       <li><strong>A person approves.</strong> Mycelic drafts the follow-up, such as a CAPA initiation, for a named owner to approve. Every step is logged, and each site can trace its answer to its own records.</li>
     </ol>
     <figure>
-      <svg viewBox="0 0 360 236" role="img" aria-labelledby="fig-t" aria-describedby="fig-d">
+      <svg viewBox="9 0 342 236" role="img" aria-labelledby="fig-t" aria-describedby="fig-d">
         <title id="fig-t">Records stay at each site while checks travel</title>
         <desc id="fig-d">HQ at the top and three sites below. Each site sends counts up to HQ. HQ sends a question down to each site and gets an answer back. The records stay inside each site.</desc>
         <rect class="d-wall" x="10" y="8" width="340" height="40" rx="3"/>
