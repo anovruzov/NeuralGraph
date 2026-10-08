@@ -44,6 +44,7 @@ INCREMENTAL_PAGES_PER_TICK = 20
 BACKFILL_PAGES_PER_TICK = 5
 PROCESS_ITEMS_PER_TICK = 500
 MIN_POLL_SECONDS = 30.0
+MEMBERSHIP_ACTIONS = frozenset({"member_left_channel", "member_joined_channel", "member_removed", "permission_changed"})
 
 # what a connector looks like outside the holder: metadata and counts, never content or credentials
 _CONNECTOR_FIELDS = ("connector_id", "connector_type", "display_name", "account_label", "source_account_id", "auth_kind", "ownership", "mode", "status",
@@ -218,6 +219,10 @@ class IngestRuntime:
             return {"connector_id": cid, "ignored": "connector type mismatch"}
         async with self._tick_lock:
             report = await self.service.handle_notice(cid, notice)
+            if notice.action in MEMBERSHIP_ACTIONS and not report.duplicates:
+                # someone left (or joined) a channel: refresh the source's member list now, so records narrow at their next use
+                with contextlib.suppress(Exception):
+                    await self.service.discover_sources(cid)
             rep = await self.pipeline.process_available(max_items=PROCESS_ITEMS_PER_TICK)
         return {"connector_id": cid, "report": _report(report), "processed": rep.processed}
 

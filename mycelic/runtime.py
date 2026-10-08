@@ -55,6 +55,12 @@ class Runtime:
         if self.transport is not None:
             await self.transport.start()
         if (run_holders if run_holders is not None else self.settings.embedded_holders) and self.holders is not None:
+            from .seed.apps_demo import DemoApps, demo_apps_enabled
+            if demo_apps_enabled(self.settings) and "demo_apps" not in self.extras:
+                # simulated GitHub and Slack for the demonstration (opt-in): set up before the holders start, so a holder
+                # reopened after a restart can reach the loopback mocks too
+                self.extras["demo_apps"] = DemoApps(self)
+                await self.extras["demo_apps"].start()
             await self.holders.start()
         if run_worker if run_worker is not None else self.settings.run_worker_in_api:
             if self.worker is None:
@@ -64,6 +70,9 @@ class Runtime:
     async def stop(self) -> None:
         if self.worker is not None:
             await self.worker.stop()
+        demo_apps = self.extras.pop("demo_apps", None)
+        if demo_apps is not None:
+            await demo_apps.stop()
         if self.holders is not None:
             try:
                 await self.holders.stop()

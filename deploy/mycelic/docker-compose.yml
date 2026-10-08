@@ -67,6 +67,7 @@ services:
       MYCELIC_RUN_WORKER_IN_API: "0"
       # the API hosts the embedded holders (the demo's other eight people; any holder created with mode=embedded),
       # each with its own store under /data/holders; holder-a and holder-b below are standalone processes
+      MYCELIC_DEMO_APPS: "${MYCELIC_DEMO_APPS:-0}"
       MYCELIC_EMBEDDED_HOLDERS: "1"
       MYCELIC_NATS_USER: core
       MYCELIC_NATS_PASSWORD: ${NATS_CORE_PASSWORD}

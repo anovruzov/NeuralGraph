@@ -26,6 +26,7 @@ services:
       MYCELIC_TRANSPORT: sqlite
       MYCELIC_RUN_WORKER_IN_API: "1"
       MYCELIC_EMBEDDED_HOLDERS: "1"
+      MYCELIC_DEMO_APPS: "${MYCELIC_DEMO_APPS:-0}"
     volumes:
       - mycelic-data:/data
     ports:
