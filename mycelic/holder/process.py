@@ -201,6 +201,33 @@ def _build_transport(settings: Any) -> tuple[Transport, Any]:
     return transport, None
 
 
+def holder_vault(holder_dir: Path) -> Any:
+    """The standalone holder's own credential vault (INGESTION.md §10.1): ``MYCELIC_HOLDER_SECRET``, or a key generated
+    once at ``<holder_dir>/holder.key`` (mode 0600) only when ``MYCELIC_ALLOW_LOCAL_KEK=1`` — a key stored next to the
+    data it protects is a development convenience, not protection. ``None`` disables connectors that need credentials."""
+    try:
+        from ..ingest.crypto import TokenVault, VaultUnavailable
+    except ImportError:
+        return None
+    secret = os.environ.get("MYCELIC_HOLDER_SECRET", "")
+    if not secret and os.environ.get("MYCELIC_ALLOW_LOCAL_KEK") == "1":
+        path = holder_dir / "holder.key"
+        if not path.exists():
+            import secrets as _secrets
+            holder_dir.mkdir(parents=True, exist_ok=True)
+            fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(fd, "w") as f:
+                f.write(_secrets.token_urlsafe(32))
+        secret = path.read_text().strip()
+    if not secret:
+        logger.warning("connector credentials are disabled on this holder: set MYCELIC_HOLDER_SECRET")
+        return None
+    try:
+        return TokenVault.from_secret(secret)
+    except VaultUnavailable:
+        return None
+
+
 async def run_holder(settings: Any, *, holder_id: str, key: str, core_url: str, data_dir: str | Path, local_port: int | None = None,
                      local_host: str = "127.0.0.1", stop: asyncio.Event | None = None, heartbeat_seconds: float | None = None,
                      transport: Transport | None = None, bootstrap: dict[str, Any] | None = None, core: Any | None = None,
@@ -225,8 +252,9 @@ async def run_holder(settings: Any, *, holder_id: str, key: str, core_url: str, 
     if transport is None:
         transport, db = _build_transport(_settings_with_transport(settings, boot.get("transport")))
         await transport.start()
+    owner_ids = [boot["owner_id"]] if boot.get("owner_type") == "user" and boot.get("owner_id") else []
     store = EvidenceStore(Path(data_dir).expanduser() / holder_id / "evidence.db", holder_id=holder_id, tenant_id=tenant_id, llm=llm,
-                          router=router, export_policy=boot.get("export_policy"), domains=boot.get("domains") or [])
+                          router=router, export_policy=boot.get("export_policy"), domains=boot.get("domains") or [], owner_ids=owner_ids)
 
     route_key_id = sha256(boot["route_key"])[:16]
 
@@ -244,10 +272,18 @@ async def run_holder(settings: Any, *, holder_id: str, key: str, core_url: str, 
 
     service = HolderService(store, transport, holder_id=holder_id, tenant_id=tenant_id, route_key=boot["route_key"],
                             heartbeat=heartbeat, heartbeat_interval=interval)
+    if getattr(settings, "ingest_enabled", True):
+        from ..ingest.runtime import IngestRuntime
+        service.ingest = IngestRuntime(store, holder_kind="unit" if boot.get("owner_type") == "unit" else "user", publisher=service,
+                                       vault=holder_vault(Path(data_dir).expanduser() / holder_id), router=router,
+                                       tick_seconds=float(getattr(settings, "ingest_tick_seconds", 5.0) or 5.0),
+                                       import_root=Path(data_dir).expanduser() / holder_id / "imports")
     runner = None
     summary: dict[str, Any] = {"holder_id": holder_id, "tenant_id": tenant_id, "started_at": now_iso(), "local_port": None}
     try:
         await service.start()
+        if service.ingest is not None:
+            await service.ingest.start()
         if local_port:
             from aiohttp import web
 
@@ -260,6 +296,8 @@ async def run_holder(settings: Any, *, holder_id: str, key: str, core_url: str, 
         logger.info("holder %s running (tenant %s, transport %s)", holder_id, tenant_id, getattr(transport, "name", "?"))
         await stop.wait()
     finally:
+        if service.ingest is not None:
+            await service.ingest.stop()
         await service.stop()
         try:
             await core.heartbeat(await store.stats(), status="offline")

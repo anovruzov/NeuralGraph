@@ -54,6 +54,9 @@ class EmbeddedHolders:
         self.holders_dir = Path(getattr(settings, "holders_dir", "") or Path(getattr(settings, "data_dir", ".")) / "holders").expanduser()
         self._services: dict[str, HolderService] = {}
         self._stores: dict[str, EvidenceStore] = {}
+        self._ingest: dict[str, Any] = {}
+        self._vault: Any = None
+        self._vault_checked = False
         self.running = False
 
     # ------------------------------------------------------------------ lifecycle
@@ -115,6 +118,12 @@ class EmbeddedHolders:
             task.cancel()
             with contextlib.suppress(asyncio.CancelledError, Exception):
                 await task
+        for runtime in list(self._ingest.values()):
+            try:
+                await runtime.stop()
+            except Exception:
+                logger.exception("error stopping an ingest runtime")
+        self._ingest.clear()
         for holder_id, svc in list(self._services.items()):
             try:
                 await svc.stop()
@@ -174,10 +183,36 @@ class EmbeddedHolders:
         svc = HolderService(store, self.transport, holder_id=holder_id, tenant_id=tenant_id, route_key=self.org.route_key(holder_id),
                             heartbeat=heartbeat, heartbeat_interval=self.heartbeat_interval,
                             policy_loader=lambda: self.current_policy(holder_id))
+        if getattr(self.settings, "ingest_enabled", True):
+            from ..ingest.runtime import IngestRuntime
+            svc.ingest = IngestRuntime(store, holder_kind="unit" if row["owner_type"] == "unit" else "user", publisher=svc, vault=self.vault(),
+                                       router=self.router, tick_seconds=float(getattr(self.settings, "ingest_tick_seconds", 5.0) or 5.0),
+                                       import_root=self.store_path(holder_id).parent / "imports")
+            self._ingest[holder_id] = svc.ingest
         self._stores[holder_id] = store
         self._services[holder_id] = svc
         await svc.start()
+        if svc.ingest is not None:
+            await svc.ingest.start()
         return svc
+
+    def vault(self) -> Any:
+        """The server's credential vault (``MYCELIC_SECRET_KEY``), or ``None`` when no acceptable master key is configured:
+        connectors that need credentials are then refused with a clear error, and credential-free ones still work."""
+        if not self._vault_checked:
+            self._vault_checked = True
+            try:
+                from ..ingest.crypto import TokenVault, VaultUnavailable
+                try:
+                    self._vault = TokenVault.from_settings(self.settings)
+                except VaultUnavailable as exc:
+                    logger.warning("connector credentials are disabled for embedded holders: %s", exc)
+            except ImportError:
+                logger.warning("connector credentials are disabled: the cryptography package is not installed")
+        return self._vault
+
+    def ingest(self, holder_id: str) -> Any:
+        return self._ingest.get(holder_id)
 
     def get(self, holder_id: str) -> EvidenceStore | None:
         return self._stores.get(holder_id)
@@ -205,6 +240,9 @@ class EmbeddedHolders:
         """Stop and close one holder (after a revocation); its file stays on disk."""
         svc = self._services.pop(holder_id, None)
         store = self._stores.pop(holder_id, None)
+        runtime = self._ingest.pop(holder_id, None)
+        if runtime is not None:
+            await runtime.stop()
         if svc is not None:
             await svc.stop()
         if store is not None:

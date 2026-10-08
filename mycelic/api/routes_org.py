@@ -1017,7 +1017,10 @@ def setup(app: web.Application, prefix: str = "/api") -> None:
             transport.update({"nats_url": settings.nats_url, "nats_stream": settings.nats_stream})
         else:
             transport["coord_db"] = settings.coord_db
+        # owner_type/owner_id let the holder apply its own owner checks to connector actions (a user holder accepts them
+        # only for its owner) and pick the connector ownership it may hold (personal for users, organization for units)
         return json_response({"holder_id": hid, "tenant_id": h["tenant_id"], "name": h["name"], "mode": h.get("mode"), "route_key": rt.org.route_key(hid),
+                              "owner_type": h.get("owner_type"), "owner_id": h.get("owner_id"),
                               "export_policy": h.get("export_policy") or {}, "domains": h.get("domains") or [], "heartbeat_seconds": 20, "transport": transport})
 
     async def heartbeat(request: web.Request) -> web.Response:

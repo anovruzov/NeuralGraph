@@ -32,7 +32,15 @@ raw_request   {ref_id, grant_token}                         ``raw_reply`` on the
 control       {action: stats | reload_policy | manual_response, ...}
                                                             ``control_reply`` on the reply subject; ``manual_response``
                                                             also publishes a ``response`` (``resp:<q>:<holder>:human:<hash>``)
+connector_    {action, actor, params, credentials_sealed?}  ``connector_reply`` on the reply subject (connector metadata,
+control       (connect, discover, choose sources, sync ...) counts and owner-visible source names; never credentials)
+connector_    {connector_id, notice}: a webhook notice,     nothing back; the connector fetches what the notice names
+notice        ids only                                      with the holder's own grant (mycelic.ingest.runtime)
 ============  ============================================  =========================================================
+
+The two connector kinds need an :class:`~mycelic.ingest.runtime.IngestRuntime` (``ingest=``); without one they are
+answered with an error. A sealed credential is opened with a key derived from the route key and this envelope's msg_id
+(:func:`mycelic.ingest.crypto.open_transfer`) and handed to the runtime once; the stored outcome never contains it.
 """
 from __future__ import annotations
 
@@ -76,8 +84,9 @@ class HolderService:
 
     def __init__(self, store: EvidenceStore, transport: Transport, *, holder_id: str, tenant_id: str, route_key: str,
                  heartbeat: HeartbeatCallback | None = None, heartbeat_interval: float = 20.0,
-                 policy_loader: PolicyLoader | None = None, transport_heartbeat: bool = True) -> None:
+                 policy_loader: PolicyLoader | None = None, transport_heartbeat: bool = True, ingest: Any | None = None) -> None:
         self.store = store
+        self.ingest = ingest
         self.transport = transport
         self.holder_id = holder_id
         self.tenant_id = tenant_id
@@ -243,6 +252,17 @@ class HolderService:
                                                                      "msg_id": env.msg_id})
             await self.store.store.mark_processed(env.msg_id, outcome)
             return outcome
+        if kind == "connector_control":
+            outcome = {"op": "connector_control", **(await self._connector_control(env, p))}
+            await self.store.store.mark_processed(env.msg_id, outcome)
+            return outcome
+        if kind == "connector_notice":
+            if self.ingest is None:
+                outcome = {"op": "connector_notice", "result": None, "error": "ingestion is not enabled on this holder"}
+            else:
+                outcome = {"op": "connector_notice", "result": await self.ingest.on_notice(p)}
+            await self.store.store.mark_processed(env.msg_id, outcome)
+            return outcome
         if kind == "control":
             action = str(p.get("action") or "")
             if action == "manual_response":
@@ -261,6 +281,28 @@ class HolderService:
         outcome = {"op": kind, "result": None, "error": f"unsupported envelope kind {kind!r}"}
         await self.store.store.mark_processed(env.msg_id, outcome)
         return outcome
+
+    async def _connector_control(self, env: Envelope, p: dict[str, Any]) -> dict[str, Any]:
+        """Connector management on behalf of a user the coordinator authorized. Failures become an error outcome (never
+        retried: a refused or malformed request stays refused); connector errors carry their code, never content."""
+        from ..ingest.contract import ConnectorError
+        from ..ingest.crypto import CredentialTampered, VaultUnavailable, open_transfer
+        from ..ingest.runtime import ControlError
+        if self.ingest is None:
+            return {"result": None, "error": "ingestion is not enabled on this holder", "code": "ingest_disabled"}
+        action, actor = str(p.get("action") or ""), str(p.get("actor") or "")
+        try:
+            creds = open_transfer(self.route_key, self.holder_id, env.msg_id, str(p["credentials_sealed"])) if p.get("credentials_sealed") else None
+            result = await self.ingest.control(action, dict(p.get("params") or {}), actor=actor, credentials=creds)
+            return {"result": result}
+        except CredentialTampered:
+            return {"result": None, "error": "the credential could not be opened", "code": "credential_tampered"}
+        except VaultUnavailable as exc:
+            return {"result": None, "error": str(exc), "code": "vault_unavailable"}
+        except ConnectorError as exc:
+            return {"result": None, "error": str(exc), "code": exc.code}
+        except (ControlError, ValueError) as exc:
+            return {"result": None, "error": str(exc), "code": "refused"}
 
     async def _control(self, action: str, p: dict[str, Any]) -> dict[str, Any]:
         if action == "stats":
@@ -312,6 +354,11 @@ class HolderService:
         elif op == "control":
             if env.reply_to:
                 await self.transport.reply(env, result or {"error": error}, kind="control_reply")
+        elif op == "connector_control":
+            if env.reply_to:
+                await self.transport.reply(env, result if error is None else {"error": error, "code": outcome.get("code")}, kind="connector_reply")
+        elif op == "connector_notice":
+            return
         elif error and env.reply_to:
             await self.transport.reply(env, {"error": error}, kind="error")
 

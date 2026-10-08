@@ -42,7 +42,7 @@ class Envelope:
     """
     msg_id: str
     subject: str
-    kind: str                       # question | response | ingest | ingest_result | evidence_event | raw_request | raw_reply | control | event
+    kind: str                       # question | response | ingest | ingest_result | evidence_event | raw_request | raw_reply | control | connector_control | connector_reply | connector_notice | event
     tenant_id: str
     payload: dict[str, Any]
     sent_at: str = field(default_factory=now_iso)
@@ -77,10 +77,11 @@ class Envelope:
                    sent_at=d.get("sent_at") or now_iso(), reply_to=d.get("reply_to"), signature=d.get("signature"), headers=d.get("headers") or {})
 
 
-# kinds whose payload carries document or raw evidence text: removed from the transport once handled
-CONTENT_KINDS = frozenset({"ingest", "revise", "raw_reply"})
+# kinds whose payload carries document or raw evidence text, a sealed credential or source names: removed from the
+# transport once handled
+CONTENT_KINDS = frozenset({"ingest", "revise", "raw_reply", "connector_control", "connector_reply"})
 # request/reply kinds only matter within the request timeout
-SHORT_LIVED_KINDS = frozenset({"raw_request", "raw_reply"})
+SHORT_LIVED_KINDS = frozenset({"raw_request", "raw_reply", "connector_control", "connector_reply"})
 SHORT_LIVED_SECONDS = 300.0
 
 

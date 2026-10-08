@@ -163,3 +163,45 @@ class TokenVault:
         dek = self._unwrap(row, tenant_id, aad)
         wrapped = self._seal(self._kek(self.active_kid, tenant_id), dek, aad + b"|wrap")
         return SealedCredentials(kid=self.active_kid, wrapped_dek=wrapped, ciphertext=row.ciphertext, aad=row.aad)
+
+
+# ---------------------------------------------------------------------------------------------- credential transfer (§10.1)
+# A token entered in the coordinator UI (or obtained by an OAuth flow that terminates at the core API) reaches its holder
+# inside a ``connector_control`` envelope. The transport stores envelopes (SQLite outbox, JetStream), so the token
+# travels sealed with a key derived from the holder's route key, bound to the holder and to the envelope's msg_id. Only
+# the coordinator and that holder know the route key; a copy of the transport's storage alone reveals nothing, and a
+# sealed blob replayed into another envelope or to another holder fails authentication. The core never stores the token.
+TRANSFER_INFO = b"mycelic/credential-transfer/v1|"
+
+
+def _transfer_key(route_key: str, holder_id: str) -> bytes:
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+    if not route_key:
+        raise VaultUnavailable("no route key for the credential transfer")
+    return HKDF(algorithm=hashes.SHA256(), length=32, salt=b"mycelic/transfer/v1",
+                info=TRANSFER_INFO + holder_id.encode("utf-8")).derive(route_key.encode("utf-8"))
+
+
+def seal_transfer(route_key: str, holder_id: str, msg_id: str, data: Mapping[str, Any]) -> str:
+    import base64
+    blob = TokenVault._seal(_transfer_key(route_key, holder_id), json.dumps(dict(data), sort_keys=True, separators=(",", ":")).encode("utf-8"),
+                            f"{holder_id}|{msg_id}".encode("utf-8"))
+    return base64.urlsafe_b64encode(blob).decode("ascii")
+
+
+def open_transfer(route_key: str, holder_id: str, msg_id: str, sealed: str) -> dict[str, Any]:
+    import base64
+    import binascii
+    try:
+        blob = base64.urlsafe_b64decode(sealed.encode("ascii"))
+    except (binascii.Error, ValueError, UnicodeEncodeError):
+        raise CredentialTampered("malformed credential transfer") from None
+    raw = TokenVault._open(_transfer_key(route_key, holder_id), blob, f"{holder_id}|{msg_id}".encode("utf-8"))
+    try:
+        out = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError):
+        raise CredentialTampered("credential transfer payload is not valid") from None
+    if not isinstance(out, dict):
+        raise CredentialTampered("credential transfer payload is not an object")
+    return out

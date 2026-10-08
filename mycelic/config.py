@@ -80,6 +80,13 @@ class Settings:
     worker_lease_seconds: float = _float("MYCELIC_WORKER_LEASE_SECONDS", 120.0)
     worker_heartbeat_seconds: float = _float("MYCELIC_WORKER_HEARTBEAT_SECONDS", 10.0)
     worker_poll_seconds: float = _float("MYCELIC_WORKER_POLL_SECONDS", 1.0)
+    # ingestion (docs/mycelic/INGESTION.md): holders run connectors; OAuth app credentials stay server-side
+    ingest_enabled: bool = _bool("MYCELIC_INGEST", True)
+    ingest_tick_seconds: float = _float("MYCELIC_INGEST_TICK_SECONDS", 5.0)
+    github_client_id: str = os.environ.get("MYCELIC_GITHUB_CLIENT_ID", "")
+    github_client_secret: str = os.environ.get("MYCELIC_GITHUB_CLIENT_SECRET", "")
+    slack_client_id: str = os.environ.get("MYCELIC_SLACK_CLIENT_ID", "")
+    slack_client_secret: str = os.environ.get("MYCELIC_SLACK_CLIENT_SECRET", "")
     # observability
     log_json: bool = _bool("MYCELIC_LOG_JSON", True)
     log_level: str = os.environ.get("MYCELIC_LOG_LEVEL", "INFO")
