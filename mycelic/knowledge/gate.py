@@ -46,6 +46,22 @@ def _role(r: Mapping[str, Any]) -> str:
     return r.get("role") or "supports"
 
 
+# claim kinds that state a conjecture rather than an observation: they stay hypotheses whatever their support
+CONJECTURE_KINDS = ("hypothesis", "prediction")
+
+
+def status_cap(kind: str | None, causal: bool = False) -> tuple[str | None, str]:
+    """The highest status a claim of this kind may have (E13), with the reason. A conjecture never becomes supported;
+    a causal relationship becomes supported only as a separate, reviewed conclusion over supported edges (not yet
+    recorded by the loop), so it is capped too."""
+    if kind in CONJECTURE_KINDS:
+        return "hypothesis", f"a {kind} stays a hypothesis whatever its support; a verified conclusion is a separate claim"
+    if causal:
+        return "hypothesis", ("a causal link stays a hypothesis until every edge is supported, a blind verification confirms "
+                              "the mechanism and a lead reviews it")
+    return None, ""
+
+
 class CommitGate:
     def __init__(self, authz: Authorizer) -> None:
         self.authz = authz
@@ -221,5 +237,9 @@ class CommitGate:
                 reasons.append(f"{support['copied_refs']} copied reference(s) do not add independent support")
             if support["unknown_independence"]:
                 reasons.append(f"{support['unknown_independence']} reference(s) of unknown independence")
+        cap, why = status_cap(candidate.get("kind"), bool(candidate.get("causal")))
+        if cap == "hypothesis" and status == "supported":
+            status = "hypothesis"
+            reasons.append(why)
         checks["support"] = status == "supported"
         return GateResult(True, status, reasons, support, fresh, checks, refs)

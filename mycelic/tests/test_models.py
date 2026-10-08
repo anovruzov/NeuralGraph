@@ -201,15 +201,17 @@ async def test_answer_from_evidence_rules() -> None:
     assert none == {"answer": "", "confidence": 0.0, "used_ref_ids": [], "no_evidence": True}
 
 
-async def test_evaluate_responses_agreement_numeric_mismatch_and_lone_hypothesis() -> None:
+async def test_evaluate_responses_agreement_numeric_mismatch_and_lone_finding() -> None:
     out = await run("evaluate_responses")
-    findings = {f["kind"]: f for f in out["findings"]}
-    assert set(findings) == {"finding", "hypothesis"} and len(out["findings"]) == 2
+    # a lone source is an observation (kind finding, low confidence); kind 'hypothesis' is reserved for conjectures
+    assert [f["kind"] for f in out["findings"]] == ["finding", "finding"]
+    findings = {"finding": next(f for f in out["findings"] if len(f["supporting_response_ids"]) > 1),
+                "lone": next(f for f in out["findings"] if len(f["supporting_response_ids"]) == 1)}
     agreed = findings["finding"]
     assert agreed["supporting_response_ids"] == ["r1", "r2"] and agreed["supporting_ref_ids"] == ["e1", "e2"]
     assert agreed["confidence"] == pytest.approx(0.75)
     assert agreed["text"] == "Deployments failed because the approval queue took 48 hours to clear"   # longest member
-    assert findings["hypothesis"]["supporting_response_ids"] == ["r4"] and findings["hypothesis"]["confidence"] == 0.5
+    assert findings["lone"]["supporting_response_ids"] == ["r4"] and findings["lone"]["confidence"] == 0.5
     pairs = {(d["a_response_ids"][0], d["b_response_ids"][0]) for d in out["disagreements"]}
     assert pairs == {("r1", "r3"), ("r2", "r3")}
     assert all("48" in d["summary"] and "72" in d["summary"] for d in out["disagreements"])

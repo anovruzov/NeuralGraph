@@ -723,10 +723,19 @@ export interface Discovery {
   followup_question_ids: string[];
   reviews: DiscoveryReview[];
   support: DiscoverySupport;
+  /** whether the evidence under the discovery is still current (sources revised, withdrawn or deleted degrade it) */
+  evidence_health?: EvidenceHealth;
   freshness_at: string | null;
   is_demo: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface EvidenceHealth {
+  status: 'healthy' | 'degraded' | 'unsupported' | string;
+  active_refs: number;
+  inactive_refs: number;
+  claims: Record<string, number>;
 }
 
 export type ReviewAction = 'reviewed' | 'accepted' | 'dismissed' | 'escalated' | 'comment';

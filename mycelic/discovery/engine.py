@@ -271,8 +271,8 @@ class LoopEngine:
             "SELECT e.ref_id, e.title, e.holder_id, e.source_root_id FROM evidence_refs e JOIN responses r ON r.evidence_ref_ids LIKE '%' || e.ref_id || '%' "
             "JOIN questions q ON q.question_id = r.question_id WHERE q.goal_id=? AND e.created_at >= ? LIMIT 50", (gid, since)))
         revised = rows_to_dicts(self.db.all(
-            "SELECT DISTINCT e.ref_id, e.status, e.title FROM evidence_refs e JOIN claim_evidence ce ON ce.ref_id=e.ref_id JOIN claims c ON c.claim_id=ce.claim_id "
-            "WHERE c.goal_id=? AND e.status IN ('revised','retracted') AND e.updated_at >= ? LIMIT 50", (gid, since)))
+            "SELECT DISTINCT e.ref_id, e.status FROM evidence_refs e JOIN claim_evidence ce ON ce.ref_id=e.ref_id JOIN claims c ON c.claim_id=ce.claim_id "
+            "WHERE c.goal_id=? AND e.status IN ('revised','retracted','unavailable') AND e.updated_at >= ? LIMIT 50", (gid, since)))
         conflicts = rows_to_dicts(self.db.all(
             "SELECT k.conflict_id, k.summary, k.status FROM conflicts k JOIN claims c ON c.claim_id=k.claim_a_id WHERE c.goal_id=? AND k.status IN ('open','investigating') LIMIT 50", (gid,)))
         stale = rows_to_dicts(self.db.all("SELECT claim_id, text FROM claims WHERE goal_id=? AND status='stale' LIMIT 50", (gid,)))
@@ -288,7 +288,9 @@ class LoopEngine:
             hid = (ev.get("payload") or {}).get("holder_id")
             holder = self.org.get_holder(hid) if hid else None
             if holder and self.authz.can_route({"tenant_id": tid, "scope_unit_id": goal.get("scope_unit_id"), "policy": {"visibility": "unit"}, "candidate_domains": []}, holder)[0]:
-                docs.append({"holder_id": hid, "title": (ev.get("payload") or {}).get("title", ""), "domains": (ev.get("payload") or {}).get("domains", []), "event_id": ev["id"]})
+                # E12: what arrived, never its titles (ingested content may be private mail or messages)
+                docs.append({"holder_id": hid, "domains": (ev.get("payload") or {}).get("domains", []),
+                             "records": int((ev.get("payload") or {}).get("records") or 1), "event_id": ev["id"]})
         return {"since": since, "new_evidence": new_refs, "revised_evidence": revised, "open_conflicts": conflicts, "stale_claims": stale, "hypotheses": hypotheses,
                 "unanswered_routes": unanswered, "goal_changed": goal_changed, "goal_revision_ids": [r["revision_id"] for r in goal_revs], "new_documents": docs,
                 "scope_units": sorted(scope_units)}
@@ -1125,7 +1127,8 @@ class LoopEngine:
             for gid in goals_touched:
                 await self.goals.enqueue_tick(gid, reason="evidence changed", priority=3)
             aud = {"user_ids": [holder["owner_id"]] if holder["owner_type"] == "user" else [], "unit_ids": [holder["owner_id"]] if holder["owner_type"] == "unit" else []}
-            await self.db.emit(tid, "document.revised" if event == "revised" else "document.retracted", ref_type="holder", ref_id=holder["holder_id"],
+            await self.db.emit(tid, {"revised": "document.revised", "retracted": "document.retracted", "deleted": "document.retracted"}.get(event, "holder.status"),
+                               ref_type="holder", ref_id=holder["holder_id"],
                                payload={"holder_id": holder["holder_id"], "affected_claims": out["affected_claim_ids"], "doc_id": doc_id}, audience=aud)
         return out
 
@@ -1197,12 +1200,14 @@ class LoopEngine:
         if kind == "response":
             await self.questions.handle_response(payload, msg_id=env.msg_id, holder_id=hid)
         elif kind == "evidence_event":
-            if payload.get("event") in ("revised", "retracted"):
+            if payload.get("event") in ("revised", "retracted", "deleted", "unavailable", "restored"):
                 await self.apply_evidence_change(holder, payload["event"], payload.get("affected_ref_ids") or [], payload.get("new_source_root_id"),
                                                  doc_id=payload.get("doc_id"), reason=payload.get("reason", ""))
         elif kind == "ingest_result":
-            await self.db.emit(env.tenant_id, "document.ingested", ref_type="holder", ref_id=hid, payload={"holder_id": hid, "title": payload.get("title") or (payload.get("document") or {}).get("title"),
-                               "domains": payload.get("domains") or (payload.get("document") or {}).get("domains") or [], "doc_id": payload.get("doc_id") or (payload.get("document") or {}).get("doc_id")},
+            batch = payload.get("batch") if isinstance(payload.get("batch"), dict) else {}
+            await self.db.emit(env.tenant_id, "document.ingested", ref_type="holder", ref_id=hid, payload={"holder_id": hid,
+                               "domains": payload.get("domains") or (payload.get("document") or {}).get("domains") or [],
+                               "doc_id": payload.get("doc_id") or (payload.get("document") or {}).get("doc_id"), "records": int(batch.get("records") or 1)},
                                audience={"user_ids": [holder["owner_id"]] if holder["owner_type"] == "user" else [], "unit_ids": [holder["owner_id"]] if holder["owner_type"] == "unit" else []})
             await self.wake_goals_for_holder(holder)
         elif kind == "heartbeat":

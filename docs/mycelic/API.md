@@ -113,7 +113,15 @@ Holder process endpoints (bearer = holder key): `POST /holders/{holder_id}/heart
 
 ## Discoveries, claims, evidence, conflicts
 
-`discovery` = `{discovery_id, scope_unit_id, scope_unit_name, visibility, level, kind, title, summary, claim_ids, claims:[claim(summary)], goal_id, goal_title, question_id, status, escalated_to, followup_question_ids, reviews:[{user_id, user_name, action, note, at}], support:{independent_roots, copied_refs, unknown_independence, holders}, freshness_at, is_demo, created_at, updated_at}`
+Evidence changes reported by holders (`evidence_event.event`): `revised` (the reference keeps its root and stops
+counting; citing claims go `stale` and are re-verified), `retracted` (claims left without active support are
+retracted), `deleted` (as `retracted`, and the coordinator's copy of the content is purged: excerpt, title, the content
+of responses that cited it, and per tenant policy `deletion.derived_text` — `purge_if_unsupported` (default),
+`purge_always` or `retain` — the text of claims retracted because of it), `unavailable` / `restored` (access lost or
+regained: the reference stops or resumes counting). Claim kinds `hypothesis` and `prediction`, and claims marked
+`causal`, never become `supported`.
+
+`discovery` = `{discovery_id, scope_unit_id, scope_unit_name, visibility, level, kind, title, summary, claim_ids, claims:[claim(summary)], goal_id, goal_title, question_id, status, escalated_to, followup_question_ids, reviews:[{user_id, user_name, action, note, at}], support:{independent_roots, copied_refs, unknown_independence, holders}, freshness_at, is_demo, created_at, updated_at, evidence_health:{status: healthy|degraded|unsupported, active_refs, inactive_refs, claims:{supported, hypothesis, contested, stale, retracted}}}`
 
 `claim` = `{claim_id, scope_unit_id, visibility, text, kind, status, confidence, valid_from, valid_to, version, supersedes_claim_id, superseded_by, goal_id, question_id, created_by:{type, id, name}, support:{independent_roots:n, copied_refs:n, unknown_independence:n, holders:[holder_id], roots:[source_root_id]}, freshness_at, created_at, updated_at}`
 

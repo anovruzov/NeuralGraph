@@ -118,7 +118,8 @@ _register(TaskSpec(
         "Responses come from separate evidence holders (each: response_id, holder_id, content, confidence, refs[{ref_id, root_id, "
         "root_known, observed_at}]). Extract findings that the responses support: each {text, kind (finding|hypothesis|relationship|"
         "measurement), confidence 0..1, supporting_response_ids, supporting_ref_ids}. Two responses that say the same thing are one "
-        "finding with both as support. Record disagreements as {summary, a_text, b_text, a_response_ids, b_response_ids}. Judge "
+        "finding with both as support. Use kind 'hypothesis' only for a conjecture the evidence does not state (e.g. a causal "
+        "link between findings); an observation from a single source is a 'finding'. Record disagreements as {summary, a_text, b_text, a_response_ids, b_response_ids}. Judge "
         "relevance to the question 0..1 and note freshness (observed_at vs today).\n"
         "<data>{input_json}</data>"),
     fake_rules=(
@@ -126,7 +127,7 @@ _register(TaskSpec(
         "mismatch AND no negation mismatch; they DISAGREE when they share >= 3 content tokens AND (their numbers differ, or exactly one "
         "contains a negation token: not|no|never|longer). Findings: one per agreement cluster (text = the longest member's content, "
         "kind 'finding', confidence = min(0.95, 0.6 + 0.15*(n-1)), supporting_response_ids = cluster, supporting_ref_ids = union of "
-        "their refs), plus one 'hypothesis' finding (confidence 0.5) per response in no cluster and not in a disagreement. "
+        "their refs), plus one 'finding' (confidence 0.5) per response in no cluster and not in a disagreement. "
         "Disagreements: one per disagreeing pair. relevance = 0.8 if any answered response else 0.2. Empty/no_evidence responses ignored."),
 ))
 

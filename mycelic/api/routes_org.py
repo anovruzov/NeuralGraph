@@ -131,8 +131,9 @@ def holder_audience(rt: Any, h: dict[str, Any]) -> dict[str, Any]:
 async def emit_document_event(rt: Any, h: dict[str, Any], kind: str, doc: dict[str, Any] | None, **extra: Any) -> None:
     doc = doc or {}
     await rt.db.emit(h["tenant_id"], kind, ref_type="holder", ref_id=h["holder_id"],
-                     payload={"holder_id": h["holder_id"], "title": doc.get("title"), "domains": doc.get("domains") or [], "doc_id": doc.get("doc_id"),
-                              "version": doc.get("version"), **extra}, audience=holder_audience(rt, h))
+                     # ids, domains and counts only: a document title is content and stays with the holder
+                     payload={"holder_id": h["holder_id"], "domains": doc.get("domains") or [], "doc_id": doc.get("doc_id"),
+                              "version": doc.get("version"), "records": 1, **extra}, audience=holder_audience(rt, h))
 
 
 async def publish_to_holder(rt: Any, h: dict[str, Any], kind: str, payload: dict[str, Any], *, subject: str, msg_id: str | None = None,
@@ -835,7 +836,7 @@ def setup(app: web.Application, prefix: str = "/api") -> None:
         if store is not None:
             doc = await store.ingest_document(title, text, kind=kind, observed_at=observed_at, domains=domains, origin_id=origin_id, uploaded_by=p.id)
             await emit_document_event(rt, h, "document.ingested", doc, uploaded_by=p.id)
-            await rt.db.audit(p.tenant_id, "user", p.id, "document.ingest", resource_type="holder", resource_id=h["holder_id"], detail={"doc_id": doc.get("doc_id"), "title": title},
+            await rt.db.audit(p.tenant_id, "user", p.id, "document.ingest", resource_type="holder", resource_id=h["holder_id"], detail={"doc_id": doc.get("doc_id")},
                               request_id=request.get("request_id"))
             try:
                 await rt.engine.wake_goals_for_holder(h)
@@ -848,7 +849,7 @@ def setup(app: web.Application, prefix: str = "/api") -> None:
         await publish_to_holder(rt, h, "ingest", {"doc_id": doc_id, "title": title, "text": text, "kind": kind, "observed_at": observed_at, "domains": domains,
                                                   "origin_id": origin_id, "uploaded_by": p.id}, subject=Subjects.holder_ingest(p.tenant_id, h["holder_id"]),
                                 msg_id=f"ingest:{doc_id}")
-        await rt.db.audit(p.tenant_id, "user", p.id, "document.ingest", resource_type="holder", resource_id=h["holder_id"], detail={"doc_id": doc_id, "title": title, "async": True},
+        await rt.db.audit(p.tenant_id, "user", p.id, "document.ingest", resource_type="holder", resource_id=h["holder_id"], detail={"doc_id": doc_id, "async": True},
                           request_id=request.get("request_id"))
         return json_response({"document": {"doc_id": doc_id, "holder_id": h["holder_id"], "title": title, "kind": kind, "source_root_id": None, "observed_at": observed_at,
                                            "status": "indexing", "version": 1, "chars": len(text), "chunks": 0, "domains": domains or []}}, 202)

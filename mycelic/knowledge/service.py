@@ -15,7 +15,7 @@ from ..authz import Authorizer, Forbidden, Principal
 from ..db.coord import CoordDB, row_to_dict, rows_to_dicts
 from ..org import LEVEL_FOR_UNIT_TYPE, OrgService
 from ..util import j, jl, new_id, now_iso, sha256
-from .gate import CommitGate, GateResult
+from .gate import CommitGate, GateResult, status_cap
 from .support import compute_support, freshness, is_active
 
 logger = logging.getLogger(__name__)
@@ -26,6 +26,29 @@ REF_JSON = ("meta",)
 CONFLICT_JSON = ("investigation", "resolution")
 DERIVATION_JSON = ("input_claim_ids", "input_ref_ids", "response_ids")
 REVISION_JSON = ("before", "after")
+
+
+EVIDENCE_EVENTS = ("revised", "retracted", "deleted", "unavailable", "restored")
+DELETED_TEXT = "[removed: source deleted]"
+DELETED_TITLE = "[deleted]"
+
+
+def evidence_health(claims: Iterable[Mapping[str, Any]], refs: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
+    """A discovery's evidence health, derived from its claims and their supporting references (G22): ``healthy`` when every
+    claim stands on current evidence, ``degraded`` when some support changed, was withdrawn or is stale, ``unsupported``
+    when no claim has current support any more."""
+    claims = list(claims)
+    supporting = [r for r in refs if r.get("role") == "supports"]
+    active = [r for r in supporting if is_active(r)]
+    counts = {s: sum(1 for c in claims if c["status"] == s) for s in ("supported", "hypothesis", "contested", "stale", "retracted")}
+    standing = [c for c in claims if c["status"] != "retracted"]
+    if not standing or not active:
+        status = "unsupported"
+    elif counts["retracted"] or counts["stale"] or len(active) < len(supporting):
+        status = "degraded"
+    else:
+        status = "healthy"
+    return {"status": status, "active_refs": len(active), "inactive_refs": len(supporting) - len(active), "claims": counts}
 
 
 class KnowledgeService:
@@ -166,6 +189,8 @@ class KnowledgeService:
         scope = candidate.get("scope_unit_id")
         support = dict(result.support)
         support["freshness"] = result.freshness
+        if candidate.get("causal"):
+            support["causal"] = True
         async with self.db.tx() as c:
             c.execute(
                 """INSERT INTO claims(claim_id, tenant_id, scope_unit_id, visibility, owner_user_id, text, kind, status, confidence, valid_from, valid_to,
@@ -438,6 +463,8 @@ class KnowledgeService:
         support = compute_support(refs)
         fresh = freshness(supporting, freshness_days=float(pol.get("freshness_days", 90)))
         support["freshness"] = fresh
+        if (claim.get("support") or {}).get("causal"):
+            support["causal"] = True          # the marker survives recomputation, and so does its cap
         open_conf = self.conflicts_for_claim(claim_id, status="open") + self.conflicts_for_claim(claim_id, status="investigating")
         if open_conf:
             status = "contested"
@@ -449,7 +476,8 @@ class KnowledgeService:
             status = "supported"
         else:
             status = "hypothesis"
-        if cap == "hypothesis" and status == "supported":
+        kind_cap, _why = status_cap(claim.get("kind"), bool((claim.get("support") or {}).get("causal")))
+        if (cap == "hypothesis" or kind_cap == "hypothesis") and status == "supported":
             status = "hypothesis"
         if status == claim["status"] and (claim.get("support") or {}).get("independent_roots") == support["independent_roots"]:
             return claim
@@ -474,36 +502,74 @@ class KnowledgeService:
     # ================================================================== evidence change propagation
     async def on_evidence_event(self, principal: Principal, tenant_id: str, holder_id: str, event: str, affected_ref_ids: Iterable[str],
                                 *, new_source_root_id: str | None = None, reason: str = "") -> dict[str, Any]:
-        """A holder revised or retracted evidence. Idempotent: only references whose state actually changes propagate, so a
-        redelivered event changes nothing. Claims citing a changed reference become ``stale`` (re-verification follows), or
-        ``retracted`` when a retraction leaves them with no active supporting evidence; derived claims are marked stale."""
+        """A holder reports a change to evidence it disclosed (docs/mycelic/INGESTION.md §9.6, §12.2).
+
+        * ``revised``: the source changed. The reference keeps its original root (its excerpt is the old content); claims
+          citing it become ``stale`` and are re-verified.
+        * ``retracted``: the source was withdrawn. Claims left without active support are retracted, the others stale.
+        * ``deleted``: as ``retracted``, and the content the coordinator holds is purged: the reference's excerpt and
+          title, the content of responses that cited it, and (tenant policy ``deletion.derived_text``, default
+          ``purge_if_unsupported``) the text of claims retracted because of it when the reference disclosed an excerpt.
+        * ``unavailable`` / ``restored``: access was lost or came back. The reference stops or resumes counting and the
+          claims citing it are recomputed.
+
+        Idempotent: only references whose state actually changes propagate, so a redelivered event changes nothing."""
+        if event not in EVIDENCE_EVENTS:
+            raise ValueError(f"unknown evidence event {event!r}")
         ids = [r for r in dict.fromkeys(affected_ref_ids)]
         if not ids:
-            return {"affected_claim_ids": [], "ref_ids": [], "changed_ref_ids": []}
-        status = "retracted" if event == "retracted" else "revised"
+            return {"affected_claim_ids": [], "ref_ids": [], "changed_ref_ids": [], "event": event}
+        target = {"revised": "revised", "retracted": "retracted", "deleted": "retracted", "unavailable": "unavailable", "restored": "active"}[event]
         now = now_iso()
         changed: list[str] = []
+        excerpt_refs: set[str] = set()
         async with self.db.tx() as c:
             for rid in ids:
-                r = c.execute("SELECT status, version, source_root_id, meta FROM evidence_refs WHERE ref_id=? AND tenant_id=? AND holder_id=?", (rid, tenant_id, holder_id)).fetchone()
+                r = c.execute("SELECT status, version, meta, disclosure_level FROM evidence_refs WHERE ref_id=? AND tenant_id=? AND holder_id=?",
+                              (rid, tenant_id, holder_id)).fetchone()
                 if r is None:
                     continue
                 meta = jl(r["meta"], {}) or {}
-                if r["status"] == "retracted" or (r["status"] == status and (status == "retracted" or not new_source_root_id or new_source_root_id == meta.get("revised_root_id"))):
-                    continue        # already in this state: a replayed or redundant event
-                # the reference keeps the root of the content it disclosed (the excerpt is the old content); the new
-                # version's root is recorded for lineage and arrives as a new reference when a holder answers again
-                if status == "revised":
+                cur = r["status"]
+                # already in this state: a replayed or redundant event
+                if event == "restored" and cur != "unavailable":
+                    continue
+                if event == "unavailable" and cur != "active":
+                    continue
+                if event == "deleted" and meta.get("deleted_at"):
+                    continue
+                if event in ("revised", "retracted") and cur == "retracted":
+                    continue
+                if event == "revised" and cur == "revised" and (not new_source_root_id or new_source_root_id == meta.get("revised_root_id")):
+                    continue
+                if event == "revised":
                     meta.update({"revised_at": now, **({"revised_root_id": new_source_root_id} if new_source_root_id else {})})
+                elif event == "restored":
+                    meta.pop("unavailable_at", None)
+                    meta["restored_at"] = now
                 else:
-                    meta.update({"retracted_at": now})
-                c.execute("UPDATE evidence_refs SET status=?, version=version+1, updated_at=?, meta=? WHERE ref_id=?", (status, now, j(meta), rid))
-                self._revision_sync(c, tenant_id, "evidence_ref", rid, int(r["version"]) + 1, principal, reason or event, {"status": r["status"]}, {"status": status})
+                    meta[f"{event}_at"] = now
+                if event == "deleted":
+                    c.execute("UPDATE evidence_refs SET status='retracted', disclosed_excerpt='', title=?, version=version+1, updated_at=?, meta=? WHERE ref_id=?",
+                              (DELETED_TITLE, now, j(meta), rid))
+                    if (r["disclosure_level"] or "") == "excerpt":
+                        excerpt_refs.add(rid)
+                else:
+                    c.execute("UPDATE evidence_refs SET status=?, version=version+1, updated_at=?, meta=? WHERE ref_id=?", (target, now, j(meta), rid))
+                # the revision row records the status change only, never content
+                self._revision_sync(c, tenant_id, "evidence_ref", rid, int(r["version"]) + 1, principal, event, {"status": cur}, {"status": target})
                 changed.append(rid)
+            if event == "deleted" and changed:
+                # responses may quote the deleted evidence verbatim: their content goes too
+                for rid in changed:
+                    c.execute("UPDATE responses SET content=? WHERE tenant_id=? AND holder_id=? AND evidence_ref_ids LIKE ? AND content<>?",
+                              (DELETED_TEXT, tenant_id, holder_id, f'%"{rid}"%', DELETED_TEXT))
             if changed:
-                self.db.audit_sync(c, tenant_id, "holder", holder_id, f"evidence.{event}", resource_type="evidence_ref", resource_id=",".join(changed)[:200], detail={"count": len(changed)})
+                self.db.audit_sync(c, tenant_id, "holder", holder_id, f"evidence.{event}", resource_type="evidence_ref", resource_id=",".join(changed)[:200],
+                                   detail={"count": len(changed), "reason": (reason or "")[:120]})
         if not changed:
-            return {"affected_claim_ids": [], "ref_ids": ids, "changed_ref_ids": []}
+            return {"affected_claim_ids": [], "ref_ids": ids, "changed_ref_ids": [], "event": event}
+        derived_policy = str((self.org.policy(tenant_id, "deletion", {}) or {}).get("derived_text") or "purge_if_unsupported")
         # only claims the reference still supports (context and superseded links do not make a claim stale)
         rows = self.db.all(f"SELECT DISTINCT claim_id FROM claim_evidence WHERE role='supports' AND ref_id IN ({','.join('?' * len(changed))})", changed)
         affected: list[str] = []
@@ -511,18 +577,54 @@ class KnowledgeService:
             claim = self.get_claim(r["claim_id"])
             if not claim or claim["status"] == "retracted":
                 continue
-            remaining = [x for x in self.effective_refs_for_claim(claim)[0] if x.get("role") == "supports" and is_active(x)]
-            if status == "retracted" and not remaining:
-                await self.revise_claim(principal, claim["claim_id"], status="retracted", reason=f"all supporting evidence retracted: {reason or 'source deleted'}",
-                                        event_kind="claim.retracted")
-                affected.append(claim["claim_id"])
-                affected.extend(await self._propagate_status(principal, claim["claim_id"], "stale", reason=f"input claim {claim['claim_id']} retracted"))
+            cid = claim["claim_id"]
+            if event in ("unavailable", "restored"):
+                after = await self.recompute_status(principal, cid, reason=f"evidence {event}: {reason or 'access changed'}")
+                if after["status"] != claim["status"]:
+                    affected.append(cid)
                 continue
+            remaining = [x for x in self.effective_refs_for_claim(claim)[0] if x.get("role") == "supports" and is_active(x)]
+            if target == "retracted" and not remaining:
+                await self.revise_claim(principal, cid, status="retracted", reason=f"all supporting evidence {'deleted' if event == 'deleted' else 'retracted'}",
+                                        event_kind="claim.retracted")
+                cited = {x["ref_id"] for x in self.refs_for_claim(cid)}
+                if event == "deleted" and (derived_policy == "purge_always" or (derived_policy == "purge_if_unsupported" and cited & excerpt_refs)):
+                    await self._scrub_claim_text(tenant_id, cid)
+                affected.append(cid)
+                affected.extend(await self._propagate_status(principal, cid, "stale", reason=f"input claim {cid} retracted"))
+                continue
+            if event == "deleted" and derived_policy == "purge_always":
+                await self._scrub_claim_text(tenant_id, cid)
             if claim["status"] != "stale":
-                await self.revise_claim(principal, claim["claim_id"], status="stale", reason=f"evidence {event}: {reason or 'source changed'}", event_kind="claim.stale")
-            affected.append(claim["claim_id"])
-            affected.extend(await self._propagate_status(principal, claim["claim_id"], "stale", reason=f"input claim {claim['claim_id']} became stale"))
-        return {"affected_claim_ids": list(dict.fromkeys(affected)), "ref_ids": ids, "changed_ref_ids": changed}
+                await self.revise_claim(principal, cid, status="stale", reason=f"evidence {event}: {reason or 'source changed'}", event_kind="claim.stale")
+            affected.append(cid)
+            affected.extend(await self._propagate_status(principal, cid, "stale", reason=f"input claim {cid} became stale"))
+        affected = list(dict.fromkeys(affected))
+        await self._touch_discoveries(tenant_id, affected, action=f"evidence_{event}")
+        return {"affected_claim_ids": affected, "ref_ids": ids, "changed_ref_ids": changed, "event": event}
+
+    async def _scrub_claim_text(self, tenant_id: str, claim_id: str) -> None:
+        """Remove a claim's text, and its copies in the claim's revision history, after its source was deleted."""
+        async with self.db.tx() as c:
+            c.execute("UPDATE claims SET text=?, updated_at=? WHERE claim_id=? AND tenant_id=?", (DELETED_TEXT, now_iso(), claim_id, tenant_id))
+            for col in ("before", "after"):
+                c.execute(f"UPDATE revisions SET {col}=json_set({col}, '$.text', ?) WHERE object_type='claim' AND object_id=? AND json_extract({col}, '$.text') IS NOT NULL",
+                          (DELETED_TEXT, claim_id))
+            self.db.audit_sync(c, tenant_id, "system", "knowledge", "claim.text_purged", resource_type="claim", resource_id=claim_id, detail={"reason": "source deleted"})
+
+    async def _touch_discoveries(self, tenant_id: str, claim_ids: list[str], *, action: str) -> None:
+        """Discoveries built on changed claims: their (derived) evidence health changed, so viewers are told."""
+        if not claim_ids:
+            return
+        rows = self.db.all(f"SELECT DISTINCT d.discovery_id, d.scope_unit_id, d.visibility FROM discoveries d, json_each(d.claim_ids) AS x "
+                           f"WHERE d.tenant_id=? AND x.value IN ({','.join('?' * len(claim_ids))})", (tenant_id, *claim_ids))
+        if not rows:
+            return
+        async with self.db.tx() as c:
+            for d in rows:
+                c.execute("UPDATE discoveries SET updated_at=? WHERE discovery_id=?", (now_iso(), d["discovery_id"]))
+                self.db.emit_sync(c, tenant_id, "discovery.updated", ref_type="discovery", ref_id=d["discovery_id"], payload={"action": action},
+                                  audience={"unit_ids": [d["scope_unit_id"]] if d["scope_unit_id"] else [], "visibility": d["visibility"]})
 
     async def sweep_stale(self, principal: Principal, tenant_id: str) -> list[str]:
         """Scheduled check: claims whose newest supporting evidence is older than the freshness policy become stale."""
@@ -552,6 +654,7 @@ class KnowledgeService:
             refs.extend(self.refs_for_claim(cl["claim_id"]))
         sup = compute_support(refs)
         out["support"] = {"independent_roots": sup["independent_roots"], "copied_refs": sup["copied_refs"], "unknown_independence": sup["unknown_independence"], "holders": sup["holders"]}
+        out["evidence_health"] = evidence_health(claims, refs)
         out["freshness_at"] = max((cl.get("freshness_at") or "" for cl in claims), default=None) or None
         out["reviews"] = [dict(r, user_name=(self.org.get_user(r["user_id"]) or {}).get("name", "")) for r in rows_to_dicts(self.db.all("SELECT * FROM discovery_reviews WHERE discovery_id=? ORDER BY id", (out["discovery_id"],)))]
         out["status_counts"] = {s: sum(1 for x in claims if x["status"] == s) for s in ("supported", "hypothesis", "contested", "stale", "retracted")}

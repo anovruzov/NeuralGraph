@@ -327,7 +327,9 @@ def evaluate_responses(inp: dict[str, Any]) -> dict[str, Any]:
                              "confidence": round(min(0.95, 0.6 + 0.15 * (len(members) - 1)), 4),
                              "supporting_response_ids": ids, "supporting_ref_ids": ref_ids})
         elif cluster[0] not in in_disagreement:
-            findings.append({"text": members[0][1], "kind": "hypothesis", "confidence": 0.5,
+            # one source: an observation (kind finding) whose status the commit gate keeps at hypothesis until another
+            # independent source confirms it; kind 'hypothesis' is reserved for conjectures, which never become supported
+            findings.append({"text": members[0][1], "kind": "finding", "confidence": 0.5,
                              "supporting_response_ids": ids, "supporting_ref_ids": ref_ids})
 
     today = _s(inp.get("today"))[:10]

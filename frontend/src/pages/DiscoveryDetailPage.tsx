@@ -65,6 +65,12 @@ export function DiscoveryDetailPage() {
                 <Badge tone="outline">{titleCase(disc.kind)}</Badge>
                 <Badge tone="outline">{titleCase(disc.level)} level</Badge>
                 <Badge tone="outline">{disc.visibility}</Badge>
+                {disc.evidence_health && disc.evidence_health.status !== 'healthy' ? (
+                  <Badge tone={disc.evidence_health.status === 'unsupported' ? 'danger' : 'warn'}
+                         title={`${disc.evidence_health.inactive_refs} supporting reference(s) changed, withdrawn or deleted at the source`}>
+                    evidence {disc.evidence_health.status}
+                  </Badge>
+                ) : null}
                 {disc.is_demo ? <Badge tone="outline">demo</Badge> : null}
                 <FreshnessBadge freshness_at={disc.freshness_at} />
                 <span>· {disc.scope_unit_name ?? 'private'}{disc.goal_id ? <> · goal <Link to={`/app/goals/${disc.goal_id}`}>{disc.goal_title ?? disc.goal_id}</Link></> : null}{disc.question_id ? <> · from <Link to={`/app/questions/${disc.question_id}`}>question</Link></> : null} · {fmtDate(disc.updated_at)}</span>

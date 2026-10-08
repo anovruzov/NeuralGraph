@@ -26,6 +26,8 @@ question      QuestionArtifact (+ ``route_id``)             ``response`` on ``re
 ingest        {title, text, kind?, observed_at?, ...}       ``ingest_result`` on ``ingest_results(tenant)``
 revise        {doc_id, text, title?, observed_at?, reason}  ``evidence_event`` {event: revised, affected_ref_ids, ...}
 retract       {doc_id, reason}                              ``evidence_event`` {event: retracted, affected_ref_ids, ...}
+              (connectors also send ``deleted`` — the coordinator purges its copy of the content — ``unavailable`` and
+              ``restored``; see docs/mycelic/API.md)
 raw_request   {ref_id, grant_token}                         ``raw_reply`` on the envelope's reply subject
 control       {action: stats | reload_policy | manual_response, ...}
                                                             ``control_reply`` on the reply subject; ``manual_response``

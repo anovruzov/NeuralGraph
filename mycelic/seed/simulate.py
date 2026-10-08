@@ -124,7 +124,7 @@ def make_handler(rt: Any):
                                                  uploaded_by=doc["uploaded_by"], doc_id=doc_id)
             owner_aud = {"user_ids": [holder["owner_id"]]} if holder["owner_type"] == "user" else {"unit_ids": [holder["owner_id"]]}
             await rt.db.emit(tid, "document.ingested", ref_type="holder", ref_id=hid,
-                             payload={"holder_id": hid, "title": result["title"], "domains": result["domains"], "doc_id": result["doc_id"], "simulated": True},
+                             payload={"holder_id": hid, "domains": result["domains"], "doc_id": result["doc_id"], "records": 1, "simulated": True},
                              audience=owner_aud)
             woken = await rt.engine.wake_goals_for_holder(holder)
             delivery = "store"
