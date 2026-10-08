@@ -70,8 +70,11 @@ reference while building.
 >   member-restricted record widens who can read that claim's text (not the record itself, which raw access still
 >   re-checks at the holder). Until claims carry the audience they were disclosed to, grants on such claims should be
 >   made with that in mind.
-> * Not built yet: provider connectors (GitHub, Slack, Gmail, Drive), `ConnectorHttp`, the webhook API, the per-holder
->   scheduler/runtime, E9, cross-app linking (§8), shard splits and fan-out (§7.3+), and the Integrations UI.
+> * Built since: `ConnectorHttp` (`mycelic/ingest/http.py`), the GitHub and Slack connectors (tested offline against mocks,
+>   not live-verified), the webhook API and the per-holder runtime (`mycelic/ingest/runtime.py`), cross-app linking (§8,
+>   deterministic part, `mycelic/ingest/linking.py`), the Integrations UI, document uploads (DOCX, PDF, CSV, JSON, JSONL)
+>   and honest scaffolds for the Phase 2 apps. Not built yet: E9's export importers, shard splits and fan-out (§7.3+),
+>   the model-based relation extractor (`extract_org_relations`).
 
 ---
 
@@ -3129,6 +3132,9 @@ Supporting tests:
 
 A row is implemented only where its "Implemented" column says yes. "Fixtures" means a faithful local fake or file
 fixture exists and the connector passes against it. "Live-verified" means it has been run against the real provider.
+Planned apps that the catalog lists as **scaffolds** (shown as "Planned", refused on connect, with the permissions they
+would request): Gmail, Google Drive, Google Calendar, Google Docs, Microsoft Teams, Outlook, SharePoint, OneDrive,
+Notion, Confluence, Jira, Linear, Salesforce, PostgreSQL, MySQL, S3 (`connectors/scaffolds.py`).
 
 | Connector | Mode | Auth | Phase | Implemented | Tested with fixtures | Live-verified | Notes |
 |---|---|---|---|---|---|---|---|
@@ -3153,7 +3159,7 @@ fixture exists and the connector passes against it. "Live-verified" means it has
 | Zendesk | pull (incremental export) + webhooks | OAuth/API token | 2 | no | no | no | customer-impact domain |
 | Generic REST | pull | configurable (API key / OAuth) | 3 | no | no | no | declarative mapping spec |
 | Signed webhooks (generic) | webhook | HMAC (§10.3) | 2 | no | no | no | |
-| Local files / authorized exports | export | none | 1b | no | no | n/a | txt/md/csv/json; same path as uploads |
+| Local files / authorized exports | export | none | 1b | yes (`connectors/local_export.py`) | yes | n/a | JSON/JSONL exports in the holder's import directory; uploads (txt, md, csv, json, jsonl, docx, pdf) go through the documents API |
 | MCP source adapters | pull | per server | 3 | no | no | no | read-only resource listing; the server is untrusted, with a tool allow-list |
 
 ---
