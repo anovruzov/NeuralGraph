@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import functools
 import getpass
 import json
 import logging
@@ -67,6 +68,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
 sys.path.insert(0, str(ROOT))
 
+from demo.collective import codes_miss as cm  # noqa: E402
 from demo.collective import screen as scr  # noqa: E402
 from demo.collective.scenario import DEFAULT as DEFAULT_SCENARIO  # noqa: E402
 from demo.collective.scenario import DemoWorld, Scenario, ScenarioError, build_world, load_scenario  # noqa: E402
@@ -386,6 +388,7 @@ LEAKAGE_SCHEMA = _obj({
 })
 APPROVAL_HEAD_SCHEMA = _obj({"kind": {"type": "string", "const": runfiles.HEAD_KIND}, "head_hash": _NH32,
                              "entries": _I, "label": _S})
+_CODES_MISS = schemacheck.compile(cm.SCHEMA)     # only a codes-miss scenario's scorecard carries the block
 _COMPILED = {name: schemacheck.compile(s) for name, s in (
     ("scorecard.json", SCORECARD_SCHEMA), ("trace.json", TRACE_SCHEMA), ("leakage.json", LEAKAGE_SCHEMA),
     ("ledger.jsonl", LEDGER_ROW_SCHEMA), ("head", APPROVAL_HEAD_SCHEMA))}
@@ -450,6 +453,10 @@ def validate_run(docs: Mapping[str, Any]) -> list[tuple[str, str, str]]:
             out += [(name, p, k) for p, k in _approval_problems(doc)]
         elif name == "screen.json":
             out += [(name, p, k) for p, k in scr.screen_problems(doc)]
+        elif name == "scorecard.json" and isinstance(doc, dict) and "codes_miss" in doc:
+            rest = {k: v for k, v in doc.items() if k != "codes_miss"}
+            out += [(name, p, k) for p, k in _COMPILED[name].validate(rest)]
+            out += [(name, "$.codes_miss" + p[1:], k) for p, k in _CODES_MISS.validate(doc["codes_miss"])]
         else:
             out += [(name, p, k) for p, k in _COMPILED[name].validate(doc)]
     return out
@@ -666,6 +673,10 @@ class DemoEngine:
         self.verifier_sites: list[EdgeSite] = []
         self.manifest: Any = None
         self.detection: dict[str, Any] | None = None
+        self.without: str | None = None     # an item left out of the world (the codes-miss counterfactual)
+        self.raw: dict[str, Any] = {}       # each rule channel's full detection result (codes_miss.py reads it)
+        self.codes_miss: dict[str, Any] | None = None   # the rule's block without the gate (codes_miss.py)
+        self.codes_miss_variants = True     # False in the rule's own detection-only variant engines
         self.alerts: dict[str, Any] = {}
         self.x_result: dict[str, Any] | None = None
         self.decoys: list[dict[str, Any]] = []
@@ -768,7 +779,7 @@ class DemoEngine:
         t0 = time.monotonic()
         sc, pack, rec = self.sc, self.pack, self.rec
         rec.emit("run_start", {"mode": self.mode, "scenario_digest": sc.digest})
-        world = self.world = build_world(sc)
+        world = self.world = build_world(sc, without=self.without)
         self.manifest = write_manifest(world.manifest, self.workdir / "private" / "manifest.json")
         rec.emit("stage", {"name": "world", "values": [
             {"name": "records", "value": len(world.records)}, {"name": "sites", "value": len(self.site_ids)},
@@ -815,6 +826,12 @@ class DemoEngine:
         finally:
             for site in sites.values():
                 site.close()
+        if sc.codes_miss is not None and self.codes_miss_variants:
+            # the pre-registered rule (docs/collective/b1/PREREG.md): the robustness seeds and the grid are
+            # detection-only runs of variant scenarios, each against its own world without the hero item; the gate is
+            # applied when the scorecard is written, so every screen of the run carries the statement
+            self.codes_miss = cm.evaluate_detection(sc, cm.engine_detection(self),
+                                                    functools.partial(cm.detect_only, routing=self.routing))
         self.timings["prepare_s"] = round(time.monotonic() - t0, 3)
 
     def _detect(self, sites: Mapping[str, EdgeSite]) -> None:
@@ -837,6 +854,8 @@ class DemoEngine:
         single = baselines.single_site_alerts(pipeline, tie_salt=salt)
         self.rec.emit("stage", {"name": "baselines", "values": [{"name": "channels", "value": len(CHANNELS)}]})
         alerts = {"X": x["alerts"], "S": s["alerts"], "R_mf": r["alerts"], "U": u["alerts"], "single_site": single}
+        self.raw = {"X": x, "S": s, "R_mf": r, "weeks": tuple(weeks), "last_week": self.last_week,
+                    "cooldown_weeks": pack.detectors["cooldown_weeks"]}
         hero = sc.hero
         hero_key = hero.keys[0]
         first = world.weeks[hero.start_week]
@@ -1378,6 +1397,8 @@ class DemoEngine:
                 "detection": detection, "pushdown": self.pushdown,
                 "followup": self._followup_doc(labels_by_task["draft"])},
             "decoys": [{k: v for k, v in d.items() if not k.startswith("_")} for d in self.decoys],
+            **({"codes_miss": cm.with_gate(self.codes_miss, self.pushdown["gate"]["status"] if self.pushdown
+                                           else None)} if self.codes_miss is not None else {}),
             "leakage": {"scope": "text-only", "canaries_planted": len(self.manifest.canaries),
                         "window_chars": SHINGLE_CHARS,
                         "after_pushdown": ({"hit_count": after["hit_count"],
@@ -1860,6 +1881,9 @@ def run_record(args: argparse.Namespace) -> int:
     status = hero["pushdown"]["gate"]["status"] if hero["pushdown"] else "not checked"
     print(f"collective demo: run={args.run_id} hero X rank={hero['detection']['X']['rank']} gate={status} "
           f"checks {passed}/{len(sc_doc['checks'])} -> {out_dir}")
+    if "codes_miss" in sc_doc:
+        for line in cm.summary_lines(sc_doc["codes_miss"]):
+            print(f"codes miss: {line}")
     print(f"record: {time.monotonic() - t0:.1f} s")
     return code
 

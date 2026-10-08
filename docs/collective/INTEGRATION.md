@@ -2869,3 +2869,61 @@ Changed, never weakened:
   them would need a pipeline per shadow world and variant; the prereg's cap is 60 pipelines and B3b needs 54, so this
   round does not add them. `all` is still calibrated on the shadow cells, its only part with a shadow analogue; the
   review found the primary family unaffected, and the fixture's `all` entries are unchanged.
+
+## B1b: the constructed codes-miss scenario (attempt 1)
+
+Built directly by the orchestrating session (the planner, engineer and reviewer agents were unavailable: their weekly
+limit was reached), exactly as `docs/collective/b1/PREREG.md` fixed it before any codes-miss world existed. The PREREG
+is not edited. ARCHITECTURE 17.10 describes the mechanism.
+
+**What was added.** `demo/collective/scenario_codes_miss.json` (the PREREG section 3 cast); in `scenario.py` the
+optional `codes_miss` block, the background shift, the realism checks R1 to R8 and `build_world(..., without=)`;
+`demo/collective/codes_miss.py` (the rule verbatim, the robustness seeds, the grid, the cooldown replay, the gate);
+the engine evaluates the rule when it prepares and applies the gate when it writes the scorecard; the scorecard's
+`codes_miss` block on its own closed schema; the screen's statement, author note, shift and verdict blocks; the CLI's
+`codes miss:` lines; `tests/mycelic/test_collective_codes_miss.py`.
+
+**Nothing computed alerts on the codes-miss digest before attempt 1.** The tests parse and build the scenario and its
+in-test copies (each breaking one constraint) without detection, run the rule on synthetic detection results, and
+read the committed attempt files. The real `detect_only` path was exercised once, before the attempt, on the first
+(Halvern) scenario, which is not a codes-miss digest.
+
+### Attempts
+
+| # | Scenario digest | What changed, and why | Outcome, from its own scorecard |
+|---|---|---|---|
+| 1 | `c534c9b76d956daad5bea2b274f41e66` | Nothing: the pre-registered cast | **Does not hold.** X caught the hero (`x_caught` true, first alert `2024-W32`, the hero's first week is `2024-W31`), gate `supported`; R (model-free) and S both have an attributed alert of `lot:L10002:malfunction_unspecified` in `2024-W31` (rank 1 and 2), so `holds_main` false and `holds` false. `robust_holding` 4 of 8 (`holds_robust` true), `grid_holding` 1 of 6, `holds_strict` false. |
+
+Attempt 1 is in `docs/collective/b1/attempts/attempt-1/` (scenario bytes, the six run files of its first recording,
+and a README read from its scorecard). Its attempt-fatal checks pass (X caught, gate supported); `holds` is false, so
+the PREREG allows another attempt within R1 to R8, adjusting only the hero lot, the hero sites and languages, the hero
+rate, the hero start week and the hero templates. **What every page now says:** the scenario exists and its first
+attempt does not illustrate the case; no committed run shows a case the fields allowed to leave miss.
+
+**Why it fails, as far as the scorecard shows.** R reads record-level counts of the allowed fields with no
+k-suppression, and the hero's lot field is filled in 60% of the hero records (R4 fixes the generator's rate), so the
+hero's lot under the generic code rises visibly in the case's first week despite the intake form writing that code on
+every complaint. X's own key first alerted a week later.
+
+### Checks
+
+- The first scenario's recorded run re-records with the same content hash (`8e851b4b796fc72165880791866ad11e`); its
+  screen, trace and leakage files differ only in the recording time and the timings' byte counts.
+- `python demo/collective/lint_numbers.py docs/collective/b1/attempts/attempt-1`: ok.
+- `tests/mycelic/test_collective_codes_miss.py` (new), `test_collective_demo.py` and `test_collective_guards.py` pass;
+  `codes_miss.py` is on the determinism list.
+
+### Earlier tests whose expectation changed
+
+- `CodesMissStatusTests::test_the_pages_say_whether_the_codes_miss_illustration_exists` (audit round 4) now takes its
+  "built" branch: the scenario file and `b1/attempts/` exist, so the pages other than this log drop "has not been
+  built", as that test was written to require.
+
+### Disagreements and residuals, for the reviewer
+
+- **Agent review is owed.** This gate was built without the reviewer agent; the review runs when the agents are
+  available again.
+- **Attempt 1 is the committed scenario.** Whether to spend attempt 2 (and on what adjustment) is open; any attempt
+  must cite this scorecard and stay within R1 to R8.
+- **The robustness and grid variants run with the main run's routing.** With the stand-in (no `--routing`) that is the
+  lexical handler everywhere, as here; with a model every variant calls it too (26 detection-only prepares).

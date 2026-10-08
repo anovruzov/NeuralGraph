@@ -209,6 +209,7 @@ DETERMINISTIC_MODULES = (
     "mycelic/collective/experiments/x5_attacks.py",
     "mycelic/collective/experiments/x5_inference.py",
     "demo/collective/scenario.py",
+    "demo/collective/codes_miss.py",
     "demo/collective/screen.py",
     "demo/collective/lint_numbers.py",
 )

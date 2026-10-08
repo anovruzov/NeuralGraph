@@ -103,6 +103,16 @@ PREPARING = "Preparing the run: each plant ingests its own records and sends its
 TASK_TEXTS = {"extract": "Extraction at the plants: ", "judge": "Checks at the plants: ", "draft": "Drafting at HQ: "}
 ROLE_TEXTS = {"contributing": "contributing plant", "sibling": "sibling plant"}
 CONTROL_LABELS = {"next": "Next", "check": "Check with sites", "approve": "Approve as the named owner"}
+# B1b: a codes-miss scenario's screen carries the pre-registered statement and author note (read from the scorecard)
+# and the rule's verdict, whichever way it falls (docs/collective/b1/PREREG.md)
+CODES_MISS_RULE = "Pre-registered codes-miss rule: "
+CODES_MISS_VERDICTS = {True: "this run illustrates the case codes miss",
+                       False: "this run does not illustrate the case codes miss",
+                       None: "the verdict waits for the check with the sites"}
+CODES_MISS_SHIFT = "Background change: "
+CODES_MISS_CHANCE = ("X's alert of this failure mode is a chance find: the same world without the case also raised it "
+                     "by then")
+CODES_MISS_CHANNELS = (("R_mf", "R"), ("S", "S"))
 
 _INT = re.compile(r"-?[0-9]{1,3}(,[0-9]{3})*", re.ASCII)
 _PCT = re.compile(r"([0-9]{1,3})%", re.ASCII)
@@ -301,6 +311,77 @@ def _problem(b: _Builder, sc: Mapping[str, Any], trace: Mapping[str, Any]) -> No
     b.block("problem-line", "problem", "headline", [b.text(PROBLEM_LINE)])
     b.block("problem-illustration", "problem", "note",
             [b.item("illustration", "problem", "Illustration", S + "/illustration", "text")])
+
+
+def _codes_miss_problem(b: _Builder, sc: Mapping[str, Any]) -> None:
+    block = sc.get("codes_miss")
+    if block is None:
+        return
+    C = "scorecard.json#/codes_miss"
+    b.block("codes-miss-statement", "problem", "warning",
+            [b.item("cm_statement", "problem", "Statement", C + "/statement", "text")])
+    b.block("codes-miss-author-note", "problem", "note",
+            [b.item("cm_author_note", "problem", "Author note", C + "/author_note", "text")])
+    for j, _ in enumerate(block["shifts"]):
+        base = f"{C}/shifts/{j}"
+        b.block(f"codes-miss-shift-{j}", "problem", "caption",
+                [b.text(CODES_MISS_SHIFT),
+                 b.item(f"cm_shift_{j}_label", "problem", "Background change", base + "/label", "text"),
+                 b.text(" · at "), b.item(f"cm_shift_{j}_sites", "problem", "Plants with the change", base + "/sites",
+                                          "int"),
+                 b.text(" plants from week "),
+                 b.item(f"cm_shift_{j}_week", "problem", "First week of the change", base + "/first_week", "text")])
+
+
+def _codes_miss_verdict(b: _Builder, sc: Mapping[str, Any]) -> None:
+    block = sc.get("codes_miss")
+    if block is None:
+        return
+    C = "scorecard.json#/codes_miss"
+    main = block["main"]
+    b.block("codes-miss-verdict", "check", "headline",
+            [b.text(CODES_MISS_RULE + CODES_MISS_VERDICTS[block["holds"]])])
+    x = [b.text("X caught the case: "), b.item("cm_x_caught", "check", "X caught the case", C + "/main/x_caught",
+                                                "yesno")]
+    if main["x_week"] is not None:
+        x += [b.text(" · its first alert of this failure mode in week "),
+              b.item("cm_x_week", "check", "X first alert week", C + "/main/x_week", "text")]
+    b.block("codes-miss-x", "check", "note", x, group="X")
+    if main["x_chance_find"]:
+        b.block("codes-miss-x-chance", "check", "warning", [b.text(CODES_MISS_CHANCE)], group="X")
+    for channel, name in CODES_MISS_CHANNELS if main["channels"] is not None else ():
+        ch = main["channels"][channel]
+        base = f"{C}/main/channels/{channel}"
+        g = name.lower()
+        parts = [b.text(name + " · resolved the case no later than X: "),
+                 b.item(f"cm_{g}_no_later", "check", f"{name} resolved the case no later than X",
+                        base + "/attributed_no_later", "yesno")]
+        if ch["attributed"]:
+            parts += [b.text(" · its first alert of a case key that the world without the case did not raise: "),
+                      b.item(f"cm_{g}_first_key", "check", "Key", base + "/attributed/0/key", "text"),
+                      b.text(" in week "), b.item(f"cm_{g}_first_week", "check", "Week", base + "/attributed/0/week",
+                                                  "text")]
+        b.block(f"codes-miss-{g}", "check", "warning" if ch["attributed_no_later"] else "note", parts, group=name)
+        if isinstance(ch["strict_no_later"], bool):
+            b.block(f"codes-miss-{g}-strict", "check", "note",
+                    [b.text(name + " · alerted a case key from the background change to X's week, or held one "
+                                   "cooling then: "),
+                     b.item(f"cm_{g}_strict", "check", f"{name} strict reading", base + "/strict_no_later", "yesno")],
+                    group=name)
+    b.block("codes-miss-robust", "check", "note",
+            [b.text("Robustness seeds where the rule holds: "),
+             b.item("cm_robust_holding", "check", "Seeds holding", C + "/robust_holding", "int"),
+             b.text(" of "), b.item("cm_robust_seeds", "check", "Robustness seeds", C + "/robust_seeds", "int"),
+             b.text(" (at least half must hold)")])
+    b.block("codes-miss-grid", "check", "note",
+            [b.text("Grid cells where the rule holds, reported and not part of the verdict: "),
+             b.item("cm_grid_holding", "check", "Grid cells holding", C + "/grid_holding", "int"),
+             b.text(" of "), b.item("cm_grid_cells", "check", "Grid cells", C + "/grid_cells", "int")])
+    if isinstance(block["holds_strict"], bool):
+        b.block("codes-miss-strict", "check", "note",
+                [b.text("Strict reading holds (the rule holds, and neither baseline alerted a case key from the "
+                        "background change to X's week or held one cooling then): "),
+                 b.item("cm_holds_strict", "check", "Strict reading holds", C + "/holds_strict", "yesno")])
 
 
 def _key_parts(b: _Builder, sc: Mapping[str, Any], prefix: str, item_id: str, beat: str,
@@ -631,8 +712,10 @@ def build_screen(docs: Mapping[str, Any] | None, *, mode: str, phase: str,
     else:
         sc, trace = docs["scorecard.json"], docs["trace.json"]
         _problem(b, sc, trace)
+        _codes_miss_problem(b, sc)
         _alert(b, sc)
         _check(b, sc, trace, docs.get("leakage.json"))
+        _codes_miss_verdict(b, sc)
         _followup(b, sc, trace)
         b.block("real-data", "real_data", "headline", [b.text(REAL_DATA)])
         _footer(b, sc, trace)

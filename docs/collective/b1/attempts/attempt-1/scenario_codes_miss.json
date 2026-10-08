@@ -1,0 +1,189 @@
+{
+  "kind": "collective_demo_scenario",
+  "schema_version": 1,
+  "pack": "device_quality",
+  "seed": 29,
+  "weeks": 40,
+  "company": "Tarnwick Devices (fictional)",
+  "illustration": "A constructed illustration of the case codes miss: a new complaint-intake form at five plants writes the generic problem code on every complaint, and what failed is written only in the complaint narratives, in English and German, at three plants.",
+  "tie_salt": "collective-demo-codes-miss",
+  "org": {
+    "schema_version": 1,
+    "enterprise": "tarnwick",
+    "sites": [
+      {"site_id": "plant-ashvale", "unit_path": "tarnwick/gb/ashvale", "country": "GB", "display_name": "Ashvale plant (fictional)"},
+      {"site_id": "plant-brindlemoor", "unit_path": "tarnwick/gb/brindlemoor", "country": "GB", "display_name": "Brindlemoor plant (fictional)"},
+      {"site_id": "plant-corrowfield", "unit_path": "tarnwick/ie/corrowfield", "country": "IE", "display_name": "Corrowfield sterile assembly and packaging plant (fictional)"},
+      {"site_id": "werk-dornhagen", "unit_path": "tarnwick/de/dornhagen", "country": "DE", "display_name": "Werk Dornhagen – Gerätemontage (fiktiv)"},
+      {"site_id": "werk-erlenbruch", "unit_path": "tarnwick/de/erlenbruch", "country": "DE", "display_name": "Werk Erlenbruch (fiktiv)"},
+      {"site_id": "plant-fennick", "unit_path": "tarnwick/us/fennick", "country": "US", "display_name": "Fennick plant (fictional)"}
+    ]
+  },
+  "master_data_additions": [
+    {"site": "plant-ashvale", "entity_type": "lot", "ids": ["L20078"]},
+    {"site": "plant-ashvale", "entity_type": "product", "ids": ["HV-81", "HV-82", "HV-83"]},
+    {"site": "plant-brindlemoor", "entity_type": "lot", "ids": ["L20078", "L20098"]},
+    {"site": "plant-brindlemoor", "entity_type": "product", "ids": ["HV-81", "HV-82", "HV-83"]},
+    {"site": "plant-corrowfield", "entity_type": "product", "ids": ["HV-81", "HV-82", "HV-83"]},
+    {"site": "werk-dornhagen", "entity_type": "product", "ids": ["HV-81", "HV-82", "HV-83"]},
+    {"site": "werk-erlenbruch", "entity_type": "lot", "ids": ["L20078", "L20098"]},
+    {"site": "werk-erlenbruch", "entity_type": "product", "ids": ["HV-81", "HV-82", "HV-83"]},
+    {"site": "plant-fennick", "entity_type": "lot", "ids": ["L20078"]}
+  ],
+  "approvers": {
+    "schema_version": 1,
+    "enterprise": "tarnwick",
+    "approvers": [
+      {"person_label": "qe-owner.tarnwick", "role": "quality_engineer", "unit_path": "tarnwick"},
+      {"person_label": "qm-escalation.tarnwick", "role": "quality_manager", "unit_path": "tarnwick"},
+      {"person_label": "sqe-owner.tarnwick", "role": "supplier_quality_engineer", "unit_path": "tarnwick"}
+    ]
+  },
+  "followups": [
+    {"type": "evidence_packet", "args": {}},
+    {"type": "capa_initiation_draft", "args": {"severity": "medium"}}
+  ],
+  "items": [
+    {
+      "id": "hero-overheat",
+      "role": "hero",
+      "label": "Units from one lot overheating while charging, written only in the narratives",
+      "key": {"entity_type": "lot", "entity_id": "L10002", "predicate": "overheat"},
+      "visibility": "narrative_only",
+      "start_week": 30,
+      "weeks": 6,
+      "sites": [
+        {"site": "plant-brindlemoor", "language": "en", "rate_per_week": 1},
+        {"site": "plant-corrowfield", "language": "en", "rate_per_week": 1},
+        {"site": "werk-dornhagen", "language": "de", "rate_per_week": 1}
+      ],
+      "codes": ["ILL-9001"],
+      "structured": [
+        {"entity_type": "lot", "ids": ["L10002"], "fill_rate": 0.6},
+        {"entity_type": "product", "ids": ["SD-9"], "fill_rate": 0.95},
+        {"entity_type": "component", "ids": ["PUMP-HOUSING"], "fill_rate": 0.3},
+        {"entity_type": "supplier", "ids": ["V1001"], "fill_rate": 0.2}
+      ],
+      "narratives": {
+        "en": ["Units from lot {lot} overheated while charging.", "A unit from lot {lot} was too hot to touch after charging."],
+        "de": ["Geräte der Charge {lot} sind beim Laden überhitzt.", "Bei einem Gerät der Charge {lot} kam es zu einer Überhitzung."]
+      },
+      "slots": {"lot": "L10002"},
+      "filler": [2, 2],
+      "reporter": "pool",
+      "copies": []
+    },
+    {
+      "id": "sibling-quarantine",
+      "role": "sibling",
+      "label": "The same lot at a plant that holds it without the failure",
+      "key": {"entity_type": "lot", "entity_id": "L10002", "predicate": null},
+      "visibility": "none",
+      "start_week": 30,
+      "weeks": 6,
+      "sites": [
+        {"site": "plant-fennick", "language": "en", "rate_per_week": 1}
+      ],
+      "codes": ["ILL-9002"],
+      "structured": [
+        {"entity_type": "lot", "ids": ["L10002"], "fill_rate": 1.0},
+        {"entity_type": "product", "ids": ["SD-9"], "fill_rate": 1.0}
+      ],
+      "narratives": {"en": ["Lot {lot} was quarantined for review."]},
+      "slots": {"lot": "L10002"},
+      "filler": [2, 2],
+      "reporter": "pool",
+      "copies": []
+    },
+    {
+      "id": "decoy-echo-flood",
+      "role": "decoy",
+      "label": "An echo flood: one plant's records forwarded, marked, to other plants",
+      "key": {"entity_type": "lot", "entity_id": "L20078", "predicate": "crack"},
+      "visibility": "narrative_only",
+      "start_week": 31,
+      "weeks": 4,
+      "sites": [
+        {"site": "plant-brindlemoor", "language": "en", "rate_per_week": 2}
+      ],
+      "codes": [],
+      "structured": [],
+      "narratives": {"en": ["Units from lot {lot} arrived cracked."]},
+      "slots": {"lot": "L20078"},
+      "filler": [1, 2],
+      "reporter": "pool",
+      "copies": [
+        {"to_site": "plant-ashvale", "marked": true},
+        {"to_site": "werk-erlenbruch", "marked": true},
+        {"to_site": "plant-fennick", "marked": true}
+      ]
+    },
+    {
+      "id": "decoy-single-reporter",
+      "role": "decoy",
+      "label": "A single-reporter burst on a new lot at two plants",
+      "key": {"entity_type": "lot", "entity_id": "L20098", "predicate": "occlusion"},
+      "visibility": "narrative_only",
+      "start_week": 31,
+      "weeks": 5,
+      "sites": [
+        {"site": "plant-brindlemoor", "language": "en", "rate_per_week": 3},
+        {"site": "werk-erlenbruch", "language": "de", "rate_per_week": 3}
+      ],
+      "codes": [],
+      "structured": [],
+      "narratives": {
+        "en": ["The line on units from lot {lot} was clogged."],
+        "de": ["Die Leitung bei Geräten der Charge {lot} war verstopft."]
+      },
+      "slots": {"lot": "L20098"},
+      "filler": [1, 2],
+      "reporter": "single",
+      "copies": []
+    },
+    {
+      "id": "decoy-generic-rise",
+      "role": "decoy",
+      "label": "A high-base-rate rise on a generic code, spread over several new product models",
+      "key": {"entity_type": "product", "entity_id": "HV-81", "predicate": "malfunction_unspecified"},
+      "visibility": "codes_only",
+      "start_week": 30,
+      "weeks": 6,
+      "sites": [
+        {"site": "plant-ashvale", "language": "en", "rate_per_week": 1},
+        {"site": "plant-brindlemoor", "language": "en", "rate_per_week": 1},
+        {"site": "plant-corrowfield", "language": "en", "rate_per_week": 1},
+        {"site": "werk-dornhagen", "language": "de", "rate_per_week": 1},
+        {"site": "werk-erlenbruch", "language": "de", "rate_per_week": 1}
+      ],
+      "codes": ["ILL-9001"],
+      "structured": [
+        {"entity_type": "product", "ids": ["HV-81", "HV-82", "HV-83"], "fill_rate": 1.0}
+      ],
+      "narratives": {
+        "en": ["A unit was returned under warranty."],
+        "de": ["Ein Gerät wurde im Rahmen der Garantie zurückgegeben."]
+      },
+      "slots": {},
+      "filler": [1, 2],
+      "reporter": "pool",
+      "copies": []
+    }
+  ],
+  "codes_miss": {
+    "case_kind": "codes_miss",
+    "statement": "Constructed illustration of the case codes miss. Whether such cases occur in real data is exactly what N1 and the Phase-1 signal audit measure.",
+    "author_note": "Constructed by the authors of the detectors and baselines, who knew how R ranks; it shows the mechanism is possible, not that it is common.",
+    "robustness_seeds": [31, 37, 41, 43, 47, 53, 59, 61],
+    "shifts": [
+      {
+        "id": "intake-form",
+        "label": "A new complaint-intake form sets the generic problem code on every complaint",
+        "sites": ["plant-ashvale", "plant-brindlemoor", "plant-corrowfield", "werk-dornhagen", "werk-erlenbruch"],
+        "start_week": 22,
+        "weeks": 18,
+        "to_code": "ILL-9001"
+      }
+    ]
+  }
+}

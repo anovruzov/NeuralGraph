@@ -45,8 +45,12 @@ Presenter notes:
   own words and the plants read them with the deterministic stand-in. Say it: extraction is not tested by this run.
 - On the committed run R (model-free) flags a key of this case, the product under the generic code, in the same week
   as X, and S flags the lot under that code a week later. So this run does not show a case that the allowed fields
-  miss; say that, and never present it as one. The constructed codes-miss illustration has not been built, so no
-  committed run shows that case: never refer to one.
+  miss; say that, and never present it as one. The constructed codes-miss scenario exists, but its first attempt
+  does not illustrate the case: R and S flag the lot under the generic code in the case's first week, before X, and
+  its screen says so. No committed run shows a case the allowed fields miss: never refer to one.
+- If you show the codes-miss scenario's run, read its opening statement and author note as they stand (constructed, by the
+  authors of the detectors, possible not common), then read the rule's verdict line after the gate as it stands. If
+  it says the run does not illustrate the case, say that, and read the R and S lines that say why.
 - Say what is simulated: the plants run in one process, and the models are the ones the footer names.
 - Never quote a benchmark figure, and never show this run to a buyer.
 

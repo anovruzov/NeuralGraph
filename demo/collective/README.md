@@ -51,9 +51,24 @@ with the deterministic lexical stand-in. Extraction is not tested by this run (t
 generic code) at the top rank in X's own week, and S flags another (the lot under the same code) a week later; the
 screen shows both. So this run does not show a case that the fields allowed to leave miss, which is the case STRATEGY
 9.2's cut needs. The G8 recording that the final review read is kept, byte-identical, as superseded evidence
-(`docs/collective/evidence/superseded/collective-halvern-g10/`). **B1's constructed codes-miss illustration has not
-been built**: its second step, a separate constructed scenario fixed in advance by `docs/collective/b1/PREREG.md`, was
-never made, so no committed run shows a case the fields allowed to leave miss.
+(`docs/collective/evidence/superseded/collective-halvern-g10/`).
+
+**The constructed codes-miss scenario (B1b) exists, and its first attempt does not illustrate the case.**
+`scenario_codes_miss.json` is the cast `docs/collective/b1/PREREG.md` fixed before any of its worlds existed (a
+fictional Tarnwick Devices, where a new complaint-intake form at five plants writes the generic code on every
+complaint). Its first recording, `docs/collective/b1/attempts/attempt-1/`, is judged by the pre-registered rule
+(`codes_miss.py`), and its own scorecard says the rule does not hold: X caught the case and the check with the sites
+says supported, but R (model-free) and S both flag the hero's lot under the generic code in the case's first week, a
+week before X. So no committed run shows a case the fields allowed to leave miss. Every screen of that scenario
+carries the two pre-registered sentences:
+
+> Constructed illustration of the case codes miss. Whether such cases occur in real data is exactly what N1 and the Phase-1 signal audit measure.
+
+> Constructed by the authors of the detectors and baselines, who knew how R ranks; it shows the mechanism is possible, not that it is common.
+
+and the rule's verdict, whichever way it falls, after the gate: whether X caught the case, whether R and S resolved it
+no later than X (with the first key each flagged), how many robustness seeds and grid cells hold, and the strict
+reading. Replay it with `python demo/collective/collective_demo.py --replay docs/collective/b1/attempts/attempt-1`.
 
 ## Modes
 

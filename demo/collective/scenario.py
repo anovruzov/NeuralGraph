@@ -37,6 +37,12 @@ Rules:
   times its case predicates (the key's and those of every code on a hero record), egress types only; they are
   computed before the canaries are planted, so no canary id can become a case key.
 
+**Codes-miss scenarios** (B1b, pre-registered in ``docs/collective/b1/PREREG.md``) add an optional top-level
+``codes_miss`` block ``{case_kind, statement, author_note, robustness_seeds, shifts [{id, label, sites, start_week,
+weeks, to_code}]}``. A shift is a background change: every non-copy record at a listed site in a covered week,
+background and scenario items alike, gets exactly ``[to_code]``, and every copy then takes its origin's codes. Parsing
+checks the realism constraints R1, R2, R4, R5, R6 and R8; building checks R3 and R7 (the PREREG's section 4).
+
 Deterministic: ``build_world`` gives the same world under any ``PYTHONHASHSEED`` (every iteration is ordered).
 """
 from __future__ import annotations
@@ -67,6 +73,18 @@ KIND = "collective_demo_scenario"
 DEFAULT = Path(__file__).resolve().parent / "scenario.json"
 TOP_KEYS = ("kind", "schema_version", "pack", "seed", "weeks", "company", "illustration", "tie_salt", "org",
             "master_data_additions", "approvers", "followups", "items")
+OPTIONAL_TOP_KEYS = ("codes_miss",)
+CODES_MISS_KEYS = ("case_kind", "statement", "author_note", "robustness_seeds", "shifts")
+SHIFT_KEYS = ("id", "label", "sites", "start_week", "weeks", "to_code")
+CASE_KIND = "codes_miss"
+# the PREREG's section 1, verbatim: every screen, run file and document that shows the scenario carries both
+STATEMENT = ("Constructed illustration of the case codes miss. Whether such cases occur in real data is exactly what N1 "
+             "and the Phase-1 signal audit measure.")
+AUTHOR_NOTE = ("Constructed by the authors of the detectors and baselines, who knew how R ranks; it shows the mechanism "
+               "is possible, not that it is common.")
+ROBUSTNESS_SEEDS = 8
+MAX_HERO_RATE = 2
+MIN_HERO_TEMPLATES = 2
 ITEM_KEYS = ("id", "role", "label", "key", "visibility", "start_week", "weeks", "sites", "codes", "structured",
              "narratives", "slots", "filler", "reporter", "copies")
 ROLES = ("hero", "sibling", "decoy")
@@ -149,6 +167,27 @@ class Item:
 
 
 @dataclass(frozen=True)
+class Shift:
+    id: str
+    label: str
+    sites: tuple[str, ...]
+    start_week: int
+    weeks: int
+    to_code: str
+
+    def covers(self, site: str, week: int) -> bool:
+        return site in self.sites and self.start_week <= week < self.start_week + self.weeks
+
+
+@dataclass(frozen=True)
+class CodesMiss:
+    statement: str
+    author_note: str
+    robustness_seeds: tuple[int, ...]
+    shifts: tuple[Shift, ...]
+
+
+@dataclass(frozen=True)
 class Scenario:
     raw: Mapping[str, Any]
     digest: str
@@ -164,6 +203,7 @@ class Scenario:
     master_data_additions: tuple[tuple[str, str, tuple[str, ...]], ...]
     items: tuple[Item, ...]
     hero: Item
+    codes_miss: CodesMiss | None = None
 
 
 @dataclass(frozen=True)
@@ -185,10 +225,10 @@ def _int(value: Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
 
 
-def _closed(raw: Any, path: str, keys: tuple[str, ...]) -> dict[str, Any]:
+def _closed(raw: Any, path: str, keys: tuple[str, ...], optional: tuple[str, ...] = ()) -> dict[str, Any]:
     if not isinstance(raw, dict):
         raise ScenarioError(path, "must be an object") from None
-    if any(key not in keys for key in raw):
+    if any(key not in keys and key not in optional for key in raw):
         raise ScenarioError(path, "unknown key") from None
     for key in keys:
         if key not in raw:
@@ -415,8 +455,94 @@ def _item(raw: Any, path: str, pack: FrozenPack, org: OrgConfig, world_weeks: in
                 copies=tuple(copies))
 
 
+def _shift(raw: Any, path: str, pack: FrozenPack, org: OrgConfig, world_weeks: int) -> Shift:
+    s = _closed(raw, path, SHIFT_KEYS)
+    if not isinstance(s["id"], str) or ITEM_ID_RE.fullmatch(s["id"]) is None:
+        raise ScenarioError(f"{path}.id", "must be a slug [a-z][a-z0-9-]{0,39}") from None
+    label = _text(s["label"], f"{path}.label", MAX_TEXT)
+    sites = s["sites"]
+    if not isinstance(sites, list) or not sites or len(set(sites)) != len(sites) \
+            or not all(isinstance(x, str) and x in org.sites for x in sites):
+        raise ScenarioError(f"{path}.sites", "must be a non-empty list of distinct known sites") from None
+    start, weeks = s["start_week"], s["weeks"]
+    if not _int(start) or start < 0 or not _int(weeks) or weeks < 1 or start + weeks > world_weeks:
+        raise ScenarioError(f"{path}.weeks", "start_week + weeks must lie inside the world's weeks") from None
+    if start + weeks != world_weeks:
+        raise ScenarioError(f"{path}.weeks", "R1: a shift runs to the world's last week") from None
+    if s["to_code"] not in pack.codes:
+        raise ScenarioError(f"{path}.to_code", "not a pack code") from None
+    return Shift(id=s["id"], label=label, sites=tuple(sites), start_week=start, weeks=weeks, to_code=s["to_code"])
+
+
+def _hero_realism(hero: Item, pack: FrozenPack, path: str) -> None:
+    """R4: exactly one structured entry for each type the generator fills and the central fields allow, at the
+    generator's fill rate, each one universe id that follows the generator's links."""
+    gen = pack.generator
+    allowed = set(pack.egress.central_allowed_fields)
+    want = sorted(t for t in gen["fill_rates"] if f"entities.{t}" in allowed)
+    got = {t: (ids, rate) for t, ids, rate in hero.structured}
+    if sorted(got) != want:
+        raise ScenarioError(f"{path}.structured", "R4: one entry for each type the generator fills and the central "
+                                                  "fields allow") from None
+    for t in want:
+        ids, rate = got[t]
+        if len(ids) != 1 or ids[0] not in gen["universe"][t] or rate != float(gen["fill_rates"][t]):
+            raise ScenarioError(f"{path}.structured", "R4: one universe id at the generator's fill rate") from None
+    for t, link in sorted(gen["links"].items()):
+        parent = link["parent"]
+        if t in got and parent in got and got[t][0][0] not in link["map"].get(got[parent][0][0], ()):
+            raise ScenarioError(f"{path}.structured", "R4: the ids follow the generator's links") from None
+
+
+def _codes_miss(raw: Any, pack: FrozenPack, org: OrgConfig, hero: Item, seed: int, world_weeks: int) -> CodesMiss:
+    path = "$.codes_miss"
+    block = _closed(raw, path, CODES_MISS_KEYS)
+    if block["case_kind"] != CASE_KIND:
+        raise ScenarioError(f"{path}.case_kind", f"must be {CASE_KIND}") from None
+    if block["statement"] != STATEMENT:
+        raise ScenarioError(f"{path}.statement", "must be the pre-registered statement, verbatim") from None
+    if block["author_note"] != AUTHOR_NOTE:
+        raise ScenarioError(f"{path}.author_note", "must be the pre-registered author note, verbatim") from None
+    seeds = block["robustness_seeds"]
+    if not (isinstance(seeds, list) and len(seeds) == ROBUSTNESS_SEEDS and all(_int(x) for x in seeds)
+            and len(set(seeds)) == ROBUSTNESS_SEEDS and seed not in seeds
+            and all(0 <= x <= MAX_SEED for x in seeds)):
+        raise ScenarioError(f"{path}.robustness_seeds",
+                            f"R6: exactly {ROBUSTNESS_SEEDS} distinct seeds other than the main seed") from None
+    if not isinstance(block["shifts"], list) or not block["shifts"]:
+        raise ScenarioError(f"{path}.shifts", "R1: at least one shift") from None
+    shifts = tuple(_shift(x, f"{path}.shifts[{i}]", pack, org, world_weeks) for i, x in enumerate(block["shifts"]))
+    if len({x.id for x in shifts}) != len(shifts):
+        raise ScenarioError(f"{path}.shifts", "duplicate shift id") from None
+    window = pack.detectors["window_weeks"]
+    for i, x in enumerate(shifts):
+        if x.start_week != hero.start_week - window:
+            raise ScenarioError(f"{path}.shifts[{i}].start_week", "R8: a shift starts at the hero's start week minus "
+                                                                  "the pack's window_weeks") from None
+    hpath = hero.path
+    if hero.visibility != "narrative_only":
+        raise ScenarioError(f"{hpath}.visibility", "R2: the hero is narrative-only") from None
+    for site, _, rate in hero.sites:
+        for week in range(hero.start_week, hero.start_week + hero.weeks):
+            covering = [x for x in shifts if x.covers(site, week)]
+            if not covering:
+                raise ScenarioError(f"{path}.shifts", "R1: a shift covers every hero site-week") from None
+            if any(hero.codes != (x.to_code,) for x in covering):
+                raise ScenarioError(f"{hpath}.codes", "R2: the hero carries exactly the code the shift writes") \
+                    from None
+        if rate > MAX_HERO_RATE:
+            raise ScenarioError(f"{hpath}.sites", f"R5: at most {MAX_HERO_RATE} hero records per site and week") \
+                from None
+    for lang, templates in sorted(hero.narratives.items()):
+        if len(templates) < MIN_HERO_TEMPLATES:
+            raise ScenarioError(f"{hpath}.narratives.{lang}", f"R5: at least {MIN_HERO_TEMPLATES} templates per "
+                                                              "hero language") from None
+    _hero_realism(hero, pack, hpath)
+    return CodesMiss(statement=STATEMENT, author_note=AUTHOR_NOTE, robustness_seeds=tuple(seeds), shifts=shifts)
+
+
 def parse_scenario(raw: Any, *, digest: str) -> Scenario:
-    top = _closed(raw, "$", TOP_KEYS)
+    top = _closed(raw, "$", TOP_KEYS, OPTIONAL_TOP_KEYS)
     if top["kind"] != KIND:
         raise ScenarioError("$.kind", f"must be {KIND}") from None
     if not _int(top["schema_version"]) or top["schema_version"] != SCHEMA_VERSION:
@@ -465,6 +591,8 @@ def parse_scenario(raw: Any, *, digest: str) -> Scenario:
     if sum(1 for i in items if i.role == "decoy") < MIN_DECOYS:
         raise ScenarioError("$.items", f"needs at least {MIN_DECOYS} decoys") from None
     hero = heroes[0]
+    codes_miss = _codes_miss(top["codes_miss"], pack, org, hero, top["seed"], top["weeks"]) \
+        if "codes_miss" in top else None
     for s in siblings:
         if (s.key.entity_type, s.key.entity_id) != (hero.key.entity_type, hero.key.entity_id):
             raise ScenarioError(f"{s.path}.key", "a sibling holds the hero's entity") from None
@@ -473,7 +601,7 @@ def parse_scenario(raw: Any, *, digest: str) -> Scenario:
     return Scenario(raw=MappingProxyType(dict(top)), digest=digest, pack=pack, org=org, seed=top["seed"],
                     weeks=top["weeks"], company=company, illustration=illustration, tie_salt=top["tie_salt"],
                     approvers=MappingProxyType(dict(top["approvers"])), followups=followups,
-                    master_data_additions=additions, items=items, hero=hero)
+                    master_data_additions=additions, items=items, hero=hero, codes_miss=codes_miss)
 
 
 def load_scenario(path: str | Path = DEFAULT) -> Scenario:
@@ -519,6 +647,7 @@ class _Builder:
         self.types = tuple(sorted(self.pack.mapping()["entities"]))
         self.seq = 0
         self.records: list[dict[str, Any]] = []
+        self.copy_of: dict[str, str] = {}             # every scenario copy, marked or not, to its origin's ref
 
     def _ref(self, site: str) -> str:
         self.seq += 1
@@ -577,6 +706,7 @@ class _Builder:
                             "reporter": origin["reporter"],
                             "origin_ref": origin["record_ref"] if marked else None,
                             "origin_site": origin["site"] if marked else None, "synthetic": True}, item.path)
+                        self.copy_of[copy["record_ref"]] = origin["record_ref"]
                         refs.append(copy["record_ref"])
         return refs
 
@@ -644,7 +774,32 @@ def _by_construction(scenario: Scenario, hero_records: list[dict[str, Any]]) -> 
     return {"S": hidden, "R_mf": hidden, "reason": reason}
 
 
-def build_world(scenario: Scenario) -> DemoWorld:
+def _apply_shifts(scenario: Scenario, records: list[dict[str, Any]], copy_of: Mapping[str, str]) -> None:
+    """Every non-copy record at a shifted site in a covered week gets exactly the shift's code; every copy then takes
+    its origin's codes (a background copy names its origin in ``origin_ref``; a scenario copy is in ``copy_of``)."""
+    cm = scenario.codes_miss
+    if cm is None:
+        return
+    start = date.fromisoformat(scenario.pack.generator["start"])
+    by_ref = {r["record_ref"]: r for r in records}
+    copies = {r["record_ref"]: r["origin_ref"] for r in records if r["origin_ref"] is not None}
+    copies.update(copy_of)
+    for r in records:
+        if r["record_ref"] in copies:
+            continue
+        week = (date.fromisoformat(r["received_date"]) - start).days // 7
+        for shift in cm.shifts:
+            if shift.covers(r["site"], week):
+                r["codes"] = [shift.to_code]
+    for ref in sorted(copies):
+        origin = by_ref.get(copies[ref])
+        if origin is not None:
+            by_ref[ref]["codes"] = list(origin["codes"])
+
+
+def build_world(scenario: Scenario, *, without: str | None = None) -> DemoWorld:
+    """The scenario's world; ``without`` names an item left out (the codes-miss rule's counterfactual world, whose
+    ``case_keys`` are then empty: the rule reads the case keys of the world with every item)."""
     pack = scenario.pack
     world = None
     try:
@@ -656,7 +811,15 @@ def build_world(scenario: Scenario) -> DemoWorld:
     builder = _Builder(scenario, world.records)
     item_records: dict[str, tuple[str, ...]] = {}
     for item in scenario.items:
-        item_records[item.id] = tuple(builder.item(item))
+        item_records[item.id] = tuple(builder.item(item)) if item.id != without else ()
+    hero = scenario.hero
+    if scenario.codes_miss is not None and without != hero.id:
+        for site in hero.site_ids:                     # R3: the generator's own master data, not the additions
+            if hero.key.entity_id not in world.master_data.get(site, {}).get(hero.key.entity_type, ()):
+                raise ScenarioError(f"{hero.path}.key", "R3: the hero's entity is a universe entity in every hero "
+                                                        "site's master data") from None
+    background = [dict(r) for r in world.records]
+    _apply_shifts(scenario, background + builder.records, builder.copy_of)
     master: dict[str, dict[str, set[str]]] = {s: {t: set(ids) for t, ids in world.master_data[s].items()}
                                               for s in world.master_data}
     for site, t, ids in scenario.master_data_additions:
@@ -666,14 +829,18 @@ def build_world(scenario: Scenario) -> DemoWorld:
     canonicalisers = {s: Canonicaliser(pack, known=master_data[s]) for s in sorted(master_data)}
     by_ref = {r["record_ref"]: r for r in builder.records}
     hero_records = [by_ref[ref] for ref in item_records[scenario.hero.id]]
-    case_keys = _case_keys(scenario, hero_records, canonicalisers)        # before the canaries, see the docstring
+    case_keys = _case_keys(scenario, hero_records, canonicalisers) if hero_records else ()   # before the canaries
+    if scenario.codes_miss is not None and hero_records:
+        for item in scenario.items:                    # R7: no decoy key is a hero case key
+            if item.role == "decoy" and set(item.keys) & set(case_keys):
+                raise ScenarioError(f"{item.path}.key", "R7: a decoy key is a hero case key") from None
     by_construction = _by_construction(scenario, hero_records)
     fill = []
     for t, _, _ in scenario.hero.structured:
         fill.append(MappingProxyType({"entity_type": t, "entity_type_label": pack.entity_types[t].label,
                                       "filled": sum(1 for r in hero_records if r["entities"][t]),
                                       "records": len(hero_records)}))
-    records, manifest = plant_canaries(tuple(world.records) + tuple(builder.records),
+    records, manifest = plant_canaries(tuple(background) + tuple(builder.records),
                                        random.Random(f"collective-demo-canaries:{scenario.seed}"), pack)
     planted = {r["record_ref"]: r for r in records}
     for item in scenario.items:

@@ -2175,8 +2175,9 @@ the product under the generic code at the top rank in X's own week, and S flags 
 byte-identical, as `docs/collective/evidence/superseded/collective-halvern-g10/`, with a README pointing into its
 scorecard). B1 keeps the first scenario unchanged and adds, in its first commit (B1a), what the review found missing
 around it. A second commit (B1b) was to add the constructed codes-miss scenario that `docs/collective/b1/PREREG.md`
-fixed before any of its worlds existed; **B1's constructed codes-miss illustration has not been built**: no B1b
-commit, codes-miss scenario, attempt or run exists (`INTEGRATION.md`, audit round 4). What B1a changed:
+fixed before any of its worlds existed. **B1b built it, and its first attempt does not illustrate the case**
+(section 17.10): R (model-free) and S flag the hero's lot under the generic code in the case's first week, a week
+before X. What B1a changed:
 
 - **The draft** is filled from the conclusion and the ok packets through the pack template, each field with its source
   (section 16.9); the screen leaves the `for_owner` field to the owner.
@@ -2197,6 +2198,41 @@ commit, codes-miss scenario, attempt or run exists (`INTEGRATION.md`, audit roun
   detection blocks are the G8 run's, so R (model-free) still flags a key of this case in X's week and the screen still
   says so. That is why B1 planned a second scenario rather than re-reading this one; since it was not built, no
   committed run shows the case STRATEGY 9.2's cut needs.
+
+### 17.10 B1b: the constructed codes-miss scenario
+
+`demo/collective/scenario_codes_miss.json` is the cast `docs/collective/b1/PREREG.md` fixed before any of its worlds
+existed: Tarnwick Devices (fictional), seed 29, a narrative-only hero (`lot:L10002:overheat`) at three plants, the
+sibling and three decoys, and one **background shift**, a new complaint-intake form at five plants that writes the
+generic code on every complaint from one detector window before the case to the end of the world.
+
+- **Scenario** (`scenario.py`). An optional top-level `codes_miss` block `{case_kind, statement, author_note,
+  robustness_seeds, shifts}`; the statement and the author note must be the pre-registered sentences, verbatim.
+  Parsing checks the realism constraints R1, R2, R4, R5, R6 and R8 (PREREG section 4); `build_world` checks R3 (the
+  hero's entity is in the generator's own master data at every hero site) and R7 (no decoy key is a case key). A shift
+  sets exactly `[to_code]` on every non-copy record at a shifted site in a covered week, background and scenario items
+  alike, then every copy takes its origin's codes. `build_world(scenario, without=item_id)` leaves an item out: the
+  rule's counterfactual world, whose case keys are empty. The first scenario has no block and builds as before (its
+  recorded run's content hash is unchanged).
+- **The rule** (`codes_miss.py`). `RULE` is PREREG section 5 verbatim. `evaluate_detection` computes it on the run's
+  own detection against the world without the hero, then on the eight robustness seeds and the six grid cells, each
+  a detection-only `DemoEngine.prepare` of a variant scenario (`variant`) in a throwaway directory with the main run's
+  routing (`detect_only`); a variant engine never evaluates the rule itself. `cooling_at` replays the detector's
+  cooldown to find a case key held cooling in X's week (the strict reading). The engine evaluates it when it prepares,
+  so every screen carries the statement, and `with_gate` applies the gate when the scorecard is written: until the
+  check with the sites has run, `holds_main`, `holds` and `holds_strict` are null unless the main world already fails
+  without the gate.
+- **Run files.** The scorecard of a codes-miss scenario carries `codes_miss`, validated on its own closed schema
+  (`codes_miss.SCHEMA`; the scorecard schema itself admits no optional property). The screen opens the problem beat
+  with the statement, the author note and the shift, and closes the check beat with the verdict ("this run
+  illustrates / does not illustrate the case codes miss", or "waits for the check"), X caught, R's and S's
+  no-later-than-X lines with the first key each flagged, the robustness and grid counts and the strict reading; every
+  value is an item read from the scorecard.
+- **Attempts.** At most three, each under `docs/collective/b1/attempts/attempt-<n>/` with its scenario bytes and the
+  first recording's six run files, and listed in `INTEGRATION.md` (B1b). **Attempt 1 does not illustrate the case**:
+  X caught the hero a week after its first week and the gate says supported, but R (model-free) and S both flag
+  `lot:L10002:malfunction_unspecified` in the hero's first week (R reads record-level counts of the allowed fields,
+  and the hero's lot field is filled at the generator's 60%); 4 of 8 robustness seeds and 1 of 6 grid cells hold.
 
 ## 18. B3: X5, leakage beyond text
 
