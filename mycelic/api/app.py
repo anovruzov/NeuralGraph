@@ -202,7 +202,7 @@ def create_app(rt: Any, settings: Any, *, run_worker: bool | None = None, run_ho
                 rt.holders = EmbeddedHolders(settings, rt.db, rt.org, rt.transport, router=rt.router, embedder=rt.embedder)
             except Exception as exc:
                 logger.warning("embedded holders unavailable: %s", exc)
-        await rt.start(run_worker=app["run_worker"], run_holders=app["run_holders"])
+        await rt.start(run_worker=app["run_worker"], run_holders=app["run_holders"], run_demo_apps=True)
         await app["hub"].start()
         logger.info("mycelic api %s ready (worker in process: %s, embedded holders: %s)", __version__, app["run_worker"], app["run_holders"])
 

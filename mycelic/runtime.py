@@ -49,14 +49,16 @@ class Runtime:
     started_at: str = ""
     extras: dict[str, Any] = field(default_factory=dict)
 
-    async def start(self, *, run_worker: bool | None = None, run_holders: bool | None = None) -> None:
+    async def start(self, *, run_worker: bool | None = None, run_holders: bool | None = None, run_demo_apps: bool = False) -> None:
+        """``run_demo_apps``: only the long-running server hosts the simulated apps (fixed ports); one-shot commands
+        (seed, backup) that start a runtime next to it must not."""
         from .util import now_iso
         self.started_at = now_iso()
         if self.transport is not None:
             await self.transport.start()
         if (run_holders if run_holders is not None else self.settings.embedded_holders) and self.holders is not None:
             from .seed.apps_demo import DemoApps, demo_apps_enabled
-            if demo_apps_enabled(self.settings) and "demo_apps" not in self.extras:
+            if run_demo_apps and demo_apps_enabled(self.settings) and "demo_apps" not in self.extras:
                 # simulated GitHub and Slack for the demonstration (opt-in): set up before the holders start, so a holder
                 # reopened after a restart can reach the loopback mocks too
                 self.extras["demo_apps"] = DemoApps(self)

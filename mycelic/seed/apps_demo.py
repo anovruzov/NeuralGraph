@@ -120,17 +120,25 @@ class DemoApps:
         users = [u["user_id"] for u in rt.db.all("SELECT user_id FROM users WHERE tenant_id=? ORDER BY email", (tid,))]
         # an administrator's mapping of the acme GitHub organization's members: every account of the demo organization
         gh_map = {"1001": ana, **{str(2000 + i): u for i, u in enumerate(users) if u != ana}}
+        # each included source is mapped to a tenant domain, as the lead would do in Connected apps: the mapping is the
+        # classifier's strongest signal, and rules or the model add subdomains within it
         plan = [("github", "GitHub (simulated demo data)", GITHUB_TOKEN,
-                 {"api_base": self.github_url, "auto_include": ["acme/checkout"], "principal_map": gh_map, "acl_members": {"acme/checkout": sorted(gh_map)}}),
+                 {"api_base": self.github_url, "auto_include": ["acme/checkout"], "principal_map": gh_map, "acl_members": {"acme/checkout": sorted(gh_map)}},
+                 ["engineering"]),
                 ("slack", "Slack (simulated demo data)", SLACK_TOKEN,
-                 {"api_base": self.slack_url + "/api", "slack_app_class": "internal", "auto_include": ["#deployments"], "principal_map": {"U0ANA": ana}})]
+                 {"api_base": self.slack_url + "/api", "slack_app_class": "internal", "auto_include": ["#deployments"], "principal_map": {"U0ANA": ana}},
+                 ["infrastructure.ci-cd"])]
         h = rt.org.get_holder(hid)
-        for ctype, name, token, cfg in plan:
+        for ctype, name, token, cfg, source_domains in plan:
             if ctype in existing:
                 continue
             out = await runtime.control("connector.add", {"connector_type": ctype, "display_name": name, "config": cfg, "discover": True},
                                         actor=lead["user_id"], credentials={"kind": "pat", "access_token": token})
             con = out["connector"]
+            included = (await runtime.control("sources.list", {"connector_id": con["connector_id"], "selection": "included"}, actor=lead["user_id"]))["items"]
+            if included:
+                await runtime.control("sources.update", {"connector_id": con["connector_id"], "changes": [
+                    {"source_id": src["source_id"], "default_domain_ids": source_domains} for src in included]}, actor=lead["user_id"])
             for mode in ("backfill", "incremental"):
                 await runtime.control("connector.sync", {"connector_id": con["connector_id"], "mode": mode}, actor=lead["user_id"])
             got = await runtime.control("connector.get", {"connector_id": con["connector_id"]}, actor=lead["user_id"])

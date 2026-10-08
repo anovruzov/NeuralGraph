@@ -366,10 +366,10 @@ legend { font-size: var(--fs-sm); color: var(--text-2); padding: 0 4px; }
   .table--cards thead { display: none; }
   .table--cards, .table--cards tbody, .table--cards tr, .table--cards td { display: block; width: 100%; }
   .table--cards tr { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); margin-bottom: 8px; padding: 6px 0; }
-  .table--cards td { border: 0; padding: 4px 12px; display: grid; grid-template-columns: 110px 1fr; gap: 8px; text-align: left !important; }
+  .table--cards td { border: 0; padding: 4px 12px; display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 8px; text-align: left !important; overflow-wrap: anywhere; }
   .table--cards td::before { content: attr(data-label); color: var(--text-3); font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 0.05em; padding-top: 2px; }
   .table--cards td[data-label=""]::before { content: none; }
-  .table--cards td[data-label=""] { grid-template-columns: 1fr; }
+  .table--cards td[data-label=""] { grid-template-columns: minmax(0, 1fr); }
   .table--cards tbody tr:hover td { background: transparent; }
   .kv { grid-template-columns: 1fr; gap: 0 }
   .kv dt { margin-top: 6px; }

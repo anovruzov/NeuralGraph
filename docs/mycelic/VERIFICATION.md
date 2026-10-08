@@ -169,6 +169,21 @@ embedded holders, standalone worker, and standalone `holder-a` and `holder-b`, e
 - The admin Integrations (connector metadata) and Domains (taxonomy) pages render.
 - No horizontal scrolling at 390 px; no console errors besides the login page's expected session probe.
 
+**Simulated demo apps in the container** (`docker-compose.local.yml` with `MYCELIC_DEMO_APPS=1`, rebuilt image, clean
+volume, `seed` run next to the server):
+- The server hosts the GitHub and Slack mocks on loopback and connects the Platform team memory, organization-wide, as
+  Priya: 12 GitHub and 10 Slack records, both connections named "simulated demo data", no dead queue items.
+- With each included source mapped to a domain (repo → `engineering`, `#deployments` → `infrastructure.ci-cd`), the
+  holder published both as routable domains (8 and 9 records) through its heartbeat.
+- Signed in as Priya: Connected apps, the records list and the record drawer render. Signed in as Tomas: the admin
+  Integrations and Domains pages render.
+- Bugs found here and fixed:
+  - `mycelic seed` running next to the server also tried to host the mocks and failed on the taken ports; only the
+    server process hosts them now;
+  - long URLs in record snippets widened the page at 390 px; card-table cells now wrap;
+  - without a source mapping, 11 of 17 classified records stayed `unclassified` under the deterministic classifier
+    (hash embeddings, fake model), so no domain reached the publication threshold (see limitations).
+
 ## 4. Live integrations
 
 | Item | Status | Why / what is needed |
@@ -186,5 +201,9 @@ embedded holders, standalone worker, and standalone `holder-a` and `holder-b`, e
 - **Simulated, not live.** Discovery quality with real models is untested: the fake model follows documented
   deterministic rules, not judgement.
 - **Hash embeddings are bag-of-words.** Semantic retrieval quality with a real embedding model is not measured here.
+- **Domain classification of short messages.** In deterministic mode (hash embeddings, fake model) rules accept a
+  domain only with several keyword hits, so short chat messages and comments often stay `unclassified` unless their
+  source is mapped to a domain. Classification accuracy with a real embedding model and a real light-tier model has
+  not been measured.
 - **Single-node scale has not been benchmarked under load.** Scaling limits are documented in RUNBOOK.md.
 - **Browser coverage.** The UI was exercised with Chromium only, at desktop width and at 390 px.
