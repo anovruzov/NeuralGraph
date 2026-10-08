@@ -177,6 +177,40 @@ export function IntegrationsPage() {
           />
         ) : null}
       </Section>
+      <ConnectedAppsAdmin />
     </div>
+  );
+}
+
+/** Connector metadata across the organization: types, scopes, status and counts. Never source names or content. */
+function ConnectedAppsAdmin() {
+  const rows = useAsync(() => api.integrations.admin(), []);
+  return (
+    <Section title="Connected apps" meta={rows.data ? `${rows.data.items.length} connection(s) · ${Object.entries(rows.data.totals.by_type).map(([t, n]) => `${t} ${n}`).join(', ') || 'none'}` : undefined}>
+      <p className="sm muted" style={{ maxWidth: 760 }}>
+        Personal connections belong to their owner; organization-wide ones to the unit's leads (or an administrator). This view shows metadata only:
+        what is connected, its permissions and health. Source names and content stay in the holders.
+      </p>
+      {rows.error ? (
+        <ErrorPanel error={rows.error} retry={() => void rows.reload()} />
+      ) : rows.loading && !rows.data ? (
+        <Loading />
+      ) : (
+        <Table
+          rows={rows.data?.items ?? []}
+          rowKey={(r) => r.connector_id}
+          empty="No apps are connected yet."
+          columns={[
+            { key: 'type', header: 'App', render: (r) => <b>{r.connector_type}</b> },
+            { key: 'holder', header: 'Feeds', render: (r) => <span>{r.holder_name}<div className="xs muted">{r.scope}</div></span> },
+            { key: 'status', header: 'Status', render: (r) => <span><StatusBadge status={r.status} />{r.status_code ? <div className="xs muted">{r.status_code}</div> : null}</span> },
+            { key: 'scopes', header: 'Granted', render: (r) => <span className="xs">{r.granted_scopes.join(', ') || '—'}</span> },
+            { key: 'sources', header: 'Sources', num: true, render: (r) => `${fmtNum(r.sources_included)}${r.sources_pending ? ` (+${r.sources_pending} pending)` : ''}` },
+            { key: 'records', header: 'Records', num: true, render: (r) => fmtNum(r.records) },
+            { key: 'sync', header: 'Last sync', render: (r) => (r.last_sync_at ? ago(r.last_sync_at) : 'never') },
+          ]}
+        />
+      )}
+    </Section>
   );
 }

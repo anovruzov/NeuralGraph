@@ -239,6 +239,38 @@ export const admin = {
   workers: () => get<T.ListResponse<T.Worker> | { workers: T.Worker[] }>('/admin/workers'),
 };
 
+export const integrations = {
+  catalog: () => get<T.ListResponse<T.ConnectorCatalogItem>>('/integrations/catalog'),
+  connectors: (holder_id: string) => get<T.ListResponse<T.Connector>>(`/holders/${holder_id}/connectors`),
+  connect: (holder_id: string, body: { connector_type: string; auth?: { kind: string; token?: string }; config?: T.Json; display_name?: string }) =>
+    post<{ connector: T.Connector | null; discovered?: Record<string, number>; next: { action: 'select_sources' | 'redirect'; url?: string } }>(
+      `/holders/${holder_id}/connectors`,
+      body,
+    ),
+  update: (holder_id: string, connector_id: string, body: { status?: 'active' | 'paused'; config?: T.Json }) =>
+    patch<{ connector: T.Connector }>(`/holders/${holder_id}/connectors/${connector_id}`, body),
+  disconnect: (holder_id: string, connector_id: string, data: 'keep' | 'delete') =>
+    request<{ connector: { connector_id: string; status: string }; deletion: { records_deleted: number } }>(
+      `/holders/${holder_id}/connectors/${connector_id}`,
+      { method: 'DELETE', query: { data } },
+    ),
+  sources: (holder_id: string, connector_id: string) => get<T.ListResponse<T.ConnectorSource>>(`/holders/${holder_id}/connectors/${connector_id}/sources`),
+  discover: (holder_id: string, connector_id: string) => post<Record<string, number>>(`/holders/${holder_id}/connectors/${connector_id}/sources/discover`),
+  setSources: (holder_id: string, connector_id: string, changes: { source_id: string; selection?: string }[], existing_records: 'keep' | 'delete' = 'keep') =>
+    patch<T.ListResponse<T.ConnectorSource>>(`/holders/${holder_id}/connectors/${connector_id}/sources`, { changes, existing_records }),
+  sync: (holder_id: string, connector_id: string, mode: 'incremental' | 'backfill' = 'incremental') =>
+    post<{ report: T.SyncReport; processed: number; published: number }>(`/holders/${holder_id}/connectors/${connector_id}/sync`, { mode }),
+  webhook: (holder_id: string, connector_id: string, signing_secret?: string) =>
+    post<{ endpoint_id: string; url: string; connector_type: string; secret?: string }>(
+      `/holders/${holder_id}/connectors/${connector_id}/webhook`,
+      signing_secret ? { signing_secret } : {},
+    ),
+  admin: () => get<T.ListResponse<T.AdminConnectorRow> & { totals: { by_type: Record<string, number>; by_status: Record<string, number> } }>('/admin/integrations'),
+  domains: () => get<T.TaxonomyResponse>('/domains'),
+  setDomains: (body: { upsert?: { domain_id: string; name?: string; description?: string }[]; deprecate?: string[]; aliases?: { alias: string; domain_id: string }[] }) =>
+    put<T.TaxonomyResponse>('/admin/domains', body),
+};
+
 export const notifications = {
   list: (unread = false, limit = 50) => get<T.ListResponse<T.Notification>>('/notifications', { unread, limit }),
   markRead: (ids?: number[]) => post<{ updated: number }>('/notifications/read', ids ? { ids } : {}),
@@ -252,5 +284,5 @@ export const health = {
     ),
 };
 
-export const api = { auth, org, grants, holders, memory, chats, goals, questions, discoveries, claims, evidence, conflicts, workspace, admin, notifications, health };
+export const api = { auth, org, grants, holders, memory, chats, goals, questions, discoveries, claims, evidence, conflicts, workspace, admin, integrations, notifications, health };
 export default api;

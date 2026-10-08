@@ -11,6 +11,7 @@ const TABS: { to: string; label: string; end?: boolean }[] = [
   { to: '/app/admin/models', label: 'Models' },
   { to: '/app/admin/budgets', label: 'Budgets' },
   { to: '/app/admin/integrations', label: 'Integrations' },
+  { to: '/app/admin/domains', label: 'Domains' },
   { to: '/app/admin/workers', label: 'Workers' },
   { to: '/app/admin/audit', label: 'Audit log' },
   { to: '/app/admin/deployment', label: 'Deployment' },

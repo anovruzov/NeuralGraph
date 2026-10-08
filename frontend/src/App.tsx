@@ -8,6 +8,7 @@ import { InvitePage } from './pages/InvitePage';
 import { OnboardingPage } from './pages/OnboardingPage';
 import { EmployeeHomePage } from './pages/EmployeeHomePage';
 import { MemoryPage } from './pages/MemoryPage';
+import { ConnectedAppsPage } from './pages/ConnectedAppsPage';
 import { ChatPage } from './pages/ChatPage';
 import { GoalsPage } from './pages/GoalsPage';
 import { GoalDetailPage } from './pages/GoalDetailPage';
@@ -25,6 +26,7 @@ import { PoliciesPage } from './pages/admin/PoliciesPage';
 import { ModelsPage } from './pages/admin/ModelsPage';
 import { BudgetsPage } from './pages/admin/BudgetsPage';
 import { IntegrationsPage } from './pages/admin/IntegrationsPage';
+import { DomainsPage } from './pages/admin/DomainsPage';
 import { WorkersPage } from './pages/admin/WorkersPage';
 import { AuditPage } from './pages/admin/AuditPage';
 import { DeploymentPage } from './pages/admin/DeploymentPage';
@@ -41,6 +43,7 @@ export function App() {
           <Route path="/onboarding" element={<OnboardingPage />} />
           <Route path="/app" element={<EmployeeHomePage />} />
           <Route path="/app/memory" element={<MemoryPage />} />
+          <Route path="/app/memory/integrations" element={<ConnectedAppsPage />} />
           <Route path="/app/chat" element={<ChatPage />} />
           <Route path="/app/chat/:chatId" element={<ChatPage />} />
           <Route path="/app/goals" element={<GoalsPage />} />
@@ -59,6 +62,7 @@ export function App() {
             <Route path="models" element={<ModelsPage />} />
             <Route path="budgets" element={<BudgetsPage />} />
             <Route path="integrations" element={<IntegrationsPage />} />
+            <Route path="domains" element={<DomainsPage />} />
             <Route path="workers" element={<WorkersPage />} />
             <Route path="audit" element={<AuditPage />} />
             <Route path="deployment" element={<DeploymentPage />} />

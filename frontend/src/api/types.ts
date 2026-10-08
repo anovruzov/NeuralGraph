@@ -274,6 +274,8 @@ export interface Holder {
   status: string;
   mode: 'embedded' | 'external' | string;
   domains: string[];
+  /** Domains of the holder's ingested records, as its heartbeats last reported them (routing uses both lists). */
+  published_domains?: string[];
   export_policy: ExportPolicy;
   last_heartbeat_at: string | null;
   stats: HolderStats;
@@ -1056,4 +1058,108 @@ export interface LiveEvent {
   ref_id: string | null;
   payload: Json;
   at: string;
+}
+
+// ---------------------------------------------------------------- integrations (docs/mycelic/INGESTION.md §13.2)
+export type ConnectorStatusLabel = 'scaffold' | 'implemented' | 'tested-offline' | 'live-verified' | string;
+
+export interface ConnectorCatalogItem {
+  connector_type: string;
+  display_name: string;
+  version: string;
+  status: ConnectorStatusLabel;
+  auth_kinds: string[];
+  modes: string[];
+  source_types: string[];
+  scopes: { scope: string; required: boolean; reason: string }[];
+  capabilities: Record<string, unknown>;
+  terms_notes: string;
+  ownership: string[];
+  enabled_for_tenant: boolean;
+  connectable: boolean;
+}
+
+export interface Connector {
+  connector_id: string;
+  connector_type: string;
+  display_name: string;
+  account_label?: string | null;
+  source_account_id?: string | null;
+  auth_kind: string;
+  ownership: string;
+  mode: string;
+  status: string;
+  status_code?: string | null;
+  granted_scopes: string[];
+  created_at?: string;
+  updated_at?: string;
+  last_sync_at?: string | null;
+  last_success_at?: string | null;
+  health?: Record<string, unknown>;
+  config?: Record<string, unknown>;
+  counts?: { sources_included: number; sources_pending: number; sources_excluded: number; records: number };
+  warnings?: string[];
+}
+
+export interface ConnectorSource {
+  source_id: string;
+  connector_id: string;
+  source_type: string;
+  external_id: string;
+  name: string;
+  selection: 'included' | 'excluded' | 'pending_review' | string;
+  selection_reason: string;
+  visibility: 'public' | 'members' | 'private' | string;
+  exportable: boolean;
+  disclosure: string | null;
+  default_domain_ids: string[];
+  sensitivity: string;
+  access_state: string;
+  members: number;
+}
+
+export interface SyncReport {
+  streams: string[];
+  pages: number;
+  raw_items: number;
+  enqueued: number;
+  duplicates: number;
+  excluded: number;
+  normalize_errors: number;
+  error_code: string | null;
+  yielded: boolean;
+}
+
+export interface AdminConnectorRow {
+  connector_id: string;
+  holder_id: string;
+  holder_name: string;
+  scope: 'personal' | 'organization' | string;
+  connector_type: string;
+  status: string;
+  status_code: string;
+  mode: string;
+  sources_included: number;
+  sources_pending: number;
+  records: number;
+  last_sync_at: string | null;
+  last_success_at: string | null;
+  created_at: string;
+  granted_scopes: string[];
+}
+
+export interface TaxonomyDomain {
+  domain_id: string;
+  parent_id: string | null;
+  name: string;
+  path: string;
+  description: string;
+  status: 'active' | 'deprecated' | string;
+}
+
+export interface TaxonomyResponse {
+  taxonomy_version: number;
+  configured: boolean;
+  items: TaxonomyDomain[];
+  aliases: { alias: string; domain_id: string }[];
 }

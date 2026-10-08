@@ -85,8 +85,11 @@ export function AppShell() {
           <NavLink to="/app" end>
             <Glyph type="home" /> Home
           </NavLink>
-          <NavLink to="/app/memory">
+          <NavLink to="/app/memory" end>
             <Glyph type="memory" /> Memory
+          </NavLink>
+          <NavLink to="/app/memory/integrations" className="sidebar__unit">
+            Connected apps
           </NavLink>
           <NavLink to="/app/chat">
             <Glyph type="chat" /> Chat
