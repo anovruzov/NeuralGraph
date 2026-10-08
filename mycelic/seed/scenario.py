@@ -1050,7 +1050,8 @@ async def run_scenario(rt: Runtime | None = None, *, data_dir: str | None = None
     try:
         await rt.start(run_worker=False, run_holders=True)
         key_a, key_b = token(24), token(24)
-        seed = await run_seed(rt, external_holder_keys={HOLDER_A: key_a, HOLDER_B: key_b})
+        # the scenario pushes the external holders' documents through their local API itself (part of check c)
+        seed = await run_seed(rt, external_holder_keys={HOLDER_A: key_a, HOLDER_B: key_b}, deliver_external=False)
         report["tenant_id"], report["goal_id"] = seed["tenant_id"], seed["goal_id"]
         # the API (real when present, otherwise the holder-bootstrap stand-in) on a random free port
         app, mode, note = await build_api(rt)

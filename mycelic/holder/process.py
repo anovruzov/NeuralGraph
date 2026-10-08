@@ -45,7 +45,7 @@ from typing import Any
 
 from ..evidence.service import EvidenceStore
 from ..transport.base import Transport, TransportError, build_transport
-from ..util import now_iso
+from ..util import now_iso, sha256
 from .service import HolderService
 
 logger = logging.getLogger(__name__)
@@ -194,7 +194,11 @@ def _build_transport(settings: Any) -> tuple[Transport, Any]:
                                  "(set MYCELIC_COORD_DB) or MYCELIC_TRANSPORT=nats")
         db = CoordDB(path, migrate=False)
         return build_transport(settings, db), db
-    return build_transport(settings, None), None
+    transport = build_transport(settings, None)
+    # the coordinator owns the stream; a holder's NATS user may only check that it exists (deploy/mycelic/nats.conf)
+    if hasattr(transport, "manage_stream"):
+        transport.manage_stream = False
+    return transport, None
 
 
 async def run_holder(settings: Any, *, holder_id: str, key: str, core_url: str, data_dir: str | Path, local_port: int | None = None,
@@ -224,10 +228,19 @@ async def run_holder(settings: Any, *, holder_id: str, key: str, core_url: str, 
     store = EvidenceStore(Path(data_dir).expanduser() / holder_id / "evidence.db", holder_id=holder_id, tenant_id=tenant_id, llm=llm,
                           router=router, export_policy=boot.get("export_policy"), domains=boot.get("domains") or [])
 
+    route_key_id = sha256(boot["route_key"])[:16]
+
     async def heartbeat(stats: dict[str, Any]) -> None:
         reply = await core.heartbeat(stats)
         if isinstance(reply, dict) and ("export_policy" in reply or "domains" in reply):
             store.update_policy(reply.get("export_policy"), reply.get("domains"))
+        if isinstance(reply, dict) and ((reply.get("tenant_id") and reply["tenant_id"] != tenant_id)
+                                        or (reply.get("route_key_id") and reply["route_key_id"] != route_key_id)):
+            # the registry moved under this process (tenant recreated, signing key rotated): stop and let the supervisor
+            # restart it with a fresh bootstrap rather than keep listening on stale subjects with a stale key
+            logger.warning("holder %s: registry changed (tenant or signing key); restarting", holder_id)
+            summary["restart_required"] = True
+            stop.set()
 
     service = HolderService(store, transport, holder_id=holder_id, tenant_id=tenant_id, route_key=boot["route_key"],
                             heartbeat=heartbeat, heartbeat_interval=interval)
@@ -294,14 +307,14 @@ def main(argv: list[str] | None = None) -> int:
         logging.basicConfig(level=getattr(logging, str(settings.log_level).upper(), logging.INFO),
                             format="%(asctime)s %(levelname)s %(name)s: %(message)s", stream=sys.stderr)
     try:
-        asyncio.run(run_holder(settings, holder_id=args.holder_id, key=args.key, core_url=args.core_url, data_dir=data_dir,
-                               local_port=args.local_port or None, local_host=args.local_host, heartbeat_seconds=args.heartbeat_seconds))
+        summary = asyncio.run(run_holder(settings, holder_id=args.holder_id, key=args.key, core_url=args.core_url, data_dir=data_dir,
+                                         local_port=args.local_port or None, local_host=args.local_host, heartbeat_seconds=args.heartbeat_seconds))
     except KeyboardInterrupt:
         return 130
     except Exception as exc:
         logger.error("holder %s stopped with an error: %s", args.holder_id, exc)
         return 1
-    return 0
+    return 75 if summary.get("restart_required") else 0      # EX_TEMPFAIL: restart me
 
 
 if __name__ == "__main__":  # pragma: no cover

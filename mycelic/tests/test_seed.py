@@ -48,6 +48,10 @@ async def test_seed_creates_the_labelled_demo_goal_and_both_tenants(rt):
 async def test_seed_hierarchy_roles_and_holders(rt):
     out = await run_seed(rt, external_holder_keys={HOLDER_A: "key-a", HOLDER_B: "key-b"})
     tid = out["tenant_id"]
+    # the external holders' documents went out over the transport, signed for each holder, durably
+    assert sorted(out["delivered_external_documents"]) == sorted(d["doc_id"] for d in out["pending_external_documents"])
+    rows = rt.db.all("SELECT subject, payload FROM transport_messages WHERE msg_id LIKE 'ingest:%'")
+    assert {r["subject"].split(".")[3] for r in rows} == {d["holder_id"] for d in out["pending_external_documents"]}
     types = {u["type"] for u in rt.org.list_units(tid)}
     assert {"executive", "region", "subsidiary", "department", "team", "project"} <= types
     roles = {m["role"] for m in rt.db.all("SELECT role FROM memberships WHERE tenant_id=?", (tid,))}

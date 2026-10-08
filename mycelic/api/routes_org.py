@@ -19,7 +19,7 @@ from ..authz import Forbidden, Principal
 from ..org import DEFAULT_POLICIES, LEAD_ROLES, ROLES, UNIT_TYPES
 from ..evidence.service import policy_problems
 from ..transport import Envelope, Subjects, TransportError
-from ..util import new_id, now_iso
+from ..util import new_id, now_iso, sha256
 from .middleware import (ApiError, json_response, limit_of, listing, need_str, opt_dict, opt_list, opt_str, query_int, read_json, require_admin,
                          require_holder, require_user)
 
@@ -1030,7 +1030,10 @@ def setup(app: web.Application, prefix: str = "/api") -> None:
             raise ApiError(400, "status must be online or offline")
         await rt.org.holder_heartbeat(hid, stats=stats, status=status)
         h = rt.org.get_holder(hid) or {}
-        return json_response({"ok": True, "export_policy": h.get("export_policy") or {}, "domains": h.get("domains") or []})
+        # tenant and signing-key fingerprint let a running holder notice that the registry moved under it (a demo reset,
+        # a key rotation) and restart with a fresh bootstrap instead of listening on stale subjects
+        return json_response({"ok": True, "export_policy": h.get("export_policy") or {}, "domains": h.get("domains") or [],
+                              "tenant_id": h.get("tenant_id"), "route_key_id": sha256(rt.org.route_key(hid))[:16]})
 
     app.router.add_get(f"{prefix}/org", get_org)
     app.router.add_post(f"{prefix}/org/units", create_unit)

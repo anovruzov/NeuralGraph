@@ -528,3 +528,33 @@ async def test_embedded_holders_reconcile_with_the_registry(tmp_path: Path, db, 
         assert out["stopped"] == [late["holder_id"]] and embedded.service(late["holder_id"]) is None
     finally:
         await embedded.stop()
+
+
+def test_holder_process_never_manages_the_nats_stream() -> None:
+    """The coordinator owns the stream; a holder's NATS user may only check it exists (deploy/mycelic/nats.conf)."""
+    pytest.importorskip("nats")
+    from mycelic.config import Settings
+    from mycelic.holder.process import _build_transport
+    s = Settings()
+    s.transport, s.nats_url = "nats", "nats://127.0.0.1:1"
+    transport, db = _build_transport(s)
+    assert db is None and transport.manage_stream is False
+
+
+async def test_embedded_holder_restarts_when_its_signing_key_rotates(tmp_path: Path, db, org, transport) -> None:
+    tenant = await org.create_tenant("Acme", "acme")
+    tid = tenant["tenant_id"]
+    ana = await org.create_user(tid, "ana@example.com", "Ana")
+    h, _ = await org.register_holder(tid, owner_type="user", owner_id=ana["user_id"], name="Ana", mode="embedded", domains=["ops"])
+    embedded = EmbeddedHolders(SimpleNamespace(holders_dir=str(tmp_path / "holders")), db, org, transport, llm_factory=FakeLLMClient,
+                               router=StubRouter(), heartbeat_interval=1000.0)
+    await embedded.start()
+    try:
+        before = embedded.service(h["holder_id"])
+        await org.rotate_holder_key(h["holder_id"])
+        out = await embedded.reconcile()
+        after = embedded.service(h["holder_id"])
+        assert out["stopped"] == [h["holder_id"]] and out["started"] == [h["holder_id"]]
+        assert after is not before and after.route_key == org.route_key(h["holder_id"])
+    finally:
+        await embedded.stop()

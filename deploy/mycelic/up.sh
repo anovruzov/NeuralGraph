@@ -18,7 +18,7 @@ if [ ! -f .env ]; then
 import re, secrets, pathlib
 p = pathlib.Path(".env")
 s = p.read_text()
-for name in ("MYCELIC_SECRET_KEY", "NATS_CORE_PASSWORD", "NATS_HOLDER_A_PASSWORD", "NATS_HOLDER_B_PASSWORD",
+for name in ("MYCELIC_SECRET_KEY", "NATS_SYS_PASSWORD", "NATS_CORE_PASSWORD", "NATS_HOLDER_A_PASSWORD", "NATS_HOLDER_B_PASSWORD",
              "MYCELIC_HOLDER_KEY_A", "MYCELIC_HOLDER_KEY_B"):
     s = re.sub(rf"^{name}=$", f"{name}={secrets.token_urlsafe(32)}", s, flags=re.M)
 p.write_text(s)

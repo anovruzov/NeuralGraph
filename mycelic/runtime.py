@@ -149,4 +149,12 @@ def build_runtime(settings: Settings | None = None, *, with_transport: bool = Tr
             rt.holders = EmbeddedHolders(s, db, org, transport, router=router, embedder=embedder)
         except Exception as exc:  # the holder package may not be present yet in a partial build
             logger.warning("embedded holders unavailable: %s", exc)
+    if s.demo_mode:
+        # every process that can lease jobs (an API with an in-process worker, a standalone worker) must be able to run
+        # the demonstration tenant's labelled simulation job the seed enqueues
+        try:
+            from .seed import simulate
+            simulate.install(rt)
+        except Exception as exc:  # pragma: no cover - the seed package is optional in a stripped build
+            logger.warning("demo simulation hook unavailable: %s", exc)
     return rt

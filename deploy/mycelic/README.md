@@ -39,3 +39,15 @@ backups, restore, migrations, rollback, troubleshooting): `docs/mycelic/RUNBOOK.
 * Back up before you migrate or change the image tag: `python -m mycelic backup --out FILE.tar.gz`.
 * Model keys, `MYCELIC_SECRET_KEY`, NATS passwords and holder keys are environment secrets; they are never
   written to the database in clear text, never shown in the UI, and never belong in git.
+
+## Notes from verification (2026-10-08)
+
+- `docker compose exec api python -m mycelic seed` seeds the distributed stack:
+  - the API hosts the embedded holders;
+  - `holder-a` / `holder-b` receive their documents over NATS when they connect.
+- Where Docker Hub rate-limits anonymous pulls, use a mirror:
+  - `NATS_IMAGE=mirror.gcr.io/library/nats:2.11-alpine docker compose up -d`
+  - build with `--build-arg NODE_IMAGE=mirror.gcr.io/library/node:22-alpine --build-arg PYTHON_IMAGE=mirror.gcr.io/library/python:3.11-slim`
+- Behind a TLS-intercepting proxy, add `--network=host --secret id=build_ca,src=<proxy CA bundle>` and the standard
+  `--build-arg HTTPS_PROXY`. The CA never lands in an image layer.
+- See `docs/mycelic/VERIFICATION.md` for what was verified and how.

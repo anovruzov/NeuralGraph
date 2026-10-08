@@ -79,6 +79,11 @@ class EmbeddedHolders:
                         stopped.append(holder["holder_id"])
                     continue
                 wanted.add(holder["holder_id"])
+                running = self._services.get(holder["holder_id"])
+                if running is not None and (running.tenant_id != holder["tenant_id"] or running.route_key != self.org.route_key(holder["holder_id"])):
+                    # the registry moved under it (tenant recreated, signing key rotated): restart with the current values
+                    await self.remove(holder["holder_id"])
+                    stopped.append(holder["holder_id"])
                 if holder["holder_id"] not in self._services:
                     try:
                         await self.ensure(holder["holder_id"])

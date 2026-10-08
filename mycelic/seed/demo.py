@@ -173,8 +173,13 @@ def _normalize_keys(external_holder_keys: dict[str, str] | None) -> dict[str, st
 
 
 # ------------------------------------------------------------------------------------------------ seed
-async def run_seed(rt: Any, *, reset: bool = False, external_holder_keys: dict[str, str] | None = None) -> dict[str, Any]:
-    """Create (or return) the demonstration tenants. See the module docstring for the contract."""
+async def run_seed(rt: Any, *, reset: bool = False, external_holder_keys: dict[str, str] | None = None,
+                   deliver_external: bool = True) -> dict[str, Any]:
+    """Create (or return) the demonstration tenants. See the module docstring for the contract.
+
+    External holders' documents are sent to them over the transport as signed ``ingest`` envelopes (durable: a holder
+    that connects later still receives them) unless ``deliver_external`` is false, in which case the caller pushes
+    ``pending_external_documents`` itself (the verification scenario does, through each holder's local API)."""
     keys = _normalize_keys(external_holder_keys)
     existing = rt.org.get_tenant_by_slug(MERIDIAN_SLUG)
     if existing is not None and reset:
@@ -187,6 +192,8 @@ async def run_seed(rt: Any, *, reset: bool = False, external_holder_keys: dict[s
         out = await _create_meridian(rt, keys)
         out["orbital_tenant_id"] = (await _create_orbital(rt))["tenant_id"]
         out["created"] = True
+        if deliver_external and out.get("pending_external_documents") and rt.transport is not None:
+            out["delivered_external_documents"] = await _deliver_external(rt, out["tenant_id"], out["pending_external_documents"])
     simulate.install(rt)
     await simulate.enqueue_first(rt, out["tenant_id"])
     return out
@@ -326,6 +333,21 @@ async def _ingest_documents(rt: Any, docs: list[dict[str, Any]], users: dict[str
         await store.ingest_document(row["title"], row["text"], kind=row["kind"], observed_at=row["observed_at"], domains=row["domains"],
                                     uploaded_by=row["uploaded_by"], doc_id=row["doc_id"])
     return pending
+
+
+async def _deliver_external(rt: Any, tenant_id: str, docs: list[dict[str, Any]]) -> list[str]:
+    """Publish each external holder's documents as signed ``ingest`` envelopes, exactly as an upload through the API
+    does (deterministic msg ids, so a repeated seed is deduplicated by the transport and the holder)."""
+    from ..transport import Envelope, Subjects
+
+    sent = []
+    for d in docs:
+        payload = {k: d[k] for k in ("doc_id", "title", "text", "kind", "observed_at", "domains", "uploaded_by")}
+        env = Envelope.new(Subjects.holder_ingest(tenant_id, d["holder_id"]), "ingest", tenant_id, payload, msg_id=f"ingest:{d['doc_id']}")
+        env.sign(rt.org.route_key(d["holder_id"]))
+        await rt.transport.publish(env)
+        sent.append(d["doc_id"])
+    return sent
 
 
 async def _create_goal(rt: Any, users: dict[str, str], units: dict[str, str]) -> tuple[dict[str, Any], list[dict[str, Any]]]:

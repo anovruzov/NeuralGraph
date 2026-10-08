@@ -17,7 +17,7 @@ Date of this record: 2026-10-08. Branch `claude/mycelic-implementation-vr034p`.
 
 | Suite | Command | Result |
 |---|---|---|
-| Mycelic | `.venv/bin/python -m pytest mycelic/tests -q` | **161 passed, 2 skipped**. The two skips are the NATS JetStream tests, which need a server; see the next row. |
+| Mycelic | `.venv/bin/python -m pytest mycelic/tests -q` | **169 passed, 2 skipped**. The two skips are the NATS JetStream tests, which need a server; see the next row. |
 | Mycelic, NATS transport | `MYCELIC_TEST_NATS_URL=nats://127.0.0.1:4333 .venv/bin/python -m pytest mycelic/tests/test_transport.py -k nats` against a local `nats-server` 2.11.4 started with `-js` | **3 passed**: publish, subscribe and request round trip; a durable consumer survives a reconnect |
 | NeuralGraph library | `.venv/bin/python -m pytest NeuralGraph/tests -q` | **222 passed, 1 skipped, 119 subtests passed** |
 | Frontend types | `cd frontend && npx tsc --noEmit` (strict) | passes |
@@ -121,13 +121,35 @@ All data is fictional (DEMO_SCENARIO.md).
   - goal-form values (string targets, `up`/`down`) prevented any progress calculation for goals created in the UI.
 - One expected 401 remains: the login page probes `/api/auth/me` before anyone has signed in.
 
+**Distributed topology** (`deploy/mycelic/docker-compose.yml`, containers: NATS JetStream 2.11, API hosting the
+embedded holders, standalone worker, and standalone `holder-a` and `holder-b`, each with its own volume and NATS user):
+- Started from clean volumes and seeded with `docker compose exec api python -m mycelic seed`.
+- Both standalone holders answered questions over NATS (3 answers each). 13 questions were committed; discoveries were
+  produced at team, region and executive level; no job died or recorded an error.
+- With holder A's credentials, the NATS server refused a subscription to holder B's subjects, a publish into holder
+  B's inbox, and stream creation.
+- Six deployment defects were found on the way and fixed:
+  1. **Password variable names.** `nats.conf` referenced password variables the compose file did not pass, including the
+     system account's, so the server would not start.
+  2. **NATS users and subjects.** `nats.conf` permitted the users `holder_a`/`holder_b` on subjects of holder ids
+     `holder_a`/`holder_b`. Compose connects as `holder-a`/`holder-b` with holder ids `hold_demo_a`/`hold_demo_b`.
+  3. **Duplicate server flags.** The compose command repeated `-sd`/`-m` from the config, which nats-server 2.11 rejects.
+  4. **Stream ownership.** Holder processes tried to create the stream, which their NATS user may not do; they now only
+     check that it exists.
+  5. **Embedded holders.** No process hosted them in this topology; the API now does.
+  6. **Demo hooks and documents.**
+     - The standalone worker lacked the demonstration's job handler.
+     - The seed left the standalone holders' documents undelivered; it now sends them over the durable transport.
+  - Hardening: a holder (embedded or standalone) whose tenant or signing key changes in the registry restarts with a
+    fresh bootstrap.
+
 ## 4. Live integrations
 
 | Item | Status | Why / what is needed |
 |---|---|---|
 | Anthropic models (`anthropic:` tiers) | **NOT VERIFIED** | No `ANTHROPIC_API_KEY` in this environment. Request construction is unit-tested against the SDK, but no live call was made. |
 | OpenAI-compatible models / embeddings | **NOT VERIFIED** | No key or endpoint configured. |
-| NATS JetStream transport | **VERIFIED locally** | Real `nats-server` 2.11.4 with JetStream, single node (section 1). The distributed compose topology was not brought up. |
+| NATS JetStream transport | **VERIFIED locally** | A real `nats-server` 2.11 with JetStream, in the transport tests and in the full distributed compose topology (section 3). This was on one machine, not across hosts. |
 | Public deployment (Fly.io / Render configs in `deploy/mycelic/`) | **NOT DEPLOYED** | No Fly or Render credentials are configured. AWS credentials exist in the environment but are not an authorized target for this application; using them needs the owner's explicit decision. |
 | Third-party app connectors (GitHub, Slack, Gmail, Drive, …) | **NOT IMPLEMENTED YET** | Design in `INGESTION.md`; implementation is in progress (Phase A). No platform is claimed as supported. |
 

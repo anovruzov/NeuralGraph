@@ -4,7 +4,8 @@
 #   docker compose up --build
 #   open http://localhost:8780
 #
-# What this demonstrates: the API and the worker share ONE coordination database (the mycelic-data volume:
+# What this demonstrates: the API (which also hosts the embedded holders) and the worker share ONE coordination
+# database (the mycelic-data volume:
 # SQLite has a single writer node, see docs/mycelic/RUNBOOK.md "Scaling limits"), while each holder has its
 # OWN volume and its OWN credentials. Evidence never leaves a holder's volume; only bounded artifacts cross
 # NATS. holder-a and holder-b can be moved to other machines by changing MYCELIC_NATS_URL / MYCELIC_CORE_URL.
@@ -30,14 +31,16 @@ x-nats-client: &nats-client
 
 services:
   nats:
-    image: nats:2.11-alpine
-    # -js enables JetStream, -sd puts the stream on the volume, -m exposes the monitoring port for the healthcheck.
-    command: ["-c", "/etc/nats/nats.conf", "-js", "-sd", "/data/jetstream", "-m", "8222"]
+    image: ${NATS_IMAGE:-nats:2.11-alpine}      # override with a registry mirror where Docker Hub rate-limits
+    # nats.conf enables JetStream (store_dir /data/jetstream on the volume) and the monitoring port the healthcheck
+    # uses; repeating them as flags (-js -sd -m) makes nats-server >= 2.11 refuse to start ("Duplicate store_dir").
+    command: ["-c", "/etc/nats/nats.conf"]
     environment:
-      # nats.conf references these as $NATS_CORE_PASSWORD etc.
-      NATS_CORE_PASSWORD: ${NATS_CORE_PASSWORD:?set NATS_CORE_PASSWORD in .env}
-      NATS_HOLDER_A_PASSWORD: ${NATS_HOLDER_A_PASSWORD:?set NATS_HOLDER_A_PASSWORD in .env}
-      NATS_HOLDER_B_PASSWORD: ${NATS_HOLDER_B_PASSWORD:?set NATS_HOLDER_B_PASSWORD in .env}
+      # nats.conf references these as $MYCELIC_NATS_CORE_PASSWORD etc.
+      MYCELIC_NATS_SYS_PASSWORD: ${NATS_SYS_PASSWORD:?set NATS_SYS_PASSWORD in .env}
+      MYCELIC_NATS_CORE_PASSWORD: ${NATS_CORE_PASSWORD:?set NATS_CORE_PASSWORD in .env}
+      MYCELIC_NATS_HOLDER_A_PASSWORD: ${NATS_HOLDER_A_PASSWORD:?set NATS_HOLDER_A_PASSWORD in .env}
+      MYCELIC_NATS_HOLDER_B_PASSWORD: ${NATS_HOLDER_B_PASSWORD:?set NATS_HOLDER_B_PASSWORD in .env}
     volumes:
       - nats-data:/data
       - ./nats.conf:/etc/nats/nats.conf:ro
@@ -62,7 +65,9 @@ services:
       MYCELIC_HOST: 0.0.0.0
       MYCELIC_PORT: "8780"
       MYCELIC_RUN_WORKER_IN_API: "0"
-      MYCELIC_EMBEDDED_HOLDERS: "0"
+      # the API hosts the embedded holders (the demo's other eight people; any holder created with mode=embedded),
+      # each with its own store under /data/holders; holder-a and holder-b below are standalone processes
+      MYCELIC_EMBEDDED_HOLDERS: "1"
       MYCELIC_NATS_USER: core
       MYCELIC_NATS_PASSWORD: ${NATS_CORE_PASSWORD}
     volumes:
