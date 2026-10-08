@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "purpose": "Plumbing check of the cloud lab workflow: the fake server answers every call, so no model is run and nothing here is a measurement.",
+  "provider": "fake",
+  "models": [
+    "fake-a",
+    "fake-b"
+  ],
+  "job_minutes": 45,
+  "max_parallel": 2,
+  "retention_days": 7,
+  "experiments": {
+    "e3": {
+      "minutes": 5,
+      "concurrency": [
+        1,
+        2
+      ],
+      "requests": 3,
+      "warmup": 1,
+      "workloads": [
+        "extraction",
+        "short"
+      ],
+      "seed": 7
+    },
+    "g0": {
+      "models": [
+        "fake-b"
+      ],
+      "minutes": 10,
+      "pack": "device_quality",
+      "records": 50,
+      "seed": 7
+    }
+  }
+}

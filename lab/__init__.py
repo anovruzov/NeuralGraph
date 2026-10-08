@@ -4,15 +4,19 @@ A founder writes a request (``lab/requests/<name>.json``, see ``request.py``) na
 lab's model manifest (``lab/models.json``, see ``manifest.py``) and pushes it. The workflow's plan job finds the
 request the push added (``discover.py``), validates it and expands it into units, shards and the files to provision
 (``plan.py``); the provision matrix downloads and verifies the pinned server archive and model files once per run
-(``provision.py`` over ``download.py``); each shard job prepares its files and server binary from the provision
-records, runs its units against the model server it starts on loopback (``shard.py``, ``server.py``, ``warmup.py``,
-``units.py``) and seals its output directory; G3 aggregates the shards. ``dryrun.py`` runs the same plan and shard
-steps in this sandbox against the collective's fake OpenAI-compatible server, so every gate is testable without
-model weights.
+(``provision.py`` over ``download.py``); each shard job restores exactly the cached files its run's provision
+records name, prepares its server binary from them, runs its units against the model server it starts on loopback
+(``shard.py``, ``server.py``, ``warmup.py``, ``units.py``) by a deadline taken from the job's own clock, and seals
+its output directory; the aggregate job merges the shards' sealed artifacts into one report (``aggregate.py``).
+Every job writes a step summary (``summary.py``) whose numbers are all read from run files, and whose first line
+says when nothing in it measures a model. ``dryrun.py`` runs the same plan, shard, aggregate and summary steps in
+this sandbox against the collective's fake OpenAI-compatible server, so every gate is testable without model
+weights; the workflow is ``.github/workflows/mycelic-lab.yml``.
 
 Modules: ``notes`` (every fixed sentence), ``request``, ``manifest``, ``discover``, ``plan``, ``download``,
 ``provision``, ``server``, ``warmup``, ``responder`` (the fake server's reply function), ``hostinfo``, ``units``,
-``shard`` and ``dryrun``. The lab imports only the standard library, ``mycelic`` and itself.
+``shard``, ``aggregate``, ``summary`` and ``dryrun``. The lab imports only the standard library, ``mycelic`` and
+itself.
 
 Exit codes, the same for every lab CLI:
 

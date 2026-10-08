@@ -20,11 +20,13 @@ from lab.discover import discover
 from lab.manifest import load_manifest
 from lab.notes import (BAD_REQUEST_NAME, BRANCH_DELETED, CHECKOUT_MISMATCH, DEFAULT_BRANCH, DELETE_ONLY,
                        MERGE_SEVERAL, NO_BASE, NO_REQUEST_CHANGE, NOT_A_BRANCH, SEVERAL_REQUESTS)
-from lab.plan import (MAX_SHARDS, OUTPUT_KEYS, PlanError, check_matrix_size, pack_shards, run_id, unit_id)
+from lab import plan as lab_plan
+from lab.plan import (MAX_SHARDS, OUTPUT_KEYS, PlanError, check_matrix_size, check_outputs_size, output_size,
+                      pack_shards, plan_outputs, run_id, unit_id)
 from lab.request import load_request
 from mycelic.collective.experiments.common import RUN_ID_RE
-from tests.lab.helpers import (MANIFEST_TEST, PLUMBING_MIN, ROOT, GitWorld, git, git_run, lab_env, plumbing_min,
-                               run_plan, write_json)
+from tests.lab.helpers import (LAB_MANIFEST, MANIFEST_TEST, PLUMBING_001, PLUMBING_MIN, ROOT, GitWorld, git, git_run,
+                               lab_env, make_plan, plumbing_min, run_plan, write_json)
 
 TIME_KEY_RE = re.compile(r"(^|_)(at|time|date|epoch|ts)(_|$)")
 REQUEST_TEXT = PLUMBING_MIN.read_text(encoding="utf-8")
@@ -241,11 +243,14 @@ class OutputTests(TempDirTest):
         plan = json.loads(plans[0])
         tag = manifest["server"]["tag"]
         self.assertEqual(plan["provision"], [
-            {"target": "server", "key": "", "cache_path": f"server/{tag}",
+            {"target": "server", "key": "", "entry": "server", "cache_path": f"server/{tag}",
+             "cache_key": f"lab-server-{tag}-" + "cd" * 8,
              "restore_key": f"lab-server-{tag}-" + "cd" * 8, "restore_prefix": f"lab-server-{tag}-"},
-            {"target": "gguf", "key": "second-gguf", "cache_path": "gguf/second-gguf",
+            {"target": "gguf", "key": "second-gguf", "entry": "gguf-second-gguf", "cache_path": "gguf/second-gguf",
+             "cache_key": "lab-gguf-second-gguf-" + "ab" * 8,
              "restore_key": "lab-gguf-second-gguf-" + "ab" * 8, "restore_prefix": "lab-gguf-second-gguf-"},
-            {"target": "gguf", "key": "tiny-gguf", "cache_path": "gguf/tiny-gguf", "restore_key": "",
+            {"target": "gguf", "key": "tiny-gguf", "entry": "gguf-tiny-gguf", "cache_path": "gguf/tiny-gguf",
+             "cache_key": "lab-gguf-tiny-gguf-unlocked", "restore_key": "",
              "restore_prefix": "lab-gguf-tiny-gguf-"}])
         outputs = self._outputs(self.tmp / "gho-A")
         self.assertEqual(outputs["has_provision"], "true")
@@ -297,6 +302,77 @@ class OutputTests(TempDirTest):
                          (2, "event", "$.inputs.request", None))
         self.assertIn("::error::$.inputs.request: must be lab/requests/<name>.json", out)
         self.assertFalse((self.tmp / "e" / "plan.json").exists())
+
+
+class OutputBudgetTests(TempDirTest):
+    def test_outputs_size_utf16(self) -> None:
+        plan, _ = make_plan(self.tmp, plumbing_min())
+        entry = plan["matrix"]["include"][0]
+        label = "fake-longest-key-0123456"
+        plan["shards"] = [{**plan["shards"][0], "shard": f"s{i + 1:03d}-{label}"} for i in range(256)]
+        plan["matrix"] = {"include": [{**entry, "shard": f"s{i + 1:03d}-{label}", "model": label, "gguf_key": label}
+                                      for i in range(256)]}
+        key = f"lab-gguf-{label}-" + "a" * 16
+        plan["provision"] = [{"target": "gguf", "key": label, "entry": f"gguf-{label}", "cache_path": f"gguf/{label}",
+                              "cache_key": key, "restore_key": key, "restore_prefix": f"lab-gguf-{label}-"}] * 9
+        outputs = plan_outputs(plan, "0" * 64) | {"plan_artifact": "x" * 64}
+        check_outputs_size(outputs)
+        self.assertLess(output_size(outputs), 900_000)
+        self.assertEqual(output_size({"ab": "cd"}), len("ab=cd") * 2)
+
+        check_outputs_size({"matrix": "x" * 449_990})
+        for outputs in ({"matrix": "x" * 449_997}, {"matrix": "x" * 300_000, "provision_matrix": "y" * 149_995}):
+            with self.subTest(sizes=[len(v) for v in outputs.values()]):
+                self.assertLess(sum(len(f"{k}={v}".encode("utf-8")) for k, v in outputs.items()), 900_000)
+                with self.assertRaises(PlanError) as caught:
+                    check_outputs_size(outputs)
+                self.assertEqual((caught.exception.path, caught.exception.problem),
+                                 ("$.experiments", "the job matrix would be too large"))
+        check_outputs_size({"matrix": "x" * 300_000})
+        check_outputs_size({"provision_matrix": "y" * 149_995})
+
+        check_matrix_size({"include": ["x" * 499_970]})
+        with self.assertRaises(PlanError):
+            check_matrix_size({"include": ["x" * 499_990]})
+
+    def test_build_plan_checks_the_outputs(self) -> None:
+        with mock.patch.object(lab_plan, "MAX_OUTPUT_BYTES", 1000):
+            code, out, err = run_plan(["--request", str(PLUMBING_MIN), "--manifest", str(MANIFEST_TEST),
+                                       "--out", str(self.tmp / "o")])
+        self.assertEqual(code, 2)
+        self.assertEqual(err.splitlines()[0], "error: $.experiments: the job matrix would be too large")
+        code, out, err = run_plan(["--request", str(PLUMBING_MIN), "--manifest", str(MANIFEST_TEST),
+                                   "--out", str(self.tmp / "p")])
+        self.assertEqual(code, 0, err)
+
+    def test_shipped_requests_plan(self) -> None:
+        manifest = load_manifest(LAB_MANIFEST)
+        cwd = os.getcwd()
+        os.chdir(ROOT)
+        try:
+            request = load_request(PLUMBING_001.relative_to(ROOT), manifest, strict_location=True)
+        finally:
+            os.chdir(cwd)
+        plan = lab_plan.build_plan(request, manifest, "unknown")
+        self.assertEqual(request.path, "lab/requests/plumbing-001.json")
+        self.assertEqual([(s["shard"], s["kind"], s["units"], s["timeout_minutes"]) for s in plan["shards"]],
+                         [("s001-fake-a", "fake", ["e3-fake-a"], 30),
+                          ("s002-fake-b", "fake", ["g0-fake-b", "e3-fake-b"], 40)])
+        self.assertEqual((plan["result_class"], plan["provision"], plan["retention_days"]), ("plumbing", [], 7))
+        self.assertEqual(sorted(p.name for p in (ROOT / "lab" / "requests").iterdir()), ["plumbing-001.json"])
+
+        requests = self.tmp / "lab" / "requests"
+        requests.mkdir(parents=True)
+        shutil.copy(ROOT / "lab" / "templates" / "check.json", requests / "check-001.json")
+        request = load_request(requests / "check-001.json", manifest, strict_location=True, root=self.tmp)
+        plan = lab_plan.build_plan(request, manifest, "unknown")
+        self.assertEqual([(s["shard"], s["kind"], s["model"], s["units"]) for s in plan["shards"]],
+                         [("s001-a-0p5b", "gguf", "a-0p5b", ["e3-a-0p5b"])])
+        self.assertEqual(plan["result_class"], "real")
+        self.assertEqual([(p["target"], p["entry"]) for p in plan["provision"]],
+                         [("server", "server"), ("gguf", "gguf-a-0p5b")])
+        for entry in plan["provision"]:
+            self.assertEqual(entry["cache_key"], entry["restore_key"] or entry["restore_prefix"] + "unlocked")
 
 
 # --------------------------------------------------------------------------------------------------- discovery
@@ -562,6 +638,27 @@ class EventCliTests(TempDirTest):
         self.assertIn("--ref feat%252C,x -f request=lab/requests/<name>.json", r.stderr)
         self.assertEqual(gho.read_text(), "")
 
+    def test_malformed_request_push_is_refused_and_summarised(self) -> None:
+        from lab import summary
+
+        w = GitWorld(self.tmp)
+        w.git("checkout", "-q", "-b", "feat")
+        bad = json.loads(REQUEST_TEXT)
+        bad["job_minutes"] = 7
+        after = w.commit({"lab/requests/bad-one.json": json.dumps(bad)})
+        w.push("feat")
+        r, gho = self._plan(w.clone(after), w.push_event(before="0" * 40, after=after, branch="feat"))
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("::error file=lab/requests/bad-one.json::$.job_minutes: must be an int in [45, 330]",
+                      r.stdout.splitlines())
+        self.assertEqual(gho.read_text(), "")
+        md, entries = summary.render_plan(self.tmp / "out")
+        self.assertEqual(md.splitlines()[0], "## Lab plan refused")
+        self.assertIn("`$.job_minutes`", md)
+        self.assertIn("`must be an int in [45, 330]`", md)
+        self.assertIn("`lab/requests/bad-one.json`", md)
+        self.assertEqual(entries, [])
+
     def test_delete_only_push_writes_nothing_to_run(self) -> None:
         w = GitWorld(self.tmp)
         w.git("checkout", "-q", "-b", "feat")
@@ -576,6 +673,45 @@ class EventCliTests(TempDirTest):
         self.assertEqual(gho.read_text().splitlines(),
                          ["has_provision=false", "has_units=false", 'matrix={"include":[]}', "max_parallel=1",
                           "plan_sha256=", 'provision_matrix={"include":[]}', "retention_days=1", "result_class=none"])
+
+    def test_nothing_outcomes_write_plan_nothing(self) -> None:
+        branch = "feat-Qz9branch"
+        w = GitWorld(self.tmp)
+        w.git("checkout", "-q", "-b", branch)
+        before = w.commit({"lab/requests/gone.json": REQUEST_TEXT})
+        w.push(branch)
+        after = w.commit(delete=("lab/requests/gone.json",))
+        w.push(branch)
+        r, gho = self._plan(w.clone(after), w.push_event(before=before, after=after, branch=branch))
+        self.assertEqual((r.returncode, r.stdout.strip()), (0, f"::notice::{DELETE_ONLY}"), r.stderr)
+        nothing = self.tmp / "out" / "plan-nothing.json"
+        self.assertEqual(json.loads(nothing.read_text()), {"schema_version": 1, "kind": "lab_plan_nothing",
+                                                            "notice": DELETE_ONLY, "requests": []})
+        self.assertEqual(gho.read_text().splitlines(),
+                         ["has_provision=false", "has_units=false", 'matrix={"include":[]}', "max_parallel=1",
+                          "plan_sha256=", 'provision_matrix={"include":[]}', "retention_days=1", "result_class=none"])
+
+        shutil.rmtree(self.tmp / "out")
+        w.git("checkout", "-q", "-b", "other", "main")
+        w.commit({f"lab/requests/m{i}.json": REQUEST_TEXT for i in range(3)})
+        w.push("other")
+        w.git("checkout", "-q", branch)
+        tip = w.head()
+        w.git("merge", "-q", "--no-ff", "-m", "merge other", "other")
+        merged = w.push(branch)
+        r, gho = self._plan(w.clone(merged), w.push_event(before=tip, after=merged, branch=branch))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        lines = r.stdout.splitlines()
+        self.assertEqual(lines[0], f"::notice::{MERGE_SEVERAL}")
+        self.assertEqual(len(lines), 4)
+        self.assertTrue(all(branch in line for line in lines[1:]))
+        data = nothing.read_bytes()
+        self.assertEqual(json.loads(data), {"schema_version": 1, "kind": "lab_plan_nothing", "notice": MERGE_SEVERAL,
+                                            "requests": [f"lab/requests/m{i}.json" for i in range(3)]})
+        self.assertNotIn(branch.encode(), data)
+        self.assertNotIn(b"gh workflow run", data)
+        self.assertFalse((self.tmp / "out" / "plan.json").exists())
+        self.assertIn("has_units=false", gho.read_text().splitlines())
 
 
 if __name__ == "__main__":

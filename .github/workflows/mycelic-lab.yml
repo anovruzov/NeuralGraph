@@ -1,0 +1,266 @@
+name: mycelic-lab
+
+on:
+  push:
+    branches-ignore: [main]
+    paths: ["lab/requests/*.json"]
+  workflow_dispatch:
+    inputs:
+      request:
+        description: "request file, lab/requests/<name>.json"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    outputs:
+      has_units: ${{ steps.plan.outputs.has_units }}
+      has_provision: ${{ steps.plan.outputs.has_provision }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+      provision_matrix: ${{ steps.plan.outputs.provision_matrix }}
+      max_parallel: ${{ steps.plan.outputs.max_parallel }}
+      plan_sha256: ${{ steps.plan.outputs.plan_sha256 }}
+      retention_days: ${{ steps.plan.outputs.retention_days }}
+      result_class: ${{ steps.plan.outputs.result_class }}
+      plan_artifact: lab-plan-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+      - name: lab self-test (request and plan)
+        run: python -m unittest tests.lab.test_lab_request tests.lab.test_lab_plan
+      - id: plan
+        run: >-
+          python -m lab.plan --event-path "$GITHUB_EVENT_PATH" --event-name "$GITHUB_EVENT_NAME"
+          --manifest lab/models.json --out "$RUNNER_TEMP/lab-plan" --github-output "$GITHUB_OUTPUT"
+      - if: ${{ !cancelled() }}
+        run: >-
+          python -m lab.summary plan --dir "$RUNNER_TEMP/lab-plan" --append-to "$GITHUB_STEP_SUMMARY"
+          --md-out "$RUNNER_TEMP/lab-plan/summary.md" --sources-out "$RUNNER_TEMP/lab-plan/summary.sources.json"
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lab-plan-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/lab-plan
+          if-no-files-found: error
+          retention-days: ${{ steps.plan.outputs.retention_days || 1 }}
+
+  provision:
+    needs: plan
+    if: needs.plan.outputs.has_provision == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.provision_matrix) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ needs.plan.outputs.plan_artifact }}
+          path: ${{ runner.temp }}/lab-plan
+      - id: restore
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        continue-on-error: true
+        timeout-minutes: 10
+        env:
+          SEGMENT_DOWNLOAD_TIMEOUT_MINS: "8"
+        with:
+          path: ${{ runner.temp }}/lab-cache/${{ matrix.cache_path }}
+          key: ${{ matrix.cache_key }}
+          restore-keys: ${{ matrix.restore_prefix }}
+      - id: server
+        if: matrix.target == 'server'
+        timeout-minutes: 40
+        env:
+          LAB_MATCHED_KEY: ${{ steps.restore.outputs.cache-matched-key }}
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          python -m lab.provision server --plan "$RUNNER_TEMP/lab-plan/plan.json" --manifest lab/models.json
+          --cache-root "$RUNNER_TEMP/lab-cache" --out "$RUNNER_TEMP/lab-prov"
+          --cache-matched-key "$LAB_MATCHED_KEY" --github-output "$GITHUB_OUTPUT"
+      - id: gguf
+        if: matrix.target == 'gguf'
+        timeout-minutes: 40
+        env:
+          LAB_MODEL: ${{ matrix.key }}
+          LAB_MATCHED_KEY: ${{ steps.restore.outputs.cache-matched-key }}
+        run: >-
+          python -m lab.provision gguf --model "$LAB_MODEL" --plan "$RUNNER_TEMP/lab-plan/plan.json"
+          --manifest lab/models.json --cache-root "$RUNNER_TEMP/lab-cache" --out "$RUNNER_TEMP/lab-prov"
+          --cache-matched-key "$LAB_MATCHED_KEY" --github-output "$GITHUB_OUTPUT"
+      - if: >-
+          (steps.server.outputs.verified == 'true' && steps.server.outputs.save == 'true')
+          || (steps.gguf.outputs.verified == 'true' && steps.gguf.outputs.save == 'true')
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/lab-cache/${{ matrix.cache_path }}
+          key: ${{ steps.server.outputs.save_key }}${{ steps.gguf.outputs.save_key }}
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lab-prov-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.entry }}
+          path: ${{ runner.temp }}/lab-prov
+          if-no-files-found: error
+          retention-days: ${{ needs.plan.outputs.retention_days }}
+
+  run:
+    needs: [plan, provision]
+    if: ${{ !cancelled() && needs.plan.outputs.has_units == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: ${{ matrix.timeout_minutes }}
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(needs.plan.outputs.max_parallel) }}
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    env:
+      LAB_SHARD: ${{ matrix.shard }}
+    steps:
+      - name: stamp the job start
+        run: echo "LAB_JOB_START=$(date +%s)" >> "$GITHUB_ENV"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+      - id: get-plan
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ needs.plan.outputs.plan_artifact }}
+          path: ${{ runner.temp }}/lab-plan
+      - id: get-prov
+        if: matrix.kind == 'gguf'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: lab-prov-${{ github.run_id }}-*
+          path: ${{ runner.temp }}/lab-prov
+      - id: keys
+        if: matrix.kind == 'gguf'
+        run: >-
+          python -m lab.shard cache-keys --plan "$RUNNER_TEMP/lab-plan/plan.json" --shard "$LAB_SHARD"
+          --provision-records "$RUNNER_TEMP/lab-prov" --github-output "$GITHUB_OUTPUT"
+      - if: steps.keys.outputs.server_key != ''
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        continue-on-error: true
+        timeout-minutes: 5
+        env:
+          SEGMENT_DOWNLOAD_TIMEOUT_MINS: "4"
+        with:
+          path: ${{ runner.temp }}/lab-cache/${{ steps.keys.outputs.server_path }}
+          key: ${{ steps.keys.outputs.server_key }}
+          restore-keys: ${{ steps.keys.outputs.server_prefix }}
+      - if: steps.keys.outputs.model_key != ''
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        continue-on-error: true
+        timeout-minutes: 5
+        env:
+          SEGMENT_DOWNLOAD_TIMEOUT_MINS: "4"
+        with:
+          path: ${{ runner.temp }}/lab-cache/${{ steps.keys.outputs.model_path }}
+          key: ${{ steps.keys.outputs.model_key }}
+          restore-keys: ${{ steps.keys.outputs.model_prefix }}
+      - id: prepare
+        timeout-minutes: 20
+        env:
+          LAB_JOB_TIMEOUT: ${{ matrix.timeout_minutes }}
+        run: >-
+          python -m lab.shard prepare --plan "$RUNNER_TEMP/lab-plan/plan.json" --shard "$LAB_SHARD"
+          --provision-records "$RUNNER_TEMP/lab-prov" --cache-root "$RUNNER_TEMP/lab-cache"
+          --out "$RUNNER_TEMP/lab-shard" --job-start-epoch "$LAB_JOB_START"
+          --job-timeout-minutes "$LAB_JOB_TIMEOUT" --github-output "$GITHUB_OUTPUT"
+      - id: run
+        if: steps.prepare.outcome == 'success'
+        timeout-minutes: ${{ fromJSON(steps.prepare.outputs.shard_minutes) }}
+        env:
+          LAB_DEADLINE: ${{ steps.prepare.outputs.deadline_epoch }}
+        run: >-
+          python -m lab.shard run --plan "$RUNNER_TEMP/lab-plan/plan.json" --shard "$LAB_SHARD"
+          --out "$RUNNER_TEMP/lab-shard" --deadline-epoch "$LAB_DEADLINE"
+      - id: seal
+        if: ${{ !cancelled() }}
+        env:
+          LAB_GET_PLAN: ${{ steps.get-plan.outcome }}
+          LAB_GET_PROV: ${{ steps.get-prov.outcome }}
+          LAB_KEYS: ${{ steps.keys.outcome }}
+          LAB_PREPARE: ${{ steps.prepare.outcome }}
+          LAB_RUN: ${{ steps.run.outcome }}
+        run: >-
+          python -m lab.shard seal --out "$RUNNER_TEMP/lab-shard" --shard "$LAB_SHARD"
+          --plan "$RUNNER_TEMP/lab-plan/plan.json"
+          --step-outcome "get-plan=$LAB_GET_PLAN" --step-outcome "get-prov=$LAB_GET_PROV"
+          --step-outcome "keys=$LAB_KEYS" --step-outcome "prepare=$LAB_PREPARE" --step-outcome "run=$LAB_RUN"
+      - if: ${{ !cancelled() }}
+        run: >-
+          python -m lab.summary shard --dir "$RUNNER_TEMP/lab-shard" --append-to "$GITHUB_STEP_SUMMARY"
+          --md-out "$RUNNER_TEMP/lab-shard/summary/summary.md"
+          --sources-out "$RUNNER_TEMP/lab-shard/summary/summary.sources.json"
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lab-run-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}
+          path: ${{ runner.temp }}/lab-shard
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: ${{ needs.plan.outputs.retention_days }}
+
+  aggregate:
+    needs: [plan, provision, run]
+    if: ${{ !cancelled() && needs.plan.outputs.has_units == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ needs.plan.outputs.plan_artifact }}
+          path: ${{ runner.temp }}/lab-plan
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: lab-prov-${{ github.run_id }}-*
+          path: ${{ runner.temp }}/lab-prov
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: lab-run-${{ github.run_id }}-*
+          path: ${{ runner.temp }}/lab-runs
+      - id: aggregate
+        run: >-
+          python -m lab.aggregate --plan "$RUNNER_TEMP/lab-plan/plan.json" --provision "$RUNNER_TEMP/lab-prov"
+          --shards "$RUNNER_TEMP/lab-runs" --manifest lab/models.json --out "$RUNNER_TEMP/lab-report"
+      - if: ${{ !cancelled() }}
+        run: >-
+          python -m lab.summary report --dir "$RUNNER_TEMP/lab-report" --append-to "$GITHUB_STEP_SUMMARY"
+          --md-out "$RUNNER_TEMP/lab-report/report.md" --sources-out "$RUNNER_TEMP/lab-report/report.sources.json"
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lab-report-${{ needs.plan.outputs.result_class }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/lab-report
+          if-no-files-found: error
+          retention-days: ${{ needs.plan.outputs.retention_days }}

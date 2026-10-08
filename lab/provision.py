@@ -42,11 +42,18 @@ disk-full download; 3 for a network failure, an exceeded deadline, or a hub API 
 
 ``merge-lock`` merges every ``lock-candidate.json`` under ``DIR`` (recursively) into the manifest's lock, by key and
 independent of order; two values for one key (between candidates, or against the lock) exit 2. The result is
-validated against the manifest and written as indented JSON for the team to commit.
+validated against the manifest and written as indented JSON for the team to commit (:func:`merge_candidates` and
+:func:`write_lock`, which the aggregate report uses on the run's records through :func:`candidate_from_record`).
 
 :func:`prepare` is ``python -m lab.shard prepare`` (see ``shard.py``): it restores and re-verifies both files of a
 gguf shard against the records (re-downloading from the record's URL when the cache is missing or corrupt), extracts
-the server fresh into ``OUT/server/bin`` and writes ``OUT/provision/prepare.json``.
+the server fresh into ``OUT/server/bin`` and writes ``OUT/provision/prepare.json``. Given the shard's deadline, every
+download it starts is bounded by the time left, and none starts with less than :data:`MIN_DOWNLOAD_S` left
+(``the download did not finish before its deadline``, exit 3); hashing what the cache restored is not bounded.
+
+:func:`cache_keys` is ``python -m lab.shard cache-keys``: the exact actions/cache keys (and paths and prefixes) of a
+gguf shard's two files, derived from the run's verified records for this plan, so a run job restores exactly what
+its provision jobs saved; a missing, unverified or other-plan record leaves that file's values empty.
 """
 from __future__ import annotations
 
@@ -71,11 +78,13 @@ from mycelic.collective.experiments.common import utc_clock, write_json_atomic
 from mycelic.collective.jsonio import StrictJsonError, sha256_hex, strict_load
 
 from . import EXIT_NETWORK, EXIT_OK, EXIT_USAGE, forbidden_root, gh_data, hostinfo
-from .download import DownloadError, JsonReply, UrlMap, download, get_json, retry_delay, sha256_file
+from .download import (DEFAULT_DEADLINE_S, DownloadError, JsonReply, UrlMap, download, get_json, retry_delay,
+                       sha256_file)
 from .manifest import (ASSET_RE, COMMIT_RE, MODEL_KEY_RE, SEGMENT_RE, SHA256_RE, TAG_RE, Manifest, ManifestError,
-                       cache_dir, cache_key, load_manifest, lock_path, parse_lock)
+                       cache_dir, cache_key, cache_prefix, load_manifest, lock_path, parse_lock)
 from .notes import (AMBIGUOUS_RECORDS, ASSET_MISSING, ASSET_NOT_UPLOADED, BINARY_MISSING, CACHE_INSIDE_OUT,
-                    DIGEST_MISMATCH, DIGEST_UNAVAILABLE, FILE_MISSING, FILE_TOO_LARGE, FORBIDDEN_ROOT,
+                    DIGEST_MISMATCH, DIGEST_UNAVAILABLE, DOWNLOAD_DEADLINE, FILE_MISSING, FILE_TOO_LARGE,
+                    FORBIDDEN_ROOT,
                     HUB_BAD_COMMIT, HUB_COMMIT_DIFFERS, HUB_DIFFERS_FROM_LOCK, HUB_REDIRECTED, HUB_REFUSED,
                     HUB_STATUS, HUB_UNAVAILABLE, LICENSE_DIFFERS, LOCK_CONFLICT, LOCK_MISMATCH, MODEL_NOT_IN_PLAN,
                     NO_DIGEST, NO_GGUF_IN_PLAN, NO_HUB_DIGEST, NOT_A_PLAN, NOT_ENOUGH_DISK, NOT_ENOUGH_MEMORY,
@@ -103,6 +112,9 @@ MAX_LIBRARIES = 100
 RECORD_DEPTH = 3
 VERIFIED_BY = ("lock", "hf-api", "github-api", "first-use")
 TARGETS = ("server", "gguf")
+MIN_DOWNLOAD_S = 60
+CACHE_KEY_OUTPUTS = ("needed", "server_path", "server_key", "server_prefix", "model_path", "model_key", "model_prefix")
+LOCK_MODEL_FIELDS = ("repo", "file", "revision", "commit", "sha256", "size")
 
 
 class ProvisionError(Exception):
@@ -229,11 +241,13 @@ def check_version(binary: Path, scratch: Path, environ: Mapping[str, str]) -> st
 
 @dataclass
 class _Session:
-    """What one provision or prepare call did on the network and how long it took."""
+    """What one provision or prepare call did on the network and how long it took; ``deadline_epoch`` (prepare only)
+    bounds every download it starts."""
 
     url_map: UrlMap | None
     sleep: Callable[[float], Any]
     environ: Mapping[str, str]
+    deadline_epoch: float | None = None
     connections: list[dict[str, Any]] = field(default_factory=list)
     timings: dict[str, float] = field(default_factory=lambda: {"api_s": 0.0, "download_s": 0.0, "hash_s": 0.0,
                                                                "extract_s": 0.0, "total_s": 0.0})
@@ -259,10 +273,17 @@ class _Session:
         record = {"attempts": 0, "resumed_from": [], "bytes": 0, "wall_s": 0.0, "verify_retries": 0}
         self.downloads = record
         while True:
+            bound: dict[str, float] = {}         # provision's downloads keep download()'s own default deadline
+            if self.deadline_epoch is not None:
+                left = self.deadline_epoch - time.time()
+                if left < MIN_DOWNLOAD_S:
+                    _remove(part)
+                    raise ProvisionError(DOWNLOAD_DEADLINE, EXIT_NETWORK)
+                bound["deadline_s"] = min(DEFAULT_DEADLINE_S, left)
             t0 = time.monotonic()
             try:
                 got = download(url, part, expected_size=expected_size, url_map=self.url_map, environ=self.environ,
-                               sleep=self.sleep)
+                               sleep=self.sleep, **bound)
             except DownloadError as err:
                 self.connections += err.connections
                 self.add("download_s", t0)
@@ -634,45 +655,76 @@ def provision(target: str, key: str | None, plan_path: str, manifest_path: str, 
 
 # --------------------------------------------------------------------------------------------------- the lock
 
-def merge_lock(manifest_path: str, candidates: Path, out_file: Path) -> int:
-    """Merge every candidate under ``candidates`` into the manifest's lock and write the result to ``out_file``."""
+def candidate_from_record(record: Mapping[str, Any]) -> dict[str, Any]:
+    """The lock candidate of one verified provision record, in the lock's format and key order (what the provision
+    step wrote as its ``lock-candidate.json``)."""
+    if record.get("target") == "server":
+        block = record.get("server") if isinstance(record.get("server"), dict) else {}
+        return {"schema_version": 1, "server": {name: block.get(name) for name in ("tag", "asset", "sha256")},
+                "models": {}}
+    block = record.get("model") if isinstance(record.get("model"), dict) else {}
+    return {"schema_version": 1, "server": None,
+            "models": {record.get("key"): {name: block.get(name) for name in LOCK_MODEL_FIELDS}}}
+
+
+def merge_candidates(manifest: Manifest, base_lock_obj: Any, candidates: list[Any]) -> tuple[dict[str, Any], int]:
+    """The lock ``base_lock_obj`` with every candidate merged in by key, independent of order, and the number of new
+    entries; two values for one key raise ``lock candidates disagree: <json path>``."""
     try:
-        manifest = load_manifest(manifest_path)
-        base = strict_load(lock_path(manifest_path).read_bytes())
-        server, models = parse_lock(base, manifest.server, manifest.models)
-    except (ManifestError, OSError, StrictJsonError):
-        print("error: the manifest or its lock cannot be loaded", file=sys.stderr)
-        return EXIT_USAGE
+        server, models = parse_lock(base_lock_obj, manifest.server, manifest.models)
+    except ManifestError as err:
+        raise ProvisionError(f"lock {err.json_path}: {err.problem}") from None
     known = (1 if server is not None else 0) + len(models)
-    paths = sorted(p for p in Path(candidates).rglob("lock-candidate.json") if p.is_file())
-    for path in paths:
+    for candidate in candidates:
         try:
-            got_server, got_models = parse_lock(strict_load(path.read_bytes()), manifest.server, manifest.models)
+            got_server, got_models = parse_lock(candidate, manifest.server, manifest.models)
         except ManifestError as err:
-            print(f"error: lock candidate {err.json_path}: {err.problem}", file=sys.stderr)
-            return EXIT_USAGE
-        except (OSError, StrictJsonError):
-            print("error: a lock candidate cannot be read", file=sys.stderr)
-            return EXIT_USAGE
+            raise ProvisionError(f"lock candidate {err.json_path}: {err.problem}") from None
         if got_server is not None:
             if server is not None and server != got_server:
-                print(f"error: {LOCK_CONFLICT}: $.server", file=sys.stderr)
-                return EXIT_USAGE
+                raise ProvisionError(f"{LOCK_CONFLICT}: $.server")
             server = got_server
         for key, entry in got_models.items():
             if key in models and models[key] != entry:
-                print(f"error: {LOCK_CONFLICT}: $.models.{key}", file=sys.stderr)
-                return EXIT_USAGE
+                raise ProvisionError(f"{LOCK_CONFLICT}: $.models.{key}")
             models[key] = entry
     merged = {"schema_version": 1, "server": server, "models": {k: models[k] for k in sorted(models)}}
     try:
         parse_lock(merged, manifest.server, manifest.models)
     except ManifestError as err:
-        print(f"error: lock {err.json_path}: {err.problem}", file=sys.stderr)
+        raise ProvisionError(f"lock {err.json_path}: {err.problem}") from None
+    return merged, (1 if server is not None else 0) + len(models) - known
+
+
+def write_lock(path: str | os.PathLike[str], merged: dict[str, Any]) -> None:
+    """Indented JSON and a newline, as the team commits it."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(merged, indent=2) + "\n", encoding="utf-8")
+
+
+def merge_lock(manifest_path: str, candidates: Path, out_file: Path) -> int:
+    """Merge every candidate under ``candidates`` into the manifest's lock and write the result to ``out_file``."""
+    try:
+        manifest = load_manifest(manifest_path)
+        base = strict_load(lock_path(manifest_path).read_bytes())
+        parse_lock(base, manifest.server, manifest.models)
+    except (ManifestError, OSError, StrictJsonError):
+        print("error: the manifest or its lock cannot be loaded", file=sys.stderr)
         return EXIT_USAGE
-    out_file.parent.mkdir(parents=True, exist_ok=True)
-    out_file.write_text(json.dumps(merged, indent=2) + "\n", encoding="utf-8")
-    new = (1 if server is not None else 0) + len(models) - known
+    objs = []
+    for path in sorted(p for p in Path(candidates).rglob("lock-candidate.json") if p.is_file()):
+        try:
+            objs.append(strict_load(path.read_bytes()))
+        except (OSError, StrictJsonError):
+            print("error: a lock candidate cannot be read", file=sys.stderr)
+            return EXIT_USAGE
+    try:
+        merged, new = merge_candidates(manifest, base, objs)
+    except ProvisionError as err:
+        print(f"error: {err.problem}", file=sys.stderr)
+        return EXIT_USAGE
+    write_lock(out_file, merged)
     print("lock: unchanged" if new == 0 else f"lock: {new} new entries")
     return EXIT_OK
 
@@ -741,11 +793,12 @@ def _model_block_ok(block: Any, key: str) -> bool:
 
 def prepare(plan_path: str, shard_id: str, records_dir: str, cache_root: Path, out: Path, *,
             github_output: str | None = None, url_map: UrlMap | None = None,
-            sleep: Callable[[float], Any] = time.sleep, environ: Mapping[str, str] | None = None) -> int:
+            sleep: Callable[[float], Any] = time.sleep, environ: Mapping[str, str] | None = None,
+            deadline_epoch: float | None = None) -> int:
     environ = os.environ if environ is None else environ
     t0 = time.monotonic()
     started_at = utc_clock()
-    session = _Session(url_map=url_map, sleep=sleep, environ=environ)
+    session = _Session(url_map=url_map, sleep=sleep, environ=environ, deadline_epoch=deadline_epoch)
     try:
         if forbidden_root(out) is not None or forbidden_root(cache_root) is not None:
             raise ProvisionError(FORBIDDEN_ROOT)
@@ -855,6 +908,48 @@ def _prepare_gguf(session: _Session, plan_sha256: str, key: str, records_dir: st
                   "source": model_source},
         "preflight": preflight,
     }
+
+
+# --------------------------------------------------------------------------------------------------- cache keys
+
+def cache_keys(plan_path: str | os.PathLike[str], shard_id: str,
+               records_dir: str | os.PathLike[str]) -> dict[str, str]:
+    """:data:`CACHE_KEY_OUTPUTS` for one shard: ``needed`` and, per file of a gguf shard whose newest record is
+    verified, for this plan and well formed, its cache path, exact key and key prefix (else empty strings).
+    Ambiguous records count as none. Raises :class:`ProvisionError` for an unreadable plan or an unknown shard."""
+    if not isinstance(shard_id, str) or SHARD_ID_RE.fullmatch(shard_id) is None:
+        raise ProvisionError(NOT_A_PLAN)
+    plan, plan_bytes = load_plan(plan_path)
+    shard = next((s for s in plan["shards"] if isinstance(s, dict) and s.get("shard") == shard_id), None)
+    if shard is None:
+        raise ProvisionError(NOT_A_PLAN)
+    keys = dict.fromkeys(CACHE_KEY_OUTPUTS[1:], "")
+    if shard.get("kind") != "gguf":
+        return {"needed": "false", **keys}
+    key = shard.get("model")
+    if not isinstance(key, str) or MODEL_KEY_RE.fullmatch(key) is None:
+        raise ProvisionError(NOT_A_PLAN)
+    try:
+        records = load_records(records_dir)
+    except ProvisionError:
+        records = {}
+    plan_sha256 = sha256_hex(plan_bytes)
+
+    def usable(target_key: tuple[str, str]) -> dict[str, Any] | None:
+        rec = records.get(target_key, (None, b""))[0]
+        ok = isinstance(rec, dict) and rec.get("verified") is True and rec.get("plan_sha256") == plan_sha256
+        return rec if ok else None
+
+    server_rec = usable(("server", ""))
+    if server_rec is not None and _server_block_ok(server_rec.get("server")):
+        tag, sha = server_rec["server"]["tag"], server_rec["server"]["sha256"]
+        keys.update(server_path=cache_dir("server", tag), server_key=cache_key("server", tag, sha),
+                    server_prefix=cache_prefix("server", tag))
+    model_rec = usable(("gguf", key))
+    if model_rec is not None and _model_block_ok(model_rec.get("model"), key):
+        keys.update(model_path=cache_dir("gguf", key), model_key=cache_key("gguf", key, model_rec["model"]["sha256"]),
+                    model_prefix=cache_prefix("gguf", key))
+    return {"needed": "true", **keys}
 
 
 # --------------------------------------------------------------------------------------------------- CLI

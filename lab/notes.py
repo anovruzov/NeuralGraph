@@ -141,3 +141,160 @@ NOTES = {
                          "GitHub-hosted runner; quality numbers describe this model on synthetic data, and timings "
                          "describe this runner, not site hardware.",
 }
+
+# summaries (summary.py) and the aggregate report (aggregate.py); identifiers are rendered in code spans beside them
+PLUMBING_CHECK_LINE = "PLUMBING CHECK: no model was run"
+NO_MEASUREMENT_LINE = "NO MEASUREMENT: no unit here passed every model check, so nothing below measures a model"
+TRUNCATED = "Truncated: the rest did not fit in this summary; every value is in the artifact's files."
+NO_PLAN = "No plan was written: the plan step failed before it could record why; read the plan job's log."
+NO_REPORT = "No report was written: the aggregate step failed; read the aggregate job's log."
+UNSEALED = "the shard was not sealed: its status file is missing or unreadable"
+NOT_RUN = "the unit did not run"
+NO_ARTIFACT = "no artifact: the shard job was cancelled, timed out at its job limit or never started"
+OTHER_PLAN = "the artifact belongs to another plan"
+ALTERED = "the artifact differs from the file list it was sealed with"
+AMBIGUOUS_ARTIFACTS = "two artifacts of the same attempt claim this shard"
+FILES_DIFFER = "a unit file differs from the unit's record"
+UNIT_RECORD_INVALID = "the unit record is unreadable or names another unit or run"
+STEP_FAILED = "a workflow step failed:"
+CPU_MODELS_DIFFER = ("The shards ran on different CPU models: compare timings only between rows of the same CPU "
+                     "model.")
+WORLD_DIGEST_DIFFERS = ("Canary scans of the same pack, pack version, seed and size saw different synthetic worlds; "
+                        "their results are not comparable.")
+WORLD_DIGEST_SAME = "Canary scans of the same pack, pack version, seed and size saw the same synthetic world."
+NOT_PINNED = "not pinned: trusted on first use"
+DISPATCH_BY_HAND = ("To run a request by hand, dispatch the mycelic-lab workflow on the request's branch with the "
+                    "request's path as its request input.")
+PLAN_FIX_HINT = "Fix the named field of the named file and push the request again; nothing else ran."
+LOCK_UNCHANGED = "The lock already pins every file this run verified."
+LOCK_NEW = ("This run verified files the lock does not pin yet: copy lock-candidate.json from the report artifact to "
+            "lab/models.lock.json and commit it, so later runs verify against it.")
+LOCK_CONFLICT_NOTE = ("A verified file disagrees with the lock: the upstream file changed or the lock is wrong; check "
+                      "the provision records before re-pinning.")
+LOCK_NOT_COMPUTED = ("No lock candidate was computed: the manifest or lock changed since the plan, or the provision "
+                     "records were ambiguous.")
+
+HEADINGS = {
+    "plan": "Lab plan",
+    "refused": "Lab plan refused",
+    "nothing": "Nothing to run",
+    "models": "Models",
+    "shards": "Shards",
+    "units": "Units",
+    "provision": "Files to provision once per run",
+    "shard": "Lab shard",
+    "state": "State",
+    "host": "Runner",
+    "server": "Model server and model file",
+    "report": "Lab report",
+    "no-result": "Units without a result",
+    "model": "Model on runner CPU",
+    "unverified": "Unverified: not measurements",
+    "plumbing": "Plumbing checks (fake provider): not model measurements",
+    "no-model": "Units without a model",
+    "e3": "Latency and throughput cells",
+    "g0": "Canary leakage scans",
+    "latency": "Model call latency from the ledgers",
+    "lock": "Lock",
+    "notes": "Notes",
+}
+
+COLUMNS = {
+    "request": "Request",
+    "name": "name",
+    "sha": "sha",
+    "purpose": "Purpose:",
+    "provider": "Provider",
+    "commit": "Commit",
+    "plan_sha": "Plan",
+    "job_minutes": "Job minutes",
+    "max_parallel": "Shards at once",
+    "retention_days": "Days kept",
+    "source": "Source",
+    "path": "Path",
+    "problem": "Problem",
+    "notice": "Notice",
+    "requests": "Requests",
+    "key": "model",
+    "kind": "kind",
+    "alias": "alias",
+    "repo": "repository",
+    "file": "file",
+    "revision": "revision",
+    "pin": "pin",
+    "shard": "shard",
+    "model": "model",
+    "units": "units",
+    "planned_minutes": "planned minutes",
+    "timeout_minutes": "job timeout minutes",
+    "unit": "unit",
+    "experiment": "experiment",
+    "minutes": "minutes",
+    "seed": "seed",
+    "entry": "entry",
+    "cache_key": "cache key",
+    "failed_step": "Failed step",
+    "prepare_problem": "Prepare problem",
+    "provenance_complete": "Provenance complete",
+    "interrupted": "Interrupted",
+    "counts": "Units by status",
+    "run_attempt": "Run attempt",
+    "missing_units": "Planned units without a record",
+    "cpu": "CPU",
+    "nproc": "CPUs available",
+    "mem_gib": "Memory GiB",
+    "os": "OS",
+    "python": "Python",
+    "server_tag": "Server tag",
+    "server_version": "Server version",
+    "server_sha": "Server archive sha",
+    "verified_by": "verified by",
+    "model_repo": "Model repository",
+    "model_file": "Model file",
+    "model_commit": "Model commit",
+    "model_sha": "Model file sha",
+    "status": "status",
+    "class": "class",
+    "exit_code": "exit code",
+    "wall_s": "wall seconds",
+    "reason": "reason",
+    "state": "state",
+    "attempt": "attempt",
+    "step": "failed step",
+    "workload": "workload",
+    "concurrency": "concurrency",
+    "measured": "measured",
+    "ok": "ok",
+    "e2e_median": "end to end median s",
+    "e2e_p95": "end to end ninety-fifth percentile s",
+    "ttft_median": "first token median s",
+    "decode_median": "decode tokens per s median",
+    "requests_per_s": "requests per s",
+    "harness_measurement": "harness measurement",
+    "pack": "pack",
+    "records": "records",
+    "passed": "passed",
+    "canaries": "canaries planted",
+    "hits": "canary hits",
+    "shingle_bytes": "shingle overlap bytes",
+    "control_hits": "positive control hits",
+    "world": "world digest",
+    "task": "task",
+    "n": "calls",
+    "median_ms": "median ms",
+    "p95_ms": "ninety-fifth percentile ms",
+    "target": "target",
+    "verified": "verified",
+    "first_use": "first use",
+    "plan_matches": "plan matches",
+    "total_s": "seconds",
+    "lock_status": "Lock status",
+    "new_entries": "New entries",
+    "cpu_models": "CPU models",
+    "ignored": "Artifacts of shards not in the plan",
+    "skipped": "Skipped by the plan",
+    "digests": "digests",
+    "consistent": "consistent",
+    "unit_count": "Units",
+    "shard_count": "Shards",
+}

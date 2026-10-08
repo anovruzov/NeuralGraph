@@ -1,19 +1,32 @@
 """Prepare, run and seal one shard of a plan.
 
+    python -m lab.shard cache-keys --plan PLAN --shard ID --provision-records R [--github-output F]
     python -m lab.shard prepare --plan PLAN --shard ID --provision-records R --cache-root C --out OUT
-        [--github-output F]
+        [--job-start-epoch S --job-timeout-minutes J] [--github-output F]
     python -m lab.shard run --plan PLAN --shard ID --out OUT [--provider fake] [--deadline-epoch N]
-    python -m lab.shard seal --out OUT [--shard ID] --step-outcome NAME=VALUE [--step-outcome ...]
+    python -m lab.shard seal --out OUT [--shard ID] [--plan PLAN] --step-outcome NAME=VALUE [--step-outcome ...]
 
 The shard root ``OUT`` holds ``provision/`` and ``server/`` (written by ``prepare``), ``routing/``,
 ``units/<unit>/`` (``unit.json`` and the two capped logs), ``runs/<experiment>/<run id>/`` (collected harness
 outputs), ``work/`` (scratch; deleted after each unit and by ``seal``, never uploaded), ``provenance.json`` and
 ``status.json``.
 
+``cache-keys`` (``provision.cache_keys``) writes the exact cache keys, paths and prefixes of a gguf shard's two files
+from the run's verified records to ``--github-output`` (empty for a file without one; ``needed=false`` for a shard
+without a gguf model) and prints ``lab: cache-keys <shard> server <key|none> model <key|none>``; exit 2 for an
+unreadable plan or an unknown shard, else 0.
+
 ``prepare`` (``provision.prepare``) restores and re-verifies a gguf shard's server archive and model file against
 the run's provision records (``R``), extracts the server fresh into ``OUT/server/bin`` and writes
 ``OUT/provision/prepare.json`` with copies of both records; a shard without a gguf model needs nothing
-(``needed: false``). Its exit codes are those of ``lab.provision``.
+(``needed: false``). Its exit codes are those of ``lab.provision``. The job clock (:func:`job_clock`): with the job's
+start (``S``, stamped by the job's first step) and its timeout (``J`` minutes), the shard's deadline is
+``S + (J - JOB_TAIL_MINUTES) * 60``, which leaves the job's last :data:`JOB_TAIL_MINUTES` minutes to seal, summarise
+and upload; prepare's downloads stop at the deadline, and whatever prepare's exit code, ``deadline_epoch`` and
+``shard_minutes`` (whole minutes to the deadline, at least 1: the run step's own timeout) are appended to
+``--github-output`` and printed as ``lab: clock deadline_epoch <d> shard_minutes <m>``. One clock flag without the
+other, or a start that is not positive or a timeout outside ``JOB_TAIL_MINUTES + 1`` to :data:`MAX_JOB_MINUTES`, is a
+usage error (exit 2, nothing written).
 
 ``run`` refuses (exit 2) an unreadable plan, an unknown shard, an ``OUT`` holding anything but ``provision/`` and
 ``server/``, an ``OUT`` inside ``mycelic/``, ``research/``, ``NeuralGraph/`` or ``.github/``, and a gguf shard
@@ -45,10 +58,14 @@ Exit 1 when a unit is invalid, failed, timed out, interrupted or skipped; else 0
 ``result_fail``, is a valid result).
 
 ``seal`` always writes ``status.json`` (exit 0) unless its own arguments are malformed (exit 2, nothing written):
-it creates ``OUT`` if missing, removes ``OUT/work`` and the server's ``bin``, ``home`` and ``tmp`` (its logs stay),
-and records the workflow step outcomes it was given, the first failed or cancelled step, whether provenance is
-present and complete, each unit's status, the planned units without a ``unit.json``, counts per status and the
-sha256 and size of every file under ``OUT``.
+it creates ``OUT`` if missing, removes ``OUT/work``, the server's ``bin``, ``home`` and ``tmp`` (its logs stay) and
+any temporary file an interrupted atomic write left behind, and records the workflow step outcomes it was given, the
+first failed or cancelled step, the run attempt (``GITHUB_RUN_ATTEMPT``, default 1), the sha256 of ``--plan`` (null
+without one), the prepare step's evidence (``prepare``: present, needed, prepared and the problem of a
+``prepare-error.json``), whether provenance is present and complete, each unit's status, the planned units without a
+``unit.json`` (planned per the provenance, else per ``--plan``, else null), counts per status and the sha256 and
+size of every file under ``OUT``. A plan that cannot be read never fails the seal. The upload may add ``summary/``
+after the seal; nothing else may change.
 """
 from __future__ import annotations
 
@@ -73,7 +90,7 @@ from . import server as lab_server
 from .download import UrlMap
 from .notes import (BUDGET_EXHAUSTED, NOT_PREPARED, PLUMBING_BANNER, SERVER_NOTE_MODEL, SERVER_UNAVAILABLE,
                     SERVER_UNHEALTHY_AFTER, SHARD_INTERRUPTED)
-from .plan import SHARD_ID_RE, UNIT_ID_RE
+from .plan import SHARD_ID_RE, UNIT_ID_RE, write_github_output
 from .server import HEALTH_DEADLINE_S, ModelServer, ServerError, ServerSpec, thread_counts
 from .units import FAILING, Serving, ShardInterrupted, run_unit, unit_record
 from .warmup import warm_tasks, warm_up
@@ -82,14 +99,31 @@ PROVENANCE_KEYS = ("schema_version", "kind", "shard", "complete", "interrupted",
                    "request", "manifest_sha256", "lock_sha256", "git", "code", "host", "provider", "server", "model",
                    "provision", "deadline_epoch", "started_at", "finished_at", "wall_s", "planned_units", "units",
                    "exit_code")
-STATUS_KEYS = ("schema_version", "kind", "shard", "out_existed", "steps", "failed_step", "provenance", "units",
-               "missing_units", "counts", "files", "sealed_at")
+STATUS_KEYS = ("schema_version", "kind", "shard", "out_existed", "run_attempt", "plan_sha256", "steps", "failed_step",
+               "prepare", "provenance", "units", "missing_units", "counts", "files", "sealed_at")
 PREPARED_DIRS = ("provision", "server")
 SEALED_AWAY = ("work", "server/bin", "server/home", "server/tmp")
 MIN_UNIT_SECONDS = 60
 DEADLINE_MARGIN_S = 120
 STEP_NAME_RE = re.compile(r"[a-z][a-z0-9-]{0,31}", re.ASCII)
 STEP_VALUES = ("success", "failure", "cancelled", "skipped")
+TEMPORARY_RE = re.compile(r"\..+\.[0-9]+\.tmp", re.ASCII)   # write_json_atomic's temporary files
+JOB_TAIL_MINUTES = 10
+MAX_JOB_MINUTES = 360
+
+
+def job_clock(job_start_epoch: int, job_timeout_minutes: int, now: float) -> tuple[int, int]:
+    """(deadline_epoch, shard_minutes): the deadline leaves the job's last :data:`JOB_TAIL_MINUTES` minutes to seal,
+    summarise and upload; ``shard_minutes`` is the whole minutes from ``now`` to it, at least 1."""
+    for value in (job_start_epoch, job_timeout_minutes):
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise ValueError("the job clock takes whole seconds and whole minutes") from None
+    if job_start_epoch <= 0:
+        raise ValueError("--job-start-epoch must be a positive number of seconds since the epoch") from None
+    if not JOB_TAIL_MINUTES + 1 <= job_timeout_minutes <= MAX_JOB_MINUTES:
+        raise ValueError(f"--job-timeout-minutes must be in [{JOB_TAIL_MINUTES + 1}, {MAX_JOB_MINUTES}]") from None
+    deadline = job_start_epoch + (job_timeout_minutes - JOB_TAIL_MINUTES) * 60
+    return deadline, max(1, math.floor((deadline - now) / 60))
 
 
 class ShardError(LabError):
@@ -459,7 +493,55 @@ def file_map(out: Path, exclude: tuple[str, ...] = ("status.json",)) -> dict[str
     return dict(sorted(files.items()))
 
 
-def seal(out: Path, shard_id: str | None, steps: dict[str, str]) -> int:
+def _plan_for_seal(plan_path: str | None, shard: str | None) -> tuple[str | None, list[str] | None]:
+    """(sha256 of the plan's bytes, the shard's planned units); either is None when it cannot be known. Never
+    raises: a seal must not fail on its plan."""
+    if plan_path is None:
+        return None, None
+    try:
+        data = Path(plan_path).read_bytes()
+    except OSError:
+        return None, None
+    plan = None
+    try:
+        plan = strict_load(data)
+    except StrictJsonError:
+        pass
+    units = None
+    if isinstance(plan, dict) and plan.get("kind") == "lab_plan" and isinstance(plan.get("shards"), list):
+        entry = next((s for s in plan["shards"] if isinstance(s, dict) and s.get("shard") == shard), None)
+        listed = entry.get("units") if entry is not None else None
+        if isinstance(listed, list) and all(isinstance(u, str) for u in listed):
+            units = list(listed)
+    return sha256_hex(data), units
+
+
+def _prepare_evidence(out: Path) -> dict[str, Any]:
+    """What the prepare step left: ``prepare.json`` (prepared) or ``prepare-error.json`` (its problem)."""
+    done, failed = out / "provision" / "prepare.json", out / "provision" / "prepare-error.json"
+    path = done if done.exists() else failed if failed.exists() else None
+    if path is None:
+        return {"present": False, "needed": None, "prepared": False, "problem": None}
+    obj = _read_json(path)
+    obj = obj if isinstance(obj, dict) else {}
+    needed = obj.get("needed") if isinstance(obj.get("needed"), bool) else None
+    if path == done:
+        return {"present": True, "needed": needed, "prepared": obj.get("kind") == "lab_prepare", "problem": None}
+    problem = obj.get("problem") if isinstance(obj.get("problem"), str) else None
+    return {"present": True, "needed": needed, "prepared": False, "problem": problem}
+
+
+def _remove_temporaries(out: Path) -> None:
+    for directory, dirnames, filenames in os.walk(out):
+        for name in filenames:
+            if TEMPORARY_RE.fullmatch(name) is not None:
+                try:
+                    os.unlink(Path(directory) / name)
+                except OSError:
+                    pass
+
+
+def seal(out: Path, shard_id: str | None, steps: dict[str, str], plan_path: str | None = None) -> int:
     out_existed = out.is_dir()
     out.mkdir(parents=True, exist_ok=True)
     for rel in SEALED_AWAY:
@@ -471,16 +553,21 @@ def seal(out: Path, shard_id: str | None, steps: dict[str, str]) -> int:
         record = _read_json(path)
         status = record.get("status") if isinstance(record, dict) else None
         units[path.parent.name] = status if isinstance(status, str) else "unreadable"
+    shard = shard_id if shard_id is not None else prov.get("shard") if isinstance(prov.get("shard"), str) else None
+    plan_sha256, plan_units = _plan_for_seal(plan_path, shard)
     planned = prov.get("planned_units")
+    if not isinstance(planned, list):
+        planned = plan_units
     missing = [u for u in planned if u not in units] if isinstance(planned, list) else None
     counts: dict[str, int] = {}
     for status in units.values():
         counts[status] = counts.get(status, 0) + 1
     failed_step = next((name for name, value in steps.items() if value in ("failure", "cancelled")), None)
-    shard = shard_id if shard_id is not None else prov.get("shard") if isinstance(prov.get("shard"), str) else None
+    _remove_temporaries(out)
     write_json_atomic(out / "status.json", {
         "schema_version": 1, "kind": "lab_shard_status", "shard": shard, "out_existed": out_existed,
-        "steps": steps, "failed_step": failed_step,
+        "run_attempt": lab_provision.run_attempt(os.environ), "plan_sha256": plan_sha256,
+        "steps": steps, "failed_step": failed_step, "prepare": _prepare_evidence(out),
         "provenance": {"present": (out / "provenance.json").exists(), "complete": prov.get("complete") is True,
                        "interrupted": prov.get("interrupted") is True},
         "units": units, "missing_units": missing, "counts": dict(sorted(counts.items())),
@@ -503,12 +590,19 @@ def _steps(values: list[str]) -> dict[str, str] | None:
 def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="python -m lab.shard", description="Prepare, run or seal one shard of a lab plan.")
     sub = p.add_subparsers(dest="command", required=True)
+    c = sub.add_parser("cache-keys", help="the exact cache keys of a gguf shard's files, from the provision records")
+    c.add_argument("--plan", required=True)
+    c.add_argument("--shard", required=True)
+    c.add_argument("--provision-records", required=True)
+    c.add_argument("--github-output")
     q = sub.add_parser("prepare", help="restore, verify and extract what a gguf shard needs")
     q.add_argument("--plan", required=True)
     q.add_argument("--shard", required=True)
     q.add_argument("--provision-records", required=True)
     q.add_argument("--cache-root", required=True)
     q.add_argument("--out", required=True)
+    q.add_argument("--job-start-epoch", type=int, help="when the job's first step ran (seconds since the epoch)")
+    q.add_argument("--job-timeout-minutes", type=int, help="the job's timeout-minutes")
     q.add_argument("--github-output")
     r = sub.add_parser("run", help="run the shard's units")
     r.add_argument("--plan", required=True)
@@ -519,23 +613,58 @@ def _parser() -> argparse.ArgumentParser:
     s = sub.add_parser("seal", help="write status.json for a shard root, whatever state it is in")
     s.add_argument("--out", required=True)
     s.add_argument("--shard")
+    s.add_argument("--plan", help="the run's plan: its sha256 and the shard's planned units are recorded")
     s.add_argument("--step-outcome", action="append", default=[], metavar="NAME=VALUE")
     return p
 
 
+def _prepare(p: argparse.ArgumentParser, args: argparse.Namespace, url_map: UrlMap | None,
+             sleep: Callable[[float], Any]) -> int:
+    start, timeout = args.job_start_epoch, args.job_timeout_minutes
+    if (start is None) != (timeout is None):
+        p.error("--job-start-epoch and --job-timeout-minutes go together")
+    deadline = None
+    if start is not None:
+        try:
+            deadline, _ = job_clock(start, timeout, time.time())
+        except ValueError as err:
+            print(f"error: {err}", file=sys.stderr)
+            return EXIT_USAGE
+    code = lab_provision.prepare(args.plan, args.shard, args.provision_records, Path(args.cache_root),
+                                 Path(args.out), github_output=args.github_output, url_map=url_map, sleep=sleep,
+                                 deadline_epoch=deadline)
+    if start is not None:
+        deadline, minutes = job_clock(start, timeout, time.time())
+        if args.github_output:
+            write_github_output(args.github_output, {"deadline_epoch": str(deadline), "shard_minutes": str(minutes)})
+        print(f"lab: clock deadline_epoch {deadline} shard_minutes {minutes}", flush=True)
+    return code
+
+
 def main(argv: list[str] | None = None, *, url_map: UrlMap | None = None,
          sleep: Callable[[float], Any] = time.sleep) -> int:
-    args = _parser().parse_args(argv)
+    p = _parser()
+    args = p.parse_args(argv)
+    if args.command == "cache-keys":
+        try:
+            keys = lab_provision.cache_keys(args.plan, args.shard, args.provision_records)
+        except lab_provision.ProvisionError as err:
+            print(f"error: {err.problem}", file=sys.stderr)
+            return EXIT_USAGE
+        if args.github_output:
+            write_github_output(args.github_output, keys)
+        print(f"lab: cache-keys {args.shard} server {keys['server_key'] or 'none'} model "
+              f"{keys['model_key'] or 'none'}", flush=True)
+        return EXIT_OK
     if args.command == "prepare":
-        return lab_provision.prepare(args.plan, args.shard, args.provision_records, Path(args.cache_root),
-                                     Path(args.out), github_output=args.github_output, url_map=url_map, sleep=sleep)
+        return _prepare(p, args, url_map, sleep)
     if args.command == "seal":
         steps = _steps(args.step_outcome)
         if steps is None or (args.shard is not None and SHARD_ID_RE.fullmatch(args.shard) is None):
             print("error: --step-outcome takes NAME=success|failure|cancelled|skipped once per step, and --shard a "
                   "shard id", file=sys.stderr)
             return EXIT_USAGE
-        return seal(Path(args.out), args.shard, steps)
+        return seal(Path(args.out), args.shard, steps, args.plan)
     if args.deadline_epoch is not None and not math.isfinite(args.deadline_epoch):
         print("error: --deadline-epoch must be a finite number of seconds", file=sys.stderr)
         return EXIT_USAGE

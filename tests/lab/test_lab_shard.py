@@ -4,7 +4,9 @@ fake, and every record says ``plumbing``.
 """
 from __future__ import annotations
 
+import hashlib
 import json
+import math
 import os
 import re
 import shutil
@@ -20,16 +22,17 @@ from unittest import mock
 
 from lab import shard as lab_shard
 from lab import units
+from lab.manifest import cache_dir, cache_key, cache_prefix
 from lab.notes import (BUDGET_EXHAUSTED, E3_FAILURES, HARNESS_INTERRUPTED, HARNESS_USAGE, KILLED_BY_SIGNAL,
-                       LOW_PARTICIPATION, NO_MODEL_CALLS, NOT_PREPARED, RESULT_CONTRADICTS_EXIT, RESULT_MISSING,
-                       SHARD_INTERRUPTED, TIMED_OUT, UNEXPECTED_EXIT)
+                       LOW_PARTICIPATION, NO_MODEL_CALLS, NOT_PREPARED, PROVISION_FAILED_SERVER,
+                       RESULT_CONTRADICTS_EXIT, RESULT_MISSING, SHARD_INTERRUPTED, TIMED_OUT, UNEXPECTED_EXIT)
 from lab.responder import Responder, ResponderError
 from mycelic.collective import schemacheck
 from mycelic.collective.experiments.e3_latency import WORKLOADS
 from mycelic.collective.inference.tasks import data_block
 from mycelic.collective.packs.loader import load_pack
-from tests.lab.helpers import (MANIFEST_TEST, ROOT, git, kill_mentioning, lab_cli, make_plan, pids_mentioning,
-                               plumbing_min, wait_until)
+from tests.lab.helpers import (MANIFEST_TEST, MODEL_KEY, ROOT, StubWorld, call_main, git, kill_mentioning, lab_cli,
+                               make_plan, pids_mentioning, plumbing_min, split_code_spans, wait_until, write_json)
 
 ARG_RE = re.compile(r"--[a-z][a-z0-9-]*=.*")
 STATUS_LINE_RE = re.compile(r"lab: unit [a-z0-9-]+ status [a-z_]+ class [a-z-]+ exit (-?[0-9]+|none) "
@@ -84,11 +87,12 @@ class PlumbingDryRunTests(unittest.TestCase):
 
     def test_exit_and_one_status_line_per_unit(self) -> None:
         self.assertEqual(self.done.returncode, 0, self.done.stderr)
-        lines = [line for line in self.done.stdout.splitlines() if line.startswith("lab: ")]
+        stdout = self.done.stdout.splitlines()
+        lines = [line for line in stdout if line.startswith("lab: unit ")]
         self.assertEqual(len(lines), 3)
         self.assertTrue(all(STATUS_LINE_RE.fullmatch(line) for line in lines), lines)
-        self.assertEqual(self.done.stdout.splitlines()[0], "plan: 3 units in 2 shards (plumbing)")
-        self.assertEqual(len(self.done.stdout.splitlines()), 4, self.done.stdout)
+        self.assertEqual(stdout, ["plan: 3 units in 2 shards (plumbing)", *lines,
+                                  "lab: aggregate units 3 shards 2 class plumbing measurements false lock unchanged"])
 
     def test_units_are_ok_plumbing(self) -> None:
         records = self._units()
@@ -575,6 +579,210 @@ class ShardCliTests(TempDirTest):
                 r = lab_cli("lab.shard", "seal", "--out", str(out), *args)
                 self.assertEqual(r.returncode, 2)
                 self.assertFalse(out.exists())
+
+
+# --------------------------------------------------------------------------------------------------- job clock
+
+def _outputs(path: Path) -> dict[str, str]:
+    return dict(line.split("=", 1) for line in path.read_text(encoding="utf-8").splitlines())
+
+
+class JobClockTests(TempDirTest):
+    START = 1_800_000_000
+
+    def test_job_clock_formula(self) -> None:
+        start = self.START
+        cases = [(30, start, start + 1200, 20), (30, start + 59, start + 1200, 19),
+                 (30, start + 1140.5, start + 1200, 1), (30, start + 1200, start + 1200, 1),
+                 (30, start + 9999, start + 1200, 1), (11, start, start + 60, 1),
+                 (360, start + 0.5, start + 21000, 349), (45, start - 600, start + 2100, 45)]
+        for timeout, now, deadline, minutes in cases:
+            with self.subTest(timeout=timeout, now=now):
+                self.assertEqual(lab_shard.job_clock(start, timeout, now), (deadline, minutes))
+                self.assertEqual(deadline, start + (timeout - lab_shard.JOB_TAIL_MINUTES) * 60)
+                self.assertEqual(minutes, max(1, math.floor((deadline - now) / 60)))
+        for args in ((start, 10), (start, 361), (0, 30), (-5, 30), (True, 30), (start, 30.0)):
+            with self.subTest(args=args), self.assertRaises(ValueError):
+                lab_shard.job_clock(*args, start)
+
+    def _prepare(self, plan: Path, shard: str, *extra: str) -> tuple[int, str, str, Path]:
+        gho = self.tmp / f"gho-{len(list(self.tmp.glob('gho-*')))}"
+        gho.write_text("", encoding="utf-8")
+        code, stdout, stderr = call_main(lab_shard, [
+            "prepare", "--plan", str(plan), "--shard", shard, "--provision-records", str(self.tmp / "records"),
+            "--cache-root", str(self.tmp / "cache"), "--out", str(self.tmp / f"out-{gho.name}"),
+            "--github-output", str(gho), *extra])
+        return code, stdout, stderr, gho
+
+    def test_prepare_emits_clock_outputs(self) -> None:
+        _, fake_plan = make_plan(self.tmp / "fake", _request(["fake-a"], g0=False))
+        start = int(time.time()) - 30
+        code, stdout, stderr, gho = self._prepare(fake_plan, "s001-fake-a", "--job-start-epoch", str(start),
+                                                  "--job-timeout-minutes", "30")
+        self.assertEqual(code, 0, stderr)
+        outputs = _outputs(gho)
+        self.assertEqual((outputs["needed"], outputs["prepared"], outputs["deadline_epoch"]),
+                         ("false", "true", str(start + 1200)))
+        self.assertIn(outputs["shard_minutes"], ("18", "19"))
+        self.assertEqual(stdout.splitlines()[-1],
+                         f"lab: clock deadline_epoch {start + 1200} shard_minutes {outputs['shard_minutes']}")
+
+        obj = _request(["tiny-gguf"], g0=False)
+        obj["provider"] = "llama-server"
+        _, gguf_plan = make_plan(self.tmp / "gguf", obj)
+        code, stdout, stderr, gho = self._prepare(gguf_plan, "s001-tiny-gguf", "--job-start-epoch", str(start),
+                                                  "--job-timeout-minutes", "45")
+        self.assertEqual(code, 2)
+        self.assertIn(PROVISION_FAILED_SERVER, stderr)
+        self.assertEqual(_outputs(gho), {"needed": "true", "prepared": "false", "deadline_epoch": str(start + 2100),
+                                         "shard_minutes": _outputs(gho)["shard_minutes"]})
+        self.assertIn(int(_outputs(gho)["shard_minutes"]), (33, 34))
+
+        for extra in (["--job-start-epoch", str(start)], ["--job-timeout-minutes", "30"],
+                      ["--job-start-epoch", "0", "--job-timeout-minutes", "30"],
+                      ["--job-start-epoch", str(start), "--job-timeout-minutes", "10"],
+                      ["--job-start-epoch", "soon", "--job-timeout-minutes", "30"]):
+            with self.subTest(extra=extra):
+                try:
+                    code, _, stderr, gho = self._prepare(fake_plan, "s001-fake-a", *extra)
+                except SystemExit as exc:
+                    code, gho = exc.code, sorted(self.tmp.glob("gho-*"))[-1]
+                self.assertEqual(code, 2)
+                self.assertEqual(gho.read_text(encoding="utf-8"), "")
+                self.assertFalse((self.tmp / f"out-{gho.name}").exists())
+
+    def test_deadline_end_to_end(self) -> None:
+        _, plan = make_plan(self.tmp, _request(["fake-a"]))
+        shard, out, gho = "s001-fake-a", self.tmp / "OUT", self.tmp / "gho"
+        start = int(time.time()) + 150 - 1200
+        r = lab_cli("lab.shard", "prepare", "--plan", str(plan), "--shard", shard, "--provision-records",
+                    str(self.tmp / "none"), "--cache-root", str(self.tmp / "cache"), "--out", str(out),
+                    "--job-start-epoch", str(start), "--job-timeout-minutes", "30", "--github-output", str(gho))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        outputs = _outputs(gho)
+        self.assertEqual((outputs["deadline_epoch"], outputs["shard_minutes"]), (str(start + 1200), "2"))
+        r = lab_cli("lab.shard", "run", "--plan", str(plan), "--shard", shard, "--out", str(out),
+                    "--deadline-epoch", outputs["deadline_epoch"])
+        self.assertEqual(r.returncode, 1, r.stderr)
+        records = [_json(p) for p in sorted(out.glob("units/*/unit.json"))]
+        self.assertEqual(len(records), 2)
+        self.assertEqual({(rec["status"], rec["status_reason"]) for rec in records}, {("skipped", BUDGET_EXHAUSTED)})
+        with mock.patch.dict(os.environ, {"GITHUB_RUN_ATTEMPT": "2"}):
+            r = lab_cli("lab.shard", "seal", "--out", str(out), "--shard", shard, "--plan", str(plan),
+                        "--step-outcome", "prepare=success", "--step-outcome", "run=failure")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        status = _json(out / "status.json")
+        self.assertEqual((status["run_attempt"], status["plan_sha256"], status["failed_step"]),
+                         (2, hashlib.sha256(plan.read_bytes()).hexdigest(), "run"))
+        self.assertEqual(status["prepare"], {"present": True, "needed": False, "prepared": True, "problem": None})
+        self.assertEqual((status["counts"], status["missing_units"]), ({"skipped": 2}, []))
+        r = lab_cli("lab.summary", "shard", "--dir", str(out), "--md-out", str(out / "summary" / "summary.md"))
+        self.assertEqual((r.returncode, r.stdout), (0, ""), r.stderr)
+        md = (out / "summary" / "summary.md").read_text(encoding="utf-8")
+        rows = [line for line in md.splitlines() if line.startswith("| `e3-fake-a`") or line.startswith("| `g0-")]
+        self.assertEqual(len(rows), 2)
+        for row in rows:
+            self.assertIn(f"| `skipped` | no-result | n/a | 0.0 | `{BUDGET_EXHAUSTED}` |", row)
+        self.assertIn(BUDGET_EXHAUSTED, split_code_spans(md)[1])
+        self.assertNotIn(BUDGET_EXHAUSTED, split_code_spans(md)[0])
+
+    def test_seal_plan_attempt_prepare_and_temp_cleanup(self) -> None:
+        _, plan = make_plan(self.tmp, _request(["fake-a"]))
+        out = self.tmp / "OUT"
+        write_json(out / "provision" / "prepare-error.json",
+                   {"schema_version": 1, "kind": "lab_prepare_error", "problem": "the problem", "exit_code": 2})
+        (out / ".provenance.json.123.tmp").write_text("{")
+        (out / "provision" / ".prepare.json.77.tmp").write_text("{")
+        (out / "provision" / "keep.123.tmp").write_text("kept: not a hidden temporary")
+        with mock.patch.dict(os.environ, {"GITHUB_RUN_ATTEMPT": "3"}):
+            self.assertEqual(lab_shard.seal(out, "s001-fake-a", {"prepare": "failure"}, str(plan)), 0)
+        status = _json(out / "status.json")
+        self.assertEqual(sorted(status), sorted(lab_shard.STATUS_KEYS))
+        self.assertEqual((status["run_attempt"], status["plan_sha256"], status["missing_units"]),
+                         (3, hashlib.sha256(plan.read_bytes()).hexdigest(), ["g0-fake-a", "e3-fake-a"]))
+        self.assertEqual(status["prepare"], {"present": True, "needed": None, "prepared": False,
+                                             "problem": "the problem"})
+        self.assertFalse((out / ".provenance.json.123.tmp").exists())
+        self.assertFalse((out / "provision" / ".prepare.json.77.tmp").exists())
+        self.assertEqual(sorted(status["files"]), ["provision/keep.123.tmp", "provision/prepare-error.json"])
+        for plan_arg, sha, missing in ((None, None, None), (str(self.tmp / "absent.json"), None, None),
+                                       (str(MANIFEST_TEST), hashlib.sha256(MANIFEST_TEST.read_bytes()).hexdigest(),
+                                        None)):
+            with self.subTest(plan=plan_arg), mock.patch.dict(os.environ, {"GITHUB_RUN_ATTEMPT": "x"}):
+                self.assertEqual(lab_shard.seal(out, "s001-fake-a", {}, plan_arg), 0)
+                status = _json(out / "status.json")
+                self.assertEqual((status["run_attempt"], status["plan_sha256"], status["missing_units"]),
+                                 (1, sha, missing))
+        (out / "provision" / "prepare-error.json").unlink()
+        write_json(out / "provision" / "prepare.json", {"kind": "lab_prepare", "needed": True})
+        lab_shard.seal(out, None, {}, str(plan))
+        status = _json(out / "status.json")
+        self.assertEqual(status["prepare"], {"present": True, "needed": True, "prepared": True, "problem": None})
+        self.assertIsNone(status["missing_units"])
+        (out / "provision" / "prepare.json").unlink()
+        lab_shard.seal(out, "s001-fake-a", {}, str(plan))
+        self.assertEqual(_json(out / "status.json")["prepare"],
+                         {"present": False, "needed": None, "prepared": False, "problem": None})
+
+
+class CacheKeysTests(TempDirTest):
+    def test_cache_keys(self) -> None:
+        world = StubWorld(self.tmp / "w")
+        self.addCleanup(world.close)
+        world.provision_all()
+        shard = world.plan["shards"][0]["shard"]
+        entries = {e["target"]: e for e in world.plan["provision"]}
+
+        def keys(plan: Path, shard_id: str, records: Path) -> tuple[int, str, dict[str, str]]:
+            gho = self.tmp / "gho"
+            gho.write_text("", encoding="utf-8")
+            code, stdout, stderr = call_main(lab_shard, ["cache-keys", "--plan", str(plan), "--shard", shard_id,
+                                                         "--provision-records", str(records),
+                                                         "--github-output", str(gho)])
+            return code, stdout, _outputs(gho) if gho.read_text() else {}
+
+        code, stdout, outputs = keys(world.plan_path, shard, world.records)
+        self.assertEqual(code, 0)
+        server = _json(world.records / "server" / "provision.json")
+        model = _json(world.records / f"gguf-{MODEL_KEY}" / "provision.json")
+        self.assertEqual(list(outputs), ["needed", "server_path", "server_key", "server_prefix", "model_path",
+                                         "model_key", "model_prefix"])
+        self.assertEqual(outputs, {
+            "needed": "true", "server_path": cache_dir("server", world.tag),
+            "server_key": cache_key("server", world.tag, server["server"]["sha256"]),
+            "server_prefix": cache_prefix("server", world.tag), "model_path": cache_dir("gguf", MODEL_KEY),
+            "model_key": cache_key("gguf", MODEL_KEY, model["model"]["sha256"]),
+            "model_prefix": cache_prefix("gguf", MODEL_KEY)})
+        self.assertEqual((outputs["server_key"], outputs["model_key"]),
+                         (server["cache"]["save_key"], model["cache"]["save_key"]))
+        self.assertEqual((outputs["server_path"], outputs["model_path"]),
+                         (entries["server"]["cache_path"], entries["gguf"]["cache_path"]))
+        self.assertNotEqual(outputs["server_key"], outputs["server_prefix"])
+        self.assertEqual(stdout, f"lab: cache-keys {shard} server {outputs['server_key']} model "
+                                 f"{outputs['model_key']}\n")
+
+        path = world.records / f"gguf-{MODEL_KEY}" / "provision.json"
+        original = path.read_bytes()
+        for change in ({"verified": False}, {"plan_sha256": "9" * 64}):
+            with self.subTest(change=change):
+                path.write_text(json.dumps({**json.loads(original), **change}), encoding="utf-8")
+                code, stdout, outputs = keys(world.plan_path, shard, world.records)
+                self.assertEqual((code, outputs["needed"], outputs["server_key"]), (0, "true", server["cache"]
+                                                                                    ["save_key"]))
+                self.assertEqual((outputs["model_path"], outputs["model_key"], outputs["model_prefix"]), ("", "", ""))
+                self.assertTrue(stdout.endswith(" model none\n"), stdout)
+        path.write_bytes(original)
+
+        _, fake_plan = make_plan(self.tmp / "fake", plumbing_min())
+        code, stdout, outputs = keys(fake_plan, "s001-fake-a", world.records)
+        self.assertEqual(code, 0)
+        self.assertEqual(outputs, {"needed": "false", **dict.fromkeys(list(outputs)[1:], "")})
+        self.assertEqual(len(outputs), 7)
+        for plan, shard_id in ((world.plan_path, "s009-tiny-gguf"), (world.plan_path, "../x"),
+                               (self.tmp / "absent.json", shard)):
+            with self.subTest(shard=shard_id, plan=plan.name):
+                code, _, outputs = keys(plan, shard_id, world.records)
+                self.assertEqual((code, outputs), (2, {}))
 
 
 if __name__ == "__main__":

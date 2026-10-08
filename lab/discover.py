@@ -20,8 +20,9 @@ the checked-out ref as a regular file (not a symlink).
 Exactly one changed file runs (a changed file whose name breaks the request pattern is a usage error and is never
 printed). Only deletions run nothing (exit 0). No request change at all is a usage error (exit 2): the workflow's
 path filter and this rule disagree. Several changed files run nothing when the tip is a merge (exit 0, one dispatch
-command per request) and are a usage error otherwise. Every value comes from the event file, never from a workflow
-expression, and git runs without the environment variables that change pathspec or repository meaning.
+command per request, the paths in :attr:`Discovery.requests`) and are a usage error otherwise. Every value comes
+from the event file, never from a workflow expression, and git runs without the environment variables that change
+pathspec or repository meaning.
 """
 from __future__ import annotations
 
@@ -69,6 +70,7 @@ class Discovery:
     errors: list[str] = field(default_factory=list)
     exit_code: int = EXIT_OK
     error: DiscoveryError | None = None
+    requests: list[str] = field(default_factory=list)     # the request paths of a merge that brought several
 
 
 def dispatch_command(branch: str, path: str) -> str:
@@ -170,7 +172,7 @@ def _push(event: dict[str, Any], root: Path) -> Discovery:
     commands = [dispatch_command(branch, p) for p in valid]
     parents = _git_ok(root, "rev-list", "--parents", "-n", "1", after).split()
     if len(parents) >= 3:
-        return Discovery("nothing", None, notices=[MERGE_SEVERAL, *commands])
+        return Discovery("nothing", None, notices=[MERGE_SEVERAL, *commands], requests=valid)
     raise DiscoveryError("event", SEVERAL_REQUESTS, [*valid, DISPATCH_HINT, *commands])
 
 

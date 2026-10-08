@@ -48,6 +48,10 @@ run as a measurement (``harness_measurement``, E3 only: its result says ``measur
 Otherwise ``unverified``, naming the first condition that failed (``no_evidence`` without a model server). G0's own
 ``models_fake`` is ignored: in routing mode it is false even against the fake HTTP server.
 
+Summaries and the aggregate report never trust a record's ``measurement_class`` alone: :func:`display_class` re-reads
+the record and its shard's provenance and puts each unit in one of :data:`DISPLAY_CLASSES`; ``model`` needs every
+fact that admits a measurement to hold at once.
+
 The harness runs with an allowlisted environment (:data:`ENV_ALLOWLIST` plus ``PYTHONUNBUFFERED=1``; no token or
 key), in its own session; on a timeout, a watch that fired or an exception (a shard interrupt included) the whole
 process group gets SIGTERM, then SIGKILL after 10 s, and after every exit the group is SIGKILLed again to remove
@@ -95,6 +99,7 @@ ENDPOINT = "lab"
 FLAG_NAME_RE = re.compile(r"[a-z][a-z0-9-]*", re.ASCII)
 CHECK_KEYS = ("model_verified", "server_verified", "download_hosts", "model_path", "ledger_host", "model_served",
               "harness_measurement", "participation")
+DISPLAY_CLASSES = ("model", "unverified", "plumbing", "no-model", "no-result")
 MODEL_VERIFIED_BY = ("lock", "hf-api")
 SERVER_VERIFIED_BY = ("lock", "github-api", "first-use")
 
@@ -333,6 +338,39 @@ def measurement_class(kind: str, provider_override: str | None, rows: list[dict[
         if checks.get(key) is not True:
             return "unverified", key
     return "model", "verified"
+
+
+def _is_int(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def display_class(record: Mapping[str, Any], provenance: Mapping[str, Any] | None) -> str:
+    """Where a summary shows a unit; the first rule that holds wins:
+
+    1. ``no-result`` unless the status is ``ok`` or ``result_fail``;
+    2. ``plumbing`` when the record says plumbing, its kind or provider is fake, it counted fake rows, or the shard's
+       provenance is not of result class ``real`` or names the fake provider;
+    3. ``no-model`` for a model-free unit (kind ``none``, class ``no-model``);
+    4. ``model`` only when the record says model, its kind is gguf, the provenance is ``real``, it counted zero fake
+       rows and every one of :data:`CHECK_KEYS` is exactly true;
+    5. otherwise ``unverified``.
+    """
+    if record.get("status") not in ("ok", "result_fail"):
+        return "no-result"
+    fake_rows = record.get("fake_rows")
+    prov = provenance if isinstance(provenance, Mapping) else None
+    if (record.get("measurement_class") == "plumbing" or record.get("kind") == "fake"
+            or record.get("provider") == "fake" or (_is_int(fake_rows) and fake_rows != 0)
+            or (prov is not None and (prov.get("result_class") != "real" or prov.get("provider") == "fake"))):
+        return "plumbing"
+    if record.get("kind") == "none" and record.get("measurement_class") == "no-model":
+        return "no-model"
+    checks = record.get("class_checks")
+    if (record.get("measurement_class") == "model" and record.get("kind") == "gguf" and prov is not None
+            and prov.get("result_class") == "real" and _is_int(fake_rows) and fake_rows == 0
+            and isinstance(checks, Mapping) and all(checks.get(key) is True for key in CHECK_KEYS)):
+        return "model"
+    return "unverified"
 
 
 def unit_notes(experiment: str, measurement: str) -> list[str]:

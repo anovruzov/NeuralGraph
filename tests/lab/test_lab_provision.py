@@ -898,6 +898,38 @@ class LockMergeTests(TempDirTest):
                 self.assertFalse((self.tmp / "out.json").exists())
 
 
+    def test_merge_candidates_matches_merge_lock(self) -> None:
+        self._candidate("s", server=self.server)
+        self._candidate("m", models={MODEL_KEY: self.model})
+        code, stdout, stderr = self._merge(self.tmp / "cli.json")
+        self.assertEqual((code, stdout.strip()), (0, "lock: 2 new entries"), stderr)
+        manifest = load_manifest(self.manifest)
+        base = json.loads(self.manifest.with_name("manifest.lock.json").read_text())
+        candidates = [{"schema_version": 1, "server": self.server, "models": {}},
+                      {"schema_version": 1, "server": None, "models": {MODEL_KEY: self.model}}]
+        for order in (candidates, candidates[::-1]):
+            merged, new = provision.merge_candidates(manifest, base, order)
+            self.assertEqual(new, 2)
+            self.assertEqual(list(merged), ["schema_version", "server", "models"])
+            provision.write_lock(self.tmp / "fn.json", merged)
+            self.assertEqual((self.tmp / "fn.json").read_bytes(), (self.tmp / "cli.json").read_bytes())
+        merged, new = provision.merge_candidates(manifest, merged, candidates)
+        self.assertEqual(new, 0)
+        with self.assertRaises(provision.ProvisionError) as caught:
+            provision.merge_candidates(manifest, base, [*candidates, {"schema_version": 1, "server": None, "models": {
+                MODEL_KEY: {**self.model, "sha256": "3" * 64}}}])
+        self.assertEqual(caught.exception.problem, f"{LOCK_CONFLICT}: $.models.{MODEL_KEY}")
+        with self.assertRaises(provision.ProvisionError) as caught:
+            provision.merge_candidates(manifest, {**base, "server": self.server},
+                                       [{"schema_version": 1, "models": {}, "server": {**self.server,
+                                                                                      "sha256": "4" * 64}}])
+        self.assertEqual(caught.exception.problem, f"{LOCK_CONFLICT}: $.server")
+        with self.assertRaises(provision.ProvisionError) as caught:
+            provision.merge_candidates(manifest, base, [{"schema_version": 1, "server": None,
+                                                         "models": {"no-such-model": self.model}}])
+        self.assertTrue(caught.exception.problem.startswith("lock candidate $.models"), caught.exception.problem)
+
+
 # --------------------------------------------------------------------------------------------------- prepare
 
 class PrepareTests(WorldTest):
@@ -1059,6 +1091,79 @@ class PrepareTests(WorldTest):
                 self.assertFalse(final.with_name(final.name + ".part").exists())
                 self.assertEqual(sorted(p.name for p in final.parent.iterdir()), [])
                 self.w.provision_all()      # restore both files for the next target
+
+    def test_prepare_deadline_bounds_downloads(self) -> None:
+        shutil.rmtree(self.w.cache)
+        finals = (self.w.cache / "server" / self.w.tag / self.w.asset,
+                  self.w.cache / "gguf" / MODEL_KEY / f"{_sha(self.w.blob)}.gguf")
+        self.w.hub.requests.clear()
+        code = provision.prepare(str(self.w.plan_path), "s001-tiny-gguf", str(self.w.records), self.w.cache, self.out,
+                                 url_map=self.w.hub.url_map, sleep=self.w.sleeps.append, deadline_epoch=time.time() - 5)
+        self.assertEqual(code, 3)
+        error = json.loads((self.out / "provision" / "prepare-error.json").read_text())
+        self.assertEqual((error["problem"], error["exit_code"]), (DOWNLOAD_DEADLINE, 3))
+        self.assertEqual(self.w.hub.requests, [])
+        for final in finals:
+            self.assertFalse(final.exists() or final.with_name(final.name + ".part").exists())
+        self.assertFalse((self.out / "provision" / "prepare.json").exists())
+        code = provision.prepare(str(self.w.plan_path), "s001-tiny-gguf", str(self.w.records), self.w.cache, self.out,
+                                 url_map=self.w.hub.url_map, sleep=self.w.sleeps.append,
+                                 deadline_epoch=time.time() + provision.MIN_DOWNLOAD_S / 2)
+        self.assertEqual(code, 3)       # time is left, but less than a download may start with
+        self.assertEqual(self.w.hub.requests, [])
+        self.assertFalse(finals[0].exists())
+
+        gho = self.tmp / "gho"
+        start = int(time.time()) - 3600
+        code, stdout, stderr = self.w.prepare(self.out, None, "--job-start-epoch", str(start),
+                                              "--job-timeout-minutes", "30", "--github-output", str(gho))
+        self.assertEqual(code, 3, stderr)
+        self.assertIn(DOWNLOAD_DEADLINE, stderr)
+        self.assertEqual(_outputs(gho), {"needed": "true", "prepared": "false", "deadline_epoch": str(start + 1200),
+                                         "shard_minutes": "1"})
+        self.assertEqual(self.w.hub.requests, [])
+
+        calls: list[float] = []
+        real = dl.download
+
+        def bounded(*args: Any, **kwargs: Any) -> dl.Download:
+            calls.append(kwargs["deadline_s"])
+            return real(*args, **kwargs)
+
+        shutil.rmtree(self.out)
+        with mock.patch.object(provision, "download", bounded):
+            left = time.time() + 600
+            code = provision.prepare(str(self.w.plan_path), "s001-tiny-gguf", str(self.w.records), self.w.cache,
+                                     self.out, url_map=self.w.hub.url_map, sleep=self.w.sleeps.append,
+                                     deadline_epoch=left)
+        self.assertEqual(code, 0)
+        self.assertEqual(len(calls), 2)
+        for deadline_s in calls:
+            self.assertTrue(500 < deadline_s <= 600, calls)
+        for final in finals:
+            self.assertTrue(final.is_file())
+        calls.clear()
+        shutil.rmtree(self.out)
+        with mock.patch.object(provision, "download", bounded):
+            code = provision.prepare(str(self.w.plan_path), "s001-tiny-gguf", str(self.w.records), self.w.cache,
+                                     self.out, url_map=self.w.hub.url_map, deadline_epoch=time.time() - 5)
+        self.assertEqual((code, calls), (0, []))   # the cache restored both files: hashing is not bounded
+
+    def test_candidate_from_record(self) -> None:
+        for target in ("server", f"gguf-{MODEL_KEY}"):
+            with self.subTest(target=target):
+                record = json.loads((self.w.records / target / "provision.json").read_text())
+                candidate = provision.candidate_from_record(record)
+                written = json.loads((self.w.records / target / "lock-candidate.json").read_text())
+                self.assertEqual(candidate, written)
+                self.assertEqual(list(candidate), ["schema_version", "server", "models"])
+                if target == "server":
+                    self.assertEqual(list(candidate["server"]), ["tag", "asset", "sha256"])
+                    self.assertEqual(candidate["models"], {})
+                else:
+                    self.assertIsNone(candidate["server"])
+                    self.assertEqual(list(candidate["models"][MODEL_KEY]),
+                                     ["repo", "file", "revision", "commit", "sha256", "size"])
 
     def test_out_rules(self) -> None:
         (self.out / "units").mkdir(parents=True)

@@ -25,19 +25,27 @@ same commit are byte-identical)::
                 "env", "shard"}],                                         # sorted by unit id
      "shards": [{"shard", "model", "kind", "needs_secret", "units", "planned_minutes", "timeout_minutes"}],
      "skipped": [], "matrix": {"include": [...]},
-     "provision": [{"target": "server" | "gguf", "key": "" | "<model key>", "cache_path", "restore_key",
-                    "restore_prefix"}]}
+     "provision": [{"target": "server" | "gguf", "key": "" | "<model key>", "entry", "cache_path", "cache_key",
+                    "restore_key", "restore_prefix"}]}
 
 ``provision`` lists what the provision matrix downloads and verifies once per run: the server first, then each gguf
-model the plan uses in sorted key order; empty when no shard serves a gguf model. ``cache_path`` is the directory
-under the cache root (``manifest.cache_dir``); ``restore_key`` is the sha-derived cache key when the lock pins the
-file, else ``""`` (an unpinned file is only ever restored by ``restore_prefix`` and then re-verified).
+model the plan uses in sorted key order; empty when no shard serves a gguf model. ``entry`` (``server`` or
+``gguf-<key>``) names the provision job's artifact; ``cache_path`` is the directory under the cache root
+(``manifest.cache_dir``); ``restore_key`` is the sha-derived cache key when the lock pins the file, else ``""`` (an
+unpinned file is only ever restored by ``restore_prefix`` and then re-verified); ``cache_key`` is the exact key the
+provision job restores: ``restore_key``, or ``restore_prefix`` plus ``unlocked``, a key no save ever writes (saved
+keys end in 16 hex).
 
 ``--github-output`` appends ``has_provision``, ``has_units``, ``matrix``, ``max_parallel``, ``plan_sha256``,
 ``provision_matrix`` (``{"include": <provision>}``), ``retention_days`` and ``result_class``, one ``name=value`` line
-each. When the event runs nothing, no plan is written, a notice is printed and the outputs say so
-(``has_units=false``, ``has_provision=false``); exit 0. Any problem writes ``DIR/plan-error.json``, prints
-``error: <path>: <problem>`` as the first stderr line and an ``::error`` workflow command, and exits 2.
+each. GitHub caps a job's outputs at 1 MB counted in UTF-16, so the plan refuses (``the job matrix would be too
+large``) when these outputs plus the workflow's ``plan_artifact`` name would exceed :data:`MAX_OUTPUT_BYTES` UTF-16
+bytes (:func:`check_outputs_size`). When the event runs nothing, no plan is written: ``DIR/plan-nothing.json``
+(``{"schema_version": 1, "kind": "lab_plan_nothing", "notice": <the first notice, a fixed sentence>, "requests":
+[<request paths of a merge that brought several>]}``; never a branch name or a command) records why, the notices are
+printed as ``::notice`` lines and the outputs say so (``has_units=false``, ``has_provision=false``); exit 0. Any
+problem writes ``DIR/plan-error.json``, prints ``error: <path>: <problem>`` as the first stderr line and an
+``::error`` workflow command, and exits 2.
 """
 from __future__ import annotations
 
@@ -48,15 +56,16 @@ from pathlib import Path
 from typing import Any
 
 from mycelic.collective.experiments.common import RUN_ID_RE, write_json_atomic
-from mycelic.collective.jsonio import canonical_bytes, canonical_dumps, sha256_hex
+from mycelic.collective.jsonio import canonical_dumps, sha256_hex
 
 from . import EXIT_OK, EXIT_USAGE, LabError, display_path, gh_data, gh_property, safe_path, shown_path
-from .discover import DiscoveryError, discover, git
+from .discover import REQUEST_PATH_RE, DiscoveryError, discover, git
 from .manifest import Manifest, ManifestError, cache_dir, cache_key, cache_prefix, load_manifest
 from .request import EXPERIMENTS, SHARD_OVERHEAD_MINUTES, Request, RequestError, load_request
 
 MAX_SHARDS = 256
 MAX_MATRIX_BYTES = 1000000
+MAX_OUTPUT_BYTES = 900_000
 MAX_UNIT_ID = 55
 UNIT_ID_RE = re.compile(r"[a-z0-9][a-z0-9-]*", re.ASCII)
 SHARD_ID_RE = re.compile(r"s[0-9]{3}-[a-z0-9][a-z0-9-]{0,23}", re.ASCII)
@@ -143,7 +152,18 @@ def pack_shards(units: list[dict[str, Any]], capacity: int) -> list[dict[str, An
 
 
 def check_matrix_size(obj: Any, limit: int = MAX_MATRIX_BYTES) -> None:
-    if len(canonical_bytes(obj)) >= limit:
+    """GitHub counts output sizes in UTF-16 code units of two bytes each."""
+    if len(canonical_dumps(obj).encode("utf-16-le")) >= limit:
+        raise PlanError("$.experiments", "the job matrix would be too large") from None
+
+
+def output_size(outputs: dict[str, str]) -> int:
+    """The UTF-16 size of ``name=value`` over all outputs, as GitHub measures a job's outputs."""
+    return sum(len((name + "=" + value).encode("utf-16-le")) for name, value in outputs.items())
+
+
+def check_outputs_size(outputs: dict[str, str], limit: int | None = None) -> None:
+    if output_size(outputs) > (MAX_OUTPUT_BYTES if limit is None else limit):
         raise PlanError("$.experiments", "the job matrix would be too large") from None
 
 
@@ -153,9 +173,11 @@ def provision_entries(manifest: Manifest, gguf_keys: list[str]) -> list[dict[str
         return []
 
     def entry(target: str, key: str, name: str, locked: dict[str, Any] | None) -> dict[str, Any]:
-        return {"target": target, "key": key, "cache_path": cache_dir(target, name),
-                "restore_key": cache_key(target, name, locked["sha256"]) if locked is not None else "",
-                "restore_prefix": cache_prefix(target, name)}
+        restore_key = cache_key(target, name, locked["sha256"]) if locked is not None else ""
+        return {"target": target, "key": key, "entry": "server" if target == "server" else f"gguf-{key}",
+                "cache_path": cache_dir(target, name),
+                "cache_key": restore_key or cache_prefix(target, name) + "unlocked",
+                "restore_key": restore_key, "restore_prefix": cache_prefix(target, name)}
 
     tag = manifest.server["tag"]
     return [entry("server", "", tag, manifest.lock.server),
@@ -178,7 +200,7 @@ def build_plan(request: Request, manifest: Manifest, git_sha: str) -> dict[str, 
     used = sorted({u["model"] for u in units if u["model"]})
     provision = provision_entries(manifest, sorted({s["model"] for s in shards if s["kind"] == "gguf"}))
     check_matrix_size({"include": provision})
-    return {
+    plan = {
         "schema_version": 1, "kind": "lab_plan",
         "request": {"path": request.path, "name": request.name, "sha256": request.sha256, "purpose": data["purpose"]},
         "provider": data["provider"], "result_class": "plumbing" if data["provider"] == "fake" else "real",
@@ -190,6 +212,8 @@ def build_plan(request: Request, manifest: Manifest, git_sha: str) -> dict[str, 
         "models": {key: {**manifest.models[key], "lock": manifest.lock.models.get(key)} for key in used},
         "units": units, "shards": shards, "skipped": [], "matrix": matrix, "provision": provision,
     }
+    check_outputs_size(plan_outputs(plan, "0" * 64) | {"plan_artifact": "x" * 64})
+    return plan
 
 
 # --------------------------------------------------------------------------------------------------- outputs
@@ -274,6 +298,10 @@ def main(argv: list[str] | None = None) -> int:
             if found.error is not None:
                 raise found.error
             if found.outcome == "nothing":
+                out.mkdir(parents=True, exist_ok=True)
+                write_json_atomic(out / "plan-nothing.json", {
+                    "schema_version": 1, "kind": "lab_plan_nothing", "notice": found.notices[0],
+                    "requests": [p for p in found.requests if REQUEST_PATH_RE.fullmatch(p)]})
                 for notice in found.notices:
                     print(f"::notice::{gh_data(notice)}")
                 if args.github_output:

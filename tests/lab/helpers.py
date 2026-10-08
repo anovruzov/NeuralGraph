@@ -1,4 +1,5 @@
-"""Shared fixtures for the lab tests: paths, request builders, an in-process plan runner and throwaway git worlds.
+"""Shared fixtures for the lab tests: paths, request builders, an in-process plan runner, throwaway git worlds, stub
+worlds, copies of dry runs to mutate and re-seal (:class:`DryTree`), and the summary checks (code spans, sources).
 
 Every git call passes ``-c user.name=lab -c user.email=lab@invalid`` and every repository is created with ``-b
 main``, so the tests run with an empty ``HOME``, ``GIT_CONFIG_NOSYSTEM=1`` and ``GIT_CONFIG_GLOBAL=/dev/null``.
@@ -7,20 +8,26 @@ from __future__ import annotations
 
 import contextlib
 import copy
+import hashlib
 import io
 import json
 import os
+import re
+import shutil
 import signal
 import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 DATA = ROOT / "tests" / "lab" / "data"
 MANIFEST_TEST = DATA / "manifest-test.json"
 PLUMBING_MIN = DATA / "requests" / "plumbing-min.json"
+PLUMBING_001 = ROOT / "lab" / "requests" / "plumbing-001.json"
+LAB_MANIFEST = ROOT / "lab" / "models.json"
 GIT_IDENTITY = ("-c", "user.name=lab", "-c", "user.email=lab@invalid")
 
 
@@ -311,3 +318,187 @@ class StubWorld:
     def stub_files(self, kind: str) -> list[Any]:
         return [json.loads(p.read_text(encoding="utf-8"))
                 for p in sorted(self.record_dir.glob(f"{kind}-*.json"), key=lambda p: int(p.stem.split("-")[1]))]
+
+
+# --------------------------------------------------------------------------------------------------- summaries
+
+NUMBER_RE = re.compile(r"-?[0-9]+(\.[0-9]+)?")
+
+
+def split_code_spans(md: str) -> tuple[str, list[str]]:
+    """(the text outside code spans, each span's content) under CommonMark's rule: a run of n backticks opens a span
+    that the next run of exactly n backticks closes; a run that is never closed is literal text. A span becomes one
+    space in the outside text. Contents are returned raw (no padding stripped, no table escapes undone)."""
+    outside: list[str] = []
+    spans: list[str] = []
+    i, n = 0, len(md)
+    while i < n:
+        if md[i] != "`":
+            outside.append(md[i])
+            i += 1
+            continue
+        j = i
+        while j < n and md[j] == "`":
+            j += 1
+        run, k, close = j - i, j, -1
+        while k < n:
+            if md[k] == "`":
+                m = k
+                while m < n and md[m] == "`":
+                    m += 1
+                if m - k == run:
+                    close = k
+                    break
+                k = m
+            else:
+                k += 1
+        if close < 0:
+            outside.append(md[i:j])
+            i = j
+            continue
+        spans.append(md[j:close])
+        outside.append(" ")
+        i = close + run
+    return "".join(outside), spans
+
+
+def span_text(content: str, table: bool = False) -> str:
+    """What a reader sees of a span's raw content: one space stripped from each side when both are spaces and the
+    content is not all spaces; in a table cell ``\\|`` is ``|``."""
+    if table:
+        content = content.replace("\\|", "|")
+    if len(content) >= 2 and content[0] == " " and content[-1] == " " and content.strip(" "):
+        content = content[1:-1]
+    return content
+
+
+def resolve(doc: Any, pointer: str) -> Any:
+    """The tests' own RFC 6901 resolver."""
+    if pointer == "":
+        return doc
+    assert pointer.startswith("/"), pointer
+    for token in pointer[1:].split("/"):
+        token = token.replace("~1", "/").replace("~0", "~")
+        if isinstance(doc, list):
+            assert re.fullmatch(r"0|[1-9][0-9]*", token), pointer
+            doc = doc[int(token)]
+        else:
+            doc = doc[token]
+    return doc
+
+
+def check_sources(test: Any, md: str, sources: list[dict[str, Any]], root: Path) -> int:
+    """Every number outside code spans is, in order, the text of a source entry; no other digit is outside a code
+    span; each entry resolves in its file to a value that renders as its text. Returns the number of entries."""
+    from lab.summary import STYLES
+
+    outside, _ = split_code_spans(md)
+    tokens = [m.group(0) for m in NUMBER_RE.finditer(outside)]
+    test.assertEqual(tokens, [e["text"] for e in sources])
+    test.assertIsNone(re.search(r"[0-9]", NUMBER_RE.sub("", outside)))
+    docs: dict[str, Any] = {}
+    for entry in sources:
+        if entry["file"] not in docs:
+            docs[entry["file"]] = json.loads((Path(root) / entry["file"]).read_text(encoding="utf-8"))
+        value = resolve(docs[entry["file"]], entry["pointer"])
+        test.assertNotIsInstance(value, bool)
+        test.assertEqual(STYLES[entry["style"]](value), entry["text"], entry)
+    return len(sources)
+
+
+# --------------------------------------------------------------------------------------------------- dry-run trees
+
+def canonical_json(obj: Any) -> bytes:
+    return (json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False) + "\n").encode("utf-8")
+
+
+def dry_run(out: Path, request: Path, manifest: Path | None = None) -> subprocess.CompletedProcess[str]:
+    return lab_cli("lab.dryrun", "--request", str(request), "--out", str(out),
+                   *(["--manifest", str(manifest)] if manifest is not None else []))
+
+
+class DryTree:
+    """A copy of a dry run's plan and shards (summaries left out) that a test mutates and re-seals the way the
+    workflow would have sealed it."""
+
+    def __init__(self, source: Path, dest: Path, manifest: Path = MANIFEST_TEST) -> None:
+        self.root = Path(dest)
+        self.manifest = manifest
+        shutil.copytree(source / "plan", self.root / "plan", ignore=shutil.ignore_patterns("summary*"))
+        shutil.copytree(source / "shards", self.root / "shards", ignore=shutil.ignore_patterns("summary"))
+        self.plan_path = self.root / "plan" / "plan.json"
+        self.shards = self.root / "shards"
+
+    @property
+    def plan(self) -> dict[str, Any]:
+        return json.loads(self.plan_path.read_text(encoding="utf-8"))
+
+    def plan_sha256(self) -> str:
+        return hashlib.sha256(self.plan_path.read_bytes()).hexdigest()
+
+    def path(self, shard: str, rel: str = "") -> Path:
+        return self.shards / shard / rel if rel else self.shards / shard
+
+    def read(self, shard: str, rel: str) -> Any:
+        return json.loads(self.path(shard, rel).read_text(encoding="utf-8"))
+
+    def write(self, shard: str, rel: str, obj: Any) -> None:
+        self.path(shard, rel).write_bytes(canonical_json(obj))
+
+    def edit(self, shard: str, rel: str, change: Callable[[Any], None]) -> None:
+        obj = self.read(shard, rel)
+        change(obj)
+        self.write(shard, rel, obj)
+
+    def replace_unit_file(self, shard: str, unit: str, rel: str, data: bytes) -> None:
+        """Rewrite a file a unit record lists, and the record's hash of it, as if the harness had written it so."""
+        self.path(shard, rel).write_bytes(data)
+        self.edit(shard, f"units/{unit}/unit.json",
+                  lambda r: r["files"].update({rel: {"sha256": hashlib.sha256(data).hexdigest(), "bytes": len(data)}}))
+
+    def reseal(self, shard: str, *, attempt: int | None = None, plan: bool = True,
+               steps: dict[str, str] | None = None, path: Path | None = None) -> None:
+        from lab import shard as lab_shard
+
+        env = {"GITHUB_RUN_ATTEMPT": str(attempt) if attempt is not None else ""}
+        with mock.patch.dict(os.environ, env):
+            code = lab_shard.seal(path or self.path(shard), shard, steps or {"run": "success"},
+                                  str(self.plan_path) if plan else None)
+        assert code == 0
+
+    def set_plan(self, change: Callable[[dict[str, Any]], None]) -> None:
+        """Change the plan, point every shard's provenance at the new plan and re-seal every shard."""
+        plan = self.plan
+        change(plan)
+        self.plan_path.write_bytes(canonical_json(plan))
+        sha = self.plan_sha256()
+        for shard in sorted(p.name for p in self.shards.iterdir()):
+            self.edit(shard, "provenance.json", lambda prov: prov["plan"].update(sha256=sha))
+            self.reseal(shard)
+
+    def make_real(self, shard: str, *, units: tuple[str, ...] = (), model_units: tuple[str, ...] = ()) -> None:
+        """A shard as a verified model server would have left it: provenance ``real``, the given units of kind gguf
+        without fake rows (``model_units`` with every class check true, the others ``unverified``); re-sealed."""
+        from lab.units import CHECK_KEYS
+
+        self.edit(shard, "provenance.json", lambda p: p.update(result_class="real", provider="llama-server",
+                                                               banner=None))
+        for unit in (*units, *model_units):
+            model = unit in model_units
+            self.edit(shard, f"units/{unit}/unit.json", lambda r: r.update(
+                kind="gguf", provider="llama-server", fake_rows=0,
+                measurement_class="model" if model else "unverified",
+                class_reason="verified" if model else "model_path",
+                class_checks={k: model or k != "model_path" for k in CHECK_KEYS}))
+        self.reseal(shard)
+
+    def aggregate(self, out: Path, *, shards: Path | None = None, provision: Path | None = None,
+                  manifest: Path | None = None, plan: Path | None = None) -> tuple[int, str, str, Any]:
+        from lab import aggregate as lab_aggregate
+
+        code, stdout, stderr = call_main(lab_aggregate, [
+            "--plan", str(plan or self.plan_path), "--provision", str(provision or self.root / "provision"),
+            "--shards", str(shards or self.shards), "--manifest", str(manifest or self.manifest), "--out", str(out)])
+        report_path = Path(out) / "report.json"
+        report = json.loads(report_path.read_text(encoding="utf-8")) if report_path.exists() else None
+        return code, stdout, stderr, report
