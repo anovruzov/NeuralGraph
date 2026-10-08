@@ -20,8 +20,9 @@ into facts, builds the targets with their truth (kept apart) and the shadow prio
 **Worlds.** ``make_world(pack, seed, 2n)``; an original record is a member when
 ``random.Random(f"x5:{seed}:split:{record_ref}").random() < 0.5``, a forwarded copy follows its origin, and only the
 members go through the pipeline (``mode fake``). Shadow worlds (other seeds) never run a pipeline: they give the
-priors and the A1 threshold from the lexical rows (:func:`lexical_rows`, equal to what the sites store) and
-``build_cells`` at each variant's settings. Variants (pack copies written canonically into the work directory, their
+priors from the lexical rows (:func:`lexical_rows`, equal to what the sites store), and the A1 thresholds per artifact
+type with a shadow analogue (:func:`a1_threshold_types`) from ``build_cells`` at each variant's settings and R
+(model-free)'s cells of the shadow members. Variants (pack copies written canonically into the work directory, their
 hashes pinned in the prereg): ``default``; ``k<K>`` (egress k and the verdict buckets); ``rmd_flipped``;
 ``minus_type`` (the pack's primary entity type no longer leaves); ``volume`` (every site's weekly volume times the
 factor); and two derived from the default worlds without a pipeline: ``k1_reference`` (the cells replaced by exact
@@ -138,9 +139,15 @@ SPLIT_RULE = ('random.Random(f"x5:{seed}:split:{record_ref}").random() < 0.5 mak
 SEED_RULE = ('1 + int(sha256(f"x5:{code_commit}:{i}".encode()).hexdigest()[:8], 16) % 100000 for i = 0, 1, ...; '
              'duplicates skipped; the first 5 are the seeds, the next 3 the shadow seeds; the volume seeds are the '
              'first 2 seeds in ascending order whose volume world generates in every pack')
-A1_THRESHOLD_RULE = ("the value among the sorted distinct shadow scores (shadow cells at the variant's own settings) "
-                     "that maximises shadow accuracy, the smallest on ties; member iff score >= t; A1_fixed: member "
-                     "iff score == 1; a record without keys takes random.Random(f\"x5:{seed}:a1coin:{ref}\")")
+A1_THRESHOLD_RULE = ("per cell setting and artifact type with a shadow analogue (cells_codes and cells_text; all, from "
+                     "the shadow cells of both channels; at a pipeline variant's own setting also "
+                     "allowed_fields_reference, R (model-free)'s exact cells of the shadow members, and "
+                     "allowed_plus_all, both together), the value among the sorted distinct scores on that type's own "
+                     "shadow facts that maximises shadow accuracy, the smallest on ties; member iff score >= t; "
+                     "A1_calibrated is not applicable to a type without a shadow analogue; A1_fixed: member iff "
+                     "score == 1; a score counts only the keys of the channels the type can carry (cells_codes and "
+                     "allowed_fields_reference: codes; cells_text: text_only); a record without such keys takes "
+                     "random.Random(f\"x5:{seed}:a1coin:{ref}\")")
 A2_TRUTH_RULE = ("the set of the record's affirmed gold predicates (negated false, predicate not null); the "
                  "prediction is correct when it is in the set")
 A6_PREDICATE_RULE = ("per sampled entity, the most common affirmed predicate of the shadow worlds' member records that "
@@ -1093,7 +1100,7 @@ def present(weeks: Sequence[int], first: int, last: int) -> bool:
 
 @dataclass
 class Shadow:
-    thresholds: dict[str, float]
+    thresholds: dict[str, dict[str, float]]          # per cell setting, per artifact type (a1_threshold_types)
     a1_targets: int
     a2: xa.A2Prior
     a3: dict[int, int]
@@ -1118,11 +1125,24 @@ def surnames(pack: FrozenPack, f: str) -> list[str]:
     return sorted({n.upper() for n in pack.generator["persons"][f]["last"]})
 
 
-def shadow_stats(variant: Variant, worlds: Sequence[WorldData], settings: Sequence[CellSetting],
-                 k_target: int) -> Shadow:
-    """Priors and A1 thresholds from shadow worlds only (no pipeline; their lexical rows are what a site stores)."""
+def a1_threshold_types(setting: str, types: Sequence[str]) -> list[str]:
+    """The artifact types among ``types`` whose A1 threshold a cell setting calibrates, each on its own shadow facts:
+    the cell types and ``all`` (the shadow cells of both channels, its only part with a shadow analogue) and, at a
+    pipeline variant's own setting (``variant``), the reference types (R (model-free)'s exact cells of the shadow
+    members; ``allowed_plus_all`` adds the cells). The derived and simulated settings attack the cell types and
+    ``all`` only."""
+    own = xa.A1_CALIBRATED_TYPES if setting == "variant" else (*xa.CELL_TYPES, xa.ALL_TYPE)
+    return [t for t in own if t in types]
+
+
+def shadow_stats(variant: Variant, worlds: Sequence[WorldData], settings: Sequence[CellSetting], k_target: int,
+                 types: Sequence[str]) -> Shadow:
+    """Priors and A1 thresholds from shadow worlds only (no pipeline; their lexical rows are what a site stores).
+    Each A1 threshold is calibrated per (setting, artifact type) on that type's own shadow facts, scoring only the
+    keys of the channels the type can carry (``x5_attacks.A1_CHANNELS``)."""
     pack = variant.pack
-    scores: dict[str, list[float | None]] = {s.name: [] for s in settings}
+    calibrated = {s.name: a1_threshold_types(s.name, types) for s in settings}
+    scores: dict[tuple[str, str], list[float | None]] = {(s.name, t): [] for s in settings for t in calibrated[s.name]}
     members: list[bool] = []
     by_entity_site: dict[tuple[str, str, str], dict[str, int]] = {}
     by_entity: dict[tuple[str, str], dict[str, int]] = {}
@@ -1137,10 +1157,16 @@ def shadow_stats(variant: Variant, worlds: Sequence[WorldData], settings: Sequen
     for world in worlds:
         rows = lexical_rows(pack, world.members, world.master)
         targets, _ = a1_targets(world, record_keys(variant, world))
+        reference: list[xa.Fact] = []
+        if any(t in xa.REFERENCE_TYPES for t in calibrated.get("variant", ())):
+            reference = Extractor(pack, world).reference(r_mf_cells(pack, world.members, master_data=world.master,
+                                                                    last_week=world.iso(world.last_week)))
         for setting in settings:
-            index = xa.FactIndex(f for facts in cell_facts(pack, world, rebuild_bodies(rows, pack, world, setting),
-                                                           setting).values() for f in facts)
-            scores[setting.name] += [xa.a1_score(known, index) for known, _, _ in targets]
+            facts = cell_facts(pack, world, rebuild_bodies(rows, pack, world, setting), setting)
+            indexes = build_indexes(facts, reference, calibrated[setting.name])
+            for typ in calibrated[setting.name]:
+                scores[(setting.name, typ)] += [xa.a1_score(known, indexes[typ], xa.A1_CHANNELS.get(typ))
+                                                for known, _, _ in targets]
         members += [member for _, member, _ in targets]
         for known, truth, _ in a2_targets(pack, world):
             t, e = known.primary
@@ -1177,7 +1203,8 @@ def shadow_stats(variant: Variant, worlds: Sequence[WorldData], settings: Sequen
             counts = by_named.get((t, e), {})
             predicate_of[(t, e)] = min(predicates, key=lambda p: (-counts.get(p, 0), p))
     return Shadow(
-        thresholds={name: xa.calibrate(s, members) for name, s in scores.items()}, a1_targets=len(members),
+        thresholds={s.name: {t: xa.calibrate(scores[(s.name, t)], members) for t in calibrated[s.name]}
+                    for s in settings}, a1_targets=len(members),
         a2=xa.A2Prior(by_entity_site, by_entity, by_type, overall), a3=a3, a3_cells=a3_cells, a4_pairs=a4_pairs,
         a4_same=a4_same, a5=a5, a5_targets=a5_count,
         a6_share={key: hits / a6_count for key, hits in presence_hits.items()} if a6_count else {},
@@ -1190,9 +1217,10 @@ Outcomes = dict[tuple[str, str], list[xa.Outcome]]
 
 
 def evaluate(acc: Outcomes, pairs: Sequence[tuple[str, str]], indexes: Mapping[str, xa.FactIndex], targets: Targets,
-             shadow: Shadow, *, threshold: float, k_target: int, pack: FrozenPack) -> None:
+             shadow: Shadow, *, thresholds: Mapping[str, float], k_target: int, pack: FrozenPack) -> None:
     """Every (attack, artifact type) pair's outcomes on one world, appended to ``acc``. Attack functions see only
-    what the attacker knows; :func:`.x5_attacks.outcome` meets prediction and truth."""
+    what the attacker knows; :func:`.x5_attacks.outcome` meets prediction and truth. ``thresholds`` are the
+    setting's A1 thresholds per artifact type, each calibrated on that type's own shadow facts."""
     predicates = sorted(pack.predicates)
     names = {f: surnames(pack, f) for f in a5_fields(pack)}
     a2_base = [xa.a2_prior_prediction(known, shadow.a2, predicates) for known, _, _ in targets.a2]
@@ -1204,8 +1232,9 @@ def evaluate(acc: Outcomes, pairs: Sequence[tuple[str, str]], indexes: Mapping[s
         out = acc.setdefault((attack, typ), [])
         if attack in ("A1_calibrated", "A1_fixed"):
             if typ not in scores:
-                scores[typ] = [xa.a1_score(known, index) for known, _, _ in targets.a1]
-            t = threshold if attack == "A1_calibrated" else None
+                channels = xa.A1_CHANNELS.get(typ)
+                scores[typ] = [xa.a1_score(known, index, channels) for known, _, _ in targets.a1]
+            t = thresholds[typ] if attack == "A1_calibrated" else None
             for (known, truth, cluster), score in zip(targets.a1, scores[typ]):
                 predicted, covered = xa.a1_predict(score, known.coin, t)
                 out.append(xa.outcome(cluster, predicted, None, truth, covered))
@@ -1492,7 +1521,7 @@ def run_pack(plan: Plan, base: FrozenPack, copies: Mapping[str, FrozenPack],
                 settings.append(CellSetting("k1_reference", 1))
             settings += [CellSetting(name, base.egress.k, period=FOUR_WEEKS if name == "four_week" else 1,
                                      drop=name == "drop_lt_k") for name in plan.simulated]
-        shadow = shadow_stats(variant, worlds, settings, variant.k)
+        shadow = shadow_stats(variant, worlds, settings, variant.k, plan.types)
         if vid == "default":
             derived_shadow = shadow
         pairs = applicable_pairs(vid, "pipeline", variant.k, plan.attacks, plan.types)
@@ -1517,7 +1546,7 @@ def run_pack(plan: Plan, base: FrozenPack, copies: Mapping[str, FrozenPack],
                                        shadow.a6_share.get((site, t, e), 0.0) >= 0.5, (seed, site, first)))
             needed = {typ for _, typ in pairs}
             indexes = build_indexes(run.facts, run.reference, needed)
-            evaluate(acc, pairs, indexes, targets, shadow, threshold=shadow.thresholds["variant"],
+            evaluate(acc, pairs, indexes, targets, shadow, thresholds=shadow.thresholds["variant"],
                      k_target=variant.k, pack=pack)
             _designed(designed, variant, world, run, keys)
             n_facts = {typ: len(run.facts[typ]) for typ in xa.BASE_TYPES}
@@ -1602,7 +1631,8 @@ def _shadow_block(shadow: Shadow, worlds: Sequence[WorldData], settings: Sequenc
                   k: int) -> dict[str, Any]:
     return {"worlds": [{"seed": w.seed, "world_digest": runfiles.digest(w.digest),
                         "members": len(member_originals(w))} for w in worlds],
-            "a1_thresholds": {s.name: shadow.thresholds[s.name] for s in settings}, "a1_targets": shadow.a1_targets,
+            "a1_thresholds": {s.name: dict(shadow.thresholds[s.name]) for s in settings},
+            "a1_targets": shadow.a1_targets,
             "a3_cells": shadow.a3_cells, "a3_mode": shadow.a3_mode(k) if k > 1 else None,
             "a4_pairs": shadow.a4_pairs, "a4_same": shadow.a4_same, "a5_targets": shadow.a5_targets,
             "a6_windows": shadow.a6_windows}
@@ -1621,13 +1651,13 @@ def _derived(plan: Plan, base: FrozenPack, world: WorldData, run: WorldRun, targ
                                         setting)}
         pairs = applicable_pairs("k1_reference", "derived", 1, plan.attacks, plan.types)
         evaluate(acc["k1_reference"], pairs, build_indexes(facts, [], {t for _, t in pairs}), targets, shadow,
-                 threshold=shadow.thresholds["k1_reference"], k_target=k, pack=base)
+                 thresholds=shadow.thresholds["k1_reference"], k_target=k, pack=base)
     if "a5_injected" in plan.variants:
         injected = inject_a5(run.bundles, targets.a5, base, world)
         facts = {**run.facts, "cells_text": Extractor(base, world).cells("cells_text", injected, CHANNELS[1:])}
         pairs = applicable_pairs("a5_injected", "derived", k, plan.attacks, plan.types)
         evaluate(acc["a5_injected"], pairs, build_indexes(facts, [], {t for _, t in pairs}), targets, shadow,
-                 threshold=shadow.thresholds["variant"], k_target=k, pack=base)
+                 thresholds=shadow.thresholds["variant"], k_target=k, pack=base)
     for name in plan.simulated:
         setting = CellSetting(name, k, period=FOUR_WEEKS if name == "four_week" else 1, drop=name == "drop_lt_k")
         bodies = (drop_lt_k(run.bundles) if setting.drop
@@ -1639,7 +1669,7 @@ def _derived(plan: Plan, base: FrozenPack, world: WorldData, run: WorldRun, targ
         types = [t for t in plan.types if t in (*xa.CELL_TYPES, xa.ALL_TYPE)]
         pairs = applicable_pairs("default", "pipeline", k, attacks, types)
         evaluate(acc[name], pairs, build_indexes(facts, [], {t for _, t in pairs}), targets, shadow,
-                 threshold=shadow.thresholds[name], k_target=k, pack=base)
+                 thresholds=shadow.thresholds[name], k_target=k, pack=base)
 
 
 # --------------------------------------------------------------------------------------------------- schemas
@@ -1714,9 +1744,12 @@ PREREG_SCHEMA = schemacheck.compile(_O({
                                   "artifact_type": _enum(xa.ARTIFACT_TYPES, nullable=True), "reason": _NSTR})),
     "notes": _A(_STR),
 }))
+REHEARSAL_NOTE = ("The X5 code, label rules, primary family and bar were fixed after a full rehearsal (seed 101, shadow "
+                  "seed 102) had written an outcome; LEAKAGE.md section 12 discloses it.")
 PREREG_NOTES = [
     xa.STATEMENT,
-    "Settings, code, packs, variant copies and worlds are frozen and hashed here before any attack outcome exists.",
+    "Settings, code, packs, variant copies and worlds are frozen and hashed here before this prereg's own run.",
+    REHEARSAL_NOTE,
     "The first run of this prereg is the result; a run with changed code or settings is a different experiment.",
 ]
 
@@ -2136,7 +2169,8 @@ def results_schema(prereg: Mapping[str, Any]) -> schemacheck.Schema:
         if vid == "default":
             names += [n for n in ("k1_reference",) if n in variants] + list(simulated)
         return _O({"worlds": _A(_O({"seed": _POS, "world_digest": _D32, "members": _NAT})),
-                   "a1_thresholds": _O({n: _NUM for n in names}), "a1_targets": _NAT, "a3_cells": _NAT,
+                   "a1_thresholds": _O({n: _O({t: _NUM for t in a1_threshold_types(n, types)}) for n in names}),
+                   "a1_targets": _NAT, "a3_cells": _NAT,
                    "a3_mode": _NNAT, "a4_pairs": _NAT, "a4_same": _NAT, "a5_targets": _NAT, "a6_windows": _NAT},
                   nullable=True)
 

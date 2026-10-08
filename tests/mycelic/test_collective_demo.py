@@ -994,7 +994,7 @@ class SupersededEvidenceTests(unittest.TestCase):
         fields = docs["scorecard.json"]["hero"]["followup"]["draft"]["fields"]
         self.assertEqual(len({f["value"] for f in fields}), 1)
         self.assertEqual(docs["scorecard.json"]["hero"]["followup"]["draft"]["lists"][0]["items"], [])
-        for phrase in ("R (model-free)", "repeated one line", "superseded by the B1 runs"):
+        for phrase in ("R (model-free)", "repeated one line", "superseded by the B1a run"):
             self.assertIn(phrase, readme)
 
     def test_the_prereg_is_committed_with_the_cast_and_the_rule(self) -> None:
@@ -1003,6 +1003,52 @@ class SupersededEvidenceTests(unittest.TestCase):
                        "Tarnwick Devices (fictional)", "`lot:L10002:overheat`", "CODES_MISS_RULE",
                        "Cap: three attempts", "holds_strict: holds, and neither channel has strict_no_later."):
             self.assertIn(needle, prereg)
+
+
+CODES_MISS_SCENARIO = DEMO_DIR / "scenario_codes_miss.json"
+CODES_MISS_ATTEMPTS = ROOT / "docs" / "collective" / "b1" / "attempts"
+NOT_BUILT = "codes-miss illustration has not been built"
+CODES_MISS_PAGES = ("docs/collective/evidence/superseded/collective-halvern-g10/README.md", "demo/collective/README.md",
+                    "demo/collective/SCRIPT.md", "docs/collective/ARCHITECTURE.md", "docs/collective/INTEGRATION.md")
+# what the pages said while only B1a existed (audit round 4, finding 1)
+CODES_MISS_OVERCLAIMS = ("B1b adds", "B1b: that run again", "second step adds", "superseded by the B1 runs")
+RUN_PAGES = ("docs/collective/evidence/superseded/collective-halvern-g10/README.md", "demo/collective/README.md",
+             "demo/collective/SCRIPT.md", "docs/collective/ARCHITECTURE.md", "docs/collective/LEAKAGE.md",
+             "docs/collective/RUNBOOK.md")
+
+
+class CodesMissStatusTests(unittest.TestCase):
+    """Audit round 4, finding 1: the pages a reader sees say that B1's constructed codes-miss illustration has not
+    been built for as long as it has not, and name no recorded run that does not exist."""
+
+    def test_the_pages_say_whether_the_codes_miss_illustration_exists(self) -> None:
+        built = CODES_MISS_SCENARIO.exists() or CODES_MISS_ATTEMPTS.exists()
+        for rel in CODES_MISS_PAGES:
+            text = " ".join((ROOT / rel).read_text(encoding="utf-8").split())
+            with self.subTest(page=rel, built=built):
+                if built:
+                    if not rel.endswith("INTEGRATION.md"):       # the log keeps its history
+                        self.assertNotIn(NOT_BUILT, text)
+                    continue
+                self.assertIn(NOT_BUILT, text)
+                if rel.endswith("INTEGRATION.md"):                # the log quotes what the pages said
+                    continue
+                for phrase in CODES_MISS_OVERCLAIMS:
+                    self.assertNotIn(phrase, text)
+        if not built:
+            self.assertEqual([p.name for p in RECORDED.iterdir()], ["collective-halvern-b1a"])
+            # what the pages say of that run: R (model-free) flags a key of the case in X's own week
+            det = load(RECORDED / "collective-halvern-b1a")["scorecard.json"]["hero"]["detection"]
+            self.assertEqual(det["R_mf"]["related"][0]["week"], det["X"]["detection_week"])
+
+    def test_every_recorded_run_a_page_names_exists(self) -> None:
+        named = set()
+        for rel in RUN_PAGES:
+            for run_id in re.findall(r"recorded/([A-Za-z0-9_.-]+)", (ROOT / rel).read_text(encoding="utf-8")):
+                named.add(run_id)
+                with self.subTest(page=rel, run=run_id):
+                    self.assertTrue((RECORDED / run_id / "scorecard.json").is_file())
+        self.assertIn("collective-halvern-b1a", named)
 
 
 # --------------------------------------------------------------------------------------------------- honesty

@@ -15,9 +15,11 @@ portability and model-name scans of every other file under `docs/collective/`.
 - **The CAPA draft repeated one line and listed no lots.** Its title, problem statement and containment were the
   same sentence, and its affected lots were empty although the conclusion is about a lot.
 
-It is superseded by the B1 runs under `demo/collective/recorded/` (B1a: the same scenario re-recorded with a filled
-draft and per-field sources; B1b: that run again and a constructed codes-miss illustration). Their own scorecards say
-what each shows; `docs/collective/INTEGRATION.md` (B1) lists them.
+It is superseded by the B1a run under `demo/collective/recorded/` (`collective-halvern-b1a`: the same scenario
+re-recorded with a filled draft and per-field sources), whose own scorecard says what it shows: R (model-free) still
+flags a key of the case in X's week, so it shows no case the allowed fields miss either. **B1's constructed codes-miss
+illustration has not been built.** `docs/collective/b1/PREREG.md` fixes it in advance, but no codes-miss scenario,
+attempt or run exists in this repository (`docs/collective/INTEGRATION.md`, B1 and audit round 4).
 
 ## Where to look in `scorecard.json`
 

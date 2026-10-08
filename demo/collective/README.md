@@ -51,8 +51,9 @@ with the deterministic lexical stand-in. Extraction is not tested by this run (t
 generic code) at the top rank in X's own week, and S flags another (the lot under the same code) a week later; the
 screen shows both. So this run does not show a case that the fields allowed to leave miss, which is the case STRATEGY
 9.2's cut needs. The G8 recording that the final review read is kept, byte-identical, as superseded evidence
-(`docs/collective/evidence/superseded/collective-halvern-g10/`); B1's second step adds a separate, constructed
-scenario fixed in advance by `docs/collective/b1/PREREG.md`.
+(`docs/collective/evidence/superseded/collective-halvern-g10/`). **B1's constructed codes-miss illustration has not
+been built**: its second step, a separate constructed scenario fixed in advance by `docs/collective/b1/PREREG.md`, was
+never made, so no committed run shows a case the fields allowed to leave miss.
 
 ## Modes
 

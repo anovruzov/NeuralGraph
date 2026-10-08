@@ -561,6 +561,149 @@ class AttackTests(unittest.TestCase):
                 self.assertFalse(names & {"truth", "member", "members", "actual", "label", "outcome"}, names)
 
 
+class A1PerTypeTests(unittest.TestCase):
+    """Audit round 4, finding 3: an artifact type's A1 entries read only the keys of the channels it can carry and,
+    for A1_calibrated, the threshold calibrated on that type's own shadow facts (never the cells union's)."""
+
+    MIXED = xa.A1Known("s", 4, "m", (("lot", "L1", "leak", "codes"), ("lot", "L2", "leak", "text_only")), False)
+    OTHER = xa.A1Known("s", 4, "o", (("lot", "L3", "leak", "codes"), ("lot", "L2", "leak", "text_only")), True)
+
+    def indexes(self) -> dict[str, xa.FactIndex]:
+        codes = [F("s", 4, 4, "n", 1, 2, channel="codes")]
+        text = [F("s", 4, 4, "n", 1, 2, entity=("lot", "L2"), channel="text_only")]
+        return {"cells_codes": xa.FactIndex(codes), "cells_text": xa.FactIndex(text), "all": xa.FactIndex(codes + text),
+                "allowed_fields_reference": xa.FactIndex(codes)}
+
+    def test_the_channels_each_type_carries(self) -> None:
+        self.assertEqual(xa.A1_CHANNELS, {"cells_codes": ("codes",), "cells_text": ("text_only",),
+                                          "allowed_fields_reference": ("codes",)})
+        self.assertEqual(set(xa.A1_CALIBRATED_TYPES),
+                         {"cells_codes", "cells_text", "all", "allowed_fields_reference", "allowed_plus_all"})
+        index = self.indexes()["cells_codes"]
+        # the structural cap the review found: on a codes-only index a member with a text key cannot reach 1
+        self.assertEqual(xa.a1_score(self.MIXED, index), 0.5)
+        self.assertEqual(xa.a1_score(self.MIXED, index, xa.A1_CHANNELS["cells_codes"]), 1.0)
+        self.assertEqual(xa.a1_score(self.OTHER, index, xa.A1_CHANNELS["cells_codes"]), 0.0)
+        text_only = xa.A1Known("s", 4, "t", (("lot", "L2", "leak", "text_only"),), True)
+        self.assertIsNone(xa.a1_score(text_only, index, xa.A1_CHANNELS["cells_codes"]))
+
+    def test_a1_calibrated_needs_a_shadow_analogue_and_a1_fixed_does_not(self) -> None:
+        for typ in xa.ARTIFACT_TYPES:
+            calibrated = xa.applicability("default", "pipeline", 3, "A1_calibrated", typ)
+            fixed = xa.applicability("default", "pipeline", 3, "A1_fixed", typ)
+            with self.subTest(typ=typ):
+                if typ == "usage_summary":
+                    self.assertEqual(calibrated, ("not_applicable", xa.USAGE_REASON))
+                    self.assertEqual(fixed, ("not_applicable", xa.USAGE_REASON))
+                elif typ in xa.A1_CALIBRATED_TYPES:
+                    self.assertEqual((calibrated, fixed), (("applicable", None), ("applicable", None)))
+                else:
+                    self.assertEqual(calibrated, ("not_applicable", xa.A1_SHADOW_REASON))
+                    self.assertEqual(fixed, ("applicable", None))
+        for typ in xa.K1_TYPES:
+            self.assertEqual(xa.applicability("k1_reference", "derived", 1, "A1_calibrated", typ), ("applicable", None))
+
+    def test_evaluate_applies_each_types_own_threshold_and_channels(self) -> None:
+        pack = load_pack("device_quality")
+        shadow = x5.Shadow(thresholds={}, a1_targets=0, a2=xa.A2Prior({}, {}, {}, {}), a3={}, a3_cells=0, a4_pairs=0,
+                           a4_same=0, a5={f: {"X": 1} for f in x5.a5_fields(pack)}, a5_targets=0, a6_share={},
+                           a6_windows=0, predicate_of={})
+        targets = x5.Targets(a1=[(self.MIXED, True, (1, "s", 4)), (self.OTHER, False, (1, "s", 4))])
+        pairs = [(a, t) for a in ("A1_calibrated", "A1_fixed") for t in ("cells_codes", "cells_text", "all")]
+
+        def correct(thresholds: dict[str, float]) -> dict[tuple[str, str], list[bool]]:
+            acc: x5.Outcomes = {}
+            x5.evaluate(acc, pairs, self.indexes(), targets, shadow, thresholds=thresholds, k_target=1, pack=pack)
+            return {key: [o.correct for o in outs] for key, outs in acc.items()}
+
+        own = correct({"cells_codes": 1.0, "cells_text": 1.0, "all": 1.0})
+        self.assertEqual(own[("A1_fixed", "cells_codes")], [True, True])      # scores 1 and 0 on the codes keys
+        self.assertEqual(own[("A1_calibrated", "cells_codes")], [True, True])
+        self.assertEqual(own[("A1_fixed", "cells_text")], [True, False])      # both score 1 on the shared text key
+        self.assertEqual(own[("A1_calibrated", "all")], [True, True])         # 1 and 0.5 on every key
+        moved = correct({"cells_codes": 1.0, "cells_text": 1.0, "all": 0.5})
+        self.assertEqual(moved[("A1_calibrated", "all")], [True, False])
+        self.assertEqual(moved[("A1_calibrated", "cells_codes")], own[("A1_calibrated", "cells_codes")])
+        with self.assertRaises(KeyError):
+            correct({"all": 1.0})                                              # no borrowed threshold
+
+    def test_shadow_thresholds_are_calibrated_per_type_on_its_own_facts(self) -> None:
+        settings_types = {"variant": ["cells_codes", "cells_text", "all", "allowed_fields_reference", "allowed_plus_all"],
+                          "k1_reference": ["cells_codes", "cells_text", "all"],
+                          "drop_lt_k": ["cells_codes", "cells_text", "all"]}
+        self.assertEqual(x5.a1_threshold_types("variant", ["all", "verdicts_passive", "cells_text"]),
+                         ["cells_text", "all"])
+        for pid in PACKS:
+            pack = load_pack(pid)
+            world = x5.build_world(pack, 12, 400)
+            variant = x5.Variant("default", "pipeline", pack, pack.egress.k, 1)
+            settings = [x5.CellSetting("variant", pack.egress.k), x5.CellSetting("k1_reference", 1),
+                        x5.CellSetting("drop_lt_k", pack.egress.k, drop=True)]
+            calls: list[list[float | None]] = []
+
+            def recording(scores: Any, members: Any) -> float:
+                calls.append(list(scores))
+                return real(scores, members)
+
+            real = xa.calibrate
+            with mock.patch.object(xa, "calibrate", recording):
+                shadow = x5.shadow_stats(variant, [world], settings, pack.egress.k,
+                                         [t for t in xa.ARTIFACT_TYPES if t != "verdicts_passive"])
+            self.assertEqual({name: list(v) for name, v in shadow.thresholds.items()}, settings_types)
+            # recomputed apart: each type's own shadow facts, only the keys of its channels, in the same order
+            rows = x5.lexical_rows(pack, world.members, world.master)
+            targets, _ = x5.a1_targets(world, x5.record_keys(variant, world))
+            members = [m for _, m, _ in targets]
+            reference = x5.Extractor(pack, world).reference(x5.r_mf_cells(
+                pack, world.members, master_data=world.master, last_week=world.iso(world.last_week)))
+            expected, mixed = [], 0
+            for setting in settings:
+                bodies = x5.rebuild_bodies(rows, pack, world, setting)
+                missing = setting.k - 1 if setting.drop else 0
+                codes = x5.Extractor(pack, world).cells("cells_codes", bodies, CHANNELS[:1], missing_hi=missing,
+                                                        k=setting.k)
+                text = x5.Extractor(pack, world).cells("cells_text", bodies, CHANNELS[1:], missing_hi=missing,
+                                                       k=setting.k)
+                facts = {"cells_codes": codes, "cells_text": text, "all": codes + text,
+                         "allowed_fields_reference": reference, "allowed_plus_all": codes + text + reference}
+                for typ in settings_types[setting.name]:
+                    index = xa.FactIndex(facts[typ])
+                    scores = [xa.a1_score(known, index, xa.A1_CHANNELS.get(typ)) for known, _, _ in targets]
+                    expected.append(scores)
+                    with self.subTest(pack=pid, setting=setting.name, typ=typ):
+                        self.assertEqual(shadow.thresholds[setting.name][typ], xa.calibrate(scores, members))
+                if setting.name == "variant":
+                    index = xa.FactIndex(codes)
+                    for known, member, _ in targets:
+                        if not member or not any(ch == "codes" for *_, ch in known.keys):
+                            continue
+                        # a member's own codes keys all have a cell, whatever its text keys
+                        self.assertEqual(xa.a1_score(known, index, xa.A1_CHANNELS["cells_codes"]), 1.0, known.ref)
+                        mixed += any(ch == "text_only" for *_, ch in known.keys)
+            self.assertEqual(calls, expected, pid)
+            self.assertGreater(mixed, 0, pid)
+
+    def test_the_tiny_run_carries_a_threshold_per_type_and_no_borrowed_one(self) -> None:
+        doc, prereg = tiny_doc(), tiny_prereg()
+        types = prereg["artifact_types"]
+        shadow = doc["packs"]["device_quality"]["variants"]["default"]["shadow"]
+        self.assertEqual(sorted(shadow["a1_thresholds"]), sorted(["variant", "k1_reference", *x5.SIMULATED]))
+        for name, per_type in shadow["a1_thresholds"].items():
+            self.assertEqual(sorted(per_type), sorted(x5.a1_threshold_types(name, types)), name)
+        results = doc["results"]["device_quality"]["default"]
+        for typ in types:
+            with self.subTest(typ=typ):
+                if typ in xa.A1_CALIBRATED_TYPES:
+                    self.assertEqual(results["A1_calibrated"][typ]["status"], "run")
+                elif typ != "usage_summary":
+                    self.assertEqual((results["A1_calibrated"][typ]["status"], results["A1_calibrated"][typ]["reason"]),
+                                     ("not_applicable", xa.A1_SHADOW_REASON))
+                    self.assertEqual(results["A1_fixed"][typ]["status"], "run")
+        broken = copy.deepcopy(doc)
+        broken["packs"]["device_quality"]["variants"]["default"]["shadow"]["a1_thresholds"]["variant"] = 1.0
+        self.assertTrue(x5.union_problems(x5.results_schema(prereg), broken, ("code_dirty",)))
+
+
 # --------------------------------------------------------------------------------------------------- A6 probe
 
 class A6ProbeTests(unittest.TestCase):
@@ -1031,6 +1174,29 @@ class LeakageSectionTests(unittest.TestCase):
         self.assertEqual(text.count(MARK_BEGIN), 1)
         self.assertEqual(text.count(MARK_END), 1)
         self.assertLess(text.index(MARK_BEGIN), text.index(MARK_END))
+
+    def test_the_rehearsal_before_the_freeze_is_disclosed(self) -> None:
+        # regression (audit round 4, finding 2): a full rehearsal wrote an outcome before the code and bar froze, and
+        # the docs said the bar was fixed before running and the plan was written before any x5.json existed
+        text = LEAKAGE_MD.read_text(encoding="utf-8")
+        section = " ".join(text[text.index("## 12. X5"):].split())
+        self.assertNotIn("against a pass bar fixed before running", section)
+        disclosure = section[section.index("**Rehearsal disclosure.**"):]
+        self.assertLess(section.index("**Rehearsal disclosure.**"), section.index(MARK_BEGIN))
+        for fact in ("seeds derived from 202dd531", "n = 1000", "explicit seeds 101 and shadow 102",
+                     "exited 0 after 632 s", "A run exits 0 only after writing `x5.json` and `leakage_section.md`",
+                     "the outcome counts as seen", "deleted without a sha256",
+                     "pre-registered only with respect to the B3b prereg's own seeds",
+                     '"No X5 prereg was made and no x5.json written" is wrong'):
+            self.assertIn(fact, disclosure)
+        self.assertIn(x5.REHEARSAL_NOTE, x5.PREREG_NOTES)
+        self.assertFalse([n for n in x5.PREREG_NOTES if "before any attack outcome" in n])
+        self.assertEqual(tiny_prereg()["notes"], x5.PREREG_NOTES)
+        integration = " ".join((ROOT / "docs" / "collective" / "INTEGRATION.md").read_text(encoding="utf-8").split())
+        self.assertNotIn("(written before any B3 prereg or `x5.json` exists)", integration)
+        self.assertIn("**Correction (audit round 4):** that run was the whole experiment", integration)
+        runbook = " ".join((ROOT / "docs" / "collective" / "RUNBOOK.md").read_text(encoding="utf-8").split())
+        self.assertIn("**A rehearsal is an outcome.**", runbook)
 
     def test_every_row_of_the_rendered_section_resolves_and_matches(self) -> None:
         doc = tiny_doc()

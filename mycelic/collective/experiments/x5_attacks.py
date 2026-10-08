@@ -17,10 +17,13 @@ artifact):
 
 * **A1 membership.** The score of an original record is the share of its keys (the attacker's own lexical extraction,
   egress types and the site's master-data rule) with a non-string fact of ``lo >= 1`` at its site, for the key's
-  entity and predicate (and channel, when the fact has one), whose span holds the record's week.
-  ``A1_calibrated``: member iff the score reaches the shadow threshold (:func:`calibrate`); ``A1_fixed``: member iff
-  the score is 1. A record with no key gets a seeded coin. Strata are balanced, so the baseline is 0.5 exactly and a
-  target's value is ``2 * correct - 1``.
+  entity and predicate (and channel, when the fact has one), whose span holds the record's week. Only the keys of the
+  channels the artifact type can carry count (:data:`A1_CHANNELS`: one channel for each cell type and for the
+  allowed-fields reference, every channel otherwise). ``A1_calibrated``: member iff the score reaches the shadow
+  threshold of the artifact type itself (:func:`calibrate` on that type's own shadow facts), so only the types with a
+  shadow analogue (:data:`A1_CALIBRATED_TYPES`) have one; ``A1_fixed``: member iff the score is 1. A record with no
+  such key gets a seeded coin. Strata are balanced, so the baseline is 0.5 exactly and a target's value is
+  ``2 * correct - 1``.
 * **A2 predicate attribute inference.** For a member with structured entities, ``support(p)`` counts its known
   entities with a positive fact for ``p`` at its site and week; the prediction is the argmax, ties (and a support of
   0, uncovered) broken by the shadow prior chain ``P(p | e*, site) -> P(p | e*) -> P(p | type of e*) -> P(p)``, then
@@ -86,6 +89,12 @@ K1_TYPES = (*CELL_TYPES, ALL_TYPE)
 A4_TYPES = (*CELL_TYPES, ALL_TYPE, *REFERENCE_TYPES)
 A5_INJECTED_TYPES = ("cells_text", ALL_TYPE)
 CHANNELS = ("codes", "text_only")         # edge.egress.CHANNELS (pinned by a test; this module imports no edge code)
+# A1: the channels an artifact type's facts can carry (a type not named here carries both: a fact of channel None
+# sums them); a key of another channel can never be present in it, so it does not count in the type's score
+A1_CHANNELS = {"cells_codes": CHANNELS[:1], "cells_text": CHANNELS[1:], "allowed_fields_reference": CHANNELS[:1]}
+# A1_calibrated: the types whose threshold is calibrated on their own shadow facts; shadow worlds run no pipeline, so
+# they hold cells and R (model-free)'s cells only (``all`` from the shadow cells of both channels)
+A1_CALIBRATED_TYPES = (*CELL_TYPES, ALL_TYPE, *REFERENCE_TYPES)
 A3_FIELDS = ("n", "covered", "support", "presence", "code", "co_mention", "entity_records")
 LOWER_ONLY = ("code", "co_mention")
 MAX_ROUNDS = 100
@@ -95,6 +104,8 @@ STATUSES = ("run", "not_applicable", "not_run")
 FAMILIES = ("primary", "exploratory")
 USAGE_REASON = "usage summaries name no entity or predicate"
 A4_REASON = "A4 reads cell-level n and n_reporters only; this artifact has none"
+A1_SHADOW_REASON = ("shadow worlds run no pipeline, so this artifact type has no shadow facts to calibrate an A1 "
+                    "threshold on; A1_fixed reads it")
 A6_REASON = "A6 reads only the attacker's own questions"
 K1_REASON = "the k1 reference replaces only the cells"
 INJECTED_REASON = "the injected positive control tests A5 only, on cells_text and all"
@@ -320,12 +331,14 @@ def a1_coin(seed: int, ref: str) -> bool:
     return random.Random(f"x5:{seed}:a1coin:{ref}").random() < 0.5
 
 
-def a1_score(known: A1Known, index: FactIndex) -> float | None:
-    """The share of the record's keys with a positive fact at its site and week; None without keys."""
-    if not known.keys:
+def a1_score(known: A1Known, index: FactIndex, channels: Sequence[str] | None = None) -> float | None:
+    """The share of the record's keys (those of ``channels`` when given: the channels the attacked artifact type can
+    carry, :data:`A1_CHANNELS`) with a positive fact at its site and week; None without such keys."""
+    keys = [key for key in known.keys if channels is None or key[3] in channels]
+    if not keys:
         return None
-    hits = sum(1 for t, e, p, ch in known.keys if index.positive(known.site, t, e, p, ch, known.week))
-    return hits / len(known.keys)
+    hits = sum(1 for t, e, p, ch in keys if index.positive(known.site, t, e, p, ch, known.week))
+    return hits / len(keys)
 
 
 def calibrate(scores: Sequence[float | None], members: Sequence[bool]) -> float:
@@ -628,7 +641,8 @@ def incremental(attack: str, plus: Sequence[Outcome], reference: Sequence[Outcom
 def applicability(variant_id: str, variant_kind: str, variant_k: int, attack: str,
                   artifact_type: str) -> tuple[str, str | None]:
     """``(status, reason)``: ``applicable`` (reason None), ``not_applicable`` or ``not_run``, from the static table:
-    the derived variants' rules first, then volume's A6, then the attack-by-artifact table, then A4 at k = 2."""
+    the derived variants' rules first, then volume's A6, then the attack-by-artifact table (A1_calibrated only on a
+    type with a shadow analogue), then A4 at k = 2."""
     if variant_id == "k1_reference":
         if artifact_type not in K1_TYPES or attack not in ATTACKS[:6]:
             return "not_applicable", K1_REASON
@@ -643,6 +657,8 @@ def applicability(variant_id: str, variant_kind: str, variant_k: int, attack: st
         return "not_applicable", A4_REASON
     if attack in ("A1_calibrated", "A1_fixed", "A2", "A3") and artifact_type == "usage_summary":
         return "not_applicable", USAGE_REASON
+    if attack == "A1_calibrated" and artifact_type not in A1_CALIBRATED_TYPES:
+        return "not_applicable", A1_SHADOW_REASON
     if attack == "A4" and variant_k <= 2 and variant_id != "k1_reference":
         return "not_applicable", A4_K2_REASON
     return "applicable", None

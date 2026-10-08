@@ -499,8 +499,9 @@ same AI system on the packs' synthetic generators, so these figures describe the
 never a buyer claim.
 
 Sections 1 to 11 show that text did not leave. X5 (STRATEGY 6.4 and 11.2) asks what the things that do leave (counts,
-buckets, verdicts, packets, ids, ranks) reveal about individual records, against a pass bar fixed before running: at
-chance or near it. `experiments/x5_inference.py` runs it (RUNBOOK section 18, ARCHITECTURE section 18) and
+buckets, verdicts, packets, ids, ranks) reveal about individual records, against a pass bar of at chance or near it.
+The bar was fixed in B3a's code before the B3b prereg, but after one full rehearsal whose outcome existed (the
+rehearsal disclosure below). `experiments/x5_inference.py` runs it (RUNBOOK section 18, ARCHITECTURE section 18) and
 `experiments/x5_attacks.py` holds the attacks as pure functions. Whatever the result, it is published here; nothing
 in this section is a "no leakage" claim unless the stored labels below say so.
 
@@ -537,6 +538,17 @@ same targets and the attacker's knowledge minus the artifact):
 | A4 reporter linkage inside the protected range | every pair of records in a true cell with 2 <= n < k | same reporter or not | the shadow majority |
 | A5 person-name negative control | member records with a name field | the surname | the shadow mode per field |
 | A6 presence oracle | sampled (site, entity, window) | a member record at the site names the entity in the window | the shadow presence share |
+
+**A1 per artifact type.** A record's A1 score counts only the keys of the channels the attacked type can carry
+(`cells_codes` and the allowed-fields reference: the codes channel; `cells_text`: the text channel; every other type:
+both), and `A1_calibrated` uses the threshold calibrated on that type's own shadow facts: the two cell types, `all`
+(from the shadow cells of both channels, its only part with a shadow analogue), the allowed-fields reference (R
+(model-free)'s exact cells of the shadow members) and `allowed_plus_all` (both together). Shadow worlds run no pipeline,
+so the verdict, packet, follow-up, HQ-results and run-file types have no shadow facts: `A1_calibrated` is not applicable
+to them, and only `A1_fixed` (every key present) reads them, which can understate their membership leakage. Up to audit
+round 4 every type borrowed the threshold of the cells' union and divided by keys it could not carry, which understated
+the per-type and reference entries and overstated the incremental entry (`INTEGRATION.md`, audit round 4); the `all`
+entries, the primary family and the bar did not depend on it.
 
 **Labels** (pre-registered; read only from the cluster-bootstrap interval of the advantage over the matched
 baseline, clusters (seed, site, week), for A6 (seed, site, window start); Wilson intervals of the accuracy are shown,
@@ -599,6 +611,22 @@ through the whole pipeline. The simulated transforms (`drop_lt_k`: cells below k
 over four-week periods at the pack's k) are labelled exactly "simulated: not implemented in the Boundary; implementing
 it is a code change": they replace only the cells, keep the rest of the unmitigated run's artifacts and do not re-run
 detection.
+
+**Rehearsal disclosure.** A full rehearsal of this experiment ran before its code froze. On the uncommitted tree that
+became B3a (commit 1cee431), the B3b prereg command was run with `--allow-dirty` (seeds derived from 202dd531, not from
+B3a), and a one-seed run of both packs with every variant, attack, artifact type and simulated transform at n = 1000 and
+the default bootstrap sizes, on a prereg with explicit seeds 101 and shadow 102, exited 0 after 632 s. A run exits 0
+only after writing `x5.json` and `leakage_section.md`, which hold every label and the bar outcome, and B3a's code prints
+the bar outcome on its last stdout line (`bar <outcome>`). Every control holding follows from the exit code alone;
+whether the uncommitted code printed the bar line too, and whether anyone read it, was not recorded, so the outcome
+counts as seen. Both files were deleted without a sha256; the outcome was not recorded and cannot be recovered; whether
+any code, label rule or sentence changed after it was not recorded either. So B3a's code, label rules, primary family
+and bar were fixed after one outcome-bearing run of the same experiment on other seeds: the result below is
+pre-registered only with respect to the B3b prereg's own seeds. The B3a commit message's "No X5 prereg was made and no
+x5.json written" is wrong on this point (`INTEGRATION.md`, B3a and audit round 4). Audit round 4 changed the X5 code
+again after that rehearsal (A1 per artifact type, above); on the test fixture that change leaves every `all` entry, the
+primary entries, the controls and the bar byte-identical. The test suite's fixture (one device world, n = 400, B = 100)
+also computes a bar outcome every time the suite runs; it is a fixture and is never read as a result.
 
 ### The result
 

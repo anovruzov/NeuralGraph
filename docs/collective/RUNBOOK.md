@@ -1113,6 +1113,11 @@ known leak"; `x5.json` is written for diagnosis); 130 interrupted.
   new prereg; never re-run until the labels look better.
 - **Never use `--allow-dirty` for a published run.** It is stamped in the prereg and in `x5.json`, and a dirty run
   is a rehearsal.
+- **A rehearsal is an outcome.** A `run` that exits 0 has written `x5.json` with every label and the bar outcome, and
+  prints the bar on its last line, whatever the tree or the seeds. Rehearse with a dry run or the test fixture's
+  sizes; if a fuller rehearsal is unavoidable, record its prereg's and its `x5.json`'s sha256 and its outcome in
+  `INTEGRATION.md` before deleting them, and disclose it beside the result. The one full rehearsal made before B3a's
+  freeze was not recorded so; LEAKAGE.md section 12 discloses it.
 - **Exit 1 or 2 means stop.** Investigate before publishing anything; a failed control is reported, not hidden.
 - **Report whatever the labels say.** A `leak` label on a primary attack means STRATEGY 11.2's X5 bar fails on these
   worlds, and LEAKAGE.md section 12 opens with that sentence. Never say "no leakage" unless every primary attack is

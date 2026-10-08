@@ -85,6 +85,9 @@ CODE_HASHES = {"X1": "e7d5d82e3b9805358718b5927b6cca89bb4912c733fccd7f14c89f61a9
                "E2": "7428e57c6c9e2b5f4e7d7a93d80a45bc4a06694a3d01b274c12617e69b1d32be",
                "openfda_replay": "452219e81aa711fb97387d8bc5da9663e7765af8f8f5b17ae6617e8acb0b9525",
                "X5": "dea481ca619129e1f42f685256834e81ec76e27995287fb21b54c33025d01816"}
+# audit round 4 (finding 3, A1 per artifact type, and finding 2, the prereg's rehearsal note) changed
+# x5_attacks.py and x5_inference.py after B4b; effort.json keeps the hashes B4b recorded
+X5_CODE_HASH_R4 = "73a4e487727a7e665301d499a7d5d9c66f7a9b90c81e1445a72ce9bd49d03516"
 EFFORT_KEYS = ("attempts", "base_commit", "code_files_changed", "code_hashes", "code_lines_changed", "code_numstat",
                "demo_lint", "diff_method", "docs_lines_added", "evidence", "files", "fit_to_code_choices",
                "fixture_disagreements", "fixture_lexical_f1", "gaps", "kind", "logic_gaps", "presentation_gaps",
@@ -870,7 +873,8 @@ class EvidenceTests(unittest.TestCase):
     def test_the_code_hashes_are_the_pinned_ones(self) -> None:
         self.assertEqual({"X1": H.eval_code_hash(), "E1": e1_extract.e1_code_hash(), "E2": e2_pushdown.e2_code_hash(),
                           "openfda_replay": openfda_replay.replay_code_hash(), "X5": x5_inference.x5_code_hash()},
-                         CODE_HASHES)
+                         {**CODE_HASHES, "X5": X5_CODE_HASH_R4})
+        self.assertNotEqual(X5_CODE_HASH_R4, CODE_HASHES["X5"])
         self.assertEqual(effort()["code_hashes"], CODE_HASHES)
 
     def test_no_absolute_path_forbidden_string_or_model_name_in_x3_or_the_pack(self) -> None:

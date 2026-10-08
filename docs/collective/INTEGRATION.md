@@ -2099,6 +2099,9 @@ one, and the draft it ends with repeated one line and listed no lots. B1 keeps t
 the attribution and the wording around the first scenario, and adds a second, constructed scenario in two commits:
 **B1a** (sections 1 to 4 of the brief: everything before any codes-miss world exists, including the pre-registration)
 and **B1b** (the scenario, the engine's attribution rule and its screen, the attempts and the re-recordings).
+**Status (audit round 4): only B1a was committed. B1's constructed codes-miss illustration has not been built**: no
+B1b commit, no `demo/collective/scenario_codes_miss.json`, no `docs/collective/b1/attempts/` and no run of it exist,
+and the only recorded run is `collective-halvern-b1a`, which shows no case the allowed fields miss.
 
 ### B1a: the draft template, source attribution, one sites wording, the superseded run and the pre-registration
 
@@ -2446,9 +2449,16 @@ two determinism subprocesses) and 7 in `test_collective_guards.py` (`X5AttacksIm
 **Rehearsals (sandbox, dirty tree, `--allow-dirty`; deleted afterwards; not results).** The B3b prereg command with
 `--allow-dirty` (seeds derived from 202dd531, not from B3a) wrote its prereg in 41 s, needed 54 of 60 pipelines and
 excluded one `claims_integrity` volume shadow world by the generator-capacity rule; `run --dry-run` on it printed the
-estimate line (54 pipelines, 14 worlds, 11 shadow worlds). A one-seed run of both packs with every variant, attack,
-type and simulated transform at the default B (explicit seeds 101 and shadow 102, n = 1000) exited 0 after 632 s with
-every control holding. No attack outcome of a rehearsal is reported anywhere: the result is B3c's.
+estimate line (54 pipelines, 14 worlds, 11 shadow worlds). A one-seed run of both packs with every variant, attack, type
+and simulated transform at the default B (explicit seeds 101 and shadow 102, n = 1000) exited 0 after 632 s with every
+control holding. No attack outcome of a rehearsal is reported anywhere: the result is B3c's. **Correction (audit round
+4):** that run was the whole experiment (every variant, attack, type and transform) at the pre-registered n, on the one
+seed 101 (B3b's five seeds derive from the B3a commit), and a run exits 0 only after writing `x5.json` and
+`leakage_section.md` (every label and the bar outcome); B3a's code also prints the bar outcome on its last line. The
+preregs and the run's two output files were deleted without a sha256, the outcome was not recorded, and whether code or
+rules changed after it was not recorded, so the outcome counts as seen and B3a's code, label rules, primary family and
+bar were fixed after it. The B3a commit message's "No X5 prereg was made and no x5.json written" is wrong. LEAKAGE.md
+section 12 ("Rehearsal disclosure") and the audit round 4 section below carry the disclosure.
 
 **Merge notes.**
 
@@ -2497,7 +2507,8 @@ every control holding. No attack outcome of a rehearsal is reported anywhere: th
   day cap, a world that no longer matches its digest during the run) exits 2 with `harness error:` and writes
   nothing.
 
-**Pre-stated for B3b and B3c** (written before any B3 prereg or `x5.json` exists):
+**Pre-stated for B3b and B3c** (written after the rehearsals above, whose prereg and `x5.json` were deleted, and before
+the B3b prereg; corrected in audit round 4, which also changed the X5 code and therefore its hash):
 
 - **B3b**, on the clean B3a tree, with `TMPDIR=/dev/shm/b3/tmp`, then `cp` byte-identical to
   `docs/collective/x5/prereg.json`:
@@ -2773,3 +2784,88 @@ review round 1 the full runs above were made before the last edits, which were a
   is an illustration for this generality check, not B1's codes-miss case.
 - **`effort.json` is evidence of the same author's work**; the wall clock is an AI agent's, not engineer-hours, and
   says nothing about X3.
+
+## Audit round 4 (three confirmed findings)
+
+**Base.** Branch `mycelic-collective-phase2` at 499557a (B4b), a clean worktree. Nothing is committed by the engineer.
+Gate B1's second step (the codes-miss scenario) and B3's B3b and B3c are not part of this round.
+
+**Scope: fabric files changed: none.** Changed: `mycelic/collective/experiments/{x5_attacks,x5_inference}.py` (the
+only code), `docs/collective/{ARCHITECTURE,INTEGRATION,LEAKAGE,RUNBOOK}.md`,
+`docs/collective/evidence/superseded/collective-halvern-g10/README.md`, `demo/collective/{README,SCRIPT}.md` and
+`tests/mycelic/test_collective_{x5,demo,x3}.py`. Unchanged: every other file under `mycelic/` and `demo/`, the
+recorded run, every pack, `docs/collective/b1/PREREG.md` and the B4 evidence under `docs/collective/x3/` (its
+`effort.json` keeps the code hashes B4b recorded).
+
+| # | Finding | Fix | Regression test |
+|---|---|---|---|
+| 1 | B1's constructed codes-miss illustration does not exist (only B1a was committed), but the superseded run's README, ARCHITECTURE 17.9, the demo README and the B1 plan described it as present or as being added | Every page a reader sees says so: "B1's constructed codes-miss illustration has not been built" (the superseded README names only the B1a run, whose own scorecard still shows R (model-free) flagging a key of the case in X's week; the demo README and SCRIPT say no committed run shows a case the allowed fields miss, and SCRIPT tells the presenter never to refer to one; ARCHITECTURE 17.9 and INTEGRATION B1 carry the status) | `CodesMissStatusTests::test_the_pages_say_whether_the_codes_miss_illustration_exists` (while no `scenario_codes_miss.json` or `b1/attempts/` exists: the five pages carry the sentence, none carries the four overclaiming phrases, and `recorded/` holds only `collective-halvern-b1a`; once one exists, the pages other than this log must drop the sentence), `test_every_recorded_run_a_page_names_exists`; it fails on HEAD's pages |
+| 2 | A full X5 rehearsal (both packs, every variant, attack, type and transform, n = 1000, seed 101) exited 0 before B3a froze the code and the bar, so it wrote `x5.json` with every label and the bar outcome; the commit message said no `x5.json` was written, the plan said it was written before any `x5.json` existed, LEAKAGE said the bar was fixed before running, and no sha256 or outcome was kept | LEAKAGE section 12 gains the "Rehearsal disclosure" above the result markers (what ran, that the outcome counts as seen, that nothing was recorded, that the result is pre-registered only with respect to the B3b prereg's own seeds, that the commit message is wrong, and this round's own code change) and drops "fixed before running"; INTEGRATION B3a gains a correction and the plan's heading no longer claims to precede every `x5.json`; the prereg's note "frozen ... before any attack outcome exists" is replaced by `REHEARSAL_NOTE`; RUNBOOK 18 gains "A rehearsal is an outcome" (record sha256 values and the outcome before deleting, and disclose) | `LeakageSectionTests::test_the_rehearsal_before_the_freeze_is_disclosed` (the disclosure's facts, its place before the markers, the prereg notes of a fresh prereg, the INTEGRATION correction, the RUNBOOK rule, the removed phrases) |
+| 3 | A1's per-artifact-type and reference entries used one threshold calibrated on the union of the shadow cells and divided by keys of a channel the type cannot carry, so a single-channel type could never score a mixed-channel member 1: the per-type and reference entries understated membership, the incremental entry overstated what HQ's artifacts add | A score counts only the keys of the channels the attacked type carries (`x5_attacks.A1_CHANNELS`: codes for `cells_codes` and the allowed-fields reference, text for `cells_text`); `shadow_stats` calibrates one threshold per (setting, type) on that type's own shadow facts (`a1_threshold_types`: the cell types, `all` from the shadow cells, and at a pipeline variant's own setting the reference from R (model-free)'s cells of the shadow members and `allowed_plus_all`); `evaluate` takes the per-type thresholds; `A1_calibrated` is not applicable to a type with no shadow analogue (`A1_SHADOW_REASON`: verdicts, packets, follow-up, HQ results and run files, which only `A1_fixed` reads); `x5.json`'s `shadow.a1_thresholds` is per setting and type; the prereg's `a1_threshold_rule` says all of it; LEAKAGE 12, ARCHITECTURE 18.5, 18.6 and 18.10 | `A1PerTypeTests` (five tests: the channels and a mixed-channel member scoring 1 only with them; the applicability of both A1 forms on every type; `evaluate` applying each type's own threshold and channels and refusing a borrowed one; `shadow_stats`' calibrate inputs, call by call, equal to scores recomputed on each type's own shadow facts for both packs, with every keyed member scoring 1 on its own codes cells; the tiny run's per-type threshold block, the not-applicable entries and the schema refusing a single number) |
+
+**Hashes.** The X5 code hash (`x5_inference.x5_code_hash()`) changes from
+`dea481ca619129e1f42f685256834e81ec76e27995287fb21b54c33025d01816` (B3a, B4b) to
+`73a4e487727a7e665301d499a7d5d9c66f7a9b90c81e1445a72ce9bd49d03516`. X1 `e7d5d82e...`, E1 `07c08295...`, E2
+`7428e57c...`, the openFDA replay `452219e8...` and every pack hash are unchanged (`EffortTests` and
+`test_every_builtin_pack_is_pinned`).
+
+**Test-fixture probe (sandbox, test settings; a diagnostic, not a result).** The tiny run of `test_collective_x5.py`
+(`device_quality`, n = 400, seed 11, shadow seed 12, variants default, `k1_reference` and `a5_injected`, B = 100) was
+run once on HEAD's code (an export of 499557a under `/dev/shm`) and once on this round's tree; both run directories
+are deleted. Of the 252 results entries, 234 are identical. The 18 that differ are `A1_calibrated` and `A1_fixed` on
+`cells_codes`, `cells_text`, `allowed_fields_reference` and `allowed_plus_all` (default), the same two on the two
+cell types of `k1_reference`, and six `A1_calibrated` entries now not applicable; the two simulated transforms differ
+only in their A1 cell-type entries. Every `all` entry, the primary entries, the controls and the bar are identical. On
+the default variant (474 A1 targets), `A1_calibrated` accuracy on `cells_codes` moved from 0.608 to 0.892 (coverage
+0.985 to 0.785: records with no codes key now take the coin), on `cells_text` from 0.593 to 0.859 (coverage 0.749), on
+the reference from 0.608 to 0.892, and the incremental entry of `allowed_plus_all` from 0.755 (95% CI 0.699 to 0.817)
+to 0.186 (0.128 to 0.247). Every calibrated threshold of that run is 1.0, except 0.0 at `drop_lt_k`, the same values
+the union gave: once a type scores only its own channel's keys, a member's keys are all present in its own cells, so
+the channel rule removes the cap and the per-type calibration keeps any type from borrowing another's threshold.
+These figures come from the probe's own `x5.json` files; they are a test fixture's, quoted only to show the fix.
+
+### Earlier tests whose expectation changed
+
+Changed, never weakened:
+
+- `test_collective_demo.py`: `SupersededEvidenceTests::test_the_readme_says_why_and_points_into_the_scorecard`
+  required the phrase "superseded by the B1 runs", which named runs that do not exist (finding 1); it requires
+  "superseded by the B1a run".
+- `test_collective_x3.py`: `EvidenceTests::test_the_code_hashes_are_the_pinned_ones` required the live X5 hash to
+  equal B4b's; it now requires `X5_CODE_HASH_R4`, asserts that it differs from B4b's, and still requires `effort.json`
+  to hold B4b's hashes, which this round does not touch.
+
+### Merge notes
+
+1. **No fabric change and no fabric integration point.**
+2. **The X5 code hash changes** (above). No X5 prereg exists in the repository, so none is invalidated, but the
+   pre-stated B3b ("on the clean B3a tree") can no longer use the B3a tree: the B3b prereg must be made on a commit
+   that contains this round, and its seeds then derive from that commit (`SEED_RULE` reads `code_commit`). That is
+   the orchestrator's call.
+3. **`x5.json` and prereg shape.** `shadow.a1_thresholds` maps each cell setting to an object of per-type
+   thresholds; `A1_calibrated` is `not_applicable` on six types; the prereg's `a1_threshold_rule` and `notes` changed.
+4. **No recorded run changes**: the demo's committed run, its lint and the superseded evidence's six files are
+   byte-identical; only Markdown around them changed.
+5. **The lab is untouched.**
+
+### Disagreements and residuals, for the reviewer
+
+- **Finding 1: `docs/collective/b1/PREREG.md` is not edited.** It says it is never edited after B1a; its "written in
+  B1b" is the plan it fixed in advance. Every page that points to it now says the illustration has not been built.
+  The b1a run's screen and scorecard were not re-recorded: they describe that run truthfully (R flags the product in
+  X's week) and name no B1b. Building the illustration itself is the rest of gate B1, not this fix.
+- **Finding 2: the B3a commit message is not rewritten** (no history rewriting); INTEGRATION B3a and LEAKAGE 12
+  correct it. Whether anyone read the rehearsal's bar line cannot be established now, so the disclosure treats the
+  outcome as seen. Nothing in code stops a future rehearsal; the RUNBOOK rule makes one a recorded, disclosed event.
+  This round's own X5 runs were the two tiny-fixture runs above (test settings, one device world, B = 100), recorded
+  here; no X5 run at the pre-registered size was made.
+- **Finding 3: channels and calibration together.** Calibration alone (the review's probe: thresholds 0.167 and 0.25)
+  would leave `A1_fixed` capped, since it needs a score of 1. With the channel rule, `cells_text` gives 0.859 on the
+  fixture where the review's unrestricted per-type threshold gave 0.863: records with no text key take the coin here,
+  while a low threshold over every key still reads some of them, so the restricted form is not stronger on every type
+  (the difference is within the fixture's noise). The reference's incremental entry is 0.186, against the 0.245 the
+  review estimated with calibration alone.
+- **Finding 3: membership on the non-cell types is measured by `A1_fixed` only**, which can understate it. Calibrating
+  them would need a pipeline per shadow world and variant; the prereg's cap is 60 pipelines and B3b needs 54, so this
+  round does not add them. `all` is still calibrated on the shadow cells, its only part with a shadow analogue; the
+  review found the primary family unaffected, and the fixture's `all` entries are unchanged.

@@ -2174,8 +2174,9 @@ The final review of phase 2 found that the committed G8 run shows no case the al
 the product under the generic code at the top rank in X's own week, and S flags the lot a week later (the run is kept,
 byte-identical, as `docs/collective/evidence/superseded/collective-halvern-g10/`, with a README pointing into its
 scorecard). B1 keeps the first scenario unchanged and adds, in its first commit (B1a), what the review found missing
-around it; the second commit (B1b) adds the constructed codes-miss scenario that `docs/collective/b1/PREREG.md` fixed
-before any of its worlds existed. What B1a changed:
+around it. A second commit (B1b) was to add the constructed codes-miss scenario that `docs/collective/b1/PREREG.md`
+fixed before any of its worlds existed; **B1's constructed codes-miss illustration has not been built**: no B1b
+commit, codes-miss scenario, attempt or run exists (`INTEGRATION.md`, audit round 4). What B1a changed:
 
 - **The draft** is filled from the conclusion and the ok packets through the pack template, each field with its source
   (section 16.9); the screen leaves the `for_owner` field to the owner.
@@ -2194,7 +2195,8 @@ before any of its worlds existed. What B1a changed:
   routed run said "one shared model" while its provider labels said "no model".
 - **The committed run** is `demo/collective/recorded/collective-halvern-b1a` (scenario digest unchanged); its
   detection blocks are the G8 run's, so R (model-free) still flags a key of this case in X's week and the screen still
-  says so. That is why B1b adds a second scenario rather than re-reading this one.
+  says so. That is why B1 planned a second scenario rather than re-reading this one; since it was not built, no
+  committed run shows the case STRATEGY 9.2's cut needs.
 
 ## 18. B3: X5, leakage beyond text
 
@@ -2296,9 +2298,12 @@ argument (a test inspects the signatures). Forwarded copies are never targets. C
 
 ### 18.5 Attacks
 
-- **A1 membership**: the share of the record's keys with a positive fact at its site whose span holds its week;
-  `A1_calibrated` predicts member at the shadow threshold, `A1_fixed` when every key is present; no key takes a seeded
-  coin (uncovered).
+- **A1 membership**: the share of the record's keys with a positive fact at its site whose span holds its week,
+  counting only the keys of the channels the attacked type can carry (`x5_attacks.A1_CHANNELS`: the codes channel for
+  `cells_codes` and the allowed-fields reference, the text channel for `cells_text`, both otherwise); `A1_calibrated`
+  predicts member at the threshold calibrated on that type's own shadow facts, so it applies only to the types with a
+  shadow analogue (`A1_CALIBRATED_TYPES`: the cell types, `all` and the two reference types), and `A1_fixed` when every
+  key is present; no such key takes a seeded coin (uncovered).
 - **A2 predicate attribute inference**: per predicate, the number of the record's entities with a positive fact at its
   site and week; the argmax, ties and no support broken by the shadow prior chain.
 - **A3 count inference**: interval bounds on the (site, key)'s weekly counts per channel over the connected span of its
@@ -2311,18 +2316,23 @@ argument (a test inspects the signatures). Forwarded copies are never targets. C
 - **A6 presence oracle**: a confirm or a refute says the site holds the entity in the window.
 
 The applicability table (`x5_attacks.applicability`, copied into the prereg) marks every (variant, attack, artifact
-type) as applicable, not applicable (with a reason: usage summaries name no entity; A4 reads cell counts only; A6
-reads only the attacker's own questions; the k1 reference replaces only the cells; the injected control tests A5
-only) or not run (A6 on the volume variant).
+type) as applicable, not applicable (with a reason: usage summaries name no entity; `A1_calibrated` needs a type with
+shadow facts to calibrate on; A4 reads cell counts only; A6 reads only the attacker's own questions; the k1 reference
+replaces only the cells; the injected control tests A5 only) or not run (A6 on the volume variant).
 
 ### 18.6 Shadow
 
 Shadow worlds never run a pipeline. Their lexical rows (`lexical_rows`, equal to what a fake-mode site stores; a test
 checks it) are cut into cells at each variant's settings (k, master-data rule, egress types; k = 1 for the reference;
-each simulated transform), which give the A1 threshold per setting: the score among the sorted distinct shadow scores
-that maximises shadow accuracy, the smallest on ties. They also give the A2 prior chain, the distribution of n below k
-(A3), the same-reporter share (A4), the surname counts per field (A5), the presence share per (site, entity) (A6) and
-the A6 predicate per entity. `x5.json` carries only counts, thresholds and modes from them, never a prior table.
+each simulated transform), which give the A1 threshold per setting and artifact type (`a1_threshold_types`), each on the
+type's own shadow facts and scoring only the keys of its channels: the two cell types, `all` (the shadow cells of both
+channels, its only part with a shadow analogue) and, at a pipeline variant's own setting, the allowed-fields reference
+(R (model-free)'s exact cells of the shadow members) and `allowed_plus_all` (both); the threshold is the score among the
+sorted distinct shadow scores that maximises shadow accuracy, the smallest on ties. Up to audit round 4 one threshold,
+calibrated on the union of the shadow cells, served every type. They also give the A2 prior chain, the distribution of n
+below k (A3), the same-reporter share (A4), the surname counts per field (A5), the presence share per (site, entity)
+(A6) and the A6 predicate per entity. `x5.json` carries only counts, thresholds and modes from them, never a prior
+table.
 
 ### 18.7 Variants, controls and mitigations
 
@@ -2396,6 +2406,9 @@ names.
 - **A4 does not decompose window reporter buckets**; it reads cell-level counts only.
 - **Volume is four times the built-in volume, not ten**: the generator runs out of unique narratives above that.
 - **A6 is a small sample** of entities per site, not an exhaustive presence oracle.
+- **Calibrated membership only where shadow worlds have an analogue.** Shadow worlds run no pipeline, so the verdict,
+  packet, follow-up, HQ-results and run-file types are attacked for membership by `A1_fixed` (every key present) only,
+  which can understate them, and `all` is calibrated on the shadow cells alone.
 - **No detection re-run under the simulated transforms**: they replace the cells and keep every other artifact.
 - **Same author.** The red team knows the defences it attacks because it wrote them; an independent red team may
   find more.
