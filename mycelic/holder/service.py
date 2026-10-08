@@ -310,6 +310,18 @@ class HolderService:
         if action == "reload_policy":
             self.store.update_policy(p.get("export_policy"), p.get("domains"))
             return {"action": action, "export_policy": dict(self.store.export_policy), "domains": list(self.store.domains)}
+        if action == "shard_split":
+            # an administrator's split approved at the coordinator (signed envelope): plan it here and run it in the background
+            # (it is resumable; its progress reaches the registry through the heartbeat)
+            from ..ingest.reshard import SplitRefused
+            try:
+                mig = await self.store.shards.start_split([str(d) for d in (p.get("domain_ids") or [])], requested_by=str(p.get("actor") or "admin"),
+                                                          wait=False)
+            except SplitRefused as exc:
+                return {"action": action, "error": str(exc), "code": exc.code}
+            return {"action": action, "migration": mig}
+        if action == "shard_migration":
+            return {"action": action, "migration": self.store.shards.migration(str(p.get("migration_id") or ""))}
         raise ValueError(f"unknown control action {action!r}")
 
     # ------------------------------------------------------------------ outbound
@@ -342,7 +354,7 @@ class HolderService:
             r = result or {}
             event = ("revised" if op == "revise" else "retracted") if result else "error"
             doc_id = (r.get("document") or {}).get("doc_id") or (env.payload or {}).get("doc_id")
-            if event == "retracted" and doc_id and self.store.store._conn.execute("SELECT 1 FROM ingest_records WHERE record_id=?", (doc_id,)).fetchone():
+            if event == "retracted" and doc_id and self.store.record_exists(doc_id):
                 # retracting a connector record purged its content here: the coordinator purges its copies too
                 event = "deleted"
             payload = {"event": event, "holder_id": h,

@@ -25,11 +25,13 @@ What lives here and why:
 """
 from __future__ import annotations
 
+import contextlib
 import inspect
 import logging
 import re
 import secrets
 import sqlite3
+import time
 from pathlib import Path
 from typing import Any, Callable, Iterable
 
@@ -318,6 +320,11 @@ class EvidenceStore:
     ``MemoryExtractor`` worker can derive finer memories; the worker itself is run by the caller.
     """
 
+    # how a sharded holder merges its shards' rankings (§7.4): "rrf" (shard-level reciprocal-rank fusion, as designed) or
+    # "channel" (rank fusion per retrieval channel across shards; see mycelic.ingest.fanout.channel_rrf_merge)
+    fanout_merge = "rrf"
+    fanout_fetch_k: int | None = None            # per-shard depth of a fan-out search (default 2 * k, as a single store fetches)
+
     def __init__(self, path: str | Path, *, holder_id: str, tenant_id: str, llm: Any | None = None, router: Any | None = None,
                  export_policy: dict[str, Any] | None = None, domains: Iterable[str] = (), extract: bool = False,
                  retrieval: RetrievalConfig | None = None, chunk_chars: int = DEFAULT_CHUNK_CHARS, owner_ids: Iterable[str] = ()) -> None:
@@ -336,7 +343,70 @@ class EvidenceStore:
         self._deny: list[re.Pattern[str]] = []
         self._policy_problems: list[str] = []
         self._taxonomy: Taxonomy | None = None
+        self.shard_id = "s0"                 # a data shard's store is opened by the holder's ShardSet, which sets these
+        self._shard_set: Any = None
         self.update_policy(export_policy, list(domains))
+
+    # ------------------------------------------------------------------ shards (docs/mycelic/INGESTION.md §7)
+    @property
+    def shards(self) -> Any:
+        """The holder's :class:`~mycelic.ingest.shards.ShardSet` (created on first use; a data shard returns its holder's)."""
+        if self._shard_set is None:
+            from ..ingest.shards import ShardSet
+            self._shard_set = ShardSet(self)
+        return self._shard_set
+
+    def _is_control(self) -> bool:
+        return self.store.control_store is None
+
+    def _sharded(self) -> bool:
+        """The holder has (or is building) a data shard: records may live outside this file."""
+        return self._is_control() and self.shards.has_data_shards()
+
+    def _multi(self) -> bool:
+        """More than one shard holds live data: reads fan out (with one shard, today's single-store path is taken)."""
+        return self._is_control() and self.shards.multi()
+
+    def _doc_store(self, doc_id: str) -> "EvidenceStore":
+        """The store whose file holds ``doc_id`` (connector records are routed by ``record_locator``; uploads stay in s0)."""
+        if not self._sharded():
+            return self
+        return self.shards.store_of_record(doc_id)
+
+    @contextlib.asynccontextmanager
+    async def _owner_gate(self, doc_id: str) -> Any:
+        """The store that holds ``doc_id``, with that shard's write gate held. A split's cutover holds the source's gate while
+        it moves records, so the owner is looked up again once the gate is ours (a mutation never lands on a stale copy).
+        Re-entrant for the task that already holds the gate (the pipeline). A holder with a single shard takes no gate."""
+        if not self._is_control():
+            async with self.shards.gate(self.shard_id):
+                yield self
+            return
+        if not self.shards.has_data_shards():
+            yield self
+            return
+        for _attempt in range(8):
+            sid = self.shards.shard_of_record(doc_id)
+            gate = self.shards.gate(sid)
+            await gate.__aenter__()
+            if self.shards.shard_of_record(doc_id) == sid:
+                break
+            await gate.__aexit__(None, None, None)
+        else:
+            raise RuntimeError(f"the shard of {doc_id} kept changing")
+        try:
+            yield self if sid == self.shard_id else self.shards.store(sid)
+        finally:
+            await gate.__aexit__(None, None, None)
+
+    def record_exists(self, doc_id: str) -> bool:
+        """Is ``doc_id`` a connector record of this holder (whichever shard holds it)?"""
+        return self._doc_store(doc_id).store._conn.execute("SELECT 1 FROM ingest_records WHERE record_id=?", (doc_id,)).fetchone() is not None
+
+    def traverser(self) -> Any:
+        """Paths over the holder's typed edges across its shards (§7.5)."""
+        from ..ingest.fanout import GraphTraverser
+        return GraphTraverser(self.shards)
 
     # ------------------------------------------------------------------ policy
     def update_policy(self, export_policy: dict[str, Any] | None = None, domains: Iterable[str] | None = None) -> None:
@@ -350,12 +420,18 @@ class EvidenceStore:
             self._deny = []
         if domains is not None:
             self.domains = [str(d) for d in domains]
+        if self._shard_set is not None and self._is_control():
+            for sid, s in list(self._shard_set._stores.items()):
+                if s is not self:
+                    s.update_policy(export_policy, domains)
 
     def describe(self) -> dict[str, Any]:
         return {"holder_id": self.holder_id, "tenant_id": self.tenant_id, "path": self.path, "export_policy": dict(self.export_policy),
                 "domains": list(self.domains), "extract": self.extract, "holder_version": HOLDER_VERSION}
 
     async def close(self) -> None:
+        if self._shard_set is not None and self._is_control():
+            await self._shard_set.close()
         await self.store.close()
 
     # ------------------------------------------------------------------ ingestion
@@ -444,7 +520,19 @@ class EvidenceStore:
 
         The keyword-only connector parameters are those of :meth:`ingest_document`. A document whose content was redacted
         (``status='redacted'``, connector records only) can receive a new version when the source shows content again;
-        retracted and deleted documents cannot be revised."""
+        retracted and deleted documents cannot be revised. On a sharded holder the call runs in the shard that holds the
+        document, under that shard's write gate."""
+        async with self._owner_gate(doc_id) as owner:
+            return await owner._revise_local(doc_id, text, title=title, observed_at=observed_at, reason=reason, domains=domains,
+                                             idempotency_key=idempotency_key, source_root_id=source_root_id, root_known=root_known,
+                                             conversation_chat_id=conversation_chat_id, speaker=speaker, extra_metadata=extra_metadata,
+                                             entities=entities, audit_detail=audit_detail, classify=classify, embeddings=embeddings,
+                                             extra_sync=extra_sync)
+
+    async def _revise_local(self, doc_id: str, text: str, *, title: str | None, observed_at: str | None, reason: str, domains: Iterable[str] | None,
+                            idempotency_key: str | None, source_root_id: str | None, root_known: bool, conversation_chat_id: str | None,
+                            speaker: str | None, extra_metadata: dict[str, Any] | None, entities: Iterable[tuple[str, str, str]] | None,
+                            audit_detail: str, classify: bool, embeddings: list[list[float] | None] | None, extra_sync: ExtraSync | None) -> dict[str, Any]:
         doc = await self.store.get_document(doc_id, with_text=True)
         if doc is None:
             raise KeyError(doc_id)
@@ -481,7 +569,7 @@ class EvidenceStore:
             if current["status"] in ("retracted", "deleted", "suspended"):
                 raise ValueError(f"document is {current['status']}")
             old_ids = self.store._document_memory_ids_sync(c, doc_id, status="active")
-            affected = [e["ref_id"] for e in self.store._exports_for_memories_sync(c, old_ids)]
+            affected = [e["ref_id"] for e in self.store._exports_for_memories_sync(self.store._exports_conn(c), old_ids)]
             self.store._update_document_sync(c, doc_id, title=new_title, text=text, source_root_id=root, observed_at=observed,
                                              domains=doc_domains, summary=new_doc["summary"], status="revised", version=version,
                                              chars=len(text), updated_at=now, root_known=1 if new_doc["root_known"] else 0)
@@ -524,6 +612,12 @@ class EvidenceStore:
 
     async def _withdraw(self, doc_id: str, reason: str, *, status: str, idempotency_key: str | None, op: str,
                         extra_sync: ExtraSync | None = None, optimize: bool = True) -> dict[str, Any]:
+        async with self._owner_gate(doc_id) as owner:
+            return await owner._withdraw_local(doc_id, reason, status=status, idempotency_key=idempotency_key, op=op, extra_sync=extra_sync,
+                                               optimize=optimize)
+
+    async def _withdraw_local(self, doc_id: str, reason: str, *, status: str, idempotency_key: str | None, op: str,
+                              extra_sync: ExtraSync | None = None, optimize: bool = True) -> dict[str, Any]:
         doc = await self.store.get_document(doc_id)
         if doc is None:
             raise KeyError(doc_id)
@@ -535,7 +629,7 @@ class EvidenceStore:
                 raise KeyError(doc_id)
             if current["status"] in ("retracted", "deleted") or (current["status"] == "redacted" and status == "redacted"):
                 # already withdrawn: report the same references, purge nothing new
-                affected = [e["ref_id"] for e in self.store._exports_for_document_sync(c, doc_id)]
+                affected = [e["ref_id"] for e in self.store._exports_for_document_sync(self.store._exports_conn(c), doc_id)]
                 result = {"affected_ref_ids": affected, "purged": {"memories": 0, "messages": 0, "versions": 0, "entities": 0}}
             else:
                 result = self.store._purge_document_sync(c, doc_id, status=status, title=title, reason=reason)
@@ -561,6 +655,11 @@ class EvidenceStore:
                                        idempotency_key: str | None = None) -> dict[str, Any]:
         """Metadata-only change (labels, ACL, domains): no new version and no re-embedding; the document's domain list and
         its active chunk memories' metadata follow."""
+        async with self._owner_gate(doc_id) as owner:
+            return await owner._update_metadata_local(doc_id, domains=domains, extra_sync=extra_sync, idempotency_key=idempotency_key)
+
+    async def _update_metadata_local(self, doc_id: str, *, domains: Iterable[str] | None, extra_sync: ExtraSync | None,
+                                     idempotency_key: str | None) -> dict[str, Any]:
         def fn(c):
             current = self.store._get_document_sync(c, doc_id)
             if current is None:
@@ -584,32 +683,60 @@ class EvidenceStore:
     # re-checked against their source ACL for it: a record outside what the audience may see is left out (lists,
     # search) or reported missing (single reads). With no audience nothing restricted is shown (fail closed); only the
     # holder's owner (``owner: true``) sees every live record. Direct uploads have no source ACL.
-    def _doc_visible(self, doc_id: str, audience: Any) -> bool:
-        acl = self._record_acl_sync(self.store._conn, doc_id)
+    def _doc_visible(self, doc_id: str, audience: Any, *, owner: "EvidenceStore | None" = None) -> bool:
+        acl = self._record_acl_sync((owner or self._doc_store(doc_id)).store._conn, doc_id)
         return acl is None or self._acl_allows(acl, Audience.from_payload(audience))[0]
 
     async def document(self, doc_id: str, *, audience: Any = None) -> dict[str, Any] | None:
-        doc = await self.store.get_document(doc_id)
-        if doc is None or not self._doc_visible(doc_id, audience):
+        owner = self._doc_store(doc_id)
+        doc = await owner.store.get_document(doc_id)
+        if doc is None or not self._doc_visible(doc_id, audience, owner=owner):
             return None
-        return await self._public_document(doc)
+        return await owner._public_document(doc)
 
     async def document_text(self, doc_id: str, version: int | None = None, *, audience: Any = None) -> str | None:
-        if not self._doc_visible(doc_id, audience):
+        owner = self._doc_store(doc_id)
+        if not self._doc_visible(doc_id, audience, owner=owner):
             return None
         if version is not None:
-            return await self.store.document_version_text(doc_id, version)
-        doc = await self.store.get_document(doc_id, with_text=True)
+            return await owner.store.document_version_text(doc_id, version)
+        doc = await owner.store.get_document(doc_id, with_text=True)
         return doc["text"] if doc else None
 
     async def list_documents(self, *, status: str | None = None, limit: int = 100, offset: int = 0, audience: Any = None) -> list[dict[str, Any]]:
-        docs = await self.store.list_documents(status=status, limit=limit, offset=offset)
-        return [await self._public_document(d) for d in docs if self._doc_visible(d["doc_id"], audience)]
+        if not self._multi():
+            docs = await self.store.list_documents(status=status, limit=limit, offset=offset)
+            return [await self._public_document(d) for d in docs if self._doc_visible(d["doc_id"], audience, owner=self)]
+        # every shard's newest documents, merged in the single-store order (updated_at DESC, doc_id)
+        merged: list[tuple[dict[str, Any], EvidenceStore]] = []
+        for _spec, owner in self.shards.open_stores(statuses=("active", "draining", "readonly")):
+            merged += [(d, owner) for d in await owner.store.list_documents(status=status, limit=limit + offset, offset=0)]
+        merged.sort(key=lambda x: x[0]["doc_id"])
+        merged.sort(key=lambda x: x[0].get("updated_at") or "", reverse=True)
+        page = merged[offset:offset + limit]
+        return [await owner._public_document(d) for d, owner in page if self._doc_visible(d["doc_id"], audience, owner=owner)]
+
+    async def recent_memories(self, limit: int = 20) -> list[Any]:
+        """The newest active memories of the holder, across its shards (the owner's "recent memory" view)."""
+        if not self._multi():
+            return await self.store.list_memories(status="active", limit=limit, order="created_at DESC")
+        out: list[Any] = []
+        for _spec, owner in self.shards.open_stores(statuses=("active", "draining", "readonly")):
+            out += await owner.store.list_memories(status="active", limit=limit, order="created_at DESC")
+        out.sort(key=lambda m: m.created_at or "", reverse=True)
+        return out[:limit]
 
     async def search(self, query: str, k: int = 10, *, audience: Any = None, **filters: Any) -> list[dict[str, Any]]:
         """Hybrid retrieval over this holder's memories for an API reader (memory and document ids are visible here;
         the coordinator's question path is :meth:`answer_question`). Restricted connector records are filtered out
-        before retrieval, so they neither appear nor influence the ranking."""
+        before retrieval, so they neither appear nor influence the ranking. On a holder with several shards the search fans
+        out (§7.4) and the returned list carries ``partial`` / ``truncated``; with one shard it is today's single-store
+        search."""
+        if self._multi():
+            from ..ingest.fanout import ShardedResults
+            res = await self._retrieve_sharded(query, k=k, audience=Audience.from_payload(audience), **filters)
+            return ShardedResults([{**self._result_dict(r), "shard_id": getattr(r, "shard_id", "s0")} for r in res], partial=res.partial,
+                                  truncated=res.truncated, shards=res.shards, failed=res.failed, timings_ms=res.timings_ms)
         allowed = self._allowed_memory_ids(Audience.from_payload(audience))
         return [self._result_dict(r) for r in await self._retrieve(query, k=k, allowed_ids=allowed, **filters)]
 
@@ -624,39 +751,65 @@ class EvidenceStore:
         export = await self.store.get_export(ref_id)
         if export is None:
             return None
-        doc = await self.store.get_document(export["doc_id"], with_text=True)
+        owner = self._doc_store(export["doc_id"])          # exports stay in s0; the document is wherever its record lives
+        doc = await owner.store.get_document(export["doc_id"], with_text=True)
         if doc is None:
             return None
         base = {"ref_id": ref_id, "doc_id": doc["doc_id"], "observed_at": doc.get("observed_at"), "version": doc["version"],
                 "status": doc["status"], "source_root_id": doc["source_root_id"], "kind": doc["kind"], "question_id": export["question_id"]}
         if doc["status"] not in LIVE_DOCUMENT_STATUSES:
             return {**base, "title": doc["title"], "text": "", "chunk_text": None, "withheld": doc["status"]}
-        acl = self._record_acl_sync(self.store._conn, doc["doc_id"])
+        acl = self._record_acl_sync(owner.store._conn, doc["doc_id"])
         if acl is not None:
             ok, why = self._acl_allows(acl, Audience.from_payload(audience))
             if not ok:
                 return {**base, "status": "withheld", "title": f"{acl['source_app']} {acl['kind']}", "text": "", "chunk_text": None,
                         "withheld": why}
-        memory = await self.store.get_memory(export["memory_id"])
+        memory = await owner.store.get_memory(export["memory_id"])
         return {**base, "title": doc["title"], "text": doc["text"], "chunk_text": memory.text if memory else None}
 
     async def stats(self) -> dict[str, Any]:
         docs = await self.store.document_counts()
         mem = await self.store.memory_counts()
-        return {
+        entities = await self.store.entity_count()
+        queue = await self.store.pending_jobs()
+        last_ingest = await self.store.get_holder_meta("last_ingest_at")
+        multi = self._multi()
+        if multi:
+            # counts over every shard (an entity named in two shards is counted in each)
+            docs, by_status = dict(docs), dict(mem["by_status"])
+            for spec, owner in self.shards.open_stores(statuses=("active", "draining", "readonly")):
+                if owner is self:
+                    continue
+                for s, n in (await owner.store.document_counts()).items():
+                    docs[s] = docs.get(s, 0) + n
+                for s, n in (await owner.store.memory_counts())["by_status"].items():
+                    by_status[s] = by_status.get(s, 0) + n
+                entities += await owner.store.entity_count()
+                queue += await owner.store.pending_jobs()
+                other = await owner.store.get_holder_meta("last_ingest_at")
+                last_ingest = max(x for x in (last_ingest, other) if x) if (last_ingest or other) else None
+            mem = {"by_status": by_status}
+        out = {
             "holder_id": self.holder_id,
             "documents": sum(n for s, n in docs.items() if s in LIVE_DOCUMENT_STATUSES),
             "documents_by_status": docs,
             "memories": int(mem["by_status"].get("active", 0)),
             "memories_by_status": mem["by_status"],
-            "entities": await self.store.entity_count(),
-            "queue": await self.store.pending_jobs(),
+            "entities": entities,
+            "queue": queue,
             "exports": await self.store.export_count(),
             "questions_answered": int(await self.store.get_holder_meta("questions_answered", "0") or 0),
-            "last_ingest_at": await self.store.get_holder_meta("last_ingest_at"),
+            "last_ingest_at": last_ingest,
             "holder_version": HOLDER_VERSION,
-            "ingest": self._ingest_stats_sync(self.store._conn),
+            "ingest": self._ingest_stats_sharded() if multi else self._ingest_stats_sync(self.store._conn),
         }
+        if self._is_control() and self.path != ":memory:":
+            try:
+                out["shards"] = await self.shards.report()       # counts, bytes and latencies per shard (coordinator registry)
+            except Exception:
+                logger.exception("shard report failed for holder %s", self.holder_id)
+        return out
 
     # ------------------------------------------------------------------ connector records: ACL and catalog
     def taxonomy(self) -> Taxonomy:
@@ -670,12 +823,16 @@ class EvidenceStore:
         self._taxonomy = tax
 
     def _record_acl_sync(self, c: sqlite3.Connection, doc_id: str) -> dict[str, Any] | None:
-        """The connector record behind a document (``None`` for direct uploads): permissions, source opt-in and state."""
-        r = c.execute("""SELECT r.record_id, r.object_key, r.kind, r.source_app, r.permissions, r.visibility, r.deletion_status, r.sensitivity, r.flags,
-                                r.source_id, s.exportable, s.disclosure, s.access_state, s.allow_external_models, s.visibility AS source_visibility,
-                                s.member_ids AS source_member_ids, s.membership_ref AS source_membership_ref, cn.connector_type
-                         FROM ingest_records r LEFT JOIN connector_sources s ON s.source_id = r.source_id
-                         LEFT JOIN connectors cn ON cn.connector_id = r.connector_id WHERE r.record_id=?""", (doc_id,)).fetchone()
+        """The connector record behind a document (``None`` for direct uploads): permissions, source opt-in and state.
+        ``c`` is the connection of the shard that holds the record; sources and connectors are always read from s0."""
+        if c is self.store._conn and self._is_control():
+            r = c.execute("""SELECT r.record_id, r.object_key, r.kind, r.source_app, r.permissions, r.visibility, r.deletion_status, r.sensitivity, r.flags,
+                                    r.source_id, s.exportable, s.disclosure, s.access_state, s.allow_external_models, s.visibility AS source_visibility,
+                                    s.member_ids AS source_member_ids, s.membership_ref AS source_membership_ref, cn.connector_type
+                             FROM ingest_records r LEFT JOIN connector_sources s ON s.source_id = r.source_id
+                             LEFT JOIN connectors cn ON cn.connector_id = r.connector_id WHERE r.record_id=?""", (doc_id,)).fetchone()
+        else:
+            r = self._record_acl_row_split(c, doc_id)
         if r is None:
             return None
         perms = Permissions.from_dict(jl(r["permissions"], {}))
@@ -690,8 +847,29 @@ class EvidenceStore:
                 "access_state": r["access_state"] or "ok", "connector_type": r["connector_type"] or r["source_app"],
                 "allow_external_models": r["allow_external_models"], "object_key": r["object_key"]}
 
+    def _control_conn(self) -> sqlite3.Connection:
+        return (self.store.control_store or self.store)._conn
+
+    def _record_acl_row_split(self, c: sqlite3.Connection, doc_id: str) -> dict[str, Any] | None:
+        """The same row as the s0 join above, for a record that lives in a data shard: the record from its shard, its source
+        and connector from s0 (control tables)."""
+        r = c.execute("""SELECT record_id, object_key, kind, source_app, permissions, visibility, deletion_status, sensitivity, flags, source_id,
+                                connector_id FROM ingest_records WHERE record_id=?""", (doc_id,)).fetchone()
+        if r is None:
+            return None
+        ctl = self._control_conn()
+        s = ctl.execute("""SELECT exportable, disclosure, access_state, allow_external_models, visibility AS source_visibility,
+                                  member_ids AS source_member_ids, membership_ref AS source_membership_ref FROM connector_sources WHERE source_id=?""",
+                        (r["source_id"],)).fetchone() if r["source_id"] else None
+        cn = ctl.execute("SELECT connector_type FROM connectors WHERE connector_id=?", (r["connector_id"],)).fetchone()
+        row = dict(r)
+        row.update(dict(s) if s is not None else {"exportable": None, "disclosure": None, "access_state": None, "allow_external_models": None,
+                                                  "source_visibility": None, "source_member_ids": None, "source_membership_ref": None})
+        row["connector_type"] = cn["connector_type"] if cn is not None else None
+        return row
+
     def _members_of_ref(self, ref: str) -> list[str]:
-        return [x["member_id"] for x in self.store._conn.execute("SELECT member_id FROM acl_memberships WHERE membership_ref=?", (ref,))]
+        return [x["member_id"] for x in self._control_conn().execute("SELECT member_id FROM acl_memberships WHERE membership_ref=?", (ref,))]
 
     def _acl_allows(self, acl: dict[str, Any], audience: Audience | None) -> tuple[bool, str]:
         owner = audience is not None and audience.owner
@@ -723,6 +901,35 @@ class EvidenceStore:
             blocked.update(x["memory_id"] for x in c.execute(f"SELECT memory_id FROM record_memories WHERE record_id IN ({','.join('?' * len(part))})", part))
         return {x["memory_id"] for x in c.execute("SELECT memory_id FROM memories WHERE status='active'")} - blocked
 
+    def _allowed_memory_ids_in(self, owner: "EvidenceStore", audience: Audience | None) -> set[str] | None:
+        """:meth:`_allowed_memory_ids` for one shard of a sharded holder (the audience filter applies per shard, before
+        ranking). s0 is the same computation as above; a data shard reads its records from its own file and their sources
+        from s0."""
+        if owner is self:
+            return self._allowed_memory_ids(audience)
+        if audience is not None and audience.owner:
+            return None
+        c = owner.store._conn
+        restricted = [r["source_id"] for r in self._control_conn().execute(
+            "SELECT source_id FROM connector_sources WHERE visibility <> 'public' OR access_state <> 'ok'")]
+        ids = {r["record_id"] for r in c.execute("SELECT record_id FROM ingest_records WHERE visibility <> 'public' OR deletion_status <> 'live'")}
+        for i in range(0, len(restricted), 500):
+            part = restricted[i:i + 500]
+            ids.update(r["record_id"] for r in c.execute(f"SELECT record_id FROM ingest_records WHERE source_id IN ({','.join('?' * len(part))})", part))
+        denied = []
+        for rid in sorted(ids):
+            acl = self._record_acl_sync(c, rid)
+            if acl is not None and not self._acl_allows(acl, audience)[0]:
+                denied.append(rid)
+        if not denied:
+            return None
+        blocked: set[str] = set()
+        for i in range(0, len(denied), 500):
+            part = denied[i:i + 500]
+            blocked.update(x["memory_id"] for x in c.execute(f"SELECT memory_id FROM memories WHERE chat_id IN ({','.join('?' * len(part))})", part))
+            blocked.update(x["memory_id"] for x in c.execute(f"SELECT memory_id FROM record_memories WHERE record_id IN ({','.join('?' * len(part))})", part))
+        return {x["memory_id"] for x in c.execute("SELECT memory_id FROM memories WHERE status='active'")} - blocked
+
     def _record_domains_sync(self, c: sqlite3.Connection, record_id: str) -> list[str]:
         rows = c.execute("SELECT domain_id FROM domain_memberships WHERE record_id=? AND status='active' ORDER BY is_primary DESC, confidence DESC, domain_id",
                          (record_id,)).fetchall()
@@ -741,6 +948,22 @@ class EvidenceStore:
             if not is_personal(r["domain_id"]) and int(r["n"]) >= min_records_to_publish}
         connectors = int(c.execute("SELECT COUNT(*) AS n FROM connectors WHERE status NOT IN ('disconnected')").fetchone()["n"])
         return {"connectors": connectors, "records": sum(records.values()), "by_app": records, "queue": queue, "domains": domains}
+
+    def _ingest_stats_sharded(self, *, min_records_to_publish: int = 5) -> dict[str, Any]:
+        """:meth:`_ingest_stats_sync` summed over the shards (the publication threshold applies to the holder's totals)."""
+        out = self._ingest_stats_sync(self.store._conn, min_records_to_publish=0)
+        by_app: dict[str, int] = {}
+        domains: dict[str, int] = {}
+        for spec, owner in self.shards.open_stores(statuses=("active", "draining", "readonly")):
+            c = owner.store._conn
+            for r in c.execute("SELECT source_app, COUNT(*) AS n FROM ingest_records WHERE deletion_status='live' GROUP BY source_app"):
+                by_app[r["source_app"]] = by_app.get(r["source_app"], 0) + int(r["n"])
+            for r in c.execute("""SELECT dm.domain_id, COUNT(*) AS n FROM domain_memberships dm JOIN ingest_records r ON r.record_id = dm.record_id
+                                  WHERE dm.status='active' AND r.deletion_status='live' GROUP BY dm.domain_id"""):
+                if not is_personal(r["domain_id"]):
+                    domains[r["domain_id"]] = domains.get(r["domain_id"], 0) + int(r["n"])
+        out.update(records=sum(by_app.values()), by_app=by_app, domains={d: n for d, n in domains.items() if n >= min_records_to_publish})
+        return out
 
     # ------------------------------------------------------------------ answering
     async def answer_question(self, question: dict[str, Any], *, idempotency_key: str | None = None) -> dict[str, Any]:
@@ -780,20 +1003,28 @@ class EvidenceStore:
         max_excerpt = int(self.export_policy["max_excerpt_chars"])
         audience = Audience.from_payload(question.get("audience"))
         # records the audience may not see are excluded before ranking (recall), and re-checked per item below (use time)
-        allowed_ids = self._allowed_memory_ids(audience)
-        results = await self._retrieve(text, k=RETRIEVAL_K, since=question.get("valid_from"), until=question.get("valid_to"), allowed_ids=allowed_ids)
+        if self._multi():
+            # several shards: bounded fan-out, the audience filter applied per shard, ranks fused (§7.4)
+            results = await self._retrieve_sharded(text, k=RETRIEVAL_K, since=question.get("valid_from"), until=question.get("valid_to"),
+                                                   audience=audience)
+            provenance["shards"] = results.describe()
+        else:
+            allowed_ids = self._allowed_memory_ids(audience)
+            results = await self._retrieve(text, k=RETRIEVAL_K, since=question.get("valid_from"), until=question.get("valid_to"), allowed_ids=allowed_ids)
         known = await self.store.exports_for_question(qid)
         items: list[dict[str, Any]] = []
         docs: dict[str, dict[str, Any] | None] = {}
         acls: dict[str, dict[str, Any] | None] = {}
+        conns: dict[str, sqlite3.Connection] = {}
         channels: set[str] = set()
-        conn = self.store._conn
         for r in results:
             m = r.memory
             doc_id = m.metadata.get("doc_id") or m.chat_id
             if doc_id not in docs:
-                docs[doc_id] = await self.store.get_document(doc_id)
-                acls[doc_id] = self._record_acl_sync(conn, doc_id) if docs[doc_id] is not None else None
+                owner = self._result_store(r)
+                conns[doc_id] = owner.store._conn
+                docs[doc_id] = await owner.store.get_document(doc_id)
+                acls[doc_id] = self._record_acl_sync(conns[doc_id], doc_id) if docs[doc_id] is not None else None
             doc, acl = docs[doc_id], acls[doc_id]
             if doc is None or doc["status"] not in LIVE_DOCUMENT_STATUSES:
                 continue
@@ -813,6 +1044,7 @@ class EvidenceStore:
                 "ref_id": (known.get(m.memory_id) or {}).get("ref_id") or new_ref_id(),
                 "memory_id": m.memory_id, "doc": doc, "acl": acl, "level": item_level, "model_text": redacted, "disclosed": disclosed,
                 "observed_at": m.observed_at, "kind": doc["kind"], "title": self._disclosed_title(doc, item_level, acl=acl, audience=audience),
+                "conn": conns[doc_id],
             })
         provenance["channels"] = sorted(channels)
         provenance["memory_count"] = len(items)
@@ -874,7 +1106,7 @@ class EvidenceStore:
             ref["meta"] = {"object_key": acl["object_key"]}
             if self.export_policy.get("disclose_source_app", True):
                 ref["meta"].update({"source_app": acl["source_app"], "record_kind": acl["kind"], "connector_type": acl["connector_type"],
-                                    "domain_ids": self._record_domains_sync(self.store._conn, doc["doc_id"])})
+                                    "domain_ids": self._record_domains_sync(i.get("conn") or self.store._conn, doc["doc_id"])})
         return ref
 
     def _redact(self, text: str) -> str:
@@ -905,13 +1137,14 @@ class EvidenceStore:
         refs: list[dict[str, Any]] = []
         exports: list[dict[str, Any]] = []
         for doc_id in ids:
-            doc = await self.store.get_document(doc_id, with_text=True)
+            owner = self._doc_store(doc_id)
+            doc = await owner.store.get_document(doc_id, with_text=True)
             if doc is None:
                 raise KeyError(doc_id)
-            memory_ids = await self.store.document_memory_ids(doc_id)
+            memory_ids = await owner.store.document_memory_ids(doc_id)
             if doc["status"] not in LIVE_DOCUMENT_STATUSES or not memory_ids:
                 continue
-            acl = self._record_acl_sync(self.store._conn, doc_id)
+            acl = self._record_acl_sync(owner.store._conn, doc_id)
             if acl is not None and not self._acl_allows(acl, audience)[0]:
                 continue                       # a person cannot export what the audience may not see either
             item_level = self._record_level(level, acl)
@@ -920,7 +1153,7 @@ class EvidenceStore:
             disclosed = {"excerpt": excerpt, "summary": clip(self._redact(doc.get("summary") or ""), max_excerpt or 140), "none": ""}[item_level]
             ref_id = (known.get(memory_id) or {}).get("ref_id") or new_ref_id()
             item = {"ref_id": ref_id, "doc": doc, "acl": acl, "level": item_level, "disclosed": disclosed, "observed_at": doc.get("observed_at"),
-                    "kind": doc["kind"], "title": self._disclosed_title(doc, item_level, acl=acl, audience=audience)}
+                    "kind": doc["kind"], "title": self._disclosed_title(doc, item_level, acl=acl, audience=audience), "conn": owner.store._conn}
             refs.append(self._ref_shape(item))
             exports.append({"ref_id": ref_id, "memory_id": memory_id, "doc_id": doc_id, "question_id": qid, "disclosed_excerpt": disclosed,
                             "disclosure_level": item_level})
@@ -951,13 +1184,17 @@ class EvidenceStore:
         """Exports (the only state a question leaves behind) and the idempotency marker land in one transaction."""
         if not exports and not idempotency_key:
             return response
+        # exports live in s0; a cited chunk lives in its record's shard (read in the same synchronous step, so no write of
+        # this process can land between the check and the commit)
+        owners = {e["doc_id"]: self._doc_store(e["doc_id"]).store._conn for e in exports}
 
         def fn(c):
             for e in exports:
                 # the answer was composed outside this transaction: if a cited chunk was superseded or its document retracted
                 # meanwhile, the revise/retract could not have reported this export, so the whole answer is redone instead
-                m = c.execute("SELECT status FROM memories WHERE memory_id=?", (e["memory_id"],)).fetchone()
-                d = c.execute("SELECT status FROM documents WHERE doc_id=?", (e["doc_id"],)).fetchone()
+                mc = c if owners[e["doc_id"]] is self.store._conn else owners[e["doc_id"]]
+                m = mc.execute("SELECT status FROM memories WHERE memory_id=?", (e["memory_id"],)).fetchone()
+                d = mc.execute("SELECT status FROM documents WHERE doc_id=?", (e["doc_id"],)).fetchone()
                 if m is None or m["status"] != "active" or d is None or d["status"] not in LIVE_DOCUMENT_STATUSES:
                     raise EvidenceChanged(f"evidence for {e['ref_id']} changed while answering")
                 ref = self.store._record_export_sync(c, created_at=response["answered_at"], **e)
@@ -1006,12 +1243,42 @@ class EvidenceStore:
         if allowed_ids is not None:
             filters["allowed_ids"] = allowed_ids
         since_iso, until_iso = _norm_time(since), _norm_time(until)
+        t0 = time.perf_counter()
         try:
             results = await self.retriever.search(query, k=max(1, k) * 2, since=since_iso, until=until_iso, **filters)
         except Exception:
             logger.exception("retrieval failed for holder %s", self.holder_id)
             return []
+        if self._is_control():
+            self.shards.observe(self.shard_id, "query", (time.perf_counter() - t0) * 1000)     # §7.9 query p95
         return [r for r in results if r.memory.status == "active"][:k]
+
+    async def _retrieve_sharded(self, query: str, *, k: int = 10, since: str | None = None, until: str | None = None,
+                                audience: Audience | None = None, **filters: Any) -> Any:
+        """Bounded fan-out over the holder's shards (§7.4): at most 8 shards, 1.5 s per shard, the query embedded once, the
+        audience allow-set computed per shard, ranks fused by RRF. A memory whose record has moved on (the source rows of a
+        split between its cutover and its cleanup) is only taken from the shard its record lives in. The result carries
+        ``partial`` and ``truncated``."""
+        from ..ingest.fanout import ShardedResults, ShardedRetriever
+        query = normalize_ws(query)
+        if not query:
+            return ShardedResults([])
+
+        def allowed_for(spec: Any) -> set[str] | None:
+            owner = self if spec.shard_id == self.shard_id else self.shards.store(spec.shard_id)
+            return self._allowed_memory_ids_in(owner, audience)
+
+        res = await ShardedRetriever(self.shards, merge=self.fanout_merge).search(query, k=max(1, k) * 2, fetch_k=self.fanout_fetch_k or max(1, k) * 2,
+                                                                                  since=_norm_time(since),
+                                                         until=_norm_time(until), allowed_for=allowed_for, filters=filters)
+        kept = [r for r in res if self.shards.shard_of_record(r.memory.metadata.get("doc_id") or r.memory.chat_id) == getattr(r, "shard_id", "s0")]
+        return ShardedResults(kept[:k], partial=res.partial, truncated=res.truncated, shards=res.shards, failed=res.failed, timings_ms=res.timings_ms)
+
+    def _result_store(self, r: Any) -> "EvidenceStore":
+        sid = getattr(r, "shard_id", None)
+        if not sid or sid == self.shard_id:
+            return self
+        return self.shards.store(sid)
 
     @staticmethod
     def _result_dict(r: RetrievedMemory) -> dict[str, Any]:

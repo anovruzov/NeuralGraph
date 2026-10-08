@@ -77,6 +77,18 @@ When `stats.ingest.domains` (`{domain_id: count}`, counts only) names tenant-tax
 lists at most 64 domains, and `export_policy.auto_domains: false` keeps a hand-curated list. Question routing matches domains through the
 tenant taxonomy: a question about `engineering` reaches a holder in `engineering.dependencies`, and legacy names resolve through aliases.
 
+### Shards (admin; docs/mycelic/INGESTION.md §7)
+
+One store per holder; a domain subtree moves into its own file (`holders/<holder_id>/shd_<id>.db`) only when an administrator
+approves a split, normally after a recommendation (a §7.3 threshold held for 24 h). Counts, bytes, latencies and tenant domain ids
+only; a holder's personal domains never appear (they show as `"personal"`).
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/admin/shards` | → `{items:[{shard_id, holder_id, ordinal, partition:{domain_ids?, time_from?, time_to?}, placement, status, health, stats:{records, active_memories, matrix_bytes, file_bytes, write_p95_ms, query_p95_ms, ...}, last_backup_at, writer_id, writer_lease_until}], recommendations:[{holder_id, shard_id, action: split|split_by_time|none_movable|quota_reached, domain_ids, signals, metric, moves}]}` for the caller's tenant; rows mirror each holder's `shard_map` through its heartbeat (embedded holders are sampled on the spot) |
+| POST | `/admin/shards/{holder_id}/split` | `{domain_ids:[tenant domain id, ...], wait?: bool}` → `{migration}`. Embedded holder: runs in-process, 202 (background) or 200 with `wait`; external holder: a signed `control` envelope `{action: "shard_split", domain_ids, actor}`, 202. 400 unknown domain, 409 overlap / busy / quota (8 shards). Audited `shard.split` |
+| GET | `/admin/shards/migrations/{migration_id}` | → `{migration:{migration_id, holder_id, kind, from_shard, to_shard, partition, state: planned|provisioning|copying|catching_up|cutover|cleanup|done|aborted|failed, checkpoint:{copied, moved, cleaned, passes, ...}, requested_by, started_at, cutover_at, finished_at, error_code}}` |
+
 Question envelope delivered to a holder (transport kind `question`): `{question_id, text, kind, goal_id, scope_unit_id, audience:{principal_ids, complete, owner},
 candidate_domains, valid_from, valid_to, policy, budget, asked_at}`. `audience` lists every user who will be able to read what the question produces;
 a holder discloses a member-restricted record only when that list lies inside the source's members.

@@ -448,9 +448,15 @@ class OrgService:
 
     async def holder_heartbeat(self, holder_id: str, *, stats: dict | None = None, status: str = "online") -> None:
         async with self.db.tx() as c:
-            r = c.execute("SELECT tenant_id, status, domains, published_domains, export_policy FROM holders WHERE holder_id=?", (holder_id,)).fetchone()
+            r = c.execute("SELECT tenant_id, status, mode, domains, published_domains, export_policy FROM holders WHERE holder_id=?", (holder_id,)).fetchone()
             if r is None or r["status"] == "revoked":
                 return
+            shards = (stats or {}).get("shards")
+            if isinstance(shards, dict):
+                # the holder's shard map mirrored into the registry (counts, bytes, states; INGESTION.md §7.2, §7.9)
+                from .shard_registry import mirror_shards_sync
+                mirror_shards_sync(c, tenant_id=r["tenant_id"], holder_id=holder_id, mode=r["mode"] or "embedded", report=shards,
+                                   known_domains=self._taxonomy_ids_sync(c, r["tenant_id"]))
             c.execute("UPDATE holders SET status=?, last_heartbeat_at=?, stats=CASE WHEN ? THEN ? ELSE stats END, updated_at=? WHERE holder_id=?",
                       (status, now_iso(), int(stats is not None), j(stats), now_iso(), holder_id))
             # domains the holder's ingested records belong to (counts only, tenant taxonomy only, at least the holder's

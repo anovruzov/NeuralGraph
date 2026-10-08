@@ -118,6 +118,11 @@ class IngestRuntime:
         if self.running:
             return
         self.running = True
+        try:
+            # shards (INGESTION.md §7): control effects a data shard still owes s0, and an interrupted split resumes
+            await self.pipeline.evidence.shards.start()
+        except Exception:
+            logger.exception("shard recovery failed for holder %s", self.holder_id)
         self._task = asyncio.create_task(self._loop(), name=f"ingest-{self.holder_id}")
 
     async def stop(self) -> None:

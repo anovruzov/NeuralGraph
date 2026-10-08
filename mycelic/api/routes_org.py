@@ -1087,7 +1087,7 @@ def setup(app: web.Application, prefix: str = "/api") -> None:
 async def recent_memories(store: Any, h: dict[str, Any], limit: int) -> list[dict[str, Any]]:
     """Newest chunk memories of one embedded store in the ``memory`` shape of the API."""
     try:
-        mems = await store.store.list_memories(status="active", limit=limit, order="created_at DESC")
+        mems = await store.recent_memories(limit)
     except Exception:
         logger.exception("recent memories failed for %s", h["holder_id"])
         return []

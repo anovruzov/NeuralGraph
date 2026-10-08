@@ -49,12 +49,27 @@ class SourceRow:
 
 
 class IngestStore:
-    def __init__(self, store: Any) -> None:
-        self.store = store               # MycelicMemoryStore
+    def __init__(self, store: Any, *, shardset: Any = None) -> None:
+        self.store = store               # MycelicMemoryStore (the control shard s0)
+        self.shardset = shardset         # the holder's ShardSet: records may live in data shards (INGESTION.md §7)
 
     @property
     def conn(self) -> sqlite3.Connection:
         return self.store._conn
+
+    def _sharded(self) -> bool:
+        return self.shardset is not None and self.shardset.has_data_shards()
+
+    def record_conns(self) -> list[sqlite3.Connection]:
+        """Connections of every shard that holds records (just s0 until a split)."""
+        if not self._sharded():
+            return [self.conn]
+        return [st.store._conn for _spec, st in self.shardset.open_stores(statuses=("active", "draining", "readonly"))]
+
+    def _record_conn(self, record_id: str) -> sqlite3.Connection:
+        if not self._sharded():
+            return self.conn
+        return self.shardset.store_of_record(record_id).store._conn
 
     async def tx(self, fn):
         return await self.store.run_in_tx(fn)
@@ -235,7 +250,7 @@ class IngestStore:
                   (record_key, record_id, shard_id, kind, order_key, content_hash, metadata_hash, deletion_status, change_seq, now_precise()))
 
     def get_record(self, record_id: str) -> dict[str, Any] | None:
-        r = self.conn.execute("SELECT * FROM ingest_records WHERE record_id=?", (record_id,)).fetchone()
+        r = self._record_conn(record_id).execute("SELECT * FROM ingest_records WHERE record_id=?", (record_id,)).fetchone()
         if r is None:
             return None
         d = dict(r)
@@ -243,13 +258,25 @@ class IngestStore:
             d[k] = jl(d.get(k), default)
         return d
 
+    def _records_where(self, column: str, value: str, live_only: bool) -> list[dict[str, Any]]:
+        sql = f"SELECT record_id FROM ingest_records WHERE {column}=?" + (" AND deletion_status='live'" if live_only else "")
+        if not self._sharded():
+            return [self.get_record(r["record_id"]) for r in self.conn.execute(sql, (value,)).fetchall()]  # type: ignore[misc]
+        out: list[dict[str, Any]] = []
+        for spec, st in self.shardset.open_stores(statuses=("active", "draining", "readonly")):
+            for r in st.store._conn.execute(sql, (value,)).fetchall():
+                # a record copied by a split and not yet cleaned up from its source is counted where the locator says it lives
+                if self.shardset.shard_of_record(r["record_id"]) == spec.shard_id:
+                    rec = self.get_record(r["record_id"])
+                    if rec is not None:
+                        out.append(rec)
+        return out
+
     def records_of_source(self, source_id: str, *, live_only: bool = True) -> list[dict[str, Any]]:
-        sql = "SELECT record_id FROM ingest_records WHERE source_id=?" + (" AND deletion_status='live'" if live_only else "")
-        return [self.get_record(r["record_id"]) for r in self.conn.execute(sql, (source_id,)).fetchall()]  # type: ignore[misc]
+        return self._records_where("source_id", source_id, live_only)
 
     def records_of_connector(self, connector_id: str, *, live_only: bool = True) -> list[dict[str, Any]]:
-        sql = "SELECT record_id FROM ingest_records WHERE connector_id=?" + (" AND deletion_status='live'" if live_only else "")
-        return [self.get_record(r["record_id"]) for r in self.conn.execute(sql, (connector_id,)).fetchall()]  # type: ignore[misc]
+        return self._records_where("connector_id", connector_id, live_only)
 
     @staticmethod
     def write_record_sync(c: sqlite3.Connection, ev: CanonicalEvent, *, source_id: str | None, primary_domain_id: str | None,
@@ -307,14 +334,14 @@ class IngestStore:
 
     @staticmethod
     def upsert_tombstone_sync(c: sqlite3.Connection, *, record_key: str, record_id: str, reason: str, order_key: str | None, resurrectable: bool,
-                              affected_ref_ids: list[str], purged: bool) -> None:
+                              affected_ref_ids: list[str], purged: bool, shard_id: str = "s0") -> None:
         now = now_iso()
         expires = iso((parse_iso(now)) + timedelta(days=TOMBSTONE_RETENTION_DAYS))  # type: ignore[operator]
         c.execute("""INSERT INTO deletion_tombstones(record_key, record_id, shard_id, reason, order_key, resurrectable, requested_at, purged_at,
-                                                     affected_ref_ids, expires_at) VALUES (?, ?, 's0', ?, ?, ?, ?, ?, ?, ?)
+                                                     affected_ref_ids, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                      ON CONFLICT(record_key) DO UPDATE SET reason=excluded.reason, order_key=excluded.order_key, resurrectable=excluded.resurrectable,
                      purged_at=COALESCE(excluded.purged_at, deletion_tombstones.purged_at), affected_ref_ids=excluded.affected_ref_ids""",
-                  (record_key, record_id, reason, order_key, 1 if resurrectable else 0, now, now if purged else None, j(affected_ref_ids), expires))
+                  (record_key, record_id, shard_id, reason, order_key, 1 if resurrectable else 0, now, now if purged else None, j(affected_ref_ids), expires))
 
     @staticmethod
     def drop_tombstone_sync(c: sqlite3.Connection, record_key: str) -> None:

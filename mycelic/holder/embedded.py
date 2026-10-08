@@ -262,4 +262,8 @@ def _heartbeat_stats(stats: dict[str, Any]) -> dict[str, Any]:
     if isinstance(ingest, dict):
         # counts only; EvidenceStore.stats already drops personal domains and domains below the publication threshold
         out["ingest"] = {k: ingest.get(k) for k in ("connectors", "records", "by_app", "queue", "domains") if k in ingest}
+    shards = stats.get("shards")
+    if isinstance(shards, dict):
+        # the shard map, stats, migrations and split recommendations (counts and tenant domain ids only; coord.shards)
+        out["shards"] = {k: shards.get(k) for k in ("items", "migrations", "recommendations") if k in shards}
     return out
