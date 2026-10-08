@@ -1,0 +1,36 @@
+name: market-count
+
+# Counts medical-device owner/operators by FDA-registered establishments and countries (public openFDA data), for the
+# market sizing (docs/strategy/MARKET.md). Runs where api.fda.gov is reachable; the result is printed in the job log
+# between MARKET-COUNT markers and uploaded as an artifact.
+on:
+  push:
+    branches-ignore: [main]
+    paths: ["tools/market/**", ".github/workflows/market-count.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  count:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+      - name: offline tests
+        run: python -m unittest tests.market.test_openfda_establishments -v
+      - name: count
+        run: python tools/market/openfda_establishments.py --out market-count.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: market-count
+          path: market-count.json
+          if-no-files-found: warn
+          retention-days: 30
