@@ -164,35 +164,162 @@ class StrategicSynthesisTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(self.strategic()), 1)
 
     async def test_withdrawal_for_lost_support_cascades(self) -> None:
-        """A stronger note can change the per-slot selection so that distinct agents drop below the threshold;
-        the regional conclusion is withdrawn, and so is everything built on it."""
+        """A note that agrees with the regional evidence never takes support away, also when it makes one agent the
+        strongest in two slots: three agents of three teams still fill them, so nothing moves.  Support is lost when the
+        rule needs more teams than any selection has: both regional conclusions are withdrawn, and so is everything
+        built on them; the rule as it was brings both back."""
         s = self.h.service
         await self.observe_region("emea")
         await self.observe_region("apac")
         await self.observe_hq()
         await self.h.settle()
-        self.assertEqual(len(self.strategic()), 1)
+        [strategy] = self.strategic()
+        before = {m.memory_id for m in s.store.list_memories("northwind", status="active", limit=10_000) if m.layer != "agent"}
         emea_before = self.regional()["northwind/emea"]
-        # emea-logistics-1 already supplies the strongest transport note; a supplier note from the same agent
-        # becomes the strongest supplier claim, so the selection rests on only 2 distinct agents (< min_agents 3)
+        # emea-logistics-1 already supplies the strongest transport note; its supplier note becomes the strongest supplier
+        # claim, and emea-procurement-1's note, with the transport and demand notes, still makes three agents
         await self.h.observe("emea-logistics-1", "Kessler told us there are two weeks of SD-9 inventory left.",
                              topic="supply:sd-9/supplier", slot="supplier_buffer_low", entity=ENTITY, confidence=0.95)
         await self.h.settle()
-        self.assertEqual(set(self.regional()), {"northwind/apac"})
-        self.assertEqual(s.store.get_memory(emea_before.memory_id).status, "retracted")
-        self.assertEqual(self.strategic(), [], "the strategy rested on the withdrawn regional conclusion")
+        self.assertEqual(self.regional()["northwind/emea"].memory_id, emea_before.memory_id)
+        self.assertEqual([m.memory_id for m in self.strategic()], [strategy.memory_id])
+        derived = {m.memory_id for m in s.store.list_memories("northwind", status="retracted", limit=10_000) if m.layer != "agent"}
+        self.assertEqual(derived, set(), "nothing was withdrawn")
+        self.assertLessEqual({m for m in before if s.store.get_memory(m).operator == "slot_composition"},
+                             {m.memory_id for m in s.store.list_memories("northwind", status="active", limit=10_000)})
+        # three slots never make four teams: every regional conclusion loses its support
+        await s.upsert_rule({**REGIONAL, "min_teams": 4})
+        await self.h.settle()
+        self.assertEqual(self.regional(), {})
+        self.assertEqual(s.store.get_memory(emea_before.memory_id).metadata["status_reason"], "support below threshold")
+        self.assertEqual(self.strategic(), [], "the strategy rested on the withdrawn regional conclusions")
+        self.assertEqual(s.store.get_memory(strategy.memory_id).status, "retracted")
         res = s.query(self.h.principal("hq-sourcing-1"), {"query": "second source sd-9", "scope": "northwind", "min_layer": "enterprise"})
         self.assertTrue(res["answer"] is None or res["answer"]["rule_id"] != "strategic_second_source")
-        # an even stronger note from another agent restores three distinct agents: both come back
-        await self.h.observe("emea-procurement-2", "Recount: two weeks of SD-9 inventory, no second source.",
-                             topic="supply:sd-9/supplier", slot="supplier_buffer_low", entity=ENTITY, confidence=0.97)
+        # the rule as it was: both come back with the same ids
+        await s.upsert_rule(REGIONAL)
         await self.h.settle()
-        self.assertEqual(set(self.regional()), {"northwind/emea", "northwind/apac"})
-        self.assertEqual(len(self.strategic()), 1)
+        self.assertEqual(self.regional()["northwind/emea"].memory_id, emea_before.memory_id)
+        self.assertEqual([m.memory_id for m in self.strategic()], [strategy.memory_id])
         for m in s.store.list_memories("northwind", status="active", limit=1000):
             for e in s.store.parents_of(m.memory_id):
                 parent = s.store.get_memory(e.parent_id)
                 self.assertEqual(parent.status, "active", f"active {m.memory_id} rests on {parent.status} {e.parent_id}")
+
+    async def test_a_strategy_is_never_stitched_from_risks_about_different_components(self) -> None:
+        """EMEA concludes a supply risk for sd-9 only, APAC for sd-10 only, and headquarters' demand and concentration
+        notes name no component.  No component is at risk in two regions, so there is no strategy, '*' or otherwise
+        (its evidence would be about two components).  Once APAC also concludes a risk for sd-9, the '*' strategy rests
+        on the two sd-9 conclusions and the entity-less notes, and verifies."""
+        s = self.h.service
+        await self.observe_region("emea")
+        for i, (team, slot, text) in enumerate((("logistics", "transport_disruption", "Busan strike blocks SD-10 inbound."),
+                                                ("logistics", "transport_disruption", "SD-10 carrier slipped."),
+                                                ("procurement", "supplier_buffer_low", "Two weeks of SD-10 stock left."),
+                                                ("field-sales", "demand_commitment", "40 RX-2 arms committed; each uses an SD-10."))):
+            await self.h.observe(f"apac-{team}-{1 + i % 2 if team == 'logistics' else 1}", text, topic="supply:sd-10",
+                                 slot=slot, entity="sd-10", confidence=0.9 - i / 20)
+        await self.h.observe("hq-analytics-1", "RX order intake is up 40% year over year.", topic="strategy:demand",
+                             slot="demand_growth", confidence=0.8)
+        await self.h.observe("hq-sourcing-1", "Our drive components each have a single qualified source.",
+                             topic="strategy:supply-base", slot="supplier_concentration", confidence=0.95)
+        await self.h.settle()
+        self.assertEqual({scope: m.entity for scope, m in self.regional().items()},
+                         {"northwind/emea": ENTITY, "northwind/apac": "sd-10"})
+        self.assertEqual(self.strategic(), [], "no component is at risk in two regions")
+        self.assertIsNone(s.aggregator.plan_rule(s.store.get_applied_rule("strategic_second_source"), "northwind", "northwind",
+                                                 None).memory)
+        await self.observe_region("apac")
+        await self.h.settle()
+        [strategy] = self.strategic()
+        evidence = [s.store.get_memory(e.parent_id) for e in s.store.parents_of(strategy.memory_id)]
+        self.assertEqual(strategy.entity, None)
+        self.assertEqual({m.entity for m in evidence}, {None, ENTITY})
+        self.assertEqual(strategy.metadata["corroborated_units"], {"supply_risk": {"region": ["northwind/apac", "northwind/emea"]}})
+        report = await s.verify(self.h.principal("hq-sourcing-1"), strategy.memory_id)
+        self.assertEqual((report["verdict"], report["derived_correctly"], report["still_true"]), ("verified", True, True))
+
+    async def test_a_wildcard_strategy_holds_whichever_supply_risk_is_strongest(self) -> None:
+        """EMEA concludes a supply risk for sd-9; APAC's notes name no component, so APAC concludes a '*' risk; headquarters'
+        notes name none either.  The '*' strategy rests on the entity-less evidence and sd-9's risk, two regions, and it
+        stays when APAC's agents report more confidently than EMEA's, so that the entity-less risk is the strongest."""
+        s = self.h.service
+        slots = (("logistics", "transport_disruption", 0.9), ("procurement", "supplier_buffer_low", 0.85),
+                 ("field-sales", "demand_commitment", 0.8))
+        for team, slot, confidence in slots:
+            await self.h.observe(f"emea-{team}-1", f"EMEA {slot} for SD-9.", topic="supply:sd-9", slot=slot, entity=ENTITY,
+                                 confidence=confidence)
+            await self.h.observe(f"apac-{team}-1", f"APAC {slot}, no component named.", topic="supply:apac", slot=slot,
+                                 confidence=0.75)
+        await self.h.observe("hq-analytics-1", "RX order intake is up 40% year over year.", topic="strategy:demand",
+                             slot="demand_growth", confidence=0.8)
+        await self.h.observe("hq-sourcing-1", "Our drive components each have a single qualified source.",
+                             topic="strategy:supply-base", slot="supplier_concentration", confidence=0.95)
+        await self.h.settle()
+
+        def entities(m) -> set:
+            return {s.store.get_memory(e.parent_id).entity for e in s.store.parents_of(m.memory_id)}
+
+        self.assertEqual({scope: (m.entity, m.confidence) for scope, m in self.regional().items()},
+                         {"northwind/emea": (ENTITY, 0.8), "northwind/apac": (None, 0.75)})
+        [weaker] = self.strategic()
+        self.assertEqual((weaker.entity, entities(weaker)), (None, {None, ENTITY}))
+        self.assertEqual(weaker.metadata["corroborated_units"], {"supply_risk": {"region": ["northwind/apac", "northwind/emea"]}})
+        # APAC's second agents agree, more confidently than anyone in EMEA: APAC's '*' risk becomes the strongest
+        for team, slot, _ in slots:
+            await self.h.observe(f"apac-{team}-2", f"APAC {slot} confirmed, no component named.", topic="supply:apac",
+                                 slot=slot, confidence=0.95)
+        await self.h.settle()
+        apac = self.regional()["northwind/apac"]
+        self.assertEqual((apac.entity, apac.confidence), (None, 0.95))
+        [stronger] = self.strategic()
+        history = {m.memory_id: m.status for m in s.store.list_memories("northwind", status=None, layers=["enterprise"])
+                   if m.rule_id == "strategic_second_source"}
+        self.assertEqual(history.pop(stronger.memory_id), "active")
+        self.assertIn(weaker.memory_id, history)
+        self.assertEqual(set(history.values()), {"superseded"}, "the strategy was never withdrawn on the way")
+        self.assertEqual(stronger.metadata["slots"]["supply_risk"], apac.memory_id)
+        self.assertEqual((stronger.entity, entities(stronger)), (None, {None, ENTITY}))
+        self.assertEqual(stronger.metadata["corroborated_units"], {"supply_risk": {"region": ["northwind/apac", "northwind/emea"]}})
+        report = await s.verify(self.h.principal("hq-sourcing-1"), stronger.memory_id)
+        self.assertEqual((report["verdict"], report["derived_correctly"], report["still_true"]), ("verified", True, True))
+
+    async def test_a_strategy_resting_on_a_disputed_regional_risk_is_flagged(self) -> None:
+        """EMEA's logistics agents contradict each other on SD-9's transport (disrupted, or running normally again), so
+        EMEA's regional supply risk is flagged.  The strategy rests on it and on APAC's risk; its own slots claim no values
+        (conclusions and headquarters' notes), yet it is flagged too, and verifying it warns ``disputed`` for the strategy
+        itself, not only for EMEA's risk.  Once the agent who was wrong retracts, both flags go."""
+        s = self.h.service
+        await self.observe_region("emea")
+        await self.observe_region("apac")
+        await self.observe_hq()
+        await self.h.settle()
+        [calm] = self.strategic()
+        self.assertNotIn("conflict", calm.metadata)
+        await self.h.observe("emea-logistics-1", "Rotterdam strike confirmed: SD-9 inbound is disrupted.",
+                             topic="supply:sd-9/transport", slot="transport_disruption", entity=ENTITY, value="disrupted",
+                             confidence=0.9)
+        normal = await self.h.observe("emea-logistics-2", "SD-9 inbound via Rotterdam runs normally; the strike was called off.",
+                                      topic="supply:sd-9/transport", slot="transport_disruption", entity=ENTITY,
+                                      value="normal", confidence=0.75)
+        await self.h.settle()
+        regional = self.regional()
+        self.assertTrue(regional["northwind/emea"].metadata["conflict"])
+        self.assertNotIn("conflict", regional["northwind/apac"].metadata)
+        [strategy] = self.strategic()
+        self.assertIn(regional["northwind/emea"].memory_id, {e.parent_id for e in s.store.parents_of(strategy.memory_id)})
+        self.assertTrue(strategy.metadata.get("conflict"), "a conclusion resting on a disputed conclusion is flagged too")
+        report = await s.verify(self.h.principal("emea-field-sales-2"), strategy.memory_id)
+        self.assertEqual((report["verdict"], report["derived_correctly"], report["still_true"]), ("verified", True, True))
+        self.assertIn({"code": "disputed", "memory_id": strategy.memory_id}, report["warnings"])
+        # the agent who was wrong retracts: EMEA's risk and the strategy are derived again, without the flag
+        await s.retract(self.h.principal("emea-logistics-2"), normal, "the strike goes ahead")
+        await self.h.settle()
+        self.assertNotIn("conflict", self.regional()["northwind/emea"].metadata)
+        [settled] = self.strategic()
+        self.assertNotIn("conflict", settled.metadata)
+        report = await s.verify(self.h.principal("emea-field-sales-2"), settled.memory_id)
+        self.assertEqual((report["verdict"], [w["code"] for w in report["warnings"]]), ("verified", []))
 
     async def test_stale_dependents_of_a_superseded_consolidation_are_retired(self) -> None:
         s = self.h.service

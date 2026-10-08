@@ -320,30 +320,33 @@ class AgentRemovalTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_removal_unblocks_a_conclusion_its_notes_did_not_support(self) -> None:
         """A removed agent's note can keep a conclusion from holding without being part of it: the strongest candidate
-        for a slot, from the team that already fills the other one.  The removal composes the rules on each retracted
-        note's slot, as a single retraction does, so the next candidate fills the slot in the removal's own apply."""
+        for a slot, about one entity, makes the best selection that entity's conclusion, so no '*' conclusion exists
+        although a note that names no entity fills the slot as well.  The removal composes the rules on each retracted
+        note's slot, as a single retraction does, so the '*' conclusion holds in the removal's own apply."""
         w = await self.world(key=K)
         s, st = w.service, w.store
         await s.upsert_rule({"rule_id": "two-teams", "target_layer": "department", "required_slots": ["s", "y"],
                              "min_agents": 2, "min_teams": 2, "conclusion": "Two teams on {entity}: {slot:s}"})
-        for agent_id, team in (("log-1", "logistics"), ("log-2", "logistics"), ("proc-1", "procurement")):
+        for agent_id, team in (("log-1", "logistics"), ("log-2", "logistics"), ("proc-1", "procurement"),
+                               ("proc-2", "procurement")):
             await w.register(agent_id, team=team)
         await w.settle()
         await w.observe("log-1", "s at e, strongly", topic="supply:a", slot="s", entity="e", confidence=0.95)
         y = await w.observe("log-2", "y at e", topic="supply:b", slot="y", entity="e", confidence=0.9)
-        weak = await w.observe("proc-1", "s at e, weakly", topic="supply:c", slot="s", entity="e", confidence=0.5)
+        await w.observe("proc-2", "y at e, from procurement", topic="supply:b", slot="y", entity="e", confidence=0.85)
+        weak = await w.observe("proc-1", "s about nothing in particular, weakly", topic="supply:c", slot="s", confidence=0.5)
         await w.settle()
 
         def conclusions() -> list[Memory]:
-            return [m for m in st.list_memories(ORG, status=None, limit=1000) if m.rule_id == "two-teams"]
+            return [m for m in st.list_memories(ORG, limit=1000) if m.rule_id == "two-teams"]
 
-        self.assertEqual(conclusions(), [], "log-1's note is selected for s: one team where the rule needs two")
+        self.assertEqual([m.entity for m in conclusions()], ["e"], "log-1's note is selected for s: the selection is e's")
         await s.revoke_agent("log-1", retract=True)
         created = await apply_through(s, w.log, "agent.removed")
         [c] = conclusions()
         self.assertIn(c.memory_id, created, "it holds in the removal's own apply")
         self.assertEqual({e.parent_id for e in st.parents_of(c.memory_id)}, {y, weak})
-        self.assertEqual((c.scope, c.entity, c.support, c.independent_teams), ("northwind/emea/nw-gmbh/ops", "e", 2, 2))
+        self.assertEqual((c.scope, c.entity, c.support, c.independent_teams), ("northwind/emea/nw-gmbh/ops", None, 2, 2))
         await w.settle()
         self.assertEqual(invariant_violations(s, ORG), [])
         self.assertEqual((await s.verify(w.admin, c.memory_id))["verdict"], "verified")

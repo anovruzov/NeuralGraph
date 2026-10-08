@@ -99,7 +99,8 @@ TOOLS: list[dict[str, Any]] = [
             "entity": {"type": "string", "description": "What it is about, e.g. 'sd-9'."},
             "value": {"type": "string", "description": (
                 "What this note claims for its slot and entity, e.g. 'closed' or 'open'. Notes whose values differ dispute "
-                "each other: their consolidation is flagged conflict and gains no confidence from them.")},
+                "each other: their consolidation, and every rule conclusion over that slot, is flagged conflict and gains no "
+                "confidence from them.")},
             "kind": {"type": "string", "default": "observation"},
             "confidence": {"type": "number", "minimum": 0, "maximum": 1, "default": 0.8},
             "visibility": {"type": "string", "enum": ["team", "org"], "default": "team",

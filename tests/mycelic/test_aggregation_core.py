@@ -5,12 +5,16 @@ newest evidence, '*' conclusions follow their evidence, and every redelivery is 
 from __future__ import annotations
 
 import asyncio
+import itertools
 import json
 import logging
+import random
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from typing import Any
+from unittest import mock
 
 from mycelic import aggregation
 from mycelic.auth import generate_api_key
@@ -20,7 +24,7 @@ from mycelic.service import MycelicService
 from mycelic.store import MycelicStore
 from mycelic.transport import InProcessTransport, subject_for
 
-from .helpers import DEMO_RULE, HeldTransport, ServiceHarness, settings
+from .helpers import DEMO_RULE, HeldTransport, ServiceHarness, full_reaggregation_pass, settings
 
 ORG = "northwind"
 OPS = "northwind/emea/nw-gmbh/ops"
@@ -52,6 +56,15 @@ def wire(kind: str, payload: Any, *, org_id: str = ORG, event_id: str | None = N
 
 async def publish(transport: InProcessTransport, event: dict[str, Any]) -> int:
     return await transport.publish(subject_for(event["org_id"], event["kind"]), json.dumps(event).encode(), event["event_id"])
+
+
+def raw_note(i: int, agent: str, team: str, slot: str, confidence: float, entity: str | None, value: str | None = None) -> Memory:
+    """An applied org-visible agent note, built directly (no service), for the pure builders."""
+    return Memory(memory_id=f"mem_{i:06d}", org_id=ORG, layer="agent", scope=f"{OPS}/{team}/{agent}", text=f"note {i}",
+                  topic="t", slot=slot, entity=entity, kind="observation", confidence=confidence, support=1,
+                  independent_teams=1, producer_id=agent, operator="agent_observation", rule_id=None, event_id=None,
+                  visibility="org", created_at=now_iso(), applied_at=None, source_event_ids=[],
+                  metadata={"value": value} if value is not None else {})
 
 
 def note_id(agent_id: str, key: str) -> str:
@@ -396,6 +409,232 @@ class AggregationCoreTests(unittest.IsolatedAsyncioTestCase):
         active = {m.entity for m in s.store.list_memories(ORG, layers=["team"]) if m.rule_id == "w"}
         self.assertEqual(active, {"x"})
         self.assertIsNone(s.aggregator.plan_rule(s.store.get_applied_rule("w"), ORG, TEAM, None).memory)
+
+    def test_the_selection_is_the_best_one_that_meets_the_thresholds(self) -> None:
+        """Against every selection of one memory per slot, on random small candidate sets: without ``corroborate`` the rule
+        rests on the selection that meets min_agents and min_teams whose weakest memory is strongest, then the earliest in
+        each slot's ranking (None when none does); a '*' evaluation only on selections about one entity at most.  With
+        ``corroborate``, a '*' evaluation takes the pool "evidence that names no entity, and evidence about E" (one per E)
+        whose evidence meets the thresholds and whose strongest selection is best, then the first E, whichever memories
+        that selection names."""
+        rnd = random.Random(20261009)
+        note = raw_note
+
+        def best(rule: aggregation.Rule, candidates: list[Memory], *, one_entity: bool) -> tuple | None:
+            ranked = [sorted((m for m in candidates if m.slot == s), key=aggregation._rank) for s in rule.required_slots]
+            entities = sorted({m.entity for m in candidates if m.entity is not None}) or [None]
+            found: tuple | None = None
+            for selection in itertools.product(*ranked):
+                named = {m.entity for m in selection if m.entity is not None}
+                if one_entity and len(named) > 1:
+                    continue
+                pools: list[tuple[str, list[Memory]]] = [("", [])]
+                if rule.corroborate:
+                    pools = [(e or "", pool) for e in entities
+                             for pool in [[m for m in candidates if m.entity in (None, e)]]
+                             if aggregation._strongest(rule, pool) == list(selection)
+                             and aggregation._meets_thresholds(rule, pool)]
+                elif not aggregation._meets_thresholds(rule, list(selection)):
+                    continue
+                for e, pool in pools:
+                    key = (-min(m.confidence for m in selection), tuple(r.index(m) for r, m in zip(ranked, selection)), e)
+                    if found is None or key < found[0]:
+                        found = (key, [m.memory_id for m in selection], sorted(m.memory_id for m in pool))
+            return found[1:] if found else None
+
+        for trial in range(1500):
+            slots = ["a", "b", "c"][: rnd.randint(1, 3)]
+            star = trial % 2 == 1
+            rule = aggregation.Rule(rule_id="r", target_layer="department", required_slots=slots, conclusion="r",
+                                    min_agents=rnd.randint(1, 4), min_teams=rnd.randint(1, 3),
+                                    corroborate=star and rnd.random() < 0.3)
+            agents = [(f"ag-{i}", f"team-{rnd.randint(0, 2)}") for i in range(rnd.randint(1, 5))]
+            candidates = [note(i, *rnd.choice(agents), rnd.choice(slots), rnd.choice((0.5, 0.6, 0.8, 0.9, 0.95)),
+                               rnd.choice((None, None, "e1", "e2")) if star else "e1") for i in range(rnd.randint(1, 9))]
+            expected = best(rule, candidates, one_entity=star)
+            with self.subTest(trial=trial):
+                if not star:
+                    got = aggregation._select(rule, candidates)
+                    self.assertEqual([m.memory_id for m in got] if got else None, expected and expected[0])
+                    continue
+                found = aggregation._wildcard_scopes(rule, candidates)
+                if found is None or expected is None:
+                    self.assertEqual(found, expected)
+                elif rule.corroborate:
+                    self.assertEqual(([m.memory_id for m in found[0]], sorted(m.memory_id for m in found[1])), expected)
+                else:
+                    self.assertEqual([m.memory_id for m in found[0]], expected[0])
+
+    def test_a_qualifying_selection_is_kept_when_the_search_reaches_its_bound(self) -> None:
+        """Shaped like regional_supply_risk (three slots, min_agents 3, min_teams 2): x is the strongest in transport, w's
+        buffer note is weak, and 2,000 agents of seven teams commit demand.  x confirming the buffer more confidently leaves
+        the conclusion as it is.  With the search bounded to fewer selections than it needs, a qualifying selection it
+        found is kept, never dropped, and the evidence alone reproduces the conclusion: where the bound stopped the search
+        short of the best selection, the best one among the disputed slots' sides replaces it."""
+        slots = ["transport_disruption", "supplier_buffer_low", "demand_commitment"]
+        rule = aggregation.Rule(rule_id="regional", target_layer="region", required_slots=slots, min_agents=3, min_teams=2,
+                                conclusion="Risk for {entity}: {slot:transport_disruption}; {slot:supplier_buffer_low}; "
+                                           "{slot:demand_commitment}")
+
+        def conclude(r: aggregation.Rule, candidates: list[Memory], entity: str | None = "sd-9") -> tuple | None:
+            return aggregation.build_conclusion(r, ORG, "northwind/emea", entity, candidates, version_of=None, now=now_iso())
+
+        base = [raw_note(0, "x", "logistics", slots[0], 0.99, "sd-9"), raw_note(1, "w", "warehouse", slots[1], 0.5, "sd-9")]
+        base += [raw_note(10 + i, f"d{i}", f"plan-{i % 7}", slots[2], round(0.6 + 0.38 * i / 2000, 6), "sd-9")
+                 for i in range(2000)]
+        aggregation._exhausted_warned.discard("regional")
+        with Capture("mycelic.aggregation", logging.WARNING) as logs:
+            before = conclude(rule, base)
+            after = conclude(rule, base + [raw_note(2, "x", "logistics", slots[1], 0.99, "sd-9")])
+        assert before is not None and after is not None
+        self.assertEqual(logs.lines, [], "the search ends well within its bound")
+        self.assertEqual(after[0].memory_id, before[0].memory_id, "the agreeing note changes nothing")
+        self.assertEqual([m.producer_id for m in after[1]], ["x", "w", "d1999"])
+
+        # x is the strongest in a and b, so the best selection is y, x, u (0.9); the first one found in ranking order is
+        # x, z, u (0.3), after x's 60 notes on c (each from another team, none a third agent).  a and b are disputed, so
+        # x's, y's and z's notes there are all evidence, and x's notes on c are not.
+        small = aggregation.Rule(rule_id="small", target_layer="region", required_slots=["a", "b", "c"], min_agents=3,
+                                 conclusion="{slot:a} / {slot:b} / {slot:c}")
+        cands = [raw_note(20, "x", "logistics", "a", 0.99, "sd-9", "v1"), raw_note(21, "y", "warehouse", "a", 0.9, "sd-9", "v2"),
+                 raw_note(22, "x", "logistics", "b", 0.98, "sd-9", "w1"), raw_note(23, "z", "planning", "b", 0.3, "sd-9", "w2"),
+                 raw_note(24, "u", "sales", "c", 0.95, "sd-9")]
+        cands += [raw_note(100 + i, "x", f"team-{i}", "c", 0.96 + i / 2000, "sd-9") for i in range(60)]
+        best = conclude(small, cands)
+        assert best is not None
+        self.assertEqual((best[0].confidence, best[0].metadata["slots"]), (0.9, {"a": "mem_000021", "b": "mem_000022",
+                                                                                "c": "mem_000024"}))
+        held, settled = [], []
+        for bound in range(1, 400, 3):
+            with self.subTest(bound=bound), mock.patch.object(aggregation, "COALITION_SEARCH_NODES", bound):
+                first = aggregation._select(small, cands)
+                built = conclude(small, cands)
+                if built is None:
+                    continue
+                held.append(bound)
+                if first is not None and min(m.confidence for m in first) < 0.9:
+                    settled.append(bound)
+                self.assertEqual((built[0].memory_id, built[0].text, built[0].confidence),
+                                 (best[0].memory_id, best[0].text, best[0].confidence))
+                again = conclude(small, built[1])
+                assert again is not None
+                self.assertEqual((again[0].memory_id, again[0].text, again[0].confidence),
+                                 (built[0].memory_id, built[0].text, built[0].confidence))
+        self.assertTrue(held and held == list(range(held[0], 400, 3)), held)
+        self.assertTrue(settled, "some bound stops the search at the first selection it finds")
+
+        # whatever the bound, a conclusion is reproduced from its evidence alone (verification re-derives it so)
+        rnd = random.Random(20261010)
+        for trial in range(800):
+            star = trial % 3 == 0
+            r = aggregation.Rule(rule_id="r", target_layer="region", required_slots=["a", "b", "c"][: rnd.randint(2, 3)],
+                                 conclusion="{entity}: {slot:a} / {slot:b}", min_agents=rnd.randint(2, 4),
+                                 min_teams=rnd.randint(1, 3), corroborate=star and rnd.random() < 0.3)
+            agents = [(f"ag-{i}", f"team-{rnd.randint(0, 3)}") for i in range(rnd.randint(2, 6))]
+            cands = [raw_note(i, *rnd.choice(agents), rnd.choice(r.required_slots), rnd.choice((0.3, 0.5, 0.6, 0.8, 0.9, 0.95)),
+                              rnd.choice((None, "e1", "e2")) if star else "e1", rnd.choice((None, None, "open", "closed")))
+                     for i in range(rnd.randint(2, 14))]
+            with self.subTest(trial=trial), mock.patch.object(aggregation, "COALITION_SEARCH_NODES", rnd.randint(1, 40)):
+                built = conclude(r, cands, None if star else "e1")
+                if built is None:
+                    continue
+                again = conclude(r, built[1], None if star else "e1")
+                assert again is not None
+                self.assertEqual((again[0].memory_id, again[0].text, again[0].confidence, again[0].metadata.get("conflict")),
+                                 (built[0].memory_id, built[0].text, built[0].confidence, built[0].metadata.get("conflict")))
+
+    def test_a_wildcard_evaluation_is_one_search_whatever_the_number_of_components(self) -> None:
+        """Shaped like regional_supply_risk: one logistics bot notes transport and a thin buffer for 1,000 components, and
+        planners in five teams note committed demand without naming a component.  Each of the 1,000 pools "the notes that
+        name no component, and the notes about E" covers all three slots and none has three agents, so no '*' conclusion
+        holds.  One '*' evaluation works out each author's agents and teams once, not once per pool, and runs one search
+        for all the pools, within one search bound; with 3,000 planners it takes well under a second (searching each pool
+        on its own took about 24 s).  A procurement note on one component's buffer then makes the '*' conclusion hold on
+        that component's notes and the strongest demand note."""
+        slots = ["transport_disruption", "supplier_buffer_low", "demand_commitment"]
+        rule = aggregation.Rule(rule_id="regional", target_layer="region", required_slots=slots, min_agents=3, min_teams=2,
+                                conclusion="Risk for {entity}: {slot:transport_disruption}; {slot:supplier_buffer_low}; "
+                                           "{slot:demand_commitment}")
+
+        def notes(planners: int) -> list[Memory]:
+            out = []
+            for e in range(1000):
+                out.append(raw_note(2 * e, "x", "logistics", slots[0], 0.9, f"sd-{e}"))
+                out.append(raw_note(2 * e + 1, "x", "logistics", slots[1], round(0.5 + 0.4 * e / 1000, 6), f"sd-{e}"))
+            return out + [raw_note(10_000 + k, f"z{k}", f"planning-{k % 5}", slots[2], round(0.5 + 0.4 * k / planners, 6), None)
+                          for k in range(planners)]
+
+        def conclude(candidates: list[Memory]) -> tuple | None:
+            return aggregation.build_conclusion(rule, ORG, "northwind/emea", None, candidates, version_of=None, now=now_iso())
+
+        cands = notes(300)
+        aggregation._exhausted_warned.discard("regional")
+        with Capture("mycelic.aggregation", logging.WARNING) as logs, \
+                mock.patch.object(aggregation, "contributing_teams", wraps=aggregation.contributing_teams) as teams, \
+                mock.patch.object(aggregation, "_coalition", wraps=aggregation._coalition) as search:
+            self.assertIsNone(conclude(cands))
+        self.assertEqual(search.call_count, 1, "one search for every pool")
+        self.assertLessEqual(teams.call_count, len(cands), "each candidate's teams are worked out once at most")
+        self.assertEqual(logs.lines, [], "the search ends within its bound")
+
+        cands = notes(3000)
+        t0 = time.perf_counter()
+        self.assertIsNone(conclude(cands))
+        self.assertLess(time.perf_counter() - t0, 2.0)
+        buffer = raw_note(9_999, "p", "procurement", slots[1], 0.95, "sd-500")
+        built = conclude(cands + [buffer])
+        assert built is not None
+        self.assertEqual(built[0].metadata["slots"], {slots[0]: "mem_001000", slots[1]: buffer.memory_id, slots[2]: "mem_012999"})
+        self.assertEqual({m.entity for m in built[1]}, {None, "sd-500"})
+
+    async def test_a_wildcard_conclusion_never_stitches_two_entities(self) -> None:
+        """The shipped supply-risk rules: transport is disrupted for sd-9, the buffer is thin for sd-10, and a note that
+        names no component says demand is committed.  No component has all three conditions, so no rule concludes at any
+        layer and a query for the risk is not answered by one; a '*' conclusion stitched that way (as an earlier release
+        derived it) fails verification.  Once the buffer is thin for sd-9 too, the '*' conclusion rests on sd-9's notes
+        and the note that names none, and verifies."""
+        h = await self.harness(agents=False)
+        s = h.service
+        rules = {r["rule_id"]: r for r in json.loads((Path(__file__).resolve().parents[2] / "deploy" / "mycelic"
+                                                      / "rules.json").read_text())["rules"]}
+        for rule_id in ("component_supply_risk", "regional_supply_risk"):
+            await s.upsert_rule(rules[rule_id])
+        for a, team in (("a1", "logistics"), ("a2", "procurement"), ("a3", "planning"), ("a4", "warehouse")):
+            await h.register(a, team=team)
+        tr = await h.observe("a1", "Rotterdam strike blocks SD-9 inbound.", topic="supply:drives", slot="transport_disruption",
+                             entity="sd-9", confidence=0.9, visibility="org")
+        buf = await h.observe("a2", "SD-10 supplier buffer down to 2 days.", topic="supply:drives", slot="supplier_buffer_low",
+                              entity="sd-10", confidence=0.9, visibility="org")
+        dem = await h.observe("a3", "Q4 orders are committed.", topic="supply:drives", slot="demand_commitment", confidence=0.9,
+                              visibility="org")
+        await h.settle()
+        conclusions = lambda: [m for m in s.store.list_memories(ORG, limit=1000) if m.operator == "slot_composition"]  # noqa: E731
+        self.assertEqual(conclusions(), [], "no component has all three conditions")
+        answer = s.query(h.principal("a3"), {"query": "supply risk", "scope": ORG, "k": 5})["answer"]
+        self.assertTrue(answer is None or answer["operator"] != "slot_composition", answer)
+        regional = s.store.get_applied_rule("regional_supply_risk")
+        notes = [s.store.get_memory(x) for x in (tr, buf, dem)]
+        self.assertIsNone(aggregation.build_conclusion(regional, ORG, "northwind/emea", None, notes, version_of=None, now=now_iso()))
+        # as an earlier release stitched it (the strongest note of each slot, whatever it names, next to one that names
+        # none): the evidence of a '*' conclusion about two components fails verification
+        with mock.patch.object(aggregation, "_wildcard_scopes", lambda rule, cands: (aggregation._strongest(rule, cands), cands)), \
+                mock.patch.object(aggregation, "wildcard_selection", lambda selected: any(m.entity is None for m in selected)):
+            await full_reaggregation_pass(s)
+        [stitched] = [m for m in conclusions() if m.rule_id == "regional_supply_risk"]
+        report = await s.verify(h.admin, stitched.memory_id)
+        self.assertEqual((report["verdict"], report["derived_correctly"]), ("failed", False))
+        self.assertIn("parent_ineligible", [r["code"] for r in report["reasons"]])
+        # one component, and a note that names none: the '*' conclusion holds and verifies
+        await h.observe("a4", "SD-9 supplier buffer down to 3 days.", topic="supply:drives", slot="supplier_buffer_low",
+                        entity="sd-9", confidence=0.8, visibility="org")
+        await h.settle()
+        [star] = [m for m in conclusions() if m.rule_id == "regional_supply_risk"]
+        self.assertNotEqual(star.memory_id, stitched.memory_id)
+        self.assertEqual(s.store.get_memory(stitched.memory_id).status, "superseded")
+        self.assertEqual((star.entity, {s.store.get_memory(e.parent_id).entity for e in s.store.parents_of(star.memory_id)}),
+                         (None, {None, "sd-9"}))
+        report = await s.verify(h.principal("a3"), star.memory_id)
+        self.assertEqual((report["verdict"], report["derived_correctly"], report["still_true"]), ("verified", True, True))
 
     # ------------------------------------------------------------------ log order
     async def test_rules_and_registry_are_read_in_log_order_and_rebuild_identically(self) -> None:

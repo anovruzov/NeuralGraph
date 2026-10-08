@@ -16,6 +16,7 @@ import tempfile
 import time
 import unittest
 from datetime import timedelta
+from pathlib import Path
 from typing import Any
 
 from mycelic import verification
@@ -533,6 +534,43 @@ class VerificationTests(unittest.IsolatedAsyncioTestCase):
         r = await s.verify(w.admin, c)
         self.assertEqual(codes(r, c)[0], "integrity_mismatch")
         self.assertEqual(codes(r, ids["sales-1"])[0], "integrity_mismatch")
+
+    async def test_a_rollback_to_signed_states_is_what_security_md_says_and_a_rebuild_undoes_it(self) -> None:
+        """What SECURITY.md §3 and §6 state: rows set back, digest columns included, to states the key signed earlier,
+        with the retraction's event row deleted or marked failed, verify, because nothing in the database can tell them
+        from the state they restore; the stream still holds the retraction, so a rebuild from it brings it back."""
+        for variant in ("deleted", "failed"):
+            with self.subTest(variant=variant):
+                w = await self.world()
+                ids = await demo(w)
+                s, st, c, note = w.service, w.store, ids["conclusion"], ids["sales-1"]
+                copy = {mid: tuple(st._conn.execute("SELECT digest, digest_key_id, digest_origin FROM memories "
+                                                    "WHERE memory_id=?", (mid,)).fetchone()) for mid in (c, note)}
+                await s.retract(w.principal("sales-1"), note, "order cancelled")
+                await w.settle()
+                self.assertEqual((await s.verify(w.admin, c))["verdict"], "stale")
+                retraction = ("FROM events WHERE kind='memory.retracted' AND json_extract(payload, '$.memory_id')=?", (note,))
+                if variant == "deleted":
+                    st._conn.execute("DELETE " + retraction[0], retraction[1])
+                else:
+                    st._conn.execute("UPDATE events SET status='failed' WHERE event_id IN (SELECT event_id " + retraction[0] + ")",
+                                     retraction[1])
+                for mid, (digest, key_id, origin) in copy.items():
+                    st._conn.execute(*edit(mid, "status='active', superseded_by=NULL, digest=?, digest_key_id=?, digest_origin=?",
+                                           digest, key_id, origin))
+                r = await s.verify(w.principal("sales-2"), c)
+                self.assertEqual((r["verdict"], r["derived_correctly"], r["still_true"], r["reasons"]),
+                                 ("verified", True, True, []), "a rollback the database cannot tell (SECURITY.md §6)")
+                rebuilt = await rebuild(w.log, self.tmpdir(), event_signing_key=K)
+                try:
+                    self.assertEqual((rebuilt.store.get_memory(note).status, rebuilt.store.get_memory(c).status),
+                                     ("retracted", "retracted"), "the stream still holds the retraction")
+                finally:
+                    await rebuilt.store.close()
+        security = " ".join((Path(__file__).resolve().parents[2] / "SECURITY.md").read_text(encoding="utf-8").split())
+        self.assertNotIn("so an edit by anyone who does not hold the key is detected,", security)
+        self.assertIn("A rollback is not: a row set back, digest columns included, to an earlier state the key did sign", security)
+        self.assertIn("rebuilding the database from the stream", security)
 
     async def test_retraction_pending_then_settled(self) -> None:
         transport = HeldTransport(hold=False)

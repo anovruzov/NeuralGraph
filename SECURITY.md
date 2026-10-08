@@ -91,10 +91,14 @@ the caller's view only, so memories outside it influence neither the results nor
   row's digest checked as it was stored (`Tx.set_memory_status`, `Tx.reactivate_memory`, `Tx.set_attested`), so an
   edited row is never re-signed and a status set in the database without the key reads `integrity_mismatch`. With
   `MYCELIC_EVENT_SIGNING_KEY` set the digest is an HMAC under a subkey of that key, so an edit by
-  anyone who does not hold the key is detected, including one that rewrites the key id, recomputes an unkeyed hash
-  or relabels the origin; without a key it is a plain SHA-256 that detects corruption only, and once a key is set
-  such a row reads `downgraded`. Not covered: a memory's applied columns (`applied_at`, `apply_seq`) and the
-  `status_reason`/`reactivated_at` metadata, a derived memory's
+  anyone who does not hold the key that gives a row a state the key never signed is detected, including one that
+  rewrites the key id, recomputes an unkeyed hash or relabels the origin. A rollback is not: a row set back, digest
+  columns included, to an earlier state the key did sign (from a backup or any earlier copy of the database) checks
+  `ok`, so whoever can write the database and kept such a copy can bring back a retracted note and the conclusion
+  built on it, and, by deleting the retraction's row from the `events` table, have both verify (§6, "It does not
+  prove"); restrict write access to the database file and its backups accordingly. Without a key it is a plain
+  SHA-256 that detects corruption only, and once a key is set such a row reads `downgraded`. Not covered: a memory's
+  applied columns (`applied_at`, `apply_seq`) and the `status_reason`/`reactivated_at` metadata, a derived memory's
   `created_at` and `event_id` and its metadata outside the derivation keys (`version_of`, `fragility`, candidate
   counts), the `events`, `agents`, `rules`, `applied_rules`, `audit_log` and `meta` tables, and lineage edges'
   `contributed_by` and `parent_layer`. Rows that existed before schema 4 are signed at the first start after the upgrade by the
@@ -122,7 +126,10 @@ the caller's view only, so memories outside it influence neither the results nor
   upgrade's own, any such line or audit row means the database was edited. Downward
   verification (`GET /verify/{id}`, §2 and §6) runs this check on every row it walks and reports the outcome as a
   reason code (`integrity_mismatch`, `integrity_downgraded`, `integrity_unknown_key`, …), never the digest.
-* TLS: `MYCELIC_TLS_CERT_FILE/KEY_FILE` (direct) or a TLS-terminating proxy with `MYCELIC_ALLOWED_HOSTS`;
+* TLS: `MYCELIC_TLS_CERT_FILE/KEY_FILE` (direct) or a TLS-terminating proxy with `MYCELIC_ALLOWED_HOSTS` (a Host
+  that is not listed is answered 421, except on the probes, on a token-checked `/metrics`, which a scrape reaches by
+  the pod or service address, and for a loopback Host, which only a client on the node sends: every other route still
+  needs its token);
   `tls://` + `MYCELIC_NATS_CA_FILE` for the broker (verified, TLS ≥ 1.2). The SDK verifies server
   certificates and accepts a private CA (`MycelicClient(..., ca_file=...)`).
 
@@ -290,10 +297,17 @@ It does not prove:
   from an earlier copy of the database (a backup) reads `ok`. A status set in the database alone (a retracted note or
   conclusion set active again, a superseded note with its `superseded_by` cleared) breaks the row's digest
   (`integrity_mismatch`), and the retraction and removal events that a raw note's status is checked against are rows
-  of the `events` table, which no digest covers;
+  of the `events` table, which no digest covers. So someone who can write the database, without the key, can restore
+  a retracted note and the conclusions built on it from an earlier copy, mark the retraction's event `failed` or delete
+  it, and have them verify (`verified`, `still_true` true, no reason), for every caller and in `POST /query` with
+  `"verify": true`; a re-aggregation changes nothing, because the note is active again. Nothing in the database can
+  tell such a rollback from the state it restores: the stream (JetStream) still holds the retraction, so rebuilding the
+  database from the stream ("database lost or corrupt", DEPLOYMENT.md section 4) brings the retraction back. Keep the
+  database file and its backups writable by the service only;
 * that two notes agree: only notes that carry a `value` for the same slot and entity are compared, and those with
-  different values are flagged (`metadata.conflict`) and never corroborate each other (docs/MYCELIC_ARCHITECTURE.md
-  §5); free text is never compared. The value of a team-visibility note is compared at every layer above its team
+  different values are flagged (`metadata.conflict`, on consolidations and rule conclusions alike, and the warning
+  `disputed` in a verification report) and never corroborate each other (docs/MYCELIC_ARCHITECTURE.md §5); free text
+  is never compared. The value of a team-visibility note is compared at every layer above its team
   (as a digest in `metadata.claims`, shown to administrators only) but never published there, so readers above a
   team learn one bit from it: that some note beneath disagrees (`metadata.conflict`, the lower confidence and the
   missing slot).

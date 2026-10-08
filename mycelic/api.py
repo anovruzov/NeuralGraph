@@ -39,6 +39,10 @@ POST /admin/reaggregate        admin          {"org_id"?}: re-aggregate one orga
 GET  /admin/status             admin          full health, settings (secrets masked), transport state
 GET  /admin/audit, GET /admin/events            admin
 *    /mcp                      MCP Streamable HTTP; identity = the Bearer agent key, same as the REST routes
+
+MYCELIC_ALLOWED_HOSTS (421 for any other Host) does not apply to GET /, /health and /ready (probes send the pod or
+container address), to a token-checked /metrics (a scrape sends the pod or service address) or to a loopback Host
+(localhost, 127.0.0.1, [::1]: kubectl port-forward, the CLI inside the container).
 """
 from __future__ import annotations
 
@@ -60,6 +64,10 @@ from .verification import MAX_LEAF_AGE_SECONDS
 logger = logging.getLogger(__name__)
 
 PUBLIC_PATHS = frozenset({"/", "/health", "/ready"})
+#: Host names accepted whatever MYCELIC_ALLOWED_HOSTS says: only a client on the node itself (kubectl port-forward, the
+#: CLI in the container) sends them, and no other site's page can make a browser send them
+LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "[::1]"})
+LOOPBACK_BINDS = ("127.0.0.1", "localhost", "::1")
 _last_log: dict[tuple[str, str], float] = {}
 
 
@@ -126,14 +134,21 @@ def create_app(service: MycelicService) -> web.Application:
             return True
         host = (request.headers.get("Host") or "").strip().lower()
         name = host.split("]")[0] + "]" if host.startswith("[") else host.split(":")[0]
-        return name in allowed_hosts
+        return name in allowed_hosts or name in LOOPBACK_HOSTS
+
+    def open_metrics(request: web.Request) -> bool:
+        """Loopback development: /metrics scraped without any token."""
+        return (request.path == "/metrics" and not s.metrics_token and s.host in LOOPBACK_BINDS
+                and not request.headers.get("Authorization"))
 
     @web.middleware
     async def middleware(request: web.Request, handler: Callable[[web.Request], Awaitable[web.StreamResponse]]) -> web.StreamResponse:
         route = _route_label(request)
         remote = _remote(request, s.trust_proxy_headers, s.trusted_proxy_hops)
-        # probes (kubelet, Docker HEALTHCHECK) send the pod/container address as Host: only the public paths skip the check
-        if request.path not in PUBLIC_PATHS and not host_ok(request):
+        # probes (kubelet, Docker HEALTHCHECK) and scrapes (a ServiceMonitor, the compose Prometheus) send the pod,
+        # container or service address as Host: the public paths and a token-checked /metrics skip the check
+        if (request.path not in PUBLIC_PATHS and (request.path != "/metrics" or open_metrics(request))
+                and not host_ok(request)):
             m.http_requests.labels(route, "421").inc()
             return _error("host not allowed", 421)
         if request.method == "OPTIONS":
@@ -157,7 +172,7 @@ def create_app(service: MycelicService) -> web.Application:
                 if not hmac.compare_digest(token.encode("utf-8"), s.metrics_token.encode("utf-8")):
                     m.auth_failures.labels("metrics_token").inc()
                     return _error("unauthorized", 401)
-            elif request.path == "/metrics" and s.host in ("127.0.0.1", "localhost", "::1") and not auth:
+            elif open_metrics(request):
                 pass                                   # loopback development: scrape without a token
             else:
                 try:

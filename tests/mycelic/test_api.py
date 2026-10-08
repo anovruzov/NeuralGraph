@@ -570,14 +570,33 @@ class VerifyLimitTests(unittest.IsolatedAsyncioTestCase):
 
 
 class HostAllowListTests(ApiTestCase):
-    harness_overrides = {"allowed_hosts": ["mycelic.example.com"]}
+    harness_overrides = {"allowed_hosts": ["mycelic.example.com"], "metrics_token": "metrics-token-with-letters-0123"}
 
     async def test_probes_bypass_the_host_allow_list_but_api_routes_do_not(self) -> None:
-        probe = {"Host": "127.0.0.1:8080"}
-        self.assertEqual((await self.client.get("/health", headers=probe)).status, 200)
-        self.assertEqual((await self.client.get("/ready", headers=probe)).status, 200)
-        self.assertEqual((await self.client.get("/whoami", headers={**probe, **self.admin})).status, 421)
+        pod = {"Host": "10.42.0.17:8080"}
+        for probe in ({"Host": "127.0.0.1:8080"}, pod):
+            self.assertEqual((await self.client.get("/health", headers=probe)).status, 200)
+            self.assertEqual((await self.client.get("/ready", headers=probe)).status, 200)
+        for host in ("10.42.0.17:8080", "mycelic:8080", "mycelic.mycelic.svc:8080", "evil.example.net"):
+            self.assertEqual((await self.client.get("/whoami", headers={"Host": host, **self.admin})).status, 421, host)
         self.assertEqual((await self.client.get("/whoami", headers={"Host": "mycelic.example.com", **self.admin})).status, 200)
+
+    async def test_metrics_scrapes_and_loopback_admin_pass_the_host_allow_list(self) -> None:
+        """A ServiceMonitor scrapes the pod address and the compose Prometheus ``mycelic:8080``, and the documented
+        port-forward check and the in-container CLI send a loopback Host: none of them can send the public name."""
+        scrape = bearer("metrics-token-with-letters-0123")
+        for host in ("10.42.0.17:8080", "mycelic:8080", "mycelic.mycelic.svc:8080", "mycelic.example.com"):
+            r = await self.client.get("/metrics", headers={"Host": host, **scrape})
+            self.assertEqual(r.status, 200, host)
+            self.assertIn("mycelic_http_requests_total", await r.text())
+            # the token still decides: a scrape without it is refused, whatever the Host
+            self.assertEqual((await self.client.get("/metrics", headers={"Host": host})).status, 401, host)
+        for host in ("localhost:8080", "127.0.0.1:8080", "[::1]:8080", "localhost"):
+            self.assertEqual((await self.client.get("/admin/status", headers={"Host": host, **self.admin})).status, 200, host)
+            self.assertEqual((await self.client.get("/admin/status", headers={"Host": host})).status, 401, host)
+        self.assertEqual((await self.client.get("/admin/status", headers={"Host": "10.42.0.17:8080", **self.admin})).status, 421)
+        self.assertEqual((await self.client.get("/admin/status", headers={"Host": "localhost.evil.example.net", **self.admin})).status,
+                         421)
 
 
 class ScopeTests(ApiTestCase):
@@ -1041,7 +1060,7 @@ class MCPTests(ApiTestCase):
         self.assertIn(POLICY["P2"], architecture)
         deployment = normalised("DEPLOYMENT.md")
         self.assertIn("**Responses changed in this release**", deployment)
-        self.assertIn("`DERIVATION_VERSION` is 4", deployment)
+        self.assertIn("`DERIVATION_VERSION` is 5", deployment)
         self.assertIn(POLICY["P3"], deployment)
 
     async def test_mcp_verify_tool_identity_and_redaction(self) -> None:

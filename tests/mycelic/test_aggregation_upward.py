@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import unittest
+from pathlib import Path
 from typing import Any
 from unittest import mock
 
@@ -23,6 +24,7 @@ SUB = "northwind/emea/nw-gmbh"
 OPS = f"{SUB}/ops"
 TEAM_A, TEAM_B = f"{OPS}/team-a", f"{OPS}/team-b"
 ABOVE = (OPS, SUB, "northwind/emea", "northwind")
+RULES_FILE = Path(__file__).resolve().parents[2] / "deploy" / "mycelic" / "rules.json"
 
 
 class UpwardTests(unittest.IsolatedAsyncioTestCase):
@@ -347,6 +349,54 @@ class UpwardTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(disputed.metadata["conflict"])
         self.assertEqual(disputed.confidence, 0.8)
         await self.assert_sound(h)
+
+    async def test_a_rule_without_corroborate_flags_a_disputed_slot_and_rests_on_both_sides(self) -> None:
+        """The shipped supply-risk rules select one note per slot.  Two teams contradict each other on the transport slot:
+        the regional and enterprise conclusions are flagged like every consolidation of the same notes, rest on the
+        strongest note of each side (support counts both), and verification walks both and warns ``disputed``.  This
+        holds whichever side is stronger, and the flag goes with the dispute."""
+        rules = {r["rule_id"]: r for r in json.loads(RULES_FILE.read_text())["rules"]}
+        for flipped in (False, True):
+            with self.subTest(flipped=flipped):
+                h = await self.harness()
+                s = h.service
+                for rule_id in ("regional_supply_risk", "component_supply_risk"):
+                    await s.upsert_rule(rules[rule_id])
+                for a, team in (("x", "log"), ("w", "port"), ("y", "proc"), ("z", "plan")):
+                    await h.register(a, team=team)
+                fields = {"topic": "supply:sd-9", "entity": "sd-9", "visibility": "org"}
+                x = await h.observe("x", "SD-9 inbound transport is disrupted.", slot="transport_disruption", value="disrupted",
+                                    confidence=0.85 if flipped else 0.9, **fields)
+                w = await h.observe("w", "SD-9 inbound transport runs normally, strike called off.", slot="transport_disruption",
+                                    value="normal", confidence=0.95 if flipped else 0.85, **fields)
+                y = await h.observe("y", "SD-9 buffer down to 2 days.", slot="supplier_buffer_low", confidence=0.8, **fields)
+                z = await h.observe("z", "Q4 SD-9 orders committed.", slot="demand_commitment", confidence=0.8, **fields)
+                await h.settle()
+                conclusions = {m.rule_id: m for m in s.store.list_memories(ORG, operator="slot_composition")}
+                self.assertEqual(set(conclusions), set(rules) - {"strategic_second_source"})
+                for unit in ABOVE:
+                    self.assertTrue(self.consolidation(h, unit, "supply:sd-9").metadata["conflict"])
+                for m in conclusions.values():
+                    self.assertTrue(m.metadata["conflict"], m.rule_id)
+                    self.assertEqual(set(self.parents(h, m)), {x, w, y, z}, "both sides of the dispute are evidence")
+                    self.assertEqual(m.metadata["slots"]["transport_disruption"], w if flipped else x, "the stronger side")
+                    self.assertEqual((m.support, m.confidence), (4, 0.8))
+                    report = await s.verify(h.principal("z"), m.memory_id)
+                    self.assertEqual((report["verdict"], report["derived_correctly"], report["still_true"]),
+                                     ("verified", True, True))
+                    self.assertIn({"code": "disputed", "memory_id": m.memory_id}, report["warnings"])
+                await self.assert_sound(h)
+                # the side that loses the dispute retracts its note: the flag goes, and so does that side's note
+                await s.retract(h.principal("x" if flipped else "w"), x if flipped else w, "we checked again")
+                await h.settle()
+                for rule_id, old in conclusions.items():
+                    [now] = [m for m in s.store.list_memories(ORG, operator="slot_composition") if m.rule_id == rule_id]
+                    self.assertNotIn("conflict", now.metadata)
+                    self.assertEqual(set(self.parents(h, now)), {w if flipped else x, y, z})
+                    self.assertEqual(now.support, 3)
+                    report = await s.verify(h.principal("z"), now.memory_id)
+                    self.assertEqual((report["verdict"], [c["code"] for c in report["warnings"]]), ("verified", []))
+                await self.assert_sound(h)
 
     async def test_value_is_validated_and_stored_as_metadata(self) -> None:
         h = await self.harness()

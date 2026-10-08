@@ -48,7 +48,8 @@ U, False on an S, else True.  All three come from the codes before redaction, so
   ``node_superseded``, ``leaf_expired``, ``leaf_stale``, ``min_support_changed``, ``rule_deleted``, ``rule_disabled``,
   ``rule_changed``, ``not_current``, ``hidden_stale``;
 * W (warning): ``integrity_backfilled`` (signed by the start-up backfill), ``producer_revoked``, ``not_applied``,
-  ``log_lag`` (events of the organization not applied yet; administrators only).
+  ``disputed`` (a derived node carries ``metadata.conflict``: evidence beneath it claims different values for one slot
+  and entity), ``log_lag`` (events of the organization not applied yet; administrators only).
 
 **Redaction.**  Every node shows its id, layer, scope (a raw note's team: its path would end in its producer's id),
 operator, status and ``ok``.  A node the caller may not read (:meth:`Principal.can_read`) shows nothing more than that
@@ -132,7 +133,7 @@ REASONS: dict[str, str] = {
     "parent_outside_unit": "E", "topic_mismatch": "E", "parent_ineligible": "E", "slot_uncovered": "E",
     "below_min_support": "E", "below_min_agents": "E", "below_min_teams": "E", "below_min_units": "E",
     "rule_snapshot_mismatch": "E", "id_mismatch": "E", "text_mismatch": "E", "confidence_mismatch": "E",
-    "content_mismatch": "E", "not_derivable": "E", "legacy_derivation": "U",
+    "content_mismatch": "E", "not_derivable": "E", "legacy_derivation": "U", "disputed": "W",
     # status, currency and freshness
     "node_retracted": "S", "node_superseded": "S", "leaf_stale": "S", "min_support_changed": "S", "rule_deleted": "S",
     "rule_disabled": "S", "rule_changed": "S", "not_current": "S",
@@ -435,6 +436,8 @@ class _Verification:
                 self.add(mid, "node_retracted")
             elif m.status == "superseded":
                 self.add(mid, "node_superseded")
+            if m.operator != "agent_observation" and m.metadata.get("conflict") is True:
+                self.add(mid, "disputed")           # a raw note's own metadata.conflict is the agent's and flags nothing
 
     # ------------------------------------------------------------------ (f) derived memories
     def check_derived(self) -> None:
@@ -516,10 +519,13 @@ class _Verification:
                          if p.org_id != m.org_id or not is_ancestor_or_self(m.scope, p.scope) or _rank(p.layer) > _rank(m.layer))
         if outside:
             self.add(mid, "parent_outside_unit", {"parent_ids": outside})
+        # a '*' conclusion rests on evidence that names no entity and on evidence about one entity at most
+        stitched = m.entity is None and len({p.entity for p in parents if p.entity is not None}) > 1
         ineligible = sorted(p.memory_id for p in parents
                             if p.operator not in rule.sources or p.slot not in rule.required_slots
                             or (rule.topic_prefix and not (p.topic or "").startswith(rule.topic_prefix))
-                            or (m.entity is not None and p.entity != m.entity) or rule.rule_id in rule_chain(p))
+                            or (m.entity is not None and p.entity != m.entity) or (stitched and p.entity is not None)
+                            or rule.rule_id in rule_chain(p))
         if ineligible:
             self.add(mid, "parent_ineligible", {"parent_ids": ineligible})
         uncovered = [s for s in rule.required_slots if not any(p.slot == s for p in parents)]
@@ -537,7 +543,8 @@ class _Verification:
                 if count < n:
                     self.add(mid, "below_min_units", {"slot": slot, "layer": layer, "count": count, "required": n})
         # the stored evidence as the candidates reproduces the original selection: with corroborate the evidence is every
-        # candidate, without it one selected memory per slot
+        # candidate of its pool, without it one selected memory per slot and the strongest memory claiming each value of a
+        # disputed slot (the selection stays the best one among them, and the dispute is still there)
         built = build_conclusion(rule, m.org_id, m.scope, m.entity, parents, version_of=None, now=self.verified_at)
         if built is None:
             if not any(c in _STRUCTURAL for c in self.codes(mid)):

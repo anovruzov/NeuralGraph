@@ -536,6 +536,10 @@ class DatabaseLocked(RuntimeError):
     """Another process (or another service in this process) already writes to this database."""
 
 
+class DatabaseCorrupt(RuntimeError):
+    """The database file fails SQLite's ``quick_check`` at open, so the service refuses to start on it."""
+
+
 def acquire_db_lock(db_path: str | Path) -> int | None:
     """Take the single-writer lock on ``<db>.lock`` or raise; returns the descriptor that holds it.
 
@@ -613,6 +617,7 @@ class MycelicStore:
     def _init_schema(self) -> None:
         c = self._conn
         if self.db_path != ":memory:":
+            self._quick_check()                     # before this connection reads (or replays a write-ahead log into) it
             try:
                 c.execute("PRAGMA journal_mode=WAL")
             except sqlite3.DatabaseError:
@@ -631,6 +636,37 @@ class MycelicStore:
         elif int(row["value"]) < SCHEMA_VERSION:
             self._migrate(int(row["value"]))
         c.executescript(_POST_MIGRATION_DDL)
+
+    def _quick_check(self) -> None:
+        """Refuse a database that fails SQLite's ``quick_check`` (it reads the whole file: 0.3 s for 370 MB in the cache).
+
+        The usual cause is a backup copied over the database while the ``-wal`` and ``-shm`` files of the crashed or
+        killed process that used it were left next to it: SQLite then replays that write-ahead log onto the older file,
+        and the result mixes pages of both (DEPLOYMENT.md section 4, "Restoring the database").  Serving it would answer
+        from rows that are neither the backup nor the lost state, with a ``last_applied_seq`` that hides the gap from
+        recovery, so nothing is written to it.
+        """
+        path = Path(self.db_path)
+        if not path.exists() or path.stat().st_size == 0:
+            return                                  # a new database
+        # on a read-only connection of its own: closing it can never checkpoint a write-ahead log into the file
+        ro = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)
+        try:
+            rows = [r[0] for r in ro.execute("PRAGMA quick_check").fetchall()]
+        except sqlite3.DatabaseError as exc:
+            rows = [str(exc)]
+        finally:
+            ro.close()
+        if rows == ["ok"]:
+            return
+        wal = " ".join(f"{self.db_path}{suffix}" for suffix in ("-wal", "-shm") if os.path.exists(self.db_path + suffix))
+        logger.error("database %s fails quick_check: %s", self.db_path, "; ".join(rows)[:2000])
+        raise DatabaseCorrupt(
+            f"database {self.db_path} fails SQLite's quick_check ({' '.join(rows[0].split())[:200]}); nothing was written "
+            "to it. If a backup was copied over it, stop the service, remove the database's -wal and -shm files"
+            + (f" ({wal})" if wal else "") + ", copy the backup in again and start (DEPLOYMENT.md section 4, \"Restoring "
+            "the database\"); otherwise restore a backup that way, or move the database aside to rebuild it from the "
+            "stream")
 
     def _migrate(self, from_version: int) -> None:
         """Forward-only migrations, applied in one transaction (any failure leaves the database as it was).

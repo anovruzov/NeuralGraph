@@ -145,9 +145,13 @@ then `term`.
   keeps the values beneath it as digests (`metadata.claims`, shown to administrators only), so notes of two teams that
   disagree are flagged above them even when both sides are team-visibility, and the flag is all that leaves either
   team. A consolidation whose value-carrying parents agree carries `metadata.value`, computed from org-visible notes
-  and child consolidations only, so the value of a team-visibility note never leaves its team. A rule with
-  `corroborate` compares the same values (a consolidation's claims included), does not raise a slot's confidence over
-  evidence with different values, and flags its conclusion `metadata.conflict`. Free text is never compared: notes
+  and child consolidations only, so the value of a team-visibility note never leaves its team. Every rule compares the
+  same values (a consolidation's claims included) among the memories that could fill each slot and flags its conclusion
+  `metadata.conflict` when one slot holds two values for one entity: a rule with `corroborate` does not raise that
+  slot's confidence; a rule without it takes the strongest memory claiming each value as evidence next to its selection,
+  so both sides are in the lineage (and in `support`), and the flag goes once one side is retracted. A conclusion that
+  rests on a disputed memory (a disputed conclusion of another rule) is flagged too, and downward verification warns
+  `disputed` on every flagged node it walks. Free text is never compared: notes
   without a `value` never dispute anything. Support still counts every agent on the topic, both sides of a dispute
   (`tests/mycelic/test_aggregation_upward.py`).
 * **What a consolidation says.** Its readers are all members of its unit. Consolidations above team level quote
@@ -173,13 +177,26 @@ then `term`.
   (`tests/mycelic/test_confidentiality.py`).
 * **Slot composition.** A rule (`deploy/mycelic/rules.json` or `POST /admin/rules`) names required slots,
   a target layer, a topic prefix and minimum distinct agents/teams. The conclusion exists only when every
-  slot is covered for the same entity inside the target unit; slot selection is `RuleBasedSynthesizer`
-  (highest confidence per slot), confidence is the minimum over selected slots, and `LineageAnalyzer`
+  slot is covered for the same entity inside the target unit by a selection that meets the thresholds; slot selection
+  follows `RuleBasedSynthesizer` (highest confidence per slot, then producer, then id). When that selection misses
+  `min_agents`, `min_teams` or `min_units` and the rule does not corroborate (one agent is the strongest in several
+  slots), the rule takes the best selection that meets them: the one whose weakest memory is strongest, then the
+  earliest in each slot's ranking, slot by slot (`aggregation._coalition`; it keeps the strongest memory per contributor
+  set, prunes by what the remaining slots can still add, and bisects the confidence floor). So a note that agrees with
+  the evidence never takes a conclusion away, and one agent who is the most confident in every slot never blocks a
+  coalition of others (`test_an_agreeing_note_never_withdraws_a_conclusion_and_one_agent_never_blocks_a_coalition`; 2,000
+  candidates in one slot take about 20 ms). The search tries at most 20,000 selections in all, one search per
+  evaluation (a `*` evaluation searches every entity's pool at once, below); when that bound stops it,
+  the best selection it found so far stands, and the rule does not hold only when it found none (a warning is logged
+  once per rule). A selection the bound settled for gives way to the best one among its own evidence (the selection and
+  a disputed slot's sides) until the two agree, and the rule does not hold if they never do, so the evidence alone
+  re-derives the conclusion (`test_a_qualifying_selection_is_kept_when_the_search_reaches_its_bound`).
+  Confidence is the minimum over selected slots, and `LineageAnalyzer`
   fragility metrics (unique roots, independent failure domains = teams, minimal cut) are stored with it.
 * **Composition (strategic synthesis).** A rule's ``sources`` may include other rules' conclusions and
   consolidations; a conclusion carries ``emits_slot``/``emits_topic`` so a higher rule can consume it;
   ``min_units`` demands per-slot corroboration across units (``{"supply_risk": {"region": 2}}``), counted
-  over the memories that become parents (only the strongest per slot unless ``corroborate`` is set), and
+  over the memories that become parents (the one selected per slot unless ``corroborate`` is set), and
   ``corroborate`` keeps every memory filling a slot as evidence. Derivations cascade upward (bounded depth,
   truncation logged), a rule never consumes its own output even transitively (`rule_chain` metadata; cyclic
   rule sets are refused at the admin entry points), and finer-grained evidence is preferred over a
@@ -236,15 +253,30 @@ then `term`.
   unit with its own consolidation contributes only that, so its notes are not read. A full candidate set means
   older evidence was left out: `mycelic_aggregation_truncated_total{what="candidates"}` counts it and a warning
   is logged once per unit and key (`test_candidate_cap_does_not_freeze_team_or_upper_layers`).
-* **`*` conclusions.** A rule evaluated without an entity concludes only when evidence that names no entity is
-  among the selected memories; such a `rule:*` conclusion is re-evaluated when entity-specific evidence arrives
+* **`*` conclusions.** A rule evaluated without an entity selects within one pool per entity E, the evidence about E
+  and the evidence that names no entity (the best of those selections counts, as above), so its evidence names one
+  entity at most: evidence about two entities is never stitched into one conclusion
+  (`test_a_wildcard_conclusion_never_stitches_two_entities`, `test_a_strategy_is_never_stitched_from_risks_about_different_components`;
+  verification reports the evidence of such a conclusion derived by an earlier release as `parent_ineligible`). It
+  concludes only when evidence that names no entity is among the selected memories (a selection about E alone is E's own
+  conclusion). The pools share the evidence that names no entity: it is ranked, and its agents and teams worked out,
+  once per evaluation, each pool adds only the evidence about its entity, and when the strongest selection misses the
+  thresholds one search covers every pool, a memory about E only ever next to memories about E or about none
+  (`aggregation._coalition`), so the cost does not grow with entities times entity-less memories
+  (`test_a_wildcard_evaluation_is_one_search_whatever_the_number_of_components`: 1,000 components and 3,000 entity-less
+  notes take about 50 ms). With `corroborate` the whole pool is the evidence and must meet the thresholds, whichever of its memories
+  are the strongest; the pool with the best selection counts, then the first E in sort order, so a '*' strategy does not
+  depend on whether the entity-less supply risk or the one about E is the more confident
+  (`test_a_wildcard_strategy_holds_whichever_supply_risk_is_strongest`). Such a `rule:*` conclusion is re-evaluated when
+  entity-specific evidence arrives
   (`test_wildcard_conclusion_is_refreshed_by_entity_evidence`) and when evidence goes away, a retracted note or a
   withdrawn consolidation or conclusion, since the next strongest memory may name no entity.
-* **Blocking candidates.** A rule selects the strongest memory per slot, so a strong memory that adds no agent can
-  keep a conclusion below its threshold without the conclusion resting on it. When such a memory stops filling the
-  slot, because it is retracted or withdrawn or because it is superseded by a version with another slot, entity or
-  topic (a rule changed what it emits, a note with another slot joined a consolidation), the rules its slot fed are
-  composed again under its old slot, entity and topic (`Aggregator._withdraw`, `Aggregator._superseded`). The
+* **Blocking candidates.** A memory that is not selected never changes an entity's conclusion (the best selection that
+  meets the thresholds is the same without it), but a strong memory about one entity can keep a `*` conclusion away
+  without the conclusion resting on it: the best selection then names that entity only. When such a memory stops
+  filling the slot, because it is retracted or withdrawn or because it is superseded by a version with another slot,
+  entity or topic (a rule changed what it emits, a note with another slot joined a consolidation), the rules its slot
+  fed are composed again under its old slot, entity and topic (`Aggregator._withdraw`, `Aggregator._superseded`). The
   conclusion it blocked then appears at once and is offered to everything above it
   (`test_superseded_candidate_unblocks_conclusions`, `test_withdrawn_candidate_unblocks_conclusions`,
   `test_consolidation_losing_its_slot_or_entity_unblocks_conclusions`). A version superseded by one that is the
@@ -417,9 +449,10 @@ derived correctly but no longer current; W warning).
 | `update_pending` | S | an update of the active raw note by its producer is in the log but not applied yet |
 | `producer_revoked` | W | the raw note's producer has been revoked since |
 | `not_applied` | W | the raw note has not been applied by the consumer yet |
+| `disputed` | W | a derived node carries `metadata.conflict`: evidence beneath it claims different values for one slot and entity (the node itself is derived correctly; which side holds is not settled) |
 | `parent_outside_unit` | E | a parent lies outside the derived memory's unit or organization, or not below its layer |
 | `topic_mismatch` | E | a consolidation's parent has another topic |
-| `parent_ineligible` | E | a parent is not evidence the operator or the rule accepts (operator, slot, topic prefix, entity, or the rule's own chain) |
+| `parent_ineligible` | E | a parent is not evidence the operator or the rule accepts (operator, slot, topic prefix, entity, the rule's own chain, or, for a `*` conclusion, evidence about more than one entity) |
 | `slot_uncovered` | E | a conclusion has no evidence for one of its rule's required slots |
 | `below_min_support` | E | a consolidation has fewer contributing child units than its `MIN_SUPPORT`, or is a promotion that should not be |
 | `below_min_agents` | E | a conclusion's evidence comes from fewer distinct agents than the rule's `min_agents` |

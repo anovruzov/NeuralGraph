@@ -27,8 +27,9 @@ REGIONAL, STRATEGIC = RULES["regional_supply_risk"], RULES["strategic_second_sou
 DEMO = DEMO_RULE["rule_id"]
 ENTITY = "sd-9"
 DEPT = "northwind/emea/nw-gmbh/ops"
-# p's conclusion blocks w: it is the strongest candidate for w's slot s but comes from the agent that already fills y,
-# so w counts one agent where it needs two.  v sits above w and concludes on whatever w concludes.
+# p's conclusion about e blocks w's '*' conclusion: it is the strongest candidate for w's slot s, so w's best selection
+# names e only and is e's conclusion, not a '*' one, although a weaker note that names no entity fills s as well.  v sits
+# above w and concludes on whatever w concludes.
 BLOCKING = {"rule_id": "p", "target_layer": "team", "required_slots": ["x"], "min_agents": 1, "emits_slot": "s",
             "emits_topic": "supply:p", "conclusion": "P {entity}: {slot:x}"}
 BLOCKED = {"rule_id": "w", "target_layer": "department", "required_slots": ["s", "y"], "min_agents": 2, "emits_slot": "ws",
@@ -97,7 +98,7 @@ class RuleLifecycleTests(unittest.IsolatedAsyncioTestCase):
         [c] = of_rule(s.store, DEMO)
         self.assertEqual((c.layer, c.scope, c.support, c.independent_teams), ("enterprise", ORG, 3, 3))
         rule = s.store.get_applied_rule(DEMO)
-        self.assertEqual(DERIVATION_VERSION, 4)
+        self.assertEqual(DERIVATION_VERSION, 5)
         self.assertEqual(c.metadata["derivation"], {"v": DERIVATION_VERSION, "rule_digest": rule_digest(rule), "rule": rule_snapshot(rule)})
         self.assertIsNone(c.metadata["version_of"])
         self.assertEqual(s.aggregator.plan_for(c).memory.memory_id, c.memory_id, "settled: re-planning reproduces it")
@@ -313,30 +314,41 @@ class RuleLifecycleTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(invariant_violations(s, ORG), [])
 
     # ------------------------------------------------------------------ a candidate that stops blocking a conclusion
-    # A rule selects the strongest candidate per slot, so a strong candidate that adds no agent keeps a conclusion
-    # below its threshold.  When that candidate stops filling the slot, the conclusion holds, although it never rested
-    # on the candidate (it is not among its dependents) and nothing new is offered under the old slot, entity or topic.
+    # A rule takes the best selection that meets its thresholds, so a candidate that is not selected never matters to an
+    # entity's conclusion.  A '*' conclusion exists only when that selection names no entity somewhere: a strong candidate
+    # about one entity keeps it away.  When that candidate stops filling the slot, the '*' conclusion holds, although it
+    # never rested on the candidate (it is not among its dependents) and nothing new is offered under the old slot, entity
+    # or topic.
     async def blocked_world(self, h: ServiceHarness) -> str:
         s = h.service
         for body in (BLOCKING, BLOCKED, ABOVE):
             await s.upsert_rule(body)
         await h.register("log-1", team="logistics")
         await h.register("proc-1", team="procurement")
+        await h.register("proc-2", team="procurement")
         await h.observe("log-1", "x, strongly", topic="supply:x", slot="x", entity="e", confidence=0.95)
-        await h.observe("proc-1", "s, weakly", topic="supply:s", slot="s", entity="e", confidence=0.5)
-        await h.observe("log-1", "y", topic="supply:y", slot="y", entity="e", confidence=0.9)
+        await h.observe("proc-1", "s about nothing in particular, weakly", topic="supply:s", slot="s", confidence=0.5)
+        await h.observe("proc-2", "y", topic="supply:y", slot="y", entity="e", confidence=0.9)
         await h.settle()
         [p] = of_rule(s.store, "p")
-        self.assertEqual((p.slot, p.topic, p.confidence), ("s", "supply:p", 0.95))
-        self.assertEqual(of_rule(s.store, "w", status=None), [], "p's conclusion is selected for s and adds no agent")
+        self.assertEqual((p.slot, p.topic, p.confidence, p.entity), ("s", "supply:p", 0.95, "e"))
+        [w] = of_rule(s.store, "w")
+        self.assertEqual((w.entity, w.support), ("e", 2), "p's conclusion is selected for s: w's best selection names e only")
+        self.assertEqual({e.parent_id for e in s.store.parents_of(w.memory_id)} & {p.memory_id}, {p.memory_id})
+        self.assertEqual([m.entity for m in of_rule(s.store, "v")], ["e"])
         self.assertEqual(invariant_violations(s, ORG), [])
         return p.memory_id
 
     def assert_unblocked(self, s: MycelicService, support: int) -> None:
         [w] = of_rule(s.store, "w")
-        self.assertEqual((w.scope, w.entity, w.support), (DEPT, "e", support))
+        self.assertEqual((w.scope, w.entity, w.support), (DEPT, None, support))
         [v] = of_rule(s.store, "v")
         self.assertEqual({e.parent_id for e in s.store.parents_of(v.memory_id)}, {w.memory_id}, "and is offered upward")
+        self.assertEqual(invariant_violations(s, ORG), [])
+
+    def assert_blocked_again(self, s: MycelicService, p: str) -> None:
+        self.assertEqual([m.memory_id for m in of_rule(s.store, "p")], [p])
+        self.assertEqual(([m.entity for m in of_rule(s.store, "w")], [m.entity for m in of_rule(s.store, "v")]), (["e"], ["e"]))
         self.assertEqual(invariant_violations(s, ORG), [])
 
     async def test_superseded_candidate_unblocks_conclusions(self) -> None:
@@ -350,12 +362,10 @@ class RuleLifecycleTests(unittest.IsolatedAsyncioTestCase):
                 [p2] = of_rule(s.store, "p")
                 self.assertEqual((s.store.get_memory(p).superseded_by, p2.metadata["version_of"]), (p2.memory_id, p))
                 self.assert_unblocked(s, support=2)
-                # changed back: the original version is reactivated and blocks w again
+                # changed back: the original version is reactivated and blocks w's '*' conclusion again
                 await s.upsert_rule(BLOCKING)
                 await h.settle()
-                self.assertEqual([m.memory_id for m in of_rule(s.store, "p")], [p])
-                self.assertEqual((of_rule(s.store, "w"), of_rule(s.store, "v")), ([], []))
-                self.assertEqual(invariant_violations(s, ORG), [])
+                self.assert_blocked_again(s, p)
 
     async def test_withdrawn_candidate_unblocks_conclusions(self) -> None:
         """The withdrawal itself is the only path here: the rule event reconciles p's conclusion and nothing else."""
@@ -374,14 +384,13 @@ class RuleLifecycleTests(unittest.IsolatedAsyncioTestCase):
                 self.assert_unblocked(s, support=2)
                 await s.upsert_rule(BLOCKING)
                 await h.settle()
-                self.assertEqual([m.memory_id for m in of_rule(s.store, "p")], [p])
-                self.assertEqual((of_rule(s.store, "w"), of_rule(s.store, "v")), ([], []))
-                self.assertEqual(invariant_violations(s, ORG), [])
+                self.assert_blocked_again(s, p)
 
     async def test_consolidation_losing_its_slot_or_entity_unblocks_conclusions(self) -> None:
-        """No rule changes: a team consolidation blocks w until a note with another slot, or about another entity, joins
-        its topic; its new version carries no common slot (or entity), so the next strongest consolidation is selected
-        for s at e."""
+        """No rule changes: logistics' consolidation about e is the strongest candidate for s, so w's best selection names
+        e only and no '*' conclusion exists although procurement's consolidation names no entity.  A note with another slot,
+        or about another entity, joins logistics' topic; its new version carries no common slot (or entity), so it is no
+        longer that candidate, and w's '*' conclusion holds."""
         for joining in ({"slot": "q", "entity": "e"}, {"slot": "s", "entity": "f"}):
             with self.subTest(joining=joining):
                 h = await self.harness()
@@ -392,38 +401,97 @@ class RuleLifecycleTests(unittest.IsolatedAsyncioTestCase):
                     await h.register(a, team="logistics")
                 for b in ("b1", "b2"):
                     await h.register(b, team="procurement")
+                for c in ("c1", "c2"):
+                    await h.register(c, team="field-sales")
                 await h.observe("a1", "s by a1", topic="risk:t", slot="s", entity="e", confidence=0.95)
                 await h.observe("a2", "s by a2", topic="risk:t", slot="s", entity="e", confidence=0.9)
-                await h.observe("b1", "s by b1", topic="risk:u", slot="s", entity="e", confidence=0.5)
-                await h.observe("b2", "s by b2", topic="risk:u", slot="s", entity="e", confidence=0.4)
+                await h.observe("b1", "s by b1", topic="risk:u", slot="s", confidence=0.5)
+                await h.observe("b2", "s by b2", topic="risk:u", slot="s", confidence=0.4)
                 await h.observe("a1", "y by a1", topic="risk:y", slot="y", entity="e", confidence=0.9)
                 await h.observe("a2", "y by a2", topic="risk:y", slot="y", entity="e", confidence=0.9)
+                await h.observe("c1", "y by c1", topic="risk:y", slot="y", entity="e", confidence=0.8)
+                await h.observe("c2", "y by c2", topic="risk:y", slot="y", entity="e", confidence=0.8)
                 await h.settle()
                 [blocking] = [m for m in s.store.list_memories(ORG, layers=["team"]) if m.topic == "risk:t"]
                 self.assertEqual((blocking.slot, blocking.entity), ("s", "e"))
-                self.assertEqual(of_rule(s.store, "w", status=None), [], "a1 and a2 fill both slots: two agents of three")
+                [w] = of_rule(s.store, "w")
+                self.assertEqual((w.entity, w.support), ("e", 4), "logistics' s and field-sales' y: four agents, about e")
                 other = await h.observe("a3", "joins by a3", topic="risk:t", confidence=0.6, **joining)
                 await h.settle()
                 [now] = [m for m in s.store.list_memories(ORG, layers=["team"]) if m.topic == "risk:t"]
                 self.assertEqual((now.metadata["version_of"], s.store.get_memory(blocking.memory_id).status),
                                  (blocking.memory_id, "superseded"))
                 if joining["slot"] != "s":
+                    # procurement's consolidation (no entity) fills s next to logistics' y: a1, a2, b1, b2
                     self.assertEqual((now.slot, now.entity), (None, "e"))
                     self.assert_unblocked(s, support=4)
                 else:
-                    # the entity-less version also forms w's '*' conclusion with a1, a2 and a3
+                    # the entity-less version itself fills s next to logistics' y: a1, a2 and a3
                     self.assertEqual((now.slot, now.entity), ("s", None))
-                    [w] = [m for m in of_rule(s.store, "w") if m.entity == "e"]
-                    self.assertEqual((w.scope, w.support), (DEPT, 4))
-                    [v] = [m for m in of_rule(s.store, "v") if m.entity == "e"]
-                    self.assertEqual({e.parent_id for e in s.store.parents_of(v.memory_id)}, {w.memory_id})
-                    self.assertEqual(sorted((m.entity or "*", m.support) for m in of_rule(s.store, "w")), [("*", 3), ("e", 4)])
-                    self.assertEqual(invariant_violations(s, ORG), [])
-                # the note retracted: the blocking version is back and blocks w again
+                    self.assert_unblocked(s, support=3)
+                    [star] = of_rule(s.store, "w")
+                    self.assertIn(now.memory_id, {e.parent_id for e in s.store.parents_of(star.memory_id)})
+                # the note retracted: the blocking version is back and blocks w's '*' conclusion again
                 await s.retract(h.principal("a3"), other, "wrong note")
                 await h.settle()
                 self.assertEqual(s.store.get_memory(blocking.memory_id).status, "active")
-                self.assertEqual((of_rule(s.store, "w"), of_rule(s.store, "v")), ([], []))
+                self.assertEqual(([m.entity for m in of_rule(s.store, "w")], [m.entity for m in of_rule(s.store, "v")]),
+                                 (["e"], ["e"]))
+                self.assertEqual(invariant_violations(s, ORG), [])
+
+    # ------------------------------------------------------------------ one agent strongest in several slots
+    async def test_an_agreeing_note_never_withdraws_a_conclusion_and_one_agent_never_blocks_a_coalition(self) -> None:
+        """The shipped supply-risk rules need three agents in two teams.  x, y and z of three teams fill the three slots;
+        x then confirms the thin buffer more confidently than y: the strongest note of two slots is x's, but x, y and z
+        still qualify, so neither conclusion moves (same ids, nothing withdrawn).  In the other order (x's buffer note
+        first) the conclusions appear as soon as z's note applies.  Of several qualifying selections the one whose
+        weakest note is strongest counts."""
+        component = RULES["component_supply_risk"]
+        notes = {
+            "x-tr": ("x", "Rotterdam strike blocks SD-9 inbound.", "transport_disruption", 0.9),
+            "y-buf": ("y", "SD-9 buffer down to 2 days.", "supplier_buffer_low", 0.8),
+            "z-dem": ("z", "Q4 SD-9 orders committed.", "demand_commitment", 0.8),
+            "x-buf": ("x", "SD-9 buffer is thin, I confirm.", "supplier_buffer_low", 0.95),
+        }
+        for order in (("x-tr", "y-buf", "z-dem", "x-buf"), ("x-buf", "x-tr", "y-buf", "z-dem")):
+            with self.subTest(order=order):
+                h = await self.harness()
+                s = h.service
+                for body in (REGIONAL, component):
+                    await s.upsert_rule(body)
+                for agent, team in (("x", "logistics"), ("y", "procurement"), ("z", "planning")):
+                    await h.register(agent, team=team)
+                ids: dict[str, str] = {}
+                for name in order:
+                    agent, text, slot, confidence = notes[name]
+                    ids[name] = await h.observe(agent, text, topic="supply:sd-9", slot=slot, entity=ENTITY,
+                                                confidence=confidence)
+                    if name == "z-dem":
+                        await h.settle()
+                        held = {m.rule_id: m.memory_id for m in s.store.list_memories(ORG, operator="slot_composition")}
+                await h.settle()
+                conclusions = {m.rule_id: m for m in s.store.list_memories(ORG, operator="slot_composition")}
+                self.assertEqual(set(conclusions), {REGIONAL["rule_id"], component["rule_id"]})
+                self.assertEqual({rule: m.memory_id for rule, m in conclusions.items()}, held, "same ids: nothing moved")
+                self.assertEqual(of_rule(s.store, REGIONAL["rule_id"], status="retracted"), [])
+                for m in conclusions.values():
+                    self.assertEqual((m.support, m.independent_teams, m.confidence), (3, 3, 0.8))
+                    self.assertEqual(m.metadata["slots"], {"transport_disruption": ids["x-tr"],
+                                                           "supplier_buffer_low": ids["y-buf"],
+                                                           "demand_commitment": ids["z-dem"]})
+                    report = await s.verify(h.principal("z"), m.memory_id)
+                    self.assertEqual((report["verdict"], report["derived_correctly"], report["still_true"]),
+                                     ("verified", True, True))
+                self.assertEqual(invariant_violations(s, ORG), [])
+                # w, a fourth agent of a fourth team, is a stronger buffer note than y's: the selection whose weakest note
+                # is strongest takes it (weakest 0.8 either way, then the earlier in the buffer ranking)
+                await h.register("w", team="warehouse")
+                ids["w-buf"] = await h.observe("w", "SD-9 buffer at 2 days in the warehouse too.", topic="supply:sd-9",
+                                               slot="supplier_buffer_low", entity=ENTITY, confidence=0.85)
+                await h.settle()
+                [regional] = of_rule(s.store, REGIONAL["rule_id"])
+                self.assertEqual(regional.metadata["slots"]["supplier_buffer_low"], ids["w-buf"])
+                self.assertEqual(regional.metadata["version_of"], conclusions[REGIONAL["rule_id"]].memory_id)
                 self.assertEqual(invariant_violations(s, ORG), [])
 
     async def test_same_candidate_successor_is_not_composed_twice(self) -> None:

@@ -102,7 +102,8 @@ class MycelicClient:
                  expires_at: str | None = None, supersedes: str | None = None, value: str | None = None) -> dict[str, Any]:
         """Share one memory as the calling agent.  ``value``: what the note claims for its slot and entity ("closed"),
         stored as ``metadata.value``; notes whose values differ for one slot and entity dispute each other, and their
-        consolidation is flagged ``metadata.conflict`` instead of gaining confidence.  ``expires_at`` (ISO-8601, in the
+        consolidation and every rule conclusion over that slot are flagged ``metadata.conflict`` instead of gaining
+        confidence.  ``expires_at`` (ISO-8601, in the
         future, at most ten years ahead): answers stop using it then, and the service retracts it through the log shortly
         after.  ``supersedes``: the id of one of the caller's own active memories that this one corrects; this one is the
         complete note (nothing is inherited) and needs its own idempotency key.  409 (:class:`MycelicError`) while a

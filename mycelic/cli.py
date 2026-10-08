@@ -43,6 +43,7 @@ def _admin_client(args: argparse.Namespace):
 async def cmd_serve(args: argparse.Namespace) -> int:
     from .api import run_server
     from .service import MycelicService
+    from .store import DatabaseCorrupt
 
     try:
         settings = Settings.from_env()
@@ -78,7 +79,7 @@ async def cmd_serve(args: argparse.Namespace) -> int:
     try:
         service = MycelicService(settings)      # takes the single-writer lock on the database
     except (RuntimeError, OSError) as exc:
-        print(f"configuration error: {exc}", file=sys.stderr)
+        print(f"{'database' if isinstance(exc, DatabaseCorrupt) else 'configuration'} error: {exc}", file=sys.stderr)
         return 2
     runner = None
     try:

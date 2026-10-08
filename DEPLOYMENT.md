@@ -175,7 +175,11 @@ same tree with its dependency layer cached). CI runs both drivers (`.github/work
 * **TLS.** Terminate at a reverse proxy or Ingress and set `MYCELIC_ALLOWED_HOSTS` to its hostname and
   `MYCELIC_TRUST_PROXY_HEADERS=true` (with `MYCELIC_TRUSTED_PROXY_HOPS` = the number of proxies that append
   to `X-Forwarded-For`, default 1) so rate limiting sees client addresses; only do this when the proxy is the
-  only thing that can reach the service. Alternatively let Mycelic serve TLS itself with
+  only thing that can reach the service. Any other `Host` is answered 421, except on `/`, `/health` and `/ready`
+  (probes send the pod or container address), on `/metrics` whenever it checks a token (a Prometheus scrape sends the
+  pod or service address: a ServiceMonitor `<pod IP>:8080`, the compose profile `mycelic:8080`) and for a loopback
+  `Host` (`localhost`, `127.0.0.1`, `[::1]`: `kubectl port-forward`, the CLI inside the container), none of which can
+  send the public name. Alternatively let Mycelic serve TLS itself with
   `MYCELIC_TLS_CERT_FILE` / `MYCELIC_TLS_KEY_FILE`; this is not wired into the shipped compose file or
   manifests: pass the two variables and mount the certificate and key (compose: `environment` + `volumes`;
   Kubernetes: a Secret volume on the StatefulSet) and set `scheme: HTTPS` on the three probes in
@@ -210,7 +214,7 @@ All variables have the `MYCELIC_` prefix. Validation runs at start and fails fas
 | `METRICS_TOKEN` | | bearer for `/metrics`; unset ⇒ admin token or agent key required off loopback |
 | `READY_REQUIRES_NATS` | `false` | `/ready` fails during a broker outage when true. Without it a node stays ready through an outage, also when it (re)starts during one, provided its database has applied the log before: it waits at most 10 s for the broker, then serves from the database and keeps connecting. A node with a fresh database is not ready until the broker answers (only the stream says whether a log must be replayed into it) |
 | `TLS_CERT_FILE`, `TLS_KEY_FILE` | | serve HTTPS directly |
-| `ALLOWED_HOSTS`, `CORS_ORIGINS` | | Host allow-list; browser origins (off by default) |
+| `ALLOWED_HOSTS`, `CORS_ORIGINS` | | Host allow-list (421 otherwise; not applied to the probes, a token-checked `/metrics` or a loopback `Host`, see "TLS" in section 2); browser origins (off by default) |
 | `TRUST_PROXY_HEADERS`, `TRUSTED_PROXY_HOPS` | `false`, `1` | use the Nth-from-the-right `X-Forwarded-For` entry for rate limiting and audit (only behind a proxy that is the sole path in) |
 | `RATE_LIMIT_RPS`, `RATE_LIMIT_BURST` | `50`, `100` | per peer address before auth and per principal after |
 | `MAX_BODY_BYTES`, `MAX_TEXT_CHARS`, `MAX_BATCH`, `MAX_EVENT_BYTES` | `1 MiB`, `4000`, `100`, `256 KiB` | input limits |
@@ -225,7 +229,12 @@ All variables have the `MYCELIC_` prefix. Validation runs at start and fails fas
 ### 3a. Rules
 
 A rule (`deploy/mycelic/rules.json`, or `POST /admin/rules`) is a conclusion that exists only once every
-required slot is covered inside its target unit:
+required slot is covered inside its target unit. A rule evaluated without an entity (a `*` conclusion, which takes
+evidence that names no entity, such as a context note "demand is committed") rests on evidence about one entity at
+most next to that: evidence about two entities is never stitched into one conclusion, and a `*` conclusion exists only
+when its selection includes evidence that names no entity. With `corroborate`, its evidence is all of that: every memory
+that names no entity and every memory about the one entity whose pool is best (the strongest selection, then the first
+entity in sort order), whichever of them is the strongest:
 
 | Field | Meaning |
 |---|---|
@@ -233,11 +242,11 @@ required slot is covered inside its target unit:
 | `required_slots` | slots that must all be filled for the same `entity` |
 | `conclusion` | template with `{entity}` and `{slot:<name>}` placeholders |
 | `topic_prefix` | only evidence whose topic starts with it counts |
-| `min_agents`, `min_teams` | distinct agents / teams behind the evidence |
+| `min_agents`, `min_teams` | distinct agents / teams behind the evidence. Without `corroborate` the evidence is one memory per slot: the strongest of each slot, or, when those miss a threshold (one agent is the strongest in several slots), the selection that meets the thresholds whose weakest memory is strongest, so a note that agrees with the evidence never withdraws a conclusion. The search for that selection tries at most 20,000 selections per evaluation (a `*` evaluation runs one search for every entity's pool, not one per entity); when it stops there, the best one it found stands, and the rule does not hold only if it found none (a warning is logged once per rule; docs/MYCELIC_ARCHITECTURE.md §5, "Slot composition") |
 | `sources` | operators that may fill a slot: `agent_observation` (default), `slot_composition` (other rules' conclusions), `topic_consolidation` |
 | `emits_slot`, `emits_topic` | what the conclusion carries, so a higher rule can consume it |
-| `min_units` | corroboration per slot, e.g. `{"supply_risk": {"region": 2}}`: the units behind the evidence filling that slot must include two regions. The count is taken over the memories that become parents, so without `corroborate` it is the units behind the single strongest memory per slot; a count above 1 therefore needs `corroborate: true` unless that one memory itself spans the units (a consolidation or an already corroborated conclusion) |
-| `corroborate` | every memory filling a required slot becomes evidence (lineage and support include all of them); confidence per slot is the noisy-OR over the units filling it, unless they claim different values for it ("Disputed claims", section 4): then the strongest one counts and the conclusion carries `metadata.conflict` |
+| `min_units` | corroboration per slot, e.g. `{"supply_risk": {"region": 2}}`: the units behind the evidence filling that slot must include two regions. The count is taken over the memories that become parents, so without `corroborate` it is the units behind the one memory selected for the slot; a count above 1 therefore needs `corroborate: true` unless that one memory itself spans the units (a consolidation or an already corroborated conclusion) |
+| `corroborate` | every memory filling a required slot becomes evidence (lineage and support include all of them); confidence per slot is the noisy-OR over the units filling it, unless they claim different values for it ("Disputed claims", section 4): then the strongest one counts and the conclusion carries `metadata.conflict` (a rule without `corroborate` flags such a slot too) |
 | `kind`, `org_id`, `enabled`, `metadata` | memory kind of the conclusion; restrict to one organization; switch off; free-form |
 
 Labels are normalised wherever they enter: topics, slots and entities of notes and query filters, and a rule's
@@ -313,8 +322,8 @@ both the compose file (`stop_grace_period`) and the StatefulSet (`terminationGra
 **Backups.** Three things hold state:
 
 1. the Mycelic database (`mycelic-data` volume). Back it up with SQLite's online backup while the service
-   runs: `docker compose -f deploy/mycelic/docker-compose.yml exec mycelic python -c "import sqlite3; s=sqlite3.connect('/data/mycelic.db'); d=sqlite3.connect('/data/backup.db'); s.backup(d)"`
-   then copy `/data/backup.db` out of the volume; or snapshot the volume while the service is stopped;
+   runs and copy the backup out of the volume ("Restoring the database" below has the commands), or snapshot the
+   volume while the service is stopped;
 2. the JetStream store (`nats-data` volume): snapshot the volume while the broker is stopped, or use the
    `nats` CLI (`nats stream backup MYCELIC <dir>`) against port 4222 from inside the network;
 3. the signing keys, `MYCELIC_EVENT_SIGNING_KEY` and `MYCELIC_EVENT_SIGNING_KEYS_PREVIOUS`: store them with every
@@ -328,6 +337,49 @@ missing database is rebuilt in full from the stream. A missing stream with an in
 serving, but nothing can be replayed until new events accumulate; restore the stream from its backup
 before restoring an older database.
 
+**Restoring the database.** Stop the service, **remove `mycelic.db-wal` and `mycelic.db-shm`**, copy the backup in as
+`mycelic.db` owned by uid 10001 (the image's user), start. After a crash or a kill those two files hold the
+write-ahead log of the database being replaced, and SQLite replays it onto whatever file is called `mycelic.db`: onto a
+restored backup that gives a mix of pages of both, neither the backup nor the lost state, whose `last_applied_seq`
+hides the gap from recovery. Every start runs SQLite's `quick_check`, which reads the whole file (0.3 s for a 370 MB database
+already in the page cache in this repository's sandbox, plus the time to read it from a cold disk), and refuses such a
+database: the service exits with `database error: database /data/mycelic.db
+fails SQLite's quick_check (...)` and writes nothing to it (`test_a_backup_restored_over_a_stale_wal_is_refused_and_the_documented_restore_works`).
+A log that happens to hold every page it touched replays cleanly instead and silently undoes the restore, so remove
+the two files every time. The backup holds every note's text: keep it outside the checkout, readable only by you.
+
+```bash
+# Compose: back up while the service runs, then copy the backup out of the volume
+BACKUP_DIR="$HOME/mycelic-backup/$(date -u +%Y%m%dT%H%M%SZ)"; (umask 077 && mkdir -p "$BACKUP_DIR")
+docker compose -f deploy/mycelic/docker-compose.yml exec mycelic python -c "import sqlite3; s=sqlite3.connect('/data/mycelic.db'); d=sqlite3.connect('/data/backup.db'); s.backup(d)"
+docker compose -f deploy/mycelic/docker-compose.yml cp mycelic:/data/backup.db "$BACKUP_DIR/mycelic.db" && chmod 600 "$BACKUP_DIR/mycelic.db"
+docker compose -f deploy/mycelic/docker-compose.yml exec mycelic rm /data/backup.db
+
+# Compose: restore it (the volume is mycelic_mycelic-data, after the compose project)
+BACKUP_DIR="$HOME/mycelic-backup/<the backup to restore>"
+docker compose -f deploy/mycelic/docker-compose.yml stop mycelic
+docker run --rm -v mycelic_mycelic-data:/v -v "$BACKUP_DIR":/b alpine sh -c 'rm -f /v/mycelic.db-wal /v/mycelic.db-shm && cp /b/mycelic.db /v/mycelic.db && chown 10001:10001 /v/mycelic.db'
+docker compose -f deploy/mycelic/docker-compose.yml start mycelic
+
+# Kubernetes (not executed against a cluster): the same, with kubectl cp and a one-off pod on the data volume
+kubectl -n mycelic exec mycelic-0 -- python -c "import sqlite3; s=sqlite3.connect('/data/mycelic.db'); d=sqlite3.connect('/data/backup.db'); s.backup(d)"
+kubectl -n mycelic cp mycelic-0:/data/backup.db "$BACKUP_DIR/mycelic.db" && chmod 600 "$BACKUP_DIR/mycelic.db"
+kubectl -n mycelic exec mycelic-0 -- rm /data/backup.db
+kubectl -n mycelic scale statefulset/mycelic --replicas=0
+kubectl -n mycelic run mycelic-restore --image=busybox --restart=Never --overrides='{"apiVersion": "v1", "spec": {"securityContext": {"runAsUser": 10001, "runAsGroup": 10001, "fsGroup": 10001}, "containers": [{"name": "mycelic-restore", "image": "busybox", "command": ["sh", "-c", "rm -f /data/mycelic.db-wal /data/mycelic.db-shm && sleep 3600"], "volumeMounts": [{"name": "data", "mountPath": "/data"}]}], "volumes": [{"name": "data", "persistentVolumeClaim": {"claimName": "data-mycelic-0"}}]}}'
+kubectl -n mycelic wait --for=condition=Ready pod/mycelic-restore
+kubectl -n mycelic cp "$BACKUP_DIR/mycelic.db" mycelic-restore:/data/mycelic.db
+kubectl -n mycelic delete pod mycelic-restore
+kubectl -n mycelic scale statefulset/mycelic --replicas=1
+```
+
+At its start the restored node catches up from the stream ("stale database restored from backup" below). A
+database that fails `quick_check` for another reason is restored the same way, or moved aside to be rebuilt from the
+stream ("database lost or corrupt" below). The Compose commands were rehearsed in this repository's sandbox on a scratch
+project (its volume name in place of `mycelic_mycelic-data`): 3 notes before the backup, 40 after it, the service
+killed (it left a 4 MB `mycelic.db-wal`), then the restore: `/ready` answered 200, the log said "database applied up to
+seq 7 but the consumer acknowledged up to 47 (restored backup?): re-delivering from 8", and all 43 notes were there.
+
 **Recovery procedures** (service crash, broker outage and database loss are exercised by
 `tests/smoke/mycelic_smoke.py` steps 6–8; the other rows by the named tests in `tests/mycelic/test_jetstream.py`):
 
@@ -336,7 +388,8 @@ before restoring an older database.
 | service crashed | `docker compose -f deploy/mycelic/docker-compose.yml start mycelic` (or let `restart: unless-stopped` do it); it resumes from the durable consumer |
 | broker down | nothing: writes are accepted and queued in the outbox; `/health` reports `degraded`; the queue flushes on reconnect. `mycelic_outbox_pending` shows the depth |
 | database lost or corrupt | stop the service, remove `/data/mycelic.db*`, start it: it logs "fresh database but the stream holds N events: replaying" and rebuilds memories, lineage, agents (their keys keep working) and rules. `mycelic_replay_events_total` counts progress; `/ready` is 503 until the replay finishes, and the target is stored in the database so a crash mid-rebuild resumes it (`test_lost_database_is_rebuilt_from_the_stream`, `test_unfinished_replay_resumes_after_a_crash`) |
-| stale database restored from backup | just start it: missing events are re-delivered (`mycelic_recovery_total{kind="replay_restored_backup"}`; `test_restored_backup_receives_the_events_it_missed`) |
+| stale database restored from backup | restore it as "Restoring the database" above says (the service stopped, `mycelic.db-wal` and `mycelic.db-shm` removed), then just start it: missing events are re-delivered (`mycelic_recovery_total{kind="replay_restored_backup"}`; `test_restored_backup_receives_the_events_it_missed`) |
+| the service exits with `database error: … fails SQLite's quick_check` | the database file is damaged, most often a backup copied over it with the `-wal` and `-shm` of the crashed node left in place: restore the backup again as "Restoring the database" above says, or move the database aside to rebuild it from the stream (row "database lost or corrupt") |
 | durable consumer lost (broker state reset) | nothing, whether the service is running or starts afterwards: the consumer is recreated after the last applied sequence (`kind="consumer_recreated"`; `test_lost_consumer_is_recreated_after_the_last_applied_event`) |
 | stream shorter than the database (purged or recreated) | the database keeps serving; the log restarts from the new sequence and `kind="stream_behind_database"` is counted; restore the stream backup first when you can. Only a stream length the broker reported counts: while it cannot say (a timeout, JetStream not ready yet after a restart) nothing is judged, the consumer logs "did not report the stream's state", fetches nothing and retries with backoff (`test_a_resync_while_the_broker_cannot_report_its_stream_judges_nothing`, `test_a_start_while_the_broker_cannot_report_its_stream_judges_once_it_can`) |
 | broker came back without its JetStream state (volume or PVC lost, stream deleted) while the service runs | nothing: the reconnect (or a publish or status read that finds no stream or consumer) makes the service recreate the stream and the consumer, audit `recovery.broker_state_reset`, count `kind="broker_state_reset"` and continue as for a shorter stream (row above); the outbox drains without a restart. Until then `/health` is `degraded` with `checks.transport.error` and `checks.publisher.last_error` (`test_broker_state_reset_is_recovered_without_a_restart`) |
@@ -465,8 +518,11 @@ at most 200 characters once normalised (a number, an object or a longer string c
 `metadata` is shown only to its producer and administrators, as before. Notes whose values
 differ for one slot and entity dispute each other: every consolidation built on them carries `metadata.conflict: true`,
 takes the confidence of its strongest contribution instead of raising it, and claims no slot, so no rule takes it as
-evidence; a rule with `corroborate` does not raise a slot's confidence over evidence with different values and flags
-its conclusion `metadata.conflict`. A consolidation whose value-carrying parents agree carries their `value`. Free text
+evidence. Every rule compares the values of the memories that could fill each slot and flags its conclusion
+`metadata.conflict` when one slot holds two values for one entity: a rule with `corroborate` does not raise that slot's
+confidence; a rule without it rests on the strongest memory claiming each value next to its selection, so both sides
+are in the lineage and in `support`, and the flag goes when one side is retracted. A conclusion resting on a disputed
+conclusion is flagged too, and downward verification warns `disputed` (it never changes the verdict). A consolidation whose value-carrying parents agree carries their `value`. Free text
 is never compared: notes without a `value` never dispute anything, so give a note a value whenever its slot is a status
 that can be contradicted ("open", "closed"). Every value is compared at every layer above its note, whatever the
 note's visibility, so two teams that disagree are flagged above them also when their notes are team-visibility (the
@@ -654,7 +710,7 @@ rising), answers may mix memories derived by the old and the new version. An int
 retried at the next start; `python -m mycelic reaggregate` re-runs it on demand. Its derived events are not
 reproduced by a rebuild from the log, which derives the converged state directly.
 
-**Responses changed in this release** (derivation version 4):
+**Responses changed in this release** (derivation version 5):
 
 * Consolidation text has a new format and no agent ids: `<topic> — team '<team>': <n> agents. <statement>; …` at
   team level, `<topic> — <layer> '<unit>': <n> <child layer> sources, <n> agents, <n> team-private observations not
@@ -719,8 +775,15 @@ reproduced by a rebuild from the log, which derives the converged state directly
   is unreachable and whose database has applied the log before is ready after at most 10 s (`degraded`), where it
   stayed 503 until the broker returned; a fresh database still waits for the broker. `/health`, `GET /` and the MCP server info report version
   `0.2.0`.
-* `DERIVATION_VERSION` is 4 (2 before disputes; 3 in pre-release builds whose consolidations did not compare the values
-  of team-visibility notes), so the first start re-derives everything, also a database written
+* Rule conclusions: a rule without `corroborate` concludes whenever some selection of one memory per slot meets its
+  thresholds (before, only the strongest memory of each slot was tried, so a more confident note from an agent who
+  already contributed could withdraw a conclusion), flags a slot whose candidates claim different values for one
+  entity (`metadata.conflict`, both sides become parents and count in `support`), and a `*` conclusion never rests on
+  evidence about two entities. Verification reports may carry the warning `disputed`, and report the evidence of a `*`
+  conclusion an earlier build stitched from two entities as `parent_ineligible`.
+* `DERIVATION_VERSION` is 5 (2 before disputes; 3 in pre-release builds whose consolidations did not compare the values
+  of team-visibility notes; 4 in pre-release builds whose rules tried only the strongest memory of each slot), so the
+  first start re-derives everything, also a database written
   under 2 by schema 5 (`checks.reaggregation.reason` = `pending`, set by the upgrade to schema 6 below, or
   `derivation_version`). Until `checks.reaggregation.state` = `done`, consolidations derived by the earlier release
   keep their old text, which may quote team-visibility notes and agent ids above team level, and they are what
@@ -737,7 +800,7 @@ When the database holds derived memories, the first start also re-aggregates in 
 (`checks.reaggregation.reason` = `pending`): a rule conclusion now reaches every consolidation of its topic above its
 unit next to that unit's own consolidation, a unit with fewer registered children than `MIN_SUPPORT` keeps what it
 promotes when a sibling adds evidence (docs/MYCELIC_ARCHITECTURE.md §5), and every derived memory is derived again
-under `DERIVATION_VERSION` 4, which reads claimed values ("Disputed claims", section 4), so none of them keeps a
+under `DERIVATION_VERSION` 5, which reads claimed values ("Disputed claims", section 4), so none of them keeps a
 derivation that verification would now recompute differently. Like every schema upgrade it is one-way, so
 **back up the database first**; an earlier release refuses the upgraded database (`database schema 6 is newer than
 this code`).

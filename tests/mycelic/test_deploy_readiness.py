@@ -31,7 +31,7 @@ from mycelic.config import ConfigError, Settings
 from mycelic.integrity import Keyring
 from mycelic.metrics import Metrics
 from mycelic.service import READY_BLOCK_REASON, MycelicService, _recorded_ratio
-from mycelic.store import DatabaseLocked, MycelicStore, acquire_db_lock, release_db_lock
+from mycelic.store import DatabaseCorrupt, DatabaseLocked, MycelicStore, acquire_db_lock, release_db_lock
 from mycelic.transport import InProcessTransport, JetStreamTransport, subject_for
 from mycelic.version import VERSION
 
@@ -680,9 +680,10 @@ class LockTests(unittest.IsolatedAsyncioTestCase):
                 self.service()
         self.assertNotIsInstance(cm.exception, DatabaseLocked)
         self.assertIn("newer", str(cm.exception))
-        self.assertEqual(len(opened), 1)
-        with self.assertRaises(sqlite3.ProgrammingError):
-            opened[0].execute("SELECT 1")             # the half-built store closed its connection
+        self.assertEqual(len(opened), 2, "the store's connection and the read-only one its quick_check opens first")
+        for conn in opened:
+            with self.assertRaises(sqlite3.ProgrammingError):
+                conn.execute("SELECT 1")              # the half-built store closed its connections
         fd = acquire_db_lock(self.db)
         self.assertIsNotNone(fd)
         release_db_lock(fd)
@@ -771,6 +772,63 @@ class LockTests(unittest.IsolatedAsyncioTestCase):
                 dst.close()
         finally:
             await h.close()
+
+    #: a node that takes the documented online backup at seq 5, applies 200 more events (a checkpoint writes them into the
+    #: database file) and 20 after that, and is then killed: its -wal and -shm stay next to the database
+    CRASH_AFTER_BACKUP = """
+import asyncio, os, sqlite3, sys
+from mycelic.store import MycelicStore
+db = sys.argv[1]
+async def main():
+    store = MycelicStore(db)
+    async def apply(first, n):
+        for seq in range(first, first + n):
+            async with store.transaction() as tx:
+                tx.audit("mycelic", "event.applied", None, {"seq": seq, "pad": "x" * 2000})
+                tx.set_meta("last_applied_seq", str(seq))
+    await apply(1, 5)
+    src, dst = sqlite3.connect(db), sqlite3.connect(db + ".backup")
+    src.backup(dst)
+    dst.close()
+    src.close()
+    await apply(6, 200)
+    store._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    await apply(206, 20)
+    os._exit(0)
+asyncio.run(main())
+"""
+
+    async def test_a_backup_restored_over_a_stale_wal_is_refused_and_the_documented_restore_works(self) -> None:
+        """Copying a backup over the database of a node that crashed leaves its -wal and -shm in place: SQLite replays
+        that log onto the older file, and the mix is neither the backup nor the lost state.  Opening it is refused
+        (nothing is written, ``serve`` exits 2 and says what to do); the restore DEPLOYMENT.md documents (remove -wal and
+        -shm first) brings back the backup, and the start catches up from the stream as for any stale backup."""
+        subprocess.run([sys.executable, "-c", self.CRASH_AFTER_BACKUP, str(self.db)], cwd=ROOT, env=serve_env(),
+                       check=True, timeout=120)
+        wal, shm, backup = Path(f"{self.db}-wal"), Path(f"{self.db}-shm"), Path(f"{self.db}.backup")
+        self.assertTrue(wal.stat().st_size > 0 and shm.exists(), "the killed node left its write-ahead log")
+        backup_bytes = backup.read_bytes()
+        self.db.write_bytes(backup_bytes)                     # the mistake: -wal and -shm left in place
+        with self.assertRaises(DatabaseCorrupt) as cm:
+            self.service()
+        self.assertIn(str(wal), str(cm.exception))
+        self.assertIn('"Restoring the database"', str(cm.exception))
+        fd = acquire_db_lock(self.db)                         # refused, the lock is released on the way out
+        self.assertIsNotNone(fd)
+        release_db_lock(fd)
+        r = subprocess.run([sys.executable, "-m", "mycelic", "serve", "--db", str(self.db), "--nats-url", "",
+                            "--port", str(free_port())],
+                           cwd=ROOT, env=serve_env(MYCELIC_HOST="127.0.0.1"), capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 2, r.stdout + r.stderr)
+        self.assertIn(f"database error: database {self.db} fails SQLite's quick_check", r.stderr)
+        self.assertNotIn("Traceback", r.stderr)
+        # the documented restore: the service stopped, remove -wal and -shm, copy the backup in, start
+        wal.unlink()
+        shm.unlink()
+        self.db.write_bytes(backup_bytes)
+        s = self.service()
+        self.assertEqual(s.store.get_meta("last_applied_seq"), "5", "the backup's state, which recovery then catches up")
+        self.assertEqual(s.store._conn.execute("PRAGMA quick_check").fetchone()[0], "ok")
 
 
 # ---------------------------------------------------------------------------------------------------------- shutdown

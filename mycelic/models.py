@@ -244,11 +244,11 @@ class Rule:
     rule can list it among its ``required_slots`` and take conclusions as evidence (``sources`` names the
     operators whose memories may fill a slot).  ``min_units`` demands corroboration of a slot across
     organizational units (``{"supply_risk": {"region": 2}}``: supply risk reported by at least two regions);
-    the units are counted over the memories that become parents, which without ``corroborate`` is the single
-    strongest memory per slot, so a count above one needs ``corroborate`` unless that one memory itself spans
-    the units (a consolidation, or an already corroborated conclusion).  With ``corroborate`` every memory that
-    fills a required slot becomes evidence, not only the strongest one per slot.  That is what strategic synthesis is: a
-    conclusion whose parents are other units' conclusions.
+    the units are counted over the memories that become parents, which without ``corroborate`` is the one memory
+    selected per slot (the strongest, or the best selection that meets the thresholds), so a count above one needs
+    ``corroborate`` unless that one memory itself spans the units (a consolidation, or an already corroborated
+    conclusion).  With ``corroborate`` every memory that fills a required slot becomes evidence, not only the selected
+    one per slot.  That is what strategic synthesis is: a conclusion whose parents are other units' conclusions.
     """
 
     rule_id: str
@@ -266,7 +266,7 @@ class Rule:
     emits_slot: str | None = None   # the slot the conclusion carries, so higher rules can consume it
     emits_topic: str | None = None  # the topic the conclusion carries (default: topic_prefix or rule_id)
     min_units: dict[str, dict[str, int]] = field(default_factory=dict)          # slot -> layer -> distinct units
-    corroborate: bool = False       # every memory filling a required slot is evidence, not just the strongest
+    corroborate: bool = False       # every memory filling a required slot is evidence, not just the selected one
 
     def conclusion_topic(self) -> str | None:
         """The topic a conclusion carries: ``emits_topic``, else ``topic_prefix``, else the rule id as a label."""
@@ -280,7 +280,9 @@ class Rule:
 #: 2: consolidations quote by visibility (metadata.statements) and derived text is bounded
 #: 3: consolidations and corroborated conclusions read claimed values (metadata.value, metadata.conflict)
 #: 4: they compare every value beneath them, team-visibility notes' included (metadata.claims, as digests)
-DERIVATION_VERSION = 4
+#: 5: a rule without corroborate takes the best selection that meets its thresholds and flags disputed slots (both sides
+#:    of the dispute become evidence); a '*' conclusion's evidence names one entity at most
+DERIVATION_VERSION = 5
 #: rule fields that do not change what a rule derives: switching a rule off and on, deleting and re-creating it,
 #: narrowing it to one organization or editing its metadata keeps its digest, so its conclusions keep their ids
 _RULE_NON_DERIVING = ("enabled", "metadata", "org_id")

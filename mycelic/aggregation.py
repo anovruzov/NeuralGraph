@@ -25,8 +25,11 @@ compared in its canonical spelling (``models.canonical_value``: "Open" and "open
 at most 200 characters, which an earlier client may have stored, claims nothing).
 Notes on the same slot and entity whose values differ dispute each other: their consolidation carries
 ``metadata.conflict`` (true), takes the confidence of its strongest contribution instead of raising it, and claims no
-slot, so no rule takes a disputed consolidation as evidence; the flag travels up with every consolidation built on it,
-and a corroborating rule does not raise a slot's confidence over evidence whose values differ.  Every value beneath a
+slot, so no rule takes a disputed consolidation as evidence; the flag travels up with every consolidation built on it.
+A rule conclusion whose evidence pool claims two values for one slot and entity is flagged too: a corroborating rule
+does not raise that slot's confidence, and a rule without ``corroborate`` takes the strongest memory claiming each value
+as evidence next to its selection, so both sides are in its lineage; a conclusion resting on a disputed memory is
+flagged as well.  Every value beneath a
 unit is compared, whatever its note's visibility: a consolidation that is not disputed keeps the values beneath it as
 digests (``metadata.claims``, :func:`claims_of`, never shown to readers), so two teams whose team-visibility notes
 disagree are flagged above them, and only that bit leaves either team.  A consolidation whose value-carrying parents
@@ -37,9 +40,16 @@ a value never dispute anything.
 **Slot composition** (``operator='slot_composition'``).  A :class:`~mycelic.models.Rule` names the slots a
 conclusion needs (for example ``transport_disruption``, ``supplier_buffer_low``, ``demand_commitment``).  The
 conclusion exists only once every slot is covered for the same entity by observations from at least
-``min_agents`` agents in at least ``min_teams`` teams inside the rule's target unit.  Slot selection reuses
-``RuleBasedSynthesizer`` and the support metrics reuse ``LineageAnalyzer`` from the coordination package, with
-each raw observation as its own lineage root and its team as its failure domain.
+``min_agents`` agents in at least ``min_teams`` teams inside the rule's target unit.  Slot selection follows
+``RuleBasedSynthesizer``'s order (the strongest memory per slot); when that selection misses the thresholds of a rule
+without ``corroborate`` (one agent is the strongest in several slots), the rule takes the best selection that meets
+them (:func:`_coalition`, a bounded search that keeps the best selection it found), so agreeing evidence never takes a
+conclusion away.  A '*' conclusion (no entity) selects within the evidence about one entity and the evidence that names
+none, and exists only when its selection includes the latter (:func:`_wildcard_scopes`, :func:`wildcard_selection`):
+evidence about two entities is never stitched together; with ``corroborate`` that pool is its evidence.  The pools share
+the evidence that names no entity, which is read once per evaluation, and one search (one bound) covers all of them.
+The support metrics reuse ``LineageAnalyzer`` from the coordination package, with each raw observation as its own
+lineage root and its team as its failure domain.
 
 **Composition and strategic synthesis.**  A rule may name ``sources`` other than raw observations, so the
 conclusions of one rule (carrying ``emits_slot``) or the consolidations of a unit become evidence for a higher
@@ -73,11 +83,13 @@ visibility, at the rule's target layer and, through consolidations of the conclu
 Confidence of a consolidation is the noisy-OR of the strongest contribution per child
 (``1 - prod(1 - c_i)``): independent sources raise confidence, a single source cannot exceed its own, and a disputed
 consolidation (above) stays at its strongest contribution.
-Confidence of a rule conclusion is the *minimum* over the selected slots, the same conservative choice the
-research synthesizer makes: a conclusion is only as certain as its weakest required piece.
+Confidence of a rule conclusion without ``corroborate`` is the *minimum* over the selected slots, the same conservative
+choice the research synthesizer makes: a conclusion is only as certain as its weakest required piece.
 """
 from __future__ import annotations
 
+import heapq
+import itertools
 import logging
 from dataclasses import dataclass, field
 from typing import Any, Callable
@@ -104,6 +116,8 @@ STATEMENT_CHARS = 220      # a quoted statement is clipped to this many characte
 MAX_STATEMENTS = 12        # statements one consolidation quotes at most
 PER_CHILD_STATEMENTS = 3   # statements per child above team when a unit has more than four children
 MAX_DERIVED_TEXT = 2000    # characters of any derived text (consolidation or conclusion)
+COALITION_SEARCH_NODES = 20_000   # selections one rule evaluation tries at most when the strongest per slot falls short
+REDACTED = "[REDACTED]"   # a memory whose text is this literal never fills a slot (``RuleBasedSynthesizer``)
 QUOTABLE_ABOVE_TEAM = ("org", "rule")   # statement origins a consolidation above team level may quote
 
 
@@ -458,32 +472,326 @@ def build_consolidation(org_id: str, unit: str, topic: str, contributions: dict[
     )
 
 
+def _rank(m: Memory) -> tuple:
+    """``RuleBasedSynthesizer``'s order of the memories filling one slot: strongest first, then producer, then id."""
+    return -max(0.0, min(1.0, m.confidence)), m.producer_id, m.memory_id
+
+
+def _selection_key(selection: list[Memory]) -> tuple:
+    """The order of selections (one memory per slot, in slot order): weakest memory strongest first, then the earliest
+    in each slot's ranking (:func:`_rank`), slot by slot."""
+    return max(_rank(m)[0] for m in selection), tuple(_rank(m) for m in selection)
+
+
+def _strongest(rule: Rule, candidates: list[Memory]) -> list[Memory] | None:
+    """The strongest memory of each required slot, as ``RuleBasedSynthesizer`` selects it (a memory whose text is the
+    literal :data:`REDACTED` fills none), or None when a slot has none."""
+    out = []
+    for slot in rule.required_slots:
+        filling = [m for m in candidates if m.slot == slot and m.text != REDACTED]
+        if not filling:
+            return None
+        out.append(min(filling, key=_rank))
+    return out
+
+
+def _meets_thresholds(rule: Rule, evidence: list[Memory]) -> bool:
+    """Does the evidence come from ``min_agents`` agents in ``min_teams`` teams, and span the units ``min_units`` demands
+    in each of its slots?"""
+    return (len({a for m in evidence for a in contributing_agents(m)}) >= rule.min_agents
+            and len({t for m in evidence for t in contributing_teams(m)}) >= rule.min_teams
+            and all(len({u for m in evidence if m.slot == slot for u in contributing_units(m, layer)}) >= n
+                    for slot, per in rule.min_units.items() for layer, n in per.items()))
+
+
+def _contributors(m: Memory, known: dict[tuple[str, str], tuple[frozenset, frozenset]]) -> tuple[frozenset, frozenset]:
+    """The agents and teams behind ``m``; a raw note's are its author's, worked out once per author in ``known``."""
+    if m.layer != "agent":
+        return frozenset(contributing_agents(m)), frozenset(contributing_teams(m))
+    key = (m.producer_id, m.scope)
+    if key not in known:
+        known[key] = frozenset(contributing_agents(m)), frozenset(contributing_teams(m))
+    return known[key]
+
+
+class _SearchExhausted(Exception):
+    pass
+
+
+_exhausted_warned: set[str] = set()
+
+
+def _coalition(rule: Rule, candidates: list[Memory]) -> list[Memory] | None:
+    """The selection of a rule without ``corroborate`` when the strongest one does not meet its thresholds (one agent is
+    the strongest in several slots): of the selections about one entity at most that do, the one whose weakest memory is
+    strongest, then the earliest in each slot's ranking (:func:`_rank`), slot by slot; None when no selection does.  The
+    candidates of a rule evaluated for an entity are all about it; a '*' evaluation searches all its pools at once.
+
+    Each slot's memories are ranked once, those that name no entity and, per entity, those about it, and only the
+    strongest memory per contributor set (agents and teams) is kept: a weaker one with the same contributors is never
+    needed, nor is one about an entity behind one that names none.  A depth-first search in ranking order takes in each
+    slot only memories about the entity an earlier slot took (or about none), is pruned by what the remaining slots could
+    still add (their contributors together, and the most one memory per slot adds), and finds the earliest selection
+    with every memory at or above a floor; a lower floor only adds selections, so the strongest floor (a candidate's
+    confidence) with one is found by bisection, starting from the weakest.  The searches try at most
+    :data:`COALITION_SEARCH_NODES` selections in all, whatever the number of entities; when that stops them, the strongest
+    selection found so far stands, and the rule does not hold only when none was found (logged once per rule).  The
+    searches depend on the candidates alone, so the outcome is the same on every node; :func:`build_conclusion` makes the
+    evidence reproduce it.
+    """
+    n = len(rule.required_slots)
+    free: list[list[tuple]] = []                 # per slot: (rank, agents, teams, memory) of the memories naming no entity
+    about: list[dict[str, list[tuple]]] = []     # per slot and entity: those of the memories about it
+    every: list[list[tuple]] = []                # per slot: all of them, in ranking order
+    known: dict[tuple[str, str], tuple[frozenset, frozenset]] = {}
+    for slot in rule.required_slots:
+        nulls: list[tuple] = []
+        named: dict[str, list[tuple]] = {}
+        kept: list[tuple] = []
+        seen: dict[str | None, set[tuple[frozenset, frozenset]]] = {None: set()}
+        need = rule.min_units.get(slot)
+        for rank, m in sorted(((_rank(m), m) for m in candidates if m.slot == slot and m.text != REDACTED),
+                              key=lambda r: r[0]):
+            if need and any(len(contributing_units(m, layer)) < k for layer, k in need.items()):
+                continue
+            c = _contributors(m, known)
+            if c in seen[None] or c in seen.setdefault(m.entity, set()):
+                continue
+            seen[m.entity].add(c)
+            kept.append((rank, *c, m))
+            (nulls if m.entity is None else named.setdefault(m.entity, [])).append(kept[-1])
+        if not kept:
+            return None
+        free.append(nulls)
+        about.append(named)
+        every.append(kept)
+    budget = [COALITION_SEARCH_NODES]
+
+    def attempt(floor: float) -> list[Memory] | None:
+        """The earliest selection, in ranking order slot by slot, whose memories are all at or above ``floor``."""
+        # what slots i.. can still add: all their contributors together, and at most the largest set of each slot
+        rest_agents: list[frozenset] = [frozenset()] * (n + 1)
+        rest_teams: list[frozenset] = [frozenset()] * (n + 1)
+        gain_agents, gain_teams = [0] * (n + 1), [0] * (n + 1)
+        for i in reversed(range(n)):
+            above = list(itertools.takewhile(lambda e: -e[0][0] >= floor, every[i]))
+            if not above:
+                return None
+            rest_agents[i] = rest_agents[i + 1].union(*(a for _, a, _, _ in above))
+            rest_teams[i] = rest_teams[i + 1].union(*(t for _, _, t, _ in above))
+            gain_agents[i] = gain_agents[i + 1] + max(len(a) for _, a, _, _ in above)
+            gain_teams[i] = gain_teams[i + 1] + max(len(t) for _, _, t, _ in above)
+
+        def short(agents: frozenset, teams: frozenset, i: int) -> bool:
+            """Can slots i.. no longer bring ``agents`` and ``teams`` to the thresholds?  (A union's size is counted
+            from the few chosen so far, never by building it.)"""
+            return (min(len(rest_agents[i]) + len(agents - rest_agents[i]), len(agents) + gain_agents[i]) < rule.min_agents
+                    or min(len(rest_teams[i]) + len(teams - rest_teams[i]), len(teams) + gain_teams[i]) < rule.min_teams)
+
+        if short(frozenset(), frozenset(), 0):
+            return None
+
+        def search(i: int, entity: str | None, agents: frozenset, teams: frozenset) -> list[Memory] | None:
+            if i == n:
+                return []
+            # once a slot took a memory about an entity, the others take only memories about it or about none
+            entries = (every[i] if entity is None
+                       else heapq.merge(free[i], about[i].get(entity, ()), key=lambda e: e[0]))
+            tried: set[tuple[frozenset, frozenset]] = set()
+            for rank, a, t, m in entries:
+                if -rank[0] < floor:
+                    break
+                budget[0] -= 1
+                if budget[0] < 0:
+                    raise _SearchExhausted
+                if entity is not None:
+                    if (a, t) in tried:
+                        continue            # a memory naming no entity behind a stronger one about the entity
+                    tried.add((a, t))
+                if short(agents | a, teams | t, i + 1):
+                    continue
+                rest = search(i + 1, m.entity if entity is None else entity, agents | a, teams | t)
+                if rest is not None:
+                    return [m, *rest]
+            return None
+
+        return search(0, None, frozenset(), frozenset())
+
+    # a lower floor only adds selections, so the strongest floor with one is found by bisection
+    floors = sorted({-e[0][0] for entries in every for e in entries}, reverse=True)
+    best: list[Memory] | None = None
+    try:
+        best = attempt(floors[-1])
+        lo, hi = 0, len(floors) - 1                 # best is attempt(floors[hi]) throughout
+        while best is not None and lo < hi:
+            mid = (lo + hi) // 2
+            at = attempt(floors[mid])
+            if at is not None:
+                best, hi = at, mid
+            else:
+                lo = mid + 1
+    except _SearchExhausted:
+        if rule.rule_id not in _exhausted_warned:            # once per rule and process: it recurs at every evaluation
+            _exhausted_warned.add(rule.rule_id)
+            logger.warning("rule %s: the coalition search stopped after %d selections over %d candidates; %s",
+                           rule.rule_id, COALITION_SEARCH_NODES, len(candidates),
+                           "it does not hold" if best is None else "the strongest selection found so far stands")
+    return best
+
+
+def _select(rule: Rule, pool: list[Memory]) -> list[Memory] | None:
+    """The selection a rule rests on within a pool of candidates: the strongest memory of each slot, or, without
+    ``corroborate``, the best selection that meets the thresholds when that one does not (:func:`_coalition`)."""
+    strongest = _strongest(rule, pool)
+    if strongest is None or rule.corroborate or _meets_thresholds(rule, strongest):
+        return strongest
+    return _coalition(rule, pool)
+
+
+def wildcard_selection(selected: list[Memory]) -> bool:
+    """Can a '*' conclusion rest on this selection?  Only on evidence that names no entity next to evidence about one
+    entity at most: never on one entity's conclusion (that is the entity's own key), never on evidence about two entities
+    stitched together."""
+    return any(m.entity is None for m in selected) and len({m.entity for m in selected if m.entity is not None}) <= 1
+
+
+def _wildcard_scopes(rule: Rule, candidates: list[Memory]) -> tuple[list[Memory], list[Memory]] | None:
+    """The selection of a '*' conclusion and the pool it is chosen in, of the pools "evidence that names no entity, and
+    evidence about one entity E", one per E (only the former when no candidate names an entity).  Without ``corroborate``
+    it is the best selection about one entity at most, as :func:`_select` would choose it in each pool: the strongest
+    selection of the pool whose strongest is best when that one meets the thresholds, otherwise one search of every pool
+    at once (:func:`_coalition`); its pool is that of the entity it names.  With ``corroborate`` a pool is the evidence,
+    whichever memories its strongest selection names, and must meet the thresholds; the pool whose strongest selection is
+    best counts (weakest memory strongest, then earliest in each slot's ranking), then the first E.  The memories that
+    name no entity are read once, not once per pool, so a pool costs only the evidence about its entity."""
+    nulls = [m for m in candidates if m.entity is None]
+    by_entity: dict[str, list[Memory]] = {}
+    for m in candidates:
+        if m.entity is not None:
+            by_entity.setdefault(m.entity, []).append(m)
+
+    def top(mems: list[Memory]) -> dict[str, tuple[tuple, Memory]]:
+        """The strongest memory of each required slot among ``mems`` (:func:`_strongest`), with its rank."""
+        out: dict[str, tuple[tuple, Memory]] = {}
+        for m in mems:
+            if m.slot in rule.required_slots and m.text != REDACTED:
+                rank = _rank(m)
+                if m.slot not in out or rank < out[m.slot][0]:
+                    out[m.slot] = rank, m       # type: ignore[index]
+        return out
+
+    top_null = top(nulls)
+    strongest: dict[str | None, tuple[tuple, list[Memory]]] = {}     # each pool's strongest selection and its key
+    for e in sorted(by_entity) or [None]:
+        tops = (top_null, top(by_entity[e])) if e is not None else (top_null,)
+        picks = [min((t[s] for t in tops if s in t), key=lambda r: r[0], default=None) for s in rule.required_slots]
+        if all(p is not None for p in picks):
+            ranks = tuple(r for r, _ in picks)      # type: ignore[misc]
+            strongest[e] = (max(r[0] for r in ranks), ranks), [m for _, m in picks]     # :func:`_selection_key`
+    if not strongest:
+        return None
+    if not rule.corroborate:
+        _, picks = min(((key, e or ""), picks) for e, (key, picks) in strongest.items())
+        selection = picks if _meets_thresholds(rule, picks) else _coalition(rule, candidates)
+        if selection is None:
+            return None
+        named = {m.entity for m in selection if m.entity is not None}
+        return selection, [m for m in candidates if m.entity is None or m.entity in named]
+    known: dict[tuple[str, str], tuple[frozenset, frozenset]] = {}
+
+    def tally(mems: list[Memory]) -> tuple[set[str], set[str], dict[tuple[str, str], set[str]]]:
+        """The agents, teams and (per ``min_units`` slot and layer) units behind ``mems``."""
+        agents: set[str] = set()
+        teams: set[str] = set()
+        units: dict[tuple[str, str], set[str]] = {}
+        for m in mems:
+            a, t = _contributors(m, known)
+            agents.update(a)
+            teams.update(t)
+            for layer in rule.min_units.get(m.slot or "", {}):
+                units.setdefault((m.slot, layer), set()).update(contributing_units(m, layer))   # type: ignore[arg-type]
+        return agents, teams, units
+
+    def joint(common: set[str], extra: set[str]) -> int:
+        """``len(common | extra)``, counted without copying ``common``."""
+        return len(common) + len(extra - common)
+
+    shared, nothing = tally(nulls), (set(), set(), {})
+    best: tuple | None = None
+    for e, (key, picks) in strongest.items():
+        own = tally(by_entity[e]) if e is not None else nothing
+        if (joint(shared[0], own[0]) >= rule.min_agents and joint(shared[1], own[1]) >= rule.min_teams
+                and all(joint(shared[2].get((slot, layer), set()), own[2].get((slot, layer), set())) >= k
+                        for slot, per in rule.min_units.items() for layer, k in per.items())):
+            if best is None or (key, e or "") < best[0]:
+                best = ((key, e or ""), picks, e)
+    if best is None:
+        return None
+    _, picks, e = best
+    return picks, (nulls + by_entity[e] if e is not None else nulls)
+
+
 def build_conclusion(rule: Rule, org_id: str, unit: str, entity: str | None, candidates: list[Memory], *,
                      version_of: str | None, now: str) -> tuple[Memory, list[Memory]] | None:
     """The conclusion of ``rule`` at ``unit`` for ``entity`` and the evidence it rests on, or None when the rule does
-    not hold on these candidates (no store, no clock).  The fragility metrics are left to the caller."""
+    not hold on these candidates (no store, no clock).  The fragility metrics are left to the caller.
+
+    The selection is one memory per required slot (:func:`_select`): the strongest of each slot, in
+    ``RuleBasedSynthesizer``'s order, unless the rule does not corroborate and that one misses its thresholds; then the
+    best selection that meets them.  A '*' conclusion (``entity`` None, candidates about any entity) selects within one
+    entity's evidence and the evidence that names none (:func:`_wildcard_scopes`) and holds only when its selection
+    includes a memory that names no entity (:func:`wildcard_selection`).  Evidence is the selection's pool (the candidates,
+    or for '*' the pool it was chosen in) with ``corroborate``; without it, the selection and, for each slot whose pool
+    (for '*', the evidence about the selection's entity or none) claims different values for one entity, the strongest
+    memory claiming each of them, so a dispute is in the lineage.  A disputed slot, or a disputed memory among the
+    evidence, flags the conclusion (``metadata.conflict``).
+    """
     key = f"{rule.rule_id}:{entity or '*'}"
-    claims = tuple(_claim(m, rule, now) for m in candidates)
     slots = tuple(rule.required_slots)
-    synthesis = RuleBasedSynthesizer(slots).synthesize(claims)
-    scored_claims = _scored_claims(claims, slots)
-    by_id = {m.memory_id: m for m in candidates}
-    selected = [by_id[cid] for cid in synthesis.selected_claim_ids] if synthesis.success else []
-    # with corroboration every memory that fills a required slot is evidence, not only the strongest per slot
-    evidence = sorted(candidates, key=lambda m: m.memory_id) if (rule.corroborate and synthesis.success) else selected
+    found = (_select(rule, candidates), candidates) if entity is not None else _wildcard_scopes(rule, candidates)
+    if found is None or found[0] is None:
+        return None
+    selected, scope = found
+    while True:
+        if entity is None and not wildcard_selection(selected):
+            return None
+        named = {m.entity for m in selected if m.entity is not None}
+        pool = (scope if entity is not None or rule.corroborate
+                else [m for m in candidates if m.entity is None or m.entity in named])
+        # the values claimed in each slot, the strongest memory claiming each one first: a slot is disputed when it holds
+        # two values for one entity
+        values: dict[str, dict[tuple[str, str], Memory]] = {}
+        for m in sorted(pool, key=_rank):
+            for slot, e, digest in claims_of(m):
+                if slot == m.slot and slot in slots:
+                    values.setdefault(slot, {}).setdefault((e, digest), m)
+        disputed = {(slot, e) for slot, held in values.items() for e, _ in held if sum(e2 == e for e2, _ in held) > 1}
+        if rule.corroborate:
+            # with corroboration every memory that fills a required slot is evidence, not only the strongest per slot
+            evidence = sorted(pool, key=lambda m: m.memory_id)
+            break
+        chosen = {m.memory_id for m in selected}
+        sides = {m.memory_id: m for slot, e in disputed for (e2, _), m in values[slot].items() if e2 == e}
+        evidence = [*selected, *sorted((m for mid, m in sides.items() if mid not in chosen), key=lambda m: m.memory_id)]
+        # the evidence alone must reproduce the selection (verification re-derives it so): it does when the selection is
+        # the best one, but one the search settled for at its bound (:func:`_coalition`) gives way to a better one among
+        # the evidence until they agree, and without agreement the rule does not hold
+        best = _select(rule, evidence) if len(evidence) > len(selected) else selected
+        if best is not None and _selection_key(best) < _selection_key(selected):
+            selected = best
+            continue
+        if best is None or [m.memory_id for m in best] != [m.memory_id for m in selected]:
+            return None
+        break
+    if not _meets_thresholds(rule, evidence):
+        return None
     agents = sorted({a for m in evidence for a in contributing_agents(m)})
     teams = sorted({t for m in evidence for t in contributing_teams(m)})
     # corroboration is per slot: "supply_risk reported by two regions" counts the units behind that slot only
     units = {slot: {layer: sorted({u for m in evidence if m.slot == slot for u in contributing_units(m, layer)})
                     for layer in per} for slot, per in rule.min_units.items()}
-    enough_units = all(len(units[slot][layer]) >= n for slot, per in rule.min_units.items() for layer, n in per.items())
-    if not synthesis.success or len(agents) < rule.min_agents or len(teams) < rule.min_teams or not enough_units:
-        return None
-    if entity is None and all(m.entity is not None for m in selected):
-        return None         # a '*' conclusion stands for evidence that names no entity, not for one entity's conclusion
     parent_ids = sorted(m.memory_id for m in evidence)
     slot_texts = {m.slot: m.text for m in selected if m.slot}
-    disputed = False
     if rule.corroborate:
         # confidence per slot rises with independent corroboration (noisy-OR over the units filling it), unless the
         # memories filling it claim different values (a dispute is not corroboration: the strongest one counts);
@@ -491,20 +799,18 @@ def build_conclusion(rule: Rule, org_id: str, unit: str, entity: str | None, can
         per_slot = []
         for slot in slots:
             best_by_unit: dict[str, float] = {}
-            values = set()
             for m in evidence:
                 if m.slot == slot:
                     u = m.scope if m.layer != "agent" else (unit_at_layer(m.scope, "team") or m.scope)
                     best_by_unit[u] = max(best_by_unit.get(u, 0.0), m.confidence)
-                    values |= {(e, digest) for s, e, digest in claims_of(m) if s == slot}
-            if len(values) > len({e for e, _ in values}):
-                disputed = True
+            if any(s == slot for s, _ in disputed):
                 per_slot.append(round(min(0.99, max(best_by_unit.values())), 4))
             else:
                 per_slot.append(noisy_or(list(best_by_unit.values())))
         confidence = round(min(per_slot), 4) if per_slot else 0.0
     else:
-        confidence = round(synthesis.confidence, 4)
+        # the selection's weakest slot (a dispute changes nothing here: one memory per slot counts already)
+        confidence = round(round(min(max(0.0, min(1.0, m.confidence)) for m in selected), 6), 4)
     memory = Memory(
         memory_id=derived_memory_id(operator="slot_composition", scope=unit, key=conclusion_id_key(rule, entity),
                                     parent_ids=parent_ids),
@@ -517,7 +823,7 @@ def build_conclusion(rule: Rule, org_id: str, unit: str, entity: str | None, can
         metadata={
             "agg_key": key, "contributing_agents": agents, "contributing_teams": teams,
             "slots": {m.slot: m.memory_id for m in selected if m.slot}, "candidates": len(candidates),
-            "fragility_scored_candidates": len(scored_claims),
+            "fragility_scored_candidates": sum(min(FRAGILITY_TOP_K, sum(m.slot == slot for m in candidates)) for slot in slots),
             "evidence": {m.memory_id: {"slot": m.slot, "layer": m.layer, "scope": m.scope, "operator": m.operator}
                          for m in evidence},
             "corroborated_units": units, "roots": sorted({r for m in evidence for r in lineage_roots(m)}),
@@ -526,7 +832,7 @@ def build_conclusion(rule: Rule, org_id: str, unit: str, entity: str | None, can
             "derivation": {"v": DERIVATION_VERSION, "rule_digest": rule_digest(rule), "rule": rule_snapshot(rule)},
         },
     )
-    if disputed:
+    if disputed or any(m.operator != "agent_observation" and m.metadata.get("conflict") for m in evidence):
         memory.metadata["conflict"] = True
     return memory, evidence
 
@@ -637,14 +943,14 @@ class Aggregator:
         return out + self.reevaluate(tx, retired)
 
     def _withdraw(self, tx: Tx, current: Memory, reason: str = "support below threshold") -> list[Derivation]:
-        """The memory no longer holds (support fell below the threshold because a stronger note changed the selection,
-        a child unit appeared or evidence went away; or its rule was deleted, disabled or moved): retract it, retire
-        everything built on it and re-evaluate those on what remains."""
+        """The memory no longer holds (support fell below the threshold because a child unit appeared or evidence went
+        away, a stronger note about one entity made a '*' conclusion's selection that entity's; or its rule was deleted,
+        disabled or moved): retract it, retire everything built on it and re-evaluate those on what remains."""
         tx.set_memory_status(current.memory_id, "retracted", reason=reason)
         retired = self.retire_dependents(tx, current.memory_id, "evidence withdrawn")
         # as for a retracted note: evidence that went away can change which memory is strongest for a rule's slot, so a
-        # conclusion it blocked (selected without adding support) or a '*' conclusion may hold now; neither rested on
-        # it, so neither is among the retired
+        # '*' conclusion it blocked (its selection named one entity only) may hold now; it did not rest on it, so it is
+        # not among the retired
         out = self._compose_rules(tx, current) if current.slot else []
         return out + (self.reevaluate(tx, retired) if retired else [])
 
@@ -681,8 +987,8 @@ class Aggregator:
         Whatever still rests on it and was not itself replaced by the cascade (a conclusion keyed by an entity the new
         version no longer carries) is stale: it is retired and re-evaluated on active evidence.  And the old version
         stops being a candidate for the rules its slot fed, under its slot, entity and topic, which the new version may
-        not carry (a rule changed what it emits, a note with another slot joined a consolidation): a conclusion it
-        blocked (selected as the strongest for its slot without adding support) may hold now, and did not rest on it,
+        not carry (a rule changed what it emits, a note with another slot joined a consolidation): a '*' conclusion it
+        blocked (as the strongest for its slot it made the selection one entity's) may hold now, and did not rest on it,
         so it is not among the retired.  When the successor is the same candidate (the common case: a note joins a
         consolidation, a conclusion gains evidence), offering it upward has just composed exactly those rule keys, and
         whatever the retirement above changed is re-offered by ``reevaluate``, so they are not composed a second time.
