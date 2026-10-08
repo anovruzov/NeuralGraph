@@ -308,7 +308,7 @@ class HierConfig:
     descent_fanout: int = 3
     # vNext candidates (all off by default; each is a paired experiment)
     link_time: str = "min"            # ops.synthesize link timing: min|modal|hybrid
-    stale_rule: str = "any"           # staleness gate: any positive | strong (>= 2 witnesses) positive
+    stale_rule: str = "any"           # staleness gate: any positive | strong (>= 2 witnesses) positive | per_link
     strict_targeting: bool = False    # a targeted descent reads ONLY the target predicates
     triage_target_chains: str = "none"  # none | span2: triage questions name the chains the sketch flagged
     cross_link_degree: int = 4
@@ -377,6 +377,13 @@ class HierConfig:
     descent_frontier_cap: int = 400
     max_kernel_kos: int = 900
     max_reports: int = 0   # 0 -> scale with the entity namespace
+    # Apply the register cut AFTER the anchor-level context (triage gain,
+    # sketch total, foreign sites, users reached, questions asked) has been
+    # attached and the fitted ranker re-applied, instead of inside
+    # synthesize() while those features are still 0.  The kernel's output is
+    # metered for the cut list only.  Acts only while a fitted ranker is
+    # active: with the hand-set logistic the register is exactly the v1 one.
+    cut_after_enrich: bool = False
 
 
 class Hierarchy:
@@ -999,6 +1006,7 @@ class HierRunner:
             # constant 1000 was binding at 50k users and silently truncated
             # most of the gold out of every system's output.
             cfg.max_reports = int(min(6000, max(600, len(c.entities))))
+        late = self._late_cut()
         hyps = synthesize(pool, kernel_tier, self.rng, c.org,
                           use_lineage=cfg.lineage,
                           use_dedup=cfg.independence,
@@ -1006,14 +1014,17 @@ class HierRunner:
                           link_time=cfg.link_time,
                           stale_rule=cfg.stale_rule,
                           n_entities=len(c.entities),
-                          max_reports=cfg.max_reports,
+                          max_reports=None if late else cfg.max_reports,
                           stem_rep=self._stem if hasattr(self,'_stem') else None,
                           w_dispersion=cfg.w_dispersion,
                           w_synchrony=cfg.w_synchrony,
                           full_out=self._fresh_full())
-        h.meter.add("L5-kernel", kernel_tier, 0, len(hyps) * TOK_PER_HYP, calls=0)
+        if not late:
+            h.meter.add("L5-kernel", kernel_tier, 0, len(hyps) * TOK_PER_HYP, calls=0)
         self._enrich(h.full_hyps)
         hyps.sort(key=lambda x: -x.conf)
+        if late:
+            hyps = self._cut(hyps, "L5-kernel", kernel_tier)
 
         # ---- downward retrieval ----
         # Evidence recovered by a descent is ACCUMULATED into the working pool;
@@ -1057,6 +1068,19 @@ class HierRunner:
                                 "triage_weak_candidates": h.triage_weak_used})
 
     # ---- helpers --------------------------------------------------------
+    def _late_cut(self) -> bool:
+        """True when this round's register cut is applied after _enrich
+        (cfg.cut_after_enrich, and a fitted ranker is active)."""
+        return bool(self.cfg.cut_after_enrich) and _ops.RANKER is not None
+
+    def _cut(self, hyps: List[Hypothesis], stage: str,
+             kernel_tier: Tier) -> List[Hypothesis]:
+        """Register cut of an enriched, re-ranked, sorted candidate list; the
+        kernel emits (and is metered for) only what survives it."""
+        hyps = hyps[:self.cfg.max_reports]
+        self.h.meter.add(stage, kernel_tier, 0, len(hyps) * TOK_PER_HYP, calls=0)
+        return hyps
+
     def _enrich(self, hyps: List[Hypothesis]) -> List[Hypothesis]:
         """Attach anchor-level context the kernel already holds (sketch triage
         gain, mention total, foreign-site count, users a descent reached,
@@ -1148,6 +1172,7 @@ class HierRunner:
         self.h.meter.add("L5-kernel-redo", kernel_tier,
                          len(merged) * TOK_PER_KO + TOK_PROMPT_OVERHEAD, 0,
                          calls=1)
+        late = self._late_cut()
         hyps2 = synthesize(merged, kernel_tier, self.rng, self.c.org,
                            use_lineage=self.cfg.lineage,
                            use_dedup=self.cfg.independence,
@@ -1155,15 +1180,18 @@ class HierRunner:
                            link_time=self.cfg.link_time,
                            stale_rule=self.cfg.stale_rule,
                            n_entities=len(self.c.entities),
-                           max_reports=self.cfg.max_reports,
+                           max_reports=None if late else self.cfg.max_reports,
                            stem_rep=self._stem if hasattr(self,'_stem') else None,
                           w_dispersion=self.cfg.w_dispersion,
                           w_synchrony=self.cfg.w_synchrony,
                           full_out=self._fresh_full())
-        self.h.meter.add("L5-kernel-redo", kernel_tier, 0,
-                         len(hyps2) * TOK_PER_HYP, calls=0)
+        if not late:
+            self.h.meter.add("L5-kernel-redo", kernel_tier, 0,
+                             len(hyps2) * TOK_PER_HYP, calls=0)
         self._enrich(self.h.full_hyps)
         hyps2.sort(key=lambda x: -x.conf)
+        if late:
+            hyps2 = self._cut(hyps2, "L5-kernel-redo", kernel_tier)
         return hyps2, merged
 
     def _question_round(self, hyps: List[Hypothesis], pool: List[KO],
@@ -1339,19 +1367,21 @@ class HierRunner:
             merged = [k for k in merged if k.anchor in keep_anchors]
         h.meter.add("L5-kernel-q", kernel_tier,
                     len(merged) * TOK_PER_KO + TOK_PROMPT_OVERHEAD, 0, calls=1)
+        late = self._late_cut()
         hyps2 = synthesize(merged, kernel_tier, self.rng, self.c.org,
                            use_lineage=cfg.lineage, use_dedup=cfg.independence,
                            use_temporal=cfg.temporal,
                           link_time=cfg.link_time,
                           stale_rule=cfg.stale_rule,
                            n_entities=len(self.c.entities),
-                           max_reports=cfg.max_reports,
+                           max_reports=None if late else cfg.max_reports,
                            stem_rep=self._stem if hasattr(self,'_stem') else None,
                           w_dispersion=cfg.w_dispersion,
                           w_synchrony=cfg.w_synchrony,
                           full_out=self._fresh_full())
-        h.meter.add("L5-kernel-q", kernel_tier, 0, len(hyps2) * TOK_PER_HYP,
-                    calls=0)
+        if not late:
+            h.meter.add("L5-kernel-q", kernel_tier, 0, len(hyps2) * TOK_PER_HYP,
+                        calls=0)
         self._enrich(h.full_hyps)
         hyps2.sort(key=lambda x: -x.conf)
         if cfg.triage_prior_weight > 0.0 and h.triage_gain:
@@ -1370,6 +1400,8 @@ class HierRunner:
                     x.conf = float(1.0 / (1.0 + math.exp(
                         -(lo + cfg.triage_prior_weight * zz))))
                 hyps2.sort(key=lambda x: -x.conf)
+        if late:
+            hyps2 = self._cut(hyps2, "L5-kernel-q", kernel_tier)
         after = {self._hkey(x): x for x in hyps2}
         for q in qs:
             for key, hy in after.items():
@@ -1434,21 +1466,25 @@ class HierRunner:
                       k.anchor in {x.anchor for x in hyps}]
         h.meter.add("L5-kernel-complete", kernel_tier,
                     len(merged) * TOK_PER_KO + TOK_PROMPT_OVERHEAD, 0, calls=1)
+        late = self._late_cut()
         hyps2 = synthesize(merged, kernel_tier, self.rng, self.c.org,
                            use_lineage=cfg.lineage, use_dedup=cfg.independence,
                            use_temporal=cfg.temporal,
                           link_time=cfg.link_time,
                           stale_rule=cfg.stale_rule,
                            n_entities=len(self.c.entities),
-                           max_reports=cfg.max_reports,
+                           max_reports=None if late else cfg.max_reports,
                            stem_rep=self._stem,
                            w_dispersion=cfg.w_dispersion,
                            w_synchrony=cfg.w_synchrony,
                            full_out=self._fresh_full())
-        h.meter.add("L5-kernel-complete", kernel_tier, 0,
-                    len(hyps2) * TOK_PER_HYP, calls=0)
+        if not late:
+            h.meter.add("L5-kernel-complete", kernel_tier, 0,
+                        len(hyps2) * TOK_PER_HYP, calls=0)
         self._enrich(h.full_hyps)
         hyps2.sort(key=lambda x: -x.conf)
+        if late:
+            hyps2 = self._cut(hyps2, "L5-kernel-complete", kernel_tier)
         h.completion_targets = len(targets)
         return hyps2, merged
 

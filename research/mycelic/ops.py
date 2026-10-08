@@ -544,6 +544,177 @@ def _heaviest_cluster(cl: List[Tuple[int, int, int]]) -> Tuple[int, int, int]:
     return max(cl, key=lambda c: (c[1], c[2], -c[0]))
 
 
+def _time_cluster_groups(ks: List["KO"], slack: int = 3
+                         ) -> List[Tuple[int, Set[int], List["KO"]]]:
+    """The partition `_time_clusters` makes, keeping each cluster's members:
+    (earliest tmin, independent signature set, objects) per cluster, earliest
+    first.  `_time_clusters(ks)` == [(t0, len(sg), len(ko)) for t0, sg, ko in
+    _time_cluster_groups(ks)]."""
+    out: List[Tuple[int, Set[int], List[KO]]] = []
+    cur: Optional[Tuple[int, Set[int], List[KO]]] = None
+    for k in sorted(ks, key=lambda x: x.tmin):
+        if cur is None or k.tmin > cur[0] + slack:
+            if cur is not None:
+                out.append(cur)
+            cur = (k.tmin, set(), [])
+        cur[1].update(k.sigs)
+        cur[2].append(k)
+    if cur is not None:
+        out.append(cur)
+    return out
+
+
+def _heaviest_group(cl: List[Tuple[int, Set[int], List["KO"]]]):
+    """`_heaviest_cluster` over `_time_cluster_groups` output."""
+    return max(cl, key=lambda c: (len(c[1]), len(c[2]), -c[0]))
+
+
+def _hybrid_chosen_groups(groups: List[List[Tuple[int, Set[int], List["KO"]]]],
+                          slack: int = 3):
+    """Reference assignment of one time cluster per link, used when the
+    synthesis' own hybrid DP did not time this candidate's links (link_time
+    min/modal, the tier's temporal coin failed, or an unverified anchor-level
+    candidate).  Same rule as the hybrid DP in `synthesize`: a link whose
+    heaviest cluster has >= 2 independent signatures is pinned to it,
+    otherwise every cluster is a state; consecutive links need
+    t_prev <= t_next + slack; maximise sum(log1p(signatures) + 0.35) with
+    EVERY link assigned.  Infeasible -> the heaviest cluster per link."""
+    states = []
+    for cl in groups:
+        h = _heaviest_group(cl)
+        if len(h[1]) >= 2:
+            states.append([(h, math.log1p(len(h[1])) + 0.35)])
+        else:
+            states.append([(c, math.log1p(len(c[1])) + 0.35) for c in cl])
+    best: List[List[Optional[float]]] = [[w for _, w in states[0]]]
+    back: List[List[int]] = [[-1] * len(states[0])]
+    for li in range(1, len(states)):
+        b: List[Optional[float]] = []
+        bk: List[int] = []
+        for c, w in states[li]:
+            cand, arg = None, -1
+            for j, (cp, _w) in enumerate(states[li - 1]):
+                bj = best[li - 1][j]
+                if bj is not None and cp[0] <= c[0] + slack and \
+                        (cand is None or bj + w > cand):
+                    cand, arg = bj + w, j
+            b.append(cand)
+            bk.append(arg)
+        best.append(b)
+        back.append(bk)
+    last = [(v, j) for j, v in enumerate(best[-1]) if v is not None]
+    if not last:
+        return [_heaviest_group(cl) for cl in groups]
+    j = max(last, key=lambda t: (t[0], -t[1]))[1]
+    path = [None] * len(states)
+    for li in range(len(states) - 1, -1, -1):
+        path[li] = states[li][j][0]
+        j = back[li][j]
+    return path
+
+
+def _modal_region(kos: List["KO"]) -> Tuple[int, float]:
+    """Region holding most of these objects' independent witnesses (lineage
+    branch sets, weighted by signature count) and its share; (-1, 0) when no
+    object carries a region branch."""
+    from .org import REGION
+    cnt: Dict[int, int] = {}
+    for k in kos:
+        for r in sorted(k.branches.get(REGION, ())):
+            cnt[r] = cnt.get(r, 0) + max(1, len(k.sigs))
+    if not cnt:
+        return -1, 0.0
+    r = max(cnt, key=lambda x: cnt[x])      # first-inserted among ties
+    return int(r), cnt[r] / float(sum(cnt.values()))
+
+
+# Names of the time-cluster / anchor-context features `synthesize` attaches to
+# every candidate (see `_cluster_features`).
+CLUSTER_FEATURES = ["clu_ge2", "clu_mean", "day_mean", "creg_pur_mean",
+                    "creg_pur_min", "neg_after_n", "clu_span", "clu_alt",
+                    "a_nkos", "a_bg_frac"]
+
+
+def _cluster_features(plist: Sequence[int], pred_kos: Dict[int, List["KO"]],
+                      chain: int, chosen_t: Optional[Dict[int, int]],
+                      use_lineage: bool, anchor_ctx: Tuple[float, float],
+                      slack: int = 3) -> Dict[str, float]:
+    """Witness-agreement features of one candidate, from the objects in front
+    of the kernel only.
+
+    Every link is represented by ONE time cluster of its objects: the cluster
+    the synthesis' hybrid DP chose for it (`chosen_t`: link -> cluster start
+    time) or, where that DP did not run over these links, the reference
+    assignment of `_hybrid_chosen_groups`.  Signatures are used only as sets
+    (union, cardinality); region purity uses the objects' lineage branch sets,
+    so it is 0 with lineage ablated.
+
+      clu_ge2        share of links whose cluster has >= 2 independent signatures
+      clu_mean       mean independent signatures per chosen cluster
+      day_mean       mean independent signatures on the cluster's modal day
+      creg_pur_mean  mean / min share of a cluster's witnesses in its modal
+      creg_pur_min   region
+      neg_after_n    independent negative signatures dated > slack days after
+                     the link's chosen time, summed over links
+      clu_span       last minus first chosen link time (chain order)
+      clu_alt        share of consecutive links whose clusters' modal regions
+                     differ
+      a_nkos         log1p(objects the kernel holds about the anchor)
+      a_bg_frac      share of those objects with a background predicate
+    """
+    order = list(plist)
+    if chain >= 0:
+        pos = {PRED_ID[p]: i for i, p in enumerate(CAUSAL_CHAINS[chain])}
+        order.sort(key=lambda p: pos.get(p, 99))
+    groups = [_time_cluster_groups(pred_kos[p], slack) for p in order]
+    ch = None
+    if chosen_t is not None and all(p in chosen_t for p in order):
+        ch = []
+        for p, cl in zip(order, groups):
+            g = [c for c in cl if c[0] == chosen_t[p]]
+            if not g:
+                ch = None
+                break
+            ch.append(g[0])
+    if ch is None:
+        ch = _hybrid_chosen_groups(groups, slack)
+    t = [c[0] for c in ch]
+    sup = [len(c[1]) for c in ch]
+    day = []
+    for c in ch:
+        dc: Dict[int, int] = {}
+        for k in c[2]:
+            dc[k.tmin] = dc.get(k.tmin, 0) + 1
+        d0 = max(dc, key=lambda x: dc[x])     # first-inserted (earliest) among ties
+        sg: Set[int] = set()
+        for k in c[2]:
+            if k.tmin == d0:
+                sg |= k.sigs
+        day.append(len(sg))
+    cr = [_modal_region(c[2]) if use_lineage else (-1, 0.0) for c in ch]
+    alt = [1.0 if (cr[i][0] != cr[i + 1][0] and cr[i][0] >= 0) else 0.0
+           for i in range(len(cr) - 1)] or [0.0]
+    neg_after = 0
+    for p, tt in zip(order, t):
+        ng: Set[int] = set()
+        for k in pred_kos[p]:
+            if k.neg_tmax >= 0 and k.neg_tmax > tt + slack:
+                ng |= k.sigs
+        neg_after += len(ng)
+    return {
+        "clu_ge2": float(np.mean([1.0 if s >= 2 else 0.0 for s in sup])),
+        "clu_mean": float(np.mean(sup)),
+        "day_mean": float(np.mean(day)),
+        "creg_pur_mean": float(np.mean([p for _, p in cr])),
+        "creg_pur_min": float(min(p for _, p in cr)),
+        "neg_after_n": float(neg_after),
+        "clu_span": float(t[-1] - t[0]),
+        "clu_alt": float(np.mean(alt)),
+        "a_nkos": float(anchor_ctx[0]),
+        "a_bg_frac": float(anchor_ctx[1]),
+    }
+
+
 def _valid_chain_path(preds: Sequence[int]) -> Tuple[bool, int]:
     """True iff preds form a set of >=2 distinct predicates lying on one chain."""
     best = (False, -1)
@@ -569,6 +740,8 @@ def _valid_chain_path(preds: Sequence[int]) -> Tuple[bool, int]:
 # REPLACES the hand-set confidence for every system alike - it is a shared
 # operator, fitted once on seeds 500-502 and frozen, exactly like every other
 # calibrated knob.  No feature reads raw text.
+# An architecture may instead carry its own fitted ranker (runner.ranker_for,
+# calibration.json "rankers"); whichever is active is installed here.
 # --------------------------------------------------------------------------
 RANKER: Optional[Dict[str, object]] = None
 
@@ -653,7 +826,7 @@ def synthesize(kos: List[KO], tier: Tier, rng: np.random.Generator,
                use_temporal: bool = True,
                use_entity_check: bool = True,
                n_entities: int = 1000,
-               max_reports: int = 1200,
+               max_reports: Optional[int] = 1200,
                min_link_support: int = 1,
                w_dispersion: float = 0.0,
                w_synchrony: float = 0.0,
@@ -674,6 +847,17 @@ def synthesize(kos: List[KO], tier: Tier, rng: np.random.Generator,
                  where its independent witnesses agree;
       "hybrid" - modal for links with >= 2 independent witnesses in one
                  cluster, otherwise every cluster is a state and the DP picks.
+
+    stale_rule decides how a retraction is judged:
+      "any"      - chain-wide: drop the chain if its latest negative is later
+                   than its latest positive (any positive counts);
+      "strong"   - as "any", but only a positive with >= 2 witnesses counts;
+      "per_link" - per link: drop each link whose own latest negative is later
+                   than its own latest positive, keep the chain if >= min_preds
+                   links remain.
+
+    max_reports=None returns the whole sorted candidate list, for a caller
+    that re-scores with context it holds before applying the register cut.
 
     For every anchor entity the kernel considers each causal chain separately
     and proposes the sub-path of predicates it can actually see.  Verification
@@ -716,7 +900,9 @@ def synthesize(kos: List[KO], tier: Tier, rng: np.random.Generator,
     out: List[Hypothesis] = []
 
     def _mk(anchor: int, plist: List[int], pred_kos: Dict[int, List[KO]],
-            chain: int, penalty: float, verified: bool) -> None:
+            chain: int, penalty: float, verified: bool,
+            chosen_t: Optional[Dict[int, int]] = None,
+            anchor_ctx: Tuple[float, float] = (0.0, 0.0)) -> None:
         # ---- per-link independent support ----
         # A chain is only as strong as its weakest link.  Counting support per
         # LINK (rather than over the whole hypothesis) is what stops a single
@@ -904,6 +1090,10 @@ def synthesize(kos: List[KO], tier: Tier, rng: np.random.Generator,
             "triage_gain": 0.0, "sk_total": 0.0, "n_foreign_sites": 0.0,
             "users_reached": 0.0, "n_questions_anchor": 0.0,
         })
+        # witness agreement inside the DP-chosen time clusters (read only by
+        # a ranker whose feature list names them; no decision here uses them)
+        feat.update(_cluster_features(plist, pred_kos, chain, chosen_t,
+                                      use_lineage, anchor_ctx))
         out.append(Hypothesis(
             anchor=anchor, preds=plist, kos=members, evidence=ev[:24],
             n_indep=n_indep, n_branch_regions=len(regions),
@@ -928,6 +1118,10 @@ def synthesize(kos: List[KO], tier: Tier, rng: np.random.Generator,
             preds.setdefault(k.pred, []).append(k)
         if len(preds) < min_preds:
             continue
+        # what the kernel holds about this entity: object count and the share
+        # that is background (non-causal) traffic
+        actx = (math.log1p(len(group)),
+                sum(1 for k in group if k.pred >= N_CAUSAL_PRED) / max(1, len(group)))
         causal_ok = rng.random() < tier.causal_check
         if causal_ok:
             for ci, pos in enumerate(chain_pos):
@@ -935,6 +1129,7 @@ def synthesize(kos: List[KO], tier: Tier, rng: np.random.Generator,
                 if len(on) < min_preds:
                     continue
                 on.sort(key=lambda p: pos[p])
+                chosen_t: Optional[Dict[int, int]] = None
                 # (1) thin links first: a single stray mention should not be
                 #     allowed to complete an otherwise plausible causal story
                 if use_dedup and rng.random() < tier.dedup_check:
@@ -981,8 +1176,11 @@ def synthesize(kos: List[KO], tier: Tier, rng: np.random.Generator,
                                         sprev[si] = sj
                             end = int(np.argmax(sbest))
                             path = []
+                            chosen_t = {}
                             while end >= 0:
                                 path.append(on[states[end][0]])
+                                # the time cluster the DP put this link in
+                                chosen_t[on[states[end][0]]] = states[end][1]
                                 end = sprev[end]
                         else:
                             wts = [math.log1p(_support(preds[p])) + 0.35 for p in on]
@@ -1004,6 +1202,27 @@ def synthesize(kos: List[KO], tier: Tier, rng: np.random.Generator,
                             continue
                         on = path
                     # staleness: the chain was retracted later than asserted
+                    if stale_rule == "per_link":
+                        # Judged per LINK: a link whose own latest retraction
+                        # is later than its own latest assertion is dropped,
+                        # and the chain survives if >= min_preds links remain.
+                        # The chain-wide rule below lets one routine positive
+                        # mention anywhere revive a retracted chain, and one
+                        # stray negative anywhere kill a live one.
+                        if rng.random() < tier.temporal_check:
+                            keep_l = []
+                            for p_ in on:
+                                ng_ = max((k.neg_tmax for k in preds[p_]), default=-1)
+                                ps_ = max((k.pos_tmax for k in preds[p_]), default=-1)
+                                if not (ng_ > ps_ >= 0):
+                                    keep_l.append(p_)
+                            if len(keep_l) < min_preds:
+                                continue
+                            on = keep_l
+                        on = on[:max(2, tier.synth_depth)]
+                        _mk(anchor, on, preds, ci, 0.0, verified=True,
+                            chosen_t=chosen_t, anchor_ctx=actx)
+                        continue
                     mem0 = [k for p in on for k in preds[p]]
                     neg = max((k.neg_tmax for k in mem0), default=-1)
                     if stale_rule == "strong":
@@ -1020,7 +1239,8 @@ def synthesize(kos: List[KO], tier: Tier, rng: np.random.Generator,
                     if neg > pos_t >= 0 and rng.random() < tier.temporal_check:
                         continue
                 on = on[:max(2, tier.synth_depth)]
-                _mk(anchor, on, preds, ci, 0.0, verified=True)
+                _mk(anchor, on, preds, ci, 0.0, verified=True,
+                    chosen_t=chosen_t, anchor_ctx=actx)
         else:
             ordered = sorted(preds.items(),
                              key=lambda kv: -max(x.importance for x in kv[1]))
@@ -1031,7 +1251,7 @@ def synthesize(kos: List[KO], tier: Tier, rng: np.random.Generator,
                 if sum(1 for p in plist if p in pos) >= 2:
                     ci = cj
                     break
-            _mk(anchor, plist, preds, ci, 0.06, verified=False)
+            _mk(anchor, plist, preds, ci, 0.06, verified=False, anchor_ctx=actx)
 
     # --- hallucination: unsupported hypotheses ---
     n_hall = int(rng.binomial(max(1, len(out)), tier.hallucination))

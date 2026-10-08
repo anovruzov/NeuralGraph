@@ -24,6 +24,16 @@ candidates of every architecture, so no system gets a private ranker.
 
     python3 -m research.mycelic.calibrator dump     # writes hyp_features_*.jsonl
     python3 -m research.mycelic.calibrator fit      # fits, evaluates, prints
+
+Per-architecture ranker (see dump_arch / fit_arch_ranker below):
+
+    # candidates of H's production pipeline, ranker ON, calibration seeds
+    python3 -m research.mycelic.calibrator dump_arch H_mycelic_full 500-539 OUT.jsonl \
+        '{"stale_rule": "per_link"}'
+    # fit on every dumped seed and store as CAL["rankers"][arch] with the
+    # pipeline knobs it was fitted for and a provenance JSON
+    python3 -m research.mycelic.calibrator fit_arch H_mycelic_full 'OUT*.jsonl' 3 \
+        '{"cut_after_enrich": true, "stale_rule": "per_link"}' PROVENANCE.json
 """
 from __future__ import annotations
 
@@ -38,7 +48,7 @@ import numpy as np
 
 from .evalm import _match_sets
 from .models import allocation
-from .ops import stem_rep_map
+from .ops import CLUSTER_FEATURES, stem_rep_map
 from .org import USER
 from .runner import ARCHS, ART, build_world, hier_cfg, run_arch
 from .systems import HierRunner
@@ -57,7 +67,11 @@ FEATURES = [
     "lag_cv", "span_per_link", "chain_len_frac",
     "triage_gain", "sk_total", "n_foreign_sites", "users_reached",
     "n_questions_anchor",
-]
+] + list(CLUSTER_FEATURES)
+# The last ten are the witness-agreement features of the DP-chosen time
+# clusters (ops._cluster_features).  A dump written before they existed
+# carries them as 0, so a refit of the shared ranker on the old dumps gives
+# them zero weight and scores exactly as before.
 
 # a small, fixed set of interactions - chosen a priori from the mechanism,
 # not searched over, so there is nothing to overfit with
@@ -566,6 +580,194 @@ def fit_and_store(tags: Sequence[str] = ("", "_qf1"),
     return ranker
 
 
+# --------------------------------------------------------------------------
+# Per-architecture ranker for the hierarchy (H_mycelic_full).
+#
+# The shared ranker above is fitted on three seeds of candidates dumped with
+# the ranker OFF and pooled over four architectures.  The hierarchy's own
+# ranker is fitted on the candidates of the hierarchy's PRODUCTION pipeline
+# (ranker on, so the descents and questions are the ones production asks),
+# over many calibration-side seeds, with the time-cluster features, and with
+# the planted traps weighted up.  Every estimate of it is leave-one-seed-out
+# end to end (the pipeline re-run on the held-out seed with a ranker fitted
+# without it); the offline re-ranking is for screening only.
+# --------------------------------------------------------------------------
+
+H_SEEDS = tuple(range(500, 540))          # calibration side only
+H_L2 = 100.0                              # on standardised features
+
+
+def dump_arch(seeds: Sequence[int], path: str, arch: str = "H_mycelic_full",
+              scale: int = 10_000, cfg_over: Optional[Dict] = None,
+              alloc_name: str = "back-loaded", own: bool = True) -> str:
+    """Every candidate of the FINAL synthesis of `arch` (pre-register-cut),
+    with the ranker exactly as the pipeline runs it (runner.ranker_for), one
+    JSON row per candidate, plus one summary row per seed carrying the run's
+    metrics.  Labels (gold pattern, decoy match and type, rare) are attached
+    for FITTING ONLY; nothing in the pipeline reads them.
+
+    own=False ignores `arch`'s own ranker and knobs (CAL["rankers"][arch],
+    CAL["arch_knobs"][arch]) for the duration, i.e. dumps the pipeline the
+    stored per-architecture ranker was fitted on (shared ranker on)."""
+    from .runner import CAL
+    assert min(seeds) >= 500, "calibration-side seeds only"
+    alloc = allocation(alloc_name)
+    saved = {k: CAL.get(k) for k in ("rankers", "arch_knobs")}
+    if not own:
+        for k in saved:
+            CAL[k] = {a: v for a, v in (saved[k] or {}).items() if a != arch}
+    try:
+        return _dump_arch(seeds, path, arch, scale, cfg_over, alloc)
+    finally:
+        for k, v in saved.items():
+            if v is None:
+                CAL.pop(k, None)
+            else:
+                CAL[k] = v
+
+
+def _dump_arch(seeds: Sequence[int], path: str, arch: str, scale: int,
+               cfg_over: Optional[Dict], alloc) -> str:
+    from . import ops as _ops
+    from .evalm import evaluate
+    from .runner import ranker_for
+    with open(path, "a") as fh:
+        for seed in seeds:
+            t0 = time.time()
+            w = build_world(scale, seed)
+            stem = stem_rep_map(w.corpus)
+            pats = {p.pid: p for p in w.corpus.patterns}
+            real = [pats[i] for i in w.gold.discoverable]
+            decoys = [p for p in w.corpus.patterns if not p.real]
+            over = dict(ARCHS[arch].get("cfg", {}))
+            if cfg_over:
+                over.update(cfg_over)
+            cfg = hier_cfg(arch=arch, **over)
+            _ops.set_ranker(ranker_for(arch))
+            runner = HierRunner(w.corpus, alloc, cfg, seed=seed,
+                                ul=w.user_layer(alloc[USER], seed),
+                                near_miss=w.near_miss)
+            res = runner.run()
+            met = evaluate(w.corpus, w.gold, res)
+            # the ranker scores exactly the candidates that carry features
+            hyps = [h for h in runner.h.full_hyps if h.feat is not None]
+            m_real = _match_sets(hyps, real, stem, lenient=False)
+            m_dec = _match_sets(hyps, decoys, stem, lenient=False)
+            gold_of: Dict[int, List[int]] = {}
+            for pid, idxs in m_real.items():
+                for i in idxs:
+                    gold_of.setdefault(i, []).append(pid)
+            dec_of: Dict[int, List[int]] = {}
+            for pid, idxs in m_dec.items():
+                for i in idxs:
+                    dec_of.setdefault(i, []).append(int(pats[pid].decoy_type))
+            for i, h in enumerate(hyps):
+                g = gold_of.get(i, [])
+                row = {"arch": arch, "scale": scale, "seed": seed, "i": i,
+                       "cap": cfg.max_reports, "conf": float(h.conf),
+                       "gold": bool(g), "pids": g,
+                       "rare": any(pats[p].rare for p in g),
+                       "decoy_types": dec_of.get(i, []),
+                       "anchor": int(h.anchor), "chain": int(h.chain),
+                       **{k: float(v) for k, v in h.feat.items()}}
+                fh.write(json.dumps(row) + "\n")
+            fh.write(json.dumps({"summary": True, "arch": arch, "seed": seed, "scale": scale,
+                                 "cfg_over": cfg_over or {}, "n_candidates": len(hyps),
+                                 "n_gold": len(real), **met}) + "\n")
+            fh.flush()
+            print(f"  seed {seed} {arch}: {len(hyps)} candidates, {len(gold_of)} gold-matching, "
+                  f"found {met['found_anywhere_in_register']:.3f} ({time.time() - t0:.0f}s)",
+                  flush=True)
+            w.clear_cache()
+    return path
+
+
+def load_arch_dump(paths: Sequence[str]) -> Tuple[Dict[int, List[Dict]], Dict[int, Dict]]:
+    """Candidate rows and per-seed summary rows of one or more dump_arch files."""
+    rows: Dict[int, List[Dict]] = {}
+    summ: Dict[int, Dict] = {}
+    for p in paths:
+        for line in open(p):
+            r = json.loads(line)
+            if r.get("summary"):
+                summ[r["seed"]] = r
+            else:
+                rows.setdefault(r["seed"], []).append(r)
+    return rows, summ
+
+
+def arch_feature_names(interactions: bool = True) -> List[str]:
+    return list(FEATURES) + ([f"{a}*{b}" for a, b in INTERACTIONS] if interactions else [])
+
+
+def _arch_design(rows: List[Dict], names: Sequence[str]) -> np.ndarray:
+    def val(r, f):
+        if "*" in f:
+            a, b = f.split("*", 1)
+            return float(r.get(a, 0.0)) * float(r.get(b, 0.0))
+        return float(r.get(f, 0.0))
+    return np.array([[val(r, f) for f in names] for r in rows], dtype=float)
+
+
+def _decoy_row_weight(rows: List[Dict], decoy_weight: float) -> np.ndarray:
+    """A candidate that matches a planted trap (any decoy class the headline
+    decoy metric counts, i.e. not D4 duplicate-inflation) and no gold pattern
+    is weighted `decoy_weight` in the fit; every other row 1."""
+    return np.array([decoy_weight if (not r["gold"] and any(t != 4 for t in r["decoy_types"]))
+                     else 1.0 for r in rows])
+
+
+def fit_arch_ranker(rows_by_seed: Dict[int, List[Dict]], seeds: Sequence[int],
+                    decoy_weight: float = 3.0, l2: float = H_L2,
+                    interactions: bool = True,
+                    design_cache: Optional[Dict[int, np.ndarray]] = None) -> Dict[str, object]:
+    """Logistic ranker over FEATURES (+ the fixed INTERACTIONS), fitted on the
+    dumped candidates of `seeds`, in the format ops.ranker_score reads."""
+    names = arch_feature_names(interactions)
+    Xs_, ys_, ws_ = [], [], []
+    for s in seeds:
+        rows = rows_by_seed[s]
+        X = design_cache[s] if design_cache is not None and s in design_cache \
+            else _arch_design(rows, names)
+        Xs_.append(X)
+        ys_.append(np.array([1.0 if r["gold"] else 0.0 for r in rows]))
+        ws_.append(_decoy_row_weight(rows, decoy_weight))
+    X = np.vstack(Xs_)
+    y = np.concatenate(ys_)
+    Xs, mu, sd = _standardise(X)
+    w = fit_logistic(Xs, y, l2=l2, row_weight=np.concatenate(ws_))
+    return {"kind": "logistic", "features": names, "bias": float(w[0]),
+            "weights": [float(x) for x in w[1:]],
+            "mu": [float(x) for x in mu], "sd": [float(x) for x in sd],
+            "l2": l2, "interactions": interactions, "decoy_weight": decoy_weight,
+            "n_train": int(len(y)), "n_pos": int(y.sum()), "seeds": [int(s) for s in seeds]}
+
+
+def store_arch_ranker(arch: str, ranker: Dict[str, object],
+                      knobs: Optional[Dict[str, object]] = None,
+                      provenance: Optional[Dict[str, object]] = None,
+                      path: Optional[str] = None) -> str:
+    """Write an architecture's own ranker into calibration.json under
+    "rankers"[arch] (runner.ranker_for prefers it over the shared ranker) and
+    the pipeline knobs it was fitted for under "arch_knobs"[arch], with
+    provenance under "vnext"["arch_knobs"][arch]."""
+    path = path or os.path.join(ART, "calibration.json")
+    cal = json.load(open(path)) if os.path.exists(path) else {}
+    r = dict(ranker)
+    if provenance:
+        r["provenance"] = provenance
+    cal.setdefault("rankers", {})[arch] = r
+    if knobs:
+        cal.setdefault("arch_knobs", {})[arch] = dict(knobs)
+        prov = cal.setdefault("vnext", {}).setdefault("arch_knobs", {})
+        prov[arch] = {k: {"value": v, "evidence": (provenance or {}).get("knob_evidence", {}).get(k, ""),
+                          "frozen_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+                      for k, v in knobs.items()}
+    with open(path, "w") as fh:
+        json.dump(cal, fh, indent=1)
+    return path
+
+
 def _tags_arg(argv: Sequence[str], default: Sequence[str]) -> Tuple[str, ...]:
     """Dump tags from argv[2] as a comma-separated list ("_hybH,_v3C,_J"); "" names the untagged dump."""
     return tuple(argv[2].split(",")) if len(argv) > 2 else tuple(default)
@@ -590,6 +792,41 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         r = fit_and_store(tags=_tags_arg(argv, ("",)))
         print("stored ranker fitted on", r["n_train"], "candidates; largest weights:",
               sorted(zip(r["features"], r["weights"]), key=lambda t: -abs(t[1]))[:6])
+        return 0
+    if cmd == "dump_arch":
+        # --base: the pipeline the stored per-architecture ranker was fitted
+        # on (shared ranker, no per-architecture knobs)
+        own = "--base" not in argv
+        argv = [x for x in argv if x != "--base"]
+        arch, rng_ = argv[2], argv[3]
+        a, _, b = rng_.partition("-")
+        seeds = list(range(int(a), int(b or a) + 1))
+        over = json.loads(argv[5]) if len(argv) > 5 and argv[5].strip() else None
+        dump_arch(seeds, argv[4], arch=arch, cfg_over=over, own=own)
+        return 0
+    if cmd == "fit_arch":
+        # ARCHS is comma-separated: the ranker is fitted on the dumps given
+        # and stored for every architecture listed (the first is the one the
+        # dumps come from); the provenance file may carry per-architecture
+        # notes under "per_arch".
+        import glob as _glob
+        archs_, pat, dw = argv[2].split(","), argv[3], float(argv[4])
+        knobs = json.loads(argv[5]) if len(argv) > 5 and argv[5].strip() else None
+        prov = json.load(open(argv[6])) if len(argv) > 6 else {}
+        paths = sorted(p for q in pat.split(",") for p in _glob.glob(q))
+        rows, _summ = load_arch_dump(paths)
+        seeds = sorted(rows)
+        assert min(seeds) >= 500, "calibration-side seeds only"
+        r = fit_arch_ranker(rows, seeds, decoy_weight=dw)
+        per_arch = prov.pop("per_arch", {})
+        for a_ in archs_:
+            p_ = dict(prov)
+            p_.setdefault("source_dumps", [os.path.basename(p) for p in paths])
+            p_["fitted_on_arch"] = archs_[0]
+            p_.update(per_arch.get(a_, {}))
+            store_arch_ranker(a_, r, knobs=knobs, provenance=p_)
+            print(f"stored {a_} ranker: {r['n_train']} candidates ({r['n_pos']} gold) "
+                  f"from {archs_[0]} seeds {seeds[0]}-{seeds[-1]}, decoy weight {dw}")
         return 0
     if cmd == "dump":
         # default budget for every system, and the full-budget hierarchy that

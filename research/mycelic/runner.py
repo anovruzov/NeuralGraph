@@ -106,18 +106,41 @@ def apply_ranker(enabled: Optional[bool] = True) -> None:
 
 
 def ranker_for(arch: str):
+    """The ranker `arch` runs with.
+
+    An architecture with its own fitted ranker (CAL["rankers"][arch], fitted
+    on that architecture's own candidates and pipeline) uses it whenever a
+    ranker is on; every other architecture gets the shared CAL["ranker"],
+    subject to the per-architecture adoption in CAL["ranker_archs"].
+    FORCE_RANKER=False switches every ranker off; True switches the shared
+    one on for everybody without an own ranker.
+    """
+    if FORCE_RANKER is False:
+        return None
+    own = (CAL.get("rankers") or {}).get(arch)
+    if own is not None:
+        return own
     r = CAL.get("ranker")
     if r is None:
         return None
     if FORCE_RANKER is not None:
-        return r if FORCE_RANKER else None
+        return r
     sel = CAL.get("ranker_archs")
     if sel is None:
         return r
     return r if arch in sel else None
 
 
-def hier_cfg(**kw) -> HierConfig:
+def arch_knobs(arch: Optional[str]) -> Dict[str, object]:
+    """HierConfig knobs frozen for ONE architecture (CAL["arch_knobs"][arch]),
+    e.g. the pipeline its own ranker was fitted for.  Empty for every other
+    architecture, so their configuration is untouched."""
+    if not arch:
+        return {}
+    return dict((CAL.get("arch_knobs") or {}).get(arch, {}))
+
+
+def hier_cfg(arch: Optional[str] = None, **kw) -> HierConfig:
     c = HierConfig(budgets=BASE_BUDGETS)
     c.triage_prior_weight = float(CAL["triage_prior_weight"])
     c.question_frac = float(CAL["question_frac"])
@@ -133,6 +156,11 @@ def hier_cfg(**kw) -> HierConfig:
     for k in ("link_time", "triage_target_chains"):
         if k in CAL:
             setattr(c, k, str(CAL[k]))
+    # per-architecture knobs, then the caller's explicit overrides
+    for k, v in arch_knobs(arch).items():
+        if not hasattr(c, k):
+            raise KeyError(f"calibration arch_knobs[{arch!r}] names unknown HierConfig field {k!r}")
+        setattr(c, k, v)
     for k, v in kw.items():
         setattr(c, k, v)
     return c
@@ -238,7 +266,7 @@ def run_arch(name: str, world: World, alloc: List[Tier], seed: int,
     over = dict(spec.get("cfg", {}))
     if cfg_over:
         over.update(cfg_over.get("cfg", cfg_over))
-    cfg = hier_cfg(**over)
+    cfg = hier_cfg(arch=name, **over)
     return HierRunner(c, alloc, cfg, seed=seed,
                       ul=world.user_layer(alloc[USER], seed),
                       near_miss=world.near_miss).run()

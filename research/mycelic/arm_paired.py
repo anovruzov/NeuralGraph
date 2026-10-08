@@ -13,9 +13,13 @@ the first one with the same bootstrap / sign-test table.
 An arm is  label | architecture | ranker | HierConfig overrides (JSON or empty).
 The ranker field is  none  (hand-set logistic),  cal  (whatever
 calibration.json holds, with its per-architecture adoption), or the path of
-a calibration file whose "ranker" entry is forced on for that arm.  Rows go
-to artifacts/quick_<tag>.jsonl with arch = label, never into the headline
-files.
+a calibration file whose "ranker" entry is forced on for that arm (and whose
+per-architecture "rankers", if it has any, replace the live ones for that
+arm; a file without them means the shared ranker for everybody).  The
+per-architecture knobs (calibration.json "arch_knobs") always come from the
+live calibration; an arm that wants another pipeline names it in its
+overrides.  Rows go to artifacts/quick_<tag>.jsonl with arch = label, never
+into the headline files.
 """
 from __future__ import annotations
 
@@ -32,6 +36,9 @@ from .quick_paired import report
 from .runner import ARCHS, ART, CAL, build_world, run_arch, apply_ranker
 
 Arm = Tuple[str, str, str, Optional[Dict]]
+
+# the per-architecture rankers as loaded, restored by the "cal" arm
+_ORIG_RANKERS = copy.deepcopy(CAL.get("rankers"))
 
 
 def parse_arm(spec: str) -> Arm:
@@ -54,12 +61,18 @@ def _set_ranker(spec: str, original: Optional[Dict]) -> None:
             CAL.pop("ranker", None)
         else:
             CAL["ranker"] = original
+        if _ORIG_RANKERS is None:
+            CAL.pop("rankers", None)
+        else:
+            CAL["rankers"] = copy.deepcopy(_ORIG_RANKERS)
         apply_ranker(None)
     else:
         path = spec if os.path.isabs(spec) else os.path.join(os.path.dirname(ART), spec)
         if not os.path.exists(path):
             path = os.path.join(ART, os.path.basename(spec))
-        CAL["ranker"] = json.load(open(path))["ranker"]
+        d = json.load(open(path))
+        CAL["ranker"] = d["ranker"]
+        CAL["rankers"] = d.get("rankers") or {}
         apply_ranker(True)
 
 

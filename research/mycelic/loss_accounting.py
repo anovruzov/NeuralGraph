@@ -384,7 +384,7 @@ def run(scales: Sequence[int], seeds: Sequence[int],
                         over = dict(ARCHS.get(arch, {}).get("cfg", {}))
                         if cfg_over:
                             over.update(cfg_over)
-                        cfg = hier_cfg(**over)
+                        cfg = hier_cfg(arch=arch, **over)
                         ul = w.user_layer(alloc[USER], seed)
                         # the same per-architecture ranker choice run_arch makes
                         from . import ops as _ops

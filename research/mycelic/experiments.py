@@ -35,14 +35,18 @@ SCALES = (2_000, 10_000, 50_000)
 from .runner import CAL
 
 
-def _hier(**kw):
+def _hier(arch: str = "H_mycelic_full", **kw):
+    """HierConfig of an H variant: the calibrated knobs, the knobs frozen for
+    `arch` (every experiment here that builds its own variant runs it with
+    H_mycelic_full's ranker, so it gets H_mycelic_full's pipeline too), then
+    the variant's own overrides."""
     base = dict(triage_prior_weight=float(CAL["triage_prior_weight"]),
                 question_frac=float(CAL["question_frac"]),
                 w_dispersion=float(CAL.get("w_dispersion", 0.0)),
                 w_synchrony=float(CAL.get("w_synchrony", 0.0)),
                 w_attribution=float(CAL.get("w_attribution", 0.0)))
     base.update(kw)
-    return hier_cfg(**base)
+    return hier_cfg(arch=arch, **base)
 
 
 def _row(name: str, world, res, extra: Dict) -> Dict:
@@ -123,7 +127,8 @@ def _run_named(name: str, world, alloc, seed: int, cfg_over=None):
     over = dict(spec.get("cfg", {}))
     if cfg_over:
         over.update(cfg_over)
-    return HierRunner(c, alloc, _hier(**over), seed=seed,
+    return HierRunner(c, alloc, _hier(arch=name if name in ARCHS else "H_mycelic_full",
+                                      **over), seed=seed,
                       ul=world.user_layer(alloc[USER], seed),
                       near_miss=world.near_miss).run()
 
