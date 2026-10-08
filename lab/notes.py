@@ -137,16 +137,27 @@ SIM_LIFT_LABELS = {
     "X_model_minus_S": "patterns X with the model found minus patterns S found, bootstrapped over patterns",
     "X_model_minus_R_mf": "patterns X with the model found minus patterns model-free R found, bootstrapped over "
                           "patterns",
-    "X_model_minus_X_lexical": "patterns X with the model found minus patterns X with the lexical extractor found; at "
-                               "or below zero by construction, since the lexical extractor is exact on generator "
-                               "text",
+    "X_model_minus_X_lexical": "patterns X with the model found minus patterns X with the lexical extractor found, "
+                               "bootstrapped over patterns; the lexical extractor is exact on generator text, so the "
+                               "model's extraction errors decide every pattern only one of them found: below zero "
+                               "they lost more patterns than they found, above zero they found more than they lost, "
+                               "and none of it is reading better",
 }
 SIM_NOTES = {
     "synthetic_internal": "Simulation: a seeded synthetic world with planted patterns, written by the same author as "
                           "the detectors; internal only, never a result to show buyers.",
-    "lexical_exact": "The lexical extractor is exact on generator text by construction, so X with the model can only "
-                     "match or trail X with the lexical extractor here: the difference measures extraction fidelity "
-                     "on synthetic text, not the value of reading real narratives.",
+    "lexical_exact": "The lexical extractor is exact on generator text by construction, so wherever X with the model "
+                     "and X with the lexical extractor differ, the model's extraction errors made the difference, in "
+                     "either direction: errors can lose a pattern, and they can also find one X with the lexical "
+                     "extractor missed, as when a wrong predicate on an entity the text does name adds counts to a "
+                     "planted key. A find of that kind counts for the model in its lifts over S and over model-free R "
+                     "as well. The difference measures extraction fidelity on synthetic text, not the value of "
+                     "reading real narratives.",
+    "model_beyond_exact": "In the lifts' count, X with the model found a pattern X with the lexical extractor missed: "
+                          "the lexical extractor is exact here, so the model's extraction errors made that find. It is "
+                          "no sign that the model reads better, yet it raises the model's lifts over S and over "
+                          "model-free R as well as its lift over the lexical extractor; the scorecard's patterns "
+                          "block gives each channel's raw outcome per pattern, before any chance correction.",
     "few_patterns": "Few planted patterns: recall, average precision and the lift intervals rest on a handful of "
                     "patterns and one seed, so they are not interpretable as estimates.",
     "r_model_free": "R here is model-free: the same detectors over the fields allowed to leave, with no model; it is "

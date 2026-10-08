@@ -223,6 +223,10 @@ What each experiment's numbers mean and do not mean. Each label below is printed
 - `NOTES.text_only_scan`: The canary scan covers text only: it reads the bytes that crossed a boundary, not timing, sizes or other side channels.
 - The simulation is synthetic and internal:
 - `SIM_NOTES.synthetic_internal`: Simulation: a seeded synthetic world with planted patterns, written by the same author as the detectors; internal only, never a result to show buyers.
+- X with the model against X with the lexical extractor measures the model's extraction errors, which can lose patterns
+  and can also find them; such a find is no sign that the model reads better, and the report's notes say when one
+  happened:
+- `SIM_NOTES.lexical_exact`: The lexical extractor is exact on generator text by construction, so wherever X with the model and X with the lexical extractor differ, the model's extraction errors made the difference, in either direction: errors can lose a pattern, and they can also find one X with the lexical extractor missed, as when a wrong predicate on an entity the text does name adds counts to a planted key. A find of that kind counts for the model in its lifts over S and over model-free R as well. The difference measures extraction fidelity on synthetic text, not the value of reading real narratives.
 - Every plant a request can name has narrative_only patterns, which give S and model-free R nothing to find, so the
   simulation's and X1's lifts over them are partly fixed by the plant. A table under the lifts gives those patterns
   with the collective harness's own label, `by construction, not a result`, after this sentence:

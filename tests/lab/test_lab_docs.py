@@ -63,8 +63,9 @@ DICT_LABELS = ("NOTES", "SIM_NOTES", "SIM_CHANNEL_LABELS", "SIM_LIFT_LABELS", "S
                "E2_LABELS", "CLASS_REASONS")
 REQUIRED_LABELS = (*SINGLE_LABELS, *(f"{d}.{k}" for d in DICT_LABELS for k in getattr(notes, d)))
 README_LABELS = ("E1_LABELS.generator_text", "E2_LABELS.synthetic", "X1_LABEL", "OPENFDA_LABEL", "SHEETS_LABEL",
-                 "SIM_NOTES.synthetic_internal", "NOTES.runner_hardware", "NOTES.text_only_scan", "PLUMBING_BANNER",
-                 "BY_CONSTRUCTION_NOTE", "OPENFDA_FALSE_ALARM_SCOPE", "OPENFDA_SAW_RECALLS", "OPENFDA_WARNED")
+                 "SIM_NOTES.synthetic_internal", "SIM_NOTES.lexical_exact", "NOTES.runner_hardware",
+                 "NOTES.text_only_scan", "PLUMBING_BANNER", "BY_CONSTRUCTION_NOTE", "OPENFDA_FALSE_ALARM_SCOPE",
+                 "OPENFDA_SAW_RECALLS", "OPENFDA_WARNED")
 
 TROUBLESHOOTING = (
     # push discovery

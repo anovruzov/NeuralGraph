@@ -344,10 +344,13 @@ A unit's notes, printed once under the report's notes:
 - `NOTES.hosted_raw`: Raw synthetic text was sent to the configured host under allow_external_raw synthetic; the lab sends no partner data anywhere, and hosted models never run in the canary scan or the simulation.
 - `NOTES.central_hosted`: The central comparator was a hosted API model: its scores are not deterministic, so the ratio and the bar verdict compare the model under test with a moving reference.
 
-The simulation's notes; exactly one of `no_control` and `chance_control` is present:
+The simulation's notes; exactly one of `no_control` and `chance_control` is present, and `model_beyond_exact` only when,
+in the lifts' count, X with the model found a pattern X with the lexical extractor missed (a report lists the units
+that carry a note some sim rows lack):
 
 - `SIM_NOTES.synthetic_internal`: Simulation: a seeded synthetic world with planted patterns, written by the same author as the detectors; internal only, never a result to show buyers.
-- `SIM_NOTES.lexical_exact`: The lexical extractor is exact on generator text by construction, so X with the model can only match or trail X with the lexical extractor here: the difference measures extraction fidelity on synthetic text, not the value of reading real narratives.
+- `SIM_NOTES.lexical_exact`: The lexical extractor is exact on generator text by construction, so wherever X with the model and X with the lexical extractor differ, the model's extraction errors made the difference, in either direction: errors can lose a pattern, and they can also find one X with the lexical extractor missed, as when a wrong predicate on an entity the text does name adds counts to a planted key. A find of that kind counts for the model in its lifts over S and over model-free R as well. The difference measures extraction fidelity on synthetic text, not the value of reading real narratives.
+- `SIM_NOTES.model_beyond_exact`: In the lifts' count, X with the model found a pattern X with the lexical extractor missed: the lexical extractor is exact here, so the model's extraction errors made that find. It is no sign that the model reads better, yet it raises the model's lifts over S and over model-free R as well as its lift over the lexical extractor; the scorecard's patterns block gives each channel's raw outcome per pattern, before any chance correction.
 - `SIM_NOTES.few_patterns`: Few planted patterns: recall, average precision and the lift intervals rest on a handful of patterns and one seed, so they are not interpretable as estimates.
 - `SIM_NOTES.r_model_free`: R here is model-free: the same detectors over the fields allowed to leave, with no model; it is not the strategy's R.
 - `SIM_NOTES.no_control`: No no-plant control ran: a pattern the channel would also have found without the plant counts as found, and the lifts compare raw finds.
@@ -367,7 +370,7 @@ The simulation's lifts:
 
 - `SIM_LIFT_LABELS.X_model_minus_S`: patterns X with the model found minus patterns S found, bootstrapped over patterns
 - `SIM_LIFT_LABELS.X_model_minus_R_mf`: patterns X with the model found minus patterns model-free R found, bootstrapped over patterns
-- `SIM_LIFT_LABELS.X_model_minus_X_lexical`: patterns X with the model found minus patterns X with the lexical extractor found; at or below zero by construction, since the lexical extractor is exact on generator text
+- `SIM_LIFT_LABELS.X_model_minus_X_lexical`: patterns X with the model found minus patterns X with the lexical extractor found, bootstrapped over patterns; the lexical extractor is exact on generator text, so the model's extraction errors decide every pattern only one of them found: below zero they lost more patterns than they found, above zero they found more than they lost, and none of it is reading better
 
 Baselines a plant blinds, under the simulation's and X1's lifts whenever a plant has a narrative_only pattern (every
 plant a request can name has one: `sim_small` three of four, `plant_smoke` all three). The label is the collective
@@ -668,7 +671,7 @@ Every section heading of the summaries (`lab.notes.HEADINGS`):
 | openFDA fetches | the openFDA fetch per dataset and product code |
 | Labelling sheets for a human | the N1 and E1 sheets written for a person |
 | Lock | the lock status and the sentence that says what to do |
-| Notes | CPU models, world digests and the notes the units carry |
+| Notes | CPU models, world digests and the notes the units carry; a sim note some sim rows lack lists the units that carry it |
 | Hosted calls and estimated cost | per hosted key, calls, tokens and the estimated cost |
 | Skipped by the plan | units the plan skipped (hosted units without the secrets) |
 | Hosted calls: allowed and planned | per hosted key, max_calls and the planned bound |

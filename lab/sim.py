@@ -83,10 +83,13 @@ every result block; a skipped one none.
 **Honesty rules.** ``measurement`` is true only when no fake took part (``measurement_flag`` over the routed
 endpoints, every site-ledger row and the model listing) and model participation passed, and never for a skipped run;
 ``measurement_reasons`` names each failing rule. Every figure comes from the functions X1 and E2 use; the lexical
-extractor is exact on generator text, so ``X_model`` can only match or trail ``X_lexical`` here (``lexical_exact``);
-``R_mf`` is model-free (``r_model_free``); with fewer than ten patterns nothing is interpretable as an estimate
-(``few_patterns``); exactly one of ``no_control`` and ``chance_control`` says whether chance finds were left out. Text
-only: the scan covers bytes, not counts or timing.
+extractor is exact on generator text, so every pattern only one of ``X_model`` and ``X_lexical`` found turns on the
+model's extraction errors, which can lose a pattern and can also find one (a wrong predicate on a grounded entity adds
+counts to a planted key; a lost claim elsewhere can free alert budget) (``lexical_exact``); ``model_beyond_exact`` is
+present exactly when, in the lifts' count (net of chance with the control), ``X_model`` found a pattern ``X_lexical``
+missed: such a find counts for the model in every lift; ``R_mf`` is model-free (``r_model_free``); with fewer than ten
+patterns nothing is interpretable as an estimate (``few_patterns``); exactly one of ``no_control`` and
+``chance_control`` says whether chance finds were left out. Text only: the scan covers bytes, not counts or timing.
 
 **Exit codes**: 0 complete, scan passed and participation passed; 1 complete with the scan or participation failing,
 or skipped by the projection; 2 usage, configuration or plant error (nothing written; the dry-run contract of
@@ -841,6 +844,14 @@ def _channels(pack: FrozenPack, model: Pipeline, lexical: Pipeline, records: Seq
     return results, events
 
 
+def beyond_lexical(found: Mapping[str, Mapping[str, Sequence[bool]]]) -> list[str]:
+    """The patterns ``X_model`` found and ``X_lexical`` missed in the lifts' count (``found`` as :func:`_score` gives
+    it: one bool per pattern, net of chance with the control). The lexical extractor is exact on generator text, so
+    each is a find of the model's extraction errors, not of better reading (``model_beyond_exact``)."""
+    return [pid for pid, hits in found["X_model"].items()
+            if any(m and not x for m, x in zip(hits, found["X_lexical"][pid]))]
+
+
 def by_construction(channels: Mapping[str, Mapping[str, Any]],
                     patterns: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
     """X1's ``by_construction`` entries for these channels: with any ``narrative_only`` pattern, S and R_mf read no
@@ -922,6 +933,7 @@ def run(args: argparse.Namespace, c: _Checked, started: float) -> int:
     model = lexical = control_model = control_lexical = None
     skipped: dict[str, Any] | None = None
     extraction = channels = patterns = lifts = constructed = pushdown = scanned = control = None
+    beyond_exact: list[str] = []
     try:
         for sid in site_ids:
             runtimes[sid] = ObservedRuntime(config, observer=progress, boundary=f"site:{sid}",
@@ -992,6 +1004,7 @@ def run(args: argparse.Namespace, c: _Checked, started: float) -> int:
                         for p in labels["patterns"]]
             lifts = {name: harness.lift(name, found[a], found[b], B=args.bootstrap_b, seed=args.bootstrap_seed)
                      for name, a, b in LIFTS}
+            beyond_exact = beyond_lexical(found)
             constructed = by_construction(channels, labels["patterns"])
             timings["channels_s"] = _since(t0)
 
@@ -1064,6 +1077,7 @@ def run(args: argparse.Namespace, c: _Checked, started: float) -> int:
         "timings": timings,
         "notes": [key for key in SIM_NOTES
                   if (key != "few_patterns" or len(c.spec.patterns) < harness.FEW_PATTERNS)
+                  and (key != "model_beyond_exact" or beyond_exact)
                   and (key not in CONTROL_NOTES or key == ("chance_control" if control is not None else "no_control"))],
         "paths": {"run_dir": str(out_dir.resolve()), "routing": str(Path(args.routing).resolve()),
                   "plant": str(c.plant.path)},

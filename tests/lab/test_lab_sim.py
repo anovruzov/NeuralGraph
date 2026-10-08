@@ -32,8 +32,8 @@ from lab import summary, units
 from lab.manifest import load_manifest
 from lab.notes import (BY_CONSTRUCTION_LABEL, BY_CONSTRUCTION_NOTE, COLUMNS, HARNESS_INTERRUPTED, HARNESS_USAGE,
                        HEADINGS, LOW_PARTICIPATION, NO_MODEL_CALLS, RESULT_CONTRADICTS_EXIT, RESULT_MISSING,
-                       SIM_CHANNEL_LABELS, SIM_LOW_PARTICIPATION, SIM_NOTES, SIM_PROJECTED, SIM_WORLD_DIFFERS,
-                       SIM_WORLD_SAME, SIZING_NOTE, TIMED_OUT, UNEXPECTED_EXIT)
+                       SIM_CHANNEL_LABELS, SIM_LIFT_LABELS, SIM_LOW_PARTICIPATION, SIM_NOTES, SIM_PROJECTED,
+                       SIM_WORLD_DIFFERS, SIM_WORLD_SAME, SIZING_NOTE, TIMED_OUT, UNEXPECTED_EXIT)
 from lab.plan import build_plan
 from lab.request import RequestError, load_request, validate
 from lab.responder import Responder
@@ -52,6 +52,7 @@ from mycelic.collective.inference.fakeserver import FakeOpenAIServer, request_pa
 from mycelic.collective.inference.ledger import read_ledger
 from mycelic.collective.inference.routing import load_routing
 from mycelic.collective.jsonio import canonical_bytes
+from mycelic.collective.packs.canonical import Canonicaliser
 from mycelic.collective.packs.generator import generate, world_digest
 from mycelic.collective.packs.loader import load_pack
 from mycelic.collective.stats import percentile
@@ -478,8 +479,13 @@ class FakeServerSimTests(unittest.TestCase):
         control = "chance_control" if lab_sim.HARNESS_CONTROL else "no_control"
         self.assertEqual(self.doc_a["notes"], ["synthetic_internal", "lexical_exact", "few_patterns",
                                                "r_model_free", control])
-        self.assertEqual([k for k in SIM_NOTES if k not in lab_sim.CONTROL_NOTES] + [control], self.doc_a["notes"])
+        self.assertEqual([k for k in SIM_NOTES if k not in (*lab_sim.CONTROL_NOTES, "model_beyond_exact")] + [control],
+                         self.doc_a["notes"])
         self.assertEqual(lab_sim.CONTROL_NOTES, ("no_control", "chance_control"))
+        # the responder is the lexical extractor, so the model channel equals the lexical one, pattern by pattern
+        self.assertEqual([p["outcomes"]["X_model"] for p in self.doc_a["patterns"]],
+                         [p["outcomes"]["X_lexical"] for p in self.doc_a["patterns"]])
+        self.assertEqual(self.doc_a["lifts"]["X_model_minus_X_lexical"]["estimate"], 0)
 
     def test_by_construction(self) -> None:
         """The scorecard carries X1's by-construction entries: S and R_mf found none of sim_small's three
@@ -756,9 +762,91 @@ class EmptyClaimsTests(unittest.TestCase):
         self.assertEqual(channels["X_lexical"]["by_visibility"]["narrative_only"]["found"], 3)
         self.assertEqual(channels["X_model"]["by_visibility"]["narrative_only"]["found"], 0)
         self.assertLess(self.doc["lifts"]["X_model_minus_X_lexical"]["estimate"], 0)
+        self.assertNotIn("model_beyond_exact", self.doc["notes"])
         self.assertTrue(self.doc["extraction"]["passed"])
         self.assertEqual(self.doc["extraction"]["fallback"], 0)
         self.assertTrue(self.doc["scan"]["passed"])
+
+
+class _SealAsOcclusion(Responder):
+    """The lexical extractor, except that every claim with a predicate on the component O-RING-SEAL says
+    ``occlusion``: the right entity, named in the text, under a wrong predicate, so the claim is kept, nothing is
+    dropped and nothing falls back. The judge answers lexically."""
+
+    def __init__(self, pack: Any) -> None:
+        super().__init__(pack)
+        self.canonicaliser = Canonicaliser(pack)
+        self.changed = 0
+
+    def __call__(self, request_json: Any) -> dict[str, Any]:
+        reply = super().__call__(request_json)
+        if _schema_name(request_json) == TASK_NAME:
+            for claim in reply["claims"]:
+                text = claim.get("entity_text")
+                if claim.get("entity_type") != "component" or claim.get("predicate") in (None, "occlusion"):
+                    continue
+                if isinstance(text, str) and "O-RING-SEAL" in {m.entity_id for m in
+                                                                self.canonicaliser.scan(text, ["component"]).mentions}:
+                    claim["predicate"] = "occlusion"
+                    self.changed += 1
+        return reply
+
+
+class ModelBeyondExactTests(unittest.TestCase):
+    """At seed 3 of sim_small, X with the lexical extractor (exact on generator text) misses p3,
+    ``component:O-RING-SEAL:occlusion``. A model that calls every O-RING-SEAL claim an occlusion adds counts to that
+    key, so X with the model finds p3: a find of its extraction errors, which makes X_model_minus_X_lexical positive
+    and raises the lifts over S and R_mf. The scorecard says so (``model_beyond_exact``), and no label claims the lift
+    cannot be positive."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.tmp = Path(tempfile.mkdtemp(prefix="lab-sim-beyond-"))
+        cls.responder = _SealAsOcclusion(PACK)
+        server = FakeOpenAIServer("valid", responder=cls.responder).start()
+        try:
+            routing = write_routing(cls.tmp / "routing.json", server.base_url)
+            cls.code, cls.out, cls.err = call_main(lab_sim, sim_argv(routing, cls.tmp / "runs", "M", seed=3))
+        finally:
+            server.stop()
+        cls.doc = _json(cls.tmp / "runs" / "sim" / "M" / "scorecard.json")
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        shutil.rmtree(cls.tmp, True)
+
+    def test_an_error_driven_find_is_flagged(self) -> None:
+        self.assertEqual(self.code, 0, self.err)
+        self.assertGreater(self.responder.changed, 0)
+        self.assertEqual(lab_sim.scorecard_problems(self.doc), [])
+        p3 = next(p for p in self.doc["patterns"] if p["id"] == "p3")
+        self.assertEqual(p3["key"], "component:O-RING-SEAL:occlusion")
+        self.assertEqual((p3["outcomes"]["X_lexical"]["found"], p3["outcomes"]["X_model"]["found"]), (False, True))
+        channels = self.doc["channels"]
+        self.assertEqual(channels["X_model"]["found"], channels["X_lexical"]["found"] + 1)
+        self.assertGreater(self.doc["lifts"]["X_model_minus_X_lexical"]["estimate"], 0)
+        # with a real model this run would count as a model measurement: nothing dropped, nothing fell back
+        self.assertTrue(self.doc["extraction"]["passed"])
+        self.assertEqual(self.doc["extraction"]["fallback_share"], 0.0)
+        notes = self.doc["notes"]
+        self.assertIn("model_beyond_exact", notes)
+        self.assertEqual(notes.index("model_beyond_exact"), notes.index("lexical_exact") + 1)
+
+    def test_beyond_lexical(self) -> None:
+        found = {"X_model": {"p1": [True], "p2": [False], "p3": [True], "p4": [False]},
+                 "X_lexical": {"p1": [True], "p2": [True], "p3": [False], "p4": [False]}}
+        self.assertEqual(lab_sim.beyond_lexical(found), ["p3"])
+        found["X_model"]["p3"] = [False]
+        self.assertEqual(lab_sim.beyond_lexical(found), [])
+
+    def test_no_label_says_the_lift_cannot_be_positive(self) -> None:
+        texts = [*SIM_LIFT_LABELS.values(), *SIM_NOTES.values(), *SIM_CHANNEL_LABELS.values(), lab_sim.__doc__]
+        for text in texts:
+            for claim in ("at or below zero", "only match or trail", "can only match"):
+                self.assertNotIn(claim, text)
+        self.assertIn("above zero", SIM_LIFT_LABELS["X_model_minus_X_lexical"])
+        for key in ("lexical_exact", "model_beyond_exact"):
+            self.assertIn("over S and over model-free R", SIM_NOTES[key])
 
 
 class _LeakySite(EdgeSite):
@@ -1297,10 +1385,11 @@ class AggregateSimTests(unittest.TestCase):
             self.assertIn(HEADINGS[key], md)
         self.assertIn(SIZING_NOTE, md)
         for key, sentence in SIM_NOTES.items():
-            if key == "chance_control":
+            if key in ("chance_control", "model_beyond_exact"):
                 self.assertNotIn(sentence, md)
             else:
                 self.assertIn(sentence, md, key)
+        self.assertNotIn(f"- {COLUMNS['units']}:", md)
         self.assertNotIn(COLUMNS["found_net"], md)
         self.assertNotIn(COLUMNS["chance_found"], md)
         pointers = {e["pointer"] for e in entries}
@@ -1331,6 +1420,30 @@ class AggregateSimTests(unittest.TestCase):
         self.assertIn(SIM_WORLD_SAME, md)
         self.assertNotIn(SIM_WORLD_DIFFERS, md)
         check_sources(self, md, entries, root)
+
+    def test_summary_names_the_units_of_a_note_some_rows_lack(self) -> None:
+        """A sim note every row carries is printed once; one only some rows carry is followed by those units. The
+        positive lift over the lexical extractor is printed under a label that allows it."""
+        rows = [_sim_row("sim-a-s1", "a" * 64), _sim_row("sim-b-s1", "a" * 64), _sim_row("sim-c-s1", "a" * 64)]
+        for row in (rows[0], rows[2]):
+            row["notes"].insert(2, "model_beyond_exact")
+        rows[0]["lifts"]["X_model_minus_X_lexical"] = {"estimate": 0.25, "ci_low": 0.0, "ci_high": 0.75}
+        md, entries, root = self._render(rows)
+        check_sources(self, md, entries, root)
+        lines = md.splitlines()
+        at = lines.index(SIM_NOTES["model_beyond_exact"])
+        self.assertEqual(lines[at + 1], f"- {COLUMNS['units']}: `sim-a-s1`, `sim-c-s1`")
+        self.assertEqual(lines.count(SIM_NOTES["lexical_exact"]), 1)
+        self.assertFalse(lines[lines.index(SIM_NOTES["lexical_exact"]) + 1].startswith(f"- {COLUMNS['units']}:"))
+        self.assertIn("| `sim-a-s1` | `X_model_minus_X_lexical` | 0.250 | 0.000 | 0.750 |", lines)
+        self.assertIn(f"- `X_model_minus_X_lexical`: {SIM_LIFT_LABELS['X_model_minus_X_lexical']}", lines)
+        for row in rows:
+            row["notes"] = [n for n in row["notes"] if n != "model_beyond_exact"] + ["model_beyond_exact"]
+        md, entries, root = self._render(rows)
+        check_sources(self, md, entries, root)
+        lines = md.splitlines()
+        self.assertEqual(lines.count(SIM_NOTES["model_beyond_exact"]), 1)
+        self.assertNotIn(f"- {COLUMNS['units']}:", md)
 
     def test_summary_renders_the_by_construction_table(self) -> None:
         """Under the lifts, the baselines the plant blinds: the harness's label plain, every number sourced; a label

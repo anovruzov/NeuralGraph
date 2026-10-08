@@ -45,7 +45,7 @@ A G0 table gains a protocol records column, after its note, when a scan was belo
 problems column when a row counts them. After the class sections, a sizing table of every sim unit (whatever its result)
 with what it measured and the minutes it suggests for the next request, then the E2 sizing table, then (with hosted
 keys) the hosted calls and estimated cost table followed by its note; the notes add the sim world-digest groups and the
-sim notes the rows carry.
+sim notes the rows carry, each followed by the units that carry it when some sim rows do not.
 
 The first line says what the numbers are not. For a plumbing plan, shard or report it is ``PLUMBING CHECK: no model
 was run``, or :data:`~lab.notes.PLUMBING_HOSTED_LINE` when it holds hosted units, whose calls go to the configured
@@ -1056,11 +1056,13 @@ def _report_notes(doc: _Doc, src: Sources, report: dict[str, Any], units: list[t
     for key, sentence in NOTES.items():
         if key in present:
             doc.add("\n" + sentence)
-    sim_rows = report.get("sim") if isinstance(report.get("sim"), list) else []
-    sim_present = {n for r in sim_rows if isinstance(r, dict) and isinstance(r.get("notes"), list) for n in r["notes"]}
+    sim_rows = [r for r in (report.get("sim") if isinstance(report.get("sim"), list) else []) if isinstance(r, dict)]
     for key, sentence in SIM_NOTES.items():
-        if key in sim_present:
+        carriers = [r.get("unit") for r in sim_rows if isinstance(r.get("notes"), list) and key in r["notes"]]
+        if carriers:
             doc.add("\n" + sentence)
+            if len(carriers) < len(sim_rows):
+                doc.add(f"- {COLUMNS['units']}: " + ", ".join(code(u) for u in carriers))
     ignored = report.get("ignored_artifacts")
     if isinstance(ignored, list) and ignored:
         doc.add(f"\n- {COLUMNS['ignored']}: " + ", ".join(code(a) for a in ignored))
