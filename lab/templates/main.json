@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "purpose": "Main run after the plumbing, check and smoke runs: the four local models served by the pinned server on runner CPUs. E1 on generator text with the largest local model as reference, E2 pushdown for the two smallest models, E3 latency, G0 canary scans, the six-site simulation on the small plant and the model-free X1 baseline. Set the sim and G0 minutes from the smoke report first. Copy to lab/requests/main-001.json and push.",
+  "purpose": "Main run after the plumbing, check and smoke runs: the four local models served by the pinned server on runner CPUs. E1 on generator text with the largest local model as reference, E2 pushdown for the two smallest models, E3 latency, G0 canary scans, the six-site simulation on the small plant and the model-free X1 baseline. Set the sim, G0 and E1 minutes from the smoke report first, each the largest among its block's models. Copy to lab/requests/main-001.json and push.",
   "provider": "llama-server",
   "models": [
     "a-0p5b",

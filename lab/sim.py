@@ -43,7 +43,8 @@ its ledgers).
    ``r_mf_cells`` and ``u_cells``), ``single_site`` and ``rules``; alerts before the evaluation weeks are dropped
    (``eval_events``), and ``channel_block``, ``pattern_outcome`` and ``lift`` read them against the labels. With the
    control, ``channel_block`` also gets the control's events and, for the detector channels, the stale chains'
-   candidate weeks (X1's own inputs), and the lifts compare ``harness.net_found`` (finds net of chance);
+   candidate weeks (X1's own inputs), and the lifts compare ``harness.net_found`` (finds net of chance); with any
+   ``narrative_only`` pattern, :func:`by_construction` marks S and R_mf as X1's scorecard does;
 9. pushdown: the ``X_model`` candidates whose first candidate week is an evaluation week, by (-snapshot score,
    sha256(tie salt | key)), the first ``--top-n``, verified in (snapshot as_of, key) order with ``verify_stored`` at
    each snapshot's ``as_of``; every site answers with its own runtime (``SiteVerifier``, seeded demo secret). Items
@@ -72,7 +73,8 @@ the end, so a killed run leaves a readable estimate), ``scorecard.json``, ``edge
 :data:`EXTRACTION_ERROR_KINDS`, drops, invalid claims; ``passed`` when every site used only the model and the fallback
 and the fallback share is at most :data:`MAX_SIM_FALLBACK_SHARE`), ``latency`` (the ledgers' successful calls,
 ``stats.percentile`` rounded to 3 places as ``aggregate.latency_rows`` does), ``channels`` (the harness's own channel
-block schema, ``harness._CHANNEL_BLOCK``), ``patterns``, ``lifts`` (``harness._LIFT``), ``control`` (null without the
+block schema, ``harness._CHANNEL_BLOCK``), ``patterns``, ``lifts`` (``harness._LIFT``), ``by_construction`` (X1's
+entry shape: channel, the harness's statement and label, visibility, recall), ``control`` (null without the
 no-plant control or for a skipped run), ``pushdown``, ``raw_text_crossed``, ``scan``, ``projection``, ``code``,
 ``timings``, ``notes``, ``paths`` and ``content_hash`` (sha256 of the canonical JSON without
 :data:`CONTENT_HASH_EXCLUDES`, so equal across processes, hash seeds, run ids, ports and machines). A complete run has
@@ -170,6 +172,7 @@ JUDGE_WARMUP_CALLS = 3
 MAX_SIM_FALLBACK_SHARE = 0.05
 DEADLINE_SECONDS = 3600.0
 CHANNELS = ("X_model", "X_lexical", "S", "R_mf", "U", "single_site", "rules")
+BY_CONSTRUCTION_CHANNELS = ("S", "R_mf")
 LIFTS = (("X_model_minus_S", "X_model", "S"), ("X_model_minus_R_mf", "X_model", "R_mf"),
          ("X_model_minus_X_lexical", "X_model", "X_lexical"))
 CONTENT_HASH_EXCLUDES = ("$.content_hash", "$.created_at", "$.run_id", "$.paths", "$.timings", "$.latency",
@@ -663,6 +666,10 @@ def _schema(site_ids: tuple[str, ...]) -> schemacheck.Schema:
             "id": _STR, "key": _STR, "visibility": _enum(VISIBILITIES), "sites": _A(_STR),
             "outcomes": _O({c: outcome for c in CHANNELS})})),
         "lifts": _O({name: harness._LIFT for name, _, _ in LIFTS}, nullable=True),
+        "by_construction": _T("array", nullable=True, items=_O({
+            "channel": _enum(list(BY_CONSTRUCTION_CHANNELS)), "statement": _const(harness.BY_CONSTRUCTION_STATEMENT),
+            "label": _const(harness.BY_CONSTRUCTION_LABEL), "visibility": _const("narrative_only"),
+            "recall": _NNUM})),
         "control": _O({"world": _const("no-plant"), "records": _NAT, "replayed_calls": _NAT, "replay_misses": _NAT},
                       nullable=True),
         "pushdown": _O({
@@ -690,7 +697,8 @@ def _schema(site_ids: tuple[str, ...]) -> schemacheck.Schema:
         "content_hash_excludes": _A(_STR), "content_hash": _HEX}))
 
 
-RESULT_BLOCKS = ("extraction", "channels", "patterns", "lifts", "pushdown", "raw_text_crossed", "scan")
+RESULT_BLOCKS = ("extraction", "channels", "patterns", "lifts", "by_construction", "pushdown", "raw_text_crossed",
+                 "scan")
 
 
 def scorecard_problems(doc: Any) -> list[tuple[str, str]]:
@@ -833,6 +841,19 @@ def _channels(pack: FrozenPack, model: Pipeline, lexical: Pipeline, records: Seq
     return results, events
 
 
+def by_construction(channels: Mapping[str, Mapping[str, Any]],
+                    patterns: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """X1's ``by_construction`` entries for these channels: with any ``narrative_only`` pattern, S and R_mf read no
+    narrative, so planted narrative_only records add nothing to their cells and their recall on those patterns is
+    the harness's "by construction, not a result" (``harness.BY_CONSTRUCTION_LABEL``); none without such a
+    pattern."""
+    if not any(p["visibility"] == "narrative_only" for p in patterns):
+        return []
+    return [{"channel": name, "statement": harness.BY_CONSTRUCTION_STATEMENT, "label": harness.BY_CONSTRUCTION_LABEL,
+             "visibility": "narrative_only", "recall": channels[name]["by_visibility"]["narrative_only"]["recall"]}
+            for name in BY_CONSTRUCTION_CHANNELS]
+
+
 def _score(results: Mapping[str, Any], events: Mapping[str, list[dict[str, Any]]],
            control: Mapping[str, list[dict[str, Any]]] | None, labels: Mapping[str, Any], index: Mapping[str, int],
            evaluation_weeks: int, seed: int, first: str, last: str
@@ -900,7 +921,7 @@ def run(args: argparse.Namespace, c: _Checked, started: float) -> int:
     runtimes: dict[str, ObservedRuntime] = {}
     model = lexical = control_model = control_lexical = None
     skipped: dict[str, Any] | None = None
-    extraction = channels = patterns = lifts = pushdown = scanned = control = None
+    extraction = channels = patterns = lifts = constructed = pushdown = scanned = control = None
     try:
         for sid in site_ids:
             runtimes[sid] = ObservedRuntime(config, observer=progress, boundary=f"site:{sid}",
@@ -971,6 +992,7 @@ def run(args: argparse.Namespace, c: _Checked, started: float) -> int:
                         for p in labels["patterns"]]
             lifts = {name: harness.lift(name, found[a], found[b], B=args.bootstrap_b, seed=args.bootstrap_seed)
                      for name, a, b in LIFTS}
+            constructed = by_construction(channels, labels["patterns"])
             timings["channels_s"] = _since(t0)
 
             progress.set_phase("pushdown")
@@ -1028,7 +1050,8 @@ def run(args: argparse.Namespace, c: _Checked, started: float) -> int:
                      "listing": {k: listing[k] for k in ("ok", "http_status", "fake", "ids")}},
         "extraction": extraction,
         "latency": {task: _latency(rows, task) for task in (TASK_NAME, JUDGE_TASK)},
-        "channels": channels, "patterns": patterns, "lifts": lifts, "control": control, "pushdown": pushdown,
+        "channels": channels, "patterns": patterns, "lifts": lifts, "by_construction": constructed,
+        "control": control, "pushdown": pushdown,
         "raw_text_crossed": scanned["shingle_overlap_bytes"] if scanned is not None else None, "scan": scanned,
         "projection": {"checked": checked is not None, "after_records": PREFLIGHT_RECORDS, **core,
                        "judge_calls_assumed": c.plant.judge_calls_per_candidate, "top_n": args.top_n,

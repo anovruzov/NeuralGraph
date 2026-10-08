@@ -1,12 +1,15 @@
 {
   "schema_version": 1,
-  "purpose": "Smoke run on one runner job: the smallest model served by the pinned server for latency (E3), the canary leakage scan with the model in the loop (G0) and the six-site simulation on the small plant (sim). Copy to lab/requests/smoke-001.json and push.",
+  "purpose": "Smoke run and sizing of the main run: every local model of the main run served by the pinned server on runner CPUs, each with latency (E3) and the six-site simulation on the small plant (sim), whose sizing table gives each model's per-call medians and suggested minutes, and the canary leakage scan with the model in the loop (G0) for the smallest model, whose ledgers count G0's calls. Copy to lab/requests/smoke-001.json and push.",
   "provider": "llama-server",
   "models": [
-    "a-0p5b"
+    "a-0p5b",
+    "a-1p5b",
+    "a-4b",
+    "b-2b"
   ],
   "job_minutes": 330,
-  "max_parallel": 1,
+  "max_parallel": 4,
   "retention_days": 14,
   "experiments": {
     "e3": {
@@ -24,6 +27,9 @@
       "seed": 1
     },
     "g0": {
+      "models": [
+        "a-0p5b"
+      ],
       "minutes": 45,
       "pack": "device_quality",
       "records": 200,

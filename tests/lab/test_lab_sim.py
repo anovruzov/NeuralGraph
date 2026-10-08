@@ -30,9 +30,10 @@ from lab import request as lab_request
 from lab import shard as lab_shard
 from lab import summary, units
 from lab.manifest import load_manifest
-from lab.notes import (COLUMNS, HARNESS_INTERRUPTED, HARNESS_USAGE, HEADINGS, LOW_PARTICIPATION, NO_MODEL_CALLS,
-                       RESULT_CONTRADICTS_EXIT, RESULT_MISSING, SIM_CHANNEL_LABELS, SIM_LOW_PARTICIPATION, SIM_NOTES,
-                       SIM_PROJECTED, SIM_WORLD_DIFFERS, SIM_WORLD_SAME, SIZING_NOTE, TIMED_OUT, UNEXPECTED_EXIT)
+from lab.notes import (BY_CONSTRUCTION_LABEL, BY_CONSTRUCTION_NOTE, COLUMNS, HARNESS_INTERRUPTED, HARNESS_USAGE,
+                       HEADINGS, LOW_PARTICIPATION, NO_MODEL_CALLS, RESULT_CONTRADICTS_EXIT, RESULT_MISSING,
+                       SIM_CHANNEL_LABELS, SIM_LOW_PARTICIPATION, SIM_NOTES, SIM_PROJECTED, SIM_WORLD_DIFFERS,
+                       SIM_WORLD_SAME, SIZING_NOTE, TIMED_OUT, UNEXPECTED_EXIT)
 from lab.plan import build_plan
 from lab.request import RequestError, load_request, validate
 from lab.responder import Responder
@@ -143,6 +144,32 @@ class SimSettingsTests(unittest.TestCase):
         self.assertEqual((spec.planted_by, spec.planter_saw_detector_code, spec.prereg_sha256),
                          ("mycelic lab (same author as the detector code)", True, None))
         self.assertEqual((len(spec.patterns), len(spec.decoys)), (4, 2))
+
+    def test_every_plant_has_narrative_only_patterns(self) -> None:
+        """Every plant a request can name blinds S and R_mf to some of its patterns, so every complete scorecard
+        carries the by-construction entries (REFERENCE.md, Labels)."""
+        counts = {}
+        for name, lab_plant in lab_sim.PLANTS.items():
+            spec = load_plant(lab_plant.path, PACK)
+            counts[name] = (sum(p.visibility == "narrative_only" for p in spec.patterns), len(spec.patterns))
+        self.assertEqual(counts, {"sim_small": (3, 4), "plant_smoke": (3, 3)})
+
+    def test_by_construction_entries(self) -> None:
+        """X1's entry shape and the harness's own statement and label, for S and R_mf only, and none without a
+        narrative_only pattern."""
+        channels = {name: {"by_visibility": {v: {"units": 2, "found": 1, "recall": 0.5}
+                                             for v in ("narrative_only", "codes_only", "both")}}
+                    for name in lab_sim.CHANNELS}
+        channels["S"]["by_visibility"]["narrative_only"] = {"units": 3, "found": 0, "recall": 0.0}
+        patterns = [{"visibility": "both"}, {"visibility": "narrative_only"}]
+        self.assertEqual(lab_sim.by_construction(channels, patterns), [
+            {"channel": "S", "statement": harness.BY_CONSTRUCTION_STATEMENT, "label": harness.BY_CONSTRUCTION_LABEL,
+             "visibility": "narrative_only", "recall": 0.0},
+            {"channel": "R_mf", "statement": harness.BY_CONSTRUCTION_STATEMENT,
+             "label": harness.BY_CONSTRUCTION_LABEL, "visibility": "narrative_only", "recall": 0.5}])
+        self.assertEqual(lab_sim.by_construction(channels, [{"visibility": "both"}, {"visibility": "codes_only"}]),
+                         [])
+        self.assertEqual(BY_CONSTRUCTION_LABEL, harness.BY_CONSTRUCTION_LABEL)
 
     def test_phases_and_timings(self) -> None:
         self.assertEqual(lab_sim.PHASES, ("setup", "warmup", "extract", "lexical", "channels", "pushdown", "scan",
@@ -453,6 +480,24 @@ class FakeServerSimTests(unittest.TestCase):
                                                "r_model_free", control])
         self.assertEqual([k for k in SIM_NOTES if k not in lab_sim.CONTROL_NOTES] + [control], self.doc_a["notes"])
         self.assertEqual(lab_sim.CONTROL_NOTES, ("no_control", "chance_control"))
+
+    def test_by_construction(self) -> None:
+        """The scorecard carries X1's by-construction entries: S and R_mf found none of sim_small's three
+        narrative_only patterns, whatever the extractor did, and the schema holds the harness's label."""
+        doc = self.doc_a
+        self.assertEqual([(e["channel"], e["visibility"], e["recall"]) for e in doc["by_construction"]],
+                         [("S", "narrative_only", 0.0), ("R_mf", "narrative_only", 0.0)])
+        for entry in doc["by_construction"]:
+            with self.subTest(channel=entry["channel"]):
+                self.assertEqual((entry["statement"], entry["label"]),
+                                 (harness.BY_CONSTRUCTION_STATEMENT, harness.BY_CONSTRUCTION_LABEL))
+                block = doc["channels"][entry["channel"]]["by_visibility"]["narrative_only"]
+                self.assertEqual((block["units"], block["found"]), (3, 0))
+        self.assertEqual(doc["by_construction"], self.doc_b["by_construction"])
+        relabelled = copy.deepcopy(doc)
+        relabelled["by_construction"][0]["label"] = "a result"
+        self.assertTrue(lab_sim.scorecard_problems(relabelled))
+        self.assertIn("by_construction", lab_sim.RESULT_BLOCKS)
 
     def test_extraction_per_site(self) -> None:
         extraction = self.doc_a["extraction"]
@@ -1183,12 +1228,14 @@ class RequestAndPlanTests(unittest.TestCase):
             shutil.copy(template, requests / "smoke-001.json")
             request = load_request(requests / "smoke-001.json", manifest, strict_location=True, root=Path(tmp))
         plan = build_plan(request, manifest, "unknown")
-        (model,) = obj["models"]
-        (shard,) = plan["shards"]
-        self.assertEqual((shard["kind"], shard["model"], shard["planned_minutes"], shard["timeout_minutes"]),
-                         ("gguf", model, 305, 330))
+        # every model of the main run gets its own sim (and so its own sizing row); the smallest also counts G0's calls
+        self.assertEqual(obj["models"], _json(ROOT / "lab" / "templates" / "main.json")["models"])
         experiments = {u["unit"]: u["experiment"] for u in plan["units"]}
-        self.assertEqual([experiments[u] for u in shard["units"]], ["sim", "g0", "e3"])
+        self.assertEqual([(s["kind"], s["model"], [experiments[u] for u in s["units"]], s["planned_minutes"],
+                           s["timeout_minutes"]) for s in plan["shards"]],
+                         [("gguf", obj["models"][0], ["sim", "g0", "e3"], 305, 330)]
+                         + [("gguf", model, ["sim", "e3"], 260, 285) for model in obj["models"][1:]])
+        self.assertEqual(plan["max_parallel"], len(plan["shards"]))
         self.assertEqual(plan["result_class"], "real")
         sim = next(u for u in plan["units"] if u["experiment"] == "sim")
         self.assertEqual((sim["minutes"], sim["params"]["plant"], sim["params"]["top_n"], sim["seeds"]),
@@ -1204,6 +1251,8 @@ def _sim_row(unit: str, digest: str, seed: int = 1) -> dict[str, Any]:
             "plant": "sim_small", "seed": seed, "weeks": 34, "records": 1031, "world_digest": digest,
             "channels": {name: dict(channel) for name in lab_sim.CHANNELS},
             "lifts": {name: {"estimate": 0.5, "ci_low": 0.25, "ci_high": 0.75} for name, _, _ in lab_sim.LIFTS},
+            "by_construction": [{"channel": name, "visibility": "narrative_only", "label": BY_CONSTRUCTION_LABEL,
+                                 "recall": 0.0, "units": 3, "found": 0} for name in lab_sim.BY_CONSTRUCTION_CHANNELS],
             "pushdown": {"n": 10, "n_true": 4, "supported": 4, "ap_pushdown": 1.0, "ap_stats_only": 0.8},
             "raw_text_crossed": 0, "fallback_share": 0.0,
             "notes": ["synthetic_internal", "lexical_exact", "few_patterns", "r_model_free", "no_control"]}
@@ -1282,6 +1331,52 @@ class AggregateSimTests(unittest.TestCase):
         self.assertIn(SIM_WORLD_SAME, md)
         self.assertNotIn(SIM_WORLD_DIFFERS, md)
         check_sources(self, md, entries, root)
+
+    def test_summary_renders_the_by_construction_table(self) -> None:
+        """Under the lifts, the baselines the plant blinds: the harness's label plain, every number sourced; a label
+        the lab does not know in a code span; no table when no row has an entry (an older scorecard)."""
+        rows = [_sim_row("sim-a-s1", "a" * 64), _sim_row("sim-b-s1", "a" * 64)]
+        rows[1]["by_construction"][1]["label"] = "another label"
+        md, entries, root = self._render(rows)
+        check_sources(self, md, entries, root)
+        lines = md.splitlines()
+        heading = "#### " + HEADINGS["by-construction"]
+        self.assertEqual(lines.count(heading), 1)
+        self.assertLess(lines.index("#### " + HEADINGS["sim-lifts"]), lines.index(heading))
+        self.assertLess(lines.index(heading), lines.index(BY_CONSTRUCTION_NOTE))
+        self.assertLess(lines.index(BY_CONSTRUCTION_NOTE), lines.index("#### " + HEADINGS["sim-pushdown"]))
+        self.assertIn("| unit | channel | visibility | patterns | found | recall | label |", lines)
+        self.assertIn("| `sim-a-s1` | `S` | `narrative_only` | 3 | 0 | 0.000 | by construction, not a result |", lines)
+        self.assertIn("| `sim-b-s1` | `R_mf` | `narrative_only` | 3 | 0 | 0.000 | `another label` |", lines)
+        pointers = {e["pointer"] for e in entries}
+        for i in range(2):
+            for j in range(2):
+                for key in ("units", "found", "recall"):
+                    self.assertIn(f"/sim/{i}/by_construction/{j}/{key}", pointers)
+        for old in ({"by_construction": None}, {"by_construction": []}):
+            rows = [{**_sim_row("sim-a-s1", "a" * 64), **old}]
+            md, entries, root = self._render(rows)
+            check_sources(self, md, entries, root)
+            self.assertNotIn(HEADINGS["by-construction"], md)
+            self.assertNotIn(BY_CONSTRUCTION_NOTE, md)
+
+    def test_by_construction_rows(self) -> None:
+        """The report row reads the entry's units and found from its channel's by_visibility block, and survives
+        malformed entries."""
+        card = {"channels": {"S": {"by_visibility": {"narrative_only": {"units": 3, "found": 1, "recall": 1 / 3}}}},
+                "by_construction": [{"channel": "S", "visibility": "narrative_only", "label": BY_CONSTRUCTION_LABEL,
+                                     "statement": "s", "recall": 1 / 3, "recall_net": 0.0},
+                                    {"channel": ["S"], "visibility": "narrative_only"},
+                                    {"channel": "R_mf", "visibility": "narrative_only"}, "x"]}
+        self.assertEqual(lab_aggregate.by_construction_rows(card), [
+            {"channel": "S", "visibility": "narrative_only", "label": BY_CONSTRUCTION_LABEL, "recall": 1 / 3,
+             "units": 3, "found": 1},
+            {"channel": ["S"], "visibility": "narrative_only", "label": None, "recall": None, "units": None,
+             "found": None},
+            {"channel": "R_mf", "visibility": "narrative_only", "label": None, "recall": None, "units": None,
+             "found": None}])
+        self.assertIsNone(lab_aggregate.by_construction_rows({"channels": card["channels"]}))
+        self.assertEqual(lab_aggregate.by_construction_rows({"by_construction": []}), [])
 
     def test_summary_renders_the_control_columns(self) -> None:
         """Rows with a no-plant control (the phase-2 harness) show found net of chance and chance finds, sourced; a

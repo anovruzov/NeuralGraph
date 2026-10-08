@@ -49,18 +49,22 @@ DISPATCH_SENTENCE = "Pushes to main never run a request; on main a request runs 
 UNVERIFIED_SENTENCE = ("The pinned server release asset and the model file names in lab/models.json are unverified "
                        "until the check run downloads and verifies them.")
 FIRST_RUNS = ("plumbing-001", "check-001", "smoke-001", "lab/models.lock.json", "main-001")
+SIZING_SENTENCE = ("Larger models are slower on the same runner, and one `minutes` value serves every model of a "
+                   "block, so size each block by its slowest model")
 
 SINGLE_LABELS = ("PLUMBING_BANNER", "PLUMBING_HOSTED_BANNER", "PLUMBING_CHECK_LINE", "PLUMBING_HOSTED_LINE",
                  "NO_MEASUREMENT_LINE", "X1_LABEL", "OPENFDA_LABEL", "OPENFDA_PUBLIC_FLAG", "SHEETS_LABEL",
                  "G0_BELOW_PROTOCOL", "G0_MODEL_PATH", "SIZING_NOTE", "E2_SIZING_NOTE", "E1_ENDPOINT_EXCLUDED",
                  "E1_VERDICTS_WITHHELD", "E1_HOSTED_LABEL", "HOSTED_COST_NOTE", "SIM_WORLD_SAME", "SIM_WORLD_DIFFERS",
                  "WORLD_DIGEST_SAME", "WORLD_DIGEST_DIFFERS", "CPU_MODELS_DIFFER", "NOT_PINNED", "LOCK_UNCHANGED",
-                 "LOCK_NEW", "LOCK_CONFLICT_NOTE", "LOCK_NOT_COMPUTED")
+                 "LOCK_NEW", "LOCK_CONFLICT_NOTE", "LOCK_NOT_COMPUTED", "BY_CONSTRUCTION_LABEL",
+                 "BY_CONSTRUCTION_NOTE", "OPENFDA_SAW_RECALLS", "OPENFDA_WARNED", "OPENFDA_FALSE_ALARM_SCOPE")
 DICT_LABELS = ("NOTES", "SIM_NOTES", "SIM_CHANNEL_LABELS", "SIM_LIFT_LABELS", "SIM_MEASUREMENT_REASONS", "E1_LABELS",
                "E2_LABELS", "CLASS_REASONS")
 REQUIRED_LABELS = (*SINGLE_LABELS, *(f"{d}.{k}" for d in DICT_LABELS for k in getattr(notes, d)))
 README_LABELS = ("E1_LABELS.generator_text", "E2_LABELS.synthetic", "X1_LABEL", "OPENFDA_LABEL", "SHEETS_LABEL",
-                 "SIM_NOTES.synthetic_internal", "NOTES.runner_hardware", "NOTES.text_only_scan", "PLUMBING_BANNER")
+                 "SIM_NOTES.synthetic_internal", "NOTES.runner_hardware", "NOTES.text_only_scan", "PLUMBING_BANNER",
+                 "BY_CONSTRUCTION_NOTE", "OPENFDA_FALSE_ALARM_SCOPE", "OPENFDA_SAW_RECALLS", "OPENFDA_WARNED")
 
 TROUBLESHOOTING = (
     # push discovery
@@ -353,6 +357,23 @@ class ReadmeTests(unittest.TestCase):
         self.assertNotIn(-1, positions)
         self.assertEqual(positions, sorted(positions))
 
+    def test_sizing_is_per_model(self) -> None:
+        """Step 5 sizes each block by its slowest model, from each model's own smoke numbers, and its G0 and E1
+        estimates count every call those units make (G0's judge calls too)."""
+        body = self.sections["The first runs, in order"]
+        step = " ".join(body[body.index("5. Set the minutes"):body.index("6. main-001")].split())
+        self.assertIn(SIZING_SENTENCE, step)
+        for needed in ("`extract_claims`", "`judge_record`", "`labels.n`", "`experiments.sim.minutes`",
+                       "`experiments.e1.minutes`", "the largest", "capacity",
+                       f"`{notes.SIM_PROJECTED}`", f"`{notes.E1_NO_REFERENCE}`"):
+            with self.subTest(needed=needed):
+                self.assertIn(needed, step)
+        self.assertIn("Simulation sizing for the next request", step)
+        self.assertEqual(notes.HEADINGS["sizing"], "Simulation sizing for the next request")
+        self.assertIn("Model call latency from the ledgers", step)
+        self.assertEqual(notes.HEADINGS["latency"], "Model call latency from the ledgers")
+        self.assertIn("needs the largest suggestion among its models", notes.SIZING_NOTE)
+
     def test_a_troubleshooting_row_for_every_message(self) -> None:
         rows = {row[0]: row for row in table_rows(self.sections["Troubleshooting"])}
         self.assertEqual(rows.pop("message"), ["message", "what to do"])
@@ -461,6 +482,29 @@ class TemplateTests(unittest.TestCase):
             with self.subTest(template=name):
                 loaded = load_request(_copy(self.root, name), self.manifest, strict_location=True, root=self.root)
                 self.assertEqual(loaded.name, f"{name.removesuffix('.json')}-001")
+
+    def test_the_smoke_run_sizes_every_model_the_main_run_sizes(self) -> None:
+        """The main request's sim, G0 and E1 minutes are set from each model's own smoke numbers: every gguf model of
+        those blocks has a sim unit in the smoke run (its sizing row), the smoke's G0 counts G0's calls, and the main
+        G0 keeps the smoke's records and seed, for which those counts hold."""
+        smoke = json.loads((TEMPLATES / "smoke.json").read_text(encoding="utf-8"))
+        main = json.loads((TEMPLATES / "main.json").read_text(encoding="utf-8"))
+
+        def block_models(doc: dict[str, Any], name: str) -> set[str]:
+            block = doc["experiments"].get(name)
+            if block is None:
+                return set()
+            return {k for k in block.get("models", doc["models"]) if self.manifest.models[k]["kind"] == "gguf"}
+
+        sized = block_models(main, "sim") | block_models(main, "g0") | block_models(main, "e1")
+        self.assertEqual(sized, {"a-0p5b", "a-1p5b", "a-4b", "b-2b"})
+        self.assertLessEqual(sized, block_models(smoke, "sim"))
+        self.assertTrue(block_models(smoke, "g0"))
+        self.assertEqual({k: smoke["experiments"]["g0"][k] for k in ("records", "seed", "pack")},
+                         {k: main["experiments"]["g0"][k] for k in ("records", "seed", "pack")})
+        self.assertEqual({k: smoke["experiments"]["sim"][k] for k in ("plant", "weeks", "top_n", "seeds")},
+                         {k: main["experiments"]["sim"][k] for k in ("plant", "weeks", "top_n", "seeds")})
+        self.assertIn("largest", main["purpose"])
 
     def test_a_bad_copy_name_is_refused(self) -> None:
         with self.assertRaises(RequestError) as caught:

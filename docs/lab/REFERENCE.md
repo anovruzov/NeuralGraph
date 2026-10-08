@@ -299,6 +299,9 @@ The experiments' labels:
 - `X1_LABEL`: {x_one} here runs the model-free evaluation harness on a same-author plant fixture that is not blind; the extractor is lexical and no model runs. It is not STRATEGY's blind {x_one} test.
 - `OPENFDA_LABEL`: Public data, artificial partitioning, not a confidentiality demonstration; no model in this pipeline.
 - `OPENFDA_PUBLIC_FLAG`: The replay's measurement flag says only that both caches came from the public openFDA host; it measures no model.
+- `OPENFDA_SAW_RECALLS`: The requester declared that they saw recall outcomes before the codes, manufacturers and settings were fixed, so the vocabulary and detector settings were not frozen blind: the recall figures below may reflect hindsight and are not a preregistered result.
+- `OPENFDA_WARNED`: The replay warned: a warning can make a channel's zero structural, as when too few sites leave no cross-site candidate, rather than a negative result.
+- `OPENFDA_FALSE_ALARM_SCOPE`: False alarms per week count alerts on the request's product codes only, those in the fetch table, not on every product code of the manufacturer: the lab fetches only the requested codes, whatever the replay's own denominator note says.
 - `SHEETS_LABEL`: No labels were generated: {n_one} and openFDA {e_one} have no result until a human labels and commits the sheet.
 - `G0_BELOW_PROTOCOL`: Some canary scans used fewer records than the protocol scan, whose size the protocol records column gives: they are smaller checks, not the protocol scan.
 - `G0_MODEL_PATH`: the canary scan found no leak, but its model path had problems, so it did not test the model in the loop
@@ -308,7 +311,7 @@ The experiments' labels:
 
 Sizing and cost:
 
-- `SIZING_NOTE`: Sizing: the per-call medians measured on this runner and the minutes they suggest for the next request's sim block, a quarter above the estimate and rounded up; a skipped or timed-out unit's estimate is projected, not measured.
+- `SIZING_NOTE`: Sizing: the per-call medians measured on this runner and the minutes they suggest for the next request's sim block, a quarter above the estimate and rounded up; a skipped or timed-out unit's estimate is projected, not measured. One minutes value serves every model of a block, so the block needs the largest suggestion among its models.
 - `E2_SIZING_NOTE`: Pushdown sizing: the model-free rehearsal's call counts times this runner's warm-up latencies, against the share of the unit's budget the projection may use; a projection above it skips the unit, and the suggested minutes are a quarter above the projection, rounded up.
 - `HOSTED_COST_NOTE`: Estimated cost: the token counts the host reported times the manifest's prices. The host's bill is the real cost; calls without token counts are left out, and max_calls caps only the units a shard starts, so prepaid credits are the hard limit.
 
@@ -365,6 +368,13 @@ The simulation's lifts:
 - `SIM_LIFT_LABELS.X_model_minus_S`: patterns X with the model found minus patterns S found, bootstrapped over patterns
 - `SIM_LIFT_LABELS.X_model_minus_R_mf`: patterns X with the model found minus patterns model-free R found, bootstrapped over patterns
 - `SIM_LIFT_LABELS.X_model_minus_X_lexical`: patterns X with the model found minus patterns X with the lexical extractor found; at or below zero by construction, since the lexical extractor is exact on generator text
+
+Baselines a plant blinds, under the simulation's and X1's lifts whenever a plant has a narrative_only pattern (every
+plant a request can name has one: `sim_small` three of four, `plant_smoke` all three). The label is the collective
+harness's own (`harness.BY_CONSTRUCTION_LABEL`), carried from each scorecard's `by_construction` entries:
+
+- `BY_CONSTRUCTION_LABEL`: by construction, not a result
+- `BY_CONSTRUCTION_NOTE`: By construction, not a result: planted narrative_only records carry no codes and no structured entities, so they add nothing to the cells S and model-free R read, and a find of theirs on a narrative_only pattern is chance, from background records. Every such pattern X found and they missed counts for X in the lifts over S and over model-free R, so that share of those lifts is fixed by the plant, not measured; only the plant's other patterns compare the channels.
 
 Why a simulation is not a measurement:
 
@@ -582,7 +592,7 @@ synthetic worlds describe synthetic worlds.
 | recall rate | the share of those recalls a channel alerted on before the recall | a confidentiality result |
 | median lead days | the median days from a channel's first alert to the recall | a promise of warning time |
 | post-recall alerts | alerts that came after the recall | n/a: not a number |
-| false alarms per week | alerts per week that matched no recall | false alarms on partner data |
+| false alarms per week | alerts per week that matched no recall, on the request's product codes only | false alarms on partner data, or on the manufacturer's other product codes |
 | dataset | the openFDA dataset: event or recall | n/a: not a number |
 | code | an openFDA product code | n/a: not a number |
 | total | records openFDA reported for the query | records fetched |
@@ -607,6 +617,10 @@ synthetic worlds describe synthetic worlds.
 | Host | the hosted base URL's host and port, never its path | n/a: not a number |
 | model listed | whether the host listed the model id | n/a: not a number |
 | model id | the host's id of the hosted model | n/a: not a number |
+| visibility | which records of a planted pattern carry it: narrative_only, codes_only or both | n/a: not a number |
+| label | the collective harness's own label for the row | n/a: not a number |
+| recall outcomes seen before the preregistration | the requester's declaration `saw_recall_outcomes`: whether they saw recall outcomes before fixing the codes, manufacturers and settings | that the settings were frozen blind when it says no |
+| warnings | the harness's own warnings for the row, as written | every problem of the run |
 
 ## Summary sections
 
@@ -639,6 +653,7 @@ Every section heading of the summaries (`lab.notes.HEADINGS`):
 | Simulation lifts, bootstrapped over patterns | the simulation's lifts |
 | Simulation pushdown verification | the simulation's pushdown candidates, raw text and fallback share |
 | Simulation sizing for the next request | per sim unit, the measured medians and the suggested minutes |
+| Baselines blind to narrative-only patterns by construction | per sim or X1 row, S and R_mf on the plant's narrative_only patterns, with the harness's label |
 | Preregistration, fixed before any model runs | E1's labels, X1's and E2's prereg hashes, E2's rehearsal |
 | Extraction compared across models | E1's label, labels, reference and thresholds |
 | Extraction per model, pooled over repeats | E1's per-model scores |
@@ -648,8 +663,8 @@ Every section heading of the summaries (`lab.notes.HEADINGS`):
 | Pushdown candidates | E2's candidates by label |
 | Pushdown sizing | E2's projection and suggested minutes |
 | Evaluation harness on a plant fixture: channels | X1's label and channels |
-| Evaluation harness lifts, bootstrapped over patterns | X1's lifts and eligibility |
-| openFDA public replay: recalls found per channel | the openFDA replay's channels |
+| Evaluation harness lifts, bootstrapped over patterns | X1's lifts, eligibility and the harness's warnings |
+| openFDA public replay: recalls found per channel | the requester's declaration, the replay's warnings and channels, and what the false alarms cover |
 | openFDA fetches | the openFDA fetch per dataset and product code |
 | Labelling sheets for a human | the N1 and E1 sheets written for a person |
 | Lock | the lock status and the sentence that says what to do |

@@ -137,6 +137,42 @@ class DryRunSummaryTests(unittest.TestCase):
         shard_md = (self.out / "shards" / "s001-fake-a" / "summary" / "summary.md").read_text(encoding="utf-8")
         self.assertIn("`sim-fake-a-s1`", shard_md)
 
+    def test_by_construction_in_the_dry_run(self) -> None:
+        """The simulation's and X1's lifts over S and R_mf carry the harness's own label: report.json keeps each
+        scorecard's by-construction entries and the report prints them, sourced, under each lifts table."""
+        report = _json(self.out / "report" / "report.json")
+        (sim,), (x1,) = report["sim"], report["x1"]
+        for row in (sim, x1):
+            with self.subTest(unit=row["unit"]):
+                self.assertEqual(row["by_construction"], [
+                    {"channel": name, "visibility": "narrative_only", "label": notes.BY_CONSTRUCTION_LABEL,
+                     "recall": 0.0, "units": 3, "found": 0} for name in ("S", "R_mf")])
+        md, entries = self.summaries[-1][1].read_text(encoding="utf-8"), _json(self.summaries[-1][2])["sources"]
+        lines = md.splitlines()
+        heading = "#### " + notes.HEADINGS["by-construction"]
+        self.assertEqual((lines.count(heading), lines.count(notes.BY_CONSTRUCTION_NOTE)), (2, 2))
+        sim_at, x1_at = [i for i, line in enumerate(lines) if line == heading]
+        self.assertLess(lines.index("#### " + notes.HEADINGS["sim-lifts"]), sim_at)
+        self.assertLess(sim_at, lines.index("#### " + notes.HEADINGS["sim-pushdown"]))
+        self.assertLess(lines.index("#### " + notes.HEADINGS["x1-lifts"]), x1_at)
+        for unit, name in (("sim-fake-a-s1", "S"), ("sim-fake-a-s1", "R_mf"), ("x1", "S"), ("x1", "R_mf")):
+            self.assertIn(f"| `{unit}` | `{name}` | `narrative_only` | 3 | 0 | 0.000 | by construction, not a result |",
+                          lines)
+        pointers = {e["pointer"] for e in entries}
+        for key in ("sim", "x1"):
+            for j in range(2):
+                for field in ("units", "found", "recall"):
+                    self.assertIn(f"/{key}/0/by_construction/{j}/{field}", pointers)
+
+    def test_x1_warnings_in_the_dry_run(self) -> None:
+        report = _json(self.out / "report" / "report.json")
+        (x1,) = report["x1"]
+        self.assertTrue(x1["warnings"])
+        md = self.summaries[-1][1].read_text(encoding="utf-8")
+        (line,) = [line for line in md.splitlines() if line.startswith("- `x1`: ")]
+        self.assertTrue(line.endswith(f"; {notes.COLUMNS['warnings']}: " + ", ".join(f"`{w}`" for w in x1["warnings"])),
+                        line)
+
     def test_experiment_sections_in_the_dry_run(self) -> None:
         report = _json(self.out / "report" / "report.json")
         self.assertEqual((report["e1"]["compared"], report["e1"]["display_class"]), (True, "plumbing"))
@@ -419,7 +455,8 @@ class DryRunSummaryTests(unittest.TestCase):
                  "NO_REPORT", "UNSEALED", "NOT_RUN", "NO_ARTIFACT", "OTHER_PLAN", "ALTERED", "AMBIGUOUS_ARTIFACTS",
                  "FILES_DIFFER", "UNIT_RECORD_INVALID", "STEP_FAILED", "CPU_MODELS_DIFFER", "WORLD_DIGEST_DIFFERS",
                  "WORLD_DIGEST_SAME", "NOT_PINNED", "DISPATCH_BY_HAND", "PLAN_FIX_HINT", "LOCK_UNCHANGED", "LOCK_NEW",
-                 "LOCK_CONFLICT_NOTE", "LOCK_NOT_COMPUTED", "G0_MODEL_PATH")
+                 "LOCK_CONFLICT_NOTE", "LOCK_NOT_COMPUTED", "G0_MODEL_PATH", "BY_CONSTRUCTION_LABEL",
+                 "BY_CONSTRUCTION_NOTE", "OPENFDA_SAW_RECALLS", "OPENFDA_WARNED", "OPENFDA_FALSE_ALARM_SCOPE")
         values = [(name, getattr(notes, name)) for name in names]
         values += [(f"HEADINGS.{k}", v) for k, v in notes.HEADINGS.items()]
         values += [(f"COLUMNS.{k}", v) for k, v in notes.COLUMNS.items()]
@@ -462,6 +499,70 @@ class DryRunSummaryTests(unittest.TestCase):
         self.assertEqual(notes.HEADINGS["model"], "Model on runner CPU")
         self.assertEqual(notes.HEADINGS["unverified"], "Unverified: not measurements")
         self.assertEqual(notes.HEADINGS["plumbing"], "Plumbing checks (fake provider): not model measurements")
+
+
+class OpenFDACaveatTests(unittest.TestCase):
+    """The openFDA section says, before its tables, whether the requester saw recall outcomes first, what the replay
+    warned and what its false alarms cover; X1's warnings follow its eligibility."""
+
+    def render(self, rows: list[dict[str, Any]], key: str = "openfda") -> tuple[str, list[dict[str, Any]], Path]:
+        tmp = Path(tempfile.mkdtemp(prefix="lab-summary-openfda-"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+        report = {"kind": "lab_report", "result_class": "real", "contains_measurements": False, "unit_count": 0,
+                  "shard_count": 0, key: rows,
+                  "units": [{"unit": r["unit"], "experiment": key, "model": None, "status": "ok",
+                             "display_class": "no-model", "shard": "s001-none", "wall_s": 1.0} for r in rows]}
+        write_json_atomic(tmp / "report.json", report)
+        md, sources = summary.render_report(tmp)
+        check_sources(self, md, sources, tmp)
+        return md, sources, tmp
+
+    @staticmethod
+    def row(unit: str, seen: Any, warnings: Any) -> dict[str, Any]:
+        channel = {"in_scope": 3, "found": 0, "recall_rate": 0.0, "median_lead_days": None, "post_recall_alerts": 0,
+                   "false_alarms": 0, "false_alarms_per_week": 0.0, "reason": None}
+        return {"unit": unit, "display_class": "no-model", "data_label": "public",
+                "recall_outcomes_seen_before_prereg": seen, "warnings": warnings,
+                "channels": {name: dict(channel) for name in ("R_mf", "S", "X")},
+                "fetch": {"event": {"AAA": {"total": 4, "fetched": 4, "truncated": False, "reason": None}}},
+                "sheets": {"n1": None, "e1": None}}
+
+    def test_declaration_and_warnings_before_the_table(self) -> None:
+        warning = ("fewer_sites_than_min_sites: fewer sites than the detectors' min_sites, so no cross-site "
+                   "candidate can form")
+        md, _, _ = self.render([self.row("openfda", True, [warning, "low_partition_coverage: fewer than 0.5"])])
+        lines = md.splitlines()
+        table = next(i for i, line in enumerate(lines) if line.startswith("| unit | channel | recalls in scope"))
+        for sentence in (notes.OPENFDA_LABEL, notes.OPENFDA_SAW_RECALLS, notes.OPENFDA_WARNED,
+                         notes.OPENFDA_FALSE_ALARM_SCOPE):
+            with self.subTest(sentence=sentence[:40]):
+                self.assertEqual(lines.count(sentence), 1)
+                self.assertLess(lines.index(sentence), table)
+        line = (f"- `openfda`: {notes.COLUMNS['saw_recalls']} yes; {notes.COLUMNS['warnings']}: `{warning}`, "
+                "`low_partition_coverage: fewer than 0.5`")
+        self.assertIn(line, lines)
+        self.assertLess(lines.index(line), table)
+
+    def test_no_declaration_and_no_warnings(self) -> None:
+        md, _, _ = self.render([self.row("openfda", False, []), self.row("openfda-b", None, None)])
+        self.assertNotIn(notes.OPENFDA_SAW_RECALLS, md)
+        self.assertNotIn(notes.OPENFDA_WARNED, md)
+        self.assertIn(notes.OPENFDA_FALSE_ALARM_SCOPE, md.splitlines())
+        self.assertIn(f"- `openfda`: {notes.COLUMNS['saw_recalls']} no; {notes.COLUMNS['warnings']}: none",
+                      md.splitlines())
+        self.assertIn(f"- `openfda-b`: {notes.COLUMNS['saw_recalls']} n/a; {notes.COLUMNS['warnings']}: n/a",
+                      md.splitlines())
+
+    def test_x1_warnings_after_eligibility(self) -> None:
+        row = {"unit": "x1", "display_class": "no-model", "stamps": {"blind": False, "extractor": "lexical"},
+               "channels": {}, "lifts": {}, "x1": {"eligible": False, "reasons": ["fewer than 20 patterns"]},
+               "warnings": ["fewer than 10 patterns: the lift intervals are unstable"], "by_construction": None}
+        md, _, _ = self.render([row], key="x1")
+        self.assertIn(f"- `x1`: {notes.COLUMNS['eligible']} no; {notes.COLUMNS['blind']} no; "
+                      f"{notes.COLUMNS['extractor']} `lexical`; {notes.COLUMNS['reason']}: `fewer than 20 patterns`; "
+                      f"{notes.COLUMNS['warnings']}: `fewer than 10 patterns: the lift intervals are unstable`",
+                      md.splitlines())
+        self.assertNotIn(notes.HEADINGS["by-construction"], md)
 
 
 class G0ModelPathColumnTests(unittest.TestCase):

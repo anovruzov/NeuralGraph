@@ -122,11 +122,12 @@ class ShippedRequestTests(unittest.TestCase):
         shutil.copy(TEMPLATES / "smoke.json", requests / "smoke-001.json")
         request = load_request(requests / "smoke-001.json", manifest, strict_location=True, root=self.tmp)
         plan = lab_plan.build_plan(request, manifest, "unknown")
-        (model,) = request.data["models"]
+        first, *others = request.data["models"]
         experiments = {u["unit"]: u["experiment"] for u in plan["units"]}
         self.assertEqual([(s["kind"], s["model"], [experiments[u] for u in s["units"]], s["planned_minutes"],
                            s["timeout_minutes"]) for s in plan["shards"]],
-                         [("gguf", model, ["sim", "g0", "e3"], 305, 330)])
+                         [("gguf", first, ["sim", "g0", "e3"], 305, 330)]
+                         + [("gguf", model, ["sim", "e3"], 260, 285) for model in others])
         self.assertEqual(sorted(p.name for p in TEMPLATES.iterdir()),
                          ["check.json", "hosted-comparison.json", "main.json", "openfda-replay.json", "smoke.json"])
 

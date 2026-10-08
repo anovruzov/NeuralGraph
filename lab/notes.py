@@ -165,7 +165,16 @@ SIM_MEASUREMENT_REASONS = {
 }
 SIZING_NOTE = ("Sizing: the per-call medians measured on this runner and the minutes they suggest for the next "
                "request's sim block, a quarter above the estimate and rounded up; a skipped or timed-out unit's "
-               "estimate is projected, not measured.")
+               "estimate is projected, not measured. One minutes value serves every model of a block, so the block "
+               "needs the largest suggestion among its models.")
+# the harness's label for a baseline a plant blinds (harness.BY_CONSTRUCTION_LABEL), and what it means for the lifts
+BY_CONSTRUCTION_LABEL = "by construction, not a result"
+BY_CONSTRUCTION_NOTE = ("By construction, not a result: planted narrative_only records carry no codes and no "
+                        "structured entities, so they add nothing to the cells S and model-free R read, and a find of "
+                        "theirs on a narrative_only pattern is chance, from background records. Every such pattern X "
+                        "found and they missed counts for X in the lifts over S and over model-free R, so that share "
+                        "of those lifts is fixed by the plant, not measured; only the plant's other patterns compare "
+                        "the channels.")
 SIM_WORLD_SAME = "Simulation units of the same plant, seed and weeks saw the same synthetic world."
 SIM_WORLD_DIFFERS = ("Simulation units of the same plant, seed and weeks saw different synthetic worlds; their results "
                      "are not comparable.")
@@ -206,6 +215,14 @@ X1_LABEL = ("{x_one} here runs the model-free evaluation harness on a same-autho
 OPENFDA_LABEL = "Public data, artificial partitioning, not a confidentiality demonstration; no model in this pipeline."
 OPENFDA_PUBLIC_FLAG = ("The replay's measurement flag says only that both caches came from the public openFDA host; it "
                        "measures no model.")
+OPENFDA_SAW_RECALLS = ("The requester declared that they saw recall outcomes before the codes, manufacturers and "
+                       "settings were fixed, so the vocabulary and detector settings were not frozen blind: the "
+                       "recall figures below may reflect hindsight and are not a preregistered result.")
+OPENFDA_WARNED = ("The replay warned: a warning can make a channel's zero structural, as when too few sites leave no "
+                  "cross-site candidate, rather than a negative result.")
+OPENFDA_FALSE_ALARM_SCOPE = ("False alarms per week count alerts on the request's product codes only, those in the "
+                             "fetch table, not on every product code of the manufacturer: the lab fetches only the "
+                             "requested codes, whatever the replay's own denominator note says.")
 SHEETS_LABEL = ("No labels were generated: {n_one} and openFDA {e_one} have no result until a human labels and "
                 "commits the sheet.")
 G0_MODEL_PATH = ("the canary scan found no leak, but its model path had problems, so it did not test the model in "
@@ -343,6 +360,7 @@ HEADINGS = {
     "sim-lifts": "Simulation lifts, bootstrapped over patterns",
     "sim-pushdown": "Simulation pushdown verification",
     "sizing": "Simulation sizing for the next request",
+    "by-construction": "Baselines blind to narrative-only patterns by construction",
     "prereg": "Preregistration, fixed before any model runs",
     "e1": "Extraction compared across models",
     "e1-endpoints": "Extraction per model, pooled over repeats",
@@ -565,4 +583,8 @@ COLUMNS = {
     "hosted_host": "Host",
     "listed": "model listed",
     "model_id": "model id",
+    "visibility": "visibility",
+    "label": "label",
+    "saw_recalls": "recall outcomes seen before the preregistration",
+    "warnings": "warnings",
 }

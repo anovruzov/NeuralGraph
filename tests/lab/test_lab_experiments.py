@@ -32,8 +32,9 @@ from lab import prereg as lab_prereg
 from lab import shard as lab_shard
 from lab import units
 from lab.goldlabels import GOLD_KEYS, GoldLabelsError, build_labels
-from lab.notes import (CONTEXT_TOO_SMALL, E1_COMPARE_FAILED, E1_ENDPOINT_EXCLUDED, E1_LABELS, E1_NO_REFERENCE,
-                       E1_VERDICTS_WITHHELD, E2_LABELS, HARNESS_USAGE, HEADINGS, OPENFDA_LABEL, OPENFDA_RATE_LIMITED,
+from lab.notes import (COLUMNS, CONTEXT_TOO_SMALL, E1_COMPARE_FAILED, E1_ENDPOINT_EXCLUDED, E1_LABELS,
+                       E1_NO_REFERENCE, E1_VERDICTS_WITHHELD, E2_LABELS, HARNESS_USAGE, HEADINGS,
+                       OPENFDA_FALSE_ALARM_SCOPE, OPENFDA_LABEL, OPENFDA_RATE_LIMITED, OPENFDA_SAW_RECALLS,
                        OPENFDA_UNREACHABLE, PREREG_MISSING, SHEETS_LABEL, STEP_SKIPPED, X1_LABEL)
 from lab.plan import serving_class
 from lab.prereg import PreregError, e1_endpoint, load_prereg
@@ -283,12 +284,21 @@ class AllExperimentsDryRunTests(unittest.TestCase):
                                (e2_heading, ids(E2_LABELS["synthetic"])), (e2_heading, E2_LABELS["below_protocol"]),
                                (e2_heading, E2_LABELS["self_central"]), ("#### " + HEADINGS["x1"], ids(X1_LABEL)),
                                ("#### " + HEADINGS["openfda"], OPENFDA_LABEL),
+                               ("#### " + HEADINGS["openfda"], OPENFDA_FALSE_ALARM_SCOPE),
                                ("#### " + HEADINGS["sheets"], ids(SHEETS_LABEL))):
             with self.subTest(label=label[:40]):
                 self.assertEqual((lines.count(heading), lines.count(label)), (1, 1))
                 self.assertLess(index(heading), index(label))
                 self.assertLess(index(label), first_table_after(index(heading)))
         self.assertIn(E1_VERDICTS_WITHHELD, lines)
+        # the request declared it did not see recall outcomes first: no hindsight sentence, the declaration shown
+        (row,) = _json(self.out / "report" / "report.json")["openfda"]
+        self.assertIs(row["recall_outcomes_seen_before_prereg"], False)
+        self.assertNotIn(OPENFDA_SAW_RECALLS, lines)
+        declared = f"- `openfda`: {COLUMNS['saw_recalls']} no; {COLUMNS['warnings']}: "
+        (line,) = [line for line in lines if line.startswith(declared)]
+        self.assertEqual(line, declared + (", ".join(f"`{w}`" for w in row["warnings"]) or "none"))
+        self.assertLess(index(line), first_table_after(index("#### " + HEADINGS["openfda"])))
         self.assertNotIn("| non-inferior", md)
         self.assertNotIn("| bar verdict", md)
         for mode, directory, md_name, src_name in (("plan", self.out / "plan", "summary.md", "summary.sources.json"),

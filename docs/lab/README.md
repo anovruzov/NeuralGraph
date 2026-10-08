@@ -116,8 +116,12 @@ Run the first requests in this order, each after the previous one's report:
    the workflow, the summaries and the report work; nothing in it measures a model.
 2. check-001, from `lab/templates/check.json`: the first real run. It downloads and verifies the pinned server
    archive and the smallest model file and times a few short requests. After it, the pins are real.
-3. smoke-001, from `lab/templates/smoke.json`: the first model numbers for `a-0p5b` (latency, the canary scan and
-   the simulation on the small plant), and the sizing the main run needs.
+3. smoke-001, from `lab/templates/smoke.json`: the first model numbers, and the sizing the main run needs for each
+   of its models. Every local model of the main run gets latency (E3) and the simulation on the small plant, one
+   shard each; `a-0p5b` also gets the canary scan, whose ledgers count the calls a G0 unit makes. A model too slow
+   for the simulation's minutes is skipped after its first twenty extraction records and still gets its sizing row,
+   projected instead of measured. A skipped unit exits 1 (see [exit codes](REFERENCE.md#exit-codes)), so that model's
+   shard job shows red: on the smoke run that is the expected path, and the report still has its sizing row.
 4. Commit the lock. Download the report artifact (`lab-report-real-...`) of the smoke run, copy its
    `lock-candidate.json` to `lab/models.lock.json`, commit and push to `lab`. A commit that changes only the lock
    starts no run. When two runs left candidates, put both report folders in one directory and merge them:
@@ -128,12 +132,27 @@ Run the first requests in this order, each after the previous one's report:
 
    `lock candidates disagree` means an upstream file changed between the runs: check the provision records before
    pinning either.
-5. Set the minutes of the main request before copying it:
-   - sim: the smoke report's "Simulation sizing for the next request" table gives each sim unit's suggested minutes.
-     Use that value for `experiments.sim.minutes`.
-   - G0: an estimate, not a measurement: ceil(1.25 x records x the median ms of `extract_claims` in the smoke report's
-     "Model call latency from the ledgers" table / 1000 / 60), plus a few minutes of warm-up. A unit whose minutes
-     are too low times out.
+5. Set the minutes of the main request before copying it. Larger models are slower on the same runner, and one
+   `minutes` value serves every model of a block, so size each block by its slowest model: work out the minutes for
+   each model of the block from its own numbers in the smoke report, and use the largest. A model that needs more
+   than a shard's capacity (`job_minutes` less the shard overhead of 25 minutes: 305 at 330) cannot run that
+   experiment in one job; leave it out of the block's `models`. E1's `reference` cannot be left out: when one of its
+   repeats needs more than a shard's capacity, change `reference` or lower `labels.n`.
+   - sim: the smoke report's "Simulation sizing for the next request" table gives each model's suggested minutes;
+     `experiments.sim.minutes` is the largest among the sim models. Sized from a faster model, a slower one is
+     skipped by its projection (`projected {projected} min > budget {budget} min`) and gives no scorecard.
+   - G0, an estimate, not a measurement: for each model, ceil(1.25 x (E x its extraction median s + J x its judge
+     median s) / 60), plus a few minutes of warm-up, where the medians are the model's in the sizing table and E and
+     J are the calls of `extract_claims` and `judge_record` in the smoke report's "Model call latency from the
+     ledgers" rows of experiment `g0` (a G0 unit that did not finish leaves no rows: raise its minutes and run the
+     smoke again). E and J hold for the smoke's G0 `records` and `seed`, so keep those in the main request. J was
+     counted with `a-0p5b`, whose extractions led HQ to its own candidates; another model's can lead to more judge
+     calls, which the quarter margin covers only roughly. G0 has no projection: a unit whose minutes are too low runs
+     them out and times out.
+   - E1, an estimate too: for each E1 model, the reference included, ceil(1.25 x `labels.n` x its extraction median
+     s / 60), plus a few minutes of warm-up, per repeat; `experiments.e1.minutes` is the largest. E1 has no
+     projection either, and a reference repeat that times out leaves no comparison for any model (`the reference
+     model has no complete set of valid repeats, so no comparison was run`).
 6. main-001, from `lab/templates/main.json`: the four local models, E1, E2, E3, G0, the simulation and X1.
 7. Optional: `lab/templates/openfda-replay.json` (public data, no model) and `lab/templates/hosted-comparison.json`
    (needs the hosted secrets and a manifest entry).
@@ -204,10 +223,20 @@ What each experiment's numbers mean and do not mean. Each label below is printed
 - `NOTES.text_only_scan`: The canary scan covers text only: it reads the bytes that crossed a boundary, not timing, sizes or other side channels.
 - The simulation is synthetic and internal:
 - `SIM_NOTES.synthetic_internal`: Simulation: a seeded synthetic world with planted patterns, written by the same author as the detectors; internal only, never a result to show buyers.
+- Every plant a request can name has narrative_only patterns, which give S and model-free R nothing to find, so the
+  simulation's and X1's lifts over them are partly fixed by the plant. A table under the lifts gives those patterns
+  with the collective harness's own label, `by construction, not a result`, after this sentence:
+- `BY_CONSTRUCTION_NOTE`: By construction, not a result: planted narrative_only records carry no codes and no structured entities, so they add nothing to the cells S and model-free R read, and a find of theirs on a narrative_only pattern is chance, from background records. Every such pattern X found and they missed counts for X in the lifts over S and over model-free R, so that share of those lifts is fixed by the plant, not measured; only the plant's other patterns compare the channels.
 - X1 runs no model at all:
 - `X1_LABEL`: {x_one} here runs the model-free evaluation harness on a same-author plant fixture that is not blind; the extractor is lexical and no model runs. It is not STRATEGY's blind {x_one} test.
 - openFDA is public data with no model:
 - `OPENFDA_LABEL`: Public data, artificial partitioning, not a confidentiality demonstration; no model in this pipeline.
+- its false alarms cover only the codes the request fetched:
+- `OPENFDA_FALSE_ALARM_SCOPE`: False alarms per week count alerts on the request's product codes only, those in the fetch table, not on every product code of the manufacturer: the lab fetches only the requested codes, whatever the replay's own denominator note says.
+- each replay row shows the request's `saw_recall_outcomes` declaration and the replay's warnings; when a requester
+  saw recall outcomes first, or the replay warned, the summary says what that means first:
+- `OPENFDA_SAW_RECALLS`: The requester declared that they saw recall outcomes before the codes, manufacturers and settings were fixed, so the vocabulary and detector settings were not frozen blind: the recall figures below may reflect hindsight and are not a preregistered result.
+- `OPENFDA_WARNED`: The replay warned: a warning can make a channel's zero structural, as when too few sites leave no cross-site candidate, rather than a negative result.
 - and its labelling sheets have no result until a person fills them:
 - `SHEETS_LABEL`: No labels were generated: {n_one} and openFDA {e_one} have no result until a human labels and commits the sheet.
 
@@ -327,7 +356,7 @@ the message fills in.
 | `no model call was recorded for a required task` | The model was never called for that task; read the unit's logs. |
 | `too many failed requests` | E3 saw too many failed requests; lower its concurrency or requests. |
 | `unit timed out` | Raise the unit's minutes (see The first runs, in order). |
-| `projected {projected} min > budget {budget} min` | Raise the unit's minutes to the suggested minutes in the sizing table. |
+| `projected {projected} min > budget {budget} min` | Raise the block's minutes to the largest suggested minutes among its models in the sizing table (The first runs, in order, step 5). |
 | `model participation below threshold` | The simulation fell back to the lexical extractor too often; read its ledgers. |
 | `the pushdown harness stopped with an uncaught error, often a central or site call that failed after its retries; the files it kept are partial` | Run again; if it persists, read the unit's logs. |
 | `the preregistration is missing or differs from the plan's` | The plan job's preregistration failed; read its log and push again. |

@@ -27,16 +27,19 @@ the model.
 
 A report's class sections hold, for its sim rows, a channels table (each channel key's meaning listed under it; the
 found net of chance and chance finds columns only when a row has them, that is when the harness ran a no-plant control),
-a lifts table and a pushdown table; then E2 (its labels first: synthetic, below the protocol minimum when a row is, the
-central comparator being the model itself; then the conditions, ratio and candidates tables; the bar verdict only for a
-row whose central comparator is not the model itself), X1 (its label, then the channels and lifts tables), openFDA (its
-label and what its measurement flag means, then the channels and fetch tables, then the sheets label and the sheets
-table) and, once, in the class section of its display class, E1: its label, then the endpoints table, then the paired
-table, whose non-inferiority and kill-flag columns appear only when the block's ``verdicts_shown`` (a model measurement,
-or a hosted API result) and are otherwise replaced by the withheld sentence; a block that was not compared shows its
-reason instead. When hosted models were among the endpoints, the hosted label follows the E1 label. The paired table
-names each row's ``decision_metric`` (micro field F1, or the per-record mean field F1 of a harness without it) and its
-difference and interval, then the per-record mean difference and the sign test. The class sections come in the order of
+a lifts table, the by-construction table (:func:`_by_construction_table`) and a pushdown table; then E2 (its labels
+first: synthetic, below the protocol minimum when a row is, the central comparator being the model itself; then the
+conditions, ratio and candidates tables; the bar verdict only for a row whose central comparator is not the model
+itself), X1 (its label, then the channels and lifts tables, each row's eligibility and the harness's warnings, then the
+by-construction table), openFDA (its label and what its measurement flag means, the hindsight sentence when a requester
+declared seeing recall outcomes first and the warning sentence when the replay warned, the scope of its false alarms,
+each row's declaration and warnings, then the channels and fetch tables, then the sheets label and the sheets table)
+and, once, in the class section of its display class, E1: its label, then the endpoints table, then the paired table,
+whose non-inferiority and kill-flag columns appear only when the block's ``verdicts_shown`` (a model measurement, or a
+hosted API result) and are otherwise replaced by the withheld sentence; a block that was not compared shows its reason
+instead. When hosted models were among the endpoints, the hosted label follows the E1 label. The paired table names each
+row's ``decision_metric`` (micro field F1, or the per-record mean field F1 of a harness without it) and its difference
+and interval, then the per-record mean difference and the sign test. The class sections come in the order of
 :data:`CLASS_ORDER`: ``model``, then ``hosted-api`` (hosted API results, never measured on this runner), then the rest.
 A G0 table gains a protocol records column, after its note, when a scan was below the protocol size, and a model path
 problems column when a row counts them. After the class sections, a sizing table of every sim unit (whatever its result)
@@ -70,15 +73,16 @@ from typing import Any, Callable
 from mycelic.collective.jsonio import StrictJsonError, strict_load
 
 from . import EXIT_OK, EXIT_USAGE, forbidden_root
-from .notes import (BRANCH_DELETED, COLUMNS, CPU_MODELS_DIFFER, DEFAULT_BRANCH, DELETE_ONLY, DISPATCH_BY_HAND,
-                    E1_COMPARE_FAILED, E1_ENDPOINT_EXCLUDED, E1_HOSTED_LABEL, E1_LABELS, E1_NO_REFERENCE,
-                    E1_VERDICTS_WITHHELD, E1_WITHOUT_HOSTED, E2_CENTRAL_HOSTED_SKIPPED, E2_LABELS, E2_SIZING_NOTE,
-                    G0_BELOW_PROTOCOL, HEADINGS, HOSTED_COST_NOTE, HOSTED_SECRETS_MISSING, LOCK_CONFLICT_NOTE, LOCK_NEW,
-                    LOCK_NOT_COMPUTED, LOCK_UNCHANGED, MERGE_SEVERAL, NO_MEASUREMENT_LINE, NO_PLAN, NO_REPORT,
-                    NOT_A_BRANCH, NOT_PINNED, NOTES, OPENFDA_LABEL, OPENFDA_PUBLIC_FLAG, PLAN_FIX_HINT,
-                    PLUMBING_CHECK_LINE, PLUMBING_HOSTED_LINE, PREREG_MISSING, SHEETS_LABEL, SIM_CHANNEL_LABELS,
-                    SIM_LIFT_LABELS, SIM_NOTES, SIM_WORLD_DIFFERS, SIM_WORLD_SAME, SIZING_NOTE, TRUNCATED, UNSEALED,
-                    WORLD_DIGEST_DIFFERS, WORLD_DIGEST_SAME, X1_LABEL)
+from .notes import (BRANCH_DELETED, BY_CONSTRUCTION_LABEL, BY_CONSTRUCTION_NOTE, COLUMNS, CPU_MODELS_DIFFER,
+                    DEFAULT_BRANCH, DELETE_ONLY, DISPATCH_BY_HAND, E1_COMPARE_FAILED, E1_ENDPOINT_EXCLUDED,
+                    E1_HOSTED_LABEL, E1_LABELS, E1_NO_REFERENCE, E1_VERDICTS_WITHHELD, E1_WITHOUT_HOSTED,
+                    E2_CENTRAL_HOSTED_SKIPPED, E2_LABELS, E2_SIZING_NOTE, G0_BELOW_PROTOCOL, HEADINGS, HOSTED_COST_NOTE,
+                    HOSTED_SECRETS_MISSING, LOCK_CONFLICT_NOTE, LOCK_NEW, LOCK_NOT_COMPUTED, LOCK_UNCHANGED,
+                    MERGE_SEVERAL, NO_MEASUREMENT_LINE, NO_PLAN, NO_REPORT, NOT_A_BRANCH, NOT_PINNED, NOTES,
+                    OPENFDA_FALSE_ALARM_SCOPE, OPENFDA_LABEL, OPENFDA_PUBLIC_FLAG, OPENFDA_SAW_RECALLS, OPENFDA_WARNED,
+                    PLAN_FIX_HINT, PLUMBING_CHECK_LINE, PLUMBING_HOSTED_LINE, PREREG_MISSING, SHEETS_LABEL,
+                    SIM_CHANNEL_LABELS, SIM_LIFT_LABELS, SIM_NOTES, SIM_WORLD_DIFFERS, SIM_WORLD_SAME, SIZING_NOTE,
+                    TRUNCATED, UNSEALED, WORLD_DIGEST_DIFFERS, WORLD_DIGEST_SAME, X1_LABEL)
 from .units import display_class
 
 MAX_SUMMARY_BYTES = 900_000
@@ -196,6 +200,14 @@ def yes_no(value: Any) -> str:
 
 def short(sha: Any) -> str | None:
     return sha[:SHA_SHOWN] if isinstance(sha, str) else None
+
+
+def listed(values: Any) -> str:
+    """Free texts (a harness's warnings, X1's reasons), each in a code span: ``none`` for an empty list, ``n/a`` for
+    no list."""
+    if not isinstance(values, list):
+        return "n/a"
+    return ", ".join(code(v) for v in values) if values else "none"
 
 
 def _get(obj: Any, *keys: Any) -> Any:
@@ -722,6 +734,7 @@ def _sim_tables(doc: _Doc, src: Sources, sim: list[tuple[int, dict[str, Any]]]) 
     doc.table(["unit", "lift", "estimate", "ci_low", "ci_high"], lift_rows)
     for name in lifts:
         doc.add(("\n" if name == lifts[0] else "") + f"- {code(name)}: {SIM_LIFT_LABELS[name]}")
+    _by_construction_table(doc, src, "sim", sim)
 
     def pushdown_rows() -> Any:
         for i, r in sim:
@@ -810,10 +823,37 @@ def _x1_tables(doc: _Doc, src: Sources, x1: list[tuple[int, dict[str, Any]]]) ->
     doc.table(["unit", "lift", "estimate", "ci_low", "ci_high"], lift_rows)
     for _, r in x1:
         reasons = _get(r, "x1", "reasons")
-        listed = ", ".join(code(reason) for reason in reasons) if isinstance(reasons, list) and reasons else "n/a"
+        shown = ", ".join(code(reason) for reason in reasons) if isinstance(reasons, list) and reasons else "n/a"
         doc.add(f"\n- {code(r.get('unit'))}: {COLUMNS['eligible']} {yes_no(_get(r, 'x1', 'eligible'))}; "
                 f"{COLUMNS['blind']} {yes_no(_get(r, 'stamps', 'blind'))}; {COLUMNS['extractor']} "
-                f"{code(_get(r, 'stamps', 'extractor'))}; {COLUMNS['reason']}: {listed}")
+                f"{code(_get(r, 'stamps', 'extractor'))}; {COLUMNS['reason']}: {shown}; {COLUMNS['warnings']}: "
+                f"{listed(r.get('warnings'))}")
+    _by_construction_table(doc, src, "x1", x1)
+
+
+def _by_construction_table(doc: _Doc, src: Sources, key: str, rows: list[tuple[int, dict[str, Any]]]) -> None:
+    """The baselines each row's plant blinds by construction (the ``by_construction`` entries the scorecard carries,
+    with the harness's own label), after what that means for the lifts; nothing when no row has an entry."""
+    f = "report.json"
+    marked = [(i, r) for i, r in rows if isinstance(r.get("by_construction"), list) and r["by_construction"]]
+    if not marked:
+        return
+    _heading(doc, "by-construction", 4)
+    doc.add("\n" + BY_CONSTRUCTION_NOTE)
+
+    def entry_rows() -> Any:
+        for i, r in marked:
+            for j, entry in enumerate(r["by_construction"]):
+                if not isinstance(entry, dict):
+                    continue
+                at = (key, i, "by_construction", j)
+                label = entry.get("label")
+                yield [code(r.get("unit"), table=True), code(entry.get("channel"), table=True),
+                       code(entry.get("visibility"), table=True), src.num(f, pointer(*at, "units"), "int"),
+                       src.num(f, pointer(*at, "found"), "int"), src.num(f, pointer(*at, "recall"), "f3"),
+                       label if label == BY_CONSTRUCTION_LABEL else code(label, table=True)]
+
+    doc.table(["unit", "channel", "visibility", "patterns", "found", "recall", "label"], entry_rows)
 
 
 def _openfda_tables(doc: _Doc, src: Sources, rows_: list[tuple[int, dict[str, Any]]]) -> None:
@@ -821,6 +861,15 @@ def _openfda_tables(doc: _Doc, src: Sources, rows_: list[tuple[int, dict[str, An
     _heading(doc, "openfda", 4)
     doc.add("\n" + OPENFDA_LABEL)
     doc.add("\n" + OPENFDA_PUBLIC_FLAG)
+    if any(r.get("recall_outcomes_seen_before_prereg") is True for _, r in rows_):
+        doc.add("\n" + OPENFDA_SAW_RECALLS)
+    if any(isinstance(r.get("warnings"), list) and r["warnings"] for _, r in rows_):
+        doc.add("\n" + OPENFDA_WARNED)
+    doc.add("\n" + OPENFDA_FALSE_ALARM_SCOPE)
+    for n, (_, r) in enumerate(rows_):
+        doc.add(("\n" if n == 0 else "") + f"- {code(r.get('unit'))}: {COLUMNS['saw_recalls']} "
+                f"{yes_no(r.get('recall_outcomes_seen_before_prereg'))}; {COLUMNS['warnings']}: "
+                f"{listed(r.get('warnings'))}")
 
     def channel_rows() -> Any:
         for i, r in rows_:

@@ -25,13 +25,13 @@ without the unit's record gives ``not_run`` (the prepare problem, else the faile
 without an artifact gives ``not_run`` and any other state ``excluded``, with the state's sentence as the reason. Units
 that ran to a result give one E3 row per cell of their ``e3.json``, one G0 row per ``leakage.json`` (never its hit
 lists), one sim row per complete ``scorecard.json`` (:data:`SIM_CHANNEL_FIELDS` of each channel, ``found_net`` and
-``chance_found`` null when the harness ran no no-plant control, the lifts, the pushdown summary, the raw text crossed
-and the fallback share; never an item or a key) and their ledgers' successful
-calls, grouped into latency rows by display class, model, CPU model, experiment and task (CPU models are never
-pooled): ``n`` and the 50th and 95th percentiles in ms (``stats.percentile``, rounded to 3 places). A hosted unit's
-CPU model is null (its calls ran on the host), and the central rows of an E2 unit with a hosted central comparator
-form rows of their own: the central key, CPU null, and class ``hosted-api`` when the unit is a model measurement
-(else the unit's own class, so a plumbing run's host latencies stay plumbing). Every planned sim
+``chance_found`` null when the harness ran no no-plant control, the lifts, the ``by_construction`` entries
+(:func:`by_construction_rows`), the pushdown summary, the raw text crossed and the fallback share; never an item or a
+key) and their ledgers' successful calls, grouped into latency rows by display class, model, CPU model, experiment and
+task (CPU models are never pooled): ``n`` and the 50th and 95th percentiles in ms (``stats.percentile``, rounded to 3
+places). A hosted unit's CPU model is null (its calls ran on the host), and the central rows of an E2 unit with a hosted
+central comparator form rows of their own: the central key, CPU null, and class ``hosted-api`` when the unit is a model
+measurement (else the unit's own class, so a plumbing run's host latencies stay plumbing). Every planned sim
 unit with a record, whatever its status (a skipped or timed-out one included), also gets a ``sim_sizing`` row when
 its collected ``scorecard.json`` or, failing that, ``progress.json`` reads: records done of all, the measured
 extraction and judge medians in seconds, the estimate and the suggested minutes for the next request.
@@ -43,9 +43,9 @@ lists (null when it has none: a harness without the model-path check).
 E2 rows (one per ``e2.json``) copy its stamps, the protocol minimums, the central comparator, the candidates, the
 conditions' AP and precision at k, the ratio, the raw text bytes, the pushdown statuses and resolvability share and the
 bar verdict with its withheld reason; every E2 unit record with a projection also gets an ``e2_sizing`` row. X1 rows
-copy the scorecard's stamps, channels, lifts, eligibility, plant counts and warnings; openFDA rows the replay's data
-label and declaration, channels, recall counts and warnings, each fetch's per-code totals and the two sheets' sizes,
-and every step's status. No row copies an item, a key, a record or a sheet row.
+copy the scorecard's stamps, channels, lifts, ``by_construction`` entries, eligibility, plant counts and warnings;
+openFDA rows the replay's data label and declaration, channels, recall counts and warnings, each fetch's per-code totals
+and the two sheets' sizes, and every step's status. No row copies an item, a key, a record or a sheet row.
 
 **E1** (``e1``; null without E1 units) compares the models' repeats with the harness's own ``compare``. The plan's
 preregistration must verify (``lab.prereg.load_prereg``, else the reason is :data:`~lab.notes.PREREG_MISSING`). A
@@ -126,6 +126,7 @@ G0_FIELDS = ("pack", "pack_version", "seed", "records", "passed", "canaries_plan
 SIM_CHANNEL_FIELDS = ("found", "units", "recall", "precision_at_40", "average_precision", "alerts", "false_alarms",
                       "found_net", "chance_found")
 SIM_LIFT_FIELDS = ("estimate", "ci_low", "ci_high")
+BY_CONSTRUCTION_FIELDS = ("channel", "visibility", "label", "recall")
 G0_PROTOCOL_RECORDS = 1000
 E1_MODULE = "mycelic.collective.experiments.e1_extract"
 E1_FILES = ("run.json", "predictions.jsonl", "ledger.jsonl")
@@ -397,6 +398,25 @@ def _e2_sizing_row(row: dict[str, Any], record: dict[str, Any]) -> dict[str, Any
             **{k: projection.get(k) for k in ("projected_s", "budget_s", "share", "exceeds", "suggested_minutes")}}
 
 
+def by_construction_rows(result: dict[str, Any]) -> list[dict[str, Any]] | None:
+    """A scorecard's ``by_construction`` entries (X1's, or the lab simulation's in the same shape): the channels its
+    plant blinds by construction, each with :data:`BY_CONSTRUCTION_FIELDS` and the ``units`` and ``found`` of that
+    channel's ``by_visibility`` block for the entry's visibility; null when the scorecard has none (an older one)."""
+    entries = result.get("by_construction")
+    if not isinstance(entries, list):
+        return None
+    rows = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        channel, visibility = entry.get("channel"), entry.get("visibility")
+        block = (_get(result, "channels", channel, "by_visibility", visibility)
+                 if isinstance(channel, str) and isinstance(visibility, str) else None)
+        rows.append({**{k: entry.get(k) for k in BY_CONSTRUCTION_FIELDS},
+                     **{k: _get(block, k) for k in ("units", "found")}})
+    return rows
+
+
 def _x1_row(row: dict[str, Any], root: Path) -> dict[str, Any] | None:
     result = _read(root / "runs" / "x1" / row["run_id"] / "scorecard.json")
     if not isinstance(result, dict) or result.get("kind") != "x1_scorecard":
@@ -409,6 +429,7 @@ def _x1_row(row: dict[str, Any], root: Path) -> dict[str, Any] | None:
             "channels": {name: {k: _get(block, k) for k in SIM_CHANNEL_FIELDS}
                          for name, block in sorted(channels.items())},
             "lifts": {name: {k: _get(block, k) for k in SIM_LIFT_FIELDS} for name, block in sorted(lifts.items())},
+            "by_construction": by_construction_rows(result),
             "x1": {"eligible": _get(result, "x1", "eligible"), "reasons": _get(result, "x1", "reasons")},
             "plant": {k: _get(result, "plant", k) for k in ("n_patterns", "n_decoys")},
             "warnings": result.get("warnings")}
@@ -627,6 +648,7 @@ def _sim_row(row: dict[str, Any], scorecard: Any) -> dict[str, Any] | None:
             "channels": {name: {k: _get(block, k) for k in SIM_CHANNEL_FIELDS}
                          for name, block in sorted(channels.items())},
             "lifts": {name: {k: _get(block, k) for k in SIM_LIFT_FIELDS} for name, block in sorted(lifts.items())},
+            "by_construction": by_construction_rows(scorecard),
             "pushdown": {"n": _get(pushdown, "n"), "n_true": _get(pushdown, "n_true"),
                          "supported": _get(pushdown, "statuses", "supported"),
                          "ap_pushdown": _get(pushdown, "ap_pushdown"),

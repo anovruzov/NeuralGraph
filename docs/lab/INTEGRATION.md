@@ -131,7 +131,13 @@ Each would remove a copy, a private-name dependency or a parse:
 - a runtime hook to omit `temperature` for hosts that refuse it;
 - `not_sent` in a public tuple of extraction error kinds;
 - a shared home for the model-name guard: the lab's guard imports
-  `tests.mycelic.test_collective_guards.model_name_hits`.
+  `tests.mycelic.test_collective_guards.model_name_hits`;
+- a public builder of X1's `by_construction` entries (the lab's simulation scorecard writes them in X1's shape from
+  `harness.BY_CONSTRUCTION_STATEMENT` and `harness.BY_CONSTRUCTION_LABEL`, so the report shows the harness's own
+  label beside the simulation's lifts over S and R_mf);
+- an openFDA replay `denominator_note` that names the product codes in the cache: `openfda_replay.DENOMINATOR_NOTE`
+  says false alarms count alerts on every product code of the manufacturer, but the lab fetches only the request's
+  three to five codes, so the lab's summary states the narrower scope itself (`OPENFDA_FALSE_ALARM_SCOPE`).
 
 ## 5. Phase-2 features the lab does not use yet
 
@@ -139,6 +145,9 @@ Each would remove a copy, a private-name dependency or a parse:
   have no table of their own.
 - X1's net finds: phase 2's X1 scorecard carries `found_net` and `chance_found`, and the report's X1 rows copy them,
   but the X1 summary table shows only the raw finds.
+- The net recall of X1's `by_construction` entries: phase 2 adds `control_recall` and `recall_net` to each entry; the
+  report copies an entry's channel, visibility, label and recall and its channel's units and found for that
+  visibility, not those two. The simulation's entries keep the base shape.
 - Routing `reasoning_effort` and `chat_template_kwargs` (pinned by E1 in phase 2): they could admit hosted reasoning
   models that the preflight now refuses with `HOSTED_LENGTH`.
 - `e5_injection` (E5) and the follow-up work behind X4: not adapted to the lab.
