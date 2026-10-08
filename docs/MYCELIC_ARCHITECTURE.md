@@ -134,15 +134,19 @@ then `term`.
   composed before the units above its evidence consolidate that evidence's topic, so each of them derives one version
   per applied note.
 * **Disputes.** A note may carry a structured claim for its slot and entity, `value` (`POST /memory`, MCP
-  `mycelic_remember`, `client.remember(..., value=...)`; stored as `metadata.value` in canonical label form, and
+  `mycelic_remember`, `client.remember(..., value=...)`, `LocalMemory.note(..., value=...)` and the reference agent's
+  observations; stored as `metadata.value` in canonical label form, and
   compared in that form, so a `metadata.value` an earlier client stored as "Open" agrees with "open"; a
   `metadata.value` that is not a string of at most 200 characters claims nothing and is kept as sent). Notes
   with different values for one slot and entity dispute each other: their consolidation carries
   `metadata.conflict: true`, takes the confidence of its strongest contribution instead of the noisy-OR, and claims
   no slot (no rule takes a disputed consolidation as evidence). The flag travels up through every consolidation built
-  on it. A consolidation whose value-carrying parents agree carries `metadata.value`, computed from org-visible notes
-  and child consolidations only, so the value of a team-visibility note never leaves its team (a dispute between such
-  notes of two teams is not flagged above them). A rule with `corroborate` does not raise a slot's confidence over
+  on it. Every value beneath a unit is compared, whatever its note's visibility: a consolidation that is not disputed
+  keeps the values beneath it as digests (`metadata.claims`, shown to administrators only), so notes of two teams that
+  disagree are flagged above them even when both sides are team-visibility, and the flag is all that leaves either
+  team. A consolidation whose value-carrying parents agree carries `metadata.value`, computed from org-visible notes
+  and child consolidations only, so the value of a team-visibility note never leaves its team. A rule with
+  `corroborate` compares the same values (a consolidation's claims included), does not raise a slot's confidence over
   evidence with different values, and flags its conclusion `metadata.conflict`. Free text is never compared: notes
   without a `value` never dispute anything. Support still counts every agent on the topic, both sides of a dispute
   (`tests/mycelic/test_aggregation_upward.py`).
@@ -267,7 +271,7 @@ then `term`.
   memory records how it was derived in `metadata.derivation`: `{v, min_support}` for a consolidation, `{v,
   rule_digest, rule}` for a conclusion (`rule` is the snapshot; agents see `{v, rule_digest}`, administrators the
   snapshot too; agents cannot set the key). `metadata.agg_key` stays the topic or `rule_id:entity`, so one version is
-  active per key and a new derivation supersedes the old one across versions. `DERIVATION_VERSION` (3) is bumped
+  active per key and a new derivation supersedes the old one across versions. `DERIVATION_VERSION` (4) is bumped
   whenever a released builder's output changes; the re-aggregation job then converges stored state. Recomputing the
   parent set from currently active evidence either leaves the active memory as is, supersedes it with a new version
   (old one readable as `previous_versions`), reactivates an earlier version whose exact coalition returned, or
@@ -329,6 +333,16 @@ retraction) and by the smoke test on a live deployment.
 Contributions the caller may not read are **redacted, not dropped**: text, agent id, event ids and
 entity are withheld, the unit (team) path, layer, timestamps and confidence remain.
 
+A lineage loads at most 2,000 memories, breadth first with one batched read per level, also when one level is wider
+than that (a team consolidation with thousands of notes): the parents beyond the cap, in id order, and their edges are
+left out and `complete` is false. Every lineage walk (`GET /lineage/{id}`, MCP `mycelic_lineage`, and the answer's
+lineage of `POST /query` and MCP `mycelic_query`, with or without `include_lineage`; reconstructed once per answer)
+runs like a verification walk (§7): in a worker thread on a read-only snapshot, never on the event loop, one per caller
+at a time (lineage and verification alike) and at most `MycelicService.verify_concurrency` (2) lineage walks at once,
+refused while the caller's bucket is in debt, and priced after the walk at the larger of floor(nodes / 250) and
+floor(2 × seconds walked × rps) tokens, so a walk of fewer than 250 nodes that takes less than 1 / (2 × rps) seconds
+costs only its request's token, as before.
+
 Text of a memory that is not active (superseded or retracted) is returned only to its producer and to
 administrators; everyone else who may read the memory gets an empty `text` and `text_withheld` set to its status.
 In a lineage such a node keeps its shape and every other field (`Principal.can_read_text`, passed to
@@ -368,8 +382,8 @@ parents passed their own integrity check, recomputed from its stored parents und
 (`metadata.derivation`: the `MIN_SUPPORT` or the rule snapshot and digest it was derived under) and compared on id,
 text, confidence and every covered field, with its unit, eligibility and support thresholds; the currency of each
 active derived memory (its rule as applied, the configured `MIN_SUPPORT`, the planner's answer now); with
-`max_leaf_age`, how long ago the server ingested each raw note the caller can read or its producer last re-attested
-it (`attested_at`), whichever is later; and the report-level codes. A child whose parent failed its integrity check
+`max_leaf_age`, how long ago the server ingested each raw note, readable by the caller or not, or its producer last
+re-attested it (`attested_at`), whichever is later; and the report-level codes. A child whose parent failed its integrity check
 is not recomputed: the parent's code stands, and the child is not blamed for it.
 
 **Verdict.** `failed` on any E code, else `unverifiable` on any U, else `stale` on any S, else `verified`; warnings
@@ -421,7 +435,7 @@ derived correctly but no longer current; W warning).
 | `node_retracted` | S | the node is retracted |
 | `node_superseded` | S | the node is superseded |
 | `leaf_expired` | S | an active raw note is past its `expires_at`: its retraction by the expiry sweep has not applied yet (judged for every raw note, so a hidden one shows `hidden_stale`) |
-| `leaf_stale` | S | with `max_leaf_age`: a raw note the caller can read was ingested, and last re-attested by its producer, longer ago than that |
+| `leaf_stale` | S | with `max_leaf_age`: a raw note was ingested, and last re-attested by its producer, longer ago than that (judged whoever asks: `hidden_stale` on a note the caller may not read) |
 | `min_support_changed` | S | a consolidation was derived under another `MIN_SUPPORT` than the configured one |
 | `rule_deleted` | S | the conclusion's rule is deleted, as applied from the log |
 | `rule_disabled` | S | the conclusion's rule is disabled |
@@ -449,7 +463,8 @@ keeps only those lineage already discloses (`node_retracted`, `node_superseded`,
 `cycle_detected`), every other one becomes `hidden_error`, `hidden_unverifiable` or `hidden_stale`, it carries no
 details, and its warnings are only counted (`summary.hidden_warnings`). No detail on any node, for any viewer,
 carries text, statements, metadata values, agent or producer ids or row digests; key ids, `as_of` and `log_lag` go
-to administrators only. Freshness does not judge raw notes the caller may not read (`freshness_partial`).
+to administrators only. Freshness and expiry judge every raw note, readable or not, so the verdict is the same for
+every viewer; `freshness_partial` says some raw note could not be judged (a truncated walk, a missing event row).
 
 **Determinism.** Frontiers are sorted, so a truncated walk cuts at the same ids every time. `dag_digest` hashes the
 DAG's shape (ids, layers, edges, missing parents, truncation): the same for every viewer and after a rebuild from
@@ -486,6 +501,7 @@ statuses, stdio proxy against new and old servers), `tests/mycelic/test_integrit
 |---|---|---|
 | service crash / restart | durable consumer resumes at its ack floor; SQLite is the read model | `test_publish_consume_and_survive_service_restart`, smoke step 6 |
 | broker outage | writes go to the outbox (`events.status='pending'`), `/health` reports `degraded`, `/ready` stays 200 by default; publisher flushes on reconnect | `test_broker_outage_is_absorbed_by_the_outbox`, smoke step 7 |
+| service (re)started during a broker outage | a database that has applied the log before waits at most `MycelicService.startup_connect_seconds` (10 s) for the broker, then starts its loops and serves from what it holds: `/ready` 200 (`degraded`), writes go to the outbox, the transport keeper keeps connecting and the consumer runs recovery before its first fetch; an unfinished replay recorded in the database keeps `/ready` 503. A fresh database waits for the broker (`/ready` 503): only the stream says whether a log must be replayed into it | `test_a_restart_while_the_broker_is_away_serves_from_the_database` |
 | broker restart | JetStream file store keeps the stream and the consumer | same tests (the broker is SIGKILLed) |
 | lost service database | fresh database + non-empty stream ⇒ consumer reset to sequence 1, full replay rebuilds memories, lineage, derived state, agent registry (key hashes) and rules; replay never re-publishes derived events; the replay target is persisted so a crash mid-rebuild resumes it | `test_lost_database_is_rebuilt_from_the_stream`, `test_unfinished_replay_resumes_after_a_crash`, smoke step 8 (which also checks that the administrator's verification of the answer has the same report digest) |
 | database restored from backup | `last_applied_seq` behind the consumer's ack floor ⇒ consumer recreated at `last_applied_seq + 1` | `test_restored_backup_receives_the_events_it_missed` |

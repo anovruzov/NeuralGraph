@@ -126,7 +126,8 @@ TOOLS: list[dict[str, Any]] = [
                         "agents and teams behind them, the organizational layers it passed through, timestamps, confidence "
                         "and support, and whether the underlying evidence can still be reconstructed. Contributions outside "
                         "your visibility are redacted, not hidden. A superseded or retracted contribution you did not produce "
-                        "comes back with an empty text and text_withheld set to its status."),
+                        "comes back with an empty text and text_withheld set to its status. At most 2,000 memories are "
+                        "returned (complete is false beyond that)."),
         "inputSchema": _schema({"memory_id": {"type": "string"}}, ["memory_id"]),
         "annotations": {"readOnlyHint": True, "openWorldHint": False},
     },
@@ -137,8 +138,8 @@ TOOLS: list[dict[str, Any]] = [
                         "and answers two questions: was it derived correctly (every contributing memory exists and is "
                         "untampered, recomputing each consolidation or rule from its parents reproduces it, and support "
                         "thresholds hold) and is it still true (nothing it rests on was retracted or superseded, its rule and "
-                        "MIN_SUPPORT are unchanged, and with max_leaf_age_seconds no raw observation you can read was ingested "
-                        "longer ago than that). Returns the verdict verified, stale, failed or unverifiable, both answers, and "
+                        "MIN_SUPPORT are unchanged, and with max_leaf_age_seconds no raw observation beneath it, whether you can "
+                        "read it or not, was ingested or re-attested longer ago than that). Returns the verdict verified, stale, failed or unverifiable, both answers, and "
                         "reason codes per node. Contributions you may not read are redacted: you see only their id, layer, "
                         "unit, operator, status, whether they passed, and of their reason codes only node_retracted, "
                         "node_superseded, missing_parent and cycle_detected (any other shows as hidden_error, hidden_stale or "
@@ -240,7 +241,7 @@ class MycelicTools:
         return res
 
     async def tool_mycelic_lineage(self, memory_id: str) -> dict[str, Any]:
-        return self.service.lineage(self._principal(), memory_id)
+        return await self.service.walk_lineage(self._principal(), memory_id)
 
     async def tool_mycelic_verify(self, memory_id: str, max_leaf_age_seconds: int | None = None,
                                   detail: str = "summary") -> dict[str, Any]:

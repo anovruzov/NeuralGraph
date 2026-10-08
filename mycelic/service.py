@@ -30,7 +30,7 @@ import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, Callable, NamedTuple, TypeVar
 
 from . import verification
 from .aggregation import MYCELIC_PRODUCER, Aggregator, Derivation
@@ -51,6 +51,19 @@ from .transport import Transport, build_transport, subject_for
 from .version import VERSION
 
 logger = logging.getLogger(__name__)
+_T = TypeVar("_T")
+
+
+class _Search(NamedTuple):
+    """A query validated and searched (:meth:`MycelicService._search`), before its answer's lineage is walked."""
+
+    text: str
+    scope: str
+    min_layer: str
+    include_lineage: bool
+    hits: list[Any]
+    t0: float
+
 
 #: metadata keys the aggregator owns; an agent may not set them on a raw observation
 RESERVED_METADATA_KEYS = frozenset({"agg_key", "promoted_from", "version_of", "contributing_agents", "contributing_teams",
@@ -219,6 +232,9 @@ class MycelicService:
     #: downward verifications that walk at once, all callers together, each in a worker thread on its own read snapshot
     #: (one more per caller waits for that caller's previous walk, the rest queue)
     verify_concurrency = 2
+    #: seconds ``start`` waits for the first connect to the broker when the database has applied the log before; beyond
+    #: that it serves from the database and the transport keeper keeps trying (a fresh database waits for the broker)
+    startup_connect_seconds = 10.0
 
     def __init__(self, settings: Settings, *, store: MycelicStore | None = None, transport: Transport | None = None,
                  metrics: Metrics | None = None) -> None:
@@ -268,6 +284,7 @@ class MycelicService:
         # stream, a delivery the database may not have recorded): the consumer does so before it fetches again
         self._resync_pending = False
         self._verify_slots = asyncio.Semaphore(self.verify_concurrency)
+        self._lineage_slots = asyncio.Semaphore(self.verify_concurrency)
         self._verify_callers: dict[str, list[Any]] = {}                # limiter key -> [lock, verifications holding or awaiting it]
         # read here and after every replay completes, so /ready answers from memory and the block survives a restart
         self._ready_block = self._load_ready_block()
@@ -296,7 +313,16 @@ class MycelicService:
                          self._ready_block.get("at", "time unknown"), _BLOCK_REMEDY)
         await self._backfill_integrity()              # before the loops: /health answers meanwhile, /ready does not
         await self._resign_lifecycle()
-        await self._connect_with_retry(first=True)
+        # A database that has applied the log before serves from what it holds while the broker is away, as through an
+        # outage after a start: its first connect is bounded, the transport keeper keeps trying, and the consumer brings
+        # it in step with the stream (_recover_if_needed) before its first fetch.  A fresh database waits for the broker:
+        # only the stream can say whether a log must be replayed into it first.
+        applied = self.store.get_meta("last_applied_seq")
+        if not await self._connect_with_retry(first=True) and applied is not None:
+            self._resync_pending = True
+            pending = self.store.get_meta("replay_target_seq")
+            if pending is not None and int(applied) < int(pending):
+                self._replay_target = int(pending)    # an unfinished replay keeps /ready 503 until it completes
         await self.refresh_status()                   # the first /ready already answers from a warm snapshot
         if background:
             self._tasks = [asyncio.create_task(self._transport_keeper(), name="mycelic-transport"),
@@ -364,8 +390,17 @@ class MycelicService:
             self._outbox_wake.set()
 
     async def _connect_with_retry(self, *, first: bool) -> bool:
+        """Connect the transport and bring the database in step with the stream; False when the broker could not be
+        reached.  The first connect of a start waits at most ``startup_connect_seconds`` when the database has applied the
+        log before (``start``); every other connect waits for as long as it takes."""
+        timeout = self.startup_connect_seconds if first and self.store.get_meta("last_applied_seq") is not None else None
         try:
-            await self.transport.connect()
+            await asyncio.wait_for(self.transport.connect(), timeout)
+        except asyncio.TimeoutError:
+            logger.warning("no broker within %.0fs of the start: serving from the database, writes wait in the outbox, and "
+                           "the transport keeps trying", timeout or 0)
+            self.metrics.transport_connected.set(0)
+            return False
         except Exception as exc:
             logger.warning("transport connect failed: %s: %s", type(exc).__name__, exc)
             self.metrics.transport_connected.set(0)
@@ -1538,6 +1573,12 @@ class MycelicService:
         return m
 
     def query(self, principal: Principal, body: dict[str, Any]) -> dict[str, Any]:
+        """POST /query, read on the calling thread (``query_and_verify`` reconstructs the answer's lineage off the loop)."""
+        return self._answer(principal, self._search(principal, body), self.store)[0]
+
+    def _search(self, principal: Principal, body: dict[str, Any]) -> _Search:
+        """Validate a query and retrieve its hits (on the loop: the retriever's index is the loop's); the rest of the
+        response, its lineage walks above all, is :meth:`_answer`'s."""
         if not principal.has("memory:read"):
             raise Forbidden("missing scope memory:read")
         if not isinstance(body, dict):
@@ -1570,41 +1611,60 @@ class MycelicService:
         include_lineage = bool(body.get("include_lineage", True)) and principal.has("lineage:read")
         hits = self.retriever.search(org_id or "", text, visible=principal.can_read, scope=scope, min_layer=min_layer, k=k,
                                      topic=_label(body, "topic", max_len=200), entity=_label(body, "entity", max_len=200))
+        return _Search(text, scope, min_layer, include_lineage, hits, t0)
+
+    def _answer(self, principal: Principal, searched: _Search, store: MycelicStore) -> tuple[dict[str, Any], int]:
+        """The response of a query :meth:`_search` ran, its answer's lineage reconstructed from ``store`` (once: the full
+        graph, with ``include_lineage``, is also what the summary counts), and how many nodes that walk loaded."""
+        text, scope, min_layer, include_lineage, hits, t0 = searched
         answer = None
         lineage = None
+        nodes = 0
         if hits:
             top = hits[0].memory               # retrieval indexes active memories only, so its text is never withheld
-            summary = self._lineage_summary(principal, top)
+            if include_lineage:
+                lineage = self.lineage(principal, top.memory_id, store=store)
+            graph = lineage or self._graph(principal, top.memory_id, store)
+            summary = self._lineage_summary(principal, top, graph=graph) if graph is not None else {"available": False}
+            nodes = len(graph["nodes"]) if graph is not None else 0
             answer = {"memory_id": top.memory_id, "text": top.text, "layer": top.layer, "scope": top.scope,
                       "confidence": top.confidence, "support": top.support, "independent_teams": top.independent_teams,
                       "operator": top.operator, "rule_id": top.rule_id, "created_at": top.created_at, "lineage": summary}
-            if include_lineage:
-                lineage = self.lineage(principal, top.memory_id)
         latency = time.perf_counter() - t0
         self.metrics.retrieval_latency.observe(latency)
         return {"query": text, "scope": scope, "min_layer": min_layer, "answer": answer,
-                "results": [h.to_dict() for h in hits], "lineage": lineage, "latency_ms": round(latency * 1000, 2)}
+                "results": [h.to_dict() for h in hits], "lineage": lineage, "latency_ms": round(latency * 1000, 2)}, nodes
 
-    def _lineage_summary(self, principal: Principal, m: Memory) -> dict[str, Any]:
+    def _graph(self, principal: Principal, memory_id: str, store: MycelicStore) -> dict[str, Any] | None:
+        """The lineage of ``memory_id`` from ``store`` as ``principal`` may see it, or None for an unknown id."""
         try:
-            g = reconstruct(self.store, m.memory_id, visible=principal.can_read, full=principal.owns,
-                            readable_text=principal.can_read_text)
+            return reconstruct(store, memory_id, visible=principal.can_read, full=principal.owns,
+                               readable_text=principal.can_read_text)
         except LineageNotFound:
+            return None
+
+    def _lineage_summary(self, principal: Principal, m: Memory, *, graph: dict[str, Any] | None = None) -> dict[str, Any]:
+        """The answer's lineage in counts, from ``graph`` when the caller reconstructed it already."""
+        g = graph if graph is not None else self._graph(principal, m.memory_id, self.store)
+        if g is None:
             return {"available": False}
         return {"available": True, "contributing_agents": len(g["contributing_agents"]) + g["redacted_contributions"],
                 "contributing_teams": len(g["contributing_teams"]), "roots": len(g["roots"]), "layers": g["layers"],
                 "reconstructable": g["evidence"]["reconstructable"], "first_observed_at": g["timeline"]["first_observed_at"]}
 
-    def lineage(self, principal: Principal, memory_id: str) -> dict[str, Any]:
+    def lineage(self, principal: Principal, memory_id: str, *, store: MycelicStore | None = None) -> dict[str, Any]:
+        """GET /lineage/{id} read from ``store`` (this service's by default) on the calling thread; the routes and MCP
+        call :meth:`walk_lineage`, which runs it off the event loop."""
         if not principal.has("lineage:read"):
             raise Forbidden("missing scope lineage:read")
-        m = self.store.get_memory(memory_id)
+        store = store or self.store
+        m = store.get_memory(memory_id)
         if m is None or not principal.can_read(m):
             self.metrics.lineage_results.labels("not_found").inc()
             raise NotFound(memory_id)
         t0 = time.perf_counter()
         try:
-            g = reconstruct(self.store, memory_id, visible=principal.can_read, full=principal.owns,
+            g = reconstruct(store, memory_id, visible=principal.can_read, full=principal.owns,
                             readable_text=principal.can_read_text)
         except Exception:
             self.metrics.lineage_results.labels("failure").inc()
@@ -1613,11 +1673,43 @@ class MycelicService:
         self.metrics.lineage_results.labels("success" if g["evidence"]["reconstructable"] else "incomplete").inc()
         return g
 
+    async def walk_lineage(self, principal: Principal, memory_id: str) -> dict[str, Any]:
+        """GET /lineage/{id} and MCP ``mycelic_lineage``: :meth:`lineage` as a priced walk (:meth:`_priced_walk`)."""
+        if not principal.has("lineage:read"):
+            raise Forbidden("missing scope lineage:read")
+
+        def read(store: MycelicStore) -> tuple[dict[str, Any], int]:
+            g = self.lineage(principal, memory_id, store=store)
+            return g, len(g["nodes"])
+
+        return await self._priced_walk(principal, read)
+
+    async def _priced_walk(self, principal: Principal, read: Callable[[MycelicStore], tuple[Any, int]]) -> Any:
+        """A lineage reconstruction (GET /lineage/{id}, MCP ``mycelic_lineage``, the answer of POST /query and of MCP
+        ``mycelic_query``) run like a verification walk: ``read`` gets a committed snapshot in a worker thread
+        (:meth:`_off_loop`), in the caller's turn (:meth:`_verification_turn`: one walk of a caller at a time, lineage
+        and verification alike, and ``verify_concurrency`` lineage walks at once for everyone), refused while the
+        caller is in debt, and priced after the fact: the larger of ``nodes // VERIFY_NODES_PER_TOKEN`` and
+        ``int(VERIFY_TIME_PRICE * seconds walked * rps)`` tokens on top of the request's own, rounded down, so a walk of
+        fewer than 250 nodes that takes less than ``1 / (2 * rps)`` seconds costs what it did before.  ``read`` returns
+        its result and the number of nodes it loaded."""
+        key = principal.limiter_key
+        self._refuse_if_in_debt(key)
+        async with self._verification_turn(key, self._lineage_slots):
+            self._refuse_if_in_debt(key)
+            t0 = time.perf_counter()
+            result, nodes = await self._off_loop(read)
+            walked = time.perf_counter() - t0
+            self.limiter.take(key, max(nodes // VERIFY_NODES_PER_TOKEN,
+                                       int(VERIFY_TIME_PRICE * walked * max(0.0, self.limiter.rps))))
+        return result
+
     async def verify(self, principal: Principal, memory_id: str, *, max_leaf_age: int | None = None,
                      remote: str | None = None, now: datetime | None = None) -> dict[str, Any]:
         """Downward verification of a memory the caller may read (``verification.py``): was it derived correctly, and is
         it still true?  Unknown and unreadable ids are the same NotFound, as for lineage.  ``max_leaf_age`` (seconds)
-        also checks how long ago each readable raw note was ingested; ``now`` is a test hook.
+        also checks how long ago each raw note beneath it, readable or not, was ingested or re-attested; ``now`` is a test
+        hook.
 
         The walk never holds the event loop: it runs in a worker thread on a read-only snapshot of the database
         (:meth:`MycelicStore.snapshot_reader`; an in-memory database is walked on the loop, under the store lock), at most
@@ -1675,12 +1767,13 @@ class MycelicService:
             raise RateLimited("rate limit exceeded")
 
     @asynccontextmanager
-    async def _verification_turn(self, key: str) -> AsyncIterator[None]:
-        """One walk at a time per caller (``key``), ``verify_concurrency`` at a time for everyone."""
+    async def _verification_turn(self, key: str, slots: asyncio.Semaphore | None = None) -> AsyncIterator[None]:
+        """One walk at a time per caller (``key``), ``verify_concurrency`` at a time for everyone (``slots``: the
+        verification walks' by default, the lineage walks' for :meth:`_priced_walk`)."""
         entry = self._verify_callers.setdefault(key, [asyncio.Lock(), 0])
         entry[1] += 1
         try:
-            async with entry[0], self._verify_slots:
+            async with entry[0], slots or self._verify_slots:
                 yield
         finally:
             entry[1] -= 1
@@ -1689,8 +1782,8 @@ class MycelicService:
 
     async def _walk(self, principal: Principal, memory_id: str, *, now: datetime,
                     max_leaf_age: int | None) -> verification.VerificationResult:
-        """``verification.verify`` on a committed snapshot, in a worker thread (an in-memory database: on the loop, under
-        the store lock).  A memory is never deleted, so the id found under the lock is in the snapshot."""
+        """``verification.verify`` on a committed snapshot (:meth:`_off_loop`).  A memory is never deleted, so the id
+        found under the lock is in the snapshot."""
         def run(store: MycelicStore) -> verification.VerificationResult:
             planner = Aggregator(store, min_support=self.aggregator.min_support, clock=self.aggregator.clock,
                                  max_candidates=self.aggregator.max_candidates, max_dependents=self.aggregator.max_dependents)
@@ -1698,16 +1791,21 @@ class MycelicService:
             return verification.verify(store, planner, self.keyring, memory_id, principal=principal, now=now,
                                        max_nodes=self.settings.verify_max_nodes, max_leaf_age=max_leaf_age)
 
+        return await self._off_loop(run)
+
+    async def _off_loop(self, read: Callable[[MycelicStore], _T]) -> _T:
+        """``read`` on a committed snapshot of the database, in a worker thread (an in-memory database: on the loop, under
+        the store lock)."""
         if self.store.db_path == ":memory:":
             async with self.store._lock:
-                return run(self.store)
+                return read(self.store)
 
-        def in_snapshot() -> verification.VerificationResult:
+        def in_snapshot() -> _T:
             reader = self.store.snapshot_reader()
             try:
                 reader._conn.execute("BEGIN")
                 try:
-                    return run(reader)
+                    return read(reader)
                 finally:
                     reader._conn.execute("ROLLBACK")
             finally:
@@ -1723,7 +1821,11 @@ class MycelicService:
         flag = body.get("verify") if isinstance(body, dict) else None
         if flag is not None and not isinstance(flag, bool):
             raise ValidationError("'verify' must be true or false")
-        res = self.query(principal, body)
+        searched = self._search(principal, body)
+        if searched.hits:                       # an answer: its lineage is a walk (_priced_walk)
+            res = await self._priced_walk(principal, lambda store: self._answer(principal, searched, store))
+        else:
+            res = self._answer(principal, searched, self.store)[0]
         if flag is True and res["answer"] is not None and principal.has("lineage:read"):
             report = await self.verify(principal, res["answer"]["memory_id"], remote=remote)
             res["answer"]["verification"] = {k: report[k] for k in ("verdict", "derived_correctly", "still_true", "reasons")}
@@ -2192,7 +2294,8 @@ class MycelicService:
         :meth:`_finish_replay_in_tx`).  From memory only, like /health: no database query and no broker call.
 
         A broker outage does *not* make the service unready by default: the outbox exists precisely so agents can
-        keep writing through one.  Set ``MYCELIC_READY_REQUIRES_NATS=true`` to change that.
+        keep writing through one, also when the service (re)starts during it with a database that has applied the log
+        before (``start``).  Set ``MYCELIC_READY_REQUIRES_NATS=true`` to change that.
         """
         db = self._db_check()
         tinfo = self.transport_check()

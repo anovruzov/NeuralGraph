@@ -23,7 +23,7 @@ reads; the service runs it under the store lock, so it sees committed states onl
   the one configured, and the planner derives exactly this memory from the applied evidence now;
 * status: every retracted or superseded node, the memory itself included;
 * expiry: every active raw note whose ``expires_at`` is past (its retraction not applied yet), readable or not;
-* freshness, with ``max_leaf_age``: how long ago the server ingested each raw note the caller can read (its event's
+* freshness, with ``max_leaf_age``: how long ago the server ingested each raw note, readable or not (its event's
   ``created_at``, which a rebuild reproduces) or its producer last re-attested it (``attested_at``), whichever is later,
   never the producer's ``observed_at``.
 
@@ -597,15 +597,13 @@ class _Verification:
 
     # ------------------------------------------------------------------ (h) freshness, (i) the report as a whole
     def check_freshness(self) -> bool:
-        """leaf_stale on every readable raw note ingested, and not re-attested since, more than ``max_leaf_age`` seconds
-        ago; returns whether some raw note could not be judged (hidden, no usable event row, or not loaded)."""
+        """leaf_stale on every raw note ingested, and not re-attested since, more than ``max_leaf_age`` seconds ago, judged
+        whoever asks (a hidden node shows hidden_stale), so the verdict is the same for every viewer; returns whether some
+        raw note could not be judged (no usable event row, or not loaded)."""
         partial = self.truncated
         for mid in sorted(self.nodes):
             m = self.nodes[mid]
             if m.operator != "agent_observation":
-                continue
-            if not self.principal.can_read(m):
-                partial = True
                 continue
             ev = self.events.get(m.event_id) if isinstance(m.event_id, str) else None
             ingested = parse_iso(ev.created_at) if ev is not None and isinstance(ev.created_at, str) else None

@@ -12,14 +12,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      NATS_VERSION: v2.10.22
+      NATS_VERSION: v2.10.29      # the broker version the compose file and the Kubernetes manifests ship
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
-      - run: pip install -r requirements.txt
+      - run: pip install --require-hashes -r requirements.txt     # the image's exact runtime set (requirements-lock.txt)
       - name: install nats-server
         run: |
           curl -sSL -o nats.tgz "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz"

@@ -8,9 +8,10 @@
     note_id = local.note("Port of Rotterdam terminal 3 strike announced for weeks 41-43",
                          topic="supply:sd-9/transport", slot="transport_disruption", entity="sd-9", confidence=0.9)
     local.share(client, note_id)                                  # publish it; idempotent on retry
-    answer = client.query("delivery risk for RX-4 in Q4", scope="northwind")
-    lineage = client.lineage(answer["answer"]["memory_id"])
-    report = client.verify(answer["answer"]["memory_id"])         # derived correctly, and still true?
+    res = client.query("Rotterdam strike sd-9", scope="northwind")   # keyword search: the words the notes use
+    if res["answer"] is not None:                                 # None: nothing relevant visible to this agent
+        lineage = client.lineage(res["answer"]["memory_id"])
+        report = client.verify(res["answer"]["memory_id"])        # derived correctly, and still true?
 
 The client is synchronous and uses only the standard library, so it drops into any agent runtime.  Retries cover
 connection errors and the statuses 429, 502, 503 and 504, with exponential backoff; every other status (507, the
@@ -147,8 +148,8 @@ class MycelicClient:
         """Downward verification of a memory the caller may read: was it derived correctly, and is it still true?
 
         The report's ``verdict`` is ``verified`` (both true), ``stale`` (derived correctly, but something it rests on was
-        retracted, superseded or changed, or with ``max_leaf_age`` a raw note you can read was ingested longer ago than
-        that many seconds), ``failed`` (a contribution is missing, tampered with or does not recompute) or
+        retracted, superseded or changed, or with ``max_leaf_age`` a raw note beneath it, readable or not, was ingested or
+        re-attested longer ago than that many seconds), ``failed`` (a contribution is missing, tampered with or does not recompute) or
         ``unverifiable`` (something needed to check it is unavailable); ``derived_correctly`` and ``still_true`` are
         True, False or None (not known).  Reason codes are per node and for the report as a whole.  Contributions the
         caller may not read are redacted: their id, layer, unit, operator, status and ``ok``, and of their reasons only
@@ -255,27 +256,35 @@ class LocalMemory:
                 tags       TEXT NOT NULL DEFAULT '[]',
                 created_at TEXT NOT NULL,
                 shared_memory_id TEXT, shared_event_id TEXT, shared_at TEXT,
-                share_request TEXT
+                share_request TEXT,
+                value      TEXT
             );
         """)
+        columns = {r["name"] for r in self._c.execute("PRAGMA table_info(notes)").fetchall()}
         # a store from before the share request was recorded: add the column (NULL: no share pending)
-        if "share_request" not in {r["name"] for r in self._c.execute("PRAGMA table_info(notes)").fetchall()}:
+        if "share_request" not in columns:
             self._c.execute("ALTER TABLE notes ADD COLUMN share_request TEXT")
+        # a store from before notes had a value: add the column (NULL: the note claims no value)
+        if "value" not in columns:
+            self._c.execute("ALTER TABLE notes ADD COLUMN value TEXT")
 
     def close(self) -> None:
         self._c.close()
 
     def note(self, text: str, *, topic: str | None = None, slot: str | None = None, entity: str | None = None,
-             kind: str = "observation", confidence: float = 0.8, tags: list[str] | None = None, local_id: str | None = None) -> str:
-        """Keep a note locally; returns its local id.  Noting the same note again under its id (a replayed observation)
-        returns the id and changes nothing; a different note under an existing id raises :class:`ValueError`, so a
-        reused id can never make :meth:`share` send what the earlier note said."""
+             kind: str = "observation", confidence: float = 0.8, tags: list[str] | None = None, local_id: str | None = None,
+             value: str | None = None) -> str:
+        """Keep a note locally; returns its local id.  ``value``: what the note claims for its slot and entity
+        ("closed"), sent with it by :meth:`share` (see :meth:`MycelicClient.remember`: notes whose values differ dispute
+        each other); give one whenever the slot is a status that can be contradicted.  Noting the same note again under
+        its id (a replayed observation) returns the id and changes nothing; a different note under an existing id raises
+        :class:`ValueError`, so a reused id can never make :meth:`share` send what the earlier note said."""
         local_id = local_id or f"note_{uuid.uuid4().hex[:16]}"
-        values = (text, topic, slot, entity, kind, float(confidence), json.dumps(tags or []))
-        cur = self._c.execute("INSERT OR IGNORE INTO notes(local_id, text, topic, slot, entity, kind, confidence, tags, created_at) "
-                              "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", (local_id, *values, _now()))
+        values = (text, topic, slot, entity, kind, float(confidence), json.dumps(tags or []), value)
+        cur = self._c.execute("INSERT OR IGNORE INTO notes(local_id, text, topic, slot, entity, kind, confidence, tags, value, "
+                              "created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (local_id, *values, _now()))
         if cur.rowcount == 0:
-            r = self._c.execute("SELECT text, topic, slot, entity, kind, confidence, tags FROM notes WHERE local_id=?",
+            r = self._c.execute("SELECT text, topic, slot, entity, kind, confidence, tags, value FROM notes WHERE local_id=?",
                                 (local_id,)).fetchone()
             if tuple(r) != values:
                 raise ValueError(f"local id {local_id!r} already holds a different note")
@@ -317,7 +326,8 @@ class LocalMemory:
 
     def share(self, client: MycelicClient, local_id: str, *, visibility: str = "team", expires_at: str | None = None,
               supersedes: str | None = None) -> dict[str, Any]:
-        """Share a local note (its local id is the idempotency key).  To correct a note already shared, write the
+        """Share a local note (its local id is the idempotency key) with the value it was noted with.  To correct a note
+        already shared, write the
         correction as a new local note and share it with ``supersedes`` set to the shared note's memory id: a new local
         note gets a new idempotency key, which an update needs.
 
@@ -332,7 +342,8 @@ class LocalMemory:
         self._c.execute("UPDATE notes SET share_request=? WHERE local_id=?", (json.dumps(request), local_id))
         res = client.remember(n["text"], topic=n["topic"], slot=n["slot"], entity=n["entity"], kind=n["kind"],
                               confidence=n["confidence"], visibility=visibility, idempotency_key=local_id,
-                              observed_at=n["created_at"], local_ref=local_id, expires_at=expires_at, supersedes=supersedes)
+                              observed_at=n["created_at"], local_ref=local_id, expires_at=expires_at, supersedes=supersedes,
+                              value=n["value"])
         self.mark_shared(local_id, res["memory_id"], res.get("event_id"))
         return res
 

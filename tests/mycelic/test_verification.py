@@ -636,13 +636,23 @@ class VerificationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(st.get_memory(old).created_at, "2020-01-01T00:00:00+00:00")
         r = await s.verify(w.admin, old, max_leaf_age=3600, now=ingested(st, old) + timedelta(seconds=5))
         self.assertVerified(r)
-        # hidden leaves are not judged (nothing about them leaks), and the answer says it is partial
+        # every leaf is judged whoever asks, so every viewer gets the same verdict: a leaf the caller may not read shows
+        # hidden_stale, without its age, and the answer is not partial
         r = await s.verify(w.principal("sales-2"), C, max_leaf_age=1, now=latest + timedelta(seconds=3))
+        self.assertEqual((r["verdict"], r["derived_correctly"], r["still_true"]), ("stale", True, False))
         self.assertEqual(codes(r, ids["sales-1"]), ["leaf_stale"])
         for mid in (ids["log-1"], ids["proc-1"]):
-            self.assertEqual((view(r, mid)["redacted"], view(r, mid)["reasons"]), (True, []))
-        self.assertTrue(r["freshness_partial"])
-        self.assertEqual(r["reasons"], [{"code": "leaf_stale", "severity": "S", "count": 1}])
+            self.assertEqual((view(r, mid)["redacted"], view(r, mid)["reasons"]), (True, [{"code": "hidden_stale", "severity": "S"}]))
+        self.assertFalse(r["freshness_partial"])
+        self.assertEqual(r["reasons"], [{"code": "hidden_stale", "severity": "S", "count": 2},
+                                        {"code": "leaf_stale", "severity": "S", "count": 1}])
+        # a reader above every contributing team, who may read none of the leaves, gets the administrator's verdict
+        await w.register("hq-1", team="board", department="strategy")
+        r = await s.verify(w.principal("hq-1"), C, max_leaf_age=1, now=latest + timedelta(seconds=3))
+        self.assertEqual((r["verdict"], r["still_true"], r["freshness_partial"], r["summary"]["redacted"]),
+                         ("stale", False, False, 3))
+        self.assertEqual(r["reasons"], [{"code": "hidden_stale", "severity": "S", "count": 3}])
+        self.assertVerified(await s.verify(w.principal("hq-1"), C, max_leaf_age=3600, now=latest + timedelta(seconds=3)))
         for bad in (0, -1, True, 1.5, "3", verification.MAX_LEAF_AGE_SECONDS + 1):
             with self.subTest(max_leaf_age=bad):
                 with self.assertRaises(ValidationError):
@@ -1160,10 +1170,12 @@ class VerificationTests(unittest.IsolatedAsyncioTestCase):
         latest = max(ingested(w.store, mid) for mid in (ids["log-1"], ids["proc-1"], ids["sales-1"]))
         stale_before, leaf_stale = counter(m.verifications, "stale"), counter(m.verification_reasons, "leaf_stale")
         r = await s.verify(w.principal("sales-2"), C, max_leaf_age=1, now=latest + timedelta(seconds=3))
-        self.assertEqual(r["reasons"], [{"code": "leaf_stale", "severity": "S", "count": 1}])
+        self.assertEqual(r["reasons"], [{"code": "hidden_stale", "severity": "S", "count": 2},
+                                        {"code": "leaf_stale", "severity": "S", "count": 1}])
         r = await s.verify(w.admin, C, max_leaf_age=1, now=latest + timedelta(seconds=3))
         self.assertEqual(r["reasons"], [{"code": "leaf_stale", "severity": "S", "count": 3}])
         self.assertEqual(counter(m.verification_reasons, "leaf_stale"), leaf_stale + 2)
+        self.assertEqual(counter(m.verification_reasons, "hidden_stale"), 1, "as sales-2 saw them")
         self.assertEqual(counter(m.verifications, "stale"), stale_before + 2)
         self.assertEqual(audit_rows(w.store)[0]["detail"]["reasons"], ["leaf_stale"])
         await s.revoke_agent("log-1")
@@ -1178,12 +1190,13 @@ class VerificationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(counter(m.verification_reasons, "producer_revoked"), revoked + 1, "an administrator's, warnings included")
         self.assertEqual(audit_rows(w.store)[0]["detail"]["reasons"], ["producer_revoked"])
         rendered = m.render()[0].decode()
-        self.assertNotIn("hidden_", rendered)
+        # the hidden codes counted are those of reports as their callers saw them (sales-2's hidden_stale), nothing else
+        self.assertEqual(set(re.findall(r'reason="(hidden_\w+)"', rendered)), {"hidden_stale"})
         labels = re.findall(r"mycelic_verification\w*\{([^}]*)\}", rendered)
         self.assertTrue(labels)
         self.assertEqual({label.split("=")[0] for label in labels}, {"verdict", "reason", "le"}, "no org label anywhere")
         self.assertEqual(len(re.findall(r'mycelic_verification_reasons_total\{reason="', rendered)),
-                         len([c for c in REASONS if not c.startswith("hidden_")]))
+                         len([c for c in REASONS if not c.startswith("hidden_")]) + 1)
         # refused calls: no audit row, no verdict
         rows = len(audit_rows(w.store))
         totals = {v: counter(m.verifications, v) for v in verification.VERDICTS}

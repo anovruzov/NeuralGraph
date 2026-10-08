@@ -10,6 +10,10 @@ __pycache__/
 deploy/mycelic/.env
 deploy/mycelic/.env.*
 !deploy/mycelic/.env.example
+# rollback artefacts: DEPLOYMENT.md section 4a keeps them outside the checkout; never commit them
+mycelic-data.tgz
+nats-data.tgz
+mycelic-keys.env
 demo/results/
 
 # regenerated caches and scratch output from research runs

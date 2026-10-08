@@ -223,24 +223,110 @@ class UpwardTests(unittest.IsolatedAsyncioTestCase):
         await self.assert_sound(h)
 
     async def test_a_team_private_value_never_leaves_its_team(self) -> None:
+        """A team-visibility note's value is never published or stored above its team, but it is still compared: that it
+        disagrees with what another team says flags the dispute above them (one bit), and that it agrees corroborates."""
         h = await self.harness()
         for a in ("a1", "a2"):
             await h.register(a, team="team-a")
         for b in ("b1", "b2"):
             await h.register(b, team="team-b")
         await h.settle()
-        fields = {"topic": "port:rotterdam", "slot": "port_status", "entity": "rtm-3"}
+        fields = {"slot": "port_status", "entity": "rtm-3"}
         for a in ("a1", "a2"):
-            await h.observe(a, f"Closed, says {a}.", value="closed-by-strike-of-local-17", **fields)    # team visibility
+            await h.observe(a, f"Closed, says {a}.", topic="port:rotterdam", value="closed-by-strike-of-local-17",
+                            **fields)                                                                  # team visibility
+            await h.observe(a, f"Open, says {a}.", topic="port:antwerp", value="open-for-local-17", **fields)
         for b in ("b1", "b2"):
-            await h.observe(b, f"Open, says {b}.", value="open", visibility="org", **fields)
+            await h.observe(b, f"Open, says {b}.", topic="port:rotterdam", value="open", visibility="org", **fields)
+            await h.observe(b, f"Open, says {b}.", topic="port:antwerp", value="Open-for-local-17", visibility="org", **fields)
         await h.settle()
         self.assertNotIn("value", self.consolidation(h, TEAM_A, "port:rotterdam").metadata)
         for unit in ABOVE:
             with self.subTest(unit=unit):
                 c = self.consolidation(h, unit, "port:rotterdam")
                 self.assertNotIn("closed-by-strike-of-local-17", repr(c.metadata))
-                self.assertEqual(c.metadata.get("value"), "open")
+                self.assertNotIn("closed-by-strike-of-local-17", repr(h.service.public_view(c, h.principal("b1"))))
+                self.assertEqual((c.metadata.get("conflict"), c.metadata.get("value"), c.slot), (True, None, None),
+                                 "team-a says otherwise: 'open' is not what the unit knows")
+                self.assertEqual((c.confidence, c.support), (0.96, 4), "a dispute is no corroboration")
+                agreed = self.consolidation(h, unit, "port:antwerp")
+                self.assertNotIn("conflict", agreed.metadata)
+                self.assertEqual((agreed.metadata["value"], agreed.slot, agreed.confidence),
+                                 ("open-for-local-17", "port_status", 0.99))
+        await self.assert_sound(h)
+
+    async def test_a_dispute_between_team_visibility_notes_of_two_teams_is_flagged_above_them(self) -> None:
+        """Every note at the default visibility (team): team-a says closed, team-b says open.  Each team agrees with
+        itself; above them the values differ, so nothing above the teams corroborates and no value is published, and a
+        corroborating rule over the teams' consolidations does not raise its confidence either."""
+        h = await self.harness()
+        for a in ("a1", "a2"):
+            await h.register(a, team="team-a")
+        for b in ("b1", "b2"):
+            await h.register(b, team="team-b")
+        await h.service.upsert_rule({"rule_id": "port_watch", "target_layer": "enterprise", "required_slots": ["port_status"],
+                                     "sources": ["topic_consolidation"], "corroborate": True, "min_agents": 2,
+                                     "min_teams": 2, "conclusion": "Port watch at {entity}."})
+        await h.settle()
+        fields = {"topic": "port:rotterdam", "slot": "port_status", "entity": "rtm-3", "confidence": 0.6}
+        for a in ("a1", "a2"):
+            await h.observe(a, f"Terminal 3 closed, says {a}.", value="closed", **fields)
+        for b in ("b1", "b2"):
+            await h.observe(b, f"Terminal 3 open, says {b}.", value="open", **fields)
+        await h.settle()
+        for team in (TEAM_A, TEAM_B):
+            with self.subTest(unit=team):
+                t = self.consolidation(h, team, "port:rotterdam")
+                self.assertNotIn("conflict", t.metadata, "each team agrees with itself")
+                self.assertNotIn("value", t.metadata, "a team-visibility value is not published")
+                self.assertEqual((t.slot, t.confidence, t.support), ("port_status", 0.84, 2))
+        for unit in ABOVE:
+            with self.subTest(unit=unit):
+                c = self.consolidation(h, unit, "port:rotterdam")
+                self.assertTrue(c.metadata.get("conflict"), "the teams dispute each other")
+                self.assertEqual((c.confidence, c.support, c.independent_teams, c.slot), (0.84, 4, 2, None))
+                self.assertNotIn("value", c.metadata)
+                for reader in ("a1", "b1"):
+                    view = repr(h.service.public_view(c, h.principal(reader)))
+                    self.assertNotIn("'closed'", view)
+                    self.assertNotIn("'open'", view)
+        conclusion = h.service.store.current_derived(ORG, "slot_composition", "northwind", "port_watch:rtm-3")
+        self.assertEqual((conclusion.confidence, conclusion.metadata.get("conflict")), (0.84, True))
+        await self.assert_sound(h)
+        # team-a takes it back: the teams agree, and the agreement corroborates up to the enterprise
+        for a in ("a1", "a2"):
+            for m in h.service.store.list_memories(ORG, layers=["agent"], limit=100):
+                if m.producer_id == a and m.status == "active":
+                    await h.service.retract(h.principal(a), m.memory_id, "reopened")
+            await h.observe(a, f"Terminal 3 open again, says {a}.", value="open", **fields)
+        await h.settle()
+        for unit in ABOVE:
+            with self.subTest(unit=unit, after="agreement"):
+                c = self.consolidation(h, unit, "port:rotterdam")
+                self.assertNotIn("conflict", c.metadata)
+                self.assertNotIn("value", c.metadata, "every value is team-visibility: none is published")
+                self.assertEqual((c.confidence, c.slot), (0.9744, "port_status"))
+        conclusion = h.service.store.current_derived(ORG, "slot_composition", "northwind", "port_watch:rtm-3")
+        self.assertEqual((conclusion.confidence, conclusion.metadata.get("conflict")), (0.9744, None))
+        await self.assert_sound(h)
+
+    async def test_a_minority_value_is_not_published_over_a_team_visibility_majority(self) -> None:
+        """Two agents of team-a say closed (team visibility), one of team-b says open (org): the department does not say
+        'open', does not count the dissenters as support for it, and takes the strongest contribution's confidence."""
+        h = await self.harness()
+        for a in ("a1", "a2"):
+            await h.register(a, team="team-a")
+        await h.register("b1", team="team-b")
+        await h.settle()
+        fields = {"topic": "port:rotterdam", "slot": "port_status", "entity": "rtm-3", "confidence": 0.6}
+        for a in ("a1", "a2"):
+            await h.observe(a, f"Closed, says {a}.", value="closed", **fields)
+        await h.observe("b1", "Open.", value="open", visibility="org", **fields)
+        await h.settle()
+        dept = self.consolidation(h, OPS, "port:rotterdam")
+        self.assertEqual((dept.metadata.get("conflict"), dept.metadata.get("value"), dept.slot, dept.confidence),
+                         (True, None, None, 0.84))
+        await self.assert_sound(h)
 
     async def test_a_corroborating_rule_does_not_raise_confidence_over_a_dispute(self) -> None:
         h = await self.harness()

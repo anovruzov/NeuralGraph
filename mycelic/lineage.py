@@ -63,7 +63,11 @@ def reconstruct(store: MycelicStore, memory_id: str, *, visible: Callable[[Memor
                 full: Callable[[Memory], bool] = lambda m: False, readable_text: Callable[[Memory], bool] = lambda m: True,
                 max_nodes: int = 2000) -> dict[str, Any]:
     """``visible`` decides redaction; ``full`` (owner or administrator) additionally reveals the producer's local
-    reference; ``readable_text`` decides whether a visible node's text is shown or withheld."""
+    reference; ``readable_text`` decides whether a visible node's text is shown or withheld.
+
+    Breadth first, one batched read of edges and one of rows per level.  At most ``max_nodes`` memories are loaded,
+    also when one level is wider than that (a consolidation with thousands of parents): the parents beyond the cap, in
+    id order, and their edges are left out and ``complete`` is False."""
     root_memory = store.get_memory(memory_id)
     if root_memory is None:
         raise LineageNotFound(memory_id)
@@ -73,19 +77,22 @@ def reconstruct(store: MycelicStore, memory_id: str, *, visible: Callable[[Memor
     edges: list[dict[str, Any]] = []
     missing_parents: list[str] = []
     frontier = [memory_id]
-    visited = {memory_id}
     complete = True
-    while frontier:
-        if len(visited) > max_nodes:
+    while frontier and complete:
+        got = store.parents_of_many(frontier)
+        want = sorted({e.parent_id for child_id in frontier for e in got.get(child_id, [])} - set(memories))
+        room = max(0, max_nodes - len(memories))
+        if len(want) > room:
             complete = False
-            break
+            want = want[:room]
+        loaded = store.get_memories(want)
+        wanted = set(want)
         nxt: list[str] = []
         for child_id in frontier:
-            child = memories.get(child_id)
-            if child is None:
-                continue
-            for e in store.parents_of(child_id):
-                parent = memories.get(e.parent_id) or store.get_memory(e.parent_id)
+            for e in got.get(child_id, []):
+                if e.parent_id not in memories and e.parent_id not in wanted:
+                    continue                            # beyond the node cap
+                parent = memories.get(e.parent_id) or loaded.get(e.parent_id)
                 parent_visible = parent is not None and visible(parent)
                 edges.append({"child": child_id, "parent": e.parent_id, "parent_layer": e.parent_layer,
                               "contributed_by": e.contributed_by if parent_visible else None,
@@ -93,9 +100,8 @@ def reconstruct(store: MycelicStore, memory_id: str, *, visible: Callable[[Memor
                 if parent is None:
                     missing_parents.append(e.parent_id)
                     continue
-                memories[e.parent_id] = parent
-                if e.parent_id not in visited:
-                    visited.add(e.parent_id)
+                if e.parent_id not in memories:
+                    memories[e.parent_id] = parent
                     nxt.append(e.parent_id)
         frontier = nxt
 

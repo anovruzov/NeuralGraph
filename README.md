@@ -19,24 +19,27 @@ What runs: one `mycelic` service (aiohttp API + outbox publisher + JetStream con
 a volume) and one `nats-server` with a file-backed JetStream stream that is the durable event log. Lose the
 service database and it rebuilds itself from the stream, provided the signing keys that signed it are kept (with the
 wrong key `/ready` stays 503 rather than serve a partial rebuild); lose the broker for a while and agents keep
-writing through the outbox. Both are exercised by an automated smoke test, not asserted in prose.
+writing through the outbox, also through a restart of the service (a node whose database has applied the log before
+serves from it; only a fresh database waits for the broker). Both are exercised by an automated smoke test, not asserted in prose.
 
 ## Deploy Mycelic in five minutes
 
 ```bash
 git clone https://github.com/anovruzov/NeuralGraph.git && cd NeuralGraph
-cp deploy/mycelic/.env.example deploy/mycelic/.env
+install -m 600 deploy/mycelic/.env.example deploy/mycelic/.env   # every secret: readable by you alone
 # fill the three secrets: MYCELIC_ADMIN_TOKEN and MYCELIC_EVENT_SIGNING_KEY with $(openssl rand -hex 32),
 # NATS_PASSWORD with n$(openssl rand -hex 32) (it must start with a letter); back up the signing key with the data
 docker compose -f deploy/mycelic/docker-compose.yml up -d --build
 curl -s http://localhost:8080/health          # {"status":"ok", ...}
 
-# register an agent (key printed once) and ask a question
-export MYCELIC_ADMIN_TOKEN=...                # from .env
+# register an agent (its key is printed once), share a note as that agent, and ask about it
+export MYCELIC_ADMIN_TOKEN=$(grep ^MYCELIC_ADMIN_TOKEN= deploy/mycelic/.env | cut -d= -f2)
 python -m mycelic register-agent --enterprise northwind --department ops --team logistics --agent-id logistics-1
-export MYCELIC_API_KEY=mk_logistics-1....
-python -m mycelic query "delivery risk sd-9" --scope northwind --lineage
-python -m mycelic verify <memory_id>      # derived correctly and still true? exit 0 = verified
+export MYCELIC_API_KEY=mk_logistics-1....     # the key it printed
+curl -s http://localhost:8080/memory -H "Authorization: Bearer $MYCELIC_API_KEY" -H "Content-Type: application/json" \
+  -d '{"text": "Port of Rotterdam terminal 3 strike announced for weeks 41-43", "topic": "supply:sd-9/transport", "entity": "sd-9"}'
+python -m mycelic query "Rotterdam strike sd-9" --scope northwind --lineage   # its lineage line ends (memory mem_...)
+python -m mycelic verify mem_...              # that memory id: derived correctly and still true? exit 0 = verified
 ```
 
 Connect Claude Code: `claude mcp add --transport http mycelic http://localhost:8080/mcp --header "Authorization: Bearer $MYCELIC_API_KEY"`.

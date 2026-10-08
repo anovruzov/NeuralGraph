@@ -26,10 +26,13 @@ at most 200 characters, which an earlier client may have stored, claims nothing)
 Notes on the same slot and entity whose values differ dispute each other: their consolidation carries
 ``metadata.conflict`` (true), takes the confidence of its strongest contribution instead of raising it, and claims no
 slot, so no rule takes a disputed consolidation as evidence; the flag travels up with every consolidation built on it,
-and a corroborating rule does not raise a slot's confidence over evidence whose values differ.  A consolidation whose
-value-carrying parents agree carries that ``value``, counted only from what may travel upward (org-visible notes and the
-values of child consolidations): a team-visibility note's value never leaves its team.  Free text is never compared,
-so notes without a value never dispute anything.
+and a corroborating rule does not raise a slot's confidence over evidence whose values differ.  Every value beneath a
+unit is compared, whatever its note's visibility: a consolidation that is not disputed keeps the values beneath it as
+digests (``metadata.claims``, :func:`claims_of`, never shown to readers), so two teams whose team-visibility notes
+disagree are flagged above them, and only that bit leaves either team.  A consolidation whose value-carrying parents
+agree carries that ``value``, counted only from what may travel upward (org-visible notes and the values of child
+consolidations): a team-visibility note's value never leaves its team.  Free text is never compared, so notes without
+a value never dispute anything.
 
 **Slot composition** (``operator='slot_composition'``).  A :class:`~mycelic.models.Rule` names the slots a
 conclusion needs (for example ``transport_disruption``, ``supplier_buffer_low``, ``demand_commitment``).  The
@@ -351,23 +354,41 @@ def _claimed_value(m: Memory) -> str | None:
     return canonical_value(v) if m.slot is not None and m.entity is not None else None
 
 
+def claim_digest(value: str) -> str:
+    """How a claimed value travels above the note that claims it: a digest, so a team-visibility note's value is
+    compared at every layer without being stored there."""
+    return content_hash("claim", value)[:16]
+
+
+def claims_of(m: Memory) -> set[tuple[str, str, str]]:
+    """``(slot, entity, claim_digest(value))`` of every value a memory stands for, whatever its visibility: a note its
+    own, a consolidation every value beneath it (``metadata.claims``; one derived before claims existed, the ``value``
+    it published), a conclusion none."""
+    if m.operator == "topic_consolidation" and isinstance(m.metadata.get("claims"), list):
+        return {(c[0], c[1], c[2]) for c in m.metadata["claims"]
+                if isinstance(c, list) and len(c) == 3 and all(isinstance(x, str) for x in c)}
+    v = _claimed_value(m)
+    return {(m.slot, m.entity, claim_digest(v))} if v is not None else set()     # type: ignore[arg-type]
+
+
 def consolidation_claims(parents: list[Memory]) -> tuple[bool, str | None]:
     """``(conflict, value)`` of a consolidation of ``parents`` (pure).  ``conflict``: a derived parent is disputed already,
-    or two parents claim different values for the same slot and entity (a raw note's own ``metadata.conflict`` is the
-    agent's, and flags nothing).  ``value``: the one value every value-carrying parent that may travel upward (an
-    org-visible note, a consolidation) claims, when there is no conflict and they all speak of one slot and entity."""
+    or two values beneath the parents differ for the same slot and entity (:func:`claims_of`: team-visibility notes'
+    values included, so a dispute is flagged at every layer above it and only that bit leaves a team; a raw note's own
+    ``metadata.conflict`` is the agent's, and flags nothing).  ``value``: the one value every value-carrying parent that
+    may travel upward (an org-visible note, a consolidation) claims, when there is no conflict and they all speak of one
+    slot and entity."""
     claimed: dict[tuple[str, str], set[str]] = {}
     public: dict[tuple[str, str], set[str]] = {}
     conflict = False
     for m in parents:
         conflict = conflict or (m.operator != "agent_observation" and bool(m.metadata.get("conflict")))
+        for slot, entity, digest in claims_of(m):
+            claimed.setdefault((slot, entity), set()).add(digest)
         v = _claimed_value(m)
-        if v is None:
-            continue
-        claimed.setdefault((m.slot, m.entity), set()).add(v)        # type: ignore[arg-type]
-        if m.operator == "topic_consolidation" or m.visibility == "org":
+        if v is not None and (m.operator == "topic_consolidation" or m.visibility == "org"):
             public.setdefault((m.slot, m.entity), set()).add(v)     # type: ignore[arg-type]
-    conflict = conflict or any(len(values) > 1 for values in claimed.values())
+    conflict = conflict or any(len(digests) > 1 for digests in claimed.values())
     if conflict or len(public) != 1:
         return conflict, None
     [values] = public.values()
@@ -401,6 +422,7 @@ def build_consolidation(org_id: str, unit: str, topic: str, contributions: dict[
     teams = sorted({t for m in parents for t in contributing_teams(m)})
     strongest = [max(m.confidence for m in group) for group in contributions.values()]
     conflict, value = consolidation_claims(parents)
+    claims = sorted({c for m in parents for c in claims_of(m)})
     # a dispute is not corroboration: its consolidation is as certain as its strongest contribution, no more
     confidence = round(min(0.99, max(strongest)), 4) if conflict else noisy_or(strongest)
     # a consolidation of same-slot evidence is itself evidence, unless that evidence disputes the slot's value
@@ -421,6 +443,8 @@ def build_consolidation(org_id: str, unit: str, topic: str, contributions: dict[
     }
     if conflict:
         metadata["conflict"] = True
+    elif claims:
+        metadata["claims"] = [list(c) for c in claims]
     if value is not None and slot is not None and entity is not None:
         metadata["value"] = value
     return Memory(
@@ -472,8 +496,7 @@ def build_conclusion(rule: Rule, org_id: str, unit: str, entity: str | None, can
                 if m.slot == slot:
                     u = m.scope if m.layer != "agent" else (unit_at_layer(m.scope, "team") or m.scope)
                     best_by_unit[u] = max(best_by_unit.get(u, 0.0), m.confidence)
-                    if _claimed_value(m) is not None:
-                        values.add((m.entity, _claimed_value(m)))
+                    values |= {(e, digest) for s, e, digest in claims_of(m) if s == slot}
             if len(values) > len({e for e, _ in values}):
                 disputed = True
                 per_slot.append(round(min(0.99, max(best_by_unit.values())), 4))

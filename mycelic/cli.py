@@ -229,6 +229,9 @@ def cmd_verify(args: argparse.Namespace) -> int:
               f"integrity {report['integrity_mode']}  verified at {report['verified_at']}")
         if report.get("valid_until"):
             print(f"valid until {report['valid_until']}" + (" (partial)" if report.get("valid_until_partial") else ""))
+        if report.get("max_leaf_age") is not None:
+            print(f"max leaf age {report['max_leaf_age']} s" + (": some raw notes could not be judged (freshness partial)"
+                                                                 if report.get("freshness_partial") else ""))
         for r in report["reasons"]:
             print(f"  {r['severity']} {r['code']} x{r['count']}")
         for w in report["warnings"]:
@@ -284,7 +287,8 @@ def build_parser() -> argparse.ArgumentParser:
                                       "(exit 0 verified, 3 stale, 4 failed, 5 unverifiable)"); common(s)
     s.add_argument("memory_id"); s.add_argument("--api-key")
     s.add_argument("--max-leaf-age", type=int, metavar="SECONDS",
-                   help="also require every raw note you can read to have been ingested within this many seconds (1..315360000)")
+                   help="also require every raw note beneath it, readable or not, to have been ingested or re-attested "
+                        "within this many seconds (1..315360000)")
     s.set_defaults(fn=cmd_verify, is_async=False)
     return p
 

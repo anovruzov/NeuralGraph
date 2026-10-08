@@ -1,4 +1,5 @@
-# What the Mycelic container installs: runtime only, no test tooling.
+# What Mycelic needs at runtime (no test tooling): the floors it supports. The image installs requirements-lock.txt,
+# these requirements and their dependencies pinned to the exact versions the tests ran, with hashes.
 aiohttp>=3.9
 numpy>=1.26
 rank-bm25>=0.2.2

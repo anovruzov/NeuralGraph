@@ -1591,7 +1591,7 @@ class DocsTests(unittest.TestCase):
         rollback = deployment.split("### 4a. Rollback", 1)[1].split("\n## 5.", 1)[0]
         flat_rollback = " ".join(rollback.split())
         self.assertIn("database schema 6 is newer than this code", flat_rollback)
-        for phrase in ("mycelic_mycelic-data", "mycelic_nats-data", "alpine tar czf", "tar xzf /b/mycelic-data.tgz", "0.1.0",
+        for phrase in ("mycelic_mycelic-data", "mycelic_nats-data", "tar czf /b/mycelic-data.tgz", "tar xzf /b/mycelic-data.tgz", "0.1.0",
                        "IntegrityError", "unknown_kind"):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, flat_rollback)
@@ -1620,6 +1620,32 @@ class DocsTests(unittest.TestCase):
         for name in ("mycelic_quota_rejections_total", 'mycelic_recovery_total{kind="replay_signature_rejections"}'):
             with self.subTest(metric=name):
                 self.assertIn(name, architecture)
+
+    def test_secrets_and_rollback_artefacts_stay_out_of_the_checkout(self) -> None:
+        """The rollback point's archives (every note, the event log) and its keys file (every secret) go to a directory
+        outside the checkout that only the operator can read, the live .env is created mode 600, and the three
+        artefact names are ignored by git in case an older copy of the commands left them in a checkout."""
+        deployment = (ROOT / "DEPLOYMENT.md").read_text(encoding="utf-8")
+        rollback = deployment.split("### 4a. Rollback", 1)[1].split("\n## 5.", 1)[0]
+        commands = "\n".join(re.findall(r"```bash\n(.*?)```", rollback, re.S))
+        self.assertNotIn('"$PWD"', commands)
+        mounts = re.findall(r'-v "([^"]+)":/b', commands)
+        self.assertEqual(set(mounts), {"$ROLLBACK_DIR"}, mounts)
+        self.assertIn('ROLLBACK_DIR="$HOME/mycelic-rollback/', commands)
+        self.assertIn('(umask 077 && mkdir -p "$ROLLBACK_DIR")', commands)
+        for archive in ("mycelic-data.tgz", "nats-data.tgz"):
+            self.assertIn(f"'umask 077 && tar czf /b/{archive} -C /v .'", commands)
+        self.assertIn('install -m 600 deploy/mycelic/.env "$ROLLBACK_DIR/mycelic-keys.env"', commands)
+        self.assertNotIn("cp deploy/mycelic/.env ", commands)
+        for doc in ("README.md", "DEPLOYMENT.md", "deploy/mycelic/docker-compose.yml"):
+            text = (ROOT / doc).read_text(encoding="utf-8")
+            with self.subTest(doc=doc):
+                self.assertIn("install -m 600 deploy/mycelic/.env.example deploy/mycelic/.env", text)
+                self.assertNotIn("cp deploy/mycelic/.env.example", text)
+        for name in ("mycelic-data.tgz", "nats-data.tgz", "mycelic-keys.env", "deploy/mycelic/.env"):
+            with self.subTest(path=name):
+                r = subprocess.run(["git", "check-ignore", "-q", name], cwd=ROOT)
+                self.assertEqual(r.returncode, 0, f"{name} is not ignored by git")
 
 
 if __name__ == "__main__":

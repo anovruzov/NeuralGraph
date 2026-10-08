@@ -164,7 +164,10 @@ once the bucket is in debt the remaining verify messages get an error result wit
 verifications by one principal cannot both walk on one token and no caller can hold every walker. A walk reads at most
 `MYCELIC_VERIFY_MAX_NODES` (25,000) nodes, in a worker thread on a read-only snapshot of the database: it never holds
 the event loop, so health probes and every other request keep answering while it runs (DEPLOYMENT.md §4, "Verifying a
-conclusion"). `max_leaf_age` must
+conclusion"). Lineage walks (`GET /lineage/{id}`, MCP `mycelic_lineage` and the answer of every `POST /query` and MCP
+`mycelic_query`) run the same way, one per principal at a time among its walks, load at most 2,000 memories and are
+priced after the walk at the larger of floor(nodes / 250) and floor(2 × seconds walked × rps) tokens, so a small
+lineage costs only its request's token (docs/MYCELIC_ARCHITECTURE.md §6). `max_leaf_age` must
 be an integer from 1 to 315,360,000 and a memory id must match `[A-Za-z0-9_.:-]{1,200}` (400 otherwise, also for an
 id sent with `%2F` in it, which aiohttp decodes before the check).
 
@@ -255,8 +258,9 @@ A `verified` answer at `verified_at` proves, for every node of the walk:
   `MIN_SUPPORT` is the configured one, and the planner derives exactly this memory from the applied evidence now;
 * expiry: no raw note of the walk, readable by the caller or not, is past its `expires_at` (one that is, while its
   retraction by the expiry sweep has not applied yet, is `leaf_expired`);
-* with `max_leaf_age`: every raw note the caller can read was ingested by the server, or re-attested by its producer,
-  within that many seconds.
+* with `max_leaf_age`: every raw note of the walk, readable by the caller or not, was ingested by the server, or
+  re-attested by its producer, within that many seconds (a note the caller may not read shows `hidden_stale`, without
+  its age, so every viewer gets the same verdict).
 
 It does not prove:
 
@@ -264,7 +268,11 @@ It does not prove:
 * that a producer's note is true because the producer re-attested it: an attestation (`POST /memory/{id}/attest`) is
   the producer's own statement, self-attestation, so it adds freshness, not independent assurance. Freshness is the
   later of the server's ingest time and the producer's last re-attestation (`attested_at`), never the producer's
-  `observed_at`, and raw notes the caller may not read are not judged (`freshness_partial` is then true).
+  `observed_at`. Raw notes the caller may not read are judged too, so a caller who may verify a conclusion learns,
+  for each such note, whether it was last confirmed within the `max_leaf_age` it chose (shown as `hidden_stale`, never
+  the age); repeating the call with other bounds narrows that time down, as the `created_at` and `applied_at` that
+  lineage shows for such a note already do for its ingest. `freshness_partial` is true only when some raw note could
+  not be judged (a truncated walk, a note whose event row is gone).
   `attested_at` is covered by the row's digest (an edit reads `integrity_mismatch`) but is not compared with the
   `memory.attested` events in the log, so without `MYCELIC_EVENT_SIGNING_KEY` whoever can write the database can make a
   note look freshly attested and re-hash it;
@@ -285,8 +293,10 @@ It does not prove:
   of the `events` table, which no digest covers;
 * that two notes agree: only notes that carry a `value` for the same slot and entity are compared, and those with
   different values are flagged (`metadata.conflict`) and never corroborate each other (docs/MYCELIC_ARCHITECTURE.md
-  §5); free text is never compared, and the value of a team-visibility note never leaves its team, so a dispute
-  between such notes of two teams is not flagged above them.
+  §5); free text is never compared. The value of a team-visibility note is compared at every layer above its team
+  (as a digest in `metadata.claims`, shown to administrators only) but never published there, so readers above a
+  team learn one bit from it: that some note beneath disagrees (`metadata.conflict`, the lower confidence and the
+  missing slot).
 
 ## 7. Limitations (read these)
 

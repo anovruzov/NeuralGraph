@@ -20,7 +20,7 @@ git clone https://github.com/anovruzov/NeuralGraph.git
 cd NeuralGraph
 
 # 1. configure: every secret is required; compose refuses to start with one missing
-cp deploy/mycelic/.env.example deploy/mycelic/.env
+install -m 600 deploy/mycelic/.env.example deploy/mycelic/.env   # every secret: readable by you alone
 sed -i "s|^MYCELIC_ADMIN_TOKEN=.*|MYCELIC_ADMIN_TOKEN=$(openssl rand -hex 32)|" deploy/mycelic/.env
 # the signing key is set once, at first setup; never regenerate it in place: rotate it as SECURITY.md §7 describes
 sed -i "s|^MYCELIC_EVENT_SIGNING_KEY=.*|MYCELIC_EVENT_SIGNING_KEY=$(openssl rand -hex 32)|" deploy/mycelic/.env
@@ -78,9 +78,14 @@ note = local.note("Port of Rotterdam terminal 3 strike announced for weeks 41-43
                   topic="supply:sd-9/transport", slot="transport_disruption", entity="sd-9", confidence=0.9)
 local.share(client, note)                                     # idempotent: safe to retry after a crash
 
-res = client.query("delivery risk for RX-4 this quarter", scope="northwind")
-print(res["answer"]["text"], res["answer"]["lineage"])
-graph = client.lineage(res["answer"]["memory_id"])
+res = client.query("Rotterdam strike sd-9", scope="northwind")   # keyword search: ask with words the notes use
+if res["answer"] is None:
+    print("nothing relevant visible to this agent yet")
+else:
+    print(res["answer"]["text"], res["answer"]["lineage"])
+    graph = client.lineage(res["answer"]["memory_id"])
+    report = client.verify(res["answer"]["memory_id"])       # derived correctly, and still true?
+    print(report["verdict"])
 ```
 
 A local note leaves the agent's disk only through `local.share(...)`: a note tagged `private` is refused, and a local
@@ -90,7 +95,9 @@ sending it, so `local.pending()` lists the shares the server never acknowledged,
 earlier SDK has no such record: its unacknowledged notes stay local until the agent shares them again.
 
 Or from the shell: `python -m mycelic query "delivery risk sd-9" --scope northwind --lineage`
-(`MYCELIC_API_KEY` set). A complete agent process is `python -m mycelic.sdk.agent --help`.
+(`MYCELIC_API_KEY` set); its lineage line ends with the answer's memory id, which `python -m mycelic verify <id>`
+checks. Retrieval matches the words of a question against the notes' text, topic, entity and slot, so a question
+about something no shared note mentions has no answer (`answer` is null, and the CLI says so and exits 1). A complete agent process is `python -m mycelic.sdk.agent --help`.
 
 Claude Code / any MCP client (the agent key is the Bearer token; identity is per request):
 
@@ -201,7 +208,7 @@ All variables have the `MYCELIC_` prefix. Validation runs at start and fails fas
 | `EVENT_SIGNING_KEYS_PREVIOUS` | | comma-separated keys from before a rotation (each ≥ 32 characters; requires `EVENT_SIGNING_KEY`; a key containing a comma cannot be listed, and generated hex keys never contain one): they still verify the events and memory digests they signed. Keep each one as long as the stream holds events it signed |
 | `REPLAY_MAX_REJECT_RATIO` | `0.01` | share of the events a replay consumes whose signature may be rejected (0 to 1); above it `/ready` stays 503 until a rebuild with the corrected keyring (section 4, "Signing-key mistakes"). `0`: any rejection blocks; `1`: never. Set in `.env`, the compose file and the ConfigMap |
 | `METRICS_TOKEN` | | bearer for `/metrics`; unset ⇒ admin token or agent key required off loopback |
-| `READY_REQUIRES_NATS` | `false` | `/ready` fails during a broker outage when true |
+| `READY_REQUIRES_NATS` | `false` | `/ready` fails during a broker outage when true. Without it a node stays ready through an outage, also when it (re)starts during one, provided its database has applied the log before: it waits at most 10 s for the broker, then serves from the database and keeps connecting. A node with a fresh database is not ready until the broker answers (only the stream says whether a log must be replayed into it) |
 | `TLS_CERT_FILE`, `TLS_KEY_FILE` | | serve HTTPS directly |
 | `ALLOWED_HOSTS`, `CORS_ORIGINS` | | Host allow-list; browser origins (off by default) |
 | `TRUST_PROXY_HEADERS`, `TRUSTED_PROXY_HOPS` | `false`, `1` | use the Nth-from-the-right `X-Forwarded-For` entry for rate limiting and audit (only behind a proxy that is the sole path in) |
@@ -448,7 +455,9 @@ Measured in this repository's sandbox with `DEMO_RULE` active and 52 notes on th
 33 ms median (37 ms at most over five runs) against 18 ms (29 ms) for a plain note on the same labels.
 
 **Disputed claims.** A note may carry `value`, what it claims for its slot and entity (`POST /memory`, an embedded
-memory of `POST /events`, MCP `mycelic_remember`, `client.remember(..., value=...)`; stored as `metadata.value`,
+memory of `POST /events`, MCP `mycelic_remember`, `client.remember(..., value=...)`, `LocalMemory.note(..., value=...)`
+(which `share` sends, also when it re-sends an unacknowledged share), and `"value"` in the reference agent's
+observations, next to `"expires_at"`; stored as `metadata.value`,
 normalised like a label, at most 200 characters; a `metadata.value` sent next to it must agree with it). Values are
 compared in that normalised form, so "Open" and "open" agree. `metadata` stays free-form: a `metadata.value` sent
 without `value` is stored exactly as sent and never refused, and it is the note's claim only when it is a string of
@@ -459,9 +468,10 @@ takes the confidence of its strongest contribution instead of raising it, and cl
 evidence; a rule with `corroborate` does not raise a slot's confidence over evidence with different values and flags
 its conclusion `metadata.conflict`. A consolidation whose value-carrying parents agree carries their `value`. Free text
 is never compared: notes without a `value` never dispute anything, so give a note a value whenever its slot is a status
-that can be contradicted ("open", "closed"). The value of a team-visibility note never leaves its team, so a dispute
-between such notes of two different teams is not flagged above them (SECURITY.md §6). `support` still counts the agents
-on both sides.
+that can be contradicted ("open", "closed"). Every value is compared at every layer above its note, whatever the
+note's visibility, so two teams that disagree are flagged above them also when their notes are team-visibility (the
+default); the value of a team-visibility note is never published above its team (no `metadata.value` there), so the
+flag is all that leaves it (SECURITY.md §6). `support` still counts the agents on both sides.
 
 **Re-attesting notes.** Verification's `max_leaf_age` judges how long ago each raw note was last confirmed: when the
 server ingested it or, later, when its producer re-attested it. An agent re-attests one of its own active notes with
@@ -501,8 +511,11 @@ Over MCP the report is bounded by default (`detail` `summary`): every key of the
 nodes that did not pass and `warnings` the first ones, at most 50 of each, with `nodes_omitted` and
 `warnings_omitted` counting the rest, so a conclusion over thousands of notes still fits an MCP client's result
 limit; `detail: "full"` lists every node, as `GET /verify` does. `max_leaf_age` (1 to 315,360,000
-seconds, optional) also requires every raw note the caller can read to have been ingested by the server within
-that many seconds.
+seconds, optional) also requires every raw note of the walk, readable by the caller or not, to have been ingested by
+the server, or re-attested by its producer, within that many seconds: a note the caller may not read is judged too and
+shows `hidden_stale`, so a reader above every contributing team gets the same verdict as an administrator.
+`freshness_partial` is true only when some raw note could not be judged (the walk was truncated, or a note's event row
+is gone); the CLI prints it.
 
 | Verdict | Meaning | `derived_correctly` / `still_true` | CLI exit |
 |---|---|---|---|
@@ -540,6 +553,12 @@ at the shipped limits (rps 50, burst 100) on a 5,005-node conclusion, one MCP ba
 (`detail` `full`) and eight agents looping `GET /verify` for 10 s: the batch walked 2 and refused 98, the loops got 12
 reports and 4,147 × 429, and `/health`, polled every 0.25 s, answered all 80 probes, the slowest in 0.135 s
 (`test_verification_never_holds_the_event_loop` checks the loop keeps turning during walks).
+Lineage walks (`GET /lineage/{id}`, MCP `mycelic_lineage`, and the answer of every `POST /query` and MCP
+`mycelic_query`) run the same way: in a worker thread, one per caller at a time, at most two at once, at most 2,000
+memories each (`complete: false` beyond), priced after the walk at the larger of floor(nodes / 250) and
+floor(2 × seconds walked × `MYCELIC_RATE_LIMIT_RPS`) tokens, so a lineage of fewer than 250 nodes walked in under
+10 ms (at rps 50) costs only its request's token. The SDK retries the 429 a caller in debt gets, with backoff
+(`test_lineage_walks_never_hold_the_event_loop_and_are_priced`).
 
 **Rotating the signing key.** Never regenerate `MYCELIC_EVENT_SIGNING_KEY` in place: make the current key a
 previous one and add a new current key. Events in flight and every memory digest signed by the old key keep
@@ -635,7 +654,7 @@ rising), answers may mix memories derived by the old and the new version. An int
 retried at the next start; `python -m mycelic reaggregate` re-runs it on demand. Its derived events are not
 reproduced by a rebuild from the log, which derives the converged state directly.
 
-**Responses changed in this release** (derivation version 3):
+**Responses changed in this release** (derivation version 4):
 
 * Consolidation text has a new format and no agent ids: `<topic> — team '<team>': <n> agents. <statement>; …` at
   team level, `<topic> — <layer> '<unit>': <n> <child layer> sources, <n> agents, <n> team-private observations not
@@ -649,6 +668,11 @@ reproduced by a rebuild from the log, which derives the converged state directly
   status. This applies to `GET /memory/{id}`, `GET /memories?status=superseded|retracted` (which also drop
   `metadata.statements` and `statement_origins`), the nodes of `GET /lineage/{id}` (which keep their shape) and
   the MCP tools. `text` stays a string, and `text_withheld` is absent whenever the text is shown.
+* Lineage walks are priced and bounded: `GET /lineage/{id}`, MCP `mycelic_lineage` and the answer of `POST /query` and
+  MCP `mycelic_query` load at most 2,000 memories, also when one consolidation has more parents than that (before, one
+  wide level was returned whole; now `complete` is false), and a walk of 250 nodes or more, or one that takes longer
+  than 1 / (2 × rps) seconds, costs extra rate-limit tokens, so a caller that keeps walking large lineages gets 429
+  (the SDK retries it) until its bucket refills ("Verifying a conclusion", Limits).
 * Downward verification only adds: `GET /verify/{id}`, the opt-in `"verify": true` of `POST /query` and of MCP
   `mycelic_query` (without it, or with `false`, the response is unchanged), the MCP tool `mycelic_verify` and
   `python -m mycelic verify`. Existing responses are unchanged. `mycelic_verify` answers a bounded report by default
@@ -677,9 +701,10 @@ reproduced by a rebuild from the log, which derives the converged state directly
   its unit next to the unit's own consolidation (before, either one could hide the other), and a unit with fewer
   registered children than `MIN_SUPPORT` keeps what it promotes when a sibling adds evidence (the promotion then also
   has that evidence as parents). Consolidations affected get a new version at the first start (schema 6 above).
-* Disputes: `value` on notes is new (`metadata.value`), and so are `metadata.conflict` and `metadata.value` on derived
-  memories ("Disputed claims", section 4). A consolidation or corroborated conclusion whose parents claim different
-  values is less confident than before and claims no slot. Requests that earlier releases accepted are accepted
+* Disputes: `value` on notes is new (`metadata.value`, also `LocalMemory.note(..., value=...)` and `"value"` in the
+  reference agent's observations, whose local store gains a `value` column at its first open), and so are
+  `metadata.conflict` and `metadata.value` on derived memories ("Disputed claims", section 4). A consolidation or corroborated conclusion whose evidence claims different
+  values (team-visibility notes included) is less confident than before and claims no slot. Requests that earlier releases accepted are accepted
   unchanged, `metadata.value` and `metadata.conflict` included, and stored as sent. One reading changes: a note that
   already carries a string `metadata.value` (at most 200 characters) and has a slot and an entity now claims that
   value, compared case-insensitively, so if earlier clients used `metadata.value` for something else, notes on one
@@ -690,9 +715,12 @@ reproduced by a rebuild from the log, which derives the converged state directly
   (`checks.transport.error`).
 * Readiness only adds: `/ready` may answer 503 with a `reason` (signature rejections, "Signing-key mistakes"), `POST
   /admin/replay` then adds a `warning`, and `GET /admin/status` has `checks.consumer.ready_block`. Without a block,
-  `/ready` and `/admin/replay` answer exactly as before. `/health`, `GET /` and the MCP server info report version
+  `/ready` and `/admin/replay` answer exactly as before, with one difference: a node that (re)starts while the broker
+  is unreachable and whose database has applied the log before is ready after at most 10 s (`degraded`), where it
+  stayed 503 until the broker returned; a fresh database still waits for the broker. `/health`, `GET /` and the MCP server info report version
   `0.2.0`.
-* `DERIVATION_VERSION` is 3 (2 before disputes), so the first start re-derives everything, also a database written
+* `DERIVATION_VERSION` is 4 (2 before disputes; 3 in pre-release builds whose consolidations did not compare the values
+  of team-visibility notes), so the first start re-derives everything, also a database written
   under 2 by schema 5 (`checks.reaggregation.reason` = `pending`, set by the upgrade to schema 6 below, or
   `derivation_version`). Until `checks.reaggregation.state` = `done`, consolidations derived by the earlier release
   keep their old text, which may quote team-visibility notes and agent ids above team level, and they are what
@@ -709,7 +737,7 @@ When the database holds derived memories, the first start also re-aggregates in 
 (`checks.reaggregation.reason` = `pending`): a rule conclusion now reaches every consolidation of its topic above its
 unit next to that unit's own consolidation, a unit with fewer registered children than `MIN_SUPPORT` keeps what it
 promotes when a sibling adds evidence (docs/MYCELIC_ARCHITECTURE.md §5), and every derived memory is derived again
-under `DERIVATION_VERSION` 3, which reads claimed values ("Disputed claims", section 4), so none of them keeps a
+under `DERIVATION_VERSION` 4, which reads claimed values ("Disputed claims", section 4), so none of them keeps a
 derivation that verification would now recompute differently. Like every schema upgrade it is one-way, so
 **back up the database first**; an earlier release refuses the upgraded database (`database schema 6 is newer than
 this code`).
@@ -750,27 +778,40 @@ A rollback returns to a point where the database, the stream and the signing key
 point before every upgrade.
 
 **(a) The rollback point.** Stop the stack, snapshot both volumes together, and keep the signing keys
-(`MYCELIC_EVENT_SIGNING_KEY` and `MYCELIC_EVENT_SIGNING_KEYS_PREVIOUS` in `.env`) with the two archives. Compose names
-the volumes after its project, `mycelic`:
+(`MYCELIC_EVENT_SIGNING_KEY` and `MYCELIC_EVENT_SIGNING_KEYS_PREVIOUS` in `.env`) and the image with the two archives.
+The archives hold every note's text, the agents' key hashes, the audit log and the whole event log, and the keys file
+holds every secret, so they go to a directory outside the checkout that only you can read (never into the working tree,
+where a `git add` would pick them up). Compose names the volumes after its project, `mycelic`:
 
 ```bash
 docker compose -f deploy/mycelic/docker-compose.yml stop
-docker run --rm -v mycelic_mycelic-data:/v -v "$PWD":/b alpine tar czf /b/mycelic-data.tgz -C /v .
-docker run --rm -v mycelic_nats-data:/v -v "$PWD":/b alpine tar czf /b/nats-data.tgz -C /v .
-cp deploy/mycelic/.env mycelic-keys.env       # the keys that signed both; protect it like the archives
+ROLLBACK_DIR="$HOME/mycelic-rollback/$(date -u +%Y%m%dT%H%M%SZ)"    # outside the checkout; keep it on a backed-up disk
+(umask 077 && mkdir -p "$ROLLBACK_DIR")
+docker run --rm -v mycelic_mycelic-data:/v -v "$ROLLBACK_DIR":/b alpine sh -c 'umask 077 && tar czf /b/mycelic-data.tgz -C /v .'
+docker run --rm -v mycelic_nats-data:/v -v "$ROLLBACK_DIR":/b alpine sh -c 'umask 077 && tar czf /b/nats-data.tgz -C /v .'
+install -m 600 deploy/mycelic/.env "$ROLLBACK_DIR/mycelic-keys.env"    # the keys that signed both
+docker tag mycelic:local "mycelic:rollback-$(basename "$ROLLBACK_DIR")"  # the image that wrote them
 docker compose -f deploy/mycelic/docker-compose.yml start
 ```
 
 To return to that point, restore both archives, never one alone, while the stack is down:
 
 ```bash
+ROLLBACK_DIR="$HOME/mycelic-rollback/<the snapshot to restore>"
 docker compose -f deploy/mycelic/docker-compose.yml down        # keeps the volumes (down -v deletes them)
-docker run --rm -v mycelic_mycelic-data:/v -v "$PWD":/b alpine sh -c 'find /v -mindepth 1 -delete && tar xzf /b/mycelic-data.tgz -C /v'
-docker run --rm -v mycelic_nats-data:/v -v "$PWD":/b alpine sh -c 'find /v -mindepth 1 -delete && tar xzf /b/nats-data.tgz -C /v'
+docker run --rm -v mycelic_mycelic-data:/v -v "$ROLLBACK_DIR":/b alpine sh -c 'find /v -mindepth 1 -delete && tar xzf /b/mycelic-data.tgz -C /v'
+docker run --rm -v mycelic_nats-data:/v -v "$ROLLBACK_DIR":/b alpine sh -c 'find /v -mindepth 1 -delete && tar xzf /b/nats-data.tgz -C /v'
 docker compose -f deploy/mycelic/docker-compose.yml up -d       # with the .env whose keys signed the snapshot
 ```
 
-Rehearsed with these exact commands in this repository's sandbox: 4 agents shared 4 notes (7 active memories with
+The archives come out mode 600, owned by root (the container writes them), and the keys file mode 600, owned by you.
+The repository's `.gitignore` also lists the three file names, in case an older copy of these commands left them in a
+checkout. Rehearsed in this repository's sandbox on two scratch volumes: the directory and its parent came out mode
+700, all three files mode 600, `git status` showed nothing new in the checkout, and the restore commands brought back
+both volumes' files after one had been changed.
+
+Rehearsed in this repository's sandbox with the form these commands had in the previous release, which wrote the
+archives and the keys file into the current directory (the snapshot and the restore are otherwise the same): 4 agents shared 4 notes (7 active memories with
 the enterprise conclusion, 8 lineage edges), the pair was taken, one more note followed (8 active and 3 superseded
 memories, 17 edges), `down -v` deleted both volumes, and after the restore and `up -d` `/ready` answered 200 with the
 memories by layer and status, the lineage edges and the agents of the snapshot; an old agent key still got the
@@ -778,8 +819,12 @@ enterprise conclusion. (The sandbox could not pull images, so `alpine` there was
 present.)
 
 **(b) Back to 0.1.0 (schema 2).** Restore the pair you took before upgrading from 0.1.0, with the keys kept with it
-(0.1.0 reads `MYCELIC_EVENT_SIGNING_KEY` only), and start the 0.1.0 image on it (the image you kept, or the 0.1.0 tree built with `up -d --build`). Neither this
-release's database nor its stream can be used instead:
+(0.1.0 reads `MYCELIC_EVENT_SIGNING_KEY` only), and start the 0.1.0 image on it: the image you kept (tag it before the
+upgrade, `docker tag mycelic:local mycelic:0.1.0`, and set `image: mycelic:0.1.0` in the compose file you start it
+with). Rebuilding the 0.1.0 tree is not the same image: 0.1.0 pinned neither its base image nor its dependencies, so a
+build today gets this year's releases of both, which 0.1.0 was never tested with. From this release on the tree pins
+both (`requirements-lock.txt`, the base image digest in the Dockerfile), so `up -d --build` of a release tree
+reproduces its image. Neither this release's database nor its stream can be used instead:
 
 * 0.1.0 refuses to open this release's database: `database schema 6 is newer than this code (2)`.
 * 0.1.0 must never consume a stream this release wrote, because it inserts the `memory.derived` events it reads instead

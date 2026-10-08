@@ -9,8 +9,10 @@ import contextlib
 import io
 import json
 import os
+import re
 import subprocess
 import sys
+import textwrap
 import unittest
 from datetime import timedelta
 from pathlib import Path
@@ -127,6 +129,15 @@ class SdkCliTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(code, 3)
         self.assertEqual(out[0], f"stale  derived_correctly=true  still_true=false  {cid}")
         self.assertIn("  S leaf_stale x1", out)
+        self.assertIn("  S hidden_stale x2", out, "the notes sales-2 may not read are judged too")
+        self.assertIn("max leaf age 1 s", out)
+        # a reader above every contributing team may read none of the notes, and gets the same verdict
+        await self.h.register("hq-1", team="board", department="strategy")
+        with mock.patch("mycelic.service.utcnow", return_value=utcnow() + timedelta(days=2)):
+            code, out, _ = await self.cli(*base, "--api-key", self.h.keys["hq-1"], "--max-leaf-age", "1")
+        self.assertEqual((code, out[0]), (3, f"stale  derived_correctly=true  still_true=false  {cid}"))
+        self.assertRegex(out[1], r"^4 nodes \(1 derived, 3 leaves, 3 redacted\)")
+        self.assertIn("  S hidden_stale x3", out)
         budget = s.settings.verify_max_nodes
         s.settings.verify_max_nodes = 1
         try:
@@ -343,6 +354,122 @@ class LocalMemoryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.held(), [])
         await self.share("old-1")
         self.assertEqual(self.held(), [("team", "Kept locally before the upgrade.")])
+
+    async def test_values_sent_through_the_local_store_and_the_reference_agent_dispute_each_other(self) -> None:
+        """The documented agent path carries ``value``: two notes on one slot and entity with different values are a
+        dispute (``metadata.conflict``, no slot, no confidence gained), not corroboration.  The value is kept locally,
+        part of what a local id names, and re-sent with an unacknowledged share; the reference agent reads ``value`` and
+        ``expires_at`` from its observations."""
+        local = self.local()
+        fields = {"topic": "ops:gate-7", "slot": "gate_status", "entity": "gate-7", "confidence": 0.9}
+        closed = local.note("Gate 7 is closed.", value="closed", **fields)
+        self.assertEqual(local.get(closed)["value"], "closed")
+        with self.assertRaises(ValueError):
+            local.note("Gate 7 is closed.", value="open", local_id=closed, **fields)
+        down = MycelicClient("http://127.0.0.1:9", self.h.keys["bot-1"], retries=0)
+        with self.assertRaises(MycelicError):
+            local.share(down, closed, visibility="org")
+        await self.run_agent()                       # re-sent at start, with its value
+        await self.h.settle()
+        p2 = self.h.principal("bot-2")
+        await self.h.service.ingest_memory(p2, {"text": "Gate 7 is open.", "value": "open", "visibility": "org", **fields})
+        await self.h.settle()
+        notes = {m.producer_id: m for m in self.h.service.store.list_memories("northwind", layers=["agent"], topic="ops:gate-7")}
+        self.assertEqual(notes["bot-1"].metadata.get("value"), "closed")
+        team = self.h.service.store.current_derived("northwind", "topic_consolidation", "northwind/emea/nw-gmbh/ops/logistics",
+                                                    "ops:gate-7")
+        self.assertEqual((team.metadata.get("conflict"), team.slot, team.confidence), (True, None, 0.9))
+        # the reference agent: value and expires_at from the observations file
+        await self.run_agent({"text": "Gate 8 is closed.", "topic": "ops:gate-8", "slot": "gate_status", "entity": "gate-8",
+                              "value": "closed", "expires_at": "2030-01-01T00:00:00+00:00", "visibility": "org"})
+        m = next(m for m in self.h.service.store.list_memories("northwind", layers=["agent"], topic="ops:gate-8"))
+        self.assertEqual((m.metadata.get("value"), m.expires_at), ("closed", "2030-01-01T00:00:00+00:00"))
+
+
+class FirstRunTests(unittest.IsolatedAsyncioTestCase):
+    """The first code a pilot partner runs works as written, with only the URL, the key and the local path filled in:
+    DEPLOYMENT.md section 1's SDK snippet and the SDK module's example print an answer and verify it, and the README
+    quickstart's share, query and verify steps end in an answer whose memory id verifies."""
+
+    async def asyncSetUp(self) -> None:
+        self.h = await ServiceHarness().start()
+        self.server = TestServer(create_app(self.h.service), host="127.0.0.1")
+        await self.server.start_server()
+        self.url = str(self.server.make_url("")).rstrip("/")
+        await self.h.register("logistics-1", team="logistics")
+        await self.h.settle()
+        self.key = self.h.keys["logistics-1"]
+        self.local_db = os.path.join(self.h.tmp.name, "logistics-1.db")
+
+    async def asyncTearDown(self) -> None:
+        await self.server.close()
+        await self.h.close()
+
+    def fill(self, code: str, **replacements: str) -> str:
+        for old, new in replacements.items():
+            self.assertIn(old, code)
+            code = code.replace(old, new)
+        return code
+
+    async def run_python(self, code: str) -> tuple[str, dict[str, Any]]:
+        """``code`` in a thread (the server answers on this loop): its stdout and its globals."""
+        out, scope = io.StringIO(), {"__name__": "first_run"}
+
+        def run() -> None:
+            with contextlib.redirect_stdout(out):
+                exec(compile(code, "first_run", "exec"), scope)
+
+        await asyncio.to_thread(run)
+        return out.getvalue(), scope
+
+    async def cli(self, *argv: str) -> tuple[int, str]:
+        out = io.StringIO()
+
+        def run() -> int:
+            with contextlib.redirect_stdout(out):
+                return cli.main(list(argv))
+
+        with mock.patch.dict(os.environ, {"MYCELIC_API_KEY": self.key}):
+            return await asyncio.to_thread(run), out.getvalue()
+
+    async def test_the_deployment_sdk_snippet_runs_as_written(self) -> None:
+        text = (ROOT / "DEPLOYMENT.md").read_text(encoding="utf-8").split("From the agent's side", 1)[1]
+        code = re.search(r"```python\n(.*?)```", text, re.S).group(1)
+        code = self.fill(code, **{'"http://localhost:8080"': repr(self.url), '"mk_logistics-1.…"': repr(self.key),
+                                  '"~/.mycelic/logistics-1.db"': repr(self.local_db)})
+        out, scope = await self.run_python(code)
+        self.assertIn("Port of Rotterdam terminal 3 strike announced for weeks 41-43", out)
+        self.assertEqual(scope["report"]["verdict"], "verified")
+        self.assertEqual(scope["graph"]["memory_id"], scope["res"]["answer"]["memory_id"])
+
+    async def test_the_sdk_module_example_runs_as_written(self) -> None:
+        import mycelic.sdk
+
+        doc = mycelic.sdk.__doc__.split("\n\n", 1)[1].split("\n\nThe client is synchronous", 1)[0]
+        code = self.fill(textwrap.dedent(doc), **{'"https://mycelic.example.com"': repr(self.url),
+                                                  '"mk_agent-7...."': repr(self.key), ', ca_file="corp-ca.pem"': "",
+                                                  '"~/.mycelic/agent-7.db"': repr(self.local_db)})
+        _, scope = await self.run_python(code)
+        self.assertIsNotNone(scope["res"]["answer"])
+        self.assertEqual(scope["report"]["verdict"], "verified")
+        self.assertEqual(scope["lineage"]["memory_id"], scope["res"]["answer"]["memory_id"])
+
+    async def test_the_readme_quickstart_ends_in_an_answer_that_verifies(self) -> None:
+        readme = (ROOT / "README.md").read_text(encoding="utf-8").split("## Deploy Mycelic in five minutes", 1)[1]
+        block = re.search(r"```bash\n(.*?)```", readme, re.S).group(1)
+        share = block.index("http://localhost:8080/memory")
+        body = json.loads(re.search(r"-d '(\{.*?\})'", block[share:]).group(1))
+        query = re.search(r'python -m mycelic query "([^"]+)" ([^#\n]*)', block)
+        self.assertGreater(query.start(), share, "the quickstart shares a note before it asks")
+        await asyncio.to_thread(MycelicClient(self.url, self.key, retries=0).remember, **body)    # the curl line
+        await self.h.settle()
+        code, out = await self.cli("query", query.group(1), *query.group(2).split(), "--url", self.url)
+        self.assertEqual(code, 0, out)
+        self.assertIn(body["text"], out)
+        memory_id = re.search(r"\(memory (\S+)\)", out).group(1)
+        self.assertIn("python -m mycelic verify mem_", block)
+        code, out = await self.cli("verify", memory_id, "--url", self.url, "--api-key", self.key)
+        self.assertEqual(code, 0, out)
 
 
 if __name__ == "__main__":

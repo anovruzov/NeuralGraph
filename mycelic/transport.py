@@ -265,9 +265,19 @@ class JetStreamTransport:
             ctx = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=self.s.nats_ca_file)
             options["tls"] = ctx
         self._nc = await nats.connect(**options)
-        self._js = self._nc.jetstream()
-        await self._ensure_stream()
-        await self._ensure_consumer(reset=False)
+        try:
+            self._js = self._nc.jetstream()
+            await self._ensure_stream()
+            await self._ensure_consumer(reset=False)
+        except BaseException:
+            # a client that never set up the stream and the consumer (JetStream not ready yet, or a bounded first connect
+            # cancelled half-way) is dropped, so the next attempt connects afresh instead of finding a live client
+            nc, self._nc, self._js, self._sub = self._nc, None, None, None
+            try:
+                await asyncio.wait_for(nc.close(), 2.0)
+            except Exception:
+                pass
+            raise
         self._set_connected(True)
         logger.info("connected to NATS %s, stream %s, consumer %s", self.s.nats_url, self.s.nats_stream, self.s.nats_consumer)
 

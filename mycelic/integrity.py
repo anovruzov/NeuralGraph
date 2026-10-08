@@ -22,7 +22,8 @@ is stored now and its lineage edges; G6's downward verification is built on it.
 * a derived memory: also the ids of its parents (its lineage edges: sorted, de-duplicated) and the metadata keys in
   :data:`DERIVED_METADATA`, each a function of the parent set (a missing key and an explicit null are the same, which
   covers derived rows written before a key existed), and those in :data:`OPTIONAL_DERIVED_METADATA` when a row has
-  them and they are not None (``conflict``, ``value``: added later, so every digest written before them stays valid).
+  them and they are not None (``conflict``, ``value``, ``claims``: added later, so every digest written before them stays
+  valid).
 
 **Not covered**, because it changes after insert or differs between a live node and a rebuild: ``applied_at``,
 ``apply_seq``, a derived memory's ``created_at`` and ``event_id`` (the apply-time
@@ -70,7 +71,7 @@ DERIVED_METADATA = ("agg_key", "child_layer", "children", "contributing_agents",
                     "private_observations", "promoted_from", "roots", "rule_chain", "slots",
                     "statement_origins", "statements")
 #: derived metadata a later release added; in the canonical form only when a row has it and it is not None
-OPTIONAL_DERIVED_METADATA = ("conflict", "value")
+OPTIONAL_DERIVED_METADATA = ("claims", "conflict", "value")
 
 
 def _encode(d: dict[str, Any]) -> bytes:

@@ -22,6 +22,8 @@ from aiohttp.test_utils import TestClient, TestServer
 from mycelic import mcp, verification
 from mycelic.api import create_app
 from mycelic.auth import RateLimiter
+from mycelic import lineage as lineage_module
+from mycelic.lineage import reconstruct
 from mycelic.models import now_iso, utcnow
 from mycelic.sdk import MycelicClient, MycelicError
 from mycelic.service import RateLimited
@@ -294,6 +296,121 @@ class VerifyLimitTests(unittest.IsolatedAsyncioTestCase):
         self.assertLess(max(gaps), walk_seconds / 2, f"the loop stalled {max(gaps):.3f}s (one walk takes {walk_seconds:.3f}s)")
         self.assertLess(max(health), walk_seconds / 2 + 0.05)
         self.assertLess(elapsed, 20 * walk_seconds + 5)
+
+    async def test_lineage_walks_never_hold_the_event_loop_and_are_priced(self) -> None:
+        """The other walk of the same DAG: GET /lineage/{id}, MCP mycelic_lineage and the answer of every POST /query and
+        MCP mycelic_query reconstruct it in worker threads, priced like a verification walk, and the node cap holds for
+        one wide level.  Each node's view costs 0.2 ms more here, so that a walk takes far longer than encoding what it
+        returns (at the shipped volume a walk took 0.3 to 0.9 s): the loop may encode a response, never walk."""
+        asyncio.get_running_loop().set_debug(False)       # a timing test: without the test runner's debug bookkeeping
+        w, top = await wide_world(self, 300, trust_proxy_headers=True)
+        s = w.service
+        s.limiter = RateLimiter(rps=50.0, burst=100)          # the shipped defaults
+        for j in range(6):
+            w.principal(f"a{j}")
+        await asyncio.sleep(0.05)
+        s.store._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        peers = itertools.count()
+
+        def headers(agent_id: str) -> dict[str, str]:
+            n = next(peers)
+            return {**bearer(w.keys[agent_id]), "X-Forwarded-For": f"203.0.{n // 250}.{n % 250}"}
+
+        # the team consolidation has 3,000 parents: one level, which the cap still cuts
+        capped = reconstruct(s.store, top.memory_id, visible=lambda m: True, max_nodes=100)
+        self.assertEqual((len(capped["nodes"]), capped["complete"]), (100, False))
+        self.assertTrue(all(e["child"] in capped["nodes"] and e["parent"] in capped["nodes"] for e in capped["edges"]))
+        real_view = lineage_module._node_view
+
+        def slow_view(*args: Any, **kwargs: Any) -> dict[str, Any]:
+            end = time.perf_counter() + 0.0002
+            while time.perf_counter() < end:
+                pass
+            return real_view(*args, **kwargs)
+
+        self.enterContext(mock.patch.object(lineage_module, "_node_view", slow_view))
+        t0 = time.perf_counter()
+        g = s.lineage(w.principal("a0"), top.memory_id)
+        walk_seconds = time.perf_counter() - t0
+        self.assertEqual((len(g["nodes"]), g["complete"], g["evidence"]["reconstructable"]), (2000, False, False))
+        query = {"query": "note supply", "scope": "acme", "min_layer": "enterprise", "include_lineage": True}
+        s.query(w.admin, {**query, "include_lineage": False})       # the retriever's index is built now, not below
+        client = TestClient(TestServer(create_app(s)))
+        await client.start_server()
+        self.addAsyncCleanup(client.close)
+        gaps: list[float] = []
+        done = asyncio.Event()
+
+        async def ticker() -> None:
+            last = time.perf_counter()
+            while not done.is_set():
+                await asyncio.sleep(0.002)
+                now = time.perf_counter()
+                gaps.append(now - last)
+                last = now
+
+        tick = asyncio.ensure_future(ticker())
+        health: list[float] = []
+
+        async def probe() -> None:
+            while not done.is_set():
+                t = time.perf_counter()
+                r = await client.get("/health")
+                self.assertEqual(r.status, 200)
+                health.append(time.perf_counter() - t)
+                await asyncio.sleep(0.01)
+
+        probing = asyncio.ensure_future(probe())
+
+        def tool(name: str, **arguments: Any) -> dict[str, Any]:
+            return {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": name, "arguments": arguments}}
+
+        bodies: list[tuple[int, bytes]] = []
+
+        async def agent(j: int) -> None:
+            # (bodies parsed after the clock stops)
+            if j in (1, 2):
+                r = await client.get(f"/lineage/{top.memory_id}", headers=headers(f"a{j}"))
+            elif j == 3:
+                r = await client.post("/mcp", json=tool("mycelic_lineage", memory_id=top.memory_id),
+                                      headers={**headers(f"a{j}"), "Accept": "application/json"})
+            elif j == 4:
+                r = await client.post("/query", json=query, headers=headers(f"a{j}"))
+            else:
+                r = await client.post("/mcp", json=tool("mycelic_query", query=query["query"], scope="acme",
+                                                        min_layer="enterprise"),
+                                      headers={**headers(f"a{j}"), "Accept": "application/json"})
+            bodies.append((j, await r.read()))
+            self.assertEqual(r.status, 200)
+
+        await asyncio.gather(*[agent(j) for j in range(1, 6)])
+        done.set()
+        await asyncio.gather(tick, probing)
+        self.assertGreater(len(health), 0)
+        self.assertLess(max(gaps), walk_seconds / 2, f"the loop stalled {max(gaps):.3f}s (one walk takes {walk_seconds:.3f}s)")
+        self.assertLess(max(health), walk_seconds / 2 + 0.05)
+        for j, raw in bodies:
+            body = json.loads(raw)
+            if j in (1, 2):
+                self.assertEqual(len(body["nodes"]), 2000)
+            elif j == 3:
+                self.assertEqual(len(body["result"]["structuredContent"]["nodes"]), 2000)
+            elif j == 4:
+                self.assertEqual((body["answer"]["memory_id"], len(body["lineage"]["nodes"])), (top.memory_id, 2000))
+                self.assertEqual(body["answer"]["lineage"]["roots"], len(body["lineage"]["roots"]))
+            else:
+                answer = body["result"]["structuredContent"]["answer"]
+                self.assertEqual((answer["memory_id"], answer["lineage"]["available"]), (top.memory_id, True))
+        # each walk is priced: in one MCP batch of 100, whose own 100 tokens empty the bucket, every walk of 2,000 nodes
+        # costs at least 8 more, so a0 walks only as often as its bucket refills for
+        batch = [{**tool("mycelic_lineage", memory_id=top.memory_id), "id": i} for i in range(100)]
+        t0 = time.perf_counter()
+        r = await client.post("/mcp", json=batch, headers={**headers("a0"), "Accept": "application/json"})
+        elapsed = time.perf_counter() - t0
+        results = [m["result"] for m in await r.json()]
+        walked = sum(not x["isError"] for x in results)
+        self.assertEqual([x["content"][0]["text"] for x in results if x["isError"]], ["rate limit exceeded"] * (100 - walked))
+        self.assertLessEqual(walked, 50.0 * elapsed / 8 + 1, f"{walked} of 100 walked in {elapsed:.2f}s")
 
     async def test_mcp_verification_is_bounded_and_query_can_verify(self) -> None:
         w, top = await wide_world(self, 50)
@@ -719,14 +836,16 @@ class MemoryRoutesTests(ApiTestCase):
         self.assertEqual(admin_report["report_digest"], (await s.verify(self.h.admin, cid))["report_digest"])
         self.assertEqual([a["principal"] for a in verify_audits(s)[:4]], ["admin", "admin", "sales-2", "sales-2"])
 
-        # stale: two days on, every note sales-2 may read is older than a second; the hidden ones are not judged
+        # stale: two days on, every note is older than a second; the ones sales-2 may not read are judged too, and show
+        # only hidden_stale
         with mock.patch("mycelic.service.utcnow", return_value=utcnow() + timedelta(days=2)):
             r = await get(self.sales2, cid, max_leaf_age="1")
         self.assertEqual(r.status, 200)
         stale = await r.json()
         self.assertEqual((stale["verdict"], stale["derived_correctly"], stale["still_true"]), ("stale", True, False))
         self.assertIn("leaf_stale", codes(stale))
-        self.assertTrue(stale["freshness_partial"])
+        self.assertIn("hidden_stale", codes(stale))
+        self.assertFalse(stale["freshness_partial"])
         # unverifiable: the walk stops at MYCELIC_VERIFY_MAX_NODES
         budget = s.settings.verify_max_nodes
         s.settings.verify_max_nodes = 1
@@ -922,7 +1041,7 @@ class MCPTests(ApiTestCase):
         self.assertIn(POLICY["P2"], architecture)
         deployment = normalised("DEPLOYMENT.md")
         self.assertIn("**Responses changed in this release**", deployment)
-        self.assertIn("`DERIVATION_VERSION` is 3", deployment)
+        self.assertIn("`DERIVATION_VERSION` is 4", deployment)
         self.assertIn(POLICY["P3"], deployment)
 
     async def test_mcp_verify_tool_identity_and_redaction(self) -> None:

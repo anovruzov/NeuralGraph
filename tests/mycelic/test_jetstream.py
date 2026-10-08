@@ -182,6 +182,49 @@ class JetStreamTests(unittest.IsolatedAsyncioTestCase):
         team = s.store.list_memories("northwind", layers=["team"])[0]
         self.assertEqual(team.support, 3)
 
+    async def test_a_restart_while_the_broker_is_away_serves_from_the_database(self) -> None:
+        """A database that has applied the log before serves from what it holds while the broker is away, also when the
+        service (re)starts during the outage: its first connect is bounded, it is ready, it takes writes into the outbox,
+        and it catches up once the broker is back.  A fresh database still waits for the broker: only the stream says
+        whether the log must be replayed into it."""
+        s1 = await self.new_service()
+        keys = await self.seed(s1)
+        before = self.snapshot(s1)
+        await s1.close()
+        self.services.remove(s1)
+        self.nats.stop(kill=True)
+        s2 = MycelicService(self.make_settings(), metrics=Metrics())
+        s2.startup_connect_seconds = 1.0
+        self.services.append(s2)
+        t0 = time.monotonic()
+        await asyncio.wait_for(s2.start(), 15)
+        self.assertLess(time.monotonic() - t0, 10)
+        ok, detail = await s2.ready()
+        self.assertEqual((ok, detail["transport_connected"], detail["replaying_to_seq"]), (True, False, None))
+        self.assertEqual(self.snapshot(s2), before, "it serves what the database holds")
+        p = s2.authenticate(f"Bearer {keys['log-1']}")
+        m, _ = await s2.ingest_memory(p, {"text": "Customs backlog of two weeks reported at Rotterdam.",
+                                          "topic": "supply:sd-9/transport", "slot": "transport_disruption", "entity": "sd-9",
+                                          "confidence": 0.6})
+        await asyncio.sleep(0.5)
+        self.assertGreaterEqual(s2.store.stats()["outbox_pending"], 1, "accepted while the broker is down")
+        # a fresh database has nothing to serve from, and cannot know whether the stream holds a log to replay
+        fresh = MycelicService(self.make_settings(db_path=str(self.root / "fresh.db")), metrics=Metrics())
+        fresh.startup_connect_seconds = 1.0
+        with self.assertRaises(asyncio.TimeoutError):
+            await asyncio.wait_for(fresh.start(), 3)
+        self.assertFalse((await fresh.ready())[0])
+        await fresh.close()
+        self.nats.start()
+        self.assertTrue(await s2.wait_idle(30), "outbox flushed and applied after the broker returned")
+        self.assertEqual(s2.store.stats()["outbox_pending"], 0)
+        self.assertIsNotNone(s2.store.get_memory(m.memory_id).applied_at)
+        self.assertTrue((await s2.ready())[0])
+        [team] = s2.store.list_memories("northwind", layers=["team"], topic="supply:sd-9/transport")
+        self.assertIn(m.memory_id, team.metadata["roots"], "the note written during the outage is aggregated")
+        info = await s2.transport.info()
+        self.assertEqual((info["connected"], info["consumer_pending"]), (True, 0))
+
     async def test_lost_database_is_rebuilt_from_the_stream(self) -> None:
         s1 = await self.new_service()
         keys = await self.seed(s1)

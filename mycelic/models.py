@@ -279,7 +279,8 @@ class Rule:
 #: version of the derivation semantics, part of every derived id: bump it when a released builder's output changes
 #: 2: consolidations quote by visibility (metadata.statements) and derived text is bounded
 #: 3: consolidations and corroborated conclusions read claimed values (metadata.value, metadata.conflict)
-DERIVATION_VERSION = 3
+#: 4: they compare every value beneath them, team-visibility notes' included (metadata.claims, as digests)
+DERIVATION_VERSION = 4
 #: rule fields that do not change what a rule derives: switching a rule off and on, deleting and re-creating it,
 #: narrowing it to one organization or editing its metadata keeps its digest, so its conclusions keep their ids
 _RULE_NON_DERIVING = ("enabled", "metadata", "org_id")

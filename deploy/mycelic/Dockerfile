@@ -1,18 +1,21 @@
 # Mycelic service image: API + outbox publisher + JetStream consumer/aggregator in one process.
 # Build from the repository root:  docker build -f deploy/mycelic/Dockerfile -t mycelic:local .
-FROM python:3.11-slim
+# The base image is pinned by digest (python:3.11-slim as of 2026-10-06) and the dependencies by version and hash
+# (requirements-lock.txt), so the image built for a release is the one its tests ran and a later rebuild of that tree
+# reproduces it. Move the digest on purpose: docker pull python:3.11-slim, take its RepoDigests, rerun the smoke tests.
+FROM python:3.11-slim@sha256:0dd364ba7e10242f07755449e3a3d0e35f9efd987952737b90def6709ab0c5ce
 
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 \
     MYCELIC_HOST=0.0.0.0 MYCELIC_PORT=8080 MYCELIC_DB_PATH=/data/mycelic.db
 
 WORKDIR /app
-COPY requirements-runtime.txt /app/requirements-runtime.txt
+COPY requirements-lock.txt /app/requirements-lock.txt
 # Behind a TLS-inspecting corporate proxy, pass its CA bundle as a build secret so pip can reach PyPI:
 #   docker build --secret id=ca_bundle,src=/path/to/corporate-ca.pem ...   (compose: CA_BUNDLE_FILE in .env)
 # Without the secret the mount is absent or empty and pip uses its normal trust store.
 RUN --mount=type=secret,id=ca_bundle,required=false \
     sh -c 'if [ -s /run/secrets/ca_bundle ]; then export PIP_CERT=/run/secrets/ca_bundle; fi; \
-           pip install --no-cache-dir -r /app/requirements-runtime.txt'
+           pip install --no-cache-dir --require-hashes -r /app/requirements-lock.txt'
 
 COPY NeuralGraph /app/NeuralGraph
 COPY mycelic /app/mycelic

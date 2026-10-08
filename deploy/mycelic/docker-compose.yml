@@ -1,5 +1,5 @@
 # Mycelic: one-command local deployment.
-#   cp deploy/mycelic/.env.example deploy/mycelic/.env   # fill in the secrets
+#   install -m 600 deploy/mycelic/.env.example deploy/mycelic/.env   # fill in the secrets (readable by you alone)
 #   docker compose -f deploy/mycelic/docker-compose.yml up -d --build
 #   docker compose -f deploy/mycelic/docker-compose.yml --profile observability up -d   # + Prometheus
 #

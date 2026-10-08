@@ -3,8 +3,10 @@
     python -m mycelic.sdk.agent --url http://127.0.0.1:8080 --api-key mk_... --local-db /tmp/agent-7.db \\
         --observations observations.jsonl --watch "delivery risk sd-9" --watch-scope northwind
 
-``observations.jsonl`` holds one JSON object per line: ``{"text": ..., "topic"?, "slot"?, "entity"?,
-"confidence"?, "share": true|false, "visibility"?, "local_id"?, "delay"?: seconds}``.  Notes with ``share: false``
+``observations.jsonl`` holds one JSON object per line: ``{"text": ..., "topic"?, "slot"?, "entity"?, "value"?,
+"confidence"?, "share": true|false, "visibility"?, "expires_at"?, "local_id"?, "delay"?: seconds}``.  ``value`` is what
+the note claims for its slot and entity (notes whose values differ dispute each other); ``expires_at`` (ISO-8601) is
+when it stops holding.  Notes with ``share: false``
 stay in the local store only, tagged ``private`` (the demo uses them to show what never left the agent).  An observation
 whose ``local_id`` already names a different local note is skipped and logged, never shared.  The process exits when
 the file is consumed unless ``--stay`` keeps it alive polling the watched query, printing every new conclusion it sees.
@@ -73,7 +75,7 @@ def main(argv: list[str] | None = None) -> int:
             try:
                 local_id = local.note(obs["text"], topic=obs.get("topic"), slot=obs.get("slot"), entity=obs.get("entity"),
                                       kind=obs.get("kind", "observation"), confidence=float(obs.get("confidence", 0.8)),
-                                      tags=[] if share else ["private"], local_id=obs.get("local_id"))
+                                      tags=[] if share else ["private"], local_id=obs.get("local_id"), value=obs.get("value"))
             except ValueError as exc:
                 _log(agent_id, f"observation skipped, nothing shared: {exc}")
                 continue
@@ -81,7 +83,7 @@ def main(argv: list[str] | None = None) -> int:
                 _log(agent_id, f"noted locally only: {obs['text'][:70]}")
                 continue
             try:
-                res = local.share(client, local_id, visibility=obs.get("visibility", "team"))
+                res = local.share(client, local_id, visibility=obs.get("visibility", "team"), expires_at=obs.get("expires_at"))
                 _log(agent_id, f"shared {local_id} -> {res['memory_id']} ({'new' if res.get('created', True) else 'already known'})")
             except MycelicError as exc:
                 _log(agent_id, f"share failed for {local_id}: {exc} (kept locally, will retry on next start)")

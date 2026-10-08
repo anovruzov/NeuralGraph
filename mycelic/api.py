@@ -316,7 +316,7 @@ def create_app(service: MycelicService) -> web.Application:
         return _json(res)
 
     async def get_lineage(request: web.Request) -> web.Response:
-        return _json(service.lineage(principal(request), request.match_info["id"]))
+        return _json(await service.walk_lineage(principal(request), request.match_info["id"]))
 
     async def get_verify(request: web.Request) -> web.Response:
         # digits only (no sign, point, exponent or blanks), at most 12 of them; the service checks the range
