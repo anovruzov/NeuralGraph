@@ -1,5 +1,4 @@
-#@ NeuralGraph
-
+# NeuralGraph
 ### Persistent graph memory for Claude and AI agents — local-first, benchmarked, yours.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-10b981.svg?style=flat-square)](LICENSE)
