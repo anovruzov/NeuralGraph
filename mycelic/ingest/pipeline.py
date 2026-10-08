@@ -451,6 +451,21 @@ class IngestPipeline:
         tomb = self.db.get_tombstone(ev.record_key)
         if tomb is not None and not tomb["resurrectable"] and not ev.hints.get("resurrect"):
             return "tombstoned"
+        if ev.kind == "deletion" and ev.hints.get("if_known"):
+            # a deletion the connector inferred (an object left the source, or vanished from a change feed) applies only to a
+            # live record of this holder: for an unknown object it would plant a sticky tombstone that blocks the object if
+            # it later enters an included source; and an object still inside another included source of the same
+            # connection (``hints.still_in``: provider container ids) has not left the memory at all
+            loc = self.db.get_locator(ev.record_key)
+            if loc is not None and loc["deletion_status"] != "live":
+                return "already_deleted"
+            if loc is None and not self.store._conn.execute("SELECT 1 FROM ingest_queue WHERE record_key=? AND status IN ('queued', 'leased') "
+                                                            "AND kind NOT IN ('deletion', 'redaction') LIMIT 1", (ev.record_key,)).fetchone():
+                return "unknown_record"           # (content of it still waiting in the queue makes it known)
+            still = {str(x) for x in ev.hints.get("still_in") or ()}
+            if still and any(s.external_id in still for s in self.db.list_sources(src.connector_id, selection="included")
+                             if s.source_id != src.source_id and s.access_state == "ok"):
+                return "still_in_source"
         for x in exclusions:
             scope, match = x["scope"], str(x["match"])
             if scope == "source_type" and src.source_type == match:

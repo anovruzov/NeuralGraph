@@ -67,9 +67,9 @@ def parse_iso(s: str) -> float:
 
 # ---------------------------------------------------------------------------------------------- fixtures
 def load_fixture(name: str, *, now: datetime | float | None = None) -> dict[str, Any]:
-    """A fixture from ``mocks/fixtures`` (``github_acme`` or ``slack_acme``). With ``now``, every timestamp is shifted so
-    the fixture's ``now`` becomes ``now`` (ISO times, Slack ``ts`` strings, ``created`` epochs and Slack permalinks), so a
-    demo against the real clock sees the same relative history the tests see."""
+    """A fixture from ``mocks/fixtures`` (``github_acme``, ``slack_acme``, ``gmail_acme``, ``drive_acme``). With ``now``, every
+    timestamp is shifted so the fixture's ``now`` becomes ``now`` (ISO times, Slack ``ts`` strings, ``created`` epochs and
+    Slack permalinks), so a demo against the real clock sees the same relative history the tests see."""
     data = json.loads((FIXTURES / f"{name}.json").read_text(encoding="utf-8"))
     if now is None:
         return data

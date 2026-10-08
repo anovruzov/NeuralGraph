@@ -192,10 +192,10 @@ def register_oauth_apps(settings: Any) -> None:
     register mock apps directly with :func:`mycelic.ingest.oauth.register_oauth_app`."""
     from ..ingest.contract import Secret
     from ..ingest.oauth import OAuthAppConfig, oauth_app, register_oauth_app
-    for ctype in ("github", "slack"):
-        cid = str(getattr(settings, f"{ctype}_client_id", "") or "")
+    for ctype, prefix in (("github", "github"), ("slack", "slack"), ("gmail", "google"), ("google_drive", "google")):
+        cid = str(getattr(settings, f"{prefix}_client_id", "") or "")
         if cid and oauth_app(ctype) is None:
-            secret = str(getattr(settings, f"{ctype}_client_secret", "") or "")
+            secret = str(getattr(settings, f"{prefix}_client_secret", "") or "")
             register_oauth_app(ctype, OAuthAppConfig(client_id=cid, client_secret=Secret(secret) if secret else None))
 
 
@@ -477,6 +477,11 @@ def setup(app: web.Application, prefix: str) -> None:
         except KeyError:
             raise ApiError(404, "unknown webhook endpoint", "not_found") from None
         headers = {k.lower(): v for k, v in request.headers.items()}
+        with_query = getattr(cls, "with_query_token", None)
+        if with_query is not None:
+            # a provider that can only put the shared secret in the push URL (Gmail's Pub/Sub push): the connector reads it
+            # from the query; access logging is off, so the URL is not written anywhere
+            headers = with_query(headers, request.query)
         try:
             secret = _open_server_secret(rt, endpoint_id, ep["secret_ct"])
             ok = bool(cls.verify_webhook(headers, body, secret.encode("utf-8"), now=time.time()))

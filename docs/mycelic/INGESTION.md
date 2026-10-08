@@ -73,8 +73,11 @@ reference while building.
 > * Built since: `ConnectorHttp` (`mycelic/ingest/http.py`), the GitHub and Slack connectors (tested offline against mocks,
 >   not live-verified), the webhook API and the per-holder runtime (`mycelic/ingest/runtime.py`), cross-app linking (§8,
 >   deterministic part, `mycelic/ingest/linking.py`), the Integrations UI, document uploads (DOCX, PDF, CSV, JSON, JSONL)
->   and honest scaffolds for the Phase 2 apps. Not built yet: E9's export importers, shard splits and fan-out (§7.3+),
->   the model-based relation extractor (`extract_org_relations`).
+>   and honest scaffolds for the Phase 2 apps. Then the Gmail and Google Drive connectors (tested offline; the API passes
+>   Gmail's push URL token to the connector, one Google OAuth client serves both) and shard splits with fan-out (status
+>   block below). Not built yet: E9's export importers, the model-based relation extractor (`extract_org_relations`),
+>   Pub/Sub OIDC push verification, and scheduled renewal of Gmail `users.watch` and Drive `changes.watch` (polling keeps
+>   both current without push).
 
 > **Implementation status (per-holder domain sharding, §7, 2026-10-08).**
 > * Built: `mycelic/ingest/shards.py` (`ShardSpec`, `ShardRouter`, `ShardSet`: files resolved only from the holder's own
@@ -3156,15 +3159,16 @@ Supporting tests:
 A row is implemented only where its "Implemented" column says yes. "Fixtures" means a faithful local fake or file
 fixture exists and the connector passes against it. "Live-verified" means it has been run against the real provider.
 Planned apps that the catalog lists as **scaffolds** (shown as "Planned", refused on connect, with the permissions they
-would request): Gmail, Google Drive, Google Calendar, Google Docs, Microsoft Teams, Outlook, SharePoint, OneDrive,
-Notion, Confluence, Jira, Linear, Salesforce, PostgreSQL, MySQL, S3 (`connectors/scaffolds.py`).
+would request): Google Calendar, Google Docs, Microsoft Teams, Outlook, SharePoint, OneDrive, Notion, Confluence, Jira,
+Linear, Salesforce, PostgreSQL, MySQL, S3 (`connectors/scaffolds.py`). Gmail and Google Drive left the scaffold list
+when their connectors were built (tested offline, not live-verified).
 
 | Connector | Mode | Auth | Phase | Implemented | Tested with fixtures | Live-verified | Notes |
 |---|---|---|---|---|---|---|---|
 | GitHub (issues, PRs, comments) | pull + webhook | fine-grained PAT, OAuth/GitHub App user token (code + PKCE); installation tokens scaffold | 1 | yes (`connectors/github.py`) | yes (`mocks/github_mock.py`, checked against the OpenAPI subset) | no | §11.2 |
 | Email export (mbox / .eml / zip) | export | none | 1 | no | no | n/a (fixtures are the format) | §11.3 |
 | Slack | pull + Events API (export ZIP not built) | OAuth v2 user token (code + PKCE, rotation) or pasted user token | 1 | yes (`connectors/slack.py`) | yes (`mocks/slack_mock.py`) | no | distributed-app limits enforced client-side (§11.1) |
-| Gmail (API) | pull (history id) + push (Pub/Sub) | OAuth | 2 | no | no | no | reuses the email normalizer |
+| Gmail (API) | pull (labels; history id, 404 → re-list) + push (Pub/Sub, shared-secret URL token; OIDC push auth not built) | OAuth (code + PKCE, `gmail.readonly`) | 1 | yes (`connectors/gmail.py`) | yes (`mocks/gmail_mock.py`) | no | personal only; spam, trash and drafts excluded, inbox and sent never auto-included; `users.watch` renewal not scheduled |
 | Outlook / Exchange (Microsoft Graph) | pull (delta) + webhooks | OAuth | 2 | no | no | no | reuses the email normalizer |
 | Microsoft Teams (Graph) | pull + change notifications | OAuth | 2 | no | no | no | |
 | Google Chat | pull + events | OAuth | 3 | no | no | no | |
@@ -3173,7 +3177,7 @@ Notion, Confluence, Jira, Linear, Salesforce, PostgreSQL, MySQL, S3 (`connectors
 | GitLab | pull + webhooks | PAT/OAuth | 2 | no | no | no | mirrors GitHub |
 | Linear | pull (GraphQL) + webhooks | API key/OAuth | 2 | no | no | no | |
 | Jira | pull (JQL updated) + webhooks | OAuth/API token | 2 | no | no | no | issue key prefixes feed §8.2 |
-| Google Drive / Docs | pull (changes) + push | OAuth | 2 | no | no | no | `document` kind, revisions |
+| Google Drive / Docs | pull (shared drives + named folders: crawl, then changes) + push (`changes.watch`) | OAuth (code + PKCE, `drive.readonly`) | 1 | yes (`connectors/google_drive.py`) | yes (`mocks/drive_mock.py`) | no | `document` kind; file permissions → record ACLs (groups as membership refs); revisions not kept; channel renewal not scheduled |
 | Notion | pull | OAuth | 3 | no | no | no | |
 | Confluence | pull + webhooks | OAuth/API token | 3 | no | no | no | |
 | SharePoint (Graph) | pull (delta) | OAuth | 3 | no | no | no | |

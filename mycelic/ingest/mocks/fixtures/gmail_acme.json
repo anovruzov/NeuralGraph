@@ -1,0 +1,328 @@
+{
+ "_note": "Fictional data for offline tests and demos: the mailbox of Ana at Acme. Tokens, the client secret and the push token are dummy values that only the local mock accepts.",
+ "now": "2026-10-01T12:00:00Z",
+ "mailbox": "ana@acme.example",
+ "history_start": 700000,
+ "app": {
+  "client_id": "000000000000-mycelicmock.apps.googleusercontent.com",
+  "client_secret": "GOCSPX-mock-client-secret-not-real",
+  "push_token": "mock-push-token-not-real",
+  "authorizing_user": "ana@acme.example",
+  "pubsub_subscription": "projects/acme-mycelic/subscriptions/gmail-push"
+ },
+ "tokens": [
+  {
+   "token": "ya29.mock-ana-gmail-readonly",
+   "user": "ana@acme.example",
+   "scopes": [
+    "https://www.googleapis.com/auth/gmail.readonly"
+   ]
+  },
+  {
+   "token": "ya29.mock-ana-gmail-metadata",
+   "user": "ana@acme.example",
+   "scopes": [
+    "https://www.googleapis.com/auth/gmail.metadata"
+   ]
+  },
+  {
+   "token": "ya29.mock-ana-gmail-modify",
+   "user": "ana@acme.example",
+   "scopes": [
+    "https://www.googleapis.com/auth/gmail.modify"
+   ]
+  },
+  {
+   "token": "ya29.mock-ana-drive-only",
+   "user": "ana@acme.example",
+   "scopes": [
+    "https://www.googleapis.com/auth/drive.readonly"
+   ]
+  }
+ ],
+ "labels": [
+  {
+   "id": "INBOX",
+   "type": "system"
+  },
+  {
+   "id": "SENT",
+   "type": "system"
+  },
+  {
+   "id": "DRAFT",
+   "type": "system"
+  },
+  {
+   "id": "SPAM",
+   "type": "system"
+  },
+  {
+   "id": "TRASH",
+   "type": "system"
+  },
+  {
+   "id": "UNREAD",
+   "type": "system"
+  },
+  {
+   "id": "STARRED",
+   "type": "system"
+  },
+  {
+   "id": "IMPORTANT",
+   "type": "system"
+  },
+  {
+   "id": "CHAT",
+   "type": "system"
+  },
+  {
+   "id": "CATEGORY_PERSONAL",
+   "type": "system"
+  },
+  {
+   "id": "CATEGORY_UPDATES",
+   "type": "system"
+  },
+  {
+   "id": "CATEGORY_PROMOTIONS",
+   "type": "system"
+  },
+  {
+   "id": "Label_101",
+   "name": "Customers",
+   "type": "user"
+  },
+  {
+   "id": "Label_102",
+   "name": "GitHub",
+   "type": "user"
+  },
+  {
+   "id": "Label_103",
+   "name": "Newsletters",
+   "type": "user"
+  }
+ ],
+ "messages": [
+  {
+   "id": "18f2a0c0de000001",
+   "threadId": "18f2a0c0de000001",
+   "labelIds": [
+    "INBOX",
+    "IMPORTANT",
+    "CATEGORY_PERSONAL",
+    "Label_101"
+   ],
+   "internalDate": "2026-09-30T09:15:00Z",
+   "from": "Globex Operations <ops@globex.example>",
+   "to": [
+    "Ana Lima <ana@acme.example>"
+   ],
+   "cc": [
+    "Ben Okafor <ben@acme.example>"
+   ],
+   "subject": "Customer renewal at risk after repeated outages of your checkout during September",
+   "messageId": "<CAGlobexOps.0930.renewal@mail.globex.example>",
+   "text": "Hello Ana,\n\nOur renewal of the Acme checkout contract is at risk after repeated outages of your checkout during September. Card payments from our web shop timed out on 29 September and again on 30 September, and our customers abandoned their orders.\n\nBefore we can renew we need a written incident review and a remediation plan. Please send them to ops@globex.example by Friday.\n\nRegards,\nGlobex Operations\n\n-- \nGlobex Corporation - Operations\n1 Example Way, Springfield",
+   "attachments": [
+    {
+     "filename": "globex-failed-orders-september.csv",
+     "mimeType": "text/csv",
+     "size": 18432
+    }
+   ]
+  },
+  {
+   "id": "18f2a0c0de000002",
+   "threadId": "18f2a0c0de000001",
+   "labelIds": [
+    "SENT",
+    "Label_101"
+   ],
+   "internalDate": "2026-09-30T15:40:00Z",
+   "from": "Ana Lima <ana@acme.example>",
+   "to": [
+    "Globex Operations <ops@globex.example>"
+   ],
+   "cc": [
+    "Ben Okafor <ben@acme.example>"
+   ],
+   "subject": "Re: Customer renewal at risk after repeated outages of your checkout during September",
+   "messageId": "<CAAnaLima.0930.reply@mail.gmail.com>",
+   "inReplyTo": "<CAGlobexOps.0930.renewal@mail.globex.example>",
+   "references": [
+    "<CAGlobexOps.0930.renewal@mail.globex.example>"
+   ],
+   "text": "Hello,\n\nWe are sorry for the disruption. We traced the checkout timeouts to the dependency upgrade to httpclient 4.2, which changed the default connection pool size; we rolled back to httpclient 4.1 on 29 September and checkout has been stable since. You will have the incident review and the remediation plan by Friday.\n\nAna Lima\nAcme\n\nOn Wed, Sep 30, 2026 at 9:15 AM Globex Operations <ops@globex.example> wrote:\n\n> Hello Ana,\n>\n> Our renewal of the Acme checkout contract is at risk after repeated outages of your checkout during September. Card payments from our web shop timed out on 29 September and again on 30 September, and our customers abandoned their orders.\n>\n> Before we can renew we need a written incident review and a remediation plan. Please send them to ops@globex.example by Friday.\n>\n> Regards,\n> Globex Operations\n>",
+   "html": "<div dir=\"ltr\"><p>Hello,</p><p>We are sorry for the disruption. We traced the checkout timeouts to the dependency upgrade to httpclient 4.2, which changed the default connection pool size; we rolled back to httpclient 4.1 on 29 September and checkout has been stable since. You will have the incident review and the remediation plan by Friday.</p><p>Ana Lima<br>Acme</p></div><br><div class=\"gmail_quote\"><div dir=\"ltr\" class=\"gmail_attr\">On Wed, Sep 30, 2026 at 9:15 AM Globex Operations &lt;<a href=\"mailto:ops@globex.example\">ops@globex.example</a>&gt; wrote:<br></div><blockquote class=\"gmail_quote\" style=\"margin:0px 0px 0px 0.8ex;border-left:1px solid rgb(204,204,204);padding-left:1ex\">Hello Ana,<br><br>Our renewal of the Acme checkout contract is at risk after repeated outages of your checkout during September. Card payments from our web shop timed out on 29 September and again on 30 September, and our customers abandoned their orders.<br><br>Before we can renew we need a written incident review and a remediation plan. Please send them to ops@globex.example by Friday.<br><br>Regards,<br>Globex Operations<br></blockquote></div>"
+  },
+  {
+   "id": "18f2a0c0de000007",
+   "threadId": "18f2a0c0de000001",
+   "labelIds": [
+    "INBOX",
+    "Label_101"
+   ],
+   "internalDate": "2026-09-30T16:05:00Z",
+   "from": "Ben Okafor <ben@acme.example>",
+   "to": [
+    "Ana Lima <ana@acme.example>"
+   ],
+   "subject": "Re: Customer renewal at risk after repeated outages of your checkout during September",
+   "messageId": "<CABenOkafor.0930.reply@mail.gmail.com>",
+   "inReplyTo": "<CAAnaLima.0930.reply@mail.gmail.com>",
+   "html": "<div dir=\"ltr\">Thanks Ana, I am drafting the incident review for Globex now and will put it in the Incidents folder of the Engineering drive.</div><br><div class=\"gmail_quote\"><div dir=\"ltr\" class=\"gmail_attr\">On Wed, Sep 30, 2026 at 3:40 PM Ana Lima &lt;<a href=\"mailto:ana@acme.example\">ana@acme.example</a>&gt; wrote:<br></div><blockquote class=\"gmail_quote\" style=\"margin:0px 0px 0px 0.8ex;border-left:1px solid rgb(204,204,204);padding-left:1ex\"><div dir=\"ltr\">Hello,<br><br>We are sorry for the disruption. We traced the checkout timeouts to the dependency upgrade to httpclient 4.2, which changed the default connection pool size; we rolled back to httpclient 4.1 on 29 September and checkout has been stable since. You will have the incident review and the remediation plan by Friday.<br><br>Ana Lima<br>Acme</div></blockquote></div>"
+  },
+  {
+   "id": "18f29c0de0000003",
+   "threadId": "18f29c0de0000003",
+   "labelIds": [
+    "INBOX",
+    "CATEGORY_UPDATES",
+    "Label_102"
+   ],
+   "internalDate": "2026-09-29T10:30:20Z",
+   "from": "Ben Okafor <notifications@github.com>",
+   "to": [
+    "acme/checkout <checkout@noreply.github.com>"
+   ],
+   "cc": [
+    "Assign <assign@noreply.github.com>"
+   ],
+   "subject": "[acme/checkout] httpclient 4.2 introduced a timeout regression in checkout (Issue #482)",
+   "messageId": "<acme/checkout/issues/482@github.com>",
+   "headers": {
+    "List-ID": "acme/checkout <checkout.acme.github.com>",
+    "X-GitHub-Reason": "assign",
+    "Precedence": "list",
+    "X-GitHub-Sender": "ben"
+   },
+   "text": "Since the dependency upgrade to httpclient 4.2, checkout calls to the payment gateway time out after 30 s.\nThe deployment of checkout on 2026-09-29 failed because of it and was rolled back.\n\nSteps: deploy checkout with httpclient 4.2 and send a payment request.\n\n—\nReply to this email directly, view it on GitHub:\nhttps://github.com/acme/checkout/issues/482\nYou are receiving this because you were assigned."
+  },
+  {
+   "id": "18f2a0c0de000004",
+   "threadId": "18f2a0c0de000004",
+   "labelIds": [
+    "SENT",
+    "Label_102"
+   ],
+   "internalDate": "2026-09-30T16:20:00Z",
+   "from": "Ana Lima <ana@acme.example>",
+   "to": [
+    "Dee Novak <dee@acme.example>"
+   ],
+   "subject": "Fwd: [acme/checkout] httpclient 4.2 introduced a timeout regression in checkout (Issue #482)",
+   "messageId": "<CAAnaLima.0930.fwd@mail.gmail.com>",
+   "text": "FYI for the Globex call.\n\n---------- Forwarded message ---------\nFrom: Ben Okafor <notifications@github.com>\nDate: Tue, Sep 29, 2026 at 10:30 AM\nSubject: [acme/checkout] httpclient 4.2 introduced a timeout regression in checkout (Issue #482)\nTo: acme/checkout <checkout@noreply.github.com>\nCc: Assign <assign@noreply.github.com>\n\nSince the dependency upgrade to httpclient 4.2, checkout calls to the payment gateway time out after 30 s.\nThe deployment of checkout on 2026-09-29 failed because of it and was rolled back.\n\nSteps: deploy checkout with httpclient 4.2 and send a payment request.\n\n—\nReply to this email directly, view it on GitHub:\nhttps://github.com/acme/checkout/issues/482\nYou are receiving this because you were assigned."
+  },
+  {
+   "id": "18f2a0c0de000005",
+   "threadId": "18f2a0c0de000005",
+   "labelIds": [
+    "UNREAD",
+    "CATEGORY_PROMOTIONS",
+    "Label_103"
+   ],
+   "internalDate": "2026-09-28T07:00:00Z",
+   "from": "Standup Weekly <news@standup-weekly.example>",
+   "to": [
+    "ana@acme.example"
+   ],
+   "subject": "Ten tips for shorter standups",
+   "headers": {
+    "List-ID": "<weekly.standup-weekly.example>",
+    "List-Unsubscribe": "<https://standup-weekly.example/u>"
+   },
+   "html": "<html><head><style>p{color:red}</style><title>Standup Weekly</title></head><body><h1>Ten tips for shorter standups</h1><p>Tip 1: keep it to fifteen minutes.</p><p>Tip 2: park long discussions.</p><script>track('open')</script></body></html>"
+  },
+  {
+   "id": "18f2a0c0de000006",
+   "threadId": "18f2a0c0de000006",
+   "labelIds": [
+    "INBOX",
+    "Label_101"
+   ],
+   "internalDate": "2026-09-30T17:00:00Z",
+   "from": "Cy Martin <cy@acme.example>",
+   "to": [
+    "Ana Lima <ana@acme.example>"
+   ],
+   "subject": "Globex call notes (draft, please ignore)",
+   "text": "Ignore this one, I sent it by mistake before the call notes were ready."
+  },
+  {
+   "id": "18f2a0c0de000008",
+   "threadId": "18f2a0c0de000008",
+   "labelIds": [
+    "SPAM"
+   ],
+   "internalDate": "2026-09-29T03:00:00Z",
+   "from": "Prize Desk <win@prize.example>",
+   "to": [
+    "ana@acme.example"
+   ],
+   "subject": "You won a prize",
+   "text": "Click here to claim your prize."
+  },
+  {
+   "id": "18f2a0c0de000009",
+   "threadId": "18f2a0c0de000009",
+   "labelIds": [
+    "DRAFT"
+   ],
+   "internalDate": "2026-09-30T18:00:00Z",
+   "from": "Ana Lima <ana@acme.example>",
+   "to": [
+    "Globex Operations <ops@globex.example>"
+   ],
+   "subject": "Incident review outline",
+   "text": "Outline: timeline, root cause, remediation, follow-ups."
+  },
+  {
+   "id": "18f2a0c0de00000a",
+   "threadId": "18f2a0c0de00000a",
+   "labelIds": [
+    "INBOX",
+    "Label_101"
+   ],
+   "internalDate": "2026-07-14T09:00:00Z",
+   "from": "Globex Operations <ops@globex.example>",
+   "to": [
+    "Ana Lima <ana@acme.example>"
+   ],
+   "subject": "Quarterly business review agenda",
+   "text": "Agenda for the Q3 business review: order volumes, uptime of the checkout, and the renewal timeline for November."
+  },
+  {
+   "id": "18f2a0c0de00000b",
+   "threadId": "18f2a0c0de00000b",
+   "labelIds": [
+    "Label_101"
+   ],
+   "internalDate": "2025-06-02T09:00:00Z",
+   "from": "Globex Operations <ops@globex.example>",
+   "to": [
+    "Ana Lima <ana@acme.example>"
+   ],
+   "subject": "Welcome aboard",
+   "text": "Thanks for signing the checkout contract with us last week."
+  },
+  {
+   "id": "18f2a0c0de00000c",
+   "threadId": "18f2a0c0de00000c",
+   "labelIds": [
+    "TRASH",
+    "Label_101"
+   ],
+   "internalDate": "2026-09-20T12:00:00Z",
+   "from": "Cy Martin <cy@acme.example>",
+   "to": [
+    "Ana Lima <ana@acme.example>"
+   ],
+   "subject": "Lunch order",
+   "text": "Pizza or salad for Friday?"
+  }
+ ]
+}

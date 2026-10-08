@@ -87,6 +87,9 @@ class Settings:
     github_client_secret: str = os.environ.get("MYCELIC_GITHUB_CLIENT_SECRET", "")
     slack_client_id: str = os.environ.get("MYCELIC_SLACK_CLIENT_ID", "")
     slack_client_secret: str = os.environ.get("MYCELIC_SLACK_CLIENT_SECRET", "")
+    # one Google OAuth client serves Gmail and Google Drive (each connection asks only for its own read-only scope)
+    google_client_id: str = os.environ.get("MYCELIC_GOOGLE_CLIENT_ID", "")
+    google_client_secret: str = os.environ.get("MYCELIC_GOOGLE_CLIENT_SECRET", "")
     # observability
     log_json: bool = _bool("MYCELIC_LOG_JSON", True)
     log_level: str = os.environ.get("MYCELIC_LOG_LEVEL", "INFO")

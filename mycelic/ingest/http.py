@@ -12,7 +12,10 @@ What it guarantees, whatever the connector does:
   exceptions or the ETag cache (requests are keyed by a hash of the token).
 * **Rate limits.** Provider headers first: GitHub's ``x-ratelimit-*`` (requests are spread when fewer than 5% remain, and
   wait until ``reset`` at zero), ``Retry-After`` on 429 and secondary-limit 403s, exponential waits for a secondary limit
-  without a hint. A wait up to ``max_inline_wait`` seconds is slept inline; a longer one raises :class:`RateLimited` so the
+  without a hint. Google APIs signal limits in the error body (``error.errors[].reason`` ``rateLimitExceeded`` /
+  ``userRateLimitExceeded``, status ``RESOURCE_EXHAUSTED``) on a 403 or 429, usually without ``Retry-After``: those get
+  Google's truncated exponential backoff (1, 2, 4 ... s plus jitter); a daily quota (``dailyLimitExceeded``) parks for an
+  hour. A wait up to ``max_inline_wait`` seconds is slept inline; a longer one raises :class:`RateLimited` so the
   scheduler can park the stream and serve other connectors. ``serial_per_token`` (GitHub best practice) holds one
   ``asyncio.Lock`` per credential around each request chain, so a token never has two requests in flight in this process.
 * **Retries.** Connection errors, timeouts and 5xx are retried ``max_retries`` times with exponential backoff and jitter,
@@ -54,6 +57,10 @@ MAX_INLINE_WAIT = 30.0           # §3.3: longer waits raise RateLimited so the 
 MAX_RETRIES = 3
 SPREAD_BELOW = 0.05              # §11.2: below 5% of the primary limit, spread the remaining requests until reset
 SECONDARY_BASE_WAIT = 60.0       # GitHub: without a hint, wait at least a minute, growing exponentially
+GOOGLE_BACKOFF_MAX = 64.0        # Google: truncated exponential backoff, 1, 2, 4 ... 64 s (+ up to 1 s jitter)
+GOOGLE_DAILY_WAIT = 3600.0       # Google: a daily quota does not come back within minutes
+GOOGLE_RATE_REASONS = frozenset({"rateLimitExceeded", "userRateLimitExceeded", "RESOURCE_EXHAUSTED"})
+GOOGLE_DAILY_REASONS = frozenset({"dailyLimitExceeded", "quotaExceeded"})
 LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1"})
 _LINK_PART = re.compile(r'\s*<([^>]*)>\s*((?:;\s*[^;,]+)*)')
 _REL = re.compile(r'rel\s*=\s*"?([^";,]+)"?', re.IGNORECASE)
@@ -285,8 +292,9 @@ class ConnectorHttpClient:
                 return HttpResult(status=status, headers=rh, body=body, json=parsed, not_modified=False, links=parse_link_header(rh.get("link")))
             # ---- errors
             message = _error_message(body, rh)
-            if status == 429 or (status == 403 and self._rate_signal(rh, message)):
-                wait, scope, reset_at = self._rate_wait(rh, message, attempt)
+            reasons = _google_reasons(body, rh) if status in (403, 429) else frozenset()
+            if status == 429 or (status == 403 and (self._rate_signal(rh, message) or reasons & (GOOGLE_RATE_REASONS | GOOGLE_DAILY_REASONS))):
+                wait, scope, reset_at = self._rate_wait(rh, message, attempt, reasons)
                 if wait <= self.max_inline_wait and attempt < self.max_retries:
                     logger.info("http %s %s%s rate limited (%s); waiting %.1fs", method, host, tmpl, scope, wait)
                     await self._sleep(wait)
@@ -360,7 +368,8 @@ class ConnectorHttpClient:
     def _rate_signal(rh: Mapping[str, str], message: str) -> bool:
         return rh.get("x-ratelimit-remaining") == "0" or "retry-after" in rh or bool(_RATE_MESSAGE.search(message))
 
-    def _rate_wait(self, rh: Mapping[str, str], message: str, attempt: int) -> tuple[float, str, float | None]:
+    def _rate_wait(self, rh: Mapping[str, str], message: str, attempt: int,
+                   reasons: frozenset[str] = frozenset()) -> tuple[float, str, float | None]:
         now = self._clock()
         reset = rh.get("x-ratelimit-reset")
         reset_at = float(reset) if reset and reset.isdigit() else None
@@ -374,6 +383,10 @@ class ConnectorHttpClient:
             return wait, scope, reset_at
         if rh.get("x-ratelimit-remaining") == "0" and reset_at is not None:
             return max(0.0, reset_at - now) + 1.0, "token", reset_at
+        if reasons & GOOGLE_DAILY_REASONS:
+            return GOOGLE_DAILY_WAIT, "app", reset_at
+        if reasons & GOOGLE_RATE_REASONS:
+            return min(GOOGLE_BACKOFF_MAX, float(2 ** attempt)) + random.random(), "token", reset_at
         return SECONDARY_BASE_WAIT * (2 ** attempt), "secondary", reset_at
 
     def _backoff(self, attempt: int) -> float:
@@ -396,8 +409,26 @@ def _error_message(body: bytes, rh: Mapping[str, str]) -> str:
     except PermanentError:
         return ""
     if isinstance(data, dict):
-        return str(data.get("message") or data.get("error") or "")[:200]
+        err = data.get("error")
+        if isinstance(err, dict):                      # Google: {"error": {"code", "message", "errors": [...], "status"}}
+            return str(err.get("message") or "")[:200]
+        return str(data.get("message") or err or "")[:200]
     return ""
+
+
+def _google_reasons(body: bytes, rh: Mapping[str, str]) -> frozenset[str]:
+    """The fixed reason codes of a Google API error body (``error.errors[].reason`` and ``error.status``); never content."""
+    try:
+        data = _parse_json(body[:8192], rh) if body else None
+    except PermanentError:
+        return frozenset()
+    err = data.get("error") if isinstance(data, dict) else None
+    if not isinstance(err, dict):
+        return frozenset()
+    out = {str(e.get("reason"))[:60] for e in err.get("errors") or [] if isinstance(e, dict) and e.get("reason")}
+    if err.get("status"):
+        out.add(str(err["status"])[:60])
+    return frozenset(out)
 
 
 def default_http_factory(con: Mapping[str, Any], manifest: ConnectorManifest, secrets: SecretAccessor) -> ConnectorHttp:

@@ -339,3 +339,80 @@ async def test_github_oauth_connect_and_signed_webhook_through_the_api(api):
     finally:
         register_oauth_app("github", None)
         await gh.close()
+
+
+async def test_gmail_oauth_connect_and_push_with_the_url_token_through_the_api(api):
+    """Gmail through the API against the offline Google mock: OAuth with PKCE, a backfill, then a Pub/Sub push whose only
+    credential is the endpoint secret in the push URL (``?token=``). A wrong token is refused; the right one routes an
+    ids-only notice and the holder fetches the new message itself."""
+    from datetime import datetime, timezone
+    from urllib.parse import parse_qs, urlparse
+
+    import aiohttp
+
+    from mycelic.ingest.contract import Secret
+    from mycelic.ingest.mocks import load_fixture, loopback_http_factory, start_gmail_mock
+    from mycelic.ingest.oauth import OAuthAppConfig, register_oauth_app
+
+    fx = load_fixture("gmail_acme", now=datetime.now(timezone.utc))
+    gm_url, gm = await start_gmail_mock(fx)
+    register_oauth_app("gmail", OAuthAppConfig(client_id=fx["app"]["client_id"], client_secret=Secret(fx["app"]["client_secret"]),
+                                               oauth_base=gm_url, api_base=gm_url, allow_loopback_http=True))
+    api.rt.holders.http_factory = loopback_http_factory()
+    try:
+        s = await _setup(api)
+        hid = s["holder"]["holder_id"]
+        status, out, _ = await api.call("POST", f"/api/holders/{hid}/connectors", token=s["ana"],
+                                        body={"connector_type": "gmail", "auth": {"kind": "oauth2"},
+                                              "config": {"api_base": gm_url, "auto_include": ["Customers"]}})
+        assert status == 200 and out["next"]["action"] == "redirect", out
+        async with aiohttp.ClientSession() as sess:
+            async with sess.get(out["next"]["url"], allow_redirects=False) as r:
+                back = urlparse(r.headers["Location"])
+        q = {k: v[0] for k, v in parse_qs(back.query).items()}
+        await api.call("GET", f"/api/integrations/oauth/gmail/callback?code={q['code']}&state={q['state']}", token=s["ana"])
+        status, lst, _ = await api.call("GET", f"/api/holders/{hid}/connectors", token=s["ana"])
+        con = next(c for c in lst["items"] if c["connector_type"] == "gmail")
+        assert con["status"] == "active" and con["auth_kind"] == "oauth2", con
+        cid = con["connector_id"]
+        status, out, _ = await api.call("POST", f"/api/holders/{hid}/connectors/{cid}/sync", token=s["ana"], body={"mode": "backfill"})
+        assert status == 202 and out["processed"] > 0, out
+        status, hook, _ = await api.call("POST", f"/api/holders/{hid}/connectors/{cid}/webhook", token=s["ana"])
+        assert status == 201 and hook["secret"]
+        url = f"{str(api.client.make_url(urlparse(hook['url']).path))}"
+        label = next(lab["id"] for lab in fx["labels"] if lab.get("name") == "Customers")
+        d = gm.deliver(sender="Globex Operations <ops@globex.example>", to=["Ana Lima <ana@acme.example>"], subject="Remediation plan",
+                       text="We accept the quokka remediation plan; the renewal can go ahead.", labels=("INBOX", label))
+        assert await gm.send_push(url, gm.push_delivery(token="not-the-secret")) == 401
+        assert await gm.send_push(url, gm.push_delivery(token=hook["secret"])) == 200
+        runtime = api.rt.holders.ingest(hid)
+        for _ in range(50):
+            hits = await runtime.pipeline.evidence.search("quokka remediation plan", k=3, audience={"owner": True, "complete": True, "principal_ids": []})
+            if hits:
+                break
+            await asyncio.sleep(0.1)
+        assert hits, "the pushed message was fetched through the history feed and indexed"
+        rows = api.rt.db.all("SELECT payload FROM transport_messages WHERE msg_id LIKE 'notice:%'")
+        assert rows and all("quokka" not in r["payload"] for r in rows)
+        assert d is not None
+    finally:
+        register_oauth_app("gmail", None)
+        await gm.close()
+
+
+def test_one_google_oauth_client_serves_gmail_and_drive():
+    from types import SimpleNamespace
+
+    from mycelic.api.routes_integrations import register_oauth_apps
+    from mycelic.ingest.oauth import oauth_app, register_oauth_app
+
+    settings = SimpleNamespace(github_client_id="", slack_client_id="", google_client_id="google-client-id", google_client_secret="google-secret")
+    try:
+        register_oauth_apps(settings)
+        for ctype in ("gmail", "google_drive"):
+            app = oauth_app(ctype)
+            assert app is not None and app.client_id == "google-client-id" and app.client_secret.reveal() == "google-secret"
+        assert oauth_app("github") is None and oauth_app("slack") is None          # not configured, not registered
+    finally:
+        register_oauth_app("gmail", None)
+        register_oauth_app("google_drive", None)
