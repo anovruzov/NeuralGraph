@@ -1,0 +1,83 @@
+{
+  "_note": "Fictional data for offline tests and demos. Organization acme, repository checkout. Tokens and secrets are dummy values that only the local mock accepts.",
+  "now": "2026-10-01T12:00:00Z",
+  "app": {
+    "client_id": "Iv1.mockclientid0001",
+    "client_secret": "mock-client-secret-not-real",
+    "webhook_secret": "mock-webhook-secret-not-real",
+    "authorizing_user": "ana",
+    "expiring_user_tokens": false
+  },
+  "users": [
+    {"login": "ana", "id": 1001, "type": "User", "name": "Ana Lima"},
+    {"login": "ben", "id": 1002, "type": "User", "name": "Ben Okafor"},
+    {"login": "cy", "id": 1003, "type": "User", "name": "Cy Martin"},
+    {"login": "dee", "id": 1004, "type": "User", "name": "Dee Novak"},
+    {"login": "deploy-bot", "id": 1099, "type": "Bot", "name": "Deploy bot"}
+  ],
+  "orgs": [
+    {"login": "acme", "id": 9001}
+  ],
+  "tokens": [
+    {"token": "gh-mock-ana-fine-grained", "user": "ana", "kind": "fine_grained", "repositories": ["acme/checkout", "acme/platform"],
+     "permissions": {"issues": "read", "metadata": "read"}},
+    {"token": "gh-mock-ana-fine-grained-no-issues", "user": "ana", "kind": "fine_grained", "repositories": ["acme/checkout"],
+     "permissions": {"metadata": "read"}},
+    {"token": "gh-mock-ana-classic-repo", "user": "ana", "kind": "classic", "scopes": ["read:org", "repo"]},
+    {"token": "gh-mock-ana-classic-noscope", "user": "ana", "kind": "classic", "scopes": []},
+    {"token": "gh-mock-ben-classic-repo", "user": "ben", "kind": "classic", "scopes": ["repo"]},
+    {"token": "gh-mock-acme-installation", "kind": "installation", "installation_id": 77001, "repositories": ["acme/checkout", "acme/website"]}
+  ],
+  "repos": [
+    {"id": 5001, "owner": "acme", "name": "checkout", "visibility": "private", "collaborators": ["ana", "ben", "cy"],
+     "description": "Checkout service", "language": "Kotlin", "created_at": "2024-03-01T09:00:00Z"},
+    {"id": 5002, "owner": "acme", "name": "platform", "visibility": "private", "collaborators": ["ana", "ben"],
+     "description": "Shared platform configuration", "language": "Go", "created_at": "2023-11-20T09:00:00Z"},
+    {"id": 5003, "owner": "acme", "name": "website", "visibility": "public", "collaborators": ["cy"],
+     "description": "Marketing site", "language": "TypeScript", "created_at": "2022-05-02T09:00:00Z"},
+    {"id": 5004, "owner": "ana", "name": "notes", "visibility": "private", "collaborators": [],
+     "description": null, "language": null, "created_at": "2025-01-10T09:00:00Z"}
+  ],
+  "issues": [
+    {"repo": "acme/checkout", "id": 70470, "number": 470, "title": "Update README badges", "user": "cy", "state": "closed",
+     "labels": ["docs"], "body": "The build badge still points at the old CI.", "created_at": "2026-06-10T09:00:00Z",
+     "updated_at": "2026-06-11T10:00:00Z", "closed_at": "2026-06-11T10:00:00Z"},
+    {"repo": "acme/checkout", "id": 70475, "number": 475, "title": "Move rate limiter config to the platform repo", "user": "ben",
+     "state": "open", "labels": ["chore"], "body": "The rate limiter settings belong with the other shared gateway settings.",
+     "created_at": "2026-09-15T12:00:00Z", "updated_at": "2026-09-20T09:00:00Z",
+     "transferred_to": {"repo": "acme/platform", "number": 12}},
+    {"repo": "acme/checkout", "id": 70482, "number": 482, "title": "httpclient 4.2 introduced a timeout regression in checkout",
+     "user": "ben", "state": "open", "labels": ["bug", "regression"], "assignees": ["ana"],
+     "body": "Since the dependency upgrade to httpclient 4.2, checkout calls to the payment gateway time out after 30 s.\nThe deployment of checkout on 2026-09-29 failed because of it and was rolled back.\n\nSteps: deploy checkout with httpclient 4.2 and send a payment request.\n\n<!-- triage: p1 -->",
+     "created_at": "2026-09-29T10:30:00Z", "updated_at": "2026-09-30T14:10:00Z"},
+    {"repo": "acme/checkout", "id": 70483, "number": 483, "title": "Pin httpclient to 4.1 until the timeout regression is fixed",
+     "user": "cy", "state": "open", "labels": ["dependencies"], "pull_request": true,
+     "body": "Fixes #482. Pins httpclient to 4.1 in build.gradle until upstream fixes the connection pool default.",
+     "created_at": "2026-09-30T08:00:00Z", "updated_at": "2026-09-30T08:20:00Z"},
+    {"repo": "acme/checkout", "id": 70484, "number": 484, "title": "Flaky checkout UI test on Safari", "user": "dee", "state": "open",
+     "labels": ["test"], "body": "The address form test fails about one run in ten on Safari.",
+     "created_at": "2026-09-28T16:00:00Z", "updated_at": "2026-09-28T16:05:00Z"},
+    {"repo": "acme/platform", "id": 71012, "number": 12, "title": "Move rate limiter config to the platform repo", "user": "ben",
+     "state": "open", "labels": ["chore"], "body": "The rate limiter settings belong with the other shared gateway settings.",
+     "created_at": "2026-09-15T12:00:00Z", "updated_at": "2026-09-20T09:00:00Z"},
+    {"repo": "acme/website", "id": 72007, "number": 7, "title": "Fix typo on the pricing page", "user": "cy", "state": "closed",
+     "labels": [], "body": "\"Anual\" should read \"Annual\".", "created_at": "2026-09-25T09:00:00Z", "updated_at": "2026-09-25T11:00:00Z",
+     "closed_at": "2026-09-25T11:00:00Z"},
+    {"repo": "ana/notes", "id": 73001, "number": 1, "title": "Reading list", "user": "ana", "state": "open", "labels": [],
+     "body": "Papers on connection pool sizing to read this month.", "created_at": "2026-09-20T07:00:00Z", "updated_at": "2026-09-20T07:00:00Z"}
+  ],
+  "comments": [
+    {"repo": "acme/checkout", "id": 880101, "issue": 482, "user": "ana",
+     "body": "Linking the Slack discussion in #deployments: https://acme.slack.com/archives/C0DEPLOY/p1790674800000100 - the deployment of checkout failed right after the dependency upgrade. Rolled back to httpclient 4.1.",
+     "created_at": "2026-09-29T10:45:00Z", "updated_at": "2026-09-29T10:45:00Z"},
+    {"repo": "acme/checkout", "id": 880102, "issue": 482, "user": "cy",
+     "body": "Confirmed: pinning httpclient to 4.1 makes the timeouts go away. #483 pins it until upstream fixes the connection pool.",
+     "created_at": "2026-09-30T08:05:00Z", "updated_at": "2026-09-30T14:10:00Z"},
+    {"repo": "acme/checkout", "id": 880103, "issue": 482, "user": "ben", "body": "Duplicate of an older report, ignore.",
+     "created_at": "2026-09-29T11:00:00Z", "updated_at": "2026-09-29T11:00:00Z", "deleted": true},
+    {"repo": "acme/checkout", "id": 880104, "issue": 484, "user": "dee", "body": "Retried twice, it passes locally.",
+     "created_at": "2026-09-28T16:20:00Z", "updated_at": "2026-09-28T16:20:00Z"},
+    {"repo": "acme/checkout", "id": 880105, "issue": 470, "user": "cy", "body": "Done, badges updated.",
+     "created_at": "2026-06-11T10:00:00Z", "updated_at": "2026-06-11T10:00:00Z"}
+  ]
+}

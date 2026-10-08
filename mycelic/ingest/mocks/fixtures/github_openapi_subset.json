@@ -1,0 +1,2566 @@
+{
+ "_source": {
+  "fetched": "2026-10-08",
+  "info_version": "1.1.4",
+  "note": "trimmed to required keys and property types; regenerate to make upstream drift visible",
+  "path": "descriptions/api.github.com/api.github.com.json",
+  "ref": "main",
+  "repository": "github/rest-api-description",
+  "sha256": "ba5ddc1eeeede9f3858abd96325359891f38a2bd8e20fd111abf4230741db194"
+ },
+ "operations": {
+  "apps/list-repos-accessible-to-installation": {
+   "method": "GET",
+   "params": {
+    "page": {
+     "default": 1,
+     "type": "integer"
+    },
+    "per_page": {
+     "default": 30,
+     "type": "integer"
+    }
+   },
+   "path": "/installation/repositories",
+   "responses": [
+    "200",
+    "304",
+    "401",
+    "403"
+   ]
+  },
+  "issues/get": {
+   "method": "GET",
+   "params": {
+    "issue_number": {
+     "type": "integer"
+    },
+    "owner": {
+     "type": "string"
+    },
+    "repo": {
+     "type": "string"
+    }
+   },
+   "path": "/repos/{owner}/{repo}/issues/{issue_number}",
+   "responses": [
+    "200",
+    "301",
+    "304",
+    "404",
+    "410"
+   ]
+  },
+  "issues/get-comment": {
+   "method": "GET",
+   "params": {
+    "comment_id": {
+     "type": "integer"
+    },
+    "owner": {
+     "type": "string"
+    },
+    "repo": {
+     "type": "string"
+    }
+   },
+   "path": "/repos/{owner}/{repo}/issues/comments/{comment_id}",
+   "responses": [
+    "200",
+    "404"
+   ]
+  },
+  "issues/list-comments": {
+   "method": "GET",
+   "params": {
+    "issue_number": {
+     "type": "integer"
+    },
+    "owner": {
+     "type": "string"
+    },
+    "page": {
+     "default": 1,
+     "type": "integer"
+    },
+    "per_page": {
+     "default": 30,
+     "type": "integer"
+    },
+    "repo": {
+     "type": "string"
+    },
+    "since": {
+     "type": "string"
+    }
+   },
+   "path": "/repos/{owner}/{repo}/issues/{issue_number}/comments",
+   "responses": [
+    "200",
+    "404",
+    "410"
+   ]
+  },
+  "issues/list-comments-for-repo": {
+   "method": "GET",
+   "params": {
+    "direction": {
+     "enum": [
+      "asc",
+      "desc"
+     ],
+     "type": "string"
+    },
+    "owner": {
+     "type": "string"
+    },
+    "page": {
+     "default": 1,
+     "type": "integer"
+    },
+    "per_page": {
+     "default": 30,
+     "type": "integer"
+    },
+    "repo": {
+     "type": "string"
+    },
+    "since": {
+     "type": "string"
+    },
+    "sort": {
+     "default": "created",
+     "enum": [
+      "created",
+      "updated"
+     ],
+     "type": "string"
+    }
+   },
+   "path": "/repos/{owner}/{repo}/issues/comments",
+   "responses": [
+    "200",
+    "404",
+    "422"
+   ]
+  },
+  "issues/list-for-repo": {
+   "method": "GET",
+   "params": {
+    "assignee": {
+     "type": "string"
+    },
+    "creator": {
+     "type": "string"
+    },
+    "direction": {
+     "default": "desc",
+     "enum": [
+      "asc",
+      "desc"
+     ],
+     "type": "string"
+    },
+    "issue_field_values": {
+     "type": "string"
+    },
+    "labels": {
+     "type": "string"
+    },
+    "mentioned": {
+     "type": "string"
+    },
+    "milestone": {
+     "type": "string"
+    },
+    "owner": {
+     "type": "string"
+    },
+    "page": {
+     "default": 1,
+     "type": "integer"
+    },
+    "per_page": {
+     "default": 30,
+     "type": "integer"
+    },
+    "repo": {
+     "type": "string"
+    },
+    "since": {
+     "type": "string"
+    },
+    "sort": {
+     "default": "created",
+     "enum": [
+      "created",
+      "updated",
+      "comments"
+     ],
+     "type": "string"
+    },
+    "state": {
+     "default": "open",
+     "enum": [
+      "open",
+      "closed",
+      "all"
+     ],
+     "type": "string"
+    },
+    "type": {
+     "type": "string"
+    }
+   },
+   "path": "/repos/{owner}/{repo}/issues",
+   "responses": [
+    "200",
+    "301",
+    "404",
+    "422"
+   ]
+  },
+  "repos/get": {
+   "method": "GET",
+   "params": {
+    "owner": {
+     "type": "string"
+    },
+    "repo": {
+     "type": "string"
+    }
+   },
+   "path": "/repos/{owner}/{repo}",
+   "responses": [
+    "200",
+    "301",
+    "403",
+    "404"
+   ]
+  },
+  "repos/list-for-authenticated-user": {
+   "method": "GET",
+   "params": {
+    "affiliation": {
+     "default": "owner,collaborator,organization_member",
+     "type": "string"
+    },
+    "before": {
+     "type": "string"
+    },
+    "direction": {
+     "enum": [
+      "asc",
+      "desc"
+     ],
+     "type": "string"
+    },
+    "page": {
+     "default": 1,
+     "type": "integer"
+    },
+    "per_page": {
+     "default": 30,
+     "type": "integer"
+    },
+    "since": {
+     "type": "string"
+    },
+    "sort": {
+     "default": "full_name",
+     "enum": [
+      "created",
+      "updated",
+      "pushed",
+      "full_name"
+     ],
+     "type": "string"
+    },
+    "type": {
+     "default": "all",
+     "enum": [
+      "all",
+      "owner",
+      "public",
+      "private",
+      "member"
+     ],
+     "type": "string"
+    },
+    "visibility": {
+     "default": "all",
+     "enum": [
+      "all",
+      "public",
+      "private"
+     ],
+     "type": "string"
+    }
+   },
+   "path": "/user/repos",
+   "responses": [
+    "200",
+    "304",
+    "401",
+    "403",
+    "422"
+   ]
+  },
+  "repos/list-for-org": {
+   "method": "GET",
+   "params": {
+    "direction": {
+     "enum": [
+      "asc",
+      "desc"
+     ],
+     "type": "string"
+    },
+    "org": {
+     "type": "string"
+    },
+    "page": {
+     "default": 1,
+     "type": "integer"
+    },
+    "per_page": {
+     "default": 30,
+     "type": "integer"
+    },
+    "sort": {
+     "default": "created",
+     "enum": [
+      "created",
+      "updated",
+      "pushed",
+      "full_name"
+     ],
+     "type": "string"
+    },
+    "type": {
+     "default": "all",
+     "enum": [
+      "all",
+      "public",
+      "private",
+      "forks",
+      "sources",
+      "member"
+     ],
+     "type": "string"
+    }
+   },
+   "path": "/orgs/{org}/repos",
+   "responses": [
+    "200"
+   ]
+  },
+  "users/get-authenticated": {
+   "method": "GET",
+   "params": {},
+   "path": "/user",
+   "responses": [
+    "200",
+    "304",
+    "401",
+    "403"
+   ]
+  }
+ },
+ "schemas": {
+  "full-repository": {
+   "properties": {
+    "archive_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "archived": {
+     "nullable": false,
+     "type": "boolean"
+    },
+    "assignees_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "blobs_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "branches_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "clone_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "collaborators_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "comments_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "commits_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "compare_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "contents_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "contributors_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "created_at": {
+     "nullable": false,
+     "type": "string"
+    },
+    "default_branch": {
+     "nullable": false,
+     "type": "string"
+    },
+    "deployments_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "description": {
+     "nullable": true,
+     "type": "string"
+    },
+    "disabled": {
+     "nullable": false,
+     "type": "boolean"
+    },
+    "downloads_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "events_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "fork": {
+     "nullable": false,
+     "type": "boolean"
+    },
+    "forks": {
+     "nullable": false,
+     "type": "integer"
+    },
+    "forks_count": {
+     "nullable": false,
+     "type": "integer"
+    },
+    "forks_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "full_name": {
+     "nullable": false,
+     "type": "string"
+    },
+    "git_commits_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "git_refs_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "git_tags_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "git_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "has_discussions": {
+     "nullable": false,
+     "type": "boolean"
+    },
+    "has_issues": {
+     "nullable": false,
+     "type": "boolean"
+    },
+    "has_pages": {
+     "nullable": false,
+     "type": "boolean"
+    },
+    "has_projects": {
+     "nullable": false,
+     "type": "boolean"
+    },
+    "has_wiki": {
+     "nullable": false,
+     "type": "boolean"
+    },
+    "homepage": {
+     "nullable": true,
+     "type": "string"
+    },
+    "hooks_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "html_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "id": {
+     "nullable": false,
+     "type": "integer"
+    },
+    "issue_comment_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "issue_events_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "issues_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "keys_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "labels_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "language": {
+     "nullable": true,
+     "type": "string"
+    },
+    "languages_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "license": {
+     "nullable": true,
+     "ref": "nullable-license-simple",
+     "type": "object"
+    },
+    "merges_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "milestones_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "mirror_url": {
+     "nullable": true,
+     "type": "string"
+    },
+    "name": {
+     "nullable": false,
+     "type": "string"
+    },
+    "network_count": {
+     "nullable": false,
+     "type": "integer"
+    },
+    "node_id": {
+     "nullable": false,
+     "type": "string"
+    },
+    "notifications_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "open_issues": {
+     "nullable": false,
+     "type": "integer"
+    },
+    "open_issues_count": {
+     "nullable": false,
+     "type": "integer"
+    },
+    "owner": {
+     "nullable": false,
+     "ref": "simple-user",
+     "type": "object"
+    },
+    "permissions": {
+     "nullable": false,
+     "type": "object"
+    },
+    "private": {
+     "nullable": false,
+     "type": "boolean"
+    },
+    "pulls_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "pushed_at": {
+     "nullable": false,
+     "type": "string"
+    },
+    "releases_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "size": {
+     "nullable": false,
+     "type": "integer"
+    },
+    "ssh_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "stargazers_count": {
+     "nullable": false,
+     "type": "integer"
+    },
+    "stargazers_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "statuses_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "subscribers_count": {
+     "nullable": false,
+     "type": "integer"
+    },
+    "subscribers_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "subscription_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "svn_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "tags_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "teams_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "trees_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "updated_at": {
+     "nullable": false,
+     "type": "string"
+    },
+    "url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "visibility": {
+     "nullable": false,
+     "type": "string"
+    },
+    "watchers": {
+     "nullable": false,
+     "type": "integer"
+    },
+    "watchers_count": {
+     "nullable": false,
+     "type": "integer"
+    }
+   },
+   "required": [
+    "archive_url",
+    "assignees_url",
+    "blobs_url",
+    "branches_url",
+    "collaborators_url",
+    "comments_url",
+    "commits_url",
+    "compare_url",
+    "contents_url",
+    "contributors_url",
+    "deployments_url",
+    "description",
+    "downloads_url",
+    "events_url",
+    "fork",
+    "forks_url",
+    "full_name",
+    "git_commits_url",
+    "git_refs_url",
+    "git_tags_url",
+    "hooks_url",
+    "html_url",
+    "id",
+    "node_id",
+    "issue_comment_url",
+    "issue_events_url",
+    "issues_url",
+    "keys_url",
+    "labels_url",
+    "languages_url",
+    "merges_url",
+    "milestones_url",
+    "name",
+    "notifications_url",
+    "owner",
+    "private",
+    "pulls_url",
+    "releases_url",
+    "stargazers_url",
+    "statuses_url",
+    "subscribers_url",
+    "subscription_url",
+    "tags_url",
+    "teams_url",
+    "trees_url",
+    "url",
+    "clone_url",
+    "default_branch",
+    "forks",
+    "forks_count",
+    "git_url",
+    "has_issues",
+    "has_projects",
+    "has_wiki",
+    "has_pages",
+    "has_discussions",
+    "homepage",
+    "language",
+    "archived",
+    "disabled",
+    "mirror_url",
+    "open_issues",
+    "open_issues_count",
+    "license",
+    "pushed_at",
+    "size",
+    "ssh_url",
+    "stargazers_count",
+    "svn_url",
+    "watchers",
+    "watchers_count",
+    "created_at",
+    "updated_at",
+    "network_count",
+    "subscribers_count"
+   ]
+  },
+  "issue": {
+   "properties": {
+    "assignee": {
+     "nullable": true,
+     "ref": "nullable-simple-user",
+     "type": "object"
+    },
+    "assignees": {
+     "nullable": false,
+     "type": "array"
+    },
+    "author_association": {
+     "nullable": false,
+     "ref": "author-association",
+     "type": "string"
+    },
+    "body": {
+     "nullable": true,
+     "type": "string"
+    },
+    "closed_at": {
+     "nullable": true,
+     "type": "string"
+    },
+    "comments": {
+     "nullable": false,
+     "type": "integer"
+    },
+    "comments_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "created_at": {
+     "nullable": false,
+     "type": "string"
+    },
+    "events_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "html_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "id": {
+     "nullable": false,
+     "type": "integer"
+    },
+    "labels": {
+     "nullable": false,
+     "type": "array"
+    },
+    "labels_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "locked": {
+     "nullable": false,
+     "type": "boolean"
+    },
+    "milestone": {
+     "nullable": true,
+     "ref": "nullable-milestone",
+     "type": "object"
+    },
+    "node_id": {
+     "nullable": false,
+     "type": "string"
+    },
+    "number": {
+     "nullable": false,
+     "type": "integer"
+    },
+    "pull_request": {
+     "nullable": false,
+     "type": "object"
+    },
+    "repository_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "state": {
+     "nullable": false,
+     "type": "string"
+    },
+    "state_reason": {
+     "nullable": true,
+     "type": "string"
+    },
+    "title": {
+     "nullable": false,
+     "type": "string"
+    },
+    "updated_at": {
+     "nullable": false,
+     "type": "string"
+    },
+    "url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "user": {
+     "nullable": true,
+     "ref": "nullable-simple-user",
+     "type": "object"
+    }
+   },
+   "required": [
+    "assignee",
+    "closed_at",
+    "comments",
+    "comments_url",
+    "events_url",
+    "html_url",
+    "id",
+    "node_id",
+    "labels",
+    "labels_url",
+    "milestone",
+    "number",
+    "repository_url",
+    "state",
+    "locked",
+    "title",
+    "url",
+    "user",
+    "created_at",
+    "updated_at"
+   ]
+  },
+  "issue-comment": {
+   "properties": {
+    "author_association": {
+     "nullable": false,
+     "ref": "author-association",
+     "type": "string"
+    },
+    "body": {
+     "nullable": false,
+     "type": "string"
+    },
+    "created_at": {
+     "nullable": false,
+     "type": "string"
+    },
+    "html_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "id": {
+     "nullable": false,
+     "type": "integer"
+    },
+    "issue_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "node_id": {
+     "nullable": false,
+     "type": "string"
+    },
+    "updated_at": {
+     "nullable": false,
+     "type": "string"
+    },
+    "url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "user": {
+     "nullable": true,
+     "ref": "nullable-simple-user",
+     "type": "object"
+    }
+   },
+   "required": [
+    "id",
+    "node_id",
+    "html_url",
+    "issue_url",
+    "user",
+    "url",
+    "created_at",
+    "updated_at"
+   ]
+  },
+  "label": {
+   "properties": {
+    "archived_at": {
+     "nullable": true,
+     "type": "string"
+    },
+    "archived_by": {
+     "nullable": true,
+     "ref": "simple-user",
+     "type": "object"
+    },
+    "color": {
+     "nullable": false,
+     "type": "string"
+    },
+    "default": {
+     "nullable": false,
+     "type": "boolean"
+    },
+    "description": {
+     "nullable": true,
+     "type": "string"
+    },
+    "id": {
+     "nullable": false,
+     "type": "integer"
+    },
+    "name": {
+     "nullable": false,
+     "type": "string"
+    },
+    "node_id": {
+     "nullable": false,
+     "type": "string"
+    },
+    "url": {
+     "nullable": false,
+     "type": "string"
+    }
+   },
+   "required": [
+    "id",
+    "node_id",
+    "url",
+    "name",
+    "description",
+    "color",
+    "default",
+    "archived_at",
+    "archived_by"
+   ]
+  },
+  "minimal-repository": {
+   "properties": {
+    "archive_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "archived": {
+     "nullable": false,
+     "type": "boolean"
+    },
+    "assignees_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "blobs_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "branches_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "collaborators_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "comments_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "commits_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "compare_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "contents_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "contributors_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "default_branch": {
+     "nullable": false,
+     "type": "string"
+    },
+    "deployments_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "description": {
+     "nullable": true,
+     "type": "string"
+    },
+    "downloads_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "events_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "fork": {
+     "nullable": false,
+     "type": "boolean"
+    },
+    "forks_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "full_name": {
+     "nullable": false,
+     "type": "string"
+    },
+    "git_commits_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "git_refs_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "git_tags_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "hooks_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "html_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "id": {
+     "nullable": false,
+     "type": "integer"
+    },
+    "issue_comment_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "issue_events_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "issues_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "keys_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "labels_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "languages_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "merges_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "milestones_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "name": {
+     "nullable": false,
+     "type": "string"
+    },
+    "node_id": {
+     "nullable": false,
+     "type": "string"
+    },
+    "notifications_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "owner": {
+     "nullable": false,
+     "ref": "simple-user",
+     "type": "object"
+    },
+    "permissions": {
+     "nullable": false,
+     "type": "object"
+    },
+    "private": {
+     "nullable": false,
+     "type": "boolean"
+    },
+    "pulls_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "releases_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "stargazers_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "statuses_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "subscribers_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "subscription_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "tags_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "teams_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "trees_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "visibility": {
+     "nullable": false,
+     "type": "string"
+    }
+   },
+   "required": [
+    "archive_url",
+    "assignees_url",
+    "blobs_url",
+    "branches_url",
+    "collaborators_url",
+    "comments_url",
+    "commits_url",
+    "compare_url",
+    "contents_url",
+    "contributors_url",
+    "deployments_url",
+    "description",
+    "downloads_url",
+    "events_url",
+    "fork",
+    "forks_url",
+    "full_name",
+    "git_commits_url",
+    "git_refs_url",
+    "git_tags_url",
+    "hooks_url",
+    "html_url",
+    "id",
+    "node_id",
+    "issue_comment_url",
+    "issue_events_url",
+    "issues_url",
+    "keys_url",
+    "labels_url",
+    "languages_url",
+    "merges_url",
+    "milestones_url",
+    "name",
+    "notifications_url",
+    "owner",
+    "private",
+    "pulls_url",
+    "releases_url",
+    "stargazers_url",
+    "statuses_url",
+    "subscribers_url",
+    "subscription_url",
+    "tags_url",
+    "teams_url",
+    "trees_url",
+    "url"
+   ]
+  },
+  "private-user": {
+   "properties": {
+    "avatar_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "bio": {
+     "nullable": true,
+     "type": "string"
+    },
+    "blog": {
+     "nullable": true,
+     "type": "string"
+    },
+    "collaborators": {
+     "nullable": false,
+     "type": "integer"
+    },
+    "company": {
+     "nullable": true,
+     "type": "string"
+    },
+    "created_at": {
+     "nullable": false,
+     "type": "string"
+    },
+    "disk_usage": {
+     "nullable": false,
+     "type": "integer"
+    },
+    "email": {
+     "nullable": true,
+     "type": "string"
+    },
+    "events_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "followers": {
+     "nullable": false,
+     "type": "integer"
+    },
+    "followers_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "following": {
+     "nullable": false,
+     "type": "integer"
+    },
+    "following_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "gists_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "gravatar_id": {
+     "nullable": true,
+     "type": "string"
+    },
+    "hireable": {
+     "nullable": true,
+     "type": "boolean"
+    },
+    "html_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "id": {
+     "nullable": false,
+     "type": "integer"
+    },
+    "location": {
+     "nullable": true,
+     "type": "string"
+    },
+    "login": {
+     "nullable": false,
+     "type": "string"
+    },
+    "name": {
+     "nullable": true,
+     "type": "string"
+    },
+    "node_id": {
+     "nullable": false,
+     "type": "string"
+    },
+    "organizations_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "owned_private_repos": {
+     "nullable": false,
+     "type": "integer"
+    },
+    "private_gists": {
+     "nullable": false,
+     "type": "integer"
+    },
+    "public_gists": {
+     "nullable": false,
+     "type": "integer"
+    },
+    "public_repos": {
+     "nullable": false,
+     "type": "integer"
+    },
+    "received_events_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "repos_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "site_admin": {
+     "nullable": false,
+     "type": "boolean"
+    },
+    "starred_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "subscriptions_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "total_private_repos": {
+     "nullable": false,
+     "type": "integer"
+    },
+    "two_factor_authentication": {
+     "nullable": false,
+     "type": "boolean"
+    },
+    "type": {
+     "nullable": false,
+     "type": "string"
+    },
+    "updated_at": {
+     "nullable": false,
+     "type": "string"
+    },
+    "url": {
+     "nullable": false,
+     "type": "string"
+    }
+   },
+   "required": [
+    "avatar_url",
+    "events_url",
+    "followers_url",
+    "following_url",
+    "gists_url",
+    "gravatar_id",
+    "html_url",
+    "id",
+    "node_id",
+    "login",
+    "organizations_url",
+    "received_events_url",
+    "repos_url",
+    "site_admin",
+    "starred_url",
+    "subscriptions_url",
+    "type",
+    "url",
+    "bio",
+    "blog",
+    "company",
+    "email",
+    "followers",
+    "following",
+    "hireable",
+    "location",
+    "name",
+    "public_gists",
+    "public_repos",
+    "created_at",
+    "updated_at",
+    "collaborators",
+    "disk_usage",
+    "owned_private_repos",
+    "private_gists",
+    "total_private_repos",
+    "two_factor_authentication"
+   ]
+  },
+  "public-user": {
+   "properties": {
+    "avatar_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "bio": {
+     "nullable": true,
+     "type": "string"
+    },
+    "blog": {
+     "nullable": true,
+     "type": "string"
+    },
+    "company": {
+     "nullable": true,
+     "type": "string"
+    },
+    "created_at": {
+     "nullable": false,
+     "type": "string"
+    },
+    "email": {
+     "nullable": true,
+     "type": "string"
+    },
+    "events_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "followers": {
+     "nullable": false,
+     "type": "integer"
+    },
+    "followers_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "following": {
+     "nullable": false,
+     "type": "integer"
+    },
+    "following_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "gists_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "gravatar_id": {
+     "nullable": true,
+     "type": "string"
+    },
+    "hireable": {
+     "nullable": true,
+     "type": "boolean"
+    },
+    "html_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "id": {
+     "nullable": false,
+     "type": "integer"
+    },
+    "location": {
+     "nullable": true,
+     "type": "string"
+    },
+    "login": {
+     "nullable": false,
+     "type": "string"
+    },
+    "name": {
+     "nullable": true,
+     "type": "string"
+    },
+    "node_id": {
+     "nullable": false,
+     "type": "string"
+    },
+    "organizations_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "public_gists": {
+     "nullable": false,
+     "type": "integer"
+    },
+    "public_repos": {
+     "nullable": false,
+     "type": "integer"
+    },
+    "received_events_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "repos_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "site_admin": {
+     "nullable": false,
+     "type": "boolean"
+    },
+    "starred_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "subscriptions_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "type": {
+     "nullable": false,
+     "type": "string"
+    },
+    "updated_at": {
+     "nullable": false,
+     "type": "string"
+    },
+    "url": {
+     "nullable": false,
+     "type": "string"
+    }
+   },
+   "required": [
+    "avatar_url",
+    "events_url",
+    "followers_url",
+    "following_url",
+    "gists_url",
+    "gravatar_id",
+    "html_url",
+    "id",
+    "node_id",
+    "login",
+    "organizations_url",
+    "received_events_url",
+    "repos_url",
+    "site_admin",
+    "starred_url",
+    "subscriptions_url",
+    "type",
+    "url",
+    "bio",
+    "blog",
+    "company",
+    "email",
+    "followers",
+    "following",
+    "hireable",
+    "location",
+    "name",
+    "public_gists",
+    "public_repos",
+    "created_at",
+    "updated_at"
+   ]
+  },
+  "repository": {
+   "properties": {
+    "archive_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "archived": {
+     "nullable": false,
+     "type": "boolean"
+    },
+    "assignees_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "blobs_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "branches_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "clone_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "collaborators_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "comments_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "commits_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "compare_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "contents_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "contributors_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "created_at": {
+     "nullable": true,
+     "type": "string"
+    },
+    "default_branch": {
+     "nullable": false,
+     "type": "string"
+    },
+    "deployments_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "description": {
+     "nullable": true,
+     "type": "string"
+    },
+    "disabled": {
+     "nullable": false,
+     "type": "boolean"
+    },
+    "downloads_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "events_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "fork": {
+     "nullable": false,
+     "type": "boolean"
+    },
+    "forks": {
+     "nullable": false,
+     "type": "integer"
+    },
+    "forks_count": {
+     "nullable": false,
+     "type": "integer"
+    },
+    "forks_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "full_name": {
+     "nullable": false,
+     "type": "string"
+    },
+    "git_commits_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "git_refs_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "git_tags_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "git_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "has_downloads": {
+     "nullable": false,
+     "type": "boolean"
+    },
+    "has_issues": {
+     "nullable": false,
+     "type": "boolean"
+    },
+    "has_pages": {
+     "nullable": false,
+     "type": "boolean"
+    },
+    "has_projects": {
+     "nullable": false,
+     "type": "boolean"
+    },
+    "has_wiki": {
+     "nullable": false,
+     "type": "boolean"
+    },
+    "homepage": {
+     "nullable": true,
+     "type": "string"
+    },
+    "hooks_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "html_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "id": {
+     "nullable": false,
+     "type": "integer"
+    },
+    "issue_comment_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "issue_events_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "issues_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "keys_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "labels_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "language": {
+     "nullable": true,
+     "type": "string"
+    },
+    "languages_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "license": {
+     "nullable": true,
+     "ref": "nullable-license-simple",
+     "type": "object"
+    },
+    "merges_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "milestones_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "mirror_url": {
+     "nullable": true,
+     "type": "string"
+    },
+    "name": {
+     "nullable": false,
+     "type": "string"
+    },
+    "node_id": {
+     "nullable": false,
+     "type": "string"
+    },
+    "notifications_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "open_issues": {
+     "nullable": false,
+     "type": "integer"
+    },
+    "open_issues_count": {
+     "nullable": false,
+     "type": "integer"
+    },
+    "owner": {
+     "nullable": false,
+     "ref": "simple-user",
+     "type": "object"
+    },
+    "permissions": {
+     "nullable": false,
+     "type": "object"
+    },
+    "private": {
+     "nullable": false,
+     "type": "boolean"
+    },
+    "pulls_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "pushed_at": {
+     "nullable": true,
+     "type": "string"
+    },
+    "releases_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "size": {
+     "nullable": false,
+     "type": "integer"
+    },
+    "ssh_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "stargazers_count": {
+     "nullable": false,
+     "type": "integer"
+    },
+    "stargazers_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "statuses_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "subscribers_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "subscription_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "svn_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "tags_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "teams_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "trees_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "updated_at": {
+     "nullable": true,
+     "type": "string"
+    },
+    "url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "visibility": {
+     "nullable": false,
+     "type": "string"
+    },
+    "watchers": {
+     "nullable": false,
+     "type": "integer"
+    },
+    "watchers_count": {
+     "nullable": false,
+     "type": "integer"
+    }
+   },
+   "required": [
+    "archive_url",
+    "assignees_url",
+    "blobs_url",
+    "branches_url",
+    "collaborators_url",
+    "comments_url",
+    "commits_url",
+    "compare_url",
+    "contents_url",
+    "contributors_url",
+    "deployments_url",
+    "description",
+    "downloads_url",
+    "events_url",
+    "fork",
+    "forks_url",
+    "full_name",
+    "git_commits_url",
+    "git_refs_url",
+    "git_tags_url",
+    "hooks_url",
+    "html_url",
+    "id",
+    "node_id",
+    "issue_comment_url",
+    "issue_events_url",
+    "issues_url",
+    "keys_url",
+    "labels_url",
+    "languages_url",
+    "merges_url",
+    "milestones_url",
+    "name",
+    "notifications_url",
+    "owner",
+    "private",
+    "pulls_url",
+    "releases_url",
+    "stargazers_url",
+    "statuses_url",
+    "subscribers_url",
+    "subscription_url",
+    "tags_url",
+    "teams_url",
+    "trees_url",
+    "url",
+    "clone_url",
+    "default_branch",
+    "forks",
+    "forks_count",
+    "git_url",
+    "has_downloads",
+    "has_issues",
+    "has_projects",
+    "has_wiki",
+    "has_pages",
+    "homepage",
+    "language",
+    "archived",
+    "disabled",
+    "mirror_url",
+    "open_issues",
+    "open_issues_count",
+    "license",
+    "pushed_at",
+    "size",
+    "ssh_url",
+    "stargazers_count",
+    "svn_url",
+    "watchers",
+    "watchers_count",
+    "created_at",
+    "updated_at"
+   ]
+  },
+  "simple-user": {
+   "properties": {
+    "avatar_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "events_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "followers_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "following_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "gists_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "gravatar_id": {
+     "nullable": true,
+     "type": "string"
+    },
+    "html_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "id": {
+     "nullable": false,
+     "type": "integer"
+    },
+    "login": {
+     "nullable": false,
+     "type": "string"
+    },
+    "node_id": {
+     "nullable": false,
+     "type": "string"
+    },
+    "organizations_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "received_events_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "repos_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "site_admin": {
+     "nullable": false,
+     "type": "boolean"
+    },
+    "starred_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "subscriptions_url": {
+     "nullable": false,
+     "type": "string"
+    },
+    "type": {
+     "nullable": false,
+     "type": "string"
+    },
+    "url": {
+     "nullable": false,
+     "type": "string"
+    }
+   },
+   "required": [
+    "avatar_url",
+    "events_url",
+    "followers_url",
+    "following_url",
+    "gists_url",
+    "gravatar_id",
+    "html_url",
+    "id",
+    "node_id",
+    "login",
+    "organizations_url",
+    "received_events_url",
+    "repos_url",
+    "site_admin",
+    "starred_url",
+    "subscriptions_url",
+    "type",
+    "url"
+   ]
+  }
+ },
+ "webhooks": {
+  "github-app-authorization-revoked": {
+   "headers": [
+    "User-Agent",
+    "X-Github-Hook-Id",
+    "X-Github-Event",
+    "X-Github-Hook-Installation-Target-Id",
+    "X-Github-Hook-Installation-Target-Type",
+    "X-GitHub-Delivery",
+    "X-Hub-Signature-256"
+   ],
+   "properties": {
+    "action": {
+     "nullable": false,
+     "type": "string"
+    },
+    "sender": {
+     "nullable": false,
+     "ref": "simple-user",
+     "type": "object"
+    }
+   },
+   "required": [
+    "action",
+    "sender"
+   ]
+  },
+  "issue-comment-created": {
+   "headers": [
+    "User-Agent",
+    "X-Github-Hook-Id",
+    "X-Github-Event",
+    "X-Github-Hook-Installation-Target-Id",
+    "X-Github-Hook-Installation-Target-Type",
+    "X-GitHub-Delivery",
+    "X-Hub-Signature-256"
+   ],
+   "properties": {
+    "action": {
+     "nullable": false,
+     "type": "string"
+    },
+    "comment": {
+     "nullable": false,
+     "type": "object"
+    },
+    "issue": {
+     "nullable": false,
+     "type": "object"
+    },
+    "repository": {
+     "nullable": false,
+     "ref": "repository-webhooks",
+     "type": "object"
+    },
+    "sender": {
+     "nullable": false,
+     "ref": "simple-user",
+     "type": "object"
+    }
+   },
+   "required": [
+    "action",
+    "issue",
+    "comment",
+    "repository",
+    "sender"
+   ]
+  },
+  "issue-comment-deleted": {
+   "headers": [
+    "User-Agent",
+    "X-Github-Hook-Id",
+    "X-Github-Event",
+    "X-Github-Hook-Installation-Target-Id",
+    "X-Github-Hook-Installation-Target-Type",
+    "X-GitHub-Delivery",
+    "X-Hub-Signature-256"
+   ],
+   "properties": {
+    "action": {
+     "nullable": false,
+     "type": "string"
+    },
+    "comment": {
+     "nullable": false,
+     "ref": "webhooks_issue_comment",
+     "type": "object"
+    },
+    "issue": {
+     "nullable": false,
+     "type": "object"
+    },
+    "repository": {
+     "nullable": false,
+     "ref": "repository-webhooks",
+     "type": "object"
+    },
+    "sender": {
+     "nullable": false,
+     "ref": "simple-user",
+     "type": "object"
+    }
+   },
+   "required": [
+    "action",
+    "issue",
+    "comment",
+    "repository",
+    "sender"
+   ]
+  },
+  "issue-comment-edited": {
+   "headers": [
+    "User-Agent",
+    "X-Github-Hook-Id",
+    "X-Github-Event",
+    "X-Github-Hook-Installation-Target-Id",
+    "X-Github-Hook-Installation-Target-Type",
+    "X-GitHub-Delivery",
+    "X-Hub-Signature-256"
+   ],
+   "properties": {
+    "action": {
+     "nullable": false,
+     "type": "string"
+    },
+    "changes": {
+     "nullable": false,
+     "ref": "webhooks_changes",
+     "type": "object"
+    },
+    "comment": {
+     "nullable": false,
+     "ref": "webhooks_issue_comment",
+     "type": "object"
+    },
+    "issue": {
+     "nullable": false,
+     "type": "object"
+    },
+    "repository": {
+     "nullable": false,
+     "ref": "repository-webhooks",
+     "type": "object"
+    },
+    "sender": {
+     "nullable": false,
+     "ref": "simple-user",
+     "type": "object"
+    }
+   },
+   "required": [
+    "action",
+    "changes",
+    "issue",
+    "comment",
+    "repository",
+    "sender"
+   ]
+  },
+  "issues-closed": {
+   "headers": [
+    "User-Agent",
+    "X-Github-Hook-Id",
+    "X-Github-Event",
+    "X-Github-Hook-Installation-Target-Id",
+    "X-Github-Hook-Installation-Target-Type",
+    "X-GitHub-Delivery",
+    "X-Hub-Signature-256"
+   ],
+   "properties": {
+    "action": {
+     "nullable": false,
+     "type": "string"
+    },
+    "issue": {
+     "nullable": false,
+     "type": "object"
+    },
+    "repository": {
+     "nullable": false,
+     "ref": "repository-webhooks",
+     "type": "object"
+    },
+    "sender": {
+     "nullable": false,
+     "ref": "simple-user",
+     "type": "object"
+    }
+   },
+   "required": [
+    "action",
+    "issue",
+    "repository",
+    "sender"
+   ]
+  },
+  "issues-deleted": {
+   "headers": [
+    "User-Agent",
+    "X-Github-Hook-Id",
+    "X-Github-Event",
+    "X-Github-Hook-Installation-Target-Id",
+    "X-Github-Hook-Installation-Target-Type",
+    "X-GitHub-Delivery",
+    "X-Hub-Signature-256"
+   ],
+   "properties": {
+    "action": {
+     "nullable": false,
+     "type": "string"
+    },
+    "issue": {
+     "nullable": false,
+     "type": "object"
+    },
+    "repository": {
+     "nullable": false,
+     "ref": "repository-webhooks",
+     "type": "object"
+    },
+    "sender": {
+     "nullable": false,
+     "ref": "simple-user",
+     "type": "object"
+    }
+   },
+   "required": [
+    "action",
+    "issue",
+    "repository",
+    "sender"
+   ]
+  },
+  "issues-edited": {
+   "headers": [
+    "User-Agent",
+    "X-Github-Hook-Id",
+    "X-Github-Event",
+    "X-Github-Hook-Installation-Target-Id",
+    "X-Github-Hook-Installation-Target-Type",
+    "X-GitHub-Delivery",
+    "X-Hub-Signature-256"
+   ],
+   "properties": {
+    "action": {
+     "nullable": false,
+     "type": "string"
+    },
+    "changes": {
+     "nullable": false,
+     "type": "object"
+    },
+    "issue": {
+     "nullable": false,
+     "type": "object"
+    },
+    "repository": {
+     "nullable": false,
+     "ref": "repository-webhooks",
+     "type": "object"
+    },
+    "sender": {
+     "nullable": false,
+     "ref": "simple-user",
+     "type": "object"
+    }
+   },
+   "required": [
+    "action",
+    "changes",
+    "issue",
+    "repository",
+    "sender"
+   ]
+  },
+  "issues-labeled": {
+   "headers": [
+    "User-Agent",
+    "X-Github-Hook-Id",
+    "X-Github-Event",
+    "X-Github-Hook-Installation-Target-Id",
+    "X-Github-Hook-Installation-Target-Type",
+    "X-GitHub-Delivery",
+    "X-Hub-Signature-256"
+   ],
+   "properties": {
+    "action": {
+     "nullable": false,
+     "type": "string"
+    },
+    "issue": {
+     "nullable": false,
+     "type": "object"
+    },
+    "repository": {
+     "nullable": false,
+     "ref": "repository-webhooks",
+     "type": "object"
+    },
+    "sender": {
+     "nullable": false,
+     "ref": "simple-user",
+     "type": "object"
+    }
+   },
+   "required": [
+    "action",
+    "issue",
+    "repository",
+    "sender"
+   ]
+  },
+  "issues-opened": {
+   "headers": [
+    "User-Agent",
+    "X-Github-Hook-Id",
+    "X-Github-Event",
+    "X-Github-Hook-Installation-Target-Id",
+    "X-Github-Hook-Installation-Target-Type",
+    "X-GitHub-Delivery",
+    "X-Hub-Signature-256"
+   ],
+   "properties": {
+    "action": {
+     "nullable": false,
+     "type": "string"
+    },
+    "issue": {
+     "nullable": false,
+     "type": "object"
+    },
+    "repository": {
+     "nullable": false,
+     "ref": "repository-webhooks",
+     "type": "object"
+    },
+    "sender": {
+     "nullable": false,
+     "ref": "simple-user",
+     "type": "object"
+    }
+   },
+   "required": [
+    "action",
+    "issue",
+    "repository",
+    "sender"
+   ]
+  },
+  "issues-reopened": {
+   "headers": [
+    "User-Agent",
+    "X-Github-Hook-Id",
+    "X-Github-Event",
+    "X-Github-Hook-Installation-Target-Id",
+    "X-Github-Hook-Installation-Target-Type",
+    "X-GitHub-Delivery",
+    "X-Hub-Signature-256"
+   ],
+   "properties": {
+    "action": {
+     "nullable": false,
+     "type": "string"
+    },
+    "issue": {
+     "nullable": false,
+     "type": "object"
+    },
+    "repository": {
+     "nullable": false,
+     "ref": "repository-webhooks",
+     "type": "object"
+    },
+    "sender": {
+     "nullable": false,
+     "ref": "simple-user",
+     "type": "object"
+    }
+   },
+   "required": [
+    "action",
+    "issue",
+    "repository",
+    "sender"
+   ]
+  },
+  "issues-transferred": {
+   "headers": [
+    "User-Agent",
+    "X-Github-Hook-Id",
+    "X-Github-Event",
+    "X-Github-Hook-Installation-Target-Id",
+    "X-Github-Hook-Installation-Target-Type",
+    "X-GitHub-Delivery",
+    "X-Hub-Signature-256"
+   ],
+   "properties": {
+    "action": {
+     "nullable": false,
+     "type": "string"
+    },
+    "changes": {
+     "nullable": false,
+     "type": "object"
+    },
+    "issue": {
+     "nullable": false,
+     "ref": "webhooks_issue_2",
+     "type": "object"
+    },
+    "repository": {
+     "nullable": false,
+     "ref": "repository-webhooks",
+     "type": "object"
+    },
+    "sender": {
+     "nullable": false,
+     "ref": "simple-user",
+     "type": "object"
+    }
+   },
+   "required": [
+    "action",
+    "changes",
+    "issue",
+    "repository",
+    "sender"
+   ]
+  },
+  "issues-unlabeled": {
+   "headers": [
+    "User-Agent",
+    "X-Github-Hook-Id",
+    "X-Github-Event",
+    "X-Github-Hook-Installation-Target-Id",
+    "X-Github-Hook-Installation-Target-Type",
+    "X-GitHub-Delivery",
+    "X-Hub-Signature-256"
+   ],
+   "properties": {
+    "action": {
+     "nullable": false,
+     "type": "string"
+    },
+    "issue": {
+     "nullable": false,
+     "ref": "webhooks_issue",
+     "type": "object"
+    },
+    "repository": {
+     "nullable": false,
+     "ref": "repository-webhooks",
+     "type": "object"
+    },
+    "sender": {
+     "nullable": false,
+     "ref": "simple-user",
+     "type": "object"
+    }
+   },
+   "required": [
+    "action",
+    "issue",
+    "repository",
+    "sender"
+   ]
+  },
+  "ping": {
+   "headers": [
+    "User-Agent",
+    "X-Github-Hook-Id",
+    "X-Github-Event",
+    "X-Github-Hook-Installation-Target-Id",
+    "X-Github-Hook-Installation-Target-Type",
+    "X-GitHub-Delivery",
+    "X-Hub-Signature-256"
+   ],
+   "properties": {},
+   "required": []
+  }
+ }
+}

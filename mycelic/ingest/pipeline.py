@@ -40,6 +40,7 @@ from .crypto import TokenVault, VaultUnavailable
 from .domains import (DomainClassifier, Membership, RecordFeatures, Taxonomy, active_memberships_sync, apply_memberships_sync,
                       default_taxonomy, embed_model_name, install_taxonomy_sync, load_taxonomy_sync, publishable)
 from .events import CONTENT_KINDS, CanonicalEvent
+from .http import default_http_factory
 from .normalize import FLAG_SECRET, detect, mask_secrets
 from .queue import IngestQueue, LostLease, QueueItem, StaleCheckpoint
 from .registry import ConnectorRegistry, registry as default_registry
@@ -177,7 +178,8 @@ class IngestPipeline:
                  router: Any | None = None, publisher: Publisher | None = None, enabled_connector_types: Iterable[str] | None = None,
                  max_records: int | None = None, batch_debounce_seconds: float = 30.0, worker_id: str | None = None,
                  lease_seconds: float = 120.0, watermarks: dict[str, tuple[int, int]] | None = None,
-                 clock: Callable[[], datetime] | None = None, taxonomy: Taxonomy | None = None) -> None:
+                 clock: Callable[[], datetime] | None = None, taxonomy: Taxonomy | None = None,
+                 http_factory: Callable[[Mapping[str, Any], Any, Any], Any] | None = None) -> None:
         if holder_kind not in ("user", "unit"):
             raise ValueError("holder_kind must be user or unit")
         self.evidence = evidence
@@ -198,6 +200,10 @@ class IngestPipeline:
         self.meter = StageMeter()
         self._instances: dict[str, Any] = {}
         self._refresh_locks: dict[str, asyncio.Lock] = {}
+        # (connection row, manifest, SecretAccessor) -> ConnectorHttp; one client per connection so its ETag cache and
+        # rate-limit view survive between polls. The default refuses all egress for connectors without allowed hosts.
+        self.http_factory = http_factory or default_http_factory
+        self._http: dict[str, Any] = {}
         self.taxonomy = self._ensure_taxonomy(taxonomy)
         self.shards = ShardRouter({DEFAULT_SHARD: evidence}, taxonomy=self.taxonomy)
         self.classifier = DomainClassifier(self.taxonomy, conn=self.store._conn, router=router, tenant_id=self.tenant_id)
@@ -233,11 +239,31 @@ class IngestPipeline:
     def context(self, con: Mapping[str, Any]) -> ConnectorContext:
         cfg = dict(con.get("config") or {})
         limits = ConnectorLimits(**{k: v for k, v in (cfg.get("limits") or {}).items() if k in ConnectorLimits.__dataclass_fields__})
+        secrets = VaultSecrets(self, con["connector_id"])
         return ConnectorContext(tenant_id=self.tenant_id, holder_id=self.holder_id, connector_id=con["connector_id"],
                                 connector_type=con["connector_type"], source_app=con["source_app"], source_account_id=con["source_account_id"],
-                                auth_account_id=con.get("auth_account_id") or "", config=cfg, limits=limits, http=NoHttp(),
-                                secrets=VaultSecrets(self, con["connector_id"]), checkpoints=StoreCheckpoints(self.queue, con["connector_id"]),
+                                auth_account_id=con.get("auth_account_id") or "", config=cfg, limits=limits, http=self._http_for(con, secrets),
+                                secrets=secrets, checkpoints=StoreCheckpoints(self.queue, con["connector_id"]),
                                 log=connector_logger(con["connector_type"], con["connector_id"]), clock=self.clock)
+
+    def _http_for(self, con: Mapping[str, Any], secrets: VaultSecrets) -> Any:
+        cid = con["connector_id"]
+        if cid not in self._http:
+            try:
+                manifest = self.registry.get(con["connector_type"]).manifest
+            except KeyError:
+                return NoHttp()
+            self._http[cid] = self.http_factory(con, manifest, secrets)
+        return self._http[cid]
+
+    async def aclose(self) -> None:
+        """Close the connections' HTTP clients (their sessions); the pipeline stays usable and reopens them on demand."""
+        clients, self._http = list(self._http.values()), {}
+        for h in clients:
+            close = getattr(h, "close", None)
+            if close is not None:
+                with contextlib.suppress(Exception):
+                    await close()
 
     # ================================================================== fetch side
     async def sync(self, connector_id: str, *, mode: str = "incremental", source_ids: Iterable[str] | None = None, max_pages: int | None = None,

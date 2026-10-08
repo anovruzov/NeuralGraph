@@ -3103,14 +3103,14 @@ Supporting tests:
 
 ## 16. Connector roadmap (honest status)
 
-Nothing in this table is implemented today. "Fixtures" means a faithful local fake or file fixture exists and the
-connector passes against it. "Live-verified" means it has been run against the real provider.
+A row is implemented only where its "Implemented" column says yes. "Fixtures" means a faithful local fake or file
+fixture exists and the connector passes against it. "Live-verified" means it has been run against the real provider.
 
 | Connector | Mode | Auth | Phase | Implemented | Tested with fixtures | Live-verified | Notes |
 |---|---|---|---|---|---|---|---|
-| GitHub (issues, PRs, comments) | pull + webhook | fine-grained PAT; GitHub App later | 1 | no | no | no | §11.2 |
+| GitHub (issues, PRs, comments) | pull + webhook | fine-grained PAT, OAuth/GitHub App user token (code + PKCE); installation tokens scaffold | 1 | yes (`connectors/github.py`) | yes (`mocks/github_mock.py`, checked against the OpenAPI subset) | no | §11.2 |
 | Email export (mbox / .eml / zip) | export | none | 1 | no | no | n/a (fixtures are the format) | §11.3 |
-| Slack | Events API + export ZIP; pull for internal apps | OAuth v2 user token | 1b | no | no | no | rate tiers for non-Marketplace apps (§11.1) |
+| Slack | pull + Events API (export ZIP not built) | OAuth v2 user token (code + PKCE, rotation) or pasted user token | 1 | yes (`connectors/slack.py`) | yes (`mocks/slack_mock.py`) | no | distributed-app limits enforced client-side (§11.1) |
 | Gmail (API) | pull (history id) + push (Pub/Sub) | OAuth | 2 | no | no | no | reuses the email normalizer |
 | Outlook / Exchange (Microsoft Graph) | pull (delta) + webhooks | OAuth | 2 | no | no | no | reuses the email normalizer |
 | Microsoft Teams (Graph) | pull + change notifications | OAuth | 2 | no | no | no | |

@@ -18,7 +18,7 @@ import json
 from typing import Any, Iterable
 
 from ..util import jl, new_id, now_iso
-from .contract import Credentials, WebhookNotice, get_logger
+from .contract import ConnectorError, Credentials, WebhookNotice, get_logger
 from .crypto import VaultUnavailable
 from .domains import add_personal_domain_sync, correct_domains_sync, personal_domain_id
 from .events import VISIBILITIES, CanonicalEvent
@@ -29,6 +29,7 @@ from .store import IngestStore, SourceRow
 logger = get_logger(__name__)
 
 DM_SOURCE_TYPES = ("dm", "mpim", "group_dm")
+NOTICE_AUTH_STATUS = {"auth_expired": "auth_expired", "auth_revoked": "revoked", "insufficient_scope": "paused"}
 EXCLUSION_SCOPES = ("source_type", "source", "conversation", "author", "label", "title_regex", "body_regex")
 
 
@@ -279,6 +280,9 @@ class IngestService:
                       "AND kind NOT IN ('deletion','redaction')", (connector_id,))
         await self.p.store.run_in_tx(fn)
         self.p._instances.pop(connector_id, None)
+        http = self.p._http.pop(connector_id, None)          # its session and ETag cache go with the connection
+        if http is not None and hasattr(http, "close"):
+            await http.close()
         out: dict[str, Any] = {"connector_id": connector_id, "status": "disconnected", "records_deleted": 0}
         if data == "delete":
             res = await self._delete_records(self.db.records_of_connector(connector_id), reason="disconnect")
@@ -303,14 +307,35 @@ class IngestService:
         if not await self.p.store.run_in_tx(claim):
             report.duplicates += 1
             return report
-        src = self.db.source_by_external(connector_id, notice.source_external_id)
-        if src is None or src.selection != "included" or src.access_state != "ok":
-            report.excluded += 1
-            return report
         instance = self.p.connector(connector_id)
         ctx = self.p.context(con)
-        await self.p._run_stream(instance, ctx, con, src, "webhook", lambda cur: instance.handle_webhook(ctx, notice), "live", "webhook", None, report)
+        if not notice.source_external_id:
+            # a connection-level notice (grant revoked, app uninstalled): no source and nothing to admit; the connector
+            # confirms it and raises the auth error the provider signalled
+            await self._connection_notice(instance, ctx, notice, report)
+        else:
+            src = self.db.source_by_external(connector_id, notice.source_external_id)
+            if src is None or src.selection != "included" or src.access_state != "ok":
+                report.excluded += 1
+                return report
+            await self.p._run_stream(instance, ctx, con, src, "webhook", lambda cur: instance.handle_webhook(ctx, notice), "live", "webhook", None,
+                                     report)
+        status = NOTICE_AUTH_STATUS.get(report.error_code or "")
+        if status:          # the same connection states a pull sync records for these errors
+            await self.p.store.run_in_tx(lambda c: IngestStore.set_connector_status_sync(c, connector_id, status, report.error_code or ""))
         return report
+
+    @staticmethod
+    async def _connection_notice(instance: Any, ctx: Any, notice: WebhookNotice, report: SyncReport) -> None:
+        try:
+            async for page in instance.handle_webhook(ctx, notice):
+                report.pages += 1
+                report.excluded += len(page.items)          # without a source nothing can be admitted
+        except ConnectorError as exc:
+            report.error_code = exc.code
+        except Exception as exc:                            # a broken connector never breaks the notice path
+            report.error_code = "connector_crash"
+            logger.warning("connection notice for %s failed: %s", report.connector_id, type(exc).__name__)
 
 
 def _json_list(values: Iterable[str]) -> str:
