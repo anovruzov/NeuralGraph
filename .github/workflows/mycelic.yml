@@ -3,10 +3,23 @@ name: mycelic
 on:
   push:
     branches: [main]
-    paths: ["mycelic/**", "tests/**", "deploy/mycelic/**", "NeuralGraph/**", "requirements*.txt", ".github/workflows/mycelic.yml"]
+    paths: ["mycelic/**", "tests/**", "deploy/mycelic/**", "NeuralGraph/**", "research/mycelic/**", "requirements*.txt", ".github/workflows/mycelic.yml"]
   pull_request:
 
 jobs:
+  research:
+    name: benchmark invariants and leakage audit (research/mycelic)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install numpy
+      - run: python -m unittest research.mycelic.test_mycelic research.mycelic.test_leakage
+
   tests:
     name: unit, API, MCP, JetStream integration and process smoke test
     runs-on: ubuntu-latest

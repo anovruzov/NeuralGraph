@@ -22,7 +22,8 @@ from typing import Dict, List, Optional, Sequence, Set, Tuple
 
 import numpy as np
 
-from .corpus import (CAUSAL_CHAINS, N_CAUSAL_PRED, PREDICATES, PRED_ID, Corpus)
+from .corpus import (CAUSAL_CHAINS, N_CAUSAL_PRED, PREDICATES, PRED_ID,
+                     PRED_SURFACE, Corpus)
 from .models import Tier, USD_PER_MTOK
 from .org import DEPT, ENT, Org, REGION, SITE, TEAM, USER
 from . import ops as _ops
@@ -864,8 +865,16 @@ class Hierarchy:
         # the entity name is in every note's surface text, so "notes that
         # name this entity" is a lexical lookup the agent can do locally;
         # the record's anchor field is the simulator's stand-in for it
-        rec_a = c.recs["anchor"][a:b]
-        cand = np.nonzero(rec_a == anchor)[0] + a
+        # (audit finding S2: the stand-in misses notes that name the entity
+        # as a second, `aux`, mention).  ops.OBSERVABLE["reextract_lookup"]
+        # does the token match on the agent's own rendered notes instead.
+        if _ops.OBSERVABLE["reextract_lookup"]:
+            name = c.entities[int(anchor)]
+            cand = np.array([r for r in range(a, b) if name in c.tokens(r)],
+                            dtype=np.int64)
+        else:
+            rec_a = c.recs["anchor"][a:b]
+            cand = np.nonzero(rec_a == anchor)[0] + a
         if len(cand) == 0:
             return []
         already = set(ul.ex.rid[st:st + n].tolist())
@@ -1140,7 +1149,7 @@ class HierRunner:
     def _weak_targets(self, hyps: List[Hypothesis]) -> List[Tuple[int, List[int], str]]:
         out = []
         for hy in hyps:
-            if hy.hallucinated:
+            if _ops.unsupported(hy):
                 continue
             missing: List[int] = []
             if hy.chain >= 0:
@@ -1204,7 +1213,7 @@ class HierRunner:
         before = {self._hkey(x): x for x in hyps}
         # 1. missing-link / weak-support / contradiction questions
         for hy in sorted(hyps, key=lambda x: -x.conf):
-            if hy.hallucinated:
+            if _ops.unsupported(hy):
                 continue
             missing: List[int] = []
             if hy.chain >= 0:
@@ -1434,7 +1443,7 @@ class HierRunner:
         targets: List[Tuple[int, List[int]]] = []
         seen: Set[int] = set()
         for hy in sorted(hyps, key=lambda x: -x.conf):
-            if hy.hallucinated or hy.chain < 0 or len(hy.preds) < 2:
+            if _ops.unsupported(hy) or hy.chain < 0 or len(hy.preds) < 2:
                 continue
             if hy.anchor in seen:
                 continue
@@ -1546,7 +1555,7 @@ class HierRunner:
                   tier: Tier) -> List[List[int]]:
         by_chain: Dict[int, List[int]] = {}
         for i, hy in enumerate(hyps):
-            if hy.chain >= 0 and not hy.hallucinated:
+            if hy.chain >= 0 and not _ops.unsupported(hy):
                 by_chain.setdefault(hy.chain, []).append(i)
         fams = []
         for ch, ids in by_chain.items():
@@ -1565,12 +1574,50 @@ class HierRunner:
 # Centralised baselines
 # ---------------------------------------------------------------------------
 
+def surface_pred(corpus: Corpus) -> np.ndarray:
+    """Per record, the predicate whose surface phrase the note's rendered text
+    contains (-1 when none), found by token match against PRED_SURFACE - a
+    lexicon lookup any LLM-free retrieval stage can do.  Where phrases of two
+    predicates occur, the earlier one in the text wins.  Cached on the corpus.
+    """
+    cached = getattr(corpus, "_surface_pred_cache", None)
+    if cached is not None and len(cached) == len(corpus.recs):
+        return cached
+    phrase: Dict[Tuple[str, ...], int] = {}
+    for p, forms in PRED_SURFACE.items():
+        for f in forms:
+            phrase[tuple(f.split())] = PRED_ID[p]
+    lens = sorted({len(k) for k in phrase}, reverse=True)
+    out = np.full(len(corpus.recs), -1, dtype=np.int16)
+    for rid in range(len(corpus.recs)):
+        toks = corpus.tokens(rid)
+        hit = -1
+        for i in range(len(toks)):
+            for L in lens:
+                p = phrase.get(tuple(toks[i:i + L]))
+                if p is not None:
+                    hit = p
+                    break
+            if hit >= 0:
+                break
+        out[rid] = hit
+    corpus._surface_pred_cache = out          # type: ignore[attr-defined]
+    return out
+
+
 def _lexical_index(corpus: Corpus) -> Dict[int, np.ndarray]:
     """Inverted index restricted to the predicate surface forms - the strongest
-    cheap retrieval signal available without an LLM."""
+    cheap retrieval signal available without an LLM.
+
+    Default: keyed on the record's true `pred` field (audit finding S1).  With
+    ops.OBSERVABLE["lexical_index"] it is keyed on the surface phrase found in
+    the rendered text (`surface_pred`); the ordering is the same, so on this
+    generator's text the two indexes are identical."""
     idx: Dict[int, np.ndarray] = {}
-    order = np.argsort(corpus.recs["pred"], kind="stable")
-    preds = corpus.recs["pred"][order]
+    key = surface_pred(corpus) if _ops.OBSERVABLE["lexical_index"] \
+        else corpus.recs["pred"]
+    order = np.argsort(key, kind="stable")
+    preds = key[order]
     uniq, starts, counts = np.unique(preds, return_index=True, return_counts=True)
     for u, s, ct in zip(uniq, starts, counts):
         idx[int(u)] = order[s:s + ct]

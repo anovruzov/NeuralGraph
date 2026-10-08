@@ -201,7 +201,10 @@ class Corpus:
         verbatim while two independent observations of the same
         (predicate, anchor) differ in filler.  Duplicate detection is
         therefore a text-similarity problem available to every system under
-        test - no system is handed the event id.
+        test.  The simulator does not solve it from this text: the extraction
+        operator's signature (ops.extract, ``sig``) is the event id itself for
+        92% of records, used by decisions only as an identity
+        (docs/mycelic_v5/ORACLE_AUDIT.md, O1c and D1).
         """
         r = self.recs[rid]
         h = int.from_bytes(hashlib.blake2b(int(r["event"]).to_bytes(8, "little"),
@@ -315,6 +318,10 @@ def _near_miss(entities: List[str], eid: int, rng: np.random.Generator,
 
 def build_corpus(org: Org, seed: int = 0,
                  cfg: Optional[Dict[str, object]] = None) -> Corpus:
+    # the v5 final set is sealed at every scale (protocol.py); this raises
+    # unless opened, and logs the build when it is
+    from .protocol import check_world
+    check_world(len(org.user_ids), seed)
     c = dict(DEFAULT_CFG)
     if cfg:
         c.update(cfg)

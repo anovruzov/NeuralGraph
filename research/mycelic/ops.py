@@ -9,9 +9,14 @@ never in the quality of the operator itself.  That is the fairness contract.
 Leakage contract
 ----------------
 Operators may read ground-truth record fields in order to *simulate* a noisy
-model.  Their OUTPUT must never expose ``kind``, ``group``, ``facet``,
-``veracity`` or ``event``.  Systems consume only operator output plus the org
-chart plus the surface text.  ``assert_no_leak`` in eval.py re-checks this.
+model.  Their OUTPUT must never expose ``kind``, ``group``, ``facet`` or
+``veracity``.  The one exception is ``ExtractResult.sig``, the simulated
+near-duplicate detector: it IS the event id for 92% of records (a coarse
+(pred, anchor, day) key for the rest), so decisions may use it only as an
+identity.  Systems consume only operator output plus the org chart plus the
+surface text.  ``test_leakage.py`` checks this (static inventory plus
+metamorphic invariances); docs/mycelic_v5/ORACLE_AUDIT.md classifies every
+site.
 
 Token accounting is derived from the actual serialised size of what each call
 sees, so "context explosion" is measured, not assumed.
@@ -36,6 +41,76 @@ TOK_PER_KO_NOLIN = 15     # without lineage/provenance fields
 TOK_PER_HYP = 40          # one emitted hypothesis with evidence pointers
 TOK_PER_QUESTION = 30
 TOK_PROMPT_OVERHEAD = 120
+
+
+# ---------------------------------------------------------------------------
+# Observable replacements for decision-side reads of hidden fields
+# (docs/mycelic_v5/ORACLE_AUDIT.md, findings S1-S3).  Every switch defaults to
+# the CURRENT behaviour, so no committed number changes unless one is turned
+# on; a switch that is on applies to every architecture alike.
+#
+#   lexical_index           S1  A / A2 retrieval matches the predicate surface
+#                               phrases in each note's rendered text instead of
+#                               reading the record's true `pred` field
+#                               (systems._lexical_index).
+#   reextract_lookup        S2  a re-extracting user agent finds its notes that
+#                               name the entity by token match on its own
+#                               rendered notes instead of reading the true
+#                               `anchor` field (Hierarchy._reextract).
+#   unsupported_by_evidence S3  "is this candidate a hallucination?" is
+#                               answered by "it cites no evidence object", not
+#                               by the simulator's `hallucinated` flag
+#                               (question / descent / completion / family
+#                               routing and the ranker's gate).
+#
+# Set from the environment as MYCELIC_OBSERVABLE=all, =none, or a comma list of names,
+# or with set_observable(...).
+# ---------------------------------------------------------------------------
+# v5 (PROTOCOL_V5.md, audit ORACLE_AUDIT.md): the observable replacements are
+# the default for every architecture.  S1 and S3 reproduce every committed
+# register exactly; S2 only acts with local_reextract, which no frozen
+# configuration uses.  MYCELIC_OBSERVABLE=none restores the legacy paths.
+OBSERVABLE: Dict[str, bool] = {"lexical_index": True,
+                               "reextract_lookup": True,
+                               "unsupported_by_evidence": True}
+
+
+def set_observable(**flags: bool) -> Dict[str, bool]:
+    """Set observable-replacement switches; returns the previous values."""
+    prev = dict(OBSERVABLE)
+    for k, v in flags.items():
+        if k not in OBSERVABLE:
+            raise KeyError(f"unknown observable switch {k!r}")
+        OBSERVABLE[k] = bool(v)
+    return prev
+
+
+def _observable_from_env() -> None:
+    import os
+    spec = os.environ.get("MYCELIC_OBSERVABLE", "").strip()
+    if not spec:
+        return
+    if spec == "none":
+        set_observable(**{n: False for n in OBSERVABLE})
+        return
+    names = list(OBSERVABLE) if spec == "all" else \
+        [s.strip() for s in spec.split(",") if s.strip()]
+    set_observable(**{n: True for n in names})
+
+
+_observable_from_env()
+
+
+def unsupported(h: "Hypothesis") -> bool:
+    """A candidate the downstream decisions must treat as unsupported.
+
+    Default: the simulator's `hallucinated` flag (S3).  Observable: the
+    candidate cites no evidence object - which is how the hallucination
+    operator in `synthesize` builds every hallucinated candidate, so the two
+    agree exactly on synthesis output."""
+    if OBSERVABLE["unsupported_by_evidence"]:
+        return not h.kos
+    return bool(h.hallucinated)
 
 
 def calibrate_token_costs(corpus: Corpus, n: int = 2000) -> float:
@@ -786,7 +861,7 @@ def annotate_anchor_context(hyps: List["Hypothesis"]) -> None:
     sits among them by the hand score."""
     by_anchor: Dict[int, List["Hypothesis"]] = {}
     for h in hyps:
-        if not h.hallucinated and h.feat is not None:
+        if not unsupported(h) and h.feat is not None:
             by_anchor.setdefault(h.anchor, []).append(h)
     for hs in by_anchor.values():
         hs.sort(key=lambda h: -h.feat["hand_conf"])
@@ -811,7 +886,7 @@ def apply_ranker_to(hyps: List["Hypothesis"]) -> None:
     """
     if RANKER is None or not hyps:
         return
-    real = [h for h in hyps if not h.hallucinated and h.feat is not None]
+    real = [h for h in hyps if not unsupported(h) and h.feat is not None]
     k = sum(1 for h in real if h.feat["hand_conf"] >= 0.5)
     scored = [(ranker_score(h.feat, RANKER), h) for h in real]
     scored.sort(key=lambda t: -t[0])

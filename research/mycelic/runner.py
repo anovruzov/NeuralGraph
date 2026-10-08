@@ -55,7 +55,7 @@ def build_world(scale: int, seed: int, corpus_cfg: Optional[Dict] = None,
                 org_kwargs: Optional[Dict] = None) -> World:
     # the v5 final set is sealed (protocol.py); this raises unless opened
     from .protocol import check_world
-    check_world(scale, seed)
+    check_world(scale, seed, log=False)
     org = build_org(scale, seed=seed, **(org_kwargs or {}))
     cp = build_corpus(org, seed=seed, cfg=corpus_cfg)
     gold = make_gold(cp)

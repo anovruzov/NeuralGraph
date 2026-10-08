@@ -113,4 +113,8 @@ No paid live simulation is launched under this protocol.
 
 ## 9. Amendments
 
-(none)
+* **A1 (2026-10-08, after the oracle audit, before any v5 optimisation experiment).**
+  * **Observable defaults:** the replacements S1–S3 are the default for every architecture (`ops.OBSERVABLE`; `MYCELIC_OBSERVABLE=none` restores the legacy paths). On the audit's paired runs (seeds 580–599 at 10k, and 9 architectures on two worlds) they reproduce every v4 register exactly; S2 acts only with `local_reextract`.
+  * **Seal at every scale:** final seeds are refused at every scale (finding P1), and `corpus.build_corpus` checks too.
+  * **Acceptance gate:** `research.mycelic.test_leakage` and `research.mycelic.test_mycelic` must pass for any accepted change; both run in CI.
+  * **Robustness study:** before the final report, a harsher-operator study applied identically to every architecture is required (correlated extraction misses, a text-derived echo signature with paraphrase noise, date and polarity errors at small tiers, hallucinations that cite evidence). It is reported as a sensitivity analysis, not as the target metric.

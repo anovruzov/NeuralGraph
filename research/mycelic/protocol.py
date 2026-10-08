@@ -30,12 +30,20 @@ LEGACY_SEEDS_10K = tuple(range(0, 30))       # historical panels, now developmen
 _LOG = os.path.join(os.path.dirname(__file__), "artifacts", "final_access.log")
 
 
+# Sealed at EVERY scale: build_org uses its target only through rounded
+# region sizes, so e.g. 9,999 users rebuilds the 10,000-user world (audit
+# finding P1).  Refusing the seed outright closes every alias.
+SEALED_SEEDS: FrozenSet[int] = frozenset().union(*FINAL_SEEDS.values())
+
+
 def is_final(scale: int, seed: int) -> bool:
-    return int(seed) in FINAL_SEEDS.get(int(scale), frozenset())
+    return int(seed) in SEALED_SEEDS
 
 
-def check_world(scale: int, seed: int) -> None:
-    """Called by runner.build_world before a world is generated."""
+def check_world(scale: int, seed: int, log: bool = True) -> None:
+    """Called by runner.build_world (log=False) and corpus.build_corpus
+    (log=True) before a world is generated, so every path - including
+    callers that build a corpus directly - is covered and logged once."""
     if not is_final(scale, seed):
         return
     if os.environ.get("MYCELIC_FINAL_EVAL") != "1":
@@ -43,6 +51,8 @@ def check_world(scale: int, seed: int) -> None:
             f"seed {seed} at scale {scale} belongs to the sealed final set "
             f"(research/mycelic/protocol.py). Set MYCELIC_FINAL_EVAL=1 only for "
             f"the pre-registered one-shot final evaluation.")
+    if not log:
+        return
     try:
         rev = subprocess.run(["git", "rev-parse", "--short", "HEAD"],
                              capture_output=True, text=True,

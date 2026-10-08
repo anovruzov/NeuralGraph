@@ -86,8 +86,11 @@ are drawn from a synonym set per predicate, plus random filler. The synonym
 and filler choices are keyed on the **event id**, not the record id, so an
 echo of an event repeats the original wording almost verbatim while two
 independent observations of the same thing differ. Duplicate detection is
-therefore a text-similarity problem every architecture faces equally, and no
-system is ever handed the event id.
+therefore a text-similarity problem in principle. The simulated extraction
+operator does not solve it from text: it passes the event id through as the
+echo signature, with 8% simulated collisions, for every architecture alike, so
+independence counting assumes a near-perfect echo detector (see
+docs/mycelic_v5/ORACLE_AUDIT.md).
 
 The entity namespace is **partitioned**: a small global pool of shared
 platforms and corporate vendors visible everywhere, and site-private blocks
