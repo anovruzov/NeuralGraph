@@ -219,11 +219,17 @@ def scan(paths: Optional[List[str]] = None) -> Dict[str, List[int]]:
     if paths is None:
         paths = sorted(os.path.join(HERE, f) for f in os.listdir(HERE)
                        if f.endswith(".py") and f != SELF)
+        # the live-LLM package is scanned too; its sites are keyed live/<file>
+        live = os.path.join(HERE, "live")
+        if os.path.isdir(live):
+            paths += sorted(os.path.join(live, f) for f in os.listdir(live)
+                            if f.endswith(".py"))
     out: Dict[str, List[int]] = defaultdict(list)
     for p in paths:
         with open(p) as fh:
             tree = ast.parse(fh.read(), filename=p)
-        s = _Scanner(os.path.basename(p))
+        s = _Scanner(os.path.relpath(p, HERE) if os.path.dirname(os.path.abspath(p))
+                     == os.path.join(HERE, "live") else os.path.basename(p))
         s.visit(tree)
         for q, line, tok in s.sites:
             out[f"{s.f}::{q}::{tok}"].append(line)

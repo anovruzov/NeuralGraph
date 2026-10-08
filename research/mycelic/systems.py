@@ -186,9 +186,13 @@ class UserLayer:
 def user_extract(corpus: Corpus, tier: Tier, rng: np.random.Generator,
                  meter: Optional[Meter] = None, stage: str = "L0-extract",
                  near_miss: Optional[np.ndarray] = None,
-                 local_context: bool = True) -> UserLayer:
+                 local_context: bool = True,
+                 ex: Optional[ExtractResult] = None) -> UserLayer:
+    # `ex`: claims extracted elsewhere (live LLM agents, research/mycelic/live)
+    # replace the simulated extraction; everything below runs unchanged
     n_rec = len(corpus.recs)
-    ex = extract(corpus, np.arange(n_rec), tier, rng, near_miss=near_miss)
+    if ex is None:
+        ex = extract(corpus, np.arange(n_rec), tier, rng, near_miss=near_miss)
     base = BaseRate(ex, len(PREDICATES), len(corpus.entities))
     nov = base.novelty(ex.pred, ex.anchor)
     org = corpus.org
@@ -1976,7 +1980,8 @@ def central_triage(corpus: Corpus, alloc: List[Tier], seed: int,
 
 def chunked_long_context(corpus: Corpus, alloc: List[Tier], seed: int,
                          near_miss=None, max_chunks: int = 64,
-                         expand_schema: bool = True) -> RunResult:
+                         expand_schema: bool = True,
+                         pre_ex: Optional[ExtractResult] = None) -> RunResult:
     """BASELINE A2 - "just use more context".
 
     Partition the corpus into chunks that fill the kernel tier's whole context
@@ -2005,7 +2010,9 @@ def chunked_long_context(corpus: Corpus, alloc: List[Tier], seed: int,
         sel = cand[c * per_chunk:(c + 1) * per_chunk]
         if len(sel) == 0:
             break
-        ex = extract(corpus, sel, kt, rng, near_miss=near_miss)
+        # pre_ex: the kernel model's live claims (research/mycelic/live, A2-live)
+        ex = extract(corpus, sel, kt, rng, near_miss=near_miss) if pre_ex is None \
+            else pre_ex.take(np.nonzero(np.isin(pre_ex.rid, sel))[0])
         read += len(sel)
         meter.add("L5-kernel-chunk", kt,
                   int(len(sel) * TOK_PER_RECORD + TOK_PROMPT_OVERHEAD),

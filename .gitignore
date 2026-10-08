@@ -23,3 +23,6 @@ research/mycelic/artifacts/hyp_features_*.jsonl
 
 # rows a rerun sets aside when v1/ is already archived (research/mycelic/final_rerun.sh)
 research/mycelic/artifacts/previous/
+
+# live-agent LLM call caches (record/replay; can be large; bundled separately by the live harness)
+research/mycelic/artifacts/live/cache/

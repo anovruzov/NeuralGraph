@@ -1,5 +1,5 @@
 {
- "_doc": "Every access to hidden information in research/mycelic/*.py (except test_leakage.py), as found by test_leakage.scan(). Key: file::function::token. count = accesses allowed at that site. Categories: SCORING, GENERATOR, OPERATOR-SIM, SHORTCUT (see docs/mycelic_v5/ORACLE_AUDIT.md). A new site or a higher count fails test_leakage; classify it here and in the audit.",
+ "_doc": "Every access to hidden information in research/mycelic/*.py (except test_leakage.py) and research/mycelic/live/*.py (keyed live/<file>), as found by test_leakage.scan(). Key: file::function::token. count = accesses allowed at that site. Categories: SCORING, GENERATOR, OPERATOR-SIM, SHORTCUT (see docs/mycelic_v5/ORACLE_AUDIT.md). A new site or a higher count fails test_leakage; classify it here and in the audit.",
  "sites": {
   "arm_paired.py::run_arms::attr:gold": {
    "category": "SCORING",
@@ -550,6 +550,91 @@
    "category": "SCORING",
    "count": 1,
    "why": "provenance metric: checks the true anchor of each cited evidence record after the run"
+  },
+  "live/run.py::main::attr:gold": {
+   "category": "SCORING",
+   "count": 4,
+   "why": "live driver: passes World.gold (and the extraction it scores) to evaluate() / live.score after the agents answered; no decision reads it"
+  },
+  "live/run.py::system_rows::attr:gold": {
+   "category": "SCORING",
+   "count": 2,
+   "why": "live driver: evaluate() of the live and the paired simulated run"
+  },
+  "live/score.py::_facet_rids::attr:discoverable": {
+   "category": "SCORING",
+   "count": 2,
+   "why": "live extraction scoring: gold facet records of discoverable (and rare) patterns, read after the run"
+  },
+  "live/score.py::_facet_rids::attr:evidence": {
+   "category": "SCORING",
+   "count": 1,
+   "why": "live extraction scoring: gold facet records of discoverable (and rare) patterns, read after the run"
+  },
+  "live/score.py::_facet_rids::attr:rare": {
+   "category": "SCORING",
+   "count": 1,
+   "why": "live extraction scoring: gold facet records of discoverable (and rare) patterns, read after the run"
+  },
+  "live/score.py::extraction_quality::field:anchor": {
+   "category": "SCORING",
+   "count": 1,
+   "why": "live extraction scoring: compares each claim with its note's true (pred, anchor, polarity, aux) after the run"
+  },
+  "live/score.py::extraction_quality::field:aux": {
+   "category": "SCORING",
+   "count": 1,
+   "why": "live extraction scoring: compares each claim with its note's true (pred, anchor, polarity, aux) after the run"
+  },
+  "live/score.py::extraction_quality::field:polarity": {
+   "category": "SCORING",
+   "count": 2,
+   "why": "live extraction scoring: compares each claim with its note's true (pred, anchor, polarity, aux) after the run"
+  },
+  "live/score.py::extraction_quality::field:pred": {
+   "category": "SCORING",
+   "count": 2,
+   "why": "live extraction scoring: compares each claim with its note's true (pred, anchor, polarity, aux) after the run"
+  },
+  "live/score.py::signature_accuracy::attr:spurious": {
+   "category": "SCORING",
+   "count": 1,
+   "why": "live extraction scoring: echo-signature accuracy against true event ids; drops the simulated operator's invented claims"
+  },
+  "live/score.py::signature_accuracy::field:event": {
+   "category": "SCORING",
+   "count": 1,
+   "why": "live extraction scoring: echo-signature accuracy against true event ids; drops the simulated operator's invented claims"
+  },
+  "live/score.py::text_signature_intrinsic::field:event": {
+   "category": "SCORING",
+   "count": 1,
+   "why": "live extraction scoring: the text echo-signature recipe against true event ids"
+  },
+  "live/test_live.py::TestIntegration.test_a2_with_precomputed_claims_uses_exactly_them::attr:spurious": {
+   "category": "SCORING",
+   "count": 1,
+   "why": "test harness: scrambles / poisons hidden fields and gold to prove they never reach a live agent; checks operator outputs"
+  },
+  "live/test_live.py::TestParsing.test_canonicalise::attr:spurious": {
+   "category": "SCORING",
+   "count": 1,
+   "why": "test harness: scrambles / poisons hidden fields and gold to prove they never reach a live agent; checks operator outputs"
+  },
+  "live/test_live.py::TestPrivacy.test_hidden_fields_scrambled_after_rendering_leave_prompts_identical::attr:gold": {
+   "category": "SCORING",
+   "count": 1,
+   "why": "test harness: scrambles / poisons hidden fields and gold to prove they never reach a live agent; checks operator outputs"
+  },
+  "live/test_live.py::TestPrivacy.test_hidden_fields_scrambled_after_rendering_leave_prompts_identical::attr:patterns": {
+   "category": "SCORING",
+   "count": 1,
+   "why": "test harness: scrambles / poisons hidden fields and gold to prove they never reach a live agent; checks operator outputs"
+  },
+  "live/test_live.py::TestPrivacy.test_rendering_does_not_read_never_rendered_fields::attr:patterns": {
+   "category": "SCORING",
+   "count": 1,
+   "why": "test harness: scrambles / poisons hidden fields and gold to prove they never reach a live agent; checks operator outputs"
   },
   "live_rank.py::build::attr:discoverable": {
    "category": "SCORING",
