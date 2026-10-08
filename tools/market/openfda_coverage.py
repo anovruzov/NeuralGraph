@@ -9,8 +9,9 @@ baselines about as early as the narratives carried it to X. Whether real reports
 question this script measures, model-free, on FDA's public device adverse-event reports (MAUDE via openFDA):
 
 * the product codes with the most reports received in one calendar year (``date_received``, never an event date);
-* for each, from the API's own counts: reports with a lot number, a model number, a catalog number, any narrative
-  text, a coded device problem, and the manufacturer's country;
+* for each, from the API's own counts: reports where a lot number, a model number, a catalog number, narrative text,
+  a coded device problem or the manufacturer's country exists (a placeholder such as ``UNK`` counts as existing, so
+  these are upper bounds; the sample's shares below are the ones to read);
 * for each, from a sample of reports (the first ``--sample`` the API returns for the query and as many from the middle
   of its result set; not a random sample): the share whose lot number is a real value rather than a placeholder
   (``UNK``, ``NI``, ``N/A``, ...), the share whose coded device problems are all generic (the codes that say no
@@ -37,9 +38,12 @@ BASE = "https://api.fda.gov/device/event.json"
 # coded device problems that say no specific problem was identified (FDA device problem terms, matched lower-case)
 GENERIC_PROBLEMS = (
     "adverse event without identified device or use problem",
+    "appropriate device problem term/code not available",
     "appropriate term/code not available",
+    "insufficient device problem information",
     "insufficient information",
     "no apparent adverse event",
+    "no device problem",
     "unknown (for use when the device problem is not known)",
     "no known impact or consequence to patient",
 )
@@ -151,8 +155,8 @@ def probe(year: int, codes: int, size: int) -> dict[str, Any]:
         recs = sample(search, size, n // 2)
         print(f"coverage: {entry['code']} {n} reports, sample {len(recs)}", file=sys.stderr)
         result["codes"].append({"code": entry["code"], "reports": n,
-                                "field_present_share": {k: (round(v / n, 4) if n else None)
-                                                        for k, v in counts.items()},
+                                "field_exists_share": {k: (round(v / n, 4) if n else None)
+                                                       for k, v in counts.items()},
                                 "sample": summarise_sample(recs)})
     return result
 
@@ -165,7 +169,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--sample", type=int, default=100)
     args = p.parse_args(argv)
     result = probe(args.year, args.codes, args.sample)
-    result["definitions"] = {"generic_problems": list(GENERIC_PROBLEMS), "placeholder_lots": sorted(PLACEHOLDER_LOTS),
+    result["definitions"] = {"field_exists_share": "the API's own _exists_ count over the reports: a placeholder "
+                                                   "value (UNK, NI) counts as present, so read the sample's shares",
+                             "generic_problems": list(GENERIC_PROBLEMS), "placeholder_lots": sorted(PLACEHOLDER_LOTS),
                              "sample": "the first --sample reports the API returns for the query and as many from "
                                        "the middle of its result set; not a random sample"}
     text = json.dumps(result, indent=1, sort_keys=True)

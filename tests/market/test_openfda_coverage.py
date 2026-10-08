@@ -30,6 +30,9 @@ class CoverageTests(unittest.TestCase):
     def test_generic_only(self) -> None:
         self.assertTrue(m.generic_only(["Adverse Event Without Identified Device or Use Problem"]))
         self.assertTrue(m.generic_only(["Insufficient Information", "Appropriate Term/Code Not Available"]))
+        # FDA's own device-problem terms, as the first real-data run printed them (run 37853756962)
+        self.assertTrue(m.generic_only(["Appropriate Device Problem Term/Code Not Available",
+                                        "Insufficient Device Problem Information"]))
         self.assertFalse(m.generic_only(["Insufficient Information", "Overheating of Device"]))
         self.assertTrue(m.generic_only([]))
 
