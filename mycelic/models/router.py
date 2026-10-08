@@ -35,6 +35,7 @@ POLICY_KEY_FOR_TASK: dict[str, str] = {
     "draft_question": "question_draft",
     "compose_verification_question": "question_draft",
     "classify_document": "classify",
+    "classify_domains": "classify",
     "answer_from_evidence": "classify",
     "record_outcome": "classify",
     "evaluate_responses": "evaluate",

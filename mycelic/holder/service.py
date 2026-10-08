@@ -233,7 +233,11 @@ class HolderService:
             return {"op": "retract", "result": result}
         if kind == "raw_request":
             ref_id = str(p.get("ref_id") or "")
-            raw = await self.store.raw_for_ref(ref_id) if ref_id else None
+            # the requester travels in the signed envelope; connector records are disclosed only to the owner or to a
+            # requester inside the source's members (the reply is content-free otherwise)
+            requester = str(p.get("requested_by") or p.get("grant_token") or "")
+            audience = {"principal_ids": [requester] if requester else [], "complete": bool(requester), "owner": bool(p.get("requester_is_owner"))}
+            raw = await self.store.raw_for_ref(ref_id, audience=audience) if ref_id else None
             outcome = {"op": "raw_request", "result": raw} if raw else {"op": "raw_request", "result": None, "error": "unknown ref_id"}
             await self.store.store.log_event("raw.request", ref_id, {"granted": raw is not None, "grant_token": bool(p.get("grant_token")),
                                                                      "msg_id": env.msg_id})
@@ -310,6 +314,14 @@ class HolderService:
                 await self.transport.reply(env, result or {"error": error}, kind="control_reply")
         elif error and env.reply_to:
             await self.transport.reply(env, {"error": error}, kind="error")
+
+    async def publish_ingest_output(self, kind: str, payload: dict[str, Any], *, msg_id: str) -> bool:
+        """Publisher for the ingestion pipeline's outbox (``mycelic.ingest.pipeline``): batched ``ingest_result`` and
+        ``evidence_event`` envelopes, signed like every other outbound envelope. Payloads are content-free by construction."""
+        subjects = {"ingest_result": Subjects.ingest_results(self.tenant_id), "evidence_event": Subjects.evidence_events(self.tenant_id)}
+        if kind not in subjects:
+            raise ValueError(f"unsupported ingestion output kind {kind!r}")
+        return await self._publish(subjects[kind], kind, payload, msg_id=msg_id)
 
     async def _publish(self, subject: str, kind: str, payload: dict[str, Any], *, msg_id: str, counter: str = "published") -> bool:
         """Every outbound envelope is signed with the route key and names the holder in its payload."""
