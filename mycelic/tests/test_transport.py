@@ -469,3 +469,56 @@ async def test_nats_durable_consumer_is_shared_across_processes() -> None:
     finally:
         await second.close()
         await first.close()
+
+
+@nats_only
+async def test_nats_connector_control_reaches_an_external_holder_sealed_and_leaves_no_copy(tmp_path) -> None:
+    """The coordinator asks an external holder to connect an app over JetStream: the token travels sealed for that
+    holder, the holder opens it once, answers on the reply subject, and the request is deleted from the stream."""
+    from mycelic.evidence import EvidenceStore
+    from mycelic.holder.service import HolderService
+    from mycelic.ingest.crypto import seal_transfer
+    from mycelic.transport.nats_transport import NatsTransport
+
+    class Runtime:
+        def __init__(self) -> None:
+            self.creds = None
+
+        async def control(self, action, params, *, actor, credentials=None):
+            self.creds = credentials
+            return {"action": action, "actor": actor}
+
+        async def on_notice(self, payload):
+            return {}
+
+    stream = "MYCELIC_TEST_" + token(6).replace("-", "_").replace("_", "").upper()[:10]
+    core = NatsTransport(NATS_URL, stream=stream, retention_seconds=600, fetch_timeout=0.3)
+    holder_side = NatsTransport(NATS_URL, stream=stream, retention_seconds=600, manage_stream=False, fetch_timeout=0.3)
+    await core.start()
+    await holder_side.start()
+    store = EvidenceStore(tmp_path / "h.db", holder_id="hold_x", tenant_id=TENANT)
+    svc = HolderService(store, holder_side, holder_id="hold_x", tenant_id=TENANT, route_key="rk-x", ingest=Runtime(), transport_heartbeat=False)
+    try:
+        await svc.start()
+        env = Envelope.new(Subjects.holder_control(TENANT, "hold_x"), "connector_control", TENANT,
+                           {"action": "connector.add", "actor": "usr_ana", "params": {"connector_type": "github"}}, msg_id="cc_nats_1")
+        env.payload["credentials_sealed"] = seal_transfer("rk-x", "hold_x", "cc_nats_1", {"kind": "pat", "access_token": "ghp_" + "b" * 36})
+        rep = await core.request(env, timeout=10, sign_key="rk-x")
+        assert rep.kind == "connector_reply" and rep.payload.get("action") == "connector.add" and rep.payload.get("actor") == "usr_ana"
+        assert svc.ingest.creds["access_token"].startswith("ghp_")
+        # the request (sealed token included) is gone from the stream once the holder handled it
+        await asyncio.sleep(0.5)
+        info = await core._js.stream_info(stream)
+        found = []
+        for seq in range(info.state.first_seq, info.state.last_seq + 1):
+            with contextlib.suppress(Exception):
+                m = await core._js.get_msg(stream, seq)
+                found.append(m.data)
+        assert not any(b"credentials_sealed" in (d or b"") for d in found)
+    finally:
+        await svc.stop()
+        await store.close()
+        with contextlib.suppress(Exception):
+            await core.delete_stream()
+        await holder_side.close()
+        await core.close()
