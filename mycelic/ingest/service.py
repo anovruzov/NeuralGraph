@@ -205,14 +205,32 @@ class IngestService:
         if self.db.get_record(record_id) is None:
             raise KeyError(record_id)
         add, remove = list(add), list(remove)
+        # the correction is written where the record lives (its memberships are in its shard, INGESTION.md §5.4), under that
+        # shard's write gate (a split's cutover holds it while it moves records)
+        def where() -> str:
+            return self.p.evidence.shards.shard_of_record(record_id) if self.p.evidence._sharded() else "s0"
 
-        def fn(c):
-            before = {r["domain_id"] for r in c.execute("SELECT domain_id FROM domain_memberships WHERE record_id=? AND status='active'", (record_id,))}
-            out = correct_domains_sync(c, record_id, add=add, remove=remove, primary=primary, actor_id=actor, reason=reason, taxonomy=self.p.taxonomy)
-            active = self.p._domains_after_sync(c, record_id)
-            self.p._recount_domains_sync(c, before | set(active), "s0")
-            return out
-        out = await self.p.store.run_in_tx(fn)
+        out = None
+        for _attempt in range(4):
+            shard = where()
+            async with self.p.shards.gate(shard):
+                if where() != shard:
+                    continue
+                owner = self.p.shards.writer(shard)
+                sharded = self.p.evidence._sharded()
+
+                def fn(c, shard=shard, owner=owner, sharded=sharded):
+                    before = {r["domain_id"] for r in c.execute("SELECT domain_id FROM domain_memberships WHERE record_id=? AND status='active'", (record_id,))}
+                    res = correct_domains_sync(c, record_id, add=add, remove=remove, primary=primary, actor_id=actor, reason=reason, taxonomy=self.p.taxonomy)
+                    active = self.p._domains_after_sync(c, record_id)
+                    self.p._recount_domains_sync(c, before | set(active), shard)
+                    if sharded:
+                        owner.store.control_op(c, "touch", record_id=record_id)    # a running split's catch-up sees the correction
+                    return res
+                out = await owner.store.run_in_tx(fn)
+                break
+        if out is None:
+            raise RuntimeError("the record's shard kept changing during the correction")
         self.p.classifier.centroids.invalidate([self.p.taxonomy.resolve(d) for d in add + remove])
         return out
 

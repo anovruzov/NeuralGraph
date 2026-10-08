@@ -76,6 +76,28 @@ reference while building.
 >   and honest scaffolds for the Phase 2 apps. Not built yet: E9's export importers, shard splits and fan-out (§7.3+),
 >   the model-based relation extractor (`extract_org_relations`).
 
+> **Implementation status (per-holder domain sharding, §7, 2026-10-08).**
+> * Built: `mycelic/ingest/shards.py` (`ShardSpec`, `ShardRouter`, `ShardSet`: files resolved only from the holder's own
+>   `shard_map` inside its directory, one writer per file (`flock`) and one gate per shard in process, read connections for
+>   fan-out, `ShardStats`, threshold signals sustained over a window, `recommend_splits`); `reshard.py` (split migration
+>   planned → provisioning → copying → catching_up → cutover → cleanup → done, resumable from its checkpoint at every state);
+>   `intents.py` (the idempotent two-step between a data shard's commit and the control shard's, through
+>   `shard_control_intents`); `fanout.py` (bounded fan-out search with RRF, `GraphTraverser` across shards);
+>   `shard_backup.py` (online backup per shard file, restore with deletion replay from tombstones and the coordinator
+>   ledger); holder migration `0003_shards.sql`; coordinator migration `0004_shards.sql` (registry keyed by holder) and
+>   `mycelic/shard_registry.py` (heartbeat mirror, writer lease); admin API `mycelic/api/routes_shards.py`; benchmarks in
+>   `research/ingest_bench/` (numbers in its `RESULTS.md`). Tests: `mycelic/tests/test_ingest_shards*.py`.
+> * Deviations: shard files are named `shd_<hex>.db` (product decision), not `evidence-s1.db`; `ingest_records` and every
+>   record-scoped table move with the record (§5.4 [D]); `applied_events` is also mirrored in s0 as the holder-wide dedupe
+>   index; the append-only membership history is copied, never deleted from the source; shards are searched in turn on one
+>   read worker per holder, not in parallel threads (parallel threads convoy on the GIL, measured ~6x slower); a time-range
+>   split is recommended (`split_by_time`) but not implemented; abort works before cutover only (no reverse migration).
+> * Measured (research/ingest_bench/RESULTS.md, 3k and 12k records, 4 shards): the designed shard-level RRF agrees with
+>   single-store retrieval at only ~0.37-0.39 recall@10 (target ≥ 0.95, not met) and lowers known-item hit@10 (0.98 to
+>   0.90 at 3k, 0.92 to 0.85 at 12k); the optional channel-level fusion (`EvidenceStore.fanout_merge = "channel"`) keeps
+>   hit@10 within 0.01 of the single store at ~0.64-0.67 agreement. Sharded queries are 2-3x slower at p50 (shards are
+>   searched in turn). On these numbers the default merge is now `channel` (DECISIONS D17); `rrf` remains selectable.
+
 ---
 
 ## 0. Key decisions
@@ -1884,7 +1906,8 @@ class ShardedRetriever:
 ```
 
 * Scores from different shards are not comparable, because each shard has its own BM25 statistics and priors. This is
-  the same reason NeuralGraph fuses channels by rank, so shards are fused by RRF as well.
+  the same reason NeuralGraph fuses channels by rank, so shards are fused by RRF as well. *(As built: measured, this
+  shard-level fusion lost known-item hits; the default fuses per retrieval channel across shards instead, DECISIONS D17.)*
 * With one shard, `ShardedRetriever` calls `MemoryRetriever.search` directly, so today's behaviour is unchanged.
 * `allowed_memory_ids` = active memories of records that have an active membership in the closure of `domain_ids` *and*
   are `exportable()` to the audience (owner audience = everything that is not deleted). It needs E14. Until E14 lands,

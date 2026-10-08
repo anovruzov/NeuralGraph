@@ -32,7 +32,7 @@ from .. import __version__
 from .. import observability as obs
 from ..db.migrate import migration_status
 from ..util import now_iso, parse_iso, utcnow
-from . import routes_admin, routes_auth, routes_chats, routes_goals, routes_integrations, routes_knowledge, routes_org, routes_questions, routes_workspaces
+from . import routes_admin, routes_auth, routes_chats, routes_goals, routes_integrations, routes_knowledge, routes_org, routes_questions, routes_shards, routes_workspaces
 from .middleware import LOOPBACK_HOSTS, ApiError, build_middleware, json_response, query_int, require_user
 from .sse import EventHub, stream
 from .static import setup_static
@@ -140,7 +140,7 @@ def create_app(rt: Any, settings: Any, *, run_worker: bool | None = None, run_ho
     app.middlewares.append(build_middleware(rt, settings, allowed_hosts=allowed_hosts, cors_origins=list(cors_origins if cors_origins is not None else settings.cors_origins),
                                             metrics=registry, reporter=reporter))
 
-    for module in (routes_auth, routes_org, routes_chats, routes_goals, routes_questions, routes_knowledge, routes_workspaces, routes_admin, routes_integrations):
+    for module in (routes_auth, routes_org, routes_chats, routes_goals, routes_questions, routes_knowledge, routes_workspaces, routes_admin, routes_integrations, routes_shards):
         module.setup(app, "/api")
 
     async def events_stream(request: web.Request) -> web.StreamResponse:

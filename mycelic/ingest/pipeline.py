@@ -6,8 +6,14 @@ Fetch side (:meth:`IngestPipeline.sync`), per page of a connector stream::
 
 Process side (:meth:`IngestPipeline.process_available`), per leased queue item::
 
-    dedupe -> classify -> route (s0) -> write (EvidenceStore primitives; doc_id = record_id, observed_at = last content change)
-           -> publish (outbox written in the write transaction, sent afterwards)
+    dedupe -> classify -> route (sticky locator, else the most specific active shard of the primary domain, else s0)
+           -> write (EvidenceStore primitives of that shard, under its write gate; doc_id = record_id, observed_at = last
+              content change) -> publish (outbox written in the write transaction, sent afterwards)
+
+A record in s0 commits its effect and its control rows (locator, applied marker, queue ack, outbox, tombstone) in one
+transaction, as before sharding. A record in a data shard commits the effect with its ``applied_events`` marker and the
+control ops in the shard's intent log; the ops are applied to s0 right after (and replayed after a crash) by
+:mod:`mycelic.ingest.intents` (INGESTION.md §7.1, §9.1).
 
 Every stage is metered separately (:class:`StageMeter`, persisted in ``ingest_stage_metrics``: counts and latency, never
 content). Isolation properties:
@@ -206,8 +212,10 @@ class IngestPipeline:
         self.http_factory = http_factory or default_http_factory
         self._http: dict[str, Any] = {}
         self.taxonomy = self._ensure_taxonomy(taxonomy)
-        self.shards = ShardRouter({DEFAULT_SHARD: evidence}, taxonomy=self.taxonomy)
+        self.shards = ShardRouter(evidence.shards, taxonomy=self.taxonomy)
+        self.db.shardset = evidence.shards
         self.classifier = DomainClassifier(self.taxonomy, conn=self.store._conn, router=router, tenant_id=self.tenant_id)
+        self.classifier.example_conns = self.db.record_conns
 
     # ------------------------------------------------------------------ taxonomy
     def _ensure_taxonomy(self, tax: Taxonomy | None) -> Taxonomy:
@@ -463,7 +471,8 @@ class IngestPipeline:
                 except re.error:
                     continue
         if self.max_records is not None and ev.kind in CONTENT_KINDS and self.db.get_locator(ev.record_key) is None:
-            live = int(self.store._conn.execute("SELECT COUNT(*) AS n FROM ingest_records WHERE deletion_status='live'").fetchone()["n"])
+            live = sum(int(c.execute("SELECT COUNT(*) AS n FROM ingest_records WHERE deletion_status='live'").fetchone()["n"])
+                       for c in self.db.record_conns())
             if live >= self.max_records:
                 return "quota"
         return None
@@ -487,6 +496,7 @@ class IngestPipeline:
         """Lease and process queued items until the queue is empty (or ``max_items``), then publish."""
         worker = worker_id or self.worker_id
         report = ProcessReport()
+        await self.evidence.shards.recover()          # control effects a data shard still owes s0 (a crash between two commits)
         await self.queue.requeue_expired()
         purged = 0
         while max_items is None or report.processed < max_items:
@@ -569,10 +579,21 @@ class IngestPipeline:
             with self.meter.time(cid, "route"):
                 primary = memberships[0].domain_id if memberships else None
                 shard = self.shards.route_write_sync(self.store._conn, ev.record_key, primary_domain_id=primary, created_at=ev.created_at)
-                store = self.shards.writer(shard)
-            with self.meter.time(cid, "write", outcome):
-                await self._write(store, shard, item, worker, ev, outcome, memberships, embeddings, src)
-            return outcome
+            # one writer per shard (§7.6): the shard's gate is held across the write and its control commit; a cutover holds
+            # the source's gate while it moves records, so the route is checked again once the gate is ours
+            for _attempt in range(4):
+                async with self.shards.gate(shard):
+                    settled = self.shards.route_write_sync(self.store._conn, ev.record_key, primary_domain_id=primary, created_at=ev.created_at)
+                    if settled != shard:
+                        shard = settled
+                        continue
+                    store = self.shards.writer(shard)
+                    t0 = time.perf_counter()
+                    with self.meter.time(cid, "write", outcome):
+                        await self._write(store, shard, item, worker, ev, outcome, memberships, embeddings, src)
+                    self.evidence.shards.observe(shard, "write", (time.perf_counter() - t0) * 1000)
+                    return outcome
+            raise PermanentError("the record's shard kept changing while it was written", code="route_unsettled")
         except LostLease:
             self.meter.record(cid, "write", "lost_lease")
             return "lost"
@@ -604,7 +625,8 @@ class IngestPipeline:
 
     def _record_vector(self, record_id: str) -> list[float] | None:
         import struct
-        rows = self.store._conn.execute("SELECT embedding FROM memories WHERE chat_id=? AND status='active' AND embedding IS NOT NULL", (record_id,)).fetchall()
+        conn = self.evidence._doc_store(record_id).store._conn          # the record's shard
+        rows = conn.execute("SELECT embedding FROM memories WHERE chat_id=? AND status='active' AND embedding IS NOT NULL", (record_id,)).fetchall()
         vecs = [list(struct.unpack(f"{len(r['embedding']) // 4}f", r["embedding"])) for r in rows]
         return _mean(vecs)
 
@@ -613,11 +635,14 @@ class IngestPipeline:
         dist: dict[str, float] = {}
         n = 0
         if conv:
-            rows = self.store._conn.execute("""SELECT dm.domain_id, COUNT(*) AS n FROM domain_memberships dm JOIN ingest_records r ON r.record_id = dm.record_id
-                                               WHERE r.conversation_record_id=? AND dm.status='active' AND dm.is_primary=1 AND r.deletion_status='live'
-                                               GROUP BY dm.domain_id""", (conv,)).fetchall()
-            n = sum(int(r["n"]) for r in rows)
-            dist = {r["domain_id"]: int(r["n"]) / n for r in rows} if n else {}
+            per: dict[str, int] = {}
+            for c in self.db.record_conns():                 # a conversation's records can sit in several shards
+                for r in c.execute("""SELECT dm.domain_id, COUNT(*) AS n FROM domain_memberships dm JOIN ingest_records r ON r.record_id = dm.record_id
+                                        WHERE r.conversation_record_id=? AND dm.status='active' AND dm.is_primary=1 AND r.deletion_status='live'
+                                        GROUP BY dm.domain_id""", (conv,)).fetchall():
+                    per[r["domain_id"]] = per.get(r["domain_id"], 0) + int(r["n"])
+            n = sum(per.values())
+            dist = {d: v / n for d, v in per.items()} if n else {}
         return RecordFeatures(record_id=ev.record_id, title=ev.title, text=ev.body, source_app=ev.source_app,
                               container_kind=src.source_type if src else "", container_name=str(ev.hints.get("container_name") or (src.name if src else "")),
                               labels=tuple(ev.hints.get("labels") or ()), author=ev.author_id or "",
@@ -627,12 +652,24 @@ class IngestPipeline:
 
     # ---- write stage
     def _finish_sync(self, c, *, ev: CanonicalEvent, item: QueueItem, worker: str, outcome: str, shard: str, deletion_status: str,
-                     order_key: str | None = None, content_hash: str | None = None, metadata_hash: str | None = None) -> int:
-        seq = IngestStore.next_change_seq_sync(c)
-        IngestStore.upsert_locator_sync(c, record_key=ev.record_key, record_id=ev.record_id, shard_id=shard, kind=ev.kind, order_key=order_key,
-                                        content_hash=content_hash, metadata_hash=metadata_hash, deletion_status=deletion_status, change_seq=seq)
+                     order_key: str | None = None, content_hash: str | None = None, metadata_hash: str | None = None, seq: int | None = None) -> int:
+        if shard == DEFAULT_SHARD:
+            seq = IngestStore.next_change_seq_sync(c)
+            IngestStore.upsert_locator_sync(c, record_key=ev.record_key, record_id=ev.record_id, shard_id=shard, kind=ev.kind, order_key=order_key,
+                                            content_hash=content_hash, metadata_hash=metadata_hash, deletion_status=deletion_status, change_seq=seq)
+            IngestStore.mark_applied_sync(c, ev.event_key, ev.record_id, outcome)
+            self.queue.ack_sync(c, item.item_id, worker, outcome)
+            return seq
+        # a data shard: the idempotency marker commits with the effect; locator, s0's applied index and the queue ack follow
+        # through the shard's intent log, applied to s0 right after this commit (replayed after a crash, §7.1)
+        if seq is None:
+            raise RuntimeError("a data-shard write needs its change_seq allocated in s0 first")
         IngestStore.mark_applied_sync(c, ev.event_key, ev.record_id, outcome)
-        self.queue.ack_sync(c, item.item_id, worker, outcome)
+        ctl = self.shards.writer(shard).store
+        ctl.control_op(c, "locator", record_key=ev.record_key, record_id=ev.record_id, shard_id=shard, kind=ev.kind, order_key=order_key,
+                       content_hash=content_hash, metadata_hash=metadata_hash, deletion_status=deletion_status, change_seq=seq)
+        ctl.control_op(c, "applied", event_key=ev.event_key, record_id=ev.record_id, outcome=outcome)
+        ctl.control_op(c, "ack", item_id=item.item_id, outcome=outcome)
         return seq
 
     def _domains_after_sync(self, c, record_id: str) -> list[str]:
@@ -643,12 +680,14 @@ class IngestPipeline:
         c.execute("UPDATE ingest_records SET primary_domain_id=? WHERE record_id=?", (active[0] if active else None, record_id))
         return active
 
-    @staticmethod
-    def _recount_domains_sync(c, domain_ids: Iterable[str], shard: str) -> None:
+    def _recount_domains_sync(self, c, domain_ids: Iterable[str], shard: str) -> None:
+        """Members per domain in this shard (counted in the shard's own file), recorded in s0's ``domain_shard_counts``."""
+        counts: dict[str, int] = {}
         for d in set(domain_ids):
-            n = c.execute("""SELECT COUNT(*) AS n FROM domain_memberships dm JOIN ingest_records r ON r.record_id = dm.record_id
-                             WHERE dm.domain_id=? AND dm.status='active' AND r.deletion_status IN ('live', 'redacted')""", (d,)).fetchone()["n"]
-            c.execute("INSERT OR REPLACE INTO domain_shard_counts(domain_id, shard_id, records) VALUES (?, ?, ?)", (d, shard, int(n)))
+            counts[d] = int(c.execute("""SELECT COUNT(*) AS n FROM domain_memberships dm JOIN ingest_records r ON r.record_id = dm.record_id
+                                          WHERE dm.domain_id=? AND dm.status='active' AND r.deletion_status IN ('live', 'redacted')""", (d,)).fetchone()["n"])
+        if counts:
+            self.shards.writer(shard).store.control_op(c, "domain_counts", shard_id=shard, counts=counts)
 
     def _record_entities_sync(self, c, ev: CanonicalEvent) -> tuple[str | None, list[str]]:
         author = person_entity_id(ev.source_app, ev.author_id)
@@ -668,9 +707,10 @@ class IngestPipeline:
         author = person_entity_id(ev.source_app, ev.author_id)
         return [(author, str(ev.author_id), "person")] if author else []
 
-    def _evidence_event_sync(self, c, ev: CanonicalEvent, event: str, payload: dict[str, Any]) -> None:
+    def _evidence_event_sync(self, c, ev: CanonicalEvent, event: str, payload: dict[str, Any], *, shard: str = DEFAULT_SHARD) -> None:
         msg_id = f"evidence:{ev.record_id}:{sha256(ev.order_key, event)[:16]}"
-        IngestStore.add_outbox_sync(c, msg_id, "evidence_event", {"event": event, "doc_id": None, "document": None, "request_msg_id": None, **payload})
+        self.shards.writer(shard).store.control_op(c, "outbox", msg_id=msg_id, kind="evidence_event",
+                                                   payload={"event": event, "doc_id": None, "document": None, "request_msg_id": None, **payload})
 
     async def _write(self, store: Any, shard: str, item: QueueItem, worker: str, ev: CanonicalEvent, outcome: str,
                      memberships: list[Membership] | None, embeddings: list[list[float] | None] | None, src: SourceRow | None) -> None:
@@ -690,13 +730,20 @@ class IngestPipeline:
             link = link_record(ev.title or "", ev.body or "", record_id=ev.record_id, observed_at=changed,
                                own_repo=str(ev.hints.get("repo") or "") or None, known_keys=ev.hints.get("tracker_keys") or ())
         visibility = (ev.permissions.visibility if ev.permissions else None) or (src.visibility if src else "private")
+        ctl = store.store            # control_op: inside this transaction on s0, through the shard's intent log on a data shard
+        seq0: int | None = None
+        if shard != DEFAULT_SHARD and outcome != "conversation":
+            # a data shard commits first and s0 second: check the lease before the effect, allocate the change_seq in s0 now
+            if not self.queue.holds_lease_sync(self.store._conn, item.item_id, worker):
+                raise LostLease(str(item.item_id))
+            seq0 = await self.store.run_in_tx(IngestStore.next_change_seq_sync)
 
         if outcome == "new":
             ran = {}
 
             def extra_new(c, w):
                 seq = self._finish_sync(c, ev=ev, item=item, worker=worker, outcome=outcome, shard=shard, deletion_status="live",
-                                        order_key=ev.order_key, content_hash=ev.content_hash, metadata_hash=ev.metadata_hash)
+                                        order_key=ev.order_key, content_hash=ev.content_hash, metadata_hash=ev.metadata_hash, seq=seq0)
                 author, participants = self._record_entities_sync(c, ev)
                 IngestStore.write_record_sync(c, ev, source_id=source_id, primary_domain_id=proposed[0] if proposed else None, content_changed_at=changed,
                                               flags=flags, author_entity_id=author, participant_entity_ids=participants, normalizer_version=normalizer,
@@ -710,7 +757,7 @@ class IngestPipeline:
                 if conv and container:
                     self.store._upsert_chat_sync(c, conv, title=str(container))
                 write_links_sync(c, store.store, ev.record_id, link, visibility=visibility, chat_id=conv or ev.record_id, seen_at=changed or now_iso(), now=now_iso())
-                IngestStore.note_batch_sync(c, source_app=ev.source_app, domains=publishable(active))
+                ctl.control_op(c, "batch", source_app=ev.source_app, domains=publishable(active))
                 ran["ok"] = True
 
             await store.ingest_document(title, body, kind=ev.kind, doc_id=ev.record_id, observed_at=changed, domains=proposed or None,
@@ -727,7 +774,7 @@ class IngestPipeline:
 
             def extra_update(c, w):
                 seq = self._finish_sync(c, ev=ev, item=item, worker=worker, outcome=outcome, shard=shard, deletion_status="live",
-                                        order_key=ev.order_key, content_hash=ev.content_hash, metadata_hash=ev.metadata_hash)
+                                        order_key=ev.order_key, content_hash=ev.content_hash, metadata_hash=ev.metadata_hash, seq=seq0)
                 author, participants = self._record_entities_sync(c, ev)
                 IngestStore.write_record_sync(c, ev, source_id=source_id, primary_domain_id=None, content_changed_at=changed, flags=flags,
                                               author_entity_id=author, participant_entity_ids=participants, normalizer_version=normalizer,
@@ -739,12 +786,12 @@ class IngestPipeline:
                 apply_memberships_sync(c, ev.record_id, list(memberships or []), reason="update")
                 active = self._domains_after_sync(c, ev.record_id)
                 self._recount_domains_sync(c, set(old) | set(active), shard)
-                IngestStore.drop_tombstone_sync(c, ev.record_key)       # content shown again after a redaction
+                ctl.control_op(c, "drop_tombstone", record_key=ev.record_key)       # content shown again after a redaction
                 write_links_sync(c, store.store, ev.record_id, link, visibility=visibility, chat_id=conv or ev.record_id, seen_at=changed or now_iso(), now=now_iso())
                 self._evidence_event_sync(c, ev, "revised", {"affected_ref_ids": list(w.get("affected_ref_ids") or []),
                                                               "new_source_root_id": ev.source_root_id or "",
                                                               "previous_source_root_id": before.get("source_root_id"),
-                                                              "reason": "source_edit", "version": w["version"]})
+                                                              "reason": "source_edit", "version": w["version"]}, shard=shard)
 
             await store.revise_document(ev.record_id, body, title=title, observed_at=changed, reason="source_edit", domains=proposed or None,
                                         source_root_id=ev.source_root_id or "", root_known=ev.root_known, conversation_chat_id=conv,
@@ -755,7 +802,7 @@ class IngestPipeline:
         if outcome == "metadata_only":
             def extra_meta(c, _w):
                 seq = self._finish_sync(c, ev=ev, item=item, worker=worker, outcome=outcome, shard=shard, deletion_status="live",
-                                        order_key=ev.order_key, content_hash=ev.content_hash, metadata_hash=ev.metadata_hash)
+                                        order_key=ev.order_key, content_hash=ev.content_hash, metadata_hash=ev.metadata_hash, seq=seq0)
                 author, participants = self._record_entities_sync(c, ev)
                 IngestStore.write_record_sync(c, ev, source_id=source_id, primary_domain_id=None, content_changed_at=None, flags=flags,
                                               author_entity_id=author, participant_entity_ids=participants, normalizer_version=normalizer,
@@ -781,33 +828,31 @@ class IngestPipeline:
                 rec_status = "purged" if outcome == "delete" else "redacted"
                 self._finish_sync(c, ev=ev, item=item, worker=worker, outcome=outcome, shard=shard, deletion_status=rec_status,
                                   order_key=ev.order_key if outcome == "redaction" else (loc or {}).get("current_order_key"),
-                                  content_hash=(loc or {}).get("content_hash"), metadata_hash=(loc or {}).get("metadata_hash"))
+                                  content_hash=(loc or {}).get("content_hash"), metadata_hash=(loc or {}).get("metadata_hash"), seq=seq0)
                 c.execute("UPDATE ingest_records SET deletion_status=? WHERE record_id=?", (rec_status, ev.record_id))
                 drop_record_sync(c, ev.record_id, now_iso())            # the edges it supported lose its evidence
                 if outcome == "delete":
                     # content still waiting for this record (queued or dead-lettered) goes with it, document or not
-                    c.execute("UPDATE ingest_queue SET payload=NULL, payload_bytes=0, status='discarded', updated_at=? WHERE record_key=? "
-                              "AND status IN ('queued', 'dead') AND kind NOT IN ('deletion', 'redaction') AND item_id<>?",
-                              (now_iso(), ev.record_key, item.item_id))
+                    ctl.control_op(c, "discard_queue", record_key=ev.record_key, except_item=item.item_id, content_only=True, now=now_iso())
                 IngestStore.add_version_sync(c, ev, kind="deletion" if outcome == "delete" else "redaction", doc_version=None)
                 affected = list(w.get("affected_ref_ids") or [])
-                IngestStore.upsert_tombstone_sync(c, record_key=ev.record_key, record_id=ev.record_id, reason=reason, order_key=ev.order_key,
-                                                  resurrectable=outcome == "redaction", affected_ref_ids=affected, purged=True)
+                ctl.control_op(c, "tombstone", record_key=ev.record_key, record_id=ev.record_id, reason=reason, order_key=ev.order_key,
+                               resurrectable=outcome == "redaction", affected_ref_ids=affected, purged=True, shard_id=shard)
                 self._recount_domains_sync(c, old, shard)
                 if w.get("doc_id"):
                     # 'deleted': the coordinator withdraws the refs and purges its own copy of the content (E11)
-                    self._evidence_event_sync(c, ev, "deleted", {"affected_ref_ids": affected, "reason": reason, "deletion": outcome})
+                    self._evidence_event_sync(c, ev, "deleted", {"affected_ref_ids": affected, "reason": reason, "deletion": outcome}, shard=shard)
 
             if doc is not None:
                 await store.delete_document(ev.record_id, reason, status=status, extra_sync=extra_delete, optimize=False)
             else:
-                await self.store.run_in_tx(lambda c: extra_delete(c, {}))
+                await store.store.run_in_tx(lambda c: extra_delete(c, {}))
             return
 
         if outcome == "conversation":
             def conv_fn(c):
                 seq = self._finish_sync(c, ev=ev, item=item, worker=worker, outcome=outcome, shard=shard, deletion_status="live",
-                                        order_key=ev.order_key, content_hash=ev.content_hash, metadata_hash=ev.metadata_hash)
+                                        order_key=ev.order_key, content_hash=ev.content_hash, metadata_hash=ev.metadata_hash, seq=seq0)
                 self.store._upsert_chat_sync(c, ev.record_id, title=ev.title or None)
                 IngestStore.write_record_sync(c, ev, source_id=source_id, primary_domain_id=None, content_changed_at=changed, flags=flags,
                                               author_entity_id=None, participant_entity_ids=[], normalizer_version=normalizer, change_seq=seq,
@@ -825,6 +870,22 @@ class IngestPipeline:
             return "0.0.0"
 
     async def _write_noop(self, item: QueueItem, worker: str, ev: CanonicalEvent, outcome: str) -> None:
+        loc = self.db.get_locator(ev.record_key) if outcome == "historical" else None
+        shard = (loc or {}).get("shard_id") or DEFAULT_SHARD
+        if shard != DEFAULT_SHARD:
+            # a historical version of a record that lives in a data shard: its version row goes there, the marker and ack to s0
+            if not self.queue.holds_lease_sync(self.store._conn, item.item_id, worker):
+                raise LostLease(str(item.item_id))
+            store = self.shards.writer(shard)
+
+            def shard_fn(c):
+                IngestStore.add_version_sync(c, ev, kind="historical", doc_version=None)
+                store.store.control_op(c, "applied", event_key=ev.event_key, record_id=ev.record_id, outcome=outcome)
+                store.store.control_op(c, "ack", item_id=item.item_id, outcome=outcome)
+            async with self.shards.gate(shard):
+                await store.store.run_in_tx(shard_fn)
+            return
+
         def fn(c):
             if outcome == "historical":
                 IngestStore.add_version_sync(c, ev, kind="historical", doc_version=None)

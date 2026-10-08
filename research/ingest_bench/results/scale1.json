@@ -1,0 +1,232 @@
+{
+  "machine": {
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+    "cpus": 4,
+    "memory": "16480952 kB",
+    "numpy": "2.4.6",
+    "platform": "Linux-6.18.44-fc-v80-x86_64-with-glibc2.39",
+    "python": "3.11.15",
+    "sqlite": "3.45.1"
+  },
+  "params": {
+    "domain_sizes": {
+      "customer-support": 120,
+      "engineering": 871,
+      "executive-strategy": 93,
+      "finance": 204,
+      "hr": 100,
+      "infrastructure": 466,
+      "legal": 173,
+      "operations": 151,
+      "product": 324,
+      "research": 134,
+      "sales": 250,
+      "security": 109
+    },
+    "embedder": "hash-256",
+    "fetch_k": 20,
+    "k": 10,
+    "queries": 200,
+    "records": 2995,
+    "seed": 7,
+    "split_domains": [
+      "engineering",
+      "infrastructure",
+      "product"
+    ]
+  },
+  "seconds": 52.8,
+  "sharded": {
+    "agreement_at3_channel_vs_single": {
+      "mean": 0.715,
+      "min": 0.0,
+      "share_perfect": 0.385
+    },
+    "agreement_at3_rrf_vs_single": {
+      "mean": 0.36,
+      "min": 0.0,
+      "share_perfect": 0.005
+    },
+    "agreement_channel_vs_single": {
+      "mean": 0.674,
+      "min": 0.3,
+      "share_perfect": 0.055
+    },
+    "agreement_rrf_vs_single": {
+      "mean": 0.3845,
+      "min": 0.2,
+      "share_perfect": 0.0
+    },
+    "files": {
+      "s0": 18087936,
+      "shd_2fdb6ba450be7f23": 3334144,
+      "shd_a4e79983c2ff2932": 4554752,
+      "shd_eb60d509ea58a4dc": 7659520
+    },
+    "hit_at_k_channel": 0.985,
+    "hit_at_k_rrf": 0.9,
+    "ingest": {
+      "outcomes": {
+        "new": 2995
+      },
+      "process_seconds": 15.946,
+      "records": 2995,
+      "records_per_second": 177.5,
+      "seconds": 16.878,
+      "sync_seconds": 0.931
+    },
+    "matrix": {
+      "max_shard_bytes": 1366016,
+      "per_shard": {
+        "s0": 1366016,
+        "shd_2fdb6ba450be7f23": 331776,
+        "shd_a4e79983c2ff2932": 477184,
+        "shd_eb60d509ea58a4dc": 891904
+      },
+      "total_bytes": 3066880
+    },
+    "query_channel": {
+      "mean_ms": 16.439,
+      "p50_ms": 15.771,
+      "p95_ms": 22.598
+    },
+    "query_rrf": {
+      "mean_ms": 16.24,
+      "p50_ms": 15.719,
+      "p95_ms": 21.421
+    },
+    "records_per_shard": {
+      "s0": 1334,
+      "shd_2fdb6ba450be7f23": 324,
+      "shd_a4e79983c2ff2932": 466,
+      "shd_eb60d509ea58a4dc": 871
+    },
+    "write": {
+      "n": 2995,
+      "p50_ms": 1.824,
+      "p95_ms": 14.745,
+      "per_shard": {
+        "s0": {
+          "n": 1334,
+          "p50_ms": 1.662,
+          "p95_ms": 15.09
+        },
+        "shd_2fdb6ba450be7f23": {
+          "n": 324,
+          "p50_ms": 1.792,
+          "p95_ms": 13.542
+        },
+        "shd_a4e79983c2ff2932": {
+          "n": 466,
+          "p50_ms": 1.894,
+          "p95_ms": 14.088
+        },
+        "shd_eb60d509ea58a4dc": {
+          "n": 871,
+          "p50_ms": 2.081,
+          "p95_ms": 14.996
+        }
+      }
+    }
+  },
+  "single": {
+    "files": {
+      "s0": 30879744
+    },
+    "hit_at_k": 0.98,
+    "ingest": {
+      "outcomes": {
+        "new": 2995
+      },
+      "process_seconds": 16.724,
+      "records": 2995,
+      "records_per_second": 169.3,
+      "seconds": 17.686,
+      "sync_seconds": 0.962
+    },
+    "matrix": {
+      "max_shard_bytes": 3066880,
+      "per_shard": {
+        "s0": 3066880
+      },
+      "total_bytes": 3066880
+    },
+    "query": {
+      "mean_ms": 6.554,
+      "p50_ms": 5.551,
+      "p95_ms": 9.859
+    },
+    "write": {
+      "n": 2995,
+      "p50_ms": 1.81,
+      "p95_ms": 18.014,
+      "per_shard": {
+        "s0": {
+          "n": 2995,
+          "p50_ms": 1.81,
+          "p95_ms": 18.014
+        }
+      }
+    }
+  },
+  "split_after": {
+    "agreement_at3_channel_vs_single": {
+      "mean": 0.715,
+      "min": 0.0,
+      "share_perfect": 0.38
+    },
+    "agreement_at3_rrf_vs_single": {
+      "mean": 0.3617,
+      "min": 0.0,
+      "share_perfect": 0.005
+    },
+    "agreement_channel_vs_single": {
+      "mean": 0.675,
+      "min": 0.3,
+      "share_perfect": 0.055
+    },
+    "agreement_rrf_vs_single": {
+      "mean": 0.3875,
+      "min": 0.2,
+      "share_perfect": 0.0
+    },
+    "files": {
+      "s0": 31125504,
+      "shd_2ca02b4224914eed": 7585792,
+      "shd_a0f505f11b5eb908": 3301376,
+      "shd_c08b5ee73aceea2e": 4501504
+    },
+    "hit_at_k_channel": 0.985,
+    "hit_at_k_rrf": 0.9,
+    "matrix": {
+      "max_shard_bytes": 1366016,
+      "per_shard": {
+        "s0": 1366016,
+        "shd_2ca02b4224914eed": 891904,
+        "shd_a0f505f11b5eb908": 331776,
+        "shd_c08b5ee73aceea2e": 477184
+      },
+      "total_bytes": 3066880
+    },
+    "migration": {
+      "records_moved": 1661,
+      "records_per_second": 553.4,
+      "seconds": 3.002,
+      "states": [
+        "done",
+        "done",
+        "done"
+      ]
+    },
+    "query_channel": {
+      "mean_ms": 16.129,
+      "p50_ms": 15.671,
+      "p95_ms": 19.178
+    },
+    "query_rrf": {
+      "mean_ms": 16.563,
+      "p50_ms": 16.092,
+      "p95_ms": 20.947
+    }
+  }
+}

@@ -480,6 +480,7 @@ class DomainClassifier:
         self.tenant_id = tenant_id
         self.config = config or DomainClassifierConfig()
         self.centroids = centroids or CentroidIndex()
+        self.example_conns: Any = None        # callable -> connections of every shard holding records (set by the pipeline)
         self.llm_calls_today = 0
         self.llm_day = ""
         self.counters: dict[str, int] = {}
@@ -598,9 +599,11 @@ class DomainClassifier:
         out: dict[str, tuple[list[list[float]], list[list[float]]]] = {}
         if self.conn is None:
             return out
-        rows = self.conn.execute("SELECT record_id, domain_id, label FROM domain_examples").fetchall()
-        for r in rows:
-            embs = [e["embedding"] for e in self.conn.execute(
+        # examples live with their records, in every shard of the holder (INGESTION.md §5.4); just s0 until a split
+        conns = self.example_conns() if self.example_conns is not None else [self.conn]
+        rows = [(c, r) for c in conns for r in c.execute("SELECT record_id, domain_id, label FROM domain_examples").fetchall()]
+        for c, r in rows:
+            embs = [e["embedding"] for e in c.execute(
                 "SELECT m.embedding FROM record_memories rm JOIN memories m ON m.memory_id = rm.memory_id "
                 "WHERE rm.record_id=? AND m.status='active' AND m.embedding IS NOT NULL", (r["record_id"],)).fetchall()]
             vecs = [list(struct.unpack(f"{len(b) // 4}f", b)) for b in embs if b]

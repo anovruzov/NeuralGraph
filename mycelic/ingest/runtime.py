@@ -118,6 +118,11 @@ class IngestRuntime:
         if self.running:
             return
         self.running = True
+        try:
+            # shards (INGESTION.md §7): control effects a data shard still owes s0, and an interrupted split resumes
+            await self.pipeline.evidence.shards.start()
+        except Exception:
+            logger.exception("shard recovery failed for holder %s", self.holder_id)
         self._task = asyncio.create_task(self._loop(), name=f"ingest-{self.holder_id}")
 
     async def stop(self) -> None:
@@ -267,15 +272,29 @@ class IngestRuntime:
         owners = set(self.pipeline.evidence.owner_ids or ())
         return Audience(principal_ids=frozenset([actor]) if actor else frozenset(), complete=bool(actor), owner=bool(actor) and actor in owners)
 
+    def _conn_of(self, record_id: str) -> Any:
+        """The connection of the shard that holds the record (s0 until the holder has data shards)."""
+        ev = self.pipeline.evidence
+        if ev._sharded():
+            return ev.shards.store_of_record(record_id).store._conn
+        return ev.store._conn
+
+    def _data_conns(self) -> list[tuple[str, Any]]:
+        """``(shard_id, connection)`` of every shard that may hold records the views list."""
+        ev = self.pipeline.evidence
+        if not ev._sharded():
+            return [("s0", ev.store._conn)]
+        return [(spec.shard_id, owner.store._conn) for spec, owner in ev.shards.open_stores(statuses=("active", "draining", "readonly"))]
+
     def _record_visible(self, actor: str, record_id: str) -> bool:
         ev = self.pipeline.evidence
-        acl = ev._record_acl_sync(ev.store._conn, record_id)
+        acl = ev._record_acl_sync(self._conn_of(record_id), record_id)
         return acl is not None and ev._acl_allows(acl, self._audience(actor))[0]
 
     def _memberships(self, record_id: str, *, full: bool = False) -> list[dict[str, Any]]:
         import json as _json
         from .domains import is_personal
-        c = self.pipeline.store._conn
+        c = self._conn_of(record_id)
         cols = "domain_id, confidence, method, is_primary, model_version, taxonomy_version, evidence, corrected_by, updated_at" if full else \
             "domain_id, confidence, method, is_primary"
         out = []
@@ -291,8 +310,8 @@ class IngestRuntime:
 
     def _records(self, actor: str, p: Mapping[str, Any]) -> list[dict[str, Any]]:
         """The holder's live records the actor may read (the owner: all), newest first, with their domains. Titles are shown
-        to readers the source ACL admits, and only to them."""
-        c = self.pipeline.store._conn
+        to readers the source ACL admits, and only to them. A holder with data shards is listed across them; a record being
+        moved by a split is listed once, from the shard its locator names."""
         limit = max(1, min(200, int(p.get("limit") or 50)))
         sql = ("SELECT r.record_id, r.kind, r.source_app, r.source_object_type, r.created_at_src, r.visibility, d.title, substr(d.text, 1, 160) AS snippet FROM ingest_records r "
                "LEFT JOIN documents d ON d.doc_id = r.record_id WHERE r.deletion_status='live' AND r.kind <> 'conversation'")
@@ -305,8 +324,18 @@ class IngestRuntime:
             args.append(str(p["source_app"]))
         sql += " ORDER BY COALESCE(r.created_at_src, '') DESC, r.record_id LIMIT ?"
         args.append(limit * 4)
+        ev = self.pipeline.evidence
+        sharded = ev._sharded()
+        rows = []
+        for sid, c in self._data_conns():
+            for r in c.execute(sql, args).fetchall():
+                if sharded and ev.shards.shard_of_record(r["record_id"]) != sid:
+                    continue                      # a copy in the source of a running split, or one not yet cleaned up
+                rows.append(r)
+        rows.sort(key=lambda r: r["record_id"])
+        rows.sort(key=lambda r: r["created_at_src"] or "", reverse=True)     # the SQL order, across shards
         out = []
-        for r in c.execute(sql, args).fetchall():
+        for r in rows:
             if not self._record_visible(actor, r["record_id"]):
                 continue
             out.append({"record_id": r["record_id"], "kind": r["kind"], "source_app": r["source_app"], "object_type": r["source_object_type"],
@@ -322,7 +351,7 @@ class IngestRuntime:
         import json as _json
         if not record_id or not self._record_visible(actor, record_id):
             raise ControlError("unknown record")
-        c = self.pipeline.store._conn
+        c = self._conn_of(record_id)
         r = c.execute("SELECT r.record_id, r.kind, r.source_app, r.source_object_type, r.created_at_src, r.visibility, r.source_root_id, r.root_method, "
                       "d.title, substr(d.text, 1, 400) AS snippet FROM ingest_records r LEFT JOIN documents d ON d.doc_id = r.record_id WHERE r.record_id=?",
                       (record_id,)).fetchone()

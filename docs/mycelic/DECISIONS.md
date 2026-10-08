@@ -219,3 +219,15 @@ A claim committed from evidence revised after the holder answered is born `stale
   withdraws the evidence it gave.
 - Causal conclusions are never drawn inside a holder. They are claims at the coordinator, capped by kind (E13).
 
+## D17. One store per holder until measured load says otherwise; sharded reads fuse by channel
+
+- A holder starts with one file. A domain subtree moves to its own shard file only after a split threshold holds for
+  24 hours and an administrator approves the split (copy, catch-up, cutover; resumable). Splits are never automatic.
+- A sharded holder's search fans out to at most 8 shards and fuses results per retrieval channel (vector, keyword,
+  graph) across shards, then applies the retriever's priors, as one store does. The first design fused each shard's
+  ranking as a whole (shard-level RRF); the benchmark in `research/ingest_bench/RESULTS.md` showed it drops known-item
+  hit@10 from 0.98 to 0.90, while channel fusion stays at 0.985. Agreement with single-store top 10 is still only
+  0.64 to 0.67 (BM25 and graph statistics are per shard), so splitting has a measurable retrieval cost and stays a
+  last resort.
+- Sharded queries are about 2 to 3 times slower at p50 (shards are read one after another on one worker); write p95
+  improves. The largest in-RAM vector matrix shrinks to the split shard's share, which is the limit splits exist for.

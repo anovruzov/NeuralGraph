@@ -23,12 +23,12 @@ are overwritten in the file rather than left in free pages.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import sqlite3
-from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Iterable, TypeVar
 
-from NeuralGraph.chat_memory.models import ChatMessage, Memory, iso, now_iso, parse_iso
+from NeuralGraph.chat_memory.models import ChatMessage, Memory, new_id, now_iso
 from NeuralGraph.chat_memory.store import ChatMemoryStore
 from NeuralGraph.chat_memory.textutil import content_hash
 
@@ -111,7 +111,56 @@ class AlreadyProcessed(RuntimeError):
 
 
 class MycelicMemoryStore(ChatMemoryStore):
-    """See module docstring. Every public method keeps the parent's lock/transaction discipline."""
+    """See module docstring. Every public method keeps the parent's lock/transaction discipline.
+
+    Sharding (docs/mycelic/INGESTION.md §7): a holder's control shard ``s0`` is this class on ``evidence.db`` with
+    ``control_store = None``. A data shard (``shd_<id>.db``) is this class with ``control_store`` set to the s0 store: its
+    control-table effects (locator, queue, outbox, tombstones, exports) go through :meth:`control_op`, which runs them in
+    the same transaction on s0 and records them in the shard's intent log on a data shard (applied to s0 right after the
+    shard commits, replayed after a crash; :mod:`mycelic.ingest.intents`)."""
+
+    control_store: "MycelicMemoryStore | None" = None
+    shard_id: str = "s0"
+    _pending_ops: list[dict[str, Any]] | None = None
+    _intent_lock: asyncio.Lock | None = None
+
+    # ------------------------------------------------------------------ control-shard effects
+    def control_op(self, c: sqlite3.Connection, name: str, **params: Any) -> None:
+        """A control-table effect of the current transaction: executed now on s0, deferred through the intent log on a
+        data shard."""
+        from ..ingest.intents import run_op_sync
+        if self.control_store is None:
+            run_op_sync(c, name, params)
+            return
+        if self._pending_ops is None:
+            raise RuntimeError("control_op outside run_in_tx on a data shard")
+        self._pending_ops.append({"op": name, **params})
+
+    def _exports_conn(self, c: sqlite3.Connection) -> sqlite3.Connection:
+        """The export ledger lives in s0 only (§7.7 step 7)."""
+        return self.control_store._conn if self.control_store is not None else c
+
+    async def apply_pending_intents(self) -> int:
+        """Apply this data shard's pending control ops to s0 (in order, one s0 transaction per intent), then forget them.
+        Safe to call any time; returns the number of intents applied."""
+        if self.control_store is None or self._conn is None:
+            return 0
+        from ..ingest.intents import apply_ops_sync
+        if self._intent_lock is None:
+            self._intent_lock = asyncio.Lock()
+        n = 0
+        # one applier at a time, in commit order: re-applying an older intent after a newer one could move the locator back
+        async with self._intent_lock:
+            while True:
+                row = self._conn.execute("SELECT seq, intent_id, payload FROM shard_control_intents ORDER BY seq LIMIT 1").fetchone()
+                if row is None:
+                    return n
+                ops = list((jl(row["payload"], {}) or {}).get("ops") or [])
+                await self.control_store.run_in_tx(lambda c, ops=ops: apply_ops_sync(c, ops))
+                async with self._lock:
+                    with self._tx() as c:
+                        c.execute("DELETE FROM shard_control_intents WHERE seq=?", (row["seq"],))
+                n += 1
 
     # ------------------------------------------------------------------ schema
     def _init_schema(self) -> None:
@@ -136,14 +185,35 @@ class MycelicMemoryStore(ChatMemoryStore):
         outcome, or races into the same transaction and is rolled back by the primary-key conflict. ``fn`` must be
         synchronous and must not await anything.
         """
+        if self.control_store is None:
+            async with self._lock:
+                with self._tx() as c:
+                    if idempotency_key:
+                        self._claim_processed_sync(c, idempotency_key)
+                    result = fn(c)
+                    if idempotency_key:
+                        self._set_outcome_sync(c, idempotency_key, {"op": op, "result": result})
+                self._bump()
+            return result
+        # a data shard: the control ops of this transaction are written to the intent log in the same commit, then applied
+        from ..ingest.intents import write_intent_sync
         async with self._lock:
-            with self._tx() as c:
-                if idempotency_key:
-                    self._claim_processed_sync(c, idempotency_key)
-                result = fn(c)
-                if idempotency_key:
-                    self._set_outcome_sync(c, idempotency_key, {"op": op, "result": result})
+            self._pending_ops = []
+            try:
+                with self._tx() as c:
+                    if idempotency_key:
+                        self._claim_processed_sync(c, idempotency_key)
+                    result = fn(c)
+                    if idempotency_key:
+                        self._set_outcome_sync(c, idempotency_key, {"op": op, "result": result})
+                    if self._pending_ops:
+                        write_intent_sync(c, self._pending_ops, intent_id=new_id("sci"))
+                pending = bool(self._pending_ops)
+            finally:
+                self._pending_ops = None
             self._bump()
+        if pending:
+            await self.apply_pending_intents()
         return result
 
     # ------------------------------------------------------------------ processed messages (transport idempotency)
@@ -374,8 +444,9 @@ class MycelicMemoryStore(ChatMemoryStore):
             mem_ids.extend(r["memory_id"] for r in c.execute(f"SELECT DISTINCT memory_id FROM memory_sources WHERE message_id IN ({self._in(part)})", part))
         mem_ids = list(dict.fromkeys(mem_ids))
 
-        affected = [r["ref_id"] for r in c.execute("SELECT ref_id FROM exports WHERE doc_id=? ORDER BY created_at, ref_id", (doc_id,))]
-        affected.extend(e["ref_id"] for e in self._exports_for_memories_sync(c, mem_ids))
+        xc = self._exports_conn(c)            # the export ledger is in s0 (this file unless it is a data shard)
+        affected = [r["ref_id"] for r in xc.execute("SELECT ref_id FROM exports WHERE doc_id=? ORDER BY created_at, ref_id", (doc_id,))]
+        affected.extend(e["ref_id"] for e in self._exports_for_memories_sync(xc, mem_ids))
         affected = list(dict.fromkeys(affected))
 
         entity_ids: set[str] = set()
@@ -427,10 +498,7 @@ class MycelicMemoryStore(ChatMemoryStore):
         versions = c.execute("DELETE FROM document_versions WHERE doc_id=?", (doc_id,)).rowcount
         c.execute("UPDATE documents SET text='', title=?, summary='', status=?, chars=0, origin_id=NULL, updated_at=? WHERE doc_id=?",
                   (title, status, now, doc_id))
-        c.execute("UPDATE exports SET disclosed_excerpt='' WHERE doc_id=?", (doc_id,))
-        for i in range(0, len(mem_ids), 500):
-            part = mem_ids[i:i + 500]
-            c.execute(f"UPDATE exports SET disclosed_excerpt='' WHERE memory_id IN ({self._in(part)})", part)
+        self.control_op(c, "exports_scrub", doc_id=doc_id, memory_ids=mem_ids)
         c.execute("UPDATE audit_log SET detail=? WHERE ref=?", (j({"scrubbed": True}), doc_id))
         # NeuralGraph's extractor logs short clips under the message or memory they came from (gate skips, rejects,
         # duplicates): those rows are scrubbed as well
@@ -439,24 +507,28 @@ class MycelicMemoryStore(ChatMemoryStore):
                 part = ids[i:i + 500]
                 c.execute(f"UPDATE audit_log SET detail=? WHERE ref IN ({self._in(part)})", (j({"scrubbed": True}), *part))
         self._retire_ingest_rows_sync(c, doc_id, reason=reason or status, now=now)
-        self._scrub_outcomes_sync(c, doc_id, set(affected), tombstone={
-            "doc_id": doc_id, "title": title, "status": status, "kind": (doc["kind"] if doc else "note"), "chunks": 0, "chars": 0,
-            "summary": "", "domains": jl(doc["domains"], []) if doc else [], "scrubbed": True})
+        outcome_tombstone = {"doc_id": doc_id, "title": title, "status": status, "kind": (doc["kind"] if doc else "note"), "chunks": 0, "chars": 0,
+                             "summary": "", "domains": jl(doc["domains"], []) if doc else [], "scrubbed": True}
+        self._scrub_outcomes_sync(c, doc_id, set(affected), tombstone=outcome_tombstone)
+        if self.control_store is not None:
+            # answers citing it were committed in s0 (exports and their idempotency outcomes live there)
+            self.control_op(c, "scrub_outcomes", doc_id=doc_id, ref_ids=sorted(set(affected)), tombstone=outcome_tombstone)
         return {"affected_ref_ids": affected, "purged": {"memories": len(mem_ids), "messages": len(msg_ids), "versions": versions,
                                                          "entities": dropped_entities}, "reason": reason}
 
-    @staticmethod
-    def _retire_ingest_rows_sync(c: sqlite3.Connection, doc_id: str, *, reason: str, now: str) -> bool:
+    def _retire_ingest_rows_sync(self, c: sqlite3.Connection, doc_id: str, *, reason: str, now: str) -> bool:
         """When the purged document is a connector record, keep the ingestion catalog consistent whichever path purged it
         (pipeline deletion or the owner's retract): the record is marked purged, its memberships are removed with a
         history row, queued payloads for it are dropped, and a content-free tombstone stops later events resurrecting it.
-        The pipeline refines the tombstone (reason, affected refs) in the same transaction."""
+        The pipeline refines the tombstone (reason, affected refs) in the same transaction. The locator, queue and tombstone
+        are control tables (s0): :meth:`control_op` writes them in this transaction on s0 and through the intent log on a
+        data shard."""
         row = c.execute("SELECT record_key FROM ingest_records WHERE record_id=?", (doc_id,)).fetchone()
         if row is None:
             return False
         record_key = row["record_key"]
         c.execute("UPDATE ingest_records SET deletion_status='purged', last_ingested_at=? WHERE record_id=?", (now, doc_id))
-        c.execute("UPDATE record_locator SET deletion_status='purged', updated_at=? WHERE record_id=?", (now, doc_id))
+        self.control_op(c, "locator_status", record_id=doc_id, deletion_status="purged", now=now)
         for m in c.execute("SELECT domain_id, confidence, method, is_primary FROM domain_memberships WHERE record_id=? AND status='active'",
                            (doc_id,)).fetchall():
             c.execute("UPDATE domain_memberships SET status='removed', updated_at=? WHERE record_id=? AND domain_id=?", (now, doc_id, m["domain_id"]))
@@ -464,12 +536,8 @@ class MycelicMemoryStore(ChatMemoryStore):
                          VALUES (?, ?, 'remove', ?, ?, 'system', 'system', NULL, 'purged', ?)""",
                       (doc_id, m["domain_id"], j({"status": "active", "confidence": m["confidence"], "method": m["method"],
                                                   "is_primary": bool(m["is_primary"])}), j({"status": "removed"}), now))
-        c.execute("UPDATE ingest_queue SET payload=NULL, payload_bytes=0, status='discarded', updated_at=? "
-                  "WHERE record_key=? AND status IN ('queued', 'dead')", (now, record_key))
-        expires = (parse_iso(now) or datetime.now(timezone.utc)) + timedelta(days=TOMBSTONE_RETENTION_DAYS)
-        c.execute("""INSERT OR IGNORE INTO deletion_tombstones(record_key, record_id, shard_id, reason, order_key, resurrectable, requested_at,
-                                                               purged_at, affected_ref_ids, expires_at)
-                     VALUES (?, ?, 's0', ?, NULL, 0, ?, ?, '[]', ?)""", (record_key, doc_id, reason or "purged", now, now, iso(expires)))
+        self.control_op(c, "discard_queue", record_key=record_key, now=now)
+        self.control_op(c, "tombstone_min", record_key=record_key, record_id=doc_id, reason=reason or "purged", now=now, shard_id=self.shard_id)
         return True
 
     @staticmethod

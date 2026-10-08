@@ -490,6 +490,30 @@ def find_holder_dbs(holders_dir: str | Path) -> list[tuple[str, Path]]:
     return out
 
 
+_SHARD_FILE_RE = re.compile(r"^shd_[0-9a-f]{8,32}\.db$")
+
+
+def holder_shard_files(db_path: str | Path) -> list[tuple[str, Path]]:
+    """``(shard_id, path)`` of a holder's data shard files as its own ``shard_map`` lists them (docs/mycelic/INGESTION.md §7.8):
+    plain ``shd_<id>.db`` names next to ``evidence.db``, never a path from elsewhere."""
+    db_path = Path(db_path)
+    try:
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+        try:
+            rows = conn.execute("SELECT shard_id, file_name FROM shard_map WHERE shard_id<>'s0' AND status IN ('active', 'draining', 'readonly') "
+                                "ORDER BY ordinal").fetchall()
+        finally:
+            conn.close()
+    except sqlite3.Error:
+        return []
+    out = []
+    for sid, name in rows:
+        f = db_path.parent / str(name)
+        if _SHARD_FILE_RE.match(str(name)) and f.is_file():
+            out.append((str(sid), f))
+    return out
+
+
 def backup_bundle(settings: Any, out_path: str | Path, *, include_holders: bool = True, include_coord: bool = True) -> dict[str, Any]:
     """Write ``coord.db`` and every holder ``evidence.db`` into one ``tar.gz`` with a manifest. Returns the manifest.
 
@@ -517,6 +541,11 @@ def backup_bundle(settings: Any, out_path: str | Path, *, include_holders: bool 
                 member = f"holders/{holder_id}/{HOLDER_DB_NAME}"
                 info = sqlite_backup(db, stage / member)
                 files.append({"path": member, "kind": "holder", "holder_id": holder_id, "source": str(db), **info})
+                for shard_id, shard_db in holder_shard_files(db):          # every data shard the holder's shard map lists
+                    member = f"holders/{holder_id}/{shard_db.name}"
+                    info = sqlite_backup(shard_db, stage / member)
+                    files.append({"path": member, "kind": "holder_shard", "holder_id": holder_id, "shard_id": shard_id, "file_name": shard_db.name,
+                                  "source": str(shard_db), **info})
         manifest = {
             "format": BUNDLE_FORMAT, "format_version": BUNDLE_FORMAT_VERSION,
             "created_at": started, "finished_at": now_iso(),
@@ -562,6 +591,11 @@ def _target_for(settings: Any, entry: dict[str, Any]) -> Path:
         if not _HOLDER_ID_RE.match(hid):
             raise BackupError(f"bad holder id in manifest: {hid!r}")
         return Path(settings.holders_dir) / hid / HOLDER_DB_NAME
+    if entry.get("kind") == "holder_shard":
+        hid, name = str(entry.get("holder_id") or ""), str(entry.get("file_name") or "")
+        if not _HOLDER_ID_RE.match(hid) or not _SHARD_FILE_RE.match(name):
+            raise BackupError(f"bad holder shard in manifest: {hid!r}/{name!r}")
+        return Path(settings.holders_dir) / hid / name
     raise BackupError(f"unknown entry kind in manifest: {entry.get('kind')!r}")
 
 
@@ -585,7 +619,7 @@ def restore_bundle(settings: Any, in_path: str | Path, *, force: bool = False, h
     if not in_path.is_file():
         raise BackupError(f"bundle not found: {in_path}")
     manifest = read_manifest(in_path)
-    entries = [e for e in manifest.get("files", []) if holders or e.get("kind") != "holder"]
+    entries = [e for e in manifest.get("files", []) if holders or e.get("kind") not in ("holder", "holder_shard")]
     if not entries:
         raise BackupError("bundle contains no databases")
     targets = {e["path"]: _target_for(settings, e) for e in entries}
