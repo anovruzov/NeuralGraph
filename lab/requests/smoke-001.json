@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "purpose": "Smoke run and sizing of the main run: every local model of the main run served by the pinned server on runner CPUs, each with latency (E3) and the six-site simulation on the small plant (sim), whose sizing table gives each model's per-call medians and suggested minutes, and the canary leakage scan with the model in the loop (G0). G0 uses a-1p5b, not the smallest model, because a-0p5b answered only 2 of 3 short calls in the check run.",
+  "provider": "llama-server",
+  "models": [
+    "a-0p5b",
+    "a-1p5b",
+    "a-4b",
+    "b-2b"
+  ],
+  "job_minutes": 330,
+  "max_parallel": 4,
+  "retention_days": 14,
+  "experiments": {
+    "e3": {
+      "minutes": 20,
+      "concurrency": [
+        1,
+        4
+      ],
+      "requests": 8,
+      "warmup": 2,
+      "workloads": [
+        "extraction",
+        "short"
+      ],
+      "seed": 1
+    },
+    "g0": {
+      "models": [
+        "a-1p5b"
+      ],
+      "minutes": 45,
+      "pack": "device_quality",
+      "records": 200,
+      "seed": 1
+    },
+    "sim": {
+      "minutes": 240,
+      "plant": "sim_small",
+      "weeks": 34,
+      "top_n": 10,
+      "seeds": [
+        1
+      ]
+    }
+  }
+}
